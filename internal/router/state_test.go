@@ -132,8 +132,8 @@ func TestRecordOfStaleWindowsLeavesTheAccountAsItWas(t *testing.T) {
 	s := newTestState(clock)
 	lastWeek := week
 	lastWeek.Utilization, lastWeek.ResetsAt = 1, week.ResetsAt.Add(-7*24*time.Hour)
-	s.recordProbe("work", quota.Usage{Windows: []quota.Window{session, week}}, nil)
-	s.recordProbe("work", quota.Usage{}, errors.New("HTTP 529 · Overloaded"))
+	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil)
+	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"))
 	clock.now = start.Add(time.Minute)
 
 	s.record("work", []quota.Window{lastWeek}, fromResponse)
@@ -163,12 +163,12 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 		return account
 	}
 
-	s.recordProbe("work", quota.Usage{}, errors.New("HTTP 401 · Invalid bearer token"))
+	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"))
 	if got := work(); got.Error != "HTTP 401 · Invalid bearer token" || !got.FetchedAt.IsZero() {
 		t.Errorf("after a failed probe, work reads %+v, want the probe's error and nothing read", got)
 	}
 
-	s.recordProbe("work", quota.Usage{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown}}, nil)
+	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown}}, nil)
 	want := status.Account{
 		ID: "work", Label: "Work", TokenSet: true, FetchedAt: start,
 		Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown},
@@ -183,7 +183,7 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 		t.Errorf("once the Fable week is read, failures = %+v, want only %+v", got, opusDown)
 	}
 
-	s.recordProbe("work", quota.Usage{}, errors.New("dial tcp: connection refused"))
+	s.recordProbe("work", quota.Probe{}, errors.New("dial tcp: connection refused"))
 	if got := work(); got.Error != "dial tcp: connection refused" || len(got.Windows) != 3 || got.FetchedAt != clock.now {
 		t.Errorf("after another failed probe, work reads %+v, want its error beside the windows last read", got)
 	}
@@ -240,8 +240,8 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() { s.record("work", []quota.Window{session, week}, fromResponse) })
-		wg.Go(func() { s.recordProbe("side", quota.Usage{Windows: []quota.Window{session}}, nil) })
-		wg.Go(func() { s.recordProbe("work", quota.Usage{}, errors.New("HTTP 529 · Overloaded")) })
+		wg.Go(func() { s.recordProbe("side", quota.Probe{Windows: []quota.Window{session}}, nil) })
+		wg.Go(func() { s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded")) })
 		wg.Go(func() { _ = s.document() })
 	}
 	wg.Wait()

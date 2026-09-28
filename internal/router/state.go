@@ -69,7 +69,7 @@ func (s *state) record(id string, windows []quota.Window, from origin) {
 
 // recordProbe takes in what probing an account found: its usage, or why it
 // read none.
-func (s *state) recordProbe(id string, probed quota.Usage, err error) {
+func (s *state) recordProbe(id string, probed quota.Probe, err error) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()

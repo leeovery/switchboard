@@ -74,6 +74,31 @@ func TestProviderModel(t *testing.T) {
 	}
 }
 
+func TestProviderFamily(t *testing.T) {
+	tests := []struct {
+		model string
+		want  string
+	}{
+		{model: "claude-haiku-4-5-20251001", want: "haiku"},
+		{model: "claude-3-5-haiku-20241022", want: "haiku"},
+		{model: "claude-sonnet-4-5", want: "sonnet"},
+		{model: "claude-opus-5-5", want: "opus"},
+		{model: "claude-opus-4-1-20250805", want: "opus"},
+		{model: "claude-fable-5-1", want: "fable"},
+		{model: "claude-fable-5", want: "fable"},
+		{model: "claude-opusplus-1", want: "claude-opusplus-1"},
+		{model: "some-other-model", want: "some-other-model"},
+		{model: "", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			if got := (claude.Provider{}).Family(tt.model); got != tt.want {
+				t.Errorf("Family(%q) = %q, want %q", tt.model, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProviderErrorMessage(t *testing.T) {
 	tests := []struct {
 		name string

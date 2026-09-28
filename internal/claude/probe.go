@@ -60,17 +60,20 @@ type Prober struct {
 	Timeout time.Duration
 }
 
-// reading is what probing one family found.
+// reading is what probing one family found: the windows its model reported,
+// or why none did.
 type reading struct {
+	model   string
 	windows []quota.Window
 	err     error
 }
 
 // Probe reads an account's usage: it probes the model families concurrently
-// and merges what they report. A family that owns a window and reads nothing
-// is reported as a failure, unless another family read that window anyway.
-// Probe fails only when no family reads anything, with the base family's error.
-func (p *Prober) Probe(ctx context.Context, token string) (quota.Usage, error) {
+// and merges what they report, noting which models reported each window. A
+// family that owns a window and reads nothing is reported as a failure, unless
+// another family read that window anyway. Probe fails only when no family
+// reads anything, with the base family's error.
+func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	readings := make([]reading, len(families))
 	var wg sync.WaitGroup
 	for i, f := range families {
@@ -84,6 +87,7 @@ func (p *Prober) Probe(ctx context.Context, token string) (quota.Usage, error) {
 func (p *Prober) probeFamily(ctx context.Context, token string, f family) reading {
 	var r reading
 	for _, model := range f.models {
+		r.model = model
 		if r.windows, r.err = p.ProbeModel(ctx, token, model); r.err == nil {
 			break
 		}
@@ -92,20 +96,23 @@ func (p *Prober) probeFamily(ctx context.Context, token string, f family) readin
 }
 
 // combine merges readings, which are in families' order, into an account's usage.
-func combine(readings []reading) (quota.Usage, error) {
-	var usage quota.Usage
+func combine(readings []reading) (quota.Probe, error) {
+	probe := quota.Probe{Models: make(map[string][]string)}
 	for _, r := range readings {
-		usage.Windows = quota.Merge(usage.Windows, r.windows)
-	}
-	if len(usage.Windows) == 0 {
-		return quota.Usage{}, readings[0].err
-	}
-	for i, f := range families {
-		if r := readings[i]; r.err != nil && f.window != "" && !hasWindow(usage.Windows, f.window) {
-			usage.Failures = append(usage.Failures, quota.Failure{Label: f.label, Window: f.window, Error: r.err.Error()})
+		probe.Windows = quota.Merge(probe.Windows, r.windows)
+		for _, w := range r.windows {
+			probe.Models[w.Key] = append(probe.Models[w.Key], r.model)
 		}
 	}
-	return usage, nil
+	if len(probe.Windows) == 0 {
+		return quota.Probe{}, readings[0].err
+	}
+	for i, f := range families {
+		if r := readings[i]; r.err != nil && f.window != "" && !hasWindow(probe.Windows, f.window) {
+			probe.Failures = append(probe.Failures, quota.Failure{Label: f.label, Window: f.window, Error: r.err.Error()})
+		}
+	}
+	return probe, nil
 }
 
 func hasWindow(windows []quota.Window, key string) bool {

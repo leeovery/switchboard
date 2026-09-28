@@ -171,10 +171,10 @@ type hangingProber struct {
 	started chan struct{}
 }
 
-func (p *hangingProber) Probe(ctx context.Context, _ string) (quota.Usage, error) {
+func (p *hangingProber) Probe(ctx context.Context, _ string) (quota.Probe, error) {
 	p.started <- struct{}{}
 	<-ctx.Done()
-	return quota.Usage{}, ctx.Err()
+	return quota.Probe{}, ctx.Err()
 }
 
 func TestRunStoppedAsItStarts(t *testing.T) {

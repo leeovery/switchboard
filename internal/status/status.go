@@ -50,7 +50,7 @@ type Account struct {
 
 // Prober reads an account's usage with its token.
 type Prober interface {
-	Probe(ctx context.Context, token string) (quota.Usage, error)
+	Probe(ctx context.Context, token string) (quota.Probe, error)
 }
 
 // Collector builds a status document by probing every account.
@@ -96,16 +96,16 @@ func TokenMissing(acct config.Account) string {
 // how the probe went.
 func (c Collector) probe(ctx context.Context, account *Account, token config.Token) {
 	started := time.Now()
-	usage, err := c.Prober.Probe(ctx, token.Reveal())
+	probed, err := c.Prober.Probe(ctx, token.Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if err != nil {
 		account.Error = err.Error()
 		logger.Warn("probe failed", "account", account.ID, "duration", took, "error", err)
 		return
 	}
-	account.Usage, account.FetchedAt = usage, c.Now().UTC()
-	logger.Debug("probed account", "account", account.ID, "duration", took, "windows", len(usage.Windows))
-	for _, f := range usage.Failures {
+	account.Usage, account.FetchedAt = probed.Usage, c.Now().UTC()
+	logger.Debug("probed account", "account", account.ID, "duration", took, "windows", len(probed.Windows))
+	for _, f := range probed.Failures {
 		logger.Warn("window unread", "account", account.ID, "window", f.Window, "error", f.Error)
 	}
 }

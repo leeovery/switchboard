@@ -52,6 +52,15 @@ type Usage struct {
 	Failures []Failure `json:"failures,omitempty"`
 }
 
+// Probe is what probing an account read: its usage, and which models'
+// responses reported each window, which says whose requests a window counts.
+type Probe struct {
+	Usage
+	// Models are the models whose responses reported each window, by the
+	// window's key.
+	Models map[string][]string `json:"models,omitempty"`
+}
+
 var lengthPattern = regexp.MustCompile(`^([1-9][0-9]*)([hd])(?:_|$)`)
 
 // Length returns how long the window named key lasts, read from the "<n>h" or

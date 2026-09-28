@@ -327,12 +327,12 @@ type fakeProber struct {
 	tokens []string
 }
 
-func (p *fakeProber) Probe(_ context.Context, token string) (quota.Usage, error) {
+func (p *fakeProber) Probe(_ context.Context, token string) (quota.Probe, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.tokens = append(p.tokens, token)
 	result := p.results[token]
-	return result.usage, result.err
+	return quota.Probe{Usage: result.usage}, result.err
 }
 
 // probed returns the tokens the prober was given, sorted.
@@ -352,7 +352,7 @@ type gatheringProber struct {
 	started int
 }
 
-func (p *gatheringProber) Probe(ctx context.Context, _ string) (quota.Usage, error) {
+func (p *gatheringProber) Probe(ctx context.Context, _ string) (quota.Probe, error) {
 	p.mu.Lock()
 	if p.started++; p.started == p.waitFor {
 		close(p.gathered)
@@ -360,9 +360,9 @@ func (p *gatheringProber) Probe(ctx context.Context, _ string) (quota.Usage, err
 	p.mu.Unlock()
 	select {
 	case <-p.gathered:
-		return quota.Usage{}, nil
+		return quota.Probe{}, nil
 	case <-ctx.Done():
-		return quota.Usage{}, errors.New("probed alone: the probes ran one at a time")
+		return quota.Probe{}, errors.New("probed alone: the probes ran one at a time")
 	}
 }
 

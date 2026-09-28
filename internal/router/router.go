@@ -43,9 +43,10 @@ type Provider interface {
 	ErrorMessage(body io.Reader, token string) string
 }
 
-// Prober reads an account's usage by spending a request on its token.
+// Prober reads an account's usage by spending requests on its token, and
+// says which models reported each window.
 type Prober interface {
-	Probe(ctx context.Context, token string) (quota.Usage, error)
+	Probe(ctx context.Context, token string) (quota.Probe, error)
 }
 
 // Config is what a router is built from.

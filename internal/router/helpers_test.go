@@ -238,12 +238,12 @@ type probeResult struct {
 	err   error
 }
 
-func (p *fakeProber) Probe(_ context.Context, token string) (quota.Usage, error) {
+func (p *fakeProber) Probe(_ context.Context, token string) (quota.Probe, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.tokens = append(p.tokens, token)
 	r := p.readings[token]
-	return r.usage, r.err
+	return quota.Probe{Usage: r.usage}, r.err
 }
 
 // probed returns the tokens the prober was given, sorted.
