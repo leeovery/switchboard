@@ -6,11 +6,13 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -64,6 +66,48 @@ func TestCollect(t *testing.T) {
 	}
 	if got, want := prober.probed(), []string{"test-token-side", "test-token-work"}; !slices.Equal(got, want) {
 		t.Errorf("probed tokens %q, want %q", got, want)
+	}
+}
+
+func TestCollectLogsEachAccount(t *testing.T) {
+	log := logstest.Capture(t)
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	collector := status.Collector{
+		Prober: &fakeProber{results: map[string]probeResult{
+			"test-token-work": {usage: quota.Usage{
+				Windows: []quota.Window{
+					{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: now.Add(5 * time.Hour)},
+					{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: now.Add(72 * time.Hour)},
+				},
+				Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
+			}},
+			"test-token-side": {err: errors.New("HTTP 401 · Invalid bearer token")},
+		}},
+		Policy: policy,
+		Getenv: envFrom(map[string]string{"CLAUDE_TOKEN_WORK": "test-token-work", "CLAUDE_TOKEN_SIDE": "test-token-side"}),
+		Now:    func() time.Time { return now },
+	}
+	accounts := []config.Account{
+		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
+		{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
+		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
+	}
+
+	collector.Collect(t.Context(), accounts)
+	for _, want := range [][]string{
+		{"level=DEBUG", `msg="probed account" component=status`, "account=work", "duration=", "windows=2"},
+		{"level=WARN", `msg="window unread" component=status`, "account=work", "window=7d_oi", `error="HTTP 529 · Overloaded"`},
+		{"level=DEBUG", `msg="not probed: token missing" component=status`, "account=personal"},
+		{"level=WARN", `msg="probe failed" component=status`, "account=side", "duration=", `error="HTTP 401 · Invalid bearer token"`},
+	} {
+		if !log.Has(want...) {
+			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+		}
+	}
+	for _, private := range []string{"test-token-work", "test-token-side", "Work", "Personal", "Side"} {
+		if strings.Contains(log.String(), private) {
+			t.Errorf("log reads\n%s\nwant no tokens or labels, only ids, but it has %q", log, private)
+		}
 	}
 }
 
