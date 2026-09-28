@@ -31,6 +31,7 @@ type Deps struct {
 	HomeDir func() (string, error)
 	Now     func() time.Time
 	// ClaudeVersion returns the Claude Code version that probes claim to be.
+	// Every read asks it, as a watch can outlive the version it started with.
 	ClaudeVersion func() string
 	// Watch shows the dashboard full screen on out until the user quits, as
 	// watch.Run does.
@@ -112,23 +113,25 @@ func (a *app) source() (probeSource, error) {
 	if err != nil {
 		return probeSource{}, err
 	}
-	collector := status.Collector{
-		Prober: &claude.Prober{Upstream: cfg.Upstream, Version: a.ClaudeVersion()},
-		Policy: policy,
-		Getenv: a.Getenv,
-		Now:    a.Now,
-	}
-	return probeSource{collector: collector, accounts: cfg.Accounts}, nil
+	return probeSource{deps: a.Deps, upstream: cfg.Upstream, accounts: cfg.Accounts}, nil
 }
 
 // probeSource reads the status document by probing accounts.
 type probeSource struct {
-	collector status.Collector
-	accounts  []config.Account
+	deps     Deps
+	upstream string
+	accounts []config.Account
 }
 
-// Fetch probes every account. It never fails: an account that can't be read
-// says why in the document.
+// Fetch probes every account, claiming the Claude Code version installed now:
+// a watch can outlive the one it started with. It never fails: an account that
+// can't be read says why in the document.
 func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
-	return s.collector.Collect(ctx, s.accounts), nil
+	collector := status.Collector{
+		Prober: &claude.Prober{Upstream: s.upstream, Version: s.deps.ClaudeVersion()},
+		Policy: policy,
+		Getenv: s.deps.Getenv,
+		Now:    s.deps.Now,
+	}
+	return collector.Collect(ctx, s.accounts), nil
 }

@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -156,6 +159,39 @@ func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
 	}
 	if want := (score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}); !reflect.DeepEqual(cfg.Policy, want) {
 		t.Errorf("policy = %+v, want Claude's %+v", cfg.Policy, want)
+	}
+}
+
+func TestUsageWatchClaimsTheVersionInstalledAtEachRead(t *testing.T) {
+	var mu sync.Mutex
+	var agents []string
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		agents = append(agents, r.Header.Get("User-Agent"))
+		mu.Unlock()
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(api.Close)
+	deps := statusDeps(t, api.URL, nil)
+	installed := "2.1.300"
+	deps.ClaudeVersion = func() string { return installed }
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "usage", "--watch")
+
+	for _, version := range []string{"2.1.300", "2.1.301"} {
+		installed = version
+		mu.Lock()
+		agents = nil
+		mu.Unlock()
+		if _, err := cfg.Source.Fetch(t.Context()); err != nil {
+			t.Fatalf("Fetch() error = %v", err)
+		}
+		mu.Lock()
+		claimed := slices.Compact(slices.Sorted(slices.Values(agents)))
+		mu.Unlock()
+		if want := []string{"claude-code/" + version}; !slices.Equal(claimed, want) {
+			t.Errorf("with %s installed, a read claimed %q, want %q", version, claimed, want)
+		}
 	}
 }
 
