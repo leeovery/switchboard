@@ -76,15 +76,36 @@ func NewRootCommand(deps Deps) *cobra.Command {
 }
 
 // Execute runs a command tree from NewRootCommand and returns the process's
-// exit status. Cobra has already printed any error; the log notes it too.
+// exit status. Cobra has already printed any error; the log notes it too, as
+// a warning unless it's expected.
 func Execute(root *cobra.Command) int {
 	status := 0
 	if cmd, err := root.ExecuteC(); err != nil {
-		logger.Warn("command failed", "command", cmd.CommandPath(), "error", err)
+		logger.Log(context.Background(), failureLevel(err), "command failed", "command", cmd.CommandPath(), "error", err)
 		status = 1
 	}
 	logs.Close(status)
 	return status
+}
+
+// expected is a failure that's an everyday answer rather than trouble, such
+// as a statusline polling after a session the router isn't running for. The
+// command fails as any other does, but the log notes it at debug, so a
+// statusline asking every few seconds doesn't fill it with warnings.
+type expected struct {
+	error
+}
+
+func (e expected) Unwrap() error {
+	return e.error
+}
+
+// failureLevel is the level a command's failure is logged at.
+func failureLevel(err error) slog.Level {
+	if _, ok := errors.AsType[expected](err); ok {
+		return slog.LevelDebug
+	}
+	return slog.LevelWarn
 }
 
 // app is what every command shares: the dependencies and the flags.

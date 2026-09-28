@@ -7,6 +7,8 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
+
+	"github.com/leeovery/switchboard/internal/router"
 )
 
 func newStatusCommand(a *app) *cobra.Command {
@@ -57,12 +59,23 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, id string, asJSO
 	}
 	session, err := client.Session(ctx, id)
 	if err != nil {
-		return fromRouter(err)
+		return sessionError(err)
 	}
 	if asJSON {
 		return writeJSON(out, session)
 	}
 	_, err = io.WriteString(out, session.Account.Text(a.Now()))
+	return err
+}
+
+// sessionError is err, from asking the router after a session, marked
+// expected when it's what a statusline meets as a matter of course: the
+// router isn't running, or hasn't seen the session yet.
+func sessionError(err error) error {
+	err = fromRouter(err)
+	if errors.Is(err, errRouterDown) || errors.Is(err, router.ErrUnknownSession) {
+		return expected{err}
+	}
 	return err
 }
 
