@@ -3,6 +3,7 @@ package claude_test
 import (
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -68,6 +69,45 @@ func TestProviderModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := (claude.Provider{}).Model([]byte(tt.body)); got != tt.want {
 				t.Errorf("Model(%s) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestProviderErrorMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "the API's error",
+			body: `{"type":"error","error":{"type":"permission_error","message":"This model isn't on your plan"}}`,
+			want: "This model isn't on your plan",
+		},
+		{
+			name: "with the token hidden",
+			body: `{"type":"error","error":{"type":"authentication_error","message":"token ` + token + ` revoked"}}`,
+			want: "token [redacted] revoked",
+		},
+		{
+			name: "with anything shaped like a token hidden",
+			body: `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key sk-ant-oat01-fake_token-shaped"}}`,
+			want: "invalid x-api-key [redacted]",
+		},
+		{name: "an error without a message", body: `{"type":"error","error":{"type":"api_error"}}`, want: ""},
+		{name: "a body that isn't JSON", body: "<html>Forbidden</html>", want: ""},
+		{name: "an empty body", body: "", want: ""},
+		{
+			name: "a message past the first 64 KiB",
+			body: `{"padding":"` + strings.Repeat("x", 64<<10) + `","error":{"message":"read too late"}}`,
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (claude.Provider{}).ErrorMessage(strings.NewReader(tt.body), token); got != tt.want {
+				t.Errorf("ErrorMessage() = %q, want %q", got, tt.want)
 			}
 		})
 	}

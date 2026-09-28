@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"slices"
 
@@ -53,4 +54,11 @@ func (Provider) Model(body []byte) string {
 // does.
 func (Provider) Usage(h http.Header) []quota.Window {
 	return ParseWindows(h)
+}
+
+// ErrorMessage returns the message of the API error a response's body holds,
+// reading no more than 64 KiB of it, with token and anything else shaped like
+// a Claude token hidden; or "" when it holds none.
+func (Provider) ErrorMessage(body io.Reader, token string) string {
+	return errorMessage(body, token)
 }

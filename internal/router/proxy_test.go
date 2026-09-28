@@ -316,13 +316,11 @@ func TestUsageIsReadOffResponses(t *testing.T) {
 }
 
 func TestRefusedTokensAreNeverRelayed(t *testing.T) {
+	const planted = "sk-ant-oat01-planted_fake"
 	for _, refusal := range []int{http.StatusUnauthorized, http.StatusForbidden} {
 		t.Run(http.StatusText(refusal), func(t *testing.T) {
 			log := logstest.Capture(t)
-			up := newUpstream(t, func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(refusal)
-				_, _ = io.WriteString(w, `{"type":"error","error":{"type":"permission_error","message":"token `+sideToken+` refused"}}`)
-			})
+			up := newUpstream(t, refuseWith(refusal, "token "+sideToken+" refused, as was "+planted))
 			proxy := serveProxy(t, newRouter(t, up.URL))
 
 			resp := send(t, http.MethodPost, proxy+"/v1/messages", with(claudeCode(workToken), "X-Switchboard-Account", "side"), strings.NewReader(messages))
@@ -334,14 +332,37 @@ func TestRefusedTokensAreNeverRelayed(t *testing.T) {
 			if got := resp.Header.Values("X-Should-Retry"); !slices.Equal(got, []string{"false"}) {
 				t.Errorf("X-Should-Retry = %q, want false: the same token would only be refused again", got)
 			}
-			waitForLine(t, log, "level=ERROR", `msg="upstream refused the account's token"`, "account=side", fmt.Sprintf("status=%d", refusal))
+			waitForLine(t, log, "level=ERROR", `msg="upstream refused the account's token"`, "account=side",
+				fmt.Sprintf("status=%d", refusal), `error="token [redacted] refused, as was [redacted]"`)
 			waitForLine(t, log, "level=INFO", "msg=routed", "account=side", "status=502")
-			for _, token := range []string{workToken, sideToken} {
+			for _, token := range []string{workToken, sideToken, planted} {
 				if strings.Contains(body+log.String(), token) {
 					t.Errorf("the answer or the log shows a token:\n%s\n%s", body, log)
 				}
 			}
 		})
+	}
+}
+
+func TestARefusalsReasonIsLoggedCutShort(t *testing.T) {
+	log := logstest.Capture(t)
+	up := newUpstream(t, refuseWith(http.StatusForbidden, strings.Repeat("x", 300)))
+	proxy := serveProxy(t, newRouter(t, up.URL))
+
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	waitForLine(t, log, "level=ERROR", `msg="upstream refused the account's token"`, "error="+strings.Repeat("x", 200))
+	if strings.Contains(log.String(), strings.Repeat("x", 201)) {
+		t.Errorf("log reads\n%s\nwant the upstream's reason cut to 200 characters", log)
+	}
+}
+
+// refuseWith answers every request with status, and an API error giving
+// message as the reason.
+func refuseWith(status int, message string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = fmt.Fprintf(w, `{"type":"error","error":{"type":"permission_error","message":%q}}`, message)
 	}
 }
 

@@ -7,6 +7,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,6 +37,10 @@ type Provider interface {
 	Model(body []byte) string
 	// Usage reads the usage windows a response's headers report.
 	Usage(h http.Header) []quota.Window
+	// ErrorMessage returns the message of the error a response's body holds,
+	// with token and anything else shaped like one hidden, or "" when it
+	// holds none.
+	ErrorMessage(body io.Reader, token string) string
 }
 
 // Prober reads an account's usage by spending a request on its token.

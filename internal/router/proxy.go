@@ -26,6 +26,9 @@ const (
 	pinHeader = "X-Switchboard-Account"
 	// sessionShown is how many characters of a session's id the log shows.
 	sessionShown = 8
+	// refusalShown is how many characters of the upstream's reason for
+	// refusing a token the log shows.
+	refusalShown = 200
 )
 
 // proxy sends each request on to the upstream. A request it routes goes out
@@ -181,7 +184,8 @@ func (p *proxy) inspect(resp *http.Response, ex *exchange) error {
 			p.state.record(ex.account.ID, windows, fromResponse)
 		}
 		if refuses(resp.StatusCode) {
-			return refusal{status: resp.StatusCode}
+			message := p.provider.ErrorMessage(resp.Body, ex.account.token.Reveal())
+			return refusal{status: resp.StatusCode, message: prefix(message, refusalShown)}
 		}
 	}
 	ex.status = resp.StatusCode
@@ -198,6 +202,9 @@ func refuses(status int) bool {
 // refusal is the upstream refusing the token a routed request went out on.
 type refusal struct {
 	status int
+	// message is the upstream's reason, such as a model the account's plan
+	// doesn't include, for the log alone.
+	message string
 }
 
 func (e refusal) Error() string {
@@ -208,7 +215,7 @@ func (e refusal) Error() string {
 // refusal the client mustn't see: a 502, shaped as the API shapes its errors.
 func (p *proxy) fail(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	if refused, ok := errors.AsType[refusal](err); ok {
-		logger.Error("upstream refused the account's token", "id", ex.id, "account", ex.account.ID, "status", refused.status)
+		logger.Error("upstream refused the account's token", "id", ex.id, "account", ex.account.ID, "status", refused.status, "error", refused.message)
 		ex.status = http.StatusBadGateway
 		// The API's clients retry a 5xx unless told not to, and the same
 		// token would only be refused again.
