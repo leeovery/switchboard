@@ -4,7 +4,9 @@ package main
 
 import (
 	"os"
+	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/cli"
 )
 
@@ -13,9 +15,11 @@ var version = "dev"
 
 func main() {
 	root := cli.NewRootCommand(cli.Deps{
-		Version: version,
-		Getenv:  os.Getenv,
-		HomeDir: os.UserHomeDir,
+		Version:       version,
+		Getenv:        os.Getenv,
+		HomeDir:       os.UserHomeDir,
+		Now:           time.Now,
+		ClaudeVersion: claude.InstalledVersion,
 	})
 	os.Exit(cli.Execute(root))
 }
