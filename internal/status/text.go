@@ -22,7 +22,7 @@ func (d Document) Text(now time.Time) string {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		fmt.Fprintf(&b, "%s\n", account.title())
+		fmt.Fprintf(&b, "%s\n", account.Title())
 		for _, w := range account.Windows {
 			fmt.Fprintf(&b, "  %s\n", windowLine(w, width, now))
 		}
@@ -33,8 +33,8 @@ func (d Document) Text(now time.Time) string {
 			fmt.Fprintf(&b, "  %s\n", account.Error)
 		}
 	}
-	if best, ok := d.account(d.Best); ok {
-		fmt.Fprintf(&b, "\nbest next: %s\n", best.title())
+	if best, ok := d.Account(d.Best); ok {
+		fmt.Fprintf(&b, "\nbest next: %s\n", best.Title())
 	}
 	return b.String()
 }
@@ -62,13 +62,22 @@ func Clock(t time.Time) string {
 	return t.Format("Mon 15:04")
 }
 
+// Resets counts down from now to a window's reset at t: "resets in 4h 57m",
+// or "resets now" once t has come.
+func Resets(now, t time.Time) string {
+	if !t.After(now) {
+		return "resets now"
+	}
+	return "resets in " + Countdown(now, t)
+}
+
 // Projection says where a window is heading, such as "on pace for 92%",
 // "runs out ~Fri 19:40" or "exhausted", with times in now's time zone. It's
 // empty when the projection says nothing.
 func Projection(now time.Time, p score.Projection) string {
 	switch p.Kind {
 	case score.OnPace:
-		return "on pace for " + percent(p.AtReset)
+		return "on pace for " + Percent(p.AtReset)
 	case score.RunsOut:
 		return "runs out ~" + Clock(p.At.In(now.Location()))
 	case score.Exhausted:
@@ -78,13 +87,18 @@ func Projection(now time.Time, p score.Projection) string {
 	}
 }
 
-// title names an account as its section opens, such as "work · Work".
-func (a Account) title() string {
+// Percent shows a utilization as a whole percentage, such as "23%".
+func Percent(utilization float64) string {
+	return fmt.Sprintf("%.0f%%", utilization*100)
+}
+
+// Title names an account by its id and label, such as "work · Work".
+func (a Account) Title() string {
 	return a.ID + " · " + a.Label
 }
 
-// account finds the account with the given id.
-func (d Document) account(id string) (Account, bool) {
+// Account finds the account with the given id.
+func (d Document) Account(id string) (Account, bool) {
 	i := slices.IndexFunc(d.Accounts, func(a Account) bool { return a.ID == id })
 	if i < 0 {
 		return Account{}, false
@@ -95,10 +109,10 @@ func (d Document) account(id string) (Account, bool) {
 // windowLine shows a window's label and utilization, then when it resets and
 // where it's heading, as far as those are known.
 func windowLine(w quota.Window, labelWidth int, now time.Time) string {
-	line := fmt.Sprintf("%-*s %4s", labelWidth, w.Label, percent(w.Utilization))
+	line := fmt.Sprintf("%-*s %4s", labelWidth, w.Label, Percent(w.Utilization))
 	var notes []string
 	if !w.ResetsAt.IsZero() {
-		notes = append(notes, resets(now, w.ResetsAt))
+		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(w.ResetsAt.In(now.Location())))
 	}
 	if projection := Projection(now, score.Project(w, now)); projection != "" {
 		notes = append(notes, projection)
@@ -107,20 +121,6 @@ func windowLine(w quota.Window, labelWidth int, now time.Time) string {
 		return line
 	}
 	return line + "  " + strings.Join(notes, " · ")
-}
-
-// percent shows a utilization as a whole percentage, such as "23%".
-func percent(utilization float64) string {
-	return fmt.Sprintf("%.0f%%", utilization*100)
-}
-
-// resets says when a window resets, such as "resets in 4h 57m · Mon 18:10".
-func resets(now, at time.Time) string {
-	clock := Clock(at.In(now.Location()))
-	if !at.After(now) {
-		return "resets now · " + clock
-	}
-	return "resets in " + Countdown(now, at) + " · " + clock
 }
 
 // labelWidth is the length of the longest window label, which lines the

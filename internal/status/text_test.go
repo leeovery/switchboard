@@ -132,6 +132,45 @@ func TestCountdown(t *testing.T) {
 	}
 }
 
+func TestResets(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		until time.Duration
+		want  string
+	}{
+		{name: "past", until: -time.Minute, want: "resets now"},
+		{name: "due", until: 0, want: "resets now"},
+		{name: "minutes", until: 7 * time.Minute, want: "resets in 7m"},
+		{name: "days and hours", until: 5*24*time.Hour + 12*time.Hour, want: "resets in 5d 12h"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Resets(now, now.Add(tt.until)); got != tt.want {
+				t.Errorf("Resets(now, now+%v) = %q, want %q", tt.until, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPercent(t *testing.T) {
+	tests := []struct {
+		utilization float64
+		want        string
+	}{
+		{utilization: 0, want: "0%"},
+		{utilization: 0.004, want: "0%"},
+		{utilization: 0.23, want: "23%"},
+		{utilization: 0.996, want: "100%"},
+		{utilization: 1.04, want: "104%"},
+	}
+	for _, tt := range tests {
+		if got := status.Percent(tt.utilization); got != tt.want {
+			t.Errorf("Percent(%v) = %q, want %q", tt.utilization, got, tt.want)
+		}
+	}
+}
+
 func TestClock(t *testing.T) {
 	tests := []struct {
 		name string
