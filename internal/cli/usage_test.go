@@ -1,13 +1,24 @@
 package cli_test
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
+	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/dashboard/notify"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files with what the tests print")
@@ -81,6 +92,130 @@ func TestUsageColor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUsageWatch(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         []string
+		wantInterval time.Duration
+		wantNotify   bool
+	}{
+		{name: "every 30 minutes unless told", args: []string{"usage", "--watch"}, wantInterval: 30 * time.Minute, wantNotify: true},
+		{name: "with -w for short", args: []string{"usage", "-w"}, wantInterval: 30 * time.Minute, wantNotify: true},
+		{name: "every interval in minutes", args: []string{"usage", "-w", "15m"}, wantInterval: 15 * time.Minute, wantNotify: true},
+		{name: "every interval in hours", args: []string{"usage", "-w", "1h"}, wantInterval: time.Hour, wantNotify: true},
+		{name: "every interval in hours and minutes", args: []string{"usage", "-w", "1h30m"}, wantInterval: 90 * time.Minute, wantNotify: true},
+		{name: "every bare number of minutes", args: []string{"usage", "-w", "45"}, wantInterval: 45 * time.Minute, wantNotify: true},
+		{name: "every fraction of minutes", args: []string{"usage", "-w", "7.5"}, wantInterval: 7*time.Minute + 30*time.Second, wantNotify: true},
+		{name: "at the shortest interval", args: []string{"usage", "-w", "5m"}, wantInterval: 5 * time.Minute, wantNotify: true},
+		{name: "with the interval before the flag", args: []string{"usage", "45", "-w"}, wantInterval: 45 * time.Minute, wantNotify: true},
+		{name: "without notifications", args: []string{"usage", "-w", "--no-notify"}, wantInterval: 30 * time.Minute, wantNotify: false},
+		{name: "without notifications, every interval", args: []string{"usage", "--no-notify", "-w", "1h"}, wantInterval: time.Hour, wantNotify: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			cfg := recordWatch(t, &deps)
+
+			if got := run(t, deps, tt.args...); got != (result{}) {
+				t.Fatalf("switchboard %s = %+v, want exit status 0 and nothing printed", strings.Join(tt.args, " "), got)
+			}
+			if cfg.Interval != tt.wantInterval {
+				t.Errorf("interval = %v, want %v", cfg.Interval, tt.wantInterval)
+			}
+			_, off := cfg.Notifier.(notify.Off)
+			_, desktop := cfg.Notifier.(notify.Desktop)
+			if off == tt.wantNotify || desktop != tt.wantNotify {
+				t.Errorf("notifier = %T, want desktop notifications %v", cfg.Notifier, tt.wantNotify)
+			}
+		})
+	}
+}
+
+func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"TERM": "xterm-256color"})
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "usage", "--watch")
+
+	doc, err := cfg.Source.Fetch(t.Context())
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	var fetched strings.Builder
+	enc := json.NewEncoder(&fetched)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(doc); err != nil {
+		t.Fatal(err)
+	}
+	if want := run(t, deps, "status", "--json").stdout; fetched.String() != want {
+		t.Errorf("--watch reads\n%s\nwant what status --json reads\n%s", fetched.String(), want)
+	}
+	if got := cfg.Now(); !got.Equal(testNow) {
+		t.Errorf("clock reads %v, want the command's clock at %v", got, testNow)
+	}
+	if want := (score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}); !reflect.DeepEqual(cfg.Policy, want) {
+		t.Errorf("policy = %+v, want Claude's %+v", cfg.Policy, want)
+	}
+}
+
+func TestUsageWatchArguments(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "an interval without --watch", args: []string{"usage", "15m"}, wantErr: `unexpected argument "15m": only --watch takes an interval`},
+		{name: "two intervals", args: []string{"usage", "-w", "15m", "1h"}, wantErr: "--watch takes one interval, not 2"},
+		{name: "an interval that can't be read", args: []string{"usage", "-w", "soon"}, wantErr: `invalid interval "soon": give a duration, such as 15m or 1h, or a number of minutes`},
+		{name: "an interval with an unknown unit", args: []string{"usage", "-w", "2d"}, wantErr: `invalid interval "2d": give a duration, such as 15m or 1h, or a number of minutes`},
+		{name: "an interval too short", args: []string{"usage", "-w", "4m59s"}, wantErr: "interval 4m59s is too short: the shortest is 5m"},
+		{name: "a number of minutes too few", args: []string{"usage", "-w", "2"}, wantErr: "interval 2 is too short: the shortest is 5m"},
+		{name: "no interval at all", args: []string{"usage", "-w", "0"}, wantErr: "interval 0 is too short: the shortest is 5m"},
+		{name: "a negative interval", args: []string{"usage", "-w", "--", "-10m"}, wantErr: "interval -10m is too short: the shortest is 5m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			deps.Watch = func(context.Context, watch.Config, io.Writer, []string) error {
+				t.Error("the dashboard started")
+				return nil
+			}
+
+			got := run(t, deps, tt.args...)
+			if want := "Error: " + tt.wantErr + "\n"; got.code != 1 || !strings.HasPrefix(got.stderr, want) {
+				t.Errorf("switchboard %s = %+v, want exit status 1 and an error starting %q", strings.Join(tt.args, " "), got, want)
+			}
+		})
+	}
+}
+
+func TestUsageWatchNeedsATerminal(t *testing.T) {
+	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "usage", "--watch")
+	want := result{stderr: "Error: --watch needs a terminal, and stdout isn't one\n", code: 1}
+	if got != want {
+		t.Errorf("switchboard usage --watch = %+v, want %+v", got, want)
+	}
+}
+
+// recordWatch has deps' Watch record the config it's given instead of taking
+// over the terminal, and returns where it records it.
+func recordWatch(t *testing.T, deps *cli.Deps) *watch.Config {
+	t.Helper()
+	var cfg watch.Config
+	deps.Watch = func(_ context.Context, given watch.Config, _ io.Writer, environ []string) error {
+		if got, want := slices.Sorted(slices.Values(environ)), slices.Sorted(slices.Values(deps.Environ())); !slices.Equal(got, want) {
+			t.Errorf("Watch given the environment %q, want the command's %q", got, want)
+		}
+		cfg = given
+		return nil
+	}
+	t.Cleanup(func() {
+		if cfg.Source == nil {
+			t.Error("the dashboard never started")
+		}
+	})
+	return &cfg
 }
 
 func readGolden(t *testing.T, name string) string {
