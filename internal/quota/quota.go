@@ -1,5 +1,6 @@
 // Package quota is the provider-neutral usage model: the windows an account's
-// quota is measured over, and the ones a provider expected to read but couldn't.
+// quota is measured over, the ones a provider expected to read but couldn't,
+// and what a response says of the account it came from.
 package quota
 
 import (
@@ -59,6 +60,33 @@ type Probe struct {
 	// Models are the models whose responses reported each window, by the
 	// window's key.
 	Models map[string][]string `json:"models,omitempty"`
+}
+
+// Verdict is what a response to a request says of the account it went out on.
+type Verdict int
+
+const (
+	// Served says nothing against the account, whatever the response's
+	// status: the response is the client's, as it came.
+	Served Verdict = iota
+	// LimitReached is the account out of quota in a window the request counts
+	// against.
+	LimitReached
+	// Throttled is the account asked to slow down, with quota to spare.
+	Throttled
+	// Refused is the account's token refused.
+	Refused
+)
+
+// Outcome is a response's verdict on the account a request went out on.
+type Outcome struct {
+	Verdict Verdict
+	// RetryAfter is how long a throttled account is asked to wait before
+	// sending again, or zero when the response doesn't say.
+	RetryAfter time.Duration
+	// LimitedUntil is when an account whose limit is reached has room again,
+	// as far as the response says, or zero when it doesn't say.
+	LimitedUntil time.Time
 }
 
 var lengthPattern = regexp.MustCompile(`^([1-9][0-9]*)([hd])(?:_|$)`)

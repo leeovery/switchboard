@@ -209,6 +209,47 @@ func TestDocument(t *testing.T) {
 	}
 }
 
+func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
+	soonerWeek := week
+	soonerWeek.Utilization, soonerWeek.ResetsAt = 0.5, start.Add(24*time.Hour)
+	tests := []struct {
+		name string
+		bar  func(s *state)
+		want string
+	}{
+		{name: "side, whose quota needs using first, when nothing bars it", bar: func(*state) {}, want: "side"},
+		{name: "not side once its token is refused", bar: func(s *state) { s.refuse("side") }, want: "work"},
+		{
+			name: "not side under a limit reached in a window every model shares",
+			bar:  func(s *state) { s.limit("side", []string{"5h"}, start.Add(time.Hour)) },
+			want: "work",
+		},
+		{
+			name: "not side under a limit reached in no window named",
+			bar:  func(s *state) { s.limit("side", nil, start.Add(time.Hour)) },
+			want: "work",
+		},
+		{
+			name: "side under a limit reached in a model's own window, which holds back that model alone",
+			bar:  func(s *state) { s.limit("side", []string{"7d_oi"}, start.Add(time.Hour)) },
+			want: "side",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			s.record("work", []quota.Window{session, week}, fromResponse)
+			s.record("side", []quota.Window{session, soonerWeek}, fromResponse)
+			s.learn(fable, []quota.Window{fableWeek})
+
+			tt.bar(s)
+			if got := s.document().Best; got != tt.want {
+				t.Errorf("Best = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDocumentBeforeAnythingIsRead(t *testing.T) {
 	s := newTestState(&testClock{now: start})
 
@@ -237,6 +278,9 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.document() })
 		wg.Go(func() { _ = s.view(opus, start).room("work") })
 		wg.Go(func() { _ = s.due("side", start) })
+		wg.Go(func() { _ = s.dueAgain("side", start) })
+		wg.Go(func() { s.refuse("side") })
+		wg.Go(func() { _ = s.limit("work", []string{"5h"}, start.Add(time.Hour)) })
 	}
 	wg.Wait()
 }

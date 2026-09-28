@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,6 +41,11 @@ type Provider interface {
 	Family(model string) string
 	// Usage reads the usage windows a response's headers report.
 	Usage(h http.Header) []quota.Window
+	// Classify says what a response, by its status and headers, says of the
+	// account the request went out on: whether its limit is reached, it's
+	// throttled or its token refused, or the response is the client's as it
+	// came.
+	Classify(status int, h http.Header) quota.Outcome
 	// ErrorMessage returns the message of the error a response's body holds,
 	// with token and anything else shaped like one hidden, or "" when it
 	// holds none.
@@ -69,6 +75,11 @@ type Config struct {
 	Now func() time.Time
 	// Version is switchboard's, which the control API reports.
 	Version string
+	// Events hears each of the router's events as it happens, on the
+	// goroutine it happens on: see Event. It mustn't block, nor call the
+	// router, but can hand an event on to be dealt with elsewhere. Nil hears
+	// nothing.
+	Events func(Event)
 	// Listen is the proxy's address, and StateDir the directory its control
 	// socket and state file go in: only Run uses them.
 	Listen   string
@@ -77,7 +88,7 @@ type Config struct {
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
-// and the control API that reports on it all.
+// the router's own health, and the control API that reports on it all.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
@@ -85,6 +96,7 @@ type Router struct {
 	state    *state
 	sessions *sessions
 	probes   *probes
+	health   *health
 	proxy    *proxy
 	started  time.Time
 }
@@ -101,10 +113,15 @@ func New(cfg Config) (*Router, error) {
 	if err != nil {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
+	emit := cfg.Events
+	if emit == nil {
+		emit = func(Event) {}
+	}
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now)
 	sessions := newSessions(cfg.Now)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
-	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now}
+	health := newHealth(cfg.Now, emit)
+	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	return &Router{
 		cfg:      cfg,
 		upstream: upstream,
@@ -112,8 +129,19 @@ func New(cfg Config) (*Router, error) {
 		state:    state,
 		sessions: sessions,
 		probes:   probes,
-		proxy:    newProxy(upstream, accounts, state, cfg.Provider, scheduler),
-		started:  cfg.Now().UTC(),
+		health:   health,
+		proxy: &proxy{
+			upstream:  upstream,
+			transport: newTransport(),
+			accounts:  accounts,
+			state:     state,
+			provider:  cfg.Provider,
+			chooser:   scheduler,
+			health:    health,
+			emit:      emit,
+			errorLog:  logs.StdLogger("router", slog.LevelWarn),
+		},
+		started: cfg.Now().UTC(),
 	}, nil
 }
 
@@ -123,10 +151,12 @@ func (r *Router) Proxy() http.Handler {
 }
 
 // Status reports every account's usage as the router knows it, with how many
-// sessions each has, the best account to use next, and the global pin.
+// sessions each has, the best account to use next, the global pin, and the
+// router's own health.
 func (r *Router) Status() status.Document {
 	doc := r.state.document()
 	doc.Pin = r.sessions.globalPin()
+	doc.Router = r.health.report()
 	active := r.sessions.active(r.cfg.Now())
 	for i, a := range doc.Accounts {
 		doc.Accounts[i].Sessions = active[a.ID]

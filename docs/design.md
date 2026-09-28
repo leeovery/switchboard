@@ -1,8 +1,9 @@
 # Switchboard — design
 
 **Status:** the usage dashboard (one-off, and in watch mode with its desktop notifications),
-`status`, logging, and the router, with its scheduler, pins and state, are built. Limit handling,
-launching (`run`, `init` and the service), and the dashboard reading the router come next.
+`status`, logging, and the router, with its scheduler, pins, state, limit handling and health,
+are built. The router's desktop notifications, launching (`run`, `init` and the service), and the
+dashboard reading the router come next.
 
 ## What it is
 
@@ -68,15 +69,24 @@ Hence: move a session only when its cache is already cold or its account can't s
      accounts don't trade places; or
    - its account can't serve the request. An account nothing has been read of counts as able, so
      neither a session nor a pin moves on no evidence.
-5. **Limit hit:** a 429 whose window status reads `rejected` means real exhaustion. Switchboard
-   replays the buffered request on the next candidate before any response reaches Claude Code,
-   and the session moves there and stays. Claude Code sees a normal, slower response.
-6. **Throttling:** a burst 429 without exhaustion gets a short pause and a retry on the same
-   account. It never triggers a move, because moving would throw the cache away for nothing.
+5. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
+   exhaustion. Switchboard replays the buffered request on the next candidate, among the accounts
+   the request hasn't been tried on, before any response reaches Claude Code, and the session
+   moves there and stays. Claude Code sees a normal, slower response. The account then has no
+   room, whatever its windows read, for the requests the rejected windows count (every request
+   when the 429 names none) until the reset the 429 gives: the overall reset, else the latest of
+   the rejected windows', else 5 minutes on. A later reading showing those windows with room
+   lifts it sooner.
+6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
+   (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
+   then the 429 is passed through. It never triggers a move, because moving would throw the cache
+   away for nothing.
 7. **No forced return:** after the original account resets, the session isn't moved back; that
    would cost a cache rebuild for nothing. The idle rule brings it back when a move is free.
-8. **Pool exhausted:** the 429 is passed through. Switchboard re-probes at most once a minute to
-   notice resets.
+8. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings
+   say they have none, each at most once a minute, waiting 5 seconds at most, as a reset may have
+   passed with no traffic to show it; then it decides again. Failing that, the last 429 is passed
+   through.
 
 Each request's account is decided in this order, and the routed line in the log gives the reason:
 
@@ -86,7 +96,8 @@ Each request's account is decided in this order, and the routed line in the log 
 2. A global pin set with `--move`, for a session assigned before it: once each (`moved by pin`).
 3. The session's account, while its cache is warm and the account can serve it (`sticky`).
 4. Afresh: the global pin's account while it can serve the request (`pinned (global)`), else the
-   best candidate (`new`, `rescored after <idle> idle`, `moved: <id> has no room`).
+   best candidate (`new`, `rescored after <idle> idle`, `moved: <id> has no room`, and when a
+   replay moves it, `moved: <id> hit its limit` or `moved: <id> was refused`).
 5. With no candidate, the session's account, else the client's (`no account has room`).
 
 A request without a session id is decided afresh every time and not remembered (`unsessioned`).
@@ -120,12 +131,16 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   profile endpoint (403), so the right UUID isn't available to rewrite it with anyway. The spike's
   mismatched requests were all accepted.
 - **401s and 403s:** an upstream refusal of a routed request's token is never relayed, because
-  Claude Code drops its login on a 403. Switchboard returns 502 instead, marked not to be retried,
-  as the same token would only be refused again.
+  Claude Code drops its login on a 403. The account counts as having no room for 10 minutes, and
+  the request is replayed on another, as at a limit. With none left, switchboard returns 502
+  instead, marked not to be retried, as the same token would only be refused again.
 - **Replay:** request bodies are buffered so they can be replayed. Replay only happens before
   response headers have been sent; a failure mid-stream is passed through and Claude Code retries.
-- **Storm control:** after a move, concurrency to the new account ramps from 1 to unlimited over
-  about 30 seconds, so many sessions switching at once don't trip its burst limit.
+  Nor is a request that couldn't reach the upstream at all replayed elsewhere: that isn't the
+  account's fault. Claude Code gets a 502 and retries.
+- **Storm control:** decided against, as the pause and retry on a throttled account (step 6
+  above) already absorbs the burst limit many sessions moving onto one account at once can trip,
+  where pacing them would slow every request.
 - **Bypass traffic:** some requests (fast mode, WebFetch) ignore `ANTHROPIC_BASE_URL`, so the Claude
   Code process still needs a real token in its environment. That traffic goes out on that account.
 
@@ -177,8 +192,13 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 
 The launcher routes a new session only when the router answers its health check. The harder case
 is a router that is running but failing requests: sessions already routed through it fail until
-they restart. The router tracks its own upstream error rate, and `status` and the dashboard show
-trouble loudly. Whether it should also fall back automatically is an open question.
+they restart. The router tracks the requests it has routed over the last 5 minutes, and those it
+failed itself: a 502 for an upstream it couldn't reach, or for a refusal with no account left to
+fail over to. The upstream's own 429s and 5xx, passed through, don't count against it. It's
+unhealthy once it has failed 5 of them at least, and half at least: `GET /health` then answers
+`ok: false` with a `reason`, the status document's `router` object says the same, and the log
+notes the turn, and the turn back, at warn and info. `status` and the dashboard show trouble
+loudly. Whether it should also fall back automatically is an open question.
 
 ## Logging
 
@@ -222,12 +242,12 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 | `cmd/switchboard` | `main`: builds the command tree and exits with its status |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
 | `internal/config` | Locating, parsing and validating the config file; reading tokens from the environment |
-| `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots |
-| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, 429 classification, which paths are routed, the session header |
+| `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token), which paths are routed, the session header |
 | `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/dashboard` | Rendering (Lip Gloss), watch mode (Bubble Tea) and desktop notifications |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back |
-| `internal/router` | The proxy, the scheduler, live account state and the control API |
+| `internal/router` | The proxy and its replays, the scheduler, live account state, the router's health and the events it emits, and the control API |
 | `internal/launch` | `run` and `init zsh` |
 | `internal/service` | The LaunchAgent |
 
@@ -281,8 +301,8 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | Liveness plus the recent upstream error rate |
-| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`) and each account's `sessions`, those used in the last hour |
+| `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health) |
+| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), and each account's `sessions`, those used in the last hour, and `limit` (`{windows, until}`) while one holds |
 | `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
 | `POST /refresh` | Probe accounts whose data is older than `{"max_age": "30m"}` |

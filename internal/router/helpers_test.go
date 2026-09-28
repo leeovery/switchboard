@@ -27,6 +27,8 @@ import (
 const (
 	workToken = "test-token-work"
 	sideToken = "test-token-side"
+	// personalToken is personal's token, when a test gives it one.
+	personalToken = "test-token-personal"
 	// sessionID is the Claude Code session the tests' requests belong to.
 	sessionID = "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e"
 	opus      = "claude-opus-5-5"
@@ -64,10 +66,28 @@ func testConfig(upstream string) router.Config {
 	}
 }
 
+// withPersonalToken gives personal a token, so requests can go out on all
+// three accounts.
+func withPersonalToken(cfg *router.Config) {
+	getenv := cfg.Getenv
+	cfg.Getenv = func(key string) string {
+		if key == "CLAUDE_TOKEN_PERSONAL" {
+			return personalToken
+		}
+		return getenv(key)
+	}
+}
+
 // newRouter builds a router from testConfig.
 func newRouter(t *testing.T, upstream string) *router.Router {
 	t.Helper()
-	rt, err := router.New(testConfig(upstream))
+	return newRouterFrom(t, testConfig(upstream))
+}
+
+// newRouterFrom builds a router from cfg.
+func newRouterFrom(t *testing.T, cfg router.Config) *router.Router {
+	t.Helper()
+	rt, err := router.New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -125,14 +145,22 @@ func answerOK(w http.ResponseWriter, _ *http.Request) {
 // headers.
 func answerWith(status int, windows ...quota.Window) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		for _, win := range windows {
-			prefix := "anthropic-ratelimit-unified-" + win.Key + "-"
-			w.Header().Set(prefix+"utilization", strconv.FormatFloat(win.Utilization, 'f', -1, 64))
-			w.Header().Set(prefix+"reset", strconv.FormatInt(win.ResetsAt.Unix(), 10))
-			w.Header().Set(prefix+"status", string(win.Status))
-		}
+		reportWindows(w.Header(), windows)
 		w.WriteHeader(status)
 		_, _ = io.WriteString(w, `{"type":"message"}`)
+	}
+}
+
+// reportWindows sets the headers that report windows, as the API's do. A
+// window without a reset reports none.
+func reportWindows(h http.Header, windows []quota.Window) {
+	for _, win := range windows {
+		prefix := "anthropic-ratelimit-unified-" + win.Key + "-"
+		h.Set(prefix+"utilization", strconv.FormatFloat(win.Utilization, 'f', -1, 64))
+		if !win.ResetsAt.IsZero() {
+			h.Set(prefix+"reset", strconv.FormatInt(win.ResetsAt.Unix(), 10))
+		}
+		h.Set(prefix+"status", string(win.Status))
 	}
 }
 
@@ -152,6 +180,29 @@ func (u *upstream) count() int {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return len(u.requests)
+}
+
+// accounts returns the account each request that reached the upstream went
+// out on, by the token it carried, in the order they came.
+func (u *upstream) accounts() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	ids := make([]string, len(u.requests))
+	for i, r := range u.requests {
+		ids[i] = accountOf(bearerOf(&http.Request{Header: r.header}))
+	}
+	return ids
+}
+
+// bodies returns the body of each request that reached the upstream.
+func (u *upstream) bodies() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	bodies := make([]string, len(u.requests))
+	for i, r := range u.requests {
+		bodies[i] = string(r.body)
+	}
+	return bodies
 }
 
 // claudeCode is the header of a messages request Claude Code sends with token.
@@ -268,6 +319,22 @@ func (p *fakeProber) probed() []string {
 	return slices.Sorted(slices.Values(p.tokens))
 }
 
+// probes returns how many times the prober was given token.
+func (p *fakeProber) probes(token string) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(slices.DeleteFunc(slices.Clone(p.tokens), func(t string) bool { return t != token }))
+}
+
+// readingEvery is a prober that reads every account as windows.
+func readingEvery(windows ...quota.Window) *fakeProber {
+	p := &fakeProber{}
+	for _, token := range []string{workToken, sideToken, personalToken} {
+		p.answer(token, probeResult{usage: quota.Usage{Windows: windows}})
+	}
+	return p
+}
+
 // fakeClock is a clock a test moves as it goes, which the router can read
 // from any goroutine.
 type fakeClock struct {
@@ -294,18 +361,24 @@ func (c *fakeClock) advance(d time.Duration) {
 // accountsAPI is a fake API that answers each request with the windows the
 // test last gave the account whose token it carries, as the real API reports
 // an account's usage on every response. A Fable week is reported only on
-// Fable requests, as the real API reports it.
+// Fable requests, as the real API reports it. A test can script an account's
+// next answers instead, which it gives first, one a request.
 type accountsAPI struct {
 	*upstream
 
 	mu      sync.Mutex
 	windows map[string][]quota.Window
+	scripts map[string][]http.HandlerFunc
 }
 
 func newAccountsAPI(t *testing.T) *accountsAPI {
 	t.Helper()
-	api := &accountsAPI{windows: make(map[string][]quota.Window)}
+	api := &accountsAPI{windows: make(map[string][]quota.Window), scripts: make(map[string][]http.HandlerFunc)}
 	api.upstream = newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		if answer, ok := api.scripted(bearerOf(r)); ok {
+			answer(w, r)
+			return
+		}
 		windows := api.of(bearerOf(r))
 		if (claude.Provider{}).Family(modelOf(t, r)) != "fable" {
 			windows = slices.DeleteFunc(windows, func(w quota.Window) bool { return w.Key == "7d_oi" })
@@ -313,6 +386,26 @@ func newAccountsAPI(t *testing.T) *accountsAPI {
 		answerWith(http.StatusOK, windows...)(w, r)
 	})
 	return api
+}
+
+// script has the API give the next requests on token answers, in order,
+// before it goes back to answering with the account's windows.
+func (a *accountsAPI) script(token string, answers ...http.HandlerFunc) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.scripts[token] = append(a.scripts[token], answers...)
+}
+
+// scripted returns the next answer scripted for token, if one is.
+func (a *accountsAPI) scripted(token string) (http.HandlerFunc, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	answers := a.scripts[token]
+	if len(answers) == 0 {
+		return nil, false
+	}
+	a.scripts[token] = answers[1:]
+	return answers[0], true
 }
 
 // modelOf returns the model a request's body asks for.
@@ -340,14 +433,48 @@ func (a *accountsAPI) of(token string) []quota.Window {
 // lastAccount returns the account whose token the last request to reach the
 // API carried.
 func (u *upstream) lastAccount() string {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	token := bearerOf(&http.Request{Header: u.requests[len(u.requests)-1].header})
-	return map[string]string{workToken: "work", sideToken: "side"}[token]
+	accounts := u.accounts()
+	return accounts[len(accounts)-1]
+}
+
+// accountOf returns the account whose token is token.
+func accountOf(token string) string {
+	return map[string]string{workToken: "work", sideToken: "side", personalToken: "personal"}[token]
 }
 
 func bearerOf(r *http.Request) string {
 	return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+}
+
+// limitReached answers with a 429 whose windows report the account's limit
+// reached, and message as the error's.
+func limitReached(message string, windows ...quota.Window) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		reportWindows(w.Header(), windows)
+		w.Header().Set("Anthropic-Ratelimit-Unified-Status", "rejected")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = fmt.Fprintf(w, `{"type":"error","error":{"type":"rate_limit_error","message":%q}}`, message)
+	}
+}
+
+// eventLog hears the router's events, and keeps them in the order they came.
+type eventLog struct {
+	mu     sync.Mutex
+	events []router.Event
+}
+
+func (l *eventLog) hear(e router.Event) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.events = append(l.events, e)
+}
+
+// heard returns the events heard so far.
+func (l *eventLog) heard() []router.Event {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.events)
 }
 
 // shortTempDir returns a directory of the test's own with a path short enough

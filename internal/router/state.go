@@ -10,6 +10,15 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+const (
+	// refusedFor is how long an account whose token the upstream refused has
+	// no room, whatever its windows say.
+	refusedFor = 10 * time.Minute
+	// limitedFor is how long an account under a limit has no room for the
+	// requests it holds back, when the upstream doesn't say.
+	limitedFor = 5 * time.Minute
+)
+
 // origin is what a reading of an account's usage came from.
 type origin string
 
@@ -39,6 +48,43 @@ type usage struct {
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
+	// refused is when the upstream last refused the account's token.
+	refused time.Time
+	// limited is the limit the account last reached.
+	limited limit
+}
+
+// limit is a limit an account reached: the windows the upstream named as
+// reached, if any, and when the account is to have room again. It holds back
+// the requests those windows count, or every request when they're none,
+// whatever the account's windows read: a rejection they don't show, or that
+// a reading from before it outweighs, holds as well as one they do.
+type limit struct {
+	windows []string
+	until   time.Time
+}
+
+// holds reports whether the limit holds back, at now, a request applies says
+// which windows count: it hasn't lifted, and it was reached in a window that
+// counts the request, or in none named.
+func (l limit) holds(now time.Time, applies func(key string) bool) bool {
+	return now.Before(l.until) && (len(l.windows) == 0 || slices.ContainsFunc(l.windows, applies))
+}
+
+// liftedBy reports whether windows, read at a time, show the limit lifted:
+// each window that reached it read again, with room. A limit reached in no
+// window named can't be seen to lift, and lifts only in time.
+func (l limit) liftedBy(windows []quota.Window, at time.Time) bool {
+	if len(l.windows) == 0 {
+		return false
+	}
+	for _, key := range l.windows {
+		i := slices.IndexFunc(windows, func(w quota.Window) bool { return w.Key == key })
+		if i < 0 || !score.Available(windows[i:i+1], func(string) bool { return true }, at) {
+			return false
+		}
+	}
+	return true
 }
 
 // state is what the router knows of every account's usage, learnt from the
@@ -126,6 +172,29 @@ func (s *state) see(key, model string) {
 	s.seen[key][s.family(model)] = true
 }
 
+// refuse notes that the upstream refused the account's token: the account has
+// no room for refusedFor.
+func (s *state) refuse(id string) {
+	at := s.now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usage[id].refused = at
+}
+
+// limit notes that the account reached its limit, in the windows named, if
+// any, and returns until when it holds: until, or limitedFor from now when
+// that isn't to come. A reading showing it lifted lifts it sooner.
+func (s *state) limit(id string, windows []string, until time.Time) time.Time {
+	now := s.now().UTC()
+	if !until.After(now) {
+		until = now.Add(limitedFor)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usage[id].limited = limit{windows: slices.Clone(windows), until: until}
+	return until
+}
+
 // due reports whether an account's usage wants probing at now: nothing has
 // been read of it for staleAfter, and no probe of it has ended in the last
 // retryAfter, so an account whose probes fail isn't probed at every choice.
@@ -136,19 +205,46 @@ func (s *state) due(id string, now time.Time) bool {
 	return now.Sub(u.updated) > staleAfter && now.Sub(u.probed) >= retryAfter
 }
 
+// dueAgain reports whether an account whose usage leaves it no room wants
+// probing again at now, in case a window has reset unseen: nothing has been
+// read of it, nor has a probe of it ended, in the last retryAfter.
+func (s *state) dueAgain(id string, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.usage[id]
+	return now.Sub(u.updated) >= retryAfter && now.Sub(u.probed) >= retryAfter
+}
+
 // view returns what a choice of account for a request of model knows at now:
-// every account with a token, as last read, and which windows count the
-// request.
+// every account with a token, as last read, which windows count the request,
+// and which accounts have no room for it whatever their windows read.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var candidates []score.Candidate
+	applies := s.counting(model)
+	var (
+		candidates []score.Candidate
+		barred     []string
+	)
 	for _, a := range s.accounts {
-		if a.hasToken {
-			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: s.usage[a.ID].latest()})
+		if !a.hasToken {
+			continue
+		}
+		u := s.usage[a.ID]
+		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.latest()})
+		if u.barred(now, applies) {
+			barred = append(barred, a.ID)
 		}
 	}
-	return view{policy: s.policy, now: now, candidates: candidates, applies: s.counting(model)}
+	return view{policy: s.policy, now: now, candidates: candidates, applies: applies, barred: barred}
+}
+
+// barred reports whether the account has no room at now, whatever its windows
+// read, for a request applies says which windows count: its token was refused
+// too lately, or a limit it reached holds the request back.
+func (u *usage) barred(now time.Time, applies func(key string) bool) bool {
+	refused := !u.refused.IsZero() && now.Sub(u.refused) < refusedFor
+	return refused || u.limited.holds(now, applies)
 }
 
 // counting returns which windows count a request of model, by key: every
@@ -166,9 +262,10 @@ func (s *state) counting(model string) func(key string) bool {
 }
 
 // take takes in windows read at a time, each merged with the reading of its
-// key before it. Windows that are all stale leave the account as it was.
+// key before it, and lifts the account's limit when they show it lifted.
+// Windows that are all stale leave the account as it was.
 func (u *usage) take(windows []quota.Window, from origin, at time.Time) {
-	read := false
+	var read []quota.Window
 	for _, w := range windows {
 		kept, current := u.windows[w.Key].merge(w, at)
 		if !current {
@@ -176,10 +273,14 @@ func (u *usage) take(windows []quota.Window, from origin, at time.Time) {
 		}
 		u.windows[w.Key] = kept
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
-		read = true
+		read = append(read, w)
 	}
-	if read {
-		u.updated, u.from, u.probeErr = at, from, ""
+	if len(read) == 0 {
+		return
+	}
+	u.updated, u.from, u.probeErr = at, from, ""
+	if u.limited.liftedBy(read, at) {
+		u.limited = limit{}
 	}
 }
 
@@ -203,30 +304,38 @@ func (r reading) merge(w quota.Window, at time.Time) (reading, bool) {
 }
 
 // document reports every account's usage as the router knows it, in the
-// order configured, with the best account to use next.
+// order configured, with the best account to use next: never one with no
+// room for any request, whatever its windows read.
 func (s *state) document() status.Document {
 	now := s.now()
-	accounts := s.statuses()
+	accounts, open := s.statuses(now)
 	return status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
-		Best:        status.Best(s.policy, accounts, now),
+		Best:        status.Best(s.policy, open, now),
 		Accounts:    accounts,
 	}
 }
 
-func (s *state) statuses() []status.Account {
+// statuses returns every account's status at now, and, of those, the ones
+// the best can be: all but those barred from the requests of every model.
+func (s *state) statuses(now time.Time) (all, open []status.Account) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	statuses := make([]status.Account, len(s.accounts))
+	all = make([]status.Account, len(s.accounts))
 	for i, a := range s.accounts {
-		statuses[i] = s.usage[a.ID].status(a)
+		u := s.usage[a.ID]
+		all[i] = u.status(a, now)
+		if !u.barred(now, s.policy.IsShared) {
+			open = append(open, all[i])
+		}
 	}
-	return statuses
+	return all, open
 }
 
-// status is the account's usage as last read, or why there's none.
-func (u *usage) status(a account) status.Account {
+// status is the account's usage as last read, or why there's none, and the
+// limit that holds on it at now, if one does.
+func (u *usage) status(a account, now time.Time) status.Account {
 	st := status.Account{ID: a.ID, Label: a.Label, TokenSet: a.hasToken}
 	if !a.hasToken {
 		st.Error = status.TokenMissing(a.Account)
@@ -236,6 +345,9 @@ func (u *usage) status(a account) status.Account {
 	st.Windows = u.latest()
 	st.Failures = slices.Clone(u.failures)
 	st.Error = u.probeErr
+	if now.Before(u.limited.until) {
+		st.Limit = status.Limit{Windows: slices.Clone(u.limited.windows), Until: u.limited.until}
+	}
 	return st
 }
 

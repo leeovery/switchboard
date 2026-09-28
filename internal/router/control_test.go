@@ -33,7 +33,8 @@ func TestClientStatus(t *testing.T) {
 	up := newUpstream(t, answerWith(http.StatusOK, session, week))
 	rt := newRouter(t, up.URL)
 	client := router.NewClient(serveControl(t, rt))
-	send(t, http.MethodPost, serveProxy(t, rt)+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
+	readAll(t, send(t, http.MethodPost, serveProxy(t, rt)+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	waitUntil(t, "the request is done", func() bool { return rt.Status().Router.Requests == 1 })
 
 	got, err := client.Status(t.Context())
 	if err != nil {
@@ -43,6 +44,7 @@ func TestClientStatus(t *testing.T) {
 		GeneratedAt: now,
 		Source:      "router",
 		Best:        "work",
+		Router:      status.Health{Healthy: true, Requests: 1},
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},

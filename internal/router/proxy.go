@@ -8,14 +8,11 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"time"
-
-	"github.com/leeovery/switchboard/internal/logs"
 )
 
 const (
@@ -32,8 +29,9 @@ const (
 )
 
 // proxy sends each request on to the upstream. A request it routes goes out
-// on the account chosen for it, and the account's usage is read off its
-// response; anything else goes as it came.
+// on the account chosen for it, and on others while that one can't serve it,
+// and each account's usage is read off its answers; anything else goes as it
+// came.
 type proxy struct {
 	upstream  *url.URL
 	transport http.RoundTripper
@@ -41,37 +39,32 @@ type proxy struct {
 	state     *state
 	provider  Provider
 	chooser   Chooser
+	health    *health
+	emit      func(Event)
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger
 }
 
-func newProxy(upstream *url.URL, accounts accounts, state *state, provider Provider, chooser Chooser) *proxy {
-	return &proxy{
-		upstream:  upstream,
-		transport: newTransport(),
-		accounts:  accounts,
-		state:     state,
-		provider:  provider,
-		chooser:   chooser,
-		errorLog:  logs.StdLogger("router", slog.LevelWarn),
-	}
-}
-
 // exchange is one request on its way through the proxy, and what's known of
 // it so far.
 type exchange struct {
-	// account is the account a routed request goes out on, and reason why;
-	// both are zero for a request passed through.
+	// req is what a routed request's account is chosen on, account the account
+	// it goes out on, and reason why: all three are zero for a request passed
+	// through.
+	req     Request
 	account account
 	reason  string
 	// id ties a routed request's log lines together.
 	id      string
-	session string
-	model   string
 	started time.Time
+	// attempts counts the times a routed request has gone upstream.
+	attempts int
 	// status is what the client was answered, or zero before it's known.
 	status int
+	// failed is set when the router answered the request with a failure of
+	// its own.
+	failed bool
 }
 
 func (ex *exchange) routed() bool {
@@ -97,7 +90,8 @@ func (p *proxy) routable(r *http.Request) (account, bool) {
 	return p.accounts.byToken(bearer(r.Header))
 }
 
-// route sends a request on the account the chooser picks for it.
+// route sends a request on the account the chooser picks for it, and on
+// others while that one can't serve it.
 func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	started := time.Now()
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
@@ -105,9 +99,10 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		refuseBody(w, r, err)
 		return
 	}
-	ex := &exchange{id: newID(), session: p.provider.Session(r.Header), model: p.provider.Model(body), started: started}
-	ex.account, ex.reason = p.choose(r.Context(), ex, p.pin(r, ex), client)
-	defer p.logRouted(r, ex)
+	ex := &exchange{id: newID(), started: started}
+	ex.req = Request{Session: p.provider.Session(r.Header), Model: p.provider.Model(body), Pin: p.pin(r, ex), Client: client.ID}
+	ex.account, ex.reason = p.choose(r.Context(), ex, client)
+	defer p.done(r, ex)
 	p.forward(w, withBody(r, body), ex)
 }
 
@@ -139,10 +134,11 @@ func (p *proxy) pin(r *http.Request, ex *exchange) string {
 	return ""
 }
 
-// choose asks the chooser which account a request goes out on, and why. Should
-// it name one the router can't send on, the request keeps to its client's.
-func (p *proxy) choose(ctx context.Context, ex *exchange, pin string, client account) (account, string) {
-	choice := p.chooser.Choose(ctx, Request{Session: ex.session, Model: ex.model, Pin: pin, Client: client.ID})
+// choose asks the chooser which account a request goes out on first, and why.
+// Should it name one the router can't send on, the request keeps to its
+// client's.
+func (p *proxy) choose(ctx context.Context, ex *exchange, client account) (account, string) {
+	choice := p.chooser.Choose(ctx, ex.req)
 	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken {
 		return a, choice.Reason
 	}
@@ -150,62 +146,56 @@ func (p *proxy) choose(ctx context.Context, ex *exchange, pin string, client acc
 	return client, "client"
 }
 
-// forward sends a request upstream and its response back, for ex.
+// next asks the chooser which account a request goes out on after those it
+// has been tried on, and why. It reports false when none other has room for
+// it.
+func (p *proxy) next(ctx context.Context, req Request) (account, string, bool) {
+	choice := p.chooser.Choose(ctx, req)
+	a, ok := p.accounts.byID(choice.Account)
+	if _, tried := req.attempt(a.ID); choice.NoRoom || !ok || !a.hasToken || tried {
+		return account{}, "", false
+	}
+	return a, choice.Reason, true
+}
+
+// forward sends a request upstream and its answer back, for ex: a routed one
+// as its replay has it.
 func (p *proxy) forward(w http.ResponseWriter, r *http.Request, ex *exchange) {
+	transport := p.transport
+	if ex.routed() {
+		transport = &replay{p: p, ex: ex}
+	}
 	rp := &httputil.ReverseProxy{
-		Rewrite:        func(pr *httputil.ProxyRequest) { p.rewrite(pr, ex) },
-		Transport:      p.transport,
-		FlushInterval:  -1,
-		ErrorLog:       p.errorLog,
-		ModifyResponse: func(resp *http.Response) error { return p.inspect(resp, ex) },
-		ErrorHandler:   func(w http.ResponseWriter, r *http.Request, err error) { p.fail(w, r, ex, err) },
+		Rewrite:       p.rewrite,
+		Transport:     transport,
+		FlushInterval: -1,
+		ErrorLog:      p.errorLog,
+		ModifyResponse: func(resp *http.Response) error {
+			ex.status = resp.StatusCode
+			return nil
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) { p.fail(w, r, ex, err) },
 	}
 	rp.ServeHTTP(w, r)
 }
 
-// rewrite points a request at the upstream, and a routed one at its account.
-func (p *proxy) rewrite(pr *httputil.ProxyRequest, ex *exchange) {
+// rewrite points a request at the upstream. A routed request's replay sets its
+// token, as each attempt's account has it.
+func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 	// Rewrite drops query parameters it can't parse. The router never reads
 	// the query, so the upstream gets it as the client sent it.
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(p.upstream)
 	pr.Out.Header.Del(pinHeader)
-	if ex.routed() {
-		pr.Out.Header.Set("Authorization", "Bearer "+ex.account.token.Reveal())
-	}
 }
 
-// inspect reads a response before it goes back to the client. A routed
-// request's response reports its account's usage, whatever its status, and
-// must not reach the client when it refuses the account's token.
-func (p *proxy) inspect(resp *http.Response, ex *exchange) error {
-	if ex.routed() {
-		if windows := p.provider.Usage(resp.Header); len(windows) > 0 {
-			p.state.record(ex.account.ID, windows, fromResponse)
-			p.state.learn(ex.model, windows)
-		}
-		if refuses(resp.StatusCode) {
-			message := p.provider.ErrorMessage(resp.Body, ex.account.token.Reveal())
-			return refusal{status: resp.StatusCode, message: prefix(message, refusalShown)}
-		}
-	}
-	ex.status = resp.StatusCode
-	return nil
-}
-
-// refuses reports whether a status refuses the token a request went out on.
-// Claude Code takes either as its own login failing, and drops it on a 403,
-// but a routed request's token needn't be its own: so neither is relayed.
-func refuses(status int) bool {
-	return status == http.StatusUnauthorized || status == http.StatusForbidden
-}
-
-// refusal is the upstream refusing the token a routed request went out on.
+// refusal is the upstream refusing the token of the account a routed request
+// went out on last, answering with status, when there was no other account
+// to send it on. Claude Code takes a 401 or 403 as its own login failing, and
+// drops it on a 403, but a routed request's token needn't be its own: so
+// neither is relayed.
 type refusal struct {
 	status int
-	// message is the upstream's reason, such as a model the account's plan
-	// doesn't include, for the log alone.
-	message string
 }
 
 func (e refusal) Error() string {
@@ -215,21 +205,19 @@ func (e refusal) Error() string {
 // fail answers a request the upstream didn't answer, or answered with a
 // refusal the client mustn't see: a 502, shaped as the API shapes its errors.
 func (p *proxy) fail(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
+	if r.Context().Err() != nil {
+		// The client has gone, so there's no one to answer.
+		return
+	}
+	ex.status, ex.failed = http.StatusBadGateway, true
 	if refused, ok := errors.AsType[refusal](err); ok {
-		logger.Error("upstream refused the account's token", "id", ex.id, "account", ex.account.ID, "status", refused.status, "error", refused.message)
-		ex.status = http.StatusBadGateway
 		// The API's clients retry a 5xx unless told not to, and the same
 		// token would only be refused again.
 		w.Header().Set("X-Should-Retry", "false")
 		writeError(w, ex.status, "api_error", fmt.Sprintf("switchboard: the upstream refused account %s (HTTP %d)", ex.account.ID, refused.status))
 		return
 	}
-	if r.Context().Err() != nil {
-		// The client has gone, so there's no one to answer.
-		return
-	}
 	logger.Error("upstream request failed", append(ex.identity(r), "error", err)...)
-	ex.status = http.StatusBadGateway
 	writeError(w, ex.status, "api_error", "switchboard: the request to the upstream failed: "+err.Error())
 }
 
@@ -242,18 +230,31 @@ func (ex *exchange) identity(r *http.Request) []any {
 	return []any{"method", r.Method, "path", r.URL.Path}
 }
 
-// logRouted notes a routed request once it's done, and whether its client
-// went away before then.
+// done notes a routed request once it's done: in the log, and, once it was
+// answered, in the router's health.
+func (p *proxy) done(r *http.Request, ex *exchange) {
+	p.logRouted(r, ex)
+	if ex.status != 0 {
+		p.health.record(ex.failed)
+	}
+}
+
+// logRouted notes a routed request once it's done, how many times it went
+// upstream when that was more than once, and whether its client went away
+// before then.
 func (p *proxy) logRouted(r *http.Request, ex *exchange) {
 	attrs := []any{
 		"id", ex.id,
-		"session", prefix(ex.session, sessionShown),
-		"model", ex.model,
+		"session", prefix(ex.req.Session, sessionShown),
+		"model", ex.req.Model,
 		"account", ex.account.ID,
 		"reason", ex.reason,
 		"status", ex.status,
-		"duration", time.Since(ex.started).Round(time.Millisecond),
 	}
+	if ex.attempts > 1 {
+		attrs = append(attrs, "attempts", ex.attempts)
+	}
+	attrs = append(attrs, "duration", time.Since(ex.started).Round(time.Millisecond))
 	if r.Context().Err() != nil {
 		attrs = append(attrs, "canceled", true)
 	}
@@ -292,8 +293,9 @@ func writeError(w http.ResponseWriter, status int, kind, message string) {
 }
 
 // withBody returns a shallow copy of r whose body reads body. It can be read
-// again, which lets the transport resend a request the upstream never began
-// on, as when an HTTP/2 connection closes under it.
+// again, which lets a routed request go out more than once, and the transport
+// resend a request the upstream never began on, as when an HTTP/2 connection
+// closes under it.
 func withBody(r *http.Request, body []byte) *http.Request {
 	r = r.WithContext(r.Context())
 	r.Body = io.NopCloser(bytes.NewReader(body))

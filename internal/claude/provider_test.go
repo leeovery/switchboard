@@ -1,10 +1,12 @@
 package claude_test
 
 import (
+	"math"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -133,6 +135,150 @@ func TestProviderErrorMessage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := (claude.Provider{}).ErrorMessage(strings.NewReader(tt.body), token); got != tt.want {
 				t.Errorf("ErrorMessage() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestProviderClassify(t *testing.T) {
+	// throttledAfter is a throttled verdict asking for a wait of d.
+	throttledAfter := func(d time.Duration) quota.Outcome {
+		return quota.Outcome{Verdict: quota.Throttled, RetryAfter: d}
+	}
+	limit := quota.Outcome{Verdict: quota.LimitReached}
+	// limitUntil is the limit reached, until the Unix time given.
+	limitUntil := func(unix int64) quota.Outcome {
+		return quota.Outcome{Verdict: quota.LimitReached, LimitedUntil: time.Unix(unix, 0).UTC()}
+	}
+	tests := []struct {
+		name   string
+		status int
+		header http.Header
+		want   quota.Outcome
+	}{
+		{name: "a 200", status: http.StatusOK, want: quota.Outcome{Verdict: quota.Served}},
+		{name: "a 400", status: http.StatusBadRequest, want: quota.Outcome{Verdict: quota.Served}},
+		{name: "a 500, which Claude Code retries", status: http.StatusInternalServerError, want: quota.Outcome{Verdict: quota.Served}},
+		{name: "a 529 overloaded, which Claude Code retries", status: 529, want: quota.Outcome{Verdict: quota.Served}},
+		{
+			name:   "a 200 whose window is rejected, served on overage",
+			status: http.StatusOK,
+			header: header("anthropic-ratelimit-unified-5h-status", "rejected", "anthropic-ratelimit-unified-status", "rejected"),
+			want:   quota.Outcome{Verdict: quota.Served},
+		},
+		{name: "a 401", status: http.StatusUnauthorized, want: quota.Outcome{Verdict: quota.Refused}},
+		{name: "a 403", status: http.StatusForbidden, want: quota.Outcome{Verdict: quota.Refused}},
+		{
+			name:   "a 429 whose overall status is rejected",
+			status: http.StatusTooManyRequests,
+			header: header("anthropic-ratelimit-unified-status", "rejected", "anthropic-ratelimit-unified-5h-status", "allowed_warning", "retry-after", "30"),
+			want:   limit,
+		},
+		{
+			name:   "a 429 whose session is rejected",
+			status: http.StatusTooManyRequests,
+			header: header("anthropic-ratelimit-unified-5h-status", "rejected", "anthropic-ratelimit-unified-7d-status", "allowed"),
+			want:   limit,
+		},
+		{
+			name:   "a 429 whose model's week is rejected, in any case of header name",
+			status: http.StatusTooManyRequests,
+			header: http.Header{"Anthropic-Ratelimit-Unified-7D_OI-Status": {"rejected"}},
+			want:   limit,
+		},
+		{
+			name:   "a 429 whose rejected window has no utilization",
+			status: http.StatusTooManyRequests,
+			header: header("anthropic-ratelimit-unified-7d-status", "rejected"),
+			want:   limit,
+		},
+		{
+			name:   "a limit until the overall reset, the rejecting claim's, over any window's",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-status", "rejected",
+				"anthropic-ratelimit-unified-reset", "1790619000",
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790974800",
+			),
+			want: limitUntil(1790619000),
+		},
+		{
+			name:   "a limit until the rejected window's reset, not those with room",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790619000",
+				"anthropic-ratelimit-unified-7d-status", "allowed",
+				"anthropic-ratelimit-unified-7d-reset", "1790974800",
+			),
+			want: limitUntil(1790619000),
+		},
+		{
+			name:   "a limit until the latest of the rejected windows' resets",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-7d-status", "rejected",
+				"anthropic-ratelimit-unified-7d-reset", "1790974800",
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790619000",
+			),
+			want: limitUntil(1790974800),
+		},
+		{
+			name:   "a limit until the reset of the rejected window that gives one",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-7d-status", "rejected",
+				"anthropic-ratelimit-unified-7d-reset", "1790974800",
+			),
+			want: limitUntil(1790974800),
+		},
+		{
+			name:   "a limit whose overall reset can't be read, until the windows'",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-status", "rejected",
+				"anthropic-ratelimit-unified-reset", "soon",
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790619000",
+			),
+			want: limitUntil(1790619000),
+		},
+		{
+			name:   "a 429 rejecting overage alone, which isn't a window",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-status", "allowed",
+				"anthropic-ratelimit-unified-5h-status", "allowed",
+				"anthropic-ratelimit-unified-overage-status", "rejected",
+				"anthropic-ratelimit-unified-overage-disabled-reason", "org_level_disabled",
+				"retry-after", "7",
+			),
+			want: throttledAfter(7 * time.Second),
+		},
+		{name: "a 429 without usage headers", status: http.StatusTooManyRequests, want: throttledAfter(0)},
+		{name: "a 429 asking for a wait", status: http.StatusTooManyRequests, header: header("retry-after", " 12 "), want: throttledAfter(12 * time.Second)},
+		{name: "a 429 asking for no wait", status: http.StatusTooManyRequests, header: header("retry-after", "0"), want: throttledAfter(0)},
+		{name: "a 429 asking for a wait as a date", status: http.StatusTooManyRequests, header: header("retry-after", "Mon, 28 Sep 2026 13:12:30 GMT"), want: throttledAfter(0)},
+		{name: "a 429 asking for a wait in fractions", status: http.StatusTooManyRequests, header: header("retry-after", "1.5"), want: throttledAfter(0)},
+		{name: "a 429 asking for a negative wait", status: http.StatusTooManyRequests, header: header("retry-after", "-5"), want: throttledAfter(0)},
+		{
+			name:   "a 429 asking for a wait longer than a duration holds",
+			status: http.StatusTooManyRequests,
+			header: header("retry-after", "99999999999999999"),
+			want:   throttledAfter(time.Duration(math.MaxInt64 / int64(time.Second) * int64(time.Second))),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tt.header
+			if h == nil {
+				h = http.Header{}
+			}
+			if got := (claude.Provider{}).Classify(tt.status, h); got != tt.want {
+				t.Errorf("Classify(%d, %v) = %+v, want %+v", tt.status, h, got, tt.want)
 			}
 		})
 	}

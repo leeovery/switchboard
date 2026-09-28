@@ -11,7 +11,9 @@ const (
 	// staleAfter is how old an account's usage can grow before a choice made
 	// afresh probes it again.
 	staleAfter = 15 * time.Minute
-	// retryAfter is how soon an account whose probe failed is probed again.
+	// retryAfter is how soon an account is probed again once a probe of it
+	// has ended, as one that failed; an account without room also waits that
+	// long after its usage was last read.
 	retryAfter = time.Minute
 )
 
@@ -46,9 +48,10 @@ type probing struct {
 	done <-chan struct{}
 }
 
-// start probes each of the accounts that's due a probe, unless a probe of it
-// is under way already, and returns every probe of them under way.
-func (p *probes) start(as accounts) []probing {
+// start probes each of the accounts that due says wants a probe, unless a
+// probe of it is under way already, and returns every probe of them under
+// way.
+func (p *probes) start(as accounts, due func(id string, now time.Time) bool) []probing {
 	now := p.now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -56,7 +59,7 @@ func (p *probes) start(as accounts) []probing {
 	for _, a := range as {
 		done, running := p.running[a.ID]
 		if !running {
-			if p.stopped || !p.state.due(a.ID, now) {
+			if p.stopped || !due(a.ID, now) {
 				continue
 			}
 			done = make(chan struct{})
@@ -78,18 +81,20 @@ func (p *probes) finish(id string) {
 	delete(p.running, id)
 }
 
-// await probes the accounts as start does, and waits for those probes to end:
-// for limit at most, or until ctx ends, after which they go on without it. It
-// reports whether there were any.
-func (p *probes) await(ctx context.Context, as accounts, limit time.Duration) bool {
-	underway := p.start(as)
+// await probes the accounts as start does, and waits for those probes to end
+// as wait does. It reports whether there were any.
+func (p *probes) await(ctx context.Context, as accounts, due func(id string, now time.Time) bool, limit time.Duration) bool {
+	underway := p.start(as, due)
 	if len(underway) == 0 {
 		return false
 	}
-	ids := make([]string, len(underway))
-	for i, u := range underway {
-		ids[i] = u.account
-	}
+	p.wait(ctx, underway, limit)
+	return true
+}
+
+// wait waits for probes under way to end: for limit at most, or until ctx
+// ends, after which they go on without it.
+func (p *probes) wait(ctx context.Context, underway []probing, limit time.Duration) {
 	started := time.Now()
 	timeout := time.NewTimer(limit)
 	defer timeout.Stop()
@@ -97,14 +102,22 @@ func (p *probes) await(ctx context.Context, as accounts, limit time.Duration) bo
 		select {
 		case <-u.done:
 		case <-timeout.C:
-			logger.Debug("stopped waiting for probes before choosing", "accounts", strings.Join(ids, ","), "after", limit)
-			return true
+			logger.Debug("stopped waiting for probes before choosing", "accounts", accountsOf(underway), "after", limit)
+			return
 		case <-ctx.Done():
-			return true
+			return
 		}
 	}
-	logger.Debug("probed before choosing", "accounts", strings.Join(ids, ","), "duration", time.Since(started).Round(time.Millisecond))
-	return true
+	logger.Debug("probed before choosing", "accounts", accountsOf(underway), "duration", time.Since(started).Round(time.Millisecond))
+}
+
+// accountsOf lists the accounts of probes under way, as the log shows them.
+func accountsOf(underway []probing) string {
+	ids := make([]string, len(underway))
+	for i, u := range underway {
+		ids[i] = u.account
+	}
+	return strings.Join(ids, ",")
 }
 
 // stop cuts short the probes under way, and waits for them to end. None

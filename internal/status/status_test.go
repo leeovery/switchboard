@@ -296,14 +296,15 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
-			name: "the router's, with its pin and each account's sessions",
+			name: "the router's, with its pin, its health and each account's sessions",
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceRouter,
 				Pin:         status.Pin{Account: "side", Since: generated.Add(-time.Hour), Move: true},
+				Router:      status.Health{Requests: 8, Failures: 6, Reason: "6 of the 8 requests in the last 5 minutes failed"},
 				Accounts: []status.Account{
 					{ID: "work", Label: "Work", TokenSet: true, Sessions: 2},
-					{ID: "side", Label: "Side", TokenSet: true},
+					{ID: "side", Label: "Side", TokenSet: true, Limit: status.Limit{Windows: []string{"5h"}, Until: generated.Add(2 * time.Hour)}},
 				},
 			},
 			want: `{
@@ -313,6 +314,12 @@ func TestDocumentJSON(t *testing.T) {
     "account": "side",
     "since": "2026-09-28T12:12:00Z",
     "move": true
+  },
+  "router": {
+    "healthy": false,
+    "requests": 8,
+    "failures": 6,
+    "reason": "6 of the 8 requests in the last 5 minutes failed"
   },
   "accounts": [
     {
@@ -324,6 +331,37 @@ func TestDocumentJSON(t *testing.T) {
     {
       "id": "side",
       "label": "Side",
+      "token_set": true,
+      "limit": {
+        "windows": [
+          "5h"
+        ],
+        "until": "2026-09-28T15:12:00Z"
+      }
+    }
+  ]
+}`,
+		},
+		{
+			name: "the router's, healthy",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true, Requests: 12, Failures: 1},
+				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 12,
+    "failures": 1
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
       "token_set": true
     }
   ]

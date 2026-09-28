@@ -125,7 +125,7 @@ func TestAChoiceWaitsForProbesEightSecondsAtMost(t *testing.T) {
 		if waited := time.Since(began); waited != 8*time.Second {
 			t.Errorf("Choose() waited %v for probes that never end, want 8s", waited)
 		}
-		if want := (Choice{Account: "work", Reason: "no account has room"}); got != want {
+		if want := (Choice{Account: "work", Reason: "no account has room", NoRoom: true}); got != want {
 			t.Errorf("Choose() = %+v, want %+v", got, want)
 		}
 		if !log.Has("level=DEBUG", `msg="stopped waiting for probes before choosing"`, "accounts=work,side", "after=8s") {

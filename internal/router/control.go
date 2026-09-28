@@ -30,9 +30,11 @@ func SocketPath(stateDir string) string {
 const maxControlBody = 64 << 10
 
 // Health is what GET /health answers: that the router is alive, and which it
-// is.
+// is. OK is false while the router is failing too many of the requests it
+// routes, and Reason says how many.
 type Health struct {
 	OK        bool      `json:"ok"`
+	Reason    string    `json:"reason,omitempty"`
 	Version   string    `json:"version"`
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
@@ -70,14 +72,16 @@ type problem struct {
 	Error string `json:"error"`
 }
 
-// Control is the control API: GET /health says the router is alive, GET
-// /status gives its status document, GET /sessions/{id} says where a
-// session's requests go, and POST and DELETE /pin set and clear the global
-// pin, each answering with the status document as it leaves it.
+// Control is the control API: GET /health says the router is alive, and
+// whether it's healthy, GET /status gives its status document, GET
+// /sessions/{id} says where a session's requests go, and POST and DELETE
+// /pin set and clear the global pin, each answering with the status document
+// as it leaves it.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, Health{OK: true, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started})
+		h := r.health.report()
+		writeJSON(w, Health{OK: h.Healthy, Reason: h.Reason, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started})
 	})
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, r.Status())
