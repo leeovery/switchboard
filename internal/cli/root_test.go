@@ -67,6 +67,9 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "unknown log", args: []string{"logs", "extra"}, wantUsage: true},
 		{name: "number of lines that isn't one", args: []string{"logs", "-n", "many"}, wantUsage: true},
 		{name: "log that doesn't exist yet", args: []string{"logs", "router"}, wantUsage: false},
+		{name: "unexpected serve argument", args: []string{"serve", "extra"}, wantUsage: true},
+		{name: "unknown log level", args: []string{"serve", "--log-level", "loud"}, wantUsage: true},
+		{name: "invalid config for serve", args: []string{"serve", "--config", invalid}, wantUsage: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -185,20 +188,20 @@ func TestACommandCanLogAsTheRouter(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	root := cli.NewRootCommand(deps)
 	root.AddCommand(&cobra.Command{
-		Use:         "serve",
+		Use:         "as-router",
 		Annotations: map[string]string{cli.RoleAnnotation: "router"},
 		RunE:        func(*cobra.Command, []string) error { return nil },
 	})
-	root.SetArgs([]string{"serve"})
+	root.SetArgs([]string{"as-router"})
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 
 	if code := cli.Execute(root); code != 0 {
-		t.Fatalf("switchboard serve exited %d, want 0", code)
+		t.Fatalf("switchboard as-router exited %d, want 0", code)
 	}
 	log := readLog(t, deps, "router.log")
 	for _, want := range [][]string{
-		{"level=INFO", "msg=start component=process", "role=router", `command="switchboard serve"`},
+		{"level=INFO", "msg=start component=process", "role=router", `command="switchboard as-router"`},
 		{"level=INFO", "msg=exit component=process", "status=0"},
 	} {
 		if !hasLine(log, want...) {

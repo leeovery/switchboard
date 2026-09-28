@@ -7,7 +7,9 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/cli"
@@ -184,6 +186,30 @@ token_env = "CLAUDE_TOKEN_SIDE"
 // still the account to use next. It returns the API's URL.
 func fakeClaudeAPI(t *testing.T) string {
 	t.Helper()
+	return newClaudeAPI(t).URL
+}
+
+// claudeAPI is the API fakeClaudeAPI serves, noting what it's asked.
+type claudeAPI struct {
+	URL string
+
+	mu sync.Mutex
+	// asked holds each request's token and model, as "token model".
+	asked []string
+}
+
+// questions returns what the API has been asked, sorted: each request's token
+// and model, as "token model".
+func (a *claudeAPI) questions() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Sorted(slices.Values(a.asked))
+}
+
+// newClaudeAPI starts the API fakeClaudeAPI describes.
+func newClaudeAPI(t *testing.T) *claudeAPI {
+	t.Helper()
+	api := &claudeAPI{}
 	accountWide := map[string]string{
 		"anthropic-ratelimit-unified-5h-utilization": "0.23",
 		"anthropic-ratelimit-unified-5h-reset":       "1790619000", // Mon 28 Sep 2026 18:10 UTC
@@ -209,6 +235,10 @@ func fakeClaudeAPI(t *testing.T) string {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("decode request body: %v", err)
 		}
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		api.mu.Lock()
+		api.asked = append(api.asked, token+" "+req.Model)
+		api.mu.Unlock()
 		headers, ok := usage[req.Model]
 		if !ok || r.Header.Get("Authorization") != "Bearer test-token-work" || r.Header.Get("User-Agent") != "claude-code/"+testClaudeVersion {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -221,5 +251,6 @@ func fakeClaudeAPI(t *testing.T) string {
 		_, _ = io.WriteString(w, `{"type":"message"}`)
 	}))
 	t.Cleanup(srv.Close)
-	return srv.URL
+	api.URL = srv.URL
+	return api
 }
