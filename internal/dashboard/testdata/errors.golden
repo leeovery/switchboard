@@ -1,0 +1,17 @@
+ Switchboard                                                                                                                 Mon 28 Sep · 13:12
+ best next: work · Work
+
+ ╭─ work · Work ───────────────────── ▲ best ─╮  ╭─ personal · Personal ──────────────────────╮  ╭─ side · Side ──────────────────────────────╮
+ │                                            │  │                                            │  │                                            │
+ │  Session                              12%  │  │  ✗ token missing: set                      │  │  ✗ HTTP 401 · Invalid bearer token: the    │
+ │  ████▊░░░░░░░░░░░┃░░░░░░░░░░░░░░░░░░░░░░░  │  │    CLAUDE_TOKEN_PERSONAL                   │  │    token has expired or been revoked, so   │
+ │  on pace for 30% · resets in 3h 0m         │  │                                            │  │    create a new one with claude setup-to…  │
+ │                                            │  │                                            │  │                                            │
+ │  Week                                 33%  │  │                                            │  │                                            │
+ │  ███████████┃█▎░░░░░░░░░░░░░░░░░░░░░░░░░░  │  │                                            │  │                                            │
+ │  runs out ~Fri 14:39 · resets in 5d 0h     │  │                                            │  │                                            │
+ │                                            │  │                                            │  │                                            │
+ │  Fable offline                             │  │                                            │  │                                            │
+ │  HTTP 529 · Overloaded                     │  │                                            │  │                                            │
+ │                                            │  │                                            │  │                                            │
+ ╰────────────────────────────────────────────╯  ╰────────────────────────────────────────────╯  ╰────────────────────────────────────────────╯

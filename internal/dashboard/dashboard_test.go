@@ -1,0 +1,376 @@
+package dashboard_test
+
+import (
+	"flag"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+	"unicode/utf8"
+
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
+)
+
+var update = flag.Bool("update", false, "rewrite the golden files with what the tests render")
+
+// now is the clock every frame is drawn at: a Monday, 13:12 an hour east of UTC.
+var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+
+// layout is a frame the tests draw: a document and how to draw it.
+type layout struct {
+	name string
+	doc  status.Document
+	opts dashboard.Options
+}
+
+func layouts() []layout {
+	three, mixed := threeAccounts(), mixedAccounts()
+	return []layout{
+		{name: "three-wide", doc: three, opts: dashboard.Options{Width: 150}},
+		{name: "three-two-columns", doc: three, opts: dashboard.Options{Width: 100}},
+		{name: "three-one-column", doc: three, opts: dashboard.Options{Width: 80}},
+		{name: "three-compact-from-width", doc: three, opts: dashboard.Options{Width: 44}},
+		{name: "three-compact-from-height", doc: three, opts: dashboard.Options{Width: 150, Height: 12}},
+		{name: "three-with-footer", doc: three, opts: dashboard.Options{Width: 150, Footer: "updated 13:12 · next 13:42 · r refresh · q quit"}},
+		{name: "no-best", doc: noBest(), opts: dashboard.Options{Width: 100}},
+		{name: "exhausted", doc: exhausted(), opts: dashboard.Options{Width: 80}},
+		{name: "failure", doc: failure(), opts: dashboard.Options{Width: 80}},
+		{name: "errors", doc: mixed, opts: dashboard.Options{Width: 150}},
+		{name: "errors-compact", doc: mixed, opts: dashboard.Options{Width: 100, Height: 10}},
+		{name: "unknown-reset", doc: unknownReset(), opts: dashboard.Options{Width: 80}},
+		{name: "long-labels", doc: longLabels(), opts: dashboard.Options{Width: 120}},
+	}
+}
+
+func TestRenderGolden(t *testing.T) {
+	for _, l := range layouts() {
+		t.Run(l.name, func(t *testing.T) {
+			got := dashboard.Render(l.doc, now, l.opts) + "\n"
+			path := filepath.Join("testdata", l.name+".golden")
+			if *update {
+				if err := os.WriteFile(path, []byte(got), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read golden file (run with -update to create it): %v", err)
+			}
+			if got != string(want) {
+				t.Errorf("Render() differs from %s; run with -update to accept it\ngot:\n%s\nwant:\n%s", path, got, want)
+			}
+		})
+	}
+}
+
+func TestRenderFitsEveryWidth(t *testing.T) {
+	for _, l := range layouts() {
+		t.Run(l.name, func(t *testing.T) {
+			t.Parallel()
+			for width := 30; width <= 200; width++ {
+				opts := l.opts
+				opts.Width = width
+				frame := dashboard.Render(l.doc, now, opts)
+				for i, line := range strings.Split(frame, "\n") {
+					if got := lipgloss.Width(line); got > width {
+						t.Errorf("at width %d, line %d is %d cells wide:\n%s", width, i, got, line)
+					}
+					if strings.TrimRight(line, " ") != line {
+						t.Errorf("at width %d, line %d ends in spaces: %q", width, i, line)
+					}
+				}
+				checkCards(t, width, frame)
+			}
+		})
+	}
+}
+
+func TestRenderInColor(t *testing.T) {
+	for _, l := range layouts() {
+		t.Run(l.name, func(t *testing.T) {
+			plain := dashboard.Render(l.doc, now, l.opts)
+			colored := l.opts
+			colored.Color = true
+			got := dashboard.Render(l.doc, now, colored)
+			if !strings.Contains(got, "\x1b[38;2;") {
+				t.Error("Render() with color has no color escapes")
+			}
+			if stripped := ansi.Strip(got); stripped != plain {
+				t.Errorf("Render() with color, stripped of its escapes =\n%s\nwant the frame without color:\n%s", stripped, plain)
+			}
+		})
+	}
+}
+
+func TestRenderWithoutColorHasNoEscapes(t *testing.T) {
+	for _, l := range layouts() {
+		if frame := dashboard.Render(l.doc, now, l.opts); strings.Contains(frame, "\x1b") {
+			t.Errorf("%s: Render() without color has escape codes", l.name)
+		}
+	}
+}
+
+func TestRenderSurvivesTinyWidths(t *testing.T) {
+	for _, l := range layouts() {
+		t.Run(l.name, func(t *testing.T) {
+			t.Parallel()
+			for width := range 30 {
+				opts := l.opts
+				opts.Width = width
+				for i, line := range strings.Split(dashboard.Render(l.doc, now, opts), "\n") {
+					if got := lipgloss.Width(line); got > width {
+						t.Errorf("at width %d, line %d is %d cells wide: %q", width, i, got, line)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRenderGivesWayToHeight(t *testing.T) {
+	doc := threeAccounts()
+	footer := "r refresh · q quit"
+	cards := dashboard.Render(doc, now, dashboard.Options{Width: 150, Footer: footer})
+	height := strings.Count(cards, "\n") + 1
+	tests := []struct {
+		name      string
+		height    int
+		wantCards bool
+	}{
+		{name: "unknown", height: 0, wantCards: true},
+		{name: "as tall as the cards, footer and all", height: height, wantCards: true},
+		{name: "a line short of them", height: height - 1, wantCards: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := dashboard.Render(doc, now, dashboard.Options{Width: 150, Height: tt.height, Footer: footer})
+			if hasCards := strings.Contains(got, "╭"); hasCards != tt.wantCards {
+				t.Errorf("Render() at height %d =\n%s\nwant cards: %v", tt.height, got, tt.wantCards)
+			}
+		})
+	}
+}
+
+func TestRenderWithoutAccounts(t *testing.T) {
+	doc := status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe}
+
+	got := dashboard.Render(doc, now, dashboard.Options{Width: 80})
+	want := " Switchboard  Mon 28 Sep · 13:12"
+	if got != want {
+		t.Errorf("Render() =\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestRenderCleansText(t *testing.T) {
+	doc := status.Document{
+		GeneratedAt: now.UTC(),
+		Source:      status.SourceProbe,
+		Accounts: []status.Account{
+			{ID: "work", Label: "Work\x1b[31m\tteam\n", TokenSet: true, Error: "HTTP 500 ·\r\nbad\x07 gateway"},
+		},
+	}
+
+	frame := dashboard.Render(doc, now, dashboard.Options{Width: 80})
+	if strings.ContainsAny(frame, "\x1b\t\r\a") {
+		t.Errorf("Render() = %q, want no control characters from the document", frame)
+	}
+	for _, want := range []string{"work · Work [31m team", "✗ HTTP 500 · bad gateway"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("Render() =\n%s\nwant it to contain %q", frame, want)
+		}
+	}
+}
+
+// checkCards checks that each row's cards start and end on the same lines,
+// so they're the same height, and that their borders line up.
+func checkCards(t *testing.T, width int, frame string) {
+	t.Helper()
+	lines := strings.Split(frame, "\n")
+	for i := 0; i < len(lines); i++ {
+		lefts := columns(lines[i], '╭')
+		if len(lefts) == 0 {
+			continue
+		}
+		rights := columns(lines[i], '╮')
+		edges := slices.Sorted(slices.Values(slices.Concat(lefts, rights)))
+		j := i + 1
+		for ; j < len(lines) && !strings.Contains(lines[j], "╰"); j++ {
+			if got := columns(lines[j], '│'); !slices.Equal(got, edges) {
+				t.Errorf("at width %d, line %d has side borders at %v, want %v:\n%s", width, j, got, edges, frame)
+				return
+			}
+		}
+		if j == len(lines) {
+			t.Errorf("at width %d, cards opened on line %d never close:\n%s", width, i, frame)
+			return
+		}
+		if got := columns(lines[j], '╰'); !slices.Equal(got, lefts) {
+			t.Errorf("at width %d, cards opened at %v on line %d close at %v on line %d:\n%s", width, lefts, i, got, j, frame)
+		}
+		if got := columns(lines[j], '╯'); !slices.Equal(got, rights) {
+			t.Errorf("at width %d, cards opened at %v on line %d close at %v on line %d:\n%s", width, rights, i, got, j, frame)
+		}
+		i = j
+	}
+}
+
+// columns lists the cells of line where glyph is drawn.
+func columns(line string, glyph rune) []int {
+	var cells []int
+	cell := 0
+	for i, r := range line {
+		if r == glyph {
+			cells = append(cells, cell)
+		}
+		cell += ansi.StringWidth(line[i : i+utf8.RuneLen(r)])
+	}
+	return cells
+}
+
+// window is a window resetting a duration from now.
+func window(key, label string, utilization float64, resetsIn time.Duration) quota.Window {
+	return quota.Window{Key: key, Label: label, Utilization: utilization, ResetsAt: now.Add(resetsIn).UTC()}
+}
+
+func session(utilization float64, resetsIn time.Duration) quota.Window {
+	return window("5h", "Session", utilization, resetsIn)
+}
+
+func week(utilization float64, resetsIn time.Duration) quota.Window {
+	return window("7d", "Week", utilization, resetsIn)
+}
+
+func fableWeek(utilization float64, resetsIn time.Duration) quota.Window {
+	return window("7d_oi", "Fable week", utilization, resetsIn)
+}
+
+func refused(w quota.Window) quota.Window {
+	w.Status = quota.StatusRejected
+	return w
+}
+
+// read is an account whose usage was read now.
+func read(id, label string, usage quota.Usage) status.Account {
+	return status.Account{ID: id, Label: label, TokenSet: true, FetchedAt: now.UTC(), Usage: usage}
+}
+
+func windows(ws ...quota.Window) quota.Usage {
+	return quota.Usage{Windows: ws}
+}
+
+func document(best string, accounts ...status.Account) status.Document {
+	return status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Best: best, Accounts: accounts}
+}
+
+const (
+	hour = time.Hour
+	day  = 24 * time.Hour
+)
+
+// threeAccounts are windows heading every way: work keeping pace, personal
+// running out of its week, and side out of its session.
+func threeAccounts() status.Document {
+	return document("2",
+		read("1", "Work", windows(
+			session(0.37, 5*time.Minute),
+			week(0.96, 2*hour+55*time.Minute),
+			fableWeek(0.15, 4*day),
+		)),
+		read("2", "Personal", windows(
+			session(0.05, 15*time.Minute),
+			week(0.28, 6*day),
+		)),
+		read("3", "Side", windows(
+			refused(session(1, hour+20*time.Minute)),
+			week(0.64, 3*day+4*hour),
+			fableWeek(0.41, 3*day+4*hour),
+		)),
+	)
+}
+
+// noBest has no account with room in every window every model shares.
+func noBest() status.Document {
+	return document("",
+		read("1", "Work", windows(
+			session(0.42, 2*hour),
+			refused(week(1, 2*day+3*hour)),
+		)),
+		read("2", "Personal", windows(
+			refused(session(1, 38*time.Minute)),
+			week(0.91, day),
+		)),
+	)
+}
+
+// exhausted has a session that's back soon, and a Fable week over its limit
+// whose reset is unknown.
+func exhausted() status.Document {
+	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 1.04}
+	return document("",
+		read("1", "Work", windows(
+			refused(session(1, hour+5*time.Minute)),
+			week(0.55, 2*day),
+			fable,
+		)),
+	)
+}
+
+// failure couldn't read the Fable week, for a reason too long for two lines.
+func failure() status.Document {
+	return document("1",
+		read("1", "Work", quota.Usage{
+			Windows: []quota.Window{session(0.23, 4*hour), week(0.61, 3*day)},
+			Failures: []quota.Failure{{
+				Label:  "Fable",
+				Window: "7d_oi",
+				Error:  "HTTP 529 · Overloaded: the model is temporarily unable to serve this account, so retry after the cooldown has passed",
+			}},
+		}),
+	)
+}
+
+// mixedAccounts has one account read but for its Fable week, one without a
+// token and one whose token was refused, at length.
+func mixedAccounts() status.Document {
+	return document("work",
+		read("work", "Work", quota.Usage{
+			Windows:  []quota.Window{session(0.12, 3*hour), week(0.33, 5*day)},
+			Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
+		}),
+		status.Account{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+		status.Account{
+			ID: "side", Label: "Side", TokenSet: true,
+			Error: "HTTP 401 · Invalid bearer token: the token has expired or been revoked, so create a new one with claude setup-token and set it again",
+		},
+	)
+}
+
+// unknownReset has a window whose reset wasn't given, and one whose length
+// can't be read from its key.
+func unknownReset() status.Document {
+	return document("1",
+		read("1", "Work", windows(
+			quota.Window{Key: "5h", Label: "Session", Utilization: 0.23},
+			week(0.4, 4*day),
+			window("burst", "burst", 0.62, 42*time.Minute),
+		)),
+	)
+}
+
+// longLabels has an account and a window whose labels are too long to show whole.
+func longLabels() status.Document {
+	return document("2",
+		read("1", "Work", windows(session(0.3, 2*hour), week(0.5, 3*day))),
+		read("2", "Research and development sandbox for the platform team", windows(
+			session(0.1, hour),
+			window("7d_preview", "Weekly cap on the experimental research preview models", 0.72, 2*day),
+		)),
+	)
+}
