@@ -3,9 +3,11 @@ package watch
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -131,9 +133,30 @@ func TestNotifications(t *testing.T) {
 	}
 }
 
-func TestFailedNotificationsAreIgnored(t *testing.T) {
+func TestNotificationsAreLogged(t *testing.T) {
+	log := logstest.Capture(t)
+	h := newHarness(t, document(account("work", "Work", refused(session(1, 30*time.Minute)), week(0.85))))
+	h.start()
+
+	h.clock.now = at(13, 20, 0)
+	h.read(document(account("work", "Work", session(0.02, 5*time.Hour), week(0.91))))
+	for _, want := range [][]string{
+		{"level=INFO", "msg=notification component=watch", "account=work", `news="room again"`},
+		{"level=INFO", "msg=notification component=watch", "account=work", `news="Week at 91%"`},
+	} {
+		if !log.Has(want...) {
+			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+		}
+	}
+	if strings.Contains(log.String(), "Work") {
+		t.Errorf("log reads\n%s\nwant the account named by its id alone, not its label", log)
+	}
+}
+
+func TestFailedNotificationsGoOnlyToTheLog(t *testing.T) {
+	log := logstest.Capture(t)
 	h := newHarness(t, sessionAndWeek(0.2, 0.85))
-	h.notifier.err = errors.New("osascript: exit status 1")
+	h.notifier.err = errors.New("post notification: exit status 1")
 	h.start()
 
 	h.clock.now = at(13, 20, 0)
@@ -143,5 +166,12 @@ func TestFailedNotificationsAreIgnored(t *testing.T) {
 	}
 	if got, want := h.footer(), "updated 13:20 · next 13:50 · r refresh · q quit"; got != want {
 		t.Errorf("footer = %q, want %q: a failed notification changes nothing on screen", got, want)
+	}
+	want := []string{"level=WARN", `msg="notification failed" component=watch`, "account=work", `news="Week at 91%"`, `error="post notification: exit status 1"`}
+	if !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+	}
+	if log.Has("msg=notification ") {
+		t.Errorf("log reads\n%s\nwant no word of the notification going", log)
 	}
 }

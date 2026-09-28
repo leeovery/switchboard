@@ -1,8 +1,9 @@
 // Package watch keeps the dashboard on screen. It reads the status document as
 // each read falls due, redraws as the clock moves, eases each bar to its new
 // reading, and posts a desktop notification when an account has room again or
-// a window passes 90%. The model does no I/O of its own: it's handed its
-// source, its clock and its notifier, so tests drive it as a terminal would.
+// a window passes 90%. Beyond its log, the model does no I/O of its own: it's
+// handed its source, its clock and its notifier, so tests drive it as a
+// terminal would.
 package watch
 
 import (
@@ -14,9 +15,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
+
+// logger notes what a watch does: a full-screen view leaves nowhere else to
+// say what went wrong.
+var logger = logs.For("watch")
 
 // Source reads the status document the dashboard shows.
 type Source interface {
@@ -178,6 +184,7 @@ func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "r", "R":
+		logger.Debug("refresh key pressed", "already_reading", m.fetching)
 		return m.refresh()
 	case "q", "Q", "ctrl+c":
 		return m, tea.Quit
@@ -219,7 +226,26 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		m, cmd = m.show(msg.doc, now)
 	}
 	m.next = nextFetch(m.doc, now, wait)
+	logRead(msg, m.next)
 	return m, cmd
+}
+
+// logRead notes a read: the accounts it read and those it couldn't, or why it
+// failed; and when the next is due.
+func logRead(msg fetchedMsg, next time.Time) {
+	if msg.err != nil {
+		logger.Warn("usage read failed", "error", msg.err, "next", next)
+		return
+	}
+	var read, failed []string
+	for _, a := range msg.doc.Accounts {
+		if wasRead(a) {
+			read = append(read, a.ID)
+		} else {
+			failed = append(failed, a.ID)
+		}
+	}
+	logger.Info("usage read", "read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
 // show puts doc, read at now, on screen: it posts what the change calls for,
@@ -282,16 +308,19 @@ func (m Model) framed() (tea.Model, tea.Cmd) {
 	return m, m.after(frameEvery, frameMsg{})
 }
 
-// notify posts the messages in turn.
-func (m Model) notify(messages []string) tea.Cmd {
-	if len(messages) == 0 {
+// notify posts the alerts in turn, noting each in the log.
+func (m Model) notify(alerts []alert) tea.Cmd {
+	if len(alerts) == 0 {
 		return nil
 	}
 	notifier := m.cfg.Notifier
 	return func() tea.Msg {
-		for _, message := range messages {
-			// A full-screen view has nowhere to say a notification failed.
-			_ = notifier.Notify(message)
+		for _, a := range alerts {
+			if err := notifier.Notify(a.message); err != nil {
+				logger.Warn("notification failed", "account", a.account, "news", a.news, "error", err)
+				continue
+			}
+			logger.Info("notification", "account", a.account, "news", a.news)
 		}
 		return nil
 	}
