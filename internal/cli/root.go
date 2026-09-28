@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,7 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Deps is what the commands take from the process around them. main passes the
@@ -19,6 +23,9 @@ import (
 type Deps struct {
 	Version string
 	Getenv  func(key string) string
+	// Environ lists the whole environment, as os.Environ does, for reading
+	// which colours the terminal shows.
+	Environ func() []string
 	HomeDir func() (string, error)
 	Now     func() time.Time
 	// ClaudeVersion returns the Claude Code version that probes claim to be.
@@ -41,7 +48,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a), newStatusCommand(a))
+	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a))
 	return root
 }
 
@@ -79,4 +86,20 @@ func (a *app) configFile() (string, error) {
 		return a.configPath, nil
 	}
 	return config.Path(a.Getenv, a.HomeDir)
+}
+
+// collect loads the config and probes every account in it. Every command that
+// reports usage reads it here, so they all read it the same way.
+func (a *app) collect(ctx context.Context) (status.Document, error) {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return status.Document{}, err
+	}
+	collector := status.Collector{
+		Prober: &claude.Prober{Upstream: cfg.Upstream, Version: a.ClaudeVersion()},
+		Policy: score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow},
+		Getenv: a.Getenv,
+		Now:    a.Now,
+	}
+	return collector.Collect(ctx, cfg.Accounts), nil
 }

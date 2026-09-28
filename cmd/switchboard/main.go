@@ -17,6 +17,7 @@ func main() {
 	root := cli.NewRootCommand(cli.Deps{
 		Version:       version,
 		Getenv:        os.Getenv,
+		Environ:       os.Environ,
 		HomeDir:       os.UserHomeDir,
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion,

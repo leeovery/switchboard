@@ -5,10 +5,6 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-
-	"github.com/leeovery/switchboard/internal/claude"
-	"github.com/leeovery/switchboard/internal/score"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 func newStatusCommand(a *app) *cobra.Command {
@@ -18,17 +14,10 @@ func newStatusCommand(a *app) *cobra.Command {
 		Short: "Show every account's usage and when it resets",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := a.loadConfig()
+			doc, err := a.collect(cmd.Context())
 			if err != nil {
 				return err
 			}
-			collector := status.Collector{
-				Prober: &claude.Prober{Upstream: cfg.Upstream, Version: a.ClaudeVersion()},
-				Policy: score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow},
-				Getenv: a.Getenv,
-				Now:    a.Now,
-			}
-			doc := collector.Collect(cmd.Context(), cfg.Accounts)
 			if asJSON {
 				return writeJSON(cmd.OutOrStdout(), doc)
 			}

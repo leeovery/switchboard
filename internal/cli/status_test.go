@@ -14,7 +14,7 @@ import (
 )
 
 func TestStatus(t *testing.T) {
-	got := run(t, statusDeps(t, fakeClaudeAPI(t)), "status")
+	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status")
 	want := result{
 		stdout: `work · Work
   Session     23%  resets in 4h 58m · Mon 18:10
@@ -37,7 +37,7 @@ best next: work · Work
 }
 
 func TestStatusJSON(t *testing.T) {
-	got := run(t, statusDeps(t, fakeClaudeAPI(t)), "status", "--json")
+	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json")
 	want := result{
 		stdout: `{
   "generated_at": "2026-09-28T13:12:00Z",
@@ -142,8 +142,8 @@ func TestStatusNeverPrintsTheToken(t *testing.T) {
 
 // statusDeps configures three accounts against upstream: work, whose token
 // fakeClaudeAPI accepts; personal, without a token; and side, whose token
-// fakeClaudeAPI rejects.
-func statusDeps(t *testing.T, upstream string) cli.Deps {
+// fakeClaudeAPI rejects. env adds to their environment.
+func statusDeps(t *testing.T, upstream string, env map[string]string) cli.Deps {
 	t.Helper()
 	path := writeConfig(t, fmt.Sprintf(`upstream = %q
 
@@ -162,11 +162,13 @@ id        = "side"
 label     = "Side"
 token_env = "CLAUDE_TOKEN_SIDE"
 `, upstream))
-	return testDeps(map[string]string{
+	vars := map[string]string{
 		"SWITCHBOARD_CONFIG": path,
 		"CLAUDE_TOKEN_WORK":  "test-token-work",
 		"CLAUDE_TOKEN_SIDE":  "test-token-side",
-	}, t.TempDir())
+	}
+	maps.Copy(vars, env)
+	return testDeps(vars, t.TempDir())
 }
 
 // fakeClaudeAPI serves a probe of the work account from Claude Code
