@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# Runs every test, race detector on, inside the macOS sandbox in
+# scripts/isolation.sb: no network beyond this machine, no writes into the home
+# directory but Go's caches, and none of the real programs tests must never
+# run. Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
+#
+# Each run first proves the sandbox denies a dial off this machine, a write
+# into the home directory and running osascript; --self-check does only that.
+# Where there's no sandbox-exec, the tests run without the sandbox, and
+# internal/testguard still guards them from inside.
+set -euo pipefail
+
+repo=$(cd "$(dirname "$0")/.." && pwd -P)
+
+if ! command -v sandbox-exec >/dev/null 2>&1; then
+	if [ "${1-}" = --self-check ]; then
+		echo "test-isolated: no sandbox-exec here, so there's no sandbox to check" >&2
+		exit 1
+	fi
+	echo "test-isolated: warning: no sandbox-exec here, so the tests run outside the OS sandbox, guarded by testguard alone" >&2
+	cd "$repo"
+	exec go test -race -count=1 "$@" ./...
+fi
+
+# resolved prints the directory given with its symlinks resolved, as the
+# sandbox matches paths, or as given when it doesn't exist yet.
+resolved() {
+	(cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
+}
+
+home=$(resolved "$HOME")
+gocache=$(resolved "$(go env GOCACHE)")
+gomodcache=$(resolved "$(go env GOMODCACHE)")
+
+sandboxed() {
+	sandbox-exec -f "$repo/scripts/isolation.sb" \
+		-D HOME="$home" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" "$@"
+}
+
+# denied runs a command in the sandbox, which must fail it with the refusal
+# given: what the command tries, the refusal, then the command.
+denied() {
+	local what=$1 refusal=$2 out
+	shift 2
+	if ! out=$(sandboxed "$@" 2>&1); then
+		case $out in
+		*"$refusal"*)
+			echo "test-isolated: the sandbox denies $what"
+			return 0
+			;;
+		esac
+	fi
+	echo "test-isolated: the sandbox doesn't deny $what; $* printed:" >&2
+	printf '%s\n' "$out" >&2
+	return 1
+}
+
+self_check() {
+	local scratch="$home/.switchboard-isolation-check.$$" status=0
+	denied "a dial off this machine" "connectx to 192.0.2.1 port 9 (tcp) failed: Operation not permitted" \
+		/usr/bin/nc -vz -G 2 192.0.2.1 9 || status=1
+	denied "a write into the home directory" "$scratch: Operation not permitted" \
+		/usr/bin/touch "$scratch" || status=1
+	# There only when the sandbox let the write through.
+	rm -f "$scratch"
+	denied "running osascript" "execvp() of '/usr/bin/osascript' failed: Operation not permitted" \
+		/usr/bin/osascript -e 'return 1' || status=1
+	return "$status"
+}
+
+if [ "${1-}" = --self-check ]; then
+	self_check
+	exit
+fi
+if ! self_check >/dev/null; then
+	echo "test-isolated: the sandbox doesn't hold, so the tests don't run" >&2
+	exit 1
+fi
+cd "$repo"
+sandboxed go test -race -count=1 "$@" ./...
