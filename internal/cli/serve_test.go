@@ -163,7 +163,8 @@ func TestServeLogLevel(t *testing.T) {
 			stop := srv.start(t, tt.args...)
 			srv.waitForStatus(t, func(doc status.Document) bool {
 				work, _ := doc.Account("work")
-				return len(work.Windows) > 0
+				side, _ := doc.Account("side")
+				return len(work.Windows) > 0 && side.Error != ""
 			})
 			stop()
 			log := srv.routerLog(t)
