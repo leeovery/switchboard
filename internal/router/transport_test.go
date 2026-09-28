@@ -34,6 +34,13 @@ func TestTransportSpeaksHTTP2WhereTheUpstreamDoes(t *testing.T) {
 	}
 }
 
+func TestTransportChecksOnQuietHTTP2Connections(t *testing.T) {
+	h2 := newTransport().HTTP2
+	if h2 == nil || h2.SendPingTimeout != 30*time.Second || h2.PingTimeout != 15*time.Second {
+		t.Errorf("HTTP2 = %+v, want a ping sent after 30s without a frame, and the connection closed if it's unanswered for 15s", h2)
+	}
+}
+
 func TestTransportWaitsForAResponseAsLongAsItTakes(t *testing.T) {
 	transport := newTransport()
 	if transport.ResponseHeaderTimeout != 0 {
