@@ -1,0 +1,356 @@
+package watch
+
+import (
+	"errors"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/status"
+)
+
+func TestStartsByReading(t *testing.T) {
+	h := newHarness(t, calm())
+
+	want := "\n Switchboard  Mon 28 Sep · 13:12\n\n reading usage… · r refresh · q quit"
+	if got := h.view(); got != want {
+		t.Errorf("before the first read, the screen is\n%q\nwant the heading and\n%q", got, want)
+	}
+	read := h.init()
+	if h.source.reads != 1 {
+		t.Fatalf("starting read the source %d times, want once", h.source.reads)
+	}
+	h.deliver(read...)
+	if got, want := h.footer(), "updated 13:12 · next 13:42 · r refresh · q quit"; got != want {
+		t.Errorf("after the first read, the footer is %q, want %q", got, want)
+	}
+	if !strings.Contains(h.view(), "work · Work") {
+		t.Errorf("after the first read, the screen is\n%s\nwant the account's card", h.view())
+	}
+}
+
+func TestReadsAgainWhenDue(t *testing.T) {
+	tests := []struct {
+		name     string
+		doc      status.Document
+		wantNext string
+		// wantRead is when the tick that reads again comes.
+		wantRead time.Time
+	}{
+		{
+			name:     "once the interval has passed",
+			doc:      calm(),
+			wantNext: "13:42",
+			wantRead: at(13, 42, 0),
+		},
+		{
+			name:     "a minute after a window resets",
+			doc:      document(account("work", "Work", session(0.4, 10*time.Minute), week(0.5))),
+			wantNext: "13:23",
+			wantRead: at(13, 23, 0),
+		},
+		{
+			name:     "soon after an account couldn't be read",
+			doc:      document(account("work", "Work", session(0.25, 3*time.Hour), week(0.5)), unreadable("side", "Side")),
+			wantNext: "13:14",
+			wantRead: at(13, 14, 0),
+		},
+		{
+			name:     "soon after a window couldn't be read",
+			doc:      document(partlyRead("work", "Work")),
+			wantNext: "13:14",
+			wantRead: at(13, 14, 0),
+		},
+		{
+			name:     "at the soonest of them, on the tick after",
+			doc:      document(account("work", "Work", session(0.4, 30*time.Second), week(0.5)), unreadable("side", "Side")),
+			wantNext: "13:13",
+			wantRead: at(13, 14, 0),
+		},
+		{
+			name:     "not for a reset already past",
+			doc:      document(account("work", "Work", refused(session(1, -5*time.Minute)), week(0.5))),
+			wantNext: "13:42",
+			wantRead: at(13, 42, 0),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, tt.doc)
+			h.start()
+
+			if got, want := h.footer(), "updated 13:12 · next "+tt.wantNext+" · r refresh · q quit"; got != want {
+				t.Errorf("footer = %q, want %q", got, want)
+			}
+			if got, want := h.tickUntilRead(), tt.wantRead.Add(tickSlack); !got.Equal(want) {
+				t.Errorf("read again at %s, want %s", got.Format(time.StampMilli), want.Format(time.StampMilli))
+			}
+		})
+	}
+}
+
+func TestTicksReadOnlyOnceDue(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+
+	h.clock.now = at(13, 41, 59)
+	h.deliver(h.lastTick().msg)
+	if h.source.reads != 1 {
+		t.Errorf("a tick before the read is due read the source; reads = %d, want 1", h.source.reads)
+	}
+	h.clock.now = at(13, 42, 0)
+	h.deliver(h.lastTick().msg)
+	if h.source.reads != 2 {
+		t.Errorf("a tick once the read is due didn't read the source; reads = %d, want 2", h.source.reads)
+	}
+}
+
+func TestReadsOnTheFirstTickAfterSleep(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+	pending := h.lastTick()
+
+	// The lid closes before the pending tick fires, and opens eight hours on.
+	h.clock.now = start.Add(8 * time.Hour)
+	read := h.update(pending.msg)
+
+	if h.source.reads != 2 {
+		t.Errorf("the first tick after the clock jumped past the read read the source %d times, want once more", h.source.reads-1)
+	}
+	if got, want := h.footer(), "refreshing… · r refresh · q quit"; got != want {
+		t.Errorf("while reading, footer = %q, want %q", got, want)
+	}
+	h.deliver(read...)
+	if got, want := h.footer(), "updated 21:12 · next 21:42 · r refresh · q quit"; got != want {
+		t.Errorf("after reading, footer = %q, want %q", got, want)
+	}
+}
+
+func TestRefreshKey(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+
+	pending := h.press("r")
+	if h.source.reads != 2 {
+		t.Fatalf("r read the source %d times, want once", h.source.reads-1)
+	}
+	if got, want := h.footer(), "refreshing… · r refresh · q quit"; got != want {
+		t.Errorf("while reading, footer = %q, want %q", got, want)
+	}
+	h.deliver(h.press("r")...)
+	if h.source.reads != 2 {
+		t.Errorf("r while a read was under way read the source again")
+	}
+	h.clock.now = at(13, 20, 0)
+	h.deliver(pending...)
+	if got, want := h.footer(), "updated 13:20 · next 13:50 · r refresh · q quit"; got != want {
+		t.Errorf("after the read, footer = %q, want %q", got, want)
+	}
+	h.deliver(h.press("R")...)
+	if h.source.reads != 3 {
+		t.Errorf("R read the source %d times in all, want 3", h.source.reads)
+	}
+}
+
+func TestQuitKeys(t *testing.T) {
+	tests := []struct {
+		key      string
+		wantQuit bool
+	}{
+		{key: "q", wantQuit: true},
+		{key: "Q", wantQuit: true},
+		{key: "ctrl+c", wantQuit: true},
+		{key: "x", wantQuit: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			h := newHarness(t, calm())
+			h.start()
+
+			quit := slices.Contains(h.press(tt.key), tea.Msg(tea.QuitMsg{}))
+			if quit != tt.wantQuit {
+				t.Errorf("%s quit = %v, want %v", tt.key, quit, tt.wantQuit)
+			}
+			if h.source.reads != 1 {
+				t.Errorf("%s read the source", tt.key)
+			}
+		})
+	}
+}
+
+func TestTicksEverySecondWhileACountdownShowsSeconds(t *testing.T) {
+	// The session is back at 13:24, and read again a minute after.
+	h := newHarness(t, document(account("work", "Work", refused(session(1, 12*time.Minute)), week(0.5))))
+	h.start()
+
+	armed := map[time.Time]time.Duration{}
+	for h.source.reads == 1 && h.clock.now.Before(at(14, 0, 0)) {
+		tick := h.lastTick()
+		h.fire(tick)
+		armed[tick.due] = h.lastTick().delay
+	}
+	tests := []struct {
+		name string
+		at   time.Time
+		want time.Duration
+	}{
+		{name: "back in over ten minutes", at: at(13, 13, 0), want: time.Minute},
+		{name: "back in under ten minutes", at: at(13, 14, 0), want: time.Second},
+		{name: "back in under a second", at: at(13, 23, 59), want: time.Second},
+		{name: "back", at: at(13, 24, 0), want: time.Minute},
+	}
+	for _, tt := range tests {
+		due := tt.at.Add(tickSlack)
+		delay, ok := armed[due]
+		if !ok {
+			t.Errorf("%s: no tick at %s", tt.name, due.Format(time.StampMilli))
+			continue
+		}
+		if delay != tt.want {
+			t.Errorf("%s: the tick at %s armed the next %v later, want %v", tt.name, due.Format(time.StampMilli), delay, tt.want)
+		}
+	}
+	if got, want := h.clock.now, at(13, 25, 0).Add(tickSlack); !got.Equal(want) {
+		t.Errorf("read again at %s, want %s", got.Format(time.StampMilli), want.Format(time.StampMilli))
+	}
+}
+
+func TestCountdownShowsSecondsBetweenTicks(t *testing.T) {
+	h := newHarness(t, document(account("work", "Work", refused(session(1, 12*time.Minute)), week(0.5))))
+	h.start()
+
+	for h.clock.now.Before(at(13, 16, 17)) {
+		h.fire(h.lastTick())
+	}
+	if want := "back in 07:42 · Mon 13:24"; !strings.Contains(h.view(), want) {
+		t.Errorf("at %s the screen is\n%s\nwant it to say %q", h.clock.now.Format(time.StampMilli), h.view(), want)
+	}
+}
+
+func TestReadChangesTickPaceAtOnce(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+	stale := h.lastTick()
+
+	h.clock.now = at(13, 12, 20)
+	h.read(document(account("work", "Work", refused(session(1, 5*time.Minute)), week(0.5))))
+	if got, want := h.lastTick().due, at(13, 12, 21).Add(tickSlack); !got.Equal(want) {
+		t.Errorf("after a read counting seconds, the next tick is at %s, want %s", got.Format(time.StampMilli), want.Format(time.StampMilli))
+	}
+
+	armed := len(h.timers)
+	h.fire(stale)
+	if len(h.timers) != armed || h.source.reads != 2 {
+		t.Errorf("a tick from before the read armed %d timers and read %d times, want it dropped", len(h.timers)-armed, h.source.reads-2)
+	}
+}
+
+func TestFooter(t *testing.T) {
+	failing := errors.New("connection refused")
+	tests := []struct {
+		name string
+		// then moves the model on from its first read.
+		then func(h *harness)
+		want string
+	}{
+		{
+			name: "read",
+			then: func(*harness) {},
+			want: "updated 13:12 · next 13:42 · r refresh · q quit",
+		},
+		{
+			name: "reading again",
+			then: func(h *harness) { h.press("r") },
+			want: "refreshing… · r refresh · q quit",
+		},
+		{
+			name: "after a read failed",
+			then: func(h *harness) {
+				h.source.err = failing
+				h.clock.now = at(13, 20, 0)
+				h.read(calm())
+			},
+			want: "couldn't read usage: connection refused · next 13:22 · r refresh · q quit",
+		},
+		{
+			name: "after a read failed, and the next didn't",
+			then: func(h *harness) {
+				h.source.err = failing
+				h.read(calm())
+				h.source.err = nil
+				h.clock.now = at(13, 20, 0)
+				h.read(calm())
+			},
+			want: "updated 13:20 · next 13:50 · r refresh · q quit",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, calm())
+			h.start()
+
+			tt.then(h)
+			if got := h.footer(); got != tt.want {
+				t.Errorf("footer = %q, want %q", got, tt.want)
+			}
+			if !strings.Contains(h.view(), "work · Work") {
+				t.Errorf("screen is\n%s\nwant the account's card still", h.view())
+			}
+		})
+	}
+}
+
+func TestFirstReadFails(t *testing.T) {
+	h := newHarness(t, calm())
+	h.source.err = errors.New("connection refused")
+	h.start()
+
+	want := "\n Switchboard  Mon 28 Sep · 13:12\n\n couldn't read usage: connection refused · next 13:14 · r refresh · q quit"
+	if got := h.view(); got != want {
+		t.Errorf("screen is\n%q\nwant\n%q", got, want)
+	}
+	h.source.err = nil
+	if got, want := h.tickUntilRead(), at(13, 14, 0).Add(tickSlack); !got.Equal(want) {
+		t.Errorf("read again at %s, want %s", got.Format(time.StampMilli), want.Format(time.StampMilli))
+	}
+}
+
+func TestDrawsAtTheTerminalsSize(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+	h.settle()
+
+	for _, size := range []tea.WindowSizeMsg{
+		{Width: 150, Height: 50},
+		{Width: 60, Height: 50},
+		{Width: 150, Height: 6},
+	} {
+		h.update(size)
+		view := h.model.View()
+		want := "\n" + dashboard.Render(calm(), h.clock.now, dashboard.Options{
+			Width:  size.Width,
+			Height: size.Height - 1,
+			Color:  true,
+			Footer: "updated 13:12 · next 13:42 · r refresh · q quit",
+		})
+		if view.Content != want {
+			t.Errorf("at %dx%d, the screen is\n%s\nwant\n%s", size.Width, size.Height, view.Content, want)
+		}
+		if !view.AltScreen {
+			t.Errorf("at %dx%d, the view isn't full screen", size.Width, size.Height)
+		}
+	}
+}
+
+func TestDrawsNothingBeforeTheSizeIsKnown(t *testing.T) {
+	m := New(t.Context(), Config{Source: &fakeSource{doc: calm()}, Notifier: &fakeNotifier{}, Now: (&fakeClock{now: start}).Now, Interval: interval, Policy: policy})
+
+	view := m.View()
+	if view.Content != "" || !view.AltScreen {
+		t.Errorf("View() = %q, full screen %v; want nothing yet, full screen", view.Content, view.AltScreen)
+	}
+}
