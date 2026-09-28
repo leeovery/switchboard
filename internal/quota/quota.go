@@ -84,6 +84,9 @@ type Outcome struct {
 	// RetryAfter is how long a throttled account is asked to wait before
 	// sending again, or zero when the response doesn't say.
 	RetryAfter time.Duration
+	// LimitedUntil is when an account whose limit is reached has room again,
+	// as far as the response says, or zero when it doesn't say.
+	LimitedUntil time.Time
 }
 
 var lengthPattern = regexp.MustCompile(`^([1-9][0-9]*)([hd])(?:_|$)`)

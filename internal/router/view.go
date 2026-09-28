@@ -18,8 +18,8 @@ type view struct {
 	// applies reports whether the window named key counts the request.
 	applies func(key string) bool
 	// barred are the accounts that have no room whatever their windows say,
-	// by id: their tokens were refused lately, or the request has been tried
-	// on them.
+	// by id: their tokens were refused lately, a limit they reached holds the
+	// request back, or the request has been tried on them.
 	barred []string
 }
 

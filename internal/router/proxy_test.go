@@ -290,9 +290,16 @@ func TestUsageIsReadOffResponses(t *testing.T) {
 		name    string
 		status  int
 		windows []quota.Window
+		// wantLimit is the limit the account is under once it answers.
+		wantLimit status.Limit
 	}{
 		{name: "a 200", status: http.StatusOK, windows: []quota.Window{session, week}},
-		{name: "a 429", status: http.StatusTooManyRequests, windows: []quota.Window{spent, week}},
+		{
+			name:      "a 429",
+			status:    http.StatusTooManyRequests,
+			windows:   []quota.Window{spent, week},
+			wantLimit: status.Limit{Windows: []string{"5h"}, Until: spent.ResetsAt},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -307,7 +314,7 @@ func TestUsageIsReadOffResponses(t *testing.T) {
 			}
 			doc := rt.Status()
 			side, _ := doc.Account("side")
-			want := status.Account{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: tt.windows}
+			want := status.Account{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: tt.windows, Limit: tt.wantLimit}
 			if !reflect.DeepEqual(side, want) {
 				t.Errorf("side, which served the request, reads\n%+v\nwant\n%+v", side, want)
 			}

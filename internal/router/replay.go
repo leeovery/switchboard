@@ -100,7 +100,7 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response, windows []quo
 	outcome := rp.p.provider.Classify(resp.StatusCode, resp.Header)
 	switch outcome.Verdict {
 	case quota.LimitReached:
-		return rp.limitReached(ctx, resp, windows), nil
+		return rp.limitReached(ctx, resp, windows, outcome.LimitedUntil), nil
 	case quota.Throttled:
 		return rp.throttle(ctx, resp, outcome.RetryAfter)
 	case quota.Refused:
@@ -110,13 +110,16 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response, windows []quo
 	}
 }
 
-// limitReached moves on from an account whose limit the request reached, when
-// another account can take it. When none can, the answer is the client's.
-func (rp *replay) limitReached(ctx context.Context, resp *http.Response, windows []quota.Window) bool {
+// limitReached bars an account whose limit the request reached, until when
+// the answer says, from the requests its rejected windows count, and moves on
+// from it, when another account can take the request. When none can, the
+// answer is the client's.
+func (rp *replay) limitReached(ctx context.Context, resp *http.Response, windows []quota.Window, until time.Time) bool {
 	id := rp.ex.account.ID
 	keys := rejected(windows)
-	logger.Warn("limit reached", "id", rp.ex.id, "account", id, "windows", strings.Join(keys, ","))
-	rp.p.emit(LimitReached{Account: id, Windows: keys})
+	until = rp.p.state.limit(id, keys, until)
+	logger.Warn("limit reached", "id", rp.ex.id, "account", id, "windows", strings.Join(keys, ","), "until", until)
+	rp.p.emit(LimitReached{Account: id, Windows: keys, Until: until})
 	if !rp.moveOn(ctx, whyLimit) {
 		return false
 	}

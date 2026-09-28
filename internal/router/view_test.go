@@ -121,6 +121,93 @@ func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
 	}
 }
 
+func TestALimitHoldsBackTheRequestsItsWindowsCount(t *testing.T) {
+	tests := []struct {
+		name string
+		// windows are those the limit was reached in.
+		windows []string
+		// room says, by model, whether work has room for a request of it
+		// while the limit holds.
+		room map[string]bool
+	}{
+		{
+			name:    "reached in a window every model shares, every request",
+			windows: []string{"5h"},
+			room:    map[string]bool{opus: false, haiku: false, fable: false},
+		},
+		{
+			name:    "reached in a model's own window, that model's alone",
+			windows: []string{"7d_oi"},
+			room:    map[string]bool{opus: true, haiku: true, fable: false},
+		},
+		{
+			name: "reached in no window named, every request",
+			room: map[string]bool{opus: false, haiku: false, fable: false},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			s.record("work", []quota.Window{session, week, fableWeek}, fromResponse)
+			s.learn(fable, []quota.Window{session, week, fableWeek})
+
+			until := s.limit("work", tt.windows, start.Add(time.Hour))
+			for model, want := range tt.room {
+				if got := s.view(model, start).room("work"); got != want {
+					t.Errorf("under the limit, work has room for %q: %v, want %v", model, got, want)
+				}
+				if !s.view(model, until).room("work") {
+					t.Errorf("once the limit lifts, work has no room for %q, want room", model)
+				}
+			}
+		})
+	}
+}
+
+func TestALimitLiftsOnAReadingShowingItsWindowsWithRoom(t *testing.T) {
+	spent := session
+	spent.Utilization, spent.Status = 1, quota.StatusRejected
+	fresh := session
+	fresh.Utilization, fresh.ResetsAt = 0.01, session.ResetsAt.Add(5*time.Hour)
+	tests := []struct {
+		name string
+		// windows are those the limit was reached in.
+		windows []string
+		reading []quota.Window
+		want    bool
+	}{
+		{name: "its window read again with room", windows: []string{"5h"}, reading: []quota.Window{fresh, week}, want: true},
+		{name: "its window read again, still spent", windows: []string{"5h"}, reading: []quota.Window{spent, week}, want: false},
+		{name: "a reading without its window", windows: []string{"5h"}, reading: []quota.Window{week}, want: false},
+		{name: "one of its windows read with room, the other unread", windows: []string{"5h", "7d_oi"}, reading: []quota.Window{fresh, week}, want: false},
+		{name: "a reading of a limit reached in no window named", reading: []quota.Window{fresh, week}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newTestState(clock)
+			s.record("work", []quota.Window{spent, week}, fromResponse)
+			s.limit("work", tt.windows, start.Add(time.Hour))
+			clock.now = start.Add(time.Minute)
+
+			s.recordProbe("work", quota.Probe{Windows: tt.reading}, nil)
+			if lifted := s.usage["work"].limited.until.IsZero(); lifted != tt.want {
+				t.Errorf("the limit lifted: %v, want %v", lifted, tt.want)
+			}
+		})
+	}
+}
+
+func TestALimitThatsAlreadyDueHoldsFiveMinutes(t *testing.T) {
+	s := newTestState(&testClock{now: start})
+
+	for _, until := range []time.Time{{}, start.Add(-time.Minute), start} {
+		if got := s.limit("work", nil, until); got != start.Add(5*time.Minute) {
+			t.Errorf("limit() until %v holds until %v, want five minutes on", until, got)
+		}
+	}
+}
+
 func TestAViewWithoutAccounts(t *testing.T) {
 	spent := session
 	spent.Utilization, spent.Status = 1, quota.StatusRejected

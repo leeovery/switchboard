@@ -72,7 +72,11 @@ Hence: move a session only when its cache is already cold or its account can't s
 5. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
    exhaustion. Switchboard replays the buffered request on the next candidate, among the accounts
    the request hasn't been tried on, before any response reaches Claude Code, and the session
-   moves there and stays. Claude Code sees a normal, slower response.
+   moves there and stays. Claude Code sees a normal, slower response. The account then has no
+   room, whatever its windows read, for the requests the rejected windows count (every request
+   when the 429 names none) until the reset the 429 gives: the overall reset, else the latest of
+   the rejected windows', else 5 minutes on. A later reading showing those windows with room
+   lifts it sooner.
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
@@ -298,7 +302,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | Endpoint | Job |
 |---|---|
 | `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health) |
-| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), and each account's `sessions`, those used in the last hour |
+| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), and each account's `sessions`, those used in the last hour, and `limit` (`{windows, until}`) while one holds |
 | `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
 | `POST /refresh` | Probe accounts whose data is older than `{"max_age": "30m"}` |

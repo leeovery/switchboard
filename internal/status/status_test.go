@@ -304,7 +304,7 @@ func TestDocumentJSON(t *testing.T) {
 				Router:      status.Health{Requests: 8, Failures: 6, Reason: "6 of the 8 requests in the last 5 minutes failed"},
 				Accounts: []status.Account{
 					{ID: "work", Label: "Work", TokenSet: true, Sessions: 2},
-					{ID: "side", Label: "Side", TokenSet: true},
+					{ID: "side", Label: "Side", TokenSet: true, Limit: status.Limit{Windows: []string{"5h"}, Until: generated.Add(2 * time.Hour)}},
 				},
 			},
 			want: `{
@@ -331,7 +331,13 @@ func TestDocumentJSON(t *testing.T) {
     {
       "id": "side",
       "label": "Side",
-      "token_set": true
+      "token_set": true,
+      "limit": {
+        "windows": [
+          "5h"
+        ],
+        "until": "2026-09-28T15:12:00Z"
+      }
     }
   ]
 }`,

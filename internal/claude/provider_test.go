@@ -146,6 +146,10 @@ func TestProviderClassify(t *testing.T) {
 		return quota.Outcome{Verdict: quota.Throttled, RetryAfter: d}
 	}
 	limit := quota.Outcome{Verdict: quota.LimitReached}
+	// limitUntil is the limit reached, until the Unix time given.
+	limitUntil := func(unix int64) quota.Outcome {
+		return quota.Outcome{Verdict: quota.LimitReached, LimitedUntil: time.Unix(unix, 0).UTC()}
+	}
 	tests := []struct {
 		name   string
 		status int
@@ -187,6 +191,60 @@ func TestProviderClassify(t *testing.T) {
 			status: http.StatusTooManyRequests,
 			header: header("anthropic-ratelimit-unified-7d-status", "rejected"),
 			want:   limit,
+		},
+		{
+			name:   "a limit until the overall reset, the rejecting claim's, over any window's",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-status", "rejected",
+				"anthropic-ratelimit-unified-reset", "1790619000",
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790974800",
+			),
+			want: limitUntil(1790619000),
+		},
+		{
+			name:   "a limit until the rejected window's reset, not those with room",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790619000",
+				"anthropic-ratelimit-unified-7d-status", "allowed",
+				"anthropic-ratelimit-unified-7d-reset", "1790974800",
+			),
+			want: limitUntil(1790619000),
+		},
+		{
+			name:   "a limit until the latest of the rejected windows' resets",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-7d-status", "rejected",
+				"anthropic-ratelimit-unified-7d-reset", "1790974800",
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790619000",
+			),
+			want: limitUntil(1790974800),
+		},
+		{
+			name:   "a limit until the reset of the rejected window that gives one",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-7d-status", "rejected",
+				"anthropic-ratelimit-unified-7d-reset", "1790974800",
+			),
+			want: limitUntil(1790974800),
+		},
+		{
+			name:   "a limit whose overall reset can't be read, until the windows'",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-status", "rejected",
+				"anthropic-ratelimit-unified-reset", "soon",
+				"anthropic-ratelimit-unified-5h-status", "rejected",
+				"anthropic-ratelimit-unified-5h-reset", "1790619000",
+			),
+			want: limitUntil(1790619000),
 		},
 		{
 			name:   "a 429 rejecting overage alone, which isn't a window",

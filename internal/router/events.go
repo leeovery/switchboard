@@ -1,5 +1,7 @@
 package router
 
+import "time"
+
 // Event is news from the router that something outside it may want to act
 // on, such as by notifying the user: LimitReached, Moved, Refused or
 // HealthChanged. Config.Events hears each as it happens.
@@ -9,10 +11,12 @@ type Event interface {
 
 // LimitReached is an account's limit reached, as the upstream answered a
 // request on it: Windows are the keys of those it rejected, which can be
-// none when only its overall verdict did.
+// none when only its overall verdict did, and Until is when the account is
+// to have room again.
 type LimitReached struct {
 	Account string
 	Windows []string
+	Until   time.Time
 }
 
 // Moved is a session's requests of a model moving to another account, and

@@ -71,9 +71,21 @@ type Account struct {
 	quota.Usage
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`
+	// Limit is the limit the router saw the account reach, while it holds:
+	// zero when there's none, and in a document that isn't the router's.
+	Limit Limit `json:"limit,omitzero"`
 	// Sessions is how many sessions the router has sent to the account in the
 	// last hour: zero in a document that isn't the router's.
 	Sessions int `json:"sessions,omitzero"`
+}
+
+// Limit is a limit an account reached, as the upstream answered a request on
+// it: the windows it named as reached, if any, and when the account is to
+// have room again. Until then it has none for the requests those windows
+// count, or for any request when they're none, whatever its windows read.
+type Limit struct {
+	Windows []string  `json:"windows,omitempty"`
+	Until   time.Time `json:"until"`
 }
 
 // Prober reads an account's usage with its token.

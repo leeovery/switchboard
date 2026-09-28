@@ -72,7 +72,7 @@ func TestARequestOverItsAccountsLimitIsReplayedOnAnother(t *testing.T) {
 		waitForLine(t, log, want...)
 	}
 	wantEvents := []router.Event{
-		router.LimitReached{Account: "work", Windows: []string{"5h"}},
+		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt},
 		router.Moved{Session: sessionID, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit"},
 	}
 	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
@@ -284,13 +284,15 @@ func TestWithNoAccountWithRoomTheAccountsWithoutAreProbedAgain(t *testing.T) {
 	}
 	waitForLine(t, log, "level=WARN", `msg="no account left to try"`, "attempts=1")
 
-	// Side's session resets unseen: its probe reads it afresh.
+	// Side's session resets unseen: its probe reads it afresh. Work, barred
+	// for five minutes as its 429 didn't say for how long, isn't among those
+	// probed again.
 	r.clock.advance(2 * time.Minute)
 	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
 	if got := r.ask(t, "two", opus, ""); got != "side" {
 		t.Errorf("once side's session reset, a new session went to %s, want side", got)
 	}
-	waitForLine(t, log, "level=WARN", `msg="no account has room; probing again"`, "accounts=work,side")
+	waitForLine(t, log, "level=WARN", `msg="no account has room; probing again"`, "accounts=side")
 	waitForLine(t, log, "msg=routed", "session=two", "account=side", "reason=new", "status=200")
 }
 
