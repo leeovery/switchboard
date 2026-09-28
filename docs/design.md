@@ -1,7 +1,8 @@
 # Switchboard — design
 
-**Status:** draft. The spike (milestone 0) has run and the core mechanism works; results are under
-Milestones. Nothing else is built yet.
+**Status:** the usage dashboard (one-off, and in watch mode with its desktop notifications),
+`status`, logging, and the router, with its scheduler, pins and state, are built. Limit handling,
+launching (`run`, `init` and the service), and the dashboard reading the router come next.
 
 ## What it is
 
