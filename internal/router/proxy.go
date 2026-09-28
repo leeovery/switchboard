@@ -210,6 +210,9 @@ func (p *proxy) fail(w http.ResponseWriter, r *http.Request, ex *exchange, err e
 	if refused, ok := errors.AsType[refusal](err); ok {
 		logger.Error("upstream refused the account's token", "id", ex.id, "account", ex.account.ID, "status", refused.status)
 		ex.status = http.StatusBadGateway
+		// The API's clients retry a 5xx unless told not to, and the same
+		// token would only be refused again.
+		w.Header().Set("X-Should-Retry", "false")
 		writeError(w, ex.status, "api_error", fmt.Sprintf("switchboard: the upstream refused account %s (HTTP %d)", ex.account.ID, refused.status))
 		return
 	}

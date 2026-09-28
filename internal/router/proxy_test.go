@@ -331,6 +331,9 @@ func TestRefusedTokensAreNeverRelayed(t *testing.T) {
 			if resp.StatusCode != http.StatusBadGateway || resp.Header.Get("Content-Type") != "application/json" || body != want {
 				t.Errorf("answered %d (%s) %s\nwant 502 (application/json) %s", resp.StatusCode, resp.Header.Get("Content-Type"), body, want)
 			}
+			if got := resp.Header.Values("X-Should-Retry"); !slices.Equal(got, []string{"false"}) {
+				t.Errorf("X-Should-Retry = %q, want false: the same token would only be refused again", got)
+			}
 			waitForLine(t, log, "level=ERROR", `msg="upstream refused the account's token"`, "account=side", fmt.Sprintf("status=%d", refusal))
 			waitForLine(t, log, "level=INFO", "msg=routed", "account=side", "status=502")
 			for _, token := range []string{workToken, sideToken} {
@@ -376,6 +379,9 @@ func TestUpstreamFailuresGive502(t *testing.T) {
 			resp := send(t, tt.method, proxy+tt.path, tt.header, strings.NewReader(tt.body))
 			if resp.StatusCode != http.StatusBadGateway {
 				t.Errorf("status = %d, want 502", resp.StatusCode)
+			}
+			if got := resp.Header.Values("X-Should-Retry"); got != nil {
+				t.Errorf("X-Should-Retry = %q, want none: another try may well get through", got)
 			}
 			if tt.method != http.MethodHead {
 				checkAPIError(t, readAll(t, resp), "api_error", "switchboard: the request to the upstream failed: dial tcp ")
