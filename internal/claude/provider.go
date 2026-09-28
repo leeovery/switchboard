@@ -3,7 +3,7 @@ package claude
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
+	"slices"
 
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -13,20 +13,22 @@ import (
 // --resume.
 const SessionHeader = "X-Claude-Code-Session-Id"
 
-// messagesPath is the messages API, the one whose requests the router may
-// send on another account.
-const messagesPath = "/v1/messages"
+// routablePaths are the requests that may go out on another account's token:
+// sending a message and counting its tokens, which leave nothing behind on
+// the account. The rest of the messages API, such as batches, names things
+// that belong to the account that made them.
+var routablePaths = []string{"/v1/messages", "/v1/messages/count_tokens"}
 
 // Provider is Claude's side of the router: which requests may go out on
 // another account's token, and what the requests and their responses say.
 type Provider struct{}
 
 // Routable reports whether a request to path may go out on another account's
-// token: only the messages API's, such as /v1/messages and its
-// /v1/messages/count_tokens. Every other path keeps the client's own token,
-// as the identity-bound ones, such as /v1/code/… and file uploads, must.
+// token: only one to send a message or count its tokens, at exactly those
+// paths. Every other path keeps the client's own token, as the
+// identity-bound ones, such as /v1/code/…, file uploads and batches, must.
 func (Provider) Routable(path string) bool {
-	return path == messagesPath || strings.HasPrefix(path, messagesPath+"/")
+	return slices.Contains(routablePaths, path)
 }
 
 // Session returns the id of the Claude Code session a request belongs to, or

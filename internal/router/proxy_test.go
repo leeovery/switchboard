@@ -148,6 +148,13 @@ func TestRequestsNotRoutedPassThroughUntouched(t *testing.T) {
 			wantHeader: claudeCode(workToken),
 		},
 		{
+			name:       "a batch that's pinned, which isn't moved from the account that made it",
+			method:     http.MethodGet,
+			path:       "/v1/messages/batches/msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d",
+			header:     with(claudeCode(workToken), "X-Switchboard-Account", "side"),
+			wantHeader: claudeCode(workToken),
+		},
+		{
 			name:   "a messages request with a token no account has",
 			method: http.MethodPost,
 			path:   "/v1/messages",

@@ -11,23 +11,32 @@ import (
 
 func TestProviderRoutable(t *testing.T) {
 	tests := []struct {
+		name string
 		path string
 		want bool
 	}{
-		{path: "/v1/messages", want: true},
-		{path: "/v1/messages/count_tokens", want: true},
-		{path: "/api/hello", want: false},
-		{path: "/v1/code/sessions", want: false},
-		{path: "/v1/files", want: false},
-		{path: "/v1/messagesfoo", want: false},
-		{path: "/v1/Messages", want: false},
-		{path: "/", want: false},
-		{path: "", want: false},
+		{name: "sending a message", path: "/v1/messages", want: true},
+		{name: "counting its tokens", path: "/v1/messages/count_tokens", want: true},
+		{name: "batches", path: "/v1/messages/batches", want: false},
+		{name: "a batch", path: "/v1/messages/batches/msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d", want: false},
+		{name: "a batch's results", path: "/v1/messages/batches/msgbatch_01HkcTjaV5uDC8jWR4ZsDV8d/results", want: false},
+		{name: "another path under messages", path: "/v1/messages/other", want: false},
+		{name: "messages with a trailing slash", path: "/v1/messages/", want: false},
+		{name: "counting tokens with a trailing slash", path: "/v1/messages/count_tokens/", want: false},
+		{name: "a path that only starts like messages", path: "/v1/messagesfoo", want: false},
+		{name: "messages in another case", path: "/v1/Messages", want: false},
+		{name: "the connectivity check", path: "/api/hello", want: false},
+		{name: "an identity-bound path", path: "/v1/code/sessions", want: false},
+		{name: "files", path: "/v1/files", want: false},
+		{name: "the root", path: "/", want: false},
+		{name: "no path", path: "", want: false},
 	}
 	for _, tt := range tests {
-		if got := (claude.Provider{}).Routable(tt.path); got != tt.want {
-			t.Errorf("Routable(%q) = %v, want %v", tt.path, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (claude.Provider{}).Routable(tt.path); got != tt.want {
+				t.Errorf("Routable(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
 	}
 }
 
