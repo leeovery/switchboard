@@ -10,6 +10,10 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// refusedFor is how long an account whose token the upstream refused has no
+// room, whatever its windows say.
+const refusedFor = 10 * time.Minute
+
 // origin is what a reading of an account's usage came from.
 type origin string
 
@@ -39,6 +43,8 @@ type usage struct {
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
+	// refused is when the upstream last refused the account's token.
+	refused time.Time
 }
 
 // state is what the router knows of every account's usage, learnt from the
@@ -126,6 +132,15 @@ func (s *state) see(key, model string) {
 	s.seen[key][s.family(model)] = true
 }
 
+// refuse notes that the upstream refused the account's token: the account has
+// no room for refusedFor.
+func (s *state) refuse(id string) {
+	at := s.now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usage[id].refused = at
+}
+
 // due reports whether an account's usage wants probing at now: nothing has
 // been read of it for staleAfter, and no probe of it has ended in the last
 // retryAfter, so an account whose probes fail isn't probed at every choice.
@@ -136,19 +151,37 @@ func (s *state) due(id string, now time.Time) bool {
 	return now.Sub(u.updated) > staleAfter && now.Sub(u.probed) >= retryAfter
 }
 
+// dueAgain reports whether an account whose usage leaves it no room wants
+// probing again at now, in case a window has reset unseen: nothing has been
+// read of it, nor has a probe of it ended, in the last retryAfter.
+func (s *state) dueAgain(id string, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.usage[id]
+	return now.Sub(u.updated) >= retryAfter && now.Sub(u.probed) >= retryAfter
+}
+
 // view returns what a choice of account for a request of model knows at now:
-// every account with a token, as last read, and which windows count the
-// request.
+// every account with a token, as last read, which windows count the request,
+// and which accounts were refused too lately to have room.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var candidates []score.Candidate
+	var (
+		candidates []score.Candidate
+		refused    []string
+	)
 	for _, a := range s.accounts {
-		if a.hasToken {
-			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: s.usage[a.ID].latest()})
+		if !a.hasToken {
+			continue
+		}
+		u := s.usage[a.ID]
+		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.latest()})
+		if !u.refused.IsZero() && now.Sub(u.refused) < refusedFor {
+			refused = append(refused, a.ID)
 		}
 	}
-	return view{policy: s.policy, now: now, candidates: candidates, applies: s.counting(model)}
+	return view{policy: s.policy, now: now, candidates: candidates, applies: s.counting(model), barred: refused}
 }
 
 // counting returns which windows count a request of model, by key: every

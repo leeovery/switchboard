@@ -17,6 +17,16 @@ type view struct {
 	candidates []score.Candidate
 	// applies reports whether the window named key counts the request.
 	applies func(key string) bool
+	// barred are the accounts that have no room whatever their windows say,
+	// by id: their tokens were refused lately, or the request has been tried
+	// on them.
+	barred []string
+}
+
+// without returns the view with the accounts given barred as well.
+func (v view) without(ids []string) view {
+	v.barred = slices.Concat(v.barred, ids)
+	return v
 }
 
 // has reports whether the request can go out on the account with the given id.
@@ -25,12 +35,12 @@ func (v view) has(id string) bool {
 }
 
 // room reports whether the account with the given id can take the request:
-// it's one the request can go out on, and no window that counts the request is
-// spent. An account nothing has been read of has room as far as anyone knows,
-// so a session on it stays and a pin to it holds.
+// it's one the request can go out on, it isn't barred, and no window that
+// counts the request is spent. An account nothing has been read of has room
+// as far as anyone knows, so a session on it stays and a pin to it holds.
 func (v view) room(id string) bool {
 	i := slices.IndexFunc(v.candidates, func(c score.Candidate) bool { return c.ID == id })
-	if i < 0 {
+	if i < 0 || slices.Contains(v.barred, id) {
 		return false
 	}
 	windows := v.candidates[i].Windows
@@ -41,5 +51,23 @@ func (v view) room(id string) bool {
 // have room for the request, keeping to preferred unless another is well
 // ahead of it. It reports false when none has room.
 func (v view) pick(preferred string) (string, bool) {
-	return v.policy.Pick(v.candidates, v.applies, preferred, v.now)
+	return v.policy.Pick(v.open(), v.applies, preferred, v.now)
+}
+
+// full returns the ids of the accounts whose windows as last read leave no
+// room for the request, and that aren't barred: a probe could find room on
+// them after all, were a window to have reset unseen.
+func (v view) full() []string {
+	var ids []string
+	for _, c := range v.open() {
+		if len(c.Windows) > 0 && !score.Available(c.Windows, v.applies, v.now) {
+			ids = append(ids, c.ID)
+		}
+	}
+	return ids
+}
+
+// open returns the candidates that aren't barred.
+func (v view) open() []score.Candidate {
+	return slices.DeleteFunc(slices.Clone(v.candidates), func(c score.Candidate) bool { return slices.Contains(v.barred, c.ID) })
 }

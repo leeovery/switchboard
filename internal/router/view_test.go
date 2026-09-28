@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -100,6 +101,83 @@ func TestView(t *testing.T) {
 		if got := v.room(id); got != want {
 			t.Errorf("room(%q) = %v, want %v", id, got, want)
 		}
+	}
+}
+
+func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.record("work", []quota.Window{session, week}, fromResponse)
+	s.refuse("work")
+
+	for after, want := range map[time.Duration]bool{0: false, 10*time.Minute - time.Nanosecond: false, 10 * time.Minute: true} {
+		v := s.view(opus, start.Add(after))
+		if got := v.room("work"); got != want {
+			t.Errorf("%v after its refusal, room(work) = %v, want %v", after, got, want)
+		}
+		if picked, _ := v.pick(""); (picked == "work") != want {
+			t.Errorf("%v after its refusal, pick() = %q, want work: %v", after, picked, want)
+		}
+	}
+}
+
+func TestAViewWithoutAccounts(t *testing.T) {
+	spent := session
+	spent.Utilization, spent.Status = 1, quota.StatusRejected
+	s := newTestState(&testClock{now: start})
+	s.record("work", []quota.Window{spent, week}, fromResponse)
+	s.record("side", []quota.Window{session, week}, fromResponse)
+
+	v := s.view(opus, start)
+	if got := v.full(); !slices.Equal(got, []string{"work"}) {
+		t.Errorf("full() = %q, want work, whose session is spent", got)
+	}
+	without := v.without([]string{"side"})
+	if without.room("side") || !without.has("side") {
+		t.Error("without side, side has room, or can't be gone out on, want neither")
+	}
+	if id, ok := without.pick(""); ok {
+		t.Errorf("without side, pick() = %q, want none: work has no room", id)
+	}
+	if got := without.without([]string{"work"}).full(); len(got) > 0 {
+		t.Errorf("without either, full() = %q, want none: a probe finding room on either would be no use", got)
+	}
+	if !v.room("side") {
+		t.Error("the view side was taken from has lost it, want it as it was")
+	}
+}
+
+func TestDueAgain(t *testing.T) {
+	tests := []struct {
+		name string
+		// read and probed are how long before start the account was last
+		// read and probed, or never when zero.
+		read, probed time.Duration
+		want         bool
+	}{
+		{name: "never read or probed", want: true},
+		{name: "read a minute ago", read: time.Minute, want: true},
+		{name: "read under a minute ago", read: 59 * time.Second, want: false},
+		{name: "probed a minute ago", read: time.Hour, probed: time.Minute, want: true},
+		{name: "probed under a minute ago", read: time.Hour, probed: 59 * time.Second, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{}
+			s := newTestState(clock)
+			if tt.read > 0 {
+				clock.now = start.Add(-tt.read)
+				s.record("work", []quota.Window{session, week}, fromResponse)
+			}
+			if tt.probed > 0 {
+				clock.now = start.Add(-tt.probed)
+				s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"))
+			}
+
+			if got := s.dueAgain("work", start); got != tt.want {
+				t.Errorf("dueAgain() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

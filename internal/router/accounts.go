@@ -64,6 +64,11 @@ func (as accounts) sendable() accounts {
 	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !a.hasToken })
 }
 
+// only returns the accounts with the ids given, in order.
+func (as accounts) only(ids []string) accounts {
+	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !slices.Contains(ids, a.ID) })
+}
+
 // canSend reports whether requests can go out on the account with the given
 // id: there is one, and it has a token.
 func (as accounts) canSend(id string) bool {

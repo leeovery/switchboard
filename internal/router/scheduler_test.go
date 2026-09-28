@@ -248,17 +248,19 @@ type routed struct {
 	proxy  string
 }
 
-func newRouted(t *testing.T) *routed {
+// newRouted builds a routed router from testConfig, as each of configure
+// changes it.
+func newRouted(t *testing.T, configure ...func(*router.Config)) *routed {
 	t.Helper()
 	api := newAccountsAPI(t)
 	r := &routed{api: api, prober: &fakeProber{}, clock: newFakeClock(now)}
 	cfg := testConfig(api.URL)
 	cfg.Now, cfg.Prober = r.clock.read, r.prober
-	rt, err := router.New(cfg)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
+	for _, c := range configure {
+		c(&cfg)
 	}
-	r.rt, r.proxy = rt, serveProxy(t, rt)
+	r.rt = newRouterFrom(t, cfg)
+	r.proxy = serveProxy(t, r.rt)
 	return r
 }
 

@@ -5,9 +5,14 @@ import (
 	"time"
 )
 
-// probeWait bounds how long a choice waits for fresh usage, so a session's
-// first request never waits long.
-const probeWait = 8 * time.Second
+const (
+	// probeWait bounds how long a choice waits for fresh usage, so a
+	// session's first request never waits long.
+	probeWait = 8 * time.Second
+	// recheckWait bounds how long a choice that found no account with room
+	// waits for those it probes again.
+	recheckWait = 5 * time.Second
+)
 
 // scheduler is the router's Chooser. It keeps each session's requests of a
 // model on one account, so their prompt cache stays warm, choosing afresh
@@ -26,13 +31,16 @@ type scheduler struct {
 
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d := s.decide(req)
-	if d.afresh && s.probes.await(ctx, s.accounts, probeWait) {
+	if d.afresh && s.probes.await(ctx, s.accounts, s.state.due, probeWait) {
+		d = s.decide(req)
+	}
+	if d.noRoom && s.recheck(ctx, req) {
 		d = s.decide(req)
 	}
 	if req.Session != "" {
 		s.remember(req, d)
 	}
-	return Choice{Account: d.account, Reason: d.reason}
+	return Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom}
 }
 
 // decide chooses on what's known now.
@@ -45,8 +53,28 @@ func (s *scheduler) decide(req Request) decision {
 		current:  current,
 		assigned: assigned,
 		pin:      pin,
-		accounts: s.state.view(req.Model, now),
+		accounts: s.view(req, now),
 	})
+}
+
+// view is what a choice for req knows at now: an account the request has
+// been tried on has no room for it.
+func (s *scheduler) view(req Request, now time.Time) view {
+	return s.state.view(req.Model, now).without(req.tried())
+}
+
+// recheck probes again the accounts whose usage as last read leaves no room
+// for req, once a minute at most, as a window may have reset with no traffic
+// to show it. It reports whether it did.
+func (s *scheduler) recheck(ctx context.Context, req Request) bool {
+	full := s.view(req, s.now()).full()
+	underway := s.probes.start(s.accounts.only(full), s.state.dueAgain)
+	if len(underway) == 0 {
+		return false
+	}
+	logger.Warn("no account has room; probing again", "accounts", accountsOf(underway))
+	s.probes.wait(ctx, underway, recheckWait)
+	return true
 }
 
 // remember notes where a session's request went, and logs a move.

@@ -31,7 +31,9 @@ type situation struct {
 	current  assignment
 	assigned bool
 	// pin is the global pin, zero when there's none.
-	pin      status.Pin
+	pin status.Pin
+	// accounts are what's known of the accounts, among which those the
+	// request has been tried on have no room.
 	accounts view
 }
 
@@ -44,6 +46,9 @@ type decision struct {
 	// afresh is set when the account was chosen afresh, as a new session's
 	// is, so fresher usage could change it.
 	afresh bool
+	// noRoom is set when no account has room for the request, so account is
+	// only where it falls back to.
+	noRoom bool
 }
 
 // decide chooses the account a request goes out on, in this order:
@@ -68,8 +73,8 @@ func decide(s situation) decision {
 		return decision{account: pin, reason: reasonPinned}
 	}
 	d := s.unpinned()
-	if d.reason != reasonNoRoom {
-		d.reason = "pin yields: " + pin + " has no room"
+	if !d.noRoom {
+		d.reason = "pin yields: " + pin + " " + s.unable(pin)
 	}
 	return d
 }
@@ -119,7 +124,7 @@ func (s situation) afresh() decision {
 	if id, ok := s.accounts.pick(preferred); ok {
 		return decision{account: id, reason: reason, afresh: true}
 	}
-	return decision{account: s.fallback(), reason: reasonNoRoom, afresh: true}
+	return decision{account: s.fallback(), reason: reasonNoRoom, afresh: true, noRoom: true}
 }
 
 // why says why the account is being chosen afresh, and which account the
@@ -134,8 +139,17 @@ func (s situation) why() (reason, preferred string) {
 	case !s.current.warm(s.now):
 		return "rescored after " + status.Countdown(s.current.LastSeen, s.now) + " idle", s.current.Account
 	default:
-		return "moved: " + s.current.Account + " has no room", ""
+		return "moved: " + s.current.Account + " " + s.unable(s.current.Account), ""
 	}
+}
+
+// unable says why the account with the given id can't take the request: what
+// went wrong when the request went out on it, else that it has no room.
+func (s situation) unable(id string) string {
+	if a, ok := s.req.attempt(id); ok {
+		return a.Why
+	}
+	return "has no room"
 }
 
 // fallback is where a request goes when no account has room: the session's

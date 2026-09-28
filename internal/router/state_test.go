@@ -237,6 +237,8 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.document() })
 		wg.Go(func() { _ = s.view(opus, start).room("work") })
 		wg.Go(func() { _ = s.due("side", start) })
+		wg.Go(func() { _ = s.dueAgain("side", start) })
+		wg.Go(func() { s.refuse("side") })
 	}
 	wg.Wait()
 }

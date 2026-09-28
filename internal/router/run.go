@@ -100,7 +100,7 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	serving.Go(func() { failed <- serveOn(proxySrv, proxyLn) })
 	serving.Go(func() { failed <- serveOn(controlSrv, controlLn) })
 	r.logStart(proxyLn.Addr(), controlLn.Addr())
-	r.probes.start(r.accounts.sendable())
+	r.probes.start(r.accounts.sendable(), r.state.due)
 	// The requests still in flight as the router stops change what's to be
 	// saved, so keeping outlasts ctx.
 	keeping, stopKeeping := context.WithCancel(context.WithoutCancel(ctx))

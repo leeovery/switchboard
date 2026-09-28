@@ -29,6 +29,7 @@ func TestDecide(t *testing.T) {
 	)
 	pinSide := status.Pin{Account: "side", Since: start.Add(-time.Hour)}
 	moveToSide := status.Pin{Account: "side", Since: start.Add(-time.Hour), Move: true}
+	hitLimit := func(id string) []Attempt { return []Attempt{{Account: id, Why: "hit its limit"}} }
 	tests := []struct {
 		name string
 		// unsessioned leaves the request without a session.
@@ -38,6 +39,8 @@ func TestDecide(t *testing.T) {
 		// current is the session's assignment, nil for a new session.
 		current *assignment
 		global  status.Pin
+		// tried are the accounts the request has gone out on already.
+		tried []Attempt
 		// work's and side's windows. Personal can't be sent on.
 		work, side []quota.Window
 		want       decision
@@ -61,12 +64,12 @@ func TestDecide(t *testing.T) {
 		{
 			name: "a new session keeps to the client's account when none has room",
 			work: spent, side: spent,
-			want: decision{account: "work", reason: "no account has room", afresh: true},
+			want: decision{account: "work", reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
 			name: "a new session keeps to the client's account when nothing's been read",
 			work: unread, side: unread,
-			want: decision{account: "work", reason: "no account has room", afresh: true},
+			want: decision{account: "work", reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
 			name:    "a session stays while its cache is warm, however far ahead another account is",
@@ -108,7 +111,7 @@ func TestDecide(t *testing.T) {
 			name:    "a session whose account has no room stays when none has",
 			current: on("side", 5*time.Minute),
 			work:    spent, side: spent,
-			want: decision{account: "side", reason: "no account has room", afresh: true},
+			want: decision{account: "side", reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
 			name:    "a session on an account nothing's been read of stays",
@@ -126,7 +129,7 @@ func TestDecide(t *testing.T) {
 			name:    "a session on an account nothing can go out on goes to the client's when none has room",
 			current: on("personal", 5*time.Minute),
 			work:    spent, side: spent,
-			want: decision{account: "work", reason: "no account has room", afresh: true},
+			want: decision{account: "work", reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
 			name: "a session's pin sends it to its account",
@@ -171,7 +174,7 @@ func TestDecide(t *testing.T) {
 			name: "a session's pin yields to none when no account has room",
 			pin:  "side",
 			work: spent, side: spent,
-			want: decision{account: "work", reason: "no account has room", afresh: true},
+			want: decision{account: "work", reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
 			name:    "a session that yielded its pin isn't brought back while its cache is warm",
@@ -270,14 +273,49 @@ func TestDecide(t *testing.T) {
 			work:    soon, side: later,
 			want: decision{account: "work", reason: "pinned"},
 		},
+		{
+			name:    "a session whose account hit its limit on the request moves, however warm its cache",
+			current: on("work", 0),
+			tried:   hitLimit("work"),
+			work:    soon, side: later,
+			want: decision{account: "side", reason: "moved: work hit its limit", afresh: true},
+		},
+		{
+			name:    "a session whose account refused the request moves",
+			current: on("work", 0),
+			tried:   []Attempt{{Account: "work", Why: "was refused"}},
+			work:    soon, side: later,
+			want: decision{account: "side", reason: "moved: work was refused", afresh: true},
+		},
+		{
+			name:  "a new session tried on an account goes to another",
+			tried: hitLimit("side"),
+			work:  later, side: soon,
+			want: decision{account: "work", reason: "new", afresh: true},
+		},
+		{
+			name:    "a session's pin yields once its account hit its limit on the request",
+			pin:     "side",
+			current: pinned(on("side", 0), "side"),
+			tried:   hitLimit("side"),
+			work:    later, side: soon,
+			want: decision{account: "work", reason: "pin yields: side hit its limit", afresh: true},
+		},
+		{
+			name:    "a session tried on every account with room finds none, and stays",
+			current: on("work", 0),
+			tried:   hitLimit("work"),
+			work:    soon, side: spent,
+			want: decision{account: "work", reason: "no account has room", afresh: true, noRoom: true},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := Request{Session: "0b5c6f2e", Model: opus, Pin: tt.pin, Client: "work"}
+			req := Request{Session: "0b5c6f2e", Model: opus, Pin: tt.pin, Client: "work", Tried: tt.tried}
 			if tt.unsessioned {
 				req.Session = ""
 			}
-			s := situation{req: req, now: start, pin: tt.global, accounts: known(tt.work, tt.side)}
+			s := situation{req: req, now: start, pin: tt.global, accounts: known(tt.work, tt.side).without(req.tried())}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}

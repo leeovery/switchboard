@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,6 +41,11 @@ type Provider interface {
 	Family(model string) string
 	// Usage reads the usage windows a response's headers report.
 	Usage(h http.Header) []quota.Window
+	// Classify says what a response, by its status and headers, says of the
+	// account the request went out on: whether its limit is reached, it's
+	// throttled or its token refused, or the response is the client's as it
+	// came.
+	Classify(status int, h http.Header) quota.Outcome
 	// ErrorMessage returns the message of the error a response's body holds,
 	// with token and anything else shaped like one hidden, or "" when it
 	// holds none.
@@ -112,8 +118,16 @@ func New(cfg Config) (*Router, error) {
 		state:    state,
 		sessions: sessions,
 		probes:   probes,
-		proxy:    newProxy(upstream, accounts, state, cfg.Provider, scheduler),
-		started:  cfg.Now().UTC(),
+		proxy: &proxy{
+			upstream:  upstream,
+			transport: newTransport(),
+			accounts:  accounts,
+			state:     state,
+			provider:  cfg.Provider,
+			chooser:   scheduler,
+			errorLog:  logs.StdLogger("router", slog.LevelWarn),
+		},
+		started: cfg.Now().UTC(),
 	}, nil
 }
 
