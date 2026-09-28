@@ -21,10 +21,10 @@ func TestDetailGivesWayAsWidthShrinks(t *testing.T) {
 		width  int
 		want   string
 	}{
-		{name: "everything", window: runningOut, width: 49, want: "runs out ~Thu 02:54 · resets in 6d 0h · Sun 13:12"},
-		{name: "without the clock", window: runningOut, width: 48, want: "runs out ~Thu 02:54 · resets in 6d 0h"},
-		{name: "without the clock, exactly", window: runningOut, width: 37, want: "runs out ~Thu 02:54 · resets in 6d 0h"},
-		{name: "the projection alone", window: runningOut, width: 36, want: "runs out ~Thu 02:54"},
+		{name: "everything", window: runningOut, width: 46, want: "runs out ~Thu 02:54 · resets in 6d · Sun 13:12"},
+		{name: "without the clock", window: runningOut, width: 45, want: "runs out ~Thu 02:54 · resets in 6d"},
+		{name: "without the clock, exactly", window: runningOut, width: 34, want: "runs out ~Thu 02:54 · resets in 6d"},
+		{name: "the projection alone", window: runningOut, width: 33, want: "runs out ~Thu 02:54"},
 		{name: "the projection alone, exactly", window: runningOut, width: 19, want: "runs out ~Thu 02:54"},
 		{name: "the projection cut short", window: runningOut, width: 18, want: "runs out ~Thu 02:…"},
 		{name: "an ellipsis alone", window: runningOut, width: 1, want: "…"},
@@ -68,7 +68,7 @@ func TestDetailSays(t *testing.T) {
 		{
 			name:      "running out in the red",
 			window:    quota.Window{Key: "7d", Utilization: 0.91, ResetsAt: now.Add(24 * time.Hour)},
-			want:      "runs out ~Tue 03:26 · resets in 1d 0h · Tue 13:12",
+			want:      "runs out ~Tue 03:26 · resets in 1d · Tue 13:12",
 			wantColor: red,
 		},
 		{

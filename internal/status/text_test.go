@@ -117,10 +117,16 @@ func TestCountdown(t *testing.T) {
 		{name: "under a minute", until: 30 * time.Second, want: "0m"},
 		{name: "minutes, rounded down", until: 7*time.Minute + 59*time.Second, want: "7m"},
 		{name: "just under an hour", until: time.Hour - time.Second, want: "59m"},
-		{name: "an hour", until: time.Hour, want: "1h 0m"},
+		{name: "an hour", until: time.Hour, want: "1h"},
+		{name: "an hour, and seconds too few for a minute", until: time.Hour + 59*time.Second, want: "1h"},
+		{name: "just past an hour", until: time.Hour + time.Minute, want: "1h 1m"},
+		{name: "whole hours", until: 4 * time.Hour, want: "4h"},
 		{name: "hours and minutes", until: 4*time.Hour + 57*time.Minute + 30*time.Second, want: "4h 57m"},
 		{name: "just under a day", until: 24*time.Hour - time.Second, want: "23h 59m"},
-		{name: "a day", until: 24 * time.Hour, want: "1d 0h"},
+		{name: "a day", until: 24 * time.Hour, want: "1d"},
+		{name: "a day, and minutes too few for an hour", until: 24*time.Hour + 59*time.Minute, want: "1d"},
+		{name: "just past a day", until: 25 * time.Hour, want: "1d 1h"},
+		{name: "whole days", until: 6 * 24 * time.Hour, want: "6d"},
 		{name: "days and hours, rounded down", until: 5*24*time.Hour + 12*time.Hour + 59*time.Minute, want: "5d 12h"},
 	}
 	for _, tt := range tests {

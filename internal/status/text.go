@@ -41,6 +41,7 @@ func (d Document) Text(now time.Time) string {
 
 // Countdown says how long it is from now until t, in whole units: "5d 12h"
 // from a day away, "4h 57m" from an hour, else "7m"; "now" once t has come.
+// A second unit of zero is left off, as in "6d" and "4h".
 func Countdown(now, t time.Time) string {
 	d := t.Sub(now)
 	if d <= 0 {
@@ -49,12 +50,21 @@ func Countdown(now, t time.Time) string {
 	hours, minutes := int(d/time.Hour), int(d%time.Hour/time.Minute)
 	switch {
 	case hours >= 24:
-		return fmt.Sprintf("%dd %dh", hours/24, hours%24)
+		return withRest(fmt.Sprintf("%dd", hours/24), hours%24, "h")
 	case hours >= 1:
-		return fmt.Sprintf("%dh %dm", hours, minutes)
+		return withRest(fmt.Sprintf("%dh", hours), minutes, "m")
 	default:
 		return fmt.Sprintf("%dm", minutes)
 	}
+}
+
+// withRest follows a count with what's left over in the next unit down,
+// unless nothing is: "5d 12h", but "6d".
+func withRest(count string, rest int, unit string) string {
+	if rest == 0 {
+		return count
+	}
+	return fmt.Sprintf("%s %d%s", count, rest, unit)
 }
 
 // Clock shows t as its weekday and 24-hour time, such as "Mon 18:10".
