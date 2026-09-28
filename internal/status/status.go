@@ -32,8 +32,19 @@ type Document struct {
 	Source string `json:"source"`
 	// Best is the account to use next: of those with room in the windows every
 	// model shares, the one whose quota most needs using. Empty when there's none.
-	Best     string    `json:"best,omitempty"`
+	Best string `json:"best,omitempty"`
+	// Pin is the router's global pin: zero when there's none, and in a
+	// document that isn't the router's.
+	Pin      Pin       `json:"pin,omitzero"`
 	Accounts []Account `json:"accounts"`
+}
+
+// Pin sends every new session to Account, and with Move, every session that
+// was running when it was set too, on its next request.
+type Pin struct {
+	Account string    `json:"account"`
+	Since   time.Time `json:"since"`
+	Move    bool      `json:"move"`
 }
 
 // Account is one account's status.
@@ -46,6 +57,9 @@ type Account struct {
 	quota.Usage
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`
+	// Sessions is how many sessions the router has sent to the account in the
+	// last hour: zero in a document that isn't the router's.
+	Sessions int `json:"sessions,omitzero"`
 }
 
 // Prober reads an account's usage with its token.

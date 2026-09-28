@@ -295,6 +295,40 @@ func TestDocumentJSON(t *testing.T) {
   ]
 }`,
 		},
+		{
+			name: "the router's, with its pin and each account's sessions",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Pin:         status.Pin{Account: "side", Since: generated.Add(-time.Hour), Move: true},
+				Accounts: []status.Account{
+					{ID: "work", Label: "Work", TokenSet: true, Sessions: 2},
+					{ID: "side", Label: "Side", TokenSet: true},
+				},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "pin": {
+    "account": "side",
+    "since": "2026-09-28T12:12:00Z",
+    "move": true
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "sessions": 2
+    },
+    {
+      "id": "side",
+      "label": "Side",
+      "token_set": true
+    }
+  ]
+}`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

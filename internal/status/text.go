@@ -22,21 +22,34 @@ func (d Document) Text(now time.Time) string {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		fmt.Fprintf(&b, "%s\n", account.Title())
-		for _, w := range account.Windows {
-			fmt.Fprintf(&b, "  %s\n", windowLine(w, width, now))
-		}
-		for _, f := range account.Failures {
-			fmt.Fprintf(&b, "  %s offline: %s\n", f.Label, f.Error)
-		}
-		if account.Error != "" {
-			fmt.Fprintf(&b, "  %s\n", account.Error)
-		}
+		account.write(&b, width, now)
 	}
 	if best, ok := d.Account(d.Best); ok {
 		fmt.Fprintf(&b, "\nbest next: %s\n", best.Title())
 	}
 	return b.String()
+}
+
+// Text renders the account for a terminal as the document's Text does.
+func (a Account) Text(now time.Time) string {
+	var b strings.Builder
+	a.write(&b, labelWidth([]Account{a}), now)
+	return b.String()
+}
+
+// write writes the account's title, its windows with their labels width wide,
+// and whatever couldn't be read.
+func (a Account) write(b *strings.Builder, width int, now time.Time) {
+	fmt.Fprintf(b, "%s\n", a.Title())
+	for _, w := range a.Windows {
+		fmt.Fprintf(b, "  %s\n", windowLine(w, width, now))
+	}
+	for _, f := range a.Failures {
+		fmt.Fprintf(b, "  %s offline: %s\n", f.Label, f.Error)
+	}
+	if a.Error != "" {
+		fmt.Fprintf(b, "  %s\n", a.Error)
+	}
 }
 
 // Countdown says how long it is from now until t, in whole units: "5d 12h"
