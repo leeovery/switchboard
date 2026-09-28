@@ -28,7 +28,9 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization
   and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Switchboard
   reads them off real traffic, so it knows each account's usage without spending requests.
-  Windows are parsed generically, not hard-coded.
+  Windows are parsed generically, not hard-coded. A window's reset says which reading is current:
+  a later reset is a new window; with the same reset the higher utilization stands, as use only
+  rises within a window, so a slow response can't pull it back; an earlier reset is ignored.
 - An account with no recent traffic is refreshed with a 1-token probe, and only when a decision
   needs fresh numbers.
 
@@ -89,16 +91,17 @@ request header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`.
 
 Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 
-- **Only `/v1/messages` is swapped.** Everything else passes through untouched. That includes the
-  identity-bound paths TeamClaude found (`/v1/code/…`, file uploads, the session-ingress
-  WebSocket), which must keep the client's own token.
+- **Only `/v1/messages` and its `count_tokens` are swapped.** Everything else passes through
+  untouched. That includes the identity-bound paths TeamClaude found (`/v1/code/…`, file uploads,
+  the session-ingress WebSocket), and message batches, which must keep the client's own token.
 - **`metadata.user_id` is left alone.** It carries a device id, the session id and an account UUID,
   but the UUID is Claude Code's cached account from its last browser login, not the token's
   account, so a mismatch is already normal without switchboard. Setup tokens can't read the
   profile endpoint (403), so the right UUID isn't available to rewrite it with anyway. The spike's
   mismatched requests were all accepted.
-- **403s:** an upstream 403 is never relayed, because Claude Code drops its login on a 403.
-  Switchboard returns 502 instead.
+- **401s and 403s:** an upstream refusal of a routed request's token is never relayed, because
+  Claude Code drops its login on a 403. Switchboard returns 502 instead, marked not to be retried,
+  as the same token would only be refused again.
 - **Replay:** request bodies are buffered so they can be replayed. Replay only happens before
   response headers have been sent; a failure mid-stream is passed through and Claude Code retries.
 - **Storm control:** after a move, concurrency to the new account ramps from 1 to unlimited over
@@ -236,9 +239,10 @@ Unknown keys, duplicate ids and a config without accounts are errors.
 
 ### Proxy rules
 
-- A request is routed only when its path starts with `/v1/messages` **and** its bearer token is
-  one of the configured accounts' tokens. Anything else passes through untouched, so a local
-  process that doesn't already hold a token can't borrow one.
+- A request is routed only when its path is exactly `/v1/messages` or `/v1/messages/count_tokens`
+  **and** its bearer token is one of the configured accounts' tokens. Anything else passes through
+  untouched: batches, whose ids belong to one account, stay on it, and a local process that
+  doesn't already hold a token can't borrow one.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
   that session. It is stripped before the request goes upstream.
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
