@@ -35,12 +35,12 @@ func TestServe(t *testing.T) {
 		side, _ := doc.Account("side")
 		return len(work.Windows) == 3 && side.Error != ""
 	})
-	if doc.Source != "router" {
-		t.Errorf("source = %q, want router", doc.Source)
+	if doc.Source != "router" || doc.Router != (status.Health{Healthy: true}) {
+		t.Errorf("source = %q, router = %+v, want router, healthy, having routed nothing", doc.Source, doc.Router)
 	}
-	doc.Source = probed.Source
+	doc.Source, doc.Router = probed.Source, probed.Router
 	if !reflect.DeepEqual(doc, probed) {
-		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json does, but for its source:\n%+v", doc, probed)
+		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json does, but for its source and health:\n%+v", doc, probed)
 	}
 	want := []string{
 		"test-token-side claude-fable-5", "test-token-side claude-fable-5-1", "test-token-side claude-haiku-4-5-20251001",

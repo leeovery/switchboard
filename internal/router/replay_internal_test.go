@@ -106,6 +106,13 @@ func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
 				if status != tt.wantStatus {
 					t.Errorf("answered %d, want %d", status, tt.wantStatus)
 				}
+				counted := 1
+				if tt.wantStatus == 0 {
+					counted = 0
+				}
+				if got := r.health.report().Requests; got != counted {
+					t.Errorf("the router's health counts %d requests, want %d: a request counts once it's answered", got, counted)
+				}
 				if got, want := upstream.sent(), slices.Repeat([]string{"work"}, tt.wantSent); !slices.Equal(got, want) {
 					t.Errorf("the request went out on %q, want %q: throttling never moves it", got, want)
 				}

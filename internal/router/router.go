@@ -88,7 +88,7 @@ type Config struct {
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
-// and the control API that reports on it all.
+// the router's own health, and the control API that reports on it all.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
@@ -96,6 +96,7 @@ type Router struct {
 	state    *state
 	sessions *sessions
 	probes   *probes
+	health   *health
 	proxy    *proxy
 	started  time.Time
 }
@@ -119,6 +120,7 @@ func New(cfg Config) (*Router, error) {
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now)
 	sessions := newSessions(cfg.Now)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
+	health := newHealth(cfg.Now, emit)
 	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	return &Router{
 		cfg:      cfg,
@@ -127,6 +129,7 @@ func New(cfg Config) (*Router, error) {
 		state:    state,
 		sessions: sessions,
 		probes:   probes,
+		health:   health,
 		proxy: &proxy{
 			upstream:  upstream,
 			transport: newTransport(),
@@ -134,6 +137,7 @@ func New(cfg Config) (*Router, error) {
 			state:     state,
 			provider:  cfg.Provider,
 			chooser:   scheduler,
+			health:    health,
 			emit:      emit,
 			errorLog:  logs.StdLogger("router", slog.LevelWarn),
 		},
@@ -147,10 +151,12 @@ func (r *Router) Proxy() http.Handler {
 }
 
 // Status reports every account's usage as the router knows it, with how many
-// sessions each has, the best account to use next, and the global pin.
+// sessions each has, the best account to use next, the global pin, and the
+// router's own health.
 func (r *Router) Status() status.Document {
 	doc := r.state.document()
 	doc.Pin = r.sessions.globalPin()
+	doc.Router = r.health.report()
 	active := r.sessions.active(r.cfg.Now())
 	for i, a := range doc.Accounts {
 		doc.Accounts[i].Sessions = active[a.ID]

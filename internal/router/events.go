@@ -1,8 +1,8 @@
 package router
 
 // Event is news from the router that something outside it may want to act
-// on, such as by notifying the user: LimitReached, Moved or Refused.
-// Config.Events hears each as it happens.
+// on, such as by notifying the user: LimitReached, Moved, Refused or
+// HealthChanged. Config.Events hears each as it happens.
 type Event interface {
 	event()
 }
@@ -31,6 +31,14 @@ type Refused struct {
 	Status  int
 }
 
-func (LimitReached) event() {}
-func (Moved) event()        {}
-func (Refused) event()      {}
+// HealthChanged is the router turning unhealthy, saying why, or healthy
+// again.
+type HealthChanged struct {
+	Healthy bool
+	Reason  string
+}
+
+func (LimitReached) event()  {}
+func (Moved) event()         {}
+func (Refused) event()       {}
+func (HealthChanged) event() {}

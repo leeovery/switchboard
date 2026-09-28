@@ -39,6 +39,7 @@ type proxy struct {
 	state     *state
 	provider  Provider
 	chooser   Chooser
+	health    *health
 	emit      func(Event)
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
@@ -61,6 +62,9 @@ type exchange struct {
 	attempts int
 	// status is what the client was answered, or zero before it's known.
 	status int
+	// failed is set when the router answered the request with a failure of
+	// its own.
+	failed bool
 }
 
 func (ex *exchange) routed() bool {
@@ -98,7 +102,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	ex := &exchange{id: newID(), started: started}
 	ex.req = Request{Session: p.provider.Session(r.Header), Model: p.provider.Model(body), Pin: p.pin(r, ex), Client: client.ID}
 	ex.account, ex.reason = p.choose(r.Context(), ex, client)
-	defer p.logRouted(r, ex)
+	defer p.done(r, ex)
 	p.forward(w, withBody(r, body), ex)
 }
 
@@ -205,7 +209,7 @@ func (p *proxy) fail(w http.ResponseWriter, r *http.Request, ex *exchange, err e
 		// The client has gone, so there's no one to answer.
 		return
 	}
-	ex.status = http.StatusBadGateway
+	ex.status, ex.failed = http.StatusBadGateway, true
 	if refused, ok := errors.AsType[refusal](err); ok {
 		// The API's clients retry a 5xx unless told not to, and the same
 		// token would only be refused again.
@@ -224,6 +228,15 @@ func (ex *exchange) identity(r *http.Request) []any {
 		return []any{"id", ex.id, "account", ex.account.ID}
 	}
 	return []any{"method", r.Method, "path", r.URL.Path}
+}
+
+// done notes a routed request once it's done: in the log, and, once it was
+// answered, in the router's health.
+func (p *proxy) done(r *http.Request, ex *exchange) {
+	p.logRouted(r, ex)
+	if ex.status != 0 {
+		p.health.record(ex.failed)
+	}
 }
 
 // logRouted notes a routed request once it's done, how many times it went
