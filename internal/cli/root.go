@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -70,7 +71,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a))
+	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a))
 	return root
 }
 
@@ -131,6 +132,29 @@ func (a *app) logDir() (string, error) {
 		return "", err
 	}
 	return logs.Dir(state), nil
+}
+
+// errRouterDown is what a command that needs the router fails with when the
+// router isn't running.
+var errRouterDown = errors.New("the router isn't running: start it with switchboard serve")
+
+// routerClient returns a client of the router whose control socket is in the
+// state directory.
+func (a *app) routerClient() (*router.Client, error) {
+	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return nil, err
+	}
+	return router.NewClient(router.SocketPath(dir)), nil
+}
+
+// fromRouter is err, a router client's, saying plainly when the router isn't
+// running.
+func fromRouter(err error) error {
+	if errors.Is(err, router.ErrNotRunning) {
+		return errRouterDown
+	}
+	return err
 }
 
 // loadConfig loads the config file named by --config, else the one config.Path finds.
