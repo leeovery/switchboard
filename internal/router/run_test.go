@@ -57,7 +57,7 @@ func TestRun(t *testing.T) {
 		return len(work.Windows) > 0 && side.Error != ""
 	})
 	want := []status.Account{
-		{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown}},
+		{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown}, Sessions: 1},
 		{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
 		{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 	}
@@ -126,6 +126,47 @@ func TestRunLetsRequestsInFlightFinish(t *testing.T) {
 	}
 	if err := <-stopped; err != nil {
 		t.Errorf("Run() = %v, want nil", err)
+	}
+}
+
+func TestARestartedRouterKeepsSessionsWhereTheyWere(t *testing.T) {
+	up := newAccountsAPI(t)
+	cfg := runConfig(t, up.URL)
+	prober := &fakeProber{}
+	cfg.Prober = prober
+	prober.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, weekOf(0.5, 24*time.Hour)}}})
+	prober.answer(sideToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, weekOf(0.5, 5*24*time.Hour)}}})
+	stop := runRouter(t, cfg)
+	proxy := "http://" + cfg.Listen
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	if _, err := router.NewClient(router.SocketPath(cfg.StateDir)).Pin(t.Context(), "side", false); err != nil {
+		t.Fatalf("Pin() error = %v", err)
+	}
+	if err := stop(); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	statePath := filepath.Join(cfg.StateDir, "state.json")
+	if info, err := os.Stat(statePath); err != nil || info.Mode() != 0o600 {
+		t.Fatalf("state file: %v, %v, want it saved on the way out, readable by its owner alone", info, err)
+	}
+
+	// Side is pinned, and its quota now needs using first, but the session's
+	// cache is on work.
+	prober.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, weekOf(0.5, 5*24*time.Hour)}}})
+	prober.answer(sideToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, weekOf(0, 24*time.Hour)}}})
+	log := logstest.Capture(t)
+	runRouter(t, cfg)
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(sideToken), strings.NewReader(messages)))
+	if got := up.lastAccount(); got != "work" {
+		t.Errorf("after the restart, the session's request went out on %s, want work", got)
+	}
+	waitForLine(t, log, "msg=routed", "session=0b5c6f2e", "account=work", "reason=sticky")
+	doc := waitForStatus(t, router.SocketPath(cfg.StateDir), func(status.Document) bool { return true })
+	if doc.Pin.Account != "side" {
+		t.Errorf("after the restart, the pin is %+v, want side's, as it was", doc.Pin)
+	}
+	if !log.Has("level=INFO", `msg="loaded state"`, "path="+statePath, "assignments=1", "pin=side") {
+		t.Errorf("log reads\n%s\nwant the state loaded", log)
 	}
 }
 

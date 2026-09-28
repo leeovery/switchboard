@@ -29,14 +29,3 @@ type Choice struct {
 	Account string
 	Reason  string
 }
-
-// pinOrClient sends each request on the account it's pinned to, else on its
-// client's own: it changes nothing but pins.
-type pinOrClient struct{}
-
-func (pinOrClient) Choose(_ context.Context, req Request) Choice {
-	if req.Pin != "" {
-		return Choice{Account: req.Pin, Reason: "pinned"}
-	}
-	return Choice{Account: req.Client, Reason: "client"}
-}

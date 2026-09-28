@@ -60,6 +60,9 @@ func TestQueriesGoUpstreamAsSent(t *testing.T) {
 
 func TestPins(t *testing.T) {
 	tokens := map[string]string{"work": workToken, "side": sideToken}
+	// The router has read no account's usage, so a request without a pin
+	// keeps to the client's own account.
+	const unpinned = `reason="no account has room"`
 	tests := []struct {
 		name        string
 		pin         string
@@ -68,21 +71,21 @@ func TestPins(t *testing.T) {
 		// wantWarning is a line the log should have, when the pin is ignored.
 		wantWarning []string
 	}{
-		{name: "none keeps the client's own account", wantAccount: "work", wantReason: "client"},
-		{name: "to another account moves the request there", pin: "side", wantAccount: "side", wantReason: "pinned"},
-		{name: "to the client's own account", pin: "work", wantAccount: "work", wantReason: "pinned"},
+		{name: "none leaves the choice to the scheduler", wantAccount: "work", wantReason: unpinned},
+		{name: "to another account moves the request there", pin: "side", wantAccount: "side", wantReason: "reason=pinned"},
+		{name: "to the client's own account", pin: "work", wantAccount: "work", wantReason: "reason=pinned"},
 		{
 			name:        "to an account there isn't is ignored",
 			pin:         "nope",
 			wantAccount: "work",
-			wantReason:  "client",
+			wantReason:  unpinned,
 			wantWarning: []string{"level=WARN", `msg="pin ignored: no such account"`, "pin=nope"},
 		},
 		{
 			name:        "to an account without a token is ignored",
 			pin:         "personal",
 			wantAccount: "work",
-			wantReason:  "client",
+			wantReason:  unpinned,
 			wantWarning: []string{"level=WARN", `msg="pin ignored: account has no token"`, "pin=personal"},
 		},
 	}
@@ -94,7 +97,7 @@ func TestPins(t *testing.T) {
 
 			readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", with(claudeCode(workToken), "X-Switchboard-Account", tt.pin), strings.NewReader(messages)))
 			checkHeader(t, up.only(t), with(claudeCode(workToken), "Authorization", "Bearer "+tokens[tt.wantAccount]))
-			waitForLine(t, log, "msg=routed", "account="+tt.wantAccount, "reason="+tt.wantReason)
+			waitForLine(t, log, "msg=routed", "account="+tt.wantAccount, tt.wantReason)
 			if warned := log.Has("level=WARN"); warned != (tt.wantWarning != nil) {
 				t.Errorf("log reads\n%s\nwant a warning: %v", log, tt.wantWarning != nil)
 			}

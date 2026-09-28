@@ -7,17 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
-)
-
-var (
-	start     = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
-	session   = quota.Window{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), Status: quota.StatusAllowed}
-	week      = quota.Window{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC), Status: quota.StatusAllowedWarning}
-	fableWeek = quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.05, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC), Status: quota.StatusAllowed}
 )
 
 func TestRecordMergesEachWindowByItsReset(t *testing.T) {
@@ -240,30 +231,12 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() { s.record("work", []quota.Window{session, week}, fromResponse) })
+		wg.Go(func() { s.learn(opus, []quota.Window{session, week}) })
 		wg.Go(func() { s.recordProbe("side", quota.Probe{Windows: []quota.Window{session}}, nil) })
 		wg.Go(func() { s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded")) })
 		wg.Go(func() { _ = s.document() })
+		wg.Go(func() { _ = s.view(opus, start).room("work") })
+		wg.Go(func() { _ = s.due("side", start) })
 	}
 	wg.Wait()
-}
-
-// newTestState builds the state of three accounts on clock's time: work and
-// side, with tokens, and personal, without one.
-func newTestState(clock *testClock) *state {
-	env := map[string]string{"CLAUDE_TOKEN_WORK": "test-token-work", "CLAUDE_TOKEN_SIDE": "test-token-side"}
-	accounts := resolve([]config.Account{
-		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-		{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
-		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
-	}, func(key string) string { return env[key] })
-	return newState(accounts, score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}, clock.read)
-}
-
-// testClock is a clock that reads now, which a test moves as it goes.
-type testClock struct {
-	now time.Time
-}
-
-func (c *testClock) read() time.Time {
-	return c.now
 }
