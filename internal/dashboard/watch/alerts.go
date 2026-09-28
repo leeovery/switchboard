@@ -25,25 +25,36 @@ type reading struct {
 // that couldn't be read for a while is compared with how it last stood.
 type readings map[string]reading
 
+// alert is news of an account that calls for a notification.
+type alert struct {
+	// account is the account's id, which is all the log says of it.
+	account string
+	// news is what happened, such as "room again" or "Week at 91%".
+	news string
+	// message is the notification, which names the account by its title.
+	message string
+}
+
 // alerts are the notifications doc, read at now, calls for: each account that
 // had no room under the windows every model shares and now has some, and each
 // window that has reached 90% from below. An account is only compared with an
 // earlier reading, so the first document calls for none.
-func (r readings) alerts(doc status.Document, now time.Time, policy score.Policy) []string {
-	var messages []string
+func (r readings) alerts(doc status.Document, now time.Time, policy score.Policy) []alert {
+	var alerts []alert
 	for _, a := range doc.Accounts {
 		last, ok := r[a.ID]
 		if !ok || !wasRead(a) {
 			continue
 		}
 		if roomAgain(last, reading{account: a, at: now}, policy) {
-			messages = append(messages, a.Title()+" has room again")
+			alerts = append(alerts, alert{account: a.ID, news: "room again", message: a.Title() + " has room again"})
 		}
 		for _, w := range crossed(last.account.Windows, a.Windows) {
-			messages = append(messages, fmt.Sprintf("%s: %s at %s", a.Title(), w.Label, status.Percent(w.Utilization)))
+			news := fmt.Sprintf("%s at %s", w.Label, status.Percent(w.Utilization))
+			alerts = append(alerts, alert{account: a.ID, news: news, message: a.Title() + ": " + news})
 		}
 	}
-	return messages
+	return alerts
 }
 
 // with returns the readings updated with each account doc read at now.

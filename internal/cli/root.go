@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -36,10 +37,19 @@ type Deps struct {
 	// Watch shows the dashboard full screen on out until the user quits, as
 	// watch.Run does.
 	Watch func(ctx context.Context, cfg watch.Config, out io.Writer, environ []string) error
+	// FollowEvery is how often logs --follow looks for new lines. Zero means
+	// every half second.
+	FollowEvery time.Duration
 }
 
 // policy is Claude's say in scoring accounts.
 var policy = score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow}
+
+// roleAnnotation is the annotation a command logs its role under, when it
+// isn't the CLI: serve runs as the router.
+const roleAnnotation = "log-role"
+
+var logger = logs.For("cli")
 
 // NewRootCommand builds the switchboard command tree.
 func NewRootCommand(deps Deps) *cobra.Command {
@@ -52,28 +62,55 @@ func NewRootCommand(deps Deps) *cobra.Command {
 		// follows a mistyped command line but not a failure after it.
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			cmd.SilenceUsage = true
+			a.startLog(cmd)
 		},
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a))
+	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a))
 	return root
 }
 
 // Execute runs a command tree from NewRootCommand and returns the process's
-// exit status. Cobra has already printed any error.
+// exit status. Cobra has already printed any error; the log notes it too.
 func Execute(root *cobra.Command) int {
-	if err := root.Execute(); err != nil {
-		return 1
+	status := 0
+	if cmd, err := root.ExecuteC(); err != nil {
+		logger.Warn("command failed", "command", cmd.CommandPath(), "error", err)
+		status = 1
 	}
-	return 0
+	logs.Close(status)
+	return status
 }
 
 // app is what every command shares: the dependencies and the global flags.
 type app struct {
 	Deps
 	configPath string
+}
+
+// startLog starts this invocation's log, in the role the command plays: the
+// CLI's unless its annotation says otherwise. A command never fails for its
+// log, so without a state directory it logs nowhere.
+func (a *app) startLog(cmd *cobra.Command) {
+	dir, _ := a.logDir()
+	logs.Init(logs.Options{
+		Dir:     dir,
+		Role:    logs.Role(cmd.Annotations[roleAnnotation]),
+		Getenv:  a.Getenv,
+		Version: a.Version,
+		Command: cmd.CommandPath(),
+	})
+}
+
+// logDir is where the logs live, in the state directory.
+func (a *app) logDir() (string, error) {
+	state, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return "", err
+	}
+	return logs.Dir(state), nil
 }
 
 // loadConfig loads the config file named by --config, else the one config.Path finds.
@@ -87,7 +124,11 @@ func (a *app) loadConfig() (*config.Config, error) {
 		example := strings.TrimSuffix(config.Example, "\n")
 		return nil, fmt.Errorf("no config file at %s\n\nCreate one like this:\n\n%s", path, example)
 	}
-	return cfg, err
+	if err != nil {
+		return nil, err
+	}
+	logger.Debug("loaded config", "path", path, "accounts", len(cfg.Accounts))
+	return cfg, nil
 }
 
 func (a *app) configFile() (string, error) {
@@ -127,11 +168,14 @@ type probeSource struct {
 // a watch can outlive the one it started with. It never fails: an account that
 // can't be read says why in the document.
 func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
+	version := s.deps.ClaudeVersion()
 	collector := status.Collector{
-		Prober: &claude.Prober{Upstream: s.upstream, Version: s.deps.ClaudeVersion()},
+		Prober: &claude.Prober{Upstream: s.upstream, Version: version},
 		Policy: policy,
 		Getenv: s.deps.Getenv,
 		Now:    s.deps.Now,
 	}
-	return collector.Collect(ctx, s.accounts), nil
+	doc := collector.Collect(ctx, s.accounts)
+	logger.Debug("probed accounts", "accounts", len(doc.Accounts), "best", doc.Best, "claude_version", version)
+	return doc, nil
 }

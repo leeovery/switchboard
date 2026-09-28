@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
@@ -20,10 +21,20 @@ func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) error
 	if f, ok := out.(term.File); !ok || !term.IsTerminal(f.Fd()) {
 		return ErrNotTerminal
 	}
-	program := tea.NewProgram(New(ctx, cfg), tea.WithContext(ctx), tea.WithOutput(out), tea.WithEnvironment(environ))
+	return run(ctx, cfg, tea.WithOutput(out), tea.WithEnvironment(environ))
+}
+
+// run shows the dashboard until the user quits, noting in the log when it
+// starts and stops.
+func run(ctx context.Context, cfg Config, opts ...tea.ProgramOption) error {
+	program := tea.NewProgram(New(ctx, cfg), append(opts, tea.WithContext(ctx))...)
+	logger.Info("watch started", "interval", cfg.Interval)
+	started := time.Now()
+	_, err := program.Run()
+	logger.Info("watch stopped", "ran", time.Since(started).Round(time.Second))
 	// In raw mode ctrl+c arrives as a key, so an interrupt comes from outside
 	// the terminal, and ends a watch as q does.
-	if _, err := program.Run(); err != nil && !errors.Is(err, tea.ErrInterrupted) {
+	if err != nil && !errors.Is(err, tea.ErrInterrupted) {
 		return fmt.Errorf("run the dashboard: %w", err)
 	}
 	return nil

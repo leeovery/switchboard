@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
 
 // SourceProbe marks a document built by probing every account.
 const SourceProbe = "probe"
+
+var logger = logs.For("status")
 
 // Document is the status of every configured account, as `status --json`
 // prints it. Fields may be added to it, never renamed.
@@ -66,6 +69,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 		token, ok := acct.Token(c.Getenv)
 		if !ok {
 			statuses[i].Error = "token missing: set " + acct.TokenEnv
+			logger.Debug("not probed: token missing", "account", acct.ID)
 			continue
 		}
 		statuses[i].TokenSet = true
@@ -76,14 +80,22 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	return Document{GeneratedAt: now.UTC(), Source: SourceProbe, Best: c.best(statuses, now), Accounts: statuses}
 }
 
-// probe fills in an account's usage, or why it couldn't be read.
+// probe fills in an account's usage, or why it couldn't be read, and logs
+// how the probe went.
 func (c Collector) probe(ctx context.Context, account *Account, token config.Token) {
+	started := time.Now()
 	usage, err := c.Prober.Probe(ctx, token.Reveal())
+	took := time.Since(started).Round(time.Millisecond)
 	if err != nil {
 		account.Error = err.Error()
+		logger.Warn("probe failed", "account", account.ID, "duration", took, "error", err)
 		return
 	}
 	account.Usage, account.FetchedAt = usage, c.Now().UTC()
+	logger.Debug("probed account", "account", account.ID, "duration", took, "windows", len(usage.Windows))
+	for _, f := range usage.Failures {
+		logger.Warn("window unread", "account", account.ID, "window", f.Window, "error", f.Error)
+	}
 }
 
 // best is the account the policy picks for a request of any model, or empty

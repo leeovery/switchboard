@@ -99,10 +99,13 @@ func (a *app) printUsage(ctx context.Context, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	frame := dashboard.Render(doc, a.Now(), dashboard.Options{Width: a.terminalWidth(out), Color: true})
+	width := a.terminalWidth(out)
+	frame := dashboard.Render(doc, a.Now(), dashboard.Options{Width: width, Color: true})
 	// The frame is drawn in full colour; the writer brings it down to what
 	// the terminal shows, which is none when it isn't one.
-	_, err = io.WriteString(colorprofile.NewWriter(out, a.Environ()), frame+"\n")
+	colors := colorprofile.NewWriter(out, a.Environ())
+	logger.Debug("drew the dashboard", "width", width, "colors", colors.Profile.String())
+	_, err = io.WriteString(colors, frame+"\n")
 	return err
 }
 

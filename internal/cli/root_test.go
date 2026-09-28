@@ -2,11 +2,18 @@ package cli_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
@@ -57,6 +64,9 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "invalid config for usage", args: []string{"usage", "--config", invalid}, wantUsage: false},
 		{name: "invalid watch interval", args: []string{"usage", "--watch", "soon"}, wantUsage: true},
 		{name: "invalid config for usage --watch", args: []string{"usage", "--watch", "--config", invalid}, wantUsage: false},
+		{name: "unknown log", args: []string{"logs", "extra"}, wantUsage: true},
+		{name: "number of lines that isn't one", args: []string{"logs", "-n", "many"}, wantUsage: true},
+		{name: "log that doesn't exist yet", args: []string{"logs", "router"}, wantUsage: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,6 +78,135 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 				t.Errorf("usage printed = %v, want %v; output:\n%s%s", printed, tt.wantUsage, got.stdout, got.stderr)
 			}
 		})
+	}
+}
+
+func TestCommandsLogOnlyToTheirLog(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
+
+	got := run(t, deps, "status", "--json")
+	if got.code != 0 || got.stderr != "" || !json.Valid([]byte(got.stdout)) {
+		t.Fatalf("switchboard status --json = %+v, want exit status 0, JSON alone on stdout and nothing on stderr", got)
+	}
+	if want := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json").stdout; got.stdout != want {
+		t.Errorf("logging at debug, status --json printed\n%s\nwant what it prints at info\n%s", got.stdout, want)
+	}
+	log := readLog(t, deps, "cli.log")
+	for _, want := range [][]string{
+		{"level=DEBUG", "msg=start component=process", "role=cli", `command="switchboard status"`},
+		{"level=DEBUG", `msg="loaded config" component=cli`, "accounts=3"},
+		{"level=DEBUG", `msg="probed account" component=status`, "account=work", "windows=3"},
+		{"level=DEBUG", `msg="not probed: token missing" component=status`, "account=personal"},
+		{"level=WARN", `msg="probe failed" component=status`, "account=side", `error="HTTP 401 · Invalid bearer token"`},
+		{"level=DEBUG", `msg="probed accounts" component=cli`, "accounts=3", "best=work", "claude_version=" + testClaudeVersion},
+		{"level=DEBUG", "msg=exit component=process", "status=0", "duration="},
+	} {
+		if !hasLine(log, want...) {
+			t.Errorf("cli.log reads\n%s\nwant a line with %q", log, want)
+		}
+	}
+	for _, token := range []string{"test-token-work", "test-token-side"} {
+		if strings.Contains(log, token) {
+			t.Errorf("cli.log shows the token set for an account:\n%s", log)
+		}
+	}
+}
+
+func TestFailedCommandsAreLogged(t *testing.T) {
+	path := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
+
+	if got := run(t, deps, "status"); got.code != 1 {
+		t.Fatalf("switchboard status = %+v, want exit status 1", got)
+	}
+	log := readLog(t, deps, "cli.log")
+	want := []string{"level=WARN", `msg="command failed" component=cli`, `command="switchboard status"`, `error="invalid config ` + path + `:\naccount \"work\": token_env is required`}
+	if !hasLine(log, want...) {
+		t.Errorf("cli.log reads\n%s\nwant a line with %q", log, want)
+	}
+}
+
+func TestCommandsSucceedWhenTheyCantLog(t *testing.T) {
+	tests := []struct {
+		name string
+		// block stops deps logging.
+		block func(t *testing.T, deps *cli.Deps)
+	}{
+		{
+			name: "with a file where the log directory should be",
+			block: func(t *testing.T, deps *cli.Deps) {
+				home, _ := deps.HomeDir()
+				state := filepath.Join(home, ".local", "state", "switchboard")
+				if err := os.MkdirAll(state, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(state, "logs"), nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "without a home directory to find the state directory in",
+			block: func(_ *testing.T, deps *cli.Deps) {
+				deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
+			tt.block(t, &deps)
+
+			got := run(t, deps, "status", "--json")
+			if want := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json"); got != want {
+				t.Errorf("switchboard status --json = %+v, want what it gives when it can log, %+v", got, want)
+			}
+			if entries, err := os.ReadDir("."); err != nil || len(entries) > 0 {
+				t.Errorf("working directory holds %v (%v), want no log there", entries, err)
+			}
+		})
+	}
+}
+
+func TestLogsUnderXDGStateHome(t *testing.T) {
+	state := t.TempDir()
+	path := writeConfig(t, "[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n")
+	deps := testDeps(map[string]string{"XDG_STATE_HOME": state, "SWITCHBOARD_CONFIG": path, "SWITCHBOARD_LOG_LEVEL": "debug"}, t.TempDir())
+	run(t, deps, "accounts")
+
+	data, err := os.ReadFile(filepath.Join(state, "switchboard", "logs", "cli.log"))
+	if err != nil || !strings.Contains(string(data), `command="switchboard accounts"`) {
+		t.Errorf("$XDG_STATE_HOME/switchboard/logs/cli.log holds %q (%v), want the command's start", data, err)
+	}
+}
+
+func TestACommandCanLogAsTheRouter(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	root := cli.NewRootCommand(deps)
+	root.AddCommand(&cobra.Command{
+		Use:         "serve",
+		Annotations: map[string]string{cli.RoleAnnotation: "router"},
+		RunE:        func(*cobra.Command, []string) error { return nil },
+	})
+	root.SetArgs([]string{"serve"})
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+
+	if code := cli.Execute(root); code != 0 {
+		t.Fatalf("switchboard serve exited %d, want 0", code)
+	}
+	log := readLog(t, deps, "router.log")
+	for _, want := range [][]string{
+		{"level=INFO", "msg=start component=process", "role=router", `command="switchboard serve"`},
+		{"level=INFO", "msg=exit component=process", "status=0"},
+	} {
+		if !hasLine(log, want...) {
+			t.Errorf("router.log reads\n%s\nwant a line with %q", log, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(logDir(t, deps), "cli.log")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("cli.log: %v, want no such file", err)
 	}
 }
 
@@ -117,6 +256,36 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		ClaudeVersion: func() string { return testClaudeVersion },
 		Watch:         watch.Run,
 	}
+}
+
+// logDir is where commands run with deps log.
+func logDir(t *testing.T, deps cli.Deps) string {
+	t.Helper()
+	home, err := deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(home, ".local", "state", "switchboard", "logs")
+}
+
+// readLog returns what the log called name holds, for commands run with deps.
+func readLog(t *testing.T, deps cli.Deps, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(logDir(t, deps), name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// hasLine reports whether a line of log contains every one of parts.
+func hasLine(log string, parts ...string) bool {
+	for line := range strings.Lines(log) {
+		if !slices.ContainsFunc(parts, func(part string) bool { return !strings.Contains(line, part) }) {
+			return true
+		}
+	}
+	return false
 }
 
 // writeConfig writes a config file under the test's temp dir and returns its path.

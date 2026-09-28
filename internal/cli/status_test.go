@@ -127,7 +127,7 @@ func TestStatusNeverPrintsTheToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, fmt.Sprintf("upstream = %q\n\n[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n", tt.upstream))
-			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "CLAUDE_TOKEN_WORK": token}, t.TempDir())
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "CLAUDE_TOKEN_WORK": token, "SWITCHBOARD_LOG_LEVEL": "debug"}, t.TempDir())
 
 			got := run(t, deps, tt.args...)
 			if strings.Contains(got.stdout+got.stderr, token) {
@@ -135,6 +135,13 @@ func TestStatusNeverPrintsTheToken(t *testing.T) {
 			}
 			if got.code != 0 || !strings.Contains(got.stdout, "[redacted]") {
 				t.Errorf("switchboard %s = %+v, want exit status 0 and the account's error, redacted", strings.Join(tt.args, " "), got)
+			}
+			log := readLog(t, deps, "cli.log")
+			if strings.Contains(log, token) {
+				t.Fatal("log contains the token")
+			}
+			if !hasLine(log, "level=WARN", `msg="probe failed"`, "account=work", "[redacted]") {
+				t.Errorf("cli.log reads\n%s\nwant the account's error, redacted", log)
 			}
 		})
 	}

@@ -7,8 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
 
 func TestInstalledCLIVersion(t *testing.T) {
@@ -187,6 +190,77 @@ func TestVersionCache(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVersionCacheLogsEachAsk(t *testing.T) {
+	failed := errors.New(`exec: "claude": executable file not found in $PATH`)
+	start := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		// fails says whether each ask, an hour after the one before, fails.
+		fails []bool
+		// want is what the last ask's line says.
+		want []string
+	}{
+		{
+			name:  "a version, at debug",
+			fails: []bool{false},
+			want:  []string{"level=DEBUG", `msg="read the claude CLI's version" component=claude`, "version=2.1.300"},
+		},
+		{
+			name:  "none before one, at warn, as the floor stands in",
+			fails: []bool{true},
+			want: []string{
+				"level=WARN", `msg="claude CLI gave no version; claiming the floor" component=claude`, "version=2.1.283",
+				`error="exec: \"claude\": executable file not found in $PATH"`,
+			},
+		},
+		{
+			name:  "none after one, at debug, as that one stands",
+			fails: []bool{false, true},
+			want:  []string{"level=DEBUG", `msg="claude CLI gave no version; keeping the last" component=claude`, "version=2.1.300", "error="},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			var now time.Time
+			var fails bool
+			cache := &versionCache{
+				ask: func() (string, error) {
+					if fails {
+						return "", failed
+					}
+					return "2.1.300", nil
+				},
+				now: func() time.Time { return now },
+			}
+
+			for i, f := range tt.fails {
+				now, fails = start.Add(time.Duration(i)*time.Hour), f
+				cache.get()
+			}
+			now = now.Add(time.Minute)
+			cache.get()
+
+			var asks []string
+			for _, line := range log.Lines() {
+				if strings.Contains(line, "component=claude") {
+					asks = append(asks, line)
+				}
+			}
+			if len(asks) != len(tt.fails) {
+				t.Fatalf("log reads\n%s\nwant a line for each of the %d asks", log, len(tt.fails))
+			}
+			if last := asks[len(asks)-1]; !containsAll(last, tt.want) {
+				t.Errorf("the last ask logged\n%s\nwant a line with %q", last, tt.want)
+			}
+		})
+	}
+}
+
+func containsAll(s string, parts []string) bool {
+	return !slices.ContainsFunc(parts, func(part string) bool { return !strings.Contains(s, part) })
 }
 
 func TestInstallPaths(t *testing.T) {
