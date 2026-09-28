@@ -52,6 +52,8 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "invalid config", args: []string{"accounts", "--config", invalid}, wantUsage: false},
 		{name: "unexpected status argument", args: []string{"status", "extra"}, wantUsage: true},
 		{name: "invalid config for status", args: []string{"status", "--json", "--config", invalid}, wantUsage: false},
+		{name: "unexpected usage argument", args: []string{"usage", "extra"}, wantUsage: true},
+		{name: "invalid config for usage", args: []string{"usage", "--config", invalid}, wantUsage: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -98,7 +100,14 @@ const testClaudeVersion = "2.1.300"
 // the real ones or runs the real claude.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
-		Getenv:        func(key string) string { return env[key] },
+		Getenv: func(key string) string { return env[key] },
+		Environ: func() []string {
+			var environ []string
+			for key, value := range env {
+				environ = append(environ, key+"="+value)
+			}
+			return environ
+		},
 		HomeDir:       func() (string, error) { return home, nil },
 		Now:           func() time.Time { return testNow },
 		ClaudeVersion: func() string { return testClaudeVersion },
