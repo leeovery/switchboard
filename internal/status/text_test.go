@@ -5,54 +5,103 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestText(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
-	doc := status.Document{
-		GeneratedAt: now.UTC(),
-		Source:      status.SourceProbe,
-		Accounts: []status.Account{
-			{
-				ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
-				Windows: []quota.Window{
-					{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), Status: quota.StatusAllowed},
-					{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC), Status: quota.StatusAllowedWarning},
+	personal := status.Account{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"}
+	tests := []struct {
+		name string
+		doc  status.Document
+		want string
+	}{
+		{
+			name: "windows heading every way, and the account to use next",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceProbe,
+				Best:        "work",
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
+						Windows: []quota.Window{
+							{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC), Status: quota.StatusAllowed},
+							{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC), Status: quota.StatusAllowedWarning},
+						},
+						Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
+					},
+					{
+						ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(),
+						Windows: []quota.Window{
+							{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC), Status: quota.StatusRejected},
+							{Key: "7d_oi", Label: "Fable week", Utilization: 1.04, ResetsAt: time.Date(2026, 9, 28, 13, 19, 0, 0, time.UTC)},
+							{Key: "30d", Label: "30d", Utilization: 0.05},
+							{Key: "burst", Label: "burst", Utilization: 1},
+						},
+					},
+					personal,
+					{ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 				},
-				Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
 			},
-			{
-				ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(),
-				Windows: []quota.Window{
-					{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: time.Date(2026, 9, 28, 13, 0, 0, 0, time.UTC), Status: quota.StatusRejected},
-					{Key: "7d_oi", Label: "Fable week", Utilization: 1.04, ResetsAt: time.Date(2026, 9, 28, 13, 19, 0, 0, time.UTC)},
-					{Key: "30d", Label: "30d", Utilization: 0.05},
-				},
-			},
-			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
-			{ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
-		},
-	}
-	want := `work · Work
-  Session     23%  resets in 4h 58m · Mon 19:10
-  Week        93%  resets in 5d 11h · Sun 02:10
+			want: `work · Work
+  Session     23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week        93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54
   Fable offline: HTTP 529 · Overloaded
 
 side · Side
   Session    100%  resets now · Mon 14:00
-  Fable week 104%  resets in 7m · Mon 14:19
+  Fable week 104%  resets in 7m · Mon 14:19 · exhausted
   30d          5%
+  burst      100%  exhausted
 
 personal · Personal
   token missing: set CLAUDE_TOKEN_PERSONAL
 
 spare · Spare
   HTTP 401 · Invalid bearer token
-`
 
-	if got := doc.Text(now); got != want {
-		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+best next: work · Work
+`,
+		},
+		{
+			name: "no account to use next",
+			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Accounts: []status.Account{personal}},
+			want: `personal · Personal
+  token missing: set CLAUDE_TOKEN_PERSONAL
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.doc.Text(now); got != tt.want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestProjection(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name       string
+		projection score.Projection
+		want       string
+	}{
+		{name: "on pace", projection: score.Projection{Kind: score.OnPace, AtReset: 0.92}, want: "on pace for 92%"},
+		{name: "on pace, having used nothing", projection: score.Projection{Kind: score.OnPace}, want: "on pace for 0%"},
+		{name: "runs out, in now's time zone", projection: score.Projection{Kind: score.RunsOut, At: time.Date(2026, 10, 2, 18, 40, 0, 0, time.UTC)}, want: "runs out ~Fri 19:40"},
+		{name: "exhausted", projection: score.Projection{Kind: score.Exhausted, At: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)}, want: "exhausted"},
+		{name: "exhausted, back at an unknown time", projection: score.Projection{Kind: score.Exhausted}, want: "exhausted"},
+		{name: "nothing to say", projection: score.Projection{}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Projection(now, tt.projection); got != tt.want {
+				t.Errorf("Projection(%+v) = %q, want %q", tt.projection, got, tt.want)
+			}
+		})
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // SourceProbe marks a document built by probing every account.
@@ -19,7 +20,10 @@ const SourceProbe = "probe"
 type Document struct {
 	GeneratedAt time.Time `json:"generated_at"`
 	// Source says where the usage came from, such as SourceProbe.
-	Source   string    `json:"source"`
+	Source string `json:"source"`
+	// Best is the account to use next: of those with room in the windows every
+	// model shares, the one whose quota most needs using. Empty when there's none.
+	Best     string    `json:"best,omitempty"`
 	Accounts []Account `json:"accounts"`
 }
 
@@ -43,6 +47,8 @@ type Prober interface {
 // Collector builds a status document by probing every account.
 type Collector struct {
 	Prober Prober
+	// Policy is the provider's say in which account is best.
+	Policy score.Policy
 	// Getenv reads the variables holding the accounts' tokens.
 	Getenv func(key string) string
 	// Now reads the clock. Concurrent probes call it.
@@ -50,8 +56,8 @@ type Collector struct {
 }
 
 // Collect probes every account that has a token, all at once, and reports
-// them in the order given. An account without a token isn't probed: its status
-// says which variable to set.
+// them in the order given, along with the best of them. An account without a
+// token isn't probed: its status says which variable to set.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
 	var wg sync.WaitGroup
@@ -66,7 +72,8 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 		wg.Go(func() { c.probe(ctx, &statuses[i], token) })
 	}
 	wg.Wait()
-	return Document{GeneratedAt: c.Now().UTC(), Source: SourceProbe, Accounts: statuses}
+	now := c.Now()
+	return Document{GeneratedAt: now.UTC(), Source: SourceProbe, Best: c.best(statuses, now), Accounts: statuses}
 }
 
 // probe fills in an account's usage, or why it couldn't be read.
@@ -77,4 +84,15 @@ func (c Collector) probe(ctx context.Context, account *Account, token config.Tok
 		return
 	}
 	account.Usage, account.FetchedAt = usage, c.Now().UTC()
+}
+
+// best is the account the policy picks for a request of any model, or empty
+// when none can take one.
+func (c Collector) best(accounts []Account, now time.Time) string {
+	candidates := make([]score.Candidate, len(accounts))
+	for i, account := range accounts {
+		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows}
+	}
+	id, _ := c.Policy.Pick(candidates, c.Policy.IsShared, "", now)
+	return id
 }

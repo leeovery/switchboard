@@ -2,16 +2,19 @@ package status
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // Text renders the document for a terminal: each account's windows with when
-// they reset, then whatever couldn't be read. Countdowns run from now, and
-// times show in now's time zone.
+// they reset and where they're heading, then whatever couldn't be read, and
+// last the account to use next. Countdowns run from now, and times show in
+// now's time zone.
 func (d Document) Text(now time.Time) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
@@ -19,7 +22,7 @@ func (d Document) Text(now time.Time) string {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		fmt.Fprintf(&b, "%s · %s\n", account.ID, account.Label)
+		fmt.Fprintf(&b, "%s\n", account.title())
 		for _, w := range account.Windows {
 			fmt.Fprintf(&b, "  %s\n", windowLine(w, width, now))
 		}
@@ -29,6 +32,9 @@ func (d Document) Text(now time.Time) string {
 		if account.Error != "" {
 			fmt.Fprintf(&b, "  %s\n", account.Error)
 		}
+	}
+	if best, ok := d.account(d.Best); ok {
+		fmt.Fprintf(&b, "\nbest next: %s\n", best.title())
 	}
 	return b.String()
 }
@@ -56,14 +62,51 @@ func Clock(t time.Time) string {
 	return t.Format("Mon 15:04")
 }
 
-// windowLine shows a window's label and utilization, then when it resets if
-// that's known.
+// Projection says where a window is heading, such as "on pace for 92%",
+// "runs out ~Fri 19:40" or "exhausted", with times in now's time zone. It's
+// empty when the projection says nothing.
+func Projection(now time.Time, p score.Projection) string {
+	switch p.Kind {
+	case score.OnPace:
+		return "on pace for " + percent(p.AtReset)
+	case score.RunsOut:
+		return "runs out ~" + Clock(p.At.In(now.Location()))
+	case score.Exhausted:
+		return "exhausted"
+	default:
+		return ""
+	}
+}
+
+// title names an account as its section opens, such as "work · Work".
+func (a Account) title() string {
+	return a.ID + " · " + a.Label
+}
+
+// account finds the account with the given id.
+func (d Document) account(id string) (Account, bool) {
+	i := slices.IndexFunc(d.Accounts, func(a Account) bool { return a.ID == id })
+	if i < 0 {
+		return Account{}, false
+	}
+	return d.Accounts[i], true
+}
+
+// windowLine shows a window's label and utilization, then when it resets and
+// where it's heading, as far as those are known.
 func windowLine(w quota.Window, labelWidth int, now time.Time) string {
 	line := fmt.Sprintf("%-*s %4s", labelWidth, w.Label, percent(w.Utilization))
-	if w.ResetsAt.IsZero() {
+	var notes []string
+	if !w.ResetsAt.IsZero() {
+		notes = append(notes, resets(now, w.ResetsAt))
+	}
+	if projection := Projection(now, score.Project(w, now)); projection != "" {
+		notes = append(notes, projection)
+	}
+	if len(notes) == 0 {
 		return line
 	}
-	return line + "  " + resets(now, w.ResetsAt)
+	return line + "  " + strings.Join(notes, " · ")
 }
 
 // percent shows a utilization as a whole percentage, such as "23%".
