@@ -135,6 +135,7 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 | `status [--session <id>] [--json]` | Accounts, windows, sessions, pins and router health. A statusline asks it for its session's account |
 | `pin <id> [--move]`, `pin auto` | Global pin |
 | `accounts` | List configured accounts and whether each token is present |
+| `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines, or follow it: see Logging |
 | `init zsh` | Print shell integration: a `claude` wrapper that goes through `run`, and one pinned launcher per account (name pattern configurable) |
 
 ## Dashboard
@@ -156,6 +157,39 @@ is a router that is running but failing requests: sessions already routed throug
 they restart. The router tracks its own upstream error rate, and `status` and the dashboard show
 trouble loudly. Whether it should also fall back automatically is an open question.
 
+## Logging
+
+Logs are for working out, after the fact, why a session went to an account, why a request failed,
+or why the dashboard showed what it did. Each record is one line of logfmt:
+
+```
+time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=status pid=4242 account=side duration=120ms error="HTTP 401 · Invalid bearer token"
+```
+
+- **Files:** in `<state dir>/logs/`. The router writes `router.log`; every other command writes
+  `cli.log`, often several at once, hence the `pid` on every line. Each record is one unbuffered
+  append, so none is lost to an `exec` or exit, and none splits another.
+- **Rotation:** before a record would take a log past 10 MiB, it rolls over to `.1`, shifting
+  older files up to `.5` and dropping the oldest. Processes sharing `cli.log` roll it over one
+  at a time, under a lock on the directory, and a process whose file was rolled over moves on to
+  the new one. The directory is 0700, the files 0600.
+- **Levels:** `SWITCHBOARD_LOG_LEVEL` is `debug`, `info`, `warn` or `error`, in any case; `info`
+  when unset, and `info` with a warning naming the value when it's anything else. A
+  `--log-level` given to `serve` overrides it. Every process logs its `start` (role, version and
+  command path, never the arguments, which can hold a prompt) and `exit` (status and duration):
+  at `info` for the router, at `debug` for commands, so a statusline running `status` every few
+  seconds doesn't flood `cli.log`.
+- **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
+  backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
+  any attribute's text, and the whole value of any attribute keyed `Authorization`, with
+  `[redacted]`.
+- **Never in the way:** commands never log to stdout or stderr, so `--json` and the dashboard
+  stay clean, and a command never fails because it couldn't log: its records go nowhere
+  instead. `serve` also writes each record to its terminal, when it runs in one.
+- **Reading:** `switchboard logs` prints the router's log once there is one, else the CLI's, or
+  the one named. `-n` sets how many lines (50), reaching into `.1` when the log is shorter; `-f`
+  follows it across rotations; `--path` prints where it is.
+
 ## Architecture
 
 ### Packages
@@ -169,6 +203,7 @@ trouble loudly. Whether it should also fall back automatically is an open questi
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, 429 classification, which paths are routed, the session header |
 | `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/dashboard` | Rendering (Lip Gloss), watch mode (Bubble Tea) and desktop notifications |
+| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back |
 | `internal/router` | The proxy, the scheduler, live account state and the control API |
 | `internal/launch` | `run` and `init zsh` |
 | `internal/service` | The LaunchAgent |
@@ -181,8 +216,11 @@ interfaces they define themselves, which `internal/claude` satisfies.
 - **Config:** `$SWITCHBOARD_CONFIG`, else `$XDG_CONFIG_HOME/switchboard/config.toml`, else
   `~/.config/switchboard/config.toml`.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
-  (pins and session assignments, so a restart doesn't scatter sessions) and `control.sock`.
-- **Service log:** `~/Library/Logs/switchboard/router.log`.
+  (pins and session assignments, so a restart doesn't scatter sessions), `control.sock` and
+  `logs/`.
+- **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
+  Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
+  go.
 
 ```toml
 listen   = "127.0.0.1:4747"             # optional: the proxy's address
