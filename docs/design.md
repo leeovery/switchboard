@@ -62,8 +62,11 @@ Hence: move a session only when its cache is already cold or its account can't s
    session's Haiku calls can sit on a different account from its Opus calls at no cache cost.
    The id survives `--resume`, so a resumed session finds its account again.
 4. **Sticky:** the session stays on that account. It is only re-scored when:
-   - it has been idle longer than the cache TTL, so its cache is cold and a move costs nothing, or
-   - its account can't serve the request.
+   - it has been idle for more than an hour, the cache TTL, so its cache is cold and a move costs
+     nothing. Re-scoring prefers its own account, which another must beat by 20%, so near-equal
+     accounts don't trade places; or
+   - its account can't serve the request. An account nothing has been read of counts as able, so
+     neither a session nor a pin moves on no evidence.
 5. **Limit hit:** a 429 whose window status reads `rejected` means real exhaustion. Switchboard
    replays the buffered request on the next candidate before any response reaches Claude Code,
    and the session moves there and stays. Claude Code sees a normal, slower response.
@@ -73,6 +76,22 @@ Hence: move a session only when its cache is already cold or its account can't s
    would cost a cache rebuild for nothing. The idle rule brings it back when a move is free.
 8. **Pool exhausted:** the 429 is passed through. Switchboard re-probes at most once a minute to
    notice resets.
+
+Each request's account is decided in this order, and the routed line in the log gives the reason:
+
+1. The session's own pin, while its account can serve it (`pinned`); else the pin yields to the
+   rest (`pin yields: <id> has no room`). A session that yielded stays where it went while its
+   cache is warm, and goes back once it's cold.
+2. A global pin set with `--move`, for a session assigned before it: once each (`moved by pin`).
+3. The session's account, while its cache is warm and the account can serve it (`sticky`).
+4. Afresh: the global pin's account while it can serve the request (`pinned (global)`), else the
+   best candidate (`new`, `rescored after <idle> idle`, `moved: <id> has no room`).
+5. With no candidate, the session's account, else the client's (`no account has room`).
+
+A request without a session id is decided afresh every time and not remembered (`unsessioned`).
+Before deciding afresh, and never for a sticky request, switchboard probes every account it hasn't
+read in 15 minutes, all at once, and waits for them 8 seconds at most. Choices made together share
+a probe, and an account whose probe failed waits a minute for the next.
 
 ## Pinning
 
@@ -220,7 +239,10 @@ interfaces they define themselves, which `internal/claude` satisfies.
   `~/.config/switchboard/config.toml`.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
   (pins and session assignments, so a restart doesn't scatter sessions), `control.sock` and
-  `logs/`.
+  `logs/`. `state.json` is versioned, rewritten whole (a temporary file renamed over it) a second
+  after a change and on the way out, and drops assignments unused for 7 days, at start and then
+  hourly. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts
+  without it.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
   go.
@@ -249,7 +271,7 @@ Unknown keys, duplicate ids and a config without accounts are errors.
   header is placed on the best account and not remembered.
 - Which windows apply to a request: `5h` and `7d` apply to every model. Any other window applies
   to the model families it has been seen on (responses and probes reveal this), and to every model
-  until it has been seen.
+  until it has been seen. A family is read from the model id: haiku, sonnet, opus or fable.
 
 ### Control API
 
@@ -258,10 +280,12 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | Endpoint | Job |
 |---|---|
 | `GET /health` | Liveness plus the recent upstream error rate |
-| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints |
-| `GET /sessions/{id}` | The account currently serving a session, for statuslines |
-| `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin |
+| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`) and each account's `sessions`, those used in the last hour |
+| `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
+| `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
 | `POST /refresh` | Probe accounts whose data is older than `{"max_age": "30m"}` |
+
+A request the API refuses is answered `{"error": "<why>"}`.
 
 ### Launching
 
