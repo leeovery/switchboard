@@ -11,7 +11,11 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/logs"
 )
+
+var logger = logs.For("claude")
 
 // fallbackVersion is the version requests claim when no CLI answers. A version
 // older than a model's minimum loses that model's window, so keep it current.
@@ -61,19 +65,32 @@ type versionCache struct {
 }
 
 // get returns the version, asking the CLI first when it hasn't been asked in
-// the last hour. An ask that fails counts as one: the version the CLI last
-// gave stands for the hour, or the floor before it has given one, since a CLI
-// that answered before and doesn't now is more likely mid-update than gone.
+// the last hour. An ask that fails counts as one.
 func (c *versionCache) get() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if now := c.now(); c.asked.IsZero() || now.Sub(c.asked) >= versionLifetime {
-		if version, err := c.ask(); err == nil {
-			c.version = version
-		}
+		c.refresh()
 		c.asked = now
 	}
 	return cmp.Or(c.version, fallbackVersion)
+}
+
+// refresh asks the CLI for its version. When it doesn't give one, the version
+// it last gave stands, since a CLI that answered before and doesn't now is
+// more likely mid-update than gone; before it has given one, the floor does,
+// and probes may lose a model newer than the floor.
+func (c *versionCache) refresh() {
+	version, err := c.ask()
+	switch {
+	case err == nil:
+		logger.Debug("read the claude CLI's version", "version", version)
+		c.version = version
+	case c.version != "":
+		logger.Debug("claude CLI gave no version; keeping the last", "version", c.version, "error", err)
+	default:
+		logger.Warn("claude CLI gave no version; claiming the floor", "version", fallbackVersion, "error", err)
+	}
 }
 
 // installedCLI finds and runs the claude command. Tests give it stand-ins, so
