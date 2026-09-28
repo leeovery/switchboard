@@ -93,6 +93,55 @@ func TestReadsAgainWhenDue(t *testing.T) {
 	}
 }
 
+func TestBacksOffWhileReadsFail(t *testing.T) {
+	// side's token is refused at every read, and its windows reset long after.
+	refusing := document(account("work", "Work", session(0.25, 5*time.Hour), week(0.5)), unreadable("side", "Side"))
+	h := newHarness(t, refusing)
+	h.start() // The first failure, at 13:12.
+
+	tests := []struct {
+		name string
+		// then sets what this read finds.
+		then     func()
+		wantRead time.Time
+		wantNext string
+	}{
+		{name: "a second failure, two minutes on", then: func() {}, wantRead: at(13, 14, 0), wantNext: "13:18"},
+		{name: "a third, four minutes on", then: func() {}, wantRead: at(13, 18, 0), wantNext: "13:26"},
+		{name: "a fourth, the source's own, eight minutes on", then: func() { h.source.err = errors.New("connection refused") }, wantRead: at(13, 26, 0), wantNext: "13:42"},
+		{name: "a fifth, sixteen minutes on", then: func() { h.source.err = nil }, wantRead: at(13, 42, 0), wantNext: "14:12"},
+		{name: "a sixth, the interval on rather than 32 minutes", then: func() {}, wantRead: at(14, 12, 0), wantNext: "14:42"},
+		{name: "a seventh, the interval on", then: func() {}, wantRead: at(14, 42, 0), wantNext: "15:12"},
+		{name: "a complete read, the interval on", then: func() { h.source.doc = calm() }, wantRead: at(15, 12, 0), wantNext: "15:42"},
+		{name: "a new first failure, the interval on", then: func() { h.source.doc = refusing }, wantRead: at(15, 42, 0), wantNext: "15:44"},
+	}
+	for _, tt := range tests {
+		tt.then()
+		if got, want := h.tickUntilRead(), tt.wantRead.Add(tickSlack); !got.Equal(want) {
+			t.Fatalf("%s: read at %s, want %s", tt.name, got.Format(time.StampMilli), want.Format(time.StampMilli))
+		}
+		if got := h.footer(); !strings.Contains(got, "next "+tt.wantNext+" ·") {
+			t.Errorf("%s: footer = %q, want the next read at %s", tt.name, got, tt.wantNext)
+		}
+	}
+}
+
+func TestResetOnScreenBringsOnAReadWhileReadsFail(t *testing.T) {
+	// The session is back at 13:25. Reads fail from 13:15, so the third
+	// failure, at 13:21, would wait eight minutes but for the reset.
+	h := newHarness(t, document(account("work", "Work", refused(session(1, 13*time.Minute)), week(0.5))))
+	h.start()
+	h.source.err = errors.New("connection refused")
+
+	for _, failedAt := range []time.Time{at(13, 15, 0), at(13, 17, 0), at(13, 21, 0)} {
+		h.clock.now = failedAt
+		h.read(calm())
+	}
+	if got, want := h.footer(), "couldn't read usage: connection refused · next 13:26 · r refresh · q quit"; got != want {
+		t.Errorf("footer = %q, want %q", got, want)
+	}
+}
+
 func TestTicksReadOnlyOnceDue(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()

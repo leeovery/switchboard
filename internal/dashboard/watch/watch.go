@@ -65,6 +65,9 @@ type Model struct {
 	fetching bool
 	// failed says why the last read failed, if it did.
 	failed string
+	// failures counts the reads that have failed in a row, in whole or in
+	// part.
+	failures int
 
 	// chain numbers the live chain of ticks: a tick from an earlier one is
 	// dropped.
@@ -173,31 +176,36 @@ func (m Model) fetch() tea.Cmd {
 	}
 }
 
-// fetched takes in a read: the document to show from now on, which may call
-// for notifications, or why there's none.
+// fetched takes in a read: the document to show from now on, or why there's
+// none. After a read that failed, in whole or in part, the next comes sooner
+// than the interval, backing off as the failures run on; either way, a window
+// on screen that resets brings it on.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching = false
+	var wait time.Duration
+	m.failures, wait = backoff(m.failures, msg.err != nil || incomplete(msg.doc), m.cfg.Interval)
+	var cmd tea.Cmd
 	if msg.err != nil {
-		m.failed, m.next = msg.err.Error(), now.Add(retryAfter)
-		return m, nil
+		m.failed = msg.err.Error()
+	} else {
+		m, cmd = m.show(msg.doc, now)
 	}
-	notify := m.notify(m.readings.alerts(msg.doc, now, m.cfg.Policy))
-	m = m.show(msg.doc, now)
-	m, frames := m.startFrames()
-	return m, tea.Batch(notify, m.armTick(now), frames)
+	m.next = nextFetch(m.doc, now, wait)
+	return m, cmd
 }
 
-// show puts doc, read at now, on screen: its bars ease to it from where they
-// stand, its windows say when to read next, and a new chain of ticks starts at
-// its pace, as it may count seconds where the last didn't, or stop.
-func (m Model) show(doc status.Document, now time.Time) Model {
+// show puts doc, read at now, on screen: it posts what the change calls for,
+// eases the bars to it from where they stand, and starts a new chain of ticks
+// at its pace, as it may count seconds where the last didn't, or stop.
+func (m Model) show(doc status.Document, now time.Time) (Model, tea.Cmd) {
+	notify := m.notify(m.readings.alerts(doc, now, m.cfg.Policy))
 	m.readings = m.readings.with(doc, now)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
-	m.next = nextFetch(doc, now, m.cfg.Interval)
 	m.chain++
-	return m
+	m, frames := m.startFrames()
+	return m, tea.Batch(notify, m.armTick(now), frames)
 }
 
 // shown is the document as it's drawn at now, its bars part way along their
