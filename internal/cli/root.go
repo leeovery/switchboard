@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -68,7 +70,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a))
+	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a))
 	return root
 }
 
@@ -84,10 +86,13 @@ func Execute(root *cobra.Command) int {
 	return status
 }
 
-// app is what every command shares: the dependencies and the global flags.
+// app is what every command shares: the dependencies and the flags.
 type app struct {
 	Deps
 	configPath string
+	// logLevel is the level serve's --log-level gives, or nil to log at the
+	// level SWITCHBOARD_LOG_LEVEL names.
+	logLevel slog.Leveler
 }
 
 // startLog starts this invocation's log, in the role the command plays: the
@@ -95,13 +100,28 @@ type app struct {
 // log, so without a state directory it logs nowhere.
 func (a *app) startLog(cmd *cobra.Command) {
 	dir, _ := a.logDir()
+	role := logs.Role(cmd.Annotations[roleAnnotation])
 	logs.Init(logs.Options{
 		Dir:     dir,
-		Role:    logs.Role(cmd.Annotations[roleAnnotation]),
+		Role:    role,
+		Level:   a.logLevel,
 		Getenv:  a.Getenv,
+		Mirror:  mirror(cmd, role),
 		Version: a.Version,
 		Command: cmd.CommandPath(),
 	})
+}
+
+// mirror is where the router's records go as well as its log: the terminal it
+// runs in, if it runs in one. Other commands keep stderr for their own output.
+func mirror(cmd *cobra.Command, role logs.Role) io.Writer {
+	if role != logs.RoleRouter {
+		return nil
+	}
+	if f, ok := cmd.ErrOrStderr().(term.File); ok && term.IsTerminal(f.Fd()) {
+		return f
+	}
+	return nil
 }
 
 // logDir is where the logs live, in the state directory.

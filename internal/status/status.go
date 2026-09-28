@@ -13,8 +13,14 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// SourceProbe marks a document built by probing every account.
-const SourceProbe = "probe"
+// The sources a document can come from.
+const (
+	// SourceProbe marks a document built by probing every account.
+	SourceProbe = "probe"
+	// SourceRouter marks a document from the router: usage read off the
+	// responses it forwards, and off probes where there were none.
+	SourceRouter = "router"
+)
 
 var logger = logs.For("status")
 
@@ -68,7 +74,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 		statuses[i] = Account{ID: acct.ID, Label: acct.Label}
 		token, ok := acct.Token(c.Getenv)
 		if !ok {
-			statuses[i].Error = "token missing: set " + acct.TokenEnv
+			statuses[i].Error = TokenMissing(acct)
 			logger.Debug("not probed: token missing", "account", acct.ID)
 			continue
 		}
@@ -77,7 +83,13 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	}
 	wg.Wait()
 	now := c.Now()
-	return Document{GeneratedAt: now.UTC(), Source: SourceProbe, Best: c.best(statuses, now), Accounts: statuses}
+	return Document{GeneratedAt: now.UTC(), Source: SourceProbe, Best: Best(c.Policy, statuses, now), Accounts: statuses}
+}
+
+// TokenMissing is the error of an account whose token isn't set: it says
+// which variable to set.
+func TokenMissing(acct config.Account) string {
+	return "token missing: set " + acct.TokenEnv
 }
 
 // probe fills in an account's usage, or why it couldn't be read, and logs
@@ -98,13 +110,13 @@ func (c Collector) probe(ctx context.Context, account *Account, token config.Tok
 	}
 }
 
-// best is the account the policy picks for a request of any model, or empty
-// when none can take one.
-func (c Collector) best(accounts []Account, now time.Time) string {
+// Best is the account of those given that policy picks for a request of any
+// model, or empty when none can take one.
+func Best(policy score.Policy, accounts []Account, now time.Time) string {
 	candidates := make([]score.Candidate, len(accounts))
 	for i, account := range accounts {
 		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows}
 	}
-	id, _ := c.Policy.Pick(candidates, c.Policy.IsShared, "", now)
+	id, _ := policy.Pick(candidates, policy.IsShared, "", now)
 	return id
 }

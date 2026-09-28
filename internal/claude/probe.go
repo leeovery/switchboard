@@ -191,17 +191,27 @@ func (p *Prober) newRequest(ctx context.Context, token, model string) (*http.Req
 // error message when the body has one.
 func noUsageReason(resp *http.Response, token string) string {
 	reason := fmt.Sprintf("HTTP %d", resp.StatusCode)
-	var body struct {
+	message := errorMessage(resp.Body, token)
+	if message == "" {
+		return reason
+	}
+	// Redacted before it's cut short, so the cut can't leave part of the token.
+	return reason + " · " + truncate(message, maxErrorMessage)
+}
+
+// errorMessage returns the message of the API error body holds, reading no
+// more than maxErrorBody of it, with the token and anything else shaped like a
+// Claude token hidden; or "" when it holds none.
+func errorMessage(body io.Reader, token string) string {
+	var apiError struct {
 		Error struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	err := json.NewDecoder(io.LimitReader(resp.Body, maxErrorBody)).Decode(&body)
-	if err != nil || body.Error.Message == "" {
-		return reason
+	if err := json.NewDecoder(io.LimitReader(body, maxErrorBody)).Decode(&apiError); err != nil {
+		return ""
 	}
-	// Redacted before it's cut short, so the cut can't leave part of the token.
-	return reason + " · " + truncate(redact(body.Error.Message, token), maxErrorMessage)
+	return redact(apiError.Error.Message, token)
 }
 
 // redact hides the token, and anything else shaped like a Claude token, in text.
