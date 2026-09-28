@@ -35,8 +35,22 @@ type Document struct {
 	Best string `json:"best,omitempty"`
 	// Pin is the router's global pin: zero when there's none, and in a
 	// document that isn't the router's.
-	Pin      Pin       `json:"pin,omitzero"`
+	Pin Pin `json:"pin,omitzero"`
+	// Router is the router's health: zero in a document that isn't the
+	// router's.
+	Router   Health    `json:"router,omitzero"`
 	Accounts []Account `json:"accounts"`
+}
+
+// Health is how the router has fared with the requests it routed over the
+// last five minutes: how many it answered, and how many of those it failed
+// itself, rather than passing on the upstream's answer.
+type Health struct {
+	Healthy  bool `json:"healthy"`
+	Requests int  `json:"requests"`
+	Failures int  `json:"failures"`
+	// Reason says why the router is unhealthy; empty while it's healthy.
+	Reason string `json:"reason,omitempty"`
 }
 
 // Pin sends every new session to Account, and with Move, every session that
