@@ -75,6 +75,11 @@ type Config struct {
 	Now func() time.Time
 	// Version is switchboard's, which the control API reports.
 	Version string
+	// Events hears each of the router's events as it happens, on the
+	// goroutine it happens on: see Event. It mustn't block, nor call the
+	// router, but can hand an event on to be dealt with elsewhere. Nil hears
+	// nothing.
+	Events func(Event)
 	// Listen is the proxy's address, and StateDir the directory its control
 	// socket and state file go in: only Run uses them.
 	Listen   string
@@ -107,10 +112,14 @@ func New(cfg Config) (*Router, error) {
 	if err != nil {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
+	emit := cfg.Events
+	if emit == nil {
+		emit = func(Event) {}
+	}
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now)
 	sessions := newSessions(cfg.Now)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
-	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now}
+	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	return &Router{
 		cfg:      cfg,
 		upstream: upstream,
@@ -125,6 +134,7 @@ func New(cfg Config) (*Router, error) {
 			state:     state,
 			provider:  cfg.Provider,
 			chooser:   scheduler,
+			emit:      emit,
 			errorLog:  logs.StdLogger("router", slog.LevelWarn),
 		},
 		started: cfg.Now().UTC(),

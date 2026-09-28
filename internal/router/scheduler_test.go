@@ -239,11 +239,12 @@ func TestARequestWithoutASessionIsChosenAlone(t *testing.T) {
 }
 
 // routed is a router in front of an accountsAPI, on a clock the test moves,
-// probing with a prober the test sets.
+// probing with a prober the test sets, and telling its events to a log.
 type routed struct {
 	api    *accountsAPI
 	prober *fakeProber
 	clock  *fakeClock
+	events *eventLog
 	rt     *router.Router
 	proxy  string
 }
@@ -253,9 +254,9 @@ type routed struct {
 func newRouted(t *testing.T, configure ...func(*router.Config)) *routed {
 	t.Helper()
 	api := newAccountsAPI(t)
-	r := &routed{api: api, prober: &fakeProber{}, clock: newFakeClock(now)}
+	r := &routed{api: api, prober: &fakeProber{}, clock: newFakeClock(now), events: &eventLog{}}
 	cfg := testConfig(api.URL)
-	cfg.Now, cfg.Prober = r.clock.read, r.prober
+	cfg.Now, cfg.Prober, cfg.Events = r.clock.read, r.prober, r.events.hear
 	for _, c := range configure {
 		c(&cfg)
 	}

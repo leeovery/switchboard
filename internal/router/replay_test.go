@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/router"
 )
 
 // sessionSpent is a session window at its limit, as a 429 reports it.
@@ -68,6 +70,13 @@ func TestARequestOverItsAccountsLimitIsReplayedOnAnother(t *testing.T) {
 		{"level=INFO", "msg=routed", "account=side", "reason=sticky", "status=200"},
 	} {
 		waitForLine(t, log, want...)
+	}
+	wantEvents := []router.Event{
+		router.LimitReached{Account: "work", Windows: []string{"5h"}},
+		router.Moved{Session: sessionID, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit"},
+	}
+	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
+		t.Errorf("events = %+v, want %+v", got, wantEvents)
 	}
 }
 
@@ -191,6 +200,13 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 		{"level=INFO", "msg=routed", "session=one", "account=side", "status=200", "attempts=2"},
 	} {
 		waitForLine(t, log, want...)
+	}
+	wantEvents := []router.Event{
+		router.Refused{Account: "work", Status: http.StatusForbidden},
+		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work was refused"},
+	}
+	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
+		t.Errorf("events = %+v, want %+v", got, wantEvents)
 	}
 }
 

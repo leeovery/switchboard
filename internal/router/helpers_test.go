@@ -458,6 +458,25 @@ func limitReached(message string, windows ...quota.Window) http.HandlerFunc {
 	}
 }
 
+// eventLog hears the router's events, and keeps them in the order they came.
+type eventLog struct {
+	mu     sync.Mutex
+	events []router.Event
+}
+
+func (l *eventLog) hear(e router.Event) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.events = append(l.events, e)
+}
+
+// heard returns the events heard so far.
+func (l *eventLog) heard() []router.Event {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.events)
+}
+
 // shortTempDir returns a directory of the test's own with a path short enough
 // to hold a unix socket: t.TempDir's can be too long on macOS.
 func shortTempDir(t *testing.T) string {

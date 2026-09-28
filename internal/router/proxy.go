@@ -39,6 +39,7 @@ type proxy struct {
 	state     *state
 	provider  Provider
 	chooser   Chooser
+	emit      func(Event)
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger

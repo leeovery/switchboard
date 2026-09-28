@@ -116,6 +116,7 @@ func (rp *replay) limitReached(ctx context.Context, resp *http.Response, windows
 	id := rp.ex.account.ID
 	keys := rejected(windows)
 	logger.Warn("limit reached", "id", rp.ex.id, "account", id, "windows", strings.Join(keys, ","))
+	rp.p.emit(LimitReached{Account: id, Windows: keys})
 	if !rp.moveOn(ctx, whyLimit) {
 		return false
 	}
@@ -153,6 +154,7 @@ func (rp *replay) refused(ctx context.Context, resp *http.Response) (bool, error
 	discard(resp)
 	rp.p.state.refuse(a.ID)
 	logger.Warn("upstream refused the account's token", "id", rp.ex.id, "account", a.ID, "status", resp.StatusCode, "error", prefix(message, refusalShown))
+	rp.p.emit(Refused{Account: a.ID, Status: resp.StatusCode})
 	if rp.moveOn(ctx, whyRefused) {
 		return true, nil
 	}

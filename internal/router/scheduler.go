@@ -27,6 +27,7 @@ type scheduler struct {
 	sessions *sessions
 	probes   *probes
 	now      func() time.Time
+	emit     func(Event)
 }
 
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
@@ -83,5 +84,6 @@ func (s *scheduler) remember(req Request, d decision) {
 	if before != "" && before != d.account {
 		logger.Info("moved", "session", prefix(req.Session, sessionShown), "model", req.Model,
 			"from", before, "to", d.account, "reason", d.reason)
+		s.emit(Moved{Session: req.Session, Model: req.Model, From: before, To: d.account, Reason: d.reason})
 	}
 }
