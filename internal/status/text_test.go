@@ -82,6 +82,46 @@ best next: work · Work
 	}
 }
 
+func TestAccountText(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name    string
+		account status.Account
+		want    string
+	}{
+		{
+			name: "its windows, lined up by their own labels",
+			account: status.Account{
+				ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
+				Windows: []quota.Window{
+					{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC), Status: quota.StatusAllowed},
+					{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC), Status: quota.StatusAllowedWarning},
+				},
+				Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
+			},
+			want: `work · Work
+  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week     93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54
+  Fable offline: HTTP 529 · Overloaded
+`,
+		},
+		{
+			name:    "why it couldn't be read",
+			account: status.Account{ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
+			want: `spare · Spare
+  HTTP 401 · Invalid bearer token
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.account.Text(now); got != tt.want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProjection(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	tests := []struct {

@@ -192,6 +192,16 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{`account "side project": id must start with a letter or digit and contain only letters, digits, '-' and '_'`},
 		},
 		{
+			name:   "the id pin takes to mean routing",
+			config: accountTOML("auto", "CLAUDE_TOKEN_AUTO"),
+			want:   []string{`account "auto": id is reserved for switchboard pin auto`},
+		},
+		{
+			name:   "the id pin takes to mean routing, in another case",
+			config: accountTOML("Auto", "CLAUDE_TOKEN_AUTO"),
+			want:   []string{`account "Auto": id is reserved for switchboard pin auto`},
+		},
+		{
 			name:   "duplicate id, once however often it repeats",
 			config: work + accountTOML("work", "CLAUDE_TOKEN_OTHER") + accountTOML("work", "CLAUDE_TOKEN_THIRD"),
 			want:   []string{`duplicate account id "work"`},

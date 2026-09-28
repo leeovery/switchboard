@@ -174,10 +174,16 @@ func (f *follower) poll() error {
 	return f.reopen()
 }
 
-// reopen moves on to the file at the path, and copies it from the top.
+// reopen moves on to the file at the path, and copies it from the top, having
+// copied the rest of the one open: records can reach that after the poll's
+// first copy, as it's replaced.
 func (f *follower) reopen() error {
 	file, err := openToRead(f.path)
 	if file == nil {
+		return err
+	}
+	if err := f.copy(); err != nil {
+		closeFile(file)
 		return err
 	}
 	f.close()

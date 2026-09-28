@@ -31,6 +31,9 @@ type usage struct {
 	// updated is when a reading last came in, and from is what it came from.
 	updated time.Time
 	from    origin
+	// probed is when a probe of the account last ended, whether it read
+	// anything or not.
+	probed time.Time
 	// probeErr says why the last probe read nothing, until a reading comes in.
 	probeErr string
 	// failures are the windows the last probe expected and couldn't read,
@@ -39,18 +42,31 @@ type usage struct {
 }
 
 // state is what the router knows of every account's usage, learnt from the
-// responses it forwards and from probes. It's safe for concurrent use.
+// responses it forwards and from probes, and of which requests each window
+// counts. It's safe for concurrent use.
 type state struct {
 	accounts accounts
 	policy   score.Policy
-	now      func() time.Time
+	// family names the family of models a model belongs to.
+	family func(model string) string
+	now    func() time.Time
 
 	mu    sync.Mutex
 	usage map[string]*usage
+	// seen holds, by window key, the model families whose requests a window
+	// has been reported on.
+	seen map[string]map[string]bool
 }
 
-func newState(accounts accounts, policy score.Policy, now func() time.Time) *state {
-	s := &state{accounts: accounts, policy: policy, now: now, usage: make(map[string]*usage, len(accounts))}
+func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time) *state {
+	s := &state{
+		accounts: accounts,
+		policy:   policy,
+		family:   family,
+		now:      now,
+		usage:    make(map[string]*usage, len(accounts)),
+		seen:     make(map[string]map[string]bool),
+	}
 	for _, a := range accounts {
 		s.usage[a.ID] = &usage{windows: make(map[string]reading)}
 	}
@@ -67,19 +83,86 @@ func (s *state) record(id string, windows []quota.Window, from origin) {
 	s.usage[id].take(windows, from, at)
 }
 
-// recordProbe takes in what probing an account found: its usage, or why it
-// read none.
-func (s *state) recordProbe(id string, probed quota.Usage, err error) {
+// recordProbe takes in what probing an account found: its usage and which
+// models reported each window, or why it read nothing.
+func (s *state) recordProbe(id string, probed quota.Probe, err error) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
+	u.probed = at
 	if err != nil {
 		u.probeErr = err.Error()
 		return
 	}
 	u.failures = slices.Clone(probed.Failures)
 	u.take(probed.Windows, fromProbe, at)
+	for key, models := range probed.Models {
+		for _, model := range models {
+			s.see(key, model)
+		}
+	}
+}
+
+// learn notes that the response to a request for model reported windows:
+// each counts requests of the model's family.
+func (s *state) learn(model string, windows []quota.Window) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, w := range windows {
+		s.see(w.Key, model)
+	}
+}
+
+// see notes that the window named key counts requests of model's family. A
+// model that isn't known says nothing.
+func (s *state) see(key, model string) {
+	if model == "" {
+		return
+	}
+	if s.seen[key] == nil {
+		s.seen[key] = make(map[string]bool)
+	}
+	s.seen[key][s.family(model)] = true
+}
+
+// due reports whether an account's usage wants probing at now: nothing has
+// been read of it for staleAfter, and no probe of it has ended in the last
+// retryAfter, so an account whose probes fail isn't probed at every choice.
+func (s *state) due(id string, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.usage[id]
+	return now.Sub(u.updated) > staleAfter && now.Sub(u.probed) >= retryAfter
+}
+
+// view returns what a choice of account for a request of model knows at now:
+// every account with a token, as last read, and which windows count the
+// request.
+func (s *state) view(model string, now time.Time) view {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var candidates []score.Candidate
+	for _, a := range s.accounts {
+		if a.hasToken {
+			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: s.usage[a.ID].latest()})
+		}
+	}
+	return view{policy: s.policy, now: now, candidates: candidates, applies: s.counting(model)}
+}
+
+// counting returns which windows count a request of model, by key: every
+// window the policy shares between all models, and any other that has been
+// seen on the model's family, or on none yet.
+func (s *state) counting(model string) func(key string) bool {
+	family := s.family(model)
+	others := make(map[string]bool)
+	for key, families := range s.seen {
+		if !s.policy.IsShared(key) && !families[family] {
+			others[key] = true
+		}
+	}
+	return func(key string) bool { return !others[key] }
 }
 
 // take takes in windows read at a time, each merged with the reading of its

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -24,10 +25,10 @@ const (
 )
 
 // Run builds a router and serves until ctx ends: the proxy on cfg.Listen, and
-// the control API on a socket in cfg.StateDir. It fails when another router
-// already answers there, or when it can't listen. On its way out it stops
-// taking requests, gives those in flight up to 30 seconds to finish, and
-// removes the socket.
+// the control API on a socket in cfg.StateDir, where it keeps its state file
+// too. It fails when another router already answers there, or when it can't
+// listen. On its way out it stops taking requests, gives those in flight up
+// to 30 seconds to finish, saves its state, and removes the socket.
 func Run(ctx context.Context, cfg Config) error {
 	r, err := New(cfg)
 	if err != nil {
@@ -55,6 +56,9 @@ func (r *Router) run(ctx context.Context) error {
 		_ = proxyLn.Close()
 		return err
 	}
+	// Only now is the state directory this router's: another starting
+	// alongside would have failed by here.
+	r.sessions.load(filepath.Join(r.cfg.StateDir, stateFileName), r.accounts.canSend)
 	return r.serve(ctx, proxyLn, controlLn)
 }
 
@@ -87,7 +91,8 @@ func listen(addr string) (net.Listener, error) {
 }
 
 // serve serves the proxy and the control API until ctx ends or either fails,
-// probing every account once in the meantime, then shuts both down.
+// probing every account in the meantime and keeping the state file, then
+// shuts both down.
 func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -95,10 +100,12 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	serving.Go(func() { failed <- serveOn(proxySrv, proxyLn) })
 	serving.Go(func() { failed <- serveOn(controlSrv, controlLn) })
 	r.logStart(proxyLn.Addr(), controlLn.Addr())
-
-	probing, stopProbing := context.WithCancel(ctx)
-	var probes sync.WaitGroup
-	probes.Go(func() { r.probeAll(probing) })
+	r.probes.start(r.accounts.sendable())
+	// The requests still in flight as the router stops change what's to be
+	// saved, so keeping outlasts ctx.
+	keeping, stopKeeping := context.WithCancel(context.WithoutCancel(ctx))
+	var kept sync.WaitGroup
+	kept.Go(func() { r.sessions.keep(keeping) })
 
 	var err error
 	select {
@@ -106,10 +113,11 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	case err = <-failed:
 	}
 	logger.Info("stopping")
-	stopProbing()
+	r.probes.stop()
 	shutdown(controlSrv, proxySrv)
 	serving.Wait()
-	probes.Wait()
+	stopKeeping()
+	kept.Wait()
 	logger.Info("stopped")
 	return err
 }

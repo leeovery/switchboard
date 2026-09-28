@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -39,6 +40,8 @@ var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 var (
 	session = quota.Window{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), Status: quota.StatusAllowed}
 	week    = quota.Window{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC), Status: quota.StatusAllowedWarning}
+	// fableWeek is the Fable week, which only Fable requests report.
+	fableWeek = quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.05, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC), Status: quota.StatusAllowed}
 )
 
 // testConfig configures a router for three accounts, sending requests to
@@ -106,6 +109,7 @@ func newUpstream(t *testing.T, answer http.HandlerFunc) *upstream {
 		u.mu.Lock()
 		u.requests = append(u.requests, received{method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, header: r.Header.Clone(), body: body})
 		u.mu.Unlock()
+		r.Body = io.NopCloser(bytes.NewReader(body))
 		answer(w, r)
 	}))
 	t.Cleanup(u.Close)
@@ -227,23 +231,34 @@ func sorted(h http.Header) string {
 // fakeProber answers each token with its reading, and notes the tokens it's
 // given.
 type fakeProber struct {
+	mu       sync.Mutex
 	readings map[string]probeResult
-
-	mu     sync.Mutex
-	tokens []string
+	tokens   []string
 }
 
 type probeResult struct {
 	usage quota.Usage
-	err   error
+	// models are the models that reported each window, by its key.
+	models map[string][]string
+	err    error
 }
 
-func (p *fakeProber) Probe(_ context.Context, token string) (quota.Usage, error) {
+func (p *fakeProber) Probe(_ context.Context, token string) (quota.Probe, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.tokens = append(p.tokens, token)
 	r := p.readings[token]
-	return r.usage, r.err
+	return quota.Probe{Usage: r.usage, Models: r.models}, r.err
+}
+
+// answer has the prober answer token with r from now on.
+func (p *fakeProber) answer(token string, r probeResult) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.readings == nil {
+		p.readings = make(map[string]probeResult)
+	}
+	p.readings[token] = r
 }
 
 // probed returns the tokens the prober was given, sorted.
@@ -251,6 +266,88 @@ func (p *fakeProber) probed() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Sorted(slices.Values(p.tokens))
+}
+
+// fakeClock is a clock a test moves as it goes, which the router can read
+// from any goroutine.
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newFakeClock(t time.Time) *fakeClock {
+	return &fakeClock{now: t}
+}
+
+func (c *fakeClock) read() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+// accountsAPI is a fake API that answers each request with the windows the
+// test last gave the account whose token it carries, as the real API reports
+// an account's usage on every response. A Fable week is reported only on
+// Fable requests, as the real API reports it.
+type accountsAPI struct {
+	*upstream
+
+	mu      sync.Mutex
+	windows map[string][]quota.Window
+}
+
+func newAccountsAPI(t *testing.T) *accountsAPI {
+	t.Helper()
+	api := &accountsAPI{windows: make(map[string][]quota.Window)}
+	api.upstream = newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		windows := api.of(bearerOf(r))
+		if (claude.Provider{}).Family(modelOf(t, r)) != "fable" {
+			windows = slices.DeleteFunc(windows, func(w quota.Window) bool { return w.Key == "7d_oi" })
+		}
+		answerWith(http.StatusOK, windows...)(w, r)
+	})
+	return api
+}
+
+// modelOf returns the model a request's body asks for.
+func modelOf(t *testing.T, r *http.Request) string {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Errorf("upstream: read request body: %v", err)
+	}
+	return (claude.Provider{}).Model(body)
+}
+
+// set has the API report windows for the account whose token is token.
+func (a *accountsAPI) set(token string, windows ...quota.Window) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.windows[token] = windows
+}
+
+func (a *accountsAPI) of(token string) []quota.Window {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.windows[token])
+}
+
+// lastAccount returns the account whose token the last request to reach the
+// API carried.
+func (u *upstream) lastAccount() string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	token := bearerOf(&http.Request{Header: u.requests[len(u.requests)-1].header})
+	return map[string]string{workToken: "work", sideToken: "side"}[token]
+}
+
+func bearerOf(r *http.Request) string {
+	return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 }
 
 // shortTempDir returns a directory of the test's own with a path short enough

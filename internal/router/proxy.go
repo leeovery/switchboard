@@ -182,6 +182,7 @@ func (p *proxy) inspect(resp *http.Response, ex *exchange) error {
 	if ex.routed() {
 		if windows := p.provider.Usage(resp.Header); len(windows) > 0 {
 			p.state.record(ex.account.ID, windows, fromResponse)
+			p.state.learn(ex.model, windows)
 		}
 		if refuses(resp.StatusCode) {
 			message := p.provider.ErrorMessage(resp.Body, ex.account.token.Reveal())

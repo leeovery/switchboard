@@ -163,7 +163,8 @@ func TestServeLogLevel(t *testing.T) {
 			stop := srv.start(t, tt.args...)
 			srv.waitForStatus(t, func(doc status.Document) bool {
 				work, _ := doc.Account("work")
-				return len(work.Windows) > 0
+				side, _ := doc.Account("side")
+				return len(work.Windows) > 0 && side.Error != ""
 			})
 			stop()
 			log := srv.routerLog(t)
@@ -249,7 +250,19 @@ func (s *serveSetup) socket() string {
 // routerLog returns what the router's log holds.
 func (s *serveSetup) routerLog(t *testing.T) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(s.state, "logs", "router.log"))
+	return s.log(t, "router.log")
+}
+
+// cliLog returns what the log every other command writes holds.
+func (s *serveSetup) cliLog(t *testing.T) string {
+	t.Helper()
+	return s.log(t, "cli.log")
+}
+
+// log returns what the log called name holds.
+func (s *serveSetup) log(t *testing.T, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(s.state, "logs", name))
 	if err != nil {
 		t.Fatal(err)
 	}

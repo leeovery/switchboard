@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -70,20 +71,41 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a))
+	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a))
 	return root
 }
 
 // Execute runs a command tree from NewRootCommand and returns the process's
-// exit status. Cobra has already printed any error; the log notes it too.
+// exit status. Cobra has already printed any error; the log notes it too, as
+// a warning unless it's expected.
 func Execute(root *cobra.Command) int {
 	status := 0
 	if cmd, err := root.ExecuteC(); err != nil {
-		logger.Warn("command failed", "command", cmd.CommandPath(), "error", err)
+		logger.Log(context.Background(), failureLevel(err), "command failed", "command", cmd.CommandPath(), "error", err)
 		status = 1
 	}
 	logs.Close(status)
 	return status
+}
+
+// expected is a failure that's an everyday answer rather than trouble, such
+// as a statusline polling after a session the router isn't running for. The
+// command fails as any other does, but the log notes it at debug, so a
+// statusline asking every few seconds doesn't fill it with warnings.
+type expected struct {
+	error
+}
+
+func (e expected) Unwrap() error {
+	return e.error
+}
+
+// failureLevel is the level a command's failure is logged at.
+func failureLevel(err error) slog.Level {
+	if _, ok := errors.AsType[expected](err); ok {
+		return slog.LevelDebug
+	}
+	return slog.LevelWarn
 }
 
 // app is what every command shares: the dependencies and the flags.
@@ -131,6 +153,29 @@ func (a *app) logDir() (string, error) {
 		return "", err
 	}
 	return logs.Dir(state), nil
+}
+
+// errRouterDown is what a command that needs the router fails with when the
+// router isn't running.
+var errRouterDown = errors.New("the router isn't running: start it with switchboard serve")
+
+// routerClient returns a client of the router whose control socket is in the
+// state directory.
+func (a *app) routerClient() (*router.Client, error) {
+	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return nil, err
+	}
+	return router.NewClient(router.SocketPath(dir)), nil
+}
+
+// fromRouter is err, a router client's, saying plainly when the router isn't
+// running.
+func fromRouter(err error) error {
+	if errors.Is(err, router.ErrNotRunning) {
+		return errRouterDown
+	}
+	return err
 }
 
 // loadConfig loads the config file named by --config, else the one config.Path finds.

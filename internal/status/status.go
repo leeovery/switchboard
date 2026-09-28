@@ -32,8 +32,19 @@ type Document struct {
 	Source string `json:"source"`
 	// Best is the account to use next: of those with room in the windows every
 	// model shares, the one whose quota most needs using. Empty when there's none.
-	Best     string    `json:"best,omitempty"`
+	Best string `json:"best,omitempty"`
+	// Pin is the router's global pin: zero when there's none, and in a
+	// document that isn't the router's.
+	Pin      Pin       `json:"pin,omitzero"`
 	Accounts []Account `json:"accounts"`
+}
+
+// Pin sends every new session to Account, and with Move, every session that
+// was running when it was set too, on its next request.
+type Pin struct {
+	Account string    `json:"account"`
+	Since   time.Time `json:"since"`
+	Move    bool      `json:"move"`
 }
 
 // Account is one account's status.
@@ -46,11 +57,14 @@ type Account struct {
 	quota.Usage
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`
+	// Sessions is how many sessions the router has sent to the account in the
+	// last hour: zero in a document that isn't the router's.
+	Sessions int `json:"sessions,omitzero"`
 }
 
 // Prober reads an account's usage with its token.
 type Prober interface {
-	Probe(ctx context.Context, token string) (quota.Usage, error)
+	Probe(ctx context.Context, token string) (quota.Probe, error)
 }
 
 // Collector builds a status document by probing every account.
@@ -96,16 +110,16 @@ func TokenMissing(acct config.Account) string {
 // how the probe went.
 func (c Collector) probe(ctx context.Context, account *Account, token config.Token) {
 	started := time.Now()
-	usage, err := c.Prober.Probe(ctx, token.Reveal())
+	probed, err := c.Prober.Probe(ctx, token.Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if err != nil {
 		account.Error = err.Error()
 		logger.Warn("probe failed", "account", account.ID, "duration", took, "error", err)
 		return
 	}
-	account.Usage, account.FetchedAt = usage, c.Now().UTC()
-	logger.Debug("probed account", "account", account.ID, "duration", took, "windows", len(usage.Windows))
-	for _, f := range usage.Failures {
+	account.Usage, account.FetchedAt = probed.Usage, c.Now().UTC()
+	logger.Debug("probed account", "account", account.ID, "duration", took, "windows", len(probed.Windows))
+	for _, f := range probed.Failures {
 		logger.Warn("window unread", "account", account.ID, "window", f.Window, "error", f.Error)
 	}
 }

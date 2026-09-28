@@ -1,7 +1,8 @@
 // Package router is the proxy Claude Code sends its requests to. It sends
-// each on to the upstream, on the account chosen for it; reads every
-// account's usage off the responses, and probes where there's no traffic to
-// read; and reports what it knows over a control socket.
+// each on to the upstream, on the account chosen for it, keeping a session on
+// one account while it can; reads every account's usage off the responses,
+// and probes where there's no traffic to read; and reports what it knows, and
+// takes pins, over a control socket.
 package router
 
 import (
@@ -11,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -35,6 +35,9 @@ type Provider interface {
 	// Model returns the model a request's body asks for, or "" when it doesn't
 	// say.
 	Model(body []byte) string
+	// Family returns the family a model belongs to. A window reported on a
+	// response to one of a family's models counts all of theirs.
+	Family(model string) string
 	// Usage reads the usage windows a response's headers report.
 	Usage(h http.Header) []quota.Window
 	// ErrorMessage returns the message of the error a response's body holds,
@@ -43,9 +46,10 @@ type Provider interface {
 	ErrorMessage(body io.Reader, token string) string
 }
 
-// Prober reads an account's usage by spending a request on its token.
+// Prober reads an account's usage by spending requests on its token, and
+// says which models reported each window.
 type Prober interface {
-	Probe(ctx context.Context, token string) (quota.Usage, error)
+	Probe(ctx context.Context, token string) (quota.Probe, error)
 }
 
 // Config is what a router is built from.
@@ -66,18 +70,21 @@ type Config struct {
 	// Version is switchboard's, which the control API reports.
 	Version string
 	// Listen is the proxy's address, and StateDir the directory its control
-	// socket goes in: only Run uses them.
+	// socket and state file go in: only Run uses them.
 	Listen   string
 	StateDir string
 }
 
-// Router is switchboard's router: the proxy, the live state of every
-// account's usage, and the control API that reports on it.
+// Router is switchboard's router: the proxy, the scheduler that chooses the
+// account each request goes out on, the live state of every account's usage,
+// and the control API that reports on it all.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
 	accounts accounts
 	state    *state
+	sessions *sessions
+	probes   *probes
 	proxy    *proxy
 	started  time.Time
 }
@@ -94,13 +101,18 @@ func New(cfg Config) (*Router, error) {
 	if err != nil {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
-	state := newState(accounts, cfg.Policy, cfg.Now)
+	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now)
+	sessions := newSessions(cfg.Now)
+	probes := newProbes(cfg.Prober, state, cfg.Now)
+	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now}
 	return &Router{
 		cfg:      cfg,
 		upstream: upstream,
 		accounts: accounts,
 		state:    state,
-		proxy:    newProxy(upstream, accounts, state, cfg.Provider, pinOrClient{}),
+		sessions: sessions,
+		probes:   probes,
+		proxy:    newProxy(upstream, accounts, state, cfg.Provider, scheduler),
 		started:  cfg.Now().UTC(),
 	}, nil
 }
@@ -110,40 +122,14 @@ func (r *Router) Proxy() http.Handler {
 	return r.proxy
 }
 
-// Status reports every account's usage as the router knows it, and the best
-// account to use next.
+// Status reports every account's usage as the router knows it, with how many
+// sessions each has, the best account to use next, and the global pin.
 func (r *Router) Status() status.Document {
-	return r.state.document()
-}
-
-// probeAll probes every account with a token, all at once, so the router knows
-// the usage of accounts it hasn't had traffic for.
-func (r *Router) probeAll(ctx context.Context) {
-	var wg sync.WaitGroup
-	for _, a := range r.accounts {
-		if a.hasToken {
-			wg.Go(func() { r.probe(ctx, a) })
-		}
+	doc := r.state.document()
+	doc.Pin = r.sessions.globalPin()
+	active := r.sessions.active(r.cfg.Now())
+	for i, a := range doc.Accounts {
+		doc.Accounts[i].Sessions = active[a.ID]
 	}
-	wg.Wait()
-}
-
-// probe reads an account's usage, and logs how that went.
-func (r *Router) probe(ctx context.Context, a account) {
-	started := time.Now()
-	usage, err := r.cfg.Prober.Probe(ctx, a.token.Reveal())
-	took := time.Since(started).Round(time.Millisecond)
-	if ctx.Err() != nil {
-		// Stopped mid-probe: its failure says nothing of the account.
-		return
-	}
-	r.state.recordProbe(a.ID, usage, err)
-	if err != nil {
-		logger.Warn("probe failed", "account", a.ID, "duration", took, "error", err)
-		return
-	}
-	logger.Debug("probed account", "account", a.ID, "duration", took, "windows", len(usage.Windows))
-	for _, f := range usage.Failures {
-		logger.Warn("window unread", "account", a.ID, "window", f.Window, "error", f.Error)
-	}
+	return doc
 }

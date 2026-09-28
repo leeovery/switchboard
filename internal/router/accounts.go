@@ -59,6 +59,27 @@ func (as accounts) anyToken() bool {
 	return slices.ContainsFunc(as, func(a account) bool { return a.hasToken })
 }
 
+// sendable returns the accounts with a token, which requests can go out on.
+func (as accounts) sendable() accounts {
+	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !a.hasToken })
+}
+
+// canSend reports whether requests can go out on the account with the given
+// id: there is one, and it has a token.
+func (as accounts) canSend(id string) bool {
+	a, ok := as.byID(id)
+	return ok && a.hasToken
+}
+
+// ids lists the accounts' ids.
+func (as accounts) ids() []string {
+	ids := make([]string, len(as))
+	for i, a := range as {
+		ids[i] = a.ID
+	}
+	return ids
+}
+
 // tokenEnvs lists the variables the accounts' tokens are read from.
 func (as accounts) tokenEnvs() []string {
 	envs := make([]string, len(as))

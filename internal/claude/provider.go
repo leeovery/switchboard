@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -48,6 +49,23 @@ func (Provider) Model(body []byte) string {
 		return ""
 	}
 	return req.Model
+}
+
+// modelFamilies are the families Claude's models come in. A model's id names
+// its family as one of its hyphenated parts, wherever it falls: both
+// claude-opus-5-5 and claude-3-5-haiku-20241022 do.
+var modelFamilies = []string{"haiku", "sonnet", "opus", "fable"}
+
+// Family returns the family a model belongs to, such as "opus" for
+// claude-opus-5-5, or the model's own id when it names no family. Models of a
+// family are counted against the same windows.
+func (Provider) Family(model string) string {
+	for part := range strings.SplitSeq(model, "-") {
+		if slices.Contains(modelFamilies, part) {
+			return part
+		}
+	}
+	return model
 }
 
 // Usage reads the usage windows off a response's headers, as ParseWindows

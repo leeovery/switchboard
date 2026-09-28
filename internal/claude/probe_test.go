@@ -174,7 +174,7 @@ func TestProbe(t *testing.T) {
 	tests := []struct {
 		name      string
 		replies   map[string]reply
-		want      quota.Usage
+		want      quota.Probe
 		wantErr   string
 		wantAsked []string
 	}{
@@ -184,7 +184,10 @@ func TestProbe(t *testing.T) {
 				haiku: withUsage(http.StatusOK, session, week),
 				fable: withUsage(http.StatusOK, nudged, week, fableWeek),
 			},
-			want:      quota.Usage{Windows: []quota.Window{nudged, week, fableWeek}},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{nudged, week, fableWeek}},
+				map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			),
 			wantAsked: []string{haiku, fable},
 		},
 		{
@@ -193,7 +196,10 @@ func TestProbe(t *testing.T) {
 				haiku: withUsage(http.StatusTooManyRequests, rejected, week),
 				fable: withUsage(http.StatusTooManyRequests, rejected, week, fableWeek),
 			},
-			want:      quota.Usage{Windows: []quota.Window{rejected, week, fableWeek}},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{rejected, week, fableWeek}},
+				map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			),
 			wantAsked: []string{haiku, fable},
 		},
 		{
@@ -203,7 +209,10 @@ func TestProbe(t *testing.T) {
 				fable:      overloaded,
 				fableOlder: withUsage(http.StatusOK, session, week, fableWeek),
 			},
-			want:      quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+				map[string][]string{"5h": {haiku, fableOlder}, "7d": {haiku, fableOlder}, "7d_oi": {fableOlder}},
+			),
 			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{
@@ -213,10 +222,13 @@ func TestProbe(t *testing.T) {
 				fable:      overloaded,
 				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
 			},
-			want: quota.Usage{
-				Windows:  []quota.Window{session, week},
-				Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 404 · model: claude-fable-5"}},
-			},
+			want: probed(
+				quota.Usage{
+					Windows:  []quota.Window{session, week},
+					Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 404 · model: claude-fable-5"}},
+				},
+				map[string][]string{"5h": {haiku}, "7d": {haiku}},
+			),
 			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{
@@ -226,7 +238,10 @@ func TestProbe(t *testing.T) {
 				fable:      overloaded,
 				fableOlder: overloaded,
 			},
-			want:      quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+				map[string][]string{"5h": {haiku}, "7d": {haiku}, "7d_oi": {haiku}},
+			),
 			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{
@@ -235,7 +250,10 @@ func TestProbe(t *testing.T) {
 				haiku: overloaded,
 				fable: withUsage(http.StatusOK, session, week, fableWeek),
 			},
-			want:      quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+				map[string][]string{"5h": {fable}, "7d": {fable}, "7d_oi": {fable}},
+			),
 			wantAsked: []string{haiku, fable},
 		},
 		{
@@ -268,6 +286,12 @@ func TestProbe(t *testing.T) {
 	}
 }
 
+// probed is a probe that read usage, with models naming, by window key, the
+// models that reported each window.
+func probed(usage quota.Usage, models map[string][]string) quota.Probe {
+	return quota.Probe{Usage: usage, Models: models}
+}
+
 func TestProbeAsksTheFamiliesAtOnce(t *testing.T) {
 	nudged := session
 	nudged.Utilization = 0.24
@@ -284,8 +308,8 @@ func TestProbeAsksTheFamiliesAtOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Probe() error = %v", err)
 	}
-	if want := (quota.Usage{Windows: []quota.Window{nudged, week, fableWeek}}); !reflect.DeepEqual(got, want) {
-		t.Errorf("Probe() =\n%+v\nwant\n%+v", got, want)
+	if want := []quota.Window{nudged, week, fableWeek}; !reflect.DeepEqual(got.Windows, want) {
+		t.Errorf("Probe() read\n%+v\nwant\n%+v", got.Windows, want)
 	}
 }
 
@@ -303,7 +327,11 @@ func TestProbeFallsBackFromAModelThatTimesOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Probe() error = %v", err)
 	}
-	if want := (quota.Usage{Windows: []quota.Window{session, week, fableWeek}}); !reflect.DeepEqual(got, want) {
+	want := probed(
+		quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
+		map[string][]string{"5h": {haiku, fableOlder}, "7d": {haiku, fableOlder}, "7d_oi": {fableOlder}},
+	)
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Probe() =\n%+v\nwant\n%+v", got, want)
 	}
 }

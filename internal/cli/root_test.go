@@ -60,6 +60,12 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "invalid config", args: []string{"accounts", "--config", invalid}, wantUsage: false},
 		{name: "unexpected status argument", args: []string{"status", "extra"}, wantUsage: true},
 		{name: "invalid config for status", args: []string{"status", "--json", "--config", invalid}, wantUsage: false},
+		{name: "a session without an id", args: []string{"status", "--session", ""}, wantUsage: true},
+		{name: "a session's status without the router", args: []string{"status", "--session", "0b5c6f2e"}, wantUsage: false},
+		{name: "pin without an account", args: []string{"pin"}, wantUsage: true},
+		{name: "pin with two accounts", args: []string{"pin", "work", "side"}, wantUsage: true},
+		{name: "pin auto, moving sessions", args: []string{"pin", "auto", "--move"}, wantUsage: true},
+		{name: "pin without the router", args: []string{"pin", "work"}, wantUsage: false},
 		{name: "unexpected usage argument", args: []string{"usage", "extra"}, wantUsage: true},
 		{name: "invalid config for usage", args: []string{"usage", "--config", invalid}, wantUsage: false},
 		{name: "invalid watch interval", args: []string{"usage", "--watch", "soon"}, wantUsage: true},
@@ -126,6 +132,61 @@ func TestFailedCommandsAreLogged(t *testing.T) {
 	want := []string{"level=WARN", `msg="command failed" component=cli`, `command="switchboard status"`, `error="invalid config ` + path + `:\naccount \"work\": token_env is required`}
 	if !hasLine(log, want...) {
 		t.Errorf("cli.log reads\n%s\nwant a line with %q", log, want)
+	}
+}
+
+func TestAStatuslinesEverydayFailuresAreLoggedAtDebug(t *testing.T) {
+	const session = "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e"
+	tests := []struct {
+		name string
+		// running starts the router first.
+		running bool
+		args    []string
+		wantErr string
+		// wantLevel is the level the failure is logged at.
+		wantLevel string
+	}{
+		{
+			name:      "a session's status without the router",
+			args:      []string{"status", "--session", session},
+			wantErr:   "the router isn't running: start it with switchboard serve",
+			wantLevel: "DEBUG",
+		},
+		{
+			name:      "a session's status the router hasn't seen",
+			running:   true,
+			args:      []string{"status", "--session", session, "--json"},
+			wantErr:   "the router hasn't seen session " + session,
+			wantLevel: "DEBUG",
+		},
+		{
+			name:      "a pin without the router",
+			args:      []string{"pin", "side"},
+			wantErr:   "the router isn't running: start it with switchboard serve",
+			wantLevel: "WARN",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
+			if tt.running {
+				srv.start(t)
+			}
+
+			got := run(t, srv.deps, tt.args...)
+			if want := (result{stderr: "Error: " + tt.wantErr + "\n", code: 1}); got != want {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
+			}
+			log := srv.cliLog(t)
+			want := []string{"level=" + tt.wantLevel, `msg="command failed"`, `command="switchboard ` + tt.args[0] + `"`, `error="` + tt.wantErr + `"`}
+			if !hasLine(log, want...) {
+				t.Errorf("cli.log reads\n%s\nwant a line with %q", log, want)
+			}
+			other := map[string]string{"DEBUG": "WARN", "WARN": "DEBUG"}[tt.wantLevel]
+			if hasLine(log, "level="+other, `msg="command failed"`) {
+				t.Errorf("cli.log reads\n%s\nwant the failure at %s alone", log, tt.wantLevel)
+			}
+		})
 	}
 }
 

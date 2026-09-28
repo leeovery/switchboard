@@ -72,7 +72,7 @@ type installedProber struct {
 	version  func() string
 }
 
-func (p installedProber) Probe(ctx context.Context, token string) (quota.Usage, error) {
+func (p installedProber) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	prober := &claude.Prober{Upstream: p.upstream, Version: p.version()}
 	return prober.Probe(ctx, token)
 }
