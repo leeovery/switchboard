@@ -1,0 +1,99 @@
+package score_test
+
+import (
+	"math"
+	"testing"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
+)
+
+func TestElapsed(t *testing.T) {
+	tests := []struct {
+		name   string
+		window quota.Window
+		want   float64
+		wantOK bool
+	}{
+		{name: "at the start", window: session(0.2, 0), want: 0, wantOK: true},
+		{name: "halfway", window: session(0.2, 150*time.Minute), want: 0.5, wantOK: true},
+		{name: "a quarter of a week", window: week(0.2, 42*time.Hour), want: 0.25, wantOK: true},
+		{name: "at the reset", window: session(0.2, 5*time.Hour), want: 1, wantOK: true},
+		{name: "past the reset", window: session(0.2, 6*time.Hour), want: 1, wantOK: true},
+		{name: "before the start", window: session(0.2, -time.Hour), want: 0, wantOK: true},
+		{name: "length unknown", window: window("burst", 0.2, time.Hour), wantOK: false},
+		{name: "reset unknown", window: quota.Window{Key: "5h", Utilization: 0.2}, wantOK: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := score.Elapsed(tt.window, now)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("Elapsed() = %v, %v, want %v, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestProject(t *testing.T) {
+	tests := []struct {
+		name   string
+		window quota.Window
+		want   score.Projection
+	}{
+		{name: "on pace", window: session(0.46, 150*time.Minute), want: score.Projection{Kind: score.OnPace, AtReset: 0.92}},
+		{name: "on pace, having used nothing", window: session(0, 150*time.Minute), want: score.Projection{Kind: score.OnPace}},
+		{name: "runs out", window: session(0.4, time.Hour), want: score.Projection{Kind: score.RunsOut, At: now.Add(90 * time.Minute)}},
+		{name: "on pace for its limit runs out at the reset", window: session(0.2, time.Hour), want: score.Projection{Kind: score.RunsOut, At: now.Add(4 * time.Hour)}},
+		{name: "exactly 5% passed", window: session(0.01, 15*time.Minute), want: score.Projection{Kind: score.OnPace, AtReset: 0.2}},
+		{name: "just under 5% passed", window: session(0.01, 15*time.Minute-time.Second), want: score.Projection{}},
+		{name: "used up exactly", window: session(1, 2*time.Hour), want: score.Projection{Kind: score.Exhausted, At: now.Add(3 * time.Hour)}},
+		{name: "over the limit", window: session(1.04, 2*time.Hour), want: score.Projection{Kind: score.Exhausted, At: now.Add(3 * time.Hour)}},
+		{name: "refused below the limit", window: refused(session(0.3, 2*time.Hour)), want: score.Projection{Kind: score.Exhausted, At: now.Add(3 * time.Hour)}},
+		{name: "exhausted before 5% passed", window: session(1, 5*time.Minute), want: score.Projection{Kind: score.Exhausted, At: now.Add(295 * time.Minute)}},
+		{name: "exhausted, back at an unknown time", window: quota.Window{Key: "5h", Utilization: 1}, want: score.Projection{Kind: score.Exhausted}},
+		{name: "exhausted, length unknown", window: window("burst", 1, time.Hour), want: score.Projection{Kind: score.Exhausted, At: now.Add(time.Hour)}},
+		{name: "reset since it was read", window: session(0.5, 6*time.Hour), want: score.Projection{}},
+		{name: "exhausted, but reset since it was read", window: refused(session(1, 6*time.Hour)), want: score.Projection{}},
+		{name: "resetting now", window: session(0.5, 5*time.Hour), want: score.Projection{}},
+		{name: "reset unknown", window: quota.Window{Key: "5h", Utilization: 0.5}, want: score.Projection{}},
+		{name: "length unknown", window: window("burst", 0.5, time.Hour), want: score.Projection{}},
+		{name: "not yet begun", window: session(0.5, -time.Hour), want: score.Projection{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := score.Project(tt.window, now); !sameProjection(got, tt.want) {
+				t.Errorf("Project() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestProjectRunsOutAt(t *testing.T) {
+	tests := []struct {
+		name   string
+		window quota.Window
+		want   time.Time
+	}{
+		{name: "40% in an hour leaves 60% for 1h 30m", window: session(0.4, time.Hour), want: time.Date(2026, 9, 28, 14, 42, 0, 0, time.UTC)},
+		{name: "75% in 3h leaves 25% for an hour", window: session(0.75, 3*time.Hour), want: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)},
+		{name: "90% in 30m leaves 10% for 3m 20s", window: session(0.9, 30*time.Minute), want: time.Date(2026, 9, 28, 13, 15, 20, 0, time.UTC)},
+		{name: "20% in an hour leaves 80% for the 4h to the reset", window: session(0.2, time.Hour), want: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
+		{name: "50% in two days of a week leaves 50% for two more", window: week(0.5, 48*time.Hour), want: time.Date(2026, 9, 30, 13, 12, 0, 0, time.UTC)},
+		{name: "25% in a day of a week leaves 75% for three more", window: week(0.25, 24*time.Hour), want: time.Date(2026, 10, 1, 13, 12, 0, 0, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := score.Project(tt.window, now)
+			if got.Kind != score.RunsOut || !got.At.Equal(tt.want) {
+				t.Errorf("Project() = %+v, want it to run out at %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// sameProjection reports whether two projections match, their utilizations
+// to within rounding.
+func sameProjection(a, b score.Projection) bool {
+	return a.Kind == b.Kind && math.Abs(a.AtReset-b.AtReset) < 1e-9 && a.At.Equal(b.At)
+}

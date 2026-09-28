@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -23,6 +24,7 @@ func newStatusCommand(a *app) *cobra.Command {
 			}
 			collector := status.Collector{
 				Prober: &claude.Prober{Upstream: cfg.Upstream, Version: a.ClaudeVersion()},
+				Policy: score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow},
 				Getenv: a.Getenv,
 				Now:    a.Now,
 			}

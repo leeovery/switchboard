@@ -76,9 +76,13 @@ func Length(key string) (time.Duration, bool) {
 // Sort orders windows shortest first, then by key, with windows whose length
 // can't be read from their key last: 5h, 7d, 7d_oi.
 func Sort(windows []Window) {
-	slices.SortFunc(windows, func(a, b Window) int {
-		return cmp.Or(cmp.Compare(sortLength(a.Key), sortLength(b.Key)), cmp.Compare(a.Key, b.Key))
-	})
+	slices.SortFunc(windows, Compare)
+}
+
+// Compare orders two windows as Sort does: negative when a comes first,
+// positive when b does, and zero when they share a key.
+func Compare(a, b Window) int {
+	return cmp.Or(cmp.Compare(sortLength(a.Key), sortLength(b.Key)), cmp.Compare(a.Key, b.Key))
 }
 
 // sortLength is a key's length for sorting, where an unreadable one counts as endless.

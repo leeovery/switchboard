@@ -1,6 +1,7 @@
 package quota_test
 
 import (
+	"cmp"
 	"encoding/json"
 	"reflect"
 	"slices"
@@ -50,6 +51,29 @@ func TestSort(t *testing.T) {
 	want := []string{"5h", "12h", "1d", "7d", "7d_oi", "7d_opus", "alpha", "zeta"}
 	if got := keys(windows); !slices.Equal(got, want) {
 		t.Errorf("Sort() order = %v, want %v", got, want)
+	}
+}
+
+func TestCompare(t *testing.T) {
+	tests := []struct {
+		a, b string
+		// want is the sign of the result.
+		want int
+	}{
+		{a: "5h", b: "7d", want: -1},
+		{a: "7d", b: "5h", want: 1},
+		{a: "7d", b: "7d_oi", want: -1},
+		{a: "30d", b: "burst", want: -1},
+		{a: "burst", b: "30d", want: 1},
+		{a: "7d_oi", b: "7d_oi", want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.a+" against "+tt.b, func(t *testing.T) {
+			got := quota.Compare(quota.Window{Key: tt.a}, quota.Window{Key: tt.b})
+			if cmp.Compare(got, 0) != tt.want {
+				t.Errorf("Compare(%q, %q) = %d, want its sign to be %d", tt.a, tt.b, got, tt.want)
+			}
+		})
 	}
 }
 

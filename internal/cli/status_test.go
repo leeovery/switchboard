@@ -18,14 +18,16 @@ func TestStatus(t *testing.T) {
 	want := result{
 		stdout: `work · Work
   Session     23%  resets in 4h 58m · Mon 18:10
-  Week        93%  resets in 4d 7h · Fri 21:00
-  Fable week   5%  resets in 5d 11h · Sun 01:10
+  Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 18:01
+  Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
 
 personal · Personal
   token missing: set CLAUDE_TOKEN_PERSONAL
 
 side · Side
   HTTP 401 · Invalid bearer token
+
+best next: work · Work
 `,
 		code: 0,
 	}
@@ -40,6 +42,7 @@ func TestStatusJSON(t *testing.T) {
 		stdout: `{
   "generated_at": "2026-09-28T13:12:00Z",
   "source": "probe",
+  "best": "work",
   "accounts": [
     {
       "id": "work",
@@ -64,9 +67,9 @@ func TestStatusJSON(t *testing.T) {
         {
           "key": "7d_oi",
           "label": "Fable week",
-          "utilization": 0.05,
+          "utilization": 1,
           "resets_at": "2026-10-04T01:10:00Z",
-          "status": "allowed"
+          "status": "rejected"
         }
       ]
     },
@@ -167,8 +170,9 @@ token_env = "CLAUDE_TOKEN_SIDE"
 }
 
 // fakeClaudeAPI serves a probe of the work account from Claude Code
-// testClaudeVersion with its usage headers, and rejects anything else. It
-// returns the API's URL.
+// testClaudeVersion with its usage headers, and rejects anything else. The
+// account has used up its Fable week, which only Fable requests count, so it's
+// still the account to use next. It returns the API's URL.
 func fakeClaudeAPI(t *testing.T) string {
 	t.Helper()
 	accountWide := map[string]string{
@@ -181,9 +185,9 @@ func fakeClaudeAPI(t *testing.T) string {
 	}
 	fable := maps.Clone(accountWide)
 	maps.Copy(fable, map[string]string{
-		"anthropic-ratelimit-unified-7d_oi-utilization": "0.05",
+		"anthropic-ratelimit-unified-7d_oi-utilization": "1",
 		"anthropic-ratelimit-unified-7d_oi-reset":       "1791076200", // Sun 4 Oct 2026 01:10 UTC
-		"anthropic-ratelimit-unified-7d_oi-status":      "allowed",
+		"anthropic-ratelimit-unified-7d_oi-status":      "rejected",
 	})
 	usage := map[string]map[string]string{
 		"claude-haiku-4-5-20251001": accountWide,
