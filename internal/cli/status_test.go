@@ -1,0 +1,212 @@
+package cli_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"maps"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/cli"
+)
+
+func TestStatus(t *testing.T) {
+	got := run(t, statusDeps(t, fakeClaudeAPI(t)), "status")
+	want := result{
+		stdout: `work · Work
+  Session     23%  resets in 4h 58m · Mon 18:10
+  Week        93%  resets in 4d 7h · Fri 21:00
+  Fable week   5%  resets in 5d 11h · Sun 01:10
+
+personal · Personal
+  token missing: set CLAUDE_TOKEN_PERSONAL
+
+side · Side
+  HTTP 401 · Invalid bearer token
+`,
+		code: 0,
+	}
+	if got != want {
+		t.Errorf("switchboard status =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+func TestStatusJSON(t *testing.T) {
+	got := run(t, statusDeps(t, fakeClaudeAPI(t)), "status", "--json")
+	want := result{
+		stdout: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "probe",
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "5h",
+          "label": "Session",
+          "utilization": 0.23,
+          "resets_at": "2026-09-28T18:10:00Z",
+          "status": "allowed"
+        },
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.93,
+          "resets_at": "2026-10-02T21:00:00Z",
+          "status": "allowed_warning"
+        },
+        {
+          "key": "7d_oi",
+          "label": "Fable week",
+          "utilization": 0.05,
+          "resets_at": "2026-10-04T01:10:00Z",
+          "status": "allowed"
+        }
+      ]
+    },
+    {
+      "id": "personal",
+      "label": "Personal",
+      "token_set": false,
+      "error": "token missing: set CLAUDE_TOKEN_PERSONAL"
+    },
+    {
+      "id": "side",
+      "label": "Side",
+      "token_set": true,
+      "error": "HTTP 401 · Invalid bearer token"
+    }
+  ]
+}
+`,
+		code: 0,
+	}
+	if got != want {
+		t.Errorf("switchboard status --json =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+func TestStatusWithInvalidConfig(t *testing.T) {
+	path := writeConfig(t, "[[account]]\nid = \"work\"\n")
+
+	got := run(t, testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir()), "status")
+	wantErr := "Error: invalid config " + path + ":\n" + `account "work": token_env is required`
+	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, wantErr) {
+		t.Errorf("switchboard status = %+v, want exit status 1 and an error starting %q", got, wantErr)
+	}
+}
+
+func TestStatusNeverPrintsTheToken(t *testing.T) {
+	const token = "test-token-work"
+	leaky := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"invalid bearer token `+token+`"}}`)
+	}))
+	t.Cleanup(leaky.Close)
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+	tests := []struct {
+		name     string
+		upstream string
+		args     []string
+	}{
+		{name: "from the API's error message, as text", upstream: leaky.URL, args: []string{"status"}},
+		{name: "from the API's error message, as JSON", upstream: leaky.URL, args: []string{"status", "--json"}},
+		{name: "from the upstream's path, as text", upstream: closed.URL + "/" + token, args: []string{"status"}},
+		{name: "from the upstream's path, as JSON", upstream: closed.URL + "/" + token, args: []string{"status", "--json"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, fmt.Sprintf("upstream = %q\n\n[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n", tt.upstream))
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "CLAUDE_TOKEN_WORK": token}, t.TempDir())
+
+			got := run(t, deps, tt.args...)
+			if strings.Contains(got.stdout+got.stderr, token) {
+				t.Fatal("output contains the token")
+			}
+			if got.code != 0 || !strings.Contains(got.stdout, "[redacted]") {
+				t.Errorf("switchboard %s = %+v, want exit status 0 and the account's error, redacted", strings.Join(tt.args, " "), got)
+			}
+		})
+	}
+}
+
+// statusDeps configures three accounts against upstream: work, whose token
+// fakeClaudeAPI accepts; personal, without a token; and side, whose token
+// fakeClaudeAPI rejects.
+func statusDeps(t *testing.T, upstream string) cli.Deps {
+	t.Helper()
+	path := writeConfig(t, fmt.Sprintf(`upstream = %q
+
+[[account]]
+id        = "work"
+label     = "Work"
+token_env = "CLAUDE_TOKEN_WORK"
+
+[[account]]
+id        = "personal"
+label     = "Personal"
+token_env = "CLAUDE_TOKEN_PERSONAL"
+
+[[account]]
+id        = "side"
+label     = "Side"
+token_env = "CLAUDE_TOKEN_SIDE"
+`, upstream))
+	return testDeps(map[string]string{
+		"SWITCHBOARD_CONFIG": path,
+		"CLAUDE_TOKEN_WORK":  "test-token-work",
+		"CLAUDE_TOKEN_SIDE":  "test-token-side",
+	}, t.TempDir())
+}
+
+// fakeClaudeAPI serves a probe of the work account from Claude Code
+// testClaudeVersion with its usage headers, and rejects anything else. It
+// returns the API's URL.
+func fakeClaudeAPI(t *testing.T) string {
+	t.Helper()
+	accountWide := map[string]string{
+		"anthropic-ratelimit-unified-5h-utilization": "0.23",
+		"anthropic-ratelimit-unified-5h-reset":       "1790619000", // Mon 28 Sep 2026 18:10 UTC
+		"anthropic-ratelimit-unified-5h-status":      "allowed",
+		"anthropic-ratelimit-unified-7d-utilization": "0.93",
+		"anthropic-ratelimit-unified-7d-reset":       "1790974800", // Fri 2 Oct 2026 21:00 UTC
+		"anthropic-ratelimit-unified-7d-status":      "allowed_warning",
+	}
+	fable := maps.Clone(accountWide)
+	maps.Copy(fable, map[string]string{
+		"anthropic-ratelimit-unified-7d_oi-utilization": "0.05",
+		"anthropic-ratelimit-unified-7d_oi-reset":       "1791076200", // Sun 4 Oct 2026 01:10 UTC
+		"anthropic-ratelimit-unified-7d_oi-status":      "allowed",
+	})
+	usage := map[string]map[string]string{
+		"claude-haiku-4-5-20251001": accountWide,
+		"claude-fable-5-1":          fable,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Model string `json:"model"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		headers, ok := usage[req.Model]
+		if !ok || r.Header.Get("Authorization") != "Bearer test-token-work" || r.Header.Get("User-Agent") != "claude-code/"+testClaudeVersion {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`)
+			return
+		}
+		for name, value := range headers {
+			w.Header().Set(name, value)
+		}
+		_, _ = io.WriteString(w, `{"type":"message"}`)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}

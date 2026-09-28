@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
 )
@@ -49,6 +50,8 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "unknown flag", args: []string{"accounts", "--bogus"}, wantUsage: true},
 		{name: "unexpected argument", args: []string{"accounts", "extra"}, wantUsage: true},
 		{name: "invalid config", args: []string{"accounts", "--config", invalid}, wantUsage: false},
+		{name: "unexpected status argument", args: []string{"status", "extra"}, wantUsage: true},
+		{name: "invalid config for status", args: []string{"status", "--json", "--config", invalid}, wantUsage: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -84,12 +87,21 @@ func run(t *testing.T, deps cli.Deps, args ...string) result {
 	return result{stdout: stdout.String(), stderr: stderr.String(), code: code}
 }
 
-// testDeps gives commands env as their whole environment and home as their
-// home directory, so no test reads the real ones.
+// testNow is the time by every command's clock in tests: a Monday, 13:12 UTC.
+var testNow = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+
+// testClaudeVersion is the Claude Code version every command's probes claim in tests.
+const testClaudeVersion = "2.1.300"
+
+// testDeps gives commands env as their whole environment, home as their home
+// directory, a stopped clock and a fixed Claude Code version, so no test reads
+// the real ones or runs the real claude.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
-		Getenv:  func(key string) string { return env[key] },
-		HomeDir: func() (string, error) { return home, nil },
+		Getenv:        func(key string) string { return env[key] },
+		HomeDir:       func() (string, error) { return home, nil },
+		Now:           func() time.Time { return testNow },
+		ClaudeVersion: func() string { return testClaudeVersion },
 	}
 }
 

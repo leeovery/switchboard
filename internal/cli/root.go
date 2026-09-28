@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -19,6 +20,9 @@ type Deps struct {
 	Version string
 	Getenv  func(key string) string
 	HomeDir func() (string, error)
+	Now     func() time.Time
+	// ClaudeVersion returns the Claude Code version that probes claim to be.
+	ClaudeVersion func() string
 }
 
 // NewRootCommand builds the switchboard command tree.
@@ -37,7 +41,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a))
+	root.AddCommand(newAccountsCommand(a), newStatusCommand(a))
 	return root
 }
 
