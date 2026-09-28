@@ -1,7 +1,9 @@
 package claude
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,24 +17,63 @@ import (
 // older than a model's minimum loses that model's window, so keep it current.
 const fallbackVersion = "2.1.283"
 
-// versionTimeout bounds `claude --version`, which normally answers in milliseconds.
-const versionTimeout = 5 * time.Second
+const (
+	// versionTimeout bounds `claude --version`, which normally answers in
+	// milliseconds.
+	versionTimeout = 5 * time.Second
+	// versionLifetime is how long a version the CLI gave stands before the
+	// CLI is asked again.
+	versionLifetime = time.Hour
+)
 
 var versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+`)
 
-var installedVersion = sync.OnceValue(func() string {
-	home, _ := os.UserHomeDir()
-	return systemCLI(home).version(context.Background())
-})
+var installed = &versionCache{
+	ask: func() (string, error) {
+		home, _ := os.UserHomeDir()
+		return systemCLI(home).version(context.Background())
+	},
+	now: time.Now,
+}
 
 // InstalledVersion returns the version of the Claude Code CLI installed here,
 // such as "2.1.283", for a Prober to claim. The API rejects a version older
 // than a model's minimum ("Claude Code X does not support this model"), so a
 // pinned version would lose each new model's window the day it ships. It asks
-// the CLI once per process, and returns a floor version when none answers
-// within five seconds.
+// the CLI at most once an hour, so a process that runs for days follows the
+// CLI's updates. When the CLI doesn't answer within five seconds, the version
+// it last gave stands, or a floor version before it has given one.
 func InstalledVersion() string {
-	return installedVersion()
+	return installed.get()
+}
+
+// versionCache keeps the version the CLI last gave for an hour.
+type versionCache struct {
+	// ask asks the CLI for its version.
+	ask func() (string, error)
+	now func() time.Time
+
+	mu sync.Mutex
+	// version is what the CLI last gave: empty until it has given one.
+	version string
+	// asked is when the CLI was last asked: zero until it has been.
+	asked time.Time
+}
+
+// get returns the version, asking the CLI first when it hasn't been asked in
+// the last hour. An ask that fails counts as one: the version the CLI last
+// gave stands for the hour, or the floor before it has given one, since a CLI
+// that answered before and doesn't now is more likely mid-update than gone.
+func (c *versionCache) get() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if now := c.now(); c.asked.IsZero() || now.Sub(c.asked) >= versionLifetime {
+		if version, err := c.ask(); err == nil {
+			c.version = version
+		}
+		c.asked = now
+	}
+	return cmp.Or(c.version, fallbackVersion)
 }
 
 // installedCLI finds and runs the claude command. Tests give it stand-ins, so
@@ -66,17 +107,18 @@ func commandOutput(ctx context.Context, path string, args ...string) ([]byte, er
 	return exec.CommandContext(ctx, path, args...).Output()
 }
 
-// version returns the first "x.y.z" that `claude --version` prints, or
-// fallbackVersion when there's no CLI or it doesn't answer in time.
-func (c installedCLI) version(ctx context.Context) string {
+// version returns the first "x.y.z" that `claude --version` prints. It fails
+// when there's no CLI, it doesn't answer in time, or it prints no version.
+func (c installedCLI) version(ctx context.Context) (string, error) {
 	out, err := c.versionOutput(ctx)
 	if err != nil {
-		return fallbackVersion
+		return "", err
 	}
-	if v := versionPattern.Find(out); v != nil {
-		return string(v)
+	v := versionPattern.Find(out)
+	if v == nil {
+		return "", errors.New("claude --version printed no version")
 	}
-	return fallbackVersion
+	return string(v), nil
 }
 
 func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
