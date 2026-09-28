@@ -153,8 +153,18 @@ func TestClientSessionOfASessionNeverSeen(t *testing.T) {
 	client := router.NewClient(serveControl(t, newRouter(t, "http://127.0.0.1:1")))
 
 	_, err := client.Session(t.Context(), "0b5c6f2e/../nope")
-	if want := "the router hasn't seen session 0b5c6f2e/../nope"; err == nil || err.Error() != want {
-		t.Errorf("Session() error = %v, want %q", err, want)
+	if want := "the router hasn't seen session 0b5c6f2e/../nope"; !errors.Is(err, router.ErrUnknownSession) || err.Error() != want {
+		t.Errorf("Session() error = %v, want ErrUnknownSession, reading %q", err, want)
+	}
+}
+
+func TestClientSessionOfASocketThatIsntARouters(t *testing.T) {
+	path := filepath.Join(shortTempDir(t), "other.sock")
+	serveOn(t, path, http.NotFoundHandler())
+
+	_, err := router.NewClient(path).Session(t.Context(), "nope")
+	if want := "the router answered GET /sessions/nope with 404 Not Found"; err == nil || err.Error() != want || errors.Is(err, router.ErrUnknownSession) {
+		t.Errorf("Session() error = %v, want %q, and not ErrUnknownSession: something else answers", err, want)
 	}
 }
 

@@ -15,9 +15,14 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// ErrNotRunning is what a Client's calls fail with, wrapped, when no router
-// listens on its socket.
-var ErrNotRunning = errors.New("switchboard isn't running")
+var (
+	// ErrNotRunning is what a Client's calls fail with, wrapped, when no
+	// router listens on its socket.
+	ErrNotRunning = errors.New("switchboard isn't running")
+	// ErrUnknownSession is what Session fails with, followed by the session's
+	// id, when the router hasn't seen the session.
+	ErrUnknownSession = errors.New("the router hasn't seen session")
+)
 
 // clientTimeout bounds each of a Client's calls, so a router that's stuck
 // can't hang its caller.
@@ -58,11 +63,23 @@ func (c *Client) Status(ctx context.Context) (status.Document, error) {
 }
 
 // Session asks which accounts the session with the given id has its requests
-// go to. It fails, saying so, for a session the router hasn't seen.
+// go to. It fails with ErrUnknownSession for a session the router hasn't
+// seen.
 func (c *Client) Session(ctx context.Context, id string) (Session, error) {
 	var s Session
 	err := c.call(ctx, http.MethodGet, "/sessions/"+url.PathEscape(id), nil, &s)
+	// A 404 is the router's for an unknown session only when it says why:
+	// anything else answering on the socket is trouble.
+	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason != "" {
+		return s, unknownSession(id)
+	}
 	return s, err
+}
+
+// unknownSession is the error for the session with the given id, which the
+// router hasn't seen.
+func unknownSession(id string) error {
+	return fmt.Errorf("%w %s", ErrUnknownSession, id)
 }
 
 // Pin has the router send every new session to the account with the given
@@ -119,14 +136,26 @@ func newControlRequest(ctx context.Context, method, path string, body any) (*htt
 	return http.NewRequestWithContext(ctx, method, "http://switchboard"+path, content)
 }
 
-// refused is the error for an answer other than 200: the reason the router
-// gave, else the status it answered with.
+// declined is a call answered with other than 200: the status, and the
+// reason the router gave, which is "" when the answer gave none.
+type declined struct {
+	status       int
+	reason       string
+	method, path string
+}
+
+func (d declined) Error() string {
+	if d.reason != "" {
+		return d.reason
+	}
+	return fmt.Sprintf("the router answered %s %s with %d %s", d.method, d.path, d.status, http.StatusText(d.status))
+}
+
+// refused is the error for an answer other than 200.
 func refused(resp *http.Response, method, path string) error {
 	var p problem
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxControlBody)).Decode(&p); err == nil && p.Error != "" {
-		return errors.New(p.Error)
-	}
-	return fmt.Errorf("the router answered %s %s with %s", method, path, resp.Status)
+	_ = json.NewDecoder(io.LimitReader(resp.Body, maxControlBody)).Decode(&p)
+	return declined{status: resp.StatusCode, reason: p.Error, method: method, path: path}
 }
 
 // isDial reports whether err is a failure to connect at all: there's no

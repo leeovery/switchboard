@@ -86,7 +86,7 @@ func (r *Router) Control() http.Handler {
 		id := req.PathValue("id")
 		session, ok := r.session(id)
 		if !ok {
-			writeProblem(w, http.StatusNotFound, "the router hasn't seen session "+id)
+			writeProblem(w, http.StatusNotFound, unknownSession(id).Error())
 			return
 		}
 		writeJSON(w, session)
