@@ -15,6 +15,7 @@ var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 func TestDetailGivesWayAsWidthShrinks(t *testing.T) {
 	runningOut := quota.Window{Key: "7d", Utilization: 0.28, ResetsAt: now.Add(6 * 24 * time.Hour)}
 	backSoon := quota.Window{Key: "5h", Utilization: 1, ResetsAt: now.Add(80 * time.Minute), Status: quota.StatusRejected}
+	backInSeconds := quota.Window{Key: "5h", Utilization: 1, ResetsAt: now.Add(7*time.Minute + 42*time.Second), Status: quota.StatusRejected}
 	tests := []struct {
 		name   string
 		window quota.Window
@@ -32,6 +33,8 @@ func TestDetailGivesWayAsWidthShrinks(t *testing.T) {
 		{name: "exhausted, and when it's back", window: backSoon, width: 26, want: "back in 1h 20m · Mon 14:32"},
 		{name: "exhausted, without the clock", window: backSoon, width: 25, want: "back in 1h 20m"},
 		{name: "exhausted, cut short", window: backSoon, width: 10, want: "back in 1…"},
+		{name: "counting seconds, and when it's back", window: backInSeconds, width: 25, want: "back in 07:42 · Mon 13:19"},
+		{name: "counting seconds, without the clock", window: backInSeconds, width: 24, want: "back in 07:42"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -78,6 +81,12 @@ func TestDetailSays(t *testing.T) {
 			wantColor: red,
 		},
 		{
+			name:      "exhausted, back within ten minutes, to the second",
+			window:    quota.Window{Key: "5h", Utilization: 1, ResetsAt: now.Add(7*time.Minute + 42*time.Second)},
+			want:      "back in 07:42 · Mon 13:19",
+			wantColor: red,
+		},
+		{
 			name:      "exhausted, back at an unknown time",
 			window:    quota.Window{Key: "7d_oi", Utilization: 1.04},
 			want:      "exhausted",
@@ -116,6 +125,31 @@ func TestDetailSays(t *testing.T) {
 			}
 			if lead := got[0].ink.color; !sameColor(lead, tt.wantColor) {
 				t.Errorf("detail() leads in %v, want %v", lead, tt.wantColor)
+			}
+		})
+	}
+}
+
+func TestBackIn(t *testing.T) {
+	tests := []struct {
+		name  string
+		until time.Duration
+		want  string
+	}{
+		{name: "hours away", until: 80 * time.Minute, want: "1h 20m"},
+		{name: "ten minutes away", until: 10 * time.Minute, want: "10m"},
+		{name: "just under ten minutes away", until: 10*time.Minute - time.Nanosecond, want: "09:59"},
+		{name: "minutes and seconds", until: 7*time.Minute + 42*time.Second, want: "07:42"},
+		{name: "seconds, rounded down", until: 7*time.Minute + 42*time.Second + 900*time.Millisecond, want: "07:42"},
+		{name: "a second", until: time.Second, want: "00:01"},
+		{name: "under a second", until: 999 * time.Millisecond, want: "00:00"},
+		{name: "due", until: 0, want: "now"},
+		{name: "past", until: -time.Minute, want: "now"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := backIn(now, now.Add(tt.until)); got != tt.want {
+				t.Errorf("backIn(now, now+%v) = %q, want %q", tt.until, got, tt.want)
 			}
 		})
 	}
