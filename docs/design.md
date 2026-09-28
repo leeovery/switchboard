@@ -156,6 +156,82 @@ is a router that is running but failing requests: sessions already routed throug
 they restart. The router tracks its own upstream error rate, and `status` and the dashboard show
 trouble loudly. Whether it should also fall back automatically is an open question.
 
+## Architecture
+
+### Packages
+
+| Package | Owns |
+|---|---|
+| `cmd/switchboard` | `main`: builds the command tree and exits with its status |
+| `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
+| `internal/config` | Locating, parsing and validating the config file; reading tokens from the environment |
+| `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, 429 classification, which paths are routed, the session header |
+| `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
+| `internal/dashboard` | Rendering (Lip Gloss), watch mode (Bubble Tea) and desktop notifications |
+| `internal/router` | The proxy, the scheduler, live account state and the control API |
+| `internal/launch` | `run` and `init zsh` |
+| `internal/service` | The LaunchAgent |
+
+Claude-specific knowledge lives only in `internal/claude`. Other packages depend on small
+interfaces they define themselves, which `internal/claude` satisfies.
+
+### Files
+
+- **Config:** `$SWITCHBOARD_CONFIG`, else `$XDG_CONFIG_HOME/switchboard/config.toml`, else
+  `~/.config/switchboard/config.toml`.
+- **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
+  (pins and session assignments, so a restart doesn't scatter sessions) and `control.sock`.
+- **Service log:** `~/Library/Logs/switchboard/router.log`.
+
+```toml
+listen   = "127.0.0.1:4747"             # optional: the proxy's address
+upstream = "https://api.anthropic.com"  # optional: overridden in tests
+
+[[account]]
+id        = "work"                 # permanent name: letters, digits, '-' and '_'
+label     = "Work"                 # optional; defaults to the id
+token_env = "CLAUDE_TOKEN_WORK"    # environment variable holding the setup token
+```
+
+Unknown keys, duplicate ids and a config without accounts are errors.
+
+### Proxy rules
+
+- A request is routed only when its path starts with `/v1/messages` **and** its bearer token is
+  one of the configured accounts' tokens. Anything else passes through untouched, so a local
+  process that doesn't already hold a token can't borrow one.
+- `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
+  that session. It is stripped before the request goes upstream.
+- The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
+  header is placed on the best account and not remembered.
+- Which windows apply to a request: `5h` and `7d` apply to every model. Any other window applies
+  to the model families it has been seen on (responses and probes reveal this), and to every model
+  until it has been seen.
+
+### Control API
+
+HTTP over `control.sock` (mode 0600, so file permissions are the authentication):
+
+| Endpoint | Job |
+|---|---|
+| `GET /health` | Liveness plus the recent upstream error rate |
+| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints |
+| `GET /sessions/{id}` | The account currently serving a session, for statuslines |
+| `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin |
+| `POST /refresh` | Probe accounts whose data is older than `{"max_age": "30m"}` |
+
+### Launching
+
+- `run` checks `GET /health`. When the router is healthy it starts Claude Code with
+  `ANTHROPIC_BASE_URL` pointing at the proxy, `CLAUDE_CODE_OAUTH_TOKEN` set to a configured account's
+  token (the pinned one, else the router's best, else the first with a token), and the pin header
+  when `--account` is given. Otherwise it connects directly on that same token, with a one-line
+  warning. It replaces itself with `claude` (`exec`), so signals and the terminal behave as usual.
+- `init zsh` prints a `claude` function that goes through `run`, one pinned launcher per account
+  (`<prefix><id>`, prefix `cx` by default), and an export of the first account's token for tools
+  that call `claude` directly.
+
 ## Milestones
 
 **0. Spike — done.** A throwaway pass-through proxy that swapped the token on `/v1/messages` and
