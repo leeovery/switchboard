@@ -36,6 +36,7 @@ func TestInstalledCLIVersion(t *testing.T) {
 		output    string
 		outputErr error
 		want      string
+		wantErr   bool
 		wantRun   string
 	}{
 		{
@@ -61,23 +62,23 @@ func TestInstalledCLIVersion(t *testing.T) {
 			wantRun: first,
 		},
 		{
-			name:  "the floor without a CLI",
-			paths: []string{missing},
-			want:  fallbackVersion,
+			name:    "none without a CLI",
+			paths:   []string{missing},
+			wantErr: true,
 		},
 		{
-			name:      "the floor when the CLI fails",
+			name:      "none when the CLI fails",
 			paths:     []string{first},
 			output:    "2.1.290 (Claude Code)\n",
 			outputErr: errors.New("signal: killed"),
-			want:      fallbackVersion,
+			wantErr:   true,
 			wantRun:   first,
 		},
 		{
-			name:    "the floor when the output has no version",
+			name:    "none when the output has no version",
 			paths:   []string{first},
 			output:  "unknown option '--version'\n",
-			want:    fallbackVersion,
+			wantErr: true,
 			wantRun: first,
 		},
 	}
@@ -107,11 +108,82 @@ func TestInstalledCLIVersion(t *testing.T) {
 				},
 			}
 
-			if got := cli.version(t.Context()); got != tt.want {
-				t.Errorf("version() = %q, want %q", got, tt.want)
+			got, err := cli.version(t.Context())
+			if got != tt.want || (err != nil) != tt.wantErr {
+				t.Errorf("version() = %q, %v; want %q, and an error %v", got, err, tt.want, tt.wantErr)
 			}
 			if ran != tt.wantRun {
 				t.Errorf("ran %q, want %q", ran, tt.wantRun)
+			}
+		})
+	}
+}
+
+func TestVersionCache(t *testing.T) {
+	failed := errors.New("signal: killed")
+	// step is a call for the version some time after the first, and what the
+	// CLI answers if it's asked.
+	type step struct {
+		after    time.Duration
+		answer   string
+		fails    bool
+		want     string
+		wantAsks bool
+	}
+	tests := []struct {
+		name  string
+		steps []step
+	}{
+		{
+			name: "asks the CLI once the version is an hour old",
+			steps: []step{
+				{after: 0, answer: "2.1.290", want: "2.1.290", wantAsks: true},
+				{after: 59 * time.Minute, want: "2.1.290", wantAsks: false},
+				{after: time.Hour, answer: "2.1.300", want: "2.1.300", wantAsks: true},
+				{after: time.Hour + 59*time.Minute, want: "2.1.300", wantAsks: false},
+				{after: 2 * time.Hour, answer: "2.1.300", want: "2.1.300", wantAsks: true},
+			},
+		},
+		{
+			name: "keeps the version the CLI last gave while it doesn't answer, and asks again an hour on",
+			steps: []step{
+				{after: 0, answer: "2.1.290", want: "2.1.290", wantAsks: true},
+				{after: time.Hour, fails: true, want: "2.1.290", wantAsks: true},
+				{after: time.Hour + 30*time.Minute, want: "2.1.290", wantAsks: false},
+				{after: 2 * time.Hour, answer: "2.1.300", want: "2.1.300", wantAsks: true},
+			},
+		},
+		{
+			name: "the floor until the CLI gives a version",
+			steps: []step{
+				{after: 0, fails: true, want: fallbackVersion, wantAsks: true},
+				{after: 30 * time.Minute, want: fallbackVersion, wantAsks: false},
+				{after: time.Hour, answer: "2.1.300", want: "2.1.300", wantAsks: true},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+			var now time.Time
+			var current step
+			asked := false
+			cache := &versionCache{
+				ask: func() (string, error) {
+					asked = true
+					if current.fails {
+						return "", failed
+					}
+					return current.answer, nil
+				},
+				now: func() time.Time { return now },
+			}
+
+			for _, s := range tt.steps {
+				now, current, asked = start.Add(s.after), s, false
+				if got := cache.get(); got != s.want || asked != s.wantAsks {
+					t.Errorf("%v on, get() = %q, asking the CLI %v; want %q, asking it %v", s.after, got, asked, s.want, s.wantAsks)
+				}
 			}
 		})
 	}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -29,8 +31,15 @@ type Deps struct {
 	HomeDir func() (string, error)
 	Now     func() time.Time
 	// ClaudeVersion returns the Claude Code version that probes claim to be.
+	// Every read asks it, as a watch can outlive the version it started with.
 	ClaudeVersion func() string
+	// Watch shows the dashboard full screen on out until the user quits, as
+	// watch.Run does.
+	Watch func(ctx context.Context, cfg watch.Config, out io.Writer, environ []string) error
 }
+
+// policy is Claude's say in scoring accounts.
+var policy = score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow}
 
 // NewRootCommand builds the switchboard command tree.
 func NewRootCommand(deps Deps) *cobra.Command {
@@ -88,18 +97,41 @@ func (a *app) configFile() (string, error) {
 	return config.Path(a.Getenv, a.HomeDir)
 }
 
-// collect loads the config and probes every account in it. Every command that
-// reports usage reads it here, so they all read it the same way.
+// collect loads the config and probes every account in it.
 func (a *app) collect(ctx context.Context) (status.Document, error) {
-	cfg, err := a.loadConfig()
+	source, err := a.source()
 	if err != nil {
 		return status.Document{}, err
 	}
-	collector := status.Collector{
-		Prober: &claude.Prober{Upstream: cfg.Upstream, Version: a.ClaudeVersion()},
-		Policy: score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow},
-		Getenv: a.Getenv,
-		Now:    a.Now,
+	return source.Fetch(ctx)
+}
+
+// source loads the config and returns what probes every account in it. Every
+// command that reports usage reads it here, so they all read it the same way.
+func (a *app) source() (probeSource, error) {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return probeSource{}, err
 	}
-	return collector.Collect(ctx, cfg.Accounts), nil
+	return probeSource{deps: a.Deps, upstream: cfg.Upstream, accounts: cfg.Accounts}, nil
+}
+
+// probeSource reads the status document by probing accounts.
+type probeSource struct {
+	deps     Deps
+	upstream string
+	accounts []config.Account
+}
+
+// Fetch probes every account, claiming the Claude Code version installed now:
+// a watch can outlive the one it started with. It never fails: an account that
+// can't be read says why in the document.
+func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
+	collector := status.Collector{
+		Prober: &claude.Prober{Upstream: s.upstream, Version: s.deps.ClaudeVersion()},
+		Policy: policy,
+		Getenv: s.deps.Getenv,
+		Now:    s.deps.Now,
+	}
+	return collector.Collect(ctx, s.accounts), nil
 }

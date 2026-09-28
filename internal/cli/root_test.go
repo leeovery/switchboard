@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 )
 
 func TestVersion(t *testing.T) {
@@ -54,6 +55,8 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "invalid config for status", args: []string{"status", "--json", "--config", invalid}, wantUsage: false},
 		{name: "unexpected usage argument", args: []string{"usage", "extra"}, wantUsage: true},
 		{name: "invalid config for usage", args: []string{"usage", "--config", invalid}, wantUsage: false},
+		{name: "invalid watch interval", args: []string{"usage", "--watch", "soon"}, wantUsage: true},
+		{name: "invalid config for usage --watch", args: []string{"usage", "--watch", "--config", invalid}, wantUsage: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -97,7 +100,8 @@ const testClaudeVersion = "2.1.300"
 
 // testDeps gives commands env as their whole environment, home as their home
 // directory, a stopped clock and a fixed Claude Code version, so no test reads
-// the real ones or runs the real claude.
+// the real ones or runs the real claude. Watch is the real one: a test's
+// output is never a terminal, so it fails before it would take one over.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },
@@ -111,6 +115,7 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		HomeDir:       func() (string, error) { return home, nil },
 		Now:           func() time.Time { return testNow },
 		ClaudeVersion: func() string { return testClaudeVersion },
+		Watch:         watch.Run,
 	}
 }
 

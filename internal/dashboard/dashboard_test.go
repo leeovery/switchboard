@@ -41,6 +41,7 @@ func layouts() []layout {
 		{name: "three-with-footer", doc: three, opts: dashboard.Options{Width: 150, Footer: "updated 13:12 · next 13:42 · r refresh · q quit"}},
 		{name: "no-best", doc: noBest(), opts: dashboard.Options{Width: 100}},
 		{name: "exhausted", doc: exhausted(), opts: dashboard.Options{Width: 80}},
+		{name: "back-in-seconds", doc: backInSeconds(), opts: dashboard.Options{Width: 80}},
 		{name: "failure", doc: failure(), opts: dashboard.Options{Width: 80}},
 		{name: "errors", doc: mixed, opts: dashboard.Options{Width: 150}},
 		{name: "errors-compact", doc: mixed, opts: dashboard.Options{Width: 100, Height: 10}},
@@ -188,6 +189,31 @@ func TestRenderCleansText(t *testing.T) {
 	}
 }
 
+func TestCountsSeconds(t *testing.T) {
+	tests := []struct {
+		name string
+		doc  status.Document
+		want bool
+	}{
+		{name: "an exhausted window back within ten minutes", doc: backInSeconds(), want: true},
+		{name: "one back in ten minutes", doc: document("", read("1", "Work", windows(refused(session(1, 10*time.Minute))))), want: false},
+		{name: "one back in hours", doc: exhausted(), want: false},
+		{name: "one refused below its limit", doc: document("", read("1", "Work", windows(refused(session(0.8, 5*time.Minute))))), want: true},
+		{name: "one used up but not refused", doc: document("", read("1", "Work", windows(session(1.02, 5*time.Minute)))), want: true},
+		{name: "one that has reset since it was read", doc: document("", read("1", "Work", windows(refused(session(1, -time.Minute))))), want: false},
+		{name: "a window with room that resets within ten minutes", doc: document("1", read("1", "Work", windows(session(0.4, 5*time.Minute)))), want: false},
+		{name: "an account that couldn't be read", doc: mixedAccounts(), want: false},
+		{name: "no accounts", doc: document(""), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := dashboard.CountsSeconds(tt.doc, now); got != tt.want {
+				t.Errorf("CountsSeconds() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // checkCards checks that each row's cards start and end on the same lines,
 // so they're the same height, and that their borders line up.
 func checkCards(t *testing.T, width int, frame string) {
@@ -318,6 +344,17 @@ func exhausted() status.Document {
 			refused(session(1, hour+5*time.Minute)),
 			week(0.55, 2*day),
 			fable,
+		)),
+	)
+}
+
+// backInSeconds has a session back within ten minutes, so it counts down to
+// the second.
+func backInSeconds() status.Document {
+	return document("",
+		read("1", "Work", windows(
+			refused(session(1, 7*time.Minute+42*time.Second)),
+			week(0.55, 2*day),
 		)),
 	)
 }

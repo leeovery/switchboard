@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -21,6 +22,7 @@ func main() {
 		HomeDir:       os.UserHomeDir,
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion,
+		Watch:         watch.Run,
 	})
 	os.Exit(cli.Execute(root))
 }
