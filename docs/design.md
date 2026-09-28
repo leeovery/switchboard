@@ -257,7 +257,8 @@ label     = "Work"                 # optional; defaults to the id
 token_env = "CLAUDE_TOKEN_WORK"    # environment variable holding the setup token
 ```
 
-Unknown keys, duplicate ids and a config without accounts are errors.
+Unknown keys, duplicate ids and a config without accounts are errors, and so is the id `auto`, in
+any case, which `pin auto` takes to mean routing.
 
 ### Proxy rules
 

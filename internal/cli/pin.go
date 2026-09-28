@@ -8,11 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// auto is what pin takes to go back to routing.
-const auto = "auto"
+// auto is what pin takes to go back to routing, which is why config reserves
+// it.
+const auto = config.ReservedID
 
 func newPinCommand(a *app) *cobra.Command {
 	var move bool

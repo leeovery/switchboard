@@ -13,6 +13,10 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// ReservedID is the one id no account may have, in any case: switchboard pin
+// takes it to mean routing, not an account.
+const ReservedID = "auto"
+
 var (
 	idPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 	envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -137,6 +141,8 @@ func checkID(account, id string) error {
 		return fmt.Errorf("%s: id is required", account)
 	case !idPattern.MatchString(id):
 		return fmt.Errorf("%s: id must start with a letter or digit and contain only letters, digits, '-' and '_'", account)
+	case strings.EqualFold(id, ReservedID):
+		return fmt.Errorf("%s: id is reserved for switchboard pin %s", account, ReservedID)
 	}
 	return nil
 }
