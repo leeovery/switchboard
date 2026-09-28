@@ -20,16 +20,95 @@ var (
 	fableWeek = quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.05, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC), Status: quota.StatusAllowed}
 )
 
-func TestRecordKeepsEachWindowsLatestReading(t *testing.T) {
+func TestRecordMergesEachWindowByItsReset(t *testing.T) {
+	later := start.Add(time.Minute)
+	sessionAt := func(utilization float64, resetsAt time.Time) quota.Window {
+		w := session
+		w.Utilization, w.ResetsAt = utilization, resetsAt
+		return w
+	}
+	busier := sessionAt(0.31, session.ResetsAt)
+	busierWarned := busier
+	busierWarned.Status = quota.StatusAllowedWarning
+	nextFive := sessionAt(0.01, session.ResetsAt.Add(5*time.Hour))
+	lastFive := sessionAt(0.9, session.ResetsAt.Add(-5*time.Hour))
+	unsure, unsureLower := sessionAt(0.5, time.Time{}), sessionAt(0.2, time.Time{})
+	tests := []struct {
+		name     string
+		held     quota.Window
+		incoming quota.Window
+		want     reading
+	}{
+		{
+			name:     "a later reset is a new window, taken however little it's used",
+			held:     session,
+			incoming: nextFive,
+			want:     reading{Window: nextFive, at: later},
+		},
+		{
+			name:     "the same reset is the same window, whose use has risen",
+			held:     session,
+			incoming: busier,
+			want:     reading{Window: busier, at: later},
+		},
+		{
+			name:     "the same reset read before, arriving late, leaves the higher use as of the later time",
+			held:     busierWarned,
+			incoming: session,
+			want:     reading{Window: busierWarned, at: later},
+		},
+		{
+			name:     "the same reset and use takes the latest reading",
+			held:     busier,
+			incoming: busierWarned,
+			want:     reading{Window: busierWarned, at: later},
+		},
+		{
+			name:     "an earlier reset is a window that's gone, and ignored",
+			held:     session,
+			incoming: lastFive,
+			want:     reading{Window: session, at: start},
+		},
+		{
+			name:     "without a reset, the newest reading stands",
+			held:     unsure,
+			incoming: unsureLower,
+			want:     reading{Window: unsureLower, at: later},
+		},
+		{
+			name:     "a reading without a reset replaces one with",
+			held:     session,
+			incoming: unsureLower,
+			want:     reading{Window: unsureLower, at: later},
+		},
+		{
+			name:     "a reading with a reset replaces one without",
+			held:     unsure,
+			incoming: session,
+			want:     reading{Window: session, at: later},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newTestState(clock)
+			s.record("work", []quota.Window{tt.held}, fromResponse)
+			clock.now = later
+
+			s.record("work", []quota.Window{tt.incoming}, fromResponse)
+			if got := s.usage["work"].windows["5h"]; got != tt.want {
+				t.Errorf("5h reads %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRecordMergesOnlyTheWindowsItReads(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
 	later := start.Add(time.Minute)
 	busier := session
 	busier.Utilization = 0.31
-	// A new five hours: less used than the reading it replaces, as the
-	// window has reset since.
-	anew := session
-	anew.Utilization, anew.ResetsAt = 0.01, session.ResetsAt.Add(5*time.Hour)
 
 	s.record("work", []quota.Window{session, week}, fromResponse)
 	clock.now = later
@@ -43,14 +122,24 @@ func TestRecordKeepsEachWindowsLatestReading(t *testing.T) {
 	if u.updated != later || u.from != fromProbe {
 		t.Errorf("updated %v from %s, want %v from %s", u.updated, u.from, later, fromProbe)
 	}
-
-	clock.now = later.Add(time.Minute)
-	s.record("work", []quota.Window{anew}, fromResponse)
-	if got := s.usage["work"].windows["5h"]; got.Window != anew || got.at != clock.now {
-		t.Errorf("after the window reset, 5h reads %+v, want %+v read at %v", got, anew, clock.now)
-	}
 	if other := s.usage["side"]; len(other.windows) > 0 || !other.updated.IsZero() {
 		t.Errorf("side reads %+v, want nothing: every reading was work's", other)
+	}
+}
+
+func TestRecordOfStaleWindowsLeavesTheAccountAsItWas(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	lastWeek := week
+	lastWeek.Utilization, lastWeek.ResetsAt = 1, week.ResetsAt.Add(-7*24*time.Hour)
+	s.recordProbe("work", quota.Usage{Windows: []quota.Window{session, week}}, nil)
+	s.recordProbe("work", quota.Usage{}, errors.New("HTTP 529 · Overloaded"))
+	clock.now = start.Add(time.Minute)
+
+	s.record("work", []quota.Window{lastWeek}, fromResponse)
+	u := s.usage["work"]
+	if u.windows["7d"] != (reading{Window: week, at: start}) || u.updated != start || u.from != fromProbe || u.probeErr == "" {
+		t.Errorf("after a stale reading, work reads %+v, want it as it was", u)
 	}
 }
 

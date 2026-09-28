@@ -57,8 +57,9 @@ func newState(accounts accounts, policy score.Policy, now func() time.Time) *sta
 	return s
 }
 
-// record takes in a reading of an account's windows. Each window replaces the
-// reading of its key before it, and the account's other windows stand.
+// record takes in a reading of an account's windows. Each window is merged
+// with the reading of its key before it, and the account's other windows
+// stand.
 func (s *state) record(id string, windows []quota.Window, from origin) {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -81,13 +82,41 @@ func (s *state) recordProbe(id string, probed quota.Usage, err error) {
 	u.take(probed.Windows, fromProbe, at)
 }
 
-// take takes in windows read at a time.
+// take takes in windows read at a time, each merged with the reading of its
+// key before it. Windows that are all stale leave the account as it was.
 func (u *usage) take(windows []quota.Window, from origin, at time.Time) {
+	read := false
 	for _, w := range windows {
-		u.windows[w.Key] = reading{Window: w, at: at}
+		kept, current := u.windows[w.Key].merge(w, at)
+		if !current {
+			continue
+		}
+		u.windows[w.Key] = kept
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
+		read = true
 	}
-	u.updated, u.from, u.probeErr = at, from, ""
+	if read {
+		u.updated, u.from, u.probeErr = at, from, ""
+	}
+}
+
+// merge returns what to keep of a window, given r and a reading w of it at a
+// time, and reports whether w is current. A later reset is a new window,
+// however little used. The same reset is the same window, whose use only
+// rises, so the higher reading stands, as of w's time: a slow response
+// reporting it late can't pull it back. An earlier reset is a window that's
+// gone, and w is stale. Without a reset to go by, the newest reading stands.
+func (r reading) merge(w quota.Window, at time.Time) (reading, bool) {
+	switch {
+	case w.ResetsAt.IsZero() || w.ResetsAt.After(r.ResetsAt):
+		return reading{Window: w, at: at}, true
+	case w.ResetsAt.Before(r.ResetsAt):
+		return r, false
+	case w.Utilization < r.Utilization:
+		return reading{Window: r.Window, at: at}, true
+	default:
+		return reading{Window: w, at: at}, true
+	}
 }
 
 // document reports every account's usage as the router knows it, in the
