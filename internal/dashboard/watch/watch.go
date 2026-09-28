@@ -6,6 +6,7 @@
 package watch
 
 import (
+	"cmp"
 	"context"
 	"strings"
 	"time"
@@ -38,6 +39,20 @@ type Config struct {
 	// Policy is the provider's say in which windows leave an account without
 	// room.
 	Policy score.Policy
+	// Size is what to draw at until the terminal gives its size, and in place
+	// of a width or height it gives as zero, which means it doesn't know.
+	Size Size
+}
+
+// Size is a terminal's size in cells.
+type Size struct {
+	Width, Height int
+}
+
+// or is s with each dimension it has as zero, which means it isn't known,
+// taken from known.
+func (s Size) or(known Size) Size {
+	return Size{Width: cmp.Or(s.Width, known.Width), Height: cmp.Or(s.Height, known.Height)}
 }
 
 const (
@@ -55,7 +70,9 @@ type Model struct {
 	// timer until they fire it.
 	after func(d time.Duration, msg tea.Msg) tea.Cmd
 
-	width, height int
+	// size is what the frame is drawn at: the terminal's, as far as it's
+	// known.
+	size Size
 
 	doc status.Document
 	// updated is when doc arrived: zero until one has.
@@ -96,7 +113,7 @@ type frameMsg struct{}
 // New returns a model that reads cfg's source at once, and whenever a read
 // falls due after, under ctx.
 func New(ctx context.Context, cfg Config) Model {
-	return Model{ctx: ctx, cfg: cfg, after: after, fetching: true}
+	return Model{ctx: ctx, cfg: cfg, after: after, size: cfg.Size, fetching: true}
 }
 
 // after delivers msg once d has passed.
@@ -114,8 +131,7 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		return m, nil
+		return m.resized(msg)
 	case tea.KeyPressMsg:
 		return m.pressed(msg)
 	case fetchedMsg:
@@ -131,20 +147,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View draws the dashboard full screen, as the document stands at the clock's
 // time, over a footer saying when it was read and will be next.
 func (m Model) View() tea.View {
-	v := tea.View{AltScreen: true}
-	if m.width <= 0 {
-		// The terminal's size arrives just after the start.
-		return v
-	}
 	now := m.now()
 	frame := dashboard.Render(m.shown(now), now, dashboard.Options{
-		Width:  m.width,
-		Height: max(m.height-topMargin, 0),
+		Width:  m.size.Width,
+		Height: max(m.size.Height-topMargin, 0),
 		Color:  true,
 		Footer: m.footer(now),
 	})
-	v.SetContent(strings.Repeat("\n", topMargin) + frame)
+	v := tea.NewView(strings.Repeat("\n", topMargin) + frame)
+	v.AltScreen = true
 	return v
+}
+
+// resized takes in the size the terminal gives, keeping the size drawn at for
+// a width or height it gives as zero.
+func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	given := Size{Width: msg.Width, Height: msg.Height}
+	m.size = given.or(m.size)
+	if m.size == given {
+		return m, nil
+	}
+	// Bubble Tea cuts every frame to the size in the last size message it
+	// passed on, so the model passes on the size it draws at. Proven under a
+	// pseudo-terminal giving 0×0: without this, the screen stayed blank.
+	size := tea.WindowSizeMsg{Width: m.size.Width, Height: m.size.Height}
+	return m, func() tea.Msg { return size }
 }
 
 // pressed acts on a key: r reads now, and q or ctrl+c quits.

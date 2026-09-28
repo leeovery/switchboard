@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	// defaultWidth is the width the dashboard is drawn at when the terminal's
-	// isn't known.
-	defaultWidth = 80
+	// defaultWidth and defaultHeight are the size the dashboard is drawn at
+	// when neither the terminal nor the environment gives it.
+	defaultWidth  = 80
+	defaultHeight = 24
 	// defaultInterval is how often --watch reads usage unless told otherwise.
 	defaultInterval = 30 * time.Minute
 	// minInterval is the shortest interval --watch takes: every read probes
@@ -116,7 +117,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if opts.noNotify {
 		notifier = notify.Off{}
 	}
-	cfg := watch.Config{Source: source, Notifier: notifier, Now: a.Now, Interval: opts.interval, Policy: policy}
+	cfg := watch.Config{Source: source, Notifier: notifier, Now: a.Now, Interval: opts.interval, Policy: policy, Size: a.environSize()}
 	err = a.Watch(ctx, cfg, out, a.Environ())
 	if errors.Is(err, watch.ErrNotTerminal) {
 		return errors.New("--watch needs a terminal, and stdout isn't one")
@@ -125,15 +126,27 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 }
 
 // terminalWidth is how many cells wide out is: its size when it's a terminal,
-// else $COLUMNS, else defaultWidth.
+// else the environment's.
 func (a *app) terminalWidth(out io.Writer) int {
 	if f, ok := out.(term.File); ok && term.IsTerminal(f.Fd()) {
 		if width, _, err := term.GetSize(f.Fd()); err == nil && width > 0 {
 			return width
 		}
 	}
-	if columns, err := strconv.Atoi(a.Getenv("COLUMNS")); err == nil && columns > 0 {
-		return columns
+	return a.environSize().Width
+}
+
+// environSize is the terminal's size as $COLUMNS and $LINES give it, each
+// where it's a positive whole number, else 80 by 24.
+func (a *app) environSize() watch.Size {
+	return watch.Size{Width: a.positiveEnv("COLUMNS", defaultWidth), Height: a.positiveEnv("LINES", defaultHeight)}
+}
+
+// positiveEnv is the environment variable key as a positive whole number, or
+// fallback when it isn't one.
+func (a *app) positiveEnv(key string, fallback int) int {
+	if n, err := strconv.Atoi(a.Getenv(key)); err == nil && n > 0 {
+		return n
 	}
-	return defaultWidth
+	return fallback
 }

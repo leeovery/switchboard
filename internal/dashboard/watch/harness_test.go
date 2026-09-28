@@ -51,10 +51,18 @@ type timer struct {
 // wide and 50 lines tall. It hasn't started.
 func newHarness(t *testing.T, doc status.Document) *harness {
 	t.Helper()
-	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
-	h.model = New(t.Context(), Config{Source: h.source, Notifier: h.notifier, Now: h.clock.Now, Interval: interval, Policy: policy})
-	h.model.after = h.arm
+	h := unsizedHarness(t, doc, Size{Width: 80, Height: 24})
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	return h
+}
+
+// unsizedHarness is a model of a source that reads doc, in a terminal that
+// hasn't given its size, so it draws at size. It hasn't started.
+func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
+	t.Helper()
+	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
+	h.model = New(t.Context(), Config{Source: h.source, Notifier: h.notifier, Now: h.clock.Now, Interval: interval, Policy: policy, Size: size})
+	h.model.after = h.arm
 	return h
 }
 

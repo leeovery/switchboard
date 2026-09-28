@@ -395,11 +395,64 @@ func TestDrawsAtTheTerminalsSize(t *testing.T) {
 	}
 }
 
-func TestDrawsNothingBeforeTheSizeIsKnown(t *testing.T) {
-	m := New(t.Context(), Config{Source: &fakeSource{doc: calm()}, Notifier: &fakeNotifier{}, Now: (&fakeClock{now: start}).Now, Interval: interval, Policy: policy})
+func TestPassesOnTheSizeItDrawsAt(t *testing.T) {
+	given := Size{Width: 120, Height: 40}
+	tests := []struct {
+		name   string
+		before []tea.WindowSizeMsg
+		size   tea.WindowSizeMsg
+		want   []tea.Msg
+	}{
+		{name: "for 0×0", size: tea.WindowSizeMsg{}, want: []tea.Msg{tea.WindowSizeMsg{Width: 120, Height: 40}}},
+		{name: "for a width alone", size: tea.WindowSizeMsg{Width: 100}, want: []tea.Msg{tea.WindowSizeMsg{Width: 100, Height: 40}}},
+		{name: "for 0×0 after a real size", before: []tea.WindowSizeMsg{{Width: 150, Height: 50}}, size: tea.WindowSizeMsg{}, want: []tea.Msg{tea.WindowSizeMsg{Width: 150, Height: 50}}},
+		{name: "nothing for a real size", size: tea.WindowSizeMsg{Width: 150, Height: 50}, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := unsizedHarness(t, calm(), given)
+			for _, size := range tt.before {
+				h.deliver(size)
+			}
 
-	view := m.View()
-	if view.Content != "" || !view.AltScreen {
-		t.Errorf("View() = %q, full screen %v; want nothing yet, full screen", view.Content, view.AltScreen)
+			if got := h.update(tt.size); !slices.Equal(got, tt.want) {
+				t.Errorf("given %dx%d, the model passed on %v, want %v", tt.size.Width, tt.size.Height, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
+	given := Size{Width: 120, Height: 40}
+	tests := []struct {
+		name  string
+		sizes []tea.WindowSizeMsg
+		want  Size
+	}{
+		{name: "before the terminal gives a size", want: given},
+		{name: "when it gives 0×0", sizes: []tea.WindowSizeMsg{{}}, want: given},
+		{name: "when it gives a width alone", sizes: []tea.WindowSizeMsg{{Width: 100}}, want: Size{Width: 100, Height: 40}},
+		{name: "once it gives its size after 0×0", sizes: []tea.WindowSizeMsg{{}, {Width: 150, Height: 50}}, want: Size{Width: 150, Height: 50}},
+		{name: "keeping the size it gave through a later 0×0", sizes: []tea.WindowSizeMsg{{Width: 150, Height: 50}, {}}, want: Size{Width: 150, Height: 50}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := unsizedHarness(t, calm(), given)
+			for _, size := range tt.sizes {
+				h.deliver(size)
+			}
+			h.start()
+			h.settle()
+
+			want := "\n" + dashboard.Render(calm(), h.clock.now, dashboard.Options{
+				Width:  tt.want.Width,
+				Height: tt.want.Height - 1,
+				Color:  true,
+				Footer: "updated 13:12 · next 13:42 · r refresh · q quit",
+			})
+			if got := h.model.View().Content; got != want {
+				t.Errorf("the screen is\n%s\nwant it drawn at %dx%d:\n%s", got, tt.want.Width, tt.want.Height, want)
+			}
+		})
 	}
 }

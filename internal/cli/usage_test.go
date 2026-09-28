@@ -162,6 +162,32 @@ func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
 	}
 }
 
+func TestUsageWatchDrawsAtTheEnvironmentsSizeUntilTheTerminalGivesOne(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		want watch.Size
+	}{
+		{name: "80×24 with none given", want: watch.Size{Width: 80, Height: 24}},
+		{name: "$COLUMNS × $LINES", env: map[string]string{"COLUMNS": "120", "LINES": "40"}, want: watch.Size{Width: 120, Height: 40}},
+		{name: "$COLUMNS alone", env: map[string]string{"COLUMNS": "120"}, want: watch.Size{Width: 120, Height: 24}},
+		{name: "$LINES alone", env: map[string]string{"LINES": "40"}, want: watch.Size{Width: 80, Height: 40}},
+		{name: "ignoring values that aren't sizes", env: map[string]string{"COLUMNS": "wide", "LINES": "4.5"}, want: watch.Size{Width: 80, Height: 24}},
+		{name: "ignoring sizes of zero or less", env: map[string]string{"COLUMNS": "0", "LINES": "-40"}, want: watch.Size{Width: 80, Height: 24}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), tt.env)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "usage", "--watch")
+
+			if cfg.Size != tt.want {
+				t.Errorf("size = %+v, want %+v", cfg.Size, tt.want)
+			}
+		})
+	}
+}
+
 func TestUsageWatchClaimsTheVersionInstalledAtEachRead(t *testing.T) {
 	var mu sync.Mutex
 	var agents []string
