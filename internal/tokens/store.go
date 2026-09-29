@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
 const (
@@ -124,19 +126,20 @@ func access(exposed fs.FileMode) string {
 // for contents larger than a token file can be.
 func parse(data []byte) (Token, error) {
 	if len(data) > maxFile {
-		return Token{}, errNotAToken
+		return Token{}, ErrNotAToken
 	}
 	return Parse(string(data))
 }
 
 // Write replaces the account's token file with one holding token, which only
 // the user can read or write, having made the tokens directory, or made it
-// theirs alone. The file is written whole or not at all.
+// theirs alone. The file is written whole or not at all, and synced, as a
+// token lost to a crash takes a new setup token to replace.
 func (s Store) Write(id string, token Token) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
 	}
-	if err := writeWhole(s.Path(id), token.Reveal()+"\n"); err != nil {
+	if err := atomicfile.Write(s.Path(id), []byte(token.Reveal()+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write the token file: %w", err)
 	}
 	return nil
@@ -154,31 +157,10 @@ func (s Store) keepPrivate() error {
 	return nil
 }
 
-// writeWhole writes text to a file at path that only its owner can read or
-// write, whole or not at all: it's written beside it, then renamed over it,
-// so no reader finds half a token. It's synced before the rename, as a token
-// lost to a crash takes a new setup token to replace.
-func writeWhole(path, text string) (err error) {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = tmp.Close()
-			_ = os.Remove(tmp.Name())
-		}
-	}()
-	if _, err = tmp.WriteString(text); err != nil {
-		return err
-	}
-	if err = tmp.Sync(); err != nil {
-		return err
-	}
-	if err = tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+// Has reports whether the account has a token file, usable or not.
+func (s Store) Has(id string) bool {
+	_, err := os.Lstat(s.Path(id))
+	return err == nil
 }
 
 // Remove deletes the account's token file, if it has one.

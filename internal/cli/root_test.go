@@ -63,6 +63,14 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "unknown flag", args: []string{"accounts", "--bogus"}, wantUsage: true},
 		{name: "unexpected argument", args: []string{"accounts", "extra"}, wantUsage: true},
 		{name: "invalid config", args: []string{"accounts", "--config", invalid}, wantUsage: false},
+		{name: "an account to add without its id", args: []string{"accounts", "add"}, wantUsage: true},
+		{name: "two accounts to add", args: []string{"accounts", "add", "work", "side"}, wantUsage: true},
+		{name: "an account to add, labelled without a label", args: []string{"accounts", "add", "work", "--label"}, wantUsage: true},
+		{name: "an account to add to an invalid config", args: []string{"accounts", "add", "work", "--config", invalid}, wantUsage: false},
+		{name: "a token without its account", args: []string{"accounts", "token"}, wantUsage: true},
+		{name: "a token for an invalid config", args: []string{"accounts", "token", "work", "--config", invalid}, wantUsage: false},
+		{name: "an account to remove without its id", args: []string{"accounts", "remove"}, wantUsage: true},
+		{name: "an account to remove from an invalid config", args: []string{"accounts", "remove", "work", "--config", invalid}, wantUsage: false},
 		{name: "unexpected status argument", args: []string{"status", "extra"}, wantUsage: true},
 		{name: "invalid config for status", args: []string{"status", "--json", "--config", invalid}, wantUsage: false},
 		{name: "a session without an id", args: []string{"status", "--session", ""}, wantUsage: true},
@@ -301,8 +309,16 @@ type result struct {
 	code           int
 }
 
-// run executes the command line in-process with deps, capturing its output.
+// run executes the command line in-process with deps, with nothing on its
+// stdin, capturing its output.
 func run(t *testing.T, deps cli.Deps, args ...string) result {
+	t.Helper()
+	return runWithInput(t, deps, "", args...)
+}
+
+// runWithInput executes the command line in-process with deps, input piped to
+// its stdin, capturing its output.
+func runWithInput(t *testing.T, deps cli.Deps, input string, args ...string) result {
 	t.Helper()
 	if args == nil {
 		args = []string{} // cobra parses os.Args when given nil
@@ -310,6 +326,7 @@ func run(t *testing.T, deps cli.Deps, args ...string) result {
 	root := cli.NewRootCommand(deps)
 	var stdout, stderr bytes.Buffer
 	root.SetArgs(args)
+	root.SetIn(strings.NewReader(input))
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
 	code := cli.Execute(root)

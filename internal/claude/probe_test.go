@@ -3,6 +3,7 @@ package claude_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -571,6 +572,53 @@ func (a *fakeAPI) asked() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return slices.Sorted(slices.Values(a.models))
+}
+
+func TestProbeSaysWhetherTheAPIRefusedIt(t *testing.T) {
+	tests := []struct {
+		name        string
+		reply       reply
+		wantRefused bool
+	}{
+		{name: "401, the token refused", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), wantRefused: true},
+		{name: "403, the request refused", reply: apiError(http.StatusForbidden, "Not allowed"), wantRefused: true},
+		{name: "400", reply: apiError(http.StatusBadRequest, "Invalid request")},
+		{name: "429 without usage", reply: apiError(http.StatusTooManyRequests, "Rate limited")},
+		{name: "529", reply: apiError(529, "Overloaded")},
+		{name: "no answer in time", reply: reply{hang: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := newFakeAPI(t, map[string]reply{haiku: tt.reply, fable: tt.reply, fableOlder: tt.reply})
+			prober := &claude.Prober{Upstream: api.URL, Version: version, Timeout: 250 * time.Millisecond}
+
+			_, err := prober.Probe(t.Context(), token)
+			if err == nil {
+				t.Fatal("Probe() succeeded, want an error")
+			}
+			if got := refused(err); got != tt.wantRefused {
+				t.Errorf("Probe() error %q says the API refused it: %v, want %v", err, got, tt.wantRefused)
+			}
+		})
+	}
+
+	t.Run("no API to answer", func(t *testing.T) {
+		prober := &claude.Prober{Upstream: closedServerURL(t), Version: version}
+
+		_, err := prober.Probe(t.Context(), token)
+		if err == nil || refused(err) {
+			t.Errorf("Probe() error = %v, want one that doesn't say the API refused it", err)
+		}
+	})
+}
+
+// refused reports whether a probe's error says the API refused the probe.
+func refused(err error) bool {
+	r, ok := errors.AsType[interface {
+		error
+		Refused() bool
+	}](err)
+	return ok && r.Refused()
 }
 
 // closedServerURL returns the URL of a server that has shut down, so

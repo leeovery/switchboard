@@ -189,6 +189,44 @@ func TestRemove(t *testing.T) {
 	}
 }
 
+func TestRemoveFails(t *testing.T) {
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	// A directory, with something in it, where the token file goes.
+	writeFile(t, filepath.Join(store.Path("work"), "kept"), "kept", 0o600)
+
+	err := store.Remove("work")
+	if err == nil || !strings.HasPrefix(err.Error(), "remove the token file: ") {
+		t.Errorf("Remove() error = %v, want it to fail removing the token file", err)
+	}
+}
+
+func TestHas(t *testing.T) {
+	tests := []struct {
+		name string
+		// put puts what's at the token file's path, when it's given.
+		put  func(t *testing.T, path string)
+		want bool
+	}{
+		{name: "no token file"},
+		{name: "a token file", put: func(t *testing.T, path string) { writeFile(t, path, workToken, 0o600) }, want: true},
+		{name: "a token file it can't use", put: func(t *testing.T, path string) { writeFile(t, path, workToken, 0o644) }, want: true},
+		{name: "a link to one", put: linkTo(0o600), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			if tt.put != nil {
+				mkdirPrivate(t, filepath.Dir(store.Path("work")))
+				tt.put(t, store.Path("work"))
+			}
+
+			if got := store.Has("work"); got != tt.want {
+				t.Errorf("Has() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // parse returns the token text holds.
 func parse(t *testing.T, text string) tokens.Token {
 	t.Helper()
