@@ -116,7 +116,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if err != nil {
 		return err
 	}
-	var notifier watch.Notifier = notify.NewDesktop()
+	notifier := a.Notifier
 	if opts.noNotify {
 		notifier = notify.Off{}
 	}

@@ -127,10 +127,11 @@ func TestUsageWatch(t *testing.T) {
 			if cfg.Interval != tt.wantInterval {
 				t.Errorf("interval = %v, want %v", cfg.Interval, tt.wantInterval)
 			}
-			_, off := cfg.Notifier.(notify.Off)
-			_, desktop := cfg.Notifier.(notify.Desktop)
-			if off == tt.wantNotify || desktop != tt.wantNotify {
-				t.Errorf("notifier = %T, want desktop notifications %v", cfg.Notifier, tt.wantNotify)
+			switch {
+			case tt.wantNotify && cfg.Notifier != deps.Notifier:
+				t.Errorf("notifier = %#v, want the command's own", cfg.Notifier)
+			case !tt.wantNotify && cfg.Notifier != (notify.Off{}):
+				t.Errorf("notifier = %#v, want one that posts nothing", cfg.Notifier)
 			}
 		})
 	}
