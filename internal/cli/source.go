@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // usageSource is where status, usage and the dashboard read the status
@@ -123,9 +124,11 @@ func (s usageSource) Unpin(ctx context.Context) error {
 
 // probeSource reads the status document by probing accounts.
 type probeSource struct {
-	deps     Deps
-	upstream string
-	accounts []config.Account
+	deps Deps
+	// readToken reads an account's token, by its id, from its file.
+	readToken func(id string) (tokens.Token, error)
+	upstream  string
+	accounts  []config.Account
 }
 
 // Fetch probes every account, claiming the Claude Code version installed now:
@@ -136,7 +139,7 @@ func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
 	collector := status.Collector{
 		Prober: &claude.Prober{Upstream: s.upstream, Version: version},
 		Policy: policy,
-		Getenv: s.deps.Getenv,
+		Token:  s.readToken,
 		Now:    s.deps.Now,
 	}
 	doc := collector.Collect(ctx, s.accounts)

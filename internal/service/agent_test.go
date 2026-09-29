@@ -3,8 +3,8 @@ package service_test
 import (
 	"flag"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/service"
@@ -21,7 +21,6 @@ func TestPlist(t *testing.T) {
 		opts service.InstallOptions
 	}{
 		{name: "agent", opts: service.InstallOptions{Executable: binary}},
-		{name: "agent-env-file", opts: service.InstallOptions{Executable: binary, EnvFile: "/Users/tester/.config/tokens.env"}},
 		{
 			name: "agent-xdg",
 			env: map[string]string{
@@ -32,7 +31,6 @@ func TestPlist(t *testing.T) {
 			},
 			opts: service.InstallOptions{
 				Executable: binary,
-				EnvFile:    "/Users/tester/.config/tokens.env",
 				Config:     "/Users/tester/switchboard & co/config.toml",
 				LogLevel:   "debug",
 			},
@@ -67,42 +65,29 @@ func TestPlist(t *testing.T) {
 	}
 }
 
-func TestTheEnvFileLauncherServesWithTheTokens(t *testing.T) {
-	if _, err := os.Stat("/bin/zsh"); err != nil {
-		t.Skip("no zsh at /bin/zsh")
+func TestLaunchdRunsSwitchboardItself(t *testing.T) {
+	const binary = "/opt/homebrew/bin/switchboard"
+	tests := []struct {
+		name string
+		opts service.InstallOptions
+		want []string
+	}{
+		{name: "serving", opts: service.InstallOptions{Executable: binary}, want: []string{binary, "serve"}},
+		{
+			name: "serving the config given, logging at the level given",
+			opts: service.InstallOptions{Executable: binary, Config: "/Users/tester/it's my/config.toml", LogLevel: "debug"},
+			want: []string{binary, "serve", "--config", "/Users/tester/it's my/config.toml", "--log-level", "debug"},
+		},
 	}
-	// Paths zsh would read as script, were they pasted into it.
-	dir := filepath.Join(t.TempDir(), `it's "$(here)"`)
-	envFile := filepath.Join(dir, "tokens; env")
-	binary := filepath.Join(dir, "switch board")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(envFile, []byte("export CLAUDE_TOKEN_WORK=test-token-work\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	stub := "#!/bin/sh\nprintf '%s\\n' \"$@\" \"token=${CLAUDE_TOKEN_WORK-unset}\" \"zshenv=${ZSHENV-unread}\"\n"
-	if err := os.WriteFile(binary, []byte(stub), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	// The user's own startup file, which the launcher mustn't read.
-	home := t.TempDir()
-	if err := os.WriteFile(filepath.Join(home, ".zshenv"), []byte("export ZSHENV=read\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	svc := newService(t, service.Config{Home: t.TempDir(), StateDir: t.TempDir(), Getenv: func(string) string { return "" }})
-	config := filepath.Join(dir, "my config.toml")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(string) string { return "" }})
 
-	program, err := svc.ProgramOf(service.InstallOptions{Executable: binary, EnvFile: envFile, Config: config, LogLevel: "debug"})
-	if err != nil {
-		t.Fatalf("ProgramOf() error = %v", err)
-	}
-	cmd := exec.CommandContext(t.Context(), program[0], program[1:]...)
-	cmd.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin"}
-
-	out, err := cmd.CombinedOutput()
-	if want := "serve\n--config\n" + config + "\n--log-level\ndebug\ntoken=test-token-work\nzshenv=unread\n"; err != nil || string(out) != want {
-		t.Errorf("launchd's program printed\n%s(%v)\nwant\n%s", out, err, want)
+			program, err := svc.ProgramOf(tt.opts)
+			if err != nil || !slices.Equal(program, tt.want) {
+				t.Errorf("ProgramOf() = %q, %v, want %q: switchboard itself, needing none of the user's environment", program, err, tt.want)
+			}
+		})
 	}
 }
 

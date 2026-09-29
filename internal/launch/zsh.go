@@ -35,22 +35,16 @@ type Integration struct {
 	// Prefix starts each account's launcher's name.
 	Prefix string
 	// Accounts are the configured accounts, as config.Load validates them,
-	// whose ids and variables' names are safe in zsh as they stand; none when
-	// the config can't be read.
+	// whose ids are safe in zsh as they stand; none when the config can't be
+	// read.
 	Accounts config.Accounts
-	// Getenv reads the accounts' token variables as the integration is
-	// written, which choose the one its export names.
-	Getenv func(key string) string
 }
 
 // Zsh writes the integration as zsh for a shell to eval: a claude function
-// that starts Claude Code through run; a launcher for each account, named the
-// prefix and the account's id, that starts it pinned to that account; and,
-// for programs that start claude themselves, an export of the token of the
-// first account whose token is set as it's written, as run chooses without
-// the router, else the first account's. The export names the token's
-// variable, so the output holds no token. Without accounts, it writes the
-// claude function alone, which run keeps working.
+// that starts Claude Code through run, and a launcher for each account, named
+// the prefix and the account's id, that starts it pinned to that account.
+// Without accounts, it writes the claude function alone, which run keeps
+// working.
 func (i Integration) Zsh(w io.Writer) error {
 	if err := CheckPrefix(i.Prefix); err != nil {
 		return err
@@ -65,21 +59,8 @@ func (i Integration) Zsh(w io.Writer) error {
 	for _, a := range i.Accounts {
 		fmt.Fprintf(&b, "function %s%s { %s --account %s -- \"$@\"; }\n", i.Prefix, a.ID, run, a.ID)
 	}
-	if len(i.Accounts) > 0 {
-		token := i.exported().TokenEnv
-		fmt.Fprintf(&b, "if [[ -n ${%s-} ]]; then\n  export %s=\"${%s}\"\nfi\n", token, claude.TokenEnv, token)
-	}
 	_, err := io.WriteString(w, b.String())
 	return err
-}
-
-// exported is the account whose token the export names: the first with a
-// token, else the first. There must be one.
-func (i Integration) exported() config.Account {
-	if a, _, ok := firstWithToken(i.Accounts, i.Getenv); ok {
-		return a
-	}
-	return i.Accounts[0]
 }
 
 // quote quotes s for zsh, whatever it holds: in single quotes, with each

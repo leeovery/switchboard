@@ -1,8 +1,7 @@
 package service
 
 // PlistOf returns the plist of the LaunchAgent that serves as opts says, its
-// binary and env file as they're found, for tests to compare with what
-// Install writes.
+// binary as it's found, for tests to compare with what Install writes.
 func (s *Service) PlistOf(opts InstallOptions) ([]byte, error) {
 	a, err := s.agent(opts)
 	if err != nil {

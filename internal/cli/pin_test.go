@@ -68,7 +68,7 @@ func TestPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 		want    string
 	}{
 		{account: "nope", want: `Error: there's no account "nope": pin work or side` + "\n"},
-		{account: "personal", want: "Error: account personal has no token, so nothing can go out on it: set CLAUDE_TOKEN_PERSONAL\n"},
+		{account: "personal", want: "Error: account personal has no usable token, so nothing can go out on it: token missing: write it to " + tokenPath(t, srv.deps, "personal") + "\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.account, func(t *testing.T) {

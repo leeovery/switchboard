@@ -4,34 +4,51 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 func newAccountsCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "accounts",
-		Short: "List configured accounts and whether each token is present",
-		Args:  cobra.NoArgs,
+		Short: "List the accounts, which is the primary, and whether each has a usable token",
+		Long: `List the accounts, in the config's order: each one's id and label, whether it's
+the primary, and whether its token file, <state dir>/tokens/<id>, holds a
+token switchboard can use, or why not, and what would put it right.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := a.loadConfig()
 			if err != nil {
 				return err
 			}
-			return writeTable(cmd.OutOrStdout(), accountRows(cfg.Accounts, a.Getenv))
+			files, err := a.tokens()
+			if err != nil {
+				return err
+			}
+			return writeTable(cmd.OutOrStdout(), accountRows(cfg.Accounts, files.Read))
 		},
 	}
 }
 
-func accountRows(accounts []config.Account, getenv func(string) string) [][]string {
-	rows := [][]string{{"ID", "LABEL", "TOKEN_ENV", "TOKEN"}}
+func accountRows(accounts config.Accounts, readToken func(id string) (tokens.Token, error)) [][]string {
+	rows := [][]string{{"ID", "LABEL", "PRIMARY", "TOKEN"}}
 	for _, acct := range accounts {
-		rows = append(rows, []string{acct.ID, acct.Label, acct.TokenEnv, tokenState(acct, getenv)})
+		rows = append(rows, []string{acct.ID, acct.Label, primary(acct), tokenState(acct.ID, readToken)})
 	}
 	return rows
 }
 
-func tokenState(acct config.Account, getenv func(string) string) string {
-	if _, ok := acct.Token(getenv); ok {
-		return "set"
+// primary marks the primary account.
+func primary(acct config.Account) string {
+	if acct.Primary {
+		return "yes"
 	}
-	return "missing"
+	return ""
+}
+
+// tokenState says the account's token is usable, or why it isn't.
+func tokenState(id string, readToken func(id string) (tokens.Token, error)) string {
+	if _, err := readToken(id); err != nil {
+		return err.Error()
+	}
+	return "usable"
 }

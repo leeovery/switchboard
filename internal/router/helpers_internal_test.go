@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const (
@@ -38,21 +39,22 @@ var (
 // to every model, and the week is perishable.
 var testPolicy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}
 
-// testConfigured are three accounts: work and side, whose tokens testGetenv
+// testConfigured are three accounts: work and side, whose tokens testTokens
 // has, and personal, whose it hasn't.
 var testConfigured = []config.Account{
-	{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-	{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
-	{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
+	{ID: "work", Label: "Work"},
+	{ID: "personal", Label: "Personal"},
+	{ID: "side", Label: "Side"},
 }
 
-func testGetenv(key string) string {
-	return map[string]string{"CLAUDE_TOKEN_WORK": workToken, "CLAUDE_TOKEN_SIDE": sideToken}[key]
-}
+var testTokens = tokenstest.Files{"work": workToken, "side": sideToken}
+
+// personalMissing is why personal has no token.
+var personalMissing = tokenstest.Missing("personal").Error()
 
 // testAccounts are testConfigured's, with their tokens.
 func testAccounts() accounts {
-	return resolve(testConfigured, testGetenv)
+	return resolve(testConfigured, testTokens.Read)
 }
 
 // newTestState builds the state of testAccounts on clock's time, knowing
@@ -67,7 +69,7 @@ func newTestRouter(t *testing.T, now func() time.Time, prober Prober) *Router {
 	t.Helper()
 	r, err := New(Config{
 		Accounts: testConfigured,
-		Getenv:   testGetenv,
+		Token:    testTokens.Read,
 		Upstream: "http://127.0.0.1:1",
 		Provider: claude.Provider{},
 		Prober:   prober,

@@ -458,7 +458,7 @@ func mixedAccounts() status.Document {
 			Windows:  []quota.Window{session(0.12, 3*hour), week(0.33, 5*day)},
 			Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
 		}),
-		status.Account{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+		status.Account{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"},
 		status.Account{
 			ID: "side", Label: "Side", TokenSet: true,
 			Error: "HTTP 401 · Invalid bearer token: the token has expired or been revoked, so create a new one with claude setup-token and set it again",

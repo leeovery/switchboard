@@ -249,7 +249,7 @@ func TestDocument(t *testing.T) {
 		Best:        "side",
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: start, Windows: []quota.Window{session, week}},
-			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true, FetchedAt: clock.now, Windows: []quota.Window{session, soonerWeek}},
 		},
 	}
@@ -351,7 +351,7 @@ func TestDocumentBeforeAnythingIsRead(t *testing.T) {
 		Source:      "router",
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true},
-			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true},
 		},
 	}

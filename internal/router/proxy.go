@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // PinHeader pins a request to an account, by id: run --account sets it
@@ -39,6 +40,9 @@ type proxy struct {
 	upstream  *url.URL
 	transport http.RoundTripper
 	accounts  accounts
+	// readToken reads an account's token from its file again, as when the
+	// upstream refuses the one the router has.
+	readToken func(id string) (tokens.Token, error)
 	state     *state
 	provider  Provider
 	chooser   Chooser
@@ -129,8 +133,8 @@ func (p *proxy) pin(r *http.Request, ex *exchange) string {
 	switch {
 	case !ok:
 		logger.Warn("pin ignored: no such account", "id", ex.id, "pin", id)
-	case !a.hasToken:
-		logger.Warn("pin ignored: account has no token", "id", ex.id, "pin", id)
+	case !a.hasToken():
+		logger.Warn("pin ignored: account has no usable token", "id", ex.id, "pin", id)
 	default:
 		return id
 	}
@@ -142,7 +146,7 @@ func (p *proxy) pin(r *http.Request, ex *exchange) string {
 // client's.
 func (p *proxy) choose(ctx context.Context, ex *exchange, client account) (account, string) {
 	choice := p.chooser.Choose(ctx, ex.req)
-	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken {
+	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken() {
 		return a, choice.Reason
 	}
 	logger.Error("chooser picked an account it can't send on; keeping the client's", "id", ex.id, "picked", choice.Account)
@@ -155,7 +159,7 @@ func (p *proxy) choose(ctx context.Context, ex *exchange, client account) (accou
 func (p *proxy) next(ctx context.Context, req Request) (account, string, bool) {
 	choice := p.chooser.Choose(ctx, req)
 	a, ok := p.accounts.byID(choice.Account)
-	if _, tried := req.attempt(a.ID); choice.NoRoom || !ok || !a.hasToken || tried {
+	if _, tried := req.attempt(a.ID); choice.NoRoom || !ok || !a.hasToken() || tried {
 		return account{}, "", false
 	}
 	return a, choice.Reason, true

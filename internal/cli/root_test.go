@@ -19,7 +19,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestVersion(t *testing.T) {
@@ -41,8 +43,8 @@ func TestNoCommandPrintsHelp(t *testing.T) {
 }
 
 func TestConfigFlagOverridesResolution(t *testing.T) {
-	fromEnv := writeConfig(t, "[[account]]\nid = \"from-env\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n")
-	fromFlag := writeConfig(t, "[[account]]\nid = \"from-flag\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n")
+	fromEnv := writeConfig(t, "[[account]]\nid = \"from-env\"\n")
+	fromFlag := writeConfig(t, "[[account]]\nid = \"from-flag\"\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": fromEnv}, t.TempDir())
 
 	got := run(t, deps, "accounts", "--config", fromFlag)
@@ -109,13 +111,16 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 }
 
 func TestCommandsLogOnlyToTheirLog(t *testing.T) {
-	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
+	// Both runs share a state directory, and so the token files, which the
+	// document names.
+	state := t.TempDir()
+	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug", "XDG_STATE_HOME": state})
 
 	got := run(t, deps, "status", "--json")
 	if got.code != 0 || got.stderr != "" || !json.Valid([]byte(got.stdout)) {
 		t.Fatalf("switchboard status --json = %+v, want exit status 0, JSON alone on stdout and nothing on stderr", got)
 	}
-	if want := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json").stdout; got.stdout != want {
+	if want := run(t, statusDeps(t, fakeClaudeAPI(t), map[string]string{"XDG_STATE_HOME": state}), "status", "--json").stdout; got.stdout != want {
 		t.Errorf("logging at debug, status --json printed\n%s\nwant what it prints at info\n%s", got.stdout, want)
 	}
 	log := readLog(t, deps, "cli.log")
@@ -123,7 +128,7 @@ func TestCommandsLogOnlyToTheirLog(t *testing.T) {
 		{"level=DEBUG", "msg=start component=process", "role=cli", `command="switchboard status"`},
 		{"level=DEBUG", `msg="loaded config" component=cli`, "accounts=3"},
 		{"level=DEBUG", `msg="probed account" component=status`, "account=work", "windows=3"},
-		{"level=DEBUG", `msg="not probed: token missing" component=status`, "account=personal"},
+		{"level=DEBUG", `msg="not probed: no usable token" component=status`, "account=personal", `error="token missing: write it to ` + tokenPath(t, deps, "personal") + `"`},
 		{"level=WARN", `msg="probe failed" component=status`, "account=side", `error="HTTP 401 · Invalid bearer token"`},
 		{"level=DEBUG", `msg="probed accounts" component=cli`, "accounts=3", "best=work", "claude_version=" + testClaudeVersion},
 		{"level=DEBUG", "msg=exit component=process", "status=0", "duration="},
@@ -140,14 +145,14 @@ func TestCommandsLogOnlyToTheirLog(t *testing.T) {
 }
 
 func TestFailedCommandsAreLogged(t *testing.T) {
-	path := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	path := writeConfig(t, invalidConfig)
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
 
 	if got := run(t, deps, "status"); got.code != 1 {
 		t.Fatalf("switchboard status = %+v, want exit status 1", got)
 	}
 	log := readLog(t, deps, "cli.log")
-	want := []string{"level=WARN", `msg="command failed" component=cli`, `command="switchboard status"`, `error="invalid config ` + path + `:\naccount \"work\": token_env is required`}
+	want := []string{"level=WARN", `msg="command failed" component=cli`, `command="switchboard status"`, `error="invalid config ` + path + `:\nunknown key \"account.token_env\"`}
 	if !hasLine(log, want...) {
 		t.Errorf("cli.log reads\n%s\nwant a line with %q", log, want)
 	}
@@ -209,51 +214,49 @@ func TestAStatuslinesEverydayFailuresAreLoggedAtDebug(t *testing.T) {
 }
 
 func TestCommandsSucceedWhenTheyCantLog(t *testing.T) {
-	tests := []struct {
-		name string
-		// block stops deps logging.
-		block func(t *testing.T, deps *cli.Deps)
-	}{
-		{
-			name: "with a file where the log directory should be",
-			block: func(t *testing.T, deps *cli.Deps) {
-				home, _ := deps.HomeDir()
-				state := filepath.Join(home, ".local", "state", "switchboard")
-				if err := os.MkdirAll(state, 0o700); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filepath.Join(state, "logs"), nil, 0o600); err != nil {
-					t.Fatal(err)
-				}
-			},
-		},
-		{
-			name: "without a home directory to find the state directory in",
-			block: func(_ *testing.T, deps *cli.Deps) {
-				deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
-			},
-		},
+	t.Chdir(t.TempDir())
+	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
+	want := run(t, deps, "status", "--json")
+	// A file where the log directory should be.
+	logs := logDir(t, deps)
+	if err := os.RemoveAll(logs); err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Chdir(t.TempDir())
-			deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
-			tt.block(t, &deps)
+	if err := os.WriteFile(logs, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 
-			got := run(t, deps, "status", "--json")
-			if want := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json"); got != want {
-				t.Errorf("switchboard status --json = %+v, want what it gives when it can log, %+v", got, want)
-			}
-			if entries, err := os.ReadDir("."); err != nil || len(entries) > 0 {
-				t.Errorf("working directory holds %v (%v), want no log there", entries, err)
-			}
-		})
+	if got := run(t, deps, "status", "--json"); got != want {
+		t.Errorf("switchboard status --json = %+v, want what it gives when it can log, %+v", got, want)
+	}
+	if entries, err := os.ReadDir("."); err != nil || len(entries) > 0 {
+		t.Errorf("working directory holds %v (%v), want no log there", entries, err)
+	}
+}
+
+func TestCommandsSucceedWithoutAStateDirectory(t *testing.T) {
+	t.Chdir(t.TempDir())
+	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
+	deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
+
+	got := run(t, deps, "status", "--json")
+	var doc status.Document
+	if got.code != 0 || got.stderr != "" || json.Unmarshal([]byte(got.stdout), &doc) != nil {
+		t.Fatalf("switchboard status --json = %+v, want exit status 0 and a document", got)
+	}
+	for _, account := range doc.Accounts {
+		if want := "locate state directory: no home directory"; account.TokenSet || account.Error != want {
+			t.Errorf("%s reads %q, want %q: its token file is in the state directory", account.ID, account.Error, want)
+		}
+	}
+	if entries, err := os.ReadDir("."); err != nil || len(entries) > 0 {
+		t.Errorf("working directory holds %v (%v), want no log there", entries, err)
 	}
 }
 
 func TestLogsUnderXDGStateHome(t *testing.T) {
 	state := t.TempDir()
-	path := writeConfig(t, "[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n")
+	path := writeConfig(t, "[[account]]\nid = \"work\"\n")
 	deps := testDeps(map[string]string{"XDG_STATE_HOME": state, "SWITCHBOARD_CONFIG": path, "SWITCHBOARD_LOG_LEVEL": "debug"}, t.TempDir())
 	run(t, deps, "accounts")
 
@@ -324,9 +327,9 @@ const testClaudeVersion = "2.1.300"
 // posts nothing, so no test reads the real ones, runs the real claude or
 // posts a notification. The switchboard binary can't be found, nor can
 // claude on PATH, and starting a program or running launchctl fails, unless
-// a test says otherwise; the system is macOS, for the user 501. Watch is the
-// real one: a test's output is never a terminal, so it fails before it would
-// take one over.
+// a test says otherwise; the system is macOS, for the user the test runs as,
+// who owns the token files it writes. Watch is the real one: a test's output
+// is never a terminal, so it fails before it would take one over.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },
@@ -349,8 +352,41 @@ func testDeps(env map[string]string, home string) cli.Deps {
 			return nil, errors.New("no test runs launchctl")
 		},
 		GOOS: "darwin",
-		UID:  501,
+		UID:  os.Getuid(),
 	}
+}
+
+// invalidConfig is a config that parses, but that no command can use: one
+// from before the token files, naming each account's token variable.
+const invalidConfig = "[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n"
+
+// writeToken writes secret to the token file of the account with the given
+// id, as commands run with deps find it, only its owner able to read it.
+func writeToken(t *testing.T, deps cli.Deps, id, secret string) {
+	t.Helper()
+	path := tokenPath(t, deps, id)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(secret+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// removeToken removes the token file of the account with the given id, as
+// commands run with deps find it.
+func removeToken(t *testing.T, deps cli.Deps, id string) {
+	t.Helper()
+	if err := os.Remove(tokenPath(t, deps, id)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// tokenPath is where commands run with deps find the token file of the
+// account with the given id.
+func tokenPath(t *testing.T, deps cli.Deps, id string) string {
+	t.Helper()
+	return filepath.Join(stateDir(t, deps), "tokens", id)
 }
 
 // recordingNotifier notes each notification it's given, and posts none.
@@ -376,11 +412,17 @@ func (n *recordingNotifier) posted() []string {
 // logDir is where commands run with deps log.
 func logDir(t *testing.T, deps cli.Deps) string {
 	t.Helper()
-	home, err := deps.HomeDir()
+	return filepath.Join(stateDir(t, deps), "logs")
+}
+
+// stateDir is the state directory commands run with deps find.
+func stateDir(t *testing.T, deps cli.Deps) string {
+	t.Helper()
+	dir, err := config.StateDir(deps.Getenv, deps.HomeDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return filepath.Join(home, ".local", "state", "switchboard", "logs")
+	return dir
 }
 
 // readLog returns what the log called name holds, for commands run with deps.

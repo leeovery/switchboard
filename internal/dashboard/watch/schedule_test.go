@@ -40,7 +40,7 @@ func TestBackoff(t *testing.T) {
 }
 
 func TestIncomplete(t *testing.T) {
-	tokenless := status.Account{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"}
+	tokenless := status.Account{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"}
 	tests := []struct {
 		name string
 		doc  status.Document

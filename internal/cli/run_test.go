@@ -106,7 +106,7 @@ func TestRunWithoutTheRouter(t *testing.T) {
 
 func TestRunWithoutAConfigItCanRead(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "config.toml")
-	invalid := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	invalid := writeConfig(t, invalidConfig)
 	tests := []struct {
 		name     string
 		config   string

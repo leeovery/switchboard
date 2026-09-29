@@ -16,7 +16,7 @@ func TestWrap(t *testing.T) {
 		want     []string
 	}{
 		{name: "on one line", text: "HTTP 529 · Overloaded", width: 30, maxLines: 2, want: []string{"HTTP 529 · Overloaded"}},
-		{name: "between words", text: "token missing: set CLAUDE_TOKEN_PERSONAL", width: 22, maxLines: 3, want: []string{"token missing: set", "CLAUDE_TOKEN_PERSONAL"}},
+		{name: "between words", text: "token missing: write it to tokens/personal", width: 22, maxLines: 3, want: []string{"token missing: write", "it to tokens/personal"}},
 		{name: "a word too long for a line", text: "abcdefghijklmnopqrstuvwxyz", width: 10, maxLines: 3, want: []string{"abcdefghij", "klmnopqrst", "uvwxyz"}},
 		{name: "after a broken word", text: "abcdefghijkl mn", width: 10, maxLines: 3, want: []string{"abcdefghij", "kl mn"}},
 		{name: "wide characters", text: "東京都 大阪府", width: 5, maxLines: 4, want: []string{"東京", "都", "大阪", "府"}},

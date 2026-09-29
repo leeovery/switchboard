@@ -364,7 +364,7 @@ func TestAKeysNoteLapses(t *testing.T) {
 func TestAnOrderTheRouterRefusesSaysWhy(t *testing.T) {
 	log := logstest.Capture(t)
 	h := routedHarness(t, routerDocument(three()...))
-	h.source.refuse = errors.New("account personal has no token, so nothing can go out on it: set CLAUDE_TOKEN_PERSONAL")
+	h.source.refuse = errors.New("account personal has no usable token, so nothing can go out on it: token missing")
 	h.start()
 
 	h.deliver(h.press("2")...)

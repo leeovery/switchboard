@@ -3,9 +3,9 @@
 
  ╭─ work · Work ───────────────────── ▲ best ─╮  ╭─ personal · Personal ──────────────────────╮  ╭─ side · Side ──────────────────────────────╮
  │                                            │  │                                            │  │                                            │
- │  Session                              12%  │  │  ✗ token missing: set                      │  │  ✗ HTTP 401 · Invalid bearer token: the    │
- │  ████▊░░░░░░░░░░░┃░░░░░░░░░░░░░░░░░░░░░░░  │  │    CLAUDE_TOKEN_PERSONAL                   │  │    token has expired or been revoked, so   │
- │  on pace for 30% · resets in 3h            │  │                                            │  │    create a new one with claude setup-to…  │
+ │  Session                              12%  │  │  ✗ token missing: write it to              │  │  ✗ HTTP 401 · Invalid bearer token: the    │
+ │  ████▊░░░░░░░░░░░┃░░░░░░░░░░░░░░░░░░░░░░░  │  │    /Users/tester/.local/state/switchboard  │  │    token has expired or been revoked, so   │
+ │  on pace for 30% · resets in 3h            │  │    /tokens/personal                        │  │    create a new one with claude setup-to…  │
  │                                            │  │                                            │  │                                            │
  │  Week                                 33%  │  │                                            │  │                                            │
  │  ███████████┃█▎░░░░░░░░░░░░░░░░░░░░░░░░░░  │  │                                            │  │                                            │

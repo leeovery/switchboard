@@ -49,7 +49,7 @@ func TestClientStatus(t *testing.T) {
 		Sessions:    1,
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
-			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true},
 		},
 	}
@@ -85,7 +85,7 @@ func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 		wantErr string
 	}{
 		{account: "nope", wantErr: `there's no account "nope": pin work or side`},
-		{account: "personal", wantErr: "account personal has no token, so nothing can go out on it: set CLAUDE_TOKEN_PERSONAL"},
+		{account: "personal", wantErr: "account personal has no usable token, so nothing can go out on it: " + personalMissing},
 		{account: "", wantErr: `give the account to pin, such as {"account": "work"}`},
 	}
 	for _, tt := range tests {
@@ -138,7 +138,7 @@ func TestClientRefresh(t *testing.T) {
 		Router:      status.Health{Healthy: true},
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
-			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
 		},
 	}

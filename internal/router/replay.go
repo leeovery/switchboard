@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 const (
@@ -34,22 +35,31 @@ const (
 	whyLimit     = "hit its limit"
 	whyRefused   = "was refused"
 	whyThrottled = "was throttled"
+	whyNewToken  = "has a new token"
 )
 
 // replay is the transport a routed request goes upstream on. It sends the
 // request on the exchange's account, and again, before the client has any of
 // an answer, while the account can't serve it: on the same account after a
-// pause when the account is throttled, and on another when its limit is
-// reached or it refuses the request. It reads the usage off every answer.
-// What the client gets is the answer to the last attempt, unless that refused
-// the request: then it's the answer of the first account whose limit the
-// request reached, if one did, and a refusal if not.
+// pause when the account is throttled, or when it refuses the token its token
+// file no longer holds, as after the token is rotated, and on another when
+// its limit is reached or it refuses the request. It reads the usage off
+// every answer. What the client gets is the answer to the last attempt,
+// unless that refused the request: then it's the answer of the first account
+// whose limit the request reached, if one did, and a refusal if not.
 type replay struct {
 	p  *proxy
 	ex *exchange
+	// sent is the token the last attempt went out with.
+	sent tokens.Token
 	// throttled counts the times the request was sent again on its account
 	// after being throttled there.
 	throttled int
+	// reread is set once the account's token file has been read again after
+	// the upstream refused its token, which happens once an account: a file
+	// that holds a new token each time it's read mustn't keep the request
+	// going round.
+	reread bool
 	// limit is the answer of the first account whose limit the request
 	// reached, held back from the client, or nil while there's none.
 	limit *heldAnswer
@@ -78,7 +88,8 @@ func (rp *replay) RoundTrip(out *http.Request) (*http.Response, error) {
 }
 
 // send sends the request out on the exchange's account, with a body of its
-// own, and reads the account's usage off the answer, which it returns.
+// own and the account's token as the router holds it now, and reads the
+// account's usage off the answer, which it returns.
 func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	ex := rp.ex
 	ex.attempts++
@@ -90,7 +101,8 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 		}
 		attempt.Body = body
 	}
-	attempt.Header.Set("Authorization", "Bearer "+ex.account.token.Reveal())
+	rp.sent = ex.account.token()
+	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
 		return nil, err
@@ -113,11 +125,50 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response) (*http.Respon
 		return rp.limitReached(ctx, resp, outcome.Rejected, outcome.LimitedUntil)
 	case quota.Throttled:
 		return rp.throttle(ctx, resp, outcome.RetryAfter)
-	case quota.Refused, quota.Forbidden:
+	case quota.Refused:
+		return rp.tokenRefused(ctx, resp)
+	case quota.Forbidden:
 		return rp.refused(ctx, resp, outcome.Verdict)
 	default:
 		return resp, false, nil
 	}
+}
+
+// tokenRefused has the request go out again on its account when the
+// account's token file holds another token than the one the upstream
+// refused, as after the token is rotated. Otherwise the account is refused,
+// as refused says.
+func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.Response, bool, error) {
+	if !rp.renewed() {
+		return rp.refused(ctx, resp, quota.Refused)
+	}
+	discard(resp)
+	rp.replaying(rp.ex.account.ID, whyNewToken)
+	return nil, true, nil
+}
+
+// renewed reads the token file of the account the request went out on again,
+// unless it has been read again for this request already, and reports
+// whether it holds another token than the one the request went out with,
+// which the account goes out on from then on. It logs what it found, but
+// never the token.
+func (rp *replay) renewed() bool {
+	if rp.reread {
+		return false
+	}
+	rp.reread = true
+	a := rp.ex.account
+	token, err := rp.p.readToken(a.ID)
+	changed := err == nil && token.Reveal() != rp.sent.Reveal()
+	if changed {
+		a.secret.set(token)
+	}
+	attrs := []any{"id", rp.ex.id, "account", a.ID, "changed", changed}
+	if err != nil {
+		attrs = append(attrs, "error", err)
+	}
+	logger.Info("read the token file again", attrs...)
+	return changed
 }
 
 // limitReached bars an account whose limit the request reached in the
@@ -179,7 +230,7 @@ func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter 
 // none can, the client has the answer of the first account whose limit the
 // request reached, as that's why no account was left, else a refusal.
 func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quota.Verdict) (*http.Response, bool, error) {
-	reason := rp.p.provider.ErrorMessage(resp.Body, rp.ex.account.token.Reveal())
+	reason := rp.p.provider.ErrorMessage(resp.Body, rp.sent.Reveal())
 	discard(resp)
 	rp.p.emit(rp.bar(verdict, resp.StatusCode, prose.Truncate(reason, refusalShown)))
 	switch {
@@ -224,7 +275,7 @@ func (rp *replay) moveOn(ctx context.Context, why string) bool {
 		return false
 	}
 	ex.account, ex.reason = to, reason
-	rp.throttled = 0
+	rp.throttled, rp.reread = 0, false
 	rp.replaying(from, why)
 	return true
 }

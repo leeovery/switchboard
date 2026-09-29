@@ -11,8 +11,12 @@ import (
 	"testing/synctest"
 )
 
-// target is the service, as launchctl names it for the user 501.
-const target = "gui/501/io.github.leeovery.switchboard"
+// domain is the user's GUI session, as launchctl names it: that of the user
+// the test runs as, who owns the token files it writes.
+var domain = "gui/" + strconv.Itoa(os.Getuid())
+
+// target is the service, as launchctl names it.
+var target = domain + "/io.github.leeovery.switchboard"
 
 func TestServiceInstall(t *testing.T) {
 	s := newServiceSetup(t)
@@ -22,7 +26,7 @@ func TestServiceInstall(t *testing.T) {
 	if got != want {
 		t.Errorf("switchboard service install = %+v, want %+v", got, want)
 	}
-	if want := [][]string{{"print", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchd.calls, want) {
+	if want := [][]string{{"print", target}, {"bootstrap", domain, s.plist}}; !reflect.DeepEqual(s.launchd.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
 	}
 	s.checkPlist(t,
@@ -32,23 +36,9 @@ func TestServiceInstall(t *testing.T) {
 	)
 }
 
-func TestServiceInstallWithAnEnvFileAndAConfig(t *testing.T) {
+func TestServiceInstallWithAConfig(t *testing.T) {
 	s := newServiceSetup(t)
-	// The env file must be the service's user's: this test's.
-	s.srv.deps.UID = os.Getuid()
 	dir := t.TempDir()
-	envFile := filepath.Join(dir, "tokens.env")
-	if err := os.WriteFile(envFile, []byte("export CLAUDE_TOKEN_WORK=test-token-work\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(envFile, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// The plist names the env file by where its links lead.
-	sourced, err := filepath.EvalSymlinks(envFile)
-	if err != nil {
-		t.Fatal(err)
-	}
 	config, err := os.ReadFile(s.srv.config)
 	if err != nil {
 		t.Fatal(err)
@@ -58,14 +48,12 @@ func TestServiceInstallWithAnEnvFileAndAConfig(t *testing.T) {
 	}
 	t.Chdir(dir)
 
-	got := run(t, s.srv.deps, "service", "install", "--env-file", "tokens.env", "--config", "work.toml")
-	wantWarning := "switchboard: other users can read the env file " + sourced + " (mode 0644), and it holds tokens: chmod 600 it\n"
-	if got.code != 0 || got.stderr != wantWarning {
-		t.Errorf("switchboard service install = %+v, want exit status 0, and on stderr\n%s", got, wantWarning)
+	if got := run(t, s.srv.deps, "service", "install", "--config", "work.toml"); got.code != 0 || got.stderr != "" {
+		t.Errorf("switchboard service install = %+v, want exit status 0, and nothing on stderr", got)
 	}
-	s.checkPlist(t, "\t\t<string>switchboard</string>\n"+
-		"\t\t<string>"+sourced+"</string>\n"+
+	s.checkPlist(t, "<array>\n"+
 		"\t\t<string>"+s.binary+"</string>\n"+
+		"\t\t<string>serve</string>\n"+
 		"\t\t<string>--config</string>\n"+
 		"\t\t<string>"+filepath.Join(dir, "work.toml")+"</string>\n"+
 		"\t</array>")
@@ -73,14 +61,14 @@ func TestServiceInstallWithAnEnvFileAndAConfig(t *testing.T) {
 
 func TestServiceInstallRefusesAConfigTheRouterCouldntServe(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "config.toml")
-	invalid := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	invalid := writeConfig(t, invalidConfig)
 	tests := []struct {
 		name    string
 		config  string
 		wantErr string
 	}{
 		{name: "missing", config: missing, wantErr: "Error: no config file at " + missing + "\n"},
-		{name: "invalid", config: invalid, wantErr: "Error: invalid config " + invalid + ":\n" + `account "work": token_env is required`},
+		{name: "invalid", config: invalid, wantErr: "Error: invalid config " + invalid + ":\n" + `unknown key "account.token_env": tokens now live in files`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,14 +92,13 @@ func TestServiceInstallWarnsWhenTheRouterWouldHaveNoToken(t *testing.T) {
 	// Set up outside the bubble: the fake API's server waits on the network,
 	// which would keep the bubble's clock from moving.
 	s := newServiceSetup(t)
-	s.setenv("CLAUDE_TOKEN_WORK", "")
-	s.setenv("CLAUDE_TOKEN_SIDE", "")
+	removeToken(t, s.srv.deps, "work")
+	removeToken(t, s.srv.deps, "side")
 	// Without a token, the router it starts has nothing to route to.
 	s.launchd.starts = false
 	synctest.Test(t, func(t *testing.T) {
 		got := run(t, s.srv.deps, "service", "install")
-		want := "switchboard: no account's token is set, and there's no --env-file to set them where the router runs: " +
-			"give --env-file a file that sets CLAUDE_TOKEN_WORK or CLAUDE_TOKEN_PERSONAL or CLAUDE_TOKEN_SIDE\n"
+		want := "switchboard: no account has a usable token, so the router will have nothing to route to: switchboard accounts says why\n"
 		if got.code != 1 || !strings.HasPrefix(got.stderr, want) {
 			t.Errorf("switchboard service install = %+v, want exit status 1, and on stderr first\n%s", got, want)
 		}
@@ -249,7 +236,7 @@ func TestServiceStatus(t *testing.T) {
 }
 
 func TestServiceIsMacOSOnly(t *testing.T) {
-	for _, args := range [][]string{{"install"}, {"install", "--env-file", "tokens.env"}, {"uninstall"}, {"restart"}, {"status"}} {
+	for _, args := range [][]string{{"install"}, {"uninstall"}, {"restart"}, {"status"}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			s := newServiceSetup(t)
 			s.srv.deps.GOOS = "linux"

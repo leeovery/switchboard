@@ -25,14 +25,14 @@ func newRunCommand(a *app) *cobra.Command {
 		Long: `Start Claude Code through the router, which sends its requests on the account
 it chooses for them. Claude Code gets a token of its own too, for the requests
 that don't go through the router: --account's, else the account the router
-rates best, else the first with a token.
+rates best, else the first with a usable token.
 
 When the router isn't running, or isn't healthy, Claude Code connects directly
 on that token instead, and run says so. When switchboard can't take part at
-all, as without a config it can read or any account's token, Claude Code
-starts as if switchboard weren't there, and run says why. --account pins the
-session to an account, while it has room. --direct starts Claude Code on its
-own login, without the router or a token, for what needs the login.
+all, as without a config it can read or any account's usable token, Claude
+Code starts as if switchboard weren't there, and run says why. --account pins
+the session to an account, while it has room. --direct starts Claude Code on
+its own login, without the router or a token, for what needs the login.
 
 Give Claude Code's own arguments after --, as in: switchboard run -- --resume`,
 		Args: opts.parseArgs,
@@ -83,5 +83,5 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 	if err != nil {
 		return l.Unaided(args, "couldn't find the router", err)
 	}
-	return l.Run(ctx, launch.Route{Config: cfg, Getenv: a.Getenv, Router: client, Account: opts.account}, args)
+	return l.Run(ctx, launch.Route{Config: cfg, Token: a.readToken, Router: client, Account: opts.account}, args)
 }

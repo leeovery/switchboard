@@ -1,7 +1,8 @@
 // Package redact hides secrets in what switchboard shows and logs: a token it
 // holds, and anything shaped like a Claude token, which a message from
-// elsewhere can carry. The logs, the config's tokens and the Claude provider
-// all hide them with it, so a secret reads the same wherever it's hidden.
+// elsewhere can carry. The logs, the tokens package's tokens and the Claude
+// provider all hide them with it, so a secret reads the same wherever it's
+// hidden.
 package redact
 
 import (

@@ -9,23 +9,11 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 )
 
-const (
-	// zsh runs the launcher that loads an env file: with -f, reading none of
-	// the user's startup files, such as ~/.zshenv, which would otherwise run
-	// in the router's launcher, alongside every token.
-	zsh = "/bin/zsh"
-	// loadEnv is that launcher: it sources the env file, its first argument,
-	// then becomes the switchboard at its second, serving with the rest. The
-	// paths come as arguments, never pasted into the script, so no path can
-	// be read as script. Its $0 is switchboard, which zsh's errors, such as
-	// an env file gone missing, name in launchd's log.
-	loadEnv = `source "$1" && exec "$2" serve "${@:3}"`
-	// exitTimeout is how long launchd gives the router to stop before it
-	// kills it: the time the router gives requests in flight to finish, and
-	// time after to save its state and post what's due. launchd's own
-	// default, 20 seconds, is shorter than the first alone.
-	exitTimeout = router.DrainTimeout + 15*time.Second
-)
+// exitTimeout is how long launchd gives the router to stop before it kills
+// it: the time the router gives requests in flight to finish, and time after
+// to save its state and post what's due. launchd's own default, 20 seconds,
+// is shorter than the first alone.
+const exitTimeout = router.DrainTimeout + 15*time.Second
 
 // carried are the variables the service is given as they're set where it's
 // installed, so it finds its config and its state where the CLI does, and
@@ -59,14 +47,12 @@ type variable struct {
 }
 
 // agent describes the LaunchAgent that serves as opts says, with the
-// switchboard binary and env file, if any, as prepare finds them: through zsh
-// sourcing the env file first, when there's one, and with the config file and
-// the log level given, when they are.
+// switchboard binary as prepare finds it, and the config file and the log
+// level given, when they are. launchd runs switchboard itself: the router
+// reads the tokens from their files, so it needs nothing of the user's
+// environment but the variables carried.
 func (s *Service) agent(opts InstallOptions) (agent, error) {
 	program := []string{opts.Executable, "serve"}
-	if opts.EnvFile != "" {
-		program = []string{zsh, "-f", "-c", loadEnv, "switchboard", opts.EnvFile, opts.Executable}
-	}
 	config, err := absolute(opts.Config)
 	if err != nil {
 		return agent{}, err

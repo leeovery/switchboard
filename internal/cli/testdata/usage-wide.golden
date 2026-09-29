@@ -3,8 +3,8 @@
 
  ╭─ work · Work ───────────────────── ▲ best ─╮  ╭─ personal · Personal ──────────────────────╮  ╭─ side · Side ──────────────────────────────╮
  │                                            │  │                                            │  │                                            │
- │  Session                              23%  │  │  ✗ token missing: set                      │  │  ✗ HTTP 401 · Invalid bearer token         │
- │  ┃████████▎░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  │    CLAUDE_TOKEN_PERSONAL                   │  │                                            │
+ │  Session                              23%  │  │  ✗ HTTP 401 · Invalid bearer token         │  │  ✗ HTTP 401 · Invalid bearer token         │
+ │  ┃████████▎░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  │                                            │  │                                            │
  │  resets in 4h 58m · Mon 18:10              │  │                                            │  │                                            │
  │                                            │  │                                            │  │                                            │
  │  Week                                 93%  │  │                                            │  │                                            │
