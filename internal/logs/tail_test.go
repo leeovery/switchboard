@@ -14,6 +14,19 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 )
 
+func TestDefaultPath(t *testing.T) {
+	dir := t.TempDir()
+	if got, want := logs.DefaultPath(dir), logs.RoleCLI.Path(dir); got != want {
+		t.Errorf("before the router has logged, DefaultPath() = %s, want the CLI's, %s", got, want)
+	}
+	if err := os.WriteFile(logs.RoleRouter.Path(dir), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := logs.DefaultPath(dir), logs.RoleRouter.Path(dir); got != want {
+		t.Errorf("once the router has logged, DefaultPath() = %s, want the router's, %s", got, want)
+	}
+}
+
 func TestTail(t *testing.T) {
 	tests := []struct {
 		name string

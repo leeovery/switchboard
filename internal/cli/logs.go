@@ -84,13 +84,5 @@ func (a *app) logPath(args []string) (string, error) {
 	if len(args) == 1 {
 		return logs.Role(args[0]).Path(dir), nil
 	}
-	if router := logs.RoleRouter.Path(dir); exists(router) {
-		return router, nil
-	}
-	return logs.RoleCLI.Path(dir), nil
-}
-
-func exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+	return logs.DefaultPath(dir), nil
 }
