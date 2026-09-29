@@ -37,10 +37,13 @@ type Moved struct {
 	Forced  bool
 }
 
-// Refused is the upstream refusing an account's token, answering with Status.
+// Refused is the upstream refusing a request on an account, answering with
+// Status: its token, which holds back every request, or, when Family is set,
+// the request alone, which holds back the requests of that model family.
 type Refused struct {
 	Account string
 	Status  int
+	Family  string
 }
 
 // HealthChanged is the router turning unhealthy, saying why, or healthy

@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"net/http"
 	"reflect"
 	"slices"
 	"testing"
@@ -105,19 +106,43 @@ func TestView(t *testing.T) {
 }
 
 func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
-	clock := &testClock{now: start}
-	s := newTestState(clock)
-	s.record("work", []quota.Window{session, week}, fromResponse)
-	s.refuse("work")
+	tests := []struct {
+		name   string
+		refuse func(s *state)
+		// room says, by model, whether work has room for a request of it
+		// while the refusal holds.
+		room map[string]bool
+	}{
+		{
+			name:   "its token refused, for any request",
+			refuse: func(s *state) { s.refuse("work", http.StatusUnauthorized) },
+			room:   map[string]bool{opus: false, "claude-opus-4-1-20250805": false, haiku: false},
+		},
+		{
+			name:   "a request refused, for its model's family alone",
+			refuse: func(s *state) { s.forbid("work", "opus", http.StatusForbidden) },
+			room:   map[string]bool{opus: false, "claude-opus-4-1-20250805": false, haiku: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			s.record("work", []quota.Window{session, week}, fromResponse)
+			tt.refuse(s)
 
-	for after, want := range map[time.Duration]bool{0: false, 10*time.Minute - time.Nanosecond: false, 10 * time.Minute: true} {
-		v := s.view(opus, start.Add(after))
-		if got := v.room("work"); got != want {
-			t.Errorf("%v after its refusal, room(work) = %v, want %v", after, got, want)
-		}
-		if picked, _ := v.pick(""); (picked == "work") != want {
-			t.Errorf("%v after its refusal, pick() = %q, want work: %v", after, picked, want)
-		}
+			for model, room := range tt.room {
+				for after, lifted := range map[time.Duration]bool{0: false, 10*time.Minute - time.Nanosecond: false, 10 * time.Minute: true} {
+					v := s.view(model, start.Add(after))
+					want := room || lifted
+					if got := v.room("work"); got != want {
+						t.Errorf("%v after the refusal, room(work) for %q = %v, want %v", after, model, got, want)
+					}
+					if picked, _ := v.pick(""); (picked == "work") != want {
+						t.Errorf("%v after the refusal, pick() for %q = %q, want work: %v", after, model, picked, want)
+					}
+				}
+			}
+		})
 	}
 }
 

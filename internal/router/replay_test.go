@@ -176,7 +176,7 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 	// it can.
 	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
 	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
-	r.api.script(workToken, refuseWith(http.StatusForbidden, "This organization has been disabled."))
+	r.api.script(workToken, refuseWith(http.StatusUnauthorized, "Invalid bearer token"))
 
 	resp := send(t, http.MethodPost, r.proxy+"/v1/messages", with(claudeCode(workToken), "X-Claude-Code-Session-Id", "one"), strings.NewReader(messages))
 	if body := readAll(t, resp); resp.StatusCode != http.StatusOK || body != `{"type":"message"}` {
@@ -186,15 +186,17 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 		t.Errorf("the request went out on %q, want work, then side", got)
 	}
 	r.clock.advance(10*time.Minute - time.Second)
-	if got := r.ask(t, "two", opus, ""); got != "side" {
-		t.Errorf("a new session just under ten minutes on went to %s, want side: work was refused", got)
+	for _, model := range []string{opus, haiku} {
+		if got := r.ask(t, "two", model, ""); got != "side" {
+			t.Errorf("a new %s session just under ten minutes on went to %s, want side: work's token was refused", model, got)
+		}
 	}
 	r.clock.advance(time.Second)
 	if got := r.ask(t, "three", opus, ""); got != "work" {
 		t.Errorf("a new session ten minutes on went to %s, want work again", got)
 	}
 	for _, want := range [][]string{
-		{"level=WARN", `msg="upstream refused the account's token"`, "account=work", "status=403", `error="This organization has been disabled."`},
+		{"level=WARN", `msg="upstream refused the account's token"`, "account=work", "status=401", `error="Invalid bearer token"`},
 		{"level=INFO", "msg=replaying", "attempt=2", "from=work", "to=side", `why="was refused"`},
 		{"level=INFO", "msg=moved", "session=one", "from=work", "to=side", `reason="moved: work was refused"`},
 		{"level=INFO", "msg=routed", "session=one", "account=side", "status=200", "attempts=2"},
@@ -202,11 +204,39 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 		waitForLine(t, log, want...)
 	}
 	wantEvents := []router.Event{
-		router.Refused{Account: "work", Status: http.StatusForbidden},
+		router.Refused{Account: "work", Status: http.StatusUnauthorized},
 		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work was refused", Forced: true},
 	}
 	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
 		t.Errorf("events = %+v, want %+v", got, wantEvents)
+	}
+}
+
+func TestAnAccountThatRefusesARequestIsSkippedForItsModelsFamilyAlone(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t)
+	// Work's quota needs using first, so every new session goes there while
+	// it can.
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, refuseWith(http.StatusForbidden, "This model isn't on your plan"))
+
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("the Opus request went to %s last, want side, work having refused it", got)
+	}
+	if got := r.ask(t, "two", opus, ""); got != "side" {
+		t.Errorf("a new Opus session went to %s, want side: work refused Opus", got)
+	}
+	if got := r.ask(t, "three", haiku, ""); got != "work" {
+		t.Errorf("a new Haiku session went to %s, want work: it refused Opus alone", got)
+	}
+	r.clock.advance(10 * time.Minute)
+	if got := r.ask(t, "four", opus, ""); got != "work" {
+		t.Errorf("a new Opus session ten minutes on went to %s, want work again", got)
+	}
+	waitForLine(t, log, "level=WARN", `msg="upstream refused the request on the account"`, "account=work", "status=403", "family=opus", `error="This model isn't on your plan"`)
+	if got := r.events.heard(); len(got) == 0 || !reflect.DeepEqual(got[0], router.Refused{Account: "work", Status: http.StatusForbidden, Family: "opus"}) {
+		t.Errorf("events = %+v, want work's refusal of Opus first", got)
 	}
 }
 

@@ -24,16 +24,19 @@ const (
 const maxRetrySeconds = math.MaxInt64 / int64(time.Second)
 
 // Classify says what a response to a request says of the account it went out
-// on. A 401 or 403 refuses the account's token. A 429 is the account's limit
-// reached when the overall status or any window's is rejected, carrying the
-// windows rejected and until when as far as the headers say, and otherwise
+// on. A 401 refuses the account's token, and a 403 forbids the account the
+// request alone, as for a model or beta its plan lacks. A 429 is the account's
+// limit reached when the overall status or any window's is rejected, carrying
+// the windows rejected and until when as far as the headers say, and otherwise
 // throttling, carrying the Retry-After it gives. Anything else, a 529 or
 // another 5xx among them, says nothing against the account: Claude Code
 // retries those itself.
 func (Provider) Classify(status int, h http.Header) quota.Outcome {
 	switch {
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+	case status == http.StatusUnauthorized:
 		return quota.Outcome{Verdict: quota.Refused}
+	case status == http.StatusForbidden:
+		return quota.Outcome{Verdict: quota.Forbidden}
 	case status != http.StatusTooManyRequests:
 		return quota.Outcome{Verdict: quota.Served}
 	}

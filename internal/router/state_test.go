@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"net/http"
 	"reflect"
 	"sync"
 	"testing"
@@ -266,7 +267,12 @@ func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 		want string
 	}{
 		{name: "side, whose quota needs using first, when nothing bars it", bar: func(*state) {}, want: "side"},
-		{name: "not side once its token is refused", bar: func(s *state) { s.refuse("side") }, want: "work"},
+		{name: "not side once its token is refused", bar: func(s *state) { s.refuse("side", http.StatusUnauthorized) }, want: "work"},
+		{
+			name: "side once a request of one family is refused on it, which holds back that family alone",
+			bar:  func(s *state) { s.forbid("side", "opus", http.StatusForbidden) },
+			want: "side",
+		},
 		{
 			name: "not side under a limit reached in a window every model shares",
 			bar:  func(s *state) { s.limit("side", []string{"5h"}, start.Add(time.Hour)) },
@@ -360,14 +366,14 @@ func TestStandings(t *testing.T) {
 		},
 		{
 			name: "refused, with its quota unknown when never read",
-			side: func(s *state) { s.refuse("side") },
+			side: func(s *state) { s.refuse("side", http.StatusUnauthorized) },
 			want: judged{refused: true},
 		},
 		{
 			name: "refused, whatever its quota",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.refuse("side")
+				s.refuse("side", http.StatusUnauthorized)
 			},
 			want: judged{quota: true, known: true, refused: true},
 		},
@@ -375,10 +381,18 @@ func TestStandings(t *testing.T) {
 			name: "no longer refused ten minutes on",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.refuse("side")
+				s.refuse("side", http.StatusUnauthorized)
 			},
 			after: refusedFor,
 			want:  judged{quota: true, known: true},
+		},
+		{
+			name: "not refused once a request of one family alone is",
+			side: func(s *state) {
+				readWithRoom(s)
+				s.forbid("side", "opus", http.StatusForbidden)
+			},
+			want: judged{quota: true, known: true},
 		},
 	}
 	for _, tt := range tests {
@@ -427,7 +441,8 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.standings(start) })
 		wg.Go(func() { _ = s.due("side", start) })
 		wg.Go(func() { _ = s.dueAgain("side", start) })
-		wg.Go(func() { s.refuse("side") })
+		wg.Go(func() { s.refuse("side", http.StatusUnauthorized) })
+		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden) })
 		wg.Go(func() { _ = s.limit("work", []string{"5h"}, start.Add(time.Hour)) })
 	}
 	wg.Wait()

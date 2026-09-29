@@ -76,6 +76,10 @@ const (
 	Throttled
 	// Refused is the account's token refused.
 	Refused
+	// Forbidden is the request refused on the account, whose token stands:
+	// the account can't make requests of its kind, as of a model its plan
+	// lacks.
+	Forbidden
 )
 
 // Outcome is a response's verdict on the account a request went out on.

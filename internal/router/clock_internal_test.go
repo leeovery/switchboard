@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -25,7 +26,7 @@ func TestTheRoutersClockKeepsTheWallsTimeThroughASleep(t *testing.T) {
 	for range minFailures {
 		r.health.record(true)
 	}
-	r.state.refuse("side")
+	r.state.refuse("side", http.StatusUnauthorized)
 	r.state.limit("work", nil, time.Time{})
 
 	clock.sleep(2 * time.Hour)

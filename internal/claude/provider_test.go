@@ -170,8 +170,8 @@ func TestProviderClassify(t *testing.T) {
 			header: header("anthropic-ratelimit-unified-5h-status", "rejected", "anthropic-ratelimit-unified-status", "rejected"),
 			want:   quota.Outcome{Verdict: quota.Served},
 		},
-		{name: "a 401", status: http.StatusUnauthorized, want: quota.Outcome{Verdict: quota.Refused}},
-		{name: "a 403", status: http.StatusForbidden, want: quota.Outcome{Verdict: quota.Refused}},
+		{name: "a 401, refusing the token", status: http.StatusUnauthorized, want: quota.Outcome{Verdict: quota.Refused}},
+		{name: "a 403, refusing the request alone", status: http.StatusForbidden, want: quota.Outcome{Verdict: quota.Forbidden}},
 		{
 			name:   "a 429 whose overall status is rejected",
 			status: http.StatusTooManyRequests,

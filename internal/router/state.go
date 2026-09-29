@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	// refusedFor is how long an account whose token the upstream refused has
-	// no room, whatever its windows say.
+	// refusedFor is how long an account has no room for the requests the
+	// upstream refused on it, whatever its windows say.
 	refusedFor = 10 * time.Minute
 	// limitedFor is how long an account under a limit has no room for the
 	// requests it holds back, when the upstream doesn't say.
@@ -48,10 +48,27 @@ type usage struct {
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
-	// refused is when the upstream last refused the account's token.
-	refused time.Time
+	// refused is the upstream's last refusal of the account's token, which
+	// holds back every request.
+	refused refusal
+	// forbidden holds, by model family, the upstream's last refusal of a
+	// request of the family on the account, its token standing, which holds
+	// back the family's requests alone.
+	forbidden map[string]refusal
 	// limited is the limit the account last reached.
 	limited limit
+}
+
+// refusal is the upstream refusing requests on an account, answering with
+// status, at a time: the account has no room for them for refusedFor after.
+type refusal struct {
+	at     time.Time
+	status int
+}
+
+// inForce reports whether the refusal is in force at now.
+func (r refusal) inForce(now time.Time) bool {
+	return !r.at.IsZero() && now.Sub(r.at) < refusedFor
 }
 
 // limit is a limit an account reached: the windows the upstream named as
@@ -135,7 +152,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		seen:     make(map[string]map[string]bool),
 	}
 	for _, a := range accounts {
-		s.usage[a.ID] = &usage{windows: make(map[string]reading)}
+		s.usage[a.ID] = &usage{windows: make(map[string]reading), forbidden: make(map[string]refusal)}
 	}
 	return s
 }
@@ -193,13 +210,23 @@ func (s *state) see(key, model string) {
 	s.seen[key][s.family(model)] = true
 }
 
-// refuse notes that the upstream refused the account's token: the account has
-// no room for refusedFor.
-func (s *state) refuse(id string) {
-	at := s.now().UTC()
+// refuse notes that the upstream refused the account's token, answering with
+// status: the account has no room for refusedFor.
+func (s *state) refuse(id string, status int) {
+	r := refusal{at: s.now().UTC(), status: status}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].refused = at
+	s.usage[id].refused = r
+}
+
+// forbid notes that the upstream refused the account a request of a model of
+// family, answering with status, though not its token: the account has no
+// room for the family's requests for refusedFor.
+func (s *state) forbid(id, family string, status int) {
+	r := refusal{at: s.now().UTC(), status: status}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usage[id].forbidden[family] = r
 }
 
 // limit notes that the account reached its limit, in the windows named, if
@@ -259,7 +286,7 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	applies := s.counting(model)
+	family, applies := s.family(model), s.counting(model)
 	var (
 		candidates []score.Candidate
 		barred     []string
@@ -270,7 +297,7 @@ func (s *state) view(model string, now time.Time) view {
 		}
 		u := s.usage[a.ID]
 		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.latest()})
-		if u.barred(now, applies) {
+		if u.barred(now, family, applies) {
 			barred = append(barred, a.ID)
 		}
 	}
@@ -278,16 +305,24 @@ func (s *state) view(model string, now time.Time) view {
 }
 
 // barred reports whether the account has no room at now, whatever its windows
-// read, for a request applies says which windows count: its token was refused
-// too lately, or a limit it reached holds the request back.
-func (u *usage) barred(now time.Time, applies func(key string) bool) bool {
-	return u.refusedLately(now) || u.limited.holds(now, applies)
+// read, for a request of a model of family, applies saying which windows count
+// it: a refusal in force holds it back, or a limit the account reached does.
+func (u *usage) barred(now time.Time, family string, applies func(key string) bool) bool {
+	return u.refuses(now, family) || u.limited.holds(now, applies)
 }
 
-// refusedLately reports whether the account's token was refused too lately,
-// at now, for anything to go out on it.
-func (u *usage) refusedLately(now time.Time) bool {
-	return !u.refused.IsZero() && now.Sub(u.refused) < refusedFor
+// refuses reports whether a refusal in force at now holds back a request of a
+// model of family: the account's token's, or the family's.
+func (u *usage) refuses(now time.Time, family string) bool {
+	return u.refused.inForce(now) || u.forbidden[family].inForce(now)
+}
+
+// shut reports whether the account has no room at now for a request of any
+// model, whatever its windows read: its token's refusal is in force, or a
+// limit it reached holds back the requests of every model, which shared says
+// the windows of.
+func (u *usage) shut(now time.Time, shared func(key string) bool) bool {
+	return u.refused.inForce(now) || u.limited.holds(now, shared)
 }
 
 // counting returns which windows count a request of model, by key: every
@@ -375,7 +410,7 @@ func (s *state) statuses(now time.Time) (all, open []status.Account) {
 	for i, a := range s.accounts {
 		u := s.usage[a.ID]
 		all[i] = u.status(a, now)
-		if !u.barred(now, s.policy.IsShared) {
+		if !u.shut(now, s.policy.IsShared) {
 			open = append(open, all[i])
 		}
 	}
@@ -406,7 +441,7 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 		Account: st,
 		quota:   !limited && score.Available(st.Windows, policy.IsShared, now),
 		known:   limited || len(st.Windows) > 0,
-		refused: u.refusedLately(now),
+		refused: u.refused.inForce(now),
 	}
 }
 
