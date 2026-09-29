@@ -189,6 +189,45 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 `,
 		},
 		{
+			name: "the router's, priming, with a session that has lapsed and a prime due again",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Best:        "work",
+				Router:      status.Health{Healthy: true},
+				Prime: status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
+					{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+					{Account: "side", At: "06:45", Next: time.Date(2026, 9, 28, 13, 17, 0, 0, time.UTC)},
+				}},
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
+						Windows: []quota.Window{
+							{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+							{Key: "7d", Label: "Week", Utilization: 0.4, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)},
+						},
+					},
+					{
+						ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC().Add(-6 * time.Hour),
+						Windows: []quota.Window{{Key: "5h", Label: "Session"}},
+						Lapsed:  []string{"5h"},
+					},
+				},
+			},
+			want: `work · Work
+  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+
+side · Side
+  Session   0%  not started · next prime Mon 14:17
+
+priming 08:00-23:00: work at 04:15 and side at 06:45
+next reset: work · Work, Mon 17:10  ·  next prime: side · Side, Mon 14:17
+best next: work · Work
+from the router: healthy  ·  no sessions  ·  routing automatically
+`,
+		},
+		{
 			name: "the router's, unhealthy, routing automatically, and a limit that has lifted",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),

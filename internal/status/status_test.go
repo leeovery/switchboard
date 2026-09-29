@@ -586,6 +586,86 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
+			name: "the router's, priming",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Prime: status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
+					{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 17, 10, 0, 0, time.UTC)},
+					{Account: "side", At: "06:45", Next: time.Date(2026, 9, 29, 5, 45, 0, 0, time.UTC)},
+				}},
+				Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true}, {ID: "side", Label: "Side", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "prime": {
+    "day": "08:00-23:00",
+    "window": "5h",
+    "slots": [
+      {
+        "account": "work",
+        "at": "04:15",
+        "next": "2026-09-28T17:10:00Z"
+      },
+      {
+        "account": "side",
+        "at": "06:45",
+        "next": "2026-09-29T05:45:00Z"
+      }
+    ]
+  },
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true
+    },
+    {
+      "id": "side",
+      "label": "Side",
+      "token_set": true
+    }
+  ]
+}`,
+		},
+		{
+			name: "probed, priming, which says nothing of when each account is next primed",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceProbe,
+				Prime:       status.Prime{Day: "22:00-06:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "18:15"}}},
+				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "probe",
+  "prime": {
+    "day": "22:00-06:00",
+    "window": "5h",
+    "slots": [
+      {
+        "account": "work",
+        "at": "18:15"
+      }
+    ]
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true
+    }
+  ]
+}`,
+		},
+		{
 			name: "the router's, with a session that has lapsed",
 			doc: status.Document{
 				GeneratedAt: generated,

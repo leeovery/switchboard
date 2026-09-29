@@ -56,6 +56,9 @@ func frame(doc status.Document, now time.Time, body []line, width, room int, foo
 	if overview := dotted(origin(doc), bestNext(doc)); overview != nil {
 		lines = append(lines, overview)
 	}
+	if next := priming(doc, now); next != nil {
+		lines = append(lines, next)
+	}
 	if len(body) > 0 {
 		lines = append(lines, nil)
 		lines = append(lines, body...)
@@ -128,6 +131,18 @@ func bestNext(doc status.Document) line {
 		return nil
 	}
 	return line{{"no account has room right now", errorInk}}
+}
+
+// priming says what comes next of priming at now, when it's on: the next
+// reset among the accounts' windows a prime starts, and the router's next
+// prime, each with its account and when, such as "next reset: work · Work,
+// Mon 18:10". It's nil when there's nothing to say.
+func priming(doc status.Document, now time.Time) line {
+	var parts []line
+	for _, c := range doc.Coming(now) {
+		parts = append(parts, line{{c.What + ": ", dimInk}, {c.Account.Title(), textInk}, {", " + status.Clock(now, c.At), dimInk}})
+	}
+	return dotted(parts...)
 }
 
 // dotted runs the parts that aren't nil together, status.Separator between

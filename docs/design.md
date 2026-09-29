@@ -314,8 +314,9 @@ come back one at a time rather than together: once all are spent, the wait for t
   start means past midnight.
 - **The schedule:** with N accounts that have usable tokens, resets fall every 5 hours ÷ N; the
   first falls half a step after the day starts; each account, in config order, is primed five
-  hours before its first reset. Every prime falls before the day starts, so the day's first
-  requests don't disturb the schedule. For a day starting at 08:00:
+  hours before its first reset, to the minute. Every prime falls before the day starts, so the
+  day's first requests don't disturb the schedule, and may fall the evening before. For a day
+  starting at 08:00:
 
   | Accounts | Primed | Resets |
   |---|---|---|
@@ -326,12 +327,19 @@ come back one at a time rather than together: once all are spent, the wait for t
   day's edges: in the three-account schedule, the first account has 50 minutes of its first
   window left at 08:00, and the third's last window starts at 22:10.
 - **A prime** is a probe, under the probe's rules (one output token), to an account whose 5-hour
-  window isn't running. An account whose window is already running, as after a late night, gets
-  none, and its slot shifts for that day.
+  window isn't running: it has lapsed, or has never been read. One read without a reset may be
+  running, and isn't primed. An account whose window is already running, as after a late night,
+  gets none, and its slot shifts for that day. The log notes each prime at `info`, with the reset
+  it read; one that fails is noted at `warn`, and sent again five minutes on.
 - **Through the day,** when an idle account's window resets, the router primes it at once, so its
   windows stay back to back. After the day ends, it stops, so the windows lapse overnight and the
-  next morning's primes start them afresh.
-- A prime missed while the Mac slept goes out when the router next can, unless the day has ended.
+  next morning's primes start them afresh. An account's day of priming runs from its slot until
+  the day ends.
+- A prime missed while the Mac slept, or the router was away, goes out when the router next can,
+  unless the day has ended: the router looks at least once a minute, as a timer's clock stops
+  while the Mac sleeps.
+- Every time of the schedule is on the clock: a day the clocks change on keeps the slots and the
+  day's end at their times of day.
 - The schedule is worked out again when the accounts or the day change. `status` and the dashboard
   show it.
 - Early starts, late nights and use in the Claude apps can start a window off the schedule, which
@@ -455,14 +463,17 @@ rather than failing, reads `switchboard: …`.
   ("on pace for 92%", "runs out ~Fri 19:40"), and on an account with a reserve, a mark where the
   reserve starts.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
-  shows empty, as not started, until something uses it or a prime starts it.
+  shows empty, as not started, until something uses it or a prime starts it, and, from the
+  router, when its account is next primed: `not started · next prime Tue 04:15`.
 - Under the heading, where the usage came from, then `best next: …`, each part set apart by a dot
   wider than the one within an account's title: the router, how many sessions it has and where
   it sends new ones (`router  ·  3 sessions  ·  pinned to 2 · two  ·  best next: …`, or
   `…  ·  routing automatically  ·  …`); `router unhealthy — <reason>`, in red; or, dim,
   `probing directly (router not running)`. Probing as asked says nothing of the router. With no
   account to use next, `no account has room right now` stands in for `best next`, in red. With
-  priming on, a line under it gives the next reset among the accounts, and the next prime.
+  priming on, a line under it gives the next reset among the accounts' 5-hour windows, and, from
+  the router, the next prime, each with its account:
+  `next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Tue 06:45`.
 - The global pin's account carries a `● pinned` badge beside the best's `▲ best`, and the
   primary a `◆ primary` badge, and cards are wide enough for all three, so pinning never reflows
   them. What the router holds an account back by shows at the top of its card, in red, while it
@@ -659,7 +670,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
-| `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the config, the readings and a clock |
+| `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
 | `internal/dashboard` | Rendering the status document as a frame (Lip Gloss): cards, or a line per account |
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes |
@@ -834,7 +845,7 @@ probing.
 | `fallback` | Why a probed document isn't the router's, when the router was asked first: `{router: "not running"}`, or `{router: "unhealthy", reason}`. Left out otherwise, and when probing was asked for |
 | `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
-| `prime` | The priming schedule, when the config sets a day: `{day, slots}`, `slots` giving each account's daily prime, `{account, at}`, `at` a local `HH:MM`, in the order they fall. Left out otherwise |
+| `prime` | The priming schedule, when the config sets a day: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand. Left out otherwise |
 | `pin` | *router* The global pin, `{account, since, move}`; left out when there's none |
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |

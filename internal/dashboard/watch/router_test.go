@@ -116,8 +116,8 @@ func TestShowsASessionThatHasLapsedEmptyRatherThanRefreshingIt(t *testing.T) {
 	if refreshed := h.refreshesUntil(at(13, 25, 0)); len(refreshed) > 0 {
 		t.Errorf("the router refreshed what it hadn't read in the last minute at %v, want never: it doesn't probe an account whose session has lapsed", refreshed)
 	}
-	if !strings.Contains(h.view(), status.NotStarted) {
-		t.Errorf("the screen is\n%s\nwant work's session empty, %s", h.view(), status.NotStarted)
+	if !strings.Contains(h.view(), "not started") {
+		t.Errorf("the screen is\n%s\nwant work's session empty, not started", h.view())
 	}
 }
 

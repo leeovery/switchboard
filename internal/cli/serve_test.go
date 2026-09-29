@@ -222,6 +222,40 @@ func TestServePostsTheNotificationsTheConfigAsksFor(t *testing.T) {
 	}
 }
 
+func TestPrimingAsTheConfigSetsIt(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.extra = "\n[prime]\nday = \"08:00-23:00\"\n"
+	srv.writeConfig(t)
+	// Work and side have token files, so they're primed at 04:15 and 06:45,
+	// and personal has none.
+	schedule := "priming 08:00-23:00: work at 04:15 and side at 06:45\n"
+
+	probed := run(t, srv.deps, "status")
+	if want := schedule + "next reset: work · Work, Mon 18:10\n"; !strings.Contains(probed.stdout, want) {
+		t.Errorf("switchboard status, probing, printed\n%s\nwant\n%s", probed.stdout, want)
+	}
+
+	srv.start(t)
+	// Work's session runs till 18:10, and side, whose token the API refuses,
+	// is primed again five minutes after its probe as the router starts.
+	doc := srv.waitForStatus(t, func(doc status.Document) bool {
+		work, _ := doc.Account("work")
+		side, _ := doc.Account("side")
+		return len(work.Windows) == 3 && side.Error != ""
+	})
+	want := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
+		{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)},
+		{Account: "side", At: "06:45", Next: testNow.Add(5 * time.Minute)},
+	}}
+	if !reflect.DeepEqual(doc.Prime, want) {
+		t.Errorf("the router's schedule is\n%+v\nwant\n%+v", doc.Prime, want)
+	}
+	routed := run(t, srv.deps, "status")
+	if want := schedule + "next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Mon 13:17\n"; !strings.Contains(routed.stdout, want) {
+		t.Errorf("switchboard status, reading the router, printed\n%s\nwant\n%s", routed.stdout, want)
+	}
+}
+
 // askPinned sends the router at url a messages request of one session, on
 // work's token and pinned to pin, and returns the status it's answered with.
 func askPinned(t *testing.T, url, pin string) int {

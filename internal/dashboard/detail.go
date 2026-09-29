@@ -13,11 +13,12 @@ import (
 // countdown to show seconds.
 const secondsWithin = 10 * time.Minute
 
-// outlook says where an account's window is heading and when it resets, as
-// detail does, or, once the window has lapsed, that it hasn't started.
-func outlook(a status.Account, w quota.Window, p score.Projection, now time.Time, width int) line {
+// outlook says where an account's window in doc is heading and when it
+// resets, as detail does, or, once the window has lapsed, that it hasn't
+// started, and when the router next primes the account.
+func outlook(doc status.Document, a status.Account, w quota.Window, p score.Projection, now time.Time, width int) line {
 	if a.HasLapsed(w) {
-		return line{{status.NotStarted, dimInk}}.fit(width)
+		return line{{doc.NotStarted(a.ID, now), dimInk}}.fit(width)
 	}
 	return detail(w, p, now, width)
 }
