@@ -42,6 +42,7 @@ const (
 	environmentFix = "set a variable with t.Setenv in a test, or inject the environment (a getenv, or exec.Cmd's Env)"
 	processFix     = "start it in a runner tests replace, and add that runner to processStarters in " + allowListFile
 	userFix        = "take the home directory from the injected HomeDir, which follows HOME"
+	earlyReadFix   = "read it when it's needed, through the injected getenv or HomeDir"
 )
 
 // target is some of a package's functions: its import path and their names.
@@ -60,6 +61,10 @@ var (
 		{importPath: "os", names: []string{"StartProcess"}},
 		{importPath: "syscall", names: []string{"Exec", "ForkExec", "StartProcess"}},
 	}
+	environmentReaders = []target{
+		{importPath: "os", names: []string{"Getenv", "LookupEnv", "Environ", "ExpandEnv", "UserHomeDir", "UserConfigDir", "UserCacheDir"}},
+		{importPath: "syscall", names: []string{"Getenv", "Environ"}},
+	}
 )
 
 func TestEveryPackageRunsItsTestsThroughTheGuard(t *testing.T) {
@@ -76,6 +81,10 @@ func TestOnlyTheFunctionsAllowedStartProcesses(t *testing.T) {
 
 func TestProductionCodeDoesntImportOSUser(t *testing.T) {
 	reportEach(t, userImports(parseModule(t, moduleRoot(t))))
+}
+
+func TestProductionCodeReadsNoEnvironmentAsItsPackageInitialises(t *testing.T) {
+	reportEach(t, earlyEnvironmentReads(parseModule(t, moduleRoot(t))))
 }
 
 func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
@@ -121,6 +130,17 @@ func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 			got:  userImports(files),
 			want: []string{
 				"user/user.go:4: os/user finds the home directory past HOME, where testguard can't move it; " + userFix,
+			},
+		},
+		{
+			name: "earlyEnvironmentReads",
+			got:  earlyEnvironmentReads(files),
+			want: []string{
+				"early/early.go:9: os.Getenv reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
+				"early/early.go:12: os.LookupEnv reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
+				"early/early.go:13: os.ExpandEnv reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
+				"early/early.go:16: os.UserHomeDir reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
+				"early/early.go:25: os.Environ reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
 			},
 		},
 	}
@@ -283,6 +303,37 @@ func home() string {
 	return u.HomeDir
 }
 `,
+	"early/early.go": `package early
+
+import (
+	"os"
+	"strings"
+	"sync"
+)
+
+var home = os.Getenv("HOME")
+
+var (
+	config, _ = os.LookupEnv("SWITCHBOARD_CONFIG")
+	level     = strings.ToLower(os.ExpandEnv("$SWITCHBOARD_LOG_LEVEL"))
+)
+
+var fallback = func() string { dir, _ := os.UserHomeDir(); return dir }()
+
+var (
+	lazy   = sync.OnceValue(func() string { return os.Getenv("SWITCHBOARD_UPSTREAM") })
+	getenv = os.Getenv
+)
+
+func init() {
+	fallback = strings.TrimSpace(fallback)
+	if len(os.Environ()) == 0 {
+		home = ""
+	}
+}
+
+func later() string { return os.Getenv("HOME") }
+`,
 }
 
 // unguardedPackages finds each package with tests whose TestMain doesn't run
@@ -399,6 +450,45 @@ func userImports(files []sourceFile) []string {
 	return problems
 }
 
+// earlyEnvironmentReads finds each read of the environment in production code
+// made as its package initialises, in a package-level variable's value or an
+// init function: before TestMain runs, so before testguard has isolated it.
+func earlyEnvironmentReads(files []sourceFile) []string {
+	var problems []string
+	for _, f := range files {
+		if f.isTest() {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			node := initialising(decl)
+			if node == nil {
+				continue
+			}
+			for _, u := range callsMadeBy(f, node, environmentReaders) {
+				problems = append(problems, fmt.Sprintf("%s: %s reads the environment as the package initialises, before testguard has isolated it; %s", f.at(u.pos), u.what, earlyReadFix))
+			}
+		}
+	}
+	return problems
+}
+
+// initialising is the part of decl that runs as its package initialises: a
+// variable declaration's values, or an init function's body. It's nil for
+// anything else.
+func initialising(decl ast.Decl) ast.Node {
+	switch d := decl.(type) {
+	case *ast.GenDecl:
+		if d.Tok == token.VAR {
+			return d
+		}
+	case *ast.FuncDecl:
+		if d.Recv == nil && d.Name.Name == "init" && d.Body != nil {
+			return d.Body
+		}
+	}
+	return nil
+}
+
 // funcName is the name of the function decl declares, or "" when it declares
 // something else, which is never allowed to start a process.
 func funcName(decl ast.Decl) string {
@@ -418,24 +508,68 @@ type use struct {
 // uses finds, in node of f, each reference to one of targets' functions, in
 // the order they come.
 func uses(f sourceFile, node ast.Node, targets []target) []use {
-	pkgs := make([]string, len(targets))
-	for i, tg := range targets {
-		pkgs[i] = f.importName(tg.importPath)
-	}
+	m := newMatcher(f, targets)
 	var found []use
 	ast.Inspect(node, func(n ast.Node) bool {
-		sel, ok := n.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		for i, tg := range targets {
-			if selects(sel, pkgs[i], tg.names...) {
-				found = append(found, use{pos: sel.Pos(), what: path.Base(tg.importPath) + "." + sel.Sel.Name})
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if what := m.match(sel); what != "" {
+				found = append(found, use{pos: sel.Pos(), what: what})
 			}
 		}
 		return true
 	})
 	return found
+}
+
+// callsMadeBy finds, in node of f, each call of one of targets' functions that
+// running node makes. A call in a function literal waits for the literal to
+// be called, so counts only when it's called there and then.
+func callsMadeBy(f sourceFile, node ast.Node, targets []target) []use {
+	m := newMatcher(f, targets)
+	var found []use
+	var visit func(ast.Node) bool
+	visit = func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.CallExpr:
+			if lit, ok := n.Fun.(*ast.FuncLit); ok {
+				ast.Inspect(lit.Body, visit)
+			}
+			if what := m.match(n.Fun); what != "" {
+				found = append(found, use{pos: n.Pos(), what: what})
+			}
+		}
+		return true
+	}
+	ast.Inspect(node, visit)
+	return found
+}
+
+// matcher tells which of targets' functions an expression of one file names.
+type matcher struct {
+	targets []target
+	// pkgs are the names the file imports each target's package by.
+	pkgs []string
+}
+
+func newMatcher(f sourceFile, targets []target) matcher {
+	pkgs := make([]string, len(targets))
+	for i, tg := range targets {
+		pkgs[i] = f.importName(tg.importPath)
+	}
+	return matcher{targets: targets, pkgs: pkgs}
+}
+
+// match returns the target function expr names, such as "os.Setenv", or ""
+// when it names none.
+func (m matcher) match(expr ast.Expr) string {
+	for i, tg := range m.targets {
+		if selects(expr, m.pkgs[i], tg.names...) {
+			return path.Base(tg.importPath) + "." + expr.(*ast.SelectorExpr).Sel.Name
+		}
+	}
+	return ""
 }
 
 // selects reports whether expr is one of names selected from pkg, the name a
