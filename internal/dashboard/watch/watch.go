@@ -401,7 +401,7 @@ func (m Model) post(alerts []notify.Notice) tea.Cmd {
 func (m Model) footer(now time.Time) string {
 	parts := []string{m.state(now), m.keys()}
 	if !m.lost.IsZero() {
-		parts = append([]string{"no router since " + hourMinute(now, m.lost)}, parts...)
+		parts = append([]string{"no router since " + status.TimeOfDay(now, m.lost)}, parts...)
 	}
 	return strings.Join(parts, " · ")
 }
@@ -418,11 +418,11 @@ func (m Model) state(now time.Time) string {
 	case m.fetching && m.loud:
 		return "refreshing…"
 	case m.failed != "":
-		return "couldn't read usage: " + m.failed + " · next " + hourMinute(now, m.plan.due)
+		return "couldn't read usage: " + m.failed + " · next " + status.TimeOfDay(now, m.plan.due)
 	case m.routed():
-		return "updated " + hourMinute(now, m.updated)
+		return "updated " + status.TimeOfDay(now, m.updated)
 	default:
-		return "updated " + hourMinute(now, m.updated) + " · next " + hourMinute(now, m.plan.due)
+		return "updated " + status.TimeOfDay(now, m.updated) + " · next " + status.TimeOfDay(now, m.plan.due)
 	}
 }
 
@@ -440,9 +440,4 @@ func routed(doc status.Document) bool {
 // Mac sleeps: kept, it would put every deadline off by the time spent asleep.
 func (m Model) now() time.Time {
 	return m.cfg.Now().Round(0)
-}
-
-// hourMinute shows t in now's time zone, such as "13:51".
-func hourMinute(now, t time.Time) string {
-	return t.In(now.Location()).Format("15:04")
 }

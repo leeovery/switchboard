@@ -115,7 +115,7 @@ func SessionCount(n int) string {
 // Text says until when the limit holds, such as "limit until Mon 21:00", in
 // now's time zone.
 func (l Limit) Text(now time.Time) string {
-	return "limit until " + Clock(l.Until.In(now.Location()))
+	return "limit until " + Clock(now, l.Until)
 }
 
 // write writes the account's title, its windows with their labels width wide,
@@ -161,9 +161,15 @@ func withRest(count string, rest int, unit string) string {
 	return fmt.Sprintf("%s %d%s", count, rest, unit)
 }
 
-// Clock shows t as its weekday and 24-hour time, such as "Mon 18:10".
-func Clock(t time.Time) string {
-	return t.Format("Mon 15:04")
+// Clock shows t as its weekday and 24-hour time in now's time zone, such as
+// "Mon 18:10".
+func Clock(now, t time.Time) string {
+	return t.In(now.Location()).Format("Mon 15:04")
+}
+
+// TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
+func TimeOfDay(now, t time.Time) string {
+	return t.In(now.Location()).Format("15:04")
 }
 
 // Resets counts down from now to a window's reset at t: "resets in 4h 57m",
@@ -183,7 +189,7 @@ func Projection(now time.Time, p score.Projection) string {
 	case score.OnPace:
 		return "on pace for " + Percent(p.AtReset)
 	case score.RunsOut:
-		return "runs out ~" + Clock(p.At.In(now.Location()))
+		return "runs out ~" + Clock(now, p.At)
 	case score.Exhausted:
 		return "exhausted"
 	default:
@@ -230,7 +236,7 @@ func windowLine(w quota.Window, labelWidth int, now time.Time) string {
 	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(w.Label), Percent(w.Utilization))
 	var notes []string
 	if !w.ResetsAt.IsZero() {
-		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(w.ResetsAt.In(now.Location())))
+		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
 	}
 	if projection := Projection(now, score.Project(w, now)); projection != "" {
 		notes = append(notes, projection)

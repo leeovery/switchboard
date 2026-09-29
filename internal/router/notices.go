@@ -196,7 +196,7 @@ func (g *gathering) notice(accounts standings, now time.Time) notify.Notice {
 		text.windows = append(text.windows, limited.windowLabel(key))
 	}
 	if g.Until.After(now) {
-		text.back = status.Clock(g.Until.In(now.Location()))
+		text.back = status.Clock(now, g.Until)
 	}
 	message := func() string { return accounts.title(g.Account) + " " + text.say(accounts.title) }
 	if utf8.RuneCountInString(message()) > maxMessage {
