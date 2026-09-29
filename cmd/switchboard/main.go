@@ -27,7 +27,7 @@ func main() {
 		HomeDir:       os.UserHomeDir,
 		Executable:    os.Executable,
 		Now:           time.Now,
-		ClaudeVersion: claude.InstalledVersion,
+		ClaudeVersion: claude.InstalledVersion(exec.LookPath, os.UserHomeDir),
 		Watch:         watch.Run,
 		Notifier:      notify.NewDesktop(),
 		LookPath:      exec.LookPath,

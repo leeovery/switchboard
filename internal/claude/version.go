@@ -6,9 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
-	"slices"
 	"sync"
 	"time"
 
@@ -33,23 +31,27 @@ const (
 
 var versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+`)
 
-var installed = &versionCache{
-	ask: func() (string, error) {
-		home, _ := os.UserHomeDir()
-		return systemCLI(home).version(context.Background())
-	},
-	now: time.Now,
-}
-
-// InstalledVersion returns the version of the Claude Code CLI installed here,
-// such as "2.1.283", for a Prober to claim. The API rejects a version older
-// than a model's minimum ("Claude Code X does not support this model"), so a
-// pinned version would lose each new model's window the day it ships. It asks
-// the CLI at most once an hour, so a process that runs for days follows the
-// CLI's updates. When the CLI doesn't answer within five seconds, the version
-// it last gave stands, or a floor version before it has given one.
-func InstalledVersion() string {
-	return installed.get()
+// InstalledVersion returns what gives the version of the Claude Code CLI
+// installed here, such as "2.1.283", for a Prober to claim: the claude Find
+// finds, on PATH as lookPath searches it, else where its installers put it
+// for the home directory homeDir gives. The API rejects a version older than
+// a model's minimum ("Claude Code X does not support this model"), so a
+// pinned version would lose each new model's window the day it ships. What it
+// returns asks the CLI at most once an hour, so a process that runs for days
+// follows the CLI's updates. When the CLI doesn't answer within five seconds,
+// the version it last gave stands, or a floor version before it has given
+// one.
+func InstalledVersion(lookPath func(file string) (string, error), homeDir func() (string, error)) func() string {
+	installed := &versionCache{
+		ask: func() (string, error) {
+			// Without a home directory, only the install paths outside it are
+			// tried.
+			home, _ := homeDir()
+			return systemCLI(lookPath, home).version(context.Background())
+		},
+		now: time.Now,
+	}
+	return installed.get
 }
 
 // versionCache keeps the version the CLI last gave for an hour.
@@ -97,32 +99,21 @@ func (c *versionCache) refresh() {
 // installedCLI finds and runs the claude command. Tests give it stand-ins, so
 // they never run the real one.
 type installedCLI struct {
-	// paths are where installers put the binary, tried in order before PATH.
-	paths    []string
+	// lookPath searches PATH, and paths are where installers put the binary,
+	// as Find takes them.
 	lookPath func(file string) (string, error)
+	paths    []string
 	// env is the environment the command runs in.
 	env    []string
 	output func(ctx context.Context, env []string, path string, args ...string) ([]byte, error)
 }
 
-// systemCLI is the claude command installed here, which runs in no more of
-// this process's environment than it needs: the router's holds every token.
-func systemCLI(home string) installedCLI {
-	return installedCLI{paths: InstallPaths(home), lookPath: exec.LookPath, env: childenv.Minimal(os.Getenv), output: commandOutput}
-}
-
-// InstallPaths lists where Claude Code's installers put the CLI, for the home
-// directory given.
-func InstallPaths(home string) []string {
-	paths := []string{
-		filepath.Join(home, ".local", "bin", "claude"),
-		"/opt/homebrew/bin/claude",
-		"/usr/local/bin/claude",
-		filepath.Join(home, ".claude", "local", "claude"),
-	}
-	// Without a home directory, the home-relative paths would resolve against
-	// the working directory.
-	return slices.DeleteFunc(paths, func(path string) bool { return !filepath.IsAbs(path) })
+// systemCLI is the claude command installed here, found on PATH as lookPath
+// searches it, else where its installers put it for the home directory home.
+// It runs in no more of this process's environment than it needs: the
+// router's holds every token.
+func systemCLI(lookPath func(file string) (string, error), home string) installedCLI {
+	return installedCLI{lookPath: lookPath, paths: InstallPaths(home), env: childenv.Minimal(os.Getenv), output: commandOutput}
 }
 
 func commandOutput(ctx context.Context, env []string, path string, args ...string) ([]byte, error) {
@@ -146,23 +137,11 @@ func (c installedCLI) version(ctx context.Context) (string, error) {
 }
 
 func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
-	path, err := c.find()
+	path, err := Find(c.lookPath, c.paths)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
 	return c.output(ctx, c.env, path, "--version")
-}
-
-// find returns the first install path that holds a file, else the claude on
-// PATH. The install paths come first because a LaunchAgent runs with a
-// minimal PATH.
-func (c installedCLI) find() (string, error) {
-	for _, path := range c.paths {
-		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
-			return path, nil
-		}
-	}
-	return c.lookPath(Command)
 }

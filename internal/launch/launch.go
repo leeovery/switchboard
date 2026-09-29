@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -158,24 +157,9 @@ func (l Launcher) exec(path string, args []string, env environ) error {
 	return nil
 }
 
-// find returns where Claude Code is: on PATH, else the first of its install
-// paths that holds a program.
+// find returns where Claude Code is, as claude.Find finds it.
 func (l Launcher) find() (string, error) {
-	if path, err := l.LookPath(claude.Command); err == nil {
-		return path, nil
-	}
-	for _, path := range l.InstallPaths {
-		if isProgram(path) {
-			return path, nil
-		}
-	}
-	return "", fmt.Errorf("can't find claude: it isn't on PATH, nor at %s", strings.Join(l.InstallPaths, ", "))
-}
-
-// isProgram reports whether path holds a file that can be run.
-func isProgram(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
+	return claude.Find(l.LookPath, l.InstallPaths)
 }
 
 // How the router can answer its health check, as the log names it.

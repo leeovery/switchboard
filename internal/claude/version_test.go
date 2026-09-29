@@ -18,15 +18,17 @@ func TestInstalledCLIVersion(t *testing.T) {
 	dir := t.TempDir()
 	missing := filepath.Join(dir, "missing", "claude")
 	directory := filepath.Join(dir, "directory", "claude")
+	notRunnable := filepath.Join(dir, "not-runnable", "claude")
 	first := filepath.Join(dir, "first", "claude")
 	second := filepath.Join(dir, "second", "claude")
-	for _, path := range []string{directory, filepath.Dir(first), filepath.Dir(second)} {
-		if err := os.MkdirAll(path, 0o700); err != nil {
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for path, mode := range map[string]os.FileMode{notRunnable: 0o600, first: 0o700, second: 0o700} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
 		}
-	}
-	for _, path := range []string{first, second} {
-		if err := os.WriteFile(path, nil, 0o700); err != nil {
+		if err := os.WriteFile(path, nil, mode); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -43,19 +45,19 @@ func TestInstalledCLIVersion(t *testing.T) {
 		wantRun   string
 	}{
 		{
-			name:    "from the first install path holding a file",
-			paths:   []string{missing, directory, first, second},
-			output:  "2.1.290 (Claude Code)\n",
-			want:    "2.1.290",
-			wantRun: first,
-		},
-		{
-			name:      "from PATH when no install path holds a file",
-			paths:     []string{missing, directory},
+			name:      "from PATH, before any install path, as run finds it",
+			paths:     []string{first, second},
 			pathHasIt: true,
 			output:    "2.1.290 (Claude Code)\n",
 			want:      "2.1.290",
 			wantRun:   onPath,
+		},
+		{
+			name:    "from the first install path holding a program, as PATH has none, as a LaunchAgent's minimal PATH doesn't",
+			paths:   []string{missing, directory, notRunnable, first, second},
+			output:  "2.1.290 (Claude Code)\n",
+			want:    "2.1.290",
+			wantRun: first,
 		},
 		{
 			name:    "the first version in the output",
@@ -139,7 +141,7 @@ func TestTheCLIRunsWithoutTheTokens(t *testing.T) {
 		t.Setenv(name, value)
 	}
 	var env []string
-	cli := systemCLI("/home/tester")
+	cli := systemCLI(func(string) (string, error) { return "", exec.ErrNotFound }, "/home/tester")
 	cli.paths = []string{installed}
 	cli.output = func(_ context.Context, e []string, _ string, _ ...string) ([]byte, error) {
 		env = e
@@ -293,35 +295,4 @@ func TestVersionCacheLogsEachAsk(t *testing.T) {
 
 func containsAll(s string, parts []string) bool {
 	return !slices.ContainsFunc(parts, func(part string) bool { return !strings.Contains(s, part) })
-}
-
-func TestInstallPaths(t *testing.T) {
-	tests := []struct {
-		name string
-		home string
-		want []string
-	}{
-		{
-			name: "home directory known",
-			home: "/home/tester",
-			want: []string{
-				"/home/tester/.local/bin/claude",
-				"/opt/homebrew/bin/claude",
-				"/usr/local/bin/claude",
-				"/home/tester/.claude/local/claude",
-			},
-		},
-		{
-			name: "home directory unknown",
-			home: "",
-			want: []string{"/opt/homebrew/bin/claude", "/usr/local/bin/claude"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := InstallPaths(tt.home); !slices.Equal(got, tt.want) {
-				t.Errorf("InstallPaths(%q) = %q, want %q", tt.home, got, tt.want)
-			}
-		})
-	}
 }
