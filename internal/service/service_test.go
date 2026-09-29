@@ -391,7 +391,7 @@ func TestUninstall(t *testing.T) {
 			s := newSetup(t, nil, nil)
 			s.launchctl.loaded, s.launchctl.exits = tt.loaded, tt.exits
 			if tt.installed {
-				s.putPlist(t)
+				s.putPlist(t, "<plist/>\n")
 			}
 
 			removed, err := s.svc.Uninstall(t.Context())
@@ -495,7 +495,7 @@ func TestStatus(t *testing.T) {
 			s := newSetup(t, nil, tt.answer)
 			s.launchctl.loaded = tt.loaded
 			if tt.installed {
-				s.putPlist(t)
+				s.putPlist(t, "<plist/>\n")
 			}
 
 			st, err := s.svc.Status(t.Context())
@@ -507,6 +507,41 @@ func TestStatus(t *testing.T) {
 			}
 			if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
 				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
+			}
+		})
+	}
+}
+
+func TestStatusNamesTheBinaryThePlistRuns(t *testing.T) {
+	// A path holding what XML escapes.
+	const binary = "/Users/tester/it's <mine> & co/bin/switchboard"
+	written, err := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(string) string { return "" }}).
+		PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		// plist is what's in the plist's place, "" for nothing.
+		plist string
+		want  string
+	}{
+		{name: "one as install writes it", plist: string(written), want: binary},
+		{name: "none"},
+		{name: "one naming no program", plist: "<plist/>\n"},
+		{name: "one whose program has no arguments", plist: "<plist><dict><key>ProgramArguments</key><array/></dict></plist>\n"},
+		{name: "one that isn't XML, as a binary one isn't", plist: "bplist00\xd1\x01\x02"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
+			if tt.plist != "" {
+				s.putPlist(t, tt.plist)
+			}
+
+			st, err := s.svc.Status(t.Context())
+			if err != nil || st.Binary != tt.want {
+				t.Errorf("Status() = %+v, %v; want the binary %q", st, err, tt.want)
 			}
 		})
 	}
@@ -696,13 +731,13 @@ func (s *setup) checkPlist(t *testing.T, binary, config string) {
 	}
 }
 
-// putPlist puts a plist where the service's goes, as an install leaves one.
-func (s *setup) putPlist(t *testing.T) {
+// putPlist puts a plist holding content where the service's goes.
+func (s *setup) putPlist(t *testing.T, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(s.plist), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(s.plist, []byte("<plist/>\n"), 0o644); err != nil {
+	if err := os.WriteFile(s.plist, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -214,17 +214,20 @@ type Status struct {
 	// Installed is whether its plist is in place, and Loaded whether launchd
 	// has loaded it.
 	Installed, Loaded bool
+	// Binary is the switchboard binary its plist has launchd run, as the
+	// plist names it: "" when there's no plist, or it names none.
+	Binary string
 	// Router is the router's answer to its health check, or nil when it
 	// didn't answer, and RouterErr then says why.
 	Router    *router.Health
 	RouterErr error
 }
 
-// Status reports whether the service is installed, whether launchd has
-// loaded it, and how the router answers.
+// Status reports whether the service is installed, which switchboard binary
+// it runs, whether launchd has loaded it, and how the router answers.
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
-	st := Status{Installed: err == nil}
+	st := Status{Installed: err == nil, Binary: s.installedBinary()}
 	if st.Loaded, err = s.loaded(ctx); err != nil {
 		return Status{}, err
 	}
@@ -234,6 +237,16 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		st.RouterErr = err
 	}
 	return st, nil
+}
+
+// installedBinary is the switchboard binary the plist in place has launchd
+// run, as it names it: "" when there's no plist to read, or it names none.
+func (s *Service) installedBinary() string {
+	plist, err := os.ReadFile(s.Plist())
+	if err != nil {
+		return ""
+	}
+	return binaryOf(plist)
 }
 
 // Answered fails, saying where to find out why, when the router launchd

@@ -93,6 +93,13 @@ func newWorld(t *testing.T) *world {
 	return w
 }
 
+// goInstalled places another switchboard, as go install builds one, and
+// returns its path.
+func (w *world) goInstalled(t *testing.T) string {
+	t.Helper()
+	return claudetest.Program(t, filepath.Join(w.root, "go", "bin", "switchboard"))
+}
+
 // putBinOnPath puts switchboard's bin directory first on PATH, as the line
 // setup says to add does.
 func (w *world) putBinOnPath() {
@@ -165,7 +172,7 @@ func (w *world) done(t *testing.T) {
 	w.writeConfig(t, doneConfig)
 	w.writeToken(t, "work", "test-token-work")
 	w.writeToken(t, "side", "test-token-side")
-	w.installService(t)
+	w.installService(t, w.switchboard)
 	claudetest.Link(t, w.switchboard, filepath.Join(w.bin, "claude"))
 	w.putBinOnPath()
 	if err := skill.Install(w.skill); err != nil {
@@ -173,13 +180,15 @@ func (w *world) done(t *testing.T) {
 	}
 }
 
-// installService puts the LaunchAgent's plist in place, launchd having
-// loaded it and started its router.
-func (w *world) installService(t *testing.T) {
+// installService installs the LaunchAgent to run the switchboard at binary,
+// as service install does, launchd loading it and starting its router, and
+// forgets the launchctl runs it took.
+func (w *world) installService(t *testing.T, binary string) {
 	t.Helper()
-	writeFile(t, w.plist(), "<plist/>\n", 0o644)
-	w.launchd.loaded = true
-	w.launchd.start()
+	if _, err := w.setup(t, &user{}).Service.Install(t.Context(), service.InstallOptions{Executable: binary}); err != nil {
+		t.Fatal(err)
+	}
+	w.launchd.calls = nil
 }
 
 func (w *world) plist() string {
@@ -216,6 +225,28 @@ func (w *world) removeToken(t *testing.T, id string) {
 	t.Helper()
 	if err := os.Remove(w.tokens().Path(id)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// untouched are the launchctl subcommands a run of setup runs that leaves the
+// service as it is: it asks whether the service is loaded.
+var untouched = []string{"print"}
+
+// checkLeftToTheRouter checks setup, having shown shown, left the service as
+// it was, its router up, saying the router takes up the changes to the
+// config and the tokens on its own when changed says setup made some.
+func (w *world) checkLeftToTheRouter(t *testing.T, shown string, changed bool) {
+	t.Helper()
+	const up = "The service is installed, and the router is up: healthy, pid 4242."
+	want := up + "\n"
+	if changed {
+		want = up + " It takes up setup's changes on its own.\n"
+	}
+	if got := section(t, shown, "3. The service"); got != want {
+		t.Errorf("the service step showed\n%s\nwant\n%s", got, want)
+	}
+	if ran := w.launchd.ran(); !slices.Equal(ran, untouched) {
+		t.Errorf("ran launchctl %q, want %q: the service left as it is", ran, untouched)
 	}
 }
 

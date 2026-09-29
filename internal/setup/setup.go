@@ -108,8 +108,7 @@ type run struct {
 	registry    accounts.Registry
 	// cfg is the config as the steps have left it.
 	cfg *config.Config
-	// changed is set once a step changes what the router reads as it
-	// starts: the config, or a token.
+	// changed is set once a step changes the config or a token.
 	changed bool
 }
 

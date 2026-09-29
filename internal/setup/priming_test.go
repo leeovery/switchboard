@@ -1,7 +1,6 @@
 package setup_test
 
 import (
-	"slices"
 	"strings"
 	"testing"
 )
@@ -18,7 +17,8 @@ func TestThePrimingStep(t *testing.T) {
 		want    string
 		// wantConfig is the config setup leaves.
 		wantConfig string
-		wantRan    []string
+		// changed is set when setup changes the config.
+		changed bool
 	}{
 		{
 			name:       "on",
@@ -26,7 +26,6 @@ func TestThePrimingStep(t *testing.T) {
 			answers:    []string{""},
 			want:       "Priming is on, over 08:00-23:00.\n",
 			wantConfig: doneConfig,
-			wantRan:    untouched,
 		},
 		{
 			name:       "off, and left off",
@@ -34,7 +33,6 @@ func TestThePrimingStep(t *testing.T) {
 			answers:    []string{"", ""},
 			want:       explained + question + "\nPriming stays off.\n",
 			wantConfig: dayless,
-			wantRan:    untouched,
 		},
 		{
 			name:       "off, and turned on",
@@ -42,7 +40,7 @@ func TestThePrimingStep(t *testing.T) {
 			answers:    []string{"", "07:30-22:00"},
 			want:       explained + question + "07:30-22:00\nPriming is on, over 07:30-22:00.\n",
 			wantConfig: dayless + "\n[prime]\nday = \"07:30-22:00\"\n",
-			wantRan:    restarted,
+			changed:    true,
 		},
 		{
 			name:       "off, and turned on past midnight",
@@ -50,7 +48,7 @@ func TestThePrimingStep(t *testing.T) {
 			answers:    []string{"", "22:00-02:00"},
 			want:       explained + question + "22:00-02:00\nPriming is on, over 22:00-02:00.\n",
 			wantConfig: dayless + "\n[prime]\nday = \"22:00-02:00\"\n",
-			wantRan:    restarted,
+			changed:    true,
 		},
 		{
 			name:    "off, asked again until the day is one",
@@ -62,7 +60,7 @@ func TestThePrimingStep(t *testing.T) {
 				"prime.day \"08:00-08:00\": must end at another time than it starts; an end before the start is past midnight.\n" +
 				question + "07:30-22:00\nPriming is on, over 07:30-22:00.\n",
 			wantConfig: dayless + "\n[prime]\nday = \"07:30-22:00\"\n",
-			wantRan:    restarted,
+			changed:    true,
 		},
 		{
 			name:       "off, with a [prime] table giving no day, kept as it's laid out",
@@ -70,7 +68,7 @@ func TestThePrimingStep(t *testing.T) {
 			answers:    []string{"", "07:30-22:00"},
 			want:       explained + question + "07:30-22:00\nPriming is on, over 07:30-22:00.\n",
 			wantConfig: dayless + "\n# The windows' day.\n[prime]\nday = \"07:30-22:00\"  # local time\n",
-			wantRan:    restarted,
+			changed:    true,
 		},
 	}
 	for _, tt := range tests {
@@ -86,9 +84,7 @@ func TestThePrimingStep(t *testing.T) {
 			if config := w.readConfig(t); config != tt.wantConfig {
 				t.Errorf("the config reads\n%s\nwant\n%s", config, tt.wantConfig)
 			}
-			if ran := w.launchd.ran(); !slices.Equal(ran, tt.wantRan) {
-				t.Errorf("ran launchctl %q, want %q", ran, tt.wantRan)
-			}
+			w.checkLeftToTheRouter(t, shown, tt.changed)
 		})
 	}
 }
