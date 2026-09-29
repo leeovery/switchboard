@@ -1,0 +1,49 @@
+;; The macOS sandbox scripts/test-isolated runs the tests in: nothing beyond
+;; this machine, no writes into the home directory but Go's caches, and none
+;; of the real programs tests must never run.
+;;
+;; Parameters, each a path with its symlinks resolved, as the sandbox matches
+;; resolved paths:
+;;   HOME        the home directory
+;;   GOCACHE     go env GOCACHE
+;;   GOMODCACHE  go env GOMODCACHE
+
+(version 1)
+(debug deny)
+(allow default)
+
+(define (home-literal path) (literal (string-append (param "HOME") path)))
+(define (home-subpath path) (subpath (string-append (param "HOME") path)))
+
+;; Loopback and unix sockets alone. The sandbox's localhost is 127.0.0.1 and
+;; ::1, and macOS gives loopback no other address.
+(deny network-outbound)
+(allow network-outbound (remote ip "localhost:*") (remote unix-socket))
+
+(deny file-write* (subpath (param "HOME")))
+(allow file-write* (subpath (param "GOCACHE")) (subpath (param "GOMODCACHE")))
+
+;; A rule here matches the file a symlink resolves to, not the link (proven by
+;; experiment), so each install is denied where its real file lands. The
+;; stubs testguard puts on PATH match none of these, and still run.
+(deny process-exec
+  ;; Claude Code, wherever internal/claude looks for it. The native installer
+  ;; links ~/.local/bin/claude to a version under ~/.local/share/claude; the
+  ;; old local install lives in ~/.claude/local; Homebrew's cask and npm link
+  ;; /opt/homebrew/bin/claude or /usr/local/bin/claude into their own trees.
+  (home-literal "/.local/bin/claude")
+  (home-subpath "/.local/share/claude")
+  (home-subpath "/.claude/local")
+  (literal "/opt/homebrew/bin/claude")
+  (literal "/usr/local/bin/claude")
+  (regex #"/Caskroom/claude-code/")
+  (regex #"/node_modules/@anthropic-ai/claude-code")
+  ;; Notifications, launchd, and opening files and URLs.
+  (literal "/usr/bin/osascript")
+  (literal "/bin/launchctl")
+  (literal "/usr/bin/open")
+  ;; tmux: the system's, or Homebrew's, linked into its Cellar.
+  (literal "/usr/bin/tmux")
+  (literal "/usr/local/bin/tmux")
+  (literal "/opt/homebrew/bin/tmux")
+  (regex #"/Cellar/tmux/"))

@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -38,6 +39,16 @@ func TestTransportChecksOnQuietHTTP2Connections(t *testing.T) {
 	h2 := newTransport().HTTP2
 	if h2 == nil || h2.SendPingTimeout != 30*time.Second || h2.PingTimeout != 15*time.Second {
 		t.Errorf("HTTP2 = %+v, want a ping sent after 30s without a frame, and the connection closed if it's unanswered for 15s", h2)
+	}
+}
+
+func TestTransportDialsAsTheDefaultTransportDoes(t *testing.T) {
+	// Clone copies the default's dial function itself, so their code pointers
+	// match. In tests that function is testguard's, which is what keeps the
+	// upstream on this machine.
+	want := reflect.ValueOf(http.DefaultTransport.(*http.Transport).DialContext).Pointer()
+	if got := reflect.ValueOf(newTransport().DialContext).Pointer(); got != want {
+		t.Error("the upstream transport dials otherwise than http.DefaultTransport, so it loses the default's dial timeouts, and in tests testguard's check of where it dials")
 	}
 }
 
