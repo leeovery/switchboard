@@ -400,16 +400,20 @@ func (u *user) typeUnseen() ([]byte, error) {
 
 // fakeLaunchd stands in for launchctl, and launchd and the router behind it.
 // Bootstrapping the service loads it and starts a router, kickstarting it
-// starts another, and booting it out stops it; printing the service exits
+// starts another, as does signalling the router, which stops it for launchd
+// to start again, and booting it out stops it; printing the service exits
 // 113 while it isn't loaded, as launchctl does. Each router started answers
-// with a pid of its own, from 4242 on, unless dead is set, when none starts.
+// with a pid of its own, from 4242 on, unless dead is set, when none starts;
+// the next unanswered health checks go unanswered all the same, as while a
+// router starts.
 type fakeLaunchd struct {
 	loaded bool
 	dead   bool
 	// pid is the running router's, 0 when none is.
-	pid     int
-	started int
-	calls   [][]string
+	pid        int
+	started    int
+	unanswered int
+	calls      [][]string
 }
 
 func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
@@ -422,7 +426,7 @@ func (f *fakeLaunchd) run(_ context.Context, args ...string) ([]byte, error) {
 		return []byte("Could not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
 	case args[0] == "bootout":
 		f.loaded, f.pid = false, 0
-	case args[0] == "kickstart":
+	case args[0] == "kickstart", args[0] == "kill":
 		f.start()
 	}
 	return nil, nil
@@ -446,7 +450,9 @@ func (f *fakeLaunchd) ran() []string {
 }
 
 func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
-	if f.pid == 0 {
+	unanswered := f.unanswered > 0
+	f.unanswered = max(f.unanswered-1, 0)
+	if f.pid == 0 || unanswered {
 		return router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
 	}
 	return router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747"}, nil

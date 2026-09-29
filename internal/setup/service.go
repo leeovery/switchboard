@@ -51,9 +51,13 @@ func (r *run) install(ctx context.Context) error {
 }
 
 // restart has launchd restart the router, which didn't answer, and says how
-// the one it starts answers.
+// the one launchd starts answers. Should the router answer by then after all,
+// as one starting might, it says first that the router is finishing its
+// requests in flight.
 func (r *run) restart(ctx context.Context) error {
-	h, err := r.Service.Restart(ctx)
+	h, err := r.Service.Restart(ctx, func() {
+		r.Terminal.sayf("The router is finishing its requests in flight, then launchd starts it again.")
+	})
 	if err != nil {
 		return err
 	}

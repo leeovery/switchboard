@@ -195,11 +195,11 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 // or nil when none answers in time. A router that answers is sent SIGTERM,
 // and stops as it does at any signal, finishing the requests in flight
 // within exitTimeout, as launchd would give it; launchd, keeping the service
-// alive, then starts it again. With none answering, there's nothing to
-// finish, and launchd starts the service afresh at once, stopping any
-// process of it. It fails with ErrNotLoaded when launchd hasn't loaded the
-// service.
-func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
+// alive, then starts it again. Restart calls draining as that router
+// finishes its requests, before it waits. With none answering, there's
+// nothing to finish, and launchd starts the service afresh at once. It fails
+// with ErrNotLoaded when launchd hasn't loaded the service.
+func (s *Service) Restart(ctx context.Context, draining func()) (*router.Health, error) {
 	loaded, err := s.loaded(ctx)
 	switch {
 	case err != nil:
@@ -208,15 +208,26 @@ func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 		return nil, ErrNotLoaded
 	}
 	before := s.pid(ctx)
-	args, wait := []string{"kill", "SIGTERM", s.target()}, exitTimeout+StartWait
 	if before == 0 {
-		args, wait = []string{"kickstart", "-k", s.target()}, StartWait
+		return s.startAfresh(ctx)
 	}
-	if err := s.launchctl(ctx, args...); err != nil {
+	if err := s.launchctl(ctx, "kill", "SIGTERM", s.target()); err != nil {
 		return nil, err
 	}
-	logger.Info("restarting the service", "pid", before)
-	return s.waitForRouter(ctx, before, wait), nil
+	logger.Info("stopping the router, for launchd to start again", "pid", before)
+	draining()
+	return s.waitForRouter(ctx, before, exitTimeout+StartWait), nil
+}
+
+// startAfresh has launchd start the service afresh, stopping any process of
+// it at once, and returns the answer of the router it starts, or nil when
+// none answers within StartWait.
+func (s *Service) startAfresh(ctx context.Context) (*router.Health, error) {
+	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {
+		return nil, err
+	}
+	logger.Info("started the service afresh")
+	return s.waitForRouter(ctx, 0, StartWait), nil
 }
 
 // Status is how the service stands.

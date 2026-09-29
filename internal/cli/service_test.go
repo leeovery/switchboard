@@ -2,13 +2,20 @@ package cli_test
 
 import (
 	"context"
+	"encoding/json"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/router"
 )
 
 // domain is the user's GUI session, as launchctl names it: that of the user
@@ -215,6 +222,32 @@ func TestServiceRestart(t *testing.T) {
 	}
 }
 
+func TestServiceRestartSaysTheRouterIsFinishingItsRequests(t *testing.T) {
+	s := newServiceSetup(t)
+	s.launchd.loaded = true
+	// A router at pid 100, which launchd, once it's signalled the router to
+	// stop, starts again at pid 4242.
+	var pid atomic.Int64
+	pid.Store(100)
+	serveHealth(t, s.srv.socket(), &pid)
+	launchctl := s.srv.deps.Launchctl
+	s.srv.deps.Launchctl = func(ctx context.Context, args ...string) ([]byte, error) {
+		if args[0] == "kill" {
+			pid.Store(4242)
+		}
+		return launchctl(ctx, args...)
+	}
+
+	got := run(t, s.srv.deps, "service", "restart")
+	want := result{stdout: "the router is finishing its requests in flight, then launchd starts it again\nrestarted\nthe router is up: healthy, pid 4242\n"}
+	if got != want {
+		t.Errorf("switchboard service restart = %+v, want %+v", got, want)
+	}
+	if want := [][]string{{"print", target}, {"kill", "SIGTERM", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
+		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
+	}
+}
+
 func TestServiceRestartWhenLaunchdHasntLoadedIt(t *testing.T) {
 	s := newServiceSetup(t)
 
@@ -292,6 +325,27 @@ func newServiceSetup(t *testing.T) *serviceSetup {
 	}
 	plist := filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
 	return &serviceSetup{srv: srv, launchd: launchd, binary: binary, plist: plist}
+}
+
+// serveHealth answers health checks on the socket at path until the test
+// ends, as a healthy router does whose process id pid holds.
+func serveHealth(t *testing.T, path string, pid *atomic.Int64) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(router.Health{OK: true, Listen: "127.0.0.1:4747", PID: int(pid.Load())})
+		}),
+		ReadHeaderTimeout: time.Second,
+	}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
 }
 
 // setenv has the command line, and the router launchd starts, see key set

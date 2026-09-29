@@ -88,6 +88,14 @@ func TestTheServiceStep(t *testing.T) {
 			wantRan: restarted,
 		},
 		{
+			name:    "installed, its router answering only once setup restarts it: restarted as it finishes its requests",
+			lay:     func(_ *testing.T, w *world) { w.launchd.unanswered = 1 },
+			answers: []string{""},
+			want: "The router is finishing its requests in flight, then launchd starts it again.\n" +
+				"Restarted the router, as it didn't answer.\nThe router is up: healthy, pid 4243.\n",
+			wantRan: []string{"print", "print", "kill"},
+		},
+		{
 			name: "not installed, no account with a usable token: installed, with a warning",
 			lay: func(t *testing.T, w *world) {
 				if err := os.Remove(w.plist()); err != nil {

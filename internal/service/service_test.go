@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -426,6 +427,9 @@ func TestRestart(t *testing.T) {
 		wantPID    int
 		wantWaited time.Duration
 		wantRuns   [][]string
+		// wantDraining is set when Restart says, before it waits, that the
+		// router is finishing its requests in flight.
+		wantDraining bool
 	}{
 		{
 			name: "a router answering: stopped as at a signal, and back once launchd starts it again",
@@ -435,8 +439,9 @@ func TestRestart(t *testing.T) {
 				}
 				return up(4242)
 			},
-			wantPID:  4242,
-			wantRuns: stopped,
+			wantPID:      4242,
+			wantRuns:     stopped,
+			wantDraining: true,
 		},
 		{
 			name: "a router answering: back once the requests it had in flight have finished",
@@ -449,9 +454,10 @@ func TestRestart(t *testing.T) {
 				}
 				return up(4242)
 			},
-			wantPID:    4242,
-			wantWaited: 40 * time.Second,
-			wantRuns:   stopped,
+			wantPID:      4242,
+			wantWaited:   40 * time.Second,
+			wantRuns:     stopped,
+			wantDraining: true,
 		},
 		{
 			name: "a router answering: not back by when launchd would have killed it and started another",
@@ -461,8 +467,9 @@ func TestRestart(t *testing.T) {
 				}
 				return router.Health{}, errNotRunning
 			},
-			wantWaited: restartWait,
-			wantRuns:   stopped,
+			wantWaited:   restartWait,
+			wantRuns:     stopped,
+			wantDraining: true,
 		},
 		{
 			name:     "none answering: started afresh at once",
@@ -484,9 +491,13 @@ func TestRestart(t *testing.T) {
 				s := newSetup(t, nil, func(asked int) (router.Health, error) { return tt.answer(time.Since(began), asked) })
 				s.launchctl.loaded = true
 
-				h, err := s.svc.Restart(t.Context())
+				var saidAfter []time.Duration
+				h, err := s.svc.Restart(t.Context(), func() { saidAfter = append(saidAfter, time.Since(began)) })
 				if err != nil {
 					t.Fatalf("Restart() error = %v", err)
+				}
+				if said := slices.Equal(saidAfter, []time.Duration{0}); said != tt.wantDraining {
+					t.Errorf("said the router is finishing its requests after %v; want it said once, before any wait: %v", saidAfter, tt.wantDraining)
 				}
 				if waited := time.Since(began); waited != tt.wantWaited {
 					t.Errorf("waited %v for the router, want %v", waited, tt.wantWaited)
@@ -552,7 +563,10 @@ func TestRestartFails(t *testing.T) {
 			})
 			s.launchctl.loaded, s.launchctl.exits = tt.loaded, tt.exits
 
-			if h, err := s.svc.Restart(t.Context()); h != nil || !tt.want(err) {
+			draining := func() {
+				t.Error("said the router is finishing its requests, want nothing said of a restart that failed")
+			}
+			if h, err := s.svc.Restart(t.Context(), draining); h != nil || !tt.want(err) {
 				t.Errorf("Restart() = %v, %v", h, err)
 			}
 			if !reflect.DeepEqual(s.launchctl.calls, tt.wantRuns) {

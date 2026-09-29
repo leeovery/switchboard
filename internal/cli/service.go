@@ -164,13 +164,17 @@ func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 	return err
 }
 
-// restartService has launchd restart the router, and says how it answers.
+// restartService has launchd restart the router, saying so while a router
+// finishes its requests in flight first, and says how the one launchd starts
+// answers.
 func (a *app) restartService(ctx context.Context, out io.Writer) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	h, err := svc.Restart(ctx)
+	h, err := svc.Restart(ctx, func() {
+		_, _ = fmt.Fprintln(out, "the router is finishing its requests in flight, then launchd starts it again")
+	})
 	if errors.Is(err, service.ErrNotLoaded) {
 		return fmt.Errorf("%w: run switchboard service install", err)
 	}
