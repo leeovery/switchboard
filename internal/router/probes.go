@@ -92,23 +92,45 @@ func (p *probes) await(ctx context.Context, as accounts, due func(id string, now
 	return true
 }
 
-// wait waits for probes under way to end: for limit at most, or until ctx
-// ends, after which they go on without it.
+// wait waits for probes under way before a choice, as settle does, and logs
+// how that went.
 func (p *probes) wait(ctx context.Context, underway []probing, limit time.Duration) {
 	started := time.Now()
+	switch settle(ctx, underway, limit) {
+	case settled:
+		logger.Debug("probed before choosing", "accounts", accountsOf(underway), "duration", time.Since(started).Round(time.Millisecond))
+	case timedOut:
+		logger.Debug("stopped waiting for probes before choosing", "accounts", accountsOf(underway), "after", limit)
+	}
+}
+
+// ending is how waiting for probes under way ended.
+type ending int
+
+const (
+	// settled is every probe having ended.
+	settled ending = iota
+	// timedOut is the wait's limit passing first.
+	timedOut
+	// abandoned is the waiter's context ending first.
+	abandoned
+)
+
+// settle waits for probes under way to end: for limit at most, or until ctx
+// ends, after which they go on without it. It says which came first.
+func settle(ctx context.Context, underway []probing, limit time.Duration) ending {
 	timeout := time.NewTimer(limit)
 	defer timeout.Stop()
 	for _, u := range underway {
 		select {
 		case <-u.done:
 		case <-timeout.C:
-			logger.Debug("stopped waiting for probes before choosing", "accounts", accountsOf(underway), "after", limit)
-			return
+			return timedOut
 		case <-ctx.Done():
-			return
+			return abandoned
 		}
 	}
-	logger.Debug("probed before choosing", "accounts", accountsOf(underway), "duration", time.Since(started).Round(time.Millisecond))
+	return settled
 }
 
 // accountsOf lists the accounts of probes under way, as the log shows them.

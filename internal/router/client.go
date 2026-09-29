@@ -24,9 +24,13 @@ var (
 	ErrUnknownSession = errors.New("the router hasn't seen session")
 )
 
-// clientTimeout bounds each of a Client's calls, so a router that's stuck
-// can't hang its caller.
-const clientTimeout = 5 * time.Second
+const (
+	// clientTimeout bounds each of a Client's calls, so a router that's stuck
+	// can't hang its caller.
+	clientTimeout = 5 * time.Second
+	// refreshTimeout bounds Refresh, which waits for the router's probes.
+	refreshTimeout = refreshWait + clientTimeout
+)
 
 // Client asks a running router about itself, and tells it what to do, over
 // its control socket.
@@ -38,7 +42,6 @@ type Client struct {
 func NewClient(path string) *Client {
 	var dialer net.Dialer
 	return &Client{http: &http.Client{
-		Timeout: clientTimeout,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return dialer.DialContext(ctx, "unix", path)
@@ -51,14 +54,14 @@ func NewClient(path string) *Client {
 // Health asks whether the router is alive, and which it is.
 func (c *Client) Health(ctx context.Context) (Health, error) {
 	var h Health
-	err := c.call(ctx, http.MethodGet, "/health", nil, &h)
+	err := c.call(ctx, clientTimeout, http.MethodGet, "/health", nil, &h)
 	return h, err
 }
 
 // Status asks for the router's status document.
 func (c *Client) Status(ctx context.Context) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, http.MethodGet, "/status", nil, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodGet, "/status", nil, &doc)
 	return doc, err
 }
 
@@ -67,7 +70,7 @@ func (c *Client) Status(ctx context.Context) (status.Document, error) {
 // seen.
 func (c *Client) Session(ctx context.Context, id string) (Session, error) {
 	var s Session
-	err := c.call(ctx, http.MethodGet, "/sessions/"+url.PathEscape(id), nil, &s)
+	err := c.call(ctx, clientTimeout, http.MethodGet, "/sessions/"+url.PathEscape(id), nil, &s)
 	// A 404 is the router's for an unknown session only when it says why:
 	// anything else answering on the socket is trouble.
 	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason != "" {
@@ -88,7 +91,7 @@ func unknownSession(id string) error {
 // for an account the router can't send requests on.
 func (c *Client) Pin(ctx context.Context, account string, move bool) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, http.MethodPost, "/pin", pinRequest{Account: account, Move: move}, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodPost, "/pin", pinRequest{Account: account, Move: move}, &doc)
 	return doc, err
 }
 
@@ -96,13 +99,24 @@ func (c *Client) Pin(ctx context.Context, account string, move bool) (status.Doc
 // the status document as unpinning leaves it.
 func (c *Client) Unpin(ctx context.Context) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, http.MethodDelete, "/pin", nil, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodDelete, "/pin", nil, &doc)
+	return doc, err
+}
+
+// Refresh has the router probe the accounts it hasn't read for longer than
+// maxAge, waiting a few seconds at most for those probes, and returns the
+// status document as they leave it.
+func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Document, error) {
+	var doc status.Document
+	err := c.call(ctx, refreshTimeout, http.MethodPost, "/refresh", refreshRequest{MaxAge: maxAge.String()}, &doc)
 	return doc, err
 }
 
 // call sends the router a request for path, with body as JSON unless it's
-// nil, and decodes its answer into answer.
-func (c *Client) call(ctx context.Context, method, path string, body, answer any) error {
+// nil, and decodes its answer into answer, giving up once timeout has passed.
+func (c *Client) call(ctx context.Context, timeout time.Duration, method, path string, body, answer any) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	req, err := newControlRequest(ctx, method, path, body)
 	if err != nil {
 		return err

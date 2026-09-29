@@ -195,14 +195,23 @@ func (s *state) limit(id string, windows []string, until time.Time) time.Time {
 	return until
 }
 
-// due reports whether an account's usage wants probing at now: nothing has
-// been read of it for staleAfter, and no probe of it has ended in the last
-// retryAfter, so an account whose probes fail isn't probed at every choice.
+// due reports whether an account's usage wants probing at now, before a
+// choice: nothing has been read of it for staleAfter, as olderThan says.
 func (s *state) due(id string, now time.Time) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	u := s.usage[id]
-	return now.Sub(u.updated) > staleAfter && now.Sub(u.probed) >= retryAfter
+	return s.olderThan(staleAfter)(id, now)
+}
+
+// olderThan returns what reports whether an account's usage wants probing at
+// now: nothing has been read of it for longer than age, and no probe of it
+// has ended in the last retryAfter, so an account whose probes fail isn't
+// probed at every ask.
+func (s *state) olderThan(age time.Duration) func(id string, now time.Time) bool {
+	return func(id string, now time.Time) bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		u := s.usage[id]
+		return now.Sub(u.updated) > age && now.Sub(u.probed) >= retryAfter
+	}
 }
 
 // dueAgain reports whether an account whose usage leaves it no room wants

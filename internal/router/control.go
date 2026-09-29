@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,6 +68,16 @@ type pinRequest struct {
 	Move    bool   `json:"move"`
 }
 
+// refreshRequest is what POST /refresh takes: how old an account's usage can
+// be, as a duration such as "30m", before it's probed.
+type refreshRequest struct {
+	MaxAge string `json:"max_age"`
+}
+
+// refreshWait bounds how long POST /refresh waits for the probes it starts,
+// so what asks for fresh usage is never kept waiting long.
+const refreshWait = 10 * time.Second
+
 // problem is what the control API answers a request it won't serve with.
 type problem struct {
 	Error string `json:"error"`
@@ -74,9 +85,10 @@ type problem struct {
 
 // Control is the control API: GET /health says the router is alive, and
 // whether it's healthy, GET /status gives its status document, GET
-// /sessions/{id} says where a session's requests go, and POST and DELETE
-// /pin set and clear the global pin, each answering with the status document
-// as it leaves it.
+// /sessions/{id} says where a session's requests go, POST and DELETE /pin
+// set and clear the global pin, and POST /refresh probes the accounts whose
+// usage is older than it asks, each of the last three answering with the
+// status document as it leaves it.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -111,7 +123,53 @@ func (r *Router) Control() http.Handler {
 		r.unpin()
 		writeJSON(w, r.Status())
 	})
+	mux.HandleFunc("POST /refresh", func(w http.ResponseWriter, req *http.Request) {
+		age, err := maxAge(w, req)
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		r.refresh(req.Context(), age)
+		writeJSON(w, r.Status())
+	})
 	return mux
+}
+
+// maxAge reads how old an account's usage can be before POST /refresh probes
+// it, from the request's body.
+func maxAge(w http.ResponseWriter, req *http.Request) (time.Duration, error) {
+	var refresh refreshRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&refresh); err != nil {
+		return 0, errors.New(`give how old usage can be as JSON, such as {"max_age": "30m"}`)
+	}
+	age, err := time.ParseDuration(refresh.MaxAge)
+	switch {
+	case refresh.MaxAge == "":
+		return 0, errors.New(`give how old usage can be, such as {"max_age": "30m"}`)
+	case err != nil:
+		return 0, fmt.Errorf("max_age %q isn't a duration, such as 30m", refresh.MaxAge)
+	case age < 0:
+		return 0, fmt.Errorf("max_age %s is less than nothing", refresh.MaxAge)
+	}
+	return age, nil
+}
+
+// refresh probes the accounts nothing has been read of for longer than age,
+// sharing any probe of them already under way, and waits for those probes:
+// for refreshWait at most, or until ctx ends, after which they go on without
+// it.
+func (r *Router) refresh(ctx context.Context, age time.Duration) {
+	underway := r.probes.start(r.accounts.sendable(), r.state.olderThan(age))
+	if len(underway) == 0 {
+		return
+	}
+	started := time.Now()
+	switch settle(ctx, underway, refreshWait) {
+	case settled:
+		logger.Debug("refreshed", "accounts", accountsOf(underway), "max_age", age, "duration", time.Since(started).Round(time.Millisecond))
+	case timedOut:
+		logger.Debug("stopped waiting for probes to refresh", "accounts", accountsOf(underway), "after", refreshWait)
+	}
 }
 
 // session reports where the session with the given id has its requests go,
