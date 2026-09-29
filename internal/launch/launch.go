@@ -282,12 +282,19 @@ func (r Route) best(ctx context.Context) (choice, bool) {
 // first is the first account with a token, reporting false when there's
 // none.
 func (r Route) first() (choice, bool) {
-	for _, a := range r.Config.Accounts {
-		if token, ok := a.Token(r.Getenv); ok {
-			return choice{account: a, token: token, why: "the first with a token"}, true
+	a, token, ok := firstWithToken(r.Config.Accounts, r.Getenv)
+	return choice{account: a, token: token, why: "the first with a token"}, ok
+}
+
+// firstWithToken returns the first of accounts whose token getenv finds, with
+// the token, reporting false when none has one.
+func firstWithToken(accounts config.Accounts, getenv func(key string) string) (config.Account, config.Token, bool) {
+	for _, a := range accounts {
+		if token, ok := a.Token(getenv); ok {
+			return a, token, true
 		}
 	}
-	return choice{}, false
+	return config.Account{}, config.Token{}, false
 }
 
 // title names an account as every command does, such as "work · Work".

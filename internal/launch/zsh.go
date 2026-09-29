@@ -23,31 +23,63 @@ func CheckPrefix(prefix string) error {
 	return nil
 }
 
-// Zsh writes zsh for a shell to eval, which has it start Claude Code through
-// run: a claude function that starts it through the switchboard at binary; a
-// launcher for each account, named prefix and the account's id, that starts
-// it pinned to that account; and an export of the first account's token, for
-// programs that start claude themselves. The export names the token's
-// variable, so the output holds no token. Without accounts, as when the
-// config can't be read, it writes the claude function alone, which run
-// keeps working. The accounts are as config.Load validates them, whose ids
-// and variables' names are safe in zsh as they stand.
-func Zsh(w io.Writer, binary, prefix string, accounts []config.Account) error {
-	if err := CheckPrefix(prefix); err != nil {
+// Integration is the shell integration: what has the shell start Claude Code
+// through run.
+type Integration struct {
+	// Binary is the switchboard binary the functions run, by its absolute
+	// path.
+	Binary string
+	// Config is the config file the functions have run read, by its absolute
+	// path, or "" for the one run finds itself.
+	Config string
+	// Prefix starts each account's launcher's name.
+	Prefix string
+	// Accounts are the configured accounts, as config.Load validates them,
+	// whose ids and variables' names are safe in zsh as they stand; none when
+	// the config can't be read.
+	Accounts config.Accounts
+	// Getenv reads the accounts' token variables as the integration is
+	// written, which choose the one its export names.
+	Getenv func(key string) string
+}
+
+// Zsh writes the integration as zsh for a shell to eval: a claude function
+// that starts Claude Code through run; a launcher for each account, named the
+// prefix and the account's id, that starts it pinned to that account; and,
+// for programs that start claude themselves, an export of the token of the
+// first account whose token is set as it's written, as run chooses without
+// the router, else the first account's. The export names the token's
+// variable, so the output holds no token. Without accounts, it writes the
+// claude function alone, which run keeps working.
+func (i Integration) Zsh(w io.Writer) error {
+	if err := CheckPrefix(i.Prefix); err != nil {
 		return err
 	}
-	run := quote(binary) + " run"
+	run := quote(i.Binary)
+	if i.Config != "" {
+		run += " --config " + quote(i.Config)
+	}
+	run += " run"
 	var b strings.Builder
 	fmt.Fprintf(&b, "function %s { %s -- \"$@\"; }\n", claude.Command, run)
-	for _, a := range accounts {
-		fmt.Fprintf(&b, "function %s%s { %s --account %s -- \"$@\"; }\n", prefix, a.ID, run, a.ID)
+	for _, a := range i.Accounts {
+		fmt.Fprintf(&b, "function %s%s { %s --account %s -- \"$@\"; }\n", i.Prefix, a.ID, run, a.ID)
 	}
-	if len(accounts) > 0 {
-		token := accounts[0].TokenEnv
+	if len(i.Accounts) > 0 {
+		token := i.exported().TokenEnv
 		fmt.Fprintf(&b, "if [[ -n ${%s-} ]]; then\n  export %s=\"${%s}\"\nfi\n", token, claude.TokenEnv, token)
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// exported is the account whose token the export names: the first with a
+// token, else the first. There must be one.
+func (i Integration) exported() config.Account {
+	if a, _, ok := firstWithToken(i.Accounts, i.Getenv); ok {
+		return a
+	}
+	return i.Accounts[0]
 }
 
 // quote quotes s for zsh, whatever it holds: in single quotes, with each
