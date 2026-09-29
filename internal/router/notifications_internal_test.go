@@ -712,7 +712,7 @@ func newNotifying(t *testing.T, settings config.Notifications) *notifying {
 func newNotifyingOver(t *testing.T, settings config.Notifications, configured []config.Account) *notifying {
 	t.Helper()
 	now := func() time.Time { return time.Now().UTC() }
-	s := newState(resolve(configured, numberedTokens.Read), testPolicy, claude.Provider{}.Family, now)
+	s := newState(resolve(configured, numberedTokens.Read), testPolicy, claude.Provider{}.Family, now, unkept)
 	notifier := &noting{}
 	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, now), notifier: notifier, began: now()}
 }

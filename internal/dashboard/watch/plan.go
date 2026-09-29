@@ -22,11 +22,12 @@ const (
 // interval has the router refresh the accounts it hasn't read for that long;
 // and a look once a window on screen has reset has the router refresh first
 // the accounts it hasn't read in the last minute, as an idle account's
-// window would read "resets now" until the next full read. A document built
-// by probing is read again once an interval, sooner after a read that failed
-// or once a window on screen resets, and the router is asked after once a
-// minute in between, so the dashboard reads it again soon after it comes
-// back, but never goes back and forth faster than that.
+// window would read "resets now" until the next full read, unless the
+// account has a window that has lapsed, which the router won't probe. A
+// document built by probing is read again once an interval, sooner after a
+// read that failed or once a window on screen resets, and the router is asked
+// after once a minute in between, so the dashboard reads it again soon after
+// it comes back, but never goes back and forth faster than that.
 type plan struct {
 	interval time.Duration
 	// due is when the next full read is due: one that has the router

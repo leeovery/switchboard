@@ -106,6 +106,10 @@ type Account struct {
 	// FetchedAt is when Usage was read; zero when it wasn't.
 	FetchedAt time.Time `json:"fetched_at,omitzero"`
 	quota.Usage
+	// Lapsed are the keys of the windows that have lapsed, in Usage's order:
+	// the window a request starts, its reset passed with nothing read since,
+	// which reads empty, as it isn't running until a request starts it.
+	Lapsed []string `json:"lapsed,omitempty"`
 	// AtReserve are the keys of the windows that have reached the reserve,
 	// short of their limits, in Usage's order: while there are any, the
 	// router's own choices pass the account over, and only a pin spends the
@@ -171,9 +175,9 @@ type Collector struct {
 }
 
 // Collect probes every account that has a usable token, all at once, and
-// reports them in the order given, along with the best of them and the
-// windows at each one's reserve. An account without one isn't probed: its
-// status says why, and what would put it right.
+// reports them in the order given, as they stand once read, along with the
+// best of them. An account without one isn't probed: its status says why, and
+// what would put it right.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
 	var wg sync.WaitGroup
@@ -191,7 +195,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	wg.Wait()
 	now := c.Now()
 	for i, a := range statuses {
-		statuses[i].AtReserve = score.AtReserve(a.Windows, a.Reserve, now)
+		statuses[i] = a.AsOf(c.Policy, now)
 	}
 	return Document{
 		GeneratedAt: now.UTC(),
@@ -206,6 +210,22 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 // is read of it: its id and label, whether it's the primary, and its reserve.
 func Configured(a config.Account) Account {
 	return Account{ID: a.ID, Label: a.Label, Primary: a.Primary, Reserve: a.Reserve}
+}
+
+// AsOf is the account, its windows as read, as it stands at now: a window
+// that has lapsed, as policy judges, reads empty, and the account notes the
+// windows that have lapsed, and those that have reached its reserve.
+func (a Account) AsOf(policy score.Policy, now time.Time) Account {
+	a.Lapsed = policy.Lapsed(a.Windows, now)
+	a.Windows = policy.AsOf(a.Windows, now)
+	a.AtReserve = score.AtReserve(a.Windows, a.Reserve, now)
+	return a
+}
+
+// HasLapsed reports whether the account's window w has lapsed, and reads
+// empty until a request starts it.
+func (a Account) HasLapsed(w quota.Window) bool {
+	return slices.Contains(a.Lapsed, w.Key)
 }
 
 // PrimaryOf returns the id of the primary among accounts, or "" when none is

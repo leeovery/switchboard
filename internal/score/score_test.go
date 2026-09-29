@@ -13,7 +13,83 @@ import (
 // now is the time by the clock in every test: a Monday, 13:12 UTC.
 var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h"}
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
+
+func TestAWindowARequestStartsLapsesAtItsReset(t *testing.T) {
+	labelled := func(label string, w quota.Window) quota.Window {
+		w.Label = label
+		return w
+	}
+	session := func(utilization float64, resetsIn time.Duration) quota.Window {
+		return labelled("Session", window("5h", utilization, resetsIn))
+	}
+	empty := quota.Window{Key: "5h", Label: "Session"}
+	week := labelled("Week", withStatus(window("7d", 0.93, 72*time.Hour), quota.StatusAllowedWarning))
+	weekReset := labelled("Week", window("7d", 0.93, -time.Minute))
+	tests := []struct {
+		name string
+		// startsNone has the policy name no window a request starts.
+		startsNone bool
+		windows    []quota.Window
+		// want is how the windows stand, and wantLapsed which have lapsed.
+		want       []quota.Window
+		wantLapsed []string
+	}{
+		{
+			name:       "the window a request starts, its reset passed, reading empty, as the week stands",
+			windows:    []quota.Window{refused(session(1, -time.Minute)), week},
+			want:       []quota.Window{empty, week},
+			wantLapsed: []string{"5h"},
+		},
+		{
+			name:       "the window a request starts, at the moment it resets",
+			windows:    []quota.Window{session(0.6, 0), week},
+			want:       []quota.Window{empty, week},
+			wantLapsed: []string{"5h"},
+		},
+		{
+			name:    "the window a request starts, as read while it runs",
+			windows: []quota.Window{session(0.6, time.Second), week},
+			want:    []quota.Window{session(0.6, time.Second), week},
+		},
+		{
+			name:    "the window a request starts, as read when its reset isn't known",
+			windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6}},
+			want:    []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6}},
+		},
+		{
+			name:    "any other window, as read, its reset passed or not",
+			windows: []quota.Window{session(0.6, time.Hour), weekReset},
+			want:    []quota.Window{session(0.6, time.Hour), weekReset},
+		},
+		{
+			name:       "every window, as read, when a request starts none",
+			startsNone: true,
+			windows:    []quota.Window{session(0.6, -time.Minute), week},
+			want:       []quota.Window{session(0.6, -time.Minute), week},
+		},
+		{name: "no windows"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := policy
+			if tt.startsNone {
+				p.Started = ""
+			}
+			read := slices.Clone(tt.windows)
+
+			if got := p.AsOf(tt.windows, now); !slices.Equal(got, tt.want) {
+				t.Errorf("AsOf() =\n%+v\nwant\n%+v", got, tt.want)
+			}
+			if got := p.Lapsed(tt.windows, now); !slices.Equal(got, tt.wantLapsed) {
+				t.Errorf("Lapsed() = %q, want %q", got, tt.wantLapsed)
+			}
+			if !slices.Equal(tt.windows, read) {
+				t.Errorf("the windows read became\n%+v\nwant them as they were\n%+v", tt.windows, read)
+			}
+		})
+	}
+}
 
 func TestPolicyIsShared(t *testing.T) {
 	tests := []struct {

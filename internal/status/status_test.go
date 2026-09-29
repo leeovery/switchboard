@@ -22,7 +22,7 @@ import (
 // policy scores the windows as Claude's are: the session and the week apply
 // to every model, the week is perishable, and the session's reset decides
 // between accounts scoring near enough equal.
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h"}
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
 
 func TestCollect(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
@@ -102,6 +102,68 @@ func TestCollectGivesThePrimaryAndTheWindowsAtEachReserve(t *testing.T) {
 	}
 	if doc.Best != "side" {
 		t.Errorf("Collect().Best = %q, want side: work's quota would need using first, but its week has reached its reserve", doc.Best)
+	}
+}
+
+func TestAnAccountAsItStands(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: now.Add(time.Hour), Status: quota.StatusAllowedWarning}
+	lapsed := quota.Window{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: now.Add(-time.Minute), Status: quota.StatusAllowedWarning}
+	empty := quota.Window{Key: "5h", Label: "Session"}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: now.Add(24 * time.Hour), Status: quota.StatusAllowedWarning}
+	tests := []struct {
+		name    string
+		read    []quota.Window
+		reserve float64
+		// want are its windows as they stand, wantLapsed those that have
+		// lapsed, and wantAtReserve those at its reserve.
+		want          []quota.Window
+		wantLapsed    []string
+		wantAtReserve []string
+	}{
+		{name: "as read, while its session runs", read: []quota.Window{running, week}, want: []quota.Window{running, week}},
+		{
+			name:       "its session empty once it has lapsed, its week as read",
+			read:       []quota.Window{lapsed, week},
+			want:       []quota.Window{empty, week},
+			wantLapsed: []string{"5h"},
+		},
+		{
+			name:          "at its reserve in its week, and not in its session, which has lapsed",
+			read:          []quota.Window{lapsed, week},
+			reserve:       0.1,
+			want:          []quota.Window{empty, week},
+			wantLapsed:    []string{"5h"},
+			wantAtReserve: []string{"7d"},
+		},
+		{
+			name:          "at its reserve in both while its session runs",
+			read:          []quota.Window{running, week},
+			reserve:       0.1,
+			want:          []quota.Window{running, week},
+			wantAtReserve: []string{"5h", "7d"},
+		},
+		{name: "nothing, with nothing read"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			read := slices.Clone(tt.read)
+			a := status.Account{ID: "work", Label: "Work", Reserve: tt.reserve, TokenSet: true, Windows: read}
+
+			got := a.AsOf(policy, now)
+			if !slices.Equal(got.Windows, tt.want) || !slices.Equal(got.Lapsed, tt.wantLapsed) || !slices.Equal(got.AtReserve, tt.wantAtReserve) {
+				t.Errorf("AsOf() reads %+v, lapsed %q, at its reserve %q; want %+v, %q, %q",
+					got.Windows, got.Lapsed, got.AtReserve, tt.want, tt.wantLapsed, tt.wantAtReserve)
+			}
+			for _, w := range got.Windows {
+				if got.HasLapsed(w) != slices.Contains(tt.wantLapsed, w.Key) {
+					t.Errorf("HasLapsed(%s) = %v, want %v", w.Key, got.HasLapsed(w), !got.HasLapsed(w))
+				}
+			}
+			if !slices.Equal(read, tt.read) {
+				t.Errorf("the account's windows as read became %+v, want them as they were", read)
+			}
+		})
 	}
 }
 
@@ -519,6 +581,58 @@ func TestDocumentJSON(t *testing.T) {
       "id": "side",
       "label": "Side",
       "token_set": true
+    }
+  ]
+}`,
+		},
+		{
+			name: "the router's, with a session that has lapsed",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true, FetchedAt: generated.Add(-6 * time.Hour),
+						Windows: []quota.Window{
+							{Key: "5h", Label: "Session"},
+							{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC), Status: quota.StatusAllowedWarning},
+						},
+						Lapsed: []string{"5h"},
+					},
+				},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "fetched_at": "2026-09-28T07:12:00Z",
+      "windows": [
+        {
+          "key": "5h",
+          "label": "Session",
+          "utilization": 0
+        },
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.93,
+          "resets_at": "2026-10-02T21:00:00Z",
+          "status": "allowed_warning"
+        }
+      ],
+      "lapsed": [
+        "5h"
+      ]
     }
   ]
 }`,

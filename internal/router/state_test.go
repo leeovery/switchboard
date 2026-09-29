@@ -4,10 +4,12 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -360,6 +362,73 @@ func TestDocumentBeforeAnythingIsRead(t *testing.T) {
 	}
 }
 
+func TestTheWindowARequestStartsReadsEmptyOnceItHasLapsed(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.record("work", []quota.Window{session, week})
+	empty := quota.Window{Key: "5h", Label: "Session"}
+	started := session
+	started.Utilization, started.ResetsAt = 0.02, session.ResetsAt.Add(3*time.Hour)
+	steps := []struct {
+		name string
+		at   time.Time
+		// read are windows read of work at the step's time, if any.
+		read       []quota.Window
+		want       []quota.Window
+		wantLapsed []string
+	}{
+		{name: "while it runs, as read", at: session.ResetsAt.Add(-time.Second), want: []quota.Window{session, week}},
+		{name: "at its reset, empty, the week standing as read", at: session.ResetsAt, want: []quota.Window{empty, week}, wantLapsed: []string{"5h"}},
+		{name: "long after, with nothing read since, empty", at: session.ResetsAt.Add(2 * time.Hour), want: []quota.Window{empty, week}, wantLapsed: []string{"5h"}},
+		{name: "once a request starts it again, as read", at: session.ResetsAt.Add(2 * time.Hour), read: []quota.Window{started}, want: []quota.Window{started, week}},
+	}
+	for _, step := range steps {
+		clock.now = step.at
+		if step.read != nil {
+			s.record("work", step.read)
+		}
+		work, _ := s.document().Account("work")
+		if !reflect.DeepEqual(work.Windows, step.want) || !slices.Equal(work.Lapsed, step.wantLapsed) {
+			t.Errorf("%s: work reads %+v, lapsed %q; want %+v, lapsed %q", step.name, work.Windows, work.Lapsed, step.want, step.wantLapsed)
+		}
+		if !s.view(opus, step.at).room("work") || !s.standings(step.at)[0].quota {
+			t.Errorf("%s: work has no room, want room: a request would start its session", step.name)
+		}
+	}
+}
+
+func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
+	lastWeek := week
+	lastWeek.ResetsAt = week.ResetsAt.Add(-7 * 24 * time.Hour)
+	tests := []struct {
+		name   string
+		change func(s *state)
+		want   changeCount
+	}{
+		{name: "a reading", change: func(s *state) { s.record("side", []quota.Window{session}) }, want: 1},
+		{name: "a stale reading, which changes nothing", change: func(s *state) { s.record("work", []quota.Window{lastWeek}) }},
+		{name: "a probe that read", change: func(s *state) { s.recordProbe("side", probed(nil, session), nil) }, want: 1},
+		{name: "a probe that failed", change: func(s *state) { s.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded")) }},
+		{name: "a window seen on a family anew", change: func(s *state) { s.learn(fable, []quota.Window{week}) }, want: 1},
+		{name: "a window seen on its family before", change: func(s *state) { s.learn(opus, []quota.Window{week}) }},
+		{name: "a refusal, which isn't kept", change: func(s *state) { s.refuse("work", http.StatusUnauthorized) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var changes changeCount
+			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear)
+			s.record("work", []quota.Window{session, week})
+			s.learn(opus, []quota.Window{session, week})
+			changes = 0
+
+			tt.change(s)
+			if changes != tt.want {
+				t.Errorf("told of %d changes, want %d", changes, tt.want)
+			}
+		})
+	}
+}
+
 func TestStandings(t *testing.T) {
 	spent := session
 	spent.Utilization, spent.Status = 1, quota.StatusRejected
@@ -480,6 +549,8 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.standings(start) })
 		wg.Go(func() { _ = s.due("side", start) })
 		wg.Go(func() { _ = s.dueAgain("side", start) })
+		wg.Go(func() { _ = s.unread("side", start) })
+		wg.Go(func() { _ = s.saved() })
 		wg.Go(func() { s.refuse("side", http.StatusUnauthorized) })
 		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden) })
 		wg.Go(func() { _ = s.limit("work", []string{"5h"}, start.Add(time.Hour)) })

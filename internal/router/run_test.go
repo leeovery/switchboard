@@ -204,6 +204,52 @@ func TestARestartedRouterKeepsSessionsWhereTheyWere(t *testing.T) {
 	}
 }
 
+func TestARestartedRouterProbesOnlyTheAccountsItHasNoReadingOf(t *testing.T) {
+	clock := newFakeClock(now)
+	cfg := runConfig(t, "http://127.0.0.1:1")
+	cfg.Now = clock.read
+	// Work's session runs past the restart, and side's resets before it.
+	sideSession := session
+	sideSession.ResetsAt = now.Add(time.Hour)
+	first := &fakeProber{}
+	first.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, week}}})
+	first.answer(sideToken, probeResult{usage: quota.Usage{Windows: []quota.Window{sideSession, week}}})
+	cfg.Prober = first
+	stop := runRouter(t, cfg)
+	socket := router.SocketPath(cfg.StateDir)
+	waitForStatus(t, socket, func(doc status.Document) bool {
+		work, _ := doc.Account("work")
+		side, _ := doc.Account("side")
+		return len(work.Windows) > 0 && len(side.Windows) > 0
+	})
+	if err := stop(); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+
+	// Two hours on, with nothing read of either since, personal has a token
+	// too.
+	clock.advance(2 * time.Hour)
+	withPersonalToken(&cfg)
+	second := readingEvery(session, week)
+	cfg.Prober = second
+	runRouter(t, cfg)
+	doc := waitForStatus(t, socket, func(doc status.Document) bool {
+		personal, _ := doc.Account("personal")
+		return len(personal.Windows) > 0
+	})
+	if got := second.probed(); !reflect.DeepEqual(got, []string{personalToken}) {
+		t.Errorf("after the restart, probed %q, want personal's alone: the router has readings of work and side", got)
+	}
+	want := []status.Account{
+		{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
+		{ID: "personal", Label: "Personal", TokenSet: true, FetchedAt: clock.read(), Windows: []quota.Window{session, week}},
+		{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: []quota.Window{{Key: "5h", Label: "Session"}, week}, Lapsed: []string{"5h"}},
+	}
+	if !reflect.DeepEqual(doc.Accounts, want) {
+		t.Errorf("after the restart, the accounts read\n%+v\nwant\n%+v: side's session lapsed, its week as read", doc.Accounts, want)
+	}
+}
+
 func TestARestartedRouterStillTakesAReplacedTokenForItsAccounts(t *testing.T) {
 	const renewed = "test-token-work-renewed"
 	up := newAccountsAPI(t)

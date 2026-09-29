@@ -40,7 +40,7 @@ var (
 // testPolicy scores as Claude's policy does: the session and the week apply
 // to every model, the week is perishable, and the session's reset decides
 // between accounts scoring near enough equal.
-var testPolicy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h"}
+var testPolicy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
 
 // testConfigured are three accounts: work and side, whose tokens testTokens
 // has, and personal, whose it hasn't.
@@ -63,7 +63,26 @@ func testAccounts() accounts {
 // newTestState builds the state of testAccounts on clock's time, knowing
 // Claude's model families and scoring as Claude's policy does.
 func newTestState(clock *testClock) *state {
-	return newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read)
+	return newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, unkept)
+}
+
+// newTestFile builds a state file on now's time keeping what's known of the
+// accounts given: their sessions, their tokens and their usage, as Claude's
+// policy judges it.
+func newTestFile(now func() time.Time, as accounts) *stateFile {
+	changes := newChanges()
+	usage := newState(as, testPolicy, claude.Provider{}.Family, now, changes.note)
+	return newStateFile(now, changes, newSessions(now, changes.note), as, usage)
+}
+
+// unkept hears of a change for the state file, and keeps nothing of it.
+func unkept() {}
+
+// changeCount counts the changes it hears of, for the state file to keep.
+type changeCount int
+
+func (c *changeCount) hear() {
+	*c++
 }
 
 // newTestRouter builds a router of testConfigured on now's time, probing with

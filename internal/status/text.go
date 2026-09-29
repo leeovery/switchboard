@@ -18,14 +18,19 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
+// NotStarted is what's said of a window that has lapsed: it isn't running,
+// and reads empty, until a request starts it.
+const NotStarted = "not started"
+
 // Text renders the document for a terminal: each account, the primary marked,
-// with its windows, when they reset and where they're heading, whatever
-// couldn't be read, what holds it back, and how many sessions the router has
-// sent it; then the sessions given, as the router lists those it has routed
-// in the last hour, a line each; then the account to use next, and last where
-// the usage came from. Countdowns run from now, and times show in now's time
-// zone. Every text it shows that came from elsewhere, such as the config's
-// labels or the upstream's errors, it shows cleaned.
+// with its windows, when they reset and where they're heading, or that one
+// that has lapsed hasn't started, whatever couldn't be read, what holds it
+// back, and how many sessions the router has sent it; then the sessions
+// given, as the router lists those it has routed in the last hour, a line
+// each; then the account to use next, and last where the usage came from.
+// Countdowns run from now, and times show in now's time zone. Every text it
+// shows that came from elsewhere, such as the config's labels or the
+// upstream's errors, it shows cleaned.
 func (d Document) Text(now time.Time, sessions ...Session) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
@@ -173,7 +178,7 @@ func (a Account) write(b *strings.Builder, width int, now time.Time) {
 	}
 	fmt.Fprintf(b, "%s\n", title)
 	for _, w := range a.Windows {
-		fmt.Fprintf(b, "  %s\n", windowLine(w, width, now))
+		fmt.Fprintf(b, "  %s\n", windowLine(w, a.HasLapsed(w), width, now))
 	}
 	for _, f := range a.Failures {
 		fmt.Fprintf(b, "  %s offline: %s\n", Clean(f.Label), Clean(f.Error))
@@ -281,9 +286,13 @@ func (d Document) Account(id string) (Account, bool) {
 }
 
 // windowLine shows a window's label and utilization, then when it resets and
-// where it's heading, as far as those are known.
-func windowLine(w quota.Window, labelWidth int, now time.Time) string {
+// where it's heading, as far as those are known, or, once it has lapsed, that
+// it hasn't started.
+func windowLine(w quota.Window, lapsed bool, labelWidth int, now time.Time) string {
 	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(w.Label), Percent(w.Utilization))
+	if lapsed {
+		return line + "  " + NotStarted
+	}
 	var notes []string
 	if !w.ResetsAt.IsZero() {
 		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
