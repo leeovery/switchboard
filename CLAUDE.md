@@ -99,7 +99,8 @@ notifications. Ever.
     directory, and Claude Code's config directory, where they exist;
   - it denies a write into each directory on `PATH` outside the home that the user can write to;
   - it denies running each of those programs that's installed, where `PATH` finds it, links
-    resolved;
+    resolved: the real `claude` where switchboard finds it, past switchboard's bin directory and
+    any `claude` that's a switchboard binary, such as its link;
   - the tests start without those variables.
 - **Without the sandbox:** on macOS, without `/usr/bin/sandbox-exec`, the tests don't run; off
   macOS, testguard alone guards them.
