@@ -22,10 +22,11 @@ const (
 	// when neither the terminal nor the environment gives it.
 	defaultWidth  = 80
 	defaultHeight = 24
-	// defaultInterval is how often --watch reads usage unless told otherwise.
+	// defaultInterval is how often --watch reads usage in full unless told
+	// otherwise.
 	defaultInterval = 30 * time.Minute
-	// minInterval is the shortest interval --watch takes: every read probes
-	// every account, once for each model family.
+	// minInterval is the shortest interval --watch takes: a full read can
+	// probe every account, once for each model family.
 	minInterval = 5 * time.Minute
 )
 
@@ -33,30 +34,42 @@ const (
 type usageOptions struct {
 	watch    bool
 	noNotify bool
+	probe    bool
 	interval time.Duration
 }
 
 func newUsageCommand(a *app) *cobra.Command {
 	var opts usageOptions
 	cmd := &cobra.Command{
-		Use:   "usage [--watch [interval]]",
+		Use:   "usage [--watch [interval]] [--probe]",
 		Short: "Show every account's usage as a dashboard",
-		Long: `Show every account's usage as a dashboard.
+		Long: `Show every account's usage as a dashboard: the router's, while it runs, with
+its sessions and pin, else read by probing each account, as --probe does
+whether the router runs or not.
 
-With --watch the dashboard stays on screen and reads usage every interval: 30m
-unless given, and 5m at the least. Give it as a duration, such as 15m or 1h, or
-as a number of minutes. A window that resets, or an account that couldn't be
-read, is read again sooner. Keys: r refresh, q quit.`,
+With --watch the dashboard stays on screen. It reads the router's usage every
+few seconds, and every interval has the router probe the accounts it hasn't
+read in that time: 30m unless given, and 5m at the least. Give it as a
+duration, such as 15m or 1h, or as a number of minutes. Without the router it
+probes every account every interval, sooner for a window that resets or an
+account that couldn't be read, and reads the router again once it's back.
+
+Keys: r refresh, q quit. While it reads the router, 1-9 pin new sessions to
+the account in that place, a routes every session automatically again, and m
+moves running sessions to the pinned account. The router posts the desktop
+notifications then; without it, the dashboard posts its own, unless
+--no-notify.`,
 		Args: opts.parseArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if opts.watch {
 				return a.watchUsage(cmd.Context(), cmd.OutOrStdout(), opts)
 			}
-			return a.printUsage(cmd.Context(), cmd.OutOrStdout())
+			return a.printUsage(cmd.Context(), cmd.OutOrStdout(), opts.probe)
 		},
 	}
 	cmd.Flags().BoolVarP(&opts.watch, "watch", "w", false, "stay on screen, reading usage every interval")
 	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "with --watch, post no desktop notifications")
+	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
 	return cmd
 }
 
@@ -93,9 +106,9 @@ func parseInterval(s string) (time.Duration, error) {
 	return interval, nil
 }
 
-// printUsage prints the dashboard once.
-func (a *app) printUsage(ctx context.Context, out io.Writer) error {
-	doc, err := a.collect(ctx)
+// printUsage prints the dashboard once, probing alone when probe says so.
+func (a *app) printUsage(ctx context.Context, out io.Writer, probe bool) error {
+	doc, err := a.collect(ctx, probe)
 	if err != nil {
 		return err
 	}
@@ -112,7 +125,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer) error {
 // watchUsage keeps the dashboard on screen, reading usage as each read falls
 // due, until the user quits.
 func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	source, err := a.source()
+	source, err := a.source(opts.probe)
 	if err != nil {
 		return err
 	}

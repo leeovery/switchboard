@@ -27,7 +27,7 @@ import (
 
 func TestServe(t *testing.T) {
 	var probed status.Document
-	if err := json.Unmarshal([]byte(run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json").stdout), &probed); err != nil {
+	if err := json.Unmarshal([]byte(run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json", "--probe").stdout), &probed); err != nil {
 		t.Fatal(err)
 	}
 	api := newClaudeAPI(t)
@@ -44,7 +44,7 @@ func TestServe(t *testing.T) {
 	}
 	doc.Source, doc.Router = probed.Source, probed.Router
 	if !reflect.DeepEqual(doc, probed) {
-		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json does, but for its source and health:\n%+v", doc, probed)
+		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source and health:\n%+v", doc, probed)
 	}
 	want := []string{
 		"test-token-side claude-fable-5", "test-token-side claude-fable-5-1", "test-token-side claude-haiku-4-5-20251001",
