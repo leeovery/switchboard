@@ -14,24 +14,29 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-// account is a configured account, with its token when it has a usable one.
+// account is a configured account, and its token.
 type account struct {
 	config.Account
 	// secret holds the account's token, which every copy of the account
-	// shares. It's nil for an account without a usable token: it's listed,
-	// but nothing goes out on it.
+	// shares.
 	secret *secret
-	// problem says why an account has no usable token.
-	problem string
 }
 
 // secret is an account's token as the router holds it: read from its file as
-// the router starts, and again when the upstream refuses it, so it can change
-// while requests on the account are under way. Once it's replaced, it's
-// still the account's for formerFor, as a former token.
+// the router starts, again every so often while it runs, and whenever the
+// upstream refuses it, so it can change while requests on the account are
+// under way. Once it's replaced, it's still the account's for formerFor, as a
+// former token.
 type secret struct {
-	mu    sync.Mutex
+	mu sync.Mutex
+	// token is the account's token. While its file holds none the account can
+	// use, it's the one the account had last, which a request chosen for the
+	// account just before goes out on; it's zero for an account that has
+	// never had one.
 	token tokens.Token
+	// unusable says why the account has no usable token, and so nothing to
+	// send on, or is nil while it has one.
+	unusable error
 	// former are the tokens the account had before this one, in the order
 	// they were replaced.
 	former []formerToken
@@ -41,6 +46,24 @@ func (s *secret) get() tokens.Token {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.token
+}
+
+// usable reports whether the account has a usable token.
+func (s *secret) usable() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unusable == nil
+}
+
+// problem says why the account has no usable token, or is "" while it has
+// one.
+func (s *secret) problem() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.unusable == nil {
+		return ""
+	}
+	return s.unusable.Error()
 }
 
 // is reports whether token is the account's token. The comparison takes as
@@ -53,11 +76,17 @@ func (s *secret) is(token string) bool {
 // hasToken reports whether the account has a usable token, which requests
 // can go out on.
 func (a account) hasToken() bool {
-	return a.secret != nil
+	return a.secret.usable()
 }
 
-// token returns the account's token as the router holds it now. The account
-// must have one.
+// problem says why the account has no usable token, or is "" while it has
+// one.
+func (a account) problem() string {
+	return a.secret.problem()
+}
+
+// token returns the account's token as the router holds it now: the one it
+// had last, while it has none it can use. The account must have had one.
 func (a account) token() tokens.Token {
 	return a.secret.get()
 }
@@ -70,12 +99,8 @@ type accounts []account
 func resolve(configured []config.Account, read func(id string) (tokens.Token, error)) accounts {
 	resolved := make(accounts, len(configured))
 	for i, c := range configured {
-		resolved[i] = account{Account: c}
-		if token, err := read(c.ID); err != nil {
-			resolved[i].problem = err.Error()
-		} else {
-			resolved[i].secret = &secret{token: token}
-		}
+		token, err := read(c.ID)
+		resolved[i] = account{Account: c, secret: &secret{token: token, unusable: err}}
 	}
 	return resolved
 }
@@ -121,7 +146,7 @@ func (as accounts) checkTokens() error {
 	}
 	problems := make([]error, len(as))
 	for i, a := range as {
-		problems[i] = fmt.Errorf("%s: %s", a.ID, a.problem)
+		problems[i] = fmt.Errorf("%s: %s", a.ID, a.problem())
 	}
 	return fmt.Errorf("no account has a usable token, so there's nothing to route to:\n%w", errors.Join(problems...))
 }

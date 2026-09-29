@@ -71,8 +71,9 @@ type Config struct {
 	// Accounts are the configured accounts, in the order they're shown.
 	Accounts config.Accounts
 	// Token reads an account's token, by the account's id, from its file: as
-	// the router starts, and again when the upstream refuses the token it
-	// has, which may have been replaced since.
+	// the router starts, again every so often while Run runs, and whenever
+	// the upstream refuses the token it has, which may have been replaced
+	// since.
 	Token func(id string) (tokens.Token, error)
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
@@ -103,6 +104,23 @@ type Config struct {
 	// socket and state file go in: only Run uses them.
 	Listen   string
 	StateDir string
+	// ConfigFile is the config file the router was started from: once it
+	// makes another valid config while Run runs, the router restarts to take
+	// it up. "" is none.
+	ConfigFile string
+	// Binary is the switchboard binary the router was started as, by the
+	// path it was run by, such as the Homebrew link the service runs: once
+	// that leads to another file than the one running while Run runs, as
+	// after an upgrade, the router restarts. "" is none.
+	Binary string
+	// Supervised is set when the router is started again whenever it exits,
+	// as launchd starts the service's: it restarts by stopping as it does
+	// when ctx ends. A router that isn't logs, once, that a restart is due.
+	Supervised bool
+	// WatchEvery is how often, while Run runs, the router reads the token
+	// files again, and looks at the config file and the binary. Zero means
+	// every 3 seconds.
+	WatchEvery time.Duration
 }
 
 // notifying reports whether the router posts notifications: it has a
@@ -113,8 +131,9 @@ func (c Config) notifying() bool {
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
-// the router's own health, the control API that reports on it all, and the
-// desktop notifications of what befalls the accounts.
+// the router's own health, the control API that reports on it all, the
+// desktop notifications of what befalls the accounts, and its upkeep, which
+// keeps it in step with what it was started from.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
@@ -128,6 +147,9 @@ type Router struct {
 	proxy  *proxy
 	// primer is nil when priming is off.
 	primer *primer
+	// inFlight counts the proxy's requests in flight.
+	inFlight *inFlight
+	upkeep   *upkeep
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
@@ -161,7 +183,9 @@ func New(cfg Config) (*Router, error) {
 	sessions := newSessions(cfg.Now, changes.note)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
 	health := newHealth(cfg.Now, emit)
-	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
+	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
+	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
+	inFlight := newInFlight()
 	return &Router{
 		cfg:      cfg,
 		upstream: upstream,
@@ -185,7 +209,9 @@ func New(cfg Config) (*Router, error) {
 			now:            cfg.Now,
 			errorLog:       logs.StdLogger("router", slog.LevelWarn),
 		},
-		primer:        newPrimer(cfg.Prime.Day, accounts.sendable(), state, probes, cfg.Now),
+		primer:        primer,
+		inFlight:      inFlight,
+		upkeep:        newUpkeep(cfg, accounts, changes, primer, inFlight),
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}, nil
@@ -200,7 +226,7 @@ func wallClock(now func() time.Time) func() time.Time {
 
 // Proxy is the handler Claude Code's requests come to.
 func (r *Router) Proxy() http.Handler {
-	return r.proxy
+	return r.inFlight.count(r.proxy)
 }
 
 // Status reports every account's usage as the router knows it, with how many

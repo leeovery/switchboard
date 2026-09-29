@@ -309,7 +309,7 @@ func (r *Router) pinnable(id string) error {
 	case !ok:
 		return fmt.Errorf("there's no account %q: pin %s", id, strings.Join(r.accounts.sendable().configured().IDs(), " or "))
 	case !a.hasToken():
-		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem)
+		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem())
 	}
 	return nil
 }

@@ -24,7 +24,8 @@ const (
 // chooses the account whose quota would be lost soonest unused, having probed
 // the accounts whose usage is stale. See decide for the whole order.
 type scheduler struct {
-	// accounts are those requests can go out on.
+	// accounts are every account configured, among which requests go out on
+	// those with tokens.
 	accounts accounts
 	state    *state
 	sessions *sessions
@@ -35,7 +36,7 @@ type scheduler struct {
 
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d, on := s.decide(req)
-	if d.afresh && s.probes.await(ctx, s.accounts, s.state.due, probeWait) {
+	if d.afresh && s.probes.await(ctx, s.accounts.sendable(), s.state.due, probeWait) {
 		d, on = s.decide(req)
 	}
 	if d.noRoom && s.recheck(ctx, req) {
@@ -76,7 +77,7 @@ func (s *scheduler) view(req Request, now time.Time) view {
 // to show it. It reports whether it did.
 func (s *scheduler) recheck(ctx context.Context, req Request) bool {
 	full := s.view(req, s.now()).full()
-	underway := s.probes.start(s.accounts.only(full), s.state.dueAgain)
+	underway := s.probes.start(s.accounts.sendable().only(full), s.state.dueAgain)
 	if len(underway) == 0 {
 		return false
 	}

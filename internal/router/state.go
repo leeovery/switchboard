@@ -537,11 +537,11 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 // the refusal in force on it then, if any are.
 func (u *usage) status(a account, policy score.Policy, now time.Time) status.Account {
 	st := status.Configured(a.Account)
-	st.TokenSet = a.hasToken()
 	if !a.hasToken() {
-		st.Error = a.problem
+		st.Error = a.problem()
 		return st
 	}
+	st.TokenSet = true
 	st.FetchedAt = u.updated
 	st.Windows = u.latest()
 	st = st.AsOf(policy, now)

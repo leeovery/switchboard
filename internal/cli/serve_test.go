@@ -22,6 +22,8 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/service"
+	"github.com/leeovery/switchboard/internal/skill"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -256,6 +258,175 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	}
 }
 
+func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes what serve was started from.
+		change     func(t *testing.T, srv *serveSetup)
+		wantReason string
+	}{
+		{
+			name: "once its config file makes another valid config",
+			change: func(t *testing.T, srv *serveSetup) {
+				srv.extra = "\n[notifications]\nmoves = true\n"
+				srv.writeConfig(t)
+			},
+			wantReason: `reason="config changed"`,
+		},
+		{
+			name:       "once an upgrade moves its binary on",
+			change:     func(t *testing.T, srv *serveSetup) { srv.upgrade(t) },
+			wantReason: "reason=upgraded",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"XPC_SERVICE_NAME": service.Label})
+			srv.watch(t)
+			stop := srv.start(t)
+
+			tt.change(t, srv)
+			select {
+			case <-srv.exited:
+			case <-time.After(5 * time.Second):
+				t.Fatal("gave up waiting for switchboard serve to restart")
+			}
+			if got := stop(); got != (result{}) {
+				t.Errorf("switchboard serve = %+v as it restarted, want exit status 0 and no output, for launchd to start it again", got)
+			}
+			log := srv.routerLog(t)
+			for _, want := range [][]string{
+				{"level=INFO", "msg=restarting component=router", tt.wantReason},
+				{"level=INFO", "msg=exit component=process", "status=0"},
+			} {
+				if !hasLine(log, want...) {
+					t.Errorf("router.log reads\n%s\nwant a line with %q", log, want)
+				}
+			}
+		})
+	}
+}
+
+func TestServeRunByHandLogsThatARestartIsDue(t *testing.T) {
+	tests := []struct {
+		name string
+		// job is the launchd job serve runs as, if any.
+		job string
+	}{
+		{name: "at a terminal"},
+		{name: "as another launchd job", job: "application.com.apple.Terminal.1234"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := map[string]string{}
+			if tt.job != "" {
+				env["XPC_SERVICE_NAME"] = tt.job
+			}
+			srv := newServeSetup(t, fakeClaudeAPI(t), env)
+			srv.watch(t)
+			stop := srv.start(t)
+
+			srv.upgrade(t)
+			waitUntil(t, "the router says a restart is due", func() bool {
+				return hasLine(srv.routerLog(t), "level=INFO", `msg="restart due; run switchboard serve again to take it up"`, "reason=upgraded")
+			})
+			if _, err := router.NewClient(srv.socket()).Health(t.Context()); err != nil {
+				t.Errorf("the router's health: %v, want it still answering", err)
+			}
+			if got := stop(); got.code != 0 {
+				t.Errorf("switchboard serve = %+v, want exit status 0", got)
+			}
+			if log := srv.routerLog(t); hasLine(log, "msg=restarting") {
+				t.Errorf("router.log reads\n%s\nwant no restart", log)
+			}
+		})
+	}
+}
+
+func TestServeMakesTheTokensDirectoryPrivate(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	dir := filepath.Dir(tokenPath(t, srv.deps, "work"))
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	srv.start(t)
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode() != fs.ModeDir|0o700 {
+		t.Errorf("the tokens directory has mode %v, want %v", info.Mode(), fs.ModeDir|0o700)
+	}
+	if log := srv.routerLog(t); !hasLine(log, "level=INFO", `msg="made the tokens directory private"`, "path="+dir, "was=0755") {
+		t.Errorf("router.log reads\n%s\nwant the tokens directory made private", log)
+	}
+}
+
+func TestServeBringsTheSkillUpToDate(t *testing.T) {
+	version := strconv.Itoa(skill.Version())
+	tests := []struct {
+		name string
+		// install installs a copy of the skill at path, when it's given.
+		install func(t *testing.T, path string)
+		wantLog []string
+		// wantCurrent is whether the copy there is this switchboard's
+		// afterwards.
+		wantCurrent bool
+	}{
+		{
+			name: "an older copy",
+			install: func(t *testing.T, path string) {
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				older := "---\nname: switchboard\n---\n<!-- switchboard skill version: 0 -->\n"
+				if err := os.WriteFile(path, []byte(older), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantLog:     []string{"level=INFO", `msg="brought the skill up to date"`, "was=0", "version=" + version},
+			wantCurrent: true,
+		},
+		{
+			name: "the copy this switchboard carries",
+			install: func(t *testing.T, path string) {
+				if err := skill.Install(path); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantLog:     []string{"level=INFO", `msg="the skill is up to date"`, "version=" + version},
+			wantCurrent: true,
+		},
+		{
+			name:    "no copy",
+			wantLog: []string{"level=INFO", `msg="no skill installed to bring up to date; setup writes it"`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claudeDir := t.TempDir()
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"CLAUDE_CONFIG_DIR": claudeDir})
+			path := filepath.Join(claudeDir, "skills", "switchboard", "SKILL.md")
+			if tt.install != nil {
+				tt.install(t, path)
+			}
+
+			srv.start(t)
+			if log := srv.routerLog(t); !hasLine(log, append(tt.wantLog, "path="+path)...) {
+				t.Errorf("router.log reads\n%s\nwant a line with %q", log, tt.wantLog)
+			}
+			found, err := skill.Refresh(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if current := found.Installed && !found.Rewritten; current != tt.wantCurrent {
+				t.Errorf("once serve has started, the copy there is %+v, want this switchboard's: %v", found, tt.wantCurrent)
+			}
+		})
+	}
+}
+
 // askPinned sends the router at url a messages request of one session, on
 // work's token and pinned to pin, and returns the status it's answered with.
 func askPinned(t *testing.T, url, pin string) int {
@@ -291,6 +462,50 @@ type serveSetup struct {
 	config string
 	// extra ends the config file.
 	extra string
+	// exited closes once the serve start runs has exited.
+	exited chan struct{}
+	// binary is the switchboard binary serve runs as, once watch has it
+	// watched: a link to one version, which upgrade moves on to next.
+	binary, next string
+}
+
+// watch has serve run as a binary of the test's, which upgrade moves on to
+// another version, and look at what it was started from every few
+// milliseconds.
+func (s *serveSetup) watch(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	s.binary, s.next = filepath.Join(dir, "bin", "switchboard"), filepath.Join(dir, "1.1", "switchboard")
+	current := filepath.Join(dir, "1.0", "switchboard")
+	for path, content := range map[string]string{current: "switchboard 1.0", s.next: "switchboard 1.1"} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(s.binary), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(current, s.binary); err != nil {
+		t.Fatal(err)
+	}
+	s.deps.Executable = func() (string, error) { return s.binary, nil }
+	s.deps.WatchEvery = 10 * time.Millisecond
+}
+
+// upgrade has the binary serve runs as lead to its next version, as an
+// upgrade does.
+func (s *serveSetup) upgrade(t *testing.T) {
+	t.Helper()
+	moved := s.binary + ".new"
+	if err := os.Symlink(s.next, moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(moved, s.binary); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // newServeSetup sets serve up against upstream, with env added to its
@@ -366,6 +581,7 @@ func (s *serveSetup) start(t *testing.T, args ...string) (stop func() result) {
 	root.SetErr(&stderr)
 	var code int
 	finished := make(chan struct{})
+	s.exited = finished
 	go func() {
 		code = cli.Execute(root)
 		close(finished)

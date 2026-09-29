@@ -82,6 +82,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - **Limits and replay.** A 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays; the account sits out until the reset the 429 gives. A 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing. A request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. When no account has room, Claude Code gets a 429, as it would from one account at its limit.
 - **Pins.** `switchboard pin` sends new sessions to one account, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. Every pin yields at a limit rather than failing. See [`pin`](#pin).
 - **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
+- **Looking after itself.** The router takes up a change to a token file as it comes, and restarts itself, once no request is in flight, when its config changes or `brew upgrade` replaces it, so `accounts add`, an edit by hand and an upgrade all take effect without a command. See [`serve`](#serve).
 
 ### The primary and its reserve
 
@@ -271,7 +272,7 @@ switchboard accounts remove <id>
 
 At a terminal, `add` and `token` ask for the token, which doesn't show as it's pasted; otherwise they read it from stdin. Make one with `claude setup-token`, run while signed in to that subscription. The token is checked with the API before it's saved: one the API refuses isn't saved, and one the API doesn't answer for is, with a warning. An interrupt while they wait for it saves nothing.
 
-The config is edited as text, keeping its comments and layout, and a config that's a link is written through, to where it leads. `switchboard service restart` has a running router read the config and the tokens afresh.
+The config is edited as text, keeping its comments and layout, and a config that's a link is written through, to where it leads. A running router takes the change up itself, as it does a token file's: see [`serve`](#serve).
 
 ```bash
 switchboard accounts add work --label Work --primary
@@ -376,6 +377,8 @@ switchboard run --direct
 
 Run the router in the foreground, until interrupted or terminated: the proxy, on `listen`, and its control API, on a unix socket in the state directory. The service normally runs it. It logs to the router's log, and to the terminal when it runs in one. A second router fails while one is running.
 
+Every 3 seconds, the router reads the token files again and takes up what's changed in place: an account goes out on the token its file holds now, and one whose file goes, or holds none it can use, has nothing to send on until it's back. It also looks at its config file, following links, and at the binary it was started as, the Homebrew link the service runs. Once the config changes into one that's valid, or an upgrade leads the link to another binary, the service's router waits for a moment with no request in flight, saves its state and exits, and launchd starts it again; a config that isn't valid is logged, and the router carries on as it was. Run by hand, the router logs, once, that a restart is due. As it starts, it makes the `tokens` directory private and brings the skill up to date.
+
 ```bash
 switchboard serve [--log-level <level>]
 ```
@@ -452,11 +455,11 @@ Which desktop notifications the router posts: see [Notifications](#notifications
 
 ### Tokens
 
-Each account's token is a file of its own, holding the token alone: `<state dir>/tokens/<id>`, as in `~/.local/state/switchboard/tokens/work`. The file must be yours, and neither readable nor writable by anyone else (`chmod 600`); otherwise the account counts as having no token, and `accounts` and `status` say why and how to fix it. Whitespace around the token is ignored. Switchboard keeps the `tokens` directory `0700` when it writes there, and reads no token from the environment.
+Each account's token is a file of its own, holding the token alone: `<state dir>/tokens/<id>`, as in `~/.local/state/switchboard/tokens/work`. The file must be yours, and neither readable nor writable by anyone else (`chmod 600`); otherwise the account counts as having no token, and `accounts` and `status` say why and how to fix it. Whitespace around the token is ignored. Switchboard keeps the `tokens` directory `0700` when it writes there, and the router makes it so as it starts; it reads no token from the environment.
 
 `setup`, `accounts add` and `accounts token` write the files, but anything can, such as a secrets manager's file export or a dotfiles step. An account whose token file already holds a usable token is added without asking for one.
 
-The router reads the tokens as it starts, and an account's file again when the API refuses the token it holds, so a rotated token needs no restart. Sessions started before a token was replaced still carry the old one, which the router routes as its account's for 7 days.
+The router reads the tokens as it starts, every account's file again every 3 seconds, and an account's file again when the API refuses the token it holds, so a changed token file needs no restart. Sessions started before a token was replaced still carry the old one, which the router routes as its account's for 7 days.
 
 ### Where things live
 

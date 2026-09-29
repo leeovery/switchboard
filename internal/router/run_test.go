@@ -257,6 +257,9 @@ func TestARestartedRouterStillTakesAReplacedTokenForItsAccounts(t *testing.T) {
 	store, files := withTokenFiles(t)
 	cfg := runConfig(t, up.URL)
 	files(&cfg)
+	// Work's token file is read again as the upstream refuses its token,
+	// never before.
+	cfg.WatchEvery = time.Hour
 	proxy := "http://" + cfg.Listen
 	stop := runRouter(t, cfg)
 	writeToken(t, store, "work", renewed)
