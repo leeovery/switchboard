@@ -28,6 +28,9 @@ var processStarters = []string{
 	// run's hand-over to claude, which replaces the process: main passes it
 	// to the CLI, and tests pass a fake that notes what it was given.
 	"internal/launch/exec_unix.go:Exec",
+	// launchctl, by name, for the service: main passes it to the CLI, and
+	// tests pass a fake that notes each call.
+	"internal/service/launchctl.go:Launchctl",
 }
 
 const (
