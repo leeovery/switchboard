@@ -3,9 +3,9 @@
 # Runs every test, race detector on, inside the macOS sandbox in
 # scripts/isolation.sb: no network beyond this machine, no unix socket outside
 # the temporary directory, nothing on the router's port, no writes into the
-# home directory but Go's caches, nor into switchboard's real config and
-# state, or Claude Code's config directory, wherever they are, or the
-# directories on PATH, and none of the real programs tests must never run.
+# home directory but Go's caches, nor into switchboard's real config, state
+# and bin directory, or Claude Code's config directory, wherever they are, or
+# the directories on PATH, and none of the real programs tests must never run.
 # Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
 #
 # The variables that can hold real tokens, or lead to the real tmux server or
@@ -67,11 +67,12 @@ absolute() {
 	esac
 }
 
-# switchboard's real config and state, where it finds them, and Claude Code's
-# config directory, where it reads switchboard's skill: read before scrub
-# unsets SWITCHBOARD_CONFIG and CLAUDE_CONFIG_DIR.
+# switchboard's real config, state and bin directory, where it finds them,
+# and Claude Code's config directory, where it reads switchboard's skill: read
+# before scrub unsets SWITCHBOARD_CONFIG and CLAUDE_CONFIG_DIR.
 config_dir=$(resolved "$(absolute "${XDG_CONFIG_HOME-}" "$HOME/.config")/switchboard")
 state_dir=$(resolved "$(absolute "${XDG_STATE_HOME-}" "$HOME/.local/state")/switchboard")
+bin_dir=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/bin")
 config=$(resolved "$(absolute "${SWITCHBOARD_CONFIG-}" "$config_dir/config.toml")")
 claude_dir=$(resolved "$(absolute "${CLAUDE_CONFIG_DIR-}" "$HOME/.claude")")
 
@@ -98,9 +99,9 @@ gocache=$(resolved "$(go env GOCACHE)")
 gomodcache=$(resolved "$(go env GOMODCACHE)")
 
 # outside_home_on_path prints the directories on PATH outside the home,
-# where the claude link goes, joined by colons as PATH joins them: each
-# resolved, and named once. A relative one leads wherever a program runs, and
-# one in the home is in the home's rule.
+# where a program run by name is found, joined by colons as PATH joins them:
+# each resolved, and named once. A relative one leads wherever a program runs,
+# and one in the home is in the home's rule.
 outside_home_on_path() {
 	local entries dir found list=
 	IFS=: read -r -a entries <<<"$PATH"
@@ -125,8 +126,8 @@ path_dirs=$(outside_home_on_path)
 sandboxed() {
 	"$sandbox_exec" -f "$repo/scripts/isolation.sb" \
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
-		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" -D CLAUDE_DIR="$claude_dir" \
-		-D PATH_DIRS="$path_dirs" "$@"
+		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" -D BIN_DIR="$bin_dir" \
+		-D CLAUDE_DIR="$claude_dir" -D PATH_DIRS="$path_dirs" "$@"
 }
 
 # denied runs a command in the sandbox, which must fail it with the refusal
@@ -290,6 +291,7 @@ self_check() {
 	denies_writing_in "home directory" "$home" || status=1
 	denies_writing_in "real config directory" "$config_dir" || status=1
 	denies_writing_in "real state directory" "$state_dir" || status=1
+	denies_writing_in "real bin directory" "$bin_dir" || status=1
 	denies_writing_in "real Claude Code config directory" "$claude_dir" || status=1
 	denies_writing_on_path || status=1
 	denies_writing_to "$config" || status=1

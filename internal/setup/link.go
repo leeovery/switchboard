@@ -2,177 +2,133 @@ package setup
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/claude"
 )
 
-// link puts a link named claude, leading to switchboard, in a directory on
-// PATH ahead of the real claude, so every claude goes through switchboard:
-// the first of the user's that they can write to, once they agree, else the
-// next they agree to. Where anything else is named claude, it's left alone,
-// and with nowhere to put the link, setup says what's in the way.
+// link has every claude started from PATH go through switchboard. It makes
+// switchboard's claude link, in switchboard's own directory, leading to
+// switchboard by the path it was run by, so an upgrade moves it on, or
+// repairs one there leading anywhere else: the directory is switchboard's.
+// Then it checks the directory is on PATH ahead of the real claude, and says
+// the line to add to the shell's startup file when it isn't: it never edits
+// one. Anything in the link's place that isn't a link is left alone, and
+// said to be.
 func (r *run) link(context.Context) error {
-	self, err := os.Stat(r.switchboard)
-	if err != nil {
-		return fmt.Errorf("find this switchboard binary: %w", err)
+	linked, err := r.makeLink()
+	if err != nil || !linked {
+		return err
 	}
 	realClaude, err := claude.Find(r.Path, r.InstallPaths, func() (string, error) { return r.switchboard, nil })
 	if err != nil {
-		r.Terminal.sayf("There's no claude to go ahead of: %v. Install Claude Code, then run setup again.", err)
+		r.Terminal.sayf("There's no Claude Code for claude to start: %v. Install it, then run setup again.", err)
 		return nil
 	}
-	p := place(r.Path, realClaude, self)
-	if p.linked != "" {
-		r.Terminal.sayf("claude goes through switchboard already: %s leads to it, ahead of %s.", p.linked, realClaude)
+	ahead, onPath := r.placed(realClaude)
+	if ahead {
+		r.Terminal.sayf("claude on PATH goes through switchboard, from %s.", r.Bin)
 		return nil
 	}
-	return r.offer(p, realClaude)
-}
-
-// offer offers each directory p places the link in, in turn, and links
-// claude in the first the user takes. One where something's named claude
-// already is passed over, and said to be.
-func (r *run) offer(p placement, realClaude string) error {
-	where := ""
-	if p.onPath {
-		where = ", ahead of " + realClaude + " on PATH"
-	}
-	var declined, taken bool
-	for _, dir := range p.dirs {
-		link := filepath.Join(dir, claude.Command)
-		if _, err := os.Lstat(link); err == nil {
-			r.Terminal.sayf("%s is there already, and isn't switchboard, so it's left alone.", link)
-			taken = true
-			continue
-		}
-		yes, err := r.Terminal.confirm(fmt.Sprintf("Link %s to switchboard%s, so every claude goes through switchboard?", link, where), true)
-		if err != nil {
-			return err
-		}
-		if yes {
-			return r.makeLink(link)
-		}
-		declined = true
-	}
-	r.Terminal.sayf("%s", notLinked(p, realClaude, declined, taken))
+	r.sayPathLine(onPath, filepath.Dir(realClaude))
 	return nil
 }
 
-// makeLink links claude, at link, to switchboard by the path it was run by,
-// so an upgrade moves the link on.
-func (r *run) makeLink(link string) error {
-	if err := os.Symlink(r.switchboard, link); err != nil {
+// makeLink makes switchboard's claude link, or repairs one leading anywhere
+// else, reporting whether it's there, as it should be. Anything else in its
+// place is left alone, and said to be.
+func (r *run) makeLink() (bool, error) {
+	link := filepath.Join(r.Bin, claude.Command)
+	info, err := os.Lstat(link)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return true, r.putLink(link, fmt.Sprintf("Linked %s to %s.", link, r.switchboard))
+	case err != nil:
+		return false, fmt.Errorf("look at switchboard's claude link: %w", err)
+	case info.Mode()&fs.ModeSymlink == 0:
+		r.Terminal.sayf("%s is there already, and isn't a link, so it's left alone, and claude isn't linked: move it aside, then run setup again.", link)
+		return false, nil
+	}
+	target, err := os.Readlink(link)
+	switch {
+	case err != nil:
+		return false, fmt.Errorf("look at switchboard's claude link: %w", err)
+	case target == r.switchboard:
+		r.Terminal.sayf("%s leads to switchboard, at %s.", link, r.switchboard)
+		return true, nil
+	}
+	return true, r.putLink(link, fmt.Sprintf("%s led to %s: it leads to switchboard, at %s, now.", link, target, r.switchboard))
+}
+
+// putLink puts the link at link to switchboard, making its directory, and
+// says so as done says. It's made beside where it goes, then renamed there,
+// so a claude run meanwhile finds the one there before, or this one.
+func (r *run) putLink(link, done string) error {
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		return fmt.Errorf("make switchboard's bin directory: %w", err)
+	}
+	made := fmt.Sprintf("%s.%d", link, os.Getpid())
+	if err := os.Symlink(r.switchboard, made); err != nil {
+		return fmt.Errorf("link claude to switchboard: %w", err)
+	}
+	if err := os.Rename(made, link); err != nil {
+		_ = os.Remove(made)
 		return fmt.Errorf("link claude to switchboard: %w", err)
 	}
 	logger.Info("linked claude to switchboard", "link", link, "switchboard", r.switchboard)
-	r.Terminal.sayf("Linked %s to %s: every claude goes through switchboard.", link, r.switchboard)
+	r.Terminal.sayf("%s", done)
 	return nil
 }
 
-// notLinked says why the link wasn't put anywhere p places it, ahead of the
-// real claude, at realClaude: the user declined each place offered, or it's
-// taken, or there was none.
-func notLinked(p placement, realClaude string, declined, taken bool) string {
-	ahead := ""
-	if p.onPath {
-		ahead = " ahead of " + filepath.Dir(realClaude)
+// placed reports whether switchboard's directory is on PATH ahead of the
+// real claude, at realClaude, and whether it's on PATH at all. A directory on
+// PATH that's the same directory, links followed, counts; a relative one
+// doesn't, as claude.Find passes it over.
+func (r *run) placed(realClaude string) (ahead, onPath bool) {
+	mine, err := os.Stat(r.Bin)
+	if err != nil {
+		return false, false
 	}
-	switch {
-	case declined:
-		return "Not linked: claude starts Claude Code without switchboard. Run setup again to link it."
-	case taken:
-		return fmt.Sprintf("There's nowhere else to put the link: move aside what's named claude, or add another directory of yours to PATH%s, then run setup again.", ahead)
-	case p.onPath:
-		return fmt.Sprintf("There's nowhere to put the link: no directory of yours on PATH ahead of %s, where claude is, can be written to. Add one to PATH ahead of it, then run setup again.", filepath.Dir(realClaude))
-	}
-	return fmt.Sprintf("There's nowhere to put the link: claude is at %s, off PATH, and no directory of yours on PATH can be written to. Add one to PATH, then run setup again.", realClaude)
-}
-
-// placement is where on PATH the claude link goes.
-type placement struct {
-	// linked is switchboard's claude link, when there's one ahead of the
-	// real claude already.
-	linked string
-	// dirs are the user's directories ahead of the real claude that they
-	// can write to, in PATH's order, each once.
-	dirs []string
-	// onPath is set when the real claude is on PATH, not found off it.
-	onPath bool
-}
-
-// place finds where on PATH, as pathList lists it, the claude link goes,
-// ahead of the real claude, at realClaude: switchboard is the file self
-// describes. Only absolute directories count, as claude.Find counts them.
-func place(pathList, realClaude string, self os.FileInfo) placement {
-	var p placement
-	for _, dir := range filepath.SplitList(pathList) {
+	behind := false
+	for _, dir := range filepath.SplitList(r.Path) {
 		if !filepath.IsAbs(dir) {
 			continue
 		}
-		dir = filepath.Clean(dir)
-		if dir == filepath.Dir(realClaude) {
-			p.onPath = true
-			break
+		if info, err := os.Stat(dir); err == nil && os.SameFile(info, mine) {
+			return !behind, true
 		}
-		if named := filepath.Join(dir, claude.Command); isSwitchboard(named, self) {
-			return placement{linked: named}
-		}
-		if writable(dir) && !kept(dir) && !slices.Contains(p.dirs, dir) {
-			p.dirs = append(p.dirs, dir)
-		}
+		behind = behind || filepath.Clean(dir) == filepath.Dir(realClaude)
 	}
-	return p
+	return false, false
 }
 
-// keepers are the directories other programs keep what they install in, as
-// their own: Homebrew's kegs and casks, which an upgrade replaces, and
-// package managers' packages.
-var keepers = []string{"Cellar", "Caskroom", "node_modules", "vendor"}
-
-// kept reports whether dir, its links resolved, is another program's rather
-// than the user's to put things in: within one of keepers, or an app
-// bundle, whose signature a link in it would break, or npm's global bin.
-func kept(dir string) bool {
-	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil {
-		return false
+// sayPathLine says why claude on PATH doesn't go through switchboard yet,
+// the real claude's directory being claudeDir, and the line to add to the
+// shell's startup file that has it do so.
+func (r *run) sayPathLine(onPath bool, claudeDir string) {
+	why := r.Bin + " isn't on PATH"
+	if onPath {
+		why = fmt.Sprintf("%s is on PATH, but after %s, where Claude Code is", r.Bin, claudeDir)
 	}
-	for part := range strings.SplitSeq(resolved, string(filepath.Separator)) {
-		if slices.Contains(keepers, part) || strings.HasSuffix(part, ".app") {
-			return true
-		}
+	r.Terminal.sayf("claude doesn't go through switchboard yet: %s. Add this line to your shell's startup file, such as ~/.zshrc, after anything else there that changes PATH, so it stays ahead of %s:", why, claudeDir)
+	r.Terminal.sayf("%s", exportLine(r.Bin, r.Home))
+	r.Terminal.sayf("Running setup again, in a new terminal, checks it.")
+}
+
+// exportLine is the line of a shell's startup file that puts dir first on
+// PATH, dir written from $HOME when it's in home.
+func exportLine(dir, home string) string {
+	written := doubleQuoted(dir)
+	if rel, err := filepath.Rel(home, dir); home != "" && err == nil && filepath.IsLocal(rel) {
+		written = "$HOME/" + doubleQuoted(filepath.ToSlash(rel))
 	}
-	return npmsBin(resolved)
+	return `export PATH="` + written + `:$PATH"`
 }
 
-// npmsBin reports whether dir is npm's global bin, beside lib/node_modules,
-// where npm links what it installs, Claude Code's claude among them when
-// it's installed with npm: unless it's Homebrew's own prefix, beside its
-// Cellar, whose bin is where links go.
-func npmsBin(dir string) bool {
-	prefix := filepath.Dir(dir)
-	return filepath.Base(dir) == "bin" && exists(filepath.Join(prefix, "lib", "node_modules")) && !exists(filepath.Join(prefix, "Cellar"))
-}
-
-func exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-// isSwitchboard reports whether path leads, links followed, to switchboard,
-// the file self describes.
-func isSwitchboard(path string, self os.FileInfo) bool {
-	info, err := os.Stat(path)
-	return err == nil && os.SameFile(info, self)
-}
-
-// writable reports whether dir is a directory the user can write to.
-func writable(dir string) bool {
-	info, err := os.Stat(dir)
-	return err == nil && info.IsDir() && canWrite(dir)
-}
+// doubleQuoted escapes what a shell reads specially between double quotes.
+var doubleQuoted = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\\`").Replace

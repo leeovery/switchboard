@@ -41,12 +41,13 @@ func TestSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bin := filepath.Join(root, "bin")
-	if err := os.Mkdir(bin, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	data := filepath.Join(root, "data")
+	bin := filepath.Join(data, "switchboard", "bin")
 	realClaude := claudetest.Program(t, filepath.Join(root, "claude-code", "claude"))
 	claudeConfig := filepath.Join(root, "claude")
+	s.setenv("XDG_DATA_HOME", data)
+	// switchboard's bin directory on PATH ahead of claude's, as the line
+	// setup says to add puts it, before setup has made it.
 	s.setenv("PATH", bin+string(filepath.ListSeparator)+filepath.Dir(realClaude))
 	s.setenv("CLAUDE_CONFIG_DIR", claudeConfig)
 	atATerminal(&s.srv.deps)
@@ -55,7 +56,6 @@ func TestSetup(t *testing.T) {
 		"", // no more accounts
 		"", // work, the first, the primary
 		"", // no priming
-		"", // yes, link claude
 	}, "\n") + "\n"
 
 	got := runWithInput(t, s.srv.deps, answers, "setup")
@@ -72,8 +72,7 @@ func TestSetup(t *testing.T) {
 		"Priming stays off.\n",
 		"\n3. The service\nInstalled " + s.plist + ": ",
 		"The router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + ".\n",
-		"\n4. The claude link\n",
-		"Linked " + link + " to " + s.binary + ": every claude goes through switchboard.\n",
+		"\n4. The claude link\nLinked " + link + " to " + s.binary + ".\nclaude on PATH goes through switchboard, from " + bin + ".\n",
 		"\n5. The skill\nInstalled the skill, which tells Claude what switchboard does under claude: " + skill + "\n",
 		"\n6. Usage\n",
 	} {

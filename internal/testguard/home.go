@@ -16,13 +16,14 @@ import (
 var (
 	configDir       = filepath.Join(".config", "switchboard")
 	stateDir        = filepath.Join(".local", "state", "switchboard")
+	binDir          = filepath.Join(".local", "share", "switchboard", "bin")
 	launchAgentsDir = filepath.Join("Library", "LaunchAgents")
 	claudeDir       = ".claude"
 	skillDir        = filepath.Join("skills", "switchboard")
 )
 
-// claudeLink is the name of switchboard's claude link, in a directory on
-// PATH.
+// claudeLink is the name of switchboard's claude link, which a directory on
+// PATH holds ahead of the real claude.
 const claudeLink = "claude"
 
 // watcher watches something of the real system's, as closely as a live
@@ -48,8 +49,9 @@ func (ws watchers) changes() []string {
 // SWITCHBOARD_CONFIG, XDG_CONFIG_HOME and XDG_STATE_HOME put them, as getenv
 // reads them; its files among the LaunchAgents in home; its skill in Claude
 // Code's config directory, by default in home, and wherever CLAUDE_CONFIG_DIR
-// puts it; and what's named claude in each directory on PATH, where its
-// claude link goes. Nothing live writes the config, a LaunchAgent, the skill
+// puts it; its bin directory, which holds its claude link, by default in
+// home, and wherever XDG_DATA_HOME puts it; and what's named claude in each
+// directory on PATH. Nothing live writes the config, a LaunchAgent, the skill
 // or a claude link as it runs, so any change to one is a test's. A live
 // router writes its state as it runs, its logs and state.json among it, so
 // only a state directory appearing is a test's; and the OS sandbox denies a
@@ -57,7 +59,7 @@ func (ws watchers) changes() []string {
 func watchReal(home string, getenv func(string) string) watchers {
 	var ws watchers
 	for _, p := range configPlaces(home, getenv) {
-		ws = append(ws, watchContents(p, nil))
+		ws = append(ws, watchContents(p, nil, followed))
 	}
 	for _, p := range statePlaces(home, getenv) {
 		if !exists(p.path) {
@@ -65,13 +67,13 @@ func watchReal(home string, getenv func(string) string) watchers {
 		}
 	}
 	if home != "" {
-		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard))
+		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard, followed))
 	}
 	for _, p := range skillPlaces(home, getenv) {
-		ws = append(ws, watchContents(p, nil))
+		ws = append(ws, watchContents(p, nil, followed))
 	}
-	for _, p := range claudeLinkPlaces(getenv) {
-		ws = append(ws, watchEntry(p))
+	for _, p := range slices.Concat(binPlaces(home, getenv), claudeLinkPlaces(getenv)) {
+		ws = append(ws, watchContents(p, nil, asItIs))
 	}
 	return ws
 }
@@ -132,7 +134,20 @@ func skillPlaces(home string, getenv func(string) string) []place {
 	return places
 }
 
-// claudeLinkPlaces are where a claude link on PATH goes, as getenv reads
+// binPlaces are where switchboard's bin directory is, which holds its claude
+// link: by default in home, and where XDG_DATA_HOME says.
+func binPlaces(home string, getenv func(string) string) []place {
+	var places []place
+	if home != "" {
+		places = append(places, inHome(home, binDir))
+	}
+	if dir := getenv("XDG_DATA_HOME"); filepath.IsAbs(dir) {
+		places = append(places, named(filepath.Join(dir, "switchboard", "bin")))
+	}
+	return places
+}
+
+// claudeLinkPlaces are where a claude on PATH would be found, as getenv reads
 // PATH: in each of its directories, once, however many times PATH names it. A
 // relative directory names none testguard can know, as it's relative to
 // wherever the program looking in it runs.
@@ -176,15 +191,16 @@ func named(where string) place {
 }
 
 // contents watches what's at a place, and everything under it, that keep
-// keeps, or all of it when keep is nil.
+// keeps, or all of it when keep is nil, each noted as note notes it.
 type contents struct {
 	place
 	keep   func(name string) bool
+	note   func(path string) (entry, bool)
 	before snapshot
 }
 
-func watchContents(p place, keep func(name string) bool) contents {
-	c := contents{place: p, keep: keep}
+func watchContents(p place, keep func(name string) bool, note func(path string) (entry, bool)) contents {
+	c := contents{place: p, keep: keep, note: note}
 	c.before = c.take()
 	return c
 }
@@ -193,56 +209,45 @@ func (c contents) changes() []string {
 	return diff(c.before, c.take())
 }
 
-// take notes what the place holds, following symlinks: a config kept
-// elsewhere, such as with dotfiles, and linked in is the real one all the
-// same. One that isn't there holds nothing.
+// take notes what the place holds. One that isn't there holds nothing.
 func (c contents) take() snapshot {
 	s := make(snapshot)
 	_ = filepath.WalkDir(c.path, func(p string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		info, err := os.Stat(p)
-		if err != nil {
+		e, ok := c.note(p)
+		if !ok {
 			return nil
 		}
 		rel, _ := filepath.Rel(c.path, p)
 		if shown := path.Join(c.shown, filepath.ToSlash(rel)); c.keep == nil || c.keep(shown) {
-			s[shown] = entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano()}
+			s[shown] = e
 		}
 		return nil
 	})
 	return s
 }
 
-// entryAt watches what's at a place itself, not following it: a link as a
-// link, so one made, or made to lead elsewhere, even nowhere, is seen.
-type entryAt struct {
-	place
-	before snapshot
-}
-
-func watchEntry(p place) entryAt {
-	e := entryAt{place: p}
-	e.before = e.take()
-	return e
-}
-
-func (e entryAt) changes() []string {
-	return diff(e.before, e.take())
-}
-
-// take notes what's at the place, and where it leads when it's a link. One
-// that isn't there holds nothing.
-func (e entryAt) take() snapshot {
-	s := make(snapshot)
-	info, err := os.Lstat(e.path)
+// followed notes what's at path, links followed: a config kept elsewhere,
+// such as with dotfiles, and linked in is the real one all the same.
+func followed(path string) (entry, bool) {
+	info, err := os.Stat(path)
 	if err != nil {
-		return s
+		return entry{}, false
 	}
-	target, _ := os.Readlink(e.path)
-	s[e.shown] = entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano(), target: target}
-	return s
+	return entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano()}, true
+}
+
+// asItIs notes what's at path itself, a link as a link, with where it leads,
+// so one made, or made to lead elsewhere, even nowhere, is seen.
+func asItIs(path string) (entry, bool) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return entry{}, false
+	}
+	target, _ := os.Readlink(path)
+	return entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano(), target: target}, true
 }
 
 // mentionsSwitchboard reports whether a file's name mentions switchboard, in

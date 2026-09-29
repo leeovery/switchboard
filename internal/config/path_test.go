@@ -126,6 +126,45 @@ func TestStateDirWithoutHomeDirectory(t *testing.T) {
 	}
 }
 
+func TestBinDir(t *testing.T) {
+	home := func() (string, error) { return "/home/tester", nil }
+	tests := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{name: "XDG_DATA_HOME", env: map[string]string{"XDG_DATA_HOME": "/xdg/data"}, want: "/xdg/data/switchboard/bin"},
+		{name: "home directory", want: "/home/tester/.local/share/switchboard/bin"},
+		{name: "empty XDG_DATA_HOME counts as unset", env: map[string]string{"XDG_DATA_HOME": ""}, want: "/home/tester/.local/share/switchboard/bin"},
+		{name: "relative XDG_DATA_HOME is ignored", env: map[string]string{"XDG_DATA_HOME": "relative/data"}, want: "/home/tester/.local/share/switchboard/bin"},
+		{
+			name: "the other XDG directories don't move it",
+			env:  map[string]string{"XDG_CONFIG_HOME": "/xdg/config", "XDG_STATE_HOME": "/xdg/state"},
+			want: "/home/tester/.local/share/switchboard/bin",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.BinDir(envFrom(tt.env), home)
+			if err != nil || got != tt.want {
+				t.Errorf("BinDir() = %q, %v; want %q", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestBinDirWithoutHomeDirectory(t *testing.T) {
+	errNoHome := errors.New("no home directory")
+	noHome := func() (string, error) { return "", errNoHome }
+
+	if _, err := config.BinDir(envFrom(map[string]string{"XDG_DATA_HOME": "/xdg/data"}), noHome); err != nil {
+		t.Errorf("BinDir() with XDG_DATA_HOME set: error = %v, want none", err)
+	}
+	if _, err := config.BinDir(envFrom(nil), noHome); !errors.Is(err, errNoHome) {
+		t.Errorf("BinDir() with nothing set: error = %v, want %v", err, errNoHome)
+	}
+}
+
 // envFrom returns a getenv backed by vars, so tests never read the real environment.
 func envFrom(vars map[string]string) func(string) string {
 	return func(key string) string { return vars[key] }

@@ -45,9 +45,10 @@ day = "08:00-23:00"
 
 // world is what setup sets up, every part of it under a directory of the
 // test's own: the config file; the state directory, with the token files; a
-// home, where the LaunchAgent's plist goes; Claude Code's config directory;
-// the directories on PATH; Claude Code; and this switchboard, run by a link
-// as Homebrew links it. launchd, the router and the API are fakes.
+// home, where the LaunchAgent's plist and switchboard's bin directory go;
+// Claude Code's config directory; the directories on PATH; Claude Code; and
+// this switchboard, run by a link as Homebrew links it. launchd, the router
+// and the API are fakes.
 type world struct {
 	root   string
 	config string
@@ -57,8 +58,8 @@ type world struct {
 	skill  string
 	// switchboard is the path switchboard is run by, a link to its version.
 	switchboard string
-	// bin is the first directory on PATH, which the user can write to, and
-	// realClaude is Claude Code, in a directory after it.
+	// bin is switchboard's own directory for PATH, and realClaude is Claude
+	// Code, on PATH.
 	bin, realClaude string
 	path            []string
 	installPaths    []string
@@ -80,18 +81,22 @@ func newWorld(t *testing.T) *world {
 		home:    at("home"),
 		tmp:     at("tmp"),
 		skill:   at("claude", "skills", "switchboard", "SKILL.md"),
-		bin:     at("bin"),
+		bin:     at("home", ".local", "share", "switchboard", "bin"),
 		launchd: &fakeLaunchd{},
 		api:     &fakeAPI{},
 	}
-	for _, dir := range []string{w.tmp, w.bin} {
-		mkdir(t, dir)
-	}
+	mkdir(t, w.tmp)
 	version := claudetest.Program(t, at("Cellar", "switchboard", "1.2.3", "bin", "switchboard"))
 	w.switchboard = claudetest.Link(t, version, at("brew", "bin", "switchboard"))
 	w.realClaude = claudetest.Program(t, at("claude-code", "bin", "claude"))
-	w.path = []string{w.bin, filepath.Dir(w.realClaude)}
+	w.path = []string{filepath.Dir(w.realClaude)}
 	return w
+}
+
+// putBinOnPath puts switchboard's bin directory first on PATH, as the line
+// setup says to add does.
+func (w *world) putBinOnPath() {
+	w.path = append([]string{w.bin}, w.path...)
 }
 
 // setup is setup in the world, at the terminal the user is at.
@@ -117,6 +122,8 @@ func (w *world) setup(t *testing.T, u *user) *setup.Setup {
 		Install:      service.InstallOptions{Executable: w.switchboard},
 		Path:         strings.Join(w.path, string(filepath.ListSeparator)),
 		InstallPaths: w.installPaths,
+		Bin:          w.bin,
+		Home:         w.home,
 		Skill:        w.skill,
 		Usage: func(_ context.Context, out io.Writer) error {
 			_, err := io.WriteString(out, "(every account's usage)\n")
@@ -149,9 +156,10 @@ func (w *world) runs(t *testing.T, answers ...string) string {
 	return shown
 }
 
-// done lays the world out as the first run of setup leaves it: doneConfig,
-// with both accounts' tokens; the service installed, and its router up;
-// claude linked to switchboard; and the skill installed.
+// done lays the world out as the first run of setup leaves it, once the user
+// has put switchboard's bin directory on PATH as it says: doneConfig, with
+// both accounts' tokens; the service installed, and its router up;
+// switchboard's claude link; and the skill installed.
 func (w *world) done(t *testing.T) {
 	t.Helper()
 	w.writeConfig(t, doneConfig)
@@ -159,6 +167,7 @@ func (w *world) done(t *testing.T) {
 	w.writeToken(t, "side", "test-token-side")
 	w.installService(t)
 	claudetest.Link(t, w.switchboard, filepath.Join(w.bin, "claude"))
+	w.putBinOnPath()
 	if err := skill.Install(w.skill); err != nil {
 		t.Fatal(err)
 	}

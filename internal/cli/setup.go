@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/skill"
@@ -67,6 +68,10 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 	if err != nil {
 		return nil, err
 	}
+	bin, err := config.BinDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return nil, err
+	}
 	// Without a home directory, only the install paths outside it are tried.
 	home, _ := a.HomeDir()
 	return &setup.Setup{
@@ -76,6 +81,8 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 		Install:      service.InstallOptions{Executable: exe, Config: a.configPath},
 		Path:         a.Getenv("PATH"),
 		InstallPaths: claude.InstallPaths(home),
+		Bin:          bin,
+		Home:         home,
 		Skill:        skillPath,
 		Usage: func(ctx context.Context, out io.Writer) error {
 			return a.printUsage(ctx, out, false)

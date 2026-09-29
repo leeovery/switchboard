@@ -15,15 +15,14 @@ import (
 )
 
 // firstRun are the answers of a user setting switchboard up from nothing:
-// work and side, with their tokens, work the primary, priming over
-// 08:00-23:00, and claude linked.
+// work and side, with their tokens, work the primary, and priming over
+// 08:00-23:00.
 var firstRun = []string{
 	"work", "Work", "test-token-work",
 	"y", "side", "Side", "test-token-side",
 	"",            // no more accounts
 	"",            // work, the first, the primary
 	"08:00-23:00", // the day
-	"",            // yes, link claude
 }
 
 func TestAFirstRunSetsEverythingUp(t *testing.T) {
@@ -84,6 +83,8 @@ func TestSetupLogsWhatItChangesButNoToken(t *testing.T) {
 func TestRunningSetupAgainDoesNothingNew(t *testing.T) {
 	w := newWorld(t)
 	w.runs(t, firstRun...)
+	// The user adds the line the first run said to add.
+	w.putBinOnPath()
 	before := w.snapshot(t)
 	w.launchd.calls, w.api.asked = nil, nil
 
@@ -176,9 +177,6 @@ func TestSetupNeedsAnAccount(t *testing.T) {
 func TestSetupRefusesATemporaryBuildBeforeItAsksAnything(t *testing.T) {
 	w := newWorld(t)
 	w.done(t)
-	if err := os.Remove(filepath.Join(w.bin, "claude")); err != nil {
-		t.Fatal(err)
-	}
 	built := filepath.Join(w.tmp, "go-build", "switchboard")
 	writeFile(t, built, "#!/bin/sh\n", 0o700)
 	w.switchboard = built

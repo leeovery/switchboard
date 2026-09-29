@@ -73,6 +73,7 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 		{does: "create-the-real-state", want: "the real ~/.local/state/switchboard appeared"},
 		{does: "install-the-real-launch-agent", want: "the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was created"},
 		{does: "install-the-real-skill", want: "the real ~/.claude/skills/switchboard/SKILL.md was created"},
+		{does: "link-claude-in-the-real-bin-directory", want: "the real ~/.local/share/switchboard/bin/claude was created"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
@@ -188,6 +189,15 @@ func TestInChild(t *testing.T) {
 		writeFile(t, filepath.Join(realHome, agentFile), "<plist version=\"1.0\"/>\n")
 	case "install-the-real-skill":
 		writeFile(t, filepath.Join(realHome, skillFile), "---\nname: switchboard\n---\n")
+	case "link-claude-in-the-real-bin-directory":
+		// A link to a switchboard that isn't there: seen all the same.
+		link := filepath.Join(realHome, ".local", "share", "switchboard", "bin", "claude")
+		if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join(realHome, "switchboard"), link); err != nil {
+			t.Fatal(err)
+		}
 	case "overwrite-the-config-SWITCHBOARD_CONFIG-names":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "work.toml"), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
 	case "create-the-state-where-XDG_STATE_HOME-puts-it":

@@ -36,6 +36,25 @@ func Find(pathList string, installPaths []string, executable func() (string, err
 	return "", fmt.Errorf("can't find %s: it isn't on PATH, nor at %s", what, strings.Join(installPaths, ", "))
 }
 
+// ThroughSwitchboard reports whether the claude a shell runs from PATH, the
+// first program named claude in the directories pathList names, is
+// switchboard's own executable, as executable gives it, links followed: its
+// claude link, which every claude started from PATH goes through. With no
+// claude on PATH, none does. It fails when executable does, as there's no
+// telling then.
+func ThroughSwitchboard(pathList string, executable func() (string, error)) (bool, error) {
+	self, err := statExecutable(executable)
+	if err != nil {
+		return false, err
+	}
+	for _, path := range onPath(pathList) {
+		if info, err := os.Stat(path); err == nil && isProgram(info) {
+			return os.SameFile(info, self), nil
+		}
+	}
+	return false, nil
+}
+
 // statExecutable describes the file executable names, links followed.
 func statExecutable(executable func() (string, error)) (os.FileInfo, error) {
 	path, err := executable()

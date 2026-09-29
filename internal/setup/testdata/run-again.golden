@@ -13,7 +13,8 @@ Priming is on, over 08:00-23:00.
 The service is installed, and the router is up: healthy, pid 4242.
 
 4. The claude link
-claude goes through switchboard already: <root>/bin/claude leads to it, ahead of <root>/claude-code/bin/claude.
+<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.
+claude on PATH goes through switchboard, from <root>/home/.local/share/switchboard/bin.
 
 5. The skill
 The skill is installed, and up to date: <root>/claude/skills/switchboard/SKILL.md

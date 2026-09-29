@@ -24,7 +24,7 @@ var ErrNoTerminal = errors.New(`setup asks as it goes, so it needs a terminal: r
   1. Accounts: switchboard accounts add <id> --label <label>, with --primary for the one the browser and the Claude apps are signed into, and switchboard accounts token <id> for one without a usable token
   2. Priming, optionally: day = "HH:MM-HH:MM" in the config's [prime] table
   3. The service: switchboard service install, or switchboard service restart once it's installed
-  4. The claude link: ln -s "$(command -v switchboard)" <a directory ahead of claude's on PATH>/claude
+  4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory on PATH ahead of claude's
   5. The skill: setup alone writes it
   6. Every account's usage: switchboard usage`)
 
@@ -46,10 +46,14 @@ type Setup struct {
 	// file given, if one was.
 	Service *service.Service
 	Install service.InstallOptions
-	// Path is PATH, which claude is found on, and the claude link goes on,
-	// and InstallPaths where Claude Code's installers put claude.
+	// Path is PATH, which claude is found on, and InstallPaths where Claude
+	// Code's installers put claude.
 	Path         string
 	InstallPaths []string
+	// Bin is switchboard's own directory for PATH, which holds the claude
+	// link alone, and Home the home directory, which the line that puts Bin
+	// on PATH writes as $HOME.
+	Bin, Home string
 	// Skill is where Claude Code reads the skill.
 	Skill string
 	// Usage shows every account's usage on out, as switchboard usage does.

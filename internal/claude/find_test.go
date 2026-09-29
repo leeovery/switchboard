@@ -127,6 +127,62 @@ func TestFind(t *testing.T) {
 	}
 }
 
+func TestThroughSwitchboard(t *testing.T) {
+	root := t.TempDir()
+	at := func(parts ...string) string { return filepath.Join(append([]string{root}, parts...)...) }
+	// switchboard, run by the link Homebrew makes, and its claude link.
+	claudetest.Program(t, at("Cellar", "switchboard", "bin", "switchboard"))
+	brewLink := claudetest.Link(t, filepath.Join("..", "..", "Cellar", "switchboard", "bin", "switchboard"), at("brew", "bin", "switchboard"))
+	claudetest.Link(t, brewLink, at("links", "claude"))
+	claudetest.Program(t, at("real", "claude"))
+	claudetest.Link(t, at("gone", "switchboard"), at("dangling", "claude"))
+	if err := os.MkdirAll(at("directory", "claude"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(at("not-runnable"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(at("not-runnable", "claude"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		// path lists the directories on PATH.
+		path    []string
+		selfErr error
+		want    bool
+		wantErr string
+	}{
+		{name: "switchboard's claude link first", path: []string{at("links"), at("real")}, want: true},
+		{
+			name: "past what isn't a program, as a shell passes it",
+			path: []string{at("dangling"), at("directory"), at("not-runnable"), at("links"), at("real")},
+			want: true,
+		},
+		{name: "Claude Code first", path: []string{at("real"), at("links")}},
+		{name: "no claude on PATH", path: []string{at("brew", "bin")}},
+		{name: "past relative directories, as claude.Find passes them", path: []string{".", at("real")}},
+		{
+			name:    "without switchboard's own executable, no telling",
+			path:    []string{at("links")},
+			selfErr: errors.New("no path for the executable"),
+			wantErr: "no path for the executable",
+		},
+	}
+	// A relative directory on PATH leads here, where switchboard's link is.
+	t.Chdir(at("links"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			executable := func() (string, error) { return brewLink, tt.selfErr }
+
+			got, err := claude.ThroughSwitchboard(strings.Join(tt.path, string(filepath.ListSeparator)), executable)
+			if got != tt.want || errorText(err) != tt.wantErr {
+				t.Errorf("ThroughSwitchboard() = %v, %v; want %v, and the error %q", got, err, tt.want, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestInstalledVersionAsksTheClaudeFindFinds(t *testing.T) {
 	// stub writes a program at path that says it's version.
 	stub := func(path, version string) string {

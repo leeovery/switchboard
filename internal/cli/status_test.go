@@ -7,11 +7,13 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
 )
 
@@ -129,6 +131,45 @@ from the router: healthy  ·  2 sessions  ·  routing automatically
 `}
 	if got != want {
 		t.Errorf("switchboard status =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+func TestStatusSaysWhenClaudeOnPathIsntSwitchboard(t *testing.T) {
+	const unrouted = "claude on PATH isn't switchboard, so the sessions it starts don't go through the router: run switchboard setup\n\n"
+	root := t.TempDir()
+	// switchboard, its claude link in its bin directory, and Claude Code.
+	binary := claudetest.Program(t, filepath.Join(root, "brew", "switchboard"))
+	linked := filepath.Dir(claudetest.Link(t, binary, filepath.Join(root, "switchboard", "bin", "claude")))
+	claudeCode := filepath.Dir(claudetest.Program(t, filepath.Join(root, "claude-code", "claude")))
+	tests := []struct {
+		name string
+		// path lists the directories on PATH.
+		path     []string
+		args     []string
+		wantCode int
+		// wantSaid is set when the text starts saying so.
+		wantSaid bool
+	}{
+		{name: "switchboard, first on PATH", path: []string{linked, claudeCode}, args: []string{"status"}},
+		{name: "Claude Code, first on PATH", path: []string{claudeCode, linked}, args: []string{"status"}, wantSaid: true},
+		{name: "no claude on PATH", args: []string{"status"}, wantSaid: true},
+		{name: "Claude Code, first on PATH, as JSON", path: []string{claudeCode}, args: []string{"status", "--json"}},
+		{name: "Claude Code, first on PATH, a session asked after", path: []string{claudeCode}, args: []string{"status", "--session", "0b5c"}, wantCode: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"PATH": strings.Join(tt.path, string(filepath.ListSeparator))})
+			deps.Executable = func() (string, error) { return binary, nil }
+
+			got := run(t, deps, tt.args...)
+			if said := strings.HasPrefix(got.stdout, unrouted); got.code != tt.wantCode || said != tt.wantSaid || strings.Count(got.stdout+got.stderr, "isn't switchboard") > 1 {
+				t.Errorf("switchboard %s = %+v; want exit status %d, and saying claude on PATH isn't switchboard, first, once: %v",
+					strings.Join(tt.args, " "), got, tt.wantCode, tt.wantSaid)
+			}
+			if !tt.wantSaid && strings.Contains(got.stdout+got.stderr, "isn't switchboard") {
+				t.Errorf("switchboard %s = %+v; want nothing said of claude on PATH", strings.Join(tt.args, " "), got)
+			}
+		})
 	}
 }
 
