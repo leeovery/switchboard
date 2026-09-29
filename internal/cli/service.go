@@ -72,7 +72,12 @@ func newServiceRestartCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the router, which reads the config and the tokens afresh",
-		Args:  cobra.NoArgs,
+		Long: `Restart the router, which reads the config and the tokens afresh. It stops as
+it does at a signal, giving the requests in flight up to 30 seconds to finish,
+and launchd starts it again; restart waits for the new one to answer. With no
+router answering, there's nothing to finish, and launchd starts the service
+afresh at once.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.restartService(cmd.Context(), cmd.OutOrStdout())
 		},

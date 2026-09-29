@@ -30,7 +30,8 @@ const Label = "io.github.leeovery.switchboard"
 
 const (
 	// StartWait is how long installing or restarting the service waits for
-	// the router launchd starts to answer.
+	// the router launchd starts to answer, once any router before it has had
+	// the time launchd gives it to stop.
 	StartWait = 5 * time.Second
 	// startPoll is how often it asks.
 	startPoll = 100 * time.Millisecond
@@ -140,7 +141,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
-	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, before)}, nil
+	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, before, StartWait)}, nil
 }
 
 // prepare checks what the service is to run, and describes the LaunchAgent
@@ -189,10 +190,15 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 	return true, nil
 }
 
-// Restart has launchd stop the router and start it again, reading the config
-// and the tokens afresh, and returns the answer of the router it starts, or
-// nil when none answers within StartWait. It fails with ErrNotLoaded when
-// launchd hasn't loaded the service.
+// Restart has the router stop and launchd start it again, reading the config
+// and the tokens afresh, and returns the answer of the router launchd starts,
+// or nil when none answers in time. A router that answers is sent SIGTERM,
+// and stops as it does at any signal, finishing the requests in flight
+// within exitTimeout, as launchd would give it; launchd, keeping the service
+// alive, then starts it again. With none answering, there's nothing to
+// finish, and launchd starts the service afresh at once, stopping any
+// process of it. It fails with ErrNotLoaded when launchd hasn't loaded the
+// service.
 func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 	loaded, err := s.loaded(ctx)
 	switch {
@@ -202,11 +208,15 @@ func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 		return nil, ErrNotLoaded
 	}
 	before := s.pid(ctx)
-	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {
+	args, wait := []string{"kill", "SIGTERM", s.target()}, exitTimeout+StartWait
+	if before == 0 {
+		args, wait = []string{"kickstart", "-k", s.target()}, StartWait
+	}
+	if err := s.launchctl(ctx, args...); err != nil {
 		return nil, err
 	}
-	logger.Info("restarted the service")
-	return s.waitForRouter(ctx, before), nil
+	logger.Info("restarting the service", "pid", before)
+	return s.waitForRouter(ctx, before, wait), nil
 }
 
 // Status is how the service stands.
@@ -352,7 +362,7 @@ func (s *Service) unload(ctx context.Context) error {
 	if err != nil || !loaded {
 		return err
 	}
-	return s.launchctl(ctx, "bootout", s.target())
+	return s.launchctlWithin(ctx, bootoutTimeout, "bootout", s.target())
 }
 
 // pid is the process id of the router answering now, or 0 when none is.
@@ -364,11 +374,11 @@ func (s *Service) pid(ctx context.Context) int {
 	return h.PID
 }
 
-// waitForRouter waits up to StartWait for a router to answer, other than the
-// one whose process id is before, which launchd may not have stopped yet,
-// and returns its answer, or nil when none does.
-func (s *Service) waitForRouter(ctx context.Context, before int) *router.Health {
-	ctx, cancel := context.WithTimeout(ctx, StartWait)
+// waitForRouter waits up to wait for a router to answer, other than the one
+// whose process id is before, which launchd may not have stopped yet, and
+// returns its answer, or nil when none does.
+func (s *Service) waitForRouter(ctx context.Context, before int, wait time.Duration) *router.Health {
+	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	for {
 		if h, err := s.cfg.Router.Health(ctx); err == nil && h.PID != before {
@@ -377,7 +387,7 @@ func (s *Service) waitForRouter(ctx context.Context, before int) *router.Health 
 		}
 		select {
 		case <-ctx.Done():
-			logger.Warn("the router didn't answer", "within", StartWait)
+			logger.Warn("the router didn't answer", "within", wait)
 			return nil
 		case <-time.After(startPoll):
 		}
