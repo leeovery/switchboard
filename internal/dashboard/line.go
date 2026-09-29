@@ -3,7 +3,6 @@ package dashboard
 import (
 	"slices"
 	"strings"
-	"unicode"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -76,19 +75,6 @@ func spaces(n int) span {
 // rule is a horizontal border n cells long.
 func rule(n int) string {
 	return strings.Repeat("─", max(n, 0))
-}
-
-// clean makes text fit to lay out on one line: control characters, which
-// would move the cursor or restyle what follows, become spaces, and each run
-// of spaces becomes one.
-func clean(text string) string {
-	text = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, text)
-	return strings.Join(strings.Fields(text), " ")
 }
 
 // truncate cuts text to width cells, ending it with an ellipsis where it's

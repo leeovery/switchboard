@@ -60,7 +60,7 @@ func frame(doc status.Document, now time.Time, body []line, width, room int, foo
 		lines = append(lines, nil)
 		lines = append(lines, body...)
 	}
-	if footer = clean(footer); footer != "" {
+	if footer = status.Clean(footer); footer != "" {
 		lines = append(lines, nil, line{{footer, dimInk}})
 	}
 	return lines
@@ -106,13 +106,13 @@ func routing(doc status.Document) line {
 	if doc.Pin.Account == "" {
 		return append(l, span{doc.Routing(), dimInk})
 	}
-	return append(l, span{clean(doc.Routing()), pinInk})
+	return append(l, span{doc.Routing(), pinInk})
 }
 
 // unhealthy says the router is unhealthy, and why, in red.
 func unhealthy(reason string) line {
 	text := "router unhealthy"
-	if reason = clean(reason); reason != "" {
+	if reason = status.Clean(reason); reason != "" {
 		text += " — " + reason
 	}
 	return line{{text, errorInk}}
@@ -122,7 +122,7 @@ func unhealthy(reason string) line {
 // nil when there are no accounts to speak of.
 func bestNext(doc status.Document) line {
 	if best, ok := doc.Account(doc.Best); ok {
-		return line{{"best next: ", dimInk}, {clean(best.Title()), accentInk}}
+		return line{{"best next: ", dimInk}, {best.Title(), accentInk}}
 	}
 	if len(doc.Accounts) == 0 {
 		return nil

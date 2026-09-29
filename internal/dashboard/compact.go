@@ -67,7 +67,7 @@ func compact(doc status.Document, now time.Time, room int) ([]line, int) {
 
 // summarize is how a compact line shows an account, and the marks it carries.
 func summarize(a status.Account, marks badges, now time.Time) summary {
-	s := summary{title: clean(a.Title()), marks: marks}
+	s := summary{title: a.Title(), marks: marks}
 	if a.Sessions > 0 {
 		s.sessions = status.SessionCount(a.Sessions)
 	}
@@ -75,11 +75,11 @@ func summarize(a status.Account, marks badges, now time.Time) summary {
 		s.parts = append(s.parts, compactWindow(w, now))
 	}
 	for _, f := range a.Failures {
-		s.parts = append(s.parts, line{{clean(f.Label) + " offline", offlineInk}})
+		s.parts = append(s.parts, line{{status.Clean(f.Label) + " offline", offlineInk}})
 	}
 	switch {
 	case a.Error != "":
-		s.note = span{errorMark + clean(a.Error), errorInk}
+		s.note = span{errorMark + status.Clean(a.Error), errorInk}
 	case len(s.parts) == 0:
 		s.note = span{"no usage yet", dimInk}
 	}
@@ -90,7 +90,7 @@ func summarize(a status.Account, marks badges, now time.Time) summary {
 // used.
 func compactWindow(w quota.Window, now time.Time) line {
 	pct := use(w, score.Project(w, now))
-	l := line{{clean(w.Key), dimInk}, spaces(1)}
+	l := line{{status.Clean(w.Key), dimInk}, spaces(1)}
 	l = append(l, bar(w.Utilization, noMarker, compactBar)...)
 	return append(l, spaces(1+useWidth-ansi.StringWidth(pct.text)), pct)
 }

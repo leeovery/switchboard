@@ -1,8 +1,10 @@
 package status_test
 
 import (
+	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -225,6 +227,62 @@ func TestAccountText(t *testing.T) {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
+	// clear clears the screen, as a terminal shown it takes it.
+	const clear = "\x1b[2J"
+	work := status.Account{
+		ID: "work", Label: "Work" + clear, TokenSet: true,
+		Windows:  []quota.Window{{Key: "5h", Label: "Session" + clear, Utilization: 0.23}},
+		Failures: []quota.Failure{{Label: "Fable" + clear, Window: "7d_oi", Error: "HTTP 529 · " + clear + "Overloaded"}},
+		Error:    "HTTP 401 · " + clear + "Invalid bearer token",
+	}
+	shown := map[string]string{
+		"an account, as status --session shows it": work.Text(now),
+		"the router's document": status.Document{
+			Source:   status.SourceRouter,
+			Best:     "work",
+			Pin:      status.Pin{Account: "gone" + clear},
+			Router:   status.Health{Reason: clear + "6 of the 8 requests in the last 5 minutes failed"},
+			Accounts: []status.Account{work},
+		}.Text(now),
+		"a document probed, as something else answered for the router": status.Document{
+			Source:   status.SourceProbe,
+			Fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "answered " + clear},
+			Accounts: []status.Account{work},
+		}.Text(now),
+	}
+	for name, text := range shown {
+		if strings.ContainsFunc(text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' }) {
+			t.Errorf("%s reads %q, want no control character but its line ends", name, text)
+		}
+	}
+	want := "work · Work [2J\n" +
+		"  Session [2J  23%\n" +
+		"  Fable [2J offline: HTTP 529 · [2JOverloaded\n" +
+		"  HTTP 401 · [2JInvalid bearer token\n"
+	if got := work.Text(now); got != want {
+		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestClean(t *testing.T) {
+	tests := []struct {
+		text string
+		want string
+	}{
+		{text: "Work", want: "Work"},
+		{text: "  Work \t team\n", want: "Work team"},
+		{text: "Work\x1b[31m team\a", want: "Work [31m team"},
+		{text: "\x1b]0;a title\a", want: "]0;a title"},
+	}
+	for _, tt := range tests {
+		if got := status.Clean(tt.text); got != tt.want {
+			t.Errorf("Clean(%q) = %q, want %q", tt.text, got, tt.want)
+		}
 	}
 }
 

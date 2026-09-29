@@ -227,6 +227,9 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   `r refresh · 1–3 pin · a auto · m move · q quit` reading the router, `r refresh · q quit`
   probing.
 - Desktop notifications: see Notifications.
+- Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
+  as spaces, here and in `status` alike, so none can move the cursor or restyle what follows, a
+  statusline's included.
 - Built with Bubble Tea v2 and Lip Gloss v2.
 
 ## Health
