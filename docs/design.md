@@ -153,7 +153,8 @@ Each request's account is decided in this order:
 5. With no candidate, the session's account, else the client's, else any other, passing over
    those that refused the request lately, and those held back only by their reserve, which would
    serve it and spend the reserve. When that leaves none, switchboard answers 429 itself, shaped
-   as the API shapes its errors.
+   as the API shapes its errors, with the usage headers Claude Code reads a limit from: `rejected`,
+   and the soonest reset among the accounts held back.
 
 A request without a session id is decided afresh every time and not remembered. Before deciding
 afresh, and never for a sticky request, switchboard probes every account it hasn't read in 15
