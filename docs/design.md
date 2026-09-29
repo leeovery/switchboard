@@ -386,11 +386,13 @@ A request the API refuses is answered `{"error": "<why>"}`.
   judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and
   `SWITCHBOARD_CONFIG` when they're set, so the service finds what the CLI does. With
   `--env-file`, it runs `/bin/zsh -c 'source "$1" && exec "$2" serve "${@:3}"'`, the paths as
-  arguments, never in the script, and warns when others can read the file. It then boots out any
-  loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router
-  other than any running before to answer. `uninstall` boots it out and removes the plist;
-  `restart` is `launchctl kickstart -k`, waiting the same way; `status` reports the plist, whether
-  launchd has it loaded, and the router's health. macOS only for now.
+  arguments, never in the script, and warns when others can read the file. Whether launchd has the
+  service loaded is `launchctl print`'s to say, which exits 113 for one it hasn't: `install` boots
+  out a loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a
+  router other than any running before to answer. `uninstall` boots it out when loaded and removes
+  the plist; `restart` is `launchctl kickstart -k`, waiting the same way, or an error when it isn't
+  loaded; `status` reports the plist, whether launchd has it loaded, and the router's health. Any
+  other failure of `launchctl` is an error that quotes it. macOS only for now.
 
 ## Milestones
 

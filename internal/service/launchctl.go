@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"slices"
 	"strings"
 	"time"
 )
@@ -14,11 +13,10 @@ import (
 // moment.
 const launchctlTimeout = 10 * time.Second
 
-// notLoadedStatuses are launchctl's exit statuses for a service launchd
-// hasn't loaded: 3, "No such process", from bootout on older systems, and
-// 113, "Could not find specified service", from newer ones, and from print
-// and kickstart.
-var notLoadedStatuses = []int{3, 113}
+// unknownService is the status launchctl print exits with for a service
+// launchd hasn't loaded, saying "Could not find service … in domain": seen
+// on macOS itself, and the one exit status the service relies on.
+const unknownService = 113
 
 // Runner runs launchctl with args to its end, as Launchctl does, returning
 // what it printed. It fails, with an error that has an ExitCode method, as
@@ -54,16 +52,12 @@ func (s *Service) launchctl(ctx context.Context, args ...string) error {
 	return fmt.Errorf("launchctl %s: %w", command, err)
 }
 
-// exited reports whether err is launchctl's having run and exited with a
-// status other than 0, rather than its failing to run at all.
-func exited(err error) bool {
-	_, ok := errors.AsType[exitError](err)
-	return ok
-}
-
-// notLoaded reports whether err is launchctl's for a service launchd hasn't
-// loaded.
-func notLoaded(err error) bool {
-	exit, ok := errors.AsType[exitError](err)
-	return ok && slices.Contains(notLoadedStatuses, exit.ExitCode())
+// loaded reports whether launchd has loaded the service, as launchctl print
+// says: it knows the service, or exits unknownService.
+func (s *Service) loaded(ctx context.Context) (bool, error) {
+	err := s.launchctl(ctx, "print", s.target())
+	if exit, ok := errors.AsType[exitError](err); ok && exit.ExitCode() == unknownService {
+		return false, nil
+	}
+	return err == nil, err
 }

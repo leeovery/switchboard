@@ -28,7 +28,7 @@ func TestInstall(t *testing.T) {
 		t.Fatalf("Install() error = %v", err)
 	}
 
-	want := [][]string{{"bootout", target}, {"bootstrap", "gui/501", s.plist}}
+	want := [][]string{{"print", target}, {"bootstrap", "gui/501", s.plist}}
 	if !reflect.DeepEqual(s.launchctl.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
 	}
@@ -73,19 +73,15 @@ func TestInstallReplacesAPlistThere(t *testing.T) {
 	s.checkPlist(t, s.binary, "", "")
 }
 
-func TestInstallWhenLaunchdHasntLoadedTheService(t *testing.T) {
-	for _, status := range []int{3, 113} {
-		t.Run(strconv.Itoa(status), func(t *testing.T) {
-			s := newSetup(t, nil, upOnceStarted(4242))
-			s.launchctl.exits = map[string]int{"bootout": status}
+func TestInstallOverALoadedService(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	s.launchctl.loaded = true
 
-			if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
-				t.Fatalf("Install() error = %v", err)
-			}
-			if want := [][]string{{"bootout", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
-				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
-			}
-		})
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if want := [][]string{{"print", target}, {"bootout", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+		t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
 	}
 }
 
@@ -93,6 +89,7 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 	notFound := errors.New(`exec: "launchctl": executable file not found in $PATH`)
 	tests := []struct {
 		name    string
+		loaded  bool
 		exits   map[string]int
 		cantRun error
 		// want returns the error Install fails with, and the runs it makes,
@@ -100,10 +97,19 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 		want func(plist string) (string, [][]string)
 	}{
 		{
-			name:  "booting the service out",
-			exits: map[string]int{"bootout": 5},
+			name:  "asking whether the service is loaded",
+			exits: map[string]int{"print": 5},
 			want: func(string) (string, [][]string) {
-				return "launchctl bootout " + target + ": bootout failed: 5: Input/output error (exit status 5)", [][]string{{"bootout", target}}
+				return "launchctl print " + target + ": print failed: 5: Input/output error (exit status 5)", [][]string{{"print", target}}
+			},
+		},
+		{
+			name:   "booting the service out",
+			loaded: true,
+			exits:  map[string]int{"bootout": 5},
+			want: func(string) (string, [][]string) {
+				return "launchctl bootout " + target + ": bootout failed: 5: Input/output error (exit status 5)",
+					[][]string{{"print", target}, {"bootout", target}}
 			},
 		},
 		{
@@ -111,21 +117,21 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 			exits: map[string]int{"bootstrap": 5},
 			want: func(plist string) (string, [][]string) {
 				return "launchctl bootstrap gui/501 " + plist + ": bootstrap failed: 5: Input/output error (exit status 5)",
-					[][]string{{"bootout", target}, {"bootstrap", "gui/501", plist}}
+					[][]string{{"print", target}, {"bootstrap", "gui/501", plist}}
 			},
 		},
 		{
 			name:    "without a launchctl to run",
 			cantRun: notFound,
 			want: func(string) (string, [][]string) {
-				return "launchctl bootout " + target + `: exec: "launchctl": executable file not found in $PATH`, [][]string{{"bootout", target}}
+				return "launchctl print " + target + `: exec: "launchctl": executable file not found in $PATH`, [][]string{{"print", target}}
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, upOnceStarted(4242))
-			s.launchctl.exits, s.launchctl.cantRun = tt.exits, tt.cantRun
+			s.launchctl.loaded, s.launchctl.exits, s.launchctl.cantRun = tt.loaded, tt.exits, tt.cantRun
 
 			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
 			wantErr, wantCalls := tt.want(s.plist)
@@ -347,28 +353,33 @@ func TestInstallWaitsForTheRouter(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
+	loadedRuns := [][]string{{"print", target}, {"bootout", target}}
 	tests := []struct {
 		name string
 		// installed puts the plist in place first.
 		installed   bool
+		loaded      bool
 		exits       map[string]int
 		wantRemoved bool
 		wantErr     string
+		wantRuns    [][]string
 	}{
-		{name: "installed and loaded", installed: true, wantRemoved: true},
-		{name: "installed, not loaded", installed: true, exits: map[string]int{"bootout": 113}, wantRemoved: true},
-		{name: "not installed", exits: map[string]int{"bootout": 113}},
+		{name: "installed and loaded", installed: true, loaded: true, wantRemoved: true, wantRuns: loadedRuns},
+		{name: "installed, not loaded", installed: true, wantRemoved: true, wantRuns: [][]string{{"print", target}}},
+		{name: "not installed", wantRuns: [][]string{{"print", target}}},
 		{
 			name:      "when launchd can't boot it out",
 			installed: true,
+			loaded:    true,
 			exits:     map[string]int{"bootout": 5},
 			wantErr:   "launchctl bootout " + target + ": bootout failed: 5: Input/output error (exit status 5)",
+			wantRuns:  loadedRuns,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, nil)
-			s.launchctl.exits = tt.exits
+			s.launchctl.loaded, s.launchctl.exits = tt.loaded, tt.exits
 			if tt.installed {
 				s.putPlist(t)
 			}
@@ -377,8 +388,8 @@ func TestUninstall(t *testing.T) {
 			if (err == nil) != (tt.wantErr == "") || (err != nil && err.Error() != tt.wantErr) || removed != tt.wantRemoved {
 				t.Errorf("Uninstall() = %v, %v; want %v, and the error %q", removed, err, tt.wantRemoved, tt.wantErr)
 			}
-			if want := [][]string{{"bootout", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
-				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
+			if !reflect.DeepEqual(s.launchctl.calls, tt.wantRuns) {
+				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, tt.wantRuns)
 			}
 			_, statErr := os.Stat(s.plist)
 			if kept := statErr == nil; kept != (tt.installed && tt.wantErr != "") {
@@ -395,6 +406,7 @@ func TestRestart(t *testing.T) {
 		}
 		return up(4242)
 	})
+	s.launchctl.loaded = true
 
 	h, err := s.svc.Restart(t.Context())
 	if err != nil {
@@ -403,34 +415,45 @@ func TestRestart(t *testing.T) {
 	if h == nil || h.PID != 4242 {
 		t.Errorf("Restart() found the router %v, want the one at pid 4242", h)
 	}
-	if want := [][]string{{"kickstart", "-k", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+	if want := [][]string{{"print", target}, {"kickstart", "-k", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
 	}
 }
 
-func TestRestartFailsWhenLaunchctlDoes(t *testing.T) {
+func TestRestartFails(t *testing.T) {
 	tests := []struct {
-		name   string
-		status int
-		want   func(err error) bool
+		name     string
+		loaded   bool
+		exits    map[string]int
+		want     func(err error) bool
+		wantRuns [][]string
 	}{
-		{name: "not loaded", status: 113, want: func(err error) bool { return errors.Is(err, service.ErrNotLoaded) }},
 		{
-			name:   "otherwise",
-			status: 5,
+			name:     "when launchd hasn't loaded the service",
+			want:     func(err error) bool { return errors.Is(err, service.ErrNotInstalled) },
+			wantRuns: [][]string{{"print", target}},
+		},
+		{
+			name:   "when launchctl can't kickstart it",
+			loaded: true,
+			exits:  map[string]int{"kickstart": 5},
 			want: func(err error) bool {
-				return err != nil && !errors.Is(err, service.ErrNotLoaded) &&
+				return err != nil && !errors.Is(err, service.ErrNotInstalled) &&
 					err.Error() == "launchctl kickstart -k "+target+": kickstart failed: 5: Input/output error (exit status 5)"
 			},
+			wantRuns: [][]string{{"print", target}, {"kickstart", "-k", target}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, func(int) (router.Health, error) { return router.Health{}, errNotRunning })
-			s.launchctl.exits = map[string]int{"kickstart": tt.status}
+			s.launchctl.loaded, s.launchctl.exits = tt.loaded, tt.exits
 
 			if h, err := s.svc.Restart(t.Context()); h != nil || !tt.want(err) {
 				t.Errorf("Restart() = %v, %v", h, err)
+			}
+			if !reflect.DeepEqual(s.launchctl.calls, tt.wantRuns) {
+				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, tt.wantRuns)
 			}
 		})
 	}
@@ -440,19 +463,19 @@ func TestStatus(t *testing.T) {
 	tests := []struct {
 		name      string
 		installed bool
-		exits     map[string]int
+		loaded    bool
 		answer    func(asked int) (router.Health, error)
 		want      service.Status
 	}{
 		{
 			name:      "installed, loaded and up",
 			installed: true,
+			loaded:    true,
 			answer:    func(int) (router.Health, error) { return up(4242) },
 			want:      service.Status{Installed: true, Loaded: true, Router: &router.Health{OK: true, Version: "1.2.3", PID: 4242}},
 		},
 		{
 			name:   "none of them",
-			exits:  map[string]int{"print": 113},
 			answer: func(int) (router.Health, error) { return router.Health{}, errNotRunning },
 			want:   service.Status{RouterErr: errNotRunning},
 		},
@@ -460,7 +483,7 @@ func TestStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, tt.answer)
-			s.launchctl.exits = tt.exits
+			s.launchctl.loaded = tt.loaded
 			if tt.installed {
 				s.putPlist(t)
 			}
@@ -479,12 +502,33 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestStatusWithoutALaunchctlToRun(t *testing.T) {
-	s := newSetup(t, nil, nil)
-	s.launchctl.cantRun = errors.New(`exec: "launchctl": executable file not found in $PATH`)
+func TestStatusFailsWhenLaunchctlCantSay(t *testing.T) {
+	tests := []struct {
+		name    string
+		exits   map[string]int
+		cantRun error
+		wantErr string
+	}{
+		{
+			name:    "without a launchctl to run",
+			cantRun: errors.New(`exec: "launchctl": executable file not found in $PATH`),
+			wantErr: "launchctl print " + target + `: exec: "launchctl": executable file not found in $PATH`,
+		},
+		{
+			name:    "when printing the service fails otherwise",
+			exits:   map[string]int{"print": 5},
+			wantErr: "launchctl print " + target + ": print failed: 5: Input/output error (exit status 5)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, nil)
+			s.launchctl.exits, s.launchctl.cantRun = tt.exits, tt.cantRun
 
-	if _, err := s.svc.Status(t.Context()); err == nil {
-		t.Error("Status() error = nil, want launchctl's failure to run")
+			if _, err := s.svc.Status(t.Context()); err == nil || err.Error() != tt.wantErr {
+				t.Errorf("Status() error = %v, want %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -604,20 +648,20 @@ func writeBinary(t *testing.T, path string) string {
 	return path
 }
 
-// fakeLaunchctl stands in for launchctl, noting each run: a subcommand exits
-// with the status exits gives it, else 0, saying why as launchctl does.
-// cantRun fails every run, as when there's no launchctl to run, and refuse
-// fails the test on any.
+// fakeLaunchctl stands in for launchctl, and launchd behind it, noting each
+// run. Printing the service succeeds while it's loaded, and exits 113 when
+// it isn't, as launchctl does; bootstrapping loads it, and booting it out
+// unloads it. A subcommand exits with the status exits gives it instead,
+// saying why as launchctl does. cantRun fails every run, as when there's no
+// launchctl to run, and refuse fails the test on any.
 type fakeLaunchctl struct {
 	t       *testing.T
 	refuse  bool
+	loaded  bool
 	exits   map[string]int
 	cantRun error
 	calls   [][]string
 }
-
-// meanings are what launchctl's exit statuses mean.
-var meanings = map[int]string{3: "No such process", 5: "Input/output error", 113: "Could not find specified service"}
 
 func (f *fakeLaunchctl) run(_ context.Context, args ...string) ([]byte, error) {
 	if f.refuse {
@@ -628,11 +672,20 @@ func (f *fakeLaunchctl) run(_ context.Context, args ...string) ([]byte, error) {
 	if f.cantRun != nil {
 		return nil, f.cantRun
 	}
-	status := f.exits[args[0]]
-	if status == 0 {
-		return nil, nil
+	if status := f.exits[args[0]]; status != 0 {
+		return fmt.Appendf(nil, "%s failed: %d: Input/output error\n", args[0], status), exitStatus(status)
 	}
-	return fmt.Appendf(nil, "%s failed: %d: %s\n", args[0], status, meanings[status]), exitStatus(status)
+	switch args[0] {
+	case "print":
+		if !f.loaded {
+			return []byte("Bad request.\nCould not find service \"io.github.leeovery.switchboard\" in domain for user gui: 501\n"), exitStatus(113)
+		}
+	case "bootstrap":
+		f.loaded = true
+	case "bootout":
+		f.loaded = false
+	}
+	return nil, nil
 }
 
 // exitStatus is a program's exit with a status other than 0, as

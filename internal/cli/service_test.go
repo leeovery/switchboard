@@ -22,7 +22,7 @@ func TestServiceInstall(t *testing.T) {
 	if got != want {
 		t.Errorf("switchboard service install = %+v, want %+v", got, want)
 	}
-	if want := [][]string{{"bootout", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchd.calls, want) {
+	if want := [][]string{{"print", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchd.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
 	}
 	s.checkPlist(t,
@@ -89,7 +89,7 @@ func TestServiceUninstall(t *testing.T) {
 	if got, want := run(t, s.srv.deps, "service", "uninstall"), (result{stdout: "the service isn't installed\n"}); got != want {
 		t.Errorf("switchboard service uninstall, again = %+v, want %+v", got, want)
 	}
-	if want := [][]string{{"bootout", target}, {"bootout", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
+	if want := [][]string{{"print", target}, {"bootout", target}, {"print", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
 	}
 	if _, err := os.Stat(s.plist); !os.IsNotExist(err) {
@@ -105,7 +105,7 @@ func TestServiceRestart(t *testing.T) {
 	if want := (result{stdout: "restarted\nthe router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}); got != want {
 		t.Errorf("switchboard service restart = %+v, want %+v", got, want)
 	}
-	if want := [][]string{{"kickstart", "-k", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
+	if want := [][]string{{"print", target}, {"kickstart", "-k", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
 		t.Errorf("ran launchctl %q, want %q", s.launchd.calls, want)
 	}
 }
@@ -114,7 +114,7 @@ func TestServiceRestartWhenLaunchdHasntLoadedIt(t *testing.T) {
 	s := newServiceSetup(t)
 
 	got := run(t, s.srv.deps, "service", "restart")
-	want := result{stderr: "Error: launchd hasn't loaded the service: install it with switchboard service install\n", code: 1}
+	want := result{stderr: "Error: the service isn't installed: run switchboard service install\n", code: 1}
 	if got != want {
 		t.Errorf("switchboard service restart = %+v, want %+v", got, want)
 	}
@@ -205,9 +205,9 @@ func (s *serviceSetup) checkPlist(t *testing.T, parts ...string) {
 
 // fakeLaunchd stands in for launchctl, and for launchd behind it, noting each
 // run: bootstrapping the service loads it, and starts srv's router when
-// starts is set; kickstarting a loaded service starts the router; booting
-// one out forgets it; and printing one says it's loaded. A service that isn't
-// loaded fails each but bootstrap as launchctl does.
+// starts is set; kickstarting it starts the router; booting it out forgets
+// it; and printing it succeeds. While it isn't loaded, anything but
+// bootstrapping it exits 113, as printing it does in launchctl.
 type fakeLaunchd struct {
 	t      *testing.T
 	srv    *serveSetup

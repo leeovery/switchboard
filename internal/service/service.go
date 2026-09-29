@@ -37,9 +37,9 @@ const (
 var (
 	// ErrUnsupported is what New fails with on a system other than macOS.
 	ErrUnsupported = errors.New("the service is macOS only for now: elsewhere, run switchboard serve under your system's service manager")
-	// ErrNotLoaded is what Restart fails with when launchd hasn't loaded the
-	// service.
-	ErrNotLoaded = errors.New("launchd hasn't loaded the service")
+	// ErrNotInstalled is what Restart fails with when launchd hasn't loaded
+	// the service.
+	ErrNotInstalled = errors.New("the service isn't installed")
 )
 
 // Router asks the router whether it's alive, and which it is:
@@ -114,9 +114,10 @@ type Installed struct {
 	Router *router.Health
 }
 
-// Install writes the LaunchAgent's plist, has launchd load it in place of any
-// it had loaded, which starts the router, and waits for the router to answer.
-// It refuses a switchboard binary that won't last, such as go run's.
+// Install writes the LaunchAgent's plist, has launchd load it, in place of
+// the one it had loaded if it had, which starts the router, and waits for
+// the router to answer. It refuses a switchboard binary that won't last,
+// such as go run's.
 func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
 	binary, err := s.binary(opts.Executable)
 	if err != nil {
@@ -139,7 +140,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	before := s.pid(ctx)
-	if err := s.bootout(ctx); err != nil {
+	if err := s.unload(ctx); err != nil {
 		return Installed{}, err
 	}
 	if err := s.launchctl(ctx, "bootstrap", s.domain(), s.Plist()); err != nil {
@@ -150,11 +151,11 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	return installed, nil
 }
 
-// Uninstall has launchd stop the router and forget the service, then removes
-// its plist, reporting whether there was one. A service that isn't installed
-// is left as it is.
+// Uninstall has launchd stop the router and forget the service, if it had
+// loaded it, then removes its plist, reporting whether there was one. A
+// service that isn't installed is left as it is.
 func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
-	if err := s.bootout(ctx); err != nil {
+	if err := s.unload(ctx); err != nil {
 		return false, err
 	}
 	err = os.Remove(s.Plist())
@@ -170,15 +171,18 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 
 // Restart has launchd stop the router and start it again, as after the
 // tokens change, and returns the answer of the router it starts, or nil when
-// none answers within StartWait. It fails with ErrNotLoaded when launchd
+// none answers within StartWait. It fails with ErrNotInstalled when launchd
 // hasn't loaded the service.
 func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
-	before := s.pid(ctx)
-	err := s.launchctl(ctx, "kickstart", "-k", s.target())
-	if notLoaded(err) {
-		return nil, ErrNotLoaded
+	loaded, err := s.loaded(ctx)
+	switch {
+	case err != nil:
+		return nil, err
+	case !loaded:
+		return nil, ErrNotInstalled
 	}
-	if err != nil {
+	before := s.pid(ctx)
+	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {
 		return nil, err
 	}
 	logger.Info("restarted the service")
@@ -201,11 +205,9 @@ type Status struct {
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
 	st := Status{Installed: err == nil}
-	err = s.launchctl(ctx, "print", s.target())
-	if err != nil && !exited(err) {
+	if st.Loaded, err = s.loaded(ctx); err != nil {
 		return Status{}, err
 	}
-	st.Loaded = err == nil
 	if h, err := s.cfg.Router.Health(ctx); err == nil {
 		st.Router = &h
 	} else {
@@ -322,13 +324,13 @@ func (s *Service) write(a agent) error {
 	return nil
 }
 
-// bootout has launchd stop the service and forget it, which is done already
-// when launchd hasn't loaded it.
-func (s *Service) bootout(ctx context.Context) error {
-	if err := s.launchctl(ctx, "bootout", s.target()); err != nil && !notLoaded(err) {
+// unload has launchd stop the service and forget it, when it has loaded it.
+func (s *Service) unload(ctx context.Context) error {
+	loaded, err := s.loaded(ctx)
+	if err != nil || !loaded {
 		return err
 	}
-	return nil
+	return s.launchctl(ctx, "bootout", s.target())
 }
 
 // pid is the process id of the router answering now, or 0 when none is.
