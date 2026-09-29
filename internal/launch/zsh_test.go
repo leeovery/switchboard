@@ -39,6 +39,19 @@ func TestZsh(t *testing.T) {
 	parses(t, got)
 }
 
+func TestZshWithoutAccountsDefinesClaudeAlone(t *testing.T) {
+	var b strings.Builder
+	if err := launch.Zsh(&b, "/usr/local/bin/switchboard", "cx", nil); err != nil {
+		t.Fatalf("Zsh() error = %v", err)
+	}
+
+	want := `function claude { '/usr/local/bin/switchboard' run -- "$@"; }` + "\n"
+	if got := b.String(); got != want {
+		t.Errorf("Zsh() wrote\n%s\nwant\n%s", got, want)
+	}
+	parses(t, b.String())
+}
+
 func TestZshQuotesTheBinary(t *testing.T) {
 	var b strings.Builder
 	if err := launch.Zsh(&b, `/Users/tester/it's here/switch board`, "cx", accounts); err != nil {

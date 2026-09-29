@@ -240,37 +240,98 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 	}
 }
 
-func TestRunRefusesWithoutAnAccountToStartOn(t *testing.T) {
+func TestRunRefusesAPinItCantKeep(t *testing.T) {
 	tests := []struct {
-		name    string
 		account string
-		// getenv, when set, reads the tokens in place of the tests' own.
-		getenv  func(string) string
 		wantErr string
 	}{
-		{name: "pinned to no account", account: "nope", wantErr: `there's no account "nope": pin work or personal or side`},
-		{name: "pinned to an account without a token", account: "personal", wantErr: "account personal has no token for Claude Code to start on: set CLAUDE_TOKEN_PERSONAL"},
-		{
-			name:    "no account with a token",
-			getenv:  func(string) string { return "" },
-			wantErr: "no account has a token for Claude Code to start on: set CLAUDE_TOKEN_WORK or CLAUDE_TOKEN_PERSONAL or CLAUDE_TOKEN_SIDE, or give --direct to start it on its own login",
-		},
+		{account: "nope", wantErr: `there's no account "nope": pin work or personal or side`},
+		{account: "personal", wantErr: "account personal has no token for Claude Code to start on: set CLAUDE_TOKEN_PERSONAL"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := route(healthy("work"), tt.account)
-			if tt.getenv != nil {
-				r.Getenv = tt.getenv
-			}
+		t.Run(tt.account, func(t *testing.T) {
 			h := newHarness()
 
-			if err := h.launcher.Run(t.Context(), r, nil); err == nil || err.Error() != tt.wantErr {
+			if err := h.launcher.Run(t.Context(), route(healthy("work"), tt.account), nil); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
 			}
 			if len(h.starts) > 0 {
 				t.Errorf("started %q, want nothing started", h.starts)
 			}
 		})
+	}
+}
+
+func TestRunWithoutATokenStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
+	inherited := []string{
+		"HOME=/home/tester",
+		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side",
+	}
+	h := newHarness(inherited...)
+	r := route(healthy("work"), "")
+	r.Getenv = func(string) string { return "" }
+
+	if err := h.launcher.Run(t.Context(), r, []string{"--print", "a prompt"}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	got := h.only(t)
+	if want := []string{"claude", "--print", "a prompt"}; !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
+		t.Errorf("started claude as %q with %q, want %q with the environment untouched, %q", got.argv, got.env, want, inherited)
+	}
+	want := "switchboard: no account has a token (set CLAUDE_TOKEN_WORK or CLAUDE_TOKEN_PERSONAL or CLAUDE_TOKEN_SIDE) — starting claude without it\n"
+	if said := h.stderr.String(); said != want {
+		t.Errorf("said %q on stderr, want %q", said, want)
+	}
+}
+
+func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
+	const config = "/home/tester/.config/switchboard/config.toml"
+	tests := []struct {
+		name     string
+		err      error
+		wantSaid string
+	}{
+		{
+			name:     "without a config",
+			err:      errors.New("no config file at " + config + "\n\nCreate one like this:\n\n[[account]]\nid = \"work\"\n"),
+			wantSaid: "switchboard: couldn't read the config (no config file at " + config + ") — starting claude without it\n",
+		},
+		{
+			name:     "with an invalid config",
+			err:      errors.New("invalid config " + config + ":\naccount \"work\": token_env is required"),
+			wantSaid: "switchboard: couldn't read the config (invalid config " + config + ") — starting claude without it\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inherited := []string{"HOME=/home/tester", "ANTHROPIC_BASE_URL=http://127.0.0.1:4747", "CLAUDE_CODE_OAUTH_TOKEN=test-token-work"}
+			h := newHarness(inherited...)
+			args := []string{"--account", "side", "--resume"}
+
+			if err := h.launcher.Unaided(args, "couldn't read the config", tt.err); err != nil {
+				t.Fatalf("Unaided() error = %v", err)
+			}
+
+			got := h.only(t)
+			if want := append([]string{"claude"}, args...); got.path != claudeOnPath || !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
+				t.Errorf("started %s as %q with %q, want %s as %q with the environment untouched, %q", got.path, got.argv, got.env, claudeOnPath, want, inherited)
+			}
+			if said := h.stderr.String(); said != tt.wantSaid {
+				t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+			}
+		})
+	}
+}
+
+func TestUnaidedWithoutClaude(t *testing.T) {
+	h := newHarness()
+	h.launcher.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+
+	err := h.launcher.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+	if err == nil || !strings.HasPrefix(err.Error(), "can't find claude") || len(h.starts) > 0 {
+		t.Errorf("Unaided() error = %v, starting %q; want claude not found, and nothing started", err, h.starts)
 	}
 }
 
@@ -403,6 +464,16 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 			name:   "on its own login",
 			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(args) },
 			want:   []string{"level=INFO", `msg="starting claude" component=launch`, `mode="own login"`, "claude=" + claudeOnPath},
+		},
+		{
+			name: "without switchboard",
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.Unaided(args, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+			},
+			want: []string{
+				"level=WARN", `msg="starting claude without switchboard" component=launch`, `reason="couldn't read the config"`,
+				`error="no config file at /home/tester/config.toml"`, "claude=" + claudeOnPath,
+			},
 		},
 	}
 	for _, tt := range tests {

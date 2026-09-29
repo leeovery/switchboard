@@ -28,9 +28,11 @@ that don't go through the router: --account's, else the account the router
 rates best, else the first with a token.
 
 When the router isn't running, or isn't healthy, Claude Code connects directly
-on that token instead, and run says so. --account pins the session to an
-account, while it has room. --direct starts Claude Code on its own login,
-without the router or a token, for what needs the login.
+on that token instead, and run says so. When switchboard can't take part at
+all, as without a config it can read or any account's token, Claude Code
+starts as if switchboard weren't there, and run says why. --account pins the
+session to an account, while it has room. --direct starts Claude Code on its
+own login, without the router or a token, for what needs the login.
 
 Give Claude Code's own arguments after --, as in: switchboard run -- --resume`,
 		Args: opts.parseArgs,
@@ -57,7 +59,9 @@ func (o *runOptions) parseArgs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// run starts Claude Code with args in this process's place.
+// run starts Claude Code with args in this process's place: through
+// switchboard, or, when it can't read its config or find the router's
+// socket, as if switchboard weren't there.
 func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args []string) error {
 	// Without a home directory, only the install paths outside it are tried.
 	home, _ := a.HomeDir()
@@ -73,11 +77,11 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 	}
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return err
+		return l.Unaided(args, "couldn't read the config", err)
 	}
 	client, err := a.routerClient()
 	if err != nil {
-		return err
+		return l.Unaided(args, "couldn't find the router", err)
 	}
 	return l.Run(ctx, launch.Route{Config: cfg, Getenv: a.Getenv, Router: client, Account: opts.account}, args)
 }

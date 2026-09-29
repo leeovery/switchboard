@@ -28,9 +28,10 @@ func CheckPrefix(prefix string) error {
 // launcher for each account, named prefix and the account's id, that starts
 // it pinned to that account; and an export of the first account's token, for
 // programs that start claude themselves. The export names the token's
-// variable, so the output holds no token. The accounts are as config.Load
-// validates them, whose ids and variables' names are safe in zsh as they
-// stand.
+// variable, so the output holds no token. Without accounts, as when the
+// config can't be read, it writes the claude function alone, which run
+// keeps working. The accounts are as config.Load validates them, whose ids
+// and variables' names are safe in zsh as they stand.
 func Zsh(w io.Writer, binary, prefix string, accounts []config.Account) error {
 	if err := CheckPrefix(prefix); err != nil {
 		return err

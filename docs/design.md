@@ -364,6 +364,11 @@ A request the API refuses is answered `{"error": "<why>"}`.
   one line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
   A pin inherited from the environment never survives: what this launch pins is the only pin.
   `--direct` removes the token and the base URL, so Claude Code uses its own login.
+- Switchboard never stands between the user and `claude`. When it can't take part at all, as when
+  it can't read its config or no account has a token, `run` starts `claude` as if switchboard
+  weren't there, environment and arguments untouched, saying why in one line on stderr:
+  `switchboard: couldn't read the config (…) — starting claude without it`. Only a misused command
+  line fails, such as `--account` naming an account that isn't configured, or has no token.
 - It finds `claude` on `PATH`, else where its installers put it, and replaces itself with it
   (`exec`), so signals and the terminal behave as usual. Claude Code's arguments go after `--`,
   untouched and never logged; the log notes the decision: routed or direct, the router's state, and
@@ -373,7 +378,8 @@ A request the API refuses is answered `{"error": "<why>"}`.
   and, for tools that call `claude` directly, an export of the first account's token by its
   variable's name (`export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_TOKEN_WORK}"`, when that's set), so
   the output never holds a token. A shell function isn't on `PATH`, so `run` finds the real
-  `claude`, never the function.
+  `claude`, never the function. Without a config it can read, it prints the `claude` function
+  alone, and warns on stderr: the `eval` never fails.
 - `service install` writes the LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`) to
   run this binary, its symlinks resolved, with `serve` and any `--config` given, and refuses a
   temporary build, such as `go run`'s. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and

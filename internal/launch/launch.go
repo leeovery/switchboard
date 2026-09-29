@@ -45,7 +45,8 @@ type Launcher struct {
 	InstallPaths []string
 	// Exec replaces this process with the program at path, as Exec does.
 	Exec func(path string, argv, env []string) error
-	// Stderr hears why, when Claude Code starts without the router.
+	// Stderr hears why, when Claude Code starts without the router, or
+	// without switchboard.
 	Stderr io.Writer
 }
 
@@ -64,16 +65,23 @@ type Route struct {
 // the account pinned, else the one the router rates best, else the first with
 // a token. While the router is healthy, Claude Code sends its requests there,
 // pinned when an account is; otherwise it sends them straight to the API, and
-// Stderr hears why. Run returns only when Claude Code couldn't start.
+// Stderr hears why. With no account's token to start on, it starts Unaided. A
+// pin that can't be kept, to an account not configured or without a token,
+// fails: it's the command line's mistake. Run returns only when Claude Code
+// couldn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
 		return err
 	}
-	state := r.health(ctx)
-	c, err := r.choose(ctx, state)
+	pin, err := r.pinned()
 	if err != nil {
 		return err
+	}
+	state := r.health(ctx)
+	c, ok := r.choose(ctx, pin, state)
+	if !ok {
+		return l.unaided(path, args, "no account has a token", fmt.Errorf("set %s", strings.Join(tokenEnvs(r.Config.Accounts), " or ")))
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
@@ -82,9 +90,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("")
 		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
-		if _, err := fmt.Fprintf(l.Stderr, "switchboard: the router %s — connecting directly on %s\n", state, title(c.account)); err != nil {
-			return err
-		}
+		notice(l.Stderr, "the router "+state.String(), "connecting directly on "+title(c.account))
 	}
 	return l.exec(path, args, env)
 }
@@ -99,6 +105,46 @@ func (l Launcher) Direct(args []string) error {
 	}
 	logger.Info("starting claude", "mode", "own login", "claude", path)
 	return l.exec(path, args, environ(l.Environ).without(claude.TokenEnv, claude.BaseURLEnv).pinnedTo(""))
+}
+
+// Unaided starts Claude Code with args in this process's place as if
+// switchboard weren't there, its environment as it is, for when switchboard
+// can't take part: switchboard mustn't stand between the user and claude.
+// Stderr hears what switchboard couldn't do, and why, as err's first line
+// says. It returns only when Claude Code couldn't start.
+func (l Launcher) Unaided(args []string, couldnt string, err error) error {
+	path, findErr := l.find()
+	if findErr != nil {
+		return findErr
+	}
+	return l.unaided(path, args, couldnt, err)
+}
+
+func (l Launcher) unaided(path string, args []string, couldnt string, err error) error {
+	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "claude", path)
+	Warn(l.Stderr, couldnt, err, "starting claude without it")
+	return l.exec(path, args, l.Environ)
+}
+
+// Warn tells w, in a line, what switchboard couldn't do, why, as err's first
+// line says, and what happens instead, such as "switchboard: couldn't read
+// the config (no config file at …) — starting claude without it".
+func Warn(w io.Writer, couldnt string, err error, instead string) {
+	notice(w, couldnt+" ("+firstLine(err)+")", instead)
+}
+
+// notice tells w, in a line, what's wrong and what happens instead. What
+// happens goes ahead all the same, so a line that can't be written is let go.
+func notice(w io.Writer, trouble, instead string) {
+	_, _ = fmt.Fprintf(w, "switchboard: %s — %s\n", trouble, instead)
+}
+
+// firstLine is the first line of err's text, which is enough for a notice:
+// the rest, such as the example a missing config's error shows, is for the
+// commands that fail with it.
+func firstLine(err error) string {
+	line, _, _ := strings.Cut(err.Error(), "\n")
+	return strings.TrimSuffix(strings.TrimSpace(line), ":")
 }
 
 // exec starts Claude Code, at path, with args and env, in this process's
@@ -188,23 +234,27 @@ type choice struct {
 	why     string
 }
 
-// choose picks the account whose token Claude Code starts on: the one pinned;
-// else, while the router is healthy, the one it rates best; else the first
-// with a token.
-func (r Route) choose(ctx context.Context, state routerState) (choice, error) {
-	if r.Account != "" {
-		return r.pinned()
+// choose picks the account whose token Claude Code starts on: pin's, when
+// there's one; else, while the router is healthy, the one it rates best;
+// else the first with a token. It reports false when there's none.
+func (r Route) choose(ctx context.Context, pin choice, state routerState) (choice, bool) {
+	if pin.account.ID != "" {
+		return pin, true
 	}
 	if state.healthy() {
 		if c, ok := r.best(ctx); ok {
-			return c, nil
+			return c, true
 		}
 	}
 	return r.first()
 }
 
-// pinned is the account the session is pinned to, which must have a token.
+// pinned is the account the session is pinned to, which must be configured
+// and have a token; none when it isn't pinned.
 func (r Route) pinned() (choice, error) {
+	if r.Account == "" {
+		return choice{}, nil
+	}
 	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == r.Account })
 	if i < 0 {
 		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(ids(r.Config.Accounts), " or "))
@@ -238,16 +288,15 @@ func (r Route) best(ctx context.Context) (choice, bool) {
 	return choice{}, false
 }
 
-// first is the first account with a token.
-func (r Route) first() (choice, error) {
-	var envs []string
+// first is the first account with a token, reporting false when there's
+// none.
+func (r Route) first() (choice, bool) {
 	for _, a := range r.Config.Accounts {
 		if token, ok := a.Token(r.Getenv); ok {
-			return choice{account: a, token: token, why: "the first with a token"}, nil
+			return choice{account: a, token: token, why: "the first with a token"}, true
 		}
-		envs = append(envs, a.TokenEnv)
 	}
-	return choice{}, fmt.Errorf("no account has a token for Claude Code to start on: set %s, or give --direct to start it on its own login", strings.Join(envs, " or "))
+	return choice{}, false
 }
 
 func ids(accounts []config.Account) []string {
@@ -256,6 +305,14 @@ func ids(accounts []config.Account) []string {
 		ids[i] = a.ID
 	}
 	return ids
+}
+
+func tokenEnvs(accounts []config.Account) []string {
+	envs := make([]string, len(accounts))
+	for i, a := range accounts {
+		envs[i] = a.TokenEnv
+	}
+	return envs
 }
 
 // title names an account as every command does, such as "work · Work".

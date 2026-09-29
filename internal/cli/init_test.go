@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -36,6 +37,42 @@ func TestInitZshWithAPrefix(t *testing.T) {
 	want := "function claude-side { '/usr/local/bin/switchboard' run --account side -- \"$@\"; }\n"
 	if got.code != 0 || !strings.Contains(got.stdout, want) {
 		t.Errorf("switchboard init zsh --prefix claude- = %+v, want a launcher\n%s", got, want)
+	}
+}
+
+func TestInitZshWithoutWhatItNeeds(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "config.toml")
+	tests := []struct {
+		name string
+		// binary is the switchboard binary's path, or "" when it can't be
+		// found.
+		binary string
+		want   result
+	}{
+		{
+			name:   "a config it can read",
+			binary: "/usr/local/bin/switchboard",
+			want: result{
+				stdout: `function claude { '/usr/local/bin/switchboard' run -- "$@"; }` + "\n",
+				stderr: "switchboard: couldn't read the config (no config file at " + missing + ") — defining claude alone, with no launchers\n",
+			},
+		},
+		{
+			name: "its own binary",
+			want: result{stderr: "switchboard: couldn't find its own binary (no test knows its switchboard binary) — defining nothing\n"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": missing}, t.TempDir())
+			if tt.binary != "" {
+				deps.Executable = func() (string, error) { return tt.binary, nil }
+			}
+
+			if got := run(t, deps, "init", "zsh"); got != tt.want {
+				t.Errorf("switchboard init zsh = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

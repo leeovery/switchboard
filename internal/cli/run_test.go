@@ -3,6 +3,7 @@ package cli_test
 import (
 	"maps"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -82,6 +83,38 @@ func TestRunWithoutTheRouter(t *testing.T) {
 	env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN")
 	if want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}; !maps.Equal(env, want) {
 		t.Errorf("handed over with\n%q\nwant\n%q", env, want)
+	}
+}
+
+func TestRunWithoutAConfigItCanRead(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "config.toml")
+	invalid := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	tests := []struct {
+		name     string
+		config   string
+		wantSaid string
+	}{
+		{name: "missing", config: missing, wantSaid: "switchboard: couldn't read the config (no config file at " + missing + ") — starting claude without it\n"},
+		{name: "invalid", config: invalid, wantSaid: "switchboard: couldn't read the config (invalid config " + invalid + ") — starting claude without it\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := map[string]string{
+				"SWITCHBOARD_CONFIG":       tt.config,
+				"CLAUDE_CODE_OAUTH_TOKEN":  "test-token-work",
+				"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Account: side",
+			}
+			deps := testDeps(env, t.TempDir())
+			handed := recordHandOffs(&deps)
+
+			if got, want := run(t, deps, "run", "--account", "work", "--", "--resume"), (result{stderr: tt.wantSaid}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			got := handed.only(t)
+			if !slices.Equal(got.argv, []string{"claude", "--resume"}) || !maps.Equal(got.env, env) {
+				t.Errorf("handed over as %q with %q, want claude --resume, its environment untouched", got.argv, got.env)
+			}
+		})
 	}
 }
 
