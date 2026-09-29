@@ -114,7 +114,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		return
 	}
 	ex := &exchange{id: newID(), started: started}
-	ex.req = Request{Session: p.provider.Session(r.Header), Model: p.provider.Model(body), Pin: p.pin(r, ex), Client: client.ID}
+	ex.req = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
 	defer p.done(r, ex)
 	if choice.Reserved {
@@ -123,6 +123,20 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	}
 	ex.account, ex.reason = p.chosen(ex, choice, client)
 	p.forward(w, withBody(r, body), ex)
+}
+
+// request is what the chooser is to know of a routed request, whose body is
+// body, sent by client's token: its session, its model and whether the
+// model's thinking is bound to its account, and its pin.
+func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) Request {
+	model := p.provider.Model(body)
+	return Request{
+		Session: p.provider.Session(r.Header),
+		Model:   model,
+		Bound:   p.provider.ThinkingBound(model),
+		Pin:     p.pin(r, ex),
+		Client:  client.ID,
+	}
 }
 
 // passThrough sends a request upstream as it came.

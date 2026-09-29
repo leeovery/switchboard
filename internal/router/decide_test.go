@@ -35,6 +35,9 @@ func TestDecide(t *testing.T) {
 		name string
 		// unsessioned leaves the request without a session.
 		unsessioned bool
+		// bound has the request ask for Sonnet, whose thinking is bound to
+		// the account that produced it, in place of Opus.
+		bound bool
 		// pin is the request's own.
 		pin string
 		// current is the session's assignment, nil for a new session.
@@ -309,12 +312,119 @@ func TestDecide(t *testing.T) {
 			work:    soon, side: spent,
 			want: decision{account: "work", reason: "no account has room", afresh: true, noRoom: true},
 		},
+		{
+			name:    "a session whose thinking is bound stays while its cache is warm",
+			bound:   true,
+			current: on("work", 59*time.Minute),
+			work:    later, side: soon,
+			want: decision{account: "work", reason: "sticky", sticky: true},
+		},
+		{
+			name:    "a session whose thinking is bound stays once its cache is cold, as the thinking is bound there",
+			bound:   true,
+			current: on("work", time.Hour+time.Second),
+			work:    later, side: soon,
+			want: decision{account: "work", reason: "bound", sticky: true},
+		},
+		{
+			name:    "a session whose thinking is bound stays against an account well ahead, however long idle",
+			bound:   true,
+			current: on("work", 3*24*time.Hour),
+			work:    even, side: wellAhead,
+			want: decision{account: "work", reason: "bound", sticky: true},
+		},
+		{
+			name:    "a session whose thinking is bound stays on an account nothing's been read of",
+			bound:   true,
+			current: on("work", 2*time.Hour),
+			work:    unread, side: soon,
+			want: decision{account: "work", reason: "bound", sticky: true},
+		},
+		{
+			name:    "a session whose thinking is bound moves, idle, when its account has no room",
+			bound:   true,
+			current: on("work", 2*time.Hour),
+			work:    spent, side: later,
+			want: decision{account: "side", reason: "moved: work has no room", afresh: true},
+		},
+		{
+			name:    "a session whose thinking is bound moves when its account hit its limit on the request",
+			bound:   true,
+			current: on("work", 0),
+			tried:   hitLimit("work"),
+			work:    soon, side: later,
+			want: decision{account: "side", reason: "moved: work hit its limit", afresh: true},
+		},
+		{
+			name:    "a session whose thinking is bound moves when its account refused the request",
+			bound:   true,
+			current: on("work", 2*time.Hour),
+			tried:   []Attempt{{Account: "work", Why: "was refused"}},
+			work:    soon, side: later,
+			want: decision{account: "side", reason: "moved: work was refused", afresh: true},
+		},
+		{
+			name:    "a session whose thinking is bound stays when no account has room",
+			bound:   true,
+			current: on("side", 2*time.Hour),
+			work:    spent, side: spent,
+			want: decision{account: "side", reason: "no account has room", afresh: true, noRoom: true},
+		},
+		{
+			name:    "a global pin that moves sessions moves one whose thinking is bound",
+			bound:   true,
+			global:  moveToSide,
+			current: assignedAt(on("work", 2*time.Hour), start.Add(-3*time.Hour)),
+			work:    soon, side: later,
+			want: decision{account: "side", reason: "moved by pin"},
+		},
+		{
+			name:    "the global pin leaves a session whose thinking is bound where it is, however long idle",
+			bound:   true,
+			global:  pinSide,
+			current: on("work", 2*time.Hour),
+			work:    soon, side: later,
+			want: decision{account: "work", reason: "bound", sticky: true},
+		},
+		{
+			name:    "a session whose thinking is bound, having yielded its pin, isn't brought back once its cache is cold",
+			bound:   true,
+			pin:     "side",
+			current: pinned(on("work", 2*time.Hour), "side"),
+			work:    later, side: soon,
+			want: decision{account: "work", reason: "bound", sticky: true},
+		},
+		{
+			name:    "a session whose thinking is bound, having yielded its pin, goes back when its account has no room",
+			bound:   true,
+			pin:     "side",
+			current: pinned(on("work", 2*time.Hour), "side"),
+			work:    spent, side: later,
+			want: decision{account: "side", reason: "pinned"},
+		},
+		{
+			name:    "a session's pin yields to the session's account, which its thinking is bound to, however long idle",
+			bound:   true,
+			pin:     "side",
+			current: on("work", 2*time.Hour),
+			work:    later, side: spent,
+			want: decision{account: "work", reason: "pin yields: side has no room", sticky: true},
+		},
+		{
+			name:  "a new session whose thinking is bound goes to the account whose quota most needs using",
+			bound: true,
+			work:  later, side: soon,
+			want: decision{account: "side", reason: "new", afresh: true},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := Request{Session: "0b5c6f2e", Model: opus, Pin: tt.pin, Client: "work", Tried: tt.tried}
 			if tt.unsessioned {
 				req.Session = ""
+			}
+			if tt.bound {
+				req.Model, req.Bound = sonnet, true
 			}
 			s := situation{req: req, now: start, pin: tt.global, accounts: known(tt.work, tt.side).without(req.tried())}
 			if tt.current != nil {
@@ -345,6 +455,9 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 	moveToWork := status.Pin{Account: "work", Since: start.Add(-time.Hour), Move: true}
 	tests := []struct {
 		name string
+		// bound has the request ask for Sonnet, whose thinking is bound to
+		// the account that produced it, in place of Opus.
+		bound bool
 		// pin is the request's own.
 		pin string
 		// current is the session's assignment, nil for a new session.
@@ -420,11 +533,101 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			work: reserved, side: spent,
 			want: decision{account: "side", reason: "no account has room", afresh: true, noRoom: true},
 		},
+		{
+			name:    "a session whose thinking is bound moves off an account at its reserve, as at a limit",
+			bound:   true,
+			current: on("work", 5*time.Minute),
+			work:    reserved, side: later,
+			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true},
+		},
+		{
+			name:    "a session whose thinking is bound moves off an account at its reserve for the reserve, not for idling",
+			bound:   true,
+			current: on("work", 2*time.Hour),
+			work:    reserved, side: later,
+			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := Request{Session: "0b5c6f2e", Model: opus, Pin: tt.pin, Client: "work"}
+			if tt.bound {
+				req.Model, req.Bound = sonnet, true
+			}
 			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(known(tt.work, tt.side), "work", 0.1)}
+			if tt.current != nil {
+				s.current, s.assigned = *tt.current, true
+			}
+			if got := decide(s); got != tt.want {
+				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChoosingAfreshBetweenNearEqualsFavoursTheSessionResettingSoonest(t *testing.T) {
+	// Spare's week scores a tenth higher than side's, near enough equal, but
+	// side's session resets first: in an hour, where spare's resets in four.
+	// Work's week is all but spent.
+	windows := func(week float64, sessionLeft time.Duration) []quota.Window {
+		return []quota.Window{
+			{Key: "5h", Utilization: 0.1, ResetsAt: start.Add(sessionLeft)},
+			{Key: "7d", Utilization: week, ResetsAt: start.Add(50 * time.Hour)},
+		}
+	}
+	accounts := view{
+		policy: testPolicy,
+		now:    start,
+		candidates: []score.Candidate{
+			{ID: "work", Windows: windows(0.95, 2*time.Hour)},
+			{ID: "side", Windows: windows(0.5, time.Hour)},
+			{ID: "spare", Windows: windows(0.45, 4*time.Hour)},
+		},
+		applies: testPolicy.IsShared,
+	}
+	tests := []struct {
+		name string
+		// unsessioned leaves the request without a session.
+		unsessioned bool
+		// current is the session's assignment, nil for a new session.
+		current *assignment
+		// tried are the accounts the request has gone out on already.
+		tried []Attempt
+		want  decision
+	}{
+		{
+			name:        "a request without a session",
+			unsessioned: true,
+			want:        decision{account: "side", reason: "unsessioned", afresh: true},
+		},
+		{
+			name: "a new session",
+			want: decision{account: "side", reason: "new", afresh: true},
+		},
+		{
+			name:    "a session idle past the hour, rescored off an account well behind",
+			current: on("work", 2*time.Hour),
+			want:    decision{account: "side", reason: "rescored after 2h idle", afresh: true},
+		},
+		{
+			name:    "a session idle past the hour, kept on its own account against one resetting sooner",
+			current: on("spare", 2*time.Hour),
+			want:    decision{account: "spare", reason: "rescored after 2h idle", afresh: true},
+		},
+		{
+			name:    "a session whose account hit its limit on the request",
+			current: on("work", 0),
+			tried:   []Attempt{{Account: "work", Why: whyLimit}},
+			want:    decision{account: "side", reason: "moved: work hit its limit", afresh: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := Request{Session: "0b5c6f2e", Model: opus, Client: "work", Tried: tt.tried}
+			if tt.unsessioned {
+				req.Session = ""
+			}
+			s := situation{req: req, now: start, accounts: accounts.without(req.tried())}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}

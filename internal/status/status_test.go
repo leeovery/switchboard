@@ -20,8 +20,9 @@ import (
 )
 
 // policy scores the windows as Claude's are: the session and the week apply
-// to every model, and the week is perishable.
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}
+// to every model, the week is perishable, and the session's reset decides
+// between accounts scoring near enough equal.
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h"}
 
 func TestCollect(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
@@ -160,6 +161,8 @@ func TestCollectProbesAccountsAtOnce(t *testing.T) {
 func TestCollectBest(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: now.Add(3 * time.Hour)}
+	sessionEndingSooner := session
+	sessionEndingSooner.ResetsAt = now.Add(time.Hour)
 	week := func(utilization float64, resetsIn time.Duration) quota.Window {
 		return quota.Window{Key: "7d", Label: "Week", Utilization: utilization, ResetsAt: now.Add(resetsIn)}
 	}
@@ -178,6 +181,12 @@ func TestCollectBest(t *testing.T) {
 			name: "the account whose week resets soonest",
 			work: withWindows(session, week(0.5, 5*24*time.Hour)),
 			side: withWindows(session, week(0.5, 24*time.Hour)),
+			want: "side",
+		},
+		{
+			name: "of two scoring near enough equal, the one whose session resets soonest",
+			work: withWindows(session, week(0.5, 50*time.Hour)),
+			side: withWindows(sessionEndingSooner, week(0.55, 50*time.Hour)),
 			want: "side",
 		},
 		{

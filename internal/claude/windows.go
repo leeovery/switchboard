@@ -11,3 +11,8 @@ var SharedWindows = []string{"5h", "7d"}
 // whose week resets soonest wastes the least; the five-hour window comes round
 // too often to steer by.
 const PerishableWindow = "7d"
+
+// TiebreakWindow is the window whose reset decides between accounts whose
+// weeks score near enough equal: the five-hour session, whose allowance left
+// at its reset is lost.
+const TiebreakWindow = "5h"
