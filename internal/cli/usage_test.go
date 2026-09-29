@@ -19,8 +19,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/cli"
-	"github.com/leeovery/switchboard/internal/dashboard/notify"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/score"
 )
 
