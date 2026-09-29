@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -83,7 +82,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	state := r.health(ctx)
 	c, ok := r.choose(ctx, pin, state)
 	if !ok {
-		return l.unaided(path, args, "no account has a token", fmt.Errorf("set %s", strings.Join(tokenEnvs(r.Config.Accounts), " or ")))
+		return l.unaided(path, args, "no account has a token", fmt.Errorf("set %s", strings.Join(r.Config.Accounts.TokenEnvs(), " or ")))
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
@@ -92,7 +91,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("")
 		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
-		notice(l.Stderr, "the router "+state.String(), "connecting directly on "+title(c.account))
+		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	}
 	return l.exec(path, args, env)
 }
@@ -132,13 +131,16 @@ func (l Launcher) unaided(path string, args []string, couldnt string, err error)
 // line says, and what happens instead, such as "switchboard: couldn't read
 // the config (no config file at …) — starting claude without it".
 func Warn(w io.Writer, couldnt string, err error, instead string) {
-	notice(w, couldnt+" ("+firstLine(err)+")", instead)
+	Notice(w, couldnt+" ("+firstLine(err)+") — "+instead)
 }
 
-// notice tells w, in a line, what's wrong and what happens instead. What
-// happens goes ahead all the same, so a line that can't be written is let go.
-func notice(w io.Writer, trouble, instead string) {
-	_, _ = fmt.Fprintf(w, "switchboard: %s — %s\n", trouble, instead)
+// Notice tells w what switchboard would have the user know, in a line of its
+// own, such as "switchboard: the router isn't running — connecting directly
+// on work · Work": every notice switchboard gives on stderr reads so. What
+// it's about goes ahead all the same, so a line that can't be written is let
+// go.
+func Notice(w io.Writer, text string) {
+	_, _ = fmt.Fprintf(w, "switchboard: %s\n", text)
 }
 
 // firstLine is the first line of err's text, which is enough for a notice:
@@ -158,24 +160,9 @@ func (l Launcher) exec(path string, args []string, env environ) error {
 	return nil
 }
 
-// find returns where Claude Code is: on PATH, else the first of its install
-// paths that holds a program.
+// find returns where Claude Code is, as claude.Find finds it.
 func (l Launcher) find() (string, error) {
-	if path, err := l.LookPath(claude.Command); err == nil {
-		return path, nil
-	}
-	for _, path := range l.InstallPaths {
-		if isProgram(path) {
-			return path, nil
-		}
-	}
-	return "", fmt.Errorf("can't find claude: it isn't on PATH, nor at %s", strings.Join(l.InstallPaths, ", "))
-}
-
-// isProgram reports whether path holds a file that can be run.
-func isProgram(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
+	return claude.Find(l.LookPath, l.InstallPaths)
 }
 
 // How the router can answer its health check, as the log names it.
@@ -264,7 +251,7 @@ func (r Route) pinned() (choice, error) {
 	}
 	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == r.Account })
 	if i < 0 {
-		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(ids(r.Config.Accounts), " or "))
+		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(r.Config.Accounts.IDs(), " or "))
 	}
 	a := r.Config.Accounts[i]
 	token, ok := a.Token(r.Getenv)
@@ -298,28 +285,19 @@ func (r Route) best(ctx context.Context) (choice, bool) {
 // first is the first account with a token, reporting false when there's
 // none.
 func (r Route) first() (choice, bool) {
-	for _, a := range r.Config.Accounts {
-		if token, ok := a.Token(r.Getenv); ok {
-			return choice{account: a, token: token, why: "the first with a token"}, true
+	a, token, ok := firstWithToken(r.Config.Accounts, r.Getenv)
+	return choice{account: a, token: token, why: "the first with a token"}, ok
+}
+
+// firstWithToken returns the first of accounts whose token getenv finds, with
+// the token, reporting false when none has one.
+func firstWithToken(accounts config.Accounts, getenv func(key string) string) (config.Account, config.Token, bool) {
+	for _, a := range accounts {
+		if token, ok := a.Token(getenv); ok {
+			return a, token, true
 		}
 	}
-	return choice{}, false
-}
-
-func ids(accounts []config.Account) []string {
-	ids := make([]string, len(accounts))
-	for i, a := range accounts {
-		ids[i] = a.ID
-	}
-	return ids
-}
-
-func tokenEnvs(accounts []config.Account) []string {
-	envs := make([]string, len(accounts))
-	for i, a := range accounts {
-		envs[i] = a.TokenEnv
-	}
-	return envs
+	return config.Account{}, config.Token{}, false
 }
 
 // title names an account as every command does, such as "work · Work".

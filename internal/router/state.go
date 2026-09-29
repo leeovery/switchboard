@@ -20,27 +20,12 @@ const (
 	limitedFor = 5 * time.Minute
 )
 
-// origin is what a reading of an account's usage came from.
-type origin string
-
-const (
-	fromResponse origin = "response"
-	fromProbe    origin = "probe"
-)
-
-// reading is a window as it was last read, and when.
-type reading struct {
-	quota.Window
-	at time.Time
-}
-
 // usage is what the router knows of one account's usage.
 type usage struct {
 	// windows holds the latest reading of each window, by key.
-	windows map[string]reading
-	// updated is when a reading last came in, and from is what it came from.
+	windows map[string]quota.Window
+	// updated is when a reading last came in.
 	updated time.Time
-	from    origin
 	// probed is when a probe of the account last ended, whether it read
 	// anything or not.
 	probed time.Time
@@ -143,7 +128,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		seen:     make(map[string]map[string]bool),
 	}
 	for _, a := range accounts {
-		s.usage[a.ID] = &usage{windows: make(map[string]reading), forbidden: make(map[string]refusal)}
+		s.usage[a.ID] = &usage{windows: make(map[string]quota.Window), forbidden: make(map[string]refusal)}
 	}
 	return s
 }
@@ -151,11 +136,11 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 // record takes in a reading of an account's windows. Each window is merged
 // with the reading of its key before it, and the account's other windows
 // stand.
-func (s *state) record(id string, windows []quota.Window, from origin) {
+func (s *state) record(id string, windows []quota.Window) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].take(windows, from, at)
+	s.usage[id].take(windows, at)
 }
 
 // recordProbe takes in what probing an account found: its usage and which
@@ -171,7 +156,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error) {
 		return
 	}
 	u.failures = slices.Clone(probed.Failures)
-	u.take(probed.Windows, fromProbe, at)
+	u.take(probed.Windows, at)
 	for key, models := range probed.Models {
 		for _, model := range models {
 			s.see(key, model)
@@ -248,25 +233,25 @@ func (s *state) due(id string, now time.Time) bool {
 
 // olderThan returns what reports whether an account's usage wants probing at
 // now: nothing has been read of it for longer than age, and no probe of it
-// has ended in the last retryAfter, so an account whose probes fail isn't
+// has ended in the last reprobeAfter, so an account whose probes fail isn't
 // probed at every ask.
 func (s *state) olderThan(age time.Duration) func(id string, now time.Time) bool {
 	return func(id string, now time.Time) bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		u := s.usage[id]
-		return now.Sub(u.updated) > age && now.Sub(u.probed) >= retryAfter
+		return now.Sub(u.updated) > age && now.Sub(u.probed) >= reprobeAfter
 	}
 }
 
 // dueAgain reports whether an account whose usage leaves it no room wants
 // probing again at now, in case a window has reset unseen: nothing has been
-// read of it, nor has a probe of it ended, in the last retryAfter.
+// read of it, nor has a probe of it ended, in the last reprobeAfter.
 func (s *state) dueAgain(id string, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	return now.Sub(u.updated) >= retryAfter && now.Sub(u.probed) >= retryAfter
+	return now.Sub(u.updated) >= reprobeAfter && now.Sub(u.probed) >= reprobeAfter
 }
 
 // view returns what a choice of account for a request of model knows at now:
@@ -333,50 +318,52 @@ func (s *state) counting(model string) func(key string) bool {
 }
 
 // take takes in windows read at a time, each merged with the reading of its
-// key before it, and lifts the account's limit when the windows merged show
-// it lifted. Windows that are all stale leave the account as it was.
-func (u *usage) take(windows []quota.Window, from origin, at time.Time) {
+// key before it, as mergeLater merges them, and lifts the account's limit
+// when the windows merged show it lifted. Windows that are all stale leave
+// the account as it was.
+func (u *usage) take(windows []quota.Window, at time.Time) {
 	var merged []quota.Window
 	for _, w := range windows {
-		kept, current := u.windows[w.Key].merge(w, at)
+		kept, current := mergeLater(u.windows[w.Key], w)
 		if !current {
 			continue
 		}
 		u.windows[w.Key] = kept
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
-		merged = append(merged, kept.Window)
+		merged = append(merged, kept)
 	}
 	if len(merged) == 0 {
 		return
 	}
-	u.updated, u.from, u.probeErr = at, from, ""
+	u.updated, u.probeErr = at, ""
 	if u.limited.liftedBy(merged, at) {
 		u.limited = limit{}
 	}
 }
 
-// merge returns what to keep of a window, given r and a reading w of it at a
-// time, and reports whether w is current. A later reset is a new window,
-// however little used. The same reset is the same window, whose use only
-// rises, so a reading as high stands, and a lower one is from before r: it
-// leaves r's higher use, as of w's time, so a slow response reporting it late
-// can't pull it back, and it can't lift a rejection either reading holds. An
-// earlier reset is a window that's gone, and w is stale. Without a reset to go
-// by, the newest reading stands.
-func (r reading) merge(w quota.Window, at time.Time) (reading, bool) {
+// mergeLater returns what to keep of a window, given held, as it was read
+// before, and w, a reading of it taken later, and reports whether w is
+// current. Unlike quota.MergeMax, which merges readings taken together, it
+// can't just keep the higher use: the window may have reset in between, so
+// the reset decides. A later reset is a new window, however little used. The
+// same reset is the same window, whose use only rises, so a reading as high
+// stands, and a lower one is from before held: it leaves held's higher use, so
+// a slow response reporting it late can't pull it back, and it can't lift a
+// rejection either reading holds. An earlier reset is a window that's gone,
+// and w is stale. Without a reset to go by, the newest reading stands.
+func mergeLater(held, w quota.Window) (quota.Window, bool) {
 	switch {
-	case w.ResetsAt.IsZero() || w.ResetsAt.After(r.ResetsAt):
-		return reading{Window: w, at: at}, true
-	case w.ResetsAt.Before(r.ResetsAt):
-		return r, false
-	case w.Utilization < r.Utilization:
-		kept := r.Window
+	case w.ResetsAt.IsZero() || w.ResetsAt.After(held.ResetsAt):
+		return w, true
+	case w.ResetsAt.Before(held.ResetsAt):
+		return held, false
+	case w.Utilization < held.Utilization:
 		if w.Status == quota.StatusRejected {
-			kept.Status = w.Status
+			held.Status = w.Status
 		}
-		return reading{Window: kept, at: at}, true
+		return held, true
 	default:
-		return reading{Window: w, at: at}, true
+		return w, true
 	}
 }
 
@@ -479,10 +466,7 @@ func (u *usage) latest() []quota.Window {
 	if len(u.windows) == 0 {
 		return nil
 	}
-	windows := make([]quota.Window, 0, len(u.windows))
-	for _, r := range u.windows {
-		windows = append(windows, r.Window)
-	}
+	windows := slices.Collect(maps.Values(u.windows))
 	quota.Sort(windows)
 	return windows
 }

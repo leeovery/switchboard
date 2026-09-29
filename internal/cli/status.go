@@ -28,7 +28,7 @@ line says which.
 With --session, show the account the router sends a Claude Code session's
 requests to, as a statusline asks: that account alone, or with --json, the
 session's every model and why it went where it did. It needs the router
-running.`,
+running: start it with switchboard service install (or switchboard serve).`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
 			case cmd.Flags().Changed("session") && session == "":

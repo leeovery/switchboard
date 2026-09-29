@@ -84,6 +84,44 @@ func TestHasTheRouterRefreshSoonerWhileAnAccountCantBeRead(t *testing.T) {
 	}
 }
 
+func TestHasTheRouterRefreshOnceAWindowOnScreenResets(t *testing.T) {
+	// The router's document shows work's session resetting at 13:20, and goes
+	// on showing it after, as it would were work idle.
+	h := routedHarness(t, routerDocument(
+		account("work", "Work", session(0.25, 8*time.Minute), week(0.5)),
+		account("side", "Side", session(0.4, 2*time.Hour), week(0.6)),
+	))
+	h.start()
+
+	var refreshed []time.Time
+	for h.clock.now.Before(at(13, 25, 0)) {
+		asked := len(h.source.asked)
+		h.fire(h.lastTick())
+		for _, r := range h.source.asked[asked:] {
+			if r == (Read{Refresh: freshFor, Probe: true}) {
+				refreshed = append(refreshed, h.clock.now)
+			}
+		}
+	}
+	due := at(13, 21, 0)
+	if len(refreshed) != 1 || refreshed[0].Before(due) || refreshed[0].After(due.Add(lookEvery+tickSlack)) {
+		t.Errorf("the router refreshed what it hadn't read in the last minute at %v, want once, at the first look from %s, a minute after work's session reset",
+			refreshed, due.Format(time.Kitchen))
+	}
+}
+
+func TestHasTheRouterRefreshAtOnceForAWindowThatResetBeforeTheWatchBegan(t *testing.T) {
+	h := routedHarness(t, routerDocument(account("work", "Work", session(0.25, -12*time.Minute), week(0.5))))
+	h.start()
+
+	h.fire(h.lastTick())
+	h.fire(h.lastTick())
+	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor, Probe: true}, {Probe: true}}
+	if !slices.Equal(h.source.asked, want) {
+		t.Errorf("asked for %+v, want %+v: the first look has the router refresh what it hasn't read in the last minute, once", h.source.asked, want)
+	}
+}
+
 func TestFallsBackToProbingWhenTheRouterStops(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()

@@ -155,6 +155,10 @@ denies_foreign_socket() {
 	cache=$(getconf DARWIN_USER_CACHE_DIR)
 	dir=$(mktemp -d "${cache%/}/sb-check.XXXXXX") || return 1
 	socket=$dir/live.sock
+	# A job started in the background ignores the terminal's interrupt, so an
+	# interrupted run would leave the listener running, and its directory.
+	trap 'stop_listening "${listener-}" "$dir"; exit 130' INT
+	trap 'stop_listening "${listener-}" "$dir"; exit 143' TERM HUP
 	/usr/bin/nc -lkU "$socket" </dev/null >/dev/null 2>&1 &
 	listener=$!
 	if answers "$socket"; then
@@ -164,10 +168,17 @@ denies_foreign_socket() {
 		echo "test-isolated: nothing answered on $socket, so the sandbox's denying it can't be told" >&2
 		status=1
 	fi
-	kill "$listener" 2>/dev/null || true
-	wait "$listener" 2>/dev/null || true
-	rm -rf "$dir"
+	stop_listening "$listener" "$dir"
+	trap - INT TERM HUP
 	return "$status"
+}
+
+# stop_listening stops the listener whose pid is $1, and removes its
+# directory, $2.
+stop_listening() {
+	kill "$1" 2>/dev/null || true
+	wait "$1" 2>/dev/null || true
+	rm -rf "$2"
 }
 
 # answers waits a second at most for a connection to the unix socket at path

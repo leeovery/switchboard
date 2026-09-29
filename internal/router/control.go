@@ -195,7 +195,7 @@ func (r *Router) pin(id string, move bool) error {
 	case id == "":
 		return errors.New(`give the account to pin, such as {"account": "work"}`)
 	case !ok:
-		return fmt.Errorf("there's no account %q: pin %s", id, strings.Join(r.accounts.sendable().ids(), " or "))
+		return fmt.Errorf("there's no account %q: pin %s", id, strings.Join(r.accounts.sendable().configured().IDs(), " or "))
 	case !a.hasToken:
 		return fmt.Errorf("account %s has no token, so nothing can go out on it: set %s", id, a.TokenEnv)
 	}

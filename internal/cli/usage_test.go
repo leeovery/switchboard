@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/score"
@@ -132,6 +133,32 @@ func TestUsageWatch(t *testing.T) {
 				t.Errorf("notifier = %#v, want the command's own", cfg.Notifier)
 			case !tt.wantNotify && cfg.Notifier != (notify.Off{}):
 				t.Errorf("notifier = %#v, want one that posts nothing", cfg.Notifier)
+			}
+		})
+	}
+}
+
+func TestUsageWatchNotifiesAsTheConfigSays(t *testing.T) {
+	tests := []struct {
+		name  string
+		extra string
+		want  config.Notifications
+	}{
+		{name: "as it says when it doesn't", want: config.Notifications{Limits: true, Room: true, Warning: 0.9}},
+		{name: "as it says", extra: "\n[notifications]\nroom = false\nwarning = 0.8\n", want: config.Notifications{Limits: true, Warning: 0.8}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+			srv.extra = tt.extra
+			srv.writeConfig(t)
+			cfg := recordWatch(t, &srv.deps)
+
+			if got := run(t, srv.deps, "usage", "--watch"); got != (result{}) {
+				t.Fatalf("switchboard usage --watch = %+v, want exit status 0 and nothing printed", got)
+			}
+			if cfg.Notifications != tt.want {
+				t.Errorf("notifications = %+v, want %+v", cfg.Notifications, tt.want)
 			}
 		})
 	}

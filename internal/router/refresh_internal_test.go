@@ -31,9 +31,9 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "30m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-40 * time.Minute)
-				r.state.record("side", []quota.Window{session, week}, fromResponse)
+				r.state.record("side", []quota.Window{session, week})
 				clock.now = start.Add(-10 * time.Minute)
-				r.state.record("work", []quota.Window{session, week}, fromResponse)
+				r.state.record("work", []quota.Window{session, week})
 			},
 			want: map[string]int{sideToken: 1},
 		},
@@ -42,9 +42,9 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "5m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-40 * time.Minute)
-				r.state.record("side", []quota.Window{session, week}, fromResponse)
+				r.state.record("side", []quota.Window{session, week})
 				clock.now = start.Add(-10 * time.Minute)
-				r.state.record("work", []quota.Window{session, week}, fromResponse)
+				r.state.record("work", []quota.Window{session, week})
 			},
 			want: map[string]int{workToken: 1, sideToken: 1},
 		},
@@ -68,8 +68,8 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "0s",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-time.Second)
-				r.state.record("work", []quota.Window{session, week}, fromResponse)
-				r.state.record("side", []quota.Window{session, week}, fromResponse)
+				r.state.record("work", []quota.Window{session, week})
+				r.state.record("side", []quota.Window{session, week})
 			},
 			want: map[string]int{workToken: 1, sideToken: 1},
 		},

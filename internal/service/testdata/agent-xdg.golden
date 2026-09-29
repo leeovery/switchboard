@@ -15,6 +15,8 @@
 		<string>/opt/homebrew/bin/switchboard</string>
 		<string>--config</string>
 		<string>/Users/tester/switchboard &amp; co/config.toml</string>
+		<string>--log-level</string>
+		<string>debug</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>
@@ -24,6 +26,8 @@
 		<string>/Users/tester/.local/state</string>
 		<key>SWITCHBOARD_CONFIG</key>
 		<string>/Users/tester/.config/switchboard/work.toml</string>
+		<key>SWITCHBOARD_LOG_LEVEL</key>
+		<string>warn</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>

@@ -61,7 +61,7 @@ type Prober interface {
 // Config is what a router is built from.
 type Config struct {
 	// Accounts are the configured accounts, in the order they're shown.
-	Accounts []config.Account
+	Accounts config.Accounts
 	// Getenv reads the variables holding the accounts' tokens.
 	Getenv func(key string) string
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
@@ -124,7 +124,7 @@ func New(cfg Config) (*Router, error) {
 	cfg.Now = wallClock(cfg.Now)
 	accounts := resolve(cfg.Accounts, cfg.Getenv)
 	if !accounts.anyToken() {
-		return nil, fmt.Errorf("no account has a token, so there's nothing to route to: set %s", strings.Join(accounts.tokenEnvs(), " or "))
+		return nil, fmt.Errorf("no account has a token, so there's nothing to route to: set %s", strings.Join(cfg.Accounts.TokenEnvs(), " or "))
 	}
 	upstream, err := url.Parse(cfg.Upstream)
 	if err != nil {

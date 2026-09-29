@@ -34,7 +34,7 @@ func detailParts(w quota.Window, p score.Projection, now time.Time) []span {
 		}
 		return []span{
 			{"back in " + backIn(now, p.At), exhaustedInk},
-			{clock(now, p.At), exhaustedInk},
+			{status.Clock(now, p.At), exhaustedInk},
 		}
 	}
 	var parts []span
@@ -42,7 +42,7 @@ func detailParts(w quota.Window, p score.Projection, now time.Time) []span {
 		parts = append(parts, span{phrase, projectionInk(w, p)})
 	}
 	if !w.ResetsAt.IsZero() {
-		parts = append(parts, span{status.Resets(now, w.ResetsAt), dimInk}, span{clock(now, w.ResetsAt), dimInk})
+		parts = append(parts, span{status.Resets(now, w.ResetsAt), dimInk}, span{status.Clock(now, w.ResetsAt), dimInk})
 	}
 	if len(parts) == 0 {
 		parts = append(parts, span{"reset time unknown", dimInk})
@@ -71,11 +71,6 @@ func joined(parts []span) line {
 		l = append(l, span{" · " + p.text, p.ink})
 	}
 	return l
-}
-
-// clock shows t in now's time zone, such as "Mon 18:10".
-func clock(now, t time.Time) string {
-	return status.Clock(t.In(now.Location()))
 }
 
 // backIn counts down from now to an exhausted window's return at t: in

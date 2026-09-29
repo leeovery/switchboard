@@ -1,9 +1,10 @@
 # Switchboard — design
 
-**Status:** everything in milestones 1 and 2 is built: the usage dashboard (one-off, and in watch
-mode) and `status`, which read the router while it runs and probe when it doesn't; logging; the
-router, with its scheduler, pins, state, limit handling, health and desktop notifications; and
-launching (`run`, `init zsh` and the service). Milestone 3 happens outside this repo.
+**Status:** everything is built: the usage dashboard (one-off, and in watch mode) and `status`,
+which read the router while it runs and probe when it doesn't; logging; the router, with its
+scheduler, pins, state, limit and refusal handling, health and desktop notifications; and
+launching (`run`, `init zsh` and the service). The next step is the user's shell switch-over
+(milestone 3), which happens outside this repo.
 
 ## What it is
 
@@ -13,8 +14,9 @@ out, and otherwise keeps every session on one account so its prompt cache stays 
 ships a terminal dashboard showing every account's usage.
 
 Scope for v1: Claude Code, authenticated with long-lived setup tokens (`claude setup-token`).
-Browser logins and other agents are out of scope. Everything Claude-specific sits behind one
-provider interface, so another agent can be added later without reshaping the rest.
+Browser logins and other agents are out of scope. Claude-specific knowledge sits behind a provider
+interface, so another agent can be added later without reshaping the rest; the few pieces that
+don't are listed under Architecture.
 
 ## How it works
 
@@ -25,18 +27,23 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 ```
 
 - Claude Code sends every request to switchboard. Switchboard replaces the `Authorization` header
-  with the chosen account's token and forwards the request. Nothing else changes, so the request
-  is still genuinely Claude Code's.
+  with the chosen account's token and forwards the request. Nothing else changes but the pin
+  header switchboard's own launcher adds, which it strips, so the request is still genuinely
+  Claude Code's.
 - Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization
   and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Switchboard
   reads them off real traffic, so it knows each account's usage without spending requests.
-  Windows are parsed generically, not hard-coded. A window's reset says which reading is current:
-  a later reset is a new window; with the same reset the higher utilization stands, as use only
-  rises within a window, so a slow response can't pull it back, nor lift a rejection either
-  reading holds; an earlier reset is ignored.
-- An account with no recent traffic is refreshed with a 1-token probe, and only when a decision
-  needs fresh numbers, or a dashboard asks for them, once its interval. A probe follows no
-  redirect, which would carry its token along.
+  Windows are parsed generically, not hard-coded. A window's reset says which of two readings
+  taken apart is current: a later reset is a new window; with the same reset the higher
+  utilization stands, as use only rises within a window, so a slow response can't pull it back,
+  nor lift a rejection either reading holds; an earlier reset is ignored.
+- The router probes every account with a token as it starts. After that, an account with no
+  recent traffic is probed only when a decision needs fresh numbers, or a dashboard asks for
+  them. A probe is one request per model family, each capped at one output token: Haiku, for
+  the windows every model shares, and Fable, for its own week, falling back to the previous Fable
+  when the newest reads nothing. Where both report a window, the higher reading stands, as the
+  two are taken together. A probe claims the version of the Claude Code installed here, and
+  follows no redirect, which would carry its token along.
 
 ## Prompt cache facts the design rests on
 
@@ -91,32 +98,47 @@ Hence: move a session only when its cache is already cold or its account can't s
    passed with no traffic to show it; then it decides again. Failing that, the last 429 is passed
    through.
 
-Each request's account is decided in this order, and the routed line in the log gives the reason:
+Each request's account is decided in this order:
 
-1. The session's own pin, while its account can serve it (`pinned`); else the pin yields to the
-   rest (`pin yields: <id> has no room`). A session that yielded stays where it went while its
-   cache is warm, and goes back once it's cold.
-2. A global pin set with `--move`, for a session assigned before it: once each (`moved by pin`).
-3. The session's account, while its cache is warm and the account can serve it (`sticky`).
-4. Afresh: the global pin's account while it can serve the request (`pinned (global)`), else the
-   best candidate (`new`, `rescored after <idle> idle`, `moved: <id> has no room`, and when a
-   replay moves it, `moved: <id> hit its limit` or `moved: <id> was refused`).
+1. The session's own pin, while its account can serve it; else the pin yields to the rest. A
+   session that yielded stays where it went while its cache is warm, and goes back once it's cold.
+2. A global pin set with `--move`, for a session assigned before it: once each.
+3. The session's account, while its cache is warm and the account can serve it.
+4. Afresh: the global pin's account while it can serve the request, else the best candidate.
 5. With no candidate, the session's account, else the client's, else any other, passing over
-   those that refused the request lately (`no account has room`).
+   those that refused the request lately.
 
-A request without a session id is decided afresh every time and not remembered (`unsessioned`).
-Before deciding afresh, and never for a sticky request, switchboard probes every account it hasn't
-read in 15 minutes, all at once, and waits for them 8 seconds at most. Choices made together share
-a probe, and an account whose probe failed waits a minute for the next.
+A request without a session id is decided afresh every time and not remembered. Before deciding
+afresh, and never for a sticky request, switchboard probes every account it hasn't read in 15
+minutes, all at once, and waits for them 8 seconds at most. Choices made together share a probe,
+and an account whose probe ended, read or not, waits a minute for the next.
+
+The routed line in the log gives the reason for each request's account, one of:
+
+| Reason | Why |
+|---|---|
+| `pinned` | The session's own pin (step 1) |
+| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as its windows leave no room |
+| `pin yields: <id> hit its limit`, `pin yields: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it |
+| `moved by pin` | A global pin with `--move` (step 2) |
+| `sticky` | The session's account, its cache warm (step 3) |
+| `pinned (global)` | The global pin's account, chosen afresh (step 4) |
+| `new` | A new session's first account |
+| `unsessioned` | A request without a session id |
+| `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh |
+| `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
+| `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
+| `no account has room` | None can take it (step 5): it goes where the upstream will say why |
+| `client` | The scheduler named an account nothing can go out on, so the request kept the client's own token: a bug, which the log reports as an error |
 
 ## Pinning
 
 | Pin | Scope | Running sessions |
 |---|---|---|
 | `run --account <id>` | That session only | Unaffected |
-| `pin <id>` | Every new session | Stay where they are |
+| `pin <id>` | Every new session, and any other whose account is chosen afresh | Stay where they are while their caches are warm and their accounts have room |
 | `pin <id> --move` | Every new session and every running one | Move on their next request (one cache rebuild each) |
-| `pin auto` | Back to routing | n/a |
+| `pin auto` | Back to routing (`auto` in any case) | n/a |
 
 A per-session pin beats a global pin. Every pin yields at a limit: a pinned session that hits
 one moves by the normal rules rather than failing. The per-session pin reaches the proxy as a
@@ -140,12 +162,14 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   lacks: the account has no room for requests of that model's family for 10 minutes. Either way
   the request is replayed on another account, as at a limit. With none left, switchboard answers
   with the 429 of the first account whose limit the request reached, as it came, when one did:
-  that's why there's no account left. Otherwise it returns 502, marked not to be retried, as the
-  same token would only be refused again.
-- **Replay:** request bodies are buffered so they can be replayed. Replay only happens before
-  response headers have been sent; a failure mid-stream is passed through and Claude Code retries.
-  Nor is a request that couldn't reach the upstream at all replayed elsewhere: that isn't the
-  account's fault. Claude Code gets a 502 and retries.
+  that's why there's no account left. Otherwise it returns 502, shaped as the API shapes its
+  errors and marked `X-Should-Retry: false`, as the same token would only be refused again.
+- **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
+  request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
+  be read 400, neither going upstream nor counting towards the router's health. Replay only
+  happens before response headers have been sent; a failure mid-stream is passed through and
+  Claude Code retries. Nor is a request that couldn't reach the upstream at all replayed
+  elsewhere: that isn't the account's fault. Claude Code gets a 502 and retries.
 - **Storm control:** decided against, as the pause and retry on a throttled account (step 6
   above) already absorbs the burst limit many sessions moving onto one account at once can trip,
   where pacing them would slow every request.
@@ -154,70 +178,77 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 
 ## Accounts and tokens
 
-- Accounts are declared in `~/.config/switchboard/config.toml`: an id, a label, and the name of
-  the environment variable that holds the token.
-
-  ```toml
-  [[account]]
-  id    = "work"
-  label = "Work"
-  token_env = "CLAUDE_TOKEN_WORK"
-  ```
-
+- Accounts are declared in the config file: an id, a label, and the name of the environment
+  variable that holds the token. See Config.
 - Switchboard never stores tokens. It reads them from its environment, so wherever they already
   live (a password manager, a generated env file) stays the source of truth. The programs it runs
-  for itself, `claude --version` and `osascript`, get none of that environment but `PATH`, `HOME`,
-  `TMPDIR` and `LANG`.
+  for itself, `claude --version`, `osascript` and `launchctl`, get none of that environment but
+  `PATH`, `HOME`, `TMPDIR` and `LANG`.
 - The background service is a LaunchAgent, and a LaunchAgent doesn't see the shell's environment.
   `service install --env-file <path>` has zsh source that file, one the shell sources too, each
-  time the router starts. After tokens change, `service restart` picks them up.
+  time the router starts. After tokens change, `service restart` picks them up. Without
+  `--env-file`, when none of the accounts' tokens is set where it runs either, `install` warns
+  that the router looks set to start with none.
 
 ## Commands
 
+Every command takes `--config <file>`, which names the config file in place of the one found as
+Files says. `switchboard --version` prints the version.
+
 | Command | Job |
 |---|---|
-| `serve` | Run the proxy in the foreground (normally started by the service) |
-| `service install [--env-file <path>]\|uninstall\|restart\|status` | Manage the LaunchAgent: see Launching |
-| `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router. Checks the router is healthy first and connects directly if not. `--direct` skips the router and the token, so Claude Code uses its own login |
-| `usage [-w [interval]] [--probe]` | The dashboard; `-w` keeps it on screen. It reads the router while it runs; `--probe` probes instead |
-| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pins and router health, read as `usage` reads them. A statusline asks it for its session's account |
-| `pin <id> [--move]`, `pin auto` | Global pin |
-| `accounts` | List configured accounts and whether each token is present |
-| `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines, or follow it: see Logging |
-| `init zsh [--prefix cx]` | Print shell integration: a `claude` wrapper that goes through `run`, and one pinned launcher per account, `<prefix><id>` |
+| `accounts` | List the configured accounts and whether each token is set |
+| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, and router health, read as `usage` reads them. `--json` prints the status document. `--session` shows the account the router sends a session's requests to, as a statusline asks, or with `--json`, `/sessions/{id}`'s answer; it needs the router |
+| `usage [--watch [interval]] [--no-notify] [--probe]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead |
+| `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
+| `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
+| `pin <id> [--move]`, `pin auto` | Set or clear the global pin: see Pinning. It needs the router |
+| `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router, pinned to `--account`'s account if given. `--direct` skips the router and the token, so Claude Code uses its own login. See Launching |
+| `init zsh [--prefix <prefix>]` | Print the shell integration, for `.zshrc` to `eval`: see Launching |
+| `service install [--env-file <path>] [--log-level <level>]` | Install the LaunchAgent, which starts the router: see Launching |
+| `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent; restart it; report the plist, whether launchd has it loaded, and the router's health |
+
+A command that needs the router fails without it, saying `the router isn't running: start it
+with switchboard service install (or switchboard serve)`. Any notice a command gives on stderr,
+rather than failing, reads `switchboard: …`.
 
 ## Dashboard
 
 - One card per account. Any number of accounts; the layout adapts to the terminal, down to a line
-  per account when the cards don't fit its width or height.
+  per account when the cards don't fit its width, or, in watch mode, its height.
 - Bars with a pace marker (where even use across the window would put you) and a projection
   ("on pace for 92%", "runs out ~Fri 19:40").
 - For an exhausted account, a live countdown until it's back.
-- Under the heading, where the usage came from, then `best next: …`: the router, how many
-  sessions it has and where it sends new ones (`router · 3 sessions · pinned to 2 · two`, or
-  `… · routing automatically`); `router unhealthy — <reason>`, in red; or, dim,
-  `probing directly (router not running)`. Probing as asked says nothing of the router.
+- Under the heading, where the usage came from, then `best next: …`, each part set apart by a dot
+  wider than the one within an account's title: the router, how many sessions it has and where
+  it sends new ones (`router  ·  3 sessions  ·  pinned to 2 · two  ·  best next: …`, or
+  `…  ·  routing automatically  ·  …`); `router unhealthy — <reason>`, in red; or, dim,
+  `probing directly (router not running)`. Probing as asked says nothing of the router. With no
+  account to use next, `no account has room right now` stands in for `best next`, in red.
 - The global pin's account carries a `● pinned` badge beside the best's `▲ best`, and cards are
-  wide enough for both, so pinning never reflows them. A limit the router saw an account reach
-  shows at the top of its card, `limit until Mon 21:00`, in red, while it holds, and the
-  account's sessions, `2 sessions`, at its foot. A line per account carries the pin's mark beside
-  the best's, and the sessions where there's room.
+  wide enough for both, so pinning never reflows them. What the router holds an account back by
+  shows at the top of its card, in red, while it holds: a limit it reached, `limit until Mon
+  21:00`, and under it a refusal, `refused (403, opus) until 21:40`. The account's sessions,
+  `2 sessions`, show at its foot. A line per account carries the pin's mark beside the best's,
+  and the sessions where there's room.
 - **Where it reads:** `usage` and `status` read the router's status document whenever the router
   answers its health check within the half second `run` gives it, healthy or not: an unhealthy
   router's trouble is for them to show, and it still posts the notifications. Otherwise they
   probe every account, and the document's `fallback` says why the router's wasn't read:
   `{"router": "not running"}`, or `{"router": "unhealthy", "reason": "…"}` when something
-  answered its socket, but not as a router does. `--probe` probes regardless, saying nothing of
-  the router.
-- **Watch mode** (`usage -w [interval]`: 30m unless given, 5m at the least). Reading the router,
-  it looks at the router's document every 5 seconds, which costs nothing upstream, and every
-  interval has the router `POST /refresh` with the interval as `max_age`, so idle accounts are
-  probed no more often than the watch asks: sooner, backing off, while an account can't be read.
-  Probing, it reads every interval, a minute after a window on screen resets, and sooner after a
-  failure, backing off from 2 minutes to the interval. When the router stops answering, the next
-  look probes instead, and the footer says since when there's been no router. Probing, it asks
-  after the router at each probe and once a minute between, and reads it again as soon as it
-  answers, so it never goes back and forth faster than that.
+  answered its socket, but not as a router does, or not within the half second (`no answer
+  within 500ms`). `--probe` probes regardless, saying nothing of the router.
+- **Watch mode** (`usage -w [interval]`). Reading the router, it looks at the router's document
+  every 5 seconds, which costs nothing upstream, and every interval has the router `POST
+  /refresh` with the interval as `max_age`, so idle accounts are probed no more often than the
+  watch asks: sooner, backing off from 2 minutes to the interval, while an account can't be read.
+  A minute after a window on screen resets, the next look has the router refresh first with a
+  `max_age` of a minute, once a reset, so an idle account's window doesn't read `resets now`
+  until the next interval. Probing, it reads every interval, a minute after a window on screen
+  resets, and sooner after a failure, backing off from 2 minutes to the interval. When the
+  router stops answering, the next look probes instead, and the footer says since when there's
+  been no router. Probing, it asks after the router at each probe and once a minute between, and
+  reads it again as soon as it answers, so it never goes back and forth faster than that.
 - **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, or,
   without it, every account is probed. `q` quit. While it reads the router, `1`–`9` pin new
   sessions to the account in that place, as configured; `a` routes automatically again; `m`
@@ -242,22 +273,16 @@ fail over to. The upstream's own 429s and 5xx, passed through, don't count again
 unhealthy once it has failed 5 of them at least, and half at least: `GET /health` then answers
 `ok: false` with a `reason`, the status document's `router` object says the same, and the log
 notes the turn, and the turn back, at warn and info. `status` and the dashboard show trouble
-loudly: they read an unhealthy router's document all the same, and say `router unhealthy —
-<reason>`. Whether it should also fall back automatically is an open question.
+loudly: they read an unhealthy router's document all the same, `status`'s last line reading `from
+the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>` and the dashboard heading its cards
+`router unhealthy — <reason>`, in red.
+Whether it should also fall back automatically is an open question.
 
 ## Notifications
 
 The router sees each limit, move and return as it happens, whether or not a dashboard is open, so
 while it runs, the desktop notifications are its own. `[notifications]` in the config says which
-it posts, each key defaulting as shown:
-
-```toml
-[notifications]
-limits  = true   # an account hits a limit, and the sessions it moved
-room    = true   # an account has room again
-warning = 0.9    # a window passing this share of its limit; 0 turns it off
-moves   = false  # every other session move, such as after an idle hour or by pin
-```
+it posts: see Config.
 
 - **Limits:** a limit's notification waits 5 seconds for the sessions the limit moves off its
   account, as their next requests come, then tells of them together:
@@ -281,11 +306,12 @@ always goes out: as the router stops, those still gathering go out at once, with
 Any other goes out only a minute or more after the last about its account, a limit's included:
 one due sooner is dropped, and the log says so at debug. One that fails to post is logged at
 warn, and dropped too. The log names accounts by id alone. Notifications never hold a request up:
-the router queues what happens, and posts from a goroutine of its own. `warning` must be 0, or
-more than 0 and less than 1.
+the router queues what happens, and posts from a goroutine of its own.
 
-The dashboard in watch mode posts its own, of an account's return and a window passing 90%, only
-while it probes: while it reads the router, it posts none, so nothing is told twice.
+The dashboard in watch mode posts its own, only while it probes, of an account with room again
+and a window passing the warning, as `room` and `warning` say, and none with `--no-notify`:
+while it reads the router, it posts none, so nothing is told twice. It sees no limits or moves,
+which are the router's alone.
 
 ## Logging
 
@@ -305,10 +331,11 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   the new one. The directory is 0700, the files 0600.
 - **Levels:** `SWITCHBOARD_LOG_LEVEL` is `debug`, `info`, `warn` or `error`, in any case; `info`
   when unset, and `info` with a warning naming the value when it's anything else. A
-  `--log-level` given to `serve` overrides it. Every process logs its `start` (role, version and
-  command path, never the arguments, which can hold a prompt) and `exit` (status and duration):
-  at `info` for the router, at `debug` for commands, so a statusline running `status` every few
-  seconds doesn't flood `cli.log`.
+  `--log-level` given to `serve`, or to `service install`, which passes it on, overrides it.
+  Every process logs its `start` (role, version and command path, never the arguments, which can
+  hold a prompt) and `exit` (status and duration): at `info` for the router, at `debug` for
+  commands, so a statusline running `status` every few seconds doesn't flood `cli.log`. `run`
+  becomes `claude`, by `exec`, before it would log its exit: its last record is the launch.
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -328,55 +355,106 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 
 | Package | Owns |
 |---|---|
-| `cmd/switchboard` | `main`: builds the command tree and exits with its status |
+| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications) and exits with its status |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
-| `internal/config` | Locating, parsing and validating the config file; reading tokens from the environment |
+| `internal/config` | Locating, parsing and validating the config file; the accounts, and reading their tokens from the environment |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
-| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token), which paths are routed, the session header |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, and finding the installed `claude` and its version |
 | `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
-| `internal/dashboard` | Rendering (Lip Gloss), and watch mode (Bubble Tea): reading the router or probing, its keys, and its desktop notifications while it probes |
-| `internal/notify` | Posting desktop notifications, and the wording the router's and the dashboard's share |
+| `internal/status` | The status document, building it by probing every account, and its words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
+| `internal/dashboard` | Rendering the status document as a frame (Lip Gloss): cards, or a line per account |
+| `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes |
+| `internal/router` | The proxy and its replays, the scheduler, live account state, the state file, the router's health, the events it emits and the notifications it posts, and the control API and its client |
+| `internal/launch` | `run`'s hand-over to `claude`, `init zsh`'s integration, and how a notice reads on stderr |
+| `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
+| `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token |
-| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back |
-| `internal/router` | The proxy and its replays, the scheduler, live account state, the router's health, the events it emits and the notifications it posts, and the control API |
-| `internal/launch` | `run` and `init zsh` |
-| `internal/service` | The LaunchAgent |
+| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
+| `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]` |
+| `internal/prose` | Words shared across packages: a list run together as English does, and text cut short |
+| `internal/testguard` | Every package's `TestMain`: keeps tests off the real system (see Test isolation in `CLAUDE.md`) |
 
-Claude-specific knowledge lives only in `internal/claude`. Other packages depend on small
-interfaces they define themselves, which `internal/claude` satisfies.
+Claude-specific knowledge lives in `internal/claude`. The router and `status` depend on small
+interfaces they define themselves (`router.Provider`, `router.Prober`, `status.Prober`), which
+`internal/claude` satisfies, and the windows that matter reach them, the scoring and the watch
+as a `score.Policy`, which the CLI fills in from `internal/claude`. `internal/cli`, which wires
+the rest together, and `internal/launch`, which exists to start Claude Code, use
+`internal/claude` directly: for the `claude` command, where it's installed, and the environment
+variables Claude Code reads. A few pieces stay outside it, deliberately, each where the code that
+needs it can't reach `internal/claude`, or where hiding it behind the provider would take a
+wider interface than it's worth:
+
+- **The token's shape**, `sk-ant-…`, is in `internal/redact`: the logs hide it, and
+  `internal/claude` logs through `internal/logs`, which therefore can't import it. The router
+  reads and sets the token as an `Authorization: Bearer` header, as the setup tokens go.
+- **The window statuses** `quota` names, `allowed`, `allowed_warning` and `rejected`, are the
+  API's own words, which `score` judges a spent window by; and the shape of the API's window
+  keys, `<n>h` or `<n>d`, as in `5h` and `7d_oi`, is what `quota` reads a window's length from,
+  for pace, projection and perishability.
+- **The config's defaults** name the API, `upstream` defaulting to `https://api.anthropic.com`,
+  and its example says to create tokens with `claude setup-token`.
+- **The proxy's own answers** are shaped as the Messages API shapes its errors, with its error
+  types, and its 502 for a refusal with no account left is marked `X-Should-Retry: false`, which
+  the API's clients, Claude Code among them, honour. That no refusal is relayed is Claude Code's
+  doing too: it drops its login on a 403.
+- **The cache's life**, an hour, is Claude Code's prompt-cache TTL on a subscription, which the
+  scheduler keeps a session sticky for.
 
 ### Files
 
 - **Config:** `$SWITCHBOARD_CONFIG`, else `$XDG_CONFIG_HOME/switchboard/config.toml`, else
-  `~/.config/switchboard/config.toml`.
+  `~/.config/switchboard/config.toml`. A relative `XDG_CONFIG_HOME` or `XDG_STATE_HOME` is
+  ignored, as the XDG spec says.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
   (pins and session assignments, so a restart doesn't scatter sessions), `control.sock` and
   `logs/`. `state.json` is versioned, rewritten whole (a temporary file renamed over it) a second
   after a change and on the way out, and drops assignments unused for 7 days, at start and then
-  hourly. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts
-  without it.
+  hourly. At start it also drops the assignments, and the pin, of accounts nothing can go out on,
+  no longer configured or without a token. A corrupt one is set aside as
+  `state.json.corrupt-<unix time>`, and the router starts without it.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
   go.
 - **Service:** `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`, the LaunchAgent's
   plist, 0644, named after its label.
 
+### Config
+
 ```toml
 listen   = "127.0.0.1:4747"             # optional: the proxy's address
-upstream = "https://api.anthropic.com"  # optional: overridden in tests
+upstream = "https://api.anthropic.com"  # optional: the API's base URL; overridden in tests
 
 [[account]]
 id        = "work"                 # permanent name: letters, digits, '-' and '_'
 label     = "Work"                 # optional; defaults to the id
 token_env = "CLAUDE_TOKEN_WORK"    # environment variable holding the setup token
+
+[notifications]                    # optional: which desktop notifications to post
+limits  = true   # an account hits a limit, and the sessions it moved
+room    = true   # an account has room again
+warning = 0.9    # a window passing this share of its limit; 0 turns it off
+moves   = false  # every other session move, such as after an idle hour or by pin
 ```
 
-Unknown keys, duplicate ids and a config without accounts are errors, and so is the id `auto`, in
-any case, which `pin auto` takes to mean routing. `listen` must be a loopback IP address, never a
-name such as `localhost`, which a client can look up to `::1` while the proxy listens on
-`127.0.0.1`, and send its token to whatever listens there; a plain `http` upstream likewise. An
-optional `[notifications]` table says which desktop notifications the router posts: see
-Notifications.
+The accounts keep their file order, which is their order everywhere they're shown. A file that
+isn't TOML, or holds a value of the wrong type, fails as it is; one that parses has every problem
+reported at once:
+
+- **Unknown keys** are errors.
+- **`listen`** is `host:port`, its host a loopback IP address, such as `127.0.0.1` or `::1`
+  (`[::1]:4747`), never a name such as `localhost`, which a client can look up to `::1` while the
+  proxy listens on `127.0.0.1`, and send its token to whatever listens there; and a port from 1 to
+  65535.
+- **`upstream`** is an absolute `http` or `https` URL, and `https` unless its host is a loopback
+  IP address: tokens never cross a network in plaintext.
+- **At least one `[[account]]`.** Each needs an `id`: it starts with a letter or digit, holds only
+  letters, digits, `-` and `_`, is unique, and isn't `auto`, in any case, which `pin auto` takes
+  to mean routing.
+- **`token_env`** is required, an environment variable's name (letters, digits and `_`, not
+  starting with a digit), and each account's own: one token is one subscription. An invalid name
+  is never quoted, as it may be a token pasted in by mistake.
+- **`[notifications]`**: each key defaults as shown. `warning` is 0, or more than 0 and less than
+  1.
 
 ### Proxy rules
 
@@ -385,9 +463,10 @@ Notifications.
   untouched: batches, whose ids belong to one account, stay on it, and a local process that
   doesn't already hold a token can't borrow one.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
-  that session. It is stripped before the request goes upstream.
+  that session. It is stripped before the request goes upstream. One naming an account that isn't
+  configured, or has no token, is ignored, and the log warns of it.
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
-  header is placed on the best account and not remembered.
+  header is decided afresh every time, as a new session's is, and not remembered.
 - Which windows apply to a request: `5h` and `7d` apply to every model. Any other window applies
   to the model families it has been seen on (responses and probes reveal this), and to every model
   until it has been seen. A family is read from the model id: haiku, sonnet, opus or fable.
@@ -398,13 +477,45 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health), and `listen`, the address its proxy listens on. A router that doesn't give one isn't sent sessions |
-| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), `sessions`, those used in the last hour, each counted once, and each account's `sessions`, `limit` (`{windows, until}`) while one holds, and `refused` (`{until, status, family}`) while a refusal does: `status` 401 for its token refused, which holds back every request, or 403 for a request refused alone, which holds back its model's `family`; with both, the token's, and with several families, the latest |
-| `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
+| `GET /health` | `{ok, reason, listen, version, pid, started_at}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `run` sends sessions to a router that answers `ok` and gives `listen`; `usage` and `status` read the document of any router that answers at all |
+| `GET /status` | The status document, as `status --json` prints it: see below |
+| `GET /sessions/{id}` | For statuslines: `{"session": "<id>", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account": {…}}`. `assignments` are the session's, a model each, the one used last first, each naming its account by id; `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
-| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, sharing the probes choices make and waiting a minute after one fails, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 
 A request the API refuses is answered `{"error": "<why>"}`. Times are given in UTC.
+
+### The status document
+
+What `status --json` prints and `GET /status` answers, whether the router built it or probing
+did. Times are RFC 3339, in UTC; utilizations are fractions (`0.23` is 23%), and can pass 1.
+Fields may be added to it, never renamed. A field marked *router* is the router's alone, and
+left out of a document built by probing.
+
+| Field | Is |
+|---|---|
+| `generated_at` | When the document was built |
+| `source` | `"router"`, or `"probe"` when built by probing every account |
+| `fallback` | Why a probed document isn't the router's, when the router was asked first: `{router: "not running"}`, or `{router: "unhealthy", reason}`. Left out otherwise, and when probing was asked for |
+| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known. Left out when none qualifies, as when none has room, or none has been read yet |
+| `pin` | *router* The global pin, `{account, since, move}`; left out when there's none |
+| `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
+| `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
+| `accounts` | Every configured account, in the config's order, as below |
+
+Each account:
+
+| Field | Is |
+|---|---|
+| `id`, `label` | As configured |
+| `token_set` | Whether its token's variable is set |
+| `fetched_at` | When its usage was last read; left out when it never was |
+| `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given. Left out when none has been read |
+| `failures` | Windows a probe expected but couldn't read: `{label, window, error}`, `label` naming what should have read it, such as `Fable`. Left out when none |
+| `error` | Why its usage couldn't be read, such as its token missing, or, from the router, why its last probe read nothing; left out when there's nothing to say |
+| `limit` | *router* A limit it reached, while it holds: `{windows, until}`, `windows` the keys named as reached, left out when only the overall verdict said so |
+| `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
+| `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
 ### Launching
 
@@ -415,42 +526,54 @@ A request the API refuses is answered `{"error": "<why>"}`. Times are given in U
   token), and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set.
   Otherwise it connects directly on that same token, without the base URL or the pin, saying why in
   one line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
-  A pin inherited from the environment never survives: what this launch pins is the only pin.
-  `--direct` removes the token and the base URL, so Claude Code uses its own login.
+  Either way, and with `--direct`, a pin inherited from the environment, as from a session this
+  one is started within, goes: what this launch pins is the only pin. `--direct` removes the
+  token and the base URL, so Claude Code uses its own login.
 - Switchboard never stands between the user and `claude`. When it can't take part at all, as when
-  it can't read its config or no account has a token, `run` starts `claude` as if switchboard
-  weren't there, environment and arguments untouched, saying why in one line on stderr:
-  `switchboard: couldn't read the config (…) — starting claude without it`. Only a misused command
-  line fails, such as `--account` naming an account that isn't configured, or has no token.
-- It finds `claude` on `PATH`, else where its installers put it, and replaces itself with it
-  (`exec`), so signals and the terminal behave as usual. Claude Code's arguments go after `--`,
-  untouched and never logged; the log notes the decision: routed or direct, the router's state, and
-  the account and why.
+  it can't read its config, can't locate its state directory, or no account has a token, `run`
+  starts `claude` as if switchboard weren't there, environment and arguments untouched, an
+  inherited pin included, saying why in one line on stderr:
+  `switchboard: couldn't read the config (…) — starting claude without it`. `run` fails only
+  when `claude` can't be found or can't start, or on a misused command line, such as `--account`
+  naming an account that isn't configured, or has no token.
+- It finds `claude` on `PATH`, else where its installers put it (`~/.local/bin`,
+  `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), a file that can be run, and
+  replaces itself with it (`exec`), so signals and the terminal behave as usual. Probes claim the
+  version of the `claude` found the same way, so the router, whose `PATH` is launchd's, finds it
+  where its installers put it. Claude Code's arguments go after `--`, untouched and never logged;
+  the log notes the decision: routed or direct, the router's state, and the account and why.
 - `init zsh` prints, for `.zshrc` to `eval`, a `claude` function that goes through `run` by this
   binary's absolute path, one pinned launcher per account (`<prefix><id>`, prefix `cx` by default),
-  and, for tools that call `claude` directly, an export of the first account's token by its
-  variable's name (`export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_TOKEN_WORK}"`, when that's set), so
-  the output never holds a token. A shell function isn't on `PATH`, so `run` finds the real
-  `claude`, never the function. Without a config it can read, it prints the `claude` function
-  alone, and warns on stderr: the `eval` never fails.
-- `service install` writes the LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and
-  an `ExitTimeOut` of 45 seconds, over the 30 the router gives requests in flight as it stops) to
-  run this binary by the path it was run by, so a Homebrew link stays the link an upgrade moves
-  on, with `serve` and any `--config` given. It refuses a temporary build, such as `go run`'s,
-  judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and
-  `SWITCHBOARD_CONFIG` when they're set, so the service finds what the CLI does. With
-  `--env-file`, it runs `/bin/zsh -f -c 'source "$1" && exec "$2" serve "${@:3}"'`, the paths as
-  arguments, never in the script, and `-f` so none of the user's own startup files, such as
-  `~/.zshenv`, runs alongside the tokens. zsh runs the file with every token, so `install`
-  refuses one that isn't the user's, or that others can write, or whose directory they can; names
-  it by where its links lead, so a link moved later leads nowhere new; and warns when others can
-  read it. Whether launchd has the service loaded is `launchctl print`'s to say, which exits 113
-  for one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`,
-  and waits up to 5 seconds for a router other than any running before to answer. `uninstall`
-  boots it out when loaded and removes the plist; `restart` is `launchctl kickstart -k`, waiting
-  the same way, or an error when it isn't loaded; `status` reports the plist, whether launchd has
-  it loaded, and the router's health. Any other failure of `launchctl` is an error that quotes it.
-  macOS only for now.
+  each passing on `--config`, by its absolute path, when it's given, and, for tools that call
+  `claude` directly, an export of a token by its variable's name: the first account's whose token
+  is set as `init` runs, as `run` chooses without the router, else the first account's
+  (`export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_TOKEN_WORK}"`, when that's set), so the output never
+  holds a token. A shell function isn't on `PATH`, so `run` finds the real `claude`, never the
+  function. Without a config it can read, it prints the `claude` function alone, and warns on
+  stderr: the `eval` never fails.
+- `service install` reads the config first, as the router will, and fails on one it can't read,
+  rather than leave launchd restarting a router that can't start. It writes the LaunchAgent
+  (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and an `ExitTimeOut` of 45 seconds, over the
+  30 the router gives requests in flight as it stops) to run this binary by the path it was run
+  by, so a Homebrew link stays the link an upgrade moves on, with `serve`, any `--config` given,
+  made absolute, and any `--log-level`. It refuses a temporary build, such as `go run`'s, judged
+  by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`,
+  `SWITCHBOARD_CONFIG`, made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're set, so the
+  service finds what the CLI does. With `--env-file`, it runs
+  `/bin/zsh -f -c 'source "$1" && exec "$2" serve "${@:3}"'`, the paths as arguments, never in
+  the script, and `-f` so none of the user's own startup files, such as `~/.zshenv`, runs
+  alongside the tokens. zsh runs the file with every token, so `install` refuses one that isn't
+  the user's, or that others can write, or whose directory they can; names it by where its links
+  lead, so a link moved later leads nowhere new; and warns when others can read it. Without
+  `--env-file`, it warns when none of the accounts' tokens is set where it runs. Whether launchd
+  has the service loaded is `launchctl print`'s to say, which exits 113 for one it hasn't:
+  `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5
+  seconds for a router other than any running before to answer. `uninstall` boots it out when
+  loaded and removes the plist; `restart` is `launchctl kickstart -k`, waiting the same way, or
+  an error saying the service isn't loaded; `status` reports the plist, whether launchd has it
+  loaded, and the router's health. When no router answers in time, `install` and `restart` fail,
+  the LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Any
+  other failure of `launchctl` is an error that quotes it. macOS only for now.
 
 ## Milestones
 
@@ -479,7 +602,7 @@ on its own before the router exists.
 **2. Router — done.** `serve`, stickiness, replay, special handling, pins, `service`, `run`,
 `init`, and the dashboard and `status` reading the router.
 
-**3. Launch.** Switch the shell over to it. That work happens outside this repo.
+**3. Launch — next.** Switch the shell over to it. That work happens outside this repo.
 
 ## Open-source hygiene
 

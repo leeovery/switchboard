@@ -143,11 +143,13 @@ func sortLength(key string) time.Duration {
 	return math.MaxInt64
 }
 
-// Merge returns the union of two readings of an account's windows, in Sort's
-// order. Where both have a window it keeps the one with the higher
-// utilization: probing itself uses a little quota, so the higher reading is
-// the more current.
-func Merge(a, b []Window) []Window {
+// MergeMax returns the union of two readings of an account's windows taken
+// together, as one probe's model families are, in Sort's order. Where both
+// have a window it keeps the one with the higher utilization: probing itself
+// uses a little quota, so the higher reading is the more current. Readings
+// taken apart mustn't be merged so, as a window may have reset in between:
+// the router merges those by their resets.
+func MergeMax(a, b []Window) []Window {
 	byKey := make(map[string]Window, len(a)+len(b))
 	for _, w := range slices.Concat(a, b) {
 		if kept, ok := byKey[w.Key]; !ok || w.Utilization > kept.Utilization {

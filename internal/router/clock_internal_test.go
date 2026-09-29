@@ -19,8 +19,8 @@ func TestTheRoutersClockKeepsTheWallsTimeThroughASleep(t *testing.T) {
 		{Key: "5h", Utilization: 0.1, ResetsAt: awake.Add(4 * time.Hour)},
 		{Key: "7d", Utilization: 0.5, ResetsAt: awake.Add(3 * 24 * time.Hour)},
 	}
-	r.state.record("work", roomy, fromResponse)
-	r.state.record("side", roomy, fromResponse)
+	r.state.record("work", roomy)
+	r.state.record("side", roomy)
 	req := Request{Session: "one", Model: opus, Client: "work"}
 	choose(t.Context(), r, req)
 	for range minFailures {

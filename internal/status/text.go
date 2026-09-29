@@ -3,6 +3,7 @@ package status
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -11,6 +12,11 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
+
+// Separator sets apart the parts of a line that says several things, such as
+// where the usage came from: wider than the dot within an account's title, so
+// the title reads as one part.
+const Separator = "  ·  "
 
 // Text renders the document for a terminal: each account's windows with when
 // they reset and where they're heading, whatever couldn't be read, and what
@@ -46,15 +52,29 @@ func (a Account) Text(now time.Time) string {
 	return b.String()
 }
 
-// writeRouted writes what the router notes of the account: the limit that
-// holds it back at now, if one does, and how many sessions it has.
+// writeRouted writes what the router notes of the account: what holds it
+// back at now, and how many sessions it has.
 func (a Account) writeRouted(b *strings.Builder, now time.Time) {
-	if a.Limit.Holds(now) {
-		fmt.Fprintf(b, "  %s\n", a.Limit.Text(now))
+	for _, held := range a.HeldBy(now) {
+		fmt.Fprintf(b, "  %s\n", held)
 	}
 	if a.Sessions > 0 {
 		fmt.Fprintf(b, "  %s\n", SessionCount(a.Sessions))
 	}
+}
+
+// HeldBy says what holds the account back at now, as the router saw it, a
+// line each: the limit it reached, then the upstream's refusal, each while it
+// holds.
+func (a Account) HeldBy(now time.Time) []string {
+	var held []string
+	if a.Limit.Holds(now) {
+		held = append(held, a.Limit.Text(now))
+	}
+	if a.Refused.Holds(now) {
+		held = append(held, a.Refused.Text(now))
+	}
+	return held
 }
 
 // origin says where the document's usage came from: the router, with how it
@@ -66,7 +86,7 @@ func (d Document) origin() string {
 		if !d.Router.Healthy {
 			health = because("unhealthy", d.Router.Reason)
 		}
-		return "from the router: " + health + " · " + SessionCount(d.Sessions) + " · " + d.Routing()
+		return "from the router: " + health + Separator + SessionCount(d.Sessions) + Separator + d.Routing()
 	}
 	switch d.Fallback.Router {
 	case RouterNotRunning:
@@ -115,7 +135,17 @@ func SessionCount(n int) string {
 // Text says until when the limit holds, such as "limit until Mon 21:00", in
 // now's time zone.
 func (l Limit) Text(now time.Time) string {
-	return "limit until " + Clock(l.Until.In(now.Location()))
+	return "limit until " + Clock(now, l.Until)
+}
+
+// Text says how the upstream refused, and until when the refusal holds, such
+// as "refused (403, opus) until 21:40", in now's time zone.
+func (r Refusal) Text(now time.Time) string {
+	answer := strconv.Itoa(r.Status)
+	if r.Family != "" {
+		answer += ", " + Clean(r.Family)
+	}
+	return "refused (" + answer + ") until " + TimeOfDay(now, r.Until)
 }
 
 // write writes the account's title, its windows with their labels width wide,
@@ -161,9 +191,15 @@ func withRest(count string, rest int, unit string) string {
 	return fmt.Sprintf("%s %d%s", count, rest, unit)
 }
 
-// Clock shows t as its weekday and 24-hour time, such as "Mon 18:10".
-func Clock(t time.Time) string {
-	return t.Format("Mon 15:04")
+// Clock shows t as its weekday and 24-hour time in now's time zone, such as
+// "Mon 18:10".
+func Clock(now, t time.Time) string {
+	return t.In(now.Location()).Format("Mon 15:04")
+}
+
+// TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
+func TimeOfDay(now, t time.Time) string {
+	return t.In(now.Location()).Format("15:04")
 }
 
 // Resets counts down from now to a window's reset at t: "resets in 4h 57m",
@@ -183,7 +219,7 @@ func Projection(now time.Time, p score.Projection) string {
 	case score.OnPace:
 		return "on pace for " + Percent(p.AtReset)
 	case score.RunsOut:
-		return "runs out ~" + Clock(p.At.In(now.Location()))
+		return "runs out ~" + Clock(now, p.At)
 	case score.Exhausted:
 		return "exhausted"
 	default:
@@ -230,7 +266,7 @@ func windowLine(w quota.Window, labelWidth int, now time.Time) string {
 	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(w.Label), Percent(w.Utilization))
 	var notes []string
 	if !w.ResetsAt.IsZero() {
-		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(w.ResetsAt.In(now.Location())))
+		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
 	}
 	if projection := Projection(now, score.Project(w, now)); projection != "" {
 		notes = append(notes, projection)

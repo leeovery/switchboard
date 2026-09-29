@@ -102,7 +102,7 @@ func origin(doc status.Document) line {
 
 // routing says how many sessions the router has, and where it sends new ones.
 func routing(doc status.Document) line {
-	l := line{{"router · " + status.SessionCount(doc.Sessions) + " · ", dimInk}}
+	l := line{{"router" + status.Separator + status.SessionCount(doc.Sessions) + status.Separator, dimInk}}
 	if doc.Pin.Account == "" {
 		return append(l, span{doc.Routing(), dimInk})
 	}
@@ -130,8 +130,8 @@ func bestNext(doc status.Document) line {
 	return line{{"no account has room right now", errorInk}}
 }
 
-// dotted runs the parts that aren't nil together, a dot between each. It's
-// nil when they all are.
+// dotted runs the parts that aren't nil together, status.Separator between
+// each. It's nil when they all are.
 func dotted(parts ...line) line {
 	var l line
 	for _, part := range parts {
@@ -139,7 +139,7 @@ func dotted(parts ...line) line {
 			continue
 		}
 		if l != nil {
-			l = append(l, span{" · ", dimInk})
+			l = append(l, span{status.Separator, dimInk})
 		}
 		l = append(l, part...)
 	}

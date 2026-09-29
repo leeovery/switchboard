@@ -31,10 +31,9 @@ token_env = "CLAUDE_TOKEN_PERSONAL"
 
 // Config is a validated config file with its defaults filled in.
 type Config struct {
-	Listen   string `toml:"listen"`
-	Upstream string `toml:"upstream"`
-	// Accounts keep their file order, which is their display order everywhere.
-	Accounts      []Account     `toml:"account"`
+	Listen        string        `toml:"listen"`
+	Upstream      string        `toml:"upstream"`
+	Accounts      Accounts      `toml:"account"`
 	Notifications Notifications `toml:"notifications"`
 }
 
@@ -43,6 +42,29 @@ type Account struct {
 	ID       string `toml:"id"`
 	Label    string `toml:"label"`
 	TokenEnv string `toml:"token_env"`
+}
+
+// Accounts are the configured accounts, in the config file's order, which is
+// their display order everywhere.
+type Accounts []Account
+
+// IDs lists the accounts' ids.
+func (as Accounts) IDs() []string {
+	ids := make([]string, len(as))
+	for i, a := range as {
+		ids[i] = a.ID
+	}
+	return ids
+}
+
+// TokenEnvs lists the names of the variables the accounts' tokens are read
+// from.
+func (as Accounts) TokenEnvs() []string {
+	envs := make([]string, len(as))
+	for i, a := range as {
+		envs[i] = a.TokenEnv
+	}
+	return envs
 }
 
 // Notifications says which desktop notifications the router posts.

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -126,6 +127,38 @@ func TestNotifications(t *testing.T) {
 				h.read(doc)
 			}
 
+			if !slices.Equal(h.notifier.posted, tt.want) {
+				t.Errorf("posted %q, want %q", h.notifier.posted, tt.want)
+			}
+		})
+	}
+}
+
+func TestNotificationsAsTheConfigSays(t *testing.T) {
+	const roomAgain = "work · Work has room again"
+	tests := []struct {
+		name     string
+		settings config.Notifications
+		// before and after are how much of the week is used at each read:
+		// the session has no room at the first, and has at the second.
+		before, after float64
+		want          []string
+	}{
+		{name: "as it says when it doesn't", settings: notifications, before: 0.85, after: 0.91, want: []string{roomAgain, "work · Work: Week at 91%"}},
+		{name: "a warning at the share given", settings: config.Notifications{Room: true, Warning: 0.8}, before: 0.75, after: 0.85, want: []string{roomAgain, "work · Work: Week at 85%"}},
+		{name: "none short of the share given", settings: config.Notifications{Room: true, Warning: 0.95}, before: 0.85, after: 0.91, want: []string{roomAgain}},
+		{name: "no warning at 0", settings: config.Notifications{Room: true}, before: 0.85, after: 0.91, want: []string{roomAgain}},
+		{name: "no room again when it's off", settings: config.Notifications{Warning: 0.9}, before: 0.85, after: 0.91, want: []string{"work · Work: Week at 91%"}},
+		{name: "none at all", settings: config.Notifications{Limits: true, Moves: true}, before: 0.85, after: 0.91},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, document(account("work", "Work", refused(session(1, 30*time.Minute)), week(tt.before))))
+			h.model.cfg.Notifications = tt.settings
+			h.start()
+
+			h.clock.now = h.clock.now.Add(5 * time.Minute)
+			h.read(document(account("work", "Work", session(0.02, 5*time.Hour), week(tt.after))))
 			if !slices.Equal(h.notifier.posted, tt.want) {
 				t.Errorf("posted %q, want %q", h.notifier.posted, tt.want)
 			}

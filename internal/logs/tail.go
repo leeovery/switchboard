@@ -20,6 +20,15 @@ const (
 	tailChunk = 64 << 10
 )
 
+// DefaultPath is the log in dir to read when none is named: the router's,
+// once the router has logged, else the CLI's.
+func DefaultPath(dir string) string {
+	if path := RoleRouter.Path(dir); exists(path) {
+		return path
+	}
+	return RoleCLI.Path(dir)
+}
+
 // Tail writes the last n lines of the log at path to w. When the log holds
 // fewer, the lines before them come from the file it was last rolled over to.
 func Tail(w io.Writer, path string, n int) error {

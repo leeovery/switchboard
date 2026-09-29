@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 )
@@ -37,9 +38,9 @@ const (
 var (
 	// ErrUnsupported is what New fails with on a system other than macOS.
 	ErrUnsupported = errors.New("the service is macOS only for now: elsewhere, run switchboard serve under your system's service manager")
-	// ErrNotInstalled is what Restart fails with when launchd hasn't loaded
-	// the service.
-	ErrNotInstalled = errors.New("the service isn't installed")
+	// ErrNotLoaded is what Restart fails with when launchd hasn't loaded the
+	// service.
+	ErrNotLoaded = errors.New("the service isn't loaded")
 )
 
 // Router asks the router whether it's alive, and which it is:
@@ -102,6 +103,12 @@ type InstallOptions struct {
 	// Config is the config file the router serves, as --config gives it, or
 	// "" for the one it finds itself.
 	Config string
+	// LogLevel is the level the router logs at, as serve's --log-level takes
+	// it, or "" for the one SWITCHBOARD_LOG_LEVEL names.
+	LogLevel string
+	// Accounts are the config's accounts, whose tokens the router serves
+	// with.
+	Accounts config.Accounts
 }
 
 // Installed is what installing the service did.
@@ -117,26 +124,13 @@ type Installed struct {
 // Install writes the LaunchAgent's plist, has launchd load it, in place of
 // the one it had loaded if it had, which starts the router, and waits for
 // the router to answer. It refuses a switchboard binary that won't last,
-// such as go run's.
+// such as go run's, and an env file anyone else could write.
 func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, error) {
-	binary, err := s.binary(opts.Executable)
+	a, warnings, err := s.prepare(opts)
 	if err != nil {
 		return Installed{}, err
 	}
-	var installed Installed
-	envFile, warning, err := s.checkEnvFile(opts.EnvFile)
-	if err != nil {
-		return Installed{}, err
-	}
-	if warning != "" {
-		installed.Warnings = append(installed.Warnings, warning)
-		logger.Warn("other users can read the env file", "path", envFile)
-	}
-	config, err := absolute(opts.Config)
-	if err != nil {
-		return Installed{}, err
-	}
-	if err := s.write(s.agent(binary, envFile, config)); err != nil {
+	if err := s.write(a); err != nil {
 		return Installed{}, err
 	}
 	before := s.pid(ctx)
@@ -146,9 +140,45 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err := s.launchctl(ctx, "bootstrap", s.domain(), s.Plist()); err != nil {
 		return Installed{}, err
 	}
-	logger.Info("installed the service", "plist", s.Plist(), "binary", binary, "env_file", envFile, "config", config)
-	installed.Router = s.waitForRouter(ctx, before)
-	return installed, nil
+	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
+	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, before)}, nil
+}
+
+// prepare checks what the service is to run, and describes the LaunchAgent
+// that runs it, with what's worth the user's attention: an env file others
+// can read, and the router having no token to serve with.
+func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
+	binary, err := s.binary(opts.Executable)
+	if err != nil {
+		return agent{}, nil, err
+	}
+	envFile, warning, err := s.checkEnvFile(opts.EnvFile)
+	if err != nil {
+		return agent{}, nil, err
+	}
+	var warnings []string
+	if warning != "" {
+		warnings = append(warnings, warning)
+		logger.Warn("other users can read the env file", "path", envFile)
+	}
+	if s.tokenless(opts.Accounts, envFile) {
+		warnings = append(warnings, "no account's token is set, and there's no --env-file to set them where the router runs: give --env-file a file that sets "+
+			strings.Join(opts.Accounts.TokenEnvs(), " or "))
+		logger.Warn("no account's token is set, and there's no env file")
+	}
+	opts.Executable, opts.EnvFile = binary, envFile
+	a, err := s.agent(opts)
+	return a, warnings, err
+}
+
+// tokenless reports whether the router looks set to start with none of the
+// accounts' tokens: there's no env file to set them, and none is set where
+// the service is installed either.
+func (s *Service) tokenless(accounts config.Accounts, envFile string) bool {
+	return envFile == "" && len(accounts) > 0 && !slices.ContainsFunc(accounts, func(a config.Account) bool {
+		_, ok := a.Token(s.cfg.Getenv)
+		return ok
+	})
 }
 
 // Uninstall has launchd stop the router and forget the service, if it had
@@ -171,7 +201,7 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 
 // Restart has launchd stop the router and start it again, as after the
 // tokens change, and returns the answer of the router it starts, or nil when
-// none answers within StartWait. It fails with ErrNotInstalled when launchd
+// none answers within StartWait. It fails with ErrNotLoaded when launchd
 // hasn't loaded the service.
 func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 	loaded, err := s.loaded(ctx)
@@ -179,7 +209,7 @@ func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 	case err != nil:
 		return nil, err
 	case !loaded:
-		return nil, ErrNotInstalled
+		return nil, ErrNotLoaded
 	}
 	before := s.pid(ctx)
 	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {

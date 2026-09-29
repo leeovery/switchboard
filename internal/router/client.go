@@ -18,7 +18,7 @@ import (
 var (
 	// ErrNotRunning is what a Client's calls fail with, wrapped, when no
 	// router listens on its socket.
-	ErrNotRunning = errors.New("switchboard isn't running")
+	ErrNotRunning = errors.New("the router isn't running")
 	// ErrUnknownSession is what Session fails with, followed by the session's
 	// id, when the router hasn't seen the session.
 	ErrUnknownSession = errors.New("the router hasn't seen session")

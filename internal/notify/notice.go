@@ -19,6 +19,13 @@ func RoomAgain(a status.Account) Notice {
 	return Notice{Account: a.ID, News: "room again", Message: a.Title() + " has room again"}
 }
 
+// Passed reports whether a window used as far as before, and now after, has
+// passed warning, the share of its limit that's warned of: never when that's
+// 0, which warns of none.
+func Passed(before, after, warning float64) bool {
+	return warning > 0 && before < warning && after >= warning
+}
+
 // Warning is the notice of an account's window passing the share of its limit
 // that's warned of, saying how much of it is used, such as "Week at 91%".
 func Warning(a status.Account, w quota.Window) Notice {

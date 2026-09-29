@@ -1,6 +1,6 @@
 // Package childenv is the environment switchboard starts the programs it
-// runs for itself in, such as claude --version and osascript: only what they
-// need to run, so none of the tokens in switchboard's own reaches them.
+// runs for itself in, claude --version, osascript and launchctl: only what
+// they need to run, so none of the tokens in switchboard's own reaches them.
 package childenv
 
 // kept are the variables such a program is given: where to find programs,

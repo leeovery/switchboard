@@ -85,9 +85,9 @@ func TestNextFetch(t *testing.T) {
 		{name: "a reset past by less than the grace", doc: document(account("work", "Work", refused(session(1, -30*time.Second)), week(0.5))), wait: interval, want: interval},
 		{name: "a reset at the moment of the read", doc: document(account("work", "Work", refused(session(1, 0)), week(0.5))), wait: interval, want: interval},
 		{name: "a reset that isn't known", doc: document(account("work", "Work", quota.Window{Key: "5h", Label: "Session", Utilization: 0.4})), wait: interval, want: interval},
-		{name: "nothing read", doc: document(), wait: retryAfter, want: retryAfter},
-		{name: "a retry sooner than a reset", doc: document(account("work", "Work", session(0.4, 10*time.Minute))), wait: retryAfter, want: retryAfter},
-		{name: "a reset sooner than a retry", doc: document(account("work", "Work", session(0.4, 30*time.Second))), wait: retryAfter, want: 90 * time.Second},
+		{name: "nothing read", doc: document(), wait: retryReadAfter, want: retryReadAfter},
+		{name: "a retry sooner than a reset", doc: document(account("work", "Work", session(0.4, 10*time.Minute))), wait: retryReadAfter, want: retryReadAfter},
+		{name: "a reset sooner than a retry", doc: document(account("work", "Work", session(0.4, 30*time.Second))), wait: retryReadAfter, want: 90 * time.Second},
 		{name: "a reset sooner than a long retry", doc: document(account("work", "Work", session(0.4, 10*time.Minute))), wait: 16 * time.Minute, want: 11 * time.Minute},
 	}
 	for _, tt := range tests {

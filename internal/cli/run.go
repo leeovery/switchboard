@@ -60,8 +60,8 @@ func (o *runOptions) parseArgs(cmd *cobra.Command, args []string) error {
 }
 
 // run starts Claude Code with args in this process's place: through
-// switchboard, or, when it can't read its config or find the router's
-// socket, as if switchboard weren't there.
+// switchboard, or, when it can't read its config or locate the state
+// directory the router's socket is in, as if switchboard weren't there.
 func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args []string) error {
 	// Without a home directory, only the install paths outside it are tried.
 	home, _ := a.HomeDir()

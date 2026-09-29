@@ -65,7 +65,7 @@ func TestWindowsCountTheFamiliesTheyveBeenSeenOn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestState(&testClock{now: start})
-			s.record("work", windows, fromResponse)
+			s.record("work", windows)
 
 			tt.learn(s)
 			for model, want := range tt.room {
@@ -81,7 +81,7 @@ func TestWindowsEveryModelSharesCountEveryModel(t *testing.T) {
 	s := newTestState(&testClock{now: start})
 	spent := session
 	spent.Utilization, spent.Status = 1, quota.StatusRejected
-	s.record("work", []quota.Window{spent, week}, fromResponse)
+	s.record("work", []quota.Window{spent, week})
 
 	s.learn(fable, []quota.Window{spent, week})
 	if s.view(haiku, start).room("work") {
@@ -91,7 +91,7 @@ func TestWindowsEveryModelSharesCountEveryModel(t *testing.T) {
 
 func TestView(t *testing.T) {
 	s := newTestState(&testClock{now: start})
-	s.record("side", []quota.Window{week, session}, fromResponse)
+	s.record("side", []quota.Window{week, session})
 
 	v := s.view(opus, start)
 	want := []score.Candidate{{ID: "work"}, {ID: "side", Windows: []quota.Window{session, week}}}
@@ -127,7 +127,7 @@ func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestState(&testClock{now: start})
-			s.record("work", []quota.Window{session, week}, fromResponse)
+			s.record("work", []quota.Window{session, week})
 			tt.refuse(s)
 
 			for model, room := range tt.room {
@@ -173,7 +173,7 @@ func TestALimitHoldsBackTheRequestsItsWindowsCount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestState(&testClock{now: start})
-			s.record("work", []quota.Window{session, week, fableWeek}, fromResponse)
+			s.record("work", []quota.Window{session, week, fableWeek})
 			s.learn(fable, []quota.Window{session, week, fableWeek})
 
 			until := s.limit("work", tt.windows, start.Add(time.Hour)).Until
@@ -211,7 +211,7 @@ func TestALimitLiftsOnAReadingShowingItsWindowsWithRoom(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			s := newTestState(clock)
-			s.record("work", []quota.Window{spent, week}, fromResponse)
+			s.record("work", []quota.Window{spent, week})
 			s.limit("work", tt.windows, start.Add(time.Hour))
 			clock.now = start.Add(time.Minute)
 
@@ -235,7 +235,7 @@ func TestALimitThatsAlreadyDueHoldsFiveMinutes(t *testing.T) {
 func TestALimitReachedAgainWhileItsInForceIsTheSameLimit(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
-	s.record("work", []quota.Window{session, week, fableWeek}, fromResponse)
+	s.record("work", []quota.Window{session, week, fableWeek})
 	steps := []struct {
 		name string
 		// after is how long after start the limit is reached.
@@ -281,7 +281,7 @@ func TestALimitReachedAgainWhileItsInForceIsTheSameLimit(t *testing.T) {
 func TestALimitReachedAgainInAnotherWindowHoldsAsItsLatestAnswerSays(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
-	s.record("work", []quota.Window{session, week, fableWeek}, fromResponse)
+	s.record("work", []quota.Window{session, week, fableWeek})
 	s.learn(fable, []quota.Window{session, week, fableWeek})
 	// A Fable request reaches the Fable week's limit, for three days; then a
 	// Haiku request, which that doesn't hold back, reaches the session's,
@@ -302,10 +302,10 @@ func TestALimitLiftedEarlyIsReachedAfresh(t *testing.T) {
 	spent.Utilization, spent.Status = 1, quota.StatusRejected
 	fresh := session
 	fresh.Utilization, fresh.ResetsAt = 0.01, session.ResetsAt.Add(5*time.Hour)
-	s.record("work", []quota.Window{spent, week}, fromResponse)
+	s.record("work", []quota.Window{spent, week})
 	s.limit("work", []string{"5h"}, start.Add(24*time.Hour))
 	clock.now = start.Add(time.Minute)
-	s.record("work", []quota.Window{fresh, week}, fromResponse)
+	s.record("work", []quota.Window{fresh, week})
 
 	if got := s.limit("work", []string{"7d"}, week.ResetsAt); got.Again {
 		t.Errorf("limit() = %+v, want a limit reached afresh: the last lifted early", got)
@@ -316,8 +316,8 @@ func TestAViewWithoutAccounts(t *testing.T) {
 	spent := session
 	spent.Utilization, spent.Status = 1, quota.StatusRejected
 	s := newTestState(&testClock{now: start})
-	s.record("work", []quota.Window{spent, week}, fromResponse)
-	s.record("side", []quota.Window{session, week}, fromResponse)
+	s.record("work", []quota.Window{spent, week})
+	s.record("side", []quota.Window{session, week})
 
 	v := s.view(opus, start)
 	if got := v.full(); !slices.Equal(got, []string{"work"}) {
@@ -358,7 +358,7 @@ func TestDueAgain(t *testing.T) {
 			s := newTestState(clock)
 			if tt.read > 0 {
 				clock.now = start.Add(-tt.read)
-				s.record("work", []quota.Window{session, week}, fromResponse)
+				s.record("work", []quota.Window{session, week})
 			}
 			if tt.probed > 0 {
 				clock.now = start.Add(-tt.probed)
@@ -396,7 +396,7 @@ func TestDue(t *testing.T) {
 			s := newTestState(clock)
 			if tt.read > 0 {
 				clock.now = start.Add(-tt.read)
-				s.record("work", []quota.Window{session, week}, fromResponse)
+				s.record("work", []quota.Window{session, week})
 			}
 			if tt.probed > 0 {
 				clock.now = start.Add(-tt.probed)

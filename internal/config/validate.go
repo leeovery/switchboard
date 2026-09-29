@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // ReservedID is the one id no account may have, in any case: switchboard pin
@@ -181,7 +183,7 @@ func checkSharedTokenEnvs(accounts []Account) error {
 	var errs []error
 	for _, env := range envs {
 		if names := sharers[env]; len(names) > 1 {
-			errs = append(errs, fmt.Errorf("token_env %q is shared by %s: one token is one subscription, so each account needs its own", env, listNames(names)))
+			errs = append(errs, fmt.Errorf("token_env %q is shared by %s: one token is one subscription, so each account needs its own", env, prose.List(names)))
 		}
 	}
 	return errors.Join(errs...)
@@ -194,10 +196,4 @@ func checkWarning(warning float64) error {
 		return nil
 	}
 	return fmt.Errorf("notifications.warning %v: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none", warning)
-}
-
-// listNames joins two or more names: "a and b", "a, b and c".
-func listNames(names []string) string {
-	last := len(names) - 1
-	return strings.Join(names[:last], ", ") + " and " + names[last]
 }
