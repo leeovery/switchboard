@@ -4,9 +4,9 @@
 // router. While it doesn't, it probes every account as each read falls due,
 // and posts its own notifications, as the config asks, when an account has
 // room again or a window passes the warning. It redraws as the clock moves,
-// and eases each bar to its new
-// reading. Beyond its log, the model does no I/O of its own: it's handed its
-// source, its clock and its notifier, so tests drive it as a terminal would.
+// and eases each bar to its new reading. Beyond its log, the model does no
+// I/O of its own: it's handed its source, its clock and its notifier, so
+// tests drive it as a terminal would.
 package watch
 
 import (
