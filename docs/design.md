@@ -35,7 +35,8 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   rises within a window, so a slow response can't pull it back, nor lift a rejection either
   reading holds; an earlier reset is ignored.
 - An account with no recent traffic is refreshed with a 1-token probe, and only when a decision
-  needs fresh numbers, or a dashboard asks for them, once its interval.
+  needs fresh numbers, or a dashboard asks for them, once its interval. A probe follows no
+  redirect, which would carry its token along.
 
 ## Prompt cache facts the design rests on
 

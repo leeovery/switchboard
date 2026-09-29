@@ -43,6 +43,13 @@ const redacted = "[redacted]"
 // tokenShaped matches Claude API keys and OAuth tokens, which all begin sk-ant-.
 var tokenShaped = regexp.MustCompile(`sk-ant-[A-Za-z0-9_-]+`)
 
+// probeClient sends probes, over http.DefaultTransport, following no
+// redirect: a client that did would carry the token along to the upstream's
+// host, or any subdomain of it, over plain http too.
+var probeClient = &http.Client{
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 // Prober reads Claude accounts' usage by sending a model of each family a
 // request capped at one output token, and reading the usage headers off the
 // response. The headers report only the weekly caps that apply to the model
@@ -140,7 +147,7 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) ([]quota.W
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := probeClient.Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("timed out after %s", timeout)

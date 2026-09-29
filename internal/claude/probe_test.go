@@ -145,6 +145,71 @@ func TestProbeModel(t *testing.T) {
 	}
 }
 
+func TestProbeModelFollowsNoRedirect(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		// elsewhere redirects to another server, rather than to another path
+		// on the upstream.
+		elsewhere bool
+	}{
+		{name: "302 on the upstream", status: http.StatusFound},
+		{name: "302 to another server", status: http.StatusFound, elsewhere: true},
+		{name: "307 on the upstream", status: http.StatusTemporaryRedirect},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var reached requestLog
+			other := httptest.NewServer(http.HandlerFunc(reached.note))
+			t.Cleanup(other.Close)
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				reached.note(w, r)
+				if r.URL.Path != "/v1/messages" {
+					return
+				}
+				location := "/moved"
+				if tt.elsewhere {
+					location = other.URL + location
+				}
+				http.Redirect(w, r, location, tt.status)
+			}))
+			t.Cleanup(upstream.Close)
+			prober := &claude.Prober{Upstream: upstream.URL, Version: version}
+
+			_, err := prober.ProbeModel(t.Context(), token, haiku)
+			if want := fmt.Sprintf("HTTP %d", tt.status); errorText(err) != want {
+				t.Errorf("ProbeModel() error = %q, want %q", errorText(err), want)
+			}
+			if want := []string{"POST " + upstream.Listener.Addr().String() + "/v1/messages, with the token"}; !slices.Equal(reached.all(), want) {
+				t.Errorf("requests sent: %q, want the probe alone", reached.all())
+			}
+		})
+	}
+}
+
+// requestLog notes each request a server is sent: its method, host and path,
+// and whether it carried the token, never the token itself.
+type requestLog struct {
+	mu   sync.Mutex
+	sent []string
+}
+
+func (l *requestLog) note(_ http.ResponseWriter, r *http.Request) {
+	carried := "without the token"
+	if r.Header.Get("Authorization") == "Bearer "+token {
+		carried = "with the token"
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.sent = append(l.sent, r.Method+" "+r.Host+r.URL.Path+", "+carried)
+}
+
+func (l *requestLog) all() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.sent)
+}
+
 func TestProbeModelTimesOut(t *testing.T) {
 	api := newFakeAPI(t, map[string]reply{haiku: {hang: true}})
 	prober := &claude.Prober{Upstream: api.URL, Version: version, Timeout: 20 * time.Millisecond}
