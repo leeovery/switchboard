@@ -220,8 +220,10 @@ moves   = false  # every other session move, such as after an idle hour or by pi
   none moved, it says when no other account has room. When the account is back goes unsaid where
   it would make the message longer than a banner shows. One notification a limit, however many
   requests reach it.
-- **Room again:** an account that had no room for a request of any model, by its shared windows
-  or under a limit or refusal, and has some: `work · Work has room again`. The router looks at
+- **Room again:** an account whose quota for a request of any model ran out, under a limit or
+  with a shared window spent, and has come back: `work · Work has room again`. A refusal isn't
+  quota, so one lifting is no news, or a revoked token would be announced every ten minutes; an
+  account both out of quota and refused has room again once both are past. The router looks at
   the accounts on every event and every 15 seconds, so a limit lifting or a window resetting with
   no traffic is noticed.
 - **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.

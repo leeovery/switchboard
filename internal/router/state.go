@@ -243,8 +243,13 @@ func (s *state) view(model string, now time.Time) view {
 // read, for a request applies says which windows count: its token was refused
 // too lately, or a limit it reached holds the request back.
 func (u *usage) barred(now time.Time, applies func(key string) bool) bool {
-	refused := !u.refused.IsZero() && now.Sub(u.refused) < refusedFor
-	return refused || u.limited.holds(now, applies)
+	return u.refusedLately(now) || u.limited.holds(now, applies)
+}
+
+// refusedLately reports whether the account's token was refused too lately,
+// at now, for anything to go out on it.
+func (u *usage) refusedLately(now time.Time) bool {
+	return !u.refused.IsZero() && now.Sub(u.refused) < refusedFor
 }
 
 // counting returns which windows count a request of model, by key: every
@@ -347,16 +352,17 @@ func (s *state) standings(now time.Time) standings {
 	return all
 }
 
-// standing is how the account stands at now. It has no room for a request of
-// any model while it's barred from them, as at a limit or a refusal, or while
-// a window every model shares is spent, as last read, and hasn't reset since.
+// standing is how the account stands at now. Its quota leaves it no room for
+// a request of any model while a limit holds such requests back, or while a
+// window every model shares is spent, as last read, and hasn't reset since.
 func (u *usage) standing(a account, policy score.Policy, now time.Time) standing {
-	barred := u.barred(now, policy.IsShared)
+	limited := u.limited.holds(now, policy.IsShared)
 	st := u.status(a, now)
 	return standing{
 		Account: st,
-		room:    !barred && score.Available(st.Windows, policy.IsShared, now),
-		known:   barred || len(st.Windows) > 0,
+		quota:   !limited && score.Available(st.Windows, policy.IsShared, now),
+		known:   limited || len(st.Windows) > 0,
+		refused: u.refusedLately(now),
 	}
 }
 

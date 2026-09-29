@@ -18,12 +18,13 @@ import (
 // shows before it cuts a message short.
 const maxMessage = 100
 
-// standing is how an account stands, as notifications judge it: its status,
-// and whether it has room for a request of any model, which is known once its
-// usage has been read or it has been barred.
+// standing is how an account stands, as notifications judge it: its status;
+// whether its quota leaves it room for a request of any model, which is known
+// once its usage has been read or a limit has barred it; and whether its
+// token was refused too lately for anything to go out on it.
 type standing struct {
 	status.Account
-	room, known bool
+	quota, known, refused bool
 }
 
 // windowLabel names the account's window with the given key by its label, or
@@ -58,10 +59,12 @@ func (ss standings) title(id string) string {
 }
 
 // fullBut reports whether no account but the one with the given id has room
-// for a request of any model, as far as anyone knows: one whose room isn't
-// known might have some.
+// for a request of any model, as far as anyone knows: one whose quota isn't
+// known might have some, unless its token is refused.
 func (ss standings) fullBut(id string) bool {
-	return !slices.ContainsFunc(ss, func(s standing) bool { return s.ID != id && (s.room || !s.known) })
+	return !slices.ContainsFunc(ss, func(s standing) bool {
+		return s.ID != id && !s.refused && (s.quota || !s.known)
+	})
 }
 
 // byID names an account by its id alone, as the log does.

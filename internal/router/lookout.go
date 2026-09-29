@@ -13,17 +13,18 @@ type windowOf struct {
 }
 
 // lookout compares the accounts, each time it's shown them, with how they
-// stood when last shown: an account without room that has some again, and a
-// window that has passed the warning since, call for notifications. It knows
-// nothing of an account until the account has been read or barred, so the
-// first look at one calls for none.
+// stood before: an account whose quota ran out and has come back, and a
+// window that has passed the warning since last shown, call for
+// notifications. It knows nothing of an account's quota until the account has
+// been read or a limit has barred it, so the first look at one calls for none.
 type lookout struct {
 	room bool
 	// warning is the share of a window's limit whose passing is told of, or 0
 	// for none.
 	warning float64
-	// rooms holds, by id, whether each account had room when last known.
-	rooms map[string]bool
+	// short holds, by id, the accounts whose quota ran out and that haven't
+	// had room since.
+	short map[string]bool
 	// levels holds each window's utilization as last shown.
 	levels map[windowOf]float64
 	// warned holds when the window each warning was last due in resets.
@@ -34,7 +35,7 @@ func newLookout(room bool, warning float64) *lookout {
 	return &lookout{
 		room:    room,
 		warning: warning,
-		rooms:   make(map[string]bool),
+		short:   make(map[string]bool),
 		levels:  make(map[windowOf]float64),
 		warned:  make(map[windowOf]time.Time),
 	}
@@ -55,15 +56,23 @@ func (l *lookout) look(accounts standings) []notify.Notice {
 	return due
 }
 
-// roomAgain reports whether the account had no room when last known and has
-// some now, when room again is told of.
+// roomAgain reports whether the account's quota ran out since it last had
+// room, and it has room now, when room again is told of: its quota is back,
+// and its token isn't refused. A refusal isn't the quota running out, so one
+// lifting says nothing of its own, which a revoked token would otherwise say
+// each time the router tried it again.
 func (l *lookout) roomAgain(s standing) bool {
-	if !s.known {
+	switch {
+	case !s.known:
+		return false
+	case !s.quota:
+		l.short[s.ID] = true
+		return false
+	case s.refused || !l.short[s.ID]:
 		return false
 	}
-	had, knew := l.rooms[s.ID]
-	l.rooms[s.ID] = s.room
-	return l.room && knew && !had && s.room
+	delete(l.short, s.ID)
+	return l.room
 }
 
 // passed returns the account's windows that have passed the warning since

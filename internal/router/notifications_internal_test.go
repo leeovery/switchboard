@@ -55,10 +55,11 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 		// after the clock began it lifts.
 		windows []string
 		lifts   time.Duration
-		// full leaves 1 and 3 without room.
-		full  bool
-		moves []Event
-		want  string
+		// full leaves 1 and 3 without quota, and refused has their tokens
+		// refused.
+		full, refused bool
+		moves         []Event
+		want          string
 	}{
 		{
 			name:    "to one account",
@@ -75,6 +76,11 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 		{
 			name:    "to none, with no other account with room",
 			windows: []string{"5h"}, lifts: 3 * time.Hour, full: true,
+			want: "2 · two hit its Session limit, back at Sat 03:00 — no other account has room",
+		},
+		{
+			name:    "to none, with every other account refused",
+			windows: []string{"5h"}, lifts: 3 * time.Hour, refused: true,
 			want: "2 · two hit its Session limit, back at Sat 03:00 — no other account has room",
 		},
 		{
@@ -122,8 +128,12 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 				if tt.full {
 					used = 1
 				}
-				h.read("1", h.session(used, time.Hour), h.week(0.5, 3*day))
-				h.read("3", h.session(used, time.Hour), h.week(0.5, 3*day))
+				for _, id := range []string{"1", "3"} {
+					h.read(id, h.session(used, time.Hour), h.week(0.5, 3*day))
+					if tt.refused {
+						h.state.refuse(id)
+					}
+				}
 				h.start()
 
 				h.limit("2", tt.windows, tt.lifts)
@@ -182,9 +192,9 @@ func TestRoomAgain(t *testing.T) {
 	withRoom := func(h *notifying) { h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day)) }
 	tests := []struct {
 		name string
-		// before sets 2 up before notifications start, and bar takes its room
-		// away after. lift gives it back, if it takes more than time, which
-		// wait is how long it takes.
+		// before sets 2 up before notifications start, and bar takes its
+		// quota away after. lift gives it back where time alone doesn't, and
+		// wait is how long it takes to come back.
 		before func(h *notifying)
 		bar    func(h *notifying)
 		lift   func(h *notifying)
@@ -201,12 +211,6 @@ func TestRoomAgain(t *testing.T) {
 			before: withRoom,
 			bar:    func(h *notifying) { h.state.limit("2", nil, h.began.Add(time.Minute)) },
 			wait:   time.Minute,
-		},
-		{
-			name:   "when a refusal lifts",
-			before: withRoom,
-			bar:    func(h *notifying) { h.state.refuse("2") },
-			wait:   refusedFor,
 		},
 		{
 			name:   "when a spent window resets, with no traffic",
@@ -242,7 +246,37 @@ func TestRoomAgain(t *testing.T) {
 	}
 }
 
-func TestNoRoomAgainForAnAccountNotKnownToHaveNone(t *testing.T) {
+func TestRoomAgainOnceQuotaIsBackAndARefusalAlongsideHasLifted(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Room: true})
+		h.read("2", h.session(1, 2*time.Minute), h.week(0.5, 3*day))
+		h.start()
+
+		h.state.refuse("2")
+		h.hear(Refused{Account: "2", Status: 403})
+		h.after(5 * time.Minute)
+		h.expect()
+		h.after(refusedFor - 5*time.Minute)
+		h.expect("2 · two has room again")
+	})
+}
+
+func TestARevokedTokenIsNeverRoomAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Room: true})
+		h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
+		h.start()
+
+		for range 5 {
+			h.state.refuse("2")
+			h.hear(Refused{Account: "2", Status: 403})
+			h.after(refusedFor + lookEvery)
+		}
+		h.expect()
+	})
+}
+
+func TestNoRoomAgainUnlessQuotaRanOut(t *testing.T) {
 	tests := []struct {
 		name  string
 		setUp func(h *notifying)
@@ -267,6 +301,14 @@ func TestNoRoomAgainForAnAccountNotKnownToHaveNone(t *testing.T) {
 				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
 				h.start()
 				h.state.limit("2", []string{"7d_oi"}, h.began.Add(time.Minute))
+			},
+		},
+		{
+			name: "once a refusal lifts, with its quota never out",
+			setUp: func(h *notifying) {
+				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
+				h.start()
+				h.state.refuse("2")
 			},
 		},
 		{
@@ -345,7 +387,7 @@ func TestAWindowIsWarnedOfOnceAReset(t *testing.T) {
 	shown := func(used float64, resets time.Time) standings {
 		w := quota.Window{Key: "7d", Label: "Week", Utilization: used, ResetsAt: resets}
 		two := status.Account{ID: "2", Label: "two", Windows: []quota.Window{w}}
-		return standings{{Account: two, room: true, known: true}}
+		return standings{{Account: two, quota: true, known: true}}
 	}
 	l := newLookout(false, 0.9)
 	var warned []string
