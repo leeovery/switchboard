@@ -154,7 +154,7 @@ func TestCommandsNeverEchoATokenGivenAsAnID(t *testing.T) {
 		{name: "the session to pin", args: []string{"pin", "side", "--session", tokenShaped}, want: unseen},
 		{name: "the session to unpin", args: []string{"pin", "auto", "--session", tokenShaped}, want: unseen},
 		{name: "the session to show", args: []string{"status", "--session", tokenShaped}, want: unseen},
-		{name: "the account to launch on", args: []string{"run", "--account", tokenShaped}, want: `Error: there's no account "[redacted]": pin work or personal or side`},
+		{name: "the account to launch on", args: []string{"run", "--account", tokenShaped}, want: `Error: there's no account "[redacted]": pin work or side`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

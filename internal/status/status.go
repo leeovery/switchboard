@@ -115,8 +115,8 @@ type Account struct {
 	Lapsed []string `json:"lapsed,omitempty"`
 	// AtReserve are the keys of the windows that have reached the reserve,
 	// short of their limits, in Usage's order: while there are any, the
-	// router's own choices pass the account over, and only a pin spends the
-	// reserve.
+	// router's own choices pass the account over for the requests those
+	// windows count, and only a pin spends the reserve.
 	AtReserve []string `json:"at_reserve,omitempty"`
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`

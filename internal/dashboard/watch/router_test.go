@@ -505,6 +505,32 @@ func TestPostsNothingWhileReadingTheRouter(t *testing.T) {
 	}
 }
 
+func TestPostsNothingProbingAsAskedWhileTheRouterAnswers(t *testing.T) {
+	log := logstest.Capture(t)
+	h := newHarness(t, document(account("work", "Work", refused(session(1, 30*time.Minute)), week(0.85), fableWeek(0.5))))
+	h.source.probing = true
+	h.startRouter(routerDocument(three()...))
+	h.start()
+
+	h.clock.now = at(13, 20, 0)
+	h.read(document(account("work", "Work", session(0.02, 5*time.Hour), week(0.91), fableWeek(0.5))))
+	if h.model.routed() || len(h.notifier.posted) > 0 {
+		t.Errorf("probing as asked while the router answers, routed = %v and posted %q, want probing, and nothing: the router posts its own", h.model.routed(), h.notifier.posted)
+	}
+	for _, news := range []string{`news="room again"`, `news="Week at 91%"`} {
+		if want := []string{"level=DEBUG", `msg="notification left to the router" component=watch`, "account=work", news}; !log.Has(want...) {
+			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+		}
+	}
+
+	h.stopRouter()
+	h.clock.now = at(13, 25, 0)
+	h.read(document(account("work", "Work", session(0.02, 5*time.Hour), week(0.91), fableWeek(0.95))))
+	if want := []string{"work · Work: Fable week at 95%"}; !slices.Equal(h.notifier.posted, want) {
+		t.Errorf("probing as asked once the router stopped, posted %q, want %q: the dashboard's own, of what changed since", h.notifier.posted, want)
+	}
+}
+
 func TestLogsTheRouterGoingAndComingBack(t *testing.T) {
 	log := logstest.Capture(t)
 	h := routedHarness(t, routerDocument(three()...))

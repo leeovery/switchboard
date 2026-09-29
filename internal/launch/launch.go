@@ -14,7 +14,6 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
-	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -289,14 +288,15 @@ func (r Route) choose(pin choice, routed bool) (choice, error) {
 }
 
 // pinned is the account the session is pinned to, which must be configured
-// and have a usable token; none when it isn't pinned.
+// and have a usable token; none when it isn't pinned. For one that isn't
+// configured, it names the accounts that can be pinned, as pin does.
 func (r Route) pinned() (choice, error) {
 	if r.Account == "" {
 		return choice{}, nil
 	}
 	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == r.Account })
 	if i < 0 {
-		return choice{}, fmt.Errorf("there's no account %q: pin %s", redact.Text(r.Account), strings.Join(r.Config.Accounts.IDs(), " or "))
+		return choice{}, router.UnknownAccount(r.Account, r.usable())
 	}
 	a := r.Config.Accounts[i]
 	token, err := r.Token(a.ID)
@@ -304,6 +304,18 @@ func (r Route) pinned() (choice, error) {
 		return choice{}, fmt.Errorf("account %s has no usable token for Claude Code to start on: %w", a.ID, err)
 	}
 	return choice{account: a, token: token, why: "pinned"}, nil
+}
+
+// usable lists the ids of the accounts with a usable token, in the config's
+// order.
+func (r Route) usable() []string {
+	var ids []string
+	for _, a := range r.Config.Accounts {
+		if _, err := r.Token(a.ID); err == nil {
+			ids = append(ids, a.ID)
+		}
+	}
+	return ids
 }
 
 // primary is the primary account, when its token is usable.

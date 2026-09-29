@@ -776,6 +776,11 @@ func TestEditRefusesAConfigItCantRead(t *testing.T) {
 		wantErr string
 	}{
 		{name: "not TOML", config: "listen = \"127.0.0.1:4747\n", wantErr: "parse config %s: toml: line 1"},
+		{
+			name:    "not TOML, a token given twice as a key",
+			config:  tokenShaped + " = 1\n" + tokenShaped + " = 2\n",
+			wantErr: `parse config %s: toml: line 2 (last key "[redacted]"): Key '[redacted]' has already been defined.`,
+		},
 		{name: "invalid", config: "[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n", wantErr: "invalid config %s:\n" + `unknown key "account.token_env"`},
 	}
 	for _, tt := range tests {

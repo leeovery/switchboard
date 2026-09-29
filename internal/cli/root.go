@@ -312,13 +312,11 @@ func (a *app) collect(ctx context.Context, probe bool) (status.Document, error) 
 func (a *app) source(cfg *config.Config, probe bool) usageSource {
 	probing := probeSource{deps: a.Deps, readToken: a.readToken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
 	source := usageSource{probe: probing, ask: !probe}
-	if source.ask {
-		// Without a state directory there's no socket to find the router at,
-		// which reads as a router that isn't running.
-		var err error
-		if source.router, err = a.routerClient(); err != nil {
-			logger.Debug("can't find the router", "error", err)
-		}
+	// Without a state directory there's no socket to find the router at,
+	// which reads as a router that isn't running.
+	var err error
+	if source.router, err = a.routerClient(); err != nil {
+		logger.Debug("can't find the router", "error", err)
 	}
 	return source
 }

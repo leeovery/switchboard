@@ -659,6 +659,41 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 	}
 }
 
+func TestLoadNeverQuotesATokenItCantParse(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		// want is the error, after the config's path.
+		want string
+	}{
+		{
+			name:   "a key without a value",
+			config: tokenShaped + " =\n",
+			want:   `toml: line 1 (last key "[redacted]"): expected value but found '\n' instead`,
+		},
+		{
+			name:   "a key given twice",
+			config: tokenShaped + " = 1\n" + tokenShaped + " = 2\n",
+			want:   `toml: line 2 (last key "[redacted]"): Key '[redacted]' has already been defined.`,
+		},
+		{
+			name:   "a key given twice in an account's table",
+			config: accountTOML("work") + tokenShaped + " = 1\n" + tokenShaped + " = 2\n",
+			want:   `toml: line 5 (last key "account.[redacted]"): Key 'account.[redacted]' has already been defined.`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+
+			_, err := config.Load(path)
+			if want := "parse config " + path + ": " + tt.want; err == nil || err.Error() != want {
+				t.Errorf("Load() error = %v, want %q", err, want)
+			}
+		})
+	}
+}
+
 func TestLoadNeverQuotesAnOldConfigsTokenVariable(t *testing.T) {
 	const pasted = "test-token-pasted-by-mistake"
 	path := writeConfig(t, accountTOML("work")+"token_env = \""+pasted+"\"\n")

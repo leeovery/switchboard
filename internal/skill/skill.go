@@ -1,8 +1,8 @@
 // Package skill is the Claude Code skill switchboard carries, which tells
 // Claude what switchboard does under claude, so no session needs it
 // explained: its text, embedded with its version, and the copy installed
-// where Claude Code reads skills. Switchboard owns that copy, and overwrites
-// edits to it.
+// where Claude Code reads skills. Switchboard owns that copy, and replaces it
+// with each new version, edits and all.
 package skill
 
 import (
