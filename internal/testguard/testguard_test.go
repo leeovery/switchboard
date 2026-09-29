@@ -209,7 +209,10 @@ func runChild(t *testing.T, does, home string, env ...string) (string, error) {
 		t.Fatal(err)
 	}
 	cmd := exec.CommandContext(t.Context(), binary, "-test.run=^TestInChild$", "-test.timeout=1m")
-	cmd.Env = slices.Concat(os.Environ(), env, []string{"HOME=" + home, childDoes + "=" + does, childHome + "=" + home})
+	// Under the race detector, a child that exits 0 would first sleep for its
+	// default atexit_sleep_ms: measured, a second a child.
+	race := strings.TrimSpace(os.Getenv("GORACE") + " atexit_sleep_ms=0")
+	cmd.Env = slices.Concat(os.Environ(), env, []string{"HOME=" + home, "GORACE=" + race, childDoes + "=" + does, childHome + "=" + home})
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
