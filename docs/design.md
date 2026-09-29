@@ -165,7 +165,9 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   ```
 
 - Switchboard never stores tokens. It reads them from its environment, so wherever they already
-  live (a password manager, a generated env file) stays the source of truth.
+  live (a password manager, a generated env file) stays the source of truth. The programs it runs
+  for itself, `claude --version` and `osascript`, get none of that environment but `PATH`, `HOME`,
+  `TMPDIR` and `LANG`.
 - The background service is a LaunchAgent, and a LaunchAgent doesn't see the shell's environment.
   `service install --env-file <path>` has zsh source that file, one the shell sources too, each
   time the router starts. After tokens change, `service restart` picks them up.
@@ -331,6 +333,7 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 | `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/dashboard` | Rendering (Lip Gloss), and watch mode (Bubble Tea): reading the router or probing, its keys, and its desktop notifications while it probes |
 | `internal/notify` | Posting desktop notifications, and the wording the router's and the dashboard's share |
+| `internal/childenv` | The environment the programs switchboard runs for itself start in: no token |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, the router's health, the events it emits and the notifications it posts, and the control API |
 | `internal/launch` | `run` and `init zsh` |

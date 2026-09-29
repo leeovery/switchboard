@@ -5,10 +5,13 @@ package notify
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/childenv"
 )
 
 const (
@@ -28,13 +31,17 @@ func (Off) Notify(string) error { return nil }
 // way, and elsewhere posts nothing.
 type Desktop struct {
 	goos string
+	// env is the environment osascript runs in.
+	env []string
 	// run runs a command to its end. Tests replace it, so they never post.
-	run func(ctx context.Context, name string, args ...string) error
+	run func(ctx context.Context, env []string, name string, args ...string) error
 }
 
-// NewDesktop returns a Desktop for the system it runs on.
+// NewDesktop returns a Desktop for the system it runs on, whose osascript
+// runs in no more of this process's environment than it needs: the router's
+// holds every token.
 func NewDesktop() Desktop {
-	return Desktop{goos: runtime.GOOS, run: runCommand}
+	return Desktop{goos: runtime.GOOS, env: childenv.Minimal(os.Getenv), run: runCommand}
 }
 
 // Notify posts message under switchboard's name.
@@ -44,7 +51,7 @@ func (d Desktop) Notify(message string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	if err := d.run(ctx, "osascript", "-e", displayNotification(message)); err != nil {
+	if err := d.run(ctx, d.env, "osascript", "-e", displayNotification(message)); err != nil {
 		return fmt.Errorf("post notification: %w", err)
 	}
 	return nil
@@ -61,6 +68,8 @@ func quote(s string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
 
-func runCommand(ctx context.Context, name string, args ...string) error {
-	return exec.CommandContext(ctx, name, args...).Run()
+func runCommand(ctx context.Context, env []string, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = env
+	return cmd.Run()
 }
