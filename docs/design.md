@@ -101,7 +101,8 @@ on a model whose thinking is bound to its account only when its account can't se
 1. **Candidates:** accounts where every window that applies to the request's model has room: the
    5-hour window, the shared weekly window, and that model's own weekly window if it has one. A
    window's room ends at the account's reserve (see The primary account): with a reserve of 0.1,
-   a window reading 90% has none.
+   a window reading 90% has none. That holds the router's own choices alone: a pin runs its
+   account to its limit (see Pinning).
 2. **Score:** perishability = the room left in the shared weekly window ÷ time until it resets,
    the room ending at the reserve: (1 − reserve − utilization) ÷ hours to reset. The highest score
    wins, so quota that resets tomorrow is used before quota that resets next week, and a nearly
@@ -168,7 +169,6 @@ The routed line in the log gives the reason for each request's account, one of:
 |---|---|
 | `pinned` | The session's own pin (step 1) |
 | `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as its windows leave no room |
-| `pin yields: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
 | `pin yields: <id> hit its limit`, `pin yields: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it |
 | `moved by pin` | A global pin with `--move` (step 2) |
 | `sticky` | The session's account, its cache warm (step 3) |
@@ -192,8 +192,11 @@ The routed line in the log gives the reason for each request's account, one of:
 | `pin <id> --move` | Every new session and every running one | Move on their next request (one cache rebuild each, and a session on a model whose thinking is bound to its account loses its reasoning) |
 | `pin auto` | Back to routing (`auto` in any case) | n/a |
 
-A per-session pin beats a global pin. Every pin yields at a limit, and at its account's reserve: a
-pinned session that hits one moves by the normal rules rather than failing. The per-session pin
+A per-session pin beats a global pin. Every pin yields at a limit: a pinned session that hits one
+moves by the normal rules rather than failing. A pin spends its account's reserve: the reserve
+holds back the router's own choices, and a pin is the user's. So when every other account is out
+and the primary is at its reserve, `pin <primary> --move` carries the running sessions on there,
+in place, and `pin auto` hands them back to the router, reserve and all. The per-session pin
 reaches the proxy as a request header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`.
 Switchboard defines no per-account launchers: the user's own aliases for
 `switchboard run --account <id> --` serve.
@@ -252,17 +255,18 @@ One account is the primary: the one the browser and the Claude apps are signed i
 - **The reserve** is the share of every window, the 5-hour window, the shared weekly window and
   each model's own weekly, that the router leaves unused on an account: 0.1 on the primary unless
   set, 0 on the others. Once a window that applies to a request reads at or above 1 less the
-  reserve, the account has no room for that request: new sessions pass it over, a session on it
-  moves as at a limit, and every pin yields as at a limit. Scoring counts only the room before the
-  reserve. The router never sends a request to an account held back only by its reserve, even
-  when no account has room, as that would spend it. So the primary keeps a share of every window
-  for the Claude apps, where use can take it past the reserve, as intended, and the other accounts
-  are used right up to their limits.
+  reserve, the router's own choices pass the account over: new sessions skip it, and a session on
+  it moves as at a limit. Scoring counts only the room before the reserve. The router never sends
+  a request to an account held back only by its reserve, even when no account has room, as that
+  would spend it. A pin does spend it, running its account to its limit: the pin is the user's
+  choice, where the reserve holds back the router's (see Pinning). So the primary keeps a share
+  of every window for the Claude apps, where use can take it past the reserve, as intended, and
+  the other accounts are used right up to their limits.
 - Readings come off responses, so one large turn can take an account a point or two past its
   reserve before the router sees it. A launch that goes direct, without the router, can spend the
   reserve.
 - `accounts`, `status` and the dashboard mark the primary, and `status` and the dashboard show
-  each reserve, and when it holds its account back.
+  each reserve, when it holds its account back, and when a pin is spending it.
 
 ## Priming
 
@@ -401,7 +405,8 @@ rather than failing, reads `switchboard: …`.
   them. What the router holds an account back by shows at the top of its card, in red, while it
   holds: a limit it reached, `limit until Mon 21:00`, and under it a refusal,
   `refused (403, opus) until 21:40`. An account held back by its reserve says so there, in the
-  warning colour: `at its reserve (90%)`. The account's sessions, `2 sessions`, show at its foot.
+  warning colour: `at its reserve (90%)`, or, with the global pin on it, `spending its reserve
+  (pinned)`. The account's sessions, `2 sessions`, show at its foot.
   A line per account carries the pin's mark beside the best's, and the sessions where there's
   room.
 - **Where it reads:** `usage` and `status` read the router's status document whenever the router
@@ -764,7 +769,7 @@ Each account:
 | `token_set` | Whether its token file is present and usable |
 | `fetched_at` | When its usage was last read; left out when it never was |
 | `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, as for a 5-hour window that has lapsed, which reads 0, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given. Left out when none has been read |
-| `at_reserve` | The keys of the windows at or past its reserve, while the reserve holds it back; left out otherwise |
+| `at_reserve` | The keys of the windows at or past its reserve; left out otherwise. The router's own choices pass the account over while there are any; a pin spends the reserve |
 | `failures` | Windows a probe expected but couldn't read: `{label, window, error}`, `label` naming what should have read it, such as `Fable`. Left out when none |
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
 | `limit` | *router* A limit it reached, while it holds: `{windows, until}`, `windows` the keys named as reached, left out when only the overall verdict said so |
