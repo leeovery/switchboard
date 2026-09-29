@@ -47,14 +47,14 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - Claude Code's own token is the primary account's, so what it sends that isn't the conversation,
   such as publishing an artifact, and what it sends around the router, goes out on the primary,
   whichever account the conversation is on. See The primary account.
-- Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers, but a 429 that
-  refuses the request itself (see Choosing an account, step 6): utilization and reset time for
-  each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Switchboard reads them off
-  real traffic, so it knows each account's usage without spending requests. Windows are parsed
-  generically, not hard-coded. A window's reset says which of two readings taken apart is current:
-  a later reset is a new window; with the same reset the higher utilization stands, as use only
-  rises within a window, so a slow response can't pull it back, nor lift a rejection either
-  reading holds; an earlier reset is ignored.
+- Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization
+  and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Only a 429
+  that refuses the request itself carries none (see Choosing an account, step 6). Switchboard
+  reads them off real traffic, so it knows each account's usage without spending requests.
+  Windows are parsed generically, not hard-coded. A window's reset says which of two readings
+  taken apart is current: a later reset is a new window; with the same reset the higher
+  utilization stands, as use only rises within a window, so a slow response can't pull it back,
+  nor lift a rejection either reading holds; an earlier reset is ignored.
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed only when a decision needs fresh
   numbers, a dashboard asks for them, or it's due a prime, and never once its 5-hour window has
