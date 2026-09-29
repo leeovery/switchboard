@@ -41,6 +41,7 @@ const (
 	testMainFix    = "func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }"
 	environmentFix = "set a variable with t.Setenv in a test, or inject the environment (a getenv, or exec.Cmd's Env)"
 	processFix     = "start it in a runner tests replace, and add that runner to processStarters in " + allowListFile
+	userFix        = "take the home directory from the injected HomeDir, which follows HOME"
 )
 
 // target is some of a package's functions: its import path and their names.
@@ -71,6 +72,10 @@ func TestOnlyTheGuardChangesTheEnvironment(t *testing.T) {
 
 func TestOnlyTheFunctionsAllowedStartProcesses(t *testing.T) {
 	reportEach(t, processStarts(parseModule(t, moduleRoot(t)), processStarters))
+}
+
+func TestProductionCodeDoesntImportOSUser(t *testing.T) {
+	reportEach(t, userImports(parseModule(t, moduleRoot(t))))
 }
 
 func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
@@ -109,6 +114,13 @@ func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 				"starter/starter.go:17: syscall.Exec starts a process outside the functions allowed to; " + processFix,
 				"starter/starter.go:20: exec.Command starts a process outside the functions allowed to; " + processFix,
 				"internal/testguard/source_test.go: processStarters allows starter/gone.go:runner, which starts no process; remove it",
+			},
+		},
+		{
+			name: "userImports",
+			got:  userImports(files),
+			want: []string{
+				"user/user.go:4: os/user finds the home directory past HOME, where testguard can't move it; " + userFix,
 			},
 		},
 	}
@@ -257,6 +269,20 @@ func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }
 
 func TestSomething(t *testing.T) { _ = exec.Command("true").Run() }
 `,
+	"user/user.go": `package user
+
+import (
+	osuser "os/user"
+)
+
+func home() string {
+	u, err := osuser.Current()
+	if err != nil {
+		return ""
+	}
+	return u.HomeDir
+}
+`,
 }
 
 // unguardedPackages finds each package with tests whose TestMain doesn't run
@@ -351,6 +377,23 @@ func processStarts(files []sourceFile, allowed []string) []string {
 	for _, name := range allowed {
 		if !starting[name] {
 			problems = append(problems, fmt.Sprintf("%s: processStarters allows %s, which starts no process; remove it", allowListFile, name))
+		}
+	}
+	return problems
+}
+
+// userImports finds each production file that imports os/user, which finds the
+// home directory from the system rather than HOME, and so past testguard.
+func userImports(files []sourceFile) []string {
+	var problems []string
+	for _, f := range files {
+		if f.isTest() {
+			continue
+		}
+		for _, spec := range f.ast.Imports {
+			if p, err := strconv.Unquote(spec.Path.Value); err == nil && p == "os/user" {
+				problems = append(problems, fmt.Sprintf("%s: os/user finds the home directory past HOME, where testguard can't move it; %s", f.at(spec.Pos()), userFix))
+			}
 		}
 	}
 	return problems

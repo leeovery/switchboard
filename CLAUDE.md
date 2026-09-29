@@ -53,10 +53,10 @@ notifications. Ever.
   variables, tmux's and proxies'; puts only stubs of `claude`, `osascript`, `launchctl`, `tmux`
   and `open` on `PATH`; and lets `http.DefaultTransport`, and transports cloned from it, dial
   loopback alone. A run in which a stub ran, a dial was blocked, the real switchboard config
-  changed, or its state directory appeared fails, even when every test passed. Its own tests fail a
-  package without that
-  `TestMain`, a change to the environment anywhere but `testguard`, and a process started outside
-  the runners its allow-list names.
+  changed, or its state directory appeared fails, even when every test passed. Its own tests fail
+  a package without that `TestMain`, a change to the environment anywhere but `testguard`, a
+  process started outside the runners its allow-list names, and production code importing
+  `os/user`, as `HomeDir` is injected.
 - **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS
   sandbox (`scripts/isolation.sb`) that denies the network beyond loopback, writes into the home
   directory but Go's caches, and running the real `claude`, `osascript`, `launchctl`, `tmux` and
