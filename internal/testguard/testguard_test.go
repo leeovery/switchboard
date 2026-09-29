@@ -38,10 +38,12 @@ var seeded = []string{
 	"http_proxy=http://127.0.0.1:9",
 }
 
-// Where switchboard keeps its config and its state, from a home.
+// Where switchboard keeps its config, its state and its LaunchAgent, from a
+// home.
 var (
 	configFile = filepath.Join(".config", "switchboard", "config.toml")
 	stateFile  = filepath.Join(".local", "state", "switchboard", "state.json")
+	agentFile  = filepath.Join("Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
 )
 
 func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
@@ -53,6 +55,7 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 		{does: "dial-off-the-machine", want: "blocked dial to 192.0.2.1:80"},
 		{does: "overwrite-the-real-config", want: "the real ~/.config/switchboard/config.toml was modified"},
 		{does: "create-the-real-state", want: "the real ~/.local/state/switchboard appeared"},
+		{does: "install-the-real-launch-agent", want: "the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was created"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
@@ -117,6 +120,8 @@ func TestInChild(t *testing.T) {
 		writeFile(t, filepath.Join(realHome, configFile), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
 	case "create-the-real-state":
 		writeFile(t, filepath.Join(realHome, stateFile), "{\"version\": 1, \"sessions\": []}\n")
+	case "install-the-real-launch-agent":
+		writeFile(t, filepath.Join(realHome, agentFile), "<plist version=\"1.0\"/>\n")
 	case "write-the-real-state-as-a-live-router-does":
 		writeLikeARouter(t, filepath.Join(realHome, stateFile))
 	case "stay-in-isolation":

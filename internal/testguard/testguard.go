@@ -29,9 +29,10 @@ import (
 // transport cloned from it after, dial this machine alone.
 //
 // After them, it fails the run, even when every test passed, if a stub ran,
-// a dial was blocked, switchboard's config in the real home changed, or its
-// state directory there appeared, saying which on stderr. Then it removes the
-// root.
+// a dial was blocked, switchboard's config in the real home changed, its
+// state directory there appeared, or a file of its among the real
+// LaunchAgents appeared or changed, saying which on stderr. Then it removes
+// the root.
 func Main(m *testing.M) int {
 	g, err := install()
 	if err != nil {
