@@ -1,6 +1,7 @@
 package router
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -69,18 +70,20 @@ type decision struct {
 //     given while it ran, else the one it was launched with. A session that
 //     yielded its pin at a limit stays where it went while step 3 would keep
 //     it there, until it's given a pin again.
-//  2. The global pin's account, for a session assigned before a pin that
-//     moves running sessions: once each, while the account has room.
+//  2. The best of the global pin's accounts, for a session on another
+//     account, assigned before a pin that moves running sessions: once each,
+//     while one of them has room.
 //  3. The session's account, while it has room and its cache there is warm,
 //     or its model's thinking is bound to it, which a move would lose.
-//  4. Afresh: the global pin's account while it has room, else the account
-//     whose quota most needs using, keeping a session that has idled on its
-//     own account unless another is well ahead.
+//  4. Afresh: the best of the global pin's accounts while one has room, else
+//     the account whose quota most needs using, of every account; either
+//     way, a session that has idled keeps to its own account unless another
+//     is well ahead.
 //  5. When no account has room, the session's account, else the client's,
 //     else any, passing over those that refused the request lately and those
 //     held back by their reserve alone; with none left but the latter, none.
 func decide(s situation) decision {
-	s.accounts = s.accounts.spend(s.req.Pin, s.pin.Account)
+	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	pin := s.req.Pin
 	switch {
 	case pin == "":
@@ -99,10 +102,10 @@ func decide(s situation) decision {
 
 // unpinned chooses as decide does from step 2 on.
 func (s situation) unpinned() decision {
-	switch {
-	case s.moving():
-		return decision{account: s.pin.Account, reason: reasonMovedByPin}
-	case s.keepable():
+	if to, ok := s.moving(); ok {
+		return decision{account: to, reason: reasonMovedByPin}
+	}
+	if s.keepable() {
 		return s.keep()
 	}
 	return s.afresh()
@@ -117,11 +120,16 @@ func (s situation) yielded() bool {
 		s.current.Account != s.req.Pin && s.keepable()
 }
 
-// moving reports whether the global pin moves the session to its account: it
-// moves running sessions, and was set after the session was assigned.
-func (s situation) moving() bool {
-	return s.assigned && s.pin.Move && s.current.AssignedAt.Before(s.pin.Since) &&
-		s.current.Account != s.pin.Account && s.accounts.room(s.pin.Account)
+// moving returns the account the global pin moves the session to, the best of
+// its accounts, as pinned says: it moves running sessions, it was set after
+// the session was assigned, and the session's account isn't one of them. It
+// reports false when the pin doesn't move the session, or none of its
+// accounts has room.
+func (s situation) moving() (string, bool) {
+	if !s.assigned || !s.pin.Move || !s.current.AssignedAt.Before(s.pin.Since) || s.pin.Has(s.current.Account) {
+		return "", false
+	}
+	return s.pinned("")
 }
 
 // keepable reports whether the session can stay on its account: there's room,
@@ -149,16 +157,33 @@ func (s situation) keep() decision {
 }
 
 // afresh chooses the account of a new session, of one that can move at no
-// cost, or of one whose account has no room.
+// cost, or of one whose account has no room: among the global pin's accounts
+// while one has room, else among every account.
 func (s situation) afresh() decision {
-	if s.pin.Account != "" && s.accounts.room(s.pin.Account) {
-		return decision{account: s.pin.Account, reason: reasonGlobalPin, afresh: true}
-	}
 	reason, preferred := s.why()
+	if id, ok := s.pinned(preferred); ok {
+		return decision{account: id, reason: reasonGlobalPin, afresh: true}
+	}
 	if id, ok := s.accounts.pick(preferred); ok {
 		return decision{account: id, reason: reason, afresh: true}
 	}
 	return s.noRoom()
+}
+
+// pinned returns the account of the global pin's the request goes to: of
+// those with room, the one whose quota most needs using, keeping to preferred
+// unless another is well ahead, else the first, as a pin sends requests to an
+// account whose quota can't be scored, or that nothing has been read of. It
+// reports false when none has room.
+func (s situation) pinned(preferred string) (string, bool) {
+	if id, ok := s.accounts.within(s.pin.Accounts).pick(preferred); ok {
+		return id, true
+	}
+	i := slices.IndexFunc(s.pin.Accounts, s.accounts.room)
+	if i < 0 {
+		return "", false
+	}
+	return s.pin.Accounts[i], true
 }
 
 // why says why the account is being chosen afresh, and which account the

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -46,14 +47,24 @@ type Health struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
-// PinRequest is what POST /pin takes: the account every new session goes
-// to; whether every running session moves there too, on its next request;
-// and whether every session's own pin is cleared, the one it was launched
-// with included.
+// PinRequest is what POST /pin takes: the accounts every new session goes to
+// the best of; whether every running session on another account moves there
+// too, on its next request; and whether every session's own pin is cleared,
+// the one it was launched with included. Account names one account more, as
+// a switchboard from before pins named several asks.
 type PinRequest struct {
-	Account string `json:"account"`
-	Move    bool   `json:"move"`
-	Force   bool   `json:"force"`
+	Accounts []string `json:"accounts"`
+	Account  string   `json:"account,omitempty"`
+	Move     bool     `json:"move"`
+	Force    bool     `json:"force"`
+}
+
+// ids returns the ids of the accounts the request names, as it names them.
+func (p PinRequest) ids() []string {
+	if p.Account == "" {
+		return p.Accounts
+	}
+	return append(slices.Clone(p.Accounts), p.Account)
 }
 
 // sessionPinRequest is what POST /sessions/{id}/pin takes: the account the
@@ -116,7 +127,7 @@ func (r *Router) Control() http.Handler {
 	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin PinRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&pin); err != nil {
-			writeProblem(w, http.StatusBadRequest, `give the account to pin as JSON, such as {"account": "work", "move": false, "force": false}`)
+			writeProblem(w, http.StatusBadRequest, `give the accounts to pin as JSON, such as {"accounts": ["work"], "move": false, "force": false}`)
 			return
 		}
 		if err := r.pin(pin); err != nil {
@@ -245,15 +256,17 @@ func (r *Router) named(s status.Session) status.Session {
 	return s
 }
 
-// pin sends every new session to the account the request names, with Move,
-// every running session too, and with Force, clears every session's own pin.
-// It fails, saying why, for an account nothing can go out on.
+// pin sends every new session to the best of the accounts the request names,
+// with Move, every running session on another account too, and with Force,
+// clears every session's own pin. It fails, saying why, for no account, or
+// for one nothing can go out on.
 func (r *Router) pin(p PinRequest) error {
-	if err := r.pinnable(p.Account); err != nil {
+	ids, err := r.pinnableAll(p.ids())
+	if err != nil {
 		return err
 	}
-	cleared := r.sessions.setPin(status.Pin{Account: p.Account, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
-	attrs := []any{"account", p.Account, "move", p.Move}
+	cleared := r.sessions.setPin(status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
+	attrs := []any{"accounts", strings.Join(ids, ","), "move", p.Move}
 	if p.Force {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
 	}
@@ -265,11 +278,12 @@ func (r *Router) pin(p PinRequest) error {
 // for those with pins of their own, and with force, clears theirs too.
 func (r *Router) unpin(force bool) {
 	was, cleared := r.sessions.unpin(force)
+	accounts := strings.Join(was.Accounts, ",")
 	switch {
 	case force:
-		logger.Info("unpinned", "account", was.Account, "force", true, "sessions_unpinned", cleared)
-	case was.Account != "":
-		logger.Info("unpinned", "account", was.Account)
+		logger.Info("unpinned", "accounts", accounts, "force", true, "sessions_unpinned", cleared)
+	case !was.IsZero():
+		logger.Info("unpinned", "accounts", accounts)
 	}
 }
 
@@ -298,6 +312,21 @@ func (r *Router) unpinSession(id string) error {
 	}
 	logger.Info("unpinned session", "session", status.ShortID(id))
 	return nil
+}
+
+// pinnableAll returns the accounts with the given ids once each, in the order
+// configured, as the global pin names them. It fails, saying why, for none,
+// or unless requests can go out on each, as pinnable says.
+func (r *Router) pinnableAll(ids []string) ([]string, error) {
+	if len(ids) == 0 {
+		return nil, errors.New(`give the accounts to pin, such as {"accounts": ["work"]}`)
+	}
+	for _, id := range ids {
+		if err := r.pinnable(id); err != nil {
+			return nil, err
+		}
+	}
+	return r.accounts.only(ids).configured().IDs(), nil
 }
 
 // pinnable fails, saying why, unless requests can go out on the account with

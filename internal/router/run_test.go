@@ -187,7 +187,7 @@ func TestARestartedRouterKeepsSessionsWhereTheyWere(t *testing.T) {
 	stop := runRouter(t, cfg)
 	proxy := "http://" + cfg.Listen
 	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
-	if _, err := router.NewClient(router.SocketPath(cfg.StateDir)).Pin(t.Context(), router.PinRequest{Account: "side"}); err != nil {
+	if _, err := router.NewClient(router.SocketPath(cfg.StateDir)).Pin(t.Context(), router.PinRequest{Accounts: []string{"side"}}); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
 	if err := stop(); err != nil {
@@ -210,7 +210,7 @@ func TestARestartedRouterKeepsSessionsWhereTheyWere(t *testing.T) {
 	}
 	waitForLine(t, log, "msg=routed", "session=0b5c6f2e", "account=work", "reason=sticky")
 	doc := waitForStatus(t, router.SocketPath(cfg.StateDir), func(status.Document) bool { return true })
-	if doc.Pin.Account != "side" {
+	if !reflect.DeepEqual(doc.Pin.Accounts, []string{"side"}) {
 		t.Errorf("after the restart, the pin is %+v, want side's, as it was", doc.Pin)
 	}
 	if !log.Has("level=INFO", `msg="loaded state"`, "path="+statePath, "assignments=1", "pin=side") {

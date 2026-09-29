@@ -108,20 +108,21 @@ on a model whose thinking is bound to its account only when its account can't se
    5-hour window, the shared weekly window, and that model's own weekly window if it has one. A
    window's room ends at the account's reserve (see The primary account): with a reserve of 0.1,
    a window reading 90% has none. That holds the router's own choices alone: a pin runs its
-   account to its limit (see Pinning).
+   accounts to their limits (see Pinning).
 2. **Score:** perishability = the room left in the shared weekly window ÷ time until it resets,
    the room ending at the reserve: (1 − reserve − utilization) ÷ hours to reset. Hours to reset
    count as 1 at the least, a week whose reset has passed counts as its full room, to the reserve,
    over the week's length, and an account whose weekly reset isn't known has no score, so it's
-   never the best candidate, though a global pin still sends requests there. The highest score wins,
-   so quota that resets tomorrow is used before quota that resets next week, and an account with
-   little left scores low unless its week resets soon. Among candidates scoring at least 0.8 of the
-   highest, the one whose 5-hour window resets soonest wins: whatever is left in a window at its
-   reset is lost, and with the windows staggered (see Priming), the accounts' resets are spread
-   through the day. One whose 5-hour window has lapsed, its reset passed with nothing read since, or
-   whose reset isn't known, comes after those whose reset is to come. Between equal resets, or two
-   of those, the higher score wins, then the account that has used less of its 5-hour window, then
-   the first configured.
+   never the best candidate, though a global pin naming it still sends requests there while none
+   of the accounts it names has a score. The highest score wins, so quota that resets tomorrow is
+   used before quota that resets next week, and an account with little left scores low unless its
+   week resets soon. Among candidates scoring at least 0.8 of the highest, the one whose 5-hour
+   window resets soonest wins: whatever is left in a window at its reset is lost, and with the
+   windows staggered (see Priming), the accounts' resets are spread through the day. One whose
+   5-hour window has lapsed, its reset passed with nothing read since, or whose reset isn't known,
+   comes after those whose reset is to come. Between equal resets, or two of those, the higher
+   score wins, then the account that has used less of its 5-hour window, then the first
+   configured.
 3. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`) and the model, and remembered once the request is answered with
    success. Caches are per model anyway, so a session's Haiku calls can sit on a different account
@@ -173,10 +174,13 @@ Each request's account is decided in this order:
    session that yielded stays where it went while its cache is warm, and goes back once it's
    cold, unless its model's thinking is bound to the account it went to. A pin it's given while
    it runs moves it on its next request, back to the account it yielded included.
-2. A global pin set with `--move`, for a session assigned before it: once each.
+2. A global pin set with `--move`, for a session assigned before it to an account the pin doesn't
+   name: once each, to the best of the accounts it names, as step 4 chooses among them.
 3. The session's account, while its cache is warm, or for a model whose thinking is bound to it,
    and the account can serve it.
-4. Afresh: the global pin's account while it can serve the request, else the best candidate.
+4. Afresh: the best candidate among the global pin's accounts, their reserves spent, while one can
+   serve the request, else the best candidate among every account, as though nothing were pinned.
+   When none of the pin's accounts that can serve the request has a score, the first of them does.
 5. With no candidate, the session's account, else the client's, else any other, for the upstream to
    say why, passing over those that refused the request lately, and those held back only by their
    reserve, which would serve it and spend the reserve. When that leaves none and an account is held
@@ -203,7 +207,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `moved by pin` | A global pin with `--move` (step 2) |
 | `sticky` | The session's account, its cache warm (step 3), a session that yielded its pin included (step 1) |
 | `bound` | The session's account, idle past its cache's hour, kept as its model's thinking is bound to it (step 3), a session that yielded its pin included (step 1) |
-| `pinned (global)` | The global pin's account, chosen afresh (step 4) |
+| `pinned (global)` | One of the global pin's accounts, chosen afresh (step 4) |
 | `new` | A new session's first account |
 | `unsessioned` | A request without a session id |
 | `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh, its model's thinking not bound to its account |
@@ -218,18 +222,27 @@ The routed line in the log gives the reason for each request's account, one of:
 | Pin | Scope | Running sessions |
 |---|---|---|
 | `run --account <id>` | That session's conversation; Claude Code's own token stays the primary's | Unaffected |
-| `pin <id>` | Every new session, and any other whose account is chosen afresh | Stay where they are while their caches are warm and their accounts have room |
-| `pin <id> --force` | As `pin <id>`, every session's own pin cleared | Stay where they are while their caches are warm and their accounts have room |
-| `pin <id> --move` | Every new session and every running one but those with their own pin | Move on their next request (one cache rebuild each, and a session on a model whose thinking is bound to its account loses its reasoning) |
-| `pin <id> --move --force` | Every session, their own pins included, which it clears | Move on their next request |
+| `pin <id>...` | Every new session, and any other whose account is chosen afresh: to the best of the accounts given | Stay where they are while their caches are warm and their accounts have room |
+| `pin <id>... --force` | As `pin <id>...`, every session's own pin cleared | Stay where they are while their caches are warm and their accounts have room |
+| `pin <id>... --move` | Every new session and every running one but those with their own pin | Those on an account not given move to the best of those given on their next request (one cache rebuild each, and a session on a model whose thinking is bound to its account loses its reasoning) |
+| `pin <id>... --move --force` | Every session, their own pins included, which it clears | Those on an account not given move on their next request |
 | `pin auto` | Back to routing (`auto` in any case) | Stay where they are while their caches are warm and their accounts have room |
 | `pin auto --force` | Back to routing, every session's own pin cleared too | As `pin auto` |
-| `pin <id> --session <session>` | That one session, its own pin from now on, replacing any it had | Moves on its next request |
+| `pin <id> --session <session>` | That one session, to one account, its own pin from now on, replacing any it had | Moves on its next request |
 | `pin auto --session <session>` | That one session's own pin cleared | Routed like any other from its next request |
 
 Where the table has a running session stay while its cache is warm, one on a model whose thinking
 is bound to its account stays while the account has room, however long it idles: see Choosing an
 account.
+
+The global pin names one account or several, replacing any pin before it, and the router keeps
+them in the config's order, each once. A request it decides afresh goes to the best of them, by
+perishability and the 5-hour tiebreak as Choosing an account scores them, each one's reserve
+spent. When none of them can serve the request, the pin yields: the router chooses among every
+account as though nothing were pinned, the reserves of the accounts it doesn't name held as ever.
+So a pin sets an order to spend the accounts in: those it names first, the best of them first,
+then the rest. `--move` moves a running session on an account the pin doesn't name to the best of
+those it does; one on an account it names stays.
 
 A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
 header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
@@ -239,24 +252,25 @@ session's pin. It holds as long as the router remembers the session, so a sessio
 `--resume` keeps it. A session is named by its id, or as much of it as is unique among the
 sessions routed in the last hour: `status` lists them with their ids, Claude Code's `/status`
 shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it; one idle for
-longer is named by its whole id. `--session` pins one session alone, so it takes neither `--move`
-nor `--force`.
+longer is named by its whole id. `--session` pins one session alone, to one account, so it takes
+neither `--move` nor `--force`, nor more than one account.
 
 `--force` clears every session's own pin, launch pins included, which the router passes over from
-then on, so `pin <id> --move --force` puts everything on one account, and `pin auto --force` hands
-everything back to the router. A session first seen afterwards has the pin it's launched with, as
-usual.
+then on, so `pin <id>... --move --force` puts everything on the accounts given, and `pin auto
+--force` hands everything back to the router. A session first seen afterwards has the pin it's
+launched with, as usual.
 
-A pin needs an account requests can go out on. `pin` to one that isn't configured fails, naming the
-accounts that can be pinned, or, when no account has a usable token, saying that none has one to
-pin; to one without a usable token, it fails, saying why it has none. `run --account` fails for
-either too, saying what `pin` does of one that isn't configured (see Launching).
+A pin needs accounts requests can go out on. `pin` naming one that isn't configured fails, naming
+the accounts that can be pinned, or, when no account has a usable token, saying that none has one
+to pin; naming one without a usable token, it fails, saying why it has none. Either way, it pins
+nothing. `run --account` fails for either too, saying what `pin` does of one that isn't configured
+(see Launching).
 
 Every pin yields at a limit: a pinned session that hits one moves by the normal rules rather than
-failing. A pin spends its account's reserve: the reserve holds back the router's own choices, and
-a pin is the user's. So when every other account is out and the primary is at its reserve,
-`pin <primary> --move` carries the running sessions on there, in place, and `pin auto` hands them
-back to the router, reserve and all.
+failing. A pin spends the reserves of the accounts it names: the reserve holds back the router's
+own choices, and a pin is the user's. So when every other account is out and the primary is at its
+reserve, `pin <primary> --move` carries the running sessions on there, in place, and `pin auto`
+hands them back to the router, reserve and all.
 
 Switchboard defines no per-account launchers: the user's own aliases for
 `switchboard run --account <id> --` serve.
@@ -334,8 +348,8 @@ One account is the primary: the one the browser and the Claude apps are signed i
   reserve.
 - `accounts`, `status` and the dashboard mark the primary. The dashboard marks where each reserve
   starts on its bars, and `status` and the dashboard say when a reserve holds its account back, or,
-  on the global pin's account, that the pin is spending it; a session's own pin spending it reads
-  as the reserve holding the account back.
+  on an account the global pin names, that the pin is spending it; a session's own pin spending it
+  reads as the reserve holding the account back.
 
 ## Priming
 
@@ -510,7 +524,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--watch [interval]] [--no-notify] [--probe]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
-| `pin <id> [--move] [--force]`, `pin auto [--force]` | Set or clear the global pin: see Pinning. It needs the router |
+| `pin <id>... [--move] [--force]`, `pin auto [--force]` | Set the global pin to the accounts given, replacing any before, or clear it: see Pinning. It needs the router |
 | `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
 | `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router, its conversation pinned to `--account`'s account if given. `--direct` skips the router and the token, so Claude Code uses its own login. See Launching |
 | `service install [--log-level <level>]` | Install the LaunchAgent, which starts the router: see Launching |
@@ -538,20 +552,21 @@ as `[redacted]`, as `accounts add` does as it refuses one.
   router, when its account is next primed: `not started · next prime Tue 04:15`.
 - Under the heading, where the usage came from, then `best next: …`, each part set apart by a dot
   wider than the one within an account's title: the router, how many sessions it has and where
-  it sends new ones (`router  ·  3 sessions  ·  pinned to 2 · two  ·  best next: …`, or
-  `…  ·  routing automatically  ·  …`); `router unhealthy — <reason>`, in red; or, dim,
-  `probing directly (router not running)`. Probing as asked says nothing of the router. With no
-  account to use next, `no account has room right now` stands in for `best next`, in red, or,
-  while nothing has been read of any account, `nothing read yet`, dim. With priming on, a line
-  under it gives the next reset among the accounts' 5-hour windows, and, from the router, the
-  next prime, each with its account, rather than the daily schedule, which is `status`'s:
+  it sends new ones (`router  ·  3 sessions  ·  pinned to 2 · two  ·  best next: …`,
+  `…  ·  pinned to 1 · one and 2 · two  ·  …`, or `…  ·  routing automatically  ·  …`);
+  `router unhealthy — <reason>`, in red; or, dim, `probing directly (router not running)`.
+  Probing as asked says nothing of the router. With no account to use next, `no account has room
+  right now` stands in for `best next`, in red, or, while nothing has been read of any account,
+  `nothing read yet`, dim. With priming on, a line under it gives the next reset among the
+  accounts' 5-hour windows, and, from the router, the next prime, each with its account, rather
+  than the daily schedule, which is `status`'s:
   `next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Tue 06:45`.
-- The global pin's account carries a `● pinned` badge beside the best's `▲ best`, and the
-  primary a `◆ primary` badge, and cards are wide enough for all three, so pinning never reflows
-  them. What the router holds an account back by shows at the top of its card, in red, while it
-  holds: a limit it reached, `limit until Mon 21:00`, and under it a refusal,
+- Each account the global pin names carries a `● pinned` badge beside the best's `▲ best`, and
+  the primary a `◆ primary` badge, and cards are wide enough for all three, so pinning never
+  reflows them. What the router holds an account back by shows at the top of its card, in red,
+  while it holds: a limit it reached, `limit until Mon 21:00`, and under it a refusal,
   `refused (403, opus) until 21:40`. An account held back by its reserve says so there, in the
-  warning colour: `at its reserve (90%)`, or, with the global pin on it, `spending its reserve
+  warning colour: `at its reserve (90%)`, or, with the global pin naming it, `spending its reserve
   (pinned)`. The account's sessions, `2 sessions`, show at its foot.
   A line per account carries the primary's, the pin's and the best's marks, `◆`, `●` and `▲`,
   and, where there's room, how its reserve stands and its sessions.
@@ -577,12 +592,15 @@ as `[redacted]`, as `accounts add` does as it refuses one.
   soon as it answers, so it never goes back and forth faster than that.
 - **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, but for
   those whose 5-hour window has lapsed, or, without it, every account is probed. `q` quit. While
-  it reads the router, `1`–`9` pin new sessions to the account in that place, as configured; `a`
-  routes automatically again; `m` moves running sessions to the pinned account, or says
-  nothing's pinned. Each says in the footer what it did, or why it couldn't, for a few seconds,
-  and the router's document is read again at once. The footer lists only the keys that work:
-  `r refresh · 1–3 pin · a auto · m move · q quit` reading the router, `r refresh · q quit`
-  probing.
+  it reads the router, `1`–`9` toggle the account in that place, as configured, in the global
+  pin: one it doesn't name joins those it does, new sessions going to the best of them, and one
+  it names leaves, the last to leave routing automatically again; `a` routes automatically
+  again; `m` moves running sessions to the pinned accounts, or says nothing's pinned. A digit
+  sets a pin that doesn't move running sessions, as `pin` without `--move` does. Each says in the
+  footer what it did, or why it couldn't, for a few seconds, and the router's document is read
+  again at once. The footer lists only the keys that work:
+  `r refresh · 1–3 toggle pin · a auto · m move · q quit` reading the router, and
+  `r refresh · q quit` probing.
 - Desktop notifications: see Notifications.
 - Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
   as spaces, here and in `status` alike, so none can move the cursor or restyle what follows, a
@@ -843,14 +861,16 @@ hiding it behind the provider would take a wider interface than it's worth:
   doesn't scatter sessions or need a probe, and the hashes of every configured account's tokens,
   with a usable token or not: see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
   `state.json` is versioned, the version changing only when a router couldn't read what another
-  wrote: an older file, without readings, loads as having none. It's rewritten whole (written beside
-  it, synced, and renamed over it) a second after a change and on the way out, and drops assignments
-  unused for 7 days, with the pins of the sessions it forgets, and the hashes of tokens replaced 7
-  days before, at start and then hourly. At start it also drops the assignments, the sessions' own
-  pins and the global pin of accounts no longer configured, and their readings and token hashes;
-  those of a configured account whose token file can't be read are kept, as the file may only have
-  been caught while it's rewritten, and choices pass the account over until it has a token. A
-  corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
+  wrote: an older file, without readings, loads as having none, and a pin that names its account
+  alone, as pins did before they named several, as a pin to that one. It's rewritten whole
+  (written beside it, synced, and renamed over it) a second after a change and on the way out,
+  and drops assignments unused for 7 days, with the pins of the sessions it forgets, and the
+  hashes of tokens replaced 7 days before, at start and then hourly. At start it also drops the
+  assignments and the sessions' own pins of accounts no longer configured, those accounts from
+  the global pin, which goes with the last of them, and their readings and token hashes; those of
+  a configured account whose token file can't be read are kept, as the file may only have been
+  caught while it's rewritten, and choices pass the account over until it has a token. A corrupt
+  one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -954,7 +974,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /sessions/{id}` | For statuslines: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, pinned, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
-| `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. Pinning an account nothing can go out on is a 400, saying why (see Pinning) |
+| `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
@@ -976,7 +996,7 @@ probing.
 | `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
 | `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset. Left out otherwise |
-| `pin` | *router* The global pin, `{account, since, move}`; left out when there's none |
+| `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `accounts` | Every configured account, in the config's order, as below |

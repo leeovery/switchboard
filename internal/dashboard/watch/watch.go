@@ -42,9 +42,10 @@ var ErrNoRouter = errors.New("the router isn't answering")
 type Source interface {
 	// Read reads the document as r asks.
 	Read(ctx context.Context, r Read) (status.Document, error)
-	// Pin has the router send every new session to the account with the
-	// given id, and with move, every running session too.
-	Pin(ctx context.Context, account string, move bool) error
+	// Pin has the router send every new session to the best of the accounts
+	// with the given ids, and with move, every running session on another
+	// account too.
+	Pin(ctx context.Context, accounts []string, move bool) error
 	// Unpin has the router route every session on its merits again.
 	Unpin(ctx context.Context) error
 	// RouterAnswers reports whether the router answers: while it does, it

@@ -275,8 +275,8 @@ type fakeSource struct {
 	reads int
 	// asked lists every read asked for, in turn.
 	asked []Read
-	// orders lists the orders given, in turn, as "pin work", "move work" or
-	// "unpin".
+	// orders lists the orders given, in turn, as "pin work", "pin work,side",
+	// "move work" or "unpin".
 	orders []string
 }
 
@@ -296,12 +296,12 @@ func (s *fakeSource) RouterAnswers(context.Context) bool {
 	return s.router != nil
 }
 
-func (s *fakeSource) Pin(_ context.Context, account string, move bool) error {
+func (s *fakeSource) Pin(_ context.Context, accounts []string, move bool) error {
 	verb := "pin"
 	if move {
 		verb = "move"
 	}
-	return s.order(verb+" "+account, status.Pin{Account: account, Since: start.UTC(), Move: move})
+	return s.order(verb+" "+strings.Join(accounts, ","), status.Pin{Accounts: accounts, Since: start.UTC(), Move: move})
 }
 
 func (s *fakeSource) Unpin(context.Context) error {

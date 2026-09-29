@@ -55,8 +55,9 @@ probes every account every interval, sooner for a window that resets or an
 account that couldn't be read, and reads the router again once it's back.
 
 Keys: r refresh, q quit. While it reads the router, 1-9 pin new sessions to
-the account in that place, a routes every session automatically again, and m
-moves running sessions to the pinned account. While the router runs, it posts
+the account in that place, beside those pinned already, or unpin it, a routes
+every session automatically again, and m moves running sessions to the pinned
+accounts. While the router runs, it posts
 the desktop notifications, --probe or not; without it, the dashboard posts its
 own of an account with room again and a window passing the warning, as the
 config's [notifications] asks, unless --no-notify.`,

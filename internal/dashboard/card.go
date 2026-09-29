@@ -37,7 +37,7 @@ const (
 	// bestMark marks the account to use next, and bestBadge its card.
 	bestMark  = "▲"
 	bestBadge = bestMark + " best"
-	// pinMark marks the account the router pins new sessions to, and
+	// pinMark marks each account the router pins new sessions to, and
 	// pinBadge its card.
 	pinMark  = "●"
 	pinBadge = pinMark + " pinned"
@@ -54,7 +54,7 @@ type badges struct {
 
 // badgesOf are the badges of the account's card in doc.
 func badgesOf(doc status.Document, a status.Account) badges {
-	return badges{primary: a.Primary, pinned: a.ID == doc.Pin.Account, best: a.ID == doc.Best}
+	return badges{primary: a.Primary, pinned: doc.Pin.Has(a.ID), best: a.ID == doc.Best}
 }
 
 // shown returns the badges that are on, in order, each as the text given for

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -56,7 +57,7 @@ from the router: healthy  ·  1 session  ·  pinned to side · Side
 
 	doc := statusJSON(t, srv.deps)
 	work, _ := doc.Account("work")
-	if doc.Source != status.SourceRouter || doc.Pin.Account != "side" || !doc.Router.Healthy || doc.Router.Requests != 1 || doc.Sessions != 1 || work.Sessions != 1 {
+	if doc.Source != status.SourceRouter || !slices.Equal(doc.Pin.Accounts, []string{"side"}) || !doc.Router.Healthy || doc.Router.Requests != 1 || doc.Sessions != 1 || work.Sessions != 1 {
 		t.Errorf("switchboard status --json printed\n%+v\nwant the router's document: pinned to side, healthy, with work's session", doc)
 	}
 }
@@ -167,16 +168,16 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 			t.Errorf("Read(%+v) = %+v, %v, want the router's document", r, doc, err)
 		}
 	}
-	if err := cfg.Source.Pin(t.Context(), "side", true); err != nil {
+	if err := cfg.Source.Pin(t.Context(), []string{"side", "work"}, true); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
-	if got, want := srv.status(t).Pin, (status.Pin{Account: "side", Since: testNow, Move: true}); got != want {
+	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"work", "side"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
 		t.Errorf("once pinned, the router's pin = %+v, want %+v", got, want)
 	}
 	if err := cfg.Source.Unpin(t.Context()); err != nil {
 		t.Fatalf("Unpin() error = %v", err)
 	}
-	if got := srv.status(t).Pin; got != (status.Pin{}) {
+	if got := srv.status(t).Pin; !got.IsZero() {
 		t.Errorf("once unpinned, the router's pin = %+v, want none", got)
 	}
 
@@ -188,7 +189,7 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{Router: status.RouterNotRunning}) {
 		t.Errorf("once the router stopped, a read that may probe = %+v, %v, want one probed, as the router isn't running", doc, err)
 	}
-	if err := cfg.Source.Pin(t.Context(), "side", false); err == nil || err.Error() != "the router isn't running: start it with switchboard service install (or switchboard serve)" {
+	if err := cfg.Source.Pin(t.Context(), []string{"side"}, false); err == nil || err.Error() != "the router isn't running: start it with switchboard service install (or switchboard serve)" {
 		t.Errorf("once the router stopped, Pin() error = %v, want it to say so", err)
 	}
 }

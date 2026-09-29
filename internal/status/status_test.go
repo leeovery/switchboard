@@ -452,7 +452,7 @@ func TestDocumentJSON(t *testing.T) {
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceRouter,
-				Pin:         status.Pin{Account: "side", Since: generated.Add(-time.Hour), Move: true},
+				Pin:         status.Pin{Accounts: []string{"work", "side"}, Since: generated.Add(-time.Hour), Move: true},
 				Router:      status.Health{Requests: 8, Failures: 6, Reason: "6 of the 8 requests in the last 5 minutes failed"},
 				Sessions:    2,
 				Accounts: []status.Account{
@@ -464,7 +464,11 @@ func TestDocumentJSON(t *testing.T) {
   "generated_at": "2026-09-28T13:12:00Z",
   "source": "router",
   "pin": {
-    "account": "side",
+    "accounts": [
+      "work",
+      "side"
+    ],
+    "account": "work",
     "since": "2026-09-28T12:12:00Z",
     "move": true
   },
@@ -753,6 +757,59 @@ func TestDocumentJSON(t *testing.T) {
 				t.Errorf("MarshalIndent() =\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPinJSON(t *testing.T) {
+	since := time.Date(2026, 9, 28, 12, 12, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		json string
+		want status.Pin
+	}{
+		{
+			name: "one account",
+			json: `{"accounts":["side"],"account":"side","since":"2026-09-28T12:12:00Z","move":false}`,
+			want: status.Pin{Accounts: []string{"side"}, Since: since},
+		},
+		{
+			name: "several, the first its account too",
+			json: `{"accounts":["work","side"],"account":"work","since":"2026-09-28T12:12:00Z","move":true}`,
+			want: status.Pin{Accounts: []string{"work", "side"}, Since: since, Move: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := json.Marshal(tt.want)
+			if err != nil || string(got) != tt.json {
+				t.Errorf("Marshal() = %s, %v, want %s", got, err, tt.json)
+			}
+			var read status.Pin
+			if err := json.Unmarshal(got, &read); err != nil || !reflect.DeepEqual(read, tt.want) {
+				t.Errorf("Unmarshal() = %+v, %v, want %+v", read, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestAPinThatNamesItsAccountAloneReadsAsAPinToThatOne(t *testing.T) {
+	var read status.Pin
+	// As a switchboard from before pins named several wrote it.
+	err := json.Unmarshal([]byte(`{"account":"side","since":"2026-09-28T12:12:00Z","move":true}`), &read)
+	want := status.Pin{Accounts: []string{"side"}, Since: time.Date(2026, 9, 28, 12, 12, 0, 0, time.UTC), Move: true}
+	if err != nil || !reflect.DeepEqual(read, want) {
+		t.Errorf("Unmarshal() = %+v, %v, want %+v", read, err, want)
+	}
+}
+
+func TestADocumentWithoutAPinSaysNothingOfOne(t *testing.T) {
+	got, err := json.Marshal(status.Document{Source: status.SourceRouter})
+	if err != nil || strings.Contains(string(got), `"pin"`) {
+		t.Errorf("Marshal() = %s, %v, want no pin", got, err)
+	}
+	var doc status.Document
+	if err := json.Unmarshal(got, &doc); err != nil || !doc.Pin.IsZero() {
+		t.Errorf("Unmarshal() = pin %+v, %v, want none", doc.Pin, err)
 	}
 }
 

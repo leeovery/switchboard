@@ -4,6 +4,7 @@ package status
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"sync"
 	"time"
@@ -87,12 +88,57 @@ type Health struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// Pin sends every new session to Account, and with Move, every session that
-// was running when it was set too, on its next request.
+// Pin sends every new session to the best of Accounts, and with Move, every
+// session that was running on another account when it was set too, on its
+// next request.
 type Pin struct {
-	Account string    `json:"account"`
-	Since   time.Time `json:"since"`
-	Move    bool      `json:"move"`
+	// Accounts are the ids of the accounts pinned, in the order configured.
+	Accounts []string
+	Since    time.Time
+	Move     bool
+}
+
+// pinJSON is a Pin as JSON gives it. Account is the first of its accounts,
+// which a switchboard from before pins named several reads a pin by, and
+// writes it with alone.
+type pinJSON struct {
+	Accounts []string  `json:"accounts"`
+	Account  string    `json:"account"`
+	Since    time.Time `json:"since"`
+	Move     bool      `json:"move"`
+}
+
+// MarshalJSON gives the pin as JSON, its first account as its account too.
+func (p Pin) MarshalJSON() ([]byte, error) {
+	j := pinJSON{Accounts: p.Accounts, Since: p.Since, Move: p.Move}
+	if len(p.Accounts) > 0 {
+		j.Account = p.Accounts[0]
+	}
+	return json.Marshal(j)
+}
+
+// UnmarshalJSON reads a pin, one that names its account alone, as a
+// switchboard from before pins named several wrote it, as a pin to that one.
+func (p *Pin) UnmarshalJSON(data []byte) error {
+	var j pinJSON
+	if err := json.Unmarshal(data, &j); err != nil {
+		return err
+	}
+	*p = Pin{Accounts: j.Accounts, Since: j.Since, Move: j.Move}
+	if len(p.Accounts) == 0 && j.Account != "" {
+		p.Accounts = []string{j.Account}
+	}
+	return nil
+}
+
+// IsZero reports whether there's no pin: it names no account.
+func (p Pin) IsZero() bool {
+	return len(p.Accounts) == 0
+}
+
+// Has reports whether the pin names the account with the given id.
+func (p Pin) Has(id string) bool {
+	return slices.Contains(p.Accounts, id)
 }
 
 // Account is one account's status.

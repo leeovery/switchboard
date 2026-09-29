@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -132,7 +133,7 @@ func (f *stateFile) load(path string) {
 		f.changes.note()
 	}
 	held := f.snapshot()
-	logger.Info("loaded state", "path", path, "assignments", len(held.Sessions), "pin", held.Pin.Account, "readings", len(held.Readings))
+	logger.Info("loaded state", "path", path, "assignments", len(held.Sessions), "pin", strings.Join(held.Pin.Accounts, ","), "readings", len(held.Readings))
 }
 
 // read returns what the state file holds. A file that isn't there holds
