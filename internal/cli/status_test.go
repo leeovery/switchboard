@@ -20,7 +20,7 @@ func TestStatus(t *testing.T) {
 
 	got := run(t, deps, "status")
 	want := result{
-		stdout: `work · Work
+		stdout: `work · Work (primary)
   Session     23%  resets in 4h 58m · Mon 18:10
   Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 18:01
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
@@ -53,10 +53,13 @@ func TestStatusJSON(t *testing.T) {
     "router": "not running"
   },
   "best": "work",
+  "primary": "work",
   "accounts": [
     {
       "id": "work",
       "label": "Work",
+      "primary": true,
+      "reserve": 0.05,
       "token_set": true,
       "fetched_at": "2026-09-28T13:12:00Z",
       "windows": [
@@ -172,11 +175,14 @@ func statusDeps(t *testing.T, upstream string, env map[string]string) cli.Deps {
 	return deps
 }
 
-// threeAccounts are the accounts statusDeps configures.
+// threeAccounts are the accounts statusDeps configures. Work, the first, is
+// the primary, keeping a twentieth of each window back, short of what
+// fakeClaudeAPI reads of it.
 const threeAccounts = `
 [[account]]
-id    = "work"
-label = "Work"
+id      = "work"
+label   = "Work"
+reserve = 0.05
 
 [[account]]
 id    = "personal"

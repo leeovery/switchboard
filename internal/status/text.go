@@ -18,12 +18,13 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
-// Text renders the document for a terminal: each account's windows with when
-// they reset and where they're heading, whatever couldn't be read, and what
-// the router notes of the account; then the account to use next, and last
-// where the usage came from. Countdowns run from now, and times show in now's
-// time zone. Every text it shows that came from elsewhere, such as the
-// config's labels or the upstream's errors, it shows cleaned.
+// Text renders the document for a terminal: each account, the primary marked,
+// with its windows, when they reset and where they're heading, whatever
+// couldn't be read, what holds it back, and how many sessions the router has
+// sent it; then the account to use next, and last where the usage came from.
+// Countdowns run from now, and times show in now's time zone. Every text it
+// shows that came from elsewhere, such as the config's labels or the
+// upstream's errors, it shows cleaned.
 func (d Document) Text(now time.Time) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
@@ -32,7 +33,7 @@ func (d Document) Text(now time.Time) string {
 			b.WriteString("\n")
 		}
 		account.write(&b, width, now)
-		account.writeRouted(&b, now)
+		d.writeNotes(&b, account, now)
 	}
 	if len(d.Accounts) > 0 {
 		b.WriteString("\n")
@@ -45,21 +46,41 @@ func (d Document) Text(now time.Time) string {
 }
 
 // Text renders the account for a terminal as the document's Text does, but
-// for what the router notes of it.
+// for what's noted of it beside its usage.
 func (a Account) Text(now time.Time) string {
 	var b strings.Builder
 	a.write(&b, labelWidth([]Account{a}), now)
 	return b.String()
 }
 
-// writeRouted writes what the router notes of the account: what holds it
-// back at now, and how many sessions it has.
-func (a Account) writeRouted(b *strings.Builder, now time.Time) {
-	for _, held := range a.HeldBy(now) {
-		fmt.Fprintf(b, "  %s\n", held)
+// writeNotes writes what's noted of the account beside its usage: what the
+// router saw hold it back at now, how its reserve stands, and how many
+// sessions the router has sent it.
+func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
+	notes := a.HeldBy(now)
+	if reserved := d.Reserved(a); reserved != "" {
+		notes = append(notes, reserved)
 	}
 	if a.Sessions > 0 {
-		fmt.Fprintf(b, "  %s\n", SessionCount(a.Sessions))
+		notes = append(notes, SessionCount(a.Sessions))
+	}
+	for _, note := range notes {
+		fmt.Fprintf(b, "  %s\n", note)
+	}
+}
+
+// Reserved says how the account's reserve stands once a window has reached
+// it: "at its reserve (90%)", the router's own choices passing the account
+// over from that share of a window on, or, with the global pin on it,
+// "spending its reserve (pinned)". It's "" while no window has reached it.
+func (d Document) Reserved(a Account) string {
+	switch {
+	case len(a.AtReserve) == 0:
+		return ""
+	case a.ID == d.Pin.Account:
+		return "spending its reserve (pinned)"
+	default:
+		return "at its reserve (" + Percent(1-a.Reserve) + ")"
 	}
 }
 
@@ -148,10 +169,14 @@ func (r Refusal) Text(now time.Time) string {
 	return "refused (" + answer + ") until " + TimeOfDay(now, r.Until)
 }
 
-// write writes the account's title, its windows with their labels width wide,
-// and whatever couldn't be read.
+// write writes the account's title, marking the primary, its windows with
+// their labels width wide, and whatever couldn't be read.
 func (a Account) write(b *strings.Builder, width int, now time.Time) {
-	fmt.Fprintf(b, "%s\n", a.Title())
+	title := a.Title()
+	if a.Primary {
+		title += " (primary)"
+	}
+	fmt.Fprintf(b, "%s\n", title)
 	for _, w := range a.Windows {
 		fmt.Fprintf(b, "  %s\n", windowLine(w, width, now))
 	}

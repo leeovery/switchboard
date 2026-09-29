@@ -34,7 +34,7 @@ func TestUsage(t *testing.T) {
 		golden string
 	}{
 		{name: "at the default width", golden: "usage.golden"},
-		{name: "at the width $COLUMNS gives", env: map[string]string{"COLUMNS": "150"}, golden: "usage-wide.golden"},
+		{name: "at the width $COLUMNS gives", env: map[string]string{"COLUMNS": "180"}, golden: "usage-wide.golden"},
 		{name: "ignoring a $COLUMNS that isn't a width", env: map[string]string{"COLUMNS": "wide"}, golden: "usage.golden"},
 		{name: "ignoring a $COLUMNS of zero", env: map[string]string{"COLUMNS": "0"}, golden: "usage.golden"},
 	}

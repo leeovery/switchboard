@@ -27,11 +27,9 @@ var logger = logs.For("launch")
 // router answers gives it as long.
 const AskTimeout = 500 * time.Millisecond
 
-// Router is the router, as run asks it how it is and which account it rates
-// best: *router.Client is one.
+// Router is the router, as run asks it how it is: *router.Client is one.
 type Router interface {
 	Health(ctx context.Context) (router.Health, error)
-	Status(ctx context.Context) (status.Document, error)
 }
 
 // Launcher starts Claude Code in this process's place.
@@ -62,15 +60,17 @@ type Route struct {
 	Account string
 }
 
-// Run starts Claude Code with args in this process's place, on the token of
-// the account pinned, else the one the router rates best, else the first with
-// a usable token. While the router is healthy, Claude Code sends its requests
-// there, to the address the router says its proxy listens on, whatever the
-// config says, pinned when an account is; otherwise it sends them straight to
-// the API, and Stderr hears why. With no account's token to start on, it
-// starts Unaided. A pin that can't be kept, to an account not configured or
-// without a usable token, fails: it's the command line's mistake. Run returns
-// only when Claude Code couldn't start.
+// Run starts Claude Code with args in this process's place. While the router
+// is healthy, Claude Code sends its requests there, to the address the router
+// says its proxy listens on, whatever the config says, its conversation
+// pinned when an account is, on the primary's token, whichever account the
+// conversation goes to: what isn't the conversation goes out on Claude Code's
+// own token, and so lands on the primary. Otherwise it sends them straight to
+// the API, on the pinned account's token, else the primary's, and Stderr
+// hears why. Either way, failing those, it starts on the first account's with
+// a usable token, and with none, Unaided. A pin that can't be kept, to an
+// account not configured or without a usable token, fails: it's the command
+// line's mistake. Run returns only when Claude Code couldn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -81,14 +81,14 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 		return err
 	}
 	state := r.health(ctx)
-	c, err := r.choose(ctx, pin, state)
+	c, err := r.choose(pin, state.healthy())
 	if err != nil {
 		return l.unaided(path, args, "no account has a usable token", err)
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
 		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account)
-		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "claude", path)
+		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("")
 		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
@@ -229,18 +229,21 @@ type choice struct {
 	why     string
 }
 
-// choose picks the account whose token Claude Code starts on: pin's, when
-// there's one; else, while the router is healthy, the one it rates best;
-// else the first with a usable token. It fails, saying why of each account,
-// when there's none.
-func (r Route) choose(ctx context.Context, pin choice, state routerState) (choice, error) {
-	if pin.account.ID != "" {
+// choose picks the account whose token Claude Code starts on. Routed, it's
+// the primary's, whatever account the conversation goes to, else pin's;
+// direct, it's pin's, the whole session going out on it, else the
+// primary's. Either way, failing those, it's the first with a usable token.
+// It fails, saying why of each account, when there's none.
+func (r Route) choose(pin choice, routed bool) (choice, error) {
+	pinned := pin.account.ID != ""
+	if pinned && !routed {
 		return pin, nil
 	}
-	if state.healthy() {
-		if c, ok := r.best(ctx); ok {
-			return c, nil
-		}
+	if primary, ok := r.primary(); ok {
+		return primary, nil
+	}
+	if pinned {
+		return pin, nil
 	}
 	return r.first()
 }
@@ -263,26 +266,14 @@ func (r Route) pinned() (choice, error) {
 	return choice{account: a, token: token, why: "pinned"}, nil
 }
 
-// best is the account the router rates best, when it names one with a usable
-// token.
-func (r Route) best(ctx context.Context) (choice, bool) {
-	ctx, cancel := context.WithTimeout(ctx, AskTimeout)
-	defer cancel()
-	doc, err := r.Router.Status(ctx)
-	if err != nil {
-		logger.Warn("can't ask the router which account is best", "error", err)
-		return choice{}, false
-	}
-	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == doc.Best })
-	if i < 0 {
-		return choice{}, false
-	}
-	a := r.Config.Accounts[i]
+// primary is the primary account, when its token is usable.
+func (r Route) primary() (choice, bool) {
+	a := r.Config.Accounts.Primary()
 	token, err := r.Token(a.ID)
 	if err != nil {
 		return choice{}, false
 	}
-	return choice{account: a, token: token, why: "the router's best"}, true
+	return choice{account: a, token: token, why: "the primary"}, true
 }
 
 // first is the first account with a usable token. It fails, saying why of

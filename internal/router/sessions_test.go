@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,15 +17,14 @@ import (
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
-
-// anyAccount says requests can go out on every account.
-func anyAccount(string) bool { return true }
 
 func TestTheStateFileKeepsSessionsAndThePin(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	saved := newSessions(at(start))
-	saved.load(path, anyAccount)
+	saved.load(path, testAccounts())
 	saved.setPin(status.Pin{Account: "side", Since: start.Add(-time.Hour), Move: true})
 	assign(saved, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
 	assign(saved, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
@@ -32,7 +32,7 @@ func TestTheStateFileKeepsSessionsAndThePin(t *testing.T) {
 	saved.save()
 
 	loaded := newSessions(at(start))
-	loaded.load(path, anyAccount)
+	loaded.load(path, testAccounts())
 	if !maps.Equal(loaded.assignments, saved.assignments) || loaded.pin != saved.pin {
 		t.Errorf("loaded\n%+v, pin %+v\nwant what was saved\n%+v, pin %+v", loaded.assignments, loaded.pin, saved.assignments, saved.pin)
 	}
@@ -65,12 +65,158 @@ func TestTheStateFileKeepsSessionsAndThePin(t *testing.T) {
       "assigned_at": "2026-09-28T11:12:00Z",
       "last_seen": "2026-09-28T12:12:00Z"
     }
-  ]
+  ],
+  "tokens": {
+    "side": {
+      "sha256": "` + sideHash + `"
+    },
+    "work": {
+      "sha256": "` + workHash + `"
+    }
+  }
 }
 `
 	if string(data) != want {
 		t.Errorf("state file holds\n%s\nwant\n%s", data, want)
 	}
+}
+
+// The SHA-256 hashes of the tests' tokens, in hex.
+const (
+	workHash    = "cf5a3479fe31250e84a05b39f73fdc23bc42e2b218305ca4267d1dd51f2fc4ee"
+	sideHash    = "bb48055ab8f9aa9ce2af6e2ea63f848a615f9bdf804f9ad23ee263a480a2461b"
+	renewedHash = "e92da524a8f250cefed3757cbc69aa1f819a7b03f4b1c208094351ddf7b49927"
+)
+
+// renewedToken is work's token once it's replaced.
+const renewedToken = "test-token-work-renewed"
+
+func TestTheStateFileKeepsTheAccountsFormerTokensAsHashesForAWeek(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	saving := newSessions(at(start))
+	accounts := testAccounts()
+	saving.load(path, accounts)
+	work, _ := accounts.byID("work")
+	if !work.secret.replace(mustToken(t, renewedToken), start) {
+		t.Fatal("replace() = false, want work's token replaced")
+	}
+	saving.tokensChanged()
+	saving.save()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, token := range []string{workToken, sideToken, renewedToken} {
+		if strings.Contains(string(data), token) {
+			t.Errorf("state file holds\n%s\nwant no token in it", data)
+		}
+	}
+	want := map[string]savedTokens{
+		"work": {SHA256: renewedHash, Former: []formerToken{{SHA256: workHash, ReplacedAt: start}}},
+		"side": {SHA256: sideHash},
+	}
+	if held := readState(t, path); !maps.EqualFunc(held.Tokens, want, savedTokens.equal) {
+		t.Errorf("state file holds tokens %+v, want %+v", held.Tokens, want)
+	}
+
+	// Restarted, reading work's renewed token from its file.
+	tests := []struct {
+		name  string
+		after time.Duration
+		want  bool
+	}{
+		{name: "a moment on", after: time.Minute, want: true},
+		{name: "just short of a week on", after: formerFor - time.Second, want: true},
+		{name: "a week on", after: formerFor, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restarted := resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read)
+			loaded := newSessions(at(start.Add(tt.after)))
+			loaded.load(path, restarted)
+
+			a, ok := restarted.byToken(workToken, start.Add(tt.after))
+			if got := ok && a.ID == "work"; got != tt.want {
+				t.Errorf("work's former token taken for work's %v on: %v, want %v", tt.after, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestATokenReplacedWhileTheRouterWasAwayStillCountsAsItsAccounts(t *testing.T) {
+	log := logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	before := newSessions(at(start))
+	before.load(path, testAccounts())
+	before.save()
+
+	later := start.Add(time.Hour)
+	restarted := resolve(testConfigured, tokenstest.Files{"work": renewedToken, "side": sideToken}.Read)
+	s := newSessions(at(later))
+	s.load(path, restarted)
+	for token, want := range map[string]string{renewedToken: "work", workToken: "work", sideToken: "side"} {
+		if a, ok := restarted.byToken(token, later); !ok || a.ID != want {
+			t.Errorf("byToken() of %s's token = %q, %v, want %s", want, a.ID, ok, want)
+		}
+	}
+	if !s.unsaved {
+		t.Error("work's former token isn't due to be saved")
+	}
+	if !log.Has("level=INFO", `msg="token replaced while the router was away; the one before still counts as the account's"`, "account=work") {
+		t.Errorf("log reads\n%s\nwant work's token noted as replaced", log)
+	}
+	if strings.Contains(log.String(), "account=side") {
+		t.Errorf("log reads\n%s\nwant nothing of side, whose token stands", log)
+	}
+}
+
+func TestLoadingAStateFileThatKnowsTheTokensChangesNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	first := newSessions(at(start))
+	first.load(path, testAccounts())
+	first.save()
+
+	s := newSessions(at(start.Add(time.Hour)))
+	s.load(path, testAccounts())
+	if s.unsaved {
+		t.Error("loading the state file left it due to be saved, want it as it was")
+	}
+}
+
+func TestFormerTokensAreForgottenHourlyAWeekAfterTheyWereReplaced(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "state.json")
+		s := newSessions(time.Now)
+		accounts := testAccounts()
+		s.load(path, accounts)
+		work, _ := accounts.byID("work")
+		work.secret.replace(mustToken(t, renewedToken), time.Now().Add(-formerFor+30*time.Minute))
+		s.tokensChanged()
+		stop := keep(s)
+		defer stop()
+
+		time.Sleep(saveAfter)
+		synctest.Wait()
+		if held := readState(t, path); len(held.Tokens["work"].Former) != 1 {
+			t.Fatalf("state file holds work's tokens as %+v, want its former token kept while it counts", held.Tokens["work"])
+		}
+		time.Sleep(pruneEvery)
+		synctest.Wait()
+		if held := readState(t, path); len(held.Tokens["work"].Former) > 0 {
+			t.Errorf("an hour on, the state file holds work's tokens as %+v, want its former token forgotten", held.Tokens["work"])
+		}
+	})
+}
+
+// mustToken is secret as a token.
+func mustToken(t *testing.T, secret string) tokens.Token {
+	t.Helper()
+	token, err := tokens.Parse(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
 }
 
 func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
@@ -89,7 +235,7 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	})
 	s := newSessions(at(start))
 
-	s.load(path, testAccounts().canSend)
+	s.load(path, testAccounts())
 	want := map[key]assignment{{session: "recent", model: opus}: {Account: "work", LastSeen: start.Add(-week + time.Second)}}
 	if !maps.Equal(s.assignments, want) {
 		t.Errorf("loaded %+v, want %+v alone", s.assignments, want)
@@ -141,7 +287,7 @@ func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
 	}})
 	s := newSessions(at(local))
 
-	s.load(path, anyAccount)
+	s.load(path, testAccounts())
 	assign(s, key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
 	for _, id := range []string{"saved", "new"} {
 		if got := s.of(id); len(got) != 1 || got[0].AssignedAt != start || got[0].LastSeen != start {
@@ -171,7 +317,7 @@ func TestLoadingSetsACorruptStateFileAside(t *testing.T) {
 			}
 			s := newSessions(at(start))
 
-			s.load(path, anyAccount)
+			s.load(path, testAccounts())
 			if len(s.assignments) > 0 || s.pin != (status.Pin{}) {
 				t.Errorf("loaded %+v, pin %+v, want nothing", s.assignments, s.pin)
 			}
@@ -198,7 +344,7 @@ func TestLoadingAStateFileThatCantBeRead(t *testing.T) {
 	}
 	s := newSessions(at(start))
 
-	s.load(path, anyAccount)
+	s.load(path, testAccounts())
 	if len(s.assignments) > 0 {
 		t.Errorf("loaded %+v, want nothing", s.assignments)
 	}
@@ -214,7 +360,7 @@ func TestABurstOfChangesIsSavedOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "state.json")
 		s := newSessions(time.Now)
-		s.load(path, anyAccount)
+		s.load(path, testAccounts())
 		writes := countWrites(s)
 		stop := keep(s)
 
@@ -244,7 +390,7 @@ func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "state.json")
 		s := newSessions(time.Now)
-		s.load(path, anyAccount)
+		s.load(path, testAccounts())
 		stop := keep(s)
 		s.setPin(status.Pin{Account: "side", Since: time.Now()})
 		synctest.Wait()
@@ -264,7 +410,7 @@ func TestSessionsUnusedForAWeekAreForgottenHourly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "state.json")
 		s := newSessions(time.Now)
-		s.load(path, anyAccount)
+		s.load(path, testAccounts())
 		stop := keep(s)
 		defer stop()
 		assign(s, key{session: "fading", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now().Add(-7*24*time.Hour+30*time.Minute))
@@ -293,7 +439,7 @@ func TestASaveThatFailsIsTriedAgain(t *testing.T) {
 		log := logstest.Capture(t)
 		path := filepath.Join(t.TempDir(), "state.json")
 		s := newSessions(time.Now)
-		s.load(path, anyAccount)
+		s.load(path, testAccounts())
 		var failed atomic.Bool
 		s.file.write = func(path string, data []byte) error {
 			if failed.CompareAndSwap(false, true) {

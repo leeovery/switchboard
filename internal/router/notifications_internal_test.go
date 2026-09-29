@@ -266,6 +266,22 @@ func TestRoomAgain(t *testing.T) {
 	}
 }
 
+func TestRoomAgainOnceTheWindowAtAnAccountsReserveResets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reserving := slices.Clone(numbered)
+		reserving[1].Reserve = 0.1
+		h := newNotifyingOver(t, config.Notifications{Room: true}, reserving)
+		h.read("2", h.session(0.2, 2*time.Minute), h.week(0.5, 3*day))
+		h.start()
+
+		h.read("2", h.session(0.93, 2*time.Minute))
+		h.after(lookEvery)
+		h.expect()
+		h.after(2 * time.Minute)
+		h.expect("2 · two has room again")
+	})
+}
+
 func TestRoomAgainOnceQuotaIsBackAndARefusalAlongsideHasLifted(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newNotifying(t, config.Notifications{Room: true})
@@ -683,12 +699,20 @@ type notifying struct {
 	stop func()
 }
 
-// newNotifying sets notifications up as settings asks, posting to a notifier
-// that notes each message. They run once the test starts them.
+// newNotifying sets notifications up as settings asks, over the numbered
+// accounts, posting to a notifier that notes each message. They run once the
+// test starts them.
 func newNotifying(t *testing.T, settings config.Notifications) *notifying {
 	t.Helper()
+	return newNotifyingOver(t, settings, numbered)
+}
+
+// newNotifyingOver is newNotifying over the accounts configured, which have
+// the numbered accounts' tokens.
+func newNotifyingOver(t *testing.T, settings config.Notifications, configured []config.Account) *notifying {
+	t.Helper()
 	now := func() time.Time { return time.Now().UTC() }
-	s := newState(resolve(numbered, numberedTokens.Read), testPolicy, claude.Provider{}.Family, now)
+	s := newState(resolve(configured, numberedTokens.Read), testPolicy, claude.Provider{}.Family, now)
 	notifier := &noting{}
 	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, now), notifier: notifier, began: now()}
 }

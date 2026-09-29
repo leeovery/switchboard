@@ -3,13 +3,16 @@ package router
 import (
 	"context"
 	"slices"
+	"time"
 )
 
 // Chooser picks the account a routed request goes out on.
 type Chooser interface {
-	// Choose picks an account for req. It always picks one: when nothing
-	// better can take the request, the client's own account can, and the
-	// choice says no account has room.
+	// Choose picks an account for req. When nothing better can take the
+	// request, it picks one for the upstream to refuse it on, and the choice
+	// says no account has room; or it picks none, and says so, when every
+	// account it could fall back to is held back by its reserve alone,
+	// which the router never spends.
 	Choose(ctx context.Context, req Request) Choice
 }
 
@@ -65,6 +68,12 @@ type Choice struct {
 	Account string
 	Reason  string
 	// NoRoom is set when no account has room for the request: Account is only
-	// where it falls back to, for the upstream to answer.
+	// where it falls back to, for the upstream to answer, or none when
+	// Reserved is set.
 	NoRoom bool
+	// Reserved is set when the request goes out on no account, as every one
+	// it could fall back to is held back by its reserve alone. Back is when
+	// the first of them has room again, zero when that isn't known.
+	Reserved bool
+	Back     time.Time
 }

@@ -129,7 +129,7 @@ Switchboard never stores a token. The router's LaunchAgent can't see your shell'
 
 ## The Dashboard
 
-`switchboard usage` draws a card per account: a gradient bar for each window with a marker where even use would be, a projection ("on pace for 92%", "runs out ~Fri 19:40"), the reset, and for an exhausted window a countdown until it's back. The best account to use next is marked `▲ best`, the pinned one `● pinned`.
+`switchboard usage` draws a card per account: a gradient bar for each window with a marker where even use would be, and on an account with a reserve a mark where the reserve starts, a projection ("on pace for 92%", "runs out ~Fri 19:40"), the reset, and for an exhausted window a countdown until it's back. The best account to use next is marked `▲ best`, the pinned one `● pinned`, and the primary `◆ primary`; an account held back by its reserve says so at the top of its card.
 
 With `-w` it stays on screen. While the router runs it reads the router's live view every few seconds; the keys `1`–`9` pin new sessions to an account, `a` routes automatically again, `m` moves running sessions to the pin, `r` refreshes and `q` quits. Without the router it probes each account itself, every 30 minutes unless given another interval.
 

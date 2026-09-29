@@ -26,29 +26,51 @@ func TestBarCells(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := bar(tt.fraction, noMarker, 10).plain(); got != tt.want {
+			if got := bar(tt.fraction, 10).plain(); got != tt.want {
 				t.Errorf("bar(%v) = %q, want %q", tt.fraction, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestPaceCell(t *testing.T) {
+func TestCellAt(t *testing.T) {
 	tests := []struct {
-		name    string
-		elapsed float64
-		want    int
+		name     string
+		fraction float64
+		want     int
 	}{
-		{name: "at the start", elapsed: 0, want: 0},
-		{name: "inside the first cell", elapsed: 0.09, want: 0},
-		{name: "the middle", elapsed: 0.5, want: 5},
-		{name: "inside the last cell", elapsed: 0.95, want: 9},
-		{name: "at the end", elapsed: 1, want: 9},
+		{name: "at the start", fraction: 0, want: 0},
+		{name: "inside the first cell", fraction: 0.09, want: 0},
+		{name: "the middle", fraction: 0.5, want: 5},
+		{name: "inside the last cell", fraction: 0.95, want: 9},
+		{name: "at the end", fraction: 1, want: 9},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := paceCell(tt.elapsed, 10); got != tt.want {
-				t.Errorf("paceCell(%v, 10) = %d, want %d", tt.elapsed, got, tt.want)
+			if got := cellAt(tt.fraction, 10); got != tt.want {
+				t.Errorf("cellAt(%v, 10) = %d, want %d", tt.fraction, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReserveCell(t *testing.T) {
+	tests := []struct {
+		name    string
+		reserve float64
+		width   int
+		want    int
+	}{
+		{name: "a tenth, where 90% of the bar ends", reserve: 0.1, width: 40, want: 36},
+		{name: "a quarter", reserve: 0.25, width: 40, want: 30},
+		{name: "a tenth of a short bar, in the cell 90% falls in", reserve: 0.1, width: 8, want: 7},
+		{name: "a sliver, in the last cell", reserve: 0.01, width: 40, want: 39},
+		{name: "none", reserve: 0, width: 40, want: noMarker},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := reserveCell(tt.reserve, tt.width); got != tt.want {
+				t.Errorf("reserveCell(%v, %d) = %d, want %d", tt.reserve, tt.width, got, tt.want)
 			}
 		})
 	}
@@ -70,22 +92,48 @@ func TestBarMarker(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := bar(tt.fraction, paceCell(tt.elapsed, 10), 10).plain(); got != tt.want {
+			if got := bar(tt.fraction, 10).mark(cellAt(tt.elapsed, 10), paceMarker).plain(); got != tt.want {
 				t.Errorf("bar(%v) with the marker at %v = %q, want %q", tt.fraction, tt.elapsed, got, tt.want)
 			}
 		})
 	}
 }
 
+func TestBarMarksWhereTheReserveStarts(t *testing.T) {
+	tests := []struct {
+		name     string
+		fraction float64
+		// pace is the cell the pace marker takes, or noMarker for none.
+		pace int
+		want string
+	}{
+		{name: "short of it", fraction: 0.5, pace: noMarker, want: "█████░░░░╎"},
+		{name: "past it", fraction: 0.95, pace: noMarker, want: "█████████╎"},
+		{name: "beside the pace marker", fraction: 0.3, pace: 5, want: "███░░┃░░░╎"},
+		{name: "under the pace marker, which shows", fraction: 0.8, pace: 9, want: "████████░┃"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := bar(tt.fraction, 10).mark(reserveCell(0.1, 10), reserveMarker).mark(tt.pace, paceMarker)
+			if got.plain() != tt.want {
+				t.Errorf("bar(%v) with a reserve of a tenth = %q, want %q", tt.fraction, got.plain(), tt.want)
+			}
+		})
+	}
+	if got := bar(0.5, 10).mark(reserveCell(0.1, 10), reserveMarker)[9].ink; got != warningInk {
+		t.Errorf("the reserve's mark is drawn in %v, want the warning colour, %v", got, warningInk)
+	}
+}
+
 func TestBarColors(t *testing.T) {
-	cells := bar(1, noMarker, 10)
+	cells := bar(1, 10)
 	if got := cells[0].ink.color; !sameColor(got, green) {
 		t.Errorf("first cell's color = %v, want green %v", got, green)
 	}
 	if got := cells[9].ink.color; !sameColor(got, red) {
 		t.Errorf("last cell's color = %v, want red %v", got, red)
 	}
-	short := bar(0.2, noMarker, 10)
+	short := bar(0.2, 10)
 	if got, want := short[1].ink.color, rampAt(1.0/9); !sameColor(got, want) {
 		t.Errorf("second cell of a short bar's color = %v, want the ramp's %v, as on a full bar", got, want)
 	}

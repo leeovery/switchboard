@@ -1,6 +1,7 @@
 package router
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -326,6 +327,194 @@ func TestDecide(t *testing.T) {
 	}
 }
 
+func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
+	var (
+		// reserved's quota needs using first, but its session has reached
+		// its reserve, a tenth of each window.
+		reserved = []quota.Window{
+			{Key: "5h", Utilization: 0.95, ResetsAt: start.Add(2 * time.Hour)},
+			{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(24 * time.Hour)},
+		}
+		later = weekAt(0.5, 5*24*time.Hour)
+		spent = []quota.Window{
+			{Key: "5h", Utilization: 1, ResetsAt: start.Add(2 * time.Hour), Status: quota.StatusRejected},
+			{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(72 * time.Hour)},
+		}
+	)
+	pinWork := status.Pin{Account: "work", Since: start.Add(-time.Hour)}
+	moveToWork := status.Pin{Account: "work", Since: start.Add(-time.Hour), Move: true}
+	tests := []struct {
+		name string
+		// pin is the request's own.
+		pin string
+		// current is the session's assignment, nil for a new session.
+		current *assignment
+		global  status.Pin
+		// work's windows, work keeping a tenth of each back, and side's.
+		work, side []quota.Window
+		want       decision
+	}{
+		{
+			name: "a new session passes over an account at its reserve",
+			work: reserved, side: later,
+			want: decision{account: "side", reason: "new", afresh: true},
+		},
+		{
+			name: "a new session goes to an account short of its reserve",
+			work: weekAt(0.5, 24*time.Hour), side: later,
+			want: decision{account: "work", reason: "new", afresh: true},
+		},
+		{
+			name:    "a session on an account at its reserve moves, as at a limit",
+			current: on("work", 5*time.Minute),
+			work:    reserved, side: later,
+			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true},
+		},
+		{
+			name:    "a session idle past the hour on an account at its reserve is rescored off it",
+			current: on("work", 2*time.Hour),
+			work:    reserved, side: later,
+			want: decision{account: "side", reason: "rescored after 2h idle", afresh: true},
+		},
+		{
+			name: "a session's pin spends its account's reserve",
+			pin:  "work",
+			work: reserved, side: later,
+			want: decision{account: "work", reason: "pinned"},
+		},
+		{
+			name: "a session's pin runs its account to its limit, and no further",
+			pin:  "work",
+			work: spent, side: later,
+			want: decision{account: "side", reason: "pin yields: work has no room", afresh: true},
+		},
+		{
+			name:   "the global pin spends its account's reserve for a new session",
+			global: pinWork,
+			work:   reserved, side: later,
+			want: decision{account: "work", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:    "the global pin keeps a warm session on its account at its reserve",
+			global:  pinWork,
+			current: on("work", 5*time.Minute),
+			work:    reserved, side: later,
+			want: decision{account: "work", reason: "sticky", sticky: true},
+		},
+		{
+			name:    "a global pin that moves sessions carries one onto its account at its reserve",
+			global:  moveToWork,
+			current: assignedAt(on("side", 5*time.Minute), start.Add(-2*time.Hour)),
+			work:    reserved, side: later,
+			want: decision{account: "work", reason: "moved by pin"},
+		},
+		{
+			name:    "a pin elsewhere leaves an account's reserve alone",
+			global:  status.Pin{Account: "side", Since: start.Add(-time.Hour)},
+			current: on("work", 5*time.Minute),
+			work:    reserved, side: later,
+			want: decision{account: "side", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name: "with no candidate, a request passes over an account held back by its reserve alone",
+			work: reserved, side: spent,
+			want: decision{account: "side", reason: "no account has room", afresh: true, noRoom: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := Request{Session: "0b5c6f2e", Model: opus, Pin: tt.pin, Client: "work"}
+			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(known(tt.work, tt.side), "work", 0.1)}
+			if tt.current != nil {
+				s.current, s.assigned = *tt.current, true
+			}
+			if got := decide(s); got != tt.want {
+				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWithNoRoomButInTheReservesARequestGoesNowhere(t *testing.T) {
+	session := func(used float64, resets time.Duration) quota.Window {
+		return quota.Window{Key: "5h", Utilization: used, ResetsAt: start.Add(resets)}
+	}
+	week := quota.Window{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(72 * time.Hour)}
+	spent := []quota.Window{{Key: "5h", Utilization: 1, ResetsAt: start.Add(time.Hour), Status: quota.StatusRejected}, week}
+	tests := []struct {
+		name string
+		// work's and side's windows, each keeping a tenth of every window
+		// back, and spare's, which keeps none.
+		work, side, spare []quota.Window
+		// refused are the accounts that refused the request lately.
+		refused []string
+		want    decision
+	}{
+		{
+			name:    "back at the soonest of the reserves' resets",
+			work:    []quota.Window{session(0.95, 3*time.Hour), week},
+			side:    []quota.Window{session(0.91, 2*time.Hour), week},
+			spare:   spent,
+			refused: []string{"spare"},
+			want:    decision{reason: reasonNoRoom, afresh: true, noRoom: true, reserved: true, back: start.Add(2 * time.Hour)},
+		},
+		{
+			name:    "back when its every window at its reserve has reset",
+			work:    []quota.Window{session(0.95, 3*time.Hour), {Key: "7d", Utilization: 0.97, ResetsAt: start.Add(30 * time.Hour)}},
+			side:    spent,
+			spare:   spent,
+			refused: []string{"side", "spare"},
+			want:    decision{reason: reasonNoRoom, afresh: true, noRoom: true, reserved: true, back: start.Add(30 * time.Hour)},
+		},
+		{
+			name:    "back at a time unknown",
+			work:    []quota.Window{{Key: "5h", Utilization: 0.95}, week},
+			side:    spent,
+			spare:   spent,
+			refused: []string{"side", "spare"},
+			want:    decision{reason: reasonNoRoom, afresh: true, noRoom: true, reserved: true},
+		},
+		{
+			name:  "to an account at its limit, for the upstream to say why",
+			work:  []quota.Window{session(0.95, 3*time.Hour), week},
+			side:  []quota.Window{session(0.95, 2*time.Hour), week},
+			spare: spent,
+			want:  decision{account: "spare", reason: reasonNoRoom, afresh: true, noRoom: true},
+		},
+		{
+			name:    "to the client's, with every one refused",
+			work:    spent,
+			side:    spent,
+			spare:   spent,
+			refused: []string{"work", "side", "spare"},
+			want:    decision{account: "work", reason: reasonNoRoom, afresh: true, noRoom: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := situation{
+				req: Request{Session: "0b5c6f2e", Model: opus, Client: "work"},
+				now: start,
+				accounts: view{
+					policy: testPolicy,
+					now:    start,
+					candidates: []score.Candidate{
+						{ID: "work", Windows: tt.work, Reserve: 0.1},
+						{ID: "side", Windows: tt.side, Reserve: 0.1},
+						{ID: "spare", Windows: tt.spare},
+					},
+					applies: testPolicy.IsShared,
+					barred:  tt.refused,
+					refused: tt.refused,
+				},
+			}
+			if got := decide(s); got != tt.want {
+				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) {
 	spent := []quota.Window{
 		{Key: "5h", Utilization: 1, ResetsAt: start.Add(2 * time.Hour), Status: quota.StatusRejected},
@@ -380,6 +569,18 @@ func known(work, side []quota.Window) view {
 		candidates: []score.Candidate{{ID: "work", Windows: work}, {ID: "side", Windows: side}},
 		applies:    testPolicy.IsShared,
 	}
+}
+
+// reserving is v with the account whose id is given keeping reserve of every
+// window back.
+func reserving(v view, id string, reserve float64) view {
+	v.candidates = slices.Clone(v.candidates)
+	for i := range v.candidates {
+		if v.candidates[i].ID == id {
+			v.candidates[i].Reserve = reserve
+		}
+	}
+	return v
 }
 
 // weekAt is the windows of an account with room in its session, whose week is

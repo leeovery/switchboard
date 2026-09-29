@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/cli"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 // claudePath is where run finds claude in these tests.
@@ -18,7 +17,6 @@ const claudePath = "/opt/tools/bin/claude"
 func TestRun(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"})
 	srv.start(t)
-	srv.waitForStatus(t, func(doc status.Document) bool { return doc.Best == "work" })
 	tests := []struct {
 		name        string
 		args        []string
@@ -27,14 +25,14 @@ func TestRun(t *testing.T) {
 		wantHeaders string
 	}{
 		{
-			name:        "pinned",
+			name:        "pinned, its conversation alone",
 			args:        []string{"run", "--account", "side", "--", "--print", "a prompt"},
 			wantArgv:    []string{"claude", "--print", "a prompt"},
-			wantToken:   "test-token-side",
+			wantToken:   "test-token-work",
 			wantHeaders: "X-Trace: on\nX-Switchboard-Account: side",
 		},
 		{
-			name:        "on the router's best",
+			name:        "on the primary's token",
 			args:        []string{"run", "--", "--resume"},
 			wantArgv:    []string{"claude", "--resume"},
 			wantToken:   "test-token-work",
@@ -163,7 +161,7 @@ func TestRunNeverLogsClaudesArguments(t *testing.T) {
 		t.Fatalf("switchboard run = %+v, want exit status 0", got)
 	}
 	log := srv.cliLog(t)
-	if !hasLine(log, "level=INFO", `msg="starting claude" component=launch`, "mode=routed", "account=side", "chosen=pinned", "claude="+claudePath) {
+	if !hasLine(log, "level=INFO", `msg="starting claude" component=launch`, "mode=routed", "account=work", `chosen="the primary"`, "pin=side", "claude="+claudePath) {
 		t.Errorf("cli.log reads\n%s\nwant the launch logged", log)
 	}
 	for _, secret := range []string{prompt, "test-token-work", "test-token-side"} {

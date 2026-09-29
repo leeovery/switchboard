@@ -62,6 +62,48 @@ func TestCollect(t *testing.T) {
 	}
 }
 
+func TestCollectGivesThePrimaryAndTheWindowsAtEachReserve(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: now.Add(5 * time.Hour)}
+	week := func(utilization float64) quota.Window {
+		return quota.Window{Key: "7d", Label: "Week", Utilization: utilization, ResetsAt: now.Add(24 * time.Hour)}
+	}
+	collector := status.Collector{
+		Prober: &fakeProber{results: map[string]probeResult{
+			"test-token-work": withWindows(session, week(0.93)),
+			"test-token-side": withWindows(session, week(0.97)),
+		}},
+		Policy: policy,
+		Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
+		Now:    func() time.Time { return now },
+	}
+	accounts := []config.Account{
+		{ID: "work", Label: "Work", Primary: true, Reserve: 0.1},
+		{ID: "personal", Label: "Personal", Reserve: 0.05},
+		{ID: "side", Label: "Side"},
+	}
+
+	doc := collector.Collect(t.Context(), accounts)
+	if doc.Primary != "work" {
+		t.Errorf("Collect().Primary = %q, want work, the account marked primary", doc.Primary)
+	}
+	want := map[string]status.Account{
+		"work":     {ID: "work", Label: "Work", Primary: true, Reserve: 0.1, AtReserve: []string{"7d"}},
+		"personal": {ID: "personal", Label: "Personal", Reserve: 0.05},
+		"side":     {ID: "side", Label: "Side"},
+	}
+	for _, got := range doc.Accounts {
+		w := want[got.ID]
+		if got.Primary != w.Primary || got.Reserve != w.Reserve || !slices.Equal(got.AtReserve, w.AtReserve) {
+			t.Errorf("account %s is primary %v, reserve %v, at its reserve in %q; want %v, %v, %q",
+				got.ID, got.Primary, got.Reserve, got.AtReserve, w.Primary, w.Reserve, w.AtReserve)
+		}
+	}
+	if doc.Best != "side" {
+		t.Errorf("Collect().Best = %q, want side: work's quota would need using first, but its week has reached its reserve", doc.Best)
+	}
+}
+
 func TestCollectLogsEachAccount(t *testing.T) {
 	log := logstest.Capture(t)
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
@@ -128,13 +170,29 @@ func TestCollectBest(t *testing.T) {
 	tests := []struct {
 		name       string
 		work, side probeResult
-		want       string
+		// workReserve is the share of work's every window left unused.
+		workReserve float64
+		want        string
 	}{
 		{
 			name: "the account whose week resets soonest",
 			work: withWindows(session, week(0.5, 5*24*time.Hour)),
 			side: withWindows(session, week(0.5, 24*time.Hour)),
 			want: "side",
+		},
+		{
+			name:        "passing over an account at its reserve",
+			work:        withWindows(session, week(0.9, 24*time.Hour)),
+			side:        withWindows(session, week(0.5, 5*24*time.Hour)),
+			workReserve: 0.1,
+			want:        "side",
+		},
+		{
+			name:        "judging an account by the room before its reserve",
+			work:        withWindows(session, week(0.5, 24*time.Hour)),
+			side:        withWindows(session, week(0.5, 30*time.Hour)),
+			workReserve: 0.2,
+			want:        "side",
 		},
 		{
 			name: "judged on the windows every model shares",
@@ -169,7 +227,7 @@ func TestCollectBest(t *testing.T) {
 				Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
 				Now:    func() time.Time { return now },
 			}
-			accounts := []config.Account{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side"}}
+			accounts := []config.Account{{ID: "work", Label: "Work", Reserve: tt.workReserve}, {ID: "side", Label: "Side"}}
 
 			if got := collector.Collect(t.Context(), accounts).Best; got != tt.want {
 				t.Errorf("Collect().Best = %q, want %q", got, tt.want)
@@ -405,6 +463,53 @@ func TestDocumentJSON(t *testing.T) {
         "status": 403,
         "family": "opus"
       }
+    }
+  ]
+}`,
+		},
+		{
+			name: "with the primary, its reserve, and the windows that have reached it",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceProbe,
+				Primary:     "work",
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", Primary: true, Reserve: 0.1, TokenSet: true, FetchedAt: generated,
+						Windows:   []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)}},
+						AtReserve: []string{"5h"},
+					},
+					{ID: "side", Label: "Side", TokenSet: true},
+				},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "probe",
+  "primary": "work",
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "primary": true,
+      "reserve": 0.1,
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "5h",
+          "label": "Session",
+          "utilization": 0.95,
+          "resets_at": "2026-09-28T18:10:00Z"
+        }
+      ],
+      "at_reserve": [
+        "5h"
+      ]
+    },
+    {
+      "id": "side",
+      "label": "Side",
+      "token_set": true
     }
   ]
 }`,

@@ -342,6 +342,11 @@ read is probed once. Probing without the router, and with `--probe`, is unchange
   a 401 (see Requests that need special handling), so a rotated token needs no restart. `run`,
   `usage` and `status` read the files as they need them. The LaunchAgent needs none of the
   user's environment.
+- A token the router replaces stays its account's for 7 days: sessions started before hold it,
+  and every session holds the primary's. The router keeps it as its SHA-256 hash, never the
+  token, in `state.json`, and routes a request carrying it as the account's (see Proxy rules). A
+  token replaced while the router was away counts too: `state.json` keeps the hash of the token
+  the router held last, which it compares with the file's as it starts.
 - The programs switchboard runs for itself, `claude --version`, `osascript` and `launchctl`, get
   none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`.
 - `accounts add <id>` registers an account. When it has no token file, it asks for the token,
@@ -658,12 +663,12 @@ wider interface than it's worth:
   ignored, as the XDG spec says.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
   (pins, session assignments and each account's last readings, so a restart doesn't scatter
-  sessions or need a probe), `control.sock`, `tokens/` and `logs/`. `state.json` is versioned,
-  rewritten whole (a temporary file renamed over it) a second after a change and on the way out,
-  and drops assignments unused for 7 days, at start and then hourly. At start it also drops the
-  assignments, and the pin, of accounts nothing can go out on, no longer configured or without a
-  token. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts
-  without it.
+  sessions or need a probe, and the hashes of the accounts' tokens: see Accounts and tokens),
+  `control.sock`, `tokens/` and `logs/`. `state.json` is versioned, rewritten whole (a temporary
+  file renamed over it) a second after a change and on the way out, and drops assignments unused
+  for 7 days, at start and then hourly. At start it also drops the assignments, and the pin, of
+  accounts nothing can go out on, no longer configured or without a token. A corrupt one is set
+  aside as `state.json.corrupt-<unix time>`, and the router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -727,8 +732,12 @@ fails as it is; one that parses has every problem reported at once:
 
 - A request is routed only when its path is exactly `/v1/messages` or `/v1/messages/count_tokens`
   **and** its bearer token is one of the configured accounts' tokens, which Claude Code's, the
-  primary's, is. Anything else passes through untouched: batches, whose ids belong to one
+  primary's, is, or one an account had before the router took up another, for 7 days after (see
+  Accounts and tokens). Anything else passes through untouched: batches, whose ids belong to one
   account, stay on it, and a local process that doesn't already hold a token can't borrow one.
+- A token an account had before is known by its SHA-256 hash, which a request's token is hashed
+  and compared with in constant time, as the current tokens are. A request carrying one is the
+  account's, and goes out on the account's current token, as every routed request does.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
   that session. It is stripped before the request goes upstream. One naming an account that isn't
   configured, or has no token, is ignored, and the log warns of it.

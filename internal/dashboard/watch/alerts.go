@@ -64,13 +64,13 @@ func wasRead(a status.Account) bool {
 }
 
 // roomAgain reports whether an account had no room under the policy's shared
-// windows at its last reading, and has at this one. Each reading is judged at
-// the time it was taken: judged now, a window exhausted then that has since
-// reset would count as having had room, and the account's return would pass
-// unannounced.
+// windows at its last reading, its reserve left unused, and has at this one.
+// Each reading is judged at the time it was taken: judged now, a window
+// exhausted then that has since reset would count as having had room, and the
+// account's return would pass unannounced.
 func roomAgain(last, this reading, policy score.Policy) bool {
-	return !score.Available(last.account.Windows, policy.IsShared, last.at) &&
-		score.Available(this.account.Windows, policy.IsShared, this.at)
+	return !score.Available(last.account.Windows, last.account.Reserve, policy.IsShared, last.at) &&
+		score.Available(this.account.Windows, this.account.Reserve, policy.IsShared, this.at)
 }
 
 // passed lists the windows in after that have passed warning since before.

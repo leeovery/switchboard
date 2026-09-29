@@ -59,7 +59,7 @@ func (r *Router) run(ctx context.Context) error {
 	}
 	// Only now is the state directory this router's: another starting
 	// alongside would have failed by here.
-	r.sessions.load(filepath.Join(r.cfg.StateDir, stateFileName), r.accounts.canSend)
+	r.sessions.load(filepath.Join(r.cfg.StateDir, stateFileName), r.accounts)
 	return r.serve(ctx, proxyLn, controlLn)
 }
 

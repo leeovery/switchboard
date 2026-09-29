@@ -4,6 +4,7 @@ package status
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -47,6 +48,9 @@ type Document struct {
 	// Best is the account to use next: of those with room in the windows every
 	// model shares, the one whose quota most needs using. Empty when there's none.
 	Best string `json:"best,omitempty"`
+	// Primary is the id of the primary account, whose token Claude Code
+	// holds: empty only when no account is marked the primary.
+	Primary string `json:"primary,omitempty"`
 	// Pin is the router's global pin: zero when there's none, and in a
 	// document that isn't the router's.
 	Pin Pin `json:"pin,omitzero"`
@@ -92,11 +96,21 @@ type Pin struct {
 type Account struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+	// Primary is set on the primary account.
+	Primary bool `json:"primary,omitempty"`
+	// Reserve is the share of every window the router leaves unused on the
+	// account.
+	Reserve float64 `json:"reserve,omitempty"`
 	// TokenSet is whether the account's token file is there, and usable.
 	TokenSet bool `json:"token_set"`
 	// FetchedAt is when Usage was read; zero when it wasn't.
 	FetchedAt time.Time `json:"fetched_at,omitzero"`
 	quota.Usage
+	// AtReserve are the keys of the windows that have reached the reserve,
+	// short of their limits, in Usage's order: while there are any, the
+	// router's own choices pass the account over, and only a pin spends the
+	// reserve.
+	AtReserve []string `json:"at_reserve,omitempty"`
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`
 	// Limit is the limit the router saw the account reach, while it holds:
@@ -157,13 +171,14 @@ type Collector struct {
 }
 
 // Collect probes every account that has a usable token, all at once, and
-// reports them in the order given, along with the best of them. An account
-// without one isn't probed: its status says why, and what would put it right.
+// reports them in the order given, along with the best of them and the
+// windows at each one's reserve. An account without one isn't probed: its
+// status says why, and what would put it right.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
 	var wg sync.WaitGroup
 	for i, acct := range accounts {
-		statuses[i] = Account{ID: acct.ID, Label: acct.Label}
+		statuses[i] = Configured(acct)
 		token, err := c.Token(acct.ID)
 		if err != nil {
 			statuses[i].Error = err.Error()
@@ -175,7 +190,32 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	}
 	wg.Wait()
 	now := c.Now()
-	return Document{GeneratedAt: now.UTC(), Source: SourceProbe, Best: Best(c.Policy, statuses, now), Accounts: statuses}
+	for i, a := range statuses {
+		statuses[i].AtReserve = score.AtReserve(a.Windows, a.Reserve, now)
+	}
+	return Document{
+		GeneratedAt: now.UTC(),
+		Source:      SourceProbe,
+		Best:        Best(c.Policy, statuses, now),
+		Primary:     PrimaryOf(statuses),
+		Accounts:    statuses,
+	}
+}
+
+// Configured is an account's status as the config gives it, before anything
+// is read of it: its id and label, whether it's the primary, and its reserve.
+func Configured(a config.Account) Account {
+	return Account{ID: a.ID, Label: a.Label, Primary: a.Primary, Reserve: a.Reserve}
+}
+
+// PrimaryOf returns the id of the primary among accounts, or "" when none is
+// marked the primary.
+func PrimaryOf(accounts []Account) string {
+	i := slices.IndexFunc(accounts, func(a Account) bool { return a.Primary })
+	if i < 0 {
+		return ""
+	}
+	return accounts[i].ID
 }
 
 // probe fills in an account's usage, or why it couldn't be read, and logs
@@ -197,11 +237,11 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 }
 
 // Best is the account of those given that policy picks for a request of any
-// model, or empty when none can take one.
+// model, leaving each one's reserve unused, or empty when none can take one.
 func Best(policy score.Policy, accounts []Account, now time.Time) string {
 	candidates := make([]score.Candidate, len(accounts))
 	for i, account := range accounts {
-		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows}
+		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve}
 	}
 	id, _ := policy.Pick(candidates, policy.IsShared, "", now)
 	return id

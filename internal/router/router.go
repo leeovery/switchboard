@@ -46,6 +46,10 @@ type Provider interface {
 	// throttled or its token refused, or the response is the client's as it
 	// came.
 	Classify(status int, h http.Header) quota.Outcome
+	// MarkLimited sets the headers with which the upstream refuses a request
+	// over its account's limit, until until, or until a time unknown when
+	// that's zero, as the client reads a limit off them.
+	MarkLimited(h http.Header, until time.Time)
 	// ErrorMessage returns the message of the error a response's body holds,
 	// with token and anything else shaped like one hidden, or "" when it
 	// holds none.
@@ -153,16 +157,18 @@ func New(cfg Config) (*Router, error) {
 		probes:   probes,
 		health:   health,
 		proxy: &proxy{
-			upstream:  upstream,
-			transport: newTransport(),
-			accounts:  accounts,
-			readToken: cfg.Token,
-			state:     state,
-			provider:  cfg.Provider,
-			chooser:   scheduler,
-			health:    health,
-			emit:      emit,
-			errorLog:  logs.StdLogger("router", slog.LevelWarn),
+			upstream:       upstream,
+			transport:      newTransport(),
+			accounts:       accounts,
+			readToken:      cfg.Token,
+			tokensReplaced: sessions.tokensChanged,
+			state:          state,
+			provider:       cfg.Provider,
+			chooser:        scheduler,
+			health:         health,
+			emit:           emit,
+			now:            cfg.Now,
+			errorLog:       logs.StdLogger("router", slog.LevelWarn),
 		},
 		notifications: notices,
 		started:       cfg.Now().UTC(),

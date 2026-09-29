@@ -47,11 +47,18 @@ type decision struct {
 	// is, so fresher usage could change it.
 	afresh bool
 	// noRoom is set when no account has room for the request, so account is
-	// only where it falls back to.
+	// only where it falls back to, or none, when reserved is set.
 	noRoom bool
+	// reserved is set when the request goes out on no account, as every one
+	// it could fall back to is held back by its reserve alone, which the
+	// router never spends; back is when the first of them is let go, zero
+	// when that isn't known.
+	reserved bool
+	back     time.Time
 }
 
-// decide chooses the account a request goes out on, in this order:
+// decide chooses the account a request goes out on, in this order, room
+// ending at an account's reserve but where a pin spends it:
 //
 //  1. The session's own pin, while its account has room. A session that
 //     yielded its pin at a limit stays where it went while its cache is warm.
@@ -62,8 +69,10 @@ type decision struct {
 //     whose quota most needs using, keeping a session that has idled on its
 //     own account unless another is well ahead.
 //  5. When no account has room, the session's account, else the client's,
-//     else any, passing over those that refused the request lately.
+//     else any, passing over those that refused the request lately and those
+//     held back by their reserve alone; with none left but the latter, none.
 func decide(s situation) decision {
+	s.accounts = s.accounts.spend(s.req.Pin, s.pin.Account)
 	pin := s.req.Pin
 	switch {
 	case pin == "":
@@ -125,7 +134,7 @@ func (s situation) afresh() decision {
 	if id, ok := s.accounts.pick(preferred); ok {
 		return decision{account: id, reason: reason, afresh: true}
 	}
-	return decision{account: s.fallback(), reason: reasonNoRoom, afresh: true, noRoom: true}
+	return s.noRoom()
 }
 
 // why says why the account is being chosen afresh, and which account the
@@ -145,26 +154,39 @@ func (s situation) why() (reason, preferred string) {
 }
 
 // unable says why the account with the given id can't take the request: what
-// went wrong when the request went out on it, else that it has no room.
+// went wrong when the request went out on it, else that it has reached its
+// reserve, when that alone holds it back, else that it has no room.
 func (s situation) unable(id string) string {
-	if a, ok := s.req.attempt(id); ok {
+	switch a, tried := s.req.attempt(id); {
+	case tried:
 		return a.Why
+	case s.accounts.reserved(id):
+		return "is at its reserve"
+	default:
+		return "has no room"
 	}
-	return "has no room"
 }
 
-// fallback is where a request goes when no account has room, for the
+// noRoom is where a request goes when no account has room for it, for the
 // upstream to refuse it there, saying why: the session's account, else the
-// client's, else any other, passing over those that refused the request
-// lately, which would only refuse it again. With every one refused, it's the
-// client's.
-func (s situation) fallback() string {
+// client's, else any other the view falls back to. With every one refused,
+// it's the client's. With none left but those held back by their reserve
+// alone, it's none, and switchboard answers for the upstream: the router never
+// spends a reserve.
+func (s situation) noRoom() decision {
+	d := decision{reason: reasonNoRoom, afresh: true, noRoom: true}
 	first := []string{s.req.Client}
 	if s.assigned {
 		first = []string{s.current.Account, s.req.Client}
 	}
-	if id, ok := s.accounts.unrefused(first...); ok {
-		return id
+	if id, ok := s.accounts.fallback(first...); ok {
+		d.account = id
+		return d
 	}
-	return s.req.Client
+	if back, held := s.accounts.letGo(); held {
+		d.reserved, d.back = true, back
+		return d
+	}
+	d.account = s.req.Client
+	return d
 }

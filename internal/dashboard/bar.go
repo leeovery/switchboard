@@ -6,16 +6,22 @@ import "math"
 var blocks = [...]string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"}
 
 const (
-	trackCell  = "░"
-	markerCell = "┃"
-	// noMarker leaves the pace marker off a bar.
+	trackCell = "░"
+	// noMarker leaves a marker off a bar.
 	noMarker = -1
 )
 
-// bar draws fraction as a bar width cells long: filled in eighths of a cell,
-// each filled cell coloured by how far along the ramp it sits, with the pace
-// marker drawn over the cell at marker. A fraction over 1 fills the bar.
-func bar(fraction float64, marker, width int) line {
+var (
+	// paceMarker marks where even use across a window would put it.
+	paceMarker = span{"┃", markerInk}
+	// reserveMarker marks where an account's reserve starts.
+	reserveMarker = span{"╎", warningInk}
+)
+
+// bar draws fraction as a bar width cells long, a span a cell: filled in
+// eighths of a cell, each filled cell coloured by how far along the ramp it
+// sits. A fraction over 1 fills the bar.
+func bar(fraction float64, width int) line {
 	filled := int(math.Round(min(max(fraction, 0), 1) * float64(8*width)))
 	l := make(line, width)
 	for i := range l {
@@ -25,8 +31,14 @@ func bar(fraction float64, marker, width int) line {
 			l[i] = span{trackCell, trackInk}
 		}
 	}
-	if 0 <= marker && marker < width {
-		l[marker] = span{markerCell, markerInk}
+	return l
+}
+
+// mark draws marker over the cell of a bar, which is a span a cell, at cell.
+// A cell off the bar, as noMarker is, leaves the bar as it is.
+func (l line) mark(cell int, marker span) line {
+	if 0 <= cell && cell < len(l) {
+		l[cell] = marker
 	}
 	return l
 }
@@ -40,8 +52,18 @@ func along(i, width int) float64 {
 	return float64(i) / float64(width-1)
 }
 
-// paceCell is the cell of a bar width cells long that marks elapsed, the share
-// of its window that has passed: where use would reach if it kept pace.
-func paceCell(elapsed float64, width int) int {
-	return min(int(elapsed*float64(width)), width-1)
+// cellAt is the cell of a bar width cells long that fraction of the bar ends
+// in, such as the share of its window that has passed, where use would reach
+// if it kept pace.
+func cellAt(fraction float64, width int) int {
+	return min(int(fraction*float64(width)), width-1)
+}
+
+// reserveCell is the cell of a bar width cells long where the reserve starts,
+// at 1 − reserve of the window, or noMarker without a reserve.
+func reserveCell(reserve float64, width int) int {
+	if reserve <= 0 {
+		return noMarker
+	}
+	return cellAt(1-reserve, width)
 }

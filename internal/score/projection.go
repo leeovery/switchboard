@@ -101,3 +101,10 @@ func hasReset(w quota.Window, now time.Time) bool {
 func spent(w quota.Window) bool {
 	return w.Utilization >= 1 || w.Status == quota.StatusRejected
 }
+
+// atReserve reports whether w's reading has reached the reserve, the share of
+// the window left unused, and nothing else holds it back: 1 − reserve of it is
+// used, but it isn't spent. Without a reserve, nothing reaches it.
+func atReserve(w quota.Window, reserve float64) bool {
+	return reserve > 0 && w.Utilization >= 1-reserve-tolerance && !spent(w)
+}

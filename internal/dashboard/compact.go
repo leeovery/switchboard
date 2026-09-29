@@ -32,22 +32,24 @@ type summary struct {
 	// note says why the account couldn't be read, or that it hasn't been. It's
 	// cut to fit.
 	note span
-	// sessions counts the account's sessions, when it has any, for the line
-	// to show whole where there's room once everything else is shown.
-	sessions string
-	marks    badges
+	// extras are what the line shows, each whole, where there's room once
+	// everything else is shown: how the account's reserve stands, once a
+	// window has reached it, and how many sessions it has, when it has any.
+	extras []span
+	marks  badges
 }
 
 // compact lays each account out on a line: its title, then each window's
-// key, a short bar and how much is used, then its sessions, and last its
-// marks. Titles line up. When room runs short, titles shrink as far as lets a
-// line show another window, and windows that still don't fit give way from
-// the right, after the sessions. It reports how wide the widest line is.
+// key, a short bar and how much is used, then how its reserve stands and its
+// sessions, and last its marks. Titles line up. When room runs short, titles
+// shrink as far as lets a line show another window, and windows that still
+// don't fit give way from the right, after the reserve and the sessions. It
+// reports how wide the widest line is.
 func compact(doc status.Document, now time.Time, room int) ([]line, int) {
 	summaries := make([]summary, len(doc.Accounts))
 	longest := 0
 	for i, a := range doc.Accounts {
-		summaries[i] = summarize(a, badgesOf(doc, a), now)
+		summaries[i] = summarize(doc, a, now)
 		longest = max(longest, ansi.StringWidth(summaries[i].title))
 	}
 	narrowest := min(longest, compactTitle)
@@ -65,14 +67,18 @@ func compact(doc status.Document, now time.Time, room int) ([]line, int) {
 	return lines, width
 }
 
-// summarize is how a compact line shows an account, and the marks it carries.
-func summarize(a status.Account, marks badges, now time.Time) summary {
-	s := summary{title: a.Title(), marks: marks}
+// summarize is how a compact line shows an account in doc, and the marks it
+// carries.
+func summarize(doc status.Document, a status.Account, now time.Time) summary {
+	s := summary{title: a.Title(), marks: badgesOf(doc, a)}
+	if reserved := doc.Reserved(a); reserved != "" {
+		s.extras = append(s.extras, span{reserved, warningInk})
+	}
 	if a.Sessions > 0 {
-		s.sessions = status.SessionCount(a.Sessions)
+		s.extras = append(s.extras, span{status.SessionCount(a.Sessions), dimInk})
 	}
 	for _, w := range a.Windows {
-		s.parts = append(s.parts, compactWindow(w, now))
+		s.parts = append(s.parts, compactWindow(w, a.Reserve, now))
 	}
 	for _, f := range a.Failures {
 		s.parts = append(s.parts, line{{status.Clean(f.Label) + " offline", offlineInk}})
@@ -86,12 +92,12 @@ func summarize(a status.Account, marks badges, now time.Time) summary {
 	return s
 }
 
-// compactWindow shows a window as its key, a short bar and how much of it is
-// used.
-func compactWindow(w quota.Window, now time.Time) line {
+// compactWindow shows a window as its key, a short bar marking where the
+// account's reserve starts, and how much of it is used.
+func compactWindow(w quota.Window, reserve float64, now time.Time) line {
 	pct := use(w, score.Project(w, now))
 	l := line{{status.Clean(w.Key), dimInk}, spaces(1)}
-	l = append(l, bar(w.Utilization, noMarker, compactBar)...)
+	l = append(l, bar(w.Utilization, compactBar).mark(reserveCell(reserve, compactBar), reserveMarker)...)
 	return append(l, spaces(1+useWidth-ansi.StringWidth(pct.text)), pct)
 }
 
@@ -110,12 +116,30 @@ func (s summary) layout(titleWidth, room int) line {
 	switch {
 	case shown < len(s.parts) && free >= 0:
 		l = append(l, spaces(lead), span{ellipsis, dimInk})
-	case shown == len(s.parts) && s.note.text != "" && free > compactGap:
-		l = append(l, spaces(lead), span{truncate(s.note.text, free-compactGap), s.note.ink})
-	case shown == len(s.parts) && s.sessions != "" && free >= compactGap+ansi.StringWidth(s.sessions):
-		l = append(l, spaces(lead), span{s.sessions, dimInk})
+	case shown == len(s.parts) && s.note.text != "":
+		if free > compactGap {
+			l = append(l, spaces(lead), span{truncate(s.note.text, free-compactGap), s.note.ink})
+		}
+	case shown == len(s.parts):
+		l = append(l, s.extrasIn(lead, free)...)
 	}
 	return append(l, s.tail()...)
+}
+
+// extrasIn is those of the summary's extras that fit whole in free cells, in
+// order, lead cells before the first and a gap before each other.
+func (s summary) extrasIn(lead, free int) line {
+	var l line
+	for _, extra := range s.extras {
+		needs := compactGap + ansi.StringWidth(extra.text)
+		if needs > free {
+			continue
+		}
+		l = append(l, spaces(lead), extra)
+		free -= needs
+		lead = compactGap
+	}
+	return l
 }
 
 // fitting is how many of its parts the summary can show in room cells after
@@ -142,19 +166,12 @@ func (s summary) needs(n int) int {
 	return cells
 }
 
-// tail ends the line with the account's marks: that the router pins new
-// sessions to it, and that it's the best.
+// tail ends the line with the account's marks: that it's the primary, that
+// the router pins new sessions to it, and that it's the best.
 func (s summary) tail() line {
-	var marks []span
-	if s.marks.pinned {
-		marks = append(marks, span{pinMark, pinBadgeInk})
-	}
-	if s.marks.best {
-		marks = append(marks, span{bestMark, badgeInk})
-	}
 	var l line
 	gap := 2
-	for _, mark := range marks {
+	for _, mark := range s.marks.shown(primaryMark, pinMark, bestMark) {
 		l = append(l, spaces(gap), mark)
 		gap = 1
 	}

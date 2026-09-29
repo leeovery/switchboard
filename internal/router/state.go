@@ -3,6 +3,7 @@ package router
 import (
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +44,9 @@ type usage struct {
 	forbidden map[string]refusal
 	// limited is the limit the account last reached.
 	limited limit
+	// reserved are the keys of the windows last found to have reached the
+	// account's reserve.
+	reserved []string
 }
 
 // refusal is the upstream refusing requests on an account, answering with
@@ -94,7 +98,7 @@ func (l limit) liftedBy(windows []quota.Window, at time.Time) bool {
 	}
 	for _, key := range l.windows {
 		i := slices.IndexFunc(windows, func(w quota.Window) bool { return w.Key == key })
-		if i < 0 || !score.Available(windows[i:i+1], func(string) bool { return true }, at) {
+		if i < 0 || !score.Available(windows[i:i+1], 0, func(string) bool { return true }, at) {
 			return false
 		}
 	}
@@ -255,12 +259,14 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 }
 
 // view returns what a choice of account for a request of model knows at now:
-// every account with a token, as last read, which windows count the request,
-// which accounts have no room for it whatever their windows read, and which
-// of those refused it lately.
+// every account with a token, as last read, with its reserve, which windows
+// count the request, which accounts have no room for it whatever their windows
+// read, and which of those refused it lately. It notes in the log how the
+// accounts' reserves hold them back, as noteReserves says.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.noteReserves(now)
 	family, applies := s.family(model), s.counting(model)
 	var (
 		candidates      []score.Candidate
@@ -271,7 +277,7 @@ func (s *state) view(model string, now time.Time) view {
 			continue
 		}
 		u := s.usage[a.ID]
-		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.latest()})
+		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.latest(), Reserve: a.Reserve})
 		if u.barred(now, family, applies) {
 			barred = append(barred, a.ID)
 		}
@@ -280,6 +286,38 @@ func (s *state) view(model string, now time.Time) view {
 		}
 	}
 	return view{policy: s.policy, now: now, candidates: candidates, applies: applies, barred: barred, refused: refused}
+}
+
+// noteReserves notes in the log, as it finds the accounts at now, each window
+// that has reached its account's reserve since they were last looked at,
+// which holds the account back from the router's own choices, and each that
+// has reset since, letting it go. The router looks at them afresh for every
+// choice, so the log tells of a reserve before any choice it holds back, and
+// of its letting go before any choice it doesn't. s.mu must be held.
+func (s *state) noteReserves(now time.Time) {
+	for _, a := range s.accounts {
+		if a.hasToken() {
+			s.usage[a.ID].noteReserve(a, now)
+		}
+	}
+}
+
+// noteReserve notes in the log the account's windows that have reached its
+// reserve at now since it was last looked at, and those that have reset since.
+func (u *usage) noteReserve(a account, now time.Time) {
+	reserved := score.AtReserve(u.latest(), a.Reserve, now)
+	if held := except(reserved, u.reserved); len(held) > 0 {
+		logger.Info("held back by its reserve", "account", a.ID, "windows", strings.Join(held, ","), "reserve", a.Reserve)
+	}
+	if freed := except(u.reserved, reserved); len(freed) > 0 {
+		logger.Info("let go at its reset", "account", a.ID, "windows", strings.Join(freed, ","))
+	}
+	u.reserved = reserved
+}
+
+// except returns the keys that aren't among others, in order.
+func except(keys, others []string) []string {
+	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool { return slices.Contains(others, key) })
 }
 
 // barred reports whether the account has no room at now, whatever its windows
@@ -368,8 +406,8 @@ func mergeLater(held, w quota.Window) (quota.Window, bool) {
 }
 
 // document reports every account's usage as the router knows it, in the
-// order configured, with the best account to use next: never one with no
-// room for any request, whatever its windows read.
+// order configured, with the best account to use next, never one with no
+// room for any request, whatever its windows read, and the primary.
 func (s *state) document() status.Document {
 	now := s.now()
 	accounts, open := s.statuses(now)
@@ -377,6 +415,7 @@ func (s *state) document() status.Document {
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
 		Best:        status.Best(s.policy, open, now),
+		Primary:     status.PrimaryOf(accounts),
 		Accounts:    accounts,
 	}
 }
@@ -413,28 +452,32 @@ func (s *state) standings(now time.Time) standings {
 
 // standing is how the account stands at now. Its quota leaves it no room for
 // a request of any model while a limit holds such requests back, or while a
-// window every model shares is spent, as last read, and hasn't reset since.
+// window every model shares is spent, or has reached the account's reserve,
+// as last read, and hasn't reset since.
 func (u *usage) standing(a account, policy score.Policy, now time.Time) standing {
 	limited := u.limited.holds(now, policy.IsShared)
 	st := u.status(a, now)
 	return standing{
 		Account: st,
-		quota:   !limited && score.Available(st.Windows, policy.IsShared, now),
+		quota:   !limited && score.Available(st.Windows, a.Reserve, policy.IsShared, now),
 		known:   limited || len(st.Windows) > 0,
 		refused: u.refused.inForce(now),
 	}
 }
 
-// status is the account's usage as last read, or why there's none, and the
-// limit and the refusal in force on it at now, if any are.
+// status is the account as configured, with its usage as last read, or why
+// there's none, the windows at its reserve at now, and the limit and the
+// refusal in force on it then, if any are.
 func (u *usage) status(a account, now time.Time) status.Account {
-	st := status.Account{ID: a.ID, Label: a.Label, TokenSet: a.hasToken()}
+	st := status.Configured(a.Account)
+	st.TokenSet = a.hasToken()
 	if !a.hasToken() {
 		st.Error = a.problem
 		return st
 	}
 	st.FetchedAt = u.updated
 	st.Windows = u.latest()
+	st.AtReserve = score.AtReserve(st.Windows, a.Reserve, now)
 	st.Failures = slices.Clone(u.failures)
 	st.Error = u.probeErr
 	if u.limited.inForce(now) {

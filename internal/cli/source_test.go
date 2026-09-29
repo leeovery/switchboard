@@ -21,7 +21,7 @@ import (
 
 // workAtStatus is work's status, as status prints it from fakeClaudeAPI's
 // probes.
-const workAtStatus = `work · Work
+const workAtStatus = `work · Work (primary)
   Session     23%  resets in 4h 58m · Mon 18:10
   Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 18:01
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted

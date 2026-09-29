@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -201,6 +202,39 @@ func TestARestartedRouterKeepsSessionsWhereTheyWere(t *testing.T) {
 	if !log.Has("level=INFO", `msg="loaded state"`, "path="+statePath, "assignments=1", "pin=side") {
 		t.Errorf("log reads\n%s\nwant the state loaded", log)
 	}
+}
+
+func TestARestartedRouterStillTakesAReplacedTokenForItsAccounts(t *testing.T) {
+	const renewed = "test-token-work-renewed"
+	up := newAccountsAPI(t)
+	up.script(workToken, refuseWith(http.StatusUnauthorized, "Invalid bearer token"))
+	store, files := withTokenFiles(t)
+	cfg := runConfig(t, up.URL)
+	files(&cfg)
+	proxy := "http://" + cfg.Listen
+	stop := runRouter(t, cfg)
+	writeToken(t, store, "work", renewed)
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	if err := stop(); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	state, err := os.ReadFile(filepath.Join(cfg.StateDir, "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, token := range []string{workToken, renewed, sideToken} {
+		if strings.Contains(string(state), token) {
+			t.Errorf("the state file holds\n%s\nwant no token in it", state)
+		}
+	}
+
+	log := logstest.Capture(t)
+	runRouter(t, cfg)
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", with(claudeCode(workToken), claude.SessionHeader, "before"), strings.NewReader(messages)))
+	if got := up.bearers(); len(got) != 3 || got[2] != renewed {
+		t.Errorf("after the restart, the requests went out with %q, want the last routed as work's, on its new token", got)
+	}
+	waitForLine(t, log, "msg=routed", "session=before", "account=work", "status=200")
 }
 
 // post posts a messages request to url on work's token, and returns the

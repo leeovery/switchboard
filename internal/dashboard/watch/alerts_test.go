@@ -42,6 +42,21 @@ func TestNotifications(t *testing.T) {
 			want: []string{"work · Work has room again"},
 		},
 		{
+			name: "an account with room again once the window at its reserve resets",
+			reads: []status.Document{
+				document(reserving(account("work", "Work", session(0.95, 3*time.Minute), week(0.5)), 0.1)),
+				document(reserving(account("work", "Work", session(0.02, 5*time.Hour), week(0.5)), 0.1)),
+			},
+			want: []string{"work · Work has room again"},
+		},
+		{
+			name: "an account still at its reserve",
+			reads: []status.Document{
+				document(reserving(account("work", "Work", session(0.2, 5*time.Hour), week(0.93)), 0.1)),
+				document(reserving(account("work", "Work", session(0.3, 5*time.Hour), week(0.94)), 0.1)),
+			},
+		},
+		{
 			name:  "an account still without room",
 			reads: []status.Document{full(0.5), full(0.5)},
 		},
