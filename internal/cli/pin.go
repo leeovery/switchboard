@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -23,55 +24,112 @@ func isAuto(account string) bool {
 	return strings.EqualFold(account, auto)
 }
 
+// pinOptions are the pin command's flags.
+type pinOptions struct {
+	move, force bool
+	// session names the one session to pin, by as much of its id as is
+	// unique, or is "" to pin the router.
+	session string
+}
+
 func newPinCommand(a *app) *cobra.Command {
-	var move bool
+	var opts pinOptions
 	cmd := &cobra.Command{
 		Use:   "pin <account>|auto",
-		Short: "Send every new session to one account, or go back to routing",
+		Short: "Send sessions to one account, or go back to routing",
 		Long: `Send every new session to one account, while it has room. A session's own pin,
-from run --account, still wins. With --move, sessions already running move
-there too, each on its next request, at the cost of rebuilding its cache.
-"pin auto" goes back to routing every session on its merits.
+from run --account or pin --session, still wins. With --move, sessions already
+running move there too, each on its next request, at the cost of rebuilding
+its cache. With --force, no session keeps a pin of its own, the one run
+--account gave it included, so --move --force puts every session on the one
+account. "pin auto" goes back to routing every session on its merits, and with
+--force clears every session's own pin as well.
+
+With --session, pin one running session alone, from its next request, in place
+of any pin it had, the one run --account gave it included; "pin auto
+--session" clears its own pin, and it's routed like any other.
+
+` + namingASession + `
 
 It needs the router running: start it with switchboard service install (or
 switchboard serve).`,
-		Args: func(_ *cobra.Command, args []string) error {
-			switch {
-			case len(args) != 1:
-				return errors.New("give one account to pin, or auto")
-			case isAuto(args[0]) && move:
-				return errors.New("--move goes with an account to pin, not auto")
-			}
-			return nil
-		},
+		Args: opts.check,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.pin(cmd.Context(), cmd.OutOrStdout(), args[0], move)
+			return a.pin(cmd.Context(), cmd.OutOrStdout(), args[0], opts)
 		},
 	}
-	cmd.Flags().BoolVar(&move, "move", false, "move running sessions to the account too, each on its next request")
+	cmd.Flags().BoolVar(&opts.move, "move", false, "move running sessions to the account too, each on its next request")
+	cmd.Flags().BoolVar(&opts.force, "force", false, "clear every session's own pin too, the one run --account gave it included")
+	cmd.Flags().StringVar(&opts.session, "session", "", "pin session `ID` alone, by as much of its id as is unique")
 	return cmd
 }
 
-// pin pins the router to the account given, or unpins it for auto, and says
-// what that does.
-func (a *app) pin(ctx context.Context, out io.Writer, account string, move bool) error {
+// check accepts one account to pin, or auto, and the flags that go with it.
+func (o *pinOptions) check(cmd *cobra.Command, args []string) error {
+	switch {
+	case len(args) != 1:
+		return errors.New("give one account to pin, or auto")
+	case cmd.Flags().Changed("session") && o.session == "":
+		return errors.New("--session takes the id of a session")
+	case o.session != "" && (o.move || o.force):
+		return errors.New("--session pins one session alone, so it takes no --move or --force")
+	case isAuto(args[0]) && o.move:
+		return errors.New("--move goes with an account to pin, not auto")
+	}
+	return nil
+}
+
+// pin pins as the command line asks, and says what that does.
+func (a *app) pin(ctx context.Context, out io.Writer, account string, opts pinOptions) error {
 	client, err := a.routerClient()
 	if err != nil {
 		return err
 	}
-	if isAuto(account) {
-		if _, err := client.Unpin(ctx); err != nil {
-			return fromRouter(err)
-		}
-		_, err := fmt.Fprintln(out, "routing automatically")
-		return err
-	}
-	doc, err := client.Pin(ctx, account, move)
+	said, err := a.pinning(ctx, client, account, opts)
 	if err != nil {
 		return fromRouter(err)
 	}
-	_, err = fmt.Fprintln(out, pinned(doc))
+	_, err = fmt.Fprintln(out, said)
 	return err
+}
+
+// pinning pins the session opts names to the account given, or else the
+// router, or unpins either for auto, and says what that does.
+func (a *app) pinning(ctx context.Context, client *router.Client, account string, opts pinOptions) (string, error) {
+	switch {
+	case opts.session != "":
+		return a.pinSession(ctx, client, opts.session, account)
+	case isAuto(account):
+		if _, err := client.Unpin(ctx, opts.force); err != nil {
+			return "", err
+		}
+		return forced("routing automatically", opts.force), nil
+	}
+	doc, err := client.Pin(ctx, router.PinRequest{Account: account, Move: opts.move, Force: opts.force})
+	if err != nil {
+		return "", err
+	}
+	return forced(pinned(doc), opts.force), nil
+}
+
+// pinSession pins the session given, by as much of its id as is unique, to
+// the account given, or clears its own pin for auto, and says what that does.
+func (a *app) pinSession(ctx context.Context, client *router.Client, given, account string) (string, error) {
+	id, err := a.findSession(ctx, client, given)
+	if err != nil {
+		return "", err
+	}
+	session := "session " + status.ShortID(status.Clean(id))
+	if isAuto(account) {
+		if _, err := client.UnpinSession(ctx, id); err != nil {
+			return "", err
+		}
+		return session + " is routed automatically from its next request", nil
+	}
+	if _, err := client.PinSession(ctx, id, account); err != nil {
+		return "", err
+	}
+	return session + " goes to " + account + " from its next request", nil
 }
 
 // pinned says what the document's pin does.
@@ -85,4 +143,13 @@ func pinned(doc status.Document) string {
 		said += ", and running sessions move on their next request"
 	}
 	return said
+}
+
+// forced follows what a pin does, as said, with that it cleared every
+// session's own pin, when force says it did.
+func forced(said string, force bool) string {
+	if !force {
+		return said
+	}
+	return said + ", every session's own pin cleared"
 }

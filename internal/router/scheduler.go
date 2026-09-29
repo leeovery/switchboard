@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 const (
@@ -34,32 +34,35 @@ type scheduler struct {
 }
 
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
-	d, was := s.decide(req)
+	d, on := s.decide(req)
 	if d.afresh && s.probes.await(ctx, s.accounts, s.state.due, probeWait) {
-		d, was = s.decide(req)
+		d, on = s.decide(req)
 	}
 	if d.noRoom && s.recheck(ctx, req) {
-		d, was = s.decide(req)
+		d, on = s.decide(req)
 	}
 	if req.Session != "" && !d.reserved {
-		s.remember(req, was, d)
+		s.remember(on, d)
 	}
 	return Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
 }
 
-// decide chooses on what's known now, and returns the session's assignment
-// the choice was made on, zero for none.
-func (s *scheduler) decide(req Request) (decision, assignment) {
+// decide chooses on what's known now, and returns the situation the choice
+// was made in: the request pinned as its session's own pin has it, a pin given
+// while the session runs passing over the one it was launched with.
+func (s *scheduler) decide(req Request) (decision, situation) {
 	now := s.now()
-	current, assigned, pin := s.sessions.lookup(key{session: req.Session, model: req.Model})
-	return decide(situation{
+	found := s.sessions.lookup(key{session: req.Session, model: req.Model})
+	on := situation{
 		req:      req,
 		now:      now,
-		current:  current,
-		assigned: assigned,
-		pin:      pin,
+		current:  found.current,
+		assigned: found.assigned,
+		pin:      found.global,
 		accounts: s.view(req, now),
-	}), current
+	}
+	on.req.Pin, on.pinnedAt = found.pin(req.Pin)
+	return decide(on), on
 }
 
 // view is what a choice for req knows at now: an account the request has
@@ -83,18 +86,18 @@ func (s *scheduler) recheck(ctx context.Context, req Request) bool {
 }
 
 // remember notes where a session's request went, as its choice d says, made
-// on the session's assignment as was, and logs and tells of a move. Should
-// another request of the session have moved it since, the newer assignment
-// stands, and the log says so: the request goes where d says all the same.
-func (s *scheduler) remember(req Request, was assignment, d decision) {
-	now := s.now()
-	found, noted := s.sessions.remember(key{session: req.Session, model: req.Model}, was, req.Pin, d, now)
+// in the situation on, and logs and tells of a move. Should another request
+// of the session have moved it since, the newer assignment stands, and the
+// log says so: the request goes where d says all the same.
+func (s *scheduler) remember(on situation, d decision) {
+	req, now := on.req, s.now()
+	found, noted := s.sessions.remember(key{session: req.Session, model: req.Model}, on.current, req.Pin, d, now)
 	switch {
 	case !noted:
-		logger.Info("session moved meanwhile; its newer assignment stands", "session", prose.Truncate(req.Session, sessionShown), "model", req.Model,
+		logger.Info("session moved meanwhile; its newer assignment stands", "session", status.ShortID(req.Session), "model", req.Model,
 			"account", found.Account, "chosen", d.account)
 	case found.Account != "" && found.Account != d.account:
-		logger.Info("moved", "session", prose.Truncate(req.Session, sessionShown), "model", req.Model,
+		logger.Info("moved", "session", status.ShortID(req.Session), "model", req.Model,
 			"from", found.Account, "to", d.account, "reason", d.reason)
 		s.emit(Moved{Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason,
 			Forced: !s.view(req, now).room(found.Account)})

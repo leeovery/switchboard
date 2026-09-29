@@ -173,7 +173,7 @@ func TestARestartedRouterKeepsSessionsWhereTheyWere(t *testing.T) {
 	stop := runRouter(t, cfg)
 	proxy := "http://" + cfg.Listen
 	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
-	if _, err := router.NewClient(router.SocketPath(cfg.StateDir)).Pin(t.Context(), "side", false); err != nil {
+	if _, err := router.NewClient(router.SocketPath(cfg.StateDir)).Pin(t.Context(), router.PinRequest{Account: "side"}); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
 	if err := stop(); err != nil {

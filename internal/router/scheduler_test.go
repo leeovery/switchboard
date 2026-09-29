@@ -165,7 +165,7 @@ func TestTheGlobalPin(t *testing.T) {
 	}
 	r.clock.advance(time.Minute)
 
-	doc, err := client.Pin(t.Context(), "side", false)
+	doc, err := client.Pin(t.Context(), router.PinRequest{Account: "side"})
 	if want := (status.Pin{Account: "side", Since: r.clock.read()}); err != nil || doc.Pin != want {
 		t.Fatalf("Pin() = pin %+v, %v, want %+v", doc.Pin, err, want)
 	}
@@ -178,7 +178,7 @@ func TestTheGlobalPin(t *testing.T) {
 	}
 
 	r.clock.advance(time.Minute)
-	if _, err := client.Pin(t.Context(), "side", true); err != nil {
+	if _, err := client.Pin(t.Context(), router.PinRequest{Account: "side", Move: true}); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
 	if got := r.ask(t, "running", opus, ""); got != "side" {
@@ -204,7 +204,7 @@ func TestTheGlobalPin(t *testing.T) {
 		}
 	}
 
-	if doc, err := client.Unpin(t.Context()); err != nil || doc.Pin != (status.Pin{}) {
+	if doc, err := client.Unpin(t.Context(), false); err != nil || doc.Pin != (status.Pin{}) {
 		t.Fatalf("Unpin() = pin %+v, %v, want none", doc.Pin, err)
 	}
 	if got := r.ask(t, "after", opus, ""); got != "work" {
@@ -219,6 +219,166 @@ func TestTheGlobalPin(t *testing.T) {
 			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 		}
 	}
+}
+
+func TestAPinGivenWhileASessionRunsMovesItOnItsNextRequest(t *testing.T) {
+	tests := []struct {
+		name  string
+		model string
+		// launched is the pin the session was launched with.
+		launched string
+	}{
+		{name: "passing over the pin it was launched with", model: opus, launched: "work"},
+		{name: "launched without a pin", model: opus},
+		{name: "its thinking bound to its account, as the move is the user's", model: sonnet},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			r := newRouted(t)
+			client := router.NewClient(serveControl(t, r.rt))
+			// Work's quota needs using first.
+			r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+			r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+			if got := r.ask(t, "one", tt.model, tt.launched); got != "work" {
+				t.Fatalf("the session went to %s, want work", got)
+			}
+
+			got, err := client.PinSession(t.Context(), "one", "side")
+			if err != nil || got.Pin != "side" {
+				t.Fatalf("PinSession() = %+v, %v, want the session, pinned to side", got, err)
+			}
+			for range 2 {
+				if got := r.ask(t, "one", tt.model, tt.launched); got != "side" {
+					t.Errorf("the session's next request went to %s, want side, the pin it was given", got)
+				}
+			}
+			waitForLine(t, log, "level=INFO", `msg="pinned session"`, "session=one", "account=side")
+			waitForLine(t, log, "msg=routed", "session=one", "account=side", "reason=pinned")
+			want := []router.Event{router.Moved{Session: "one", Model: tt.model, From: "work", To: "side", Reason: "pinned"}}
+			if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+				t.Errorf("events = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+func TestASessionsPinClearedWhileItRunsPassesOverTheOneItWasLaunchedWith(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t)
+	client := router.NewClient(serveControl(t, r.rt))
+	// Side's quota needs using first, but the session is launched pinned to
+	// work.
+	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 24*time.Hour))
+	if got := r.ask(t, "one", opus, "work"); got != "work" {
+		t.Fatalf("the session went to %s, want work, its pin", got)
+	}
+
+	got, err := client.UnpinSession(t.Context(), "one")
+	if err != nil || got.Pin != "" {
+		t.Fatalf("UnpinSession() = %+v, %v, want the session, without a pin", got, err)
+	}
+	if got := r.ask(t, "one", opus, "work"); got != "work" {
+		t.Errorf("the session's next request went to %s, want work, where its cache is warm", got)
+	}
+	waitForLine(t, log, "msg=routed", "session=one", "account=work", "reason=sticky")
+	r.clock.advance(time.Hour + time.Minute)
+	if got := r.ask(t, "one", opus, "work"); got != "side" {
+		t.Errorf("idle past the hour, the session went to %s, want side, routed like any other: its launch pin is passed over", got)
+	}
+	waitForLine(t, log, "msg=routed", "session=one", "account=side", `reason="rescored after 1h 1m idle"`)
+	waitForLine(t, log, "level=INFO", `msg="unpinned session"`, "session=one")
+}
+
+func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
+	tests := []struct {
+		name  string
+		force func(t *testing.T, client *router.Client) status.Document
+		// idle is how long the sessions idle once forced.
+		idle time.Duration
+		// wantPin is the global pin once forced, and wantReason why the
+		// sessions go to work on their next requests.
+		wantPin    status.Pin
+		wantReason string
+	}{
+		{
+			name: "pinning, moving every session",
+			force: func(t *testing.T, client *router.Client) status.Document {
+				return pinning(t, client, router.PinRequest{Account: "work", Move: true, Force: true})
+			},
+			wantPin:    status.Pin{Account: "work", Since: now.Add(time.Minute), Move: true},
+			wantReason: `reason="moved by pin"`,
+		},
+		{
+			name: "pinning, running sessions staying while their caches are warm",
+			force: func(t *testing.T, client *router.Client) status.Document {
+				return pinning(t, client, router.PinRequest{Account: "work", Force: true})
+			},
+			idle:       2 * time.Hour,
+			wantPin:    status.Pin{Account: "work", Since: now.Add(time.Minute)},
+			wantReason: `reason="pinned (global)"`,
+		},
+		{
+			name: "unpinning",
+			force: func(t *testing.T, client *router.Client) status.Document {
+				pinning(t, client, router.PinRequest{Account: "work"})
+				doc, err := client.Unpin(t.Context(), true)
+				if err != nil {
+					t.Fatalf("Unpin() error = %v", err)
+				}
+				return doc
+			},
+			idle:       2 * time.Hour,
+			wantReason: `reason="rescored after 2h 1m idle"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			r := newRouted(t)
+			client := router.NewClient(serveControl(t, r.rt))
+			// Work's quota needs using first, but both sessions are pinned to
+			// side: one as it's launched, the other while it runs.
+			r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+			r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+			r.ask(t, "launched", opus, "side")
+			r.ask(t, "given", opus, "")
+			if _, err := client.PinSession(t.Context(), "given", "side"); err != nil {
+				t.Fatalf("PinSession() error = %v", err)
+			}
+			if got := r.ask(t, "given", opus, ""); got != "side" {
+				t.Fatalf("the session given a pin went to %s, want side", got)
+			}
+			r.clock.advance(time.Minute)
+
+			if doc := tt.force(t, client); doc.Pin != tt.wantPin {
+				t.Errorf("once forced, the global pin = %+v, want %+v", doc.Pin, tt.wantPin)
+			}
+			r.clock.advance(tt.idle)
+			for id, launched := range map[string]string{"launched": "side", "given": ""} {
+				if got := r.ask(t, id, opus, launched); got != "work" {
+					t.Errorf("once forced, session %s went to %s, want work: no session keeps a pin of its own", id, got)
+				}
+				waitForLine(t, log, "msg=routed", "session="+id, "account=work", tt.wantReason)
+			}
+			if got := r.ask(t, "later", opus, "side"); got != "side" {
+				t.Errorf("a session launched afterwards, pinned to side, went to %s, want side, its pin", got)
+			}
+			waitForLine(t, log, "level=INFO", "force=true", "sessions_unpinned=2")
+		})
+	}
+}
+
+// pinning has the router pin as p asks, and returns the status document as
+// that leaves it.
+func pinning(t *testing.T, client *router.Client, p router.PinRequest) status.Document {
+	t.Helper()
+	doc, err := client.Pin(t.Context(), p)
+	if err != nil {
+		t.Fatalf("Pin() error = %v", err)
+	}
+	return doc
 }
 
 func TestSessionsCountOnceAnHourAnAccount(t *testing.T) {

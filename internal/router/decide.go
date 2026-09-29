@@ -25,8 +25,12 @@ const (
 
 // situation is what's known when a request's account is chosen.
 type situation struct {
+	// req is pinned as its session's own pin has it.
 	req Request
 	now time.Time
+	// pinnedAt is when the session was given its own pin while it ran, zero
+	// for the one it was launched with.
+	pinnedAt time.Time
 	// current is the session's assignment for the request's model, when
 	// assigned is set.
 	current  assignment
@@ -61,9 +65,10 @@ type decision struct {
 // decide chooses the account a request goes out on, in this order, room
 // ending at an account's reserve but where a pin spends it:
 //
-//  1. The session's own pin, while its account has room. A session that
+//  1. The session's own pin, while its account has room: the one it was
+//     given while it ran, else the one it was launched with. A session that
 //     yielded its pin at a limit stays where it went while step 3 would keep
-//     it there.
+//     it there, until it's given a pin again.
 //  2. The global pin's account, for a session assigned before a pin that
 //     moves running sessions: once each, while the account has room.
 //  3. The session's account, while it has room and its cache there is warm,
@@ -105,9 +110,11 @@ func (s situation) unpinned() decision {
 
 // yielded reports whether the session left the account its own pin names,
 // having found it without room, and can stay where it went: bringing it back
-// would cost a cache rebuild for nothing, or its reasoning.
+// would cost a cache rebuild for nothing, or its reasoning. A pin given since
+// the session was last routed is the user's say, which it heeds.
 func (s situation) yielded() bool {
-	return s.current.Pin == s.req.Pin && s.current.Account != s.req.Pin && s.keepable()
+	return s.current.Pin == s.req.Pin && s.current.LastSeen.After(s.pinnedAt) &&
+		s.current.Account != s.req.Pin && s.keepable()
 }
 
 // moving reports whether the global pin moves the session to its account: it

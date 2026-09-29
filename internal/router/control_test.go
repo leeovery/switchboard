@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -62,7 +63,7 @@ func TestClientPin(t *testing.T) {
 	rt := newRouter(t, "http://127.0.0.1:1")
 	client := router.NewClient(serveControl(t, rt))
 
-	doc, err := client.Pin(t.Context(), "side", true)
+	doc, err := client.Pin(t.Context(), router.PinRequest{Account: "side", Move: true})
 	want := status.Pin{Account: "side", Since: now, Move: true}
 	if err != nil || doc.Pin != want || len(doc.Accounts) != 3 {
 		t.Errorf("Pin() = %+v, %v, want the status document, pinned %+v", doc, err, want)
@@ -70,11 +71,11 @@ func TestClientPin(t *testing.T) {
 	if got := rt.Status().Pin; got != want {
 		t.Errorf("once pinned, the router's pin = %+v, want %+v", got, want)
 	}
-	doc, err = client.Unpin(t.Context())
+	doc, err = client.Unpin(t.Context(), false)
 	if err != nil || doc.Pin != (status.Pin{}) || len(doc.Accounts) != 3 {
 		t.Errorf("Unpin() = %+v, %v, want the status document, without a pin", doc, err)
 	}
-	if _, err := client.Unpin(t.Context()); err != nil {
+	if _, err := client.Unpin(t.Context(), false); err != nil {
 		t.Errorf("Unpin() without a pin: %v, want nil", err)
 	}
 }
@@ -93,7 +94,7 @@ func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 			rt := newRouter(t, "http://127.0.0.1:1")
 			client := router.NewClient(serveControl(t, rt))
 
-			if _, err := client.Pin(t.Context(), tt.account, false); err == nil || err.Error() != tt.wantErr {
+			if _, err := client.Pin(t.Context(), router.PinRequest{Account: tt.account}); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Pin() error = %v, want %q", err, tt.wantErr)
 			}
 			if got := rt.Status().Pin; got != (status.Pin{}) {
@@ -103,21 +104,41 @@ func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 	}
 }
 
-func TestPinTakesJSON(t *testing.T) {
-	client := router.NewClient(serveControl(t, newRouter(t, "http://127.0.0.1:1"))).HTTP()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://switchboard/pin", strings.NewReader("side"))
-	if err != nil {
-		t.Fatal(err)
+func TestPinningTakesWhatItAsksFor(t *testing.T) {
+	tests := []struct {
+		method, path, body string
+		wantErr            string
+	}{
+		{
+			method:  http.MethodPost,
+			path:    "/pin",
+			body:    "side",
+			wantErr: `give the account to pin as JSON, such as {"account": "work", "move": false, "force": false}`,
+		},
+		{
+			method:  http.MethodPost,
+			path:    "/sessions/" + sessionID + "/pin",
+			body:    "side",
+			wantErr: `give the account to pin the session to as JSON, such as {"account": "work"}`,
+		},
+		{
+			method:  http.MethodDelete,
+			path:    "/pin?force=soon",
+			wantErr: `force is true or false, not "soon"`,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			rt := newRouter(t, "http://127.0.0.1:1")
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))
+			rec := httptest.NewRecorder()
 
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	want := `{"error":"give the account to pin as JSON, such as {\"account\": \"work\", \"move\": false}"}` + "\n"
-	if body := readAll(t, resp); resp.StatusCode != http.StatusBadRequest || resp.Header.Get("Content-Type") != "application/json" || body != want {
-		t.Errorf("POST /pin with a body that isn't JSON answered %d (%s) %s, want 400 (application/json) %s", resp.StatusCode, resp.Header.Get("Content-Type"), body, want)
+			rt.Control().ServeHTTP(rec, req)
+			want, _ := json.Marshal(map[string]string{"error": tt.wantErr})
+			if got := rec.Body.String(); rec.Code != http.StatusBadRequest || rec.Header().Get("Content-Type") != "application/json" || got != string(want)+"\n" {
+				t.Errorf("%s %s answered %d (%s) %s, want 400 (application/json) %s", tt.method, tt.path, rec.Code, rec.Header().Get("Content-Type"), got, want)
+			}
+		})
 	}
 }
 
@@ -197,16 +218,17 @@ func TestClientSession(t *testing.T) {
 		t.Fatalf("Session() error = %v", err)
 	}
 	later := now.Add(time.Minute)
-	want := router.Session{
-		ID: sessionID,
-		Assignments: []router.Assignment{
-			{Model: opus, Account: "work", Pinned: true, Reason: "pinned", AssignedAt: later, LastSeen: later},
-			{Model: haiku, Account: "side", Pinned: true, Reason: "pinned", AssignedAt: now, LastSeen: now},
+	want := status.Session{
+		ID:  sessionID,
+		Pin: "work",
+		Assignments: []status.Assignment{
+			{Model: opus, Family: "opus", Account: "work", Pinned: true, Reason: "pinned", AssignedAt: later, LastSeen: later},
+			{Model: haiku, Family: "haiku", Account: "side", Pinned: true, Reason: "pinned", AssignedAt: now, LastSeen: now},
 		},
 		Account: status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: later, Windows: []quota.Window{session, week}, Sessions: 1},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("Session() =\n%+v\nwant, the account of the model used last,\n%+v", got, want)
+		t.Errorf("Session() =\n%+v\nwant, the pin its last request carried, and the account of the model used last,\n%+v", got, want)
 	}
 }
 
@@ -226,6 +248,149 @@ func TestClientSessionOfASocketThatIsntARouters(t *testing.T) {
 	_, err := router.NewClient(path).Session(t.Context(), "nope")
 	if want := "the router answered GET /sessions/nope with 404 Not Found"; err == nil || err.Error() != want || errors.Is(err, router.ErrUnknownSession) {
 		t.Errorf("Session() error = %v, want %q, and not ErrUnknownSession: something else answers", err, want)
+	}
+}
+
+func TestClientSessions(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, week)
+	r.readsAs(sideToken, session, week)
+	client := router.NewClient(serveControl(t, r.rt))
+	if got, err := client.Sessions(t.Context()); err != nil || got == nil || len(got) > 0 {
+		t.Errorf("Sessions() with none routed = %#v, %v, want an empty list", got, err)
+	}
+	r.ask(t, "idle", opus, "")
+	r.clock.advance(30 * time.Minute)
+	r.ask(t, "earlier", opus, "")
+	r.clock.advance(31 * time.Minute)
+	r.ask(t, "latest", haiku, "side")
+
+	got, err := client.Sessions(t.Context())
+	if err != nil {
+		t.Fatalf("Sessions() error = %v", err)
+	}
+	ids := make([]string, len(got))
+	for i, s := range got {
+		ids[i] = s.ID
+	}
+	if want := []string{"latest", "earlier"}; !reflect.DeepEqual(ids, want) {
+		t.Fatalf("Sessions() lists %q, want %q: those routed in the last hour, the one seen last first", ids, want)
+	}
+	latest := r.clock.read()
+	want := status.Session{
+		ID:          "latest",
+		Pin:         "side",
+		Assignments: []status.Assignment{{Model: haiku, Family: "haiku", Account: "side", Pinned: true, Reason: "pinned", AssignedAt: latest, LastSeen: latest}},
+	}
+	if !reflect.DeepEqual(got[0], want) {
+		t.Errorf("Sessions() lists\n%+v\nwant it as Session() gives it, but for its account\n%+v", got[0], want)
+	}
+
+	rec := httptest.NewRecorder()
+	r.rt.Control().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/sessions", nil))
+	var listed []map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil || len(listed) != 2 {
+		t.Fatalf("GET /sessions answered %s (%v), want two sessions", rec.Body, err)
+	}
+	for _, s := range listed {
+		if account, ok := s["account"]; ok {
+			t.Errorf("GET /sessions lists a session with account %s, want none", account)
+		}
+	}
+}
+
+func TestClientPinSession(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, week)
+	r.readsAs(sideToken, session, week)
+	client := router.NewClient(serveControl(t, r.rt))
+	r.ask(t, sessionID, opus, "work")
+
+	got, err := client.PinSession(t.Context(), sessionID, "side")
+	want := status.Session{
+		ID:          sessionID,
+		Pin:         "side",
+		Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: "work", Pinned: true, Reason: "pinned", AssignedAt: now, LastSeen: now}},
+		Account:     status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("PinSession() =\n%+v, %v\nwant the session as it stands, pinned to side, its next request yet to move it\n%+v", got, err, want)
+	}
+
+	got, err = client.UnpinSession(t.Context(), sessionID)
+	want.Pin = ""
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("UnpinSession() =\n%+v, %v\nwant the session as it stands, with no pin of its own\n%+v", got, err, want)
+	}
+}
+
+func TestClientPinSessionRefuses(t *testing.T) {
+	tests := []struct {
+		name    string
+		pin     func(ctx context.Context, c *router.Client) error
+		wantErr string
+		// wantUnknown is set when the router hasn't seen the session.
+		wantUnknown bool
+	}{
+		{
+			name: "a session never seen, pinned",
+			pin: func(ctx context.Context, c *router.Client) error {
+				_, err := c.PinSession(ctx, "nope", "side")
+				return err
+			},
+			wantErr:     "the router hasn't seen session nope",
+			wantUnknown: true,
+		},
+		{
+			name: "a session never seen, unpinned",
+			pin: func(ctx context.Context, c *router.Client) error {
+				_, err := c.UnpinSession(ctx, "nope")
+				return err
+			},
+			wantErr:     "the router hasn't seen session nope",
+			wantUnknown: true,
+		},
+		{
+			name: "an account there's none of",
+			pin: func(ctx context.Context, c *router.Client) error {
+				_, err := c.PinSession(ctx, sessionID, "nope")
+				return err
+			},
+			wantErr: `there's no account "nope": pin work or side`,
+		},
+		{
+			name: "an account without a usable token",
+			pin: func(ctx context.Context, c *router.Client) error {
+				_, err := c.PinSession(ctx, sessionID, "personal")
+				return err
+			},
+			wantErr: "account personal has no usable token, so nothing can go out on it: " + personalMissing,
+		},
+		{
+			name: "no account",
+			pin: func(ctx context.Context, c *router.Client) error {
+				_, err := c.PinSession(ctx, sessionID, "")
+				return err
+			},
+			wantErr: `give the account to pin, such as {"account": "work"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRouted(t)
+			r.readsAs(workToken, session, week)
+			r.readsAs(sideToken, session, week)
+			client := router.NewClient(serveControl(t, r.rt))
+			r.ask(t, sessionID, opus, "")
+
+			err := tt.pin(t.Context(), client)
+			if err == nil || err.Error() != tt.wantErr || errors.Is(err, router.ErrUnknownSession) != tt.wantUnknown {
+				t.Errorf("error = %v, want %q, ErrUnknownSession %v", err, tt.wantErr, tt.wantUnknown)
+			}
+			if got, err := client.Session(t.Context(), sessionID); err != nil || got.Pin != "" {
+				t.Errorf("the session is %+v (%v), want it without a pin, as it was", got, err)
+			}
+		})
 	}
 }
 
@@ -257,10 +422,19 @@ func TestClientWithoutARouter(t *testing.T) {
 			if _, err := client.Session(t.Context(), sessionID); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Session() error = %v, want ErrNotRunning", err)
 			}
-			if _, err := client.Pin(t.Context(), "side", false); !errors.Is(err, router.ErrNotRunning) {
+			if _, err := client.Sessions(t.Context()); !errors.Is(err, router.ErrNotRunning) {
+				t.Errorf("Sessions() error = %v, want ErrNotRunning", err)
+			}
+			if _, err := client.PinSession(t.Context(), sessionID, "side"); !errors.Is(err, router.ErrNotRunning) {
+				t.Errorf("PinSession() error = %v, want ErrNotRunning", err)
+			}
+			if _, err := client.UnpinSession(t.Context(), sessionID); !errors.Is(err, router.ErrNotRunning) {
+				t.Errorf("UnpinSession() error = %v, want ErrNotRunning", err)
+			}
+			if _, err := client.Pin(t.Context(), router.PinRequest{Account: "side"}); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Pin() error = %v, want ErrNotRunning", err)
 			}
-			if _, err := client.Unpin(t.Context()); !errors.Is(err, router.ErrNotRunning) {
+			if _, err := client.Unpin(t.Context(), false); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Unpin() error = %v, want ErrNotRunning", err)
 			}
 			if _, err := client.Refresh(t.Context(), time.Minute); !errors.Is(err, router.ErrNotRunning) {

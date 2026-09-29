@@ -38,8 +38,10 @@ func TestDecide(t *testing.T) {
 		// bound has the request ask for Sonnet, whose thinking is bound to
 		// the account that produced it, in place of Opus.
 		bound bool
-		// pin is the request's own.
-		pin string
+		// pin is the session's own, given while it runs from pinnedAt, else
+		// launched with it.
+		pin      string
+		pinnedAt time.Time
 		// current is the session's assignment, nil for a new session.
 		current *assignment
 		global  status.Pin
@@ -200,6 +202,30 @@ func TestDecide(t *testing.T) {
 			current: pinned(on("work", 5*time.Minute), "side"),
 			work:    spent, side: later,
 			want: decision{account: "side", reason: "pinned"},
+		},
+		{
+			name:     "a session given a pin while it runs goes to it on its next request, though it yielded that account's pin before",
+			pin:      "side",
+			pinnedAt: start.Add(-time.Minute),
+			current:  pinned(on("work", 5*time.Minute), "side"),
+			work:     later, side: soon,
+			want: decision{account: "side", reason: "pinned"},
+		},
+		{
+			name:     "a session that yielded the pin it was given while it ran isn't brought back while its cache is warm",
+			pin:      "side",
+			pinnedAt: start.Add(-time.Hour),
+			current:  pinned(on("work", 5*time.Minute), "side"),
+			work:     later, side: soon,
+			want: decision{account: "work", reason: "sticky", sticky: true},
+		},
+		{
+			name:     "a session given a pin while it runs yields it, as any pin, when its account has no room",
+			pin:      "side",
+			pinnedAt: start.Add(-time.Minute),
+			current:  on("work", 5*time.Minute),
+			work:     later, side: spent,
+			want: decision{account: "work", reason: "pin yields: side has no room", sticky: true},
 		},
 		{
 			name:   "the global pin sends a new session to its account",
@@ -411,6 +437,15 @@ func TestDecide(t *testing.T) {
 			want: decision{account: "work", reason: "pin yields: side has no room", sticky: true},
 		},
 		{
+			name:     "a session whose thinking is bound goes to a pin it's given while it runs, as the user's move",
+			bound:    true,
+			pin:      "side",
+			pinnedAt: start.Add(-time.Minute),
+			current:  pinned(on("work", 5*time.Minute), "side"),
+			work:     later, side: soon,
+			want: decision{account: "side", reason: "pinned"},
+		},
+		{
 			name:  "a new session whose thinking is bound goes to the account whose quota most needs using",
 			bound: true,
 			work:  later, side: soon,
@@ -426,7 +461,7 @@ func TestDecide(t *testing.T) {
 			if tt.bound {
 				req.Model, req.Bound = sonnet, true
 			}
-			s := situation{req: req, now: start, pin: tt.global, accounts: known(tt.work, tt.side).without(req.tried())}
+			s := situation{req: req, now: start, pinnedAt: tt.pinnedAt, pin: tt.global, accounts: known(tt.work, tt.side).without(req.tried())}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}

@@ -21,20 +21,24 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
-func TestTheStateFileKeepsSessionsAndThePin(t *testing.T) {
+func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	saved := newSessions(at(start))
 	saved.load(path, testAccounts())
-	saved.setPin(status.Pin{Account: "side", Since: start.Add(-time.Hour), Move: true})
+	saved.setPin(status.Pin{Account: "side", Since: start.Add(-time.Hour), Move: true}, false)
 	assign(saved, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
 	assign(saved, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
 	assign(saved, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
+	assign(saved, key{session: "two", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start.Add(-time.Minute))
+	saved.pinSession("one", "work")
+	saved.pinSession("two", "")
 	saved.save()
 
 	loaded := newSessions(at(start))
 	loaded.load(path, testAccounts())
-	if !maps.Equal(loaded.assignments, saved.assignments) || loaded.pin != saved.pin {
-		t.Errorf("loaded\n%+v, pin %+v\nwant what was saved\n%+v, pin %+v", loaded.assignments, loaded.pin, saved.assignments, saved.pin)
+	if !maps.Equal(loaded.assignments, saved.assignments) || !maps.Equal(loaded.own, saved.own) || loaded.pin != saved.pin {
+		t.Errorf("loaded\n%+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v",
+			loaded.assignments, loaded.own, loaded.pin, saved.assignments, saved.own, saved.pin)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -64,8 +68,27 @@ func TestTheStateFileKeepsSessionsAndThePin(t *testing.T) {
       "reason": "new",
       "assigned_at": "2026-09-28T11:12:00Z",
       "last_seen": "2026-09-28T12:12:00Z"
+    },
+    {
+      "session": "two",
+      "model": "claude-opus-5-5",
+      "account": "work",
+      "pin": "work",
+      "reason": "pinned",
+      "assigned_at": "2026-09-28T13:11:00Z",
+      "last_seen": "2026-09-28T13:11:00Z"
     }
   ],
+  "session_pins": {
+    "one": {
+      "account": "work",
+      "since": "2026-09-28T13:12:00Z"
+    },
+    "two": {
+      "account": "",
+      "since": "2026-09-28T13:12:00Z"
+    }
+  },
   "tokens": {
     "side": {
       "sha256": "` + sideHash + `"
@@ -228,24 +251,37 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 		Pin:     status.Pin{Account: "personal", Since: start.Add(-time.Hour)},
 		Sessions: []savedAssignment{
 			{Session: "recent", Model: opus, Account: "work", LastSeen: start.Add(-week + time.Second)},
+			{Session: "pinned", Model: opus, Account: "work", LastSeen: start},
 			{Session: "old", Model: opus, Account: "work", LastSeen: start.Add(-week)},
 			{Session: "gone", Model: opus, Account: "personal", LastSeen: start},
 			{Model: opus, Account: "work", LastSeen: start},
+		},
+		SessionPins: map[string]ownPin{
+			"pinned": {Account: "side", Since: start},
+			"recent": {Account: "personal", Since: start},
+			"old":    {Account: "side", Since: start},
 		},
 	})
 	s := newSessions(at(start))
 
 	s.load(path, testAccounts())
-	want := map[key]assignment{{session: "recent", model: opus}: {Account: "work", LastSeen: start.Add(-week + time.Second)}}
+	want := map[key]assignment{
+		{session: "recent", model: opus}: {Account: "work", LastSeen: start.Add(-week + time.Second)},
+		{session: "pinned", model: opus}: {Account: "work", LastSeen: start},
+	}
 	if !maps.Equal(s.assignments, want) {
 		t.Errorf("loaded %+v, want %+v alone", s.assignments, want)
+	}
+	if want := map[string]ownPin{"pinned": {Account: "side", Since: start}}; !maps.Equal(s.own, want) {
+		t.Errorf("loaded sessions' pins %+v, want %+v alone: the others' sessions or accounts are gone", s.own, want)
 	}
 	if s.pin != (status.Pin{}) {
 		t.Errorf("loaded pin %+v, want none: nothing can go out on its account", s.pin)
 	}
 	for _, want := range [][]string{
 		{"level=WARN", `msg="pin dropped: nothing can go out on its account"`, "account=personal"},
-		{"level=INFO", `msg="loaded state"`, "path=" + path, "assignments=1", "pin=\"\""},
+		{"level=WARN", `msg="session's pin dropped: nothing can go out on its account"`, "session=recent", "account=personal"},
+		{"level=INFO", `msg="loaded state"`, "path=" + path, "assignments=2", "pin=\"\""},
 	} {
 		if !log.Has(want...) {
 			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
@@ -262,7 +298,7 @@ func TestRememberNotesARequestOnTheAssignmentItsChoiceFoundAlone(t *testing.T) {
 	if _, noted := s.remember(k, assignment{}, "", decision{account: "work", reason: reasonNew}, start); !noted {
 		t.Fatal("remember() didn't note a new session's first request")
 	}
-	onWork, _, _ := s.lookup(k)
+	onWork := s.lookup(k).current
 
 	found, noted := s.remember(k, assignment{}, "", decision{account: "side", reason: reasonNew}, start.Add(time.Second))
 	if noted || found != onWork {
@@ -274,7 +310,7 @@ func TestRememberNotesARequestOnTheAssignmentItsChoiceFoundAlone(t *testing.T) {
 			t.Errorf("remember() of a request that stayed, at %v, didn't note it: staying leaves the assignment it found", at)
 		}
 	}
-	if got, _, _ := s.lookup(k); !got.same(onWork) || got.LastSeen != start.Add(2*time.Minute) {
+	if got := s.lookup(k).current; !got.same(onWork) || got.LastSeen != start.Add(2*time.Minute) {
 		t.Errorf("the session is assigned %+v, want work's assignment, last seen when it last stayed", got)
 	}
 }
@@ -290,8 +326,8 @@ func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
 	s.load(path, testAccounts())
 	assign(s, key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
 	for _, id := range []string{"saved", "new"} {
-		if got := s.of(id); len(got) != 1 || got[0].AssignedAt != start || got[0].LastSeen != start {
-			t.Errorf("session %s is assigned %+v, want its times in UTC", id, got)
+		if got, _ := s.session(id); len(got.Assignments) != 1 || got.Assignments[0].AssignedAt != start || got.Assignments[0].LastSeen != start {
+			t.Errorf("session %s is %+v, want its times in UTC", id, got)
 		}
 	}
 }
@@ -392,7 +428,7 @@ func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 		s := newSessions(time.Now)
 		s.load(path, testAccounts())
 		stop := keep(s)
-		s.setPin(status.Pin{Account: "side", Since: time.Now()})
+		s.setPin(status.Pin{Account: "side", Since: time.Now()}, false)
 		synctest.Wait()
 
 		began := time.Now()
@@ -406,7 +442,7 @@ func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 	})
 }
 
-func TestSessionsUnusedForAWeekAreForgottenHourly(t *testing.T) {
+func TestSessionsUnusedForAWeekAreForgottenHourlyWithTheirPins(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "state.json")
 		s := newSessions(time.Now)
@@ -415,21 +451,30 @@ func TestSessionsUnusedForAWeekAreForgottenHourly(t *testing.T) {
 		defer stop()
 		assign(s, key{session: "fading", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now().Add(-7*24*time.Hour+30*time.Minute))
 		assign(s, key{session: "recent", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
+		for _, id := range []string{"fading", "recent"} {
+			s.pinSession(id, "side")
+		}
 
 		time.Sleep(pruneEvery - time.Nanosecond)
 		synctest.Wait()
-		if len(s.of("fading")) == 0 {
+		if _, seen := s.session("fading"); !seen {
 			t.Fatal("forgot a session before the hour was up")
 		}
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
-		if len(s.of("fading")) > 0 || len(s.of("recent")) == 0 {
+		_, fading := s.session("fading")
+		_, recent := s.session("recent")
+		if fading || !recent {
 			t.Errorf("an hour on, sessions are %+v, want the one unused for a week forgotten, and the other kept", s.assignments)
 		}
 		time.Sleep(saveAfter)
 		synctest.Wait()
-		if held := readState(t, path); len(held.Sessions) != 1 || held.Sessions[0].Session != "recent" {
+		held := readState(t, path)
+		if len(held.Sessions) != 1 || held.Sessions[0].Session != "recent" {
 			t.Errorf("state file holds %+v, want the recent session alone", held.Sessions)
+		}
+		if _, kept := held.SessionPins["recent"]; len(held.SessionPins) != 1 || !kept {
+			t.Errorf("state file holds sessions' pins %+v, want the recent session's alone", held.SessionPins)
 		}
 	})
 }
@@ -448,7 +493,7 @@ func TestASaveThatFailsIsTriedAgain(t *testing.T) {
 			return writeAtomic(path, data)
 		}
 		stop := keep(s)
-		s.setPin(status.Pin{Account: "side", Since: time.Now()})
+		s.setPin(status.Pin{Account: "side", Since: time.Now()}, false)
 
 		time.Sleep(saveAfter)
 		synctest.Wait()
@@ -468,10 +513,12 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 	for i := range 8 {
 		k := key{session: fmt.Sprint(i % 2), model: opus}
 		wg.Go(func() { assign(s, k, "", decision{account: "work", reason: reasonNew}, start) })
-		wg.Go(func() { _, _, _ = s.lookup(k) })
-		wg.Go(func() { s.setPin(status.Pin{Account: "side", Since: start}) })
-		wg.Go(func() { _ = s.unpin() })
-		wg.Go(func() { _ = s.of(k.session) })
+		wg.Go(func() { _ = s.lookup(k) })
+		wg.Go(func() { s.setPin(status.Pin{Account: "side", Since: start}, i%3 == 0) })
+		wg.Go(func() { _, _ = s.unpin(i%3 == 1) })
+		wg.Go(func() { s.pinSession(k.session, "side") })
+		wg.Go(func() { _, _ = s.session(k.session) })
+		wg.Go(func() { _ = s.running(start) })
 		wg.Go(func() { _, _ = s.active(start) })
 		wg.Go(func() { s.prune(start) })
 	}
@@ -499,21 +546,164 @@ func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
 	}
 }
 
-func TestOfListsASessionsAssignmentsTheOneUsedLastFirst(t *testing.T) {
+func TestSessionReportsItsPinAndItsAssignmentsTheOneUsedLastFirst(t *testing.T) {
 	s := newSessions(at(start))
 	assign(s, key{session: "one", model: haiku}, "", decision{account: "side", reason: reasonNew}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 	assign(s, key{session: "two", model: opus}, "", decision{account: "side", reason: reasonNew}, start)
 
-	want := []Assignment{
-		{Model: opus, Account: "work", Pinned: true, Reason: "pinned", AssignedAt: start, LastSeen: start},
-		{Model: haiku, Account: "side", Reason: "new", AssignedAt: start.Add(-time.Hour), LastSeen: start.Add(-time.Hour)},
+	want := status.Session{
+		ID:  "one",
+		Pin: "work",
+		Assignments: []status.Assignment{
+			{Model: opus, Account: "work", Pinned: true, Reason: "pinned", AssignedAt: start, LastSeen: start},
+			{Model: haiku, Account: "side", Reason: "new", AssignedAt: start.Add(-time.Hour), LastSeen: start.Add(-time.Hour)},
+		},
 	}
-	if got := s.of("one"); !reflect.DeepEqual(got, want) {
-		t.Errorf("of() =\n%+v\nwant\n%+v", got, want)
+	if got, seen := s.session("one"); !seen || !reflect.DeepEqual(got, want) {
+		t.Errorf("session() =\n%+v, %v\nwant\n%+v", got, seen, want)
 	}
-	if got := s.of("nope"); got != nil {
-		t.Errorf("of() a session never seen = %+v, want none", got)
+	if got, seen := s.session("nope"); seen {
+		t.Errorf("session() of a session never seen = %+v, want none", got)
+	}
+}
+
+func TestASessionsOwnPin(t *testing.T) {
+	tests := []struct {
+		name string
+		// launched are the pins the session's requests of Opus, and of Haiku
+		// a minute later, carried.
+		launched [2]string
+		// given is the pin the session is given while it runs, "" to clear
+		// it, and nil for none.
+		given *string
+		want  string
+	}{
+		{name: "none"},
+		{name: "the one it was launched with", launched: [2]string{"work", "work"}, want: "work"},
+		{name: "the one its last request carried, launched again", launched: [2]string{"work", "side"}, want: "side"},
+		{name: "one given while it runs, over the one it was launched with", launched: [2]string{"work", "work"}, given: new("side"), want: "side"},
+		{name: "one given while it runs, launched without", given: new("side"), want: "side"},
+		{name: "none, once cleared, the one it was launched with included", launched: [2]string{"work", "work"}, given: new("")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSessions(at(start))
+			assign(s, key{session: "one", model: opus}, tt.launched[0], decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+			assign(s, key{session: "one", model: haiku}, tt.launched[1], decision{account: "work", reason: reasonNew}, start)
+			if tt.given != nil && !s.pinSession("one", *tt.given) {
+				t.Fatal("pinSession() = false, want the session found")
+			}
+
+			if got, _ := s.session("one"); got.Pin != tt.want {
+				t.Errorf("session's pin = %q, want %q", got.Pin, tt.want)
+			}
+		})
+	}
+}
+
+func TestASessionNeverSeenIsGivenNoPin(t *testing.T) {
+	s := newSessions(at(start))
+	if s.pinSession("nope", "side") {
+		t.Error("pinSession() of a session never seen = true, want false")
+	}
+	if len(s.own) > 0 || s.unsaved {
+		t.Errorf("sessions' pins = %+v, unsaved %v, want none, and nothing to save", s.own, s.unsaved)
+	}
+}
+
+func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testing.T) {
+	s := newSessions(at(start))
+	remember := func(session, model, account string, lastSeen time.Time) {
+		assign(s, key{session: session, model: model}, "", decision{account: account, reason: reasonNew}, lastSeen)
+	}
+	remember("earlier", opus, "work", start.Add(-30*time.Minute))
+	remember("latest", opus, "side", start.Add(-time.Minute))
+	remember("latest", haiku, "work", start.Add(-3*time.Hour))
+	remember("b-tied", opus, "work", start.Add(-45*time.Minute))
+	remember("a-tied", opus, "side", start.Add(-45*time.Minute))
+	remember("an-hour-ago", opus, "work", start.Add(-time.Hour))
+	remember("idle", opus, "work", start.Add(-time.Hour-time.Second))
+	s.pinSession("earlier", "side")
+
+	got := s.running(start)
+	ids := make([]string, len(got))
+	for i, session := range got {
+		ids[i] = session.ID
+	}
+	if want := []string{"latest", "earlier", "a-tied", "b-tied", "an-hour-ago"}; !reflect.DeepEqual(ids, want) {
+		t.Errorf("running() lists %q, want %q: those routed in the last hour, the one seen last first", ids, want)
+	}
+	if want, _ := s.session("latest"); !reflect.DeepEqual(got[0], want) {
+		t.Errorf("running() lists\n%+v\nwant the session as session() gives it, every model included\n%+v", got[0], want)
+	}
+	if got[1].Pin != "side" {
+		t.Errorf("running() lists %+v, want its own pin with it", got[1])
+	}
+	if got := newSessions(at(start)).running(start); got == nil || len(got) > 0 {
+		t.Errorf("running() with no sessions = %#v, want an empty list", got)
+	}
+}
+
+func TestForceClearsEverySessionsOwnPin(t *testing.T) {
+	later := start.Add(time.Minute)
+	tests := []struct {
+		name  string
+		force func(s *sessions) int
+		// wantPin is the global pin once forced.
+		wantPin status.Pin
+	}{
+		{
+			name:    "setting the global pin",
+			force:   func(s *sessions) int { return s.setPin(status.Pin{Account: "side", Since: later, Move: true}, true) },
+			wantPin: status.Pin{Account: "side", Since: later, Move: true},
+		},
+		{
+			name: "clearing the global pin",
+			force: func(s *sessions) int {
+				_, cleared := s.unpin(true)
+				return cleared
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newSessions(clock.read)
+			s.setPin(status.Pin{Account: "work", Since: start.Add(-time.Hour)}, false)
+			assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
+			assign(s, key{session: "given", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+			assign(s, key{session: "unpinned", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+			s.pinSession("given", "side")
+			clock.now = later
+			s.unsaved = false
+
+			if cleared := tt.force(s); cleared != 2 {
+				t.Errorf("cleared %d sessions' pins, want 2: the one launched with a pin, and the one given one", cleared)
+			}
+			want := map[string]ownPin{"launched": {Since: later}, "given": {Since: later}}
+			if !maps.Equal(s.own, want) {
+				t.Errorf("sessions' pins = %+v, want %+v: each cleared, the unpinned session's left alone", s.own, want)
+			}
+			if s.pin != tt.wantPin || !s.unsaved {
+				t.Errorf("global pin = %+v, unsaved %v, want %+v, due to be saved", s.pin, s.unsaved, tt.wantPin)
+			}
+			for _, id := range []string{"launched", "given"} {
+				if got := s.lookup(key{session: id, model: opus}); !got.given || got.own.Account != "" {
+					t.Errorf("session %s's own pin = %+v, want one given as cleared, which passes over the one it was launched with", id, got)
+				}
+			}
+		})
+	}
+}
+
+func TestUnpinningWithoutAPinOrForceChangesNothing(t *testing.T) {
+	s := newSessions(at(start))
+	assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
+	s.unsaved = false
+
+	if was, cleared := s.unpin(false); was != (status.Pin{}) || cleared != 0 || len(s.own) > 0 || s.unsaved {
+		t.Errorf("unpin() = %+v, %d, sessions' pins %+v, unsaved %v, want nothing changed", was, cleared, s.own, s.unsaved)
 	}
 }
 

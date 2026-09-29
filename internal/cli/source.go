@@ -109,7 +109,7 @@ func (s usageSource) Pin(ctx context.Context, account string, move bool) error {
 	if s.router == nil {
 		return errRouterDown
 	}
-	_, err := s.router.Pin(ctx, account, move)
+	_, err := s.router.Pin(ctx, router.PinRequest{Account: account, Move: move})
 	return fromRouter(err)
 }
 
@@ -118,7 +118,7 @@ func (s usageSource) Unpin(ctx context.Context) error {
 	if s.router == nil {
 		return errRouterDown
 	}
-	_, err := s.router.Unpin(ctx)
+	_, err := s.router.Unpin(ctx, false)
 	return fromRouter(err)
 }
 
