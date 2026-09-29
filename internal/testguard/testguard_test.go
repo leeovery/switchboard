@@ -73,6 +73,7 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 		{does: "create-the-real-state", want: "the real ~/.local/state/switchboard appeared"},
 		{does: "install-the-real-launch-agent", want: "the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was created"},
 		{does: "install-the-real-skill", want: "the real ~/.claude/skills/switchboard/SKILL.md was created"},
+		{does: "link-claude-in-the-real-bin-directory", want: "the real ~/.local/share/switchboard/bin/claude was created"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
@@ -102,16 +103,21 @@ func TestEscapesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 		{does: "create-the-state-where-XDG_STATE_HOME-puts-it", want: "the real %s/state/switchboard appeared"},
 		{does: "dial-the-control-socket-where-XDG_STATE_HOME-puts-it", want: "blocked dial to %s/state/switchboard/control.sock"},
 		{does: "install-the-skill-where-CLAUDE_CONFIG_DIR-puts-it", want: "the real %s/claude/skills/switchboard/SKILL.md was created"},
+		{does: "link-claude-on-PATH", want: "the real %s/bin/claude was created"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
 			elsewhere := t.TempDir()
 			writeFile(t, filepath.Join(elsewhere, "work.toml"), "listen = \"127.0.0.1:4747\"\n")
+			if err := os.Mkdir(filepath.Join(elsewhere, "bin"), 0o700); err != nil {
+				t.Fatal(err)
+			}
 
 			out, err := runChild(t, tt.does, t.TempDir(),
 				"SWITCHBOARD_CONFIG="+filepath.Join(elsewhere, "work.toml"),
 				"XDG_STATE_HOME="+filepath.Join(elsewhere, "state"),
 				"CLAUDE_CONFIG_DIR="+filepath.Join(elsewhere, "claude"),
+				"PATH="+filepath.Join(elsewhere, "bin"),
 				childElsewhere+"="+elsewhere)
 			if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 {
 				t.Errorf("child: error = %v, want exit status 1", err)
@@ -183,12 +189,27 @@ func TestInChild(t *testing.T) {
 		writeFile(t, filepath.Join(realHome, agentFile), "<plist version=\"1.0\"/>\n")
 	case "install-the-real-skill":
 		writeFile(t, filepath.Join(realHome, skillFile), "---\nname: switchboard\n---\n")
+	case "link-claude-in-the-real-bin-directory":
+		// A link to a switchboard that isn't there: seen all the same.
+		link := filepath.Join(realHome, ".local", "share", "switchboard", "bin", "claude")
+		if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join(realHome, "switchboard"), link); err != nil {
+			t.Fatal(err)
+		}
 	case "overwrite-the-config-SWITCHBOARD_CONFIG-names":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "work.toml"), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
 	case "create-the-state-where-XDG_STATE_HOME-puts-it":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "state", "switchboard", "state.json"), "{\"version\": 1, \"sessions\": []}\n")
 	case "install-the-skill-where-CLAUDE_CONFIG_DIR-puts-it":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "claude", "skills", "switchboard", "SKILL.md"), "---\nname: switchboard\n---\n")
+	case "link-claude-on-PATH":
+		// A link to a switchboard that isn't there: seen all the same.
+		bin := filepath.Join(os.Getenv(childElsewhere), "bin")
+		if err := os.Symlink(filepath.Join(bin, "switchboard"), filepath.Join(bin, "claude")); err != nil {
+			t.Fatal(err)
+		}
 	case "dial-the-control-socket-where-XDG_STATE_HOME-puts-it":
 		// In the temporary directory, as the state directory is here, but a
 		// live router's all the same.

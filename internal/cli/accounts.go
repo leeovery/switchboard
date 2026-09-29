@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -199,18 +198,21 @@ func (a *app) registry(cmd *cobra.Command) (accounts.Registry, error) {
 	return accounts.Registry{
 		ConfigPath: path,
 		Tokens:     files,
-		Prober: func(upstream string) accounts.Prober {
-			return &claude.Prober{Upstream: upstream, Version: a.ClaudeVersion()}
-		},
-		Input: tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr()),
+		Prober:     a.prober,
+		Input:      a.tokenInput(cmd.InOrStdin(), cmd.ErrOrStderr()),
 	}, nil
+}
+
+// prober checks a token with the API at upstream, as a probe does.
+func (a *app) prober(upstream string) accounts.Prober {
+	return &claude.Prober{Upstream: upstream, Version: a.ClaudeVersion()}
 }
 
 // tokenInput is where the user gives a token: typed, unseen, at the terminal
 // stdin is, having been asked at stderr, else stdin, read to its end.
-func tokenInput(stdin io.Reader, stderr io.Writer) accounts.Input {
-	if f, ok := stdin.(term.File); ok && term.IsTerminal(f.Fd()) {
-		return accounts.Input{Hidden: func() ([]byte, error) { return term.ReadPassword(f.Fd()) }, Prompt: stderr}
+func (a *app) tokenInput(stdin io.Reader, stderr io.Writer) accounts.Input {
+	if hidden, ok := a.Hidden(stdin); ok {
+		return accounts.Input{Hidden: hidden, Prompt: stderr}
 	}
 	return accounts.Input{Piped: stdin}
 }

@@ -147,7 +147,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 // that runs it, with what's worth the user's attention: the router having no
 // token to serve with.
 func (s *Service) prepare(opts InstallOptions) (agent, []string, error) {
-	binary, err := s.binary(opts.Executable)
+	binary, err := s.Binary(opts.Executable)
 	if err != nil {
 		return agent{}, nil, err
 	}
@@ -236,6 +236,25 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	return st, nil
 }
 
+// Answered fails, saying where to find out why, when the router launchd
+// started didn't answer: when Install or Restart found none answering.
+func (s *Service) Answered(h *router.Health) error {
+	if h == nil {
+		return fmt.Errorf("the router didn't answer within %v of starting: see why with switchboard logs router, and in %s", StartWait, s.Log())
+	}
+	return nil
+}
+
+// Health says how a router answered its health check, such as "healthy, pid
+// 4242".
+func Health(h router.Health) string {
+	state := "healthy"
+	if !h.OK {
+		state = "unhealthy: " + h.Reason
+	}
+	return fmt.Sprintf("%s, pid %d", state, h.PID)
+}
+
 // domain is the user's GUI session, which the service runs in.
 func (s *Service) domain() string {
 	return "gui/" + strconv.Itoa(s.cfg.UID)
@@ -246,11 +265,12 @@ func (s *Service) target() string {
 	return s.domain() + "/" + Label
 }
 
-// binary returns the switchboard binary for launchd to run: exe, absolute,
-// by the path it was run by, so that a link, such as Homebrew's, stays the
-// link an upgrade moves on, not the version it led to. It fails for a build
-// that won't last, judged by where its links lead.
-func (s *Service) binary(exe string) (string, error) {
+// Binary returns the switchboard binary for launchd to run, and for the
+// claude link to lead to: exe, absolute, by the path it was run by, so that
+// a link, such as Homebrew's, stays the link an upgrade moves on, not the
+// version it led to. It fails for a build that won't last, judged by where
+// its links lead.
+func (s *Service) Binary(exe string) (string, error) {
 	path, err := filepath.Abs(exe)
 	if err != nil {
 		return "", fmt.Errorf("find this switchboard binary: %w", err)
@@ -288,11 +308,7 @@ func absolute(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("find the config file: %w", err)
-	}
-	return abs, nil
+	return filepath.Abs(path)
 }
 
 // write writes the agent's plist, readable by all as launchd's are, and

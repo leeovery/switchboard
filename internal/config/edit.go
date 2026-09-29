@@ -86,7 +86,7 @@ func (d *Draft) Config() *Config {
 // it takes primary off every other account. It fails, matching ErrConfigured,
 // when an account has its id already.
 func (d *Draft) AddAccount(a NewAccount) error {
-	if err := checkID(fmt.Sprintf("account %q", a.ID), a.ID); err != nil {
+	if err := CheckID(a.ID); err != nil {
 		return err
 	}
 	if d.index(a.ID) >= 0 {
@@ -133,6 +133,55 @@ func (d *Draft) RemoveAccount(id string) error {
 	want := d.file
 	want.Accounts = slices.Delete(slices.Clone(d.file.Accounts), i, i+1)
 	return d.take(d.doc.cut(tables[i]), want, change)
+}
+
+// MarksPrimary reports whether the draft marks an account primary, rather
+// than leaving the first to be the primary for want of one.
+func (d *Draft) MarksPrimary() bool {
+	return slices.ContainsFunc(d.file.Accounts, func(a fileAccount) bool { return a.Primary })
+}
+
+// SetPrimary makes the account with the given id the primary: it marks it so
+// below the last key of its [[account]] table, in place of any primary it
+// set, and takes primary off every other account. It fails, matching
+// ErrNotConfigured, when no account has the id.
+func (d *Draft) SetPrimary(id string) error {
+	i := d.index(id)
+	switch {
+	case i < 0:
+		return fmt.Errorf("account %q is %w", id, ErrNotConfigured)
+	case d.file.Accounts[i].Primary:
+		return nil
+	}
+	change := fmt.Sprintf("make account %q the primary", id)
+	tables, err := d.accountTables(change)
+	if err != nil {
+		return err
+	}
+	want := d.file
+	want.Accounts = slices.Clone(d.file.Accounts)
+	var marks []int
+	for j := range want.Accounts {
+		if want.Accounts[j].Primary || j == i {
+			marks = append(marks, d.doc.linesOf(primaryKey, tables[j])...)
+		}
+		want.Accounts[j].Primary = j == i
+	}
+	doc := d.doc.without(marks)
+	doc = doc.put(doc.keysEnd(doc.accounts()[i]), "primary = true")
+	return d.take(doc, want, change)
+}
+
+// SetPrimeDay sets the day [prime] gives, which turns priming on: in place of
+// the day it gives, else as the first key of its table, else in a [prime]
+// table made at the end. It fails, as ParseDay does, for a day that isn't one.
+func (d *Draft) SetPrimeDay(day string) error {
+	if _, err := ParseDay(day); err != nil {
+		return err
+	}
+	want := d.file
+	want.Prime.Day = day
+	return d.take(d.doc.withPrimeDay(day), want, fmt.Sprintf("set prime.day to %q", day))
 }
 
 // index returns where the account with the given id is among the draft's

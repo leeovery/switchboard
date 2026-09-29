@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -25,7 +26,9 @@ func newStatusCommand(a *app) *cobra.Command {
 		Long: `Show every account's usage and when it resets: the router's, while it runs,
 with the sessions it has routed in the last hour, its pin, the limits it has
 seen and its health; else read by probing each account, as --probe does
-whether the router runs or not. The last line says which.
+whether the router runs or not. The last line says which. When the claude a
+shell runs from PATH isn't switchboard, so the sessions it starts don't go
+through the router, the first line says so.
 
 With --session, print the id of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
@@ -54,7 +57,7 @@ switchboard serve).
 			if asJSON {
 				return writeJSON(cmd.OutOrStdout(), doc)
 			}
-			_, err = io.WriteString(cmd.OutOrStdout(), doc.Text(a.Now(), a.running(cmd.Context(), doc)...))
+			_, err = io.WriteString(cmd.OutOrStdout(), a.unrouted()+doc.Text(a.Now(), a.running(cmd.Context(), doc)...))
 			return err
 		},
 	}
@@ -62,6 +65,21 @@ switchboard serve).
 	cmd.Flags().BoolVar(&probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().StringVar(&session, "session", "", "print the account the router sends session `ID`'s requests to")
 	return cmd
+}
+
+// unrouted says, in a paragraph of a line, when the claude a shell runs from
+// PATH isn't switchboard, so the sessions it starts don't go through the
+// router: "" when it is, or when there's no telling.
+func (a *app) unrouted() string {
+	through, err := claude.ThroughSwitchboard(a.Getenv("PATH"), a.Executable)
+	if err != nil {
+		logger.Debug("can't tell whether claude on PATH is switchboard", "error", err)
+		return ""
+	}
+	if through {
+		return ""
+	}
+	return "claude on PATH isn't switchboard, so the sessions it starts don't go through the router: run switchboard setup\n\n"
 }
 
 // running lists the sessions the router has routed in the last hour, when doc

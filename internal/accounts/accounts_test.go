@@ -206,6 +206,14 @@ func TestAddRefuses(t *testing.T) {
 			wantAsked: true,
 		},
 		{
+			name:      "the user interrupting the token's typing",
+			account:   config.NewAccount{ID: "side"},
+			user:      &user{atTerminal: true, gives: sideToken, fails: accounts.ErrInterrupted},
+			wantErr:   "read the token: interrupted",
+			wantIs:    accounts.ErrInterrupted,
+			wantAsked: true,
+		},
+		{
 			name:      "a pipe that can't be read",
 			account:   config.NewAccount{ID: "side"},
 			user:      &user{gives: sideToken, fails: failed},

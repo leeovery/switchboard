@@ -28,6 +28,17 @@ func StateDir(getenv func(string) string, homeDir func() (string, error)) (strin
 	return filepath.Join(dir, "switchboard"), nil
 }
 
+// BinDir returns switchboard's own directory for PATH, which holds the claude
+// link alone: $XDG_DATA_HOME/switchboard/bin, else
+// ~/.local/share/switchboard/bin.
+func BinDir(getenv func(string) string, homeDir func() (string, error)) (string, error) {
+	dir, err := baseDir(getenv, homeDir, "XDG_DATA_HOME", filepath.Join(".local", "share"))
+	if err != nil {
+		return "", fmt.Errorf("locate switchboard's bin directory: %w", err)
+	}
+	return filepath.Join(dir, "switchboard", "bin"), nil
+}
+
 // baseDir returns the XDG base directory the variable names, else its default
 // under the home directory. The XDG spec says to ignore a relative value,
 // which would make the location depend on the working directory.

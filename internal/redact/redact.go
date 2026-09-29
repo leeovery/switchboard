@@ -2,7 +2,8 @@
 // holds, and anything shaped like a Claude token, which a message from
 // elsewhere can carry. The logs, the tokens package's tokens and the Claude
 // provider all hide them with it, so a secret reads the same wherever it's
-// hidden.
+// hidden; and setup tells with it an answer that's a token pasted where it
+// shows, which it never takes.
 package redact
 
 import (
@@ -16,6 +17,11 @@ const Placeholder = "[redacted]"
 // tokenShaped matches Claude API keys and OAuth tokens, which all begin
 // sk-ant-.
 var tokenShaped = regexp.MustCompile(`sk-ant-[A-Za-z0-9_-]+`)
+
+// HoldsToken reports whether text holds anything shaped like a Claude token.
+func HoldsToken(text string) bool {
+	return tokenShaped.MatchString(text)
+}
 
 // Text returns text with each of secrets, and anything shaped like a Claude
 // token, replaced by Placeholder.

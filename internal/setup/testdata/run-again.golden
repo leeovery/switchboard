@@ -1,0 +1,23 @@
+Setting switchboard up: each step says what's done already, and does only what isn't.
+
+1. Accounts
+work · Work: its token is usable.
+side · Side: its token is usable.
+Add another account? [y/N] 
+The primary, the account the browser and the Claude apps are signed into, is work · Work.
+
+2. Priming
+Priming is on, over 08:00-23:00.
+
+3. The service
+The service is installed, and the router is up: healthy, pid 4242.
+
+4. The claude link
+<root>/home/.local/share/switchboard/bin/claude leads to switchboard, at <root>/brew/bin/switchboard.
+claude on PATH goes through switchboard, from <root>/home/.local/share/switchboard/bin.
+
+5. The skill
+The skill is installed, and up to date: <root>/claude/skills/switchboard/SKILL.md
+
+6. Usage
+(every account's usage)

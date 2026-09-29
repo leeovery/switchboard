@@ -19,8 +19,14 @@ import (
 
 var logger = logs.For("accounts")
 
-// ErrRefused is what taking a token the API refuses fails with, wrapped.
-var ErrRefused = errors.New("the API refused the token")
+var (
+	// ErrRefused is what taking a token the API refuses fails with, wrapped.
+	ErrRefused = errors.New("the API refused the token")
+	// ErrInterrupted is what Input.Hidden fails with, wrapped or not, when
+	// the user interrupts it, having put the terminal back as it was, and so
+	// what taking the token fails with.
+	ErrInterrupted = errors.New("interrupted")
+)
 
 // prompt asks the user at a terminal for the token of the account it names.
 const prompt = "Paste %s's token, from claude setup-token run while signed in to that subscription (it won't show): "
@@ -42,7 +48,8 @@ type refusal interface {
 // Input is where the user gives a token.
 type Input struct {
 	// Hidden reads a line typed at the terminal the user is at, without
-	// showing it: nil when they aren't at one.
+	// showing it: nil when they aren't at one. It fails with ErrInterrupted
+	// when the user interrupts it.
 	Hidden func() ([]byte, error)
 	// Prompt is where the user at a terminal is asked for the token.
 	Prompt io.Writer

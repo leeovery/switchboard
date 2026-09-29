@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -325,6 +326,216 @@ func TestChangesToTheRealSkillThroughLinks(t *testing.T) {
 	}
 }
 
+func TestChangesToTheRealBinDirectory(t *testing.T) {
+	link := filepath.Join(binDir, "claude")
+	tests := []struct {
+		name string
+		// before lays out the home, at home, before the tests begin.
+		before func(t *testing.T, home string)
+		// during changes it as the tests run.
+		during func(t *testing.T, home string)
+		want   []string
+	}{
+		{
+			name: "nothing",
+			before: func(t *testing.T, home string) {
+				symlink(t, filepath.Join(home, "brew", "switchboard"), filepath.Join(home, link))
+			},
+			during: func(*testing.T, string) {},
+		},
+		{
+			name:   "the claude link made where there was none",
+			during: func(t *testing.T, home string) { symlink(t, filepath.Join(home, "gone"), filepath.Join(home, link)) },
+			want:   []string{"the real ~/.local/share/switchboard/bin was created", "the real ~/.local/share/switchboard/bin/claude was created"},
+		},
+		{
+			name: "the claude link made to lead elsewhere",
+			before: func(t *testing.T, home string) {
+				symlink(t, filepath.Join(home, "brew", "switchboard"), filepath.Join(home, link))
+			},
+			during: func(t *testing.T, home string) {
+				if err := os.Remove(filepath.Join(home, link)); err != nil {
+					t.Fatal(err)
+				}
+				symlink(t, filepath.Join(home, "go", "switchboard"), filepath.Join(home, link))
+			},
+			want: []string{"the real ~/.local/share/switchboard/bin was modified", "the real ~/.local/share/switchboard/bin/claude was modified"},
+		},
+		{
+			name: "what the claude link leads to upgraded, which is no change of the link's",
+			before: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, "brew", "switchboard"), "#!/bin/sh\n")
+				symlink(t, filepath.Join(home, "brew", "switchboard"), filepath.Join(home, link))
+			},
+			during: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, "brew", "switchboard"), "#!/bin/sh\nexit 0\n")
+			},
+		},
+		{
+			name: "other programs' data beside it",
+			during: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, ".local", "share", "other", "bin", "claude"), "#!/bin/sh\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			if tt.before != nil {
+				tt.before(t, home)
+			}
+			backdate(t, home)
+			watched := watchReal(home, noEnv)
+
+			tt.during(t, home)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestALinkIsNotedAsALinkWithWhereItLeads(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "claude")
+	symlink(t, filepath.Join(dir, "gone"), link)
+
+	noted, ok := asItIs(link)
+	if !ok || noted.kind != fs.ModeSymlink || noted.target != filepath.Join(dir, "gone") {
+		t.Errorf("asItIs() = %+v, %v; want the link noted as a link, leading to %s", noted, ok, filepath.Join(dir, "gone"))
+	}
+}
+
+func TestChangesToClaudeOnTheRealPath(t *testing.T) {
+	tests := []struct {
+		name string
+		// before lays out the directories on PATH, first and second, before
+		// the tests begin.
+		before func(t *testing.T, first, second string)
+		// during changes them as the tests run.
+		during func(t *testing.T, first, second string)
+		// want are the changes reported, %[1]s standing for first and %[2]s
+		// for second.
+		want []string
+	}{
+		{
+			name: "nothing",
+			before: func(t *testing.T, first, second string) {
+				write(t, filepath.Join(second, "claude"), "#!/bin/sh\n")
+				symlink(t, filepath.Join(second, "switchboard"), filepath.Join(first, "claude"))
+			},
+			during: func(*testing.T, string, string) {},
+		},
+		{
+			name:   "a link made where there was none",
+			before: func(t *testing.T, _, second string) { write(t, filepath.Join(second, "claude"), "#!/bin/sh\n") },
+			during: func(t *testing.T, first, second string) {
+				symlink(t, filepath.Join(second, "claude"), filepath.Join(first, "claude"))
+			},
+			want: []string{"the real %[1]s/claude was created"},
+		},
+		{
+			name: "a link made that leads nowhere",
+			during: func(t *testing.T, first, _ string) {
+				symlink(t, filepath.Join(first, "gone"), filepath.Join(first, "claude"))
+			},
+			want: []string{"the real %[1]s/claude was created"},
+		},
+		{
+			name: "a link made to lead elsewhere",
+			before: func(t *testing.T, first, _ string) {
+				symlink(t, filepath.Join(first, "switchboard"), filepath.Join(first, "claude"))
+			},
+			during: func(t *testing.T, first, _ string) {
+				if err := os.Remove(filepath.Join(first, "claude")); err != nil {
+					t.Fatal(err)
+				}
+				symlink(t, filepath.Join(first, "sb"), filepath.Join(first, "claude"))
+			},
+			want: []string{"the real %[1]s/claude was modified"},
+		},
+		{
+			name: "a link to Claude Code made to lead to switchboard, the link watched rather than where it led",
+			before: func(t *testing.T, first, second string) {
+				write(t, filepath.Join(second, "versions", "2.1.300"), "#!/bin/sh\n")
+				write(t, filepath.Join(first, "switchboard"), "#!/bin/sh\n")
+				symlink(t, filepath.Join(second, "versions", "2.1.300"), filepath.Join(first, "claude"))
+			},
+			during: func(t *testing.T, first, _ string) {
+				if err := os.Remove(filepath.Join(first, "claude")); err != nil {
+					t.Fatal(err)
+				}
+				symlink(t, filepath.Join(first, "switchboard"), filepath.Join(first, "claude"))
+			},
+			want: []string{"the real %[1]s/claude was modified"},
+		},
+		{
+			name:   "a link put in claude's place",
+			before: func(t *testing.T, _, second string) { write(t, filepath.Join(second, "claude"), "#!/bin/sh\n") },
+			during: func(t *testing.T, first, second string) {
+				if err := os.Remove(filepath.Join(second, "claude")); err != nil {
+					t.Fatal(err)
+				}
+				symlink(t, filepath.Join(first, "switchboard"), filepath.Join(second, "claude"))
+			},
+			want: []string{"the real %[2]s/claude was modified"},
+		},
+		{
+			name: "a link removed",
+			before: func(t *testing.T, first, _ string) {
+				symlink(t, filepath.Join(first, "switchboard"), filepath.Join(first, "claude"))
+			},
+			during: func(t *testing.T, first, _ string) {
+				if err := os.Remove(filepath.Join(first, "claude")); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: []string{"the real %[1]s/claude was removed"},
+		},
+		{
+			name: "other programs on PATH, made and changed",
+			before: func(t *testing.T, _, second string) {
+				write(t, filepath.Join(second, "claude"), "#!/bin/sh\n")
+				write(t, filepath.Join(second, "tmux"), "#!/bin/sh\n")
+			},
+			during: func(t *testing.T, first, second string) {
+				write(t, filepath.Join(first, "switchboard"), "#!/bin/sh\n")
+				write(t, filepath.Join(second, "tmux"), "#!/bin/sh\nexit 0\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			first, second := filepath.Join(root, "first"), filepath.Join(root, "second")
+			for _, dir := range []string{first, second} {
+				if err := os.Mkdir(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.before != nil {
+				tt.before(t, first, second)
+			}
+			backdate(t, root)
+			// A relative directory, which names none testguard can know, and
+			// first again, which is watched once.
+			path := strings.Join([]string{first, "bin", second, first}, string(os.PathListSeparator))
+			watched := watchReal("", func(key string) string { return map[string]string{"PATH": path}[key] })
+
+			tt.during(t, first, second)
+
+			var want []string
+			for _, line := range tt.want {
+				want = append(want, fmt.Sprintf(line, first, second))
+			}
+			if got := watched.changes(); !slices.Equal(got, want) {
+				t.Errorf("changes() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestTheRealStateDirectoryAppearing(t *testing.T) {
 	tests := []struct {
 		name string
@@ -446,6 +657,13 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 			},
 			want: []string{"the real %[1]s/claude/skills/switchboard/SKILL.md was modified"},
 		},
+		{
+			name: "the claude link made in the bin directory where XDG_DATA_HOME puts it",
+			during: func(t *testing.T, elsewhere string) {
+				symlink(t, filepath.Join(elsewhere, "switchboard"), filepath.Join(elsewhere, "data", "switchboard", "bin", "claude"))
+			},
+			want: []string{"the real %[1]s/data/switchboard/bin was created", "the real %[1]s/data/switchboard/bin/claude was created"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -458,6 +676,7 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 				"SWITCHBOARD_CONFIG": filepath.Join(elsewhere, "work.toml"),
 				"XDG_CONFIG_HOME":    filepath.Join(elsewhere, "config"),
 				"XDG_STATE_HOME":     filepath.Join(elsewhere, "state"),
+				"XDG_DATA_HOME":      filepath.Join(elsewhere, "data"),
 				"CLAUDE_CONFIG_DIR":  filepath.Join(elsewhere, "claude"),
 			}
 			watched := watchReal(t.TempDir(), func(key string) string { return env[key] })
@@ -484,6 +703,8 @@ func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
 	}{
 		{name: "the config", variable: "SWITCHBOARD_CONFIG"},
 		{name: "the skill", variable: "CLAUDE_CONFIG_DIR", file: filepath.Join(skillDir, "SKILL.md")},
+		{name: "claude on PATH", variable: "PATH", file: "claude"},
+		{name: "switchboard's bin directory", variable: "XDG_DATA_HOME", file: filepath.Join("switchboard", "bin", "claude")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -510,7 +731,14 @@ func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
 }
 
 func TestRelativePlacesAreNoneTestguardCanKnow(t *testing.T) {
-	env := map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "XDG_CONFIG_HOME": "config", "XDG_STATE_HOME": "state", "CLAUDE_CONFIG_DIR": "claude"}
+	env := map[string]string{
+		"SWITCHBOARD_CONFIG": "work.toml",
+		"XDG_CONFIG_HOME":    "config",
+		"XDG_STATE_HOME":     "state",
+		"XDG_DATA_HOME":      "data",
+		"CLAUDE_CONFIG_DIR":  "claude",
+		"PATH":               strings.Join([]string{"bin", "", "."}, string(os.PathListSeparator)),
+	}
 	if got := watchReal("", func(key string) string { return env[key] }); len(got) > 0 {
 		t.Errorf("watchReal() watches %d places, want none: a relative one leads wherever the program reading it runs", len(got))
 	}
@@ -549,12 +777,14 @@ func symlink(t *testing.T, target, path string) {
 }
 
 // backdate sets everything under dir as last modified an hour ago, so a change
-// in the same tick as it was written still moves its time.
+// in the same tick as it was written still moves its time: everything but a
+// link, which can't be set without setting where it leads, which may not be
+// there.
 func backdate(t *testing.T, dir string) {
 	t.Helper()
 	then := time.Now().Add(-time.Hour)
-	err := filepath.WalkDir(dir, func(path string, _ fs.DirEntry, err error) error {
-		if err != nil {
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.Type()&fs.ModeSymlink != 0 {
 			return err
 		}
 		return os.Chtimes(path, then, then)

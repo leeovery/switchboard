@@ -34,9 +34,10 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
                                       └─ swaps the Authorization header for the chosen account
 ```
 
-- Every `claude` goes through switchboard. A link named `claude`, ahead of the real one on `PATH`,
-  runs switchboard, which starts the real Claude Code connected to the router: from a shell, a
-  tmux pane, a script or a tool that runs `claude -p` alike. See Launching.
+- Every `claude` goes through switchboard. A link named `claude`, in switchboard's own directory
+  on `PATH`, ahead of the real one, runs switchboard, which starts the real Claude Code connected
+  to the router: from a shell, a tmux pane, a script or a tool that runs `claude -p` alike. See
+  Launching.
 - Claude Code sends every request to switchboard. Switchboard replaces the `Authorization` header
   with the chosen account's token and forwards the request. Nothing else changes but the pin
   header switchboard's own launcher adds, which it strips, so the request is still genuinely
@@ -371,9 +372,11 @@ it's asked for.
   none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`.
 - `accounts add <id>` registers an account. When it has no token file, it asks for the token,
   hidden, pointing to `claude setup-token` run while signed in to that subscription, or reads it
-  from stdin when stdin isn't a terminal. It probes the token before saving it, and doesn't save
-  one the API refuses (401 or 403); when the probe can't reach the API, it saves it with a
-  warning. `--label` sets the label, and `--primary` makes the account the primary.
+  from stdin when stdin isn't a terminal. An interrupt while it waits puts the terminal back as
+  it was, showing what's typed again, and the command exits 130, as a shell expects of an
+  interrupt, saving nothing. It probes the token before saving it, and doesn't save one the API
+  refuses (401 or 403); when the probe can't reach the API, it saves it with a warning.
+  `--label` sets the label, and `--primary` makes the account the primary.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
@@ -383,16 +386,37 @@ it's asked for.
 ## Setup
 
 `switchboard setup` walks through a first run, and is safe to run again: each step says what's
-already done, and does only what's missing.
+already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
+terminal: without one, it fails, saying which command takes each step alone. It stops at a step
+that fails, when its input ends, or at an interrupt; run again, it carries on from there. Before
+it asks anything, it refuses a switchboard that won't last, such as `go run`'s, as `service
+install` does: the service and the `claude` link both run the one setup was run by. An answer
+shaped like a token, pasted where it shows, is never taken: setup asks for tokens where they
+don't show.
 
-1. **Accounts:** lists them, asks for any missing token, offers to add accounts, and asks which is
-   the primary: the one the browser and the Claude apps are signed into.
-2. **Priming:** asks for the day, optionally.
-3. **Service:** installs the LaunchAgent, or restarts it.
-4. **The `claude` link:** finds the directory the real `claude` runs from on `PATH`, and a
-   writable directory ahead of it, asks, and links `claude` to switchboard there, saying where.
-   With no such directory, it says what to add to `PATH`.
-5. **The skill:** writes it (see The skill).
+1. **Accounts:** lists them, each with whether its token is usable, and asks for a missing token
+   as `accounts token` does; Enter leaves it for later. It offers to add accounts, one at a time,
+   asking each one's id, label and token as `accounts add` does, and with none configured, asks
+   for the first straight away: there's nothing to set up without one. With more than one and
+   none marked, it asks which is the primary, the one the browser and the Claude apps are signed
+   into, and marks it.
+2. **Priming:** with no day set, asks for one, `HH:MM-HH:MM`, and writes it to `[prime]`; Enter
+   leaves priming off.
+3. **Service:** installs the LaunchAgent when launchd hasn't loaded it; restarts it when setup
+   has changed the config or a token, which the router reads as it starts, or when the router
+   doesn't answer; and otherwise says it's up.
+4. **The `claude` link:** setup writes into no directory but its own. It makes the `claude` link
+   in switchboard's bin directory (see Files), leading to switchboard by the path it was run by,
+   as the LaunchAgent names it, so an upgrade moves the link on; a link there leading anywhere
+   else it replaces, as the directory is switchboard's, and anything there that isn't a link it
+   leaves alone, and says so. Then it finds the real `claude` as `run` does, and checks the
+   directory is on `PATH` ahead of it: the step is done when the link is right and the
+   directory is ahead of the real `claude`, and no other place counts. Otherwise it says the one
+   line to add to the shell's startup file, after anything else there that changes `PATH`, so
+   the directory stays ahead of the real `claude`'s, written from `$HOME` when it's in the home:
+   `export PATH="$HOME/.local/share/switchboard/bin:$PATH"`. It never edits the file; run
+   again, setup checks it.
+5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Shows `usage`.
 
 ## Commands
@@ -409,7 +433,7 @@ Files says. `switchboard --version` prints the version. Run by the name `claude`
 | `accounts token <id>` | Replace an account's token |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them, and from the router, the running sessions: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. `--json` prints the status document. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id or as much of it as is unique, as `pin --session` takes it, and it needs the router |
+| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them, and from the router, the running sessions: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id or as much of it as is unique, as `pin --session` takes it, and it needs the router |
 | `usage [--watch [interval]] [--no-notify] [--probe]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
@@ -626,14 +650,14 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 
 | Package | Owns |
 |---|---|
-| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
+| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
-| `internal/config` | Locating, parsing, validating and editing the config file: the accounts, the primary and the reserves, and the priming day |
+| `internal/config` | Locating, parsing, validating and editing the config file: the accounts, the primary and the reserves, and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
-| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the config, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
@@ -641,15 +665,15 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the router's health, the events it emits and the notifications it posts, the control API and its client, and restarting itself |
 | `internal/launch` | `run`'s hand-over to `claude`, finding the real `claude` past switchboard's own link, and how a notice reads on stderr |
-| `internal/setup` | `setup`'s steps, and the `claude` link |
+| `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
 | `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy |
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
 | `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
-| `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]` |
+| `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, and text cut short |
-| `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude` and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
+| `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin directory and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
 Claude-specific knowledge lives in `internal/claude`. The router and `status` depend on small
 interfaces they define themselves (`router.Provider`, `router.Prober`, `status.Prober`), which
@@ -702,8 +726,10 @@ behind the provider would take a wider interface than it's worth:
   go.
 - **Service:** `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`, the LaunchAgent's
   plist, 0644, named after its label.
-- **The `claude` link:** a link named `claude` to switchboard, in a directory ahead of the real
-  `claude` on `PATH`, where `setup` put it or the user did.
+- **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
+  switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
+  `~/.local/share/switchboard/bin`, which `setup` makes, and the user puts on `PATH` ahead of the
+  real `claude`'s directory.
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
 
@@ -834,13 +860,15 @@ Each account:
 
 ### Launching
 
-- **The `claude` link:** a link named `claude` to switchboard sits in a directory ahead of the real
-  `claude` on `PATH`; `setup` puts it there, or the user does. Run by that name, switchboard
-  behaves as `switchboard run --` with every argument passed through, so `claude --help` is Claude
-  Code's. Everything that runs `claude` from `PATH` is routed: shells, tmux panes, scripts, and
-  tools that run `claude -p`. Programs whose `PATH` lacks the link's directory find the real
-  `claude`, and aren't. The ways round it are `switchboard run --direct`, and the real `claude`
-  by its path. A broken switchboard breaks every `claude` until the link is removed. `claude
+- **The `claude` link:** a link named `claude` to switchboard sits in switchboard's bin directory
+  (see Files), which `setup` makes, and the user puts on `PATH` ahead of the real `claude`'s
+  directory, with the line `setup` says to add to the shell's startup file. `status` says when
+  the `claude` a shell runs from `PATH` isn't switchboard. Run by that name, switchboard behaves
+  as `switchboard run --` with every argument passed through, so `claude --help` is Claude Code's.
+  Everything that runs `claude` from `PATH` is routed: shells, tmux panes, scripts, and tools
+  that run `claude -p`. Programs whose `PATH` lacks the link's directory find the real `claude`,
+  and aren't. The ways round it are `switchboard run --direct`, and the real `claude` by its path.
+  A broken switchboard breaks every `claude` until the directory is taken off `PATH`. `claude
   doctor` may report the link as a second installation (unverified).
 - **No shell integration:** switchboard defines no shell function or launcher. Per-account
   launchers are the user's own aliases for `switchboard run --account <id> --`.
@@ -886,8 +914,9 @@ Each account:
   path it was run by, so a Homebrew link stays the link an upgrade moves on, with `serve`, any
   `--config` given, made absolute, and any `--log-level`. It refuses a temporary build, such as
   `go run`'s, judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`,
-  `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're
-  set, so the service finds what the CLI does. It runs switchboard directly: the tokens are
+  `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`, those two made absolute, and
+  `SWITCHBOARD_LOG_LEVEL` when they're set, so the service finds what the CLI does, and brings
+  the skill up to date where `setup` wrote it. It runs switchboard directly: the tokens are
   files, so it needs none of the user's environment. `install` warns when no account has a usable
   token. Whether launchd has the service loaded is `launchctl print`'s to say, which exits 113 for
   one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`, and

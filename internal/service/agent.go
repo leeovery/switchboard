@@ -2,6 +2,8 @@ package service
 
 import (
 	"bytes"
+	"fmt"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -17,14 +19,16 @@ const exitTimeout = router.DrainTimeout + 15*time.Second
 
 // carried are the variables the service is given as they're set where it's
 // installed, so it finds its config and its state where the CLI does, and
-// logs as much as it would.
-var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", configVariable, "SWITCHBOARD_LOG_LEVEL"}
+// Claude Code's config directory, where setup puts the skill, and logs as
+// much as it would.
+var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "SWITCHBOARD_CONFIG", "SWITCHBOARD_LOG_LEVEL", "CLAUDE_CONFIG_DIR"}
 
-// configVariable names the config file, which can be named relative to where
-// the service is installed: it's carried absolute, as launchd runs the router
-// elsewhere. XDG's directories are carried as they stand, as switchboard
-// ignores a relative one, the router and the CLI alike.
-const configVariable = "SWITCHBOARD_CONFIG"
+// madeAbsolute are the variables carried that name a file or a directory,
+// which can be named relative to where the service is installed: they're
+// carried absolute, as launchd runs the router elsewhere. XDG's directories
+// are carried as they stand, as switchboard ignores a relative one, the
+// router and the CLI alike.
+var madeAbsolute = []string{"SWITCHBOARD_CONFIG", "CLAUDE_CONFIG_DIR"}
 
 // agent is the LaunchAgent, as its plist describes it.
 type agent struct {
@@ -55,7 +59,7 @@ func (s *Service) agent(opts InstallOptions) (agent, error) {
 	program := []string{opts.Executable, "serve"}
 	config, err := absolute(opts.Config)
 	if err != nil {
-		return agent{}, err
+		return agent{}, fmt.Errorf("find the config file: %w", err)
 	}
 	if config != "" {
 		program = append(program, "--config", config)
@@ -71,7 +75,7 @@ func (s *Service) agent(opts InstallOptions) (agent, error) {
 }
 
 // environment is the variables carried that are set where the service is
-// installed, the config file's made absolute.
+// installed, those naming a file or a directory made absolute.
 func (s *Service) environment() ([]variable, error) {
 	var environment []variable
 	for _, name := range carried {
@@ -79,10 +83,10 @@ func (s *Service) environment() ([]variable, error) {
 		if value == "" {
 			continue
 		}
-		if name == configVariable {
+		if slices.Contains(madeAbsolute, name) {
 			var err error
 			if value, err = absolute(value); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("find %s: %w", name, err)
 			}
 		}
 		environment = append(environment, variable{Name: name, Value: value})

@@ -31,6 +31,7 @@ func main() {
 		Notifier:      notify.NewDesktop(),
 		Exec:          launch.Exec,
 		Launchctl:     service.Launchctl,
+		Hidden:        cli.HiddenInput,
 		GOOS:          runtime.GOOS,
 		UID:           os.Getuid(),
 	})
