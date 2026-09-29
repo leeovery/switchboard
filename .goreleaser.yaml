@@ -1,0 +1,33 @@
+version: 2
+
+project_name: switchboard
+
+builds:
+  - id: switchboard
+    main: ./cmd/switchboard
+    binary: switchboard
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: switchboard
+    formats:
+      - tar.gz
+    name_template: "switchboard_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+
+changelog:
+  disable: true
+
+release:
+  draft: false
+  mode: keep-existing   # keep mint's release + AI-notes body, just upload the binaries

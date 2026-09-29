@@ -1,0 +1,30 @@
+# .mint.toml — mint configuration. Only keys that differ from mint's compiled
+# defaults are set; everything else rides on the defaults. Full key reference and
+# defaults: run `mint setup`.
+
+# Tracked churn that isn't user-facing release content, kept out of the AI
+# release-notes and commit diffs so they describe the CLI: agent config and
+# contributor rules, the design doc, the test-isolation tooling, CI plumbing,
+# lockfile noise, and test scaffolding. Tests and their golden fixtures are the
+# bulk of any change's diff, enough to crowd the behaviour out of the notes.
+diff_exclude = [
+    '.claude/**',
+    'CLAUDE.md',
+    'docs/**',
+    'scripts/**',
+    '.github/**',
+    'go.sum',
+    '**/*_test.go',
+    '**/testdata/**',
+]
+
+[release.hooks]
+# No CI job runs the tests before a tag (release.yml only builds on the tag
+# push), so gate the release here, in order, after the notes and before the
+# irreversible tag + push. The tests run isolated, as CLAUDE.md requires.
+pre_tag = [
+    'go build ./...',
+    'go vet ./...',
+    'scripts/test-isolated',
+    'golangci-lint run ./...',
+]
