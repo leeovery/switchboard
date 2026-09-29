@@ -258,6 +258,45 @@ func TestDocument(t *testing.T) {
 	}
 }
 
+func TestTheDocumentGivesEachAccountsRefusalWhileItsInForce(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.forbid("work", "opus", http.StatusForbidden)
+	s.refuse("work", http.StatusUnauthorized)
+	s.forbid("side", "opus", http.StatusForbidden)
+	clock.now = start.Add(time.Minute)
+	s.forbid("side", "fable", http.StatusForbidden)
+	refused := func(id string) status.Refusal {
+		account, _ := s.document().Account(id)
+		return account.Refused
+	}
+
+	steps := []struct {
+		after      time.Duration
+		work, side status.Refusal
+	}{
+		{
+			after: time.Minute,
+			work:  status.Refusal{Until: start.Add(refusedFor), Status: http.StatusUnauthorized},
+			side:  status.Refusal{Until: start.Add(time.Minute + refusedFor), Status: http.StatusForbidden, Family: "fable"},
+		},
+		{
+			after: refusedFor,
+			side:  status.Refusal{Until: start.Add(time.Minute + refusedFor), Status: http.StatusForbidden, Family: "fable"},
+		},
+		{after: time.Minute + refusedFor},
+	}
+	for _, step := range steps {
+		clock.now = start.Add(step.after)
+		if got := refused("work"); got != step.work {
+			t.Errorf("%v on, work is refused %+v, want %+v: its token's refusal over its family's", step.after, got, step.work)
+		}
+		if got := refused("side"); got != step.side {
+			t.Errorf("%v on, side is refused %+v, want %+v: the latest in force", step.after, got, step.side)
+		}
+	}
+}
+
 func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 	soonerWeek := week
 	soonerWeek.Utilization, soonerWeek.ResetsAt = 0.5, start.Add(24*time.Hour)

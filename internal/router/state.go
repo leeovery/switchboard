@@ -1,6 +1,7 @@
 package router
 
 import (
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -69,6 +70,12 @@ type refusal struct {
 // inForce reports whether the refusal is in force at now.
 func (r refusal) inForce(now time.Time) bool {
 	return !r.at.IsZero() && now.Sub(r.at) < refusedFor
+}
+
+// report is the refusal as the status document gives it, holding back the
+// requests of family, or every request when that's "".
+func (r refusal) report(family string) status.Refusal {
+	return status.Refusal{Until: r.at.Add(refusedFor), Status: r.status, Family: family}
 }
 
 // limit is a limit an account reached: the windows the upstream named as
@@ -446,7 +453,7 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 }
 
 // status is the account's usage as last read, or why there's none, and the
-// limit that holds on it at now, if one does.
+// limit and the refusal in force on it at now, if any are.
 func (u *usage) status(a account, now time.Time) status.Account {
 	st := status.Account{ID: a.ID, Label: a.Label, TokenSet: a.hasToken}
 	if !a.hasToken {
@@ -460,7 +467,24 @@ func (u *usage) status(a account, now time.Time) status.Account {
 	if u.limited.inForce(now) {
 		st.Limit = status.Limit{Windows: slices.Clone(u.limited.windows), Until: u.limited.until}
 	}
+	st.Refused = u.refusedStatus(now)
 	return st
+}
+
+// refusedStatus is the refusal the status document gives the account at now,
+// zero when none is in force: its token's, which holds back every request,
+// else the latest of those holding back a family's requests alone.
+func (u *usage) refusedStatus(now time.Time) status.Refusal {
+	if u.refused.inForce(now) {
+		return u.refused.report("")
+	}
+	var latest status.Refusal
+	for _, family := range slices.Sorted(maps.Keys(u.forbidden)) {
+		if r := u.forbidden[family]; r.inForce(now) && r.at.Add(refusedFor).After(latest.Until) {
+			latest = r.report(family)
+		}
+	}
+	return latest
 }
 
 // latest returns the latest reading of each window, in quota.Sort's order, or

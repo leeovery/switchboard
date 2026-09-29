@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // sessionSpent is a session window at its limit, as a 429 reports it.
@@ -185,6 +186,13 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 	if got := r.api.accounts(); !slices.Equal(got, []string{"work", "side"}) {
 		t.Errorf("the request went out on %q, want work, then side", got)
 	}
+	doc := r.rt.Status()
+	if work, _ := doc.Account("work"); work.Refused != (status.Refusal{Until: now.Add(10 * time.Minute), Status: http.StatusUnauthorized}) {
+		t.Errorf("the document gives work's refusal as %+v, want its token's, for ten minutes", work.Refused)
+	}
+	if doc.Best != "side" {
+		t.Errorf("the best account is %q, want side: work's token was refused", doc.Best)
+	}
 	r.clock.advance(10*time.Minute - time.Second)
 	for _, model := range []string{opus, haiku} {
 		if got := r.ask(t, "two", model, ""); got != "side" {
@@ -223,6 +231,13 @@ func TestAnAccountThatRefusesARequestIsSkippedForItsModelsFamilyAlone(t *testing
 
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the Opus request went to %s last, want side, work having refused it", got)
+	}
+	doc := r.rt.Status()
+	if work, _ := doc.Account("work"); work.Refused != (status.Refusal{Until: now.Add(10 * time.Minute), Status: http.StatusForbidden, Family: "opus"}) {
+		t.Errorf("the document gives work's refusal as %+v, want Opus's, for ten minutes", work.Refused)
+	}
+	if doc.Best != "work" {
+		t.Errorf("the best account is %q, want work: it refused Opus alone", doc.Best)
 	}
 	if got := r.ask(t, "two", opus, ""); got != "side" {
 		t.Errorf("a new Opus session went to %s, want side: work refused Opus", got)
