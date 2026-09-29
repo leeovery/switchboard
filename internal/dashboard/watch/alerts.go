@@ -5,14 +5,12 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
-
-// alertFrom is how much of a window is used when reaching it is announced.
-const alertFrom = 0.9
 
 // reading is an account as it was last read, and when.
 type reading struct {
@@ -25,21 +23,22 @@ type reading struct {
 // that couldn't be read for a while is compared with how it last stood.
 type readings map[string]reading
 
-// alerts are the notifications doc, read at now, calls for: each account that
-// had no room under the windows every model shares and now has some, and each
-// window that has reached 90% from below. An account is only compared with an
-// earlier reading, so the first document calls for none.
-func (r readings) alerts(doc status.Document, now time.Time, policy score.Policy) []notify.Notice {
+// alerts are the notifications doc, read at now, calls for, of those settings
+// asks for: each account that had no room under the windows every model
+// shares and now has some, and each window that has passed the warning. An
+// account is only compared with an earlier reading, so the first document
+// calls for none.
+func (r readings) alerts(doc status.Document, now time.Time, policy score.Policy, settings config.Notifications) []notify.Notice {
 	var alerts []notify.Notice
 	for _, a := range doc.Accounts {
 		last, ok := r[a.ID]
 		if !ok || !wasRead(a) {
 			continue
 		}
-		if roomAgain(last, reading{account: a, at: now}, policy) {
+		if settings.Room && roomAgain(last, reading{account: a, at: now}, policy) {
 			alerts = append(alerts, notify.RoomAgain(a))
 		}
-		for _, w := range crossed(last.account.Windows, a.Windows) {
+		for _, w := range passed(last.account.Windows, a.Windows, settings.Warning) {
 			alerts = append(alerts, notify.Warning(a, w))
 		}
 	}
@@ -74,13 +73,12 @@ func roomAgain(last, this reading, policy score.Policy) bool {
 		score.Available(this.account.Windows, policy.IsShared, this.at)
 }
 
-// crossed lists the windows in after that have reached alertFrom and were
-// below it in before.
-func crossed(before, after []quota.Window) []quota.Window {
+// passed lists the windows in after that have passed warning since before.
+func passed(before, after []quota.Window, warning float64) []quota.Window {
 	var up []quota.Window
 	for _, w := range after {
 		i := slices.IndexFunc(before, func(b quota.Window) bool { return b.Key == w.Key })
-		if i >= 0 && before[i].Utilization < alertFrom && w.Utilization >= alertFrom {
+		if i >= 0 && notify.Passed(before[i].Utilization, w.Utilization, warning) {
 			up = append(up, w)
 		}
 	}

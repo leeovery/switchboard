@@ -2,8 +2,9 @@
 // reads the router's status document every few seconds, and takes keys that
 // tell the router where to send sessions, leaving desktop notifications to the
 // router. While it doesn't, it probes every account as each read falls due,
-// and posts its own notification when an account has room again or a window
-// passes 90%. It redraws as the clock moves, and eases each bar to its new
+// and posts its own notifications, as the config asks, when an account has
+// room again or a window passes the warning. It redraws as the clock moves,
+// and eases each bar to its new
 // reading. Beyond its log, the model does no I/O of its own: it's handed its
 // source, its clock and its notifier, so tests drive it as a terminal would.
 package watch
@@ -18,6 +19,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
@@ -71,6 +73,10 @@ type Notifier interface {
 type Config struct {
 	Source   Source
 	Notifier Notifier
+	// Notifications says which notifications the dashboard posts while it
+	// probes: room again, and a window passing the warning. The others are
+	// the router's alone, as only it sees limits reached and sessions moved.
+	Notifications config.Notifications
 	// Now reads the wall clock.
 	Now func() time.Time
 	// Interval is the longest the dashboard goes between full reads: ones
@@ -300,7 +306,7 @@ func logRead(msg fetchedMsg, next time.Time) {
 func (m Model) show(doc status.Document, now time.Time) (Model, tea.Cmd) {
 	var post tea.Cmd
 	if !routed(doc) {
-		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy))
+		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications))
 	}
 	m.readings = m.readings.with(doc, now)
 	m = m.follow(doc, now)

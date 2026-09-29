@@ -41,7 +41,7 @@ type usageOptions struct {
 func newUsageCommand(a *app) *cobra.Command {
 	var opts usageOptions
 	cmd := &cobra.Command{
-		Use:   "usage [--watch [interval]] [--probe]",
+		Use:   "usage [--watch [interval]] [--no-notify] [--probe]",
 		Short: "Show every account's usage as a dashboard",
 		Long: `Show every account's usage as a dashboard: the router's, while it runs, with
 its sessions and pin, else read by probing each account, as --probe does
@@ -57,8 +57,9 @@ account that couldn't be read, and reads the router again once it's back.
 Keys: r refresh, q quit. While it reads the router, 1-9 pin new sessions to
 the account in that place, a routes every session automatically again, and m
 moves running sessions to the pinned account. The router posts the desktop
-notifications then; without it, the dashboard posts its own, unless
---no-notify.`,
+notifications then; without it, the dashboard posts its own of an account
+with room again and a window passing the warning, as the config's
+[notifications] asks, unless --no-notify.`,
 		Args: opts.parseArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if opts.watch {
@@ -125,7 +126,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, probe bool) error {
 // watchUsage keeps the dashboard on screen, reading usage as each read falls
 // due, until the user quits.
 func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	source, err := a.source(opts.probe)
+	cfg, err := a.loadConfig()
 	if err != nil {
 		return err
 	}
@@ -133,8 +134,15 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if opts.noNotify {
 		notifier = notify.Off{}
 	}
-	cfg := watch.Config{Source: source, Notifier: notifier, Now: a.Now, Interval: opts.interval, Policy: policy, Size: a.environSize()}
-	err = a.Watch(ctx, cfg, out, a.Environ())
+	err = a.Watch(ctx, watch.Config{
+		Source:        a.source(cfg, opts.probe),
+		Notifier:      notifier,
+		Notifications: cfg.Notifications,
+		Now:           a.Now,
+		Interval:      opts.interval,
+		Policy:        policy,
+		Size:          a.environSize(),
+	}, out, a.Environ())
 	if errors.Is(err, watch.ErrNotTerminal) {
 		return errors.New("--watch needs a terminal, and stdout isn't one")
 	}

@@ -83,19 +83,13 @@ func (l *lookout) passed(s standing) []quota.Window {
 		id := windowOf{account: s.ID, key: w.Key}
 		before, seen := l.levels[id]
 		l.levels[id] = w.Utilization
-		if !seen || !l.crosses(before, w.Utilization) || l.warnedIn(id, w) {
+		if !seen || !notify.Passed(before, w.Utilization, l.warning) || l.warnedIn(id, w) {
 			continue
 		}
 		l.warned[id] = w.ResetsAt
 		passed = append(passed, w)
 	}
 	return passed
-}
-
-// crosses reports whether a window used as far as before, and now after, has
-// passed the warning.
-func (l *lookout) crosses(before, after float64) bool {
-	return l.warning > 0 && before < l.warning && after >= l.warning
 }
 
 // warnedIn reports whether the window id names was warned of before its reset

@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -24,6 +25,9 @@ var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}
 
 // interval is how often the tests' model reads when nothing brings a read on.
 const interval = 30 * time.Minute
+
+// notifications are those the config asks for when it doesn't say.
+var notifications = config.Notifications{Limits: true, Room: true, Warning: 0.9}
 
 const day = 24 * time.Hour
 
@@ -61,7 +65,9 @@ func newHarness(t *testing.T, doc status.Document) *harness {
 func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
-	h.model = New(t.Context(), Config{Source: h.source, Notifier: h.notifier, Now: h.clock.Now, Interval: interval, Policy: policy, Size: size})
+	h.model = New(t.Context(), Config{
+		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, Interval: interval, Policy: policy, Size: size,
+	})
 	h.model.after = h.arm
 	return h
 }
