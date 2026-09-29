@@ -110,6 +110,23 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	}
 }
 
+func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
+	local := start.In(time.FixedZone("UTC+1", 60*60))
+	path := filepath.Join(t.TempDir(), "state.json")
+	writeState(t, path, savedState{Version: stateVersion, Sessions: []savedAssignment{
+		{Session: "saved", Model: opus, Account: "work", Reason: reasonNew, AssignedAt: local, LastSeen: local},
+	}})
+	s := newSessions(at(local))
+
+	s.load(path, anyAccount)
+	s.remember(key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
+	for _, id := range []string{"saved", "new"} {
+		if got := s.of(id); len(got) != 1 || got[0].AssignedAt != start || got[0].LastSeen != start {
+			t.Errorf("session %s is assigned %+v, want its times in UTC", id, got)
+		}
+	}
+}
+
 func TestLoadingSetsACorruptStateFileAside(t *testing.T) {
 	tests := []struct {
 		name      string

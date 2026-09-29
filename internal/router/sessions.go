@@ -54,6 +54,12 @@ func (a assignment) forgotten(now time.Time) bool {
 	return now.Sub(a.LastSeen) >= forgetAfter
 }
 
+// inUTC is the assignment with its times in UTC.
+func (a assignment) inUTC() assignment {
+	a.AssignedAt, a.LastSeen = a.AssignedAt.UTC(), a.LastSeen.UTC()
+	return a
+}
+
 // export is the assignment as the control API gives it, for model.
 func (a assignment) export(model string) Assignment {
 	return Assignment{
@@ -110,7 +116,7 @@ func (s *sessions) remember(k key, pin string, d decision, now time.Time) string
 		a.Reason = d.reason
 	}
 	a.Pin, a.LastSeen = pin, now
-	s.assignments[k] = a
+	s.assignments[k] = a.inUTC()
 	s.change()
 	return before
 }
@@ -222,7 +228,7 @@ func (s *sessions) load(path string, sendable func(id string) bool) {
 			dropped = true
 			continue
 		}
-		s.assignments[key{session: a.Session, model: a.Model}] = a.assignment
+		s.assignments[key{session: a.Session, model: a.Model}] = a.inUTC()
 	}
 	switch pin := saved.Pin; {
 	case pin.Account == "":
