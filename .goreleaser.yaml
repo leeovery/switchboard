@@ -9,8 +9,7 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      - darwin
-      - linux
+      - darwin   # switchboard is macOS only: its service is a LaunchAgent
     goarch:
       - amd64
       - arm64

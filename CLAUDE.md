@@ -47,15 +47,17 @@ No test touches the real network, environment, home directory, config, state, bi
 notifications. Ever.
 
 - **Inject** what a test needs: fake upstreams with `net/http/httptest`, and runners, clocks,
-  probers, a `getenv`, a home directory and a state directory, with its token files, of its own.
-  Write files under `t.TempDir()` or `os.MkdirTemp`; set variables with `t.Setenv`.
+  probers, a `getenv`, a home directory, a state directory with its token files, switchboard's
+  bin directory, Claude Code's config directory and a `PATH`, of its own. Write files under
+  `t.TempDir()` or `os.MkdirTemp`; set variables with `t.Setenv`.
 - **Every package with tests** runs them through `internal/testguard`, in a `TestMain` of that one
   statement: `func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }`. Before the tests, it:
   - points `HOME` and XDG's directories into a throwaway root;
   - clears the `SWITCHBOARD_`, `CLAUDE_` and `ANTHROPIC_` variables, tmux's and proxies';
   - puts only stubs of `claude`, `osascript`, `launchctl`, `tmux` and `open` on `PATH`;
   - lets `http.DefaultTransport`, and transports cloned from it, dial loopback, and unix
-    sockets in the temporary directory, alone.
+    sockets in the temporary directory, alone: never a live router's, in the real state
+    directory.
 - **testguard fails the run, even when every test passed,** when:
   - a stub ran, or a dial was blocked;
   - the real switchboard config changed, or its state directory appeared: in the home, or where
@@ -67,8 +69,8 @@ notifications. Ever.
   - switchboard's real bin directory, which holds its `claude` link, appeared or changed: in
     `~/.local/share/switchboard/bin`, or where `XDG_DATA_HOME` put it as the run began, links
     resolved;
-  - a `claude` link appeared or changed in a directory on the real `PATH` as the run began,
-    links resolved.
+  - anything named `claude`, a link or not, appeared or changed in a directory on the real
+    `PATH` as the run began, links resolved.
 - **testguard's own tests fail**, reading the module's source:
   - a package with tests but without that `TestMain`, or with anything else in it;
   - a change to the environment anywhere but `testguard`;
@@ -81,7 +83,7 @@ notifications. Ever.
 - **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS
   sandbox (`scripts/isolation.sb`) that denies:
   - the network beyond loopback;
-  - unix sockets outside the temporary directory;
+  - unix sockets outside the temporary directory, and in the real state directory;
   - the router's port, 4747, either way;
   - writes into the home directory, but Go's caches, and into the real config, state and bin
     directory, and Claude Code's config directory, wherever the environment puts them;
