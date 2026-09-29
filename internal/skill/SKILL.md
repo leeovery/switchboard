@@ -3,8 +3,8 @@ name: switchboard
 description: Switchboard spreads Claude Code sessions across several Claude subscriptions. Use when the user asks which Claude account a session is on, about usage or limits across their accounts, about pinning or moving sessions between accounts, or about switchboard itself.
 ---
 
-<!-- switchboard writes this file, and overwrites edits to it. -->
-<!-- switchboard skill version: 1 -->
+<!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
+<!-- switchboard skill version: 2 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
