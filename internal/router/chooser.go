@@ -24,6 +24,10 @@ type Request struct {
 	Session string
 	// Model is the model the request asks for, or "" when it doesn't say.
 	Model string
+	// Bound is set when the model's thinking is bound to the account that
+	// produced it: moving the session loses its reasoning, so it stays on its
+	// account, cache cold or not, while the account can serve it.
+	Bound bool
 	// Pin is the account the request is pinned to, or "" when it isn't. It's
 	// only ever an account with a token.
 	Pin string

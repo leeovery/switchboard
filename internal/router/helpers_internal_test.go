@@ -20,10 +20,12 @@ const (
 )
 
 // The models requests ask for in tests, one of each family that matters.
+// Sonnet's thinking is bound to the account that produced it.
 const (
-	opus  = "claude-opus-5-5"
-	haiku = "claude-haiku-4-5-20251001"
-	fable = "claude-fable-5-1"
+	opus   = "claude-opus-5-5"
+	haiku  = "claude-haiku-4-5-20251001"
+	fable  = "claude-fable-5-1"
+	sonnet = "claude-sonnet-5-5"
 )
 
 // start is the time by the clock in tests: a Monday, 13:12 UTC.
@@ -36,8 +38,9 @@ var (
 )
 
 // testPolicy scores as Claude's policy does: the session and the week apply
-// to every model, and the week is perishable.
-var testPolicy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}
+// to every model, the week is perishable, and the session's reset decides
+// between accounts scoring near enough equal.
+var testPolicy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h"}
 
 // testConfigured are three accounts: work and side, whose tokens testTokens
 // has, and personal, whose it hasn't.

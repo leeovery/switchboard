@@ -16,6 +16,7 @@ const (
 	reasonPinned      = "pinned"
 	reasonMovedByPin  = "moved by pin"
 	reasonSticky      = "sticky"
+	reasonBound       = "bound"
 	reasonGlobalPin   = "pinned (global)"
 	reasonNew         = "new"
 	reasonUnsessioned = "unsessioned"
@@ -61,10 +62,12 @@ type decision struct {
 // ending at an account's reserve but where a pin spends it:
 //
 //  1. The session's own pin, while its account has room. A session that
-//     yielded its pin at a limit stays where it went while its cache is warm.
+//     yielded its pin at a limit stays where it went while step 3 would keep
+//     it there.
 //  2. The global pin's account, for a session assigned before a pin that
 //     moves running sessions: once each, while the account has room.
-//  3. The session's account, while its cache is warm and it has room.
+//  3. The session's account, while it has room and its cache there is warm,
+//     or its model's thinking is bound to it, which a move would lose.
 //  4. Afresh: the global pin's account while it has room, else the account
 //     whose quota most needs using, keeping a session that has idled on its
 //     own account unless another is well ahead.
@@ -102,7 +105,7 @@ func (s situation) unpinned() decision {
 
 // yielded reports whether the session left the account its own pin names,
 // having found it without room, and can stay where it went: bringing it back
-// would cost a cache rebuild for nothing.
+// would cost a cache rebuild for nothing, or its reasoning.
 func (s situation) yielded() bool {
 	return s.current.Pin == s.req.Pin && s.current.Account != s.req.Pin && s.keepable()
 }
@@ -114,18 +117,32 @@ func (s situation) moving() bool {
 		s.current.Account != s.pin.Account && s.accounts.room(s.pin.Account)
 }
 
-// keepable reports whether the session can stay on its account: its cache
-// there is warm, and there's room.
+// keepable reports whether the session can stay on its account: there's room,
+// and a move would cost the session something.
 func (s situation) keepable() bool {
-	return s.assigned && s.current.warm(s.now) && s.accounts.room(s.current.Account)
+	return s.assigned && !s.movesFree() && s.accounts.room(s.current.Account)
 }
 
+// movesFree reports whether the session can move at no cost: its cache has
+// gone cold, and a move loses none of its reasoning, as its model's thinking
+// isn't bound to its account.
+func (s situation) movesFree() bool {
+	return !s.current.warm(s.now) && !s.req.Bound
+}
+
+// keep keeps the session on its account: sticky while its cache there is
+// warm, and bound once it's cold, kept only for its model's thinking, which
+// is bound to the account.
 func (s situation) keep() decision {
-	return decision{account: s.current.Account, reason: reasonSticky, sticky: true}
+	reason := reasonSticky
+	if !s.current.warm(s.now) {
+		reason = reasonBound
+	}
+	return decision{account: s.current.Account, reason: reason, sticky: true}
 }
 
-// afresh chooses the account of a new session, of one idle past its cache's
-// life, or of one whose account has no room.
+// afresh chooses the account of a new session, of one that can move at no
+// cost, or of one whose account has no room.
 func (s situation) afresh() decision {
 	if s.pin.Account != "" && s.accounts.room(s.pin.Account) {
 		return decision{account: s.pin.Account, reason: reasonGlobalPin, afresh: true}
@@ -146,7 +163,7 @@ func (s situation) why() (reason, preferred string) {
 		return reasonUnsessioned, ""
 	case !s.assigned:
 		return reasonNew, ""
-	case !s.current.warm(s.now):
+	case s.movesFree():
 		return "rescored after " + status.Countdown(s.current.LastSeen, s.now) + " idle", s.current.Account
 	default:
 		return "moved: " + s.current.Account + " " + s.unable(s.current.Account), ""

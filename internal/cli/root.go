@@ -70,7 +70,7 @@ type Notifier interface {
 }
 
 // policy is Claude's say in scoring accounts.
-var policy = score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow}
+var policy = score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow, Tiebreak: claude.TiebreakWindow}
 
 // roleAnnotation is the annotation a command logs its role under, when it
 // isn't the CLI: serve runs as the router.

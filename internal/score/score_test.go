@@ -13,7 +13,7 @@ import (
 // now is the time by the clock in every test: a Monday, 13:12 UTC.
 var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h"}
 
 func TestPolicyIsShared(t *testing.T) {
 	tests := []struct {
@@ -379,12 +379,13 @@ func TestPick(t *testing.T) {
 			want:       "b", wantOK: true,
 		},
 		{
-			name: "a session that has reset since it was read is empty in a tie",
+			name: "a shortest window that has reset since it was read is empty in a tie",
 			candidates: []score.Candidate{
-				account("a", 0.2, 0.5, 48*time.Hour),
-				{ID: "b", Windows: []quota.Window{refused(window("5h", 1, -time.Minute)), window("7d", 0.5, 48*time.Hour)}},
+				account("a", 0.2, 0.5, 48*time.Hour, window("1h", 0.2, 30*time.Minute)),
+				account("b", 0.2, 0.5, 48*time.Hour, refused(window("1h", 1, -time.Minute))),
 			},
-			want: "b", wantOK: true,
+			applies: allApply,
+			want:    "b", wantOK: true,
 		},
 		{
 			name: "a tie is broken on the shortest window that applies",
@@ -516,6 +517,114 @@ func TestPick(t *testing.T) {
 			got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now)
 			if got != tt.want || ok != tt.wantOK {
 				t.Errorf("Pick() = %q, %v, want %q, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestPickBetweenNearEquals(t *testing.T) {
+	// Each candidate's week is used as given and resets in 50 hours, so half
+	// used scores 0.01 an hour. Soon's session resets in an hour, later's in
+	// four; unknown's reset isn't known, and lapsed's passed unread.
+	candidate := func(id string, fiveHour quota.Window, week float64) score.Candidate {
+		return score.Candidate{ID: id, Windows: []quota.Window{fiveHour, window("7d", week, 50*time.Hour)}}
+	}
+	soon := func(id string, week float64) score.Candidate {
+		return candidate(id, window("5h", 0.1, time.Hour), week)
+	}
+	later := func(id string, week float64) score.Candidate {
+		return candidate(id, window("5h", 0.1, 4*time.Hour), week)
+	}
+	var (
+		unknown = quota.Window{Key: "5h", Utilization: 0.1}
+		lapsed  = window("5h", 0.6, -10*time.Minute)
+	)
+	tests := []struct {
+		name       string
+		candidates []score.Candidate
+		// applies is policy.IsShared when nil.
+		applies   func(string) bool
+		preferred string
+		want      string
+	}{
+		{
+			name:       "of two scoring alike, the one whose session resets soonest",
+			candidates: []score.Candidate{later("a", 0.5), soon("b", 0.5)},
+			want:       "b",
+		},
+		{
+			name:       "the one whose session resets soonest, against one scoring 19% higher",
+			candidates: []score.Candidate{later("a", 0.405), soon("b", 0.5)},
+			want:       "b",
+		},
+		{
+			name:       "one scoring 20% higher, whatever the resets",
+			candidates: []score.Candidate{later("a", 0.4), soon("b", 0.5)},
+			want:       "a",
+		},
+		{
+			name:       "one scoring 21% higher, whatever the resets",
+			candidates: []score.Candidate{later("a", 0.395), soon("b", 0.5)},
+			want:       "a",
+		},
+		{
+			name:       "a session whose reset is known, ahead of one whose isn't",
+			candidates: []score.Candidate{candidate("a", unknown, 0.5), later("b", 0.55)},
+			want:       "b",
+		},
+		{
+			name:       "a session whose reset is to come, ahead of one that has lapsed",
+			candidates: []score.Candidate{candidate("a", lapsed, 0.5), later("b", 0.55)},
+			want:       "b",
+		},
+		{
+			name:       "a session read, ahead of none",
+			candidates: []score.Candidate{{ID: "a", Windows: []quota.Window{window("7d", 0.5, 50*time.Hour)}}, later("b", 0.55)},
+			want:       "b",
+		},
+		{
+			name:       "of sessions resetting together, the higher score",
+			candidates: []score.Candidate{later("a", 0.55), later("b", 0.5)},
+			want:       "b",
+		},
+		{
+			name:       "of sessions not known to be running, the higher score",
+			candidates: []score.Candidate{candidate("a", lapsed, 0.55), candidate("b", unknown, 0.5)},
+			want:       "b",
+		},
+		{
+			name:       "the higher score, when the session doesn't count the request",
+			candidates: []score.Candidate{later("a", 0.5), soon("b", 0.55)},
+			applies:    func(key string) bool { return key != "5h" },
+			want:       "a",
+		},
+		{
+			name:       "the preferred account, kept against one resetting sooner",
+			candidates: []score.Candidate{later("a", 0.5), soon("b", 0.405)},
+			preferred:  "a",
+			want:       "a",
+		},
+		{
+			name:       "the preferred account, left once the best is 20% ahead, for the one near the best resetting soonest",
+			candidates: []score.Candidate{later("a", 0.6), later("b", 0.5), soon("c", 0.55)},
+			preferred:  "a",
+			want:       "c",
+		},
+		{
+			name:       "accounts scoring nothing, near enough equal",
+			candidates: []score.Candidate{later("a", 1), soon("b", 1)},
+			applies:    func(key string) bool { return key != "7d" },
+			want:       "b",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			applies := tt.applies
+			if applies == nil {
+				applies = policy.IsShared
+			}
+			if got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now); got != tt.want || !ok {
+				t.Errorf("Pick() = %q, %v, want %q, true", got, ok, tt.want)
 			}
 		})
 	}

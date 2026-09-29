@@ -17,11 +17,12 @@ const (
 )
 
 // scheduler is the router's Chooser. It keeps each session's requests of a
-// model on one account, so their prompt cache stays warm, choosing afresh
-// only for a new session, one idle past its cache's life, or one whose
-// account has no room: then it chooses the account whose quota would be lost
-// soonest unused, having probed the accounts whose usage is stale. See decide
-// for the whole order.
+// model on one account, so their prompt cache stays warm, and their reasoning
+// with them where the model's thinking is bound to the account, choosing
+// afresh only for a new session, one idle past its cache's life whose
+// model's thinking isn't bound, or one whose account has no room: then it
+// chooses the account whose quota would be lost soonest unused, having probed
+// the accounts whose usage is stale. See decide for the whole order.
 type scheduler struct {
 	// accounts are those requests can go out on.
 	accounts accounts

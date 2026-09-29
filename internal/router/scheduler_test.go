@@ -17,6 +17,8 @@ import (
 const (
 	haiku = "claude-haiku-4-5-20251001"
 	fable = "claude-fable-5-1"
+	// sonnet's thinking is bound to the account that produced it.
+	sonnet = "claude-sonnet-5-5"
 )
 
 func TestNewSessionsLandByPerishability(t *testing.T) {
@@ -84,6 +86,46 @@ func TestASessionIdlePastTheHourIsRescored(t *testing.T) {
 	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "rescored after 1h 1m idle"}}
 	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v: work could still take the request", got, want)
+	}
+}
+
+func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t)
+	// Side's week is all but spent, so the session's requests of both models
+	// go to work.
+	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
+	for _, model := range []string{sonnet, opus} {
+		if got := r.ask(t, "one", model, ""); got != "work" {
+			t.Fatalf("the session's first %s request went to %s, want work", model, got)
+		}
+	}
+	// While the session idles, side's week starts afresh, which probes read.
+	r.readsAs(sideToken, session, weekOf(0, 7*24*time.Hour))
+	r.clock.advance(2 * time.Hour)
+
+	if got := r.ask(t, "one", sonnet, ""); got != "work" {
+		t.Errorf("two hours idle, the session's Sonnet request went to %s, want work, which its thinking is bound to", got)
+	}
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Errorf("two hours idle, the session's Opus request went to %s, want side, whose quota needs using first", got)
+	}
+	r.api.script(workToken, limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 5*24*time.Hour)))
+	if got := r.ask(t, "one", sonnet, ""); got != "side" {
+		t.Errorf("at work's limit, the session's Sonnet request went to %s, want side", got)
+	}
+
+	waitForLine(t, log, "msg=routed", "session=one", "model="+sonnet, "account=work", "reason=bound")
+	waitForLine(t, log, "msg=routed", "session=one", "model="+opus, "account=side", `reason="rescored after 2h idle"`)
+	waitForLine(t, log, "msg=routed", "session=one", "model="+sonnet, "account=side", `reason="moved: work hit its limit"`, "attempts=2")
+	want := []router.Event{
+		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "rescored after 2h idle"},
+		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt},
+		router.Moved{Session: "one", Model: sonnet, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true},
+	}
+	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events = %+v, want %+v", got, want)
 	}
 }
 

@@ -109,7 +109,10 @@ on a model whose thinking is bound to its account only when its account can't se
    empty account scores low whatever its reset. Among candidates scoring within 20% of the
    highest, the one whose 5-hour window resets soonest wins: whatever is left in a window at its
    reset is lost, and with the windows staggered (see Priming), the accounts' resets are spread
-   through the day.
+   through the day. One whose 5-hour window has lapsed, its reset passed with nothing read since,
+   or whose reset isn't known, comes after those whose reset is to come. Between equal resets, or
+   two of those, the higher score wins, then the account that has used less of its 5-hour window,
+   then the first configured.
 3. **New session:** the best candidate is assigned and remembered, keyed on the session id Claude
    Code sends (`x-claude-code-session-id`) and the model. Caches are per model anyway, so a
    session's Haiku calls can sit on a different account from its Opus calls at no cache cost.
@@ -117,9 +120,10 @@ on a model whose thinking is bound to its account only when its account can't se
 4. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
-     account, which another must beat by 20%, so near-equal accounts don't trade places. A session
-     on a model whose thinking is bound to its account (Claude Sonnet 5.5 today; `internal/claude`
-     keeps the list) isn't re-scored for idling, as a move would lose its reasoning; or
+     account, which another must beat by 20%, so near-equal accounts don't trade places; once one
+     does, the choice is made as for a new session. A session on a model whose thinking is bound
+     to its account (Claude Sonnet 5.5 today; `internal/claude` keeps the list) isn't re-scored
+     for idling, as a move would lose its reasoning; or
    - its account can't serve the request. An account nothing has been read of counts as able, so
      neither a session nor a pin moves on no evidence.
 5. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
@@ -177,7 +181,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `pinned (global)` | The global pin's account, chosen afresh (step 4) |
 | `new` | A new session's first account |
 | `unsessioned` | A request without a session id |
-| `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh |
+| `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh, its model's thinking not bound to its account |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
@@ -196,6 +200,10 @@ The routed line in the log gives the reason for each request's account, one of:
 | `pin auto --force` | Back to routing, every session's own pin cleared too | As `pin auto` |
 | `pin <id> --session <session>` | That one session, its own pin from now on, replacing any it had | Moves on its next request |
 | `pin auto --session <session>` | That one session's own pin cleared | Routed like any other from its next request |
+
+Where the table has a running session stay while its cache is warm, one on a model whose thinking
+is bound to its account stays while the account has room, however long it idles: see Choosing an
+account.
 
 A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
 header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
@@ -536,8 +544,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   becomes `claude`, by `exec`, before it would log its exit: its last record is the launch.
 - **The router's own events:** at `info`, each prime, with the reset it read; an account held back
   by its reserve, and let go at its reset; a token file read again after a 401, and whether it held
-  a different token; a config change applied; and a restart for a config change or an upgrade. A
-  config change refused, as invalid, is logged at `warn`.
+  a different token; a token replaced while the router was away, which it finds as it starts; a
+  config change applied; and a restart for a config change or an upgrade. A config change
+  refused, as invalid, is logged at `warn`.
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -750,7 +759,8 @@ fails as it is; one that parses has every problem reported at once:
   to the model families it has been seen on (responses and probes reveal this), and to every model
   until it has been seen. A family is read from the model id: haiku, sonnet, opus or fable.
 - Whether a model's thinking is bound to the account that produced it is read from the model id
-  too, against the list in `internal/claude`: Claude Sonnet 5.5 today.
+  too, against the list in `internal/claude`: an id starting `claude-sonnet-5-5`, Claude Sonnet
+  5.5's, today.
 
 ### Control API
 
@@ -781,7 +791,7 @@ probing.
 | `generated_at` | When the document was built |
 | `source` | `"router"`, or `"probe"` when built by probing every account |
 | `fallback` | Why a probed document isn't the router's, when the router was asked first: `{router: "not running"}`, or `{router: "unhealthy", reason}`. Left out otherwise, and when probing was asked for |
-| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known. Left out when none qualifies, as when none has room, or none has been read yet |
+| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
 | `prime` | The priming schedule, when the config sets a day: `{day, slots}`, `slots` giving each account's daily prime, `{account, at}`, `at` a local `HH:MM`, in the order they fall. Left out otherwise |
 | `pin` | *router* The global pin, `{account, since, move}`; left out when there's none |

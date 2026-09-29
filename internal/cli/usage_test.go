@@ -185,7 +185,7 @@ func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
 	if got := cfg.Now(); !got.Equal(testNow) {
 		t.Errorf("clock reads %v, want the command's clock at %v", got, testNow)
 	}
-	if want := (score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}); !reflect.DeepEqual(cfg.Policy, want) {
+	if want := (score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h"}); !reflect.DeepEqual(cfg.Policy, want) {
 		t.Errorf("policy = %+v, want Claude's %+v", cfg.Policy, want)
 	}
 }

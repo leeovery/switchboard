@@ -39,6 +39,10 @@ type Provider interface {
 	// Family returns the family a model belongs to. A window reported on a
 	// response to one of a family's models counts all of theirs.
 	Family(model string) string
+	// ThinkingBound reports whether the thinking a model produces is bound to
+	// the account that produced it, so a session on the model moved to
+	// another account carries on without its earlier reasoning.
+	ThinkingBound(model string) bool
 	// Usage reads the usage windows a response's headers report.
 	Usage(h http.Header) []quota.Window
 	// Classify says what a response, by its status and headers, says of the

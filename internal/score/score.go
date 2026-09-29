@@ -19,13 +19,17 @@ const (
 	// minUntilReset floors the time left before a reset, so a reset minutes
 	// away doesn't dominate the score.
 	minUntilReset = time.Hour
-	// hysteresis is the margin by which another account's score must beat the
-	// preferred account's before Pick moves off it, so near-equal accounts
-	// don't trade places.
+	// hysteresis is the margin by which one score must beat another before
+	// Pick counts it ahead: short of it, the two are near enough equal that
+	// the preferred account stays, or the tiebreak window decides, so
+	// near-equal accounts don't trade places.
 	hysteresis = 0.2
 	// tolerance is how close two scores, or two shares of a window, must be
 	// to count as equal: far below any real difference, far above rounding.
 	tolerance = 1e-9
+	// endless is how long until a reset nothing says is coming: longer than
+	// until any that is.
+	endless = time.Duration(math.MaxInt64)
 )
 
 // Policy is a provider's say in scoring, naming its windows by key.
@@ -34,6 +38,9 @@ type Policy struct {
 	Shared []string
 	// Perishable is the window perishability is measured on.
 	Perishable string
+	// Tiebreak is the window whose reset decides between accounts scoring
+	// near enough equal: what's left of it at its reset is lost.
+	Tiebreak string
 }
 
 // IsShared reports whether the window named key applies to every model.
@@ -102,11 +109,10 @@ func LetGo(windows []quota.Window, reserve float64, applies func(key string) boo
 // unused, a whole window's length from resetting again. It reports false when
 // the window is missing, or its length or reset isn't known.
 func (p Policy) Perishability(windows []quota.Window, reserve float64, now time.Time) (float64, bool) {
-	i := slices.IndexFunc(windows, func(w quota.Window) bool { return w.Key == p.Perishable })
-	if i < 0 {
+	w, ok := find(windows, p.Perishable)
+	if !ok {
 		return 0, false
 	}
-	w := windows[i]
 	_, length, ok := span(w)
 	if !ok {
 		return 0, false
@@ -121,28 +127,35 @@ func (p Policy) Perishability(windows []quota.Window, reserve float64, now time.
 
 // Pick chooses the account whose quota most needs using: of the candidates
 // that are available within their reserves, as applies judges which windows
-// count, the one with the highest perishability. Equal scores go to the
-// account using less of its shortest window that applies, then to the first
-// given. While preferred qualifies, Pick keeps it unless another account
-// scores at least 20% higher. It reports false when no candidate qualifies.
+// count, the one with the highest perishability. Scores within 20% of the
+// highest are near enough equal that the tiebreak window decides between
+// them: the account whose tiebreak window resets soonest wins, as what's left
+// of it then is lost, ahead of any whose reset isn't known or has passed,
+// which rank alike. Equal resets go to the higher score, then to the account
+// using less of its shortest window that applies, then to the first given.
+// While preferred qualifies, Pick keeps it unless another account scores at
+// least 20% higher. It reports false when no candidate qualifies.
 func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, preferred string, now time.Time) (string, bool) {
 	ratings := p.qualifying(candidates, applies, now)
 	if len(ratings) == 0 {
 		return "", false
 	}
-	// MaxFunc returns the first of equals, which settles a full tie by order.
-	best := slices.MaxFunc(ratings, rank)
-	kept := slices.IndexFunc(ratings, func(r rating) bool { return r.id == preferred })
-	if kept >= 0 && !worthMoving(best.score, ratings[kept].score) {
+	highest := slices.MaxFunc(ratings, func(a, b rating) int { return cmp.Compare(a.score, b.score) }).score
+	near := slices.DeleteFunc(ratings, func(r rating) bool { return worthMoving(highest, r.score) })
+	if slices.ContainsFunc(near, func(r rating) bool { return r.id == preferred }) {
 		return preferred, true
 	}
-	return best.id, true
+	// MinFunc returns the first of equals, which settles a full tie by order.
+	return slices.MinFunc(near, rank).id, true
 }
 
 // rating is how a candidate that qualifies ranks.
 type rating struct {
 	id    string
 	score float64
+	// untilTiebreak is how long until its tiebreak window resets, which
+	// decides between near-equal scores.
+	untilTiebreak time.Duration
 	// shortest is how much of its shortest window that applies it has used,
 	// which breaks ties.
 	shortest float64
@@ -157,9 +170,26 @@ func (p Policy) qualifying(candidates []Candidate, applies func(string) bool, no
 		if !ok || !Available(c.Windows, c.Reserve, applies, now) {
 			continue
 		}
-		ratings = append(ratings, rating{id: c.ID, score: score, shortest: shortestUse(c.Windows, applies, now)})
+		ratings = append(ratings, rating{
+			id:            c.ID,
+			score:         score,
+			untilTiebreak: p.untilTiebreak(c.Windows, applies, now),
+			shortest:      shortestUse(c.Windows, applies, now),
+		})
 	}
 	return ratings
+}
+
+// untilTiebreak returns how long until the tiebreak window among windows
+// resets: endless when it doesn't count the request, as applies judges, or
+// when no reset of it is known to be coming, as when it has lapsed, its reset
+// passed with nothing read since.
+func (p Policy) untilTiebreak(windows []quota.Window, applies func(string) bool, now time.Time) time.Duration {
+	w, ok := find(windows, p.Tiebreak)
+	if !ok || !applies(w.Key) || !w.ResetsAt.After(now) {
+		return endless
+	}
+	return w.ResetsAt.Sub(now)
 }
 
 // shortestUse is the utilization of the shortest window that applies: 0 once
@@ -176,17 +206,38 @@ func shortestUse(windows []quota.Window, applies func(string) bool, now time.Tim
 	return shortest.Utilization
 }
 
-// rank orders ratings by score, counting scores within tolerance as equal,
-// then by how little of their shortest window they've used.
-func rank(a, b rating) int {
-	if math.Abs(a.score-b.score) > tolerance {
-		return cmp.Compare(a.score, b.score)
+// find returns the window named key, reporting false when there's none.
+func find(windows []quota.Window, key string) (quota.Window, bool) {
+	i := slices.IndexFunc(windows, func(w quota.Window) bool { return w.Key == key })
+	if i < 0 {
+		return quota.Window{}, false
 	}
-	return cmp.Compare(b.shortest, a.shortest)
+	return windows[i], true
+}
+
+// rank orders ratings best first: the sooner their tiebreak windows reset,
+// then the higher their scores, counting scores within tolerance as equal,
+// then the less of their shortest windows they've used.
+func rank(a, b rating) int {
+	return cmp.Or(
+		cmp.Compare(a.untilTiebreak, b.untilTiebreak),
+		compareScores(b.score, a.score),
+		cmp.Compare(a.shortest, b.shortest),
+	)
+}
+
+// compareScores compares two scores as cmp.Compare does, counting those
+// within tolerance as equal.
+func compareScores(a, b float64) int {
+	if math.Abs(a-b) <= tolerance {
+		return 0
+	}
+	return cmp.Compare(a, b)
 }
 
 // worthMoving reports whether score beats the preferred account's score by
-// the hysteresis margin, allowing for rounding.
+// the hysteresis margin, allowing for rounding. A score no higher never beats
+// it, however small the two are.
 func worthMoving(score, preferred float64) bool {
-	return score >= preferred*(1+hysteresis)-tolerance
+	return score > preferred && score >= preferred*(1+hysteresis)-tolerance
 }
