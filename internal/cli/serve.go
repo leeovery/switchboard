@@ -52,16 +52,18 @@ func (a *app) serve(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return router.Run(ctx, router.Config{
-		Accounts: cfg.Accounts,
-		Getenv:   a.Getenv,
-		Upstream: cfg.Upstream,
-		Provider: claude.Provider{},
-		Prober:   installedProber{upstream: cfg.Upstream, version: a.ClaudeVersion},
-		Policy:   policy,
-		Now:      a.Now,
-		Version:  a.Version,
-		Listen:   cfg.Listen,
-		StateDir: stateDir,
+		Accounts:      cfg.Accounts,
+		Getenv:        a.Getenv,
+		Upstream:      cfg.Upstream,
+		Provider:      claude.Provider{},
+		Prober:        installedProber{upstream: cfg.Upstream, version: a.ClaudeVersion},
+		Policy:        policy,
+		Now:           a.Now,
+		Version:       a.Version,
+		Notifier:      a.Notifier,
+		Notifications: cfg.Notifications,
+		Listen:        cfg.Listen,
+		StateDir:      stateDir,
 	})
 }
 

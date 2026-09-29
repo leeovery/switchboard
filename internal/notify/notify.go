@@ -1,4 +1,5 @@
-// Package notify posts the dashboard's desktop notifications.
+// Package notify posts desktop notifications: the router's, and the
+// dashboard's.
 package notify
 
 import (

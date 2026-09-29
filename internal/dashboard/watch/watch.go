@@ -16,6 +16,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -252,13 +253,13 @@ func logRead(msg fetchedMsg, next time.Time) {
 // eases the bars to it from where they stand, and starts a new chain of ticks
 // at its pace, as it may count seconds where the last didn't, or stop.
 func (m Model) show(doc status.Document, now time.Time) (Model, tea.Cmd) {
-	notify := m.notify(m.readings.alerts(doc, now, m.cfg.Policy))
+	post := m.post(m.readings.alerts(doc, now, m.cfg.Policy))
 	m.readings = m.readings.with(doc, now)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
 	m.chain++
 	m, frames := m.startFrames()
-	return m, tea.Batch(notify, m.armTick(now), frames)
+	return m, tea.Batch(post, m.armTick(now), frames)
 }
 
 // shown is the document as it's drawn at now, its bars part way along their
@@ -308,19 +309,19 @@ func (m Model) framed() (tea.Model, tea.Cmd) {
 	return m, m.after(frameEvery, frameMsg{})
 }
 
-// notify posts the alerts in turn, noting each in the log.
-func (m Model) notify(alerts []alert) tea.Cmd {
+// post posts the alerts in turn, noting each in the log.
+func (m Model) post(alerts []notify.Notice) tea.Cmd {
 	if len(alerts) == 0 {
 		return nil
 	}
 	notifier := m.cfg.Notifier
 	return func() tea.Msg {
 		for _, a := range alerts {
-			if err := notifier.Notify(a.message); err != nil {
-				logger.Warn("notification failed", "account", a.account, "news", a.news, "error", err)
+			if err := notifier.Notify(a.Message); err != nil {
+				logger.Warn("notification failed", "account", a.Account, "news", a.News, "error", err)
 				continue
 			}
-			logger.Info("notification", "account", a.account, "news", a.news)
+			logger.Info("notification", "account", a.Account, "news", a.News)
 		}
 		return nil
 	}

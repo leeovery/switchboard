@@ -78,12 +78,16 @@ func (s *scheduler) recheck(ctx context.Context, req Request) bool {
 	return true
 }
 
-// remember notes where a session's request went, and logs a move.
+// remember notes where a session's request went, and logs and tells of a
+// move.
 func (s *scheduler) remember(req Request, d decision) {
-	before := s.sessions.remember(key{session: req.Session, model: req.Model}, req.Pin, d, s.now())
-	if before != "" && before != d.account {
-		logger.Info("moved", "session", prefix(req.Session, sessionShown), "model", req.Model,
-			"from", before, "to", d.account, "reason", d.reason)
-		s.emit(Moved{Session: req.Session, Model: req.Model, From: before, To: d.account, Reason: d.reason})
+	now := s.now()
+	before := s.sessions.remember(key{session: req.Session, model: req.Model}, req.Pin, d, now)
+	if before == "" || before == d.account {
+		return
 	}
+	logger.Info("moved", "session", prefix(req.Session, sessionShown), "model", req.Model,
+		"from", before, "to", d.account, "reason", d.reason)
+	s.emit(Moved{Session: req.Session, Model: req.Model, From: before, To: d.account, Reason: d.reason,
+		Forced: !s.view(req, now).room(before)})
 }

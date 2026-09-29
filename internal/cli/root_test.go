@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -302,9 +303,10 @@ var testNow = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 const testClaudeVersion = "2.1.300"
 
 // testDeps gives commands env as their whole environment, home as their home
-// directory, a stopped clock and a fixed Claude Code version, so no test reads
-// the real ones or runs the real claude. Watch is the real one: a test's
-// output is never a terminal, so it fails before it would take one over.
+// directory, a stopped clock, a fixed Claude Code version and a notifier that
+// posts nothing, so no test reads the real ones, runs the real claude or
+// posts a notification. Watch is the real one: a test's output is never a
+// terminal, so it fails before it would take one over.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },
@@ -319,7 +321,28 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		Now:           func() time.Time { return testNow },
 		ClaudeVersion: func() string { return testClaudeVersion },
 		Watch:         watch.Run,
+		Notifier:      &recordingNotifier{},
 	}
+}
+
+// recordingNotifier notes each notification it's given, and posts none.
+type recordingNotifier struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (n *recordingNotifier) Notify(message string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.messages = append(n.messages, message)
+	return nil
+}
+
+// posted returns the notifications given so far.
+func (n *recordingNotifier) posted() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.messages)
 }
 
 // logDir is where commands run with deps log.

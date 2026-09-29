@@ -34,7 +34,8 @@ type Config struct {
 	Listen   string `toml:"listen"`
 	Upstream string `toml:"upstream"`
 	// Accounts keep their file order, which is their display order everywhere.
-	Accounts []Account `toml:"account"`
+	Accounts      []Account     `toml:"account"`
+	Notifications Notifications `toml:"notifications"`
 }
 
 // Account is one Claude subscription.
@@ -44,6 +45,23 @@ type Account struct {
 	TokenEnv string `toml:"token_env"`
 }
 
+// Notifications says which desktop notifications the router posts.
+type Notifications struct {
+	// Limits tells of an account reaching a limit, and the sessions it moved.
+	Limits bool `toml:"limits"`
+	// Room tells of an account that has room again.
+	Room bool `toml:"room"`
+	// Warning is the share of a window's limit whose passing is told of, or 0
+	// to tell of none.
+	Warning float64 `toml:"warning"`
+	// Moves tells of every other session move, such as after an idle hour or
+	// by pin.
+	Moves bool `toml:"moves"`
+}
+
+// defaultNotifications are those posted where the config doesn't say.
+var defaultNotifications = Notifications{Limits: true, Room: true, Warning: 0.9}
+
 // Load reads the config file at path, validates it and fills in its defaults.
 // When the file doesn't exist, the error matches fs.ErrNotExist.
 func Load(path string) (*Config, error) {
@@ -51,7 +69,7 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	cfg := &Config{Listen: defaultListen, Upstream: defaultUpstream}
+	cfg := &Config{Listen: defaultListen, Upstream: defaultUpstream, Notifications: defaultNotifications}
 	meta, err := toml.Decode(string(data), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)

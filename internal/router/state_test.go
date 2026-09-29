@@ -267,6 +267,105 @@ func TestDocumentBeforeAnythingIsRead(t *testing.T) {
 	}
 }
 
+func TestStandings(t *testing.T) {
+	spent := session
+	spent.Utilization, spent.Status = 1, quota.StatusRejected
+	readWithRoom := func(s *state) { s.record("side", []quota.Window{session, week}, fromResponse) }
+	// judged is how a standing judges an account.
+	type judged struct {
+		quota, known, refused bool
+	}
+	tests := []struct {
+		name string
+		// side sets side up, which after has passed since; work has room
+		// throughout.
+		side  func(s *state)
+		after time.Duration
+		want  judged
+	}{
+		{name: "nothing known of an account never read", side: func(*state) {}},
+		{
+			name: "quota while its shared windows have room",
+			side: readWithRoom,
+			want: judged{quota: true, known: true},
+		},
+		{
+			name: "no quota while a shared window is spent",
+			side: func(s *state) { s.record("side", []quota.Window{spent, week}, fromResponse) },
+			want: judged{known: true},
+		},
+		{
+			name: "no quota under a limit in a shared window, whatever its windows read",
+			side: func(s *state) {
+				readWithRoom(s)
+				s.limit("side", []string{"5h"}, start.Add(time.Hour))
+			},
+			want: judged{known: true},
+		},
+		{
+			name: "quota under a limit a model's own window holds",
+			side: func(s *state) {
+				s.record("side", []quota.Window{session, week, fableWeek}, fromResponse)
+				s.limit("side", []string{"7d_oi"}, start.Add(time.Hour))
+			},
+			want: judged{quota: true, known: true},
+		},
+		{
+			name: "refused, with its quota unknown when never read",
+			side: func(s *state) { s.refuse("side") },
+			want: judged{refused: true},
+		},
+		{
+			name: "refused, whatever its quota",
+			side: func(s *state) {
+				readWithRoom(s)
+				s.refuse("side")
+			},
+			want: judged{quota: true, known: true, refused: true},
+		},
+		{
+			name: "no longer refused ten minutes on",
+			side: func(s *state) {
+				readWithRoom(s)
+				s.refuse("side")
+			},
+			after: refusedFor,
+			want:  judged{quota: true, known: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			s.record("work", []quota.Window{session, week}, fromResponse)
+			tt.side(s)
+
+			got := s.standings(start.Add(tt.after))
+			if len(got) != 2 || got[0].ID != "work" || got[1].ID != "side" {
+				t.Fatalf("standings() = %+v, want work's and side's: personal has no token", got)
+			}
+			if work := got[0]; !work.quota || !work.known || work.refused {
+				t.Errorf("work stands %+v, want it known to have quota, and not refused", work)
+			}
+			if side := got[1]; (judged{side.quota, side.known, side.refused}) != tt.want {
+				t.Errorf("side stands %+v, want %+v", judged{side.quota, side.known, side.refused}, tt.want)
+			}
+		})
+	}
+}
+
+func TestASpentWindowsQuotaIsBackOnceItResets(t *testing.T) {
+	spent := session
+	spent.Utilization, spent.Status = 1, quota.StatusRejected
+	s := newTestState(&testClock{now: start})
+	s.record("work", []quota.Window{spent, week}, fromResponse)
+
+	for at, want := range map[time.Time]bool{start: false, spent.ResetsAt.Add(-time.Second): false, spent.ResetsAt: true} {
+		if got := s.standings(at)[0].quota; got != want {
+			t.Errorf("at %v, work has quota: %v, want %v", at, got, want)
+		}
+	}
+}
+
 func TestStateIsSafeForConcurrentUse(t *testing.T) {
 	s := newTestState(&testClock{now: start})
 	var wg sync.WaitGroup
@@ -277,6 +376,7 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded")) })
 		wg.Go(func() { _ = s.document() })
 		wg.Go(func() { _ = s.view(opus, start).room("work") })
+		wg.Go(func() { _ = s.standings(start) })
 		wg.Go(func() { _ = s.due("side", start) })
 		wg.Go(func() { _ = s.dueAgain("side", start) })
 		wg.Go(func() { s.refuse("side") })

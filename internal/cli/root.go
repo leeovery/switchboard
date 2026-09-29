@@ -40,9 +40,16 @@ type Deps struct {
 	// Watch shows the dashboard full screen on out until the user quits, as
 	// watch.Run does.
 	Watch func(ctx context.Context, cfg watch.Config, out io.Writer, environ []string) error
+	// Notifier posts desktop notifications, as notify.Desktop does.
+	Notifier Notifier
 	// FollowEvery is how often logs --follow looks for new lines. Zero means
 	// every half second.
 	FollowEvery time.Duration
+}
+
+// Notifier posts a desktop notification.
+type Notifier interface {
+	Notify(message string) error
 }
 
 // policy is Claude's say in scoring accounts.

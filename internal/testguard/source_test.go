@@ -24,7 +24,7 @@ import (
 // so none runs the real one. A new one goes here deliberately.
 var processStarters = []string{
 	"internal/claude/version.go:commandOutput",
-	"internal/dashboard/notify/notify.go:runCommand",
+	"internal/notify/notify.go:runCommand",
 }
 
 const (

@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -80,6 +81,10 @@ func TestASessionIdlePastTheHourIsRescored(t *testing.T) {
 	}
 	waitForLine(t, log, "level=INFO", "msg=moved", "session=one", "from=work", "to=side", `reason="rescored after 1h 1m idle"`)
 	waitForLine(t, log, "msg=routed", "session=one", "account=side", `reason="rescored after 1h 1m idle"`)
+	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "rescored after 1h 1m idle"}}
+	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events = %+v, want %+v: work could still take the request", got, want)
+	}
 }
 
 func TestTheSessionPinHeader(t *testing.T) {
@@ -101,6 +106,10 @@ func TestTheSessionPinHeader(t *testing.T) {
 		t.Errorf("with side spent, the pinned session went to %s, want work", got)
 	}
 	waitForLine(t, log, "msg=routed", "session=one", "account=work", `reason="pin yields: side has no room"`)
+	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "pin yields: side has no room", Forced: true}}
+	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events = %+v, want %+v", got, want)
+	}
 }
 
 func TestTheGlobalPin(t *testing.T) {
@@ -134,6 +143,10 @@ func TestTheGlobalPin(t *testing.T) {
 		t.Errorf("once the pin moves sessions, the running session went to %s, want side", got)
 	}
 	waitForLine(t, log, "level=INFO", "msg=moved", "session=running", "from=work", "to=side", `reason="moved by pin"`)
+	want := []router.Event{router.Moved{Session: "running", Model: opus, From: "work", To: "side", Reason: "moved by pin"}}
+	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events = %+v, want %+v: work could still take the request", got, want)
+	}
 	if got := r.ask(t, "running", opus, ""); got != "side" {
 		t.Errorf("the moved session's next request went to %s, want side", got)
 	}

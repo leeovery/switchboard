@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/dashboard/notify"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/notify"
 )
 
 const (
@@ -116,7 +116,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if err != nil {
 		return err
 	}
-	var notifier watch.Notifier = notify.NewDesktop()
+	notifier := a.Notifier
 	if opts.noNotify {
 		notifier = notify.Off{}
 	}

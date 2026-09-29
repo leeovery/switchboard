@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/notify"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -23,6 +24,7 @@ func main() {
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion,
 		Watch:         watch.Run,
+		Notifier:      notify.NewDesktop(),
 	})
 	os.Exit(cli.Execute(root))
 }

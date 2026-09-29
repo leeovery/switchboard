@@ -28,6 +28,12 @@ token_env = "CLAUDE_TOKEN_WORK"
 id        = "personal"
 label     = "Personal"
 token_env = "CLAUDE_TOKEN_PERSONAL"
+
+[notifications]
+limits  = false
+room    = true
+warning = 0.75
+moves   = true
 `)
 	want := &config.Config{
 		Listen:   "[::1]:9000",
@@ -36,6 +42,7 @@ token_env = "CLAUDE_TOKEN_PERSONAL"
 			{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
 			{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
 		},
+		Notifications: config.Notifications{Room: true, Warning: 0.75, Moves: true},
 	}
 
 	got, err := config.Load(path)
@@ -65,6 +72,7 @@ token_env = "CLAUDE_TOKEN_PERSONAL"
 			{ID: "work", Label: "work", TokenEnv: "CLAUDE_TOKEN_WORK"},
 			{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
 		},
+		Notifications: config.Notifications{Limits: true, Room: true, Warning: 0.9},
 	}
 
 	got, err := config.Load(path)
@@ -106,6 +114,39 @@ func TestLoadAcceptsLoopbackListenAndHTTPUpstream(t *testing.T) {
 	}
 }
 
+func TestLoadNotifications(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   config.Notifications
+	}{
+		{name: "limits, room and warnings at 90% without the table", want: config.Notifications{Limits: true, Room: true, Warning: 0.9}},
+		{name: "the same with the table empty", config: "[notifications]\n", want: config.Notifications{Limits: true, Room: true, Warning: 0.9}},
+		{name: "without limits", config: "[notifications]\nlimits = false\n", want: config.Notifications{Room: true, Warning: 0.9}},
+		{name: "without room again", config: "[notifications]\nroom = false\n", want: config.Notifications{Limits: true, Warning: 0.9}},
+		{name: "warning at another share", config: "[notifications]\nwarning = 0.75\n", want: config.Notifications{Limits: true, Room: true, Warning: 0.75}},
+		{name: "without warnings", config: "[notifications]\nwarning = 0\n", want: config.Notifications{Limits: true, Room: true}},
+		{name: "with moves", config: "[notifications]\nmoves = true\n", want: config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}},
+		{name: "as an inline table", config: "notifications = { moves = true }\n", want: config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}},
+		{
+			name:   "none at all",
+			config: "[notifications]\nlimits  = false\nroom    = false\nwarning = 0\nmoves   = false\n",
+			want:   config.Notifications{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work", "CLAUDE_TOKEN_WORK")))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.Notifications != tt.want {
+				t.Errorf("Load() notifications = %+v, want %+v", cfg.Notifications, tt.want)
+			}
+		})
+	}
+}
+
 func TestExampleIsValid(t *testing.T) {
 	if _, err := config.Load(writeConfig(t, config.Example)); err != nil {
 		t.Errorf("Load(Example) error = %v", err)
@@ -127,6 +168,7 @@ func TestLoadUndecodableFile(t *testing.T) {
 		{name: "syntax error", config: "listen = \"127.0.0.1:4747\n"},
 		{name: "wrong type", config: "listen = 4747\n"},
 		{name: "account as a single table", config: "[account]\nid = \"work\"\n"},
+		{name: "a warning in words", config: "notifications = { warning = \"high\" }\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -165,6 +207,36 @@ func TestLoadReportsProblems(t *testing.T) {
 			name:   "unknown table, without its keys",
 			config: work + "\n[proxy]\nport = 4747\nhost.name = \"localhost\"\n",
 			want:   []string{`unknown key "proxy"`},
+		},
+		{
+			name:   "unknown notifications key",
+			config: "[notifications]\nsound = true\n" + work,
+			want:   []string{`unknown key "notifications.sound"`},
+		},
+		{
+			name:   "a warning at the whole of a window's limit",
+			config: "[notifications]\nwarning = 1\n" + work,
+			want:   []string{"notifications.warning 1: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none"},
+		},
+		{
+			name:   "a warning past the whole of a window's limit",
+			config: "[notifications]\nwarning = 1.5\n" + work,
+			want:   []string{"notifications.warning 1.5: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none"},
+		},
+		{
+			name:   "a warning below none",
+			config: "[notifications]\nwarning = -0.1\n" + work,
+			want:   []string{"notifications.warning -0.1: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none"},
+		},
+		{
+			name:   "a warning that isn't a number",
+			config: "[notifications]\nwarning = nan\n" + work,
+			want:   []string{"notifications.warning NaN: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none"},
+		},
+		{
+			name:   "an endless warning",
+			config: "[notifications]\nwarning = inf\n" + work,
+			want:   []string{"notifications.warning +Inf: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none"},
 		},
 		{
 			name:   "no accounts",

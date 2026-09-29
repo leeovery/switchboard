@@ -31,6 +31,7 @@ func (c *Config) validate(undecoded []toml.Key) error {
 		checkUpstream(c.Upstream),
 		checkAccounts(c.Accounts),
 		checkSharedTokenEnvs(c.Accounts),
+		checkWarning(c.Notifications.Warning),
 	)
 }
 
@@ -181,6 +182,15 @@ func checkSharedTokenEnvs(accounts []Account) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// checkWarning keeps the warning a share of a window's limit, short of the
+// whole of it, which is the limit itself, or 0 for none.
+func checkWarning(warning float64) error {
+	if warning == 0 || (warning > 0 && warning < 1) {
+		return nil
+	}
+	return fmt.Errorf("notifications.warning %v: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none", warning)
 }
 
 // listNames joins two or more names: "a and b", "a, b and c".

@@ -1,0 +1,273 @@
+package router
+
+import (
+	"cmp"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
+)
+
+// maxMessage is the longest a limit's notification runs to saying when the
+// account is back, which goes unsaid past it: roughly as much as a banner
+// shows before it cuts a message short.
+const maxMessage = 100
+
+// standing is how an account stands, as notifications judge it: its status;
+// whether its quota leaves it room for a request of any model, which is known
+// once its usage has been read or a limit has barred it; and whether its
+// token was refused too lately for anything to go out on it.
+type standing struct {
+	status.Account
+	quota, known, refused bool
+}
+
+// windowLabel names the account's window with the given key by its label, or
+// by its key when it hasn't been read.
+func (s standing) windowLabel(key string) string {
+	i := slices.IndexFunc(s.Windows, func(w quota.Window) bool { return w.Key == key })
+	if i < 0 {
+		return key
+	}
+	return s.Windows[i].Label
+}
+
+// standings are the accounts with a token, as they stand.
+type standings []standing
+
+// of returns how the account with the given id stands.
+func (ss standings) of(id string) (standing, bool) {
+	i := slices.IndexFunc(ss, func(s standing) bool { return s.ID == id })
+	if i < 0 {
+		return standing{}, false
+	}
+	return ss[i], true
+}
+
+// title names the account with the given id by its id and label, as a
+// notification does, or by its id alone when it isn't among them.
+func (ss standings) title(id string) string {
+	if s, ok := ss.of(id); ok {
+		return s.Title()
+	}
+	return id
+}
+
+// fullBut reports whether no account but the one with the given id has room
+// for a request of any model, as far as anyone knows: one whose quota isn't
+// known might have some, unless its token is refused.
+func (ss standings) fullBut(id string) bool {
+	return !slices.ContainsFunc(ss, func(s standing) bool {
+		return s.ID != id && !s.refused && (s.quota || !s.known)
+	})
+}
+
+// byID names an account by its id alone, as the log does.
+func byID(id string) string {
+	return id
+}
+
+// limitNotices gathers each limit an account reaches with the sessions the
+// limit moves, for one notification of them all: one a limit, however many
+// requests reach it.
+type limitNotices struct {
+	// gathering holds, by account, the limits whose notifications wait for
+	// the sessions they move.
+	gathering map[string]*gathering
+	// seen holds, by account, when the last limit it reached lifts, which
+	// tells that limit from the next: its notification is due, or gone.
+	seen map[string]time.Time
+}
+
+func newLimitNotices() *limitNotices {
+	return &limitNotices{gathering: make(map[string]*gathering), seen: make(map[string]time.Time)}
+}
+
+// gathering is a limit an account reached, and the sessions it has moved so
+// far.
+type gathering struct {
+	LimitReached
+	// due is when its notification goes out.
+	due time.Time
+	// sessions are those the limit moved, and to the accounts they went to,
+	// each once, in the order they came.
+	sessions, to []string
+}
+
+// reached takes in a limit an account reached at now: a new one starts
+// gathering the sessions it moves for gatherFor, one reached while the
+// account's last is gathering joins it, and one seen already is ignored.
+func (l *limitNotices) reached(e LimitReached, now time.Time) {
+	if until, ok := l.seen[e.Account]; ok && until.Equal(e.Until) {
+		return
+	}
+	l.seen[e.Account] = e.Until
+	if g, ok := l.gathering[e.Account]; ok {
+		g.join(e)
+		return
+	}
+	g := &gathering{LimitReached: e, due: now.Add(gatherFor)}
+	g.Windows = slices.Clone(e.Windows)
+	l.gathering[e.Account] = g
+}
+
+// moved takes in a move, and reports whether it's news of a limit gathering:
+// the session had to leave the account the limit holds.
+func (l *limitNotices) moved(e Moved) bool {
+	g, ok := l.gathering[e.From]
+	if !ok || !e.Forced {
+		return false
+	}
+	g.add(e)
+	return true
+}
+
+// next reports when the first limit gathering is due, and false when none is.
+func (l *limitNotices) next() (time.Time, bool) {
+	var first time.Time
+	found := false
+	for _, g := range l.gathering {
+		if !found || g.due.Before(first) {
+			first, found = g.due, true
+		}
+	}
+	return first, found
+}
+
+// due removes the limits gathering whose notifications are due at now, and
+// returns them, the first due first.
+func (l *limitNotices) due(now time.Time) []*gathering {
+	var due []*gathering
+	for id, g := range l.gathering {
+		if !g.due.After(now) {
+			due = append(due, g)
+			delete(l.gathering, id)
+		}
+	}
+	slices.SortFunc(due, func(a, b *gathering) int {
+		return cmp.Or(a.due.Compare(b.due), cmp.Compare(a.Account, b.Account))
+	})
+	return due
+}
+
+// join takes in the account reaching its limit again while this gathers: in
+// other windows, perhaps, and until later.
+func (g *gathering) join(e LimitReached) {
+	for _, key := range e.Windows {
+		if !slices.Contains(g.Windows, key) {
+			g.Windows = append(g.Windows, key)
+		}
+	}
+	g.Until = e.Until
+}
+
+// add takes in a session the limit moved.
+func (g *gathering) add(e Moved) {
+	if !slices.Contains(g.sessions, e.Session) {
+		g.sessions = append(g.sessions, e.Session)
+	}
+	if !slices.Contains(g.to, e.To) {
+		g.to = append(g.to, e.To)
+	}
+}
+
+// notice is the limit's notification, as the accounts stand at now: the
+// windows it was reached in; when the account is back, where that fits; and
+// where the sessions it moved went, or else, when it's so, that no other
+// account has room.
+func (g *gathering) notice(accounts standings, now time.Time) notify.Notice {
+	limited, _ := accounts.of(g.Account)
+	text := limitText{moved: len(g.sessions), to: g.to, full: accounts.fullBut(g.Account)}
+	for _, key := range g.Windows {
+		text.windows = append(text.windows, limited.windowLabel(key))
+	}
+	if g.Until.After(now) {
+		text.back = status.Clock(g.Until.In(now.Location()))
+	}
+	message := func() string { return accounts.title(g.Account) + " " + text.say(accounts.title) }
+	if utf8.RuneCountInString(message()) > maxMessage {
+		text.back = ""
+	}
+	return notify.Notice{Account: g.Account, News: text.say(byID), Message: message()}
+}
+
+// limitText is what a limit's notification says after naming the account.
+type limitText struct {
+	// windows are the labels of the windows the limit was reached in.
+	windows []string
+	// back is when the account has room again, such as "Mon 21:00", or "" to
+	// leave it unsaid.
+	back string
+	// moved counts the sessions the limit moved, and to the accounts they
+	// went to, by id.
+	moved int
+	to    []string
+	// full is set when no other account has room.
+	full bool
+}
+
+// say words the text, naming accounts as name does: "hit its Session limit,
+// back at Mon 21:00 — 3 sessions moved to 1 · one".
+func (t limitText) say(name func(id string) string) string {
+	var b strings.Builder
+	b.WriteString("hit its " + limitIn(t.windows))
+	if t.back != "" {
+		b.WriteString(", back at " + t.back)
+	}
+	switch {
+	case t.moved > 0:
+		to := make([]string, len(t.to))
+		for i, id := range t.to {
+			to[i] = name(id)
+		}
+		fmt.Fprintf(&b, " — %s moved to %s", count(t.moved, "session"), joinAnd(to))
+	case t.full:
+		b.WriteString(" — no other account has room")
+	}
+	return b.String()
+}
+
+// moveNotice is the notification of a session's move, which is about the
+// account the session left.
+func moveNotice(e Moved, accounts standings) notify.Notice {
+	say := func(name func(id string) string) string {
+		return fmt.Sprintf("session %s moved from %s to %s (%s)", prefix(e.Session, sessionShown), name(e.From), name(e.To), e.Reason)
+	}
+	return notify.Notice{Account: e.From, News: say(byID), Message: say(accounts.title)}
+}
+
+// limitIn names the limit reached in the windows with the given labels, such
+// as "Session limit" or "Session and Week limits", or "limit" with none.
+func limitIn(labels []string) string {
+	switch len(labels) {
+	case 0:
+		return "limit"
+	case 1:
+		return labels[0] + " limit"
+	default:
+		return joinAnd(labels) + " limits"
+	}
+}
+
+// count counts n of a noun that takes an s for more than one, such as
+// "1 session" or "3 sessions".
+func count(n int, noun string) string {
+	if n != 1 {
+		noun += "s"
+	}
+	return fmt.Sprintf("%d %s", n, noun)
+}
+
+// joinAnd joins words as a list: "a", "a and b", "a, b and c".
+func joinAnd(words []string) string {
+	if len(words) < 2 {
+		return strings.Join(words, "")
+	}
+	last := len(words) - 1
+	return strings.Join(words[:last], ", ") + " and " + words[last]
+}
