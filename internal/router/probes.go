@@ -11,10 +11,10 @@ const (
 	// staleAfter is how old an account's usage can grow before a choice made
 	// afresh probes it again.
 	staleAfter = 15 * time.Minute
-	// retryAfter is how soon an account is probed again once a probe of it
+	// reprobeAfter is how soon an account is probed again once a probe of it
 	// has ended, as one that failed; an account without room also waits that
 	// long after its usage was last read.
-	retryAfter = time.Minute
+	reprobeAfter = time.Minute
 )
 
 // probes reads accounts' usage by probing them: never one account twice at

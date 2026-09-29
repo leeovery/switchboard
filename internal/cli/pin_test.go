@@ -15,7 +15,7 @@ import (
 
 // routerDown is what a command that needs the router says when it isn't
 // running.
-const routerDown = "Error: the router isn't running: start it with switchboard serve\n"
+const routerDown = "Error: the router isn't running: start it with switchboard service install (or switchboard serve)\n"
 
 func TestPin(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
@@ -37,6 +37,15 @@ func TestPin(t *testing.T) {
 		},
 		{
 			args: []string{"pin", "auto"},
+			want: "routing automatically\n",
+		},
+		{
+			args:    []string{"pin", "side"},
+			want:    "new sessions go to side · Side\n",
+			wantPin: status.Pin{Account: "side", Since: testNow},
+		},
+		{
+			args: []string{"pin", "AUTO"},
 			want: "routing automatically\n",
 		},
 	}

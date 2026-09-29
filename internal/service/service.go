@@ -38,9 +38,9 @@ const (
 var (
 	// ErrUnsupported is what New fails with on a system other than macOS.
 	ErrUnsupported = errors.New("the service is macOS only for now: elsewhere, run switchboard serve under your system's service manager")
-	// ErrNotInstalled is what Restart fails with when launchd hasn't loaded
-	// the service.
-	ErrNotInstalled = errors.New("the service isn't installed")
+	// ErrNotLoaded is what Restart fails with when launchd hasn't loaded the
+	// service.
+	ErrNotLoaded = errors.New("the service isn't loaded")
 )
 
 // Router asks the router whether it's alive, and which it is:
@@ -201,7 +201,7 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 
 // Restart has launchd stop the router and start it again, as after the
 // tokens change, and returns the answer of the router it starts, or nil when
-// none answers within StartWait. It fails with ErrNotInstalled when launchd
+// none answers within StartWait. It fails with ErrNotLoaded when launchd
 // hasn't loaded the service.
 func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 	loaded, err := s.loaded(ctx)
@@ -209,7 +209,7 @@ func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 	case err != nil:
 		return nil, err
 	case !loaded:
-		return nil, ErrNotInstalled
+		return nil, ErrNotLoaded
 	}
 	before := s.pid(ctx)
 	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {

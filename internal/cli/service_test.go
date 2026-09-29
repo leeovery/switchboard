@@ -239,7 +239,7 @@ func TestServiceRestartWhenLaunchdHasntLoadedIt(t *testing.T) {
 	s := newServiceSetup(t)
 
 	got := run(t, s.srv.deps, "service", "restart")
-	want := result{stderr: "Error: the service isn't installed: run switchboard service install\n", code: 1}
+	want := result{stderr: "Error: the service isn't loaded: run switchboard service install\n", code: 1}
 	if got != want {
 		t.Errorf("switchboard service restart = %+v, want %+v", got, want)
 	}

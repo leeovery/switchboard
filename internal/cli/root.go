@@ -180,8 +180,8 @@ func (a *app) logDir() (string, error) {
 }
 
 // errRouterDown is what a command that needs the router fails with when the
-// router isn't running.
-var errRouterDown = errors.New("the router isn't running: start it with switchboard serve")
+// router isn't running, saying how to start it.
+var errRouterDown = fmt.Errorf("%w: start it with switchboard service install (or switchboard serve)", router.ErrNotRunning)
 
 // routerClient returns a client of the router whose control socket is in the
 // state directory.

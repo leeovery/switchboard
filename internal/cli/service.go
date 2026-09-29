@@ -171,7 +171,7 @@ func (a *app) restartService(ctx context.Context, out io.Writer) error {
 		return err
 	}
 	h, err := svc.Restart(ctx)
-	if errors.Is(err, service.ErrNotInstalled) {
+	if errors.Is(err, service.ErrNotLoaded) {
 		return fmt.Errorf("%w: run switchboard service install", err)
 	}
 	if err != nil {

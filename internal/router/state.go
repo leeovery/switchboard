@@ -233,25 +233,25 @@ func (s *state) due(id string, now time.Time) bool {
 
 // olderThan returns what reports whether an account's usage wants probing at
 // now: nothing has been read of it for longer than age, and no probe of it
-// has ended in the last retryAfter, so an account whose probes fail isn't
+// has ended in the last reprobeAfter, so an account whose probes fail isn't
 // probed at every ask.
 func (s *state) olderThan(age time.Duration) func(id string, now time.Time) bool {
 	return func(id string, now time.Time) bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		u := s.usage[id]
-		return now.Sub(u.updated) > age && now.Sub(u.probed) >= retryAfter
+		return now.Sub(u.updated) > age && now.Sub(u.probed) >= reprobeAfter
 	}
 }
 
 // dueAgain reports whether an account whose usage leaves it no room wants
 // probing again at now, in case a window has reset unseen: nothing has been
-// read of it, nor has a probe of it ended, in the last retryAfter.
+// read of it, nor has a probe of it ended, in the last reprobeAfter.
 func (s *state) dueAgain(id string, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	return now.Sub(u.updated) >= retryAfter && now.Sub(u.probed) >= retryAfter
+	return now.Sub(u.updated) >= reprobeAfter && now.Sub(u.probed) >= reprobeAfter
 }
 
 // view returns what a choice of account for a request of model knows at now:

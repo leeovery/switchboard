@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -12,9 +13,15 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// auto is what pin takes to go back to routing, which is why config reserves
-// it.
+// auto is what pin takes to go back to routing, in any case, which is why
+// config reserves it.
 const auto = config.ReservedID
+
+// isAuto reports whether pin was given auto, in any case, as config reserves
+// it.
+func isAuto(account string) bool {
+	return strings.EqualFold(account, auto)
+}
 
 func newPinCommand(a *app) *cobra.Command {
 	var move bool
@@ -26,12 +33,13 @@ from run --account, still wins. With --move, sessions already running move
 there too, each on its next request, at the cost of rebuilding its cache.
 "pin auto" goes back to routing every session on its merits.
 
-It needs the router running: see switchboard serve.`,
+It needs the router running: start it with switchboard service install (or
+switchboard serve).`,
 		Args: func(_ *cobra.Command, args []string) error {
 			switch {
 			case len(args) != 1:
 				return errors.New("give one account to pin, or auto")
-			case args[0] == auto && move:
+			case isAuto(args[0]) && move:
 				return errors.New("--move goes with an account to pin, not auto")
 			}
 			return nil
@@ -51,7 +59,7 @@ func (a *app) pin(ctx context.Context, out io.Writer, account string, move bool)
 	if err != nil {
 		return err
 	}
-	if account == auto {
+	if isAuto(account) {
 		if _, err := client.Unpin(ctx); err != nil {
 			return fromRouter(err)
 		}

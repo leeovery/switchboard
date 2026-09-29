@@ -69,6 +69,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "pin without an account", args: []string{"pin"}, wantUsage: true},
 		{name: "pin with two accounts", args: []string{"pin", "work", "side"}, wantUsage: true},
 		{name: "pin auto, moving sessions", args: []string{"pin", "auto", "--move"}, wantUsage: true},
+		{name: "pin auto in another case, moving sessions", args: []string{"pin", "Auto", "--move"}, wantUsage: true},
 		{name: "pin without the router", args: []string{"pin", "work"}, wantUsage: false},
 		{name: "unexpected usage argument", args: []string{"usage", "extra"}, wantUsage: true},
 		{name: "invalid config for usage", args: []string{"usage", "--config", invalid}, wantUsage: false},
@@ -166,7 +167,7 @@ func TestAStatuslinesEverydayFailuresAreLoggedAtDebug(t *testing.T) {
 		{
 			name:      "a session's status without the router",
 			args:      []string{"status", "--session", session},
-			wantErr:   "the router isn't running: start it with switchboard serve",
+			wantErr:   "the router isn't running: start it with switchboard service install (or switchboard serve)",
 			wantLevel: "DEBUG",
 		},
 		{
@@ -179,7 +180,7 @@ func TestAStatuslinesEverydayFailuresAreLoggedAtDebug(t *testing.T) {
 		{
 			name:      "a pin without the router",
 			args:      []string{"pin", "side"},
-			wantErr:   "the router isn't running: start it with switchboard serve",
+			wantErr:   "the router isn't running: start it with switchboard service install (or switchboard serve)",
 			wantLevel: "WARN",
 		},
 	}

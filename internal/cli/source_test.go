@@ -178,7 +178,7 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{Router: status.RouterNotRunning}) {
 		t.Errorf("once the router stopped, a read that may probe = %+v, %v, want one probed, as the router isn't running", doc, err)
 	}
-	if err := cfg.Source.Pin(t.Context(), "side", false); err == nil || err.Error() != "the router isn't running: start it with switchboard serve" {
+	if err := cfg.Source.Pin(t.Context(), "side", false); err == nil || err.Error() != "the router isn't running: start it with switchboard service install (or switchboard serve)" {
 		t.Errorf("once the router stopped, Pin() error = %v, want it to say so", err)
 	}
 }

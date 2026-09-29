@@ -75,7 +75,7 @@ func TestPlanLanded(t *testing.T) {
 			name: "the router refreshing, and failing to read an account",
 			read: Read{Refresh: interval},
 			doc:  unread,
-			want: plan{interval: interval, due: now.Add(2 * retryAfter), next: now.Add(lookEvery), reset: start.Add(3*time.Hour + resetGrace).UTC(), asked: now, failures: 2},
+			want: plan{interval: interval, due: now.Add(2 * retryReadAfter), next: now.Add(lookEvery), reset: start.Add(3*time.Hour + resetGrace).UTC(), asked: now, failures: 2},
 		},
 		{
 			name: "probing",
@@ -97,7 +97,7 @@ func TestPlanFailedAndMissed(t *testing.T) {
 	now := at(13, 20, 0)
 	before := plan{interval: interval, due: at(13, 42, 0), next: at(13, 12, 5), asked: at(13, 12, 0)}
 
-	want := plan{interval: interval, due: now.Add(retryAfter), next: at(13, 12, 5), asked: now, failures: 1}
+	want := plan{interval: interval, due: now.Add(retryReadAfter), next: at(13, 12, 5), asked: now, failures: 1}
 	if got := before.failed(calm(), now); got != want {
 		t.Errorf("failed() = %+v, want %+v", got, want)
 	}

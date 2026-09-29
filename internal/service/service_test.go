@@ -591,7 +591,7 @@ func TestRestartFails(t *testing.T) {
 	}{
 		{
 			name:     "when launchd hasn't loaded the service",
-			want:     func(err error) bool { return errors.Is(err, service.ErrNotInstalled) },
+			want:     func(err error) bool { return errors.Is(err, service.ErrNotLoaded) },
 			wantRuns: [][]string{{"print", target}},
 		},
 		{
@@ -599,7 +599,7 @@ func TestRestartFails(t *testing.T) {
 			loaded: true,
 			exits:  map[string]int{"kickstart": 5},
 			want: func(err error) bool {
-				return err != nil && !errors.Is(err, service.ErrNotInstalled) &&
+				return err != nil && !errors.Is(err, service.ErrNotLoaded) &&
 					err.Error() == "launchctl kickstart -k "+target+": kickstart failed: 5: Input/output error (exit status 5)"
 			},
 			wantRuns: [][]string{{"print", target}, {"kickstart", "-k", target}},
