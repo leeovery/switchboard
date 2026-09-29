@@ -2,6 +2,7 @@ package setup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -21,7 +22,9 @@ func (r *run) accounts(ctx context.Context) error {
 	cfg := draft.Config()
 	if cfg != nil {
 		for _, a := range cfg.Accounts {
-			r.token(ctx, cfg, a)
+			if err := r.token(ctx, cfg, a); err != nil {
+				return err
+			}
 		}
 	}
 	if err := r.addAccounts(ctx, cfg == nil); err != nil {
@@ -32,21 +35,25 @@ func (r *run) accounts(ctx context.Context) error {
 
 // token says whether the account's token is usable, and takes one the user
 // gives when it isn't. A token the user doesn't give, or the API refuses, is
-// told of, and leaves the account without one.
-func (r *run) token(ctx context.Context, cfg *config.Config, a config.Account) {
+// told of, and leaves the account without one; an interrupt stops setup.
+func (r *run) token(ctx context.Context, cfg *config.Config, a config.Account) error {
 	_, err := r.registry.Tokens.Read(a.ID)
 	if err == nil {
 		r.Terminal.sayf("%s: its token is usable.", title(a))
-		return
+		return nil
 	}
 	r.Terminal.sayf("%s has no usable token: %v", title(a), err)
 	taken, err := r.registry.SetToken(ctx, cfg, a.ID)
-	if err != nil {
+	switch {
+	case errors.Is(err, accounts.ErrInterrupted):
+		return err
+	case err != nil:
 		r.Terminal.sayf("%s has none still: %v. Run setup again, or switchboard accounts token %s, to give it one.", a.ID, err, a.ID)
-		return
+		return nil
 	}
 	r.changed = true
 	r.Terminal.sayf("Saved %s's token.%s", a.ID, unchecked(taken))
+	return nil
 }
 
 // addAccounts offers to add accounts, one at a time, until the user has none
@@ -94,14 +101,17 @@ func (r *run) askID() (string, error) {
 // addAccount adds the account with the given id, asking for its label, and
 // for its token unless its token file holds a usable one, and reports
 // whether it did. What stops it, such as a token the API refuses, is told
-// of, and adds nothing.
+// of, and adds nothing; an interrupt stops setup.
 func (r *run) addAccount(ctx context.Context, id string) (bool, error) {
 	label, err := r.Terminal.ask(fmt.Sprintf("Its label, to show it by (Enter for %s): ", id))
 	if err != nil {
 		return false, err
 	}
 	taken, err := r.registry.Add(ctx, config.NewAccount{ID: id, Label: label})
-	if err != nil {
+	switch {
+	case errors.Is(err, accounts.ErrInterrupted):
+		return false, err
+	case err != nil:
 		r.Terminal.sayf("%s isn't added: %v.", id, err)
 		return false, nil
 	}

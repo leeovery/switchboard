@@ -6,15 +6,16 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/claude"
 )
 
 // link puts a link named claude, leading to switchboard, in a directory on
 // PATH ahead of the real claude, so every claude goes through switchboard:
-// the first the user can write to, once they agree, else the next they
-// agree to. Where anything else is named claude, it's left alone, and with
-// nowhere to put the link, setup says what's in the way.
+// the first of the user's that they can write to, once they agree, else the
+// next they agree to. Where anything else is named claude, it's left alone,
+// and with nowhere to put the link, setup says what's in the way.
 func (r *run) link(context.Context) error {
 	self, err := os.Stat(r.switchboard)
 	if err != nil {
@@ -85,11 +86,11 @@ func notLinked(p placement, realClaude string, declined, taken bool) string {
 	case declined:
 		return "Not linked: claude starts Claude Code without switchboard. Run setup again to link it."
 	case taken:
-		return fmt.Sprintf("There's nowhere else to put the link: move aside what's named claude, or add a directory you can write to, to PATH%s, then run setup again.", ahead)
+		return fmt.Sprintf("There's nowhere else to put the link: move aside what's named claude, or add another directory of yours to PATH%s, then run setup again.", ahead)
 	case p.onPath:
-		return fmt.Sprintf("There's nowhere to put the link: no directory on PATH ahead of %s, where claude is, can be written to. Add one you can write to, to PATH ahead of it, then run setup again.", filepath.Dir(realClaude))
+		return fmt.Sprintf("There's nowhere to put the link: no directory of yours on PATH ahead of %s, where claude is, can be written to. Add one to PATH ahead of it, then run setup again.", filepath.Dir(realClaude))
 	}
-	return fmt.Sprintf("There's nowhere to put the link: claude is at %s, off PATH, and no directory on PATH can be written to. Add one you can write to, to PATH, then run setup again.", realClaude)
+	return fmt.Sprintf("There's nowhere to put the link: claude is at %s, off PATH, and no directory of yours on PATH can be written to. Add one to PATH, then run setup again.", realClaude)
 }
 
 // placement is where on PATH the claude link goes.
@@ -97,8 +98,8 @@ type placement struct {
 	// linked is switchboard's claude link, when there's one ahead of the
 	// real claude already.
 	linked string
-	// dirs are the directories ahead of the real claude that the user can
-	// write to, in PATH's order, each once.
+	// dirs are the user's directories ahead of the real claude that they
+	// can write to, in PATH's order, each once.
 	dirs []string
 	// onPath is set when the real claude is on PATH, not found off it.
 	onPath bool
@@ -121,11 +122,46 @@ func place(pathList, realClaude string, self os.FileInfo) placement {
 		if named := filepath.Join(dir, claude.Command); isSwitchboard(named, self) {
 			return placement{linked: named}
 		}
-		if writable(dir) && !slices.Contains(p.dirs, dir) {
+		if writable(dir) && !kept(dir) && !slices.Contains(p.dirs, dir) {
 			p.dirs = append(p.dirs, dir)
 		}
 	}
 	return p
+}
+
+// keepers are the directories other programs keep what they install in, as
+// their own: Homebrew's kegs and casks, which an upgrade replaces, and
+// package managers' packages.
+var keepers = []string{"Cellar", "Caskroom", "node_modules", "vendor"}
+
+// kept reports whether dir, its links resolved, is another program's rather
+// than the user's to put things in: within one of keepers, or an app
+// bundle, whose signature a link in it would break, or npm's global bin.
+func kept(dir string) bool {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
+	for part := range strings.SplitSeq(resolved, string(filepath.Separator)) {
+		if slices.Contains(keepers, part) || strings.HasSuffix(part, ".app") {
+			return true
+		}
+	}
+	return npmsBin(resolved)
+}
+
+// npmsBin reports whether dir is npm's global bin, beside lib/node_modules,
+// where npm links what it installs, Claude Code's claude among them when
+// it's installed with npm: unless it's Homebrew's own prefix, beside its
+// Cellar, whose bin is where links go.
+func npmsBin(dir string) bool {
+	prefix := filepath.Dir(dir)
+	return filepath.Base(dir) == "bin" && exists(filepath.Join(prefix, "lib", "node_modules")) && !exists(filepath.Join(prefix, "Cellar"))
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // isSwitchboard reports whether path leads, links followed, to switchboard,

@@ -57,9 +57,10 @@ type Setup struct {
 }
 
 // Run takes each step in turn, stopping at one that fails, or when the
-// user's input ends, which a run of setup again carries on from. It refuses
-// a switchboard binary that won't last, such as go run's, before it asks
-// anything: the service and the claude link both run this one.
+// user's input ends, or they interrupt a token's typing, which a run of
+// setup again carries on from. It refuses a switchboard binary that won't
+// last, such as go run's, before it asks anything: the service and the
+// claude link both run this one.
 func (s *Setup) Run(ctx context.Context) error {
 	switchboard, err := s.Service.Binary(s.Install.Executable)
 	if err != nil {

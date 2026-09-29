@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
@@ -74,17 +75,6 @@ type Notifier interface {
 	Notify(message string) error
 }
 
-// HiddenInput returns what reads a line typed at the terminal stdin is,
-// without showing it, as a password is typed, or false when stdin isn't a
-// terminal: Deps.Hidden, for the process's own stdin.
-func HiddenInput(stdin io.Reader) (func() ([]byte, error), bool) {
-	f, ok := stdin.(term.File)
-	if !ok || !term.IsTerminal(f.Fd()) {
-		return nil, false
-	}
-	return func() ([]byte, error) { return term.ReadPassword(f.Fd()) }, true
-}
-
 // policy is Claude's say in scoring accounts.
 var policy = score.Policy{
 	Shared:     claude.SharedWindows,
@@ -137,17 +127,26 @@ func Args(argv []string) []string {
 }
 
 // Execute runs a command tree from NewRootCommand and returns the process's
-// exit status. Cobra has already printed any error; the log notes it too, as
-// a warning unless it's expected.
+// exit status: 130 for a command the user interrupted, as a shell gives one
+// an interrupt ends, else 1 for one that failed. Cobra has already printed
+// any error; the log notes it too, as a warning unless it's expected or an
+// interrupt.
 func Execute(root *cobra.Command) int {
 	status := 0
 	if cmd, err := root.ExecuteC(); err != nil {
 		logger.Log(context.Background(), failureLevel(err), "command failed", "command", cmd.CommandPath(), "error", err)
 		status = 1
+		if errors.Is(err, accounts.ErrInterrupted) {
+			status = interruptedStatus
+		}
 	}
 	logs.Close(status)
 	return status
 }
+
+// interruptedStatus is the exit status of a command the user interrupted:
+// 128 and the number of SIGINT, the signal an interrupt sends.
+const interruptedStatus = 130
 
 // expected is a failure that's an everyday answer rather than trouble, such
 // as a statusline polling after a session the router isn't running for. The
@@ -165,6 +164,9 @@ func (e expected) Unwrap() error {
 func failureLevel(err error) slog.Level {
 	if _, ok := errors.AsType[expected](err); ok {
 		return slog.LevelDebug
+	}
+	if errors.Is(err, accounts.ErrInterrupted) {
+		return slog.LevelInfo
 	}
 	return slog.LevelWarn
 }

@@ -371,9 +371,11 @@ it's asked for.
   none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`.
 - `accounts add <id>` registers an account. When it has no token file, it asks for the token,
   hidden, pointing to `claude setup-token` run while signed in to that subscription, or reads it
-  from stdin when stdin isn't a terminal. It probes the token before saving it, and doesn't save
-  one the API refuses (401 or 403); when the probe can't reach the API, it saves it with a
-  warning. `--label` sets the label, and `--primary` makes the account the primary.
+  from stdin when stdin isn't a terminal. An interrupt while it waits puts the terminal back as
+  it was, showing what's typed again, and the command exits 130, as a shell expects of an
+  interrupt, saving nothing. It probes the token before saving it, and doesn't save one the API
+  refuses (401 or 403); when the probe can't reach the API, it saves it with a warning.
+  `--label` sets the label, and `--primary` makes the account the primary.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
@@ -385,10 +387,11 @@ it's asked for.
 `switchboard setup` walks through a first run, and is safe to run again: each step says what's
 already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
 terminal: without one, it fails, saying which command takes each step alone. It stops at a step
-that fails, or when its input ends; run again, it carries on from there. Before it asks anything,
-it refuses a switchboard that won't last, such as `go run`'s, as `service install` does: the
-service and the `claude` link both run the one setup was run by. An answer shaped like a token,
-pasted where it shows, is never taken: setup asks for tokens where they don't show.
+that fails, when its input ends, or at an interrupt; run again, it carries on from there. Before
+it asks anything, it refuses a switchboard that won't last, such as `go run`'s, as `service
+install` does: the service and the `claude` link both run the one setup was run by. An answer
+shaped like a token, pasted where it shows, is never taken: setup asks for tokens where they
+don't show.
 
 1. **Accounts:** lists them, each with whether its token is usable, and asks for a missing token
    as `accounts token` does; Enter leaves it for later. It offers to add accounts, one at a time,
@@ -402,12 +405,18 @@ pasted where it shows, is never taken: setup asks for tokens where they don't sh
    has changed the config or a token, which the router reads as it starts, or when the router
    doesn't answer; and otherwise says it's up.
 4. **The `claude` link:** finds the real `claude` as `run` does, and offers each directory on
-   `PATH` ahead of it that can be written to, in turn, the first unless the user says no. It
-   links `claude` in the one taken to switchboard by the path it was run by, as the LaunchAgent
-   names it, so an upgrade moves the link on, and says where. A `claude` ahead of the real one
-   that is switchboard already counts as done. Anything else named `claude` in a directory is
-   left alone, and setup says so. With nowhere to put the link, it says what to add to `PATH`,
-   and where, and writes nothing.
+   `PATH` ahead of it that's the user's and can be written to, in turn, the first unless the
+   user says no. A directory is another program's, not the user's to put things in, when its
+   path, links resolved, runs through Homebrew's `Cellar` or `Caskroom`, which an upgrade
+   replaces, as `/opt/homebrew/opt/<formula>/…` does; an app bundle (`….app`), whose signature a
+   link would break; or a package manager's `node_modules` or `vendor`; or when it's npm's
+   global `bin`, beside `lib/node_modules`, where `npm install -g` links the programs it
+   installs, Claude Code's own `claude` among them, unless that's Homebrew's own prefix, beside
+   its `Cellar`, whose `bin` is where links go. It links `claude` in the one taken to switchboard
+   by the path it was run by, as the LaunchAgent names it, so an upgrade moves the link on, and
+   says where. A `claude` ahead of the real one that is switchboard already counts as done,
+   wherever it is. Anything else named `claude` in a directory is left alone, and setup says so.
+   With nowhere to put the link, it says what to add to `PATH`, and where, and writes nothing.
 5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Shows `usage`.
 

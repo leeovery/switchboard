@@ -341,14 +341,20 @@ func (u *user) Read(p []byte) (int, error) {
 	return n, nil
 }
 
+// interrupt is an answer that's the user interrupting the typing of a token.
+const interrupt = "^C"
+
 // typeUnseen types the next answer, which the terminal doesn't show, nor the
-// newline that ends it.
+// newline that ends it: or interrupts the typing, as interrupt says to.
 func (u *user) typeUnseen() ([]byte, error) {
 	if len(u.answers) == 0 {
 		return nil, io.EOF
 	}
 	answer := u.answers[0]
 	u.answers = u.answers[1:]
+	if answer == interrupt {
+		return nil, accounts.ErrInterrupted
+	}
 	return []byte(answer), nil
 }
 

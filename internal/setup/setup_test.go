@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/skill"
 )
@@ -112,6 +113,51 @@ func TestSetupStopsWhenTheInputEnds(t *testing.T) {
 	w.checkToken(t, "work", "test-token-work")
 	if w.launchd.calls != nil {
 		t.Errorf("ran launchctl %q, want the service left alone", w.launchd.calls)
+	}
+}
+
+func TestSetupStopsAtAnInterrupt(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay changes the world, which is done, before setup runs.
+		lay     func(t *testing.T, w *world)
+		answers []string
+		// wantEnd is how what the terminal showed ends.
+		wantEnd string
+	}{
+		{
+			name:    "taking a missing token",
+			lay:     func(t *testing.T, w *world) { w.removeToken(t, "side") },
+			answers: []string{interrupt},
+			wantEnd: "Paste side's token, from claude setup-token run while signed in to that subscription (it won't show): \n",
+		},
+		{
+			name:    "taking an account's token as it's added",
+			answers: []string{"y", "spare", "", interrupt},
+			wantEnd: "Paste spare's token, from claude setup-token run while signed in to that subscription (it won't show): \n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			if tt.lay != nil {
+				tt.lay(t, w)
+			}
+			before := w.snapshot(t)
+
+			shown, err := w.run(t, tt.answers...)
+			if !errors.Is(err, accounts.ErrInterrupted) {
+				t.Errorf("Run() error = %v, want one matching %v", err, accounts.ErrInterrupted)
+			}
+			if !strings.HasSuffix(shown, tt.wantEnd) {
+				t.Errorf("the terminal showed\n%s\nwant it to end, with nothing more asked, at\n%s", shown, tt.wantEnd)
+			}
+			w.checkUnchanged(t, before)
+			if w.launchd.calls != nil {
+				t.Errorf("ran launchctl %q, want the service left alone", w.launchd.calls)
+			}
+		})
 	}
 }
 
