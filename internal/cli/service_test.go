@@ -104,13 +104,8 @@ func TestServiceInstallWarnsWhenTheRouterWouldHaveNoToken(t *testing.T) {
 	// Set up outside the bubble: the fake API's server waits on the network,
 	// which would keep the bubble's clock from moving.
 	s := newServiceSetup(t)
-	getenv := s.srv.deps.Getenv
-	s.srv.deps.Getenv = func(key string) string {
-		if strings.HasPrefix(key, "CLAUDE_TOKEN_") {
-			return ""
-		}
-		return getenv(key)
-	}
+	s.setenv("CLAUDE_TOKEN_WORK", "")
+	s.setenv("CLAUDE_TOKEN_SIDE", "")
 	// Without a token, the router it starts has nothing to route to.
 	s.launchd.starts = false
 	synctest.Test(t, func(t *testing.T) {
@@ -144,12 +139,8 @@ func TestServiceInstallHasTheRouterLogAsAsked(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newServiceSetup(t)
-			getenv := s.srv.deps.Getenv
-			s.srv.deps.Getenv = func(key string) string {
-				if value, ok := tt.env[key]; ok {
-					return value
-				}
-				return getenv(key)
+			for key, value := range tt.env {
+				s.setenv(key, value)
 			}
 
 			if got := run(t, s.srv.deps, append([]string{"service", "install"}, tt.args...)...); got.code != 0 {
@@ -162,15 +153,8 @@ func TestServiceInstallHasTheRouterLogAsAsked(t *testing.T) {
 
 func TestServiceInstallNamesARelativeConfigAbsolute(t *testing.T) {
 	s := newServiceSetup(t)
-	dir := filepath.Dir(s.srv.config)
-	t.Chdir(dir)
-	getenv := s.srv.deps.Getenv
-	s.srv.deps.Getenv = func(key string) string {
-		if key == "SWITCHBOARD_CONFIG" {
-			return filepath.Base(s.srv.config)
-		}
-		return getenv(key)
-	}
+	t.Chdir(filepath.Dir(s.srv.config))
+	s.setenv("SWITCHBOARD_CONFIG", filepath.Base(s.srv.config))
 
 	if got := run(t, s.srv.deps, "service", "install"); got.code != 0 {
 		t.Fatalf("switchboard service install = %+v, want exit status 0", got)
@@ -312,6 +296,18 @@ func newServiceSetup(t *testing.T) *serviceSetup {
 	}
 	plist := filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
 	return &serviceSetup{srv: srv, launchd: launchd, binary: binary, plist: plist}
+}
+
+// setenv has the command line, and the router launchd starts, see key set
+// to value.
+func (s *serviceSetup) setenv(key, value string) {
+	getenv := s.srv.deps.Getenv
+	s.srv.deps.Getenv = func(k string) string {
+		if k == key {
+			return value
+		}
+		return getenv(k)
+	}
 }
 
 // checkPlist checks the service's plist holds each of parts.
