@@ -50,13 +50,13 @@ type replay struct {
 
 func (rp *replay) RoundTrip(out *http.Request) (*http.Response, error) {
 	for {
-		resp, windows, err := rp.send(out)
+		resp, err := rp.send(out)
 		if err != nil {
 			// A failure to reach the upstream isn't the account's, so
 			// another would fare no better.
 			return nil, err
 		}
-		again, err := rp.settle(out.Context(), resp, windows)
+		again, err := rp.settle(out.Context(), resp)
 		switch {
 		case err != nil:
 			return nil, err
@@ -67,40 +67,38 @@ func (rp *replay) RoundTrip(out *http.Request) (*http.Response, error) {
 }
 
 // send sends the request out on the exchange's account, with a body of its
-// own, and reads the account's usage off the answer, which it returns with
-// the windows read.
-func (rp *replay) send(out *http.Request) (*http.Response, []quota.Window, error) {
+// own, and reads the account's usage off the answer, which it returns.
+func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	ex := rp.ex
 	ex.attempts++
 	attempt := out.Clone(out.Context())
 	if out.Body != nil {
 		body, err := out.GetBody()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		attempt.Body = body
 	}
 	attempt.Header.Set("Authorization", "Bearer "+ex.account.token.Reveal())
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	windows := rp.p.provider.Usage(resp.Header)
-	if len(windows) > 0 {
+	if windows := rp.p.provider.Usage(resp.Header); len(windows) > 0 {
 		rp.p.state.record(ex.account.ID, windows, fromResponse)
 		rp.p.state.learn(ex.req.Model, windows)
 	}
-	return resp, windows, nil
+	return resp, nil
 }
 
 // settle decides what's to become of an answer: it's the client's, or the
 // request goes out again, when settle reports true, or the client has err
 // instead. An answer the client isn't to have is closed.
-func (rp *replay) settle(ctx context.Context, resp *http.Response, windows []quota.Window) (bool, error) {
+func (rp *replay) settle(ctx context.Context, resp *http.Response) (bool, error) {
 	outcome := rp.p.provider.Classify(resp.StatusCode, resp.Header)
 	switch outcome.Verdict {
 	case quota.LimitReached:
-		return rp.limitReached(ctx, resp, windows, outcome.LimitedUntil), nil
+		return rp.limitReached(ctx, resp, outcome.Rejected, outcome.LimitedUntil), nil
 	case quota.Throttled:
 		return rp.throttle(ctx, resp, outcome.RetryAfter)
 	case quota.Refused:
@@ -110,16 +108,15 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response, windows []quo
 	}
 }
 
-// limitReached bars an account whose limit the request reached, until when
-// the answer says, from the requests its rejected windows count, and moves on
-// from it, when another account can take the request. When none can, the
-// answer is the client's.
-func (rp *replay) limitReached(ctx context.Context, resp *http.Response, windows []quota.Window, until time.Time) bool {
+// limitReached bars an account whose limit the request reached in the
+// windows rejected, if any, until when the answer says, from the requests
+// those windows count, and moves on from it, when another account can take
+// the request. When none can, the answer is the client's.
+func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejected []string, until time.Time) bool {
 	id := rp.ex.account.ID
-	keys := rejected(windows)
-	until = rp.p.state.limit(id, keys, until)
-	logger.Warn("limit reached", "id", rp.ex.id, "account", id, "windows", strings.Join(keys, ","), "until", until)
-	rp.p.emit(LimitReached{Account: id, Windows: keys, Until: until})
+	until = rp.p.state.limit(id, rejected, until)
+	logger.Warn("limit reached", "id", rp.ex.id, "account", id, "windows", strings.Join(rejected, ","), "until", until)
+	rp.p.emit(LimitReached{Account: id, Windows: rejected, Until: until})
 	if !rp.moveOn(ctx, whyLimit) {
 		return false
 	}
@@ -186,17 +183,6 @@ func (rp *replay) moveOn(ctx context.Context, why string) bool {
 // account, as the account it went out on, from, couldn't serve it.
 func (rp *replay) replaying(from, why string) {
 	logger.Info("replaying", "id", rp.ex.id, "attempt", rp.ex.attempts+1, "from", from, "to", rp.ex.account.ID, "why", why)
-}
-
-// rejected returns the keys of the windows that rejected a request.
-func rejected(windows []quota.Window) []string {
-	var keys []string
-	for _, w := range windows {
-		if w.Status == quota.StatusRejected {
-			keys = append(keys, w.Key)
-		}
-	}
-	return keys
 }
 
 // discard reads what's left of an answer the client isn't to have, up to

@@ -145,10 +145,14 @@ func TestProviderClassify(t *testing.T) {
 	throttledAfter := func(d time.Duration) quota.Outcome {
 		return quota.Outcome{Verdict: quota.Throttled, RetryAfter: d}
 	}
-	limit := quota.Outcome{Verdict: quota.LimitReached}
-	// limitUntil is the limit reached, until the Unix time given.
-	limitUntil := func(unix int64) quota.Outcome {
-		return quota.Outcome{Verdict: quota.LimitReached, LimitedUntil: time.Unix(unix, 0).UTC()}
+	// limitIn is the limit reached in the windows with the given keys.
+	limitIn := func(rejected ...string) quota.Outcome {
+		return quota.Outcome{Verdict: quota.LimitReached, Rejected: rejected}
+	}
+	// limitUntil is the limit reached in the windows with the given keys,
+	// until the Unix time given.
+	limitUntil := func(unix int64, rejected ...string) quota.Outcome {
+		return quota.Outcome{Verdict: quota.LimitReached, Rejected: rejected, LimitedUntil: time.Unix(unix, 0).UTC()}
 	}
 	tests := []struct {
 		name   string
@@ -172,25 +176,37 @@ func TestProviderClassify(t *testing.T) {
 			name:   "a 429 whose overall status is rejected",
 			status: http.StatusTooManyRequests,
 			header: header("anthropic-ratelimit-unified-status", "rejected", "anthropic-ratelimit-unified-5h-status", "allowed_warning", "retry-after", "30"),
-			want:   limit,
+			want:   limitIn(),
 		},
 		{
 			name:   "a 429 whose session is rejected",
 			status: http.StatusTooManyRequests,
 			header: header("anthropic-ratelimit-unified-5h-status", "rejected", "anthropic-ratelimit-unified-7d-status", "allowed"),
-			want:   limit,
+			want:   limitIn("5h"),
 		},
 		{
 			name:   "a 429 whose model's week is rejected, in any case of header name",
 			status: http.StatusTooManyRequests,
 			header: http.Header{"Anthropic-Ratelimit-Unified-7D_OI-Status": {"rejected"}},
-			want:   limit,
+			want:   limitIn("7d_oi"),
 		},
 		{
 			name:   "a 429 whose rejected window has no utilization",
 			status: http.StatusTooManyRequests,
 			header: header("anthropic-ratelimit-unified-7d-status", "rejected"),
-			want:   limit,
+			want:   limitIn("7d"),
+		},
+		{
+			name:   "a 429 whose model's week is rejected, its reset given but not its utilization",
+			status: http.StatusTooManyRequests,
+			header: header(
+				"anthropic-ratelimit-unified-status", "rejected",
+				"anthropic-ratelimit-unified-5h-utilization", "0.23",
+				"anthropic-ratelimit-unified-5h-status", "allowed",
+				"anthropic-ratelimit-unified-7d_oi-status", "rejected",
+				"anthropic-ratelimit-unified-7d_oi-reset", "1790974800",
+			),
+			want: limitUntil(1790974800, "7d_oi"),
 		},
 		{
 			name:   "a limit until the overall reset, the rejecting claim's, over any window's",
@@ -201,7 +217,7 @@ func TestProviderClassify(t *testing.T) {
 				"anthropic-ratelimit-unified-5h-status", "rejected",
 				"anthropic-ratelimit-unified-5h-reset", "1790974800",
 			),
-			want: limitUntil(1790619000),
+			want: limitUntil(1790619000, "5h"),
 		},
 		{
 			name:   "a limit until the rejected window's reset, not those with room",
@@ -212,7 +228,7 @@ func TestProviderClassify(t *testing.T) {
 				"anthropic-ratelimit-unified-7d-status", "allowed",
 				"anthropic-ratelimit-unified-7d-reset", "1790974800",
 			),
-			want: limitUntil(1790619000),
+			want: limitUntil(1790619000, "5h"),
 		},
 		{
 			name:   "a limit until the latest of the rejected windows' resets",
@@ -223,7 +239,7 @@ func TestProviderClassify(t *testing.T) {
 				"anthropic-ratelimit-unified-5h-status", "rejected",
 				"anthropic-ratelimit-unified-5h-reset", "1790619000",
 			),
-			want: limitUntil(1790974800),
+			want: limitUntil(1790974800, "5h", "7d"),
 		},
 		{
 			name:   "a limit until the reset of the rejected window that gives one",
@@ -233,7 +249,7 @@ func TestProviderClassify(t *testing.T) {
 				"anthropic-ratelimit-unified-7d-status", "rejected",
 				"anthropic-ratelimit-unified-7d-reset", "1790974800",
 			),
-			want: limitUntil(1790974800),
+			want: limitUntil(1790974800, "5h", "7d"),
 		},
 		{
 			name:   "a limit whose overall reset can't be read, until the windows'",
@@ -244,7 +260,7 @@ func TestProviderClassify(t *testing.T) {
 				"anthropic-ratelimit-unified-5h-status", "rejected",
 				"anthropic-ratelimit-unified-5h-reset", "1790619000",
 			),
-			want: limitUntil(1790619000),
+			want: limitUntil(1790619000, "5h"),
 		},
 		{
 			name:   "a 429 rejecting overage alone, which isn't a window",
@@ -277,7 +293,7 @@ func TestProviderClassify(t *testing.T) {
 			if h == nil {
 				h = http.Header{}
 			}
-			if got := (claude.Provider{}).Classify(tt.status, h); got != tt.want {
+			if got := (claude.Provider{}).Classify(tt.status, h); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Classify(%d, %v) = %+v, want %+v", tt.status, h, got, tt.want)
 			}
 		})

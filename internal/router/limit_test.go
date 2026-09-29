@@ -118,6 +118,35 @@ func TestAReadingShowingRoomLiftsALimitEarly(t *testing.T) {
 	checkLimit(t, r.rt, "work", status.Limit{})
 }
 
+func TestAWindowRejectedWithoutItsUseBarsTheRequestsItCountsAlone(t *testing.T) {
+	r := newRouted(t)
+	models := map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}}
+	for token, left := range map[string]time.Duration{workToken: 24 * time.Hour, sideToken: 5 * 24 * time.Hour} {
+		windows := []quota.Window{session, weekOf(0.5, left), fableWeek}
+		r.prober.answer(token, probeResult{usage: quota.Usage{Windows: windows}, models: models})
+		r.api.set(token, windows...)
+	}
+	// Work's Fable week rejects a request, its status and reset read, but
+	// not its use.
+	reset := now.Add(48 * time.Hour)
+	r.api.script(workToken, func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Anthropic-Ratelimit-Unified-7d_oi-Status", "rejected")
+		w.Header().Set("Anthropic-Ratelimit-Unified-7d_oi-Reset", strconv.FormatInt(reset.Unix(), 10))
+		limitReached("You've hit your Fable limit", session, weekOf(0.5, 24*time.Hour))(w, req)
+	})
+
+	if got := r.ask(t, "writing", fable, ""); got != "side" {
+		t.Fatalf("the Fable request went to %s last, want side, work having rejected it", got)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"7d_oi"}, Until: reset})
+	if got := r.ask(t, "titling", haiku, ""); got != "work" {
+		t.Errorf("a Haiku session went to %s, want work: its Fable week doesn't count Haiku", got)
+	}
+	if got := r.ask(t, "drafting", fable, ""); got != "side" {
+		t.Errorf("another Fable session went to %s, want side: work's Fable week rejected Fable", got)
+	}
+}
+
 // rejectedUntil answers with a 429 rejecting the request overall, until the
 // time given, whatever windows report.
 func rejectedUntil(until time.Time, windows ...quota.Window) http.HandlerFunc {
