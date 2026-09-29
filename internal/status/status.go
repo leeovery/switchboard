@@ -133,6 +133,11 @@ type Refusal struct {
 	Family string    `json:"family,omitempty"`
 }
 
+// Holds reports whether the refusal still holds at now.
+func (r Refusal) Holds(now time.Time) bool {
+	return r.Until.After(now)
+}
+
 // Prober reads an account's usage with its token.
 type Prober interface {
 	Probe(ctx context.Context, token string) (quota.Probe, error)

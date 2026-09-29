@@ -3,6 +3,7 @@ package status
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -46,15 +47,29 @@ func (a Account) Text(now time.Time) string {
 	return b.String()
 }
 
-// writeRouted writes what the router notes of the account: the limit that
-// holds it back at now, if one does, and how many sessions it has.
+// writeRouted writes what the router notes of the account: what holds it
+// back at now, and how many sessions it has.
 func (a Account) writeRouted(b *strings.Builder, now time.Time) {
-	if a.Limit.Holds(now) {
-		fmt.Fprintf(b, "  %s\n", a.Limit.Text(now))
+	for _, held := range a.HeldBy(now) {
+		fmt.Fprintf(b, "  %s\n", held)
 	}
 	if a.Sessions > 0 {
 		fmt.Fprintf(b, "  %s\n", SessionCount(a.Sessions))
 	}
+}
+
+// HeldBy says what holds the account back at now, as the router saw it, a
+// line each: the limit it reached, then the upstream's refusal, each while it
+// holds.
+func (a Account) HeldBy(now time.Time) []string {
+	var held []string
+	if a.Limit.Holds(now) {
+		held = append(held, a.Limit.Text(now))
+	}
+	if a.Refused.Holds(now) {
+		held = append(held, a.Refused.Text(now))
+	}
+	return held
 }
 
 // origin says where the document's usage came from: the router, with how it
@@ -116,6 +131,16 @@ func SessionCount(n int) string {
 // now's time zone.
 func (l Limit) Text(now time.Time) string {
 	return "limit until " + Clock(now, l.Until)
+}
+
+// Text says how the upstream refused, and until when the refusal holds, such
+// as "refused (403, opus) until 21:40", in now's time zone.
+func (r Refusal) Text(now time.Time) string {
+	answer := strconv.Itoa(r.Status)
+	if r.Family != "" {
+		answer += ", " + Clean(r.Family)
+	}
+	return "refused (" + answer + ") until " + TimeOfDay(now, r.Until)
 }
 
 // write writes the account's title, its windows with their labels width wide,

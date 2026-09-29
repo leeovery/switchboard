@@ -51,6 +51,7 @@ func layouts() []layout {
 		{name: "router-pinned-elsewhere", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 100}},
 		{name: "router-automatic", doc: routedAutomatically(), opts: dashboard.Options{Width: 150}},
 		{name: "router-unhealthy", doc: routerUnhealthy(), opts: dashboard.Options{Width: 150}},
+		{name: "router-refused", doc: routedRefused(), opts: dashboard.Options{Width: 150}},
 		{name: "router-compact", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "router-compact-narrow", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 72, Height: 10}},
 		{name: "router-not-running", doc: probedWithoutTheRouter(), opts: dashboard.Options{Width: 100}},
@@ -239,6 +240,27 @@ func TestRenderShowsALimitWhileItHolds(t *testing.T) {
 			doc.Accounts[2].Limit.Until = tt.until
 			if shown := strings.Contains(dashboard.Render(doc, now, dashboard.Options{Width: 150}), "limit until"); shown != tt.want {
 				t.Errorf("limit shown = %v, want %v", shown, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderShowsARefusalWhileItHolds(t *testing.T) {
+	tests := []struct {
+		name  string
+		until time.Time
+		want  bool
+	}{
+		{name: "holding", until: now.Add(time.Minute), want: true},
+		{name: "lifted", until: now, want: false},
+		{name: "none", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routed()
+			doc.Accounts[1].Refused = status.Refusal{Until: tt.until, Status: 403, Family: "opus"}
+			if shown := strings.Contains(dashboard.Render(doc, now, dashboard.Options{Width: 150}), "refused (403, opus) until"); shown != tt.want {
+				t.Errorf("refusal shown = %v, want %v", shown, tt.want)
 			}
 		})
 	}
@@ -468,6 +490,15 @@ func routed() status.Document {
 	doc.Accounts[0].Sessions = 1
 	doc.Accounts[1].Sessions = 2
 	doc.Accounts[2].Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(hour + 20*time.Minute).UTC()}
+	return doc
+}
+
+// routedRefused is routed with work's token refused, and side, held back by
+// its limit, refused its Opus requests too.
+func routedRefused() status.Document {
+	doc := routed()
+	doc.Accounts[0].Refused = status.Refusal{Until: now.Add(10 * time.Minute).UTC(), Status: 401}
+	doc.Accounts[2].Refused = status.Refusal{Until: now.Add(8 * time.Minute).UTC(), Status: 403, Family: "opus"}
 	return doc
 }
 

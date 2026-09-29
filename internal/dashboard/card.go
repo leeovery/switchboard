@@ -164,13 +164,13 @@ func side(content line, cw int, border ink) line {
 	)
 }
 
-// content is what a card says of an account: the limit that holds it back,
-// when one does; its usage; and last how many sessions it has, when it has
+// content is what a card says of an account: what holds it back, when
+// anything does; its usage; and last how many sessions it has, when it has
 // any. A blank line comes between each block.
 func content(a status.Account, now time.Time, cw int) []line {
 	var blocks [][]line
-	if a.Limit.Holds(now) {
-		blocks = append(blocks, []line{{{truncate(a.Limit.Text(now), cw), exhaustedInk}}})
+	if held := heldBy(a, now, cw); held != nil {
+		blocks = append(blocks, held)
 	}
 	blocks = append(blocks, usage(a, now, cw)...)
 	if a.Sessions > 0 {
@@ -182,6 +182,17 @@ func content(a status.Account, now time.Time, cw int) []line {
 			lines = append(lines, nil)
 		}
 		lines = append(lines, block...)
+	}
+	return lines
+}
+
+// heldBy is what holds an account back at now, a line each, in red: the
+// limit it reached, then the upstream's refusal, while each holds. It's nil
+// when nothing does.
+func heldBy(a status.Account, now time.Time, cw int) []line {
+	var lines []line
+	for _, held := range a.HeldBy(now) {
+		lines = append(lines, line{{truncate(held, cw), exhaustedInk}})
 	}
 	return lines
 }

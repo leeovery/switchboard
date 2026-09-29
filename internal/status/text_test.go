@@ -122,6 +122,47 @@ from the router: healthy · 3 sessions · pinned to side · Side
 `,
 		},
 		{
+			name: "the router's, with refusals",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true, Requests: 12},
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
+						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
+						Refused: status.Refusal{Until: time.Date(2026, 9, 28, 13, 20, 0, 0, time.UTC), Status: 401},
+					},
+					{
+						ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(), Sessions: 1,
+						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)}},
+						Limit:   status.Limit{Windows: []string{"5h"}, Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)},
+						Refused: status.Refusal{Until: time.Date(2026, 9, 28, 13, 21, 0, 0, time.UTC), Status: 403, Family: "opus"},
+					},
+					{
+						ID: "spare", Label: "Spare", TokenSet: true, FetchedAt: now.UTC(),
+						Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.5, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
+						Refused: status.Refusal{Until: now.Add(-time.Minute), Status: 403, Family: "fable"},
+					},
+				},
+			},
+			want: `work · Work
+  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  refused (401) until 14:20
+
+side · Side
+  Session 100%  resets in 6h 48m · Mon 21:00 · exhausted
+  limit until Mon 21:00
+  refused (403, opus) until 14:21
+  1 session
+
+spare · Spare
+  Session  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
+
+from the router: healthy · no sessions · routing automatically
+`,
+		},
+		{
 			name: "the router's, unhealthy, routing automatically, and a limit that has lifted",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),
@@ -322,6 +363,43 @@ func TestRouting(t *testing.T) {
 				t.Errorf("Routing() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRefusal(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	until := time.Date(2026, 9, 28, 13, 20, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		refusal status.Refusal
+		want    string
+	}{
+		{name: "its token", refusal: status.Refusal{Until: until, Status: 401}, want: "refused (401) until 14:20"},
+		{name: "a family's requests", refusal: status.Refusal{Until: until, Status: 403, Family: "opus"}, want: "refused (403, opus) until 14:20"},
+		{name: "a family named from elsewhere, cleaned", refusal: status.Refusal{Until: until, Status: 403, Family: "claude-x\x1b[2J"}, want: "refused (403, claude-x [2J) until 14:20"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.refusal.Text(now); got != tt.want {
+				t.Errorf("Text() = %q, want %q, in now's time zone", got, tt.want)
+			}
+		})
+	}
+	refusal := status.Refusal{Until: until, Status: 401}
+	for _, tt := range []struct {
+		at   time.Time
+		want bool
+	}{
+		{at: now, want: true},
+		{at: until.Add(-time.Second), want: true},
+		{at: until, want: false},
+	} {
+		if got := refusal.Holds(tt.at); got != tt.want {
+			t.Errorf("Holds(%s) = %v, want %v", tt.at.Format(time.Kitchen), got, tt.want)
+		}
+	}
+	if (status.Refusal{}).Holds(now) {
+		t.Error("no refusal holds")
 	}
 }
 
