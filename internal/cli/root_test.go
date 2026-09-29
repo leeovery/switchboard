@@ -338,6 +338,13 @@ func (n *recordingNotifier) Notify(message string) error {
 	return nil
 }
 
+// posted returns the notifications given so far.
+func (n *recordingNotifier) posted() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Clone(n.messages)
+}
+
 // logDir is where commands run with deps log.
 func logDir(t *testing.T, deps cli.Deps) string {
 	t.Helper()

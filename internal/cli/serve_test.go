@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -178,6 +182,61 @@ func TestServeLogLevel(t *testing.T) {
 	}
 }
 
+func TestServePostsTheNotificationsTheConfigAsksFor(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if token := r.Header.Get("Authorization"); token != "Bearer test-token-work" && token != "Bearer test-token-side" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Anthropic-Ratelimit-Unified-5h-Utilization", "0.2")
+		w.Header().Set("Anthropic-Ratelimit-Unified-5h-Reset", "1790619000")
+		w.Header().Set("Anthropic-Ratelimit-Unified-7d-Utilization", "0.5")
+		w.Header().Set("Anthropic-Ratelimit-Unified-7d-Reset", "1790974800")
+		_, _ = io.WriteString(w, `{"type":"message"}`)
+	}))
+	t.Cleanup(api.Close)
+	srv := newServeSetup(t, api.URL, nil)
+	srv.extra = "\n[notifications]\nmoves = true\n"
+	srv.writeConfig(t)
+	notifier := &recordingNotifier{}
+	srv.deps.Notifier = notifier
+	stop := srv.start(t)
+
+	for _, pin := range []string{"work", "side"} {
+		if status := askPinned(t, "http://"+srv.listen, pin); status != http.StatusOK {
+			t.Fatalf("a request pinned to %s was answered %d, want 200", pin, status)
+		}
+	}
+	want := []string{"session 0b5c6f2e moved from work · Work to side · Side (pinned)"}
+	waitUntil(t, "the move is told of", func() bool { return slices.Equal(notifier.posted(), want) })
+	if got := stop(); got.code != 0 {
+		t.Errorf("switchboard serve = %+v, want exit status 0", got)
+	}
+}
+
+// askPinned sends the router at url a messages request of one session, on
+// work's token and pinned to pin, and returns the status it's answered with.
+func askPinned(t *testing.T, url, pin string) int {
+	t.Helper()
+	body := `{"model":"claude-opus-5-5","max_tokens":1,"messages":[{"role":"user","content":"hello"}]}`
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url+"/v1/messages", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer test-token-work")
+	req.Header.Set("X-Claude-Code-Session-Id", "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e")
+	req.Header.Set("X-Switchboard-Account", pin)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		t.Fatal(err)
+	}
+	return resp.StatusCode
+}
+
 // serveSetup is what serve runs with in a test: statusDeps' three accounts,
 // a free address to listen on, and a state directory short enough to hold the
 // control socket.
@@ -188,6 +247,8 @@ type serveSetup struct {
 	// state is switchboard's state directory, under $XDG_STATE_HOME.
 	state  string
 	config string
+	// extra ends the config file.
+	extra string
 }
 
 // newServeSetup sets serve up against upstream, with env added to its
@@ -237,7 +298,7 @@ token_env = "CLAUDE_TOKEN_PERSONAL"
 id        = "side"
 label     = "Side"
 token_env = "CLAUDE_TOKEN_SIDE"
-`, s.listen, s.upstream)
+`, s.listen, s.upstream) + s.extra
 	if err := os.WriteFile(s.config, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
