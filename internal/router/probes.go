@@ -197,7 +197,8 @@ func logProbe(a account, probed quota.Probe, err error, took time.Duration) {
 }
 
 // logPrime logs how a prime of an account went: at info, with the reset it
-// read of the window it primed.
+// read of the window it primed, or at warn when it failed, or didn't start
+// that window.
 func (p *probes) logPrime(a account, probed quota.Probe, err error, took time.Duration) {
 	if err != nil {
 		logger.Warn("prime failed", "account", a.ID, "duration", took, "error", err)
@@ -208,7 +209,11 @@ func (p *probes) logPrime(a account, probed quota.Probe, err error, took time.Du
 	if i := slices.IndexFunc(probed.Windows, func(w quota.Window) bool { return w.Key == key }); i >= 0 {
 		attrs = append(attrs, "resets", probed.Windows[i].ResetsAt)
 	}
-	logger.Info("primed", attrs...)
+	if p.state.primeFailed(a.ID) {
+		logger.Warn("prime didn't start the window", append(attrs, "window", key)...)
+	} else {
+		logger.Info("primed", attrs...)
+	}
 	logUnread(a, probed)
 }
 

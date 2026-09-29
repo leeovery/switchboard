@@ -36,7 +36,7 @@ func TestASupervisedRouterRestartsItself(t *testing.T) {
 	}{
 		{
 			name:       "once its config file makes another valid config",
-			change:     func(t *testing.T, s *selfWatching) { writeFile(t, s.cfg.ConfigFile, twoAccounts) },
+			change:     func(t *testing.T, s *selfWatching) { writeFile(t, s.config, twoAccounts) },
 			wantReason: `reason="config changed"`,
 		},
 		{
@@ -75,15 +75,15 @@ func TestARouterCarriesOnThroughAConfigChangeThatIsntValid(t *testing.T) {
 	s := newSelfWatching(t, true)
 	r := startRouter(t, s.cfg)
 
-	writeFile(t, s.cfg.ConfigFile, notAConfig)
-	waitForLine(t, log, "level=WARN", `msg="config change refused; carrying on with the config as it was"`, "path="+s.cfg.ConfigFile)
+	writeFile(t, s.config, notAConfig)
+	waitForLine(t, log, "level=WARN", `msg="config change refused; carrying on with the config as it was"`, "path="+s.config)
 	time.Sleep(10 * watchEvery)
 	r.checkRunning(t)
 	if log.Has(`msg="restart due`) {
 		t.Errorf("log reads\n%s\nwant no restart due", log)
 	}
 
-	writeFile(t, s.cfg.ConfigFile, twoAccounts)
+	writeFile(t, s.config, twoAccounts)
 	r.waitForExit(t)
 }
 
@@ -102,7 +102,7 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 	go func() { answered <- post("http://" + s.cfg.Listen + "/v1/messages") }()
 	<-arrived
 
-	writeFile(t, s.cfg.ConfigFile, twoAccounts)
+	writeFile(t, s.config, twoAccounts)
 	waitForLine(t, log, `msg="restart due; restarting once no request is in flight"`)
 	time.Sleep(10 * watchEvery)
 	r.checkRunning(t)
@@ -118,10 +118,10 @@ func TestARouterRunByHandSaysARestartIsDueOnce(t *testing.T) {
 	s := newSelfWatching(t, false)
 	r := startRouter(t, s.cfg)
 
-	writeFile(t, s.cfg.ConfigFile, twoAccounts)
+	writeFile(t, s.config, twoAccounts)
 	waitForLine(t, log, "level=INFO", `msg="restart due; run switchboard serve again to take it up"`, `reason="config changed"`)
 	s.upgrade(t)
-	writeFile(t, s.cfg.ConfigFile, oneAccount)
+	writeFile(t, s.config, oneAccount)
 	time.Sleep(10 * watchEvery)
 	r.checkRunning(t)
 	if n := strings.Count(log.String(), `msg="restart due`); n != 1 {
@@ -201,6 +201,8 @@ func TestTheRouterTakesUpTokenFilesAsTheyChange(t *testing.T) {
 // valid config file, and its binary, a link to one version of it.
 type selfWatching struct {
 	cfg router.Config
+	// config is the config file's path, and binary the binary's.
+	config, binary string
 	// next is the binary's next version, which an upgrade leads its link to.
 	next string
 }
@@ -210,21 +212,25 @@ type selfWatching struct {
 func newSelfWatching(t *testing.T, supervised bool) *selfWatching {
 	t.Helper()
 	dir := t.TempDir()
-	s := &selfWatching{cfg: runConfig(t, "http://127.0.0.1:1"), next: filepath.Join(dir, "1.1", "switchboard")}
-	s.cfg.ConfigFile = filepath.Join(dir, "config.toml")
-	s.cfg.Binary = filepath.Join(dir, "bin", "switchboard")
-	s.cfg.Supervised = supervised
-	s.cfg.WatchEvery = watchEvery
-	writeFile(t, s.cfg.ConfigFile, oneAccount)
+	s := &selfWatching{
+		cfg:    runConfig(t, "http://127.0.0.1:1"),
+		config: filepath.Join(dir, "config.toml"),
+		binary: filepath.Join(dir, "bin", "switchboard"),
+		next:   filepath.Join(dir, "1.1", "switchboard"),
+	}
+	writeFile(t, s.config, oneAccount)
 	current := filepath.Join(dir, "1.0", "switchboard")
 	writeFile(t, current, "switchboard 1.0")
 	writeFile(t, s.next, "switchboard 1.1")
-	if err := os.MkdirAll(filepath.Dir(s.cfg.Binary), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.binary), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(current, s.cfg.Binary); err != nil {
+	if err := os.Symlink(current, s.binary); err != nil {
 		t.Fatal(err)
 	}
+	s.cfg.ConfigFile, s.cfg.Binary = router.Watch(s.config), router.Watch(s.binary)
+	s.cfg.Supervised = supervised
+	s.cfg.WatchEvery = watchEvery
 	return s
 }
 
@@ -232,11 +238,11 @@ func newSelfWatching(t *testing.T, supervised bool) *selfWatching {
 // does.
 func (s *selfWatching) upgrade(t *testing.T) {
 	t.Helper()
-	moved := s.cfg.Binary + ".new"
+	moved := s.binary + ".new"
 	if err := os.Symlink(s.next, moved); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Rename(moved, s.cfg.Binary); err != nil {
+	if err := os.Rename(moved, s.binary); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -101,9 +101,10 @@ func (s Schedule) Next(account string, windows []quota.Window, now time.Time) (t
 }
 
 // idleFrom returns when, at now or after, the window a request starts, among
-// windows as last read, isn't running: now, when it has never been read or has
-// lapsed; else its reset. It reports false when windows were read but not
-// that one, or it was read without a reset: there's nothing to go by.
+// windows as last read, isn't running, in now's time zone: now, when it has
+// never been read or has lapsed; else its reset. It reports false when
+// windows were read but not that one, or it was read without a reset: there's
+// nothing to go by.
 func (s Schedule) idleFrom(windows []quota.Window, now time.Time) (time.Time, bool) {
 	if len(windows) == 0 {
 		return now, true
@@ -113,7 +114,7 @@ func (s Schedule) idleFrom(windows []quota.Window, now time.Time) (time.Time, bo
 	case i < 0 || windows[i].ResetsAt.IsZero():
 		return time.Time{}, false
 	case windows[i].ResetsAt.After(now):
-		return windows[i].ResetsAt, true
+		return windows[i].ResetsAt.In(now.Location()), true
 	default:
 		return now, true
 	}

@@ -19,11 +19,13 @@ const (
 	// minUntilReset floors the time left before a reset, so a reset minutes
 	// away doesn't dominate the score.
 	minUntilReset = time.Hour
-	// hysteresis is the margin by which one score must beat another before
-	// Pick counts it ahead: short of it, the two are near enough equal that
-	// the preferred account stays, or the tiebreak window decides, so
-	// near-equal accounts don't trade places.
+	// hysteresis is the margin by which another account's score must beat the
+	// preferred account's before Pick leaves it: short of it, the preferred
+	// account stays, so near-equal accounts don't trade places.
 	hysteresis = 0.2
+	// band is how far below the highest score another can fall and still be
+	// near enough equal to it that the tiebreak window decides between them.
+	band = 0.2
 	// tolerance is how close two scores, or two shares of a window, must be
 	// to count as equal: far below any real difference, far above rounding.
 	tolerance = 1e-9
@@ -164,23 +166,24 @@ func (p Policy) Perishability(windows []quota.Window, reserve float64, now time.
 // Pick chooses the account whose quota most needs using: of the candidates
 // that are available within their reserves, as applies judges which windows
 // count, the one with the highest perishability. Scores within 20% of the
-// highest are near enough equal that the tiebreak window decides between
-// them: the account whose tiebreak window resets soonest wins, as what's left
-// of it then is lost, ahead of any whose reset isn't known or has passed,
-// which rank alike. Equal resets go to the higher score, then to the account
-// using less of its shortest window that applies, then to the first given.
-// While preferred qualifies, Pick keeps it unless another account scores at
-// least 20% higher. It reports false when no candidate qualifies.
+// highest, at least 0.8 of it, are near enough equal that the tiebreak window
+// decides between them: the account whose tiebreak window resets soonest
+// wins, as what's left of it then is lost, ahead of any whose reset isn't
+// known or has passed, which rank alike. Equal resets go to the higher score,
+// then to the account using less of its shortest window that applies, then
+// to the first given. While preferred qualifies, Pick keeps it unless another
+// account scores at least 20% higher. It reports false when no candidate
+// qualifies.
 func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, preferred string, now time.Time) (string, bool) {
 	ratings := p.qualifying(candidates, applies, now)
 	if len(ratings) == 0 {
 		return "", false
 	}
 	highest := slices.MaxFunc(ratings, func(a, b rating) int { return cmp.Compare(a.score, b.score) }).score
-	near := slices.DeleteFunc(ratings, func(r rating) bool { return worthMoving(highest, r.score) })
-	if slices.ContainsFunc(near, func(r rating) bool { return r.id == preferred }) {
+	if i := slices.IndexFunc(ratings, func(r rating) bool { return r.id == preferred }); i >= 0 && !worthMoving(highest, ratings[i].score) {
 		return preferred, true
 	}
+	near := slices.DeleteFunc(ratings, func(r rating) bool { return !nearEnough(r.score, highest) })
 	// MinFunc returns the first of equals, which settles a full tie by order.
 	return slices.MinFunc(near, rank).id, true
 }
@@ -276,4 +279,10 @@ func compareScores(a, b float64) int {
 // it, however small the two are.
 func worthMoving(score, preferred float64) bool {
 	return score > preferred && score >= preferred*(1+hysteresis)-tolerance
+}
+
+// nearEnough reports whether score is within the band below the highest,
+// allowing for rounding.
+func nearEnough(score, highest float64) bool {
+	return score >= highest*(1-band)-tolerance
 }

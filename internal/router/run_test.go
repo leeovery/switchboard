@@ -20,7 +20,6 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 func TestRun(t *testing.T) {
@@ -91,18 +90,33 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestNewWithoutAUsableToken(t *testing.T) {
-	cfg := testConfig("http://127.0.0.1:1")
-	cfg.Token = tokenstest.Files{"work": " "}.Read
-
-	_, err := router.New(cfg)
-	want := "no account has a usable token, so there's nothing to route to:\n" +
-		"work: token missing\n" +
-		"personal: " + personalMissing + "\n" +
-		"side: " + tokenstest.Missing("side").Error()
-	if err == nil || err.Error() != want {
-		t.Errorf("New() error = %v, want\n%s", err, want)
+func TestARouterStartsWithoutAUsableTokenAndTakesOneUpAsItComes(t *testing.T) {
+	log := logstest.Capture(t)
+	up := newUpstream(t, answerOK)
+	store, files := withTokenFiles(t)
+	cfg := runConfig(t, up.URL)
+	files(&cfg)
+	cfg.WatchEvery = watchEvery
+	for _, id := range []string{"work", "side"} {
+		if err := store.Remove(id); err != nil {
+			t.Fatal(err)
+		}
 	}
+	runRouter(t, cfg)
+	proxy := "http://" + cfg.Listen
+
+	waitForLine(t, log, "level=WARN", `msg="no account has a usable token yet; nothing will be routed until one has"`)
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	waitForLine(t, log, "level=DEBUG", `msg="passed through"`, "path=/v1/messages", "status=200")
+	if log.Has("msg=routed") {
+		t.Errorf("log reads\n%s\nwant the request passed through: no account has a token to route it on", log)
+	}
+
+	writeToken(t, store, "work", workToken)
+	waitForLine(t, log, "level=INFO", `msg="account has a usable token; requests can go out on it"`, "account=work")
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	waitForLine(t, log, "msg=routed", "account=work", "status=200")
+	checkNoTokenIn(t, log, workToken, sideToken)
 }
 
 func TestRunSaysWhereItListens(t *testing.T) {

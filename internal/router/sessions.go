@@ -372,8 +372,10 @@ func (s *sessions) saved() savedSessions {
 // recall takes in what the state file kept of the sessions, as the router
 // starts at now, but for what can no longer be used: assignments gone unused
 // for forgetAfter, and any assignment, session's own pin or global pin to an
-// account requests can't go out on, of the accounts given. It reports
-// whether it left anything out.
+// account no longer configured, of the accounts given. One to an account
+// without a usable token stands, as its token file may only have been caught
+// as it's rewritten: while the account has none, choices pass it over. It
+// reports whether it left anything out.
 func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time) (dropped bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -383,11 +385,11 @@ func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time)
 }
 
 // recallAssignments takes in the assignments saved, but those gone unused for
-// forgetAfter at now, and those of accounts requests can't go out on, and
-// reports whether it left any out. s.mu must be held.
+// forgetAfter at now, and those of accounts no longer configured, and reports
+// whether it left any out. s.mu must be held.
 func (s *sessions) recallAssignments(saved []savedAssignment, accounts accounts, now time.Time) (dropped bool) {
 	for _, a := range saved {
-		if a.Session == "" || a.forgotten(now) || !accounts.canSend(a.Account) {
+		if a.Session == "" || a.forgotten(now) || !accounts.includes(a.Account) {
 			dropped = true
 			continue
 		}
@@ -397,15 +399,15 @@ func (s *sessions) recallAssignments(saved []savedAssignment, accounts accounts,
 }
 
 // recallOwnPins takes in the sessions' own pins saved, but those of sessions
-// without an assignment, and those to accounts requests can't go out on, and
+// without an assignment, and those to accounts no longer configured, and
 // reports whether it left any out. s.mu must be held.
 func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dropped bool) {
 	for id, own := range saved {
 		switch {
 		case !s.seen(id):
 			dropped = true
-		case own.Account != "" && !accounts.canSend(own.Account):
-			logger.Warn("session's pin dropped: nothing can go out on its account", "session", status.ShortID(id), "account", own.Account)
+		case own.Account != "" && !accounts.includes(own.Account):
+			logger.Warn("session's pin dropped: its account is no longer configured", "session", status.ShortID(id), "account", own.Account)
 			dropped = true
 		default:
 			s.own[id] = own
@@ -414,15 +416,15 @@ func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dr
 	return dropped
 }
 
-// recallPin takes in the global pin saved, unless it's to an account requests
-// can't go out on, and reports whether it left it out. s.mu must be held.
+// recallPin takes in the global pin saved, unless it's to an account no
+// longer configured, and reports whether it left it out. s.mu must be held.
 func (s *sessions) recallPin(saved status.Pin, accounts accounts) (dropped bool) {
 	switch {
 	case saved.Account == "":
-	case accounts.canSend(saved.Account):
+	case accounts.includes(saved.Account):
 		s.pin = saved
 	default:
-		logger.Warn("pin dropped: nothing can go out on its account", "account", saved.Account)
+		logger.Warn("pin dropped: its account is no longer configured", "account", saved.Account)
 		dropped = true
 	}
 	return dropped

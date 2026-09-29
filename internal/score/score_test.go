@@ -634,13 +634,18 @@ func TestPickBetweenNearEquals(t *testing.T) {
 			want:       "b",
 		},
 		{
-			name:       "one scoring 20% higher, whatever the resets",
+			name:       "the one whose session resets soonest, against one scoring 20% higher",
 			candidates: []score.Candidate{later("a", 0.4), soon("b", 0.5)},
-			want:       "a",
+			want:       "b",
 		},
 		{
-			name:       "one scoring 21% higher, whatever the resets",
-			candidates: []score.Candidate{later("a", 0.395), soon("b", 0.5)},
+			name:       "the one whose session resets soonest, scoring 80% of the highest",
+			candidates: []score.Candidate{later("a", 0.375), soon("b", 0.5)},
+			want:       "b",
+		},
+		{
+			name:       "the highest, whatever the resets, against one scoring 79% of it",
+			candidates: []score.Candidate{later("a", 0.367), soon("b", 0.5)},
 			want:       "a",
 		},
 		{

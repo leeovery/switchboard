@@ -104,15 +104,17 @@ type Config struct {
 	// socket and state file go in: only Run uses them.
 	Listen   string
 	StateDir string
-	// ConfigFile is the config file the router was started from: once it
-	// makes another valid config while Run runs, the router restarts to take
-	// it up. "" is none.
-	ConfigFile string
+	// ConfigFile is the config file the router was started from, as Watch
+	// found it before the config was read from it: once it makes another
+	// valid config while Run runs, the router restarts to take it up. The
+	// zero Watched is none.
+	ConfigFile Watched
 	// Binary is the switchboard binary the router was started as, by the
-	// path it was run by, such as the Homebrew link the service runs: once
-	// that leads to another file than the one running while Run runs, as
-	// after an upgrade, the router restarts. "" is none.
-	Binary string
+	// path it was run by, such as the Homebrew link the service runs, as
+	// Watch found it before the config was read: once that leads to another
+	// file than the one running while Run runs, as after an upgrade, the
+	// router restarts. The zero Watched is none.
+	Binary Watched
 	// Supervised is set when the router is started again whenever it exits,
 	// as launchd starts the service's: it restarts by stopping as it does
 	// when ctx ends. A router that isn't logs, once, that a restart is due.
@@ -159,14 +161,11 @@ type Router struct {
 }
 
 // New builds a router for the accounts configured. An account without a
-// usable token is listed, but nothing goes out on it; New fails when no
-// account has one, as there'd be nothing to route to, saying why of each.
+// usable token is listed, but nothing goes out on it until its token file
+// holds one, even when that's every account.
 func New(cfg Config) (*Router, error) {
 	cfg.Now = wallClock(cfg.Now)
 	accounts := resolve(cfg.Accounts, cfg.Token)
-	if err := accounts.checkTokens(); err != nil {
-		return nil, err
-	}
 	upstream, err := url.Parse(cfg.Upstream)
 	if err != nil {
 		return nil, fmt.Errorf("upstream: %w", err)
@@ -211,7 +210,7 @@ func New(cfg Config) (*Router, error) {
 		},
 		primer:        primer,
 		inFlight:      inFlight,
-		upkeep:        newUpkeep(cfg, accounts, changes, primer, inFlight),
+		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight),
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}, nil

@@ -151,8 +151,10 @@ func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.
 // unless it has been read again for this request already, and reports
 // whether it holds another token than the one the request went out with,
 // which the account goes out on from then on, the one it replaces still
-// counting as the account's for clients started before. It logs what it
-// found, but never the token.
+// counting as the account's for clients started before, and no refusal of it
+// holding the account back. A file that holds no token the account can use,
+// as for a moment while it's rewritten, is no news: the account keeps its
+// token. It logs what it found, but never the token.
 func (rp *replay) renewed() bool {
 	if rp.reread {
 		return false
@@ -162,6 +164,7 @@ func (rp *replay) renewed() bool {
 	token, err := rp.p.readToken(a.ID)
 	changed := err == nil && token.Reveal() != rp.sent.Reveal()
 	if changed && a.secret.replace(token, rp.p.now()) {
+		rp.p.state.tokenReplaced(a.ID)
 		rp.p.tokensReplaced()
 	}
 	attrs := []any{"id", rp.ex.id, "account", a.ID, "changed", changed}

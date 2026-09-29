@@ -39,12 +39,17 @@ func (f formerToken) equal(g formerToken) bool {
 // the router as it next starts whether the token was replaced while it was
 // away, and the account's former tokens.
 type savedTokens struct {
-	SHA256 string        `json:"sha256"`
+	SHA256 string        `json:"sha256,omitempty"`
 	Former []formerToken `json:"former,omitempty"`
 }
 
 func (s savedTokens) equal(t savedTokens) bool {
 	return s.SHA256 == t.SHA256 && slices.EqualFunc(s.Former, t.Former, formerToken.equal)
+}
+
+// empty reports whether there's nothing to keep.
+func (s savedTokens) empty() bool {
+	return s.SHA256 == "" && len(s.Former) == 0
 }
 
 // hash returns the SHA-256 hash of token, in hex: all the router keeps of a
@@ -65,18 +70,16 @@ func (s *secret) replace(token tokens.Token, now time.Time) bool {
 }
 
 // swap has the account hold token from now on, keeping the one it held
-// before, if it held one, among its former tokens, replaced at now. It
+// before, if it held another, among its former tokens, replaced at now. It
 // reports whether it replaced one. s.mu must be held.
 func (s *secret) swap(token tokens.Token, now time.Time) bool {
-	held := s.token.Reveal()
-	if token.Reveal() == held {
-		return false
-	}
 	s.token = token
-	if held == "" {
+	was := s.held
+	s.held = hash(token.Reveal())
+	if was == "" || was == s.held {
 		return false
 	}
-	s.former = append(s.former, formerToken{SHA256: hash(held), ReplacedAt: now.UTC()})
+	s.former = append(s.former, formerToken{SHA256: was, ReplacedAt: now.UTC()})
 	return true
 }
 
@@ -95,18 +98,24 @@ func (s *secret) was(sum string, now time.Time) bool {
 func (s *secret) kept() savedTokens {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return savedTokens{SHA256: hash(s.token.Reveal()), Former: slices.Clone(s.former)}
+	return savedTokens{SHA256: s.held, Former: slices.Clone(s.former)}
 }
 
 // recall takes in what the state file kept of the account's tokens, as the
 // router starts at now: its former tokens that still count, and the token the
 // router held last, as replaced now, when the account's file has held another
-// since. It reports whether that happened.
+// since. It reports whether that happened. Of an account without a usable
+// token now, it can't tell: the token the account comes to have is compared
+// with that one instead, as it's taken up.
 func (s *secret) recall(saved savedTokens, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.former = slices.DeleteFunc(slices.Clone(saved.Former), func(f formerToken) bool { return !f.counts(now) })
-	replaced := saved.SHA256 != "" && saved.SHA256 != hash(s.token.Reveal())
+	if s.held == "" {
+		s.held = saved.SHA256
+		return false
+	}
+	replaced := saved.SHA256 != "" && saved.SHA256 != s.held
 	if replaced {
 		s.former = append(s.former, formerToken{SHA256: saved.SHA256, ReplacedAt: now.UTC()})
 	}
@@ -124,11 +133,14 @@ func (s *secret) forget(now time.Time) bool {
 }
 
 // kept is what the state file keeps of the accounts' tokens, by id: each
-// with a token has its own.
+// with anything to keep has its own, whether it has a usable token now or
+// not.
 func (as accounts) kept() map[string]savedTokens {
 	kept := make(map[string]savedTokens)
-	for _, a := range as.sendable() {
-		kept[a.ID] = a.secret.kept()
+	for _, a := range as {
+		if saved := a.secret.kept(); !saved.empty() {
+			kept[a.ID] = saved
+		}
 	}
 	return kept
 }
@@ -138,7 +150,7 @@ func (as accounts) kept() map[string]savedTokens {
 // replaced while the router was away. It reports whether what's to be kept
 // now differs from what was.
 func (as accounts) recall(saved map[string]savedTokens, now time.Time) bool {
-	for _, a := range as.sendable() {
+	for _, a := range as {
 		if a.secret.recall(saved[a.ID], now) {
 			logger.Info("token replaced while the router was away; the one before still counts as the account's", "account", a.ID)
 		}
@@ -150,7 +162,7 @@ func (as accounts) recall(saved map[string]savedTokens, now time.Time) bool {
 // reports whether there were any.
 func (as accounts) forget(now time.Time) bool {
 	forgot := false
-	for _, a := range as.sendable() {
+	for _, a := range as {
 		forgot = a.secret.forget(now) || forgot
 	}
 	return forgot

@@ -19,9 +19,10 @@ const (
 	// primeWait bounds how long the router waits for the primes it sends to
 	// end before it looks again.
 	primeWait = 10 * time.Second
-	// reprimeAfter is how soon an account whose last probe read nothing is
-	// primed again, so a prime that fails, as on a token the upstream
-	// refuses, isn't sent at every look through the day.
+	// reprimeAfter is how soon an account whose last probe failed as a prime
+	// is primed again, so a prime that fails, as on a token the upstream
+	// refuses, or that doesn't start the window, isn't sent at every look
+	// through the day.
 	reprimeAfter = 5 * time.Minute
 )
 

@@ -48,12 +48,15 @@ It logs to the router's log, and to the terminal when it runs in one.
 
 // serve runs the router on the config's accounts until it's interrupted or
 // terminated, or restarts itself, having made the tokens directory private
-// and brought the skill up to date.
+// and brought the skill up to date. It finds its config file and its binary
+// as they stand before it reads the config, which the router compares them
+// with while it runs, so a change made as it starts calls for a restart too.
 func (a *app) serve(ctx context.Context) error {
 	path, err := a.configFile()
 	if err != nil {
 		return err
 	}
+	configFile, binary := router.Watch(path), router.Watch(a.binary())
 	cfg, err := a.loadConfigAt(path)
 	if err != nil {
 		return err
@@ -81,8 +84,8 @@ func (a *app) serve(ctx context.Context) error {
 		Notifications: cfg.Notifications,
 		Listen:        cfg.Listen,
 		StateDir:      stateDir,
-		ConfigFile:    path,
-		Binary:        a.binary(),
+		ConfigFile:    configFile,
+		Binary:        binary,
 		Supervised:    a.Getenv(launchdJob) == service.Label,
 		WatchEvery:    a.WatchEvery,
 	})

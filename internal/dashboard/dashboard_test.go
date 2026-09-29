@@ -40,6 +40,7 @@ func layouts() []layout {
 		{name: "three-compact-from-height", doc: three, opts: dashboard.Options{Width: 160, Height: 12}},
 		{name: "three-with-footer", doc: three, opts: dashboard.Options{Width: 160, Footer: "updated 13:12 · next 13:42 · r refresh · q quit"}},
 		{name: "no-best", doc: noBest(), opts: dashboard.Options{Width: 110}},
+		{name: "nothing-read", doc: nothingRead(), opts: dashboard.Options{Width: 110}},
 		{name: "exhausted", doc: exhausted(), opts: dashboard.Options{Width: 80}},
 		{name: "back-in-seconds", doc: backInSeconds(), opts: dashboard.Options{Width: 80}},
 		{name: "failure", doc: failure(), opts: dashboard.Options{Width: 80}},
@@ -305,6 +306,26 @@ func TestRenderShowsAReserveOnceAWindowReachesIt(t *testing.T) {
 	}
 }
 
+func TestRenderSaysWhyNoAccountIsTheOneToUseNext(t *testing.T) {
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want is what the heading says, in the colour wantColor.
+		want, wantColor string
+	}{
+		{name: "none has room", doc: noBest(), want: "no account has room right now", wantColor: "#BF616A"},
+		{name: "nothing has been read of any", doc: nothingRead(), want: "nothing read yet", wantColor: "#616E88"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			frame := dashboard.Render(tt.doc, now, dashboard.Options{Width: 110, Color: true})
+			if !strings.Contains(frame, lipgloss.NewStyle().Foreground(lipgloss.Color(tt.wantColor)).Render(tt.want)) {
+				t.Errorf("the frame doesn't say %q in %s:\n%s", tt.want, tt.wantColor, frame)
+			}
+		})
+	}
+}
+
 func TestCountsSeconds(t *testing.T) {
 	tests := []struct {
 		name string
@@ -451,6 +472,18 @@ func noBest() status.Document {
 			week(0.91, day),
 		)),
 	)
+}
+
+// nothingRead is the router's document as it starts, before anything has been
+// read of either account, so none can be named the one to use next.
+func nothingRead() status.Document {
+	doc := document("",
+		status.Account{ID: "1", Label: "Work", TokenSet: true},
+		status.Account{ID: "2", Label: "Side", TokenSet: true},
+	)
+	doc.Source = status.SourceRouter
+	doc.Router = status.Health{Healthy: true}
+	return doc
 }
 
 // exhausted has a session that's back soon, and a Fable week over its limit

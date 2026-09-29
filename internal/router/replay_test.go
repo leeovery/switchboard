@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"reflect"
 	"slices"
 	"strconv"
@@ -321,6 +322,17 @@ func TestARefusedTokenIsReadAgainFromItsFile(t *testing.T) {
 			wantRefused: true,
 		},
 		{
+			name: "emptied as it's rewritten, so the request goes to another account",
+			change: func(t *testing.T, store tokens.Store) {
+				if err := os.WriteFile(store.Path("work"), nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantTokens:  []string{workToken, sideToken},
+			wantRead:    []string{"changed=false", `error="token missing: write it to `, `, which is empty"`},
+			wantRefused: true,
+		},
+		{
 			name:           "holding a new token that's refused too, read once for the request",
 			change:         func(t *testing.T, store tokens.Store) { writeToken(t, store, "work", renewed) },
 			renewedRefused: true,
@@ -355,8 +367,12 @@ func TestARefusedTokenIsReadAgainFromItsFile(t *testing.T) {
 			if n := strings.Count(log.String(), `msg="read the token file again"`); n != 1 {
 				t.Errorf("the log reads\n%s\nwant the token file read again once, not %d times", log, n)
 			}
-			if work, _ := r.rt.Status().Account("work"); (work.Refused.Status == http.StatusUnauthorized) != tt.wantRefused {
+			work, _ := r.rt.Status().Account("work")
+			if (work.Refused.Status == http.StatusUnauthorized) != tt.wantRefused {
 				t.Errorf("work's refusal = %+v, want its token refused: %v", work.Refused, tt.wantRefused)
+			}
+			if !work.TokenSet {
+				t.Errorf("work has no usable token (%s), want it kept: a file that holds none as it's read again is no news", work.Error)
 			}
 			for _, token := range []string{workToken, renewed} {
 				if strings.Contains(log.String(), token) {
