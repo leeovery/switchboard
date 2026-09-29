@@ -89,7 +89,7 @@ func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
 				r := newTestRouter(t, at(start), &stubProber{})
 				r.state.record("work", []quota.Window{session, laterWeek}, fromResponse)
 				r.state.record("side", []quota.Window{session, soonWeek}, fromResponse)
-				r.sessions.remember(key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 				upstream := &scriptedUpstream{answers: map[string][]answer{workToken: tt.answers, sideToken: {served}}}
 				r.proxy.transport = upstream
 				ctx, cancel := context.WithCancel(t.Context())
@@ -137,7 +137,7 @@ func TestEachAccountARequestMovesToThrottlesItAfresh(t *testing.T) {
 		r := newTestRouter(t, at(start), &stubProber{})
 		r.state.record("work", []quota.Window{session, laterWeek}, fromResponse)
 		r.state.record("side", []quota.Window{session, soonWeek}, fromResponse)
-		r.sessions.remember(key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 		upstream := &scriptedUpstream{answers: map[string][]answer{
 			workToken: {throttled("1"), throttled("1"), limitHit},
 			sideToken: {throttled("1"), throttled("1"), served},

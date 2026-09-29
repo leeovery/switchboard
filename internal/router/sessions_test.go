@@ -26,9 +26,9 @@ func TestTheStateFileKeepsSessionsAndThePin(t *testing.T) {
 	saved := newSessions(at(start))
 	saved.load(path, anyAccount)
 	saved.setPin(status.Pin{Account: "side", Since: start.Add(-time.Hour), Move: true})
-	saved.remember(key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
-	saved.remember(key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
-	saved.remember(key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
+	assign(saved, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
+	assign(saved, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
+	assign(saved, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
 	saved.save()
 
 	loaded := newSessions(at(start))
@@ -110,6 +110,29 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	}
 }
 
+func TestRememberNotesARequestOnTheAssignmentItsChoiceFoundAlone(t *testing.T) {
+	s := newSessions(at(start))
+	k := key{session: "one", model: opus}
+	if _, noted := s.remember(k, assignment{}, "", decision{account: "work", reason: reasonNew}, start); !noted {
+		t.Fatal("remember() didn't note a new session's first request")
+	}
+	onWork, _, _ := s.lookup(k)
+
+	found, noted := s.remember(k, assignment{}, "", decision{account: "side", reason: reasonNew}, start.Add(time.Second))
+	if noted || found != onWork {
+		t.Errorf("remember() of another request that found the session new = %+v, noted %v, want work's assignment found, and the request not noted", found, noted)
+	}
+	stay := decision{account: "work", reason: reasonSticky, sticky: true}
+	for _, at := range []time.Time{start.Add(time.Minute), start.Add(2 * time.Minute)} {
+		if _, noted := s.remember(k, onWork, "", stay, at); !noted {
+			t.Errorf("remember() of a request that stayed, at %v, didn't note it: staying leaves the assignment it found", at)
+		}
+	}
+	if got, _, _ := s.lookup(k); !got.same(onWork) || got.LastSeen != start.Add(2*time.Minute) {
+		t.Errorf("the session is assigned %+v, want work's assignment, last seen when it last stayed", got)
+	}
+}
+
 func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
 	local := start.In(time.FixedZone("UTC+1", 60*60))
 	path := filepath.Join(t.TempDir(), "state.json")
@@ -119,7 +142,7 @@ func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
 	s := newSessions(at(local))
 
 	s.load(path, anyAccount)
-	s.remember(key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
+	assign(s, key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
 	for _, id := range []string{"saved", "new"} {
 		if got := s.of(id); len(got) != 1 || got[0].AssignedAt != start || got[0].LastSeen != start {
 			t.Errorf("session %s is assigned %+v, want its times in UTC", id, got)
@@ -196,7 +219,7 @@ func TestABurstOfChangesIsSavedOnce(t *testing.T) {
 		stop := keep(s)
 
 		for i := range 100 {
-			s.remember(key{session: fmt.Sprint(i), model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
+			assign(s, key{session: fmt.Sprint(i), model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
 		}
 		synctest.Wait()
 		if n := writes.Load(); n != 0 {
@@ -244,8 +267,8 @@ func TestSessionsUnusedForAWeekAreForgottenHourly(t *testing.T) {
 		s.load(path, anyAccount)
 		stop := keep(s)
 		defer stop()
-		s.remember(key{session: "fading", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now().Add(-7*24*time.Hour+30*time.Minute))
-		s.remember(key{session: "recent", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
+		assign(s, key{session: "fading", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now().Add(-7*24*time.Hour+30*time.Minute))
+		assign(s, key{session: "recent", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
 
 		time.Sleep(pruneEvery - time.Nanosecond)
 		synctest.Wait()
@@ -298,7 +321,7 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range 8 {
 		k := key{session: fmt.Sprint(i % 2), model: opus}
-		wg.Go(func() { s.remember(k, "", decision{account: "work", reason: reasonNew}, start) })
+		wg.Go(func() { assign(s, k, "", decision{account: "work", reason: reasonNew}, start) })
 		wg.Go(func() { _, _, _ = s.lookup(k) })
 		wg.Go(func() { s.setPin(status.Pin{Account: "side", Since: start}) })
 		wg.Go(func() { _ = s.unpin() })
@@ -312,7 +335,7 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
 	s := newSessions(at(start))
 	remember := func(session, model, account string, lastSeen time.Time) {
-		s.remember(key{session: session, model: model}, "", decision{account: account, reason: reasonNew}, lastSeen)
+		assign(s, key{session: session, model: model}, "", decision{account: account, reason: reasonNew}, lastSeen)
 	}
 	remember("one", opus, "work", start)
 	remember("one", haiku, "work", start.Add(-time.Hour))
@@ -332,9 +355,9 @@ func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
 
 func TestOfListsASessionsAssignmentsTheOneUsedLastFirst(t *testing.T) {
 	s := newSessions(at(start))
-	s.remember(key{session: "one", model: haiku}, "", decision{account: "side", reason: reasonNew}, start.Add(-time.Hour))
-	s.remember(key{session: "one", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
-	s.remember(key{session: "two", model: opus}, "", decision{account: "side", reason: reasonNew}, start)
+	assign(s, key{session: "one", model: haiku}, "", decision{account: "side", reason: reasonNew}, start.Add(-time.Hour))
+	assign(s, key{session: "one", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
+	assign(s, key{session: "two", model: opus}, "", decision{account: "side", reason: reasonNew}, start)
 
 	want := []Assignment{
 		{Model: opus, Account: "work", Pinned: true, Reason: "pinned", AssignedAt: start, LastSeen: start},
