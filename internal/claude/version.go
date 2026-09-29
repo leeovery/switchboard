@@ -103,7 +103,8 @@ type installedCLI struct {
 	pathList   string
 	paths      []string
 	executable func() (string, error)
-	// env is the environment the command runs in.
+	// env is the environment the command runs in, but for its own
+	// directories, which go first on PATH.
 	env    []string
 	output func(ctx context.Context, env []string, path string, args ...string) ([]byte, error)
 }
@@ -112,7 +113,8 @@ type installedCLI struct {
 // gives, else where its installers put it for the home directory home,
 // passing over switchboard's own executable, as executable gives it. It runs
 // in no more of the environment getenv gives than it needs, which can hold a
-// token, as a Claude Code session's does.
+// token, as a Claude Code session's does, its own directories first on PATH,
+// as childenv.Beside puts them.
 func systemCLI(getenv func(key string) string, home string, executable func() (string, error)) installedCLI {
 	return installedCLI{
 		pathList:   getenv("PATH"),
@@ -150,5 +152,5 @@ func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
-	return c.output(ctx, c.env, path, "--version")
+	return c.output(ctx, childenv.Beside(c.env, path), path, "--version")
 }

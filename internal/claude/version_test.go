@@ -120,7 +120,10 @@ func TestInstalledCLIVersion(t *testing.T) {
 }
 
 func TestTheCLIRunsWithoutTheTokens(t *testing.T) {
-	tmp := t.TempDir()
+	tmp, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	switchboard := filepath.Join(t.TempDir(), "switchboard")
 	for _, program := range []string{filepath.Join(tmp, "claude"), switchboard} {
 		if err := os.WriteFile(program, nil, 0o700); err != nil {
@@ -145,8 +148,89 @@ func TestTheCLIRunsWithoutTheTokens(t *testing.T) {
 	if _, err := cli.version(t.Context()); err != nil {
 		t.Fatalf("version() error = %v", err)
 	}
-	if want := []string{"PATH=" + tmp, "HOME=/home/tester", "TMPDIR=" + tmp, "LANG=en_GB.UTF-8"}; !slices.Equal(env, want) {
+	// PATH is its own directory, then PATH as it was.
+	if want := []string{"PATH=" + tmp + ":" + tmp, "HOME=/home/tester", "TMPDIR=" + tmp, "LANG=en_GB.UTF-8"}; !slices.Equal(env, want) {
 		t.Errorf("claude --version ran with the environment %q, want %q alone", env, want)
+	}
+}
+
+func TestTheCLIFindsTheInterpreterBesideIt(t *testing.T) {
+	// interpreter writes an interpreter at path that says it's a claude, and a
+	// script at script that it runs, as env finds it on PATH.
+	interpreter := func(path, script string) {
+		t.Helper()
+		writeScript(t, path, "#!/bin/sh\necho '2.1.303 (Claude Code)'\n")
+		writeScript(t, script, "#!/usr/bin/env "+filepath.Base(path)+"\n")
+	}
+	tests := []struct {
+		name string
+		// install puts claude at path, where its installer puts it, and what
+		// it runs by, under root.
+		install func(root, path string)
+	}{
+		{
+			name:    "a script, beside it",
+			install: func(_, path string) { interpreter(filepath.Join(filepath.Dir(path), "stub-node"), path) },
+		},
+		{
+			name: "through a link into its package, as npm's, beside the link",
+			install: func(root, path string) {
+				script := filepath.Join(root, "lib", "claude-code", "cli.js")
+				interpreter(filepath.Join(filepath.Dir(path), "stub-node"), script)
+				link(t, script, path)
+			},
+		},
+		{
+			name: "through a link, where it leads",
+			install: func(root, path string) {
+				script := filepath.Join(root, "prefix", "bin", "claude")
+				interpreter(filepath.Join(root, "prefix", "bin", "stub-node"), script)
+				link(t, script, path)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			tt.install(t.TempDir(), filepath.Join(home, ".local", "bin", "claude"))
+			switchboard := filepath.Join(t.TempDir(), "switchboard")
+			writeScript(t, switchboard, "#!/bin/sh\n")
+			// A LaunchAgent's PATH, which holds the system's directories alone.
+			getenv := func(key string) string {
+				if key == "PATH" {
+					return "/usr/bin:/bin"
+				}
+				return ""
+			}
+
+			got, err := systemCLI(getenv, home, func() (string, error) { return switchboard, nil }).version(t.Context())
+			if err != nil || got != "2.1.303" {
+				t.Errorf("version() = %q, %v; want 2.1.303", got, err)
+			}
+		})
+	}
+}
+
+// writeScript writes a program at path holding script, making its directory.
+func writeScript(t *testing.T, path, script string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// link makes a symbolic link at path leading to target, making its
+// directory.
+func link(t *testing.T, target, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
 	}
 }
 

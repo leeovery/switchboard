@@ -457,7 +457,10 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   the hash of the token held last is compared with the token the account later gains, and a
   different one counts as replaced.
 - The programs switchboard runs for itself, `claude --version`, `osascript` and `launchctl`, get
-  none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`.
+  none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the
+  `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
+  npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
+  which holds the system's directories alone.
 - `accounts add <id>` registers an account. It refuses an id, or a `--label`, holding anything
   shaped like a token before it asks for the token, saving nothing, and shows the id as
   `[redacted]`. When the account's token file holds no usable token, it asks for the token, hidden,
