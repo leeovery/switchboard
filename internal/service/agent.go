@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"strings"
 	"text/template"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/router"
 )
 
 const (
@@ -15,6 +18,11 @@ const (
 	// be read as script. Its $0 is switchboard, which zsh's errors, such as
 	// an env file gone missing, name in launchd's log.
 	loadEnv = `source "$1" && exec "$2" serve "${@:3}"`
+	// exitTimeout is how long launchd gives the router to stop before it
+	// kills it: the time the router gives requests in flight to finish, and
+	// time after to save its state and post what's due. launchd's own
+	// default, 20 seconds, is shorter than the first alone.
+	exitTimeout = router.DrainTimeout + 15*time.Second
 )
 
 // carried are the variables the service is given as they're set where it's
@@ -31,6 +39,9 @@ type agent struct {
 	// Log is where launchd writes what the program prints, such as a crash's
 	// output.
 	Log string
+	// ExitTimeOut is how many seconds launchd gives the program to stop
+	// before it kills it.
+	ExitTimeOut int
 }
 
 // variable is one of an environment's variables.
@@ -55,12 +66,12 @@ func (s *Service) agent(binary, envFile, config string) agent {
 			environment = append(environment, variable{Name: name, Value: value})
 		}
 	}
-	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log()}
+	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log(), ExitTimeOut: int(exitTimeout / time.Second)}
 }
 
 // plist is the agent's plist, which launchd loads it from: it runs the
 // program at load, which is at every login too, and again whenever it
-// stops.
+// stops, and gives it ExitTimeOut to stop when it's asked to.
 func (a agent) plist() ([]byte, error) {
 	var b bytes.Buffer
 	if err := plistTemplate.Execute(&b, a); err != nil {
@@ -96,6 +107,8 @@ var plistTemplate = template.Must(template.New("plist").Funcs(template.FuncMap{"
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
+	<key>ExitTimeOut</key>
+	<integer>{{.ExitTimeOut}}</integer>
 	<key>StandardOutPath</key>
 	<string>{{xml .Log}}</string>
 	<key>StandardErrorPath</key>

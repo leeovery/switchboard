@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	// drainTimeout is how long requests in flight get to finish once the
+	// DrainTimeout is how long requests in flight get to finish once the
 	// router is stopping. They can be long streams.
-	drainTimeout = 30 * time.Second
+	DrainTimeout = 30 * time.Second
 	// readHeaderTimeout bounds how long a client takes to send a request's
 	// headers. Nothing bounds a response: it streams for as long as it takes.
 	readHeaderTimeout = 10 * time.Second
@@ -144,13 +144,13 @@ func serveOn(srv *http.Server, ln net.Listener) error {
 // shutdown stops the servers taking requests. The control API goes at once,
 // so a launcher that checks the router's health finds it gone and connects
 // directly, and its listener's closing removes the socket. The proxy's
-// requests in flight get drainTimeout to finish.
+// requests in flight get DrainTimeout to finish.
 func shutdown(control, proxy *http.Server) {
 	_ = control.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DrainTimeout)
 	defer cancel()
 	if err := proxy.Shutdown(ctx); err != nil {
-		logger.Warn("cut off requests still in flight", "after", drainTimeout)
+		logger.Warn("cut off requests still in flight", "after", DrainTimeout)
 		_ = proxy.Close()
 	}
 }
