@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	// zsh runs the launcher that loads an env file.
+	// zsh runs the launcher that loads an env file: with -f, reading none of
+	// the user's startup files, such as ~/.zshenv, which would otherwise run
+	// in the router's launcher, alongside every token.
 	zsh = "/bin/zsh"
 	// loadEnv is that launcher: it sources the env file, its first argument,
 	// then becomes the switchboard at its second, serving with the rest. The
@@ -55,7 +57,7 @@ type variable struct {
 func (s *Service) agent(binary, envFile, config string) agent {
 	program := []string{binary, "serve"}
 	if envFile != "" {
-		program = []string{zsh, "-c", loadEnv, "switchboard", envFile, binary}
+		program = []string{zsh, "-f", "-c", loadEnv, "switchboard", envFile, binary}
 	}
 	if config != "" {
 		program = append(program, "--config", config)
