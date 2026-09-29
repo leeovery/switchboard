@@ -19,7 +19,7 @@ const (
 	// noticed.
 	lookEvery = 15 * time.Second
 	// quietFor is how long after a notification about an account any other
-	// about it is dropped.
+	// about it but a limit's is dropped.
 	quietFor = time.Minute
 	// queueSize is how many events can wait to be dealt with. Past that, an
 	// event is dropped rather than hold the router up.
@@ -136,25 +136,32 @@ func (n *notifications) wake() <-chan time.Time {
 	return time.After(time.Until(due))
 }
 
-// tell posts the notifications of the limits done gathering.
+// tell posts the notifications of the limits done gathering, whatever went
+// out before them: a limit is the most pressing news, and is told of once a
+// limit already.
 func (n *notifications) tell() {
 	now := n.now()
 	accounts := n.state.standings(now)
 	for _, g := range n.limits.due(time.Now()) {
-		n.post(g.notice(accounts, now))
+		n.send(g.notice(accounts, now))
 	}
 }
 
 // post posts a notice, unless another about its account went out within
-// quietFor, and notes how that went in the log.
+// quietFor.
 func (n *notifications) post(notice notify.Notice) {
-	at := time.Now()
-	if last, ok := n.posted[notice.Account]; ok && at.Sub(last) < quietFor {
+	if last, ok := n.posted[notice.Account]; ok && time.Since(last) < quietFor {
 		logger.Debug("notification dropped: too soon after the last about the account",
 			"account", notice.Account, "news", notice.News)
 		return
 	}
-	n.posted[notice.Account] = at
+	n.send(notice)
+}
+
+// send posts a notice as the latest about its account, and notes how that
+// went in the log.
+func (n *notifications) send(notice notify.Notice) {
+	n.posted[notice.Account] = time.Now()
 	if err := n.notifier.Notify(notice.Message); err != nil {
 		logger.Warn("notification failed", "account", notice.Account, "news", notice.News, "error", err)
 		return

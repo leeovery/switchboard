@@ -231,11 +231,12 @@ moves   = false  # every other session move, such as after an idle hour or by pi
   `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
 
 Room again and warnings compare an account with how it last stood, so neither tells of how the
-accounts stood as the router started, nor of an account's first reading. One notification an
-account goes out a minute at most: any other due within the minute is dropped, and the log says so
-at debug. One that fails to post is logged at warn, and dropped too. The log names accounts by id
-alone. Notifications never hold a request up: the router queues what happens, and posts from a
-goroutine of its own. `warning` must be 0, or more than 0 and less than 1.
+accounts stood as the router started, nor of an account's first reading. A limit's notification
+always goes out. Any other goes out only a minute or more after the last about its account, a
+limit's included: one due sooner is dropped, and the log says so at debug. One that fails to post
+is logged at warn, and dropped too. The log names accounts by id alone. Notifications never hold a
+request up: the router queues what happens, and posts from a goroutine of its own. `warning` must
+be 0, or more than 0 and less than 1.
 
 The dashboard in watch mode posts its own, of an account's return and a window passing 90%,
 until it reads the router.

@@ -475,6 +475,31 @@ func TestOneNotificationAnAccountAMinute(t *testing.T) {
 	})
 }
 
+func TestALimitIsToldOfWhateverWentOutJustBefore(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		h := newNotifying(t, config.Notifications{Limits: true, Warning: 0.9})
+		h.read("2", h.session(0.2, 5*time.Hour), h.week(0.85, 3*day))
+		h.start()
+		h.read("2", h.week(0.91, 3*day))
+		h.after(lookEvery)
+		h.expect("2 · two: Week at 91%")
+
+		h.after(30 * time.Second)
+		h.limit("2", []string{"5h"}, 3*time.Hour)
+		h.after(gatherFor)
+		h.expect("2 · two: Week at 91%", "2 · two hit its Session limit, back at Sat 03:00")
+
+		h.read("2", h.session(0.95, 5*time.Hour))
+		h.after(lookEvery)
+		h.expect("2 · two: Week at 91%", "2 · two hit its Session limit, back at Sat 03:00")
+		want := []string{"level=DEBUG", `msg="notification dropped: too soon after the last about the account"`, "account=2", `news="Session at 95%"`}
+		if !log.Has(want...) {
+			t.Errorf("log reads\n%s\nwant the warning after the limit dropped: a line with %q", log, want)
+		}
+	})
+}
+
 func TestNothingWithEverythingOff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newNotifying(t, config.Notifications{})
