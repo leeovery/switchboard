@@ -1,7 +1,9 @@
 package logs_test
 
 import (
+	"bytes"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"strings"
@@ -148,6 +150,40 @@ func TestRedactionSurvivesAValueThatPanics(t *testing.T) {
 	if log, want := readLog(t, path), "key=<nil>"; !strings.Contains(log, want) {
 		t.Errorf("log reads\n%s\nwant it to contain %s", log, want)
 	}
+}
+
+func TestTheStandardLogGoesToTheLogRedacted(t *testing.T) {
+	var printed bytes.Buffer
+	keepStandardLog(t)
+	log.SetOutput(&printed)
+	path := start(t, logs.Options{})
+	// As Go's HTTP/2 client prints every header it sends under
+	// GODEBUG=http2debug=1.
+	log.Printf("http2: Transport encoding header %q = %q", "authorization", "Bearer "+tokenShaped)
+	logs.Close(0)
+
+	if printed.Len() > 0 {
+		t.Errorf("the log package printed %q where it did before Init, want it in the log alone", printed.String())
+	}
+	got := readLog(t, path)
+	if strings.Contains(got, tokenShaped) {
+		t.Fatalf("log shows the token:\n%s", got)
+	}
+	if want := `level=INFO msg="http2: Transport encoding header \"authorization\" = \"Bearer [redacted]\"" component=stdlog pid=`; !strings.Contains(got, want) {
+		t.Errorf("log reads\n%s\nwant a line with %s", got, want)
+	}
+}
+
+// keepStandardLog puts the standard library's logging back as it was once the
+// test ends.
+func keepStandardLog(t *testing.T) {
+	t.Helper()
+	w, flags, def := log.Writer(), log.Flags(), slog.Default()
+	t.Cleanup(func() {
+		slog.SetDefault(def)
+		log.SetOutput(w)
+		log.SetFlags(flags)
+	})
 }
 
 func TestTokensLogAsRedacted(t *testing.T) {

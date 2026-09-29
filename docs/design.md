@@ -306,7 +306,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
-  `[redacted]`.
+  `[redacted]`. What the standard library's `log` package is given goes through it too, to the
+  log rather than stderr: under `GODEBUG=http2debug=1`, Go's HTTP/2 client prints every header it
+  sends, the token's included.
 - **Never in the way:** commands never log to stdout or stderr, so `--json` and the dashboard
   stay clean, and a command never fails because it couldn't log: its records go nowhere
   instead. `serve` also writes each record to its terminal, when it runs in one.

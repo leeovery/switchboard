@@ -86,6 +86,9 @@ var (
 	process = For("process")
 	// logger notes trouble with logging itself.
 	logger = For("logs")
+	// standard takes what the standard library's log package is given, such
+	// as net/http's HTTP/2 debugging, which prints every request's headers.
+	standard = For("stdlog")
 )
 
 // session is a process's logging, from Init to Close.
@@ -119,8 +122,9 @@ func StdLogger(component string, level slog.Level) *log.Logger {
 }
 
 // Init starts logging for the process. From here on, records from every
-// logger For has given or will give go to the role's file in opts.Dir, and to
-// opts.Mirror; the first notes the start. Init never fails: when the file
+// logger For has given or will give, and what the standard library's log
+// package is given, go to the role's file in opts.Dir, and to opts.Mirror,
+// secrets hidden; the first notes the start. Init never fails: when the file
 // can't be opened, records go only to the mirror, if there is one. Another
 // Init replaces this one without noting an exit.
 func Init(opts Options) {
@@ -131,6 +135,7 @@ func Init(opts Options) {
 	if old := current.Swap(s); old != nil {
 		old.close()
 	}
+	slog.SetDefault(standard)
 	process.Log(context.Background(), role.noteLevel(), "start",
 		"role", string(role), "version", opts.Version, "command", opts.Command)
 	if unknown != "" {
