@@ -610,7 +610,7 @@ func TestANotificationThatFailsIsLogged(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
 		h := newNotifying(t, config.Notifications{Room: true})
-		h.notifier.err = errors.New("post notification: exit status 1")
+		h.notifier.fail(errors.New("post notification: exit status 1"))
 		h.read("2", h.session(1, time.Minute), h.week(0.5, 3*day))
 		h.start()
 
@@ -623,6 +623,22 @@ func TestANotificationThatFailsIsLogged(t *testing.T) {
 		if log.Has("msg=notification ") {
 			t.Errorf("log reads\n%s\nwant no word of the notification going", log)
 		}
+	})
+}
+
+func TestANotificationThatFailsDoesntQuietItsAccount(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Room: true, Warning: 0.9})
+		h.notifier.fail(errors.New("post notification: exit status 1"))
+		h.read("2", h.session(1, 3*time.Minute), h.week(0.5, 3*day))
+		h.start()
+		h.after(3 * time.Minute)
+		h.expect("2 · two has room again")
+
+		h.notifier.fail(nil)
+		h.read("2", h.session(0.2, 5*time.Hour), h.week(0.91, 3*day))
+		h.after(lookEvery)
+		h.expect("2 · two has room again", "2 · two: Week at 91%")
 	})
 }
 
@@ -801,24 +817,32 @@ func forcedModel(session, model, from, to string) Moved {
 	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Forced: true}
 }
 
-// noting is a notifier that notes each message it's given, and fails with err
-// when it has one. While hold is open, each post waits for it to close.
+// noting is a notifier that notes each message it's given, and fails as fail
+// has it. While hold is open, each post waits for it to close.
 type noting struct {
-	err  error
 	hold chan struct{}
 
 	mu       sync.Mutex
+	err      error
 	messages []string
 }
 
 func (n *noting) Notify(message string) error {
 	n.mu.Lock()
 	n.messages = append(n.messages, message)
+	err := n.err
 	n.mu.Unlock()
 	if n.hold != nil {
 		<-n.hold
 	}
-	return n.err
+	return err
+}
+
+// fail has each post from now on fail with err, or none when it's nil.
+func (n *noting) fail(err error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.err = err
 }
 
 // posted returns the messages given so far.

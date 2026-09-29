@@ -195,13 +195,13 @@ func (n *notifications) post(notice notify.Notice) {
 	n.send(notice)
 }
 
-// send posts a notice as the latest about its account, and notes how that
-// went in the log.
+// send posts a notice, which once it's out is the latest about its account,
+// and notes how that went in the log.
 func (n *notifications) send(notice notify.Notice) {
-	n.posted[notice.Account] = time.Now()
 	if err := n.notifier.Notify(notice.Message); err != nil {
 		logger.Warn("notification failed", "account", notice.Account, "news", notice.News, "error", err)
 		return
 	}
+	n.posted[notice.Account] = time.Now()
 	logger.Info("notification", "account", notice.Account, "news", notice.News)
 }

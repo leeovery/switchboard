@@ -366,6 +366,49 @@ func TestATokenReplacedWhileTheRouterWasAwayStillCountsAsItsAccounts(t *testing.
 	}
 }
 
+func TestAnAccountsTokensOutlastAGapInItsTokenFileAndARestart(t *testing.T) {
+	const again = "test-token-work-again"
+	tests := []struct {
+		name string
+		// back is the token work's file holds once it's back.
+		back         string
+		wantReplaced bool
+	}{
+		{name: "back holding the token it held", back: renewedToken},
+		{name: "back holding another", back: again, wantReplaced: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			watch := newTestTokenFiles(testTokens, tokenstest.Files{"work": renewedToken, "side": sideToken})
+			running := newTestFile(at(start), watch.accounts)
+			running.load(path)
+			// Work's token is replaced as the router runs, then its file goes.
+			watch.look()
+			watch.files.set(tokenstest.Files{"side": sideToken})
+			watch.look()
+			watch.look()
+			running.changes.note()
+			running.save()
+
+			// The router starts again an hour on, work's file still gone,
+			// and it comes back.
+			later := start.Add(time.Hour)
+			restarted := resolve(testConfigured, watch.files.read)
+			newTestFile(at(later), restarted).load(path)
+			work, _ := restarted.byID("work")
+			if r := work.secret.reload(mustToken(t, tt.back), nil, later); r.replaced != tt.wantReplaced || !r.gained {
+				t.Errorf("work, its token file back, has gained its token: %v, and replaced the one it held: %v, want true and %v", r.gained, r.replaced, tt.wantReplaced)
+			}
+			for _, token := range []string{workToken, renewedToken, tt.back} {
+				if a, ok := restarted.byToken(token, later); !ok || a.ID != "work" {
+					t.Errorf("a request carrying %s is routed as %q (%v), want work's: it's a token work had this week", token, a.ID, ok)
+				}
+			}
+		})
+	}
+}
+
 func TestLoadingAStateFileThatKnowsTheTokensChangesNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	first := newTestFile(at(start), testAccounts())
@@ -421,17 +464,17 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	week := 7 * 24 * time.Hour
 	putState(t, path, savedState{
 		Version: stateVersion,
-		Pin:     status.Pin{Account: "personal", Since: start.Add(-time.Hour)},
+		Pin:     status.Pin{Account: "retired", Since: start.Add(-time.Hour)},
 		Sessions: []savedAssignment{
 			{Session: "recent", Model: opus, Account: "work", LastSeen: start.Add(-week + time.Second)},
 			{Session: "pinned", Model: opus, Account: "work", LastSeen: start},
 			{Session: "old", Model: opus, Account: "work", LastSeen: start.Add(-week)},
-			{Session: "gone", Model: opus, Account: "personal", LastSeen: start},
+			{Session: "gone", Model: opus, Account: "retired", LastSeen: start},
 			{Model: opus, Account: "work", LastSeen: start},
 		},
 		SessionPins: map[string]ownPin{
 			"pinned": {Account: "side", Since: start},
-			"recent": {Account: "personal", Since: start},
+			"recent": {Account: "retired", Since: start},
 			"old":    {Account: "side", Since: start},
 		},
 	})
@@ -450,11 +493,11 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 		t.Errorf("loaded sessions' pins %+v, want %+v alone: the others' sessions or accounts are gone", s.own, want)
 	}
 	if s.pin != (status.Pin{}) {
-		t.Errorf("loaded pin %+v, want none: nothing can go out on its account", s.pin)
+		t.Errorf("loaded pin %+v, want none: its account is no longer configured", s.pin)
 	}
 	for _, want := range [][]string{
-		{"level=WARN", `msg="pin dropped: nothing can go out on its account"`, "account=personal"},
-		{"level=WARN", `msg="session's pin dropped: nothing can go out on its account"`, "session=recent", "account=personal"},
+		{"level=WARN", `msg="pin dropped: its account is no longer configured"`, "account=retired"},
+		{"level=WARN", `msg="session's pin dropped: its account is no longer configured"`, "session=recent", "account=retired"},
 		{"level=INFO", `msg="loaded state"`, "path=" + path, "assignments=2", "pin=\"\""},
 	} {
 		if !log.Has(want...) {
@@ -463,6 +506,35 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	}
 	if !f.changes.unsaved.Load() {
 		t.Error("what was forgotten is still in the state file, want it due to be saved")
+	}
+}
+
+func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t *testing.T) {
+	log := logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	pin := status.Pin{Account: "work", Since: start.Add(-time.Hour)}
+	assignments := map[key]assignment{{session: "one", model: opus}: {Account: "work", LastSeen: start}}
+	own := map[string]ownPin{"one": {Account: "work", Since: start}}
+	putState(t, path, savedState{
+		Version:     stateVersion,
+		Pin:         pin,
+		Sessions:    []savedAssignment{{Session: "one", Model: opus, Account: "work", LastSeen: start}},
+		SessionPins: own,
+		Tokens:      map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+	})
+	// Work's token file is caught emptied as it's rewritten.
+	f := newTestFile(at(start), resolve(testConfigured, tokenstest.Files{"work": "", "side": sideToken}.Read))
+
+	f.load(path)
+	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || s.pin != pin {
+		t.Errorf("loaded %+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v: work is still configured",
+			s.assignments, s.own, s.pin, assignments, own, pin)
+	}
+	if log.Has("dropped") {
+		t.Errorf("log reads\n%s\nwant nothing dropped", log)
+	}
+	if f.changes.unsaved.Load() {
+		t.Error("loading the state file left it due to be saved, want it as it was")
 	}
 }
 

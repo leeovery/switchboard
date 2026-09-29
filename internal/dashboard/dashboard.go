@@ -5,6 +5,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -121,16 +122,25 @@ func unhealthy(reason string) line {
 	return line{{text, errorInk}}
 }
 
-// bestNext names the account to use next, or says that none has room. It's
-// nil when there are no accounts to speak of.
+// bestNext names the account to use next, or says that none has room, or
+// that nothing has been read of any to tell. It's nil when there are no
+// accounts to speak of.
 func bestNext(doc status.Document) line {
 	if best, ok := doc.Account(doc.Best); ok {
 		return line{{"best next: ", dimInk}, {best.Title(), accentInk}}
 	}
-	if len(doc.Accounts) == 0 {
+	switch {
+	case len(doc.Accounts) == 0:
 		return nil
+	case !slices.ContainsFunc(doc.Accounts, read):
+		return line{{"nothing read yet", dimInk}}
 	}
 	return line{{"no account has room right now", errorInk}}
+}
+
+// read reports whether the account's usage has been read.
+func read(a status.Account) bool {
+	return !a.FetchedAt.IsZero()
 }
 
 // priming says what comes next of priming at now, when it's on: the next

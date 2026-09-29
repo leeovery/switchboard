@@ -107,6 +107,7 @@ func TestNext(t *testing.T) {
 		{name: "running as the day runs, at its reset", account: "work", windows: running(at(1, 14, 15)), now: at(1, 10, 0), want: at(1, 14, 15), wantOK: true},
 		{name: "running at its slot, from a late night, at its reset", account: "work", windows: running(at(1, 6, 0)), now: at(1, 4, 15), want: at(1, 6, 0), wantOK: true},
 		{name: "running until after the day ends, at tomorrow's slot", account: "work", windows: running(at(1, 23, 50)), now: at(1, 20, 0), want: at(2, 4, 15), wantOK: true},
+		{name: "running until after the day ends, its reset read in UTC, at tomorrow's slot", account: "work", windows: running(at(1, 23, 50).UTC()), now: at(1, 20, 0), want: at(2, 4, 15), wantOK: true},
 		{name: "lapsed overnight, at its slot", account: "work", windows: running(at(1, 23, 50)), now: at(2, 1, 0), want: at(2, 4, 15), wantOK: true},
 		{name: "read without the window a request starts", account: "work", windows: running(at(1, 14, 15))[1:], now: at(1, 10, 0)},
 		{name: "read without a reset", account: "work", windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.3}}, now: at(1, 10, 0)},

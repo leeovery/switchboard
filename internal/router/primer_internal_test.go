@@ -131,6 +131,31 @@ func TestAPrimeThatFailsIsSentAgainFiveMinutesOn(t *testing.T) {
 	})
 }
 
+func TestAPrimeThatDoesntStartTheWindowIsSentAgainFiveMinutesOn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 6, 0))
+		upstream := newWindowsUpstream(clock)
+		upstream.leaveIdle(sideToken, onDay(1, 1, 0))
+		r := newPrimingRouter(t, clock.read, upstream, daytime)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(time.Hour)
+		synctest.Wait()
+		want := []time.Time{onDay(1, 6, 45), onDay(1, 6, 50), onDay(1, 6, 55), onDay(1, 7, 0)}
+		if got := upstream.probes()[sideToken]; !reflect.DeepEqual(got, want) {
+			t.Errorf("side, whose session a prime doesn't start, was primed at %v, want %v: once at its slot, then every five minutes", got, want)
+		}
+		if !log.Has("level=WARN", `msg="prime didn't start the window"`, "account=side", "window=5h") {
+			t.Errorf("log reads\n%s\nwant side's primes noted as not starting its session", log)
+		}
+		if log.Has("msg=primed", "account=side") {
+			t.Errorf("log reads\n%s\nwant no prime of side noted as done", log)
+		}
+	})
+}
+
 func TestEachPrimeIsLoggedWithTheResetItRead(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
@@ -191,13 +216,16 @@ func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T
 		t.Errorf("with personal's token, the slots are %q, want %q", got, want)
 	}
 
+	// A token is lost once its file holds none two looks in a row.
 	files.set(tokenstest.Files{"personal": personalToken, "side": sideToken})
+	r.upkeep.tokens.look()
 	r.upkeep.tokens.look()
 	if got, want := slots(), []string{"personal 04:15", "side 06:45"}; !slices.Equal(got, want) {
 		t.Errorf("without work's token, the slots are %q, want %q", got, want)
 	}
 
 	files.set(tokenstest.Files{})
+	r.upkeep.tokens.look()
 	r.upkeep.tokens.look()
 	if got := r.Status().Prime; !reflect.DeepEqual(got, status.Prime{}) {
 		t.Errorf("with no account's token, the schedule is %+v, want none", got)
@@ -300,18 +328,26 @@ func (c *bubbleClock) sleep(d time.Duration) {
 // windowsUpstream answers probes as the upstream answers a request on an
 // account, by clock's time: a request starts the account's session when it
 // isn't running, and it resets five hours on. It notes when each token was
-// probed, and refuses the tokens it's told to.
+// probed, refuses the tokens it's told to, and starts no session on those it's
+// told to leave idle.
 type windowsUpstream struct {
 	clock *bubbleClock
 
 	mu       sync.Mutex
 	sessions map[string]time.Time
 	refused  map[string]bool
+	idle     map[string]bool
 	probed   map[string][]time.Time
 }
 
 func newWindowsUpstream(clock *bubbleClock) *windowsUpstream {
-	return &windowsUpstream{clock: clock, sessions: make(map[string]time.Time), refused: make(map[string]bool), probed: make(map[string][]time.Time)}
+	return &windowsUpstream{
+		clock:    clock,
+		sessions: make(map[string]time.Time),
+		refused:  make(map[string]bool),
+		idle:     make(map[string]bool),
+		probed:   make(map[string][]time.Time),
+	}
 }
 
 func (u *windowsUpstream) Probe(_ context.Context, token string) (quota.Probe, error) {
@@ -322,7 +358,7 @@ func (u *windowsUpstream) Probe(_ context.Context, token string) (quota.Probe, e
 	if u.refused[token] {
 		return quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token")
 	}
-	if reset, running := u.sessions[token]; !running || !reset.After(now) {
+	if reset, running := u.sessions[token]; !u.idle[token] && (!running || !reset.After(now)) {
 		u.sessions[token] = now.Add(5 * time.Hour)
 	}
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: u.sessions[token].UTC(), Status: quota.StatusAllowed}
@@ -334,6 +370,15 @@ func (u *windowsUpstream) refuse(token string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.refused[token] = true
+}
+
+// leaveIdle has the upstream start no session on token from now on: its
+// probes read the session as it last ran, till it reset at lapsed.
+func (u *windowsUpstream) leaveIdle(token string, lapsed time.Time) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.idle[token] = true
+	u.sessions[token] = lapsed
 }
 
 // probes returns when each token was probed, by the token.

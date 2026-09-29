@@ -2,8 +2,6 @@ package router
 
 import (
 	"crypto/subtle"
-	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -31,12 +29,21 @@ type secret struct {
 	mu sync.Mutex
 	// token is the account's token. While its file holds none the account can
 	// use, it's the one the account had last, which a request chosen for the
-	// account just before goes out on; it's zero for an account that has
-	// never had one.
+	// account just before goes out on; it's zero for an account that hasn't
+	// had one since the router started.
 	token tokens.Token
+	// held is the SHA-256 hash of the token the account had last, which the
+	// state file keeps: token's, or, while the account hasn't had one since
+	// the router started, the one the state file kept, which the token it
+	// comes to have is compared with. "" is neither.
+	held string
 	// unusable says why the account has no usable token, and so nothing to
 	// send on, or is nil while it has one.
 	unusable error
+	// missed is set while the account has a usable token, but its file held
+	// none as it was last looked at: the account keeps its token unless the
+	// file holds none at the next look either.
+	missed bool
 	// former are the tokens the account had before this one, in the order
 	// they were replaced.
 	former []formerToken
@@ -100,7 +107,11 @@ func resolve(configured []config.Account, read func(id string) (tokens.Token, er
 	resolved := make(accounts, len(configured))
 	for i, c := range configured {
 		token, err := read(c.ID)
-		resolved[i] = account{Account: c, secret: &secret{token: token, unusable: err}}
+		s := &secret{token: token, unusable: err}
+		if err == nil {
+			s.held = hash(token.Reveal())
+		}
+		resolved[i] = account{Account: c, secret: s}
 	}
 	return resolved
 }
@@ -139,18 +150,6 @@ func (as accounts) find(match func(account) bool) (account, bool) {
 	return as[i], true
 }
 
-// checkTokens fails when no account has a usable token, saying why of each.
-func (as accounts) checkTokens() error {
-	if slices.ContainsFunc(as, account.hasToken) {
-		return nil
-	}
-	problems := make([]error, len(as))
-	for i, a := range as {
-		problems[i] = fmt.Errorf("%s: %s", a.ID, a.problem())
-	}
-	return fmt.Errorf("no account has a usable token, so there's nothing to route to:\n%w", errors.Join(problems...))
-}
-
 // sendable returns the accounts with a token, which requests can go out on.
 func (as accounts) sendable() accounts {
 	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !a.hasToken() })
@@ -161,11 +160,10 @@ func (as accounts) only(ids []string) accounts {
 	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !slices.Contains(ids, a.ID) })
 }
 
-// canSend reports whether requests can go out on the account with the given
-// id: there is one, and it has a token.
-func (as accounts) canSend(id string) bool {
-	a, ok := as.byID(id)
-	return ok && a.hasToken()
+// includes reports whether an account with the given id is configured.
+func (as accounts) includes(id string) bool {
+	_, ok := as.byID(id)
+	return ok
 }
 
 // configured returns the accounts as the config gives them.

@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
@@ -89,9 +90,16 @@ func (c *changeCount) hear() {
 // prober.
 func newTestRouter(t *testing.T, now func() time.Time, prober Prober) *Router {
 	t.Helper()
+	return newTestRouterReading(t, now, prober, testTokens.Read)
+}
+
+// newTestRouterReading builds a router as newTestRouter does, reading the
+// accounts' tokens with read.
+func newTestRouterReading(t *testing.T, now func() time.Time, prober Prober, read func(id string) (tokens.Token, error)) *Router {
+	t.Helper()
 	r, err := New(Config{
 		Accounts: testConfigured,
-		Token:    testTokens.Read,
+		Token:    read,
 		Upstream: "http://127.0.0.1:1",
 		Provider: claude.Provider{},
 		Prober:   prober,

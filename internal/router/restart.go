@@ -31,14 +31,30 @@ type restarts struct {
 	restarted chan struct{}
 }
 
-func newRestarts(configPath, binaryPath string, supervised bool, inFlight *inFlight) *restarts {
+func newRestarts(config, binary Watched, supervised bool, inFlight *inFlight) *restarts {
 	return &restarts{
-		config:     &configFile{path: configPath, seen: statFile(configPath), valid: true},
-		binary:     &binaryFile{path: binaryPath, running: statFile(binaryPath)},
+		config:     &configFile{path: config.path, seen: config.found, valid: true},
+		binary:     &binaryFile{path: binary.path, running: binary.found},
 		supervised: supervised,
 		inFlight:   inFlight,
 		restarted:  make(chan struct{}),
 	}
+}
+
+// Watched is a file a router is started from, which it looks after while it
+// runs, as Watch found it: its config file, or its binary. The zero Watched
+// is none.
+type Watched struct {
+	path  string
+	found fileState
+}
+
+// Watch finds how the file at path stands now, its links followed, for a
+// router started from it to compare it with while it runs. Found before
+// anything is read from the file, a change made as the router starts is
+// seen. "" is none.
+func Watch(path string) Watched {
+	return Watched{path: path, found: statFile(path)}
 }
 
 // look looks at the config file and the binary again, and logs a restart

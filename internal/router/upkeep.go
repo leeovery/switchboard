@@ -21,18 +21,26 @@ type upkeep struct {
 }
 
 // newUpkeep returns the upkeep of a router built from cfg, with the accounts
-// given, noting each change to their tokens for the state file to keep with
-// changes, working out the schedule of primer, if it primes, again whenever
-// the accounts with tokens change, and restarting once inFlight counts no
-// request in flight.
-func newUpkeep(cfg Config, as accounts, changes *changes, primer *primer, inFlight *inFlight) *upkeep {
+// given, whose refusals state lifts once they go out on another token, noting
+// each change to their tokens for the state file to keep with changes,
+// working out the schedule of primer, if it primes, again whenever the
+// accounts with tokens change, and restarting once inFlight counts no request
+// in flight.
+func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
 	}
 	return &upkeep{
-		every:    cmp.Or(cfg.WatchEvery, watchEvery),
-		tokens:   &tokenFiles{accounts: as, read: cfg.Token, now: cfg.Now, kept: changes.note, sendable: replan},
+		every: cmp.Or(cfg.WatchEvery, watchEvery),
+		tokens: &tokenFiles{
+			accounts: as,
+			read:     cfg.Token,
+			now:      cfg.Now,
+			kept:     changes.note,
+			sendable: replan,
+			replaced: state.tokenReplaced,
+		},
 		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Supervised, inFlight),
 	}
 }

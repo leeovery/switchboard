@@ -224,6 +224,15 @@ func (s *state) refuse(id string, status int) {
 	s.usage[id].refused = r
 }
 
+// tokenReplaced notes that the account with the given id goes out on another
+// token from now on: the upstream's refusal of the one before no longer holds
+// it back.
+func (s *state) tokenReplaced(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usage[id].refused = refusal{}
+}
+
 // forbid notes that the upstream refused the account a request of a model of
 // family, answering with status, though not its token: the account has no
 // room for the family's requests for refusedFor.
@@ -303,8 +312,8 @@ func (s *state) probeable(u *usage, now time.Time) bool {
 // nextPrime returns when the account with the given id is next to be primed,
 // at now or after: when schedule says of its windows as last read, but not
 // before reprobeAfter has passed since a probe of it last ended, or
-// reprimeAfter when that one read nothing. It reports false when the
-// schedule can't say.
+// reprimeAfter when that one failed as a prime, as primeFailed says. It
+// reports false when the schedule can't say.
 func (s *state) nextPrime(id string, schedule prime.Schedule, now time.Time) (time.Time, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -314,13 +323,29 @@ func (s *state) nextPrime(id string, schedule prime.Schedule, now time.Time) (ti
 		return time.Time{}, false
 	}
 	retry := reprobeAfter
-	if u.probeErr != "" {
+	if u.primeFailed(s.policy) {
 		retry = reprimeAfter
 	}
 	if again := u.probed.Add(retry); again.After(at) {
 		at = again
 	}
 	return at, true
+}
+
+// primeFailed reports whether the last probe of the account with the given id
+// failed as a prime, as its usage's primeFailed says.
+func (s *state) primeFailed(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.usage[id].primeFailed(s.policy)
+}
+
+// primeFailed reports whether the account's last probe failed as a prime: it
+// read nothing, or the window a request starts, as policy names it, wasn't
+// running as it ended, by what has been read, so the prime didn't start it.
+func (u *usage) primeFailed(policy score.Policy) bool {
+	windows := u.latest()
+	return u.probeErr != "" || len(windows) == 0 || len(policy.Lapsed(windows, u.probed)) > 0
 }
 
 // view returns what a choice of account for a request of model knows at now:

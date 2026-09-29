@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -147,16 +148,19 @@ func TestServeWithoutAnyToken(t *testing.T) {
 	removeToken(t, srv.deps, "work")
 	writeToken(t, srv.deps, "side", " ")
 
-	got := run(t, srv.deps, "serve")
-	want := result{
-		stderr: "Error: no account has a usable token, so there's nothing to route to:\n" +
-			"work: token missing: write it to " + tokenPath(t, srv.deps, "work") + "\n" +
-			"personal: token missing: write it to " + tokenPath(t, srv.deps, "personal") + "\n" +
-			"side: token missing: write it to " + tokenPath(t, srv.deps, "side") + ", which is empty\n",
-		code: 1,
+	stop := srv.start(t)
+	if got := stop(); got != (result{}) {
+		t.Errorf("switchboard serve = %+v once stopped, want exit status 0 and no output", got)
 	}
-	if got != want {
-		t.Errorf("switchboard serve = %+v, want %+v", got, want)
+	log := srv.routerLog(t)
+	for _, want := range [][]string{
+		{"level=WARN", `msg="account has no usable token; nothing will go out on it" component=router`, "account=work", `error="token missing: write it to ` + tokenPath(t, srv.deps, "work") + `"`},
+		{"level=WARN", `msg="account has no usable token; nothing will go out on it" component=router`, "account=side", `error="token missing: write it to ` + tokenPath(t, srv.deps, "side") + `, which is empty"`},
+		{"level=WARN", `msg="no account has a usable token yet; nothing will be routed until one has" component=router`},
+	} {
+		if !hasLine(log, want...) {
+			t.Errorf("router.log reads\n%s\nwant a line with %q", log, want)
+		}
 	}
 }
 
@@ -302,6 +306,63 @@ func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
 				if !hasLine(log, want...) {
 					t.Errorf("router.log reads\n%s\nwant a line with %q", log, want)
 				}
+			}
+		})
+	}
+}
+
+func TestServeRestartsItselfForAChangeMadeAsItStarts(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes what serve was started from, once it has read its
+		// config, before its router runs.
+		change     func(srv *serveSetup) error
+		wantReason string
+	}{
+		{
+			name: "its config file making another valid config",
+			change: func(srv *serveSetup) error {
+				srv.extra = "\n[notifications]\nmoves = true\n"
+				return srv.putConfig()
+			},
+			wantReason: `reason="config changed"`,
+		},
+		{
+			name:       "an upgrade moving its binary on",
+			change:     (*serveSetup).moveOn,
+			wantReason: "reason=upgraded",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"XPC_SERVICE_NAME": service.Label})
+			srv.watch(t)
+			// Serve asks which launchd job it runs as once it has read its
+			// config, as its router is about to start.
+			var changed sync.Once
+			var err error
+			getenv := srv.deps.Getenv
+			srv.deps.Getenv = func(key string) string {
+				if key == "XPC_SERVICE_NAME" {
+					changed.Do(func() { err = tt.change(srv) })
+				}
+				return getenv(key)
+			}
+			stop := srv.launch(t)
+
+			select {
+			case <-srv.exited:
+			case <-time.After(5 * time.Second):
+				t.Fatal("gave up waiting for switchboard serve to restart")
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := stop(); got != (result{}) {
+				t.Errorf("switchboard serve = %+v as it restarted, want exit status 0 and no output, for launchd to start it again", got)
+			}
+			if log := srv.routerLog(t); !hasLine(log, "level=INFO", "msg=restarting component=router", tt.wantReason) {
+				t.Errorf("router.log reads\n%s\nwant a line with %q", log, tt.wantReason)
 			}
 		})
 	}
@@ -499,13 +560,18 @@ func (s *serveSetup) watch(t *testing.T) {
 // upgrade does.
 func (s *serveSetup) upgrade(t *testing.T) {
 	t.Helper()
+	if err := s.moveOn(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// moveOn is upgrade, from any goroutine.
+func (s *serveSetup) moveOn() error {
 	moved := s.binary + ".new"
 	if err := os.Symlink(s.next, moved); err != nil {
-		t.Fatal(err)
+		return err
 	}
-	if err := os.Rename(moved, s.binary); err != nil {
-		t.Fatal(err)
-	}
+	return os.Rename(moved, s.binary)
 }
 
 // newServeSetup sets serve up against upstream, with env added to its
@@ -535,10 +601,15 @@ func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveS
 // writeConfig writes the config file serve reads.
 func (s *serveSetup) writeConfig(t *testing.T) {
 	t.Helper()
-	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + threeAccounts + s.extra
-	if err := os.WriteFile(s.config, []byte(content), 0o600); err != nil {
+	if err := s.putConfig(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// putConfig is writeConfig, from any goroutine.
+func (s *serveSetup) putConfig() error {
+	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + threeAccounts + s.extra
+	return os.WriteFile(s.config, []byte(content), 0o600)
 }
 
 func (s *serveSetup) socket() string {
@@ -567,10 +638,28 @@ func (s *serveSetup) log(t *testing.T, name string) string {
 	return string(data)
 }
 
-// start runs switchboard serve with args, returning once its control socket
-// answers. It runs until the test calls the stop it returns, which returns
-// what serve printed and exited with, or until the test ends.
+// start runs switchboard serve with args, as launch does, returning once its
+// control socket answers.
 func (s *serveSetup) start(t *testing.T, args ...string) (stop func() result) {
+	t.Helper()
+	stop = s.launch(t, args...)
+	client := router.NewClient(s.socket())
+	waitUntil(t, "switchboard serve answers", func() bool {
+		select {
+		case <-s.exited:
+			t.Fatalf("switchboard serve = %+v before it answered", stop())
+		default:
+		}
+		_, err := client.Health(t.Context())
+		return err == nil
+	})
+	return stop
+}
+
+// launch runs switchboard serve with args in the background, until the test
+// calls the stop it returns, which returns what serve printed and exited
+// with, or until the test ends.
+func (s *serveSetup) launch(t *testing.T, args ...string) (stop func() result) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	root := cli.NewRootCommand(s.deps)
@@ -592,16 +681,6 @@ func (s *serveSetup) start(t *testing.T, args ...string) (stop func() result) {
 		return result{stdout: stdout.String(), stderr: stderr.String(), code: code}
 	}
 	t.Cleanup(func() { stop() })
-	client := router.NewClient(s.socket())
-	waitUntil(t, "switchboard serve answers", func() bool {
-		select {
-		case <-finished:
-			t.Fatalf("switchboard serve = %+v before it answered", stop())
-		default:
-		}
-		_, err := client.Health(ctx)
-		return err == nil
-	})
 	return stop
 }
 

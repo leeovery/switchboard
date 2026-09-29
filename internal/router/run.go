@@ -170,7 +170,8 @@ func shutdown(control, proxy *http.Server) {
 }
 
 // logStart notes where the router listens, where it sends requests, and which
-// accounts it can send them on, warning of each it can't, and why.
+// accounts it can send them on, warning of each it can't, and why, and when
+// it can send them on none yet.
 func (r *Router) logStart(proxy, control net.Addr) {
 	tokens := make([]any, len(r.accounts))
 	for i, a := range r.accounts {
@@ -178,6 +179,9 @@ func (r *Router) logStart(proxy, control net.Addr) {
 		if !a.hasToken() {
 			logger.Warn("account has no usable token; nothing will go out on it", "account", a.ID, "error", a.problem())
 		}
+	}
+	if len(r.accounts.sendable()) == 0 {
+		logger.Warn("no account has a usable token yet; nothing will be routed until one has")
 	}
 	logger.Info("listening", "address", proxy.String(), "control", control.String(),
 		"upstream", r.upstream.Redacted(), slog.Group("token_set", tokens...))
