@@ -77,8 +77,13 @@ func TestTheEnvFileLauncherServesWithTheTokens(t *testing.T) {
 	if err := os.WriteFile(envFile, []byte("export CLAUDE_TOKEN_WORK=test-token-work\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	stub := "#!/bin/sh\nprintf '%s\\n' \"$@\" \"token=${CLAUDE_TOKEN_WORK-unset}\"\n"
+	stub := "#!/bin/sh\nprintf '%s\\n' \"$@\" \"token=${CLAUDE_TOKEN_WORK-unset}\" \"zshenv=${ZSHENV-unread}\"\n"
 	if err := os.WriteFile(binary, []byte(stub), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// The user's own startup file, which the launcher mustn't read.
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, ".zshenv"), []byte("export ZSHENV=read\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	svc := newService(t, service.Config{Home: t.TempDir(), StateDir: t.TempDir(), Getenv: func(string) string { return "" }})
@@ -86,20 +91,19 @@ func TestTheEnvFileLauncherServesWithTheTokens(t *testing.T) {
 
 	program := svc.ProgramOf(binary, envFile, config)
 	cmd := exec.CommandContext(t.Context(), program[0], program[1:]...)
-	cmd.Env = []string{"HOME=" + t.TempDir(), "PATH=/usr/bin:/bin"}
+	cmd.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin"}
 
 	out, err := cmd.CombinedOutput()
-	if want := "serve\n--config\n" + config + "\ntoken=test-token-work\n"; err != nil || string(out) != want {
+	if want := "serve\n--config\n" + config + "\ntoken=test-token-work\nzshenv=unread\n"; err != nil || string(out) != want {
 		t.Errorf("launchd's program printed\n%s(%v)\nwant\n%s", out, err, want)
 	}
 }
 
-// newService returns the service as cfg configures it, on macOS, for the
-// user 501, with launchctl and the router refusing to be asked unless cfg
-// says otherwise.
+// newService returns the service as cfg configures it, on macOS, with
+// launchctl and the router refusing to be asked unless cfg says otherwise.
 func newService(t *testing.T, cfg service.Config) *service.Service {
 	t.Helper()
-	cfg.GOOS, cfg.UID = "darwin", 501
+	cfg.GOOS = "darwin"
 	if cfg.Launchctl == nil {
 		cfg.Launchctl = (&fakeLaunchctl{t: t, refuse: true}).run
 	}

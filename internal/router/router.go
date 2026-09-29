@@ -112,6 +112,9 @@ type Router struct {
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
+	// proxyAddr is the address the proxy listens on, once Run has it
+	// listening.
+	proxyAddr string
 }
 
 // New builds a router for the accounts configured. An account without a token

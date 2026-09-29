@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -205,21 +206,60 @@ func TestInstallChecksTheEnvFile(t *testing.T) {
 		name string
 		// mode is the env file's; zero leaves none there.
 		mode os.FileMode
+		// dirMode is its directory's; zero is 0700.
+		dirMode os.FileMode
 		// directory puts a directory where the env file is.
-		directory   bool
+		directory bool
+		// otherUser has the env file be another user's than the service's.
+		otherUser   bool
 		wantWarning bool
-		wantErr     string
+		// wantErr is the error Install fails with, %[1]s standing for the env
+		// file and %[2]s for its directory.
+		wantErr string
 	}{
 		{name: "only its owner's to read", mode: 0o600},
 		{name: "readable by its group", mode: 0o640, wantWarning: true},
 		{name: "readable by anyone", mode: 0o604, wantWarning: true},
-		{name: "missing", wantErr: "read the env file: open %s: no such file or directory"},
-		{name: "a directory", directory: true, wantErr: "the env file %s isn't a file"},
-		{name: "unreadable", mode: 0o200, wantErr: "read the env file: open %s: permission denied"},
+		{name: "missing", wantErr: "read the env file: open %[1]s: no such file or directory"},
+		{name: "a directory", directory: true, wantErr: "the env file %[1]s isn't a file"},
+		{name: "unreadable", mode: 0o200, wantErr: "read the env file: open %[1]s: permission denied"},
+		{
+			name:      "another user's",
+			mode:      0o600,
+			otherUser: true,
+			wantErr:   "the env file %[1]s is another user's, and zsh would run what's in it with every token: use a file of your own",
+		},
+		{
+			name:    "writable by its group",
+			mode:    0o620,
+			wantErr: "other users can write the env file %[1]s (mode 0620), and zsh would run what they put in it with every token: chmod 600 it",
+		},
+		{
+			name:    "writable by anyone",
+			mode:    0o602,
+			wantErr: "other users can write the env file %[1]s (mode 0602), and zsh would run what they put in it with every token: chmod 600 it",
+		},
+		{
+			name:    "in a directory its group can write",
+			mode:    0o600,
+			dirMode: 0o770,
+			wantErr: "other users can write the env file's directory %[2]s (mode 0770), and put a file of their own in its place for zsh to run with every token: chmod go-w it",
+		},
+		{
+			name:    "in a directory anyone can write",
+			mode:    0o600,
+			dirMode: 0o707,
+			wantErr: "other users can write the env file's directory %[2]s (mode 0707), and put a file of their own in its place for zsh to run with every token: chmod go-w it",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSetup(t, nil, upOnceStarted(4242))
+			uid := os.Getuid()
+			if tt.otherUser {
+				uid++
+			}
+			s.as(t, uid)
 			dir := filepath.Join(s.root, "secrets")
 			envFile := filepath.Join(dir, "tokens.env")
 			if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -231,12 +271,10 @@ func TestInstallChecksTheEnvFile(t *testing.T) {
 					t.Fatal(err)
 				}
 			case tt.mode != 0:
-				if err := os.WriteFile(envFile, []byte("export CLAUDE_TOKEN_WORK=test-token-work\n"), tt.mode); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.Chmod(envFile, tt.mode); err != nil {
-					t.Fatal(err)
-				}
+				writeEnvFile(t, envFile, tt.mode)
+			}
+			if err := os.Chmod(dir, cmp.Or(tt.dirMode, 0o700)); err != nil {
+				t.Fatal(err)
 			}
 			if tt.mode != 0 && tt.mode&0o400 == 0 && os.Getuid() == 0 {
 				t.Skip("root reads any file")
@@ -248,8 +286,11 @@ func TestInstallChecksTheEnvFile(t *testing.T) {
 
 			installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, EnvFile: "tokens.env"})
 			if tt.wantErr != "" {
-				if want := fmt.Sprintf(tt.wantErr, envFile); err == nil || err.Error() != want {
+				if want := fmt.Sprintf(tt.wantErr, envFile, dir); err == nil || err.Error() != want {
 					t.Errorf("Install() error = %v, want %q", err, want)
+				}
+				if _, err := os.Stat(s.plist); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("the plist: %v, want none written", err)
 				}
 				return
 			}
@@ -265,6 +306,64 @@ func TestInstallChecksTheEnvFile(t *testing.T) {
 			}
 			s.checkPlist(t, s.binary, envFile, "")
 		})
+	}
+}
+
+func TestInstallTakesTheFileAnEnvFileLinkLeadsTo(t *testing.T) {
+	tests := []struct {
+		name string
+		// mode is that of the file the link leads to.
+		mode os.FileMode
+		// wantErr is the error Install fails with, %s standing for that file.
+		wantErr string
+	}{
+		{name: "one only its owner can write", mode: 0o600},
+		{
+			name:    "one others can write",
+			mode:    0o602,
+			wantErr: "other users can write the env file %s (mode 0602), and zsh would run what they put in it with every token: chmod 600 it",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, upOnceStarted(4242))
+			s.as(t, os.Getuid())
+			secrets := filepath.Join(s.root, "secrets")
+			if err := os.Mkdir(secrets, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			target := filepath.Join(secrets, "tokens.env")
+			writeEnvFile(t, target, tt.mode)
+			link := filepath.Join(s.root, "tokens.env")
+			if err := os.Symlink(target, link); err != nil {
+				t.Fatal(err)
+			}
+			s.launchctl.refuse = tt.wantErr != ""
+
+			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary, EnvFile: link})
+			if tt.wantErr != "" {
+				if want := fmt.Sprintf(tt.wantErr, target); err == nil || err.Error() != want {
+					t.Errorf("Install() error = %v, want %q", err, want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Install() error = %v", err)
+			}
+			s.checkPlist(t, s.binary, target, "")
+		})
+	}
+}
+
+// writeEnvFile writes an env file, as the shell sources for the tokens, at
+// path, with mode.
+func writeEnvFile(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte("export CLAUDE_TOKEN_WORK=test-token-work\n"), mode); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -570,6 +669,8 @@ func upOnceStarted(pid int) func(asked int) (router.Health, error) {
 // router.
 type setup struct {
 	svc *service.Service
+	// cfg is what svc was made with.
+	cfg service.Config
 	// root holds the rest, its symlinks resolved.
 	root, tmp string
 	// binary is the switchboard to install, and plist where its plist goes.
@@ -577,8 +678,9 @@ type setup struct {
 	launchctl     *fakeLaunchctl
 }
 
-// newSetup sets the service up with env added to its environment, and a
-// router that answers as answer does, or refuses to be asked for nil.
+// newSetup sets the service up for the user 501, with env added to its
+// environment, and a router that answers as answer does, or refuses to be
+// asked for nil.
 func newSetup(t *testing.T, env map[string]string, answer func(asked int) (router.Health, error)) *setup {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -593,18 +695,27 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 	vars := map[string]string{"TMPDIR": s.tmp}
 	maps.Copy(vars, env)
 	home := filepath.Join(root, "home")
-	s.svc = newService(t, service.Config{
+	s.cfg = service.Config{
+		UID:       501,
 		Home:      home,
 		StateDir:  filepath.Join(home, ".local", "state", "switchboard"),
 		Getenv:    func(key string) string { return vars[key] },
 		Launchctl: s.launchctl.run,
 		Router:    &fakeRouter{t: t, answer: answer, refuse: answer == nil},
-	})
+	}
+	s.svc = newService(t, s.cfg)
 	s.plist = filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
 	if got := s.svc.Plist(); got != s.plist {
 		t.Fatalf("Plist() = %s, want %s", got, s.plist)
 	}
 	return s
+}
+
+// as has the service be the user whose id is uid's.
+func (s *setup) as(t *testing.T, uid int) {
+	t.Helper()
+	s.cfg.UID = uid
+	s.svc = newService(t, s.cfg)
 }
 
 // checkPlist checks the plist in place is the one serving with the

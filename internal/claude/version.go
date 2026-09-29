@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/childenv"
 	"github.com/leeovery/switchboard/internal/logs"
 )
 
@@ -99,11 +100,15 @@ type installedCLI struct {
 	// paths are where installers put the binary, tried in order before PATH.
 	paths    []string
 	lookPath func(file string) (string, error)
-	output   func(ctx context.Context, path string, args ...string) ([]byte, error)
+	// env is the environment the command runs in.
+	env    []string
+	output func(ctx context.Context, env []string, path string, args ...string) ([]byte, error)
 }
 
+// systemCLI is the claude command installed here, which runs in no more of
+// this process's environment than it needs: the router's holds every token.
 func systemCLI(home string) installedCLI {
-	return installedCLI{paths: InstallPaths(home), lookPath: exec.LookPath, output: commandOutput}
+	return installedCLI{paths: InstallPaths(home), lookPath: exec.LookPath, env: childenv.Minimal(os.Getenv), output: commandOutput}
 }
 
 // InstallPaths lists where Claude Code's installers put the CLI, for the home
@@ -120,8 +125,10 @@ func InstallPaths(home string) []string {
 	return slices.DeleteFunc(paths, func(path string) bool { return !filepath.IsAbs(path) })
 }
 
-func commandOutput(ctx context.Context, path string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, path, args...).Output()
+func commandOutput(ctx context.Context, env []string, path string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Env = env
+	return cmd.Output()
 }
 
 // version returns the first "x.y.z" that `claude --version` prints. It fails
@@ -145,7 +152,7 @@ func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
-	return c.output(ctx, path, "--version")
+	return c.output(ctx, c.env, path, "--version")
 }
 
 // find returns the first install path that holds a file, else the claude on

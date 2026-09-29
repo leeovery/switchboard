@@ -97,22 +97,6 @@ func TestSpread(t *testing.T) {
 	}
 }
 
-func TestClean(t *testing.T) {
-	tests := []struct {
-		text string
-		want string
-	}{
-		{text: "Work", want: "Work"},
-		{text: "  Work \t team\n", want: "Work team"},
-		{text: "Work\x1b[31m team\a", want: "Work [31m team"},
-	}
-	for _, tt := range tests {
-		if got := clean(tt.text); got != tt.want {
-			t.Errorf("clean(%q) = %q, want %q", tt.text, got, tt.want)
-		}
-	}
-}
-
 // plain is the line's text without its inks.
 func (l line) plain() string {
 	var b strings.Builder

@@ -51,6 +51,7 @@ func (r *Router) run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	r.proxyAddr = proxyLn.Addr().String()
 	controlLn, err := listenControl(socket)
 	if err != nil {
 		_ = proxyLn.Close()

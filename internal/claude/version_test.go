@@ -99,7 +99,7 @@ func TestInstalledCLIVersion(t *testing.T) {
 					}
 					return onPath, nil
 				},
-				output: func(ctx context.Context, path string, args ...string) ([]byte, error) {
+				output: func(ctx context.Context, _ []string, path string, args ...string) ([]byte, error) {
 					ran = path
 					if !slices.Equal(args, []string{"--version"}) {
 						t.Errorf("ran %s with %q, want --version", path, args)
@@ -119,6 +119,38 @@ func TestInstalledCLIVersion(t *testing.T) {
 				t.Errorf("ran %q, want %q", ran, tt.wantRun)
 			}
 		})
+	}
+}
+
+func TestTheCLIRunsWithoutTheTokens(t *testing.T) {
+	tmp := t.TempDir()
+	installed := filepath.Join(tmp, "claude")
+	if err := os.WriteFile(installed, nil, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, value := range map[string]string{
+		"CLAUDE_TOKEN_WORK":       "test-token-work",
+		"CLAUDE_CODE_OAUTH_TOKEN": "test-token-oauth",
+		"PATH":                    "/usr/bin:/bin",
+		"HOME":                    "/home/tester",
+		"TMPDIR":                  tmp,
+		"LANG":                    "en_GB.UTF-8",
+	} {
+		t.Setenv(name, value)
+	}
+	var env []string
+	cli := systemCLI("/home/tester")
+	cli.paths = []string{installed}
+	cli.output = func(_ context.Context, e []string, _ string, _ ...string) ([]byte, error) {
+		env = e
+		return []byte("2.1.300 (Claude Code)\n"), nil
+	}
+
+	if _, err := cli.version(t.Context()); err != nil {
+		t.Fatalf("version() error = %v", err)
+	}
+	if want := []string{"PATH=/usr/bin:/bin", "HOME=/home/tester", "TMPDIR=" + tmp, "LANG=en_GB.UTF-8"}; !slices.Equal(env, want) {
+		t.Errorf("claude --version ran with the environment %q, want %q alone", env, want)
 	}
 }
 

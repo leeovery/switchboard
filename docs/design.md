@@ -35,7 +35,8 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   rises within a window, so a slow response can't pull it back, nor lift a rejection either
   reading holds; an earlier reset is ignored.
 - An account with no recent traffic is refreshed with a 1-token probe, and only when a decision
-  needs fresh numbers, or a dashboard asks for them, once its interval.
+  needs fresh numbers, or a dashboard asks for them, once its interval. A probe follows no
+  redirect, which would carry its token along.
 
 ## Prompt cache facts the design rests on
 
@@ -164,7 +165,9 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   ```
 
 - Switchboard never stores tokens. It reads them from its environment, so wherever they already
-  live (a password manager, a generated env file) stays the source of truth.
+  live (a password manager, a generated env file) stays the source of truth. The programs it runs
+  for itself, `claude --version` and `osascript`, get none of that environment but `PATH`, `HOME`,
+  `TMPDIR` and `LANG`.
 - The background service is a LaunchAgent, and a LaunchAgent doesn't see the shell's environment.
   `service install --env-file <path>` has zsh source that file, one the shell sources too, each
   time the router starts. After tokens change, `service restart` picks them up.
@@ -224,6 +227,9 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   `r refresh · 1–3 pin · a auto · m move · q quit` reading the router, `r refresh · q quit`
   probing.
 - Desktop notifications: see Notifications.
+- Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
+  as spaces, here and in `status` alike, so none can move the cursor or restyle what follows, a
+  statusline's included.
 - Built with Bubble Tea v2 and Lip Gloss v2.
 
 ## Health
@@ -306,7 +312,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
-  `[redacted]`.
+  `[redacted]`. What the standard library's `log` package is given goes through it too, to the
+  log rather than stderr: under `GODEBUG=http2debug=1`, Go's HTTP/2 client prints every header it
+  sends, the token's included.
 - **Never in the way:** commands never log to stdout or stderr, so `--json` and the dashboard
   stay clean, and a command never fails because it couldn't log: its records go nowhere
   instead. `serve` also writes each record to its terminal, when it runs in one.
@@ -328,6 +336,7 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 | `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/dashboard` | Rendering (Lip Gloss), and watch mode (Bubble Tea): reading the router or probing, its keys, and its desktop notifications while it probes |
 | `internal/notify` | Posting desktop notifications, and the wording the router's and the dashboard's share |
+| `internal/childenv` | The environment the programs switchboard runs for itself start in: no token |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, the router's health, the events it emits and the notifications it posts, and the control API |
 | `internal/launch` | `run` and `init zsh` |
@@ -363,8 +372,11 @@ token_env = "CLAUDE_TOKEN_WORK"    # environment variable holding the setup toke
 ```
 
 Unknown keys, duplicate ids and a config without accounts are errors, and so is the id `auto`, in
-any case, which `pin auto` takes to mean routing. An optional `[notifications]` table says which
-desktop notifications the router posts: see Notifications.
+any case, which `pin auto` takes to mean routing. `listen` must be a loopback IP address, never a
+name such as `localhost`, which a client can look up to `::1` while the proxy listens on
+`127.0.0.1`, and send its token to whatever listens there; a plain `http` upstream likewise. An
+optional `[notifications]` table says which desktop notifications the router posts: see
+Notifications.
 
 ### Proxy rules
 
@@ -386,7 +398,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health) |
+| `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health), and `listen`, the address its proxy listens on. A router that doesn't give one isn't sent sessions |
 | `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), `sessions`, those used in the last hour, each counted once, and each account's `sessions`, `limit` (`{windows, until}`) while one holds, and `refused` (`{until, status, family}`) while a refusal does: `status` 401 for its token refused, which holds back every request, or 403 for a request refused alone, which holds back its model's `family`; with both, the token's, and with several families, the latest |
 | `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
@@ -397,7 +409,8 @@ A request the API refuses is answered `{"error": "<why>"}`. Times are given in U
 ### Launching
 
 - `run` gives the router half a second to answer `GET /health` with `ok`. When it does, `run`
-  starts Claude Code with `ANTHROPIC_BASE_URL` pointing at the proxy, `CLAUDE_CODE_OAUTH_TOKEN` set
+  starts Claude Code with `ANTHROPIC_BASE_URL` pointing at the proxy, where the router says it
+  listens, not where the config says, which may have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set
   to a configured account's token (`--account`'s, else the router's best, else the first with a
   token), and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set.
   Otherwise it connects directly on that same token, without the base URL or the pin, saying why in
@@ -426,14 +439,18 @@ A request the API refuses is answered `{"error": "<why>"}`. Times are given in U
   on, with `serve` and any `--config` given. It refuses a temporary build, such as `go run`'s,
   judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and
   `SWITCHBOARD_CONFIG` when they're set, so the service finds what the CLI does. With
-  `--env-file`, it runs `/bin/zsh -c 'source "$1" && exec "$2" serve "${@:3}"'`, the paths as
-  arguments, never in the script, and warns when others can read the file. Whether launchd has the
-  service loaded is `launchctl print`'s to say, which exits 113 for one it hasn't: `install` boots
-  out a loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a
-  router other than any running before to answer. `uninstall` boots it out when loaded and removes
-  the plist; `restart` is `launchctl kickstart -k`, waiting the same way, or an error when it isn't
-  loaded; `status` reports the plist, whether launchd has it loaded, and the router's health. Any
-  other failure of `launchctl` is an error that quotes it. macOS only for now.
+  `--env-file`, it runs `/bin/zsh -f -c 'source "$1" && exec "$2" serve "${@:3}"'`, the paths as
+  arguments, never in the script, and `-f` so none of the user's own startup files, such as
+  `~/.zshenv`, runs alongside the tokens. zsh runs the file with every token, so `install`
+  refuses one that isn't the user's, or that others can write, or whose directory they can; names
+  it by where its links lead, so a link moved later leads nowhere new; and warns when others can
+  read it. Whether launchd has the service loaded is `launchctl print`'s to say, which exits 113
+  for one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`,
+  and waits up to 5 seconds for a router other than any running before to answer. `uninstall`
+  boots it out when loaded and removes the plist; `restart` is `launchctl kickstart -k`, waiting
+  the same way, or an error when it isn't loaded; `status` reports the plist, whether launchd has
+  it loaded, and the router's health. Any other failure of `launchctl` is an error that quotes it.
+  macOS only for now.
 
 ## Milestones
 

@@ -61,27 +61,29 @@ func alreadyReported(reported map[string]bool, key toml.Key) bool {
 	return false
 }
 
-// checkListen keeps the proxy on loopback: it adds account tokens to the
-// requests it forwards, so no other machine may reach it.
+// checkListen keeps the proxy on loopback, at an address: it adds account
+// tokens to the requests it forwards, so no other machine may reach it, and a
+// client must find it where it listens.
 func checkListen(addr string) error {
 	host, port, err := net.SplitHostPort(addr)
 	switch {
 	case err != nil:
 		return fmt.Errorf("listen %q: must be host:port, such as 127.0.0.1:4747 or [::1]:4747", addr)
-	case !isLoopback(host):
-		return fmt.Errorf("listen %q: host must be loopback (127.0.0.1, ::1 or localhost), so no other machine can use the proxy's tokens", addr)
+	case !isLoopbackIP(host):
+		return fmt.Errorf("listen %q: host must be a loopback IP address, 127.0.0.1 or ::1, so no other machine can use the proxy's tokens; a name, even localhost, can lead a client to another address", addr)
 	case !isPort(port):
 		return fmt.Errorf("listen %q: port must be a number from 1 to 65535", addr)
 	}
 	return nil
 }
 
-func isLoopback(host string) bool {
-	if host == "localhost" {
-		return true
-	}
+// isLoopbackIP reports whether host is a loopback IP address without a zone,
+// which a URL would need escaped. Not a name, even localhost: a client may
+// look it up to ::1 first, and send its token to whatever listens there,
+// while the proxy is on 127.0.0.1.
+func isLoopbackIP(host string) bool {
 	ip, err := netip.ParseAddr(host)
-	return err == nil && ip.IsLoopback()
+	return err == nil && ip.IsLoopback() && ip.Zone() == ""
 }
 
 func isPort(port string) bool {
@@ -89,15 +91,16 @@ func isPort(port string) bool {
 	return err == nil && n > 0
 }
 
-// checkUpstream allows plain http only to loopback: account tokens travel in
-// the requests the proxy forwards, and must not cross a network unencrypted.
+// checkUpstream allows plain http only to a loopback address: account tokens
+// travel in the requests the proxy forwards, and must not cross a network
+// unencrypted, nor go to another listener a name looks up to.
 func checkUpstream(upstream string) error {
 	u, err := url.Parse(upstream)
 	switch {
 	case err != nil || !isAbsoluteHTTP(u):
 		return fmt.Errorf("upstream %q: must be an absolute http or https URL, such as %s", upstream, defaultUpstream)
-	case u.Scheme == "http" && !isLoopback(u.Hostname()):
-		return fmt.Errorf("upstream %q: must use https unless its host is loopback, so account tokens never cross a network in plaintext", upstream)
+	case u.Scheme == "http" && !isLoopbackIP(u.Hostname()):
+		return fmt.Errorf("upstream %q: must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext", upstream)
 	}
 	return nil
 }

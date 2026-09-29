@@ -91,7 +91,7 @@ func grid(doc status.Document, now time.Time, room int) ([]line, int, bool) {
 func contentWidth(accounts []status.Account) int {
 	widest := 0
 	for _, a := range accounts {
-		widest = max(widest, ansi.StringWidth(clean(a.Title())))
+		widest = max(widest, ansi.StringWidth(a.Title()))
 	}
 	both := badges{pinned: true, best: true}.tail(borderInk).width()
 	return min(max(widest+titleChrome+both-2*padding, minContent), maxContent)
@@ -108,7 +108,7 @@ func cardRow(doc status.Document, row []status.Account, now time.Time, cw int) [
 	}
 	var lines []line
 	for i, a := range row {
-		c := card(clean(a.Title()), badgesOf(doc, a), contents[i], height, cw)
+		c := card(a.Title(), badgesOf(doc, a), contents[i], height, cw)
 		lines = beside(lines, c)
 	}
 	return lines
@@ -211,7 +211,7 @@ func usage(a status.Account, now time.Time, cw int) [][]line {
 func windowBlock(w quota.Window, now time.Time, cw int) []line {
 	p := score.Project(w, now)
 	return []line{
-		spread(line{{clean(w.Label), textInk}}, line{use(w, p)}, cw),
+		spread(line{{status.Clean(w.Label), textInk}}, line{use(w, p)}, cw),
 		bar(w.Utilization, pace(w, p, now, cw), cw),
 		detail(w, p, now, cw),
 	}
@@ -235,8 +235,8 @@ func pace(w quota.Window, p score.Projection, now time.Time, width int) int {
 
 // failureBlock shows a window that couldn't be read, and why.
 func failureBlock(f quota.Failure, cw int) []line {
-	lines := []line{{{truncate(clean(f.Label)+" offline", cw), offlineInk}}}
-	for _, text := range wrap(clean(f.Error), cw, reasonLines) {
+	lines := []line{{{truncate(status.Clean(f.Label)+" offline", cw), offlineInk}}}
+	for _, text := range wrap(status.Clean(f.Error), cw, reasonLines) {
 		lines = append(lines, line{{text, dimInk}})
 	}
 	return lines
@@ -247,7 +247,7 @@ func failureBlock(f quota.Failure, cw int) []line {
 func errorBlock(err string, cw int) []line {
 	var lines []line
 	lead := errorMark
-	for _, text := range wrap(clean(err), cw-ansi.StringWidth(lead), errorLines) {
+	for _, text := range wrap(status.Clean(err), cw-ansi.StringWidth(lead), errorLines) {
 		lines = append(lines, line{{lead + text, errorInk}})
 		lead = strings.Repeat(" ", ansi.StringWidth(errorMark))
 	}

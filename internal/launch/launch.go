@@ -65,11 +65,12 @@ type Route struct {
 // Run starts Claude Code with args in this process's place, on the token of
 // the account pinned, else the one the router rates best, else the first with
 // a token. While the router is healthy, Claude Code sends its requests there,
-// pinned when an account is; otherwise it sends them straight to the API, and
-// Stderr hears why. With no account's token to start on, it starts Unaided. A
-// pin that can't be kept, to an account not configured or without a token,
-// fails: it's the command line's mistake. Run returns only when Claude Code
-// couldn't start.
+// to the address the router says its proxy listens on, whatever the config
+// says, pinned when an account is; otherwise it sends them straight to the
+// API, and Stderr hears why. With no account's token to start on, it starts
+// Unaided. A pin that can't be kept, to an account not configured or without
+// a token, fails: it's the command line's mistake. Run returns only when
+// Claude Code couldn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -86,7 +87,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
-		env = env.with(claude.BaseURLEnv, "http://"+r.Config.Listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account)
+		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account)
 		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "claude", path)
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("")
@@ -190,6 +191,8 @@ type routerState struct {
 	name string
 	// reason says why the router is unhealthy.
 	reason string
+	// listen is where a healthy router's proxy listens.
+	listen string
 }
 
 func (s routerState) healthy() bool {
@@ -209,7 +212,8 @@ func (s routerState) String() string {
 	}
 }
 
-// health asks the router how it is, giving it AskTimeout to answer.
+// health asks the router how it is, and where its proxy listens, giving it
+// AskTimeout to answer. One that doesn't say where can't be sent requests.
 func (r Route) health(ctx context.Context) routerState {
 	ctx, cancel := context.WithTimeout(ctx, AskTimeout)
 	defer cancel()
@@ -223,8 +227,10 @@ func (r Route) health(ctx context.Context) routerState {
 		return routerState{name: unhealthy, reason: err.Error()}
 	case !h.OK:
 		return routerState{name: unhealthy, reason: h.Reason}
+	case h.Listen == "":
+		return routerState{name: unhealthy, reason: "it doesn't say where it listens"}
 	}
-	return routerState{name: healthy}
+	return routerState{name: healthy, listen: h.Listen}
 }
 
 // choice is the account whose token Claude Code starts on, and why it was

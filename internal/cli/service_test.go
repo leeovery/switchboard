@@ -34,6 +34,8 @@ func TestServiceInstall(t *testing.T) {
 
 func TestServiceInstallWithAnEnvFileAndAConfig(t *testing.T) {
 	s := newServiceSetup(t)
+	// The env file must be the service's user's: this test's.
+	s.srv.deps.UID = os.Getuid()
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, "tokens.env")
 	if err := os.WriteFile(envFile, []byte("export CLAUDE_TOKEN_WORK=test-token-work\n"), 0o600); err != nil {
@@ -42,15 +44,20 @@ func TestServiceInstallWithAnEnvFileAndAConfig(t *testing.T) {
 	if err := os.Chmod(envFile, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The plist names the env file by where its links lead.
+	sourced, err := filepath.EvalSymlinks(envFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Chdir(dir)
 
 	got := run(t, s.srv.deps, "service", "install", "--env-file", "tokens.env", "--config", "work.toml")
-	wantWarning := "warning: other users can read the env file " + envFile + " (mode 0644), and it holds tokens: chmod 600 it\n"
+	wantWarning := "warning: other users can read the env file " + sourced + " (mode 0644), and it holds tokens: chmod 600 it\n"
 	if got.code != 0 || got.stderr != wantWarning {
 		t.Errorf("switchboard service install = %+v, want exit status 0, and on stderr\n%s", got, wantWarning)
 	}
 	s.checkPlist(t, "\t\t<string>switchboard</string>\n"+
-		"\t\t<string>"+envFile+"</string>\n"+
+		"\t\t<string>"+sourced+"</string>\n"+
 		"\t\t<string>"+s.binary+"</string>\n"+
 		"\t\t<string>--config</string>\n"+
 		"\t\t<string>"+filepath.Join(dir, "work.toml")+"</string>\n"+

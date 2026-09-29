@@ -10,63 +10,175 @@ import (
 	"strings"
 )
 
-// switchboard's directories in the real home, and the directory its
-// LaunchAgent goes in.
+// switchboard's directories in a home, and the directory its LaunchAgent goes
+// in.
 var (
 	configDir       = filepath.Join(".config", "switchboard")
 	stateDir        = filepath.Join(".local", "state", "switchboard")
 	launchAgentsDir = filepath.Join("Library", "LaunchAgents")
 )
 
-// realHome watches switchboard's directories in the real home, and its files
-// among the LaunchAgents, each as closely as a live switchboard running
-// alongside the tests allows. Nothing live writes the config or a
-// LaunchAgent, so any change to either is a test's. A live router writes its
-// state as it runs, its logs and state.json among it, so only the state
-// directory appearing is a test's; and the OS sandbox denies a test any
-// write there anyway.
-type realHome struct {
-	// dir is the real home, "" when there's none to watch.
-	dir string
-	// config is what the config directory held as the tests began.
-	config snapshot
-	// hadState is whether the state directory was there as they began.
-	hadState bool
-	// agents is what the LaunchAgents directory held of switchboard's as the
-	// tests began.
-	agents snapshot
+// watcher watches something of the real system's, as closely as a live
+// switchboard running alongside the tests allows, and says how the tests
+// changed it, a line each.
+type watcher interface {
+	changes() []string
 }
 
-func watchHome(dir string) realHome {
-	if dir == "" {
-		return realHome{}
-	}
-	return realHome{dir: dir, config: take(dir, configDir), hadState: exists(filepath.Join(dir, stateDir)), agents: takeAgents(dir)}
-}
+// watchers are what testguard watches of the real system.
+type watchers []watcher
 
-// changes lists what's changed in the real home that a test would have
-// changed, a line each.
-func (h realHome) changes() []string {
-	if h.dir == "" {
-		return nil
-	}
-	lines := diff(h.config, take(h.dir, configDir))
-	lines = append(lines, diff(h.agents, takeAgents(h.dir))...)
-	if !h.hadState && exists(filepath.Join(h.dir, stateDir)) {
-		lines = append(lines, "the real ~/"+filepath.ToSlash(stateDir)+" appeared")
+func (ws watchers) changes() []string {
+	var lines []string
+	for _, w := range ws {
+		lines = append(lines, w.changes()...)
 	}
 	return lines
 }
 
-// takeAgents notes the files in home's LaunchAgents directory whose names
-// mention switchboard. Only those: other programs add and change their own as
-// they please.
-func takeAgents(home string) snapshot {
-	agents := take(home, launchAgentsDir)
-	maps.DeleteFunc(agents, func(file string, _ entry) bool {
-		return !strings.Contains(strings.ToLower(path.Base(file)), "switchboard")
+// watchReal notes, before the tests begin, what the real system holds of
+// switchboard's: its config and its state, by default in home, and wherever
+// SWITCHBOARD_CONFIG, XDG_CONFIG_HOME and XDG_STATE_HOME put them, as getenv
+// reads them; and its files among the LaunchAgents in home. Nothing live
+// writes the config or a LaunchAgent, so any change to either is a test's. A
+// live router writes its state as it runs, its logs and state.json among it,
+// so only a state directory appearing is a test's; and the OS sandbox denies
+// a test any write there anyway.
+func watchReal(home string, getenv func(string) string) watchers {
+	var ws watchers
+	for _, p := range configPlaces(home, getenv) {
+		ws = append(ws, watchContents(p, nil))
+	}
+	for _, p := range statePlaces(home, getenv) {
+		if !exists(p.path) {
+			ws = append(ws, absence{p})
+		}
+	}
+	if home != "" {
+		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard))
+	}
+	return ws
+}
+
+// configPlaces are where switchboard's config is: by default in home, and
+// where SWITCHBOARD_CONFIG and XDG_CONFIG_HOME say. switchboard ignores a
+// relative XDG directory, and a relative config file names none testguard can
+// know, as it's relative to wherever switchboard runs.
+func configPlaces(home string, getenv func(string) string) []place {
+	var places []place
+	if home != "" {
+		places = append(places, inHome(home, configDir))
+	}
+	if file := getenv("SWITCHBOARD_CONFIG"); filepath.IsAbs(file) {
+		places = append(places, named(file))
+	}
+	if dir := getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
+		places = append(places, named(filepath.Join(dir, "switchboard")))
+	}
+	return places
+}
+
+// stateDirs are where switchboard's state is, as statePlaces finds it, a live
+// router's control socket among it.
+func stateDirs(home string, getenv func(string) string) []string {
+	var dirs []string
+	for _, p := range statePlaces(home, getenv) {
+		dirs = append(dirs, p.path)
+	}
+	return dirs
+}
+
+// statePlaces are where switchboard's state is: by default in home, and where
+// XDG_STATE_HOME says.
+func statePlaces(home string, getenv func(string) string) []place {
+	var places []place
+	if home != "" {
+		places = append(places, inHome(home, stateDir))
+	}
+	if dir := getenv("XDG_STATE_HOME"); filepath.IsAbs(dir) {
+		places = append(places, named(filepath.Join(dir, "switchboard")))
+	}
+	return places
+}
+
+// place is somewhere of the real system's: where it is, its symlinks
+// resolved as the tests began, so a link changed since changes nothing, and
+// how a report names it.
+type place struct {
+	path  string
+	shown string
+}
+
+// inHome is the place dir is in home, named from the home, as in
+// ~/.config/switchboard.
+func inHome(home, dir string) place {
+	return place{path: resolve(filepath.Join(home, dir)), shown: "~/" + filepath.ToSlash(dir)}
+}
+
+// named is the place at where, named as the environment names it.
+func named(where string) place {
+	return place{path: resolve(where), shown: filepath.ToSlash(where)}
+}
+
+// contents watches what's at a place, and everything under it, that keep
+// keeps, or all of it when keep is nil.
+type contents struct {
+	place
+	keep   func(name string) bool
+	before snapshot
+}
+
+func watchContents(p place, keep func(name string) bool) contents {
+	c := contents{place: p, keep: keep}
+	c.before = c.take()
+	return c
+}
+
+func (c contents) changes() []string {
+	return diff(c.before, c.take())
+}
+
+// take notes what the place holds, following symlinks: a config kept
+// elsewhere, such as with dotfiles, and linked in is the real one all the
+// same. One that isn't there holds nothing.
+func (c contents) take() snapshot {
+	s := make(snapshot)
+	_ = filepath.WalkDir(c.path, func(p string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		info, err := os.Stat(p)
+		if err != nil {
+			return nil
+		}
+		rel, _ := filepath.Rel(c.path, p)
+		if shown := path.Join(c.shown, filepath.ToSlash(rel)); c.keep == nil || c.keep(shown) {
+			s[shown] = entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano()}
+		}
+		return nil
 	})
-	return agents
+	return s
+}
+
+// mentionsSwitchboard reports whether a file's name mentions switchboard, in
+// any case: only such LaunchAgents are switchboard's, where other programs
+// add and change their own as they please.
+func mentionsSwitchboard(name string) bool {
+	return strings.Contains(strings.ToLower(path.Base(name)), "switchboard")
+}
+
+// absence watches a place that wasn't there as the tests began: a state
+// directory, which a live router writes in only once it's there, so its
+// appearing is a test's.
+type absence struct {
+	place
+}
+
+func (a absence) changes() []string {
+	if !exists(a.path) {
+		return nil
+	}
+	return []string{"the real " + a.shown + " appeared"}
 }
 
 func exists(path string) bool {
@@ -74,7 +186,7 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// snapshot is what a directory holds, by path from the home.
+// snapshot is what a place holds, by how a report names each path.
 type snapshot map[string]entry
 
 // entry is what's at a path: its type, size and modification time.
@@ -84,51 +196,26 @@ type entry struct {
 	modTime int64
 }
 
-// take notes what the directory dir in home holds, the directory and
-// everything under it, following symlinks: a config kept elsewhere, such as
-// with dotfiles, and linked in is the real one all the same. One that isn't
-// there holds nothing.
-func take(home, dir string) snapshot {
-	s := make(snapshot)
-	root, err := filepath.EvalSymlinks(filepath.Join(home, dir))
-	if err != nil {
-		return s
-	}
-	_ = filepath.WalkDir(root, func(path string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		info, err := os.Stat(path)
-		if err != nil {
-			return nil
-		}
-		rel, _ := filepath.Rel(root, path)
-		s[filepath.ToSlash(filepath.Join(dir, rel))] = entry{kind: info.Mode().Type(), size: info.Size(), modTime: info.ModTime().UnixNano()}
-		return nil
-	})
-	return s
-}
-
 // diff lists what differs from before to after, a line a path, in order.
 func diff(before, after snapshot) []string {
 	paths := make(map[string]bool)
-	for path := range before {
-		paths[path] = true
+	for p := range before {
+		paths[p] = true
 	}
-	for path := range after {
-		paths[path] = true
+	for p := range after {
+		paths[p] = true
 	}
 	var lines []string
-	for _, path := range slices.Sorted(maps.Keys(paths)) {
-		was, wasThere := before[path]
-		is, isThere := after[path]
+	for _, p := range slices.Sorted(maps.Keys(paths)) {
+		was, wasThere := before[p]
+		is, isThere := after[p]
 		switch {
 		case !wasThere:
-			lines = append(lines, "the real ~/"+path+" was created")
+			lines = append(lines, "the real "+p+" was created")
 		case !isThere:
-			lines = append(lines, "the real ~/"+path+" was removed")
+			lines = append(lines, "the real "+p+" was removed")
 		case was != is:
-			lines = append(lines, "the real ~/"+path+" was modified")
+			lines = append(lines, "the real "+p+" was modified")
 		}
 	}
 	return lines

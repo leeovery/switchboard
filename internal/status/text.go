@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -15,7 +16,8 @@ import (
 // they reset and where they're heading, whatever couldn't be read, and what
 // the router notes of the account; then the account to use next, and last
 // where the usage came from. Countdowns run from now, and times show in now's
-// time zone.
+// time zone. Every text it shows that came from elsewhere, such as the
+// config's labels or the upstream's errors, it shows cleaned.
 func (d Document) Text(now time.Time) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
@@ -76,9 +78,9 @@ func (d Document) origin() string {
 	}
 }
 
-// because follows what with why, when there's a why.
+// because follows what with why, cleaned, when there's a why.
 func because(what, why string) string {
-	if why == "" {
+	if why = Clean(why); why == "" {
 		return what
 	}
 	return what + ", " + why
@@ -90,8 +92,8 @@ func (d Document) Routing() string {
 	if d.Pin.Account == "" {
 		return "routing automatically"
 	}
-	name := d.Pin.Account
-	if account, ok := d.Account(name); ok {
+	name := Clean(d.Pin.Account)
+	if account, ok := d.Account(d.Pin.Account); ok {
 		name = account.Title()
 	}
 	return "pinned to " + name
@@ -124,10 +126,10 @@ func (a Account) write(b *strings.Builder, width int, now time.Time) {
 		fmt.Fprintf(b, "  %s\n", windowLine(w, width, now))
 	}
 	for _, f := range a.Failures {
-		fmt.Fprintf(b, "  %s offline: %s\n", f.Label, f.Error)
+		fmt.Fprintf(b, "  %s offline: %s\n", Clean(f.Label), Clean(f.Error))
 	}
-	if a.Error != "" {
-		fmt.Fprintf(b, "  %s\n", a.Error)
+	if err := Clean(a.Error); err != "" {
+		fmt.Fprintf(b, "  %s\n", err)
 	}
 }
 
@@ -194,9 +196,23 @@ func Percent(utilization float64) string {
 	return fmt.Sprintf("%.0f%%", utilization*100)
 }
 
-// Title names an account by its id and label, such as "work · Work".
+// Title names an account by its id and label, such as "work · Work", each
+// cleaned.
 func (a Account) Title() string {
-	return a.ID + " · " + a.Label
+	return Clean(a.ID) + " · " + Clean(a.Label)
+}
+
+// Clean makes text safe to show on one line of a terminal: control
+// characters, which would move the cursor or restyle what follows, become
+// spaces, and each run of spaces becomes one.
+func Clean(text string) string {
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, text)
+	return strings.Join(strings.Fields(text), " ")
 }
 
 // Account finds the account with the given id.
@@ -211,7 +227,7 @@ func (d Document) Account(id string) (Account, bool) {
 // windowLine shows a window's label and utilization, then when it resets and
 // where it's heading, as far as those are known.
 func windowLine(w quota.Window, labelWidth int, now time.Time) string {
-	line := fmt.Sprintf("%-*s %4s", labelWidth, w.Label, Percent(w.Utilization))
+	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(w.Label), Percent(w.Utilization))
 	var notes []string
 	if !w.ResetsAt.IsZero() {
 		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(w.ResetsAt.In(now.Location())))
@@ -231,7 +247,7 @@ func labelWidth(accounts []Account) int {
 	width := 0
 	for _, account := range accounts {
 		for _, w := range account.Windows {
-			width = max(width, utf8.RuneCountInString(w.Label))
+			width = max(width, utf8.RuneCountInString(Clean(w.Label)))
 		}
 	}
 	return width

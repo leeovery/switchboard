@@ -30,12 +30,15 @@ func SocketPath(stateDir string) string {
 // maxControlBody caps the body of a request to the control API.
 const maxControlBody = 64 << 10
 
-// Health is what GET /health answers: that the router is alive, and which it
-// is. OK is false while the router is failing too many of the requests it
-// routes, and Reason says how many.
+// Health is what GET /health answers: that the router is alive, which it is,
+// and where its proxy listens. OK is false while the router is failing too
+// many of the requests it routes, and Reason says how many.
 type Health struct {
-	OK        bool      `json:"ok"`
-	Reason    string    `json:"reason,omitempty"`
+	OK     bool   `json:"ok"`
+	Reason string `json:"reason,omitempty"`
+	// Listen is the address the proxy listens on, which may no longer be the
+	// one the config names: "" until it listens.
+	Listen    string    `json:"listen,omitempty"`
 	Version   string    `json:"version"`
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
@@ -93,7 +96,7 @@ func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		h := r.health.report()
-		writeJSON(w, Health{OK: h.Healthy, Reason: h.Reason, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started})
+		writeJSON(w, Health{OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started})
 	})
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, r.Status())

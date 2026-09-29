@@ -1,6 +1,7 @@
 package testguard
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -75,7 +76,7 @@ func TestChangesToTheRealConfig(t *testing.T) {
 				write(t, filepath.Join(home, file), "before\n")
 			}
 			backdate(t, home)
-			watched := watchHome(home)
+			watched := watchReal(home, noEnv)
 
 			tt.change(t, home)
 
@@ -112,7 +113,7 @@ func TestChangesToTheRealConfigThroughLinks(t *testing.T) {
 			write(t, config, "listen = \"127.0.0.1:4747\"\n")
 			tt.link(t, home, dotfiles)
 			backdate(t, dotfiles)
-			watched := watchHome(home)
+			watched := watchReal(home, noEnv)
 
 			write(t, config, "listen = \"127.0.0.1:4748\"\n")
 
@@ -189,7 +190,7 @@ func TestChangesToTheRealLaunchAgents(t *testing.T) {
 				write(t, filepath.Join(home, file), "<plist/>\n")
 			}
 			backdate(t, home)
-			watched := watchHome(home)
+			watched := watchReal(home, noEnv)
 
 			tt.change(t, home)
 
@@ -206,7 +207,7 @@ func TestChangesToTheRealLaunchAgentThroughALink(t *testing.T) {
 	write(t, kept, "<plist/>\n")
 	symlink(t, kept, filepath.Join(home, launchAgentsDir, "io.github.leeovery.switchboard.plist"))
 	backdate(t, dotfiles)
-	watched := watchHome(home)
+	watched := watchReal(home, noEnv)
 
 	write(t, kept, "<plist version=\"1.0\"/>\n")
 
@@ -259,7 +260,7 @@ func TestTheRealStateDirectoryAppearing(t *testing.T) {
 				tt.before(t, state)
 			}
 			backdate(t, home)
-			watched := watchHome(home)
+			watched := watchReal(home, noEnv)
 
 			tt.during(t, state)
 
@@ -271,10 +272,113 @@ func TestTheRealStateDirectoryAppearing(t *testing.T) {
 }
 
 func TestNoHomeWatchesNothing(t *testing.T) {
-	if got := watchHome("").changes(); got != nil {
+	if got := watchReal("", noEnv).changes(); got != nil {
 		t.Errorf("changes() with no home = %q, want none", got)
 	}
 }
+
+func TestChangesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
+	tests := []struct {
+		name string
+		// before lays out elsewhere, where the environment puts the config
+		// and state, before the tests begin.
+		before func(t *testing.T, elsewhere string)
+		// during changes it as the tests run.
+		during func(t *testing.T, elsewhere string)
+		// want are the changes reported, each with %[1]s standing for
+		// elsewhere.
+		want []string
+	}{
+		{
+			name:   "the config file SWITCHBOARD_CONFIG names, overwritten",
+			before: func(t *testing.T, elsewhere string) { write(t, filepath.Join(elsewhere, "work.toml"), "before\n") },
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "work.toml"), "after, and longer\n")
+			},
+			want: []string{"the real %[1]s/work.toml was modified"},
+		},
+		{
+			name:   "the config file SWITCHBOARD_CONFIG names, written where there was none",
+			during: func(t *testing.T, elsewhere string) { write(t, filepath.Join(elsewhere, "work.toml"), "after\n") },
+			want:   []string{"the real %[1]s/work.toml was created"},
+		},
+		{
+			name: "a config written where XDG_CONFIG_HOME puts it",
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "config", "switchboard", "config.toml"), "after\n")
+			},
+			want: []string{"the real %[1]s/config/switchboard was created", "the real %[1]s/config/switchboard/config.toml was created"},
+		},
+		{
+			name:   "a state directory appearing where XDG_STATE_HOME puts it",
+			during: func(t *testing.T, elsewhere string) { writeState(t, filepath.Join(elsewhere, "state", "switchboard")) },
+			want:   []string{"the real %[1]s/state/switchboard appeared"},
+		},
+		{
+			name:   "a live router writing the state there all along",
+			before: func(t *testing.T, elsewhere string) { writeState(t, filepath.Join(elsewhere, "state", "switchboard")) },
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "state", "switchboard", "logs", "router.log"), "level=INFO msg=routed\nlevel=INFO msg=routed\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			elsewhere := t.TempDir()
+			if tt.before != nil {
+				tt.before(t, elsewhere)
+			}
+			backdate(t, elsewhere)
+			env := map[string]string{
+				"SWITCHBOARD_CONFIG": filepath.Join(elsewhere, "work.toml"),
+				"XDG_CONFIG_HOME":    filepath.Join(elsewhere, "config"),
+				"XDG_STATE_HOME":     filepath.Join(elsewhere, "state"),
+			}
+			watched := watchReal(t.TempDir(), func(key string) string { return env[key] })
+
+			tt.during(t, elsewhere)
+
+			var want []string
+			for _, line := range tt.want {
+				want = append(want, fmt.Sprintf(line, elsewhere))
+			}
+			if got := watched.changes(); !slices.Equal(got, want) {
+				t.Errorf("changes() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestTheConfigIsWatchedWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
+	dotfiles := t.TempDir()
+	config := filepath.Join(dotfiles, "work.toml")
+	write(t, config, "before\n")
+	link := filepath.Join(t.TempDir(), "work.toml")
+	symlink(t, config, link)
+	backdate(t, dotfiles)
+	watched := watchReal("", func(key string) string { return map[string]string{"SWITCHBOARD_CONFIG": link}[key] })
+
+	// The link moved to lead elsewhere, and the config it led to changed.
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	symlink(t, filepath.Join(t.TempDir(), "other.toml"), link)
+	write(t, config, "after, and longer\n")
+
+	if got, want := watched.changes(), []string{"the real " + link + " was modified"}; !slices.Equal(got, want) {
+		t.Errorf("changes() = %q, want %q", got, want)
+	}
+}
+
+func TestRelativePlacesAreNoneTestguardCanKnow(t *testing.T) {
+	env := map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "XDG_CONFIG_HOME": "config", "XDG_STATE_HOME": "state"}
+	if got := watchReal("", func(key string) string { return env[key] }); len(got) > 0 {
+		t.Errorf("watchReal() watches %d places, want none: a relative one leads wherever switchboard runs", len(got))
+	}
+}
+
+// noEnv is an environment without a variable set.
+func noEnv(string) string { return "" }
 
 // writeState lays out a state directory at state as a router leaves it.
 func writeState(t *testing.T, state string) {

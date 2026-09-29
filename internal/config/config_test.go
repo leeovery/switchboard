@@ -92,12 +92,11 @@ func TestLoadAcceptsLoopbackListenAndHTTPUpstream(t *testing.T) {
 	}{
 		{name: "IPv4 loopback", listen: "127.0.0.1:4747", upstream: "https://api.anthropic.com"},
 		{name: "IPv6 loopback", listen: "[::1]:4747", upstream: "https://api.anthropic.com"},
-		{name: "localhost", listen: "localhost:4747", upstream: "https://api.anthropic.com"},
 		{name: "elsewhere in 127.0.0.0/8", listen: "127.0.0.2:65535", upstream: "https://api.anthropic.com"},
 		{name: "plain http upstream on IPv4 loopback", listen: "127.0.0.1:4747", upstream: "http://127.0.0.1:8080"},
 		{name: "plain http upstream on IPv6 loopback", listen: "127.0.0.1:4747", upstream: "http://[::1]:8080"},
-		{name: "plain http upstream on localhost", listen: "127.0.0.1:4747", upstream: "http://localhost:8080"},
 		{name: "https upstream with a path", listen: "127.0.0.1:4747", upstream: "https://example.com/anthropic"},
+		{name: "https upstream on localhost", listen: "127.0.0.1:4747", upstream: "https://localhost:8443"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -187,6 +186,12 @@ func TestLoadUndecodableFile(t *testing.T) {
 
 func TestLoadReportsProblems(t *testing.T) {
 	work := accountTOML("work", "CLAUDE_TOKEN_WORK")
+	notLoopback := func(listen string) string {
+		return fmt.Sprintf("listen %q: host must be a loopback IP address, 127.0.0.1 or ::1, so no other machine can use the proxy's tokens; a name, even localhost, can lead a client to another address", listen)
+	}
+	plaintext := func(upstream string) string {
+		return fmt.Sprintf("upstream %q: must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext", upstream)
+	}
 	tests := []struct {
 		name   string
 		config string
@@ -332,22 +337,32 @@ func TestLoadReportsProblems(t *testing.T) {
 		{
 			name:   "listen on every interface",
 			config: "listen = \":4747\"\n" + work,
-			want:   []string{`listen ":4747": host must be loopback (127.0.0.1, ::1 or localhost), so no other machine can use the proxy's tokens`},
+			want:   []string{notLoopback(":4747")},
 		},
 		{
 			name:   "listen on the unspecified address",
 			config: "listen = \"0.0.0.0:4747\"\n" + work,
-			want:   []string{`listen "0.0.0.0:4747": host must be loopback (127.0.0.1, ::1 or localhost), so no other machine can use the proxy's tokens`},
+			want:   []string{notLoopback("0.0.0.0:4747")},
 		},
 		{
 			name:   "listen on a LAN address",
 			config: "listen = \"192.168.1.20:4747\"\n" + work,
-			want:   []string{`listen "192.168.1.20:4747": host must be loopback (127.0.0.1, ::1 or localhost), so no other machine can use the proxy's tokens`},
+			want:   []string{notLoopback("192.168.1.20:4747")},
 		},
 		{
 			name:   "listen on a host name",
 			config: "listen = \"example.com:4747\"\n" + work,
-			want:   []string{`listen "example.com:4747": host must be loopback (127.0.0.1, ::1 or localhost), so no other machine can use the proxy's tokens`},
+			want:   []string{notLoopback("example.com:4747")},
+		},
+		{
+			name:   "listen on localhost, a name",
+			config: "listen = \"localhost:4747\"\n" + work,
+			want:   []string{notLoopback("localhost:4747")},
+		},
+		{
+			name:   "listen on loopback with a zone",
+			config: "listen = \"[::1%lo0]:4747\"\n" + work,
+			want:   []string{notLoopback("[::1%lo0]:4747")},
 		},
 		{
 			name:   "listen on port 0",
@@ -387,12 +402,17 @@ func TestLoadReportsProblems(t *testing.T) {
 		{
 			name:   "plain http upstream to a remote host",
 			config: "upstream = \"http://api.anthropic.com\"\n" + work,
-			want:   []string{`upstream "http://api.anthropic.com": must use https unless its host is loopback, so account tokens never cross a network in plaintext`},
+			want:   []string{plaintext("http://api.anthropic.com")},
 		},
 		{
 			name:   "plain http upstream to a LAN address",
 			config: "upstream = \"http://192.168.1.20:8080\"\n" + work,
-			want:   []string{`upstream "http://192.168.1.20:8080": must use https unless its host is loopback, so account tokens never cross a network in plaintext`},
+			want:   []string{plaintext("http://192.168.1.20:8080")},
+		},
+		{
+			name:   "plain http upstream to localhost, a name",
+			config: "upstream = \"http://localhost:8080\"\n" + work,
+			want:   []string{plaintext("http://localhost:8080")},
 		},
 		{
 			name: "plaintext upstream and shared token_env alongside another problem",
@@ -401,7 +421,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				accountTOML("personal", "CLAUDE_TOKEN_WORK") +
 				accountTOML("side project", "CLAUDE_TOKEN_SIDE"),
 			want: []string{
-				`upstream "http://api.anthropic.com": must use https unless its host is loopback, so account tokens never cross a network in plaintext`,
+				plaintext("http://api.anthropic.com"),
 				`account "side project": id must start with a letter or digit and contain only letters, digits, '-' and '_'`,
 				`token_env "CLAUDE_TOKEN_WORK" is shared by account "work" and account "personal": one token is one subscription, so each account needs its own`,
 			},
@@ -414,7 +434,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				accountTOML("work", ""),
 			want: []string{
 				`unknown key "verbose"`,
-				`listen "0.0.0.0:4747": host must be loopback (127.0.0.1, ::1 or localhost), so no other machine can use the proxy's tokens`,
+				notLoopback("0.0.0.0:4747"),
 				`upstream "api.anthropic.com": must be an absolute http or https URL, such as https://api.anthropic.com`,
 				"account #2: id is required",
 				`account #2: token_env must be an environment variable name, such as CLAUDE_TOKEN_WORK: letters, digits and '_', not starting with a digit`,

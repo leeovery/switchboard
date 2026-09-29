@@ -124,7 +124,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	var installed Installed
-	envFile, warning, err := checkEnvFile(opts.EnvFile)
+	envFile, warning, err := s.checkEnvFile(opts.EnvFile)
 	if err != nil {
 		return Installed{}, err
 	}
@@ -263,31 +263,75 @@ func isGoBuild(dir string) bool {
 	return strings.HasPrefix(dir, "go-build")
 }
 
-// checkEnvFile returns the env file at path, absolute, having checked it's a
-// file this user can read, with a warning when others can read it too, as it
-// holds tokens. There's nothing to check for "".
-func checkEnvFile(path string) (abs, warning string, err error) {
+// checkEnvFile returns the env file at path, absolute and its symlinks
+// resolved, so what launchd sources is the file checked, wherever a link
+// leads later. zsh runs what's in it with every token, so it refuses one
+// anyone but the user could have written, and warns when others can read
+// it, as it holds tokens. There's nothing to check for "".
+func (s *Service) checkEnvFile(path string) (resolved, warning string, err error) {
 	if path == "" {
 		return "", "", nil
 	}
-	if abs, err = filepath.Abs(path); err != nil {
-		return "", "", fmt.Errorf("find the env file: %w", err)
+	resolved, info, err := openEnvFile(path)
+	if err != nil {
+		return "", "", err
+	}
+	if err := s.onlyUserWrites(resolved, info); err != nil {
+		return "", "", err
+	}
+	if info.Mode().Perm()&0o044 != 0 {
+		warning = fmt.Sprintf("other users can read the env file %s (mode %04o), and it holds tokens: chmod 600 it", resolved, info.Mode().Perm())
+	}
+	return resolved, warning, nil
+}
+
+// openEnvFile finds the env file at path, which must be a file this user can
+// read, and returns where it is, absolute and its symlinks resolved, and what
+// it is.
+func openEnvFile(path string) (string, fs.FileInfo, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("find the env file: %w", err)
 	}
 	f, err := os.Open(abs)
 	if err != nil {
-		return "", "", fmt.Errorf("read the env file: %w", err)
+		return "", nil, fmt.Errorf("read the env file: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
+	if err != nil {
+		return "", nil, fmt.Errorf("read the env file: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
 	switch {
 	case err != nil:
-		return "", "", fmt.Errorf("read the env file: %w", err)
+		return "", nil, fmt.Errorf("find the env file: %w", err)
 	case !info.Mode().IsRegular():
-		return "", "", fmt.Errorf("the env file %s isn't a file", abs)
-	case info.Mode().Perm()&0o044 != 0:
-		warning = fmt.Sprintf("other users can read the env file %s (mode %04o), and it holds tokens: chmod 600 it", abs, info.Mode().Perm())
+		return "", nil, fmt.Errorf("the env file %s isn't a file", resolved)
 	}
-	return abs, warning, nil
+	return resolved, info, nil
+}
+
+// onlyUserWrites fails for the env file at path, which info describes, when
+// anyone but the user could write it: it's another user's, others can write
+// it, or they can write its directory, and so put a file of their own in its
+// place.
+func (s *Service) onlyUserWrites(path string, info fs.FileInfo) error {
+	if uid, ok := owner(info); !ok || uid != s.cfg.UID {
+		return fmt.Errorf("the env file %s is another user's, and zsh would run what's in it with every token: use a file of your own", path)
+	}
+	if mode := info.Mode().Perm(); mode&0o022 != 0 {
+		return fmt.Errorf("other users can write the env file %s (mode %04o), and zsh would run what they put in it with every token: chmod 600 it", path, mode)
+	}
+	dir := filepath.Dir(path)
+	d, err := os.Stat(dir)
+	if err != nil {
+		return fmt.Errorf("read the env file's directory: %w", err)
+	}
+	if mode := d.Mode().Perm(); mode&0o022 != 0 {
+		return fmt.Errorf("other users can write the env file's directory %s (mode %04o), and put a file of their own in its place for zsh to run with every token: chmod go-w it", dir, mode)
+	}
+	return nil
 }
 
 // absolute returns path made absolute, or "" for "".
