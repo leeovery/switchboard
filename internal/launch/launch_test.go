@@ -422,6 +422,52 @@ func TestLocalStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	}
 }
 
+func TestKeyEnvIsTheOneClaudeCodeStartsWith(t *testing.T) {
+	// This process's own environment sets a key, which counts for nothing:
+	// the environment Claude Code starts with is the one that counts.
+	t.Setenv("ANTHROPIC_API_KEY", "test-key-own")
+	tests := []struct {
+		name    string
+		environ []string
+		want    string
+	}{
+		{name: "none", environ: []string{"HOME=/home/tester", "CLAUDE_CODE_OAUTH_TOKEN=test-token-work"}},
+		{name: "an API key", environ: []string{"HOME=/home/tester", "ANTHROPIC_API_KEY=test-key"}, want: "ANTHROPIC_API_KEY"},
+		{name: "a token of Claude Code's own", environ: []string{"ANTHROPIC_AUTH_TOKEN=test-key"}, want: "ANTHROPIC_AUTH_TOKEN"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (launch.Launcher{Environ: tt.environ}).KeyEnv(); got != tt.want {
+				t.Errorf("KeyEnv() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStepAsideStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
+	inherited := []string{
+		"HOME=/home/tester",
+		"ANTHROPIC_API_KEY=test-key",
+		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
+		"CLAUDE_CODE_OAUTH_TOKEN=test-token-work",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side",
+	}
+	h := newHarness(t, inherited...)
+	args := []string{"--print", "a prompt"}
+
+	if err := h.launcher.StepAside(args, "ANTHROPIC_API_KEY"); err != nil {
+		t.Fatalf("StepAside() error = %v", err)
+	}
+
+	got := h.only(t)
+	if want := append([]string{"claude"}, args...); got.path != h.claude || !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
+		t.Errorf("started %s as %q with %q, want %s as %q with the environment untouched, %q", got.path, got.argv, got.env, h.claude, want, inherited)
+	}
+	if said, want := h.stderr.String(), "switchboard: ANTHROPIC_API_KEY is set, so Claude Code uses it — starting claude without switchboard\n"; said != want {
+		t.Errorf("said %q on stderr, want %q", said, want)
+	}
+}
+
 func TestFindsClaude(t *testing.T) {
 	// This process's own PATH leads to a claude of its own, which none of
 	// these finds: the environment Claude Code starts with is the one that
@@ -479,6 +525,7 @@ func TestNoLaunchStartsSwitchboardsClaudeLink(t *testing.T) {
 			},
 		},
 		{name: "a local subcommand", launch: func(_ context.Context, l launch.Launcher) error { return l.Local([]string{"doctor"}) }},
+		{name: "stepping aside for a key", launch: func(_ context.Context, l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -582,6 +629,11 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 				return l.Local(append([]string{"mcp", "add"}, args...))
 			},
 			want: []string{"level=DEBUG", `msg="starting claude" component=launch`, "mode=local"},
+		},
+		{
+			name:   "stepping aside for a key",
+			launch: func(_ context.Context, l launch.Launcher) error { return l.StepAside(args, "ANTHROPIC_API_KEY") },
+			want:   []string{"level=INFO", `msg="starting claude without switchboard" component=launch`, `reason="ANTHROPIC_API_KEY is set"`},
 		},
 	}
 	for _, tt := range tests {

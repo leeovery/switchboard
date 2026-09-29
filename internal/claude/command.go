@@ -16,3 +16,18 @@ const (
 	// API, a "Name: Value" line each.
 	CustomHeadersEnv = "ANTHROPIC_CUSTOM_HEADERS"
 )
+
+// keyEnvs are the variables holding a key Claude Code may use in place of a
+// subscription's token: an API key, and a token it sends as a bearer token.
+var keyEnvs = []string{"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"}
+
+// KeyEnv returns the first of the variables holding a key Claude Code may use
+// in place of a subscription's token that getenv finds set: "" when none is.
+func KeyEnv(getenv func(key string) string) string {
+	for _, name := range keyEnvs {
+		if getenv(name) != "" {
+			return name
+		}
+	}
+	return ""
+}

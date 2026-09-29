@@ -124,6 +124,29 @@ func (l Launcher) Local(args []string) error {
 	return l.exec(path, args, l.Environ)
 }
 
+// KeyEnv returns the variable of the environment Claude Code starts in that
+// holds a key it may use in place of an account's token, as claude.KeyEnv
+// finds one: "" when none does.
+func (l Launcher) KeyEnv() string {
+	return claude.KeyEnv(environ(l.Environ).get)
+}
+
+// StepAside starts Claude Code with args in this process's place as if
+// switchboard weren't there, its environment as it is, for when that
+// environment sets key, a variable holding a key Claude Code may use in
+// place of an account's token: its requests would go unrouted, and be billed
+// to the key. Stderr hears why. It returns only when Claude Code couldn't
+// start.
+func (l Launcher) StepAside(args []string, key string) error {
+	path, err := l.find()
+	if err != nil {
+		return err
+	}
+	logger.Info("starting claude without switchboard", "reason", key+" is set", "claude", path)
+	Notice(l.Stderr, key+" is set, so Claude Code uses it — starting claude without switchboard")
+	return l.exec(path, args, l.Environ)
+}
+
 // Unaided starts Claude Code with args in this process's place as if
 // switchboard weren't there, its environment as it is, for when switchboard
 // can't take part: switchboard mustn't stand between the user and claude.
