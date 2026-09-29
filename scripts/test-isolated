@@ -3,9 +3,9 @@
 # Runs every test, race detector on, inside the macOS sandbox in
 # scripts/isolation.sb: no network beyond this machine, no unix socket outside
 # the temporary directory, nothing on the router's port, no writes into the
-# home directory but Go's caches, and none of the real programs tests must
-# never run. Arguments go on to go test, as in:
-# scripts/test-isolated -run TestStatus
+# home directory but Go's caches, nor into switchboard's real config and
+# state wherever they are, and none of the real programs tests must never
+# run. Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
 #
 # The variables that can hold real tokens, or lead to the real tmux server or
 # a proxy, are unset before anything runs. Each run first proves the sandbox
@@ -37,6 +37,40 @@ scrub() {
 	done
 }
 
+# resolved prints path, absolute, with its symlinks resolved as far as it
+# exists and the rest as given, as the sandbox matches paths.
+resolved() {
+	local path=$1 target parent
+	if [ -L "$path" ]; then
+		target=$(readlink "$path")
+		case $target in
+		/*) ;;
+		*) target=$(dirname "$path")/$target ;;
+		esac
+		resolved "$target"
+	elif [ -d "$path" ]; then
+		(cd -P "$path" && pwd)
+	else
+		parent=$(resolved "$(dirname "$path")")
+		printf '%s/%s\n' "${parent%/}" "$(basename "$path")"
+	fi
+}
+
+# absolute prints path when it's absolute, else fallback: switchboard ignores
+# a relative XDG directory, and a relative config file leads wherever it runs.
+absolute() {
+	case $1 in
+	/*) printf '%s\n' "$1" ;;
+	*) printf '%s\n' "$2" ;;
+	esac
+}
+
+# switchboard's real config and state, where it finds them: read before
+# scrub unsets SWITCHBOARD_CONFIG.
+config_dir=$(resolved "$(absolute "${XDG_CONFIG_HOME-}" "$HOME/.config")/switchboard")
+state_dir=$(resolved "$(absolute "${XDG_STATE_HOME-}" "$HOME/.local/state")/switchboard")
+config=$(resolved "$(absolute "${SWITCHBOARD_CONFIG-}" "$config_dir/config.toml")")
+
 scrub
 
 if ! command -v sandbox-exec >/dev/null 2>&1; then
@@ -49,12 +83,6 @@ if ! command -v sandbox-exec >/dev/null 2>&1; then
 	exec go test -race -count=1 "$@" ./...
 fi
 
-# resolved prints the directory given with its symlinks resolved, as the
-# sandbox matches paths, or as given when it doesn't exist yet.
-resolved() {
-	(cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
-}
-
 home=$(resolved "$HOME")
 tmp=$(resolved "${TMPDIR:-/tmp}")
 gocache=$(resolved "$(go env GOCACHE)")
@@ -62,7 +90,8 @@ gomodcache=$(resolved "$(go env GOMODCACHE)")
 
 sandboxed() {
 	sandbox-exec -f "$repo/scripts/isolation.sb" \
-		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" "$@"
+		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
+		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" "$@"
 }
 
 # denied runs a command in the sandbox, which must fail it with the refusal
@@ -70,7 +99,7 @@ sandboxed() {
 denied() {
 	local what=$1 refusal=$2 out
 	shift 2
-	if ! out=$(sandboxed "$@" 2>&1); then
+	if ! out=$(sandboxed "$@" </dev/null 2>&1); then
 		case $out in
 		*"$refusal"*)
 			echo "test-isolated: the sandbox denies $what"
@@ -81,6 +110,33 @@ denied() {
 	echo "test-isolated: the sandbox doesn't deny $what; $* printed:" >&2
 	printf '%s\n' "$out" >&2
 	return 1
+}
+
+# denies_writing_in proves the sandbox denies a write into the directory dir,
+# what it is, when there is one: a file in it would be removed at once.
+denies_writing_in() {
+	local what=$1 dir=$2 scratch status=0
+	if [ ! -d "$dir" ]; then
+		echo "test-isolated: no $what at $dir, so no write there to deny"
+		return 0
+	fi
+	scratch=$dir/.switchboard-isolation-check.$$
+	denied "a write into the $what, $dir" "$scratch: Operation not permitted" /usr/bin/touch "$scratch" || status=1
+	# There only when the sandbox let the write through.
+	rm -f "$scratch"
+	return "$status"
+}
+
+# denies_writing_to proves the sandbox denies opening the real config file,
+# file, for writing, when there is one: tee would write it nothing, so it'd
+# be left as it was.
+denies_writing_to() {
+	local file=$1
+	if [ ! -f "$file" ]; then
+		echo "test-isolated: no real config file at $file, so no write to it to deny"
+		return 0
+	fi
+	denied "a write to the real config file, $file" "$file: Operation not permitted" /usr/bin/tee -a "$file"
 }
 
 # denies_foreign_socket proves the sandbox denies a connect to a unix socket
@@ -109,6 +165,19 @@ denies_foreign_socket() {
 	return "$status"
 }
 
+# answers waits a second at most for a connection to the unix socket at path
+# to be accepted, outside the sandbox.
+answers() {
+	local tries=50
+	until /usr/bin/nc -U "$1" </dev/null >/dev/null 2>&1; do
+		tries=$((tries - 1))
+		if [ "$tries" = 0 ]; then
+			return 1
+		fi
+		sleep 0.02
+	done
+}
+
 # starts_clean proves the tests start with none of the variables no test may
 # see, naming any they would, never its value.
 starts_clean() {
@@ -125,21 +194,8 @@ starts_clean() {
 	echo "test-isolated: the tests start with no variable that can hold a real token, nor tmux's or a proxy's"
 }
 
-# answers waits a second at most for a connection to the unix socket at path
-# to be accepted, outside the sandbox.
-answers() {
-	local tries=50
-	until /usr/bin/nc -U "$1" </dev/null >/dev/null 2>&1; do
-		tries=$((tries - 1))
-		if [ "$tries" = 0 ]; then
-			return 1
-		fi
-		sleep 0.02
-	done
-}
-
 self_check() {
-	local scratch="$home/.switchboard-isolation-check.$$" status=0
+	local status=0
 	denied "a dial off this machine" "connectx to 192.0.2.1 port 9 (tcp) failed: Operation not permitted" \
 		/usr/bin/nc -vz -G 2 192.0.2.1 9 || status=1
 	denies_foreign_socket || status=1
@@ -149,10 +205,10 @@ self_check() {
 	# listener needs, which returns at once, where a listener would wait.
 	denied "binding the router's port, 4747" "bind failed with errno 1: Operation not permitted" \
 		/usr/bin/curl -q -sS --max-time 2 --local-port 4747 http://127.0.0.1:9/ || status=1
-	denied "a write into the home directory" "$scratch: Operation not permitted" \
-		/usr/bin/touch "$scratch" || status=1
-	# There only when the sandbox let the write through.
-	rm -f "$scratch"
+	denies_writing_in "home directory" "$home" || status=1
+	denies_writing_in "real config directory" "$config_dir" || status=1
+	denies_writing_in "real state directory" "$state_dir" || status=1
+	denies_writing_to "$config" || status=1
 	denied "running osascript" "execvp() of '/usr/bin/osascript' failed: Operation not permitted" \
 		/usr/bin/osascript -e 'return 1' || status=1
 	starts_clean || status=1

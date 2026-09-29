@@ -34,7 +34,10 @@ func TestDialGuardAllows(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	guard := newDialGuard(tmp)
+	// live is a real state directory in the temporary directory, where a
+	// live router's control socket is.
+	live := filepath.Join(tmp, "live", "switchboard")
+	guard := newDialGuard(tmp, live)
 	tests := []struct {
 		network string
 		addr    string
@@ -64,6 +67,7 @@ func TestDialGuardAllows(t *testing.T) {
 		{network: "unix", addr: tmp + "/../elsewhere/control.sock", want: false},
 		{network: "unix", addr: tmp + "x/control.sock", want: false},
 		{network: "unixpacket", addr: "control.sock", want: false},
+		{network: "unix", addr: filepath.Join(live, "control.sock"), want: false},
 	}
 	for _, tt := range tests {
 		if got := guard.allows(tt.network, tt.addr); got != tt.want {

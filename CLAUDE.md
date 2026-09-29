@@ -53,23 +53,26 @@ notifications. Ever.
   variables, tmux's and proxies'; puts only stubs of `claude`, `osascript`, `launchctl`, `tmux`
   and `open` on `PATH`; and lets `http.DefaultTransport`, and transports cloned from it, dial
   loopback, and unix sockets in the temporary directory, alone. A run in which a stub ran, a
-  dial was blocked, the real switchboard config changed, its state directory appeared, or a
-  switchboard file in the real `~/Library/LaunchAgents` appeared or changed fails, even when
-  every test passed. Its own tests fail a package without that `TestMain`, or with anything else
-  in it, a change to the environment anywhere but `testguard`, a process started outside the
-  runners its allow-list names, an `exec.Cmd` made directly or `golang.org/x/sys/unix`'s `Exec`
-  included, an `http.Transport` made from scratch rather than cloned from
-  `http.DefaultTransport`, as the guard sees no dial of its, and code, tests included but
-  testguard's own, that imports `os/user`, as `HomeDir` is injected, or reads the environment as
-  its package initialises, before `TestMain` runs.
+  dial was blocked, the real switchboard config changed or its state directory appeared, in the
+  home or where `SWITCHBOARD_CONFIG`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME` put them as it
+  began, links resolved, or a switchboard file in the real `~/Library/LaunchAgents` appeared or
+  changed fails, even when every test passed. Its own tests fail a package without that
+  `TestMain`, or with anything else in it, a change to the environment anywhere but `testguard`,
+  a process started outside the runners its allow-list names, an `exec.Cmd` made directly or
+  `golang.org/x/sys/unix`'s `Exec` included, an `http.Transport` made from scratch rather than
+  cloned from `http.DefaultTransport`, as the guard sees no dial of its, and code, tests included
+  but testguard's own, that imports `os/user`, as `HomeDir` is injected, or reads the environment
+  as its package initialises, before `TestMain` runs.
 - **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS
   sandbox (`scripts/isolation.sb`) that denies the network beyond loopback, unix sockets outside
   the temporary directory, the router's port, 4747, either way, writes into the home directory
-  but Go's caches, and running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`.
-  It unsets the variables testguard clears before anything starts, as testguard clears them
-  only once every package's init has run. Each run first proves the sandbox denies a dial off
-  the machine, a connect to a live unix socket outside the temporary directory, connecting to
-  and binding 4747, a write into the home directory and running `osascript`, and that the tests
-  start without those variables; `--self-check` does only that.
+  but Go's caches, or into the real config and state wherever the environment puts them, and
+  running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`. It unsets the
+  variables testguard clears before anything starts, as testguard clears them only once every
+  package's init has run. Each run first proves the sandbox denies a dial off the machine, a
+  connect to a live unix socket outside the temporary directory, connecting to and binding
+  4747, a write into the home directory, and into the real config and state where they exist,
+  and running `osascript`, and that the tests start without those variables; `--self-check`
+  does only that.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.

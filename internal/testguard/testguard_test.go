@@ -3,6 +3,7 @@ package testguard_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -24,6 +25,9 @@ const (
 	childDoes = "TESTGUARD_CHILD_DOES"
 	// childHome is the child's real home, which the guard moves HOME away from.
 	childHome = "TESTGUARD_CHILD_HOME"
+	// childElsewhere is where the child's environment puts its real config
+	// and state, outside its home, which the guard clears the variables of.
+	childElsewhere = "TESTGUARD_CHILD_ELSEWHERE"
 )
 
 // seeded are variables a child starts with that the guard must clear.
@@ -79,6 +83,38 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 			passed := slices.Contains(strings.Split(out, "\n"), "PASS")
 			if !passed || !strings.Contains(out, "testguard: the tests reached past their isolation") || !strings.Contains(out, tt.want) {
 				t.Errorf("child printed\n%s\nwant its test to pass, and the guard to fail the run as %q", out, tt.want)
+			}
+		})
+	}
+}
+
+func TestEscapesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
+	tests := []struct {
+		does string
+		// want is what the guard fails the run as, %s standing for where the
+		// environment puts the config and state.
+		want string
+	}{
+		{does: "overwrite-the-config-SWITCHBOARD_CONFIG-names", want: "the real %s/work.toml was modified"},
+		{does: "create-the-state-where-XDG_STATE_HOME-puts-it", want: "the real %s/state/switchboard appeared"},
+		{does: "dial-the-control-socket-where-XDG_STATE_HOME-puts-it", want: "blocked dial to %s/state/switchboard/control.sock"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.does, func(t *testing.T) {
+			elsewhere := t.TempDir()
+			writeFile(t, filepath.Join(elsewhere, "work.toml"), "listen = \"127.0.0.1:4747\"\n")
+
+			out, err := runChild(t, tt.does, t.TempDir(),
+				"SWITCHBOARD_CONFIG="+filepath.Join(elsewhere, "work.toml"),
+				"XDG_STATE_HOME="+filepath.Join(elsewhere, "state"),
+				childElsewhere+"="+elsewhere)
+			if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 {
+				t.Errorf("child: error = %v, want exit status 1", err)
+			}
+			want := fmt.Sprintf(tt.want, elsewhere)
+			passed := slices.Contains(strings.Split(out, "\n"), "PASS")
+			if !passed || !strings.Contains(out, "testguard: the tests reached past their isolation") || !strings.Contains(out, want) {
+				t.Errorf("child printed\n%s\nwant its test to pass, and the guard to fail the run as %q", out, want)
 			}
 		})
 	}
@@ -140,6 +176,21 @@ func TestInChild(t *testing.T) {
 		writeFile(t, filepath.Join(realHome, stateFile), "{\"version\": 1, \"sessions\": []}\n")
 	case "install-the-real-launch-agent":
 		writeFile(t, filepath.Join(realHome, agentFile), "<plist version=\"1.0\"/>\n")
+	case "overwrite-the-config-SWITCHBOARD_CONFIG-names":
+		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "work.toml"), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
+	case "create-the-state-where-XDG_STATE_HOME-puts-it":
+		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "state", "switchboard", "state.json"), "{\"version\": 1, \"sessions\": []}\n")
+	case "dial-the-control-socket-where-XDG_STATE_HOME-puts-it":
+		// In the temporary directory, as the state directory is here, but a
+		// live router's all the same.
+		socket := filepath.Join(os.Getenv(childElsewhere), "state", "switchboard", "control.sock")
+		resp, err := overSocket(socket).Get("http://switchboard/health")
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		if err == nil || !strings.Contains(err.Error(), "testguard: blocked dial to "+socket) {
+			t.Errorf("GET /health over %s: error = %v, want the dial blocked", socket, err)
+		}
 	case "write-the-real-state-as-a-live-router-does":
 		writeLikeARouter(t, filepath.Join(realHome, stateFile))
 	case "stay-in-isolation":
