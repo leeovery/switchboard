@@ -96,7 +96,7 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	if windows := rp.p.provider.Usage(resp.Header); len(windows) > 0 {
-		rp.p.state.record(ex.account.ID, windows, fromResponse)
+		rp.p.state.record(ex.account.ID, windows)
 		rp.p.state.learn(ex.req.Model, windows)
 	}
 	return resp, nil

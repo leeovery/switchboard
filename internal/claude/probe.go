@@ -101,7 +101,7 @@ func (p *Prober) probeFamily(ctx context.Context, token string, f family) readin
 func combine(readings []reading) (quota.Probe, error) {
 	probe := quota.Probe{Models: make(map[string][]string)}
 	for _, r := range readings {
-		probe.Windows = quota.Merge(probe.Windows, r.windows)
+		probe.Windows = quota.MergeMax(probe.Windows, r.windows)
 		for _, w := range r.windows {
 			probe.Models[w.Key] = append(probe.Models[w.Key], r.model)
 		}

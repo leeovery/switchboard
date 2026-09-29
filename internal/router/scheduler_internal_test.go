@@ -27,9 +27,9 @@ func TestAChoiceAfreshProbesTheAccountsWhoseUsageIsStale(t *testing.T) {
 	clock := &testClock{now: start.Add(-20 * time.Minute)}
 	prober := &stubProber{}
 	r := newTestRouter(t, clock.read, prober)
-	r.state.record("side", []quota.Window{session, week}, fromResponse)
+	r.state.record("side", []quota.Window{session, week})
 	clock.now = start.Add(-15 * time.Minute)
-	r.state.record("work", []quota.Window{session, week}, fromResponse)
+	r.state.record("work", []quota.Window{session, week})
 	clock.now = start
 
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
@@ -74,7 +74,7 @@ func TestASessionStaysWhenFreshUsageFindsRoomOnItsAccount(t *testing.T) {
 		sideToken: probed(nil, session, soonWeek),
 	}}
 	r := newTestRouter(t, clock.read, prober)
-	r.state.record("work", []quota.Window{refused, laterWeek}, fromResponse)
+	r.state.record("work", []quota.Window{refused, laterWeek})
 	clock.now = start
 	assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 
@@ -224,8 +224,8 @@ func TestAChoiceLeavesTheAssignmentAnotherRequestMadeSinceItLooked(t *testing.T)
 		t.Fatalf("New() error = %v", err)
 	}
 	s := r.proxy.chooser.(*scheduler)
-	r.state.record("work", []quota.Window{session, soonWeek}, fromResponse)
-	r.state.record("side", []quota.Window{session, laterWeek}, fromResponse)
+	r.state.record("work", []quota.Window{session, soonWeek})
+	r.state.record("side", []quota.Window{session, laterWeek})
 	k := key{session: "one", model: opus}
 	assign(r.sessions, k, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 	first := Request{Session: "one", Model: opus, Client: "work"}

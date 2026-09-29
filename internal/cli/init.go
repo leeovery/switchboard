@@ -33,7 +33,6 @@ output holds no token.
 
 Without a config it can read, it defines claude alone, and says so on stderr:
 what it prints never fails the eval, nor stands between the shell and claude.`,
-		ValidArgs: []string{"zsh"},
 		Args: func(_ *cobra.Command, args []string) error {
 			switch {
 			case len(args) != 1:

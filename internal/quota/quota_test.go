@@ -80,7 +80,7 @@ func TestCompare(t *testing.T) {
 	}
 }
 
-func TestMerge(t *testing.T) {
+func TestMergeMax(t *testing.T) {
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.20, ResetsAt: time.Unix(1790000000, 0), Status: quota.StatusAllowed}
 	sessionLater := quota.Window{Key: "5h", Label: "Session", Utilization: 0.21, ResetsAt: time.Unix(1790000060, 0), Status: quota.StatusAllowedWarning}
 	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.93}
@@ -123,12 +123,12 @@ func TestMerge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a, b := slices.Clone(tt.a), slices.Clone(tt.b)
 
-			got := quota.Merge(a, b)
+			got := quota.MergeMax(a, b)
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Merge() =\n%+v\nwant\n%+v", got, tt.want)
+				t.Errorf("MergeMax() =\n%+v\nwant\n%+v", got, tt.want)
 			}
 			if !reflect.DeepEqual(a, tt.a) || !reflect.DeepEqual(b, tt.b) {
-				t.Error("Merge() modified its arguments")
+				t.Error("MergeMax() modified its arguments")
 			}
 		})
 	}
