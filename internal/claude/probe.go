@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/redact"
 )
@@ -204,7 +205,7 @@ func noUsageReason(resp *http.Response, token string) string {
 		return reason
 	}
 	// Redacted before it's cut short, so the cut can't leave part of the token.
-	return reason + " · " + truncate(message, maxErrorMessage)
+	return reason + " · " + prose.Truncate(message, maxErrorMessage)
 }
 
 // errorMessage returns the message of the API error body holds, reading no
@@ -220,14 +221,6 @@ func errorMessage(body io.Reader, token string) string {
 		return ""
 	}
 	return redact.Text(apiError.Error.Message, token)
-}
-
-// truncate keeps the first n characters of s.
-func truncate(s string, n int) string {
-	if runes := []rune(s); len(runes) > n {
-		return string(runes[:n])
-	}
-	return s
 }
 
 // drainAndClose reads the body to its end before closing it, so its

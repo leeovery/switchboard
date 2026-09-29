@@ -13,6 +13,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // PinHeader pins a request to an account, by id: run --account sets it
@@ -246,7 +248,7 @@ func (p *proxy) done(r *http.Request, ex *exchange) {
 func (p *proxy) logRouted(r *http.Request, ex *exchange) {
 	attrs := []any{
 		"id", ex.id,
-		"session", prefix(ex.req.Session, sessionShown),
+		"session", prose.Truncate(ex.req.Session, sessionShown),
 		"model", ex.req.Model,
 		"account", ex.account.ID,
 		"reason", ex.reason,
@@ -307,12 +309,4 @@ func withBody(r *http.Request, body []byte) *http.Request {
 // newID returns a short id to tie a request's log lines together.
 func newID() string {
 	return fmt.Sprintf("%08x", rand.Uint32())
-}
-
-// prefix is s cut to its first n characters.
-func prefix(s string, n int) string {
-	if runes := []rune(s); len(runes) > n {
-		return string(runes[:n])
-	}
-	return s
 }

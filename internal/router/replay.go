@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
@@ -180,7 +181,7 @@ func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter 
 func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quota.Verdict) (*http.Response, bool, error) {
 	reason := rp.p.provider.ErrorMessage(resp.Body, rp.ex.account.token.Reveal())
 	discard(resp)
-	rp.p.emit(rp.bar(verdict, resp.StatusCode, prefix(reason, refusalShown)))
+	rp.p.emit(rp.bar(verdict, resp.StatusCode, prose.Truncate(reason, refusalShown)))
 	switch {
 	case rp.moveOn(ctx, whyRefused):
 		return nil, true, nil

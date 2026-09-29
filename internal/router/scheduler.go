@@ -3,6 +3,8 @@ package router
 import (
 	"context"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 const (
@@ -88,10 +90,10 @@ func (s *scheduler) remember(req Request, was assignment, d decision) {
 	found, noted := s.sessions.remember(key{session: req.Session, model: req.Model}, was, req.Pin, d, now)
 	switch {
 	case !noted:
-		logger.Info("session moved meanwhile; its newer assignment stands", "session", prefix(req.Session, sessionShown), "model", req.Model,
+		logger.Info("session moved meanwhile; its newer assignment stands", "session", prose.Truncate(req.Session, sessionShown), "model", req.Model,
 			"account", found.Account, "chosen", d.account)
 	case found.Account != "" && found.Account != d.account:
-		logger.Info("moved", "session", prefix(req.Session, sessionShown), "model", req.Model,
+		logger.Info("moved", "session", prose.Truncate(req.Session, sessionShown), "model", req.Model,
 			"from", found.Account, "to", d.account, "reason", d.reason)
 		s.emit(Moved{Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason,
 			Forced: !s.view(req, now).room(found.Account)})

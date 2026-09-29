@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -233,7 +234,7 @@ func (t limitText) say(name func(id string) string) string {
 		for i, id := range t.to {
 			to[i] = name(id)
 		}
-		fmt.Fprintf(&b, " — %s moved to %s", count(t.moved, "session"), joinAnd(to))
+		fmt.Fprintf(&b, " — %s moved to %s", status.SessionCount(t.moved), prose.List(to))
 	case t.full:
 		b.WriteString(" — no other account has room")
 	}
@@ -244,7 +245,7 @@ func (t limitText) say(name func(id string) string) string {
 // account the session left.
 func moveNotice(e Moved, accounts standings) notify.Notice {
 	say := func(name func(id string) string) string {
-		return fmt.Sprintf("session %s moved from %s to %s (%s)", prefix(e.Session, sessionShown), name(e.From), name(e.To), e.Reason)
+		return fmt.Sprintf("session %s moved from %s to %s (%s)", prose.Truncate(e.Session, sessionShown), name(e.From), name(e.To), e.Reason)
 	}
 	return notify.Notice{Account: e.From, News: say(byID), Message: say(accounts.title)}
 }
@@ -258,24 +259,6 @@ func limitIn(labels []string) string {
 	case 1:
 		return labels[0] + " limit"
 	default:
-		return joinAnd(labels) + " limits"
+		return prose.List(labels) + " limits"
 	}
-}
-
-// count counts n of a noun that takes an s for more than one, such as
-// "1 session" or "3 sessions".
-func count(n int, noun string) string {
-	if n != 1 {
-		noun += "s"
-	}
-	return fmt.Sprintf("%d %s", n, noun)
-}
-
-// joinAnd joins words as a list: "a", "a and b", "a, b and c".
-func joinAnd(words []string) string {
-	if len(words) < 2 {
-		return strings.Join(words, "")
-	}
-	last := len(words) - 1
-	return strings.Join(words[:last], ", ") + " and " + words[last]
 }
