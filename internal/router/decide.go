@@ -61,7 +61,8 @@ type decision struct {
 //  4. Afresh: the global pin's account while it has room, else the account
 //     whose quota most needs using, keeping a session that has idled on its
 //     own account unless another is well ahead.
-//  5. When no account has room, the session's account, else the client's.
+//  5. When no account has room, the session's account, else the client's,
+//     else any, passing over those that refused the request lately.
 func decide(s situation) decision {
 	pin := s.req.Pin
 	switch {
@@ -152,11 +153,18 @@ func (s situation) unable(id string) string {
 	return "has no room"
 }
 
-// fallback is where a request goes when no account has room: the session's
-// account, else the client's. The upstream refuses it there.
+// fallback is where a request goes when no account has room, for the
+// upstream to refuse it there, saying why: the session's account, else the
+// client's, else any other, passing over those that refused the request
+// lately, which would only refuse it again. With every one refused, it's the
+// client's.
 func (s situation) fallback() string {
-	if s.assigned && s.accounts.has(s.current.Account) {
-		return s.current.Account
+	first := []string{s.req.Client}
+	if s.assigned {
+		first = []string{s.current.Account, s.req.Client}
+	}
+	if id, ok := s.accounts.unrefused(first...); ok {
+		return id
 	}
 	return s.req.Client
 }

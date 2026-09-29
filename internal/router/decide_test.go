@@ -326,6 +326,51 @@ func TestDecide(t *testing.T) {
 	}
 }
 
+func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) {
+	spent := []quota.Window{
+		{Key: "5h", Utilization: 1, ResetsAt: start.Add(2 * time.Hour), Status: quota.StatusRejected},
+		{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(72 * time.Hour)},
+	}
+	tests := []struct {
+		name string
+		// current is the session's account, or "" for a new session.
+		current string
+		// refused are the accounts that refused the request lately.
+		refused []string
+		want    string
+	}{
+		{name: "the session's account", current: "side", want: "side"},
+		{name: "the client's, for a new session", want: "work"},
+		{name: "the client's, when the session's refused the request", current: "side", refused: []string{"side"}, want: "work"},
+		{name: "another, when the client's refused it too", current: "side", refused: []string{"side", "work"}, want: "spare"},
+		{name: "another, for a new session whose client's refused it", refused: []string{"work"}, want: "side"},
+		{name: "the client's, when every one refused it", current: "side", refused: []string{"work", "side", "spare"}, want: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := situation{
+				req: Request{Session: "0b5c6f2e", Model: opus, Client: "work"},
+				now: start,
+				accounts: view{
+					policy:     testPolicy,
+					now:        start,
+					candidates: []score.Candidate{{ID: "work", Windows: spent}, {ID: "side", Windows: spent}, {ID: "spare", Windows: spent}},
+					applies:    testPolicy.IsShared,
+					barred:     tt.refused,
+					refused:    tt.refused,
+				},
+			}
+			if tt.current != "" {
+				s.current, s.assigned = *on(tt.current, 5*time.Minute), true
+			}
+			want := decision{account: tt.want, reason: reasonNoRoom, afresh: true, noRoom: true}
+			if got := decide(s); got != want {
+				t.Errorf("decide() = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
 // known is what a choice knows of work and side, whose windows are as given,
 // at start: personal, without a token, can't be sent on.
 func known(work, side []quota.Window) view {

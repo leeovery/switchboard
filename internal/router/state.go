@@ -289,14 +289,15 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 
 // view returns what a choice of account for a request of model knows at now:
 // every account with a token, as last read, which windows count the request,
-// and which accounts have no room for it whatever their windows read.
+// which accounts have no room for it whatever their windows read, and which
+// of those refused it lately.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	family, applies := s.family(model), s.counting(model)
 	var (
-		candidates []score.Candidate
-		barred     []string
+		candidates      []score.Candidate
+		barred, refused []string
 	)
 	for _, a := range s.accounts {
 		if !a.hasToken {
@@ -307,8 +308,11 @@ func (s *state) view(model string, now time.Time) view {
 		if u.barred(now, family, applies) {
 			barred = append(barred, a.ID)
 		}
+		if u.refuses(now, family) {
+			refused = append(refused, a.ID)
+		}
 	}
-	return view{policy: s.policy, now: now, candidates: candidates, applies: applies, barred: barred}
+	return view{policy: s.policy, now: now, candidates: candidates, applies: applies, barred: barred, refused: refused}
 }
 
 // barred reports whether the account has no room at now, whatever its windows

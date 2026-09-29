@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -168,6 +169,62 @@ func TestARequestIsntReplayedWhereTheresNoRoomEither(t *testing.T) {
 		t.Errorf("the request went out on %q, want side alone: work, the client's, has no room either", got)
 	}
 	waitForLine(t, log, "level=WARN", `msg="no account left to try"`, "attempts=1")
+}
+
+func TestARequestRefusedAfterALimitIsAnsweredWithTheLimit(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t)
+	// Work's quota needs using first, so the session goes there.
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	limited := limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 24*time.Hour))
+	refused := refuseWith(http.StatusUnauthorized, "Invalid bearer token")
+	r.api.script(workToken, limited, limited)
+	r.api.script(sideToken, refused, refused)
+	header := with(claudeCode(workToken), "X-Claude-Code-Session-Id", "one")
+
+	for i := range 2 {
+		resp := send(t, http.MethodPost, r.proxy+"/v1/messages", header, strings.NewReader(messages))
+		body := readAll(t, resp)
+		want := `{"type":"error","error":{"type":"rate_limit_error","message":"You've hit your limit"}}`
+		if resp.StatusCode != http.StatusTooManyRequests || body != want {
+			t.Errorf("request %d was answered %d %s, want work's 429 %s", i+1, resp.StatusCode, body, want)
+		}
+		if got, want := resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Reset"), strconv.FormatInt(sessionSpent.ResetsAt.Unix(), 10); got != want {
+			t.Errorf("request %d's answer has the session reset at %q, want work's, %q", i+1, got, want)
+		}
+		if got := resp.Header.Values("X-Should-Retry"); got != nil {
+			t.Errorf("request %d's answer has X-Should-Retry %q, want none: it's the upstream's own 429", i+1, got)
+		}
+	}
+	if got := r.api.accounts(); !slices.Equal(got, []string{"work", "side", "work"}) {
+		t.Errorf("the requests went out on %q, want work, side, which refused the first, then work: never side again", got)
+	}
+	waitUntil(t, "both requests are done", func() bool { return r.rt.Status().Router.Requests == 2 })
+	if got := r.rt.Status().Router; got.Failures > 0 {
+		t.Errorf("the router's health = %+v, want no failures: it passed the upstream's 429 on", got)
+	}
+	waitForLine(t, log, "level=INFO", `msg="answering with the limit reached before"`, "account=work")
+}
+
+func TestARequestRefusedAfterLimitsIsAnsweredWithTheFirst(t *testing.T) {
+	r := newRouted(t, withPersonalToken)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 3*24*time.Hour))
+	r.readsAs(personalToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, limitReached("work is at its limit", sessionSpent))
+	r.api.script(sideToken, limitReached("side is at its limit", sessionSpent))
+	r.api.script(personalToken, refuseWith(http.StatusForbidden, "This model isn't on your plan"))
+
+	resp := send(t, http.MethodPost, r.proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
+	body := readAll(t, resp)
+	want := `{"type":"error","error":{"type":"rate_limit_error","message":"work is at its limit"}}`
+	if resp.StatusCode != http.StatusTooManyRequests || body != want {
+		t.Errorf("answered %d %s, want the first 429, work's: %s", resp.StatusCode, body, want)
+	}
+	if got := r.api.accounts(); !slices.Equal(got, []string{"work", "side", "personal"}) {
+		t.Errorf("the request went out on %q, want work, side, then personal", got)
+	}
 }
 
 func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {

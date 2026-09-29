@@ -158,6 +158,54 @@ func TestEachAccountARequestMovesToThrottlesItAfresh(t *testing.T) {
 	})
 }
 
+func TestHoldKeepsAnAnswersBodyWholeOrNotAtAll(t *testing.T) {
+	tests := []struct {
+		name string
+		size int
+		want bool
+	}{
+		{name: "a body well within the cap", size: 90, want: true},
+		{name: "a body at the cap", size: maxDiscard, want: true},
+		{name: "a body over the cap", size: maxDiscard + 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sent := strings.Repeat("x", tt.size)
+			body := &closing{Reader: strings.NewReader(sent)}
+			resp := respond(httptest.NewRequest(http.MethodPost, "/v1/messages", nil), http.StatusTooManyRequests, http.Header{"Retry-After": {"30"}}, "")
+			resp.Body = body
+
+			held, ok := hold(resp)
+			if !body.closed {
+				t.Error("the answer's body is still open, want it closed")
+			}
+			if ok != tt.want {
+				t.Fatalf("hold() kept the answer: %v, want %v", ok, tt.want)
+			}
+			if !ok {
+				return
+			}
+			if got := read(t, held.Body); got != sent || held.ContentLength != int64(tt.size) {
+				t.Errorf("the answer kept has a body of %d bytes, length %d, want the %d read", len(got), held.ContentLength, tt.size)
+			}
+			if held.StatusCode != http.StatusTooManyRequests || held.Header.Get("Retry-After") != "30" {
+				t.Errorf("the answer kept is %d with header %v, want it as it came", held.StatusCode, held.Header)
+			}
+		})
+	}
+}
+
+// closing is a body that notes whether it was closed.
+type closing struct {
+	io.Reader
+	closed bool
+}
+
+func (c *closing) Close() error {
+	c.closed = true
+	return nil
+}
+
 // answer is an upstream's answer to a request.
 type answer func(r *http.Request) *http.Response
 
