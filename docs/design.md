@@ -383,16 +383,32 @@ it's asked for.
 ## Setup
 
 `switchboard setup` walks through a first run, and is safe to run again: each step says what's
-already done, and does only what's missing.
+already done, and does only what's missing. It asks as it goes, a line at a time, so it needs a
+terminal: without one, it fails, saying which command takes each step alone. It stops at a step
+that fails, or when its input ends; run again, it carries on from there. Before it asks anything,
+it refuses a switchboard that won't last, such as `go run`'s, as `service install` does: the
+service and the `claude` link both run the one setup was run by. An answer shaped like a token,
+pasted where it shows, is never taken: setup asks for tokens where they don't show.
 
-1. **Accounts:** lists them, asks for any missing token, offers to add accounts, and asks which is
-   the primary: the one the browser and the Claude apps are signed into.
-2. **Priming:** asks for the day, optionally.
-3. **Service:** installs the LaunchAgent, or restarts it.
-4. **The `claude` link:** finds the directory the real `claude` runs from on `PATH`, and a
-   writable directory ahead of it, asks, and links `claude` to switchboard there, saying where.
-   With no such directory, it says what to add to `PATH`.
-5. **The skill:** writes it (see The skill).
+1. **Accounts:** lists them, each with whether its token is usable, and asks for a missing token
+   as `accounts token` does; Enter leaves it for later. It offers to add accounts, one at a time,
+   asking each one's id, label and token as `accounts add` does, and with none configured, asks
+   for the first straight away: there's nothing to set up without one. With more than one and
+   none marked, it asks which is the primary, the one the browser and the Claude apps are signed
+   into, and marks it.
+2. **Priming:** with no day set, asks for one, `HH:MM-HH:MM`, and writes it to `[prime]`; Enter
+   leaves priming off.
+3. **Service:** installs the LaunchAgent when launchd hasn't loaded it; restarts it when setup
+   has changed the config or a token, which the router reads as it starts, or when the router
+   doesn't answer; and otherwise says it's up.
+4. **The `claude` link:** finds the real `claude` as `run` does, and offers each directory on
+   `PATH` ahead of it that can be written to, in turn, the first unless the user says no. It
+   links `claude` in the one taken to switchboard by the path it was run by, as the LaunchAgent
+   names it, so an upgrade moves the link on, and says where. A `claude` ahead of the real one
+   that is switchboard already counts as done. Anything else named `claude` in a directory is
+   left alone, and setup says so. With nowhere to put the link, it says what to add to `PATH`,
+   and where, and writes nothing.
+5. **The skill:** writes it, or brings it up to date (see The skill).
 6. Shows `usage`.
 
 ## Commands
@@ -626,7 +642,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 
 | Package | Owns |
 |---|---|
-| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
+| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
 | `internal/config` | Locating, parsing, validating and editing the config file: the accounts, the primary and the reserves, and the priming day |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private |
@@ -641,13 +657,13 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the router's health, the events it emits and the notifications it posts, the control API and its client, and restarting itself |
 | `internal/launch` | `run`'s hand-over to `claude`, finding the real `claude` past switchboard's own link, and how a notice reads on stderr |
-| `internal/setup` | `setup`'s steps, and the `claude` link |
+| `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, and where on `PATH` the `claude` link goes |
 | `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy |
 | `internal/service` | The LaunchAgent: its plist, and driving `launchctl` |
 | `internal/notify` | Posting desktop notifications, and the wording and warning threshold the router's and the dashboard's share |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
-| `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]` |
+| `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, and text cut short |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude` and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
@@ -886,8 +902,9 @@ Each account:
   path it was run by, so a Homebrew link stays the link an upgrade moves on, with `serve`, any
   `--config` given, made absolute, and any `--log-level`. It refuses a temporary build, such as
   `go run`'s, judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`,
-  `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG`, made absolute, and `SWITCHBOARD_LOG_LEVEL` when they're
-  set, so the service finds what the CLI does. It runs switchboard directly: the tokens are
+  `XDG_STATE_HOME`, `SWITCHBOARD_CONFIG` and `CLAUDE_CONFIG_DIR`, those two made absolute, and
+  `SWITCHBOARD_LOG_LEVEL` when they're set, so the service finds what the CLI does, and brings
+  the skill up to date where `setup` wrote it. It runs switchboard directly: the tokens are
   files, so it needs none of the user's environment. `install` warns when no account has a usable
   token. Whether launchd has the service loaded is `launchctl print`'s to say, which exits 113 for
   one it hasn't: `install` boots out a loaded copy, bootstraps the new one into `gui/<uid>`, and

@@ -58,6 +58,11 @@ type Deps struct {
 	Exec func(path string, argv, env []string) error
 	// Launchctl runs launchctl, as service.Launchctl does.
 	Launchctl service.Runner
+	// Hidden returns what reads a line typed at the terminal stdin is,
+	// without showing it, or false when stdin isn't a terminal, as
+	// HiddenInput does: a token is typed there unseen, and setup asks there
+	// alone.
+	Hidden func(stdin io.Reader) (read func() ([]byte, error), ok bool)
 	// GOOS is the operating system, as runtime.GOOS names it, and UID the
 	// user's id: the token files must be theirs.
 	GOOS string
@@ -67,6 +72,17 @@ type Deps struct {
 // Notifier posts a desktop notification.
 type Notifier interface {
 	Notify(message string) error
+}
+
+// HiddenInput returns what reads a line typed at the terminal stdin is,
+// without showing it, as a password is typed, or false when stdin isn't a
+// terminal: Deps.Hidden, for the process's own stdin.
+func HiddenInput(stdin io.Reader) (func() ([]byte, error), bool) {
+	f, ok := stdin.(term.File)
+	if !ok || !term.IsTerminal(f.Fd()) {
+		return nil, false
+	}
+	return func() ([]byte, error) { return term.ReadPassword(f.Fd()) }, true
 }
 
 // policy is Claude's say in scoring accounts.
@@ -100,8 +116,8 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a),
-		newRunCommand(a), newServiceCommand(a))
+	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a),
+		newPinCommand(a), newRunCommand(a), newServiceCommand(a))
 	return root
 }
 

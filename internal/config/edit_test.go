@@ -477,6 +477,255 @@ func TestRemoveAccountRefuses(t *testing.T) {
 	}
 }
 
+func TestSetPrimary(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		want   string
+	}{
+		{
+			name:   "none marked: below the account's last key, above the comments directly below it",
+			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
+			id:     "side",
+			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\nprimary = true\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
+		},
+		{
+			name:   "the first, the primary only for want of a mark",
+			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n",
+			id:     "work",
+			want:   "[[account]]\nid = \"work\"\nprimary = true\n\n[[account]]\nid = \"side\"\n",
+		},
+		{
+			name:   "taking primary off the account marked",
+			config: commented,
+			id:     "personal",
+			want: `# One [[account]] per Claude subscription.
+
+[[account]]
+id      = "work"  # for good
+label   = "Work"  # optional; defaults to the id
+reserve = 0.1     # optional
+
+[[account]]
+id    = "personal"
+label = "Personal"
+primary = true
+
+# Optional: start the 5-hour windows on a staggered schedule.
+# [prime]
+# day = "08:00-23:00"
+`,
+		},
+		{
+			name:   "in place of its own primary = false, leaving another's",
+			config: "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = false\nlabel = \"Side\"\n",
+			id:     "side",
+			want:   "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nlabel = \"Side\"\nprimary = true\n",
+		},
+		{
+			name:   "below a label that goes on over lines",
+			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\nlabel = \"\"\"\nSide\n[[account]]\n\"\"\"\n",
+			id:     "side",
+			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\nlabel = \"\"\"\nSide\n[[account]]\n\"\"\"\nprimary = true\n",
+		},
+		{
+			name:   "the primary already, left as it is",
+			config: commented,
+			id:     "work",
+			want:   commented,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			if err := draft.SetPrimary(tt.id); err != nil {
+				t.Fatalf("SetPrimary() error = %v", err)
+			}
+			save(t, draft)
+			if got := readFile(t, path); got != tt.want {
+				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
+			}
+			cfg, err := config.Load(path)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if primary := cfg.Accounts.Primary(); primary.ID != tt.id || !draft.MarksPrimary() {
+				t.Errorf("the primary loads as %s, marked: %v; want %s, marked", primary.ID, draft.MarksPrimary(), tt.id)
+			}
+			if !reflect.DeepEqual(draft.Config(), cfg) {
+				t.Errorf("Config() = %+v, want what the file saved loads as, %+v", draft.Config(), cfg)
+			}
+		})
+	}
+}
+
+func TestSetPrimaryRefuses(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		// wantErr is the error, %s standing for the config file's path.
+		wantErr string
+		wantIs  error
+	}{
+		{
+			name:    "an id no account has",
+			config:  commented,
+			id:      "side",
+			wantErr: `account "side" is not configured`,
+			wantIs:  config.ErrNotConfigured,
+		},
+		{
+			name:    "accounts listed inline, which a key can't be put in",
+			config:  "account = [{ id = \"work\" }, { id = \"side\" }]\n",
+			id:      "side",
+			wantErr: `editing %s as text wouldn't make exactly the change meant, so it's left as it was: make account "side" the primary by hand`,
+		},
+		{
+			name:    "the primary marked in a way the edit doesn't find",
+			config:  "[[account]]\nid = \"work\"\n\"pri\\u006Dary\" = true\n\n[[account]]\nid = \"side\"\n",
+			id:      "side",
+			wantErr: `editing %s as text wouldn't make exactly the change meant, so it's left as it was: make account "side" the primary by hand`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			err := draft.SetPrimary(tt.id)
+			checkRefused(t, path, tt.config, draft, err, tt.wantErr, tt.wantIs)
+		})
+	}
+}
+
+func TestMarksPrimary(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   bool
+	}{
+		{name: "an account marked", config: commented, want: true},
+		{name: "none marked", config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n"},
+		{name: "one marked false", config: "[[account]]\nid = \"work\"\nprimary = false\n"},
+		{name: "no config", config: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := edit(t, writeConfig(t, tt.config)).MarksPrimary(); got != tt.want {
+				t.Errorf("MarksPrimary() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSetPrimeDay(t *testing.T) {
+	const work = "[[account]]\nid = \"work\"\n"
+	tests := []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{
+			name:   "in a [prime] table made at the end",
+			config: work,
+			want:   work + "\n[prime]\nday = \"08:00-23:00\"\n",
+		},
+		{
+			name:   "past a [prime] table left commented out",
+			config: config.Example,
+			want:   config.Example + "\n[prime]\nday = \"08:00-23:00\"\n",
+		},
+		{
+			name:   "in place of the day given, keeping the comment beside it",
+			config: "[prime]\nday = \"\"  # off for now\n\n" + work,
+			want:   "[prime]\nday = \"08:00-23:00\"  # off for now\n\n" + work,
+		},
+		{
+			name:   "in place of a day given as a literal string",
+			config: "[prime]\n'day'='06:00-21:00'\n\n" + work,
+			want:   "[prime]\n'day'=\"08:00-23:00\"\n\n" + work,
+		},
+		{
+			name:   "as the first key of a [prime] table without one",
+			config: work + "\n# The day's windows.\n[prime]\n# Local time.\n\n[notifications]\nmoves = true\n",
+			want:   work + "\n# The day's windows.\n[prime]\nday = \"08:00-23:00\"\n# Local time.\n\n[notifications]\nmoves = true\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			if err := draft.SetPrimeDay("08:00-23:00"); err != nil {
+				t.Fatalf("SetPrimeDay() error = %v", err)
+			}
+			save(t, draft)
+			if got := readFile(t, path); got != tt.want {
+				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
+			}
+			cfg, err := config.Load(path)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if !cfg.Prime.On() || cfg.Prime.Day.String() != "08:00-23:00" {
+				t.Errorf("the day loads as %v, on: %v; want 08:00-23:00, on", cfg.Prime.Day, cfg.Prime.On())
+			}
+			if !reflect.DeepEqual(draft.Config(), cfg) {
+				t.Errorf("Config() = %+v, want what the file saved loads as, %+v", draft.Config(), cfg)
+			}
+		})
+	}
+}
+
+func TestSetPrimeDayRefuses(t *testing.T) {
+	const work = "[[account]]\nid = \"work\"\n"
+	tests := []struct {
+		name   string
+		config string
+		day    string
+		// wantErr is the error, %s standing for the config file's path.
+		wantErr string
+	}{
+		{
+			name:    "a day that isn't one",
+			config:  work,
+			day:     "8-23",
+			wantErr: `prime.day "8-23": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
+		},
+		{
+			name:    "a day that ends as it starts",
+			config:  work,
+			day:     "08:00-08:00",
+			wantErr: `prime.day "08:00-08:00": must end at another time than it starts; an end before the start is past midnight`,
+		},
+		{
+			name:    "priming given as an inline table, which a table can't follow",
+			config:  "prime = { day = \"\" }\n\n" + work,
+			day:     "08:00-23:00",
+			wantErr: `editing %s as text wouldn't make exactly the change meant, so it's left as it was: set prime.day to "08:00-23:00" by hand`,
+		},
+		{
+			name:    "the day given as a dotted key",
+			config:  "prime.day = \"\"\n\n" + work,
+			day:     "08:00-23:00",
+			wantErr: `editing %s as text wouldn't make exactly the change meant, so it's left as it was: set prime.day to "08:00-23:00" by hand`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+
+			err := draft.SetPrimeDay(tt.day)
+			checkRefused(t, path, tt.config, draft, err, tt.wantErr, nil)
+		})
+	}
+}
+
 // checkRefused checks an edit of the config at path, which held before,
 // failed with wantErr, %s standing for the path, and wantIs when it's given,
 // and that the draft, saved, leaves the config as it was.

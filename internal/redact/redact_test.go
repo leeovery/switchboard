@@ -6,6 +6,24 @@ import (
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
+func TestHoldsToken(t *testing.T) {
+	tests := []struct {
+		text string
+		want bool
+	}{
+		{text: "sk-ant-oat01-fake_token-shaped", want: true},
+		{text: "pasted sk-ant-oat01-fake_token-shaped here", want: true},
+		{text: "work"},
+		{text: "test-token-work"},
+		{text: "sk-ant-"},
+	}
+	for _, tt := range tests {
+		if got := redact.HoldsToken(tt.text); got != tt.want {
+			t.Errorf("HoldsToken(%q) = %v, want %v", tt.text, got, tt.want)
+		}
+	}
+}
+
 func TestText(t *testing.T) {
 	// tokenShaped is shaped like a Claude token, though it's none.
 	const tokenShaped = "sk-ant-oat01-fake_token-shaped"

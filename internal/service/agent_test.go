@@ -28,6 +28,7 @@ func TestPlist(t *testing.T) {
 				"XDG_STATE_HOME":        "/Users/tester/.local/state",
 				"SWITCHBOARD_CONFIG":    "/Users/tester/.config/switchboard/work.toml",
 				"SWITCHBOARD_LOG_LEVEL": "warn",
+				"CLAUDE_CONFIG_DIR":     "/Users/tester/.config/claude",
 			},
 			opts: service.InstallOptions{
 				Executable: binary,

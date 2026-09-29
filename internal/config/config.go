@@ -112,6 +112,16 @@ type Day struct {
 	Start, End time.Duration
 }
 
+// String gives the day as [prime] does, such as 08:00-23:00.
+func (d Day) String() string {
+	return timeOfDay(d.Start) + "-" + timeOfDay(d.End)
+}
+
+// timeOfDay gives the time since midnight as HH:MM.
+func timeOfDay(since time.Duration) string {
+	return fmt.Sprintf("%02d:%02d", int(since/time.Hour), int(since%time.Hour/time.Minute))
+}
+
 // Notifications says which desktop notifications the router posts.
 type Notifications struct {
 	// Limits tells of an account reaching a limit, and the sessions it moved.
@@ -199,7 +209,7 @@ func (f file) check(path string, meta toml.MetaData) (*Config, error) {
 // or every problem with it together, the keys decoding left unused among
 // them.
 func (f file) config(undecoded []toml.Key) (*Config, error) {
-	day, dayErr := parseDay(f.Prime.Day)
+	day, dayErr := ParseDay(f.Prime.Day)
 	err := errors.Join(
 		checkKeys(undecoded),
 		checkListen(f.Listen),

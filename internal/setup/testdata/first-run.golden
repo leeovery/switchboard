@@ -1,0 +1,36 @@
+Setting switchboard up: each step says what's done already, and does only what isn't.
+
+1. Accounts
+No accounts yet. Each is a Claude subscription, whose token claude setup-token makes, run while signed in to it: add the first.
+Its id, for good: letters, digits, - and _, such as work: work
+Its label, to show it by (Enter for work): Work
+Paste work's token, from claude setup-token run while signed in to that subscription (it won't show): 
+Added work.
+Add another account? [y/N] y
+Its id, for good: letters, digits, - and _, such as work: side
+Its label, to show it by (Enter for side): Side
+Paste side's token, from claude setup-token run while signed in to that subscription (it won't show): 
+Added side.
+Add another account? [y/N] 
+Which account are the browser and the Claude apps signed into? It's the primary: Claude Code's own token is its, and the router leaves a share of its quota for the apps.
+The primary, of work, side (Enter for work): 
+The primary is work · Work.
+
+2. Priming
+Priming starts each account's 5-hour window on a schedule, so their resets are spread through your day rather than coming together. It's optional.
+Your day, HH:MM-HH:MM, such as 08:00-23:00 (Enter to leave priming off): 08:00-23:00
+Priming is on, over 08:00-23:00.
+
+3. The service
+Installed <root>/home/Library/LaunchAgents/io.github.leeovery.switchboard.plist: launchd starts the router now, at every login, and whenever it stops.
+The router is up: healthy, pid 4242.
+
+4. The claude link
+Link <root>/bin/claude to switchboard, ahead of <root>/claude-code/bin/claude on PATH, so every claude goes through switchboard? [Y/n] 
+Linked <root>/bin/claude to <root>/brew/bin/switchboard: every claude goes through switchboard.
+
+5. The skill
+Installed the skill, which tells Claude what switchboard does under claude: <root>/claude/skills/switchboard/SKILL.md
+
+6. Usage
+(every account's usage)

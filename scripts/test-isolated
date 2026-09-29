@@ -4,9 +4,9 @@
 # scripts/isolation.sb: no network beyond this machine, no unix socket outside
 # the temporary directory, nothing on the router's port, no writes into the
 # home directory but Go's caches, nor into switchboard's real config and
-# state, or Claude Code's config directory, wherever they are, and none of the
-# real programs tests must never run. Arguments go on to go test, as in:
-# scripts/test-isolated -run TestStatus
+# state, or Claude Code's config directory, wherever they are, or the
+# directories on PATH, and none of the real programs tests must never run.
+# Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
 #
 # The variables that can hold real tokens, or lead to the real tmux server or
 # a proxy, are unset before anything runs. Each run first proves the sandbox
@@ -97,10 +97,36 @@ tmp=$(resolved "${TMPDIR:-/tmp}")
 gocache=$(resolved "$(go env GOCACHE)")
 gomodcache=$(resolved "$(go env GOMODCACHE)")
 
+# outside_home_on_path prints the directories on PATH outside the home,
+# where the claude link goes, joined by colons as PATH joins them: each
+# resolved, and named once. A relative one leads wherever a program runs, and
+# one in the home is in the home's rule.
+outside_home_on_path() {
+	local entries dir found list=
+	IFS=: read -r -a entries <<<"$PATH"
+	for dir in "${entries[@]}"; do
+		case $dir in
+		/*) ;;
+		*) continue ;;
+		esac
+		found=$(resolved "$dir")
+		case $found in
+		"$home" | "$home"/*) continue ;;
+		esac
+		case ":$list:" in
+		*":$found:"*) continue ;;
+		esac
+		list=${list:+$list:}$found
+	done
+	printf '%s\n' "$list"
+}
+path_dirs=$(outside_home_on_path)
+
 sandboxed() {
 	"$sandbox_exec" -f "$repo/scripts/isolation.sb" \
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
-		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" -D CLAUDE_DIR="$claude_dir" "$@"
+		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" -D CLAUDE_DIR="$claude_dir" \
+		-D PATH_DIRS="$path_dirs" "$@"
 }
 
 # denied runs a command in the sandbox, which must fail it with the refusal
@@ -133,6 +159,26 @@ denies_writing_in() {
 	denied "a write into the $what, $dir" "$scratch: Operation not permitted" /usr/bin/touch "$scratch" || status=1
 	# There only when the sandbox let the write through.
 	rm -f "$scratch"
+	return "$status"
+}
+
+# denies_writing_on_path proves the sandbox denies a write into each
+# directory on PATH outside the home that the user can write to: one they
+# can't has no write to deny.
+denies_writing_on_path() {
+	local entries dir status=0
+	if [ -z "$path_dirs" ]; then
+		echo "test-isolated: no directory on PATH outside the home, so no write there to deny"
+		return 0
+	fi
+	IFS=: read -r -a entries <<<"$path_dirs"
+	for dir in "${entries[@]}"; do
+		if [ -d "$dir" ] && [ ! -w "$dir" ]; then
+			echo "test-isolated: $dir, on PATH, can't be written to anyway, so no write there to deny"
+			continue
+		fi
+		denies_writing_in "directory on PATH" "$dir" || status=1
+	done
 	return "$status"
 }
 
@@ -245,6 +291,7 @@ self_check() {
 	denies_writing_in "real config directory" "$config_dir" || status=1
 	denies_writing_in "real state directory" "$state_dir" || status=1
 	denies_writing_in "real Claude Code config directory" "$claude_dir" || status=1
+	denies_writing_on_path || status=1
 	denies_writing_to "$config" || status=1
 	denies_running claude --version || status=1
 	denies_running osascript -e 'return 1' || status=1

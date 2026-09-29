@@ -23,6 +23,8 @@
 		<string>/Users/tester/.config/switchboard/work.toml</string>
 		<key>SWITCHBOARD_LOG_LEVEL</key>
 		<string>warn</string>
+		<key>CLAUDE_CONFIG_DIR</key>
+		<string>/Users/tester/.config/claude</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>

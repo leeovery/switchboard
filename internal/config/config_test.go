@@ -171,6 +171,14 @@ func TestLoadThePrimingDay(t *testing.T) {
 	}
 }
 
+func TestADayReadsAsPrimeGivesIt(t *testing.T) {
+	for _, text := range []string{"08:00-23:00", "22:15-02:30", "08:00-00:00", "00:00-23:59", "07:05-19:45"} {
+		if day, err := config.ParseDay(text); err != nil || day.String() != text {
+			t.Errorf("ParseDay(%q) = %v, %v; want a day that reads as it", text, day, err)
+		}
+	}
+}
+
 func TestAccountsIDs(t *testing.T) {
 	accounts := config.Accounts{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side"}}
 	if got, want := accounts.IDs(), []string{"work", "side"}; !slices.Equal(got, want) {

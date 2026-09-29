@@ -198,7 +198,7 @@ func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
 	answer := "not running"
 	switch {
 	case st.Router != nil:
-		answer = health(*st.Router)
+		answer = service.Health(*st.Router)
 	case !errors.Is(st.RouterErr, router.ErrNotRunning):
 		answer = "not answering: " + st.RouterErr.Error()
 	}
@@ -208,18 +208,9 @@ func (a *app) serviceStatus(ctx context.Context, out io.Writer) error {
 // started says how the router launchd started answered, failing, with where
 // to find out why, when it didn't.
 func started(out io.Writer, svc *service.Service, h *router.Health) error {
-	if h == nil {
-		return fmt.Errorf("the router didn't answer within %v of starting: see why with switchboard logs router, and in %s", service.StartWait, svc.Log())
+	if err := svc.Answered(h); err != nil {
+		return err
 	}
-	_, err := fmt.Fprintln(out, "the router is up: "+health(*h))
+	_, err := fmt.Fprintln(out, "the router is up: "+service.Health(*h))
 	return err
-}
-
-// health says how a router answered its health check.
-func health(h router.Health) string {
-	state := "healthy"
-	if !h.OK {
-		state = "unhealthy: " + h.Reason
-	}
-	return fmt.Sprintf("%s, pid %d", state, h.PID)
 }

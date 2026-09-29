@@ -255,8 +255,8 @@ func writeTokenFile(t *testing.T, path string, mode os.FileMode) {
 	}
 }
 
-func TestInstallCarriesTheConfigVariableAbsolute(t *testing.T) {
-	s := newSetup(t, map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "XDG_STATE_HOME": "state"}, upOnceStarted(4242))
+func TestInstallCarriesTheVariablesNamingAFileOrADirectoryAbsolute(t *testing.T) {
+	s := newSetup(t, map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "CLAUDE_CONFIG_DIR": "claude", "XDG_STATE_HOME": "state"}, upOnceStarted(4242))
 	t.Chdir(s.root)
 
 	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
@@ -268,6 +268,7 @@ func TestInstallCarriesTheConfigVariableAbsolute(t *testing.T) {
 	}
 	for _, want := range []string{
 		"<key>SWITCHBOARD_CONFIG</key>\n\t\t<string>" + filepath.Join(s.root, "work.toml") + "</string>",
+		"<key>CLAUDE_CONFIG_DIR</key>\n\t\t<string>" + filepath.Join(s.root, "claude") + "</string>",
 		// switchboard ignores a relative XDG directory, the router as the CLI.
 		"<key>XDG_STATE_HOME</key>\n\t\t<string>state</string>",
 	} {
@@ -538,6 +539,56 @@ func TestStatusFailsWhenLaunchctlCantSay(t *testing.T) {
 				t.Errorf("Status() error = %v, want %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestHealth(t *testing.T) {
+	tests := []struct {
+		name   string
+		health router.Health
+		want   string
+	}{
+		{name: "healthy", health: router.Health{OK: true, PID: 4242}, want: "healthy, pid 4242"},
+		{name: "unhealthy", health: router.Health{Reason: "failed 5 of 6 requests", PID: 4242}, want: "unhealthy: failed 5 of 6 requests, pid 4242"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := service.Health(tt.health); got != tt.want {
+				t.Errorf("Health() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAnswered(t *testing.T) {
+	s := newSetup(t, nil, nil)
+
+	if err := s.svc.Answered(&router.Health{OK: true, PID: 4242}); err != nil {
+		t.Errorf("Answered() with a router answering: error = %v, want none", err)
+	}
+	want := "the router didn't answer within 5s of starting: see why with switchboard logs router, and in " + s.svc.Log()
+	if err := s.svc.Answered(nil); err == nil || err.Error() != want {
+		t.Errorf("Answered() with none answering: error = %v, want %q", err, want)
+	}
+}
+
+func TestBinaryIsTheOneRunByThePathItWasRunBy(t *testing.T) {
+	s := newSetup(t, nil, nil)
+	version := writeBinary(t, filepath.Join(s.root, "Cellar", "switchboard", "1.2.3", "bin", "switchboard"))
+	link := filepath.Join(s.root, "opt", "bin", "switchboard")
+	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(version, link); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(filepath.Dir(link))
+
+	if got, err := s.svc.Binary("switchboard"); err != nil || got != link {
+		t.Errorf("Binary() = %q, %v; want %q, the link it was run by, absolute", got, err, link)
+	}
+	if _, err := s.svc.Binary(writeBinary(t, filepath.Join(s.tmp, "switchboard"))); err == nil {
+		t.Error("Binary() of a build in the temporary directory: no error, want one: it won't last")
 	}
 }
 

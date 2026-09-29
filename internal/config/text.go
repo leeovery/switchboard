@@ -30,6 +30,8 @@ const (
 var (
 	accountHeaderLine = regexp.MustCompile(`^\[\[\s*(?:account|"account"|'account')\s*\]\]\s*(?:#.*)?$`)
 	primaryKeyLine    = regexp.MustCompile(`^(?:primary|"primary"|'primary')\s*=`)
+	primeHeaderLine   = regexp.MustCompile(`^\[\s*(?:prime|"prime"|'prime')\s*\]\s*(?:#.*)?$`)
+	dayKeyLine        = regexp.MustCompile(`^(?:day|"day"|'day')\s*=`)
 	// multilineOpening matches a key whose value opens a string that can go
 	// on over lines, capturing the quotes that open it and what follows them.
 	multilineOpening = regexp.MustCompile(`^[^=]*=\s*("""|''')(.*)$`)
@@ -155,16 +157,23 @@ func (d document) accounts() []span {
 // table returns the span of the table whose header is line h.
 func (d document) table(h int) span {
 	next := d.nextTable(h)
-	end := h + 1
-	for i := h + 1; i < next; i++ {
-		if d.kinds[i] != blank && d.kinds[i] != comment {
-			end = i + 1
-		}
-	}
+	end := d.keysEnd(span{start: h, end: next})
 	for end < next && d.kinds[end] == comment {
 		end++
 	}
 	return span{start: d.commentsAbove(h), end: end}
+}
+
+// keysEnd returns where the keys of the table within s end: after the last
+// of its lines that's neither blank nor a comment.
+func (d document) keysEnd(s span) int {
+	end := s.start
+	for i := s.start; i < s.end; i++ {
+		if d.kinds[i] != blank && d.kinds[i] != comment {
+			end = i + 1
+		}
+	}
+	return end
 }
 
 // nextTable returns where the table after line h starts, with the comments
@@ -224,6 +233,82 @@ func (d document) insert(at int, lines []string) document {
 		inserted = append(inserted, "")
 	}
 	return documentOf(slices.Concat(d.lines[:at], inserted, d.lines[at:]))
+}
+
+// put returns the document with lines put in at line at, as they are.
+func (d document) put(at int, lines ...string) document {
+	return documentOf(slices.Concat(d.lines[:at], lines, d.lines[at:]))
+}
+
+// replaced returns the document with line i replaced by line.
+func (d document) replaced(i int, line string) document {
+	lines := slices.Clone(d.lines)
+	lines[i] = line
+	return documentOf(lines)
+}
+
+// withPrimeDay returns the document with [prime]'s day set to day: in place
+// of the day the line that sets it gives, else directly below the table's
+// header, else in a [prime] table put at the end.
+func (d document) withPrimeDay(day string) document {
+	value := quote(day)
+	h := d.header(primeHeaderLine)
+	if h < 0 {
+		return d.insert(len(d.lines), []string{"[prime]", "day = " + value})
+	}
+	for i := h + 1; i < d.nextTable(h); i++ {
+		if d.kinds[i] == content && dayKeyLine.MatchString(strings.TrimSpace(d.lines[i])) {
+			return d.replaced(i, withValue(d.lines[i], value))
+		}
+	}
+	return d.put(h+1, "day = "+value)
+}
+
+// withValue returns line, which sets a key, with value in place of the value
+// it gives, keeping what's around it, such as a comment, when that's a string
+// on the one line: otherwise the key set to value alone.
+func withValue(line, value string) string {
+	key, given, _ := strings.Cut(line, "=")
+	start := len(given) - len(strings.TrimLeft(given, " \t"))
+	end := stringEnd(given[start:])
+	if end < 0 {
+		return strings.TrimRight(key, " \t") + " = " + value
+	}
+	return key + "=" + given[:start] + value + given[start+end:]
+}
+
+// stringEnd returns the length of the string text starts with, its quotes
+// included, when it's a basic or a literal string on the one line, else -1.
+func stringEnd(text string) int {
+	switch {
+	case strings.HasPrefix(text, `"""`), strings.HasPrefix(text, `'''`):
+		return -1
+	case strings.HasPrefix(text, `'`):
+		if end := strings.Index(text[1:], `'`); end >= 0 {
+			return end + 2
+		}
+	case strings.HasPrefix(text, `"`):
+		for i := 1; i < len(text); i++ {
+			switch text[i] {
+			case '\\':
+				i++
+			case '"':
+				return i + 1
+			}
+		}
+	}
+	return -1
+}
+
+// header returns the line of the first table header that pattern matches,
+// or -1 when none does.
+func (d document) header(pattern *regexp.Regexp) int {
+	for i, k := range d.kinds {
+		if k == header && pattern.MatchString(strings.TrimSpace(d.lines[i])) {
+			return i
+		}
+	}
+	return -1
 }
 
 // without returns the document without the lines given.

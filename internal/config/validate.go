@@ -147,6 +147,11 @@ func (a fileAccount) name(i int) string {
 	return fmt.Sprintf("account %q", a.ID)
 }
 
+// CheckID fails, saying why, unless id is one an account can have.
+func CheckID(id string) error {
+	return checkID(fmt.Sprintf("account %q", id), id)
+}
+
 func checkID(account, id string) error {
 	switch {
 	case id == "":
@@ -183,9 +188,9 @@ func checkPrimaries(accounts []fileAccount) error {
 	return fmt.Errorf("primary is set on %s: only one account can be the primary, the one the browser and the Claude apps use", prose.List(marked))
 }
 
-// parseDay reads the day [prime] gives: two times of day, HH:MM, joined by
-// -, and not the same time twice. "" is none.
-func parseDay(text string) (Day, error) {
+// ParseDay reads a day as [prime] gives it: two times of day, HH:MM, joined
+// by -, and not the same time twice. "" is none.
+func ParseDay(text string) (Day, error) {
 	if text == "" {
 		return Day{}, nil
 	}
