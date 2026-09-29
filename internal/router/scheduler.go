@@ -40,10 +40,10 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	if d.noRoom && s.recheck(ctx, req) {
 		d, was = s.decide(req)
 	}
-	if req.Session != "" {
+	if req.Session != "" && !d.reserved {
 		s.remember(req, was, d)
 	}
-	return Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom}
+	return Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
 }
 
 // decide chooses on what's known now, and returns the session's assignment

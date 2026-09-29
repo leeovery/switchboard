@@ -18,7 +18,6 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
@@ -58,7 +57,7 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 	h := newHarness("HOME=/home/tester", "PATH=/usr/bin:/bin", "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on")
 	args := []string{"--print", "a prompt", "--account", "work", "", "--", "--direct"}
 
-	if err := h.launcher.Run(t.Context(), route(healthy("work"), "side"), args); err != nil {
+	if err := h.launcher.Run(t.Context(), route(healthy(), "side"), args); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
@@ -70,7 +69,7 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 		"HOME":                     "/home/tester",
 		"PATH":                     "/usr/bin:/bin",
 		"ANTHROPIC_BASE_URL":       "http://" + proxyAddr,
-		"CLAUDE_CODE_OAUTH_TOKEN":  sideToken,
+		"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
 		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side",
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
@@ -92,7 +91,7 @@ func TestRunSendsClaudeCodeWhereTheRouterListens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.listen, func(t *testing.T) {
 			h := newHarness()
-			r := &fakeRouter{health: router.Health{OK: true, Listen: tt.listen, PID: 4242}, best: "work"}
+			r := &fakeRouter{health: router.Health{OK: true, Listen: tt.listen, PID: 4242}}
 
 			if err := h.launcher.Run(t.Context(), route(r, ""), nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
@@ -106,41 +105,47 @@ func TestRunSendsClaudeCodeWhereTheRouterListens(t *testing.T) {
 
 func TestRunChoosesTheToken(t *testing.T) {
 	tests := []struct {
-		name    string
-		router  *fakeRouter
+		name   string
+		router *fakeRouter
+		// primary is the account marked primary, the first when it's "".
+		primary string
 		account string
 		want    string
-		// wantAsked is whether the router is asked which account is best.
-		wantAsked bool
 	}{
-		{name: "the pinned account's", router: healthy("work"), account: "side", want: sideToken},
-		{name: "the router's best", router: healthy("side"), want: sideToken, wantAsked: true},
-		{name: "the first with a token, when the best has none here", router: healthy("personal"), want: workToken, wantAsked: true},
-		{name: "the first with a token, when the router rates none best", router: healthy(""), want: workToken, wantAsked: true},
-		{
-			name:      "the first with a token, when the router can't say which is best",
-			router:    &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr}, best: "side", statusErr: errors.New("the router answered GET /status with 500 Internal Server Error")},
-			want:      workToken,
-			wantAsked: true,
-		},
-		{name: "the first with a token, without the router", router: notRunning(), want: workToken},
-		{name: "the pinned account's, without the router", router: notRunning(), account: "side", want: sideToken},
+		{name: "routed, the primary's, the first when none is marked", router: healthy(), want: workToken},
+		{name: "routed, the primary's", router: healthy(), primary: "side", want: sideToken},
+		{name: "routed and pinned, the primary's still", router: healthy(), account: "side", want: workToken},
+		{name: "routed and pinned elsewhere, the primary's still", router: healthy(), primary: "side", account: "work", want: sideToken},
+		{name: "routed, the first with a token, when the primary has none", router: healthy(), primary: "personal", want: workToken},
+		{name: "routed and pinned, the pinned account's, when the primary has no token", router: healthy(), primary: "personal", account: "side", want: sideToken},
+		{name: "direct, the primary's", router: notRunning(), primary: "side", want: sideToken},
+		{name: "direct and pinned, the pinned account's", router: notRunning(), account: "side", want: sideToken},
+		{name: "direct, the first with a token, when the primary has none", router: notRunning(), primary: "personal", want: workToken},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness()
+			r := route(tt.router, tt.account)
+			r.Config.Accounts = primaryOf(tt.primary)
 
-			if err := h.launcher.Run(t.Context(), route(tt.router, tt.account), nil); err != nil {
+			if err := h.launcher.Run(t.Context(), r, nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
 			if got := h.environment(t)["CLAUDE_CODE_OAUTH_TOKEN"]; got != tt.want {
 				t.Errorf("started on %q, want %q", got, tt.want)
 			}
-			if asked := tt.router.statusAsked > 0; asked != tt.wantAsked {
-				t.Errorf("asked the router which account is best: %v, want %v", asked, tt.wantAsked)
-			}
 		})
 	}
+}
+
+// primaryOf is the accounts with the one whose id is given marked primary, or
+// none marked when it's "".
+func primaryOf(id string) config.Accounts {
+	marked := slices.Clone(accounts)
+	for i := range marked {
+		marked[i].Primary = marked[i].ID == id
+	}
+	return marked
 }
 
 func TestRunWithoutAHealthyRouter(t *testing.T) {
@@ -165,7 +170,7 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 		},
 		{
 			name:      "unhealthy",
-			router:    &fakeRouter{health: router.Health{OK: false, Reason: unhealthy, PID: 4242}, best: "side"},
+			router:    &fakeRouter{health: router.Health{OK: false, Reason: unhealthy, PID: 4242}},
 			wantSaid:  "switchboard: the router is unhealthy (" + unhealthy + ") — connecting directly on work · Work\n",
 			wantToken: workToken,
 		},
@@ -177,7 +182,7 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 		},
 		{
 			name:      "not saying where it listens",
-			router:    &fakeRouter{health: router.Health{OK: true, PID: 4242}, best: "side"},
+			router:    &fakeRouter{health: router.Health{OK: true, PID: 4242}},
 			wantSaid:  "switchboard: the router is unhealthy (it doesn't say where it listens) — connecting directly on work · Work\n",
 			wantToken: workToken,
 		},
@@ -260,7 +265,7 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 			}
 			h := newHarness(environ...)
 
-			if err := h.launcher.Run(t.Context(), route(healthy("work"), tt.account), nil); err != nil {
+			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
 			got, set := h.environment(t)["ANTHROPIC_CUSTOM_HEADERS"]
@@ -283,7 +288,7 @@ func TestRunRefusesAPinItCantKeep(t *testing.T) {
 		t.Run(tt.account, func(t *testing.T) {
 			h := newHarness()
 
-			if err := h.launcher.Run(t.Context(), route(healthy("work"), tt.account), nil); err == nil || err.Error() != tt.wantErr {
+			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
 			}
 			if len(h.starts) > 0 {
@@ -301,7 +306,7 @@ func TestRunWithoutATokenStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	}
 	log := logstest.Capture(t)
 	h := newHarness(inherited...)
-	r := route(healthy("work"), "")
+	r := route(healthy(), "")
 	r.Token = tokenstest.Files{"personal": " "}.Read
 
 	if err := h.launcher.Run(t.Context(), r, []string{"--print", "a prompt"}); err != nil {
@@ -459,7 +464,7 @@ func TestRunFailsWhenClaudeCantStart(t *testing.T) {
 	h := newHarness()
 	h.launcher.Exec = func(string, []string, []string) error { return failed }
 
-	err := h.launcher.Run(t.Context(), route(healthy("work"), ""), nil)
+	err := h.launcher.Run(t.Context(), route(healthy(), ""), nil)
 	if want := "start claude at " + claudeOnPath + ": permission denied"; !errors.Is(err, failed) || err.Error() != want {
 		t.Errorf("Run() error = %v, want %q", err, want)
 	}
@@ -476,21 +481,40 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 		{
 			name: "through the router, pinned",
 			launch: func(ctx context.Context, l launch.Launcher) error {
-				return l.Run(ctx, route(healthy("work"), "side"), args)
+				return l.Run(ctx, route(healthy(), "side"), args)
 			},
-			want: []string{"level=INFO", `msg="starting claude" component=launch`, "mode=routed", "router=healthy", "account=side", "chosen=pinned", "claude=" + claudeOnPath},
+			want: []string{
+				"level=INFO", `msg="starting claude" component=launch`, "mode=routed", "router=healthy",
+				"account=work", `chosen="the primary"`, "pin=side", "claude=" + claudeOnPath,
+			},
 		},
 		{
-			name: "through the router, on its best",
+			name: "through the router",
 			launch: func(ctx context.Context, l launch.Launcher) error {
-				return l.Run(ctx, route(healthy("side"), ""), args)
+				return l.Run(ctx, route(healthy(), ""), args)
 			},
-			want: []string{"level=INFO", "mode=routed", "router=healthy", "account=side", `chosen="the router's best"`},
+			want: []string{"level=INFO", "mode=routed", "router=healthy", "account=work", `chosen="the primary"`, `pin=""`},
 		},
 		{
 			name:   "directly, the router not running",
 			launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notRunning(), ""), args) },
-			want:   []string{"level=WARN", `msg="starting claude" component=launch`, "mode=direct", `router="not running"`, "account=work", `chosen="the first with a token"`},
+			want:   []string{"level=WARN", `msg="starting claude" component=launch`, "mode=direct", `router="not running"`, "account=work", `chosen="the primary"`},
+		},
+		{
+			name: "directly, pinned",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				return l.Run(ctx, route(notRunning(), "side"), args)
+			},
+			want: []string{"level=WARN", "mode=direct", `router="not running"`, "account=side", "chosen=pinned"},
+		},
+		{
+			name: "directly, the primary without a token",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				r := route(notRunning(), "")
+				r.Config.Accounts = primaryOf("personal")
+				return l.Run(ctx, r, args)
+			},
+			want: []string{"level=WARN", "mode=direct", "account=work", `chosen="the first with a token"`},
 		},
 		{
 			name: "directly, the router unhealthy",
@@ -535,17 +559,12 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 	}
 }
 
-// fakeRouter answers as a router does: its health, or healthErr; and a status
-// document naming best as the best account, or statusErr.
+// fakeRouter answers as a router does: its health, or healthErr.
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
 	// hangs has Health answer only once its caller gives up.
-	hangs     bool
-	best      string
-	statusErr error
-	// statusAsked counts the status documents asked for.
-	statusAsked int
+	hangs bool
 }
 
 func (r *fakeRouter) Health(ctx context.Context) (router.Health, error) {
@@ -556,14 +575,9 @@ func (r *fakeRouter) Health(ctx context.Context) (router.Health, error) {
 	return r.health, r.healthErr
 }
 
-func (r *fakeRouter) Status(context.Context) (status.Document, error) {
-	r.statusAsked++
-	return status.Document{Best: r.best}, r.statusErr
-}
-
-// healthy answers as a healthy router does, rating best the best account.
-func healthy(best string) *fakeRouter {
-	return &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr, PID: 4242}, best: best}
+// healthy answers as a healthy router does.
+func healthy() *fakeRouter {
+	return &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr, PID: 4242}}
 }
 
 // notRunning answers as a router's client does when no router is listening.

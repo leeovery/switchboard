@@ -18,7 +18,7 @@ const (
 	// padding is the blank cells either side of a card's content.
 	padding = 2
 	// minContent and maxContent bound how wide a card's content is. It grows
-	// from the least to fit the longest title beside both badges.
+	// from the least to fit the longest title beside every badge.
 	minContent = 40
 	maxContent = 50
 	// titleChrome is the cells of a top border that aren't its title or
@@ -31,6 +31,9 @@ const (
 )
 
 const (
+	// primaryMark marks the primary account, and primaryBadge its card.
+	primaryMark  = "◆"
+	primaryBadge = primaryMark + " primary"
 	// bestMark marks the account to use next, and bestBadge its card.
 	bestMark  = "▲"
 	bestBadge = bestMark + " best"
@@ -42,25 +45,42 @@ const (
 	errorMark = "✗ "
 )
 
-// badges are what a card's top border carries beside its title: whether the
-// router pins new sessions to its account, and whether it's the best.
+// badges are what a card's top border carries beside its title: whether its
+// account is the primary, whether the router pins new sessions to it, and
+// whether it's the best.
 type badges struct {
-	pinned, best bool
+	primary, pinned, best bool
 }
 
 // badgesOf are the badges of the account's card in doc.
 func badgesOf(doc status.Document, a status.Account) badges {
-	return badges{pinned: a.ID == doc.Pin.Account, best: a.ID == doc.Best}
+	return badges{primary: a.Primary, pinned: a.ID == doc.Pin.Account, best: a.ID == doc.Best}
+}
+
+// shown returns the badges that are on, in order, each as the text given for
+// it, in its ink: the primary's, the pin's and the best's.
+func (b badges) shown(primary, pinned, best string) []span {
+	var shown []span
+	for _, badge := range []struct {
+		on   bool
+		span span
+	}{
+		{b.primary, span{primary, primaryInk}},
+		{b.pinned, span{pinned, pinBadgeInk}},
+		{b.best, span{best, badgeInk}},
+	} {
+		if badge.on {
+			shown = append(shown, badge.span)
+		}
+	}
+	return shown
 }
 
 // tail ends a card's top border with its badges.
 func (b badges) tail(border ink) line {
 	var l line
-	if b.pinned {
-		l = append(l, span{" ", border}, span{pinBadge, pinBadgeInk}, span{" ─", border})
-	}
-	if b.best {
-		l = append(l, span{" ", border}, span{bestBadge, badgeInk}, span{" ─", border})
+	for _, badge := range b.shown(primaryBadge, pinBadge, bestBadge) {
+		l = append(l, span{" ", border}, badge, span{" ─", border})
 	}
 	return l
 }
@@ -86,15 +106,15 @@ func grid(doc status.Document, now time.Time, room int) ([]line, int, bool) {
 }
 
 // contentWidth is how wide every card's content is: wide enough for the
-// longest title beside both badges, within bounds, so a card doesn't change
+// longest title beside every badge, within bounds, so a card doesn't change
 // width as its badges come and go.
 func contentWidth(accounts []status.Account) int {
 	widest := 0
 	for _, a := range accounts {
 		widest = max(widest, ansi.StringWidth(a.Title()))
 	}
-	both := badges{pinned: true, best: true}.tail(borderInk).width()
-	return min(max(widest+titleChrome+both-2*padding, minContent), maxContent)
+	all := badges{primary: true, pinned: true, best: true}.tail(borderInk).width()
+	return min(max(widest+titleChrome+all-2*padding, minContent), maxContent)
 }
 
 // cardRow draws the cards of doc's accounts in row side by side, each padded
@@ -103,7 +123,7 @@ func cardRow(doc status.Document, row []status.Account, now time.Time, cw int) [
 	contents := make([][]line, len(row))
 	height := 0
 	for i, a := range row {
-		contents[i] = content(a, now, cw)
+		contents[i] = content(doc, a, now, cw)
 		height = max(height, len(contents[i]))
 	}
 	var lines []line
@@ -164,12 +184,12 @@ func side(content line, cw int, border ink) line {
 	)
 }
 
-// content is what a card says of an account: what holds it back, when
+// content is what a card says of an account in doc: what holds it back, when
 // anything does; its usage; and last how many sessions it has, when it has
 // any. A blank line comes between each block.
-func content(a status.Account, now time.Time, cw int) []line {
+func content(doc status.Document, a status.Account, now time.Time, cw int) []line {
 	var blocks [][]line
-	if held := heldBy(a, now, cw); held != nil {
+	if held := heldBy(doc, a, now, cw); held != nil {
 		blocks = append(blocks, held)
 	}
 	blocks = append(blocks, usage(a, now, cw)...)
@@ -186,13 +206,18 @@ func content(a status.Account, now time.Time, cw int) []line {
 	return lines
 }
 
-// heldBy is what holds an account back at now, a line each, in red: the
-// limit it reached, then the upstream's refusal, while each holds. It's nil
-// when nothing does.
-func heldBy(a status.Account, now time.Time, cw int) []line {
+// heldBy is what holds an account in doc back at now, a line each: the limit
+// it reached, then the upstream's refusal, in red, while each holds; then its
+// reserve, in the warning colour, once a window has reached it, whether it
+// holds the account back or the global pin spends it. It's nil when nothing
+// does.
+func heldBy(doc status.Document, a status.Account, now time.Time, cw int) []line {
 	var lines []line
 	for _, held := range a.HeldBy(now) {
 		lines = append(lines, line{{truncate(held, cw), exhaustedInk}})
+	}
+	if reserved := doc.Reserved(a); reserved != "" {
+		lines = append(lines, line{{truncate(reserved, cw), warningInk}})
 	}
 	return lines
 }
@@ -203,7 +228,7 @@ func heldBy(a status.Account, now time.Time, cw int) []line {
 func usage(a status.Account, now time.Time, cw int) [][]line {
 	var blocks [][]line
 	for _, w := range a.Windows {
-		blocks = append(blocks, windowBlock(w, now, cw))
+		blocks = append(blocks, windowBlock(w, a.Reserve, now, cw))
 	}
 	for _, f := range a.Failures {
 		blocks = append(blocks, failureBlock(f, cw))
@@ -218,12 +243,13 @@ func usage(a status.Account, now time.Time, cw int) [][]line {
 }
 
 // windowBlock shows a window cw cells wide: its label and how much of it is
-// used, a bar marking where even use would be, and where it's heading.
-func windowBlock(w quota.Window, now time.Time, cw int) []line {
+// used, a bar marking where the account's reserve starts and where even use
+// would be, and where it's heading.
+func windowBlock(w quota.Window, reserve float64, now time.Time, cw int) []line {
 	p := score.Project(w, now)
 	return []line{
 		spread(line{{status.Clean(w.Label), textInk}}, line{use(w, p)}, cw),
-		bar(w.Utilization, pace(w, p, now, cw), cw),
+		bar(w.Utilization, cw).mark(reserveCell(reserve, cw), reserveMarker).mark(pace(w, p, now, cw), paceMarker),
 		detail(w, p, now, cw),
 	}
 }
@@ -241,7 +267,7 @@ func pace(w quota.Window, p score.Projection, now time.Time, width int) int {
 	if !ok || p.Kind == score.Exhausted {
 		return noMarker
 	}
-	return paceCell(elapsed, width)
+	return cellAt(elapsed, width)
 }
 
 // failureBlock shows a window that couldn't be read, and why.

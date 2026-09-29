@@ -79,14 +79,17 @@ func (a assignment) export(model string) Assignment {
 }
 
 // sessions remembers the account each session's requests of each model go
-// to, and the global pin, and keeps them in the state file once it has one.
-// It's safe for concurrent use.
+// to, and the global pin, and keeps them in the state file once it has one,
+// with what the accounts know of their tokens. It's safe for concurrent use.
 type sessions struct {
 	now func() time.Time
 
 	mu sync.Mutex
 	// file is the state file, or nil to keep nothing.
-	file        *stateFile
+	file *stateFile
+	// accounts are those whose tokens the state file keeps what's known of,
+	// once it's loaded.
+	accounts    accounts
 	assignments map[key]assignment
 	pin         status.Pin
 	// unsaved is set while the state file lacks a change.
@@ -201,7 +204,8 @@ func (s *sessions) active(now time.Time) (byAccount map[string]int, all int) {
 	return byAccount, len(anywhere)
 }
 
-// prune forgets the assignments gone unused for forgetAfter at now.
+// prune forgets the assignments gone unused for forgetAfter at now, and the
+// accounts' former tokens that no longer count.
 func (s *sessions) prune(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -211,6 +215,18 @@ func (s *sessions) prune(now time.Time) {
 		logger.Debug("forgot sessions unused for a week", "assignments", forgotten)
 		s.change()
 	}
+	if s.accounts.forget(now) {
+		logger.Debug("forgot tokens replaced a week ago")
+		s.change()
+	}
+}
+
+// tokensChanged notes that what the accounts know of their tokens has
+// changed, for the state file to keep.
+func (s *sessions) tokensChanged() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.change()
 }
 
 // change notes a change the state file lacks, for keep to save. s.mu must be
@@ -223,34 +239,34 @@ func (s *sessions) change() {
 	}
 }
 
-// load takes in the state file at path, and keeps the sessions in it from
-// then on. Assignments gone unused for forgetAfter are forgotten, and neither
-// an assignment nor the pin is kept for an account that sendable says
-// requests can't go out on.
-func (s *sessions) load(path string, sendable func(id string) bool) {
+// load takes in the state file at path, and keeps in it from then on the
+// sessions, the global pin, and what accounts know of their tokens.
+// Assignments gone unused for forgetAfter are forgotten, and neither an
+// assignment nor the pin is kept for an account requests can't go out on.
+func (s *sessions) load(path string, accounts accounts) {
 	file := &stateFile{path: path, write: writeAtomic}
 	now := s.now()
 	saved := file.read(now)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.file = file
-	dropped := false
+	s.file, s.accounts = file, accounts
+	changed := accounts.recall(saved.Tokens, now)
 	for _, a := range saved.Sessions {
-		if a.Session == "" || a.forgotten(now) || !sendable(a.Account) {
-			dropped = true
+		if a.Session == "" || a.forgotten(now) || !accounts.canSend(a.Account) {
+			changed = true
 			continue
 		}
 		s.assignments[key{session: a.Session, model: a.Model}] = a.inUTC()
 	}
 	switch pin := saved.Pin; {
 	case pin.Account == "":
-	case sendable(pin.Account):
+	case accounts.canSend(pin.Account):
 		s.pin = pin
 	default:
 		logger.Warn("pin dropped: nothing can go out on its account", "account", pin.Account)
-		dropped = true
+		changed = true
 	}
-	if dropped {
+	if changed {
 		s.change()
 	}
 	logger.Info("loaded state", "path", path, "assignments", len(s.assignments), "pin", s.pin.Account)
@@ -301,7 +317,12 @@ func (s *sessions) save() {
 // snapshot is what the state file is to hold, in a steady order. s.mu must be
 // held.
 func (s *sessions) snapshot() savedState {
-	saved := savedState{Version: stateVersion, Pin: s.pin, Sessions: make([]savedAssignment, 0, len(s.assignments))}
+	saved := savedState{
+		Version:  stateVersion,
+		Pin:      s.pin,
+		Sessions: make([]savedAssignment, 0, len(s.assignments)),
+		Tokens:   s.accounts.kept(),
+	}
 	for k, a := range s.assignments {
 		saved.Sessions = append(saved.Sessions, savedAssignment{Session: k.session, Model: k.model, assignment: a})
 	}

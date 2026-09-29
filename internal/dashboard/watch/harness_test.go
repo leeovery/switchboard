@@ -347,6 +347,12 @@ func account(id, label string, windows ...quota.Window) status.Account {
 	return status.Account{ID: id, Label: label, TokenSet: true, FetchedAt: start.UTC(), Windows: windows}
 }
 
+// reserving is a, leaving reserve of each window unused.
+func reserving(a status.Account, reserve float64) status.Account {
+	a.Reserve = reserve
+	return a
+}
+
 // unreadable is an account whose token the API refused.
 func unreadable(id, label string) status.Account {
 	return status.Account{ID: id, Label: label, TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}

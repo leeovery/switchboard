@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -26,10 +27,14 @@ type account struct {
 
 // secret is an account's token as the router holds it: read from its file as
 // the router starts, and again when the upstream refuses it, so it can change
-// while requests on the account are under way.
+// while requests on the account are under way. Once it's replaced, it's
+// still the account's for formerFor, as a former token.
 type secret struct {
 	mu    sync.Mutex
 	token tokens.Token
+	// former are the tokens the account had before this one, in the order
+	// they were replaced.
+	former []formerToken
 }
 
 func (s *secret) get() tokens.Token {
@@ -38,10 +43,11 @@ func (s *secret) get() tokens.Token {
 	return s.token
 }
 
-func (s *secret) set(token tokens.Token) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.token = token
+// is reports whether token is the account's token. The comparison takes as
+// long however much of the token matches, so response times can't give it
+// away a byte at a time.
+func (s *secret) is(token string) bool {
+	return subtle.ConstantTimeCompare([]byte(s.get().Reveal()), []byte(token)) == 1
 }
 
 // hasToken reports whether the account has a usable token, which requests
@@ -83,13 +89,25 @@ func (as accounts) byID(id string) (account, bool) {
 	return as[i], true
 }
 
-// byToken returns the account whose token is token. Each comparison takes as
-// long however much of the token matches, so response times can't give a
-// token away a byte at a time.
-func (as accounts) byToken(token string) (account, bool) {
-	i := slices.IndexFunc(as, func(a account) bool {
-		return a.hasToken() && subtle.ConstantTimeCompare([]byte(a.token().Reveal()), []byte(token)) == 1
-	})
+// byToken returns the account whose token is token, or was until it was
+// replaced, while it still counts as the account's at now: a client started
+// before carries on sending it. An account's token now wins over one another
+// account had before. Each comparison takes as long however much of the token
+// matches, so response times can't give a token away a byte at a time.
+func (as accounts) byToken(token string, now time.Time) (account, bool) {
+	if token == "" {
+		return account{}, false
+	}
+	if a, ok := as.find(func(a account) bool { return a.secret.is(token) }); ok {
+		return a, true
+	}
+	sum := hash(token)
+	return as.find(func(a account) bool { return a.secret.was(sum, now) })
+}
+
+// find returns the first account with a token that match reports true of.
+func (as accounts) find(match func(account) bool) (account, bool) {
+	i := slices.IndexFunc(as, func(a account) bool { return a.hasToken() && match(a) })
 	if i < 0 {
 		return account{}, false
 	}

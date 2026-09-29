@@ -300,6 +300,43 @@ func TestProviderClassify(t *testing.T) {
 	}
 }
 
+func TestProviderMarkLimited(t *testing.T) {
+	until := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		until time.Time
+		want  http.Header
+		// wantOutcome is what Classify reads off the headers of a 429.
+		wantOutcome quota.Outcome
+	}{
+		{
+			name:        "until a reset",
+			until:       until,
+			want:        header("anthropic-ratelimit-unified-status", "rejected", "anthropic-ratelimit-unified-reset", "1790619000"),
+			wantOutcome: quota.Outcome{Verdict: quota.LimitReached, LimitedUntil: until},
+		},
+		{
+			name:        "until a reset that isn't known",
+			want:        header("anthropic-ratelimit-unified-status", "rejected"),
+			wantOutcome: quota.Outcome{Verdict: quota.LimitReached},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := header("Content-Type", "application/json")
+			(claude.Provider{}).MarkLimited(h, tt.until)
+
+			tt.want.Set("Content-Type", "application/json")
+			if !reflect.DeepEqual(h, tt.want) {
+				t.Errorf("MarkLimited() left the headers %v, want %v", h, tt.want)
+			}
+			if got := (claude.Provider{}).Classify(http.StatusTooManyRequests, h); !reflect.DeepEqual(got, tt.wantOutcome) {
+				t.Errorf("Classify() of a 429 with those headers = %+v, want %+v", got, tt.wantOutcome)
+			}
+		})
+	}
+}
+
 func TestProviderUsage(t *testing.T) {
 	h := header(
 		"anthropic-ratelimit-unified-5h-utilization", "0.23",

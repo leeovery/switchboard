@@ -22,17 +22,20 @@ func newRunCommand(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run [--account <id>] [--direct] [-- <claude args>]",
 		Short: "Start Claude Code through the router",
-		Long: `Start Claude Code through the router, which sends its requests on the account
-it chooses for them. Claude Code gets a token of its own too, for the requests
-that don't go through the router: --account's, else the account the router
-rates best, else the first with a usable token.
+		Long: `Start Claude Code through the router, which sends its conversation on the
+account it chooses for each request. Claude Code's own token is the primary
+account's, whichever account the conversation goes to, so what doesn't go
+through the router, such as publishing an artifact, goes out on the primary.
+--account pins the session's conversation to an account while that can take
+it; the token stays the primary's.
 
 When the router isn't running, or isn't healthy, Claude Code connects directly
-on that token instead, and run says so. When switchboard can't take part at
-all, as without a config it can read or any account's usable token, Claude
-Code starts as if switchboard weren't there, and run says why. --account pins
-the session to an account, while it has room. --direct starts Claude Code on
-its own login, without the router or a token, for what needs the login.
+on --account's token, else the primary's, else the first account's with a
+usable token, and run says so. When switchboard can't take part at all, as
+without a config it can read or any account's usable token, Claude Code
+starts as if switchboard weren't there, and run says why. --direct starts
+Claude Code on its own login, without the router or a token, for what needs
+the login.
 
 Give Claude Code's own arguments after --, as in: switchboard run -- --resume`,
 		Args: opts.parseArgs,
@@ -40,7 +43,7 @@ Give Claude Code's own arguments after --, as in: switchboard run -- --resume`,
 			return a.run(cmd.Context(), cmd.ErrOrStderr(), opts, args)
 		},
 	}
-	cmd.Flags().StringVar(&opts.account, "account", "", "pin the session to account `ID`")
+	cmd.Flags().StringVar(&opts.account, "account", "", "pin the session's conversation to account `ID`")
 	cmd.Flags().BoolVar(&opts.direct, "direct", false, "start Claude Code on its own login, without the router or a token")
 	return cmd
 }

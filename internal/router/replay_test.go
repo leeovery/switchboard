@@ -402,6 +402,42 @@ func TestAnAccountGoesOutOnTheTokenItsFileHeldWhenReadAgain(t *testing.T) {
 	}
 }
 
+func TestATokenItsAccountHadIsRoutedOnTheOneItHasForAWeek(t *testing.T) {
+	const renewed = "test-token-work-renewed"
+	log := logstest.Capture(t)
+	store, files := withTokenFiles(t)
+	r := newRouted(t, files)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(renewed, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, refuseWith(http.StatusUnauthorized, "Invalid bearer token"))
+	writeToken(t, store, "work", renewed)
+	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+
+	// A session started before still sends work's token as it was.
+	before := with(claudeCode(workToken), claude.SessionHeader, "before")
+	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", before, strings.NewReader(messages)))
+	if got, want := r.api.bearers(), []string{workToken, renewed, renewed}; !slices.Equal(got, want) {
+		t.Errorf("the requests went out with %q, want %q: the token work had is routed as work's, on its new token", got, want)
+	}
+	waitForLine(t, log, "msg=routed", "session=before", "account=work", "status=200")
+
+	// A week on, it's work's no longer, and goes as it came.
+	r.clock.advance(7 * 24 * time.Hour)
+	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", with(before, claude.SessionHeader, "week"), strings.NewReader(messages)))
+	if got := r.api.bearers(); len(got) != 4 || got[3] != workToken {
+		t.Errorf("the requests went out with %q, want the last on the token it came with, passed through", got)
+	}
+	if log.Has("msg=routed", "session=week") {
+		t.Errorf("log reads\n%s\nwant the request a week on passed through, not routed", log)
+	}
+	for _, token := range []string{workToken, renewed} {
+		if strings.Contains(log.String(), token) {
+			t.Errorf("the log reads\n%s\nwhich shows a token", log)
+		}
+	}
+}
+
 func isRefusal(e router.Event) bool {
 	_, refused := e.(router.Refused)
 	return refused

@@ -20,7 +20,9 @@ const (
 )
 
 // stateFile is where the router keeps the sessions' assignments and the
-// global pin, so a restart doesn't scatter sessions and cost their caches.
+// global pin, so a restart doesn't scatter sessions and cost their caches,
+// and what it knows of the accounts' tokens, so a token replaced before a
+// restart still counts as its account's after.
 type stateFile struct {
 	path string
 	// write writes data to a file at path whole, or not at all.
@@ -32,6 +34,8 @@ type savedState struct {
 	Version  int               `json:"version"`
 	Pin      status.Pin        `json:"pin,omitzero"`
 	Sessions []savedAssignment `json:"sessions"`
+	// Tokens are what's kept of each account's tokens, by the account's id.
+	Tokens map[string]savedTokens `json:"tokens,omitempty"`
 }
 
 // savedAssignment is an assignment as the state file holds it, with the

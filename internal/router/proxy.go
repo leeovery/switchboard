@@ -43,11 +43,15 @@ type proxy struct {
 	// readToken reads an account's token from its file again, as when the
 	// upstream refuses the one the router has.
 	readToken func(id string) (tokens.Token, error)
-	state     *state
-	provider  Provider
-	chooser   Chooser
-	health    *health
-	emit      func(Event)
+	// tokensReplaced hears that an account's token has been replaced, which
+	// the state file is to keep.
+	tokensReplaced func()
+	state          *state
+	provider       Provider
+	chooser        Chooser
+	health         *health
+	emit           func(Event)
+	now            func() time.Time
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger
@@ -86,19 +90,22 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.passThrough(w, r)
 }
 
-// routable returns the account whose token a request carries, and reports
-// whether the request may go out on another: only when it's to a path the
-// provider routes and its token is one of the accounts', so a process that
-// doesn't hold a token can't borrow one.
+// routable returns the account whose token a request carries, or carried
+// before it was replaced, and reports whether the request may go out on
+// another: only when it's to a path the provider routes and its token is, or
+// was, one of the accounts', so a process that doesn't hold a token can't
+// borrow one.
 func (p *proxy) routable(r *http.Request) (account, bool) {
 	if !p.provider.Routable(r.URL.Path) {
 		return account{}, false
 	}
-	return p.accounts.byToken(bearer(r.Header))
+	return p.accounts.byToken(bearer(r.Header), p.now())
 }
 
 // route sends a request on the account the chooser picks for it, and on
-// others while that one can't serve it.
+// others while that one can't serve it. When the chooser picks none, as only
+// accounts held back by their reserves are left, the router answers as the
+// upstream would at a limit.
 func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	started := time.Now()
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
@@ -108,8 +115,13 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	}
 	ex := &exchange{id: newID(), started: started}
 	ex.req = Request{Session: p.provider.Session(r.Header), Model: p.provider.Model(body), Pin: p.pin(r, ex), Client: client.ID}
-	ex.account, ex.reason = p.choose(r.Context(), ex, client)
+	choice := p.chooser.Choose(r.Context(), ex.req)
 	defer p.done(r, ex)
+	if choice.Reserved {
+		p.reserved(w, ex, choice)
+		return
+	}
+	ex.account, ex.reason = p.chosen(ex, choice, client)
 	p.forward(w, withBody(r, body), ex)
 }
 
@@ -141,16 +153,32 @@ func (p *proxy) pin(r *http.Request, ex *exchange) string {
 	return ""
 }
 
-// choose asks the chooser which account a request goes out on first, and why.
-// Should it name one the router can't send on, the request keeps to its
-// client's.
-func (p *proxy) choose(ctx context.Context, ex *exchange, client account) (account, string) {
-	choice := p.chooser.Choose(ctx, ex.req)
+// chosen returns the account a request goes out on first, as the chooser
+// chose it, and why. Should it name one the router can't send on, the request
+// keeps to its client's.
+func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, string) {
 	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken() {
 		return a, choice.Reason
 	}
 	logger.Error("chooser picked an account it can't send on; keeping the client's", "id", ex.id, "picked", choice.Account)
 	return client, "client"
+}
+
+// reserved answers a request that no account can take without spending its
+// reserve, which the router never does, as the upstream answers one over its
+// account's limit: a 429, shaped as the API shapes its errors, whose usage
+// headers reject it until the first of those accounts has room again, as far
+// as that's known, as Claude Code reads a limit off them.
+func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
+	ex.reason, ex.status = choice.Reason, http.StatusTooManyRequests
+	attrs := []any{"id", ex.id}
+	if !choice.Back.IsZero() {
+		attrs = append(attrs, "until", choice.Back)
+	}
+	logger.Warn("no account has room outside its reserve; answering 429", attrs...)
+	p.provider.MarkLimited(w.Header(), choice.Back)
+	writeError(w, ex.status, "rate_limit_error",
+		"switchboard: no account has room outside its reserve, which switchboard leaves unused but for a pinned account (switchboard pin <id>)")
 }
 
 // next asks the chooser which account a request goes out on after those it

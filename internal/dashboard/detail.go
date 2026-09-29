@@ -59,7 +59,7 @@ func projectionInk(w quota.Window, p score.Projection) ink {
 	case w.Utilization >= redFrom:
 		return ink{color: red}
 	default:
-		return ink{color: orange}
+		return warningInk
 	}
 }
 

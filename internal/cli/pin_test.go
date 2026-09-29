@@ -106,7 +106,7 @@ func TestStatusSession(t *testing.T) {
 	srv.route(t, id, "claude-haiku-4-5-20251001")
 
 	got := run(t, srv.deps, "status", "--session", id)
-	want := result{stdout: `work · Work
+	want := result{stdout: `work · Work (primary)
   Session     23%  resets in 4h 58m · Mon 18:10
   Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 18:01
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted

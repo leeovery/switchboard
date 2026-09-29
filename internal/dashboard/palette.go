@@ -43,9 +43,11 @@ var (
 	badgeInk      = ink{color: accentColor, bold: true}
 	pinInk        = ink{color: purple}
 	pinBadgeInk   = ink{color: purple, bold: true}
+	primaryInk    = ink{color: textColor}
 	trackInk      = ink{color: borderColor}
 	markerInk     = ink{color: brightColor}
 	offlineInk    = ink{color: yellow}
+	warningInk    = ink{color: orange}
 	errorInk      = ink{color: red}
 	exhaustedInk  = ink{color: red, bold: true}
 )

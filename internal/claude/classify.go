@@ -46,6 +46,17 @@ func (Provider) Classify(status int, h http.Header) quota.Outcome {
 	return quota.Outcome{Verdict: quota.Throttled, RetryAfter: retryAfter(h)}
 }
 
+// MarkLimited sets h's usage headers to say, as the API says it on a 429, that
+// the request is rejected for want of quota, until until when that's known:
+// the overall status rejected, and the overall reset. Claude Code reads a
+// limit, and when it lifts, off them, and so does Classify.
+func (Provider) MarkLimited(h http.Header, until time.Time) {
+	h.Set(overallStatus, string(quota.StatusRejected))
+	if !until.IsZero() {
+		h.Set(overallReset, strconv.FormatInt(until.Unix(), 10))
+	}
+}
+
 // limitReached reports whether the headers reject a request for want of
 // quota: the overall status is rejected, or a window's is, whatever else the
 // headers say of the window. Overage's status isn't a window's, and doesn't

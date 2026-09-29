@@ -221,6 +221,88 @@ probed directly: the router is unhealthy, no answer within 500ms
 	}
 }
 
+func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	work := status.Account{
+		ID: "work", Label: "Work", Primary: true, Reserve: 0.1, TokenSet: true, FetchedAt: now.UTC(), Sessions: 2,
+		Windows: []quota.Window{
+			{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+			{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)},
+		},
+		AtReserve: []string{"7d"},
+		Limit:     status.Limit{Windows: []string{"7d_oi"}, Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)},
+	}
+	side := status.Account{
+		ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(),
+		Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
+	}
+	tests := []struct {
+		name string
+		pin  status.Pin
+		// work are the lines status gives work beside its usage.
+		work string
+	}{
+		{
+			name: "at its reserve",
+			pin:  status.Pin{Account: "side", Since: now.UTC().Add(-time.Hour)},
+			work: "  limit until Mon 21:00\n  at its reserve (90%)\n  2 sessions\n",
+		},
+		{
+			name: "spending its reserve, pinned",
+			pin:  status.Pin{Account: "work", Since: now.UTC().Add(-time.Hour)},
+			work: "  limit until Mon 21:00\n  spending its reserve (pinned)\n  2 sessions\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Primary:     "work",
+				Pin:         tt.pin,
+				Router:      status.Health{Healthy: true},
+				Sessions:    2,
+				Accounts:    []status.Account{work, side},
+			}
+			want := "work · Work (primary)\n" +
+				"  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%\n" +
+				"  Week     93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54\n" +
+				tt.work + "\n" +
+				"side · Side\n" +
+				"  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
+				"\n" +
+				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
+			if got := doc.Text(now); got != want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestReserved(t *testing.T) {
+	atReserve := status.Account{ID: "work", Label: "Work", Reserve: 0.15, AtReserve: []string{"5h"}}
+	tests := []struct {
+		name    string
+		account status.Account
+		pin     string
+		want    string
+	}{
+		{name: "at its reserve, where the reserve starts", account: atReserve, want: "at its reserve (85%)"},
+		{name: "at its reserve, the global pin elsewhere", account: atReserve, pin: "side", want: "at its reserve (85%)"},
+		{name: "spent by the global pin", account: atReserve, pin: "work", want: "spending its reserve (pinned)"},
+		{name: "short of its reserve", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}},
+		{name: "short of its reserve, pinned", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}, pin: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{Pin: status.Pin{Account: tt.pin}, Accounts: []status.Account{tt.account}}
+			if got := doc.Reserved(tt.account); got != tt.want {
+				t.Errorf("Reserved() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAccountText(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	tests := []struct {
@@ -249,6 +331,17 @@ func TestAccountText(t *testing.T) {
 			account: status.Account{ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 			want: `spare · Spare
   HTTP 401 · Invalid bearer token
+`,
+		},
+		{
+			name: "the primary, marked",
+			account: status.Account{
+				ID: "work", Label: "Work", Primary: true, Reserve: 0.1, TokenSet: true, FetchedAt: now.UTC(),
+				Windows:   []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.93, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
+				AtReserve: []string{"5h"},
+			},
+			want: `work · Work (primary)
+  Session  93%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 14:21
 `,
 		},
 		{

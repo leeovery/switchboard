@@ -33,29 +33,33 @@ type layout struct {
 func layouts() []layout {
 	three, mixed := threeAccounts(), mixedAccounts()
 	return []layout{
-		{name: "three-wide", doc: three, opts: dashboard.Options{Width: 150}},
-		{name: "three-two-columns", doc: three, opts: dashboard.Options{Width: 100}},
+		{name: "three-wide", doc: three, opts: dashboard.Options{Width: 160}},
+		{name: "three-two-columns", doc: three, opts: dashboard.Options{Width: 110}},
 		{name: "three-one-column", doc: three, opts: dashboard.Options{Width: 80}},
 		{name: "three-compact-from-width", doc: three, opts: dashboard.Options{Width: 44}},
-		{name: "three-compact-from-height", doc: three, opts: dashboard.Options{Width: 150, Height: 12}},
-		{name: "three-with-footer", doc: three, opts: dashboard.Options{Width: 150, Footer: "updated 13:12 · next 13:42 · r refresh · q quit"}},
-		{name: "no-best", doc: noBest(), opts: dashboard.Options{Width: 100}},
+		{name: "three-compact-from-height", doc: three, opts: dashboard.Options{Width: 160, Height: 12}},
+		{name: "three-with-footer", doc: three, opts: dashboard.Options{Width: 160, Footer: "updated 13:12 · next 13:42 · r refresh · q quit"}},
+		{name: "no-best", doc: noBest(), opts: dashboard.Options{Width: 110}},
 		{name: "exhausted", doc: exhausted(), opts: dashboard.Options{Width: 80}},
 		{name: "back-in-seconds", doc: backInSeconds(), opts: dashboard.Options{Width: 80}},
 		{name: "failure", doc: failure(), opts: dashboard.Options{Width: 80}},
-		{name: "errors", doc: mixed, opts: dashboard.Options{Width: 150}},
+		{name: "errors", doc: mixed, opts: dashboard.Options{Width: 180}},
 		{name: "errors-compact", doc: mixed, opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "unknown-reset", doc: unknownReset(), opts: dashboard.Options{Width: 80}},
 		{name: "long-labels", doc: longLabels(), opts: dashboard.Options{Width: 120}},
-		{name: "router-pinned", doc: routed(), opts: dashboard.Options{Width: 150}},
-		{name: "router-pinned-elsewhere", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 100}},
-		{name: "router-automatic", doc: routedAutomatically(), opts: dashboard.Options{Width: 150}},
-		{name: "router-unhealthy", doc: routerUnhealthy(), opts: dashboard.Options{Width: 150}},
-		{name: "router-refused", doc: routedRefused(), opts: dashboard.Options{Width: 150}},
+		{name: "router-pinned", doc: routed(), opts: dashboard.Options{Width: 160}},
+		{name: "router-pinned-elsewhere", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 110}},
+		{name: "router-automatic", doc: routedAutomatically(), opts: dashboard.Options{Width: 160}},
+		{name: "router-unhealthy", doc: routerUnhealthy(), opts: dashboard.Options{Width: 160}},
+		{name: "router-refused", doc: routedRefused(), opts: dashboard.Options{Width: 160}},
 		{name: "router-compact", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "router-compact-narrow", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 72, Height: 10}},
-		{name: "router-not-running", doc: probedWithoutTheRouter(), opts: dashboard.Options{Width: 100}},
-		{name: "router-not-answering", doc: probedPastAStuckRouter(), opts: dashboard.Options{Width: 100}},
+		{name: "router-not-running", doc: probedWithoutTheRouter(), opts: dashboard.Options{Width: 110}},
+		{name: "router-not-answering", doc: probedPastAStuckRouter(), opts: dashboard.Options{Width: 110}},
+		{name: "router-reserve", doc: atReserve(), opts: dashboard.Options{Width: 160}},
+		{name: "router-reserve-pinned", doc: spendingReserve(), opts: dashboard.Options{Width: 160}},
+		{name: "router-reserve-compact", doc: atReserve(), opts: dashboard.Options{Width: 130, Height: 10}},
+		{name: "router-reserve-compact-narrow", doc: spendingReserve(), opts: dashboard.Options{Width: 100, Height: 10}},
 	}
 }
 
@@ -266,6 +270,36 @@ func TestRenderShowsARefusalWhileItHolds(t *testing.T) {
 	}
 }
 
+func TestRenderShowsAReserveOnceAWindowReachesIt(t *testing.T) {
+	short := atReserve()
+	short.Accounts[0].AtReserve = nil
+	tests := []struct {
+		name string
+		doc  status.Document
+		// want is what the card says of its reserve, "" for nothing.
+		want string
+	}{
+		{name: "holding its account back", doc: atReserve(), want: "at its reserve (90%)"},
+		{name: "spent by the global pin", doc: spendingReserve(), want: "spending its reserve (pinned)"},
+		{name: "short of it", doc: short},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, opts := range []dashboard.Options{{Width: 160}, {Width: 130, Height: 10}} {
+				opts.Color = true
+				frame := dashboard.Render(tt.doc, now, opts)
+				shown := strings.Contains(ansi.Strip(frame), "reserve")
+				if shown != (tt.want != "") {
+					t.Errorf("at width %d, the reserve shown: %v, want %v", opts.Width, shown, tt.want != "")
+				}
+				if tt.want != "" && !strings.Contains(frame, lipgloss.NewStyle().Foreground(lipgloss.Color("#D08770")).Render(tt.want)) {
+					t.Errorf("at width %d, the frame doesn't say %q in the warning colour:\n%s", opts.Width, tt.want, frame)
+				}
+			}
+		})
+	}
+}
+
 func TestCountsSeconds(t *testing.T) {
 	tests := []struct {
 		name string
@@ -377,10 +411,10 @@ const (
 	day  = 24 * time.Hour
 )
 
-// threeAccounts are windows heading every way: work keeping pace, personal
-// running out of its week, and side out of its session.
+// threeAccounts are windows heading every way: work, the primary, keeping
+// pace, personal running out of its week, and side out of its session.
 func threeAccounts() status.Document {
-	return document("2",
+	doc := document("2",
 		read("1", "Work", windows(
 			session(0.37, 5*time.Minute),
 			week(0.96, 2*hour+55*time.Minute),
@@ -396,6 +430,8 @@ func threeAccounts() status.Document {
 			fableWeek(0.41, 3*day+4*hour),
 		)),
 	)
+	doc.Primary, doc.Accounts[0].Primary = "1", true
+	return doc
 }
 
 // noBest has no account with room in every window every model shares.
@@ -513,6 +549,22 @@ func pinnedElsewhere() status.Document {
 func routedAutomatically() status.Document {
 	doc := routed()
 	doc.Pin = status.Pin{}
+	return doc
+}
+
+// atReserve is routed with work, the primary, keeping a tenth of every
+// window back: its week has reached its reserve.
+func atReserve() status.Document {
+	doc := routed()
+	doc.Accounts[0].Reserve = 0.1
+	doc.Accounts[0].AtReserve = []string{"7d"}
+	return doc
+}
+
+// spendingReserve is atReserve pinned to work, whose reserve the pin spends.
+func spendingReserve() status.Document {
+	doc := atReserve()
+	doc.Pin.Account = "1"
 	return doc
 }
 
