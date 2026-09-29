@@ -1,0 +1,7 @@
+function claude { '/usr/local/bin/switchboard' run -- "$@"; }
+function cxwork { '/usr/local/bin/switchboard' run --account work -- "$@"; }
+function cxpersonal { '/usr/local/bin/switchboard' run --account personal -- "$@"; }
+function cxside { '/usr/local/bin/switchboard' run --account side -- "$@"; }
+if [[ -n ${CLAUDE_TOKEN_WORK-} ]]; then
+  export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_TOKEN_WORK}"
+fi

@@ -25,6 +25,9 @@ import (
 var processStarters = []string{
 	"internal/claude/version.go:commandOutput",
 	"internal/notify/notify.go:runCommand",
+	// run's hand-over to claude, which replaces the process: main passes it
+	// to the CLI, and tests pass a fake that notes what it was given.
+	"internal/launch/exec_unix.go:Exec",
 }
 
 const (

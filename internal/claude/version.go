@@ -103,12 +103,12 @@ type installedCLI struct {
 }
 
 func systemCLI(home string) installedCLI {
-	return installedCLI{paths: installPaths(home), lookPath: exec.LookPath, output: commandOutput}
+	return installedCLI{paths: InstallPaths(home), lookPath: exec.LookPath, output: commandOutput}
 }
 
-// installPaths lists where Claude Code's installers put the CLI. They come
-// before PATH because a LaunchAgent runs with a minimal one.
-func installPaths(home string) []string {
+// InstallPaths lists where Claude Code's installers put the CLI, for the home
+// directory given.
+func InstallPaths(home string) []string {
 	paths := []string{
 		filepath.Join(home, ".local", "bin", "claude"),
 		"/opt/homebrew/bin/claude",
@@ -148,12 +148,14 @@ func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
 	return c.output(ctx, path, "--version")
 }
 
-// find returns the first install path that holds a file, else the claude on PATH.
+// find returns the first install path that holds a file, else the claude on
+// PATH. The install paths come first because a LaunchAgent runs with a
+// minimal PATH.
 func (c installedCLI) find() (string, error) {
 	for _, path := range c.paths {
 		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
 			return path, nil
 		}
 	}
-	return c.lookPath("claude")
+	return c.lookPath(Command)
 }
