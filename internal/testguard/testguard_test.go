@@ -36,8 +36,10 @@ var seeded = []string{
 	"SWITCHBOARD_LOG_LEVEL=debug",
 	"TMUX=/nonexistent/tmux,1,0",
 	"TMUX_PANE=%1",
+	"TMUX_TMPDIR=/nonexistent/tmux",
 	"HTTPS_PROXY=http://127.0.0.1:9",
 	"http_proxy=http://127.0.0.1:9",
+	"ALL_PROXY=socks5://127.0.0.1:9",
 }
 
 // Where switchboard keeps its config, its state and its LaunchAgent, from a

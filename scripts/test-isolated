@@ -7,12 +7,37 @@
 # never run. Arguments go on to go test, as in:
 # scripts/test-isolated -run TestStatus
 #
-# Each run first proves the sandbox denies each of those; --self-check does
-# only that. Where there's no sandbox-exec, the tests run without the
+# The variables that can hold real tokens, or lead to the real tmux server or
+# a proxy, are unset before anything runs. Each run first proves the sandbox
+# denies each of those, and that the tests start without these; --self-check
+# does only that. Where there's no sandbox-exec, the tests run without the
 # sandbox, and internal/testguard still guards them from inside.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
+
+# unseen reports whether the variable named is one no test may see: one that
+# configures switchboard, Claude Code or the Anthropic API, and can hold a
+# real token; tmux's, which lead to the real tmux server; or a proxy's.
+unseen() {
+	case $1 in
+	SWITCHBOARD_* | CLAUDE_* | ANTHROPIC_* | TMUX* | *_PROXY | *_proxy) return 0 ;;
+	esac
+	return 1
+}
+
+# scrub unsets every variable no test may see. testguard clears them too, but
+# only once every package's init has run, and an init could read them first.
+scrub() {
+	local name
+	for name in $(compgen -e); do
+		if unseen "$name"; then
+			unset "$name"
+		fi
+	done
+}
+
+scrub
 
 if ! command -v sandbox-exec >/dev/null 2>&1; then
 	if [ "${1-}" = --self-check ]; then
@@ -84,6 +109,22 @@ denies_foreign_socket() {
 	return "$status"
 }
 
+# starts_clean proves the tests start with none of the variables no test may
+# see, naming any they would, never its value.
+starts_clean() {
+	local name seen=
+	for name in $(sandboxed /bin/bash -c 'compgen -e'); do
+		if unseen "$name"; then
+			seen="$seen $name"
+		fi
+	done
+	if [ -n "$seen" ]; then
+		echo "test-isolated: the tests would start with$seen set" >&2
+		return 1
+	fi
+	echo "test-isolated: the tests start with no variable that can hold a real token, nor tmux's or a proxy's"
+}
+
 # answers waits a second at most for a connection to the unix socket at path
 # to be accepted, outside the sandbox.
 answers() {
@@ -114,6 +155,7 @@ self_check() {
 	rm -f "$scratch"
 	denied "running osascript" "execvp() of '/usr/bin/osascript' failed: Operation not permitted" \
 		/usr/bin/osascript -e 'return 1' || status=1
+	starts_clean || status=1
 	return "$status"
 }
 

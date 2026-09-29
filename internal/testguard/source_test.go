@@ -1,9 +1,11 @@
 package testguard_test
 
 import (
+	"cmp"
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"io/fs"
 	"maps"
@@ -67,13 +69,19 @@ var (
 		{importPath: "os/exec", names: []string{"Command", "CommandContext"}},
 		{importPath: "os", names: []string{"StartProcess"}},
 		{importPath: "syscall", names: []string{"Exec", "ForkExec", "StartProcess"}},
+		{importPath: "golang.org/x/sys/unix", names: []string{"Exec"}},
 	}
 	environmentReaders = []target{
 		{importPath: "os", names: []string{"Getenv", "LookupEnv", "Environ", "ExpandEnv", "UserHomeDir", "UserConfigDir", "UserCacheDir"}},
 		{importPath: "syscall", names: []string{"Getenv", "Environ"}},
 	}
-	// transports is the type a transport is made of, which dials past
-	// testguard's guard made from scratch.
+
+	// commands is the type a process starts from: one made other than by
+	// exec.Command starts one all the same.
+	commands = []target{{importPath: "os/exec", names: []string{"Cmd"}}}
+
+	// transports is the type of a transport: one made from scratch dials past
+	// testguard's guard.
 	transports = []target{{importPath: "net/http", names: []string{"Transport"}}}
 )
 
@@ -89,11 +97,11 @@ func TestOnlyTheFunctionsAllowedStartProcesses(t *testing.T) {
 	reportEach(t, processStarts(parseModule(t, moduleRoot(t)), processStarters))
 }
 
-func TestProductionCodeDoesntImportOSUser(t *testing.T) {
+func TestNothingImportsOSUser(t *testing.T) {
 	reportEach(t, userImports(parseModule(t, moduleRoot(t))))
 }
 
-func TestProductionCodeReadsNoEnvironmentAsItsPackageInitialises(t *testing.T) {
+func TestNothingReadsTheEnvironmentAsItsPackageInitialises(t *testing.T) {
 	reportEach(t, earlyEnvironmentReads(parseModule(t, moduleRoot(t))))
 }
 
@@ -103,6 +111,7 @@ func TestEveryTransportIsClonedFromTheDefault(t *testing.T) {
 
 func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 	files := parseModule(t, writeModule(t, fixture))
+	const testMainDoesMore = "TestMain must do nothing but exit with what testguard.Main returns, as anything else runs outside the guard; make it "
 	tests := []struct {
 		name string
 		got  []string
@@ -112,9 +121,10 @@ func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 			name: "unguardedPackages",
 			got:  unguardedPackages(files),
 			want: []string{
-				"exits/main_test.go:10: TestMain doesn't exit with what testguard.Main returns; make it " + testMainFix,
+				"exits/main_test.go:10: " + testMainDoesMore + testMainFix,
+				"prepared/main_test.go:10: " + testMainDoesMore + testMainFix,
 				"unguarded/unguarded_test.go:1: the package has tests but no TestMain to guard them; add main_test.go holding " + testMainFix,
-				"unwatched/main_test.go:8: TestMain doesn't exit with what testguard.Main returns; make it " + testMainFix,
+				"unwatched/main_test.go:8: " + testMainDoesMore + testMainFix,
 			},
 		},
 		{
@@ -132,6 +142,10 @@ func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 			name: "processStarts",
 			got:  processStarts(files, []string{"starter/starter.go:runCommand", "starter/gone.go:runner"}),
 			want: []string{
+				"starter/cmd.go:9: exec.Cmd starts a process outside the functions allowed to; " + processFix,
+				"starter/cmd.go:12: exec.Cmd starts a process outside the functions allowed to; " + processFix,
+				"starter/cmd.go:18: exec.Cmd starts a process outside the functions allowed to; " + processFix,
+				"starter/cmd.go:23: unix.Exec starts a process outside the functions allowed to; " + processFix,
 				"starter/starter.go:15: exec.Command starts a process outside the functions allowed to; " + processFix,
 				"starter/starter.go:16: os.StartProcess starts a process outside the functions allowed to; " + processFix,
 				"starter/starter.go:17: syscall.Exec starts a process outside the functions allowed to; " + processFix,
@@ -144,6 +158,7 @@ func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 			got:  userImports(files),
 			want: []string{
 				"user/user.go:4: os/user finds the home directory past HOME, where testguard can't move it; " + userFix,
+				"user/user_test.go:5: os/user finds the home directory past HOME, where testguard can't move it; " + userFix,
 			},
 		},
 		{
@@ -155,6 +170,7 @@ func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 				"early/early.go:13: os.ExpandEnv reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
 				"early/early.go:16: os.UserHomeDir reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
 				"early/early.go:25: os.Environ reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
+				"early/early_test.go:10: os.Getenv reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
 			},
 		},
 		{
@@ -396,10 +412,90 @@ import "net/http"
 
 var guarded = &http.Transport{}
 `,
+	"prepared/main_test.go": `package prepared
+
+import (
+	"os"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/testguard"
+)
+
+func TestMain(m *testing.M) {
+	prepare()
+	os.Exit(testguard.Main(m))
 }
 
-// unguardedPackages finds each package with tests whose TestMain doesn't run
-// them through testguard.Main, or that has none.
+func prepare() {}
+`,
+	"starter/cmd.go": `package starter
+
+import (
+	"os/exec"
+
+	"golang.org/x/sys/unix"
+)
+
+func literal(p string) error { return (&exec.Cmd{Path: p}).Run() }
+
+func zero(p string) error {
+	var cmd exec.Cmd
+	cmd.Path = p
+	return cmd.Run()
+}
+
+func made(p string) *exec.Cmd {
+	cmd := new(exec.Cmd)
+	cmd.Path = p
+	return cmd
+}
+
+func replaced(p string) error { return unix.Exec(p, nil, nil) }
+
+func configures(cmd *exec.Cmd) { cmd.Dir = "/" }
+`,
+	"early/early_test.go": `package early
+
+import (
+	"os"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/testguard"
+)
+
+var token = os.Getenv("CLAUDE_TOKEN_WORK")
+
+func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }
+`,
+	"user/user_test.go": `package user
+
+import (
+	"os"
+	osuser "os/user"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/testguard"
+)
+
+func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }
+
+func TestHome(t *testing.T) { _, _ = osuser.Current() }
+`,
+	"internal/testguard/real_test.go": `package testguard_test
+
+import (
+	"os"
+	osuser "os/user"
+)
+
+var realHome = os.Getenv("HOME")
+
+var realUser, _ = osuser.Current()
+`,
+}
+
+// unguardedPackages finds each package with tests whose TestMain is anything
+// but os.Exit(testguard.Main(m)), or that has none.
 func unguardedPackages(files []sourceFile) []string {
 	tests := make(map[string][]sourceFile)
 	for _, f := range files {
@@ -425,31 +521,25 @@ func testMainProblem(files []sourceFile) string {
 			if !ok || fn.Recv != nil || fn.Name.Name != "TestMain" {
 				continue
 			}
-			if exitsWithGuard(f, fn) {
+			if isGuardedMain(f, fn) {
 				return ""
 			}
-			return fmt.Sprintf("%s: TestMain doesn't exit with what testguard.Main returns; make it %s", f.at(fn.Pos()), testMainFix)
+			return fmt.Sprintf("%s: TestMain must do nothing but exit with what testguard.Main returns, as anything else runs outside the guard; make it %s", f.at(fn.Pos()), testMainFix)
 		}
 	}
 	first := files[0]
 	return fmt.Sprintf("%s: the package has tests but no TestMain to guard them; add main_test.go holding %s", first.at(first.ast.Package), testMainFix)
 }
 
-// exitsWithGuard reports whether fn calls os.Exit(testguard.Main(…)).
-func exitsWithGuard(f sourceFile, fn *ast.FuncDecl) bool {
-	if fn.Body == nil {
+// isGuardedMain reports whether fn's body is os.Exit(testguard.Main(m)), m
+// being its parameter, and nothing else.
+func isGuardedMain(f sourceFile, fn *ast.FuncDecl) bool {
+	params := fn.Type.Params.List
+	if fn.Body == nil || len(fn.Body.List) != 1 || len(params) != 1 || len(params[0].Names) != 1 {
 		return false
 	}
-	osName, guardName := f.importName("os"), f.importName(guardImport)
-	found := false
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
-		if call, ok := n.(*ast.CallExpr); ok && !found && selects(call.Fun, osName, "Exit") && len(call.Args) == 1 {
-			inner, ok := call.Args[0].(*ast.CallExpr)
-			found = ok && selects(inner.Fun, guardName, "Main")
-		}
-		return !found
-	})
-	return found
+	want := fmt.Sprintf("%s.Exit(%s.Main(%s))", f.importName("os"), f.importName(guardImport), params[0].Names[0].Name)
+	return f.render(fn.Body.List[0]) == want
 }
 
 // environmentChanges finds each reference, anywhere but testguard's own code,
@@ -478,7 +568,7 @@ func processStarts(files []sourceFile, allowed []string) []string {
 		}
 		for _, decl := range f.ast.Decls {
 			name := f.path + ":" + funcName(decl)
-			for _, u := range uses(f, decl, processStarting) {
+			for _, u := range starts(f, decl) {
 				if slices.Contains(allowed, name) {
 					starting[name] = true
 					continue
@@ -495,12 +585,22 @@ func processStarts(files []sourceFile, allowed []string) []string {
 	return problems
 }
 
-// userImports finds each production file that imports os/user, which finds the
-// home directory from the system rather than HOME, and so past testguard.
+// starts finds, in node of f, each use of a function that starts a process,
+// and each exec.Cmd made other than by exec.Command, which starts one all the
+// same, in the order they come.
+func starts(f sourceFile, node ast.Node) []use {
+	found := slices.Concat(uses(f, node, processStarting), valuesMade(f, node, commands))
+	slices.SortFunc(found, func(a, b use) int { return cmp.Compare(a.pos, b.pos) })
+	return found
+}
+
+// userImports finds each file, tests included, but testguard's own, that
+// imports os/user, which finds the home directory from the system rather than
+// HOME, and so past testguard.
 func userImports(files []sourceFile) []string {
 	var problems []string
 	for _, f := range files {
-		if f.isTest() {
+		if f.testsTheGuard() {
 			continue
 		}
 		for _, spec := range f.ast.Imports {
@@ -512,13 +612,14 @@ func userImports(files []sourceFile) []string {
 	return problems
 }
 
-// earlyEnvironmentReads finds each read of the environment in production code
-// made as its package initialises, in a package-level variable's value or an
-// init function: before TestMain runs, so before testguard has isolated it.
+// earlyEnvironmentReads finds each read of the environment, tests included,
+// but testguard's own, made as its package initialises, in a package-level
+// variable's value or an init function: before TestMain runs, so before
+// testguard has isolated it.
 func earlyEnvironmentReads(files []sourceFile) []string {
 	var problems []string
 	for _, f := range files {
-		if f.isTest() {
+		if f.testsTheGuard() {
 			continue
 		}
 		for _, decl := range f.ast.Decls {
@@ -707,6 +808,15 @@ func (f sourceFile) dir() string {
 // at is where pos is in the file: its path and line.
 func (f sourceFile) at(pos token.Pos) string {
 	return fmt.Sprintf("%s:%d", f.path, f.fset.Position(pos).Line)
+}
+
+// render is node of the file as gofmt prints it, or "" when it can't be.
+func (f sourceFile) render(node ast.Node) string {
+	var b strings.Builder
+	if err := printer.Fprint(&b, f.fset, node); err != nil {
+		return ""
+	}
+	return b.String()
 }
 
 // importName is the name the file refers to the package at importPath by, or

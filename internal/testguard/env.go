@@ -11,12 +11,13 @@ import (
 // The variables no test may see: those that configure switchboard, Claude
 // Code and the Anthropic API, which can hold real tokens; tmux's, which lead
 // to the real tmux server; and proxies', as a proxy on loopback would carry a
-// request past the dial guard to the network.
+// request past the dial guard to the network. scripts/test-isolated unsets
+// the same before any test binary starts.
 var (
-	clearedPrefixes = []string{"SWITCHBOARD_", "CLAUDE_", "ANTHROPIC_"}
-	// clearedNames count in either case, as proxies' lower-case names are
+	clearedPrefixes = []string{"SWITCHBOARD_", "CLAUDE_", "ANTHROPIC_", "TMUX"}
+	// clearedSuffix counts in either case, as proxies' lower-case names are
 	// honoured too.
-	clearedNames = []string{"TMUX", "TMUX_PANE", "HTTP_PROXY", "HTTPS_PROXY"}
+	clearedSuffix = "_PROXY"
 )
 
 // isolateEnv clears the variables no test may see, points HOME and XDG's base
@@ -48,5 +49,5 @@ func isolateEnv(home, stubs string) error {
 
 func cleared(name string) bool {
 	hasPrefix := func(prefix string) bool { return strings.HasPrefix(name, prefix) }
-	return slices.ContainsFunc(clearedPrefixes, hasPrefix) || slices.Contains(clearedNames, strings.ToUpper(name))
+	return slices.ContainsFunc(clearedPrefixes, hasPrefix) || strings.HasSuffix(strings.ToUpper(name), clearedSuffix)
 }
