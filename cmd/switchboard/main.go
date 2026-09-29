@@ -4,7 +4,6 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"runtime"
 	"time"
 
@@ -27,14 +26,14 @@ func main() {
 		HomeDir:       os.UserHomeDir,
 		Executable:    os.Executable,
 		Now:           time.Now,
-		ClaudeVersion: claude.InstalledVersion(exec.LookPath, os.UserHomeDir),
+		ClaudeVersion: claude.InstalledVersion(os.Getenv, os.UserHomeDir, os.Executable),
 		Watch:         watch.Run,
 		Notifier:      notify.NewDesktop(),
-		LookPath:      exec.LookPath,
 		Exec:          launch.Exec,
 		Launchctl:     service.Launchctl,
 		GOOS:          runtime.GOOS,
 		UID:           os.Getuid(),
 	})
+	root.SetArgs(cli.Args(os.Args))
 	os.Exit(cli.Execute(root))
 }

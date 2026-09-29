@@ -2,17 +2,14 @@ package cli_test
 
 import (
 	"maps"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
 )
-
-// claudePath is where run finds claude in these tests.
-const claudePath = "/opt/tools/bin/claude"
 
 func TestRun(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"})
@@ -49,14 +46,14 @@ func TestRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps := srv.deps
-			handed := recordHandOffs(&deps)
+			handed := recordHandOffs(t, &deps)
 
 			if got := run(t, deps, tt.args...); got != (result{}) {
 				t.Errorf("switchboard %s = %+v, want exit status 0 and no output", strings.Join(tt.args, " "), got)
 			}
 			got := handed.only(t)
-			if got.path != claudePath || !slices.Equal(got.argv, tt.wantArgv) {
-				t.Errorf("handed over to %s as %q, want %s as %q", got.path, got.argv, claudePath, tt.wantArgv)
+			if got.path != handed.claude || !slices.Equal(got.argv, tt.wantArgv) {
+				t.Errorf("handed over to %s as %q, want %s as %q", got.path, got.argv, handed.claude, tt.wantArgv)
 			}
 			want := map[string]string{
 				"ANTHROPIC_BASE_URL":       "http://" + srv.listen,
@@ -78,7 +75,7 @@ func TestRunGoesWhereTheRouterListensWhateverTheConfigSays(t *testing.T) {
 	// hasn't taken up: nothing listens there.
 	srv.listen = freeAddress(t)
 	srv.writeConfig(t)
-	handed := recordHandOffs(&srv.deps)
+	handed := recordHandOffs(t, &srv.deps)
 
 	if got := run(t, srv.deps, "run"); got != (result{}) {
 		t.Errorf("switchboard run = %+v, want exit status 0 and no output", got)
@@ -90,7 +87,7 @@ func TestRunGoesWhereTheRouterListensWhateverTheConfigSays(t *testing.T) {
 
 func TestRunWithoutTheRouter(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"ANTHROPIC_BASE_URL": "http://127.0.0.1:4747"})
-	handed := recordHandOffs(&srv.deps)
+	handed := recordHandOffs(t, &srv.deps)
 
 	got := run(t, srv.deps, "run", "--", "--resume")
 	if want := (result{stderr: "switchboard: the router isn't running — connecting directly on work · Work\n"}); got != want {
@@ -121,7 +118,7 @@ func TestRunWithoutAConfigItCanRead(t *testing.T) {
 				"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Account: side",
 			}
 			deps := testDeps(env, t.TempDir())
-			handed := recordHandOffs(&deps)
+			handed := recordHandOffs(t, &deps)
 
 			if got, want := run(t, deps, "run", "--account", "work", "--", "--resume"), (result{stderr: tt.wantSaid}); got != want {
 				t.Errorf("switchboard run = %+v, want %+v", got, want)
@@ -135,19 +132,206 @@ func TestRunWithoutAConfigItCanRead(t *testing.T) {
 }
 
 func TestRunDirect(t *testing.T) {
-	deps := testDeps(map[string]string{
-		"CLAUDE_CODE_OAUTH_TOKEN": "test-token-work",
-		"ANTHROPIC_BASE_URL":      "http://127.0.0.1:4747",
-		"TERM":                    "xterm-256color",
-	}, t.TempDir())
-	handed := recordHandOffs(&deps)
-
-	if got := run(t, deps, "run", "--direct", "--", "--resume"); got != (result{}) {
-		t.Errorf("switchboard run --direct = %+v, want exit status 0 and no output, with no config needed", got)
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "a session", args: []string{"--resume"}},
+		{name: "a local subcommand, on the login asked for", args: []string{"auth", "status"}},
 	}
-	got := handed.only(t)
-	if !slices.Equal(got.argv, []string{"claude", "--resume"}) || !maps.Equal(got.env, map[string]string{"TERM": "xterm-256color"}) {
-		t.Errorf("handed over as %q with %q, want claude --resume on its own login", got.argv, got.env)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := testDeps(map[string]string{
+				"CLAUDE_CODE_OAUTH_TOKEN": "test-token-work",
+				"ANTHROPIC_BASE_URL":      "http://127.0.0.1:4747",
+				"TERM":                    "xterm-256color",
+			}, t.TempDir())
+			handed := recordHandOffs(t, &deps)
+
+			if got := run(t, deps, append([]string{"run", "--direct", "--"}, tt.args...)...); got != (result{}) {
+				t.Errorf("switchboard run --direct = %+v, want exit status 0 and no output, with no config needed", got)
+			}
+			got := handed.only(t)
+			if want := append([]string{"claude"}, tt.args...); !slices.Equal(got.argv, want) || !maps.Equal(got.env, map[string]string{"TERM": "xterm-256color"}) {
+				t.Errorf("handed over as %q with %q, want %q on its own login", got.argv, got.env, want)
+			}
+		})
+	}
+}
+
+func TestRunStartsClaudeCodesLocalSubcommandsAsIfSwitchboardWerentThere(t *testing.T) {
+	// What a session started through the router hands the programs it runs.
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{
+		"ANTHROPIC_BASE_URL":       "http://127.0.0.1:4747",
+		"CLAUDE_CODE_OAUTH_TOKEN":  "test-token-side",
+		"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Account: side",
+	})
+	srv.start(t)
+	inherited := environMap(srv.deps.Environ())
+	tests := []struct {
+		name string
+		args []string
+		// local says whether claude starts as if switchboard weren't there,
+		// rather than through the router.
+		local bool
+	}{
+		{name: "setup-token", args: []string{"setup-token"}, local: true},
+		{name: "update", args: []string{"update"}, local: true},
+		{name: "upgrade", args: []string{"upgrade"}, local: true},
+		{name: "install", args: []string{"install", "stable"}, local: true},
+		{name: "doctor", args: []string{"doctor"}, local: true},
+		{name: "mcp", args: []string{"mcp", "add", "--transport", "http", "docs", "https://docs.example.com/mcp"}, local: true},
+		{name: "plugin", args: []string{"plugin", "install", "formatter"}, local: true},
+		{name: "plugins", args: []string{"plugins"}, local: true},
+		{name: "auth", args: []string{"auth", "status"}, local: true},
+		{name: "import", args: []string{"import"}, local: true},
+		{name: "project", args: []string{"project"}, local: true},
+		{name: "auto-mode", args: []string{"auto-mode"}, local: true},
+		{name: "gateway", args: []string{"gateway"}, local: true},
+		{name: "a prompt that's a subcommand's name", args: []string{"-p", "doctor"}},
+		{name: "a subcommand after an option", args: []string{"--debug", "mcp", "list"}},
+		{name: "a background session", args: []string{"--bg", "fix the tests"}},
+		{name: "agents", args: []string{"agents"}},
+		{name: "attach", args: []string{"attach", "0b5c6f2e"}},
+		{name: "respawn", args: []string{"respawn"}},
+		{name: "ultrareview", args: []string{"ultrareview"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := srv.deps
+			handed := recordHandOffs(t, &deps)
+
+			if got := run(t, deps, append([]string{"run", "--"}, tt.args...)...); got != (result{}) {
+				t.Errorf("switchboard run -- %s = %+v, want exit status 0 and no output", strings.Join(tt.args, " "), got)
+			}
+			got := handed.only(t)
+			if want := append([]string{"claude"}, tt.args...); got.path != handed.claude || !slices.Equal(got.argv, want) {
+				t.Errorf("handed over to %s as %q, want %s as %q", got.path, got.argv, handed.claude, want)
+			}
+			want := maps.Clone(inherited)
+			if !tt.local {
+				want["ANTHROPIC_BASE_URL"] = "http://" + srv.listen
+				want["CLAUDE_CODE_OAUTH_TOKEN"] = "test-token-work"
+				delete(want, "ANTHROPIC_CUSTOM_HEADERS")
+			}
+			if !maps.Equal(got.env, want) {
+				t.Errorf("handed over with\n%q\nwant\n%q", got.env, want)
+			}
+		})
+	}
+}
+
+func TestRunStartsLocalSubcommandsWithoutAConfig(t *testing.T) {
+	env := map[string]string{"SWITCHBOARD_CONFIG": filepath.Join(t.TempDir(), "config.toml"), "CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}
+	deps := testDeps(env, t.TempDir())
+	handed := recordHandOffs(t, &deps)
+
+	if got := run(t, deps, "run", "--account", "side", "--", "doctor"); got != (result{}) {
+		t.Errorf("switchboard run -- doctor = %+v, want exit status 0 and no output, switchboard having no part in it", got)
+	}
+	if got := handed.only(t); !slices.Equal(got.argv, []string{"claude", "doctor"}) || !maps.Equal(got.env, env) {
+		t.Errorf("handed over as %q with %q, want claude doctor, its environment untouched", got.argv, got.env)
+	}
+}
+
+func TestArgs(t *testing.T) {
+	tests := []struct {
+		name string
+		argv []string
+		want []string
+	}{
+		{name: "switchboard alone", argv: []string{"switchboard"}, want: []string{}},
+		{name: "switchboard's commands", argv: []string{"/opt/homebrew/bin/switchboard", "status", "--json"}, want: []string{"status", "--json"}},
+		{name: "claude alone", argv: []string{"claude"}, want: []string{"run", "--"}},
+		{name: "claude, by its path", argv: []string{"/Users/tester/bin/claude", "--help"}, want: []string{"run", "--", "--help"}},
+		{
+			name: "claude, with switchboard's words, Claude Code's all the same",
+			argv: []string{"claude", "run", "--config", "config.toml", "--", "-v"},
+			want: []string{"run", "--", "run", "--config", "config.toml", "--", "-v"},
+		},
+		{name: "a name starting claude", argv: []string{"claude-switchboard", "--help"}, want: []string{"--help"}},
+		{name: "a directory named claude", argv: []string{"/opt/claude/switchboard", "--version"}, want: []string{"--version"}},
+		{name: "no name at all", want: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// A nil slice would have Cobra parse os.Args itself.
+			if got := cli.Args(tt.argv); got == nil || !slices.Equal(got, tt.want) {
+				t.Errorf("Args(%q) = %#v, want %q", tt.argv, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunByTheNameClaude(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.start(t)
+	tests := []struct {
+		name string
+		// args are claude's, after its name.
+		args []string
+	}{
+		{name: "alone"},
+		{name: "Claude Code's help", args: []string{"--help"}},
+		{name: "Claude Code's version", args: []string{"-v"}},
+		{name: "switchboard's flags, Claude Code's own", args: []string{"--config", "other.toml", "--account", "side", "--direct", "--version", "-h"}},
+		{name: "switchboard's commands, Claude Code's words", args: []string{"status", "--json"}},
+		{name: "after --", args: []string{"--", "--help"}},
+		{name: "a prompt", args: []string{"-p", "a prompt", "--output-format", "json"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := srv.deps
+			handed := recordHandOffs(t, &deps)
+
+			if got := run(t, deps, cli.Args(append([]string{"/Users/tester/bin/claude"}, tt.args...))...); got != (result{}) {
+				t.Errorf("claude %s = %+v, want exit status 0 and no output", strings.Join(tt.args, " "), got)
+			}
+			got := handed.only(t)
+			if want := append([]string{"claude"}, tt.args...); got.path != handed.claude || !slices.Equal(got.argv, want) {
+				t.Errorf("handed over to %s as %q, want %s as %q", got.path, got.argv, handed.claude, want)
+			}
+			want := map[string]string{"ANTHROPIC_BASE_URL": "http://" + srv.listen, "CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}
+			if env := got.only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_CUSTOM_HEADERS"); !maps.Equal(env, want) {
+				t.Errorf("handed over with\n%q\nwant\n%q, routed and pinned to no account", env, want)
+			}
+		})
+	}
+}
+
+func TestTheClaudeLinkNeverStartsSwitchboardAgain(t *testing.T) {
+	// switchboard, linked as Homebrew links it, and its claude link, which
+	// leads there through that link, ahead of Claude Code on PATH.
+	dir := t.TempDir()
+	brewLink := claudetest.Link(t, claudetest.Program(t, filepath.Join(dir, "Cellar", "switchboard")), filepath.Join(dir, "bin", "switchboard"))
+	claudeLink := claudetest.Link(t, brewLink, filepath.Join(dir, "links", "claude"))
+	claudeCode := claudetest.Program(t, filepath.Join(dir, "claude-code", "claude"))
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"PATH": filepath.Dir(claudeLink) + string(filepath.ListSeparator) + filepath.Dir(claudeCode)})
+	srv.start(t)
+	tests := []struct {
+		name string
+		// argv is how switchboard is run, and executable where
+		// os.Executable says it is, as it gives the path it was run by.
+		argv       []string
+		executable string
+	}{
+		{name: "run by the claude link", argv: []string{"claude", "--resume"}, executable: claudeLink},
+		{name: "run by the claude link, for a local subcommand", argv: []string{"claude", "doctor"}, executable: claudeLink},
+		{name: "run by Homebrew's link", argv: []string{brewLink, "run", "--", "--resume"}, executable: brewLink},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := srv.deps
+			handed := recordHandOffs(t, &deps)
+			deps.Executable = func() (string, error) { return tt.executable, nil }
+
+			if got := run(t, deps, cli.Args(tt.argv)...); got.code != 0 {
+				t.Errorf("%s = %+v, want exit status 0", strings.Join(tt.argv, " "), got)
+			}
+			if got := handed.only(t).path; got != claudeCode {
+				t.Errorf("handed over to %s, want %s, Claude Code past switchboard's claude link", got, claudeCode)
+			}
+		})
 	}
 }
 
@@ -155,13 +339,13 @@ func TestRunNeverLogsClaudesArguments(t *testing.T) {
 	const prompt = "a prompt the log must never hold"
 	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_LOG_LEVEL": "debug"})
 	srv.start(t)
-	recordHandOffs(&srv.deps)
+	handed := recordHandOffs(t, &srv.deps)
 
 	if got := run(t, srv.deps, "run", "--account", "side", "--", "--print", prompt); got.code != 0 {
 		t.Fatalf("switchboard run = %+v, want exit status 0", got)
 	}
 	log := srv.cliLog(t)
-	if !hasLine(log, "level=INFO", `msg="starting claude" component=launch`, "mode=routed", "account=work", `chosen="the primary"`, "pin=side", "claude="+claudePath) {
+	if !hasLine(log, "level=INFO", `msg="starting claude" component=launch`, "mode=routed", "account=work", `chosen="the primary"`, "pin=side", "claude="+handed.claude) {
 		t.Errorf("cli.log reads\n%s\nwant the launch logged", log)
 	}
 	for _, secret := range []string{prompt, "test-token-work", "test-token-side"} {
@@ -186,9 +370,10 @@ func (h handOff) only(names ...string) map[string]string {
 	return env
 }
 
-// handOffs are the hand-overs run makes.
+// handOffs are the hand-overs run makes, and claude, the stand-in it finds.
 type handOffs struct {
-	made []handOff
+	claude string
+	made   []handOff
 }
 
 // only returns the one hand-over made.
@@ -200,24 +385,31 @@ func (h *handOffs) only(t *testing.T) handOff {
 	return h.made[0]
 }
 
-// recordHandOffs has deps find claude at claudePath, and note each hand-over
-// to it in place of making it.
-func recordHandOffs(deps *cli.Deps) *handOffs {
-	h := &handOffs{}
-	deps.LookPath = func(file string) (string, error) {
-		if file != "claude" {
-			return "", exec.ErrNotFound
-		}
-		return claudePath, nil
+// recordHandOffs puts a stand-in for claude where its installer puts it, in
+// deps' home directory, and gives deps a stand-in for this switchboard
+// binary, and has deps note each hand-over to claude in place of making it.
+func recordHandOffs(t *testing.T, deps *cli.Deps) *handOffs {
+	t.Helper()
+	home, err := deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
 	}
+	h := &handOffs{claude: claudetest.Program(t, filepath.Join(home, ".local", "bin", "claude"))}
+	switchboard := claudetest.Program(t, filepath.Join(t.TempDir(), "switchboard"))
+	deps.Executable = func() (string, error) { return switchboard, nil }
 	deps.Exec = func(path string, argv, env []string) error {
-		vars := make(map[string]string)
-		for _, variable := range env {
-			name, value, _ := strings.Cut(variable, "=")
-			vars[name] = value
-		}
-		h.made = append(h.made, handOff{path: path, argv: argv, env: vars})
+		h.made = append(h.made, handOff{path: path, argv: argv, env: environMap(env)})
 		return nil
 	}
 	return h
+}
+
+// environMap is an environment, as os.Environ gives it, by name.
+func environMap(environ []string) map[string]string {
+	vars := make(map[string]string)
+	for _, variable := range environ {
+		name, value, _ := strings.Cut(variable, "=")
+		vars[name] = value
+	}
+	return vars
 }

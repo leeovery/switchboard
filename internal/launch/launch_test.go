@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,6 +12,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -24,8 +23,6 @@ import (
 const (
 	workToken = "test-token-work"
 	sideToken = "test-token-side"
-	// claudeOnPath is where claude is on PATH.
-	claudeOnPath = "/opt/tools/bin/claude"
 	// proxyAddr is where a healthy router says its proxy listens, which isn't
 	// where the config says: the router's word is the one that counts.
 	proxyAddr = "127.0.0.1:4848"
@@ -54,7 +51,8 @@ func route(r launch.Router, account string) launch.Route {
 }
 
 func TestRunThroughAHealthyRouter(t *testing.T) {
-	h := newHarness("HOME=/home/tester", "PATH=/usr/bin:/bin", "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on")
+	path := t.TempDir()
+	h := newHarness(t, "HOME=/home/tester", "PATH="+path, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on")
 	args := []string{"--print", "a prompt", "--account", "work", "", "--", "--direct"}
 
 	if err := h.launcher.Run(t.Context(), route(healthy(), "side"), args); err != nil {
@@ -62,12 +60,12 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 	}
 
 	got := h.only(t)
-	if want := append([]string{"claude"}, args...); got.path != claudeOnPath || !slices.Equal(got.argv, want) {
-		t.Errorf("started %s as %q, want %s as %q", got.path, got.argv, claudeOnPath, want)
+	if want := append([]string{"claude"}, args...); got.path != h.claude || !slices.Equal(got.argv, want) {
+		t.Errorf("started %s as %q, want %s as %q", got.path, got.argv, h.claude, want)
 	}
 	want := map[string]string{
 		"HOME":                     "/home/tester",
-		"PATH":                     "/usr/bin:/bin",
+		"PATH":                     path,
 		"ANTHROPIC_BASE_URL":       "http://" + proxyAddr,
 		"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
 		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side",
@@ -90,7 +88,7 @@ func TestRunSendsClaudeCodeWhereTheRouterListens(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.listen, func(t *testing.T) {
-			h := newHarness()
+			h := newHarness(t)
 			r := &fakeRouter{health: router.Health{OK: true, Listen: tt.listen, PID: 4242}}
 
 			if err := h.launcher.Run(t.Context(), route(r, ""), nil); err != nil {
@@ -124,7 +122,7 @@ func TestRunChoosesTheToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := newHarness()
+			h := newHarness(t)
 			r := route(tt.router, tt.account)
 			r.Config.Accounts = primaryOf(tt.primary)
 
@@ -196,7 +194,7 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := newHarness(inherited...)
+			h := newHarness(t, inherited...)
 
 			if err := h.launcher.Run(t.Context(), route(tt.router, tt.account), []string{"--resume"}); err != nil {
 				t.Fatalf("Run() error = %v", err)
@@ -221,7 +219,7 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 
 func TestRunGivesTheRouterHalfASecondToAnswer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		h := newHarness()
+		h := newHarness(t)
 		began := time.Now()
 
 		if err := h.launcher.Run(t.Context(), route(&fakeRouter{hangs: true}, ""), nil); err != nil {
@@ -263,7 +261,7 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 			if tt.headers != "" {
 				environ = append(environ, "ANTHROPIC_CUSTOM_HEADERS="+tt.headers)
 			}
-			h := newHarness(environ...)
+			h := newHarness(t, environ...)
 
 			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
@@ -286,7 +284,7 @@ func TestRunRefusesAPinItCantKeep(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.account, func(t *testing.T) {
-			h := newHarness()
+			h := newHarness(t)
 
 			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
@@ -305,7 +303,7 @@ func TestRunWithoutATokenStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side",
 	}
 	log := logstest.Capture(t)
-	h := newHarness(inherited...)
+	h := newHarness(t, inherited...)
 	r := route(healthy(), "")
 	r.Token = tokenstest.Files{"personal": " "}.Read
 
@@ -351,7 +349,7 @@ func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inherited := []string{"HOME=/home/tester", "ANTHROPIC_BASE_URL=http://127.0.0.1:4747", "CLAUDE_CODE_OAUTH_TOKEN=test-token-work"}
-			h := newHarness(inherited...)
+			h := newHarness(t, inherited...)
 			args := []string{"--account", "side", "--resume"}
 
 			if err := h.launcher.Unaided(args, "couldn't read the config", tt.err); err != nil {
@@ -359,8 +357,8 @@ func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 			}
 
 			got := h.only(t)
-			if want := append([]string{"claude"}, args...); got.path != claudeOnPath || !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
-				t.Errorf("started %s as %q with %q, want %s as %q with the environment untouched, %q", got.path, got.argv, got.env, claudeOnPath, want, inherited)
+			if want := append([]string{"claude"}, args...); got.path != h.claude || !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
+				t.Errorf("started %s as %q with %q, want %s as %q with the environment untouched, %q", got.path, got.argv, got.env, h.claude, want, inherited)
 			}
 			if said := h.stderr.String(); said != tt.wantSaid {
 				t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
@@ -370,8 +368,8 @@ func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 }
 
 func TestUnaidedWithoutClaude(t *testing.T) {
-	h := newHarness()
-	h.launcher.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	h := newHarness(t)
+	h.launcher.InstallPaths = []string{filepath.Join(t.TempDir(), "claude")}
 
 	err := h.launcher.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 	if err == nil || !strings.HasPrefix(err.Error(), "can't find claude") || len(h.starts) > 0 {
@@ -380,7 +378,7 @@ func TestUnaidedWithoutClaude(t *testing.T) {
 }
 
 func TestDirectStartsClaudeCodeOnItsOwnLogin(t *testing.T) {
-	h := newHarness(
+	h := newHarness(t,
 		"HOME=/home/tester",
 		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
 		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
@@ -392,8 +390,8 @@ func TestDirectStartsClaudeCodeOnItsOwnLogin(t *testing.T) {
 	}
 
 	got := h.only(t)
-	if want := []string{"claude", "--print", "a prompt"}; got.path != claudeOnPath || !slices.Equal(got.argv, want) {
-		t.Errorf("started %s as %q, want %s as %q", got.path, got.argv, claudeOnPath, want)
+	if want := []string{"claude", "--print", "a prompt"}; got.path != h.claude || !slices.Equal(got.argv, want) {
+		t.Errorf("started %s as %q, want %s as %q", got.path, got.argv, h.claude, want)
 	}
 	want := map[string]string{"HOME": "/home/tester", "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"}
 	if env := h.environment(t); !maps.Equal(env, want) {
@@ -401,46 +399,53 @@ func TestDirectStartsClaudeCodeOnItsOwnLogin(t *testing.T) {
 	}
 }
 
+func TestLocalStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
+	inherited := []string{
+		"HOME=/home/tester",
+		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
+		"CLAUDE_CODE_OAUTH_TOKEN=test-token-work",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side",
+	}
+	h := newHarness(t, inherited...)
+	args := []string{"mcp", "add", "--transport", "http", "docs", "https://docs.example.com/mcp"}
+
+	if err := h.launcher.Local(args); err != nil {
+		t.Fatalf("Local() error = %v", err)
+	}
+
+	got := h.only(t)
+	if want := append([]string{"claude"}, args...); got.path != h.claude || !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
+		t.Errorf("started %s as %q with %q, want %s as %q with the environment untouched, %q", got.path, got.argv, got.env, h.claude, want, inherited)
+	}
+	if said := h.stderr.String(); said != "" {
+		t.Errorf("said %q on stderr, want nothing", said)
+	}
+}
+
 func TestFindsClaude(t *testing.T) {
-	dir := t.TempDir()
-	missing := filepath.Join(dir, "missing", "claude")
-	directory := filepath.Join(dir, "directory", "claude")
-	notRunnable := filepath.Join(dir, "not-runnable", "claude")
-	first := filepath.Join(dir, "first", "claude")
-	second := filepath.Join(dir, "second", "claude")
-	if err := os.MkdirAll(directory, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	for path, mode := range map[string]os.FileMode{notRunnable: 0o600, first: 0o700, second: 0o700} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, nil, mode); err != nil {
-			t.Fatal(err)
-		}
-	}
+	// This process's own PATH leads to a claude of its own, which none of
+	// these finds: the environment Claude Code starts with is the one that
+	// counts.
+	t.Setenv("PATH", filepath.Dir(claudetest.Program(t, filepath.Join(t.TempDir(), "claude"))))
+	onPath := claudetest.Program(t, filepath.Join(t.TempDir(), "claude"))
+	installed := claudetest.Program(t, filepath.Join(t.TempDir(), "claude"))
+	missing := filepath.Join(t.TempDir(), "claude")
 	tests := []struct {
-		name     string
-		onPath   bool
+		name string
+		// path is PATH in the environment Claude Code starts with.
+		path     string
 		installs []string
 		want     string
 		wantErr  string
 	}{
-		{name: "on PATH, before any install path", onPath: true, installs: []string{first}, want: claudeOnPath},
-		{name: "at the first install path holding a program", installs: []string{missing, directory, notRunnable, first, second}, want: first},
-		{
-			name:     "nowhere",
-			installs: []string{missing, directory, notRunnable},
-			wantErr:  "can't find claude: it isn't on PATH, nor at " + missing + ", " + directory + ", " + notRunnable,
-		},
+		{name: "on the PATH it starts with, before any install path", path: filepath.Dir(onPath), installs: []string{installed}, want: onPath},
+		{name: "at the first install path holding a program, off that PATH", installs: []string{missing, installed}, want: installed},
+		{name: "nowhere", path: filepath.Dir(missing), installs: []string{missing}, wantErr: "can't find claude: it isn't on PATH, nor at " + missing},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := newHarness()
+			h := newHarness(t, "PATH="+tt.path)
 			h.launcher.InstallPaths = tt.installs
-			if !tt.onPath {
-				h.launcher.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
-			}
 
 			err := h.launcher.Direct(nil)
 			if tt.wantErr != "" {
@@ -459,13 +464,46 @@ func TestFindsClaude(t *testing.T) {
 	}
 }
 
+func TestNoLaunchStartsSwitchboardsClaudeLink(t *testing.T) {
+	tests := []struct {
+		name   string
+		launch func(ctx context.Context, l launch.Launcher) error
+	}{
+		{name: "through the router", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(healthy(), ""), nil) }},
+		{name: "directly", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notRunning(), ""), nil) }},
+		{name: "on its own login", launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil) }},
+		{
+			name: "without switchboard",
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+			},
+		},
+		{name: "a local subcommand", launch: func(_ context.Context, l launch.Launcher) error { return l.Local([]string{"doctor"}) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			// switchboard's claude link, ahead of Claude Code on PATH.
+			links := filepath.Dir(claudetest.Link(t, h.switchboard, filepath.Join(t.TempDir(), "claude")))
+			h.launcher.Environ = []string{"PATH=" + links + string(filepath.ListSeparator) + filepath.Dir(h.claude)}
+
+			if err := tt.launch(t.Context(), h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			if got := h.only(t).path; got != h.claude {
+				t.Errorf("started %s, want %s, Claude Code past switchboard's claude link", got, h.claude)
+			}
+		})
+	}
+}
+
 func TestRunFailsWhenClaudeCantStart(t *testing.T) {
 	failed := errors.New("permission denied")
-	h := newHarness()
+	h := newHarness(t)
 	h.launcher.Exec = func(string, []string, []string) error { return failed }
 
 	err := h.launcher.Run(t.Context(), route(healthy(), ""), nil)
-	if want := "start claude at " + claudeOnPath + ": permission denied"; !errors.Is(err, failed) || err.Error() != want {
+	if want := "start claude at " + h.claude + ": permission denied"; !errors.Is(err, failed) || err.Error() != want {
 		t.Errorf("Run() error = %v, want %q", err, want)
 	}
 }
@@ -485,7 +523,7 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 			},
 			want: []string{
 				"level=INFO", `msg="starting claude" component=launch`, "mode=routed", "router=healthy",
-				"account=work", `chosen="the primary"`, "pin=side", "claude=" + claudeOnPath,
+				"account=work", `chosen="the primary"`, "pin=side",
 			},
 		},
 		{
@@ -526,7 +564,7 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 		{
 			name:   "on its own login",
 			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(args) },
-			want:   []string{"level=INFO", `msg="starting claude" component=launch`, `mode="own login"`, "claude=" + claudeOnPath},
+			want:   []string{"level=INFO", `msg="starting claude" component=launch`, `mode="own login"`},
 		},
 		{
 			name: "without switchboard",
@@ -535,20 +573,27 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 			},
 			want: []string{
 				"level=WARN", `msg="starting claude without switchboard" component=launch`, `reason="couldn't read the config"`,
-				`error="no config file at /home/tester/config.toml"`, "claude=" + claudeOnPath,
+				`error="no config file at /home/tester/config.toml"`,
 			},
+		},
+		{
+			name: "a local subcommand",
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.Local(append([]string{"mcp", "add"}, args...))
+			},
+			want: []string{"level=DEBUG", `msg="starting claude" component=launch`, "mode=local"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			h := newHarness("CLAUDE_CODE_OAUTH_TOKEN=" + sideToken)
+			h := newHarness(t, "CLAUDE_CODE_OAUTH_TOKEN="+sideToken)
 
 			if err := tt.launch(t.Context(), h.launcher); err != nil {
 				t.Fatalf("launch error = %v", err)
 			}
-			if !log.Has(tt.want...) {
-				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.want)
+			if want := append(slices.Clone(tt.want), "claude="+h.claude); !log.Has(want...) {
+				t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 			}
 			for _, secret := range []string{prompt, workToken, sideToken} {
 				if strings.Contains(log.String(), secret) {
@@ -592,25 +637,30 @@ type started struct {
 	env  []string
 }
 
-// harness is a launcher whose claude is on PATH, and which notes what it's
-// asked to start, and what it says on stderr, starting nothing.
+// harness is a launcher whose claude, a stand-in, is where its installer put
+// it, and which notes what it's asked to start, and what it says on stderr,
+// starting nothing.
 type harness struct {
 	launcher launch.Launcher
-	starts   []started
-	stderr   strings.Builder
+	// claude is where the stand-in for Claude Code is, and switchboard the
+	// stand-in for this switchboard binary.
+	claude, switchboard string
+	starts              []started
+	stderr              strings.Builder
 }
 
 // newHarness returns a harness whose launches start from environ.
-func newHarness(environ ...string) *harness {
-	h := &harness{}
+func newHarness(t *testing.T, environ ...string) *harness {
+	t.Helper()
+	dir := t.TempDir()
+	h := &harness{
+		claude:      claudetest.Program(t, filepath.Join(dir, "installed", "claude")),
+		switchboard: claudetest.Program(t, filepath.Join(dir, "switchboard")),
+	}
 	h.launcher = launch.Launcher{
-		Environ: environ,
-		LookPath: func(file string) (string, error) {
-			if file != "claude" {
-				return "", exec.ErrNotFound
-			}
-			return claudeOnPath, nil
-		},
+		Environ:      environ,
+		InstallPaths: []string{h.claude},
+		Executable:   func() (string, error) { return h.switchboard, nil },
 		Exec: func(path string, argv, env []string) error {
 			h.starts = append(h.starts, started{path: path, argv: argv, env: env})
 			return nil

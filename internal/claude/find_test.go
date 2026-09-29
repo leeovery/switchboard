@@ -1,59 +1,119 @@
 package claude_test
 
 import (
+	"cmp"
+	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 )
 
 func TestFind(t *testing.T) {
-	dir := t.TempDir()
-	missing := filepath.Join(dir, "missing", "claude")
-	directory := filepath.Join(dir, "directory", "claude")
-	notRunnable := filepath.Join(dir, "not-runnable", "claude")
-	first := filepath.Join(dir, "first", "claude")
-	second := filepath.Join(dir, "second", "claude")
+	root := t.TempDir()
+	at := func(parts ...string) string { return filepath.Join(append([]string{root}, parts...)...) }
+	// switchboard, linked as Homebrew links it, and its claude link, which
+	// leads to it through that link; and a longer chain to it.
+	binary := claudetest.Program(t, at("Cellar", "switchboard", "bin", "switchboard"))
+	brewLink := claudetest.Link(t, filepath.Join("..", "..", "Cellar", "switchboard", "bin", "switchboard"), at("brew", "bin", "switchboard"))
+	claudeLink := claudetest.Link(t, brewLink, at("links", "claude"))
+	claudetest.Link(t, claudeLink, at("chain", "claude"))
+	hardLink := at("hard", "claude")
+	if err := os.MkdirAll(filepath.Dir(hardLink), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(binary, hardLink); err != nil {
+		t.Fatal(err)
+	}
+	// Claude Code, as a program, and linked to its version as its native
+	// installer links it.
+	claudeCode := claudetest.Program(t, at("real", "claude"))
+	native := claudetest.Link(t, claudetest.Program(t, at("share", "claude", "versions", "2.1.300")), at("native", "claude"))
+	// What isn't a program.
+	missing := at("missing", "claude")
+	directory := at("directory", "claude")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for path, mode := range map[string]os.FileMode{notRunnable: 0o600, first: 0o700, second: 0o700} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, nil, mode); err != nil {
-			t.Fatal(err)
-		}
+	notRunnable := at("not-runnable", "claude")
+	if err := os.MkdirAll(filepath.Dir(notRunnable), 0o700); err != nil {
+		t.Fatal(err)
 	}
-	const onPath = "/opt/tools/bin/claude"
+	if err := os.WriteFile(notRunnable, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Relative directories on PATH lead here, where there's a claude.
+	t.Chdir(at("real"))
+
 	tests := []struct {
-		name     string
-		onPath   bool
+		name string
+		// path lists the directories on PATH.
+		path     []string
 		installs []string
-		want     string
-		wantErr  string
+		// self is switchboard's own executable, as os.Executable gives it:
+		// binary unless it's given.
+		self    string
+		selfErr error
+		want    string
+		wantErr string
 	}{
-		{name: "on PATH, before any install path", onPath: true, installs: []string{first}, want: onPath},
-		{name: "at the first install path holding a program, off PATH", installs: []string{missing, directory, notRunnable, first, second}, want: first},
+		{name: "on PATH, before any install path", path: []string{at("real")}, installs: []string{native}, want: claudeCode},
+		{name: "on PATH, by the link its installer made", path: []string{at("native")}, want: native},
 		{
-			name:     "nowhere",
-			installs: []string{missing, directory, notRunnable},
-			wantErr:  "can't find claude: it isn't on PATH, nor at " + missing + ", " + directory + ", " + notRunnable,
+			name: "on PATH, past what isn't a program",
+			path: []string{at("missing"), at("directory"), at("not-runnable"), at("real")},
+			want: claudeCode,
+		},
+		{name: "on PATH, past switchboard's claude link ahead of it", path: []string{at("links"), at("real")}, want: claudeCode},
+		{name: "on PATH, past a chain of links to switchboard", path: []string{at("chain"), at("real")}, want: claudeCode},
+		{name: "on PATH, past a hard link to switchboard", path: []string{at("hard"), at("real")}, want: claudeCode},
+		{
+			name: "on PATH, past switchboard's claude link, switchboard reached through a link",
+			path: []string{at("links"), at("real")},
+			self: brewLink,
+			want: claudeCode,
+		},
+		{
+			name: "on PATH, past switchboard's claude link, switchboard run by it",
+			path: []string{at("links"), at("real")},
+			self: claudeLink,
+			want: claudeCode,
+		},
+		{name: "past the relative directories on PATH", path: []string{"", "."}, installs: []string{native}, want: native},
+		{
+			name:     "at the first install path holding a program, off PATH",
+			installs: []string{missing, directory, notRunnable, native, claudeCode},
+			want:     native,
+		},
+		{name: "at an install path, past switchboard's claude link", installs: []string{claudeLink, native}, want: native},
+		{
+			name:     "nowhere, switchboard's own claude link never taken for it",
+			path:     []string{at("links")},
+			installs: []string{missing, claudeLink},
+			wantErr:  "can't find claude past switchboard's own link: it isn't on PATH, nor at " + missing + ", " + claudeLink,
+		},
+		{
+			name:    "without switchboard's own executable",
+			path:    []string{at("real")},
+			selfErr: errors.New("no path for the executable"),
+			wantErr: "can't find claude: can't tell it from switchboard's own link: no path for the executable",
+		},
+		{
+			name:    "with switchboard's own executable gone",
+			path:    []string{at("real")},
+			self:    missing,
+			wantErr: "can't find claude: can't tell it from switchboard's own link: stat " + missing + ": no such file or directory",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lookPath := func(file string) (string, error) {
-				if !tt.onPath || file != "claude" {
-					return "", exec.ErrNotFound
-				}
-				return onPath, nil
-			}
+			executable := func() (string, error) { return cmp.Or(tt.self, binary), tt.selfErr }
 
-			got, err := claude.Find(lookPath, tt.installs)
+			got, err := claude.Find(strings.Join(tt.path, string(filepath.ListSeparator)), tt.installs, executable)
 			if tt.wantErr != "" {
 				if err == nil || err.Error() != tt.wantErr {
 					t.Errorf("Find() = %q, %v; want the error %q", got, err, tt.wantErr)
@@ -68,8 +128,8 @@ func TestFind(t *testing.T) {
 }
 
 func TestInstalledVersionAsksTheClaudeFindFinds(t *testing.T) {
-	// stub writes a claude at path that says it's version.
-	stub := func(path, version string) {
+	// stub writes a program at path that says it's version.
+	stub := func(path, version string) string {
 		t.Helper()
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
@@ -77,23 +137,37 @@ func TestInstalledVersionAsksTheClaudeFindFinds(t *testing.T) {
 		if err := os.WriteFile(path, []byte("#!/bin/sh\necho '"+version+" (Claude Code)'\n"), 0o700); err != nil {
 			t.Fatal(err)
 		}
+		return path
 	}
 	home := t.TempDir()
 	stub(filepath.Join(home, ".local", "bin", "claude"), "2.1.301")
-	onPath := filepath.Join(t.TempDir(), "claude")
-	stub(onPath, "2.1.302")
+	onPath := filepath.Dir(stub(filepath.Join(t.TempDir(), "claude"), "2.1.302"))
+	// switchboard, which would say it's a version no claude is, were it ever
+	// asked, and its claude link.
+	switchboard := stub(filepath.Join(t.TempDir(), "switchboard"), "9.9.9")
+	links := filepath.Dir(claudetest.Link(t, switchboard, filepath.Join(t.TempDir(), "claude")))
 	homeDir := func() (string, error) { return home, nil }
+	executable := func() (string, error) { return switchboard, nil }
 	tests := []struct {
-		name     string
-		lookPath func(string) (string, error)
-		want     string
+		name string
+		path string
+		want string
 	}{
-		{name: "on PATH", lookPath: func(string) (string, error) { return onPath, nil }, want: "2.1.302"},
-		{name: "in the home given, off PATH", lookPath: func(string) (string, error) { return "", exec.ErrNotFound }, want: "2.1.301"},
+		{name: "on PATH", path: onPath, want: "2.1.302"},
+		{name: "on PATH, past switchboard's claude link", path: links + string(filepath.ListSeparator) + onPath, want: "2.1.302"},
+		{name: "in the home given, off PATH", want: "2.1.301"},
+		{name: "in the home given, past switchboard's claude link, the only one on PATH", path: links, want: "2.1.301"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := claude.InstalledVersion(tt.lookPath, homeDir)(); got != tt.want {
+			getenv := func(key string) string {
+				if key == "PATH" {
+					return tt.path
+				}
+				return ""
+			}
+
+			if got := claude.InstalledVersion(getenv, homeDir, executable)(); got != tt.want {
 				t.Errorf("InstalledVersion()() = %q, want %q", got, tt.want)
 			}
 		})

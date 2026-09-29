@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -39,6 +38,13 @@ func TestNoCommandPrintsHelp(t *testing.T) {
 	got := run(t, testDeps(nil, t.TempDir()))
 	if got.code != 0 || !strings.Contains(got.stdout, "Usage:") || !strings.Contains(got.stdout, "accounts") {
 		t.Errorf("switchboard = %+v, want help listing the commands", got)
+	}
+}
+
+func TestThereIsNoShellIntegration(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "init", "zsh")
+	if want := `Error: unknown command "init" for "switchboard"`; got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, want) {
+		t.Errorf("switchboard init zsh = %+v, want exit status 1 and an error starting %q", got, want)
 	}
 }
 
@@ -95,10 +101,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "claude's arguments before --", args: []string{"run", "a prompt", "--", "--print"}, wantUsage: true},
 		{name: "an account without its id", args: []string{"run", "--account", ""}, wantUsage: true},
 		{name: "an account on claude's own login", args: []string{"run", "--account", "work", "--direct"}, wantUsage: true},
-		{name: "run when claude can't start", args: []string{"run", "--direct"}, wantUsage: false},
-		{name: "init without a shell", args: []string{"init"}, wantUsage: true},
-		{name: "init for another shell", args: []string{"init", "bash"}, wantUsage: true},
-		{name: "a prefix that can't start a name", args: []string{"init", "zsh", "--prefix=cx;"}, wantUsage: true},
+		{name: "run when claude can't be found", args: []string{"run", "--direct"}, wantUsage: false},
 		{name: "unknown service command", args: []string{"service", "start"}, wantUsage: true},
 		{name: "unexpected service install argument", args: []string{"service", "install", "extra"}, wantUsage: true},
 		{name: "unknown log level for the service", args: []string{"service", "install", "--log-level", "loud"}, wantUsage: true},
@@ -342,11 +345,12 @@ const testClaudeVersion = "2.1.300"
 // testDeps gives commands env as their whole environment, home as their home
 // directory, a stopped clock, a fixed Claude Code version and a notifier that
 // posts nothing, so no test reads the real ones, runs the real claude or
-// posts a notification. The switchboard binary can't be found, nor can
-// claude on PATH, and starting a program or running launchctl fails, unless
-// a test says otherwise; the system is macOS, for the user the test runs as,
-// who owns the token files it writes. Watch is the real one: a test's output
-// is never a terminal, so it fails before it would take one over.
+// posts a notification. The switchboard binary can't be found, so nor can
+// claude, which is found past it, and starting a program or running launchctl
+// fails, unless a test says otherwise; the system is macOS, for the user the
+// test runs as, who owns the token files it writes. Watch is the real one: a
+// test's output is never a terminal, so it fails before it would take one
+// over.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },
@@ -363,7 +367,6 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		ClaudeVersion: func() string { return testClaudeVersion },
 		Watch:         watch.Run,
 		Notifier:      &recordingNotifier{},
-		LookPath:      func(string) (string, error) { return "", exec.ErrNotFound },
 		Exec:          func(string, []string, []string) error { return errors.New("no test starts a program") },
 		Launchctl: func(context.Context, ...string) ([]byte, error) {
 			return nil, errors.New("no test runs launchctl")

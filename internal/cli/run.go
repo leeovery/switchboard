@@ -37,7 +37,16 @@ starts as if switchboard weren't there, and run says why. --direct starts
 Claude Code on its own login, without the router or a token, for what needs
 the login.
 
-Give Claude Code's own arguments after --, as in: switchboard run -- --resume`,
+Claude Code's local subcommands, such as doctor, mcp and setup-token, start
+as if switchboard weren't there, saying nothing: switchboard has no part in
+them. Only the first of Claude Code's arguments names one, so -p doctor is a
+prompt.
+
+Give Claude Code's own arguments after --, as in: switchboard run -- --resume
+
+Run by the name claude, as through a link named claude ahead of the real one
+on PATH, switchboard is switchboard run -- with every argument Claude Code's
+own, so claude --help is Claude Code's.`,
 		Args: opts.parseArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.run(cmd.Context(), cmd.ErrOrStderr(), opts, args)
@@ -63,20 +72,24 @@ func (o *runOptions) parseArgs(cmd *cobra.Command, args []string) error {
 }
 
 // run starts Claude Code with args in this process's place: through
-// switchboard, or, when it can't read its config or locate the state
-// directory the router's socket is in, as if switchboard weren't there.
+// switchboard, or as if switchboard weren't there, for one of Claude Code's
+// local subcommands, or when it can't read its config or locate the state
+// directory the router's socket is in.
 func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args []string) error {
 	// Without a home directory, only the install paths outside it are tried.
 	home, _ := a.HomeDir()
 	l := launch.Launcher{
 		Environ:      a.Environ(),
-		LookPath:     a.LookPath,
 		InstallPaths: claude.InstallPaths(home),
+		Executable:   a.Executable,
 		Exec:         a.Exec,
 		Stderr:       stderr,
 	}
-	if opts.direct {
+	switch {
+	case opts.direct:
 		return l.Direct(args)
+	case claude.IsLocal(args):
+		return l.Local(args)
 	}
 	cfg, err := a.loadConfig()
 	if err != nil {

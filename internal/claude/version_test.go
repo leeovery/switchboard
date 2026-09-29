@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -21,10 +20,12 @@ func TestInstalledCLIVersion(t *testing.T) {
 	notRunnable := filepath.Join(dir, "not-runnable", "claude")
 	first := filepath.Join(dir, "first", "claude")
 	second := filepath.Join(dir, "second", "claude")
+	onPath := filepath.Join(dir, "path", "claude")
+	switchboard := filepath.Join(dir, "switchboard")
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for path, mode := range map[string]os.FileMode{notRunnable: 0o600, first: 0o700, second: 0o700} {
+	for path, mode := range map[string]os.FileMode{notRunnable: 0o600, first: 0o700, second: 0o700, onPath: 0o700, switchboard: 0o700} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -32,7 +33,6 @@ func TestInstalledCLIVersion(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	const onPath = "/elsewhere/bin/claude"
 
 	tests := []struct {
 		name      string
@@ -91,16 +91,8 @@ func TestInstalledCLIVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var ran string
 			cli := installedCLI{
-				paths: tt.paths,
-				lookPath: func(file string) (string, error) {
-					if file != "claude" {
-						t.Errorf("lookPath(%q), want lookPath(%q)", file, "claude")
-					}
-					if !tt.pathHasIt {
-						return "", exec.ErrNotFound
-					}
-					return onPath, nil
-				},
+				paths:      tt.paths,
+				executable: func() (string, error) { return switchboard, nil },
 				output: func(ctx context.Context, _ []string, path string, args ...string) ([]byte, error) {
 					ran = path
 					if !slices.Equal(args, []string{"--version"}) {
@@ -111,6 +103,9 @@ func TestInstalledCLIVersion(t *testing.T) {
 					}
 					return []byte(tt.output), tt.outputErr
 				},
+			}
+			if tt.pathHasIt {
+				cli.pathList = filepath.Dir(onPath)
 			}
 
 			got, err := cli.version(t.Context())
@@ -126,23 +121,22 @@ func TestInstalledCLIVersion(t *testing.T) {
 
 func TestTheCLIRunsWithoutTheTokens(t *testing.T) {
 	tmp := t.TempDir()
-	installed := filepath.Join(tmp, "claude")
-	if err := os.WriteFile(installed, nil, 0o700); err != nil {
-		t.Fatal(err)
+	switchboard := filepath.Join(t.TempDir(), "switchboard")
+	for _, program := range []string{filepath.Join(tmp, "claude"), switchboard} {
+		if err := os.WriteFile(program, nil, 0o700); err != nil {
+			t.Fatal(err)
+		}
 	}
-	for name, value := range map[string]string{
+	vars := map[string]string{
 		"CLAUDE_TOKEN_WORK":       "test-token-work",
 		"CLAUDE_CODE_OAUTH_TOKEN": "test-token-oauth",
-		"PATH":                    "/usr/bin:/bin",
+		"PATH":                    tmp,
 		"HOME":                    "/home/tester",
 		"TMPDIR":                  tmp,
 		"LANG":                    "en_GB.UTF-8",
-	} {
-		t.Setenv(name, value)
 	}
 	var env []string
-	cli := systemCLI(func(string) (string, error) { return "", exec.ErrNotFound }, "/home/tester")
-	cli.paths = []string{installed}
+	cli := systemCLI(func(key string) string { return vars[key] }, "/home/tester", func() (string, error) { return switchboard, nil })
 	cli.output = func(_ context.Context, e []string, _ string, _ ...string) ([]byte, error) {
 		env = e
 		return []byte("2.1.300 (Claude Code)\n"), nil
@@ -151,7 +145,7 @@ func TestTheCLIRunsWithoutTheTokens(t *testing.T) {
 	if _, err := cli.version(t.Context()); err != nil {
 		t.Fatalf("version() error = %v", err)
 	}
-	if want := []string{"PATH=/usr/bin:/bin", "HOME=/home/tester", "TMPDIR=" + tmp, "LANG=en_GB.UTF-8"}; !slices.Equal(env, want) {
+	if want := []string{"PATH=" + tmp, "HOME=/home/tester", "TMPDIR=" + tmp, "LANG=en_GB.UTF-8"}; !slices.Equal(env, want) {
 		t.Errorf("claude --version ran with the environment %q, want %q alone", env, want)
 	}
 }

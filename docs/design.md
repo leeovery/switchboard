@@ -620,7 +620,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
-| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, and which models' thinking is bound to the account that produced it |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the config, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, and its words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
@@ -846,10 +846,19 @@ Each account:
   `switchboard: couldn't read the config (…) — starting claude without it`. `run` fails only
   when `claude` can't be found or can't start, or on a misused command line, such as `--account`
   naming an account that isn't configured, or has no usable token.
-- **Finding the real `claude`:** `run` looks along `PATH`, passing over any `claude` whose
-  resolved path is switchboard's own executable, then where its installers put it
+- **Claude Code's local subcommands:** `setup-token`, `update`, `upgrade`, `install`, `doctor`,
+  `mcp`, `plugin`, `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway` look after
+  Claude Code on this machine, or set up its login, and switchboard has no part in them. When the
+  first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't
+  there, environment and arguments untouched, an inherited pin included, and says nothing; the log
+  notes it at debug. `--direct` still starts it on Claude Code's own login. Only the first argument
+  counts: `claude -p doctor` is a prompt. Everything else goes through `run` as any session does,
+  background sessions (`claude --bg`), `agents`, `attach`, `respawn` and `ultrareview` among them.
+  `internal/claude` keeps the list.
+- **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
-  be run, and replaces itself with it (`exec`), so signals and the terminal behave as usual.
+  be run, passing over any `claude` that leads, links followed, to switchboard's own executable,
+  and replaces itself with it (`exec`), so signals and the terminal behave as usual.
   Probes claim the version of the `claude` found the same way, so the router, whose `PATH` is
   launchd's, finds it where its installers put it. Claude Code's arguments go after `--`,
   untouched and never logged; the log notes the decision: routed or direct, the router's state,
@@ -918,6 +927,7 @@ What's built but hasn't been seen against the real thing:
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
 - `claude doctor` with the link in place.
+- Background sessions (`claude --bg`) going through the router.
 
 ## Open questions
 

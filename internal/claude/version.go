@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"os"
 	"os/exec"
 	"regexp"
 	"sync"
@@ -33,21 +32,21 @@ var versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+`)
 
 // InstalledVersion returns what gives the version of the Claude Code CLI
 // installed here, such as "2.1.283", for a Prober to claim: the claude Find
-// finds, on PATH as lookPath searches it, else where its installers put it
-// for the home directory homeDir gives. The API rejects a version older than
-// a model's minimum ("Claude Code X does not support this model"), so a
-// pinned version would lose each new model's window the day it ships. What it
-// returns asks the CLI at most once an hour, so a process that runs for days
-// follows the CLI's updates. When the CLI doesn't answer within five seconds,
-// the version it last gave stands, or a floor version before it has given
-// one.
-func InstalledVersion(lookPath func(file string) (string, error), homeDir func() (string, error)) func() string {
+// finds, on the PATH getenv gives, else where its installers put it for the
+// home directory homeDir gives, passing over switchboard's own executable, as
+// executable gives it. The API rejects a version older than a model's minimum
+// ("Claude Code X does not support this model"), so a pinned version would
+// lose each new model's window the day it ships. What it returns asks the CLI
+// at most once an hour, so a process that runs for days follows the CLI's
+// updates. When the CLI doesn't answer within five seconds, the version it
+// last gave stands, or a floor version before it has given one.
+func InstalledVersion(getenv func(key string) string, homeDir, executable func() (string, error)) func() string {
 	installed := &versionCache{
 		ask: func() (string, error) {
 			// Without a home directory, only the install paths outside it are
 			// tried.
 			home, _ := homeDir()
-			return systemCLI(lookPath, home).version(context.Background())
+			return systemCLI(getenv, home, executable).version(context.Background())
 		},
 		now: time.Now,
 	}
@@ -99,21 +98,29 @@ func (c *versionCache) refresh() {
 // installedCLI finds and runs the claude command. Tests give it stand-ins, so
 // they never run the real one.
 type installedCLI struct {
-	// lookPath searches PATH, and paths are where installers put the binary,
-	// as Find takes them.
-	lookPath func(file string) (string, error)
-	paths    []string
+	// pathList is PATH's value, paths are where installers put the binary,
+	// and executable gives switchboard's own, as Find takes them.
+	pathList   string
+	paths      []string
+	executable func() (string, error)
 	// env is the environment the command runs in.
 	env    []string
 	output func(ctx context.Context, env []string, path string, args ...string) ([]byte, error)
 }
 
-// systemCLI is the claude command installed here, found on PATH as lookPath
-// searches it, else where its installers put it for the home directory home.
-// It runs in no more of this process's environment than it needs: the
-// router's holds every token.
-func systemCLI(lookPath func(file string) (string, error), home string) installedCLI {
-	return installedCLI{lookPath: lookPath, paths: InstallPaths(home), env: childenv.Minimal(os.Getenv), output: commandOutput}
+// systemCLI is the claude command installed here, found on the PATH getenv
+// gives, else where its installers put it for the home directory home,
+// passing over switchboard's own executable, as executable gives it. It runs
+// in no more of the environment getenv gives than it needs: the router's
+// holds every token.
+func systemCLI(getenv func(key string) string, home string, executable func() (string, error)) installedCLI {
+	return installedCLI{
+		pathList:   getenv("PATH"),
+		paths:      InstallPaths(home),
+		executable: executable,
+		env:        childenv.Minimal(getenv),
+		output:     commandOutput,
+	}
 }
 
 func commandOutput(ctx context.Context, env []string, path string, args ...string) ([]byte, error) {
@@ -137,7 +144,7 @@ func (c installedCLI) version(ctx context.Context) (string, error) {
 }
 
 func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
-	path, err := Find(c.lookPath, c.paths)
+	path, err := Find(c.pathList, c.paths, c.executable)
 	if err != nil {
 		return nil, err
 	}

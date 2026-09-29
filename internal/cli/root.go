@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -37,7 +38,8 @@ type Deps struct {
 	Environ func() []string
 	HomeDir func() (string, error)
 	// Executable returns the path of this switchboard binary, as
-	// os.Executable does.
+	// os.Executable does: what the LaunchAgent runs, and what run passes
+	// over as it looks for claude.
 	Executable func() (string, error)
 	Now        func() time.Time
 	// ClaudeVersion returns the Claude Code version that probes claim to be.
@@ -51,8 +53,6 @@ type Deps struct {
 	// FollowEvery is how often logs --follow looks for new lines. Zero means
 	// every half second.
 	FollowEvery time.Duration
-	// LookPath finds a program on PATH, as exec.LookPath does.
-	LookPath func(file string) (string, error)
 	// Exec replaces this process with the program at path, as launch.Exec
 	// does. It returns only when it fails.
 	Exec func(path string, argv, env []string) error
@@ -96,8 +96,23 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
 	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a),
-		newRunCommand(a), newInitCommand(a), newServiceCommand(a))
+		newRunCommand(a), newServiceCommand(a))
 	return root
+}
+
+// Args returns the arguments a command tree from NewRootCommand parses for a
+// process started as argv, as os.Args gives it: those after the program's
+// name, or, run by the name claude, as through the claude link, run's, every
+// one of them Claude Code's own, so claude --help is Claude Code's.
+func Args(argv []string) []string {
+	if len(argv) == 0 {
+		// Never nil, for which Cobra parses os.Args itself.
+		return []string{}
+	}
+	if filepath.Base(argv[0]) != claude.Command {
+		return argv[1:]
+	}
+	return append([]string{"run", "--"}, argv[1:]...)
 }
 
 // Execute runs a command tree from NewRootCommand and returns the process's
