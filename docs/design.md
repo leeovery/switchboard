@@ -1,9 +1,9 @@
 # Switchboard — design
 
 **Status:** the usage dashboard (one-off, and in watch mode with its desktop notifications),
-`status`, logging, and the router, with its scheduler, pins, state, limit handling and health,
-are built. The router's desktop notifications, launching (`run`, `init` and the service), and the
-dashboard reading the router come next.
+`status`, logging, and the router, with its scheduler, pins, state, limit handling, health and
+desktop notifications, are built. Launching (`run`, `init` and the service) and the dashboard
+reading the router come next.
 
 ## What it is
 
@@ -200,6 +200,44 @@ unhealthy once it has failed 5 of them at least, and half at least: `GET /health
 notes the turn, and the turn back, at warn and info. `status` and the dashboard show trouble
 loudly. Whether it should also fall back automatically is an open question.
 
+## Notifications
+
+The router sees each limit, move and return as it happens, whether or not a dashboard is open, so
+while it runs, the desktop notifications are its own. `[notifications]` in the config says which
+it posts, each key defaulting as shown:
+
+```toml
+[notifications]
+limits  = true   # an account hits a limit, and the sessions it moved
+room    = true   # an account has room again
+warning = 0.9    # a window passing this share of its limit; 0 turns it off
+moves   = false  # every other session move, such as after an idle hour or by pin
+```
+
+- **Limits:** a limit's notification waits 5 seconds for the sessions the limit moves off its
+  account, as their next requests come, then tells of them together:
+  `work · Work hit its Session limit, back at Mon 18:10 — 3 sessions moved to side · Side`. With
+  none moved, it says when no other account has room. When the account is back goes unsaid where
+  it would make the message longer than a banner shows. One notification a limit, however many
+  requests reach it.
+- **Room again:** an account that had no room for a request of any model, by its shared windows
+  or under a limit or refusal, and has some: `work · Work has room again`. The router looks at
+  the accounts on every event and every 15 seconds, so a limit lifting or a window resetting with
+  no traffic is noticed.
+- **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
+- **Moves:** each move a limit's notification doesn't tell of:
+  `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
+
+Room again and warnings compare an account with how it last stood, so neither tells of how the
+accounts stood as the router started, nor of an account's first reading. One notification an
+account goes out a minute at most: any other due within the minute is dropped, and the log says so
+at debug. One that fails to post is logged at warn, and dropped too. The log names accounts by id
+alone. Notifications never hold a request up: the router queues what happens, and posts from a
+goroutine of its own. `warning` must be 0, or more than 0 and less than 1.
+
+The dashboard in watch mode posts its own, of an account's return and a window passing 90%,
+until it reads the router.
+
 ## Logging
 
 Logs are for working out, after the fact, why a session went to an account, why a request failed,
@@ -245,9 +283,10 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token), which paths are routed, the session header |
 | `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
-| `internal/dashboard` | Rendering (Lip Gloss), watch mode (Bubble Tea) and desktop notifications |
+| `internal/dashboard` | Rendering (Lip Gloss), and watch mode (Bubble Tea) with its desktop notifications |
+| `internal/notify` | Posting desktop notifications, and the wording the router's and the dashboard's share |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back |
-| `internal/router` | The proxy and its replays, the scheduler, live account state, the router's health and the events it emits, and the control API |
+| `internal/router` | The proxy and its replays, the scheduler, live account state, the router's health, the events it emits and the notifications it posts, and the control API |
 | `internal/launch` | `run` and `init zsh` |
 | `internal/service` | The LaunchAgent |
 
@@ -279,7 +318,8 @@ token_env = "CLAUDE_TOKEN_WORK"    # environment variable holding the setup toke
 ```
 
 Unknown keys, duplicate ids and a config without accounts are errors, and so is the id `auto`, in
-any case, which `pin auto` takes to mean routing.
+any case, which `pin auto` takes to mean routing. An optional `[notifications]` table says which
+desktop notifications the router posts: see Notifications.
 
 ### Proxy rules
 
