@@ -49,10 +49,17 @@ func TestServiceInstallWithAnEnvFileAndAConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	config, err := os.ReadFile(s.srv.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "work.toml"), config, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	t.Chdir(dir)
 
 	got := run(t, s.srv.deps, "service", "install", "--env-file", "tokens.env", "--config", "work.toml")
-	wantWarning := "warning: other users can read the env file " + sourced + " (mode 0644), and it holds tokens: chmod 600 it\n"
+	wantWarning := "switchboard: other users can read the env file " + sourced + " (mode 0644), and it holds tokens: chmod 600 it\n"
 	if got.code != 0 || got.stderr != wantWarning {
 		t.Errorf("switchboard service install = %+v, want exit status 0, and on stderr\n%s", got, wantWarning)
 	}
@@ -62,6 +69,117 @@ func TestServiceInstallWithAnEnvFileAndAConfig(t *testing.T) {
 		"\t\t<string>--config</string>\n"+
 		"\t\t<string>"+filepath.Join(dir, "work.toml")+"</string>\n"+
 		"\t</array>")
+}
+
+func TestServiceInstallRefusesAConfigTheRouterCouldntServe(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "config.toml")
+	invalid := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	tests := []struct {
+		name    string
+		config  string
+		wantErr string
+	}{
+		{name: "missing", config: missing, wantErr: "Error: no config file at " + missing + "\n"},
+		{name: "invalid", config: invalid, wantErr: "Error: invalid config " + invalid + ":\n" + `account "work": token_env is required`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newServiceSetup(t)
+
+			got := run(t, s.srv.deps, "service", "install", "--config", tt.config)
+			if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, tt.wantErr) {
+				t.Errorf("switchboard service install = %+v, want exit status 1 and an error starting %q", got, tt.wantErr)
+			}
+			if s.launchd.calls != nil {
+				t.Errorf("ran launchctl %q, want it left alone", s.launchd.calls)
+			}
+			if _, err := os.Stat(s.plist); !os.IsNotExist(err) {
+				t.Errorf("the plist: %v, want none written", err)
+			}
+		})
+	}
+}
+
+func TestServiceInstallWarnsWhenTheRouterWouldHaveNoToken(t *testing.T) {
+	// Set up outside the bubble: the fake API's server waits on the network,
+	// which would keep the bubble's clock from moving.
+	s := newServiceSetup(t)
+	getenv := s.srv.deps.Getenv
+	s.srv.deps.Getenv = func(key string) string {
+		if strings.HasPrefix(key, "CLAUDE_TOKEN_") {
+			return ""
+		}
+		return getenv(key)
+	}
+	// Without a token, the router it starts has nothing to route to.
+	s.launchd.starts = false
+	synctest.Test(t, func(t *testing.T) {
+		got := run(t, s.srv.deps, "service", "install")
+		want := "switchboard: no account's token is set, and there's no --env-file to set them where the router runs: " +
+			"give --env-file a file that sets CLAUDE_TOKEN_WORK or CLAUDE_TOKEN_PERSONAL or CLAUDE_TOKEN_SIDE\n"
+		if got.code != 1 || !strings.HasPrefix(got.stderr, want) {
+			t.Errorf("switchboard service install = %+v, want exit status 1, and on stderr first\n%s", got, want)
+		}
+	})
+}
+
+func TestServiceInstallHasTheRouterLogAsAsked(t *testing.T) {
+	tests := []struct {
+		name  string
+		args  []string
+		env   map[string]string
+		wants []string
+	}{
+		{
+			name:  "at the level given",
+			args:  []string{"--log-level", "DEBUG"},
+			wants: []string{"\t\t<string>serve</string>\n\t\t<string>--log-level</string>\n\t\t<string>debug</string>\n\t</array>"},
+		},
+		{
+			name:  "at the level SWITCHBOARD_LOG_LEVEL names",
+			env:   map[string]string{"SWITCHBOARD_LOG_LEVEL": "warn"},
+			wants: []string{"<key>SWITCHBOARD_LOG_LEVEL</key>\n\t\t<string>warn</string>"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newServiceSetup(t)
+			getenv := s.srv.deps.Getenv
+			s.srv.deps.Getenv = func(key string) string {
+				if value, ok := tt.env[key]; ok {
+					return value
+				}
+				return getenv(key)
+			}
+
+			if got := run(t, s.srv.deps, append([]string{"service", "install"}, tt.args...)...); got.code != 0 {
+				t.Fatalf("switchboard service install = %+v, want exit status 0", got)
+			}
+			s.checkPlist(t, tt.wants...)
+		})
+	}
+}
+
+func TestServiceInstallNamesARelativeConfigAbsolute(t *testing.T) {
+	s := newServiceSetup(t)
+	dir := filepath.Dir(s.srv.config)
+	t.Chdir(dir)
+	getenv := s.srv.deps.Getenv
+	s.srv.deps.Getenv = func(key string) string {
+		if key == "SWITCHBOARD_CONFIG" {
+			return filepath.Base(s.srv.config)
+		}
+		return getenv(key)
+	}
+
+	if got := run(t, s.srv.deps, "service", "install"); got.code != 0 {
+		t.Fatalf("switchboard service install = %+v, want exit status 0", got)
+	}
+	absolute, err := filepath.Abs(filepath.Base(s.srv.config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.checkPlist(t, "<key>SWITCHBOARD_CONFIG</key>\n\t\t<string>"+absolute+"</string>")
 }
 
 func TestServiceInstallWhenTheRouterDoesntAnswer(t *testing.T) {

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
@@ -30,14 +32,18 @@ switchboard serve at login, and again whenever it stops.`,
 }
 
 func newServiceInstallCommand(a *app) *cobra.Command {
-	var envFile string
+	var (
+		envFile  string
+		logLevel slog.Leveler
+	)
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install the LaunchAgent, which starts the router",
 		Long: `Install the LaunchAgent, which starts the router now, at every login, and
 whenever it stops. It runs this switchboard binary, so install that with go
 install first. The router serves the config --config gives, else the one it
-finds, as the CLI does.
+finds, as the CLI does; a config the router couldn't serve fails the install.
+It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
 
 A LaunchAgent doesn't see the shell's environment, where the accounts' tokens
 are. --env-file names a file the shell sources for them: zsh sources it too,
@@ -46,10 +52,13 @@ directory writable by anyone else. After the tokens change, switchboard
 service restart picks them up.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.installService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), envFile)
+			opts := service.InstallOptions{EnvFile: envFile, LogLevel: levelFlag{&logLevel}.String()}
+			return a.installService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), opts)
 		},
 	}
 	cmd.Flags().StringVar(&envFile, "env-file", "", "have zsh source `FILE`, which sets the accounts' tokens, before the router starts")
+	cmd.Flags().Var(levelFlag{&logLevel}, "log-level",
+		"have the router log at `LEVEL` and above: debug, info, warn or error (default $SWITCHBOARD_LOG_LEVEL, else info)")
 	return cmd
 }
 
@@ -108,25 +117,28 @@ func (a *app) service() (*service.Service, error) {
 	})
 }
 
-// installService installs the LaunchAgent to run this switchboard binary,
-// and says how the router it starts answers.
-func (a *app) installService(ctx context.Context, out, errOut io.Writer, envFile string) error {
+// installService installs the LaunchAgent to run this switchboard binary as
+// opts says, serving the config the CLI finds, once it has read the config
+// as the router would, and says how the router it starts answers.
+func (a *app) installService(ctx context.Context, out, errOut io.Writer, opts service.InstallOptions) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	exe, err := a.Executable()
+	cfg, err := a.loadConfig()
 	if err != nil {
+		return err
+	}
+	if opts.Executable, err = a.Executable(); err != nil {
 		return fmt.Errorf("find this switchboard binary: %w", err)
 	}
-	installed, err := svc.Install(ctx, service.InstallOptions{Executable: exe, EnvFile: envFile, Config: a.configPath})
+	opts.Config, opts.Accounts = a.configPath, cfg.Accounts
+	installed, err := svc.Install(ctx, opts)
 	if err != nil {
 		return err
 	}
 	for _, warning := range installed.Warnings {
-		if _, err := fmt.Fprintln(errOut, "warning: "+warning); err != nil {
-			return err
-		}
+		launch.Notice(errOut, warning)
 	}
 	if _, err := fmt.Fprintln(out, "installed "+svc.Plist()); err != nil {
 		return err

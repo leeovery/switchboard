@@ -28,8 +28,15 @@ const (
 )
 
 // carried are the variables the service is given as they're set where it's
-// installed, so it finds its config and its state where the CLI does.
-var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", "SWITCHBOARD_CONFIG"}
+// installed, so it finds its config and its state where the CLI does, and
+// logs as much as it would.
+var carried = []string{"XDG_CONFIG_HOME", "XDG_STATE_HOME", configVariable, "SWITCHBOARD_LOG_LEVEL"}
+
+// configVariable names the config file, which can be named relative to where
+// the service is installed: it's carried absolute, as launchd runs the router
+// elsewhere. XDG's directories are carried as they stand, as switchboard
+// ignores a relative one, the router and the CLI alike.
+const configVariable = "SWITCHBOARD_CONFIG"
 
 // agent is the LaunchAgent, as its plist describes it.
 type agent struct {
@@ -51,24 +58,50 @@ type variable struct {
 	Name, Value string
 }
 
-// agent describes the LaunchAgent that serves with the switchboard at
-// binary: through zsh sourcing envFile first, when there's one, and serving
-// the config file at config, when there's one.
-func (s *Service) agent(binary, envFile, config string) agent {
-	program := []string{binary, "serve"}
-	if envFile != "" {
-		program = []string{zsh, "-f", "-c", loadEnv, "switchboard", envFile, binary}
+// agent describes the LaunchAgent that serves as opts says, with the
+// switchboard binary and env file, if any, as prepare finds them: through zsh
+// sourcing the env file first, when there's one, and with the config file and
+// the log level given, when they are.
+func (s *Service) agent(opts InstallOptions) (agent, error) {
+	program := []string{opts.Executable, "serve"}
+	if opts.EnvFile != "" {
+		program = []string{zsh, "-f", "-c", loadEnv, "switchboard", opts.EnvFile, opts.Executable}
+	}
+	config, err := absolute(opts.Config)
+	if err != nil {
+		return agent{}, err
 	}
 	if config != "" {
 		program = append(program, "--config", config)
 	}
+	if opts.LogLevel != "" {
+		program = append(program, "--log-level", opts.LogLevel)
+	}
+	environment, err := s.environment()
+	if err != nil {
+		return agent{}, err
+	}
+	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log(), ExitTimeOut: int(exitTimeout / time.Second)}, nil
+}
+
+// environment is the variables carried that are set where the service is
+// installed, the config file's made absolute.
+func (s *Service) environment() ([]variable, error) {
 	var environment []variable
 	for _, name := range carried {
-		if value := s.cfg.Getenv(name); value != "" {
-			environment = append(environment, variable{Name: name, Value: value})
+		value := s.cfg.Getenv(name)
+		if value == "" {
+			continue
 		}
+		if name == configVariable {
+			var err error
+			if value, err = absolute(value); err != nil {
+				return nil, err
+			}
+		}
+		environment = append(environment, variable{Name: name, Value: value})
 	}
-	return agent{Label: Label, Program: program, Environment: environment, Log: s.Log(), ExitTimeOut: int(exitTimeout / time.Second)}
+	return environment, nil
 }
 
 // plist is the agent's plist, which launchd loads it from: it runs the

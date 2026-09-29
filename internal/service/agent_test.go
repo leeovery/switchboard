@@ -16,22 +16,26 @@ func TestPlist(t *testing.T) {
 	// The link Homebrew puts on PATH, which the plist names as it is.
 	const binary = "/opt/homebrew/bin/switchboard"
 	tests := []struct {
-		name    string
-		env     map[string]string
-		envFile string
-		config  string
+		name string
+		env  map[string]string
+		opts service.InstallOptions
 	}{
-		{name: "agent"},
-		{name: "agent-env-file", envFile: "/Users/tester/.config/tokens.env"},
+		{name: "agent", opts: service.InstallOptions{Executable: binary}},
+		{name: "agent-env-file", opts: service.InstallOptions{Executable: binary, EnvFile: "/Users/tester/.config/tokens.env"}},
 		{
 			name: "agent-xdg",
 			env: map[string]string{
-				"XDG_CONFIG_HOME":    "/Users/tester/.config",
-				"XDG_STATE_HOME":     "/Users/tester/.local/state",
-				"SWITCHBOARD_CONFIG": "/Users/tester/.config/switchboard/work.toml",
+				"XDG_CONFIG_HOME":       "/Users/tester/.config",
+				"XDG_STATE_HOME":        "/Users/tester/.local/state",
+				"SWITCHBOARD_CONFIG":    "/Users/tester/.config/switchboard/work.toml",
+				"SWITCHBOARD_LOG_LEVEL": "warn",
 			},
-			envFile: "/Users/tester/.config/tokens.env",
-			config:  "/Users/tester/switchboard & co/config.toml",
+			opts: service.InstallOptions{
+				Executable: binary,
+				EnvFile:    "/Users/tester/.config/tokens.env",
+				Config:     "/Users/tester/switchboard & co/config.toml",
+				LogLevel:   "debug",
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -42,7 +46,7 @@ func TestPlist(t *testing.T) {
 				Getenv:   func(key string) string { return tt.env[key] },
 			})
 
-			got, err := svc.PlistOf(binary, tt.envFile, tt.config)
+			got, err := svc.PlistOf(tt.opts)
 			if err != nil {
 				t.Fatalf("PlistOf() error = %v", err)
 			}
@@ -89,12 +93,15 @@ func TestTheEnvFileLauncherServesWithTheTokens(t *testing.T) {
 	svc := newService(t, service.Config{Home: t.TempDir(), StateDir: t.TempDir(), Getenv: func(string) string { return "" }})
 	config := filepath.Join(dir, "my config.toml")
 
-	program := svc.ProgramOf(binary, envFile, config)
+	program, err := svc.ProgramOf(service.InstallOptions{Executable: binary, EnvFile: envFile, Config: config, LogLevel: "debug"})
+	if err != nil {
+		t.Fatalf("ProgramOf() error = %v", err)
+	}
 	cmd := exec.CommandContext(t.Context(), program[0], program[1:]...)
 	cmd.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin"}
 
 	out, err := cmd.CombinedOutput()
-	if want := "serve\n--config\n" + config + "\ntoken=test-token-work\nzshenv=unread\n"; err != nil || string(out) != want {
+	if want := "serve\n--config\n" + config + "\n--log-level\ndebug\ntoken=test-token-work\nzshenv=unread\n"; err != nil || string(out) != want {
 		t.Errorf("launchd's program printed\n%s(%v)\nwant\n%s", out, err, want)
 	}
 }

@@ -90,6 +90,8 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "a prefix that can't start a name", args: []string{"init", "zsh", "--prefix=cx;"}, wantUsage: true},
 		{name: "unknown service command", args: []string{"service", "start"}, wantUsage: true},
 		{name: "unexpected service install argument", args: []string{"service", "install", "extra"}, wantUsage: true},
+		{name: "unknown log level for the service", args: []string{"service", "install", "--log-level", "loud"}, wantUsage: true},
+		{name: "service install without a config", args: []string{"service", "install", "--config", "missing.toml"}, wantUsage: false},
 		{name: "service install without launchctl", args: []string{"service", "install"}, wantUsage: false},
 	}
 	for _, tt := range tests {

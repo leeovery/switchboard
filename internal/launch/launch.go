@@ -91,7 +91,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("")
 		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
-		notice(l.Stderr, "the router "+state.String(), "connecting directly on "+title(c.account))
+		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	}
 	return l.exec(path, args, env)
 }
@@ -131,13 +131,16 @@ func (l Launcher) unaided(path string, args []string, couldnt string, err error)
 // line says, and what happens instead, such as "switchboard: couldn't read
 // the config (no config file at …) — starting claude without it".
 func Warn(w io.Writer, couldnt string, err error, instead string) {
-	notice(w, couldnt+" ("+firstLine(err)+")", instead)
+	Notice(w, couldnt+" ("+firstLine(err)+") — "+instead)
 }
 
-// notice tells w, in a line, what's wrong and what happens instead. What
-// happens goes ahead all the same, so a line that can't be written is let go.
-func notice(w io.Writer, trouble, instead string) {
-	_, _ = fmt.Fprintf(w, "switchboard: %s — %s\n", trouble, instead)
+// Notice tells w what switchboard would have the user know, in a line of its
+// own, such as "switchboard: the router isn't running — connecting directly
+// on work · Work": every notice switchboard gives on stderr reads so. What
+// it's about goes ahead all the same, so a line that can't be written is let
+// go.
+func Notice(w io.Writer, text string) {
+	_, _ = fmt.Fprintf(w, "switchboard: %s\n", text)
 }
 
 // firstLine is the first line of err's text, which is enough for a notice:

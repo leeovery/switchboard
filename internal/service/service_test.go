@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
@@ -364,6 +366,66 @@ func writeEnvFile(t *testing.T, path string, mode os.FileMode) {
 	}
 	if err := os.Chmod(path, mode); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInstallWarnsWhenTheRouterWouldHaveNoToken(t *testing.T) {
+	accounts := config.Accounts{
+		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
+		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
+	}
+	const warning = "no account's token is set, and there's no --env-file to set them where the router runs: " +
+		"give --env-file a file that sets CLAUDE_TOKEN_WORK or CLAUDE_TOKEN_SIDE"
+	tests := []struct {
+		name    string
+		env     map[string]string
+		envFile bool
+		want    []string
+	}{
+		{name: "none set, and no env file", env: map[string]string{"CLAUDE_TOKEN_WORK": " "}, want: []string{warning}},
+		{name: "one set", env: map[string]string{"CLAUDE_TOKEN_SIDE": "test-token-side"}},
+		{name: "none set, but an env file", envFile: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, tt.env, upOnceStarted(4242))
+			opts := service.InstallOptions{Executable: s.binary, Accounts: accounts}
+			if tt.envFile {
+				s.as(t, os.Getuid())
+				opts.EnvFile = filepath.Join(s.root, "tokens.env")
+				writeEnvFile(t, opts.EnvFile, 0o600)
+			}
+
+			installed, err := s.svc.Install(t.Context(), opts)
+			if err != nil {
+				t.Fatalf("Install() error = %v", err)
+			}
+			if !reflect.DeepEqual(installed.Warnings, tt.want) {
+				t.Errorf("warned %q, want %q", installed.Warnings, tt.want)
+			}
+		})
+	}
+}
+
+func TestInstallCarriesTheConfigVariableAbsolute(t *testing.T) {
+	s := newSetup(t, map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "XDG_STATE_HOME": "state"}, upOnceStarted(4242))
+	t.Chdir(s.root)
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	plist, err := os.ReadFile(s.plist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"<key>SWITCHBOARD_CONFIG</key>\n\t\t<string>" + filepath.Join(s.root, "work.toml") + "</string>",
+		// switchboard ignores a relative XDG directory, the router as the CLI.
+		"<key>XDG_STATE_HOME</key>\n\t\t<string>state</string>",
+	} {
+		if !strings.Contains(string(plist), want) {
+			t.Errorf("the plist reads\n%s\nwant it to hold\n%s", plist, want)
+		}
 	}
 }
 
@@ -723,7 +785,7 @@ func (s *setup) as(t *testing.T, uid int) {
 // all.
 func (s *setup) checkPlist(t *testing.T, binary, envFile, config string) {
 	t.Helper()
-	want, err := s.svc.PlistOf(binary, envFile, config)
+	want, err := s.svc.PlistOf(service.InstallOptions{Executable: binary, EnvFile: envFile, Config: config})
 	if err != nil {
 		t.Fatal(err)
 	}
