@@ -54,6 +54,22 @@ func nextFetch(doc status.Document, read time.Time, wait time.Duration) time.Tim
 	return slices.MinFunc(due, time.Time.Compare)
 }
 
+// rereadAfterReset returns when the first window in doc to reset whose grace
+// period runs on past since wants reading again, a grace period after it
+// resets, or zero when none does.
+func rereadAfterReset(doc status.Document, since time.Time) time.Time {
+	var first time.Time
+	for _, a := range doc.Accounts {
+		for _, w := range a.Windows {
+			due := w.ResetsAt.Add(resetGrace)
+			if !w.ResetsAt.IsZero() && due.After(since) && (first.IsZero() || due.Before(first)) {
+				first = due
+			}
+		}
+	}
+	return first
+}
+
 // incomplete reports whether a read of doc failed in part: an account wasn't
 // read in full, in a way another try might mend. A missing token isn't one: it
 // needs the user, and retrying would only probe every other account again.
