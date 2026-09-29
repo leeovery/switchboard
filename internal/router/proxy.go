@@ -15,12 +15,13 @@ import (
 	"time"
 )
 
+// PinHeader pins a request to an account, by id: run --account sets it
+// through ANTHROPIC_CUSTOM_HEADERS. It never goes upstream.
+const PinHeader = "X-Switchboard-Account"
+
 const (
 	// maxBody caps the body of a routed request, which is held in memory.
 	maxBody = 64 << 20
-	// pinHeader pins a request to an account, by id: run --account sets it
-	// through ANTHROPIC_CUSTOM_HEADERS. It never goes upstream.
-	pinHeader = "X-Switchboard-Account"
 	// sessionShown is how many characters of a session's id the log shows.
 	sessionShown = 8
 	// refusalShown is how many characters of the upstream's reason for
@@ -118,7 +119,7 @@ func (p *proxy) passThrough(w http.ResponseWriter, r *http.Request) {
 // pin returns the account a request's pin header names, when it names one the
 // router can send on. It warns of a pin it ignores.
 func (p *proxy) pin(r *http.Request, ex *exchange) string {
-	id := r.Header.Get(pinHeader)
+	id := r.Header.Get(PinHeader)
 	if id == "" {
 		return ""
 	}
@@ -186,7 +187,7 @@ func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 	// the query, so the upstream gets it as the client sent it.
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(p.upstream)
-	pr.Out.Header.Del(pinHeader)
+	pr.Out.Header.Del(PinHeader)
 }
 
 // refusal is the upstream refusing the token of the account a routed request

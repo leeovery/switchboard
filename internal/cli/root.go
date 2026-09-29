@@ -21,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -29,11 +30,15 @@ import (
 type Deps struct {
 	Version string
 	Getenv  func(key string) string
-	// Environ lists the whole environment, as os.Environ does, for reading
-	// which colours the terminal shows.
+	// Environ lists the whole environment, as os.Environ does: the one run
+	// starts Claude Code in, and where the dashboard reads which colours the
+	// terminal shows.
 	Environ func() []string
 	HomeDir func() (string, error)
-	Now     func() time.Time
+	// Executable returns the path of this switchboard binary, as
+	// os.Executable does.
+	Executable func() (string, error)
+	Now        func() time.Time
 	// ClaudeVersion returns the Claude Code version that probes claim to be.
 	// Every read asks it, as a watch can outlive the version it started with.
 	ClaudeVersion func() string
@@ -45,6 +50,17 @@ type Deps struct {
 	// FollowEvery is how often logs --follow looks for new lines. Zero means
 	// every half second.
 	FollowEvery time.Duration
+	// LookPath finds a program on PATH, as exec.LookPath does.
+	LookPath func(file string) (string, error)
+	// Exec replaces this process with the program at path, as launch.Exec
+	// does. It returns only when it fails.
+	Exec func(path string, argv, env []string) error
+	// Launchctl runs launchctl, as service.Launchctl does.
+	Launchctl service.Runner
+	// GOOS is the operating system, as runtime.GOOS names it, and UID the
+	// user's id.
+	GOOS string
+	UID  int
 }
 
 // Notifier posts a desktop notification.
@@ -78,7 +94,8 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
-	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a))
+	root.AddCommand(newAccountsCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a),
+		newRunCommand(a), newInitCommand(a), newServiceCommand(a))
 	return root
 }
 

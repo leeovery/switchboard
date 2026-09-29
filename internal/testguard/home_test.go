@@ -124,6 +124,98 @@ func TestChangesToTheRealConfigThroughLinks(t *testing.T) {
 	}
 }
 
+func TestChangesToTheRealLaunchAgents(t *testing.T) {
+	agent := filepath.Join(launchAgentsDir, "io.github.leeovery.switchboard.plist")
+	other := filepath.Join(launchAgentsDir, "com.example.other.plist")
+	tests := []struct {
+		name string
+		// files are what the home holds before, by path from it.
+		files []string
+		// change changes the home at home.
+		change func(t *testing.T, home string)
+		want   []string
+	}{
+		{
+			name:   "nothing",
+			files:  []string{agent, other},
+			change: func(*testing.T, string) {},
+		},
+		{
+			name:  "installed where there was none",
+			files: []string{other},
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, agent), "<plist/>\n")
+			},
+			want: []string{"the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was created"},
+		},
+		{
+			name:  "rewritten",
+			files: []string{agent},
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, agent), "<plist version=\"1.0\"/>\n")
+			},
+			want: []string{"the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was modified"},
+		},
+		{
+			name:  "removed",
+			files: []string{agent},
+			change: func(t *testing.T, home string) {
+				if err := os.Remove(filepath.Join(home, agent)); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: []string{"the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was removed"},
+		},
+		{
+			name: "any file naming switchboard, in any case",
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, launchAgentsDir, "com.example.Switchboard-helper.plist"), "<plist/>\n")
+			},
+			want: []string{"the real ~/Library/LaunchAgents/com.example.Switchboard-helper.plist was created"},
+		},
+		{
+			name:  "another program's",
+			files: []string{agent, other},
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, other), "<plist version=\"1.0\"/>\n")
+				write(t, filepath.Join(home, launchAgentsDir, "com.example.new.plist"), "<plist/>\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			for _, file := range tt.files {
+				write(t, filepath.Join(home, file), "<plist/>\n")
+			}
+			backdate(t, home)
+			watched := watchHome(home)
+
+			tt.change(t, home)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChangesToTheRealLaunchAgentThroughALink(t *testing.T) {
+	home, dotfiles := t.TempDir(), t.TempDir()
+	kept := filepath.Join(dotfiles, "io.github.leeovery.switchboard.plist")
+	write(t, kept, "<plist/>\n")
+	symlink(t, kept, filepath.Join(home, launchAgentsDir, "io.github.leeovery.switchboard.plist"))
+	backdate(t, dotfiles)
+	watched := watchHome(home)
+
+	write(t, kept, "<plist version=\"1.0\"/>\n")
+
+	want := []string{"the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was modified"}
+	if got := watched.changes(); !slices.Equal(got, want) {
+		t.Errorf("changes() = %q, want %q", got, want)
+	}
+}
+
 func TestTheRealStateDirectoryAppearing(t *testing.T) {
 	tests := []struct {
 		name string

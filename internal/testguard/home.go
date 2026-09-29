@@ -4,21 +4,26 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
-// switchboard's directories in the real home.
+// switchboard's directories in the real home, and the directory its
+// LaunchAgent goes in.
 var (
-	configDir = filepath.Join(".config", "switchboard")
-	stateDir  = filepath.Join(".local", "state", "switchboard")
+	configDir       = filepath.Join(".config", "switchboard")
+	stateDir        = filepath.Join(".local", "state", "switchboard")
+	launchAgentsDir = filepath.Join("Library", "LaunchAgents")
 )
 
-// realHome watches switchboard's directories in the real home, each as
-// closely as a live switchboard running alongside the tests allows. Nothing
-// live writes the config, so any change there is a test's. A live router
-// writes its state as it runs, its logs and state.json among it, so only the
-// state directory appearing is a test's; and the OS sandbox denies a test any
+// realHome watches switchboard's directories in the real home, and its files
+// among the LaunchAgents, each as closely as a live switchboard running
+// alongside the tests allows. Nothing live writes the config or a
+// LaunchAgent, so any change to either is a test's. A live router writes its
+// state as it runs, its logs and state.json among it, so only the state
+// directory appearing is a test's; and the OS sandbox denies a test any
 // write there anyway.
 type realHome struct {
 	// dir is the real home, "" when there's none to watch.
@@ -27,13 +32,16 @@ type realHome struct {
 	config snapshot
 	// hadState is whether the state directory was there as they began.
 	hadState bool
+	// agents is what the LaunchAgents directory held of switchboard's as the
+	// tests began.
+	agents snapshot
 }
 
 func watchHome(dir string) realHome {
 	if dir == "" {
 		return realHome{}
 	}
-	return realHome{dir: dir, config: take(dir, configDir), hadState: exists(filepath.Join(dir, stateDir))}
+	return realHome{dir: dir, config: take(dir, configDir), hadState: exists(filepath.Join(dir, stateDir)), agents: takeAgents(dir)}
 }
 
 // changes lists what's changed in the real home that a test would have
@@ -43,10 +51,22 @@ func (h realHome) changes() []string {
 		return nil
 	}
 	lines := diff(h.config, take(h.dir, configDir))
+	lines = append(lines, diff(h.agents, takeAgents(h.dir))...)
 	if !h.hadState && exists(filepath.Join(h.dir, stateDir)) {
 		lines = append(lines, "the real ~/"+filepath.ToSlash(stateDir)+" appeared")
 	}
 	return lines
+}
+
+// takeAgents notes the files in home's LaunchAgents directory whose names
+// mention switchboard. Only those: other programs add and change their own as
+// they please.
+func takeAgents(home string) snapshot {
+	agents := take(home, launchAgentsDir)
+	maps.DeleteFunc(agents, func(file string, _ entry) bool {
+		return !strings.Contains(strings.ToLower(path.Base(file)), "switchboard")
+	})
+	return agents
 }
 
 func exists(path string) bool {

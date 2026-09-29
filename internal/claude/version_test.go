@@ -287,8 +287,8 @@ func TestInstallPaths(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := installPaths(tt.home); !slices.Equal(got, tt.want) {
-				t.Errorf("installPaths(%q) = %q, want %q", tt.home, got, tt.want)
+			if got := InstallPaths(tt.home); !slices.Equal(got, tt.want) {
+				t.Errorf("InstallPaths(%q) = %q, want %q", tt.home, got, tt.want)
 			}
 		})
 	}

@@ -2,11 +2,13 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -77,6 +79,17 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "unexpected serve argument", args: []string{"serve", "extra"}, wantUsage: true},
 		{name: "unknown log level", args: []string{"serve", "--log-level", "loud"}, wantUsage: true},
 		{name: "invalid config for serve", args: []string{"serve", "--config", invalid}, wantUsage: false},
+		{name: "claude's flags without --", args: []string{"run", "--resume"}, wantUsage: true},
+		{name: "claude's arguments before --", args: []string{"run", "a prompt", "--", "--print"}, wantUsage: true},
+		{name: "an account without its id", args: []string{"run", "--account", ""}, wantUsage: true},
+		{name: "an account on claude's own login", args: []string{"run", "--account", "work", "--direct"}, wantUsage: true},
+		{name: "run when claude can't start", args: []string{"run", "--direct"}, wantUsage: false},
+		{name: "init without a shell", args: []string{"init"}, wantUsage: true},
+		{name: "init for another shell", args: []string{"init", "bash"}, wantUsage: true},
+		{name: "a prefix that can't start a name", args: []string{"init", "zsh", "--prefix=cx;"}, wantUsage: true},
+		{name: "unknown service command", args: []string{"service", "start"}, wantUsage: true},
+		{name: "unexpected service install argument", args: []string{"service", "install", "extra"}, wantUsage: true},
+		{name: "service install without launchctl", args: []string{"service", "install"}, wantUsage: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -305,8 +318,11 @@ const testClaudeVersion = "2.1.300"
 // testDeps gives commands env as their whole environment, home as their home
 // directory, a stopped clock, a fixed Claude Code version and a notifier that
 // posts nothing, so no test reads the real ones, runs the real claude or
-// posts a notification. Watch is the real one: a test's output is never a
-// terminal, so it fails before it would take one over.
+// posts a notification. The switchboard binary can't be found, nor can
+// claude on PATH, and starting a program or running launchctl fails, unless
+// a test says otherwise; the system is macOS, for the user 501. Watch is the
+// real one: a test's output is never a terminal, so it fails before it would
+// take one over.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },
@@ -318,10 +334,18 @@ func testDeps(env map[string]string, home string) cli.Deps {
 			return environ
 		},
 		HomeDir:       func() (string, error) { return home, nil },
+		Executable:    func() (string, error) { return "", errors.New("no test knows its switchboard binary") },
 		Now:           func() time.Time { return testNow },
 		ClaudeVersion: func() string { return testClaudeVersion },
 		Watch:         watch.Run,
 		Notifier:      &recordingNotifier{},
+		LookPath:      func(string) (string, error) { return "", exec.ErrNotFound },
+		Exec:          func(string, []string, []string) error { return errors.New("no test starts a program") },
+		Launchctl: func(context.Context, ...string) ([]byte, error) {
+			return nil, errors.New("no test runs launchctl")
+		},
+		GOOS: "darwin",
+		UID:  501,
 	}
 }
 
