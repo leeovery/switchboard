@@ -39,16 +39,17 @@ type Client struct {
 }
 
 // NewClient returns a client of the router whose control socket is at path.
+// It dials the socket with http.DefaultTransport's dialer, which tests guard
+// every dial of, and asks no proxy.
 func NewClient(path string) *Client {
-	var dialer net.Dialer
-	return &Client{http: &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return dialer.DialContext(ctx, "unix", path)
-			},
-			DisableKeepAlives: true,
-		},
-	}}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	dial := transport.DialContext
+	transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return dial(ctx, "unix", path)
+	}
+	transport.Proxy = nil
+	transport.DisableKeepAlives = true
+	return &Client{http: &http.Client{Transport: transport}}
 }
 
 // Health asks whether the router is alive, and which it is.

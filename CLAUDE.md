@@ -57,8 +57,9 @@ notifications. Ever.
   switchboard file in the real `~/Library/LaunchAgents` appeared or changed fails, even when
   every test passed. Its own tests fail a package without that `TestMain`, a change to the
   environment anywhere but `testguard`, a process started outside the runners its allow-list
-  names, and production code that imports `os/user`, as `HomeDir` is injected, or reads the
-  environment as its package initialises, before `TestMain` runs.
+  names, an `http.Transport` made from scratch rather than cloned from `http.DefaultTransport`,
+  as the guard sees no dial of its, and production code that imports `os/user`, as `HomeDir` is
+  injected, or reads the environment as its package initialises, before `TestMain` runs.
 - **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS
   sandbox (`scripts/isolation.sb`) that denies the network beyond loopback, unix sockets outside
   the temporary directory, the router's port, 4747, either way, writes into the home directory

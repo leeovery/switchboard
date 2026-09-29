@@ -49,6 +49,7 @@ const (
 	processFix     = "start it in a runner tests replace, and add that runner to processStarters in " + allowListFile
 	userFix        = "take the home directory from the injected HomeDir, which follows HOME"
 	earlyReadFix   = "read it when it's needed, through the injected getenv or HomeDir"
+	transportFix   = "clone http.DefaultTransport, whose dials testguard guards, and change the clone"
 )
 
 // target is some of a package's functions: its import path and their names.
@@ -71,6 +72,9 @@ var (
 		{importPath: "os", names: []string{"Getenv", "LookupEnv", "Environ", "ExpandEnv", "UserHomeDir", "UserConfigDir", "UserCacheDir"}},
 		{importPath: "syscall", names: []string{"Getenv", "Environ"}},
 	}
+	// transports is the type a transport is made of, which dials past
+	// testguard's guard made from scratch.
+	transports = []target{{importPath: "net/http", names: []string{"Transport"}}}
 )
 
 func TestEveryPackageRunsItsTestsThroughTheGuard(t *testing.T) {
@@ -91,6 +95,10 @@ func TestProductionCodeDoesntImportOSUser(t *testing.T) {
 
 func TestProductionCodeReadsNoEnvironmentAsItsPackageInitialises(t *testing.T) {
 	reportEach(t, earlyEnvironmentReads(parseModule(t, moduleRoot(t))))
+}
+
+func TestEveryTransportIsClonedFromTheDefault(t *testing.T) {
+	reportEach(t, transportsMade(parseModule(t, moduleRoot(t))))
 }
 
 func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
@@ -147,6 +155,16 @@ func TestTheSourceGuardsFindWhatTheyGuardAgainst(t *testing.T) {
 				"early/early.go:13: os.ExpandEnv reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
 				"early/early.go:16: os.UserHomeDir reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
 				"early/early.go:25: os.Environ reads the environment as the package initialises, before testguard has isolated it; " + earlyReadFix,
+			},
+		},
+		{
+			name: "transportsMade",
+			got:  transportsMade(files),
+			want: []string{
+				"transport/transport.go:5: http.Transport made from scratch dials past testguard's guard; " + transportFix,
+				"transport/transport.go:8: http.Transport made from scratch dials past testguard's guard; " + transportFix,
+				"transport/transport.go:9: http.Transport made from scratch dials past testguard's guard; " + transportFix,
+				"transport/transport_test.go:13: http.Transport made from scratch dials past testguard's guard; " + transportFix,
 			},
 		},
 	}
@@ -340,6 +358,44 @@ func init() {
 
 func later() string { return os.Getenv("HOME") }
 `,
+	"transport/transport.go": `package transport
+
+import "net/http"
+
+var fresh = &http.Transport{}
+
+func made() {
+	_ = new(http.Transport)
+	var zero http.Transport
+	_ = &zero
+}
+
+func cloned() *http.Transport {
+	return http.DefaultTransport.(*http.Transport).Clone()
+}
+
+func takes(*http.Transport) {}
+`,
+	"transport/transport_test.go": `package transport
+
+import (
+	"net/http"
+	"os"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/testguard"
+)
+
+func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }
+
+func TestSomething(t *testing.T) { _ = &http.Client{Transport: &http.Transport{DisableCompression: true}} }
+`,
+	"internal/testguard/dial_test.go": `package testguard
+
+import "net/http"
+
+var guarded = &http.Transport{}
+`,
 }
 
 // unguardedPackages finds each package with tests whose TestMain doesn't run
@@ -478,6 +534,22 @@ func earlyEnvironmentReads(files []sourceFile) []string {
 	return problems
 }
 
+// transportsMade finds each http.Transport made from scratch, anywhere but
+// testguard's own tests: one whose dials testguard's guard doesn't see, as it
+// sees those of http.DefaultTransport and every transport cloned from it.
+func transportsMade(files []sourceFile) []string {
+	var problems []string
+	for _, f := range files {
+		if f.testsTheGuard() {
+			continue
+		}
+		for _, u := range valuesMade(f, f.ast, transports) {
+			problems = append(problems, fmt.Sprintf("%s: %s made from scratch dials past testguard's guard; %s", f.at(u.pos), u.what, transportFix))
+		}
+	}
+	return problems
+}
+
 // initialising is the part of decl that runs as its package initialises: a
 // variable declaration's values, or an init function's body. It's nil for
 // anything else.
@@ -520,6 +592,27 @@ func uses(f sourceFile, node ast.Node, targets []target) []use {
 		if sel, ok := n.(*ast.SelectorExpr); ok {
 			if what := m.match(sel); what != "" {
 				found = append(found, use{pos: sel.Pos(), what: what})
+			}
+		}
+		return true
+	})
+	return found
+}
+
+// valuesMade finds, in node of f, each place a value of one of targets' types
+// is made: a composite literal, new, or a variable, field or element of the
+// type itself. Each is a mention of the type but as what a pointer points to.
+func valuesMade(f sourceFile, node ast.Node, targets []target) []use {
+	m := newMatcher(f, targets)
+	pointedTo := make(map[ast.Expr]bool)
+	var found []use
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.StarExpr:
+			pointedTo[n.X] = true
+		case *ast.SelectorExpr:
+			if what := m.match(n); what != "" && !pointedTo[n] {
+				found = append(found, use{pos: n.Pos(), what: what})
 			}
 		}
 		return true
@@ -599,6 +692,12 @@ type sourceFile struct {
 
 func (f sourceFile) isTest() bool {
 	return strings.HasSuffix(f.path, "_test.go")
+}
+
+// testsTheGuard reports whether f is one of testguard's own tests, which
+// prove the guard holds by doing what it guards against.
+func (f sourceFile) testsTheGuard() bool {
+	return f.dir() == guardDir && f.isTest()
 }
 
 func (f sourceFile) dir() string {

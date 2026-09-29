@@ -1,7 +1,6 @@
 package router_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -105,12 +104,7 @@ func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 }
 
 func TestPinTakesJSON(t *testing.T) {
-	path := serveControl(t, newRouter(t, "http://127.0.0.1:1"))
-	client := &http.Client{Transport: &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return (&net.Dialer{}).DialContext(ctx, "unix", path)
-		},
-	}}
+	client := router.NewClient(serveControl(t, newRouter(t, "http://127.0.0.1:1"))).HTTP()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://switchboard/pin", strings.NewReader("side"))
 	if err != nil {
 		t.Fatal(err)

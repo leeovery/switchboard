@@ -240,7 +240,8 @@ func send(t *testing.T, method, url string, header http.Header, body io.Reader) 
 		t.Fatal(err)
 	}
 	maps.Copy(req.Header, header)
-	transport := &http.Transport{DisableCompression: true}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DisableCompression = true
 	t.Cleanup(transport.CloseIdleConnections)
 	resp, err := (&http.Client{Transport: transport}).Do(req)
 	if err != nil {
