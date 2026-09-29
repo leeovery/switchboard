@@ -85,7 +85,7 @@ func (a *app) newSetup(term setup.Terminal) (*setup.Setup, error) {
 		Home:         home,
 		Skill:        skillPath,
 		Usage: func(ctx context.Context, out io.Writer) error {
-			return a.printUsage(ctx, out, false)
+			return a.printUsage(ctx, out, usageOptions{})
 		},
 	}, nil
 }

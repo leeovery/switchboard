@@ -295,14 +295,14 @@ func (a *app) configFile() (string, error) {
 }
 
 // collect loads the config and reads the status document status and usage
-// print, from the source that decides where it comes from, probing alone
-// when probe says so.
-func (a *app) collect(ctx context.Context, probe bool) (status.Document, error) {
+// print, as r asks, from the source that decides where it comes from,
+// probing alone when probe says so.
+func (a *app) collect(ctx context.Context, probe bool, r watch.Read) (status.Document, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return status.Document{}, err
 	}
-	return a.source(cfg, probe).Read(ctx, watch.Read{Probe: true})
+	return a.source(cfg, probe).Read(ctx, r)
 }
 
 // source returns where the status document is read for the config given: the

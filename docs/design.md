@@ -58,8 +58,9 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed only when a decision needs fresh
   numbers, a dashboard asks for them, or it's due a prime, and never once its 5-hour window has
-  lapsed, as the probe would start the window off the schedule (see Priming). An account never read,
-  as one whose probe failed as the router started, or one first given a token while the router runs,
+  lapsed, as the probe would start the window off the schedule (see Priming), but while a limit
+  holds back its every request, when starting the window costs nothing. An account never read, as
+  one whose probe failed as the router started, or one first given a token while the router runs,
   has no window known to have lapsed: it's probed whenever a decision or a dashboard needs it, at
   any hour, which may start its window off the schedule, once. A probe is one request per model
   family, each capped at one output token: Haiku, for the windows every model shares, and Fable, for
@@ -149,8 +150,9 @@ on a model whose thinking is bound to its account only when its account can't se
    room, whatever its windows read, for the requests the windows the 429 rejects count, whether
    or not it gives their utilization (every request when it names none), until the reset the 429
    gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. A later
-   reading showing those windows with room lifts it sooner. A limit reached again while it holds
-   is the same limit, and holds as the latest 429 says.
+   reading showing those windows with room lifts it sooner, as a probe's does once the limit is
+   reset by hand (see Priming). A limit reached again while it holds is the same limit, and holds
+   as the latest 429 says; a probe that reads it again changes nothing.
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
@@ -193,9 +195,9 @@ Each request's account is decided in this order:
 A request without a session id is never remembered: it goes to the launch pin it carries while that
 account can serve it, and is otherwise decided afresh every time. Before deciding afresh, and never
 for a sticky request, switchboard probes every account it hasn't read in 15 minutes, all at once,
-but for one whose 5-hour window has lapsed (see Priming), and waits for them 8 seconds at most.
-Choices made together share a probe, and an account whose probe ended, read or not, waits a minute
-for the next.
+but for one whose 5-hour window has lapsed and that no limit holds back (see Priming), and waits
+for them 8 seconds at most. Choices made together share a probe, and an account whose probe ended,
+read or not, waits a minute for the next.
 
 The routed line in the log gives the reason for each request's account, one of:
 
@@ -408,7 +410,12 @@ come back one at a time rather than together: once all are spent, the wait for t
 window. The router never probes an account whose 5-hour window has lapsed, its last reading's reset
 passed with nothing read since, except to prime it: that window reads empty, and the account's
 weekly readings stand. This covers the probes as the router starts, before it decides afresh, when
-no account has room, and for `POST /refresh`. Readings persist in `state.json`, with the model
+no account has room, and for `POST /refresh`. The one exception is an account a limit holds back
+from every request, as when its week is spent: it can take no request anyway, so a probe that
+starts its window costs nothing, and a probe is how a limit lifted before its reset, as by a reset
+made by hand on claude.ai, is seen, the reading showing its windows with room lifting the limit.
+A limit reached in one model's week alone is no exception, as the account takes other models'
+requests, nor is a refused token or model. Readings persist in `state.json`, with the model
 families each window has been seen to count, so a restart needs no probe. An account never read has
 no window known to have lapsed: it's probed as the router starts, and, should that probe fail, or
 the account first gain a token while the router runs, whenever a choice made afresh or `POST
@@ -521,7 +528,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
 | `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router |
-| `usage [--watch [interval]] [--no-notify] [--probe]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead |
+| `usage [--watch [interval]] [--no-notify] [--probe] [--refresh]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `r` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. It reads once, so it takes no `--watch` |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
 | `pin <id>... [--move] [--force]`, `pin auto [--force]` | Set the global pin to the accounts given, replacing any before, or clear it: see Pinning. It needs the router |
@@ -584,21 +591,23 @@ as `[redacted]`, as `accounts add` does as it refuses one.
   A minute after a window on screen resets, the next look has the router refresh first with a
   `max_age` of a minute, once a reset, so an idle account's window doesn't read `resets now`
   until the next interval; but not for an account whose 5-hour window has lapsed, which the
-  router doesn't probe (see Priming): that window reads empty instead, and the account's others
-  as read. Probing, it reads every interval, a minute after a window on screen resets, and
-  sooner after a failure, backing off from 2 minutes to the interval. When the router stops
-  answering, the next look probes instead, and the footer says since when there's been no router.
-  Probing, it asks after the router at each probe and once a minute between, and reads it again as
-  soon as it answers, so it never goes back and forth faster than that.
+  router doesn't probe while no limit holds it back (see Priming): that window reads empty
+  instead, and the account's others as read. Probing, it reads every interval, a minute after a
+  window on screen resets, and sooner after a failure, backing off from 2 minutes to the
+  interval. When the router stops answering, the next look probes instead, and the footer says
+  since when there's been no router. Probing, it asks after the router at each probe and once a
+  minute between, and reads it again as soon as it answers, so it never goes back and forth
+  faster than that.
 - **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, but for
-  those whose 5-hour window has lapsed, or, without it, every account is probed. `q` quit. While
-  it reads the router, `1`–`9` toggle the account in that place, as configured, in the global
-  pin: one it doesn't name joins those it does, new sessions going to the best of them, and one
-  it names leaves, the last to leave routing automatically again; `a` routes automatically
-  again; `m` moves running sessions to the pinned accounts, or says nothing's pinned. A digit
-  sets a pin that doesn't move running sessions, as `pin` without `--move` does. Each says in the
-  footer what it did, or why it couldn't, for a few seconds, and the router's document is read
-  again at once. The footer lists only the keys that work:
+  those whose 5-hour window has lapsed and that no limit holds back, or, without it, every account
+  is probed, as `usage --refresh` does. `q` quit. While it reads the router, `1`–`9` toggle the
+  account in that place, as configured, in the global pin: one it doesn't name joins those it
+  does, new sessions going to the best of them, and one it names leaves, the last to leave
+  routing automatically again; `a` routes automatically again; `m` moves running sessions to the
+  pinned accounts, or says nothing's pinned. A digit sets a pin that doesn't move running
+  sessions, as `pin` without `--move` does. Each says in the footer what it did, or why it
+  couldn't, for a few seconds, and the router's document is read again at once. The footer lists
+  only the keys that work:
   `r refresh · 1–3 toggle pin · a auto · m move · q quit` reading the router, and
   `r refresh · q quit` probing.
 - Desktop notifications: see Notifications.
@@ -975,7 +984,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
-| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed and that no limit holds back (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.

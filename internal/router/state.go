@@ -304,9 +304,13 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 // probeable reports whether the account whose usage is u can be probed at
 // now: no probe of it has ended in the last reprobeAfter, so an account whose
 // probes fail isn't probed at every ask, and none of its windows has lapsed,
-// as a probe is a request, and would start it. s.mu must be held.
+// as a probe is a request, and would start it. A limit holding back every
+// request is the exception: an account under one can take no request anyway,
+// so a probe that starts its window costs nothing, and a probe is how a limit
+// lifted before its reset, as by a reset made by hand, is seen. s.mu must be
+// held.
 func (s *state) probeable(u *usage, now time.Time) bool {
-	return now.Sub(u.probed) >= reprobeAfter && len(s.policy.Lapsed(u.latest(), now)) == 0
+	return now.Sub(u.probed) >= reprobeAfter && (u.limited.holds(now, s.policy.IsShared) || len(s.policy.Lapsed(u.latest(), now)) == 0)
 }
 
 // nextPrime returns when the account with the given id is next to be primed,

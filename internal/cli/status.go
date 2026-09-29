@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -50,7 +51,7 @@ switchboard serve).
 			if session != "" {
 				return a.sessionStatus(cmd.Context(), cmd.OutOrStdout(), session, asJSON)
 			}
-			doc, err := a.collect(cmd.Context(), probe)
+			doc, err := a.collect(cmd.Context(), probe, watch.Read{Probe: true})
 			if err != nil {
 				return err
 			}

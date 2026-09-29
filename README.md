@@ -110,7 +110,7 @@ Each account then meets four windows in an 08:00–23:00 day. The cost is short 
 - **A prime** is a probe, one request per model family, Haiku and Fable (falling back to the previous Fable), each capped at one output token, sent to an account whose 5-hour window isn't running. An account whose window is already running, as after a late night, gets none, and its slot shifts for the day. A prime that reads nothing, or doesn't start the window, is logged as a warning and sent again five minutes on.
 - **Through the day,** when an idle account's window resets, the router primes it at once, so its windows run back to back. After the day ends it stops, and the windows lapse overnight.
 - **A prime missed** while the Mac slept, or the router was away, goes out as soon as it can, unless the day has ended.
-- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe`, and `usage` or `status` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
+- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it, or while a limit holds back its every request, as when its week is spent: it can take nothing anyway, so starting its window costs nothing, and a probe is how the router sees a limit you've reset by hand. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe`, and `usage` or `status` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
 
 `status` shows the schedule. `status` and the dashboard show the next reset among the 5-hour windows and, from the router, the next prime, and a 5-hour window that hasn't started says when its account is next primed.
 
@@ -139,7 +139,7 @@ Every command takes `--config <file>`, naming the config file in place of the on
 Every account's usage as a dashboard: a card per account, with a bar for each window, where it's heading and when it resets (see [The Dashboard](#the-dashboard)). It reads the router while it runs, else probes each account.
 
 ```bash
-switchboard usage [-w [interval]] [--no-notify] [--probe]
+switchboard usage [-w [interval]] [--no-notify] [--probe] [-r]
 ```
 
 | Flag | Description |
@@ -147,12 +147,13 @@ switchboard usage [-w [interval]] [--no-notify] [--probe]
 | `-w, --watch` | stay on screen, reading usage every interval, given after the flag: `30m` unless given, `5m` at the least; a duration such as `15m` or `1h`, or a number of minutes |
 | `--no-notify` | with `--watch`, post no desktop notifications |
 | `--probe` | probe every account, even while the router runs |
+| `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. Not with `--watch`, where `r` refreshes |
 
 In watch mode, reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
 
 | Key | Does |
 |---|---|
-| `r` | refresh now: the router probes the accounts it hasn't read in the last minute; without it, every account is probed |
+| `r` | refresh now: the router probes the accounts it hasn't read in the last minute, but for those whose 5-hour window has lapsed and that no limit holds back; without it, every account is probed |
 | `1`–`9` | pin the account in that place, as configured, beside any pinned already, so new sessions go to the best of them; or, pinned already, unpin it, routing automatically again once none is left |
 | `a` | route automatically again |
 | `m` | move running sessions to the pinned accounts |
@@ -165,6 +166,7 @@ switchboard usage              # once
 switchboard usage -w           # on screen, reading every 30 minutes
 switchboard usage -w 15m       # every 15 minutes
 switchboard usage --probe      # read every account from the API, whatever the router says
+switchboard usage -r           # have the router read every account it may first, as after a reset made by hand
 ```
 
 #### `pin`
@@ -197,7 +199,7 @@ switchboard pin <account>|auto --session <id>
 
 A session's own pin beats the global one. Every pin yields at a limit: a pinned session that hits one moves by the usual rules rather than failing. A pin spends the reserves of the accounts it names, and no other's (see [The primary and its reserve](#the-primary-and-its-reserve)).
 
-Pinning several accounts sets an order to use them up in: with `pin work side`, `work` and `side` take the new sessions, the better of the two first, until both are out, and only then does anything go to the rest.
+Pinning several accounts sets an order to use them up in: with `pin work side`, `work` and `side` take the new sessions, the better of the two first, until both are out, and only then does anything go to the rest. Say two accounts have a weekly reset banked on claude.ai and a third hasn't: pin the two, let them run out, and reset them by hand. The router sees a reset the next time it reads the account: before a choice it makes afresh, once its reading is 15 minutes old, or at once with `switchboard usage -r`, or `r` on the dashboard.
 
 Name a session by its id, or as much of it as is unique among the sessions routed in the last hour: `switchboard status` lists them, Claude Code's `/status` shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it.
 

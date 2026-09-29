@@ -78,7 +78,7 @@ func (p plan) at(now time.Time, routed bool) (Read, bool) {
 // window on screen has reset since it last did.
 func (p plan) look(now time.Time) Read {
 	if !p.reset.IsZero() && !now.Before(p.reset) {
-		return Read{Refresh: freshFor, Probe: true}
+		return Fresh()
 	}
 	return Read{Probe: true}
 }

@@ -69,7 +69,7 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); k {
 	case "r", "R":
 		logger.Debug("refresh key pressed", "already_reading", m.fetching)
-		return m.read(Read{Refresh: freshFor, Probe: true})
+		return m.read(Fresh())
 	case "q", "Q", "ctrl+c":
 		return m, tea.Quit
 	case "a", "A":

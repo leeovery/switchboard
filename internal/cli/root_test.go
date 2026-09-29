@@ -101,6 +101,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "unexpected usage argument", args: []string{"usage", "extra"}, wantUsage: true},
 		{name: "invalid config for usage", args: []string{"usage", "--config", invalid}, wantUsage: false},
 		{name: "invalid watch interval", args: []string{"usage", "--watch", "soon"}, wantUsage: true},
+		{name: "a watch refreshing", args: []string{"usage", "--watch", "--refresh"}, wantUsage: true},
 		{name: "invalid config for usage --watch", args: []string{"usage", "--watch", "--config", invalid}, wantUsage: false},
 		{name: "unknown log", args: []string{"logs", "extra"}, wantUsage: true},
 		{name: "number of lines that isn't one", args: []string{"logs", "-n", "many"}, wantUsage: true},

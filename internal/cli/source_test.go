@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -152,6 +153,30 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	probed := run(t, srv.deps, "usage", "--probe")
 	if !strings.Contains(probed.stdout, "\n best next: work · Work\n") || strings.Contains(probed.stdout, "router") || strings.Contains(probed.stdout, "pinned") {
 		t.Errorf("switchboard usage --probe printed\n%s\nwant the accounts probed, as asked, saying nothing of the router", probed.stdout)
+	}
+}
+
+func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
+	var later atomic.Int64
+	api := newClaudeAPI(t)
+	srv := newServeSetup(t, api.URL, nil)
+	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
+	srv.start(t)
+	srv.waitForProbes(t)
+
+	for i, args := range [][]string{{"usage"}, {"usage", "--refresh"}, {"usage", "-r"}} {
+		// Two minutes on each time, every account last read over a minute
+		// ago, and last probed.
+		later.Store(int64(i+1) * int64(2*time.Minute))
+		asked := len(api.questions())
+		got := run(t, srv.deps, args...)
+		if got.code != 0 || got.stderr != "" || !strings.Contains(got.stdout, "\n router  ·  ") {
+			t.Fatalf("switchboard %s = %+v, want exit status 0 and the router's dashboard", strings.Join(args, " "), got)
+		}
+		refreshed := len(api.questions()) > asked
+		if want := len(args) > 1; refreshed != want {
+			t.Errorf("after switchboard %s, the router probed = %v, want %v", strings.Join(args, " "), refreshed, want)
+		}
 	}
 }
 

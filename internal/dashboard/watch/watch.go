@@ -63,6 +63,14 @@ type Read struct {
 	Probe bool
 }
 
+// Fresh is the read r asks for, which usage --refresh asks for too: the
+// router first refreshes every account it hasn't read in the last minute, the
+// least it waits between probes of one, or, without the router, every account
+// is probed.
+func Fresh() Read {
+	return Read{Refresh: freshFor, Probe: true}
+}
+
 // full reports whether the read brings every account up to date: the router
 // refreshes those it hasn't read lately, or every account is probed.
 func (r Read) full() bool {
