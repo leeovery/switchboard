@@ -401,6 +401,18 @@ func TestAddAccountRefuses(t *testing.T) {
 			wantErr: `account "": id is required`,
 		},
 		{
+			name:    "an id that looks like a token, never quoted",
+			config:  commented,
+			account: config.NewAccount{ID: tokenShaped},
+			wantErr: `account "[redacted]": id looks like a token, which an id mustn't, as it shows wherever the account does`,
+		},
+		{
+			name:    "a label that looks like a token, never quoted",
+			config:  commented,
+			account: config.NewAccount{ID: "side", Label: "Side " + tokenShaped},
+			wantErr: `account "side": label looks like a token, which a label mustn't, as it shows wherever the account does`,
+		},
+		{
 			name:    "accounts listed inline, which a table can't follow",
 			config:  "account = [{ id = \"work\" }]\n",
 			account: config.NewAccount{ID: "side"},

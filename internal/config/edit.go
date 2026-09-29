@@ -39,6 +39,13 @@ type NewAccount struct {
 	Primary bool
 }
 
+// check fails, saying why, unless the account's id is one an account can
+// have, and its label holds nothing that looks like a token.
+func (a NewAccount) check() error {
+	name := accountNamed(a.ID)
+	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label))
+}
+
 // Draft is the config file's text, edited as text: its comments and layout
 // stay as they are, but for the lines an edit changes. Each edit is checked,
 // the text read back, to make exactly the change meant and leave the config
@@ -86,7 +93,7 @@ func (d *Draft) Config() *Config {
 // it takes primary off every other account. It fails, matching ErrConfigured,
 // when an account has its id already.
 func (d *Draft) AddAccount(a NewAccount) error {
-	if err := CheckID(a.ID); err != nil {
+	if err := a.check(); err != nil {
 		return err
 	}
 	if d.index(a.ID) >= 0 {

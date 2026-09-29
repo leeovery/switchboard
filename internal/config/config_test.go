@@ -493,6 +493,16 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{`duplicate account id "work"`},
 		},
 		{
+			name:   "an id that looks like a token, named by its place",
+			config: work + accountTOML(tokenShaped),
+			want:   []string{"account #2: id looks like a token, which an id mustn't, as it shows wherever the account does"},
+		},
+		{
+			name:   "a label that looks like a token",
+			config: work + "label = \"Work " + tokenShaped + "\"\n",
+			want:   []string{`account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`},
+		},
+		{
 			name:   "empty listen",
 			config: "listen = \"\"\n" + work,
 			want:   []string{`listen "": must be host:port, such as 127.0.0.1:4747 or [::1]:4747`},
@@ -616,6 +626,23 @@ func TestLoadReportsProblems(t *testing.T) {
 	}
 }
 
+func TestLoadNeverQuotesATokenGivenAsAnIDOrALabel(t *testing.T) {
+	path := writeConfig(t, accountTOML(tokenShaped)+"primary = true\nreserve = 2.0\n"+
+		accountTOML(tokenShaped)+"label = \""+tokenShaped+"\"\nprimary = true\n")
+
+	_, err := config.Load(path)
+	want := []string{
+		"account #1: id looks like a token, which an id mustn't, as it shows wherever the account does",
+		"account #1: reserve 2: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1",
+		"account #2: id looks like a token, which an id mustn't, as it shows wherever the account does",
+		"account #2: label looks like a token, which a label mustn't, as it shows wherever the account does",
+		"primary is set on account #1 and account #2: only one account can be the primary, the one the browser and the Claude apps use",
+	}
+	if got := problems(t, path, err); !slices.Equal(got, want) {
+		t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 func TestLoadNeverQuotesAnOldConfigsTokenVariable(t *testing.T) {
 	const pasted = "test-token-pasted-by-mistake"
 	path := writeConfig(t, accountTOML("work")+"token_env = \""+pasted+"\"\n")
@@ -642,6 +669,10 @@ func problems(t *testing.T, path string, err error) []string {
 	}
 	return strings.Split(msg, "\n")
 }
+
+// tokenShaped is shaped like a Claude token, though it's none, as a user
+// might give one where an id or a label goes.
+const tokenShaped = "sk-ant-oat01-fake_token-shaped"
 
 // accountTOML returns an [[account]] table with the given id, which the
 // test's own keys can follow.

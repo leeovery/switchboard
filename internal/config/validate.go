@@ -14,6 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 // ReservedID is the one id no account may have, in any case: switchboard pin
@@ -125,7 +126,7 @@ func checkAccounts(accounts []fileAccount) error {
 	for i, a := range accounts {
 		errs = append(errs, a.check(i))
 		uses[a.ID]++
-		if a.ID != "" && uses[a.ID] == 2 {
+		if a.named() && uses[a.ID] == 2 {
 			errs = append(errs, fmt.Errorf("duplicate account id %q", a.ID))
 		}
 	}
@@ -136,30 +137,52 @@ func checkAccounts(accounts []fileAccount) error {
 // check reports what's wrong with the account at index i of the file.
 func (a fileAccount) check(i int) error {
 	name := a.name(i)
-	return errors.Join(checkID(name, a.ID), checkReserve(name, a.Reserve))
+	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label), checkReserve(name, a.Reserve))
 }
 
 // name identifies the account in errors: by its id, else by its position.
 func (a fileAccount) name(i int) string {
-	if a.ID == "" {
+	if !a.named() {
 		return fmt.Sprintf("account #%d", i+1)
 	}
-	return fmt.Sprintf("account %q", a.ID)
+	return accountNamed(a.ID)
+}
+
+// named reports whether the account's id can name it in errors: it has one,
+// and it doesn't look like a token, which no error quotes.
+func (a fileAccount) named() bool {
+	return a.ID != "" && !redact.HoldsToken(a.ID)
+}
+
+// accountNamed names the account with the given id in errors, as in account
+// "work", hiding anything in the id that looks like a token.
+func accountNamed(id string) string {
+	return fmt.Sprintf("account %q", redact.Text(id))
 }
 
 // CheckID fails, saying why, unless id is one an account can have.
 func CheckID(id string) error {
-	return checkID(fmt.Sprintf("account %q", id), id)
+	return checkID(accountNamed(id), id)
 }
 
 func checkID(account, id string) error {
 	switch {
 	case id == "":
 		return fmt.Errorf("%s: id is required", account)
+	case redact.HoldsToken(id):
+		return fmt.Errorf("%s: id looks like a token, which an id mustn't, as it shows wherever the account does", account)
 	case !idPattern.MatchString(id):
 		return fmt.Errorf("%s: id must start with a letter or digit and contain only letters, digits, '-' and '_'", account)
 	case strings.EqualFold(id, ReservedID):
 		return fmt.Errorf("%s: id is reserved for switchboard pin %s", account, ReservedID)
+	}
+	return nil
+}
+
+// checkLabel keeps anything that looks like a token out of a label.
+func checkLabel(account, label string) error {
+	if redact.HoldsToken(label) {
+		return fmt.Errorf("%s: label looks like a token, which a label mustn't, as it shows wherever the account does", account)
 	}
 	return nil
 }

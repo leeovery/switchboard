@@ -133,6 +133,10 @@ id    = "side"
 label = "Side"
 `
 
+// tokenShaped is shaped like a Claude token, though it's none, as a user
+// might give one where an id or a label goes.
+const tokenShaped = "sk-ant-oat01-fake_token-shaped"
+
 // probedWork is what the Claude API is asked, probing the token it takes.
 var probedWork = []string{"test-token-work claude-fable-5-1", "test-token-work claude-haiku-4-5-20251001"}
 
@@ -212,6 +216,42 @@ func TestAccountsAddWhenTheAPIDoesntAnswer(t *testing.T) {
 	}
 	checkTokenFile(t, deps, "work", "test-token-work\n")
 	checkNoToken(t, got, "test-token-work")
+}
+
+func TestAccountsAddRefusesATokenAsTheIDOrTheLabel(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "as the id",
+			args:    []string{"accounts", "add", tokenShaped},
+			wantErr: `account "[redacted]": id looks like a token, which an id mustn't, as it shows wherever the account does`,
+		},
+		{
+			name:    "as the label",
+			args:    []string{"accounts", "add", "work", "--label", tokenShaped},
+			wantErr: `account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := newClaudeAPI(t)
+			deps, path := accountsDeps(t, api.URL, personalAndSide)
+			before := readFile(t, path)
+
+			got := runWithInput(t, deps, "test-token-work\n", tt.args...)
+			if want := (result{stderr: "Error: " + tt.wantErr + "\n", code: 1}); got != want {
+				t.Errorf("switchboard accounts add = %+v, want %+v", got, want)
+			}
+			if readFile(t, path) != before || len(api.questions()) > 0 {
+				t.Errorf("the config reads\n%s\nand the API was asked %d questions, want the config as it was, and the API asked nothing", readFile(t, path), len(api.questions()))
+			}
+			checkNoTokenFile(t, deps, "work")
+			checkNoTokenFile(t, deps, tokenShaped)
+		})
+	}
 }
 
 func TestAccountsAddAnAccountConfiguredAlready(t *testing.T) {
