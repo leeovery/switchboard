@@ -76,22 +76,13 @@ func (as accounts) canSend(id string) bool {
 	return ok && a.hasToken
 }
 
-// ids lists the accounts' ids.
-func (as accounts) ids() []string {
-	ids := make([]string, len(as))
+// configured returns the accounts as the config gives them.
+func (as accounts) configured() config.Accounts {
+	configured := make(config.Accounts, len(as))
 	for i, a := range as {
-		ids[i] = a.ID
+		configured[i] = a.Account
 	}
-	return ids
-}
-
-// tokenEnvs lists the variables the accounts' tokens are read from.
-func (as accounts) tokenEnvs() []string {
-	envs := make([]string, len(as))
-	for i, a := range as {
-		envs[i] = a.TokenEnv
-	}
-	return envs
+	return configured
 }
 
 // bearer returns the token a request's Authorization header carries, or ""

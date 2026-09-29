@@ -83,7 +83,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	state := r.health(ctx)
 	c, ok := r.choose(ctx, pin, state)
 	if !ok {
-		return l.unaided(path, args, "no account has a token", fmt.Errorf("set %s", strings.Join(tokenEnvs(r.Config.Accounts), " or ")))
+		return l.unaided(path, args, "no account has a token", fmt.Errorf("set %s", strings.Join(r.Config.Accounts.TokenEnvs(), " or ")))
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
@@ -264,7 +264,7 @@ func (r Route) pinned() (choice, error) {
 	}
 	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == r.Account })
 	if i < 0 {
-		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(ids(r.Config.Accounts), " or "))
+		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(r.Config.Accounts.IDs(), " or "))
 	}
 	a := r.Config.Accounts[i]
 	token, ok := a.Token(r.Getenv)
@@ -304,22 +304,6 @@ func (r Route) first() (choice, bool) {
 		}
 	}
 	return choice{}, false
-}
-
-func ids(accounts []config.Account) []string {
-	ids := make([]string, len(accounts))
-	for i, a := range accounts {
-		ids[i] = a.ID
-	}
-	return ids
-}
-
-func tokenEnvs(accounts []config.Account) []string {
-	envs := make([]string, len(accounts))
-	for i, a := range accounts {
-		envs[i] = a.TokenEnv
-	}
-	return envs
 }
 
 // title names an account as every command does, such as "work · Work".

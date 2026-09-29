@@ -54,6 +54,19 @@ moves   = true
 	}
 }
 
+func TestAccountsLists(t *testing.T) {
+	accounts := config.Accounts{
+		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
+		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
+	}
+	if got, want := accounts.IDs(), []string{"work", "side"}; !slices.Equal(got, want) {
+		t.Errorf("IDs() = %q, want %q", got, want)
+	}
+	if got, want := accounts.TokenEnvs(), []string{"CLAUDE_TOKEN_WORK", "CLAUDE_TOKEN_SIDE"}; !slices.Equal(got, want) {
+		t.Errorf("TokenEnvs() = %q, want %q", got, want)
+	}
+}
+
 func TestLoadFillsDefaults(t *testing.T) {
 	path := writeConfig(t, `
 [[account]]
