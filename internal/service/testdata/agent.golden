@@ -6,7 +6,7 @@
 	<string>io.github.leeovery.switchboard</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/tester/go/bin/switchboard</string>
+		<string>/opt/homebrew/bin/switchboard</string>
 		<string>serve</string>
 	</array>
 	<key>RunAtLoad</key>

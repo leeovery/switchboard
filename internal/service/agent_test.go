@@ -13,7 +13,8 @@ import (
 var update = flag.Bool("update", false, "rewrite the golden files with what the tests write")
 
 func TestPlist(t *testing.T) {
-	const binary = "/Users/tester/go/bin/switchboard"
+	// The link Homebrew puts on PATH, which the plist names as it is.
+	const binary = "/opt/homebrew/bin/switchboard"
 	tests := []struct {
 		name    string
 		env     map[string]string

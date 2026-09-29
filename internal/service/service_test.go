@@ -41,6 +41,23 @@ func TestInstall(t *testing.T) {
 	}
 }
 
+func TestInstallNamesTheBinaryAsItWasRun(t *testing.T) {
+	s := newSetup(t, nil, upOnceStarted(4242))
+	version := writeBinary(t, filepath.Join(s.root, "Cellar", "switchboard", "1.2.3", "bin", "switchboard"))
+	link := filepath.Join(s.root, "opt", "bin", "switchboard")
+	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(version, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: link}); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	s.checkPlist(t, link, "", "")
+}
+
 func TestInstallReplacesAPlistThere(t *testing.T) {
 	s := newSetup(t, nil, upOnceStarted(4242))
 	if err := os.MkdirAll(filepath.Dir(s.plist), 0o700); err != nil {

@@ -225,17 +225,20 @@ func (s *Service) target() string {
 }
 
 // binary returns the switchboard binary for launchd to run: exe, absolute,
-// with its symlinks resolved. It fails for a build that won't last.
+// by the path it was run by, so that a link, such as Homebrew's, stays the
+// link an upgrade moves on, not the version it led to. It fails for a build
+// that won't last, judged by where its links lead.
 func (s *Service) binary(exe string) (string, error) {
 	path, err := filepath.Abs(exe)
-	if err == nil {
-		path, err = filepath.EvalSymlinks(path)
-	}
 	if err != nil {
 		return "", fmt.Errorf("find this switchboard binary: %w", err)
 	}
-	if temporary(path, cmp.Or(s.cfg.Getenv("TMPDIR"), "/tmp")) {
-		return "", fmt.Errorf("this switchboard is a temporary build, %s, which won't be there for launchd to start: install it with go install, and install the service with that one", path)
+	built, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("find this switchboard binary: %w", err)
+	}
+	if temporary(built, cmp.Or(s.cfg.Getenv("TMPDIR"), "/tmp")) {
+		return "", fmt.Errorf("this switchboard is a temporary build, %s, which won't be there for launchd to start: install it with go install, and install the service with that one", built)
 	}
 	return path, nil
 }

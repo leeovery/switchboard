@@ -381,8 +381,9 @@ A request the API refuses is answered `{"error": "<why>"}`.
   `claude`, never the function. Without a config it can read, it prints the `claude` function
   alone, and warns on stderr: the `eval` never fails.
 - `service install` writes the LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`) to
-  run this binary, its symlinks resolved, with `serve` and any `--config` given, and refuses a
-  temporary build, such as `go run`'s. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and
+  run this binary by the path it was run by, so a Homebrew link stays the link an upgrade moves
+  on, with `serve` and any `--config` given. It refuses a temporary build, such as `go run`'s,
+  judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and
   `SWITCHBOARD_CONFIG` when they're set, so the service finds what the CLI does. With
   `--env-file`, it runs `/bin/zsh -c 'source "$1" && exec "$2" serve "${@:3}"'`, the paths as
   arguments, never in the script, and warns when others can read the file. It then boots out any

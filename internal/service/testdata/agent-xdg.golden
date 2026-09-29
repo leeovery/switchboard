@@ -11,7 +11,7 @@
 		<string>source "$1" &amp;&amp; exec "$2" serve "${@:3}"</string>
 		<string>switchboard</string>
 		<string>/Users/tester/.config/tokens.env</string>
-		<string>/Users/tester/go/bin/switchboard</string>
+		<string>/opt/homebrew/bin/switchboard</string>
 		<string>--config</string>
 		<string>/Users/tester/switchboard &amp; co/config.toml</string>
 	</array>
