@@ -80,15 +80,26 @@ type Config struct {
 	// router, but can hand an event on to be dealt with elsewhere. Nil hears
 	// nothing.
 	Events func(Event)
+	// Notifier posts the desktop notifications Notifications asks for, while
+	// Run runs. Nil posts none.
+	Notifier      Notifier
+	Notifications config.Notifications
 	// Listen is the proxy's address, and StateDir the directory its control
 	// socket and state file go in: only Run uses them.
 	Listen   string
 	StateDir string
 }
 
+// notifying reports whether the router posts notifications: it has a
+// notifier, and some to post.
+func (c Config) notifying() bool {
+	return c.Notifier != nil && c.Notifications != (config.Notifications{})
+}
+
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
-// the router's own health, and the control API that reports on it all.
+// the router's own health, the control API that reports on it all, and the
+// desktop notifications of what befalls the accounts.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
@@ -98,7 +109,9 @@ type Router struct {
 	probes   *probes
 	health   *health
 	proxy    *proxy
-	started  time.Time
+	// notifications is nil when the router posts none.
+	notifications *notifications
+	started       time.Time
 }
 
 // New builds a router for the accounts configured. An account without a token
@@ -113,11 +126,14 @@ func New(cfg Config) (*Router, error) {
 	if err != nil {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
-	emit := cfg.Events
-	if emit == nil {
-		emit = func(Event) {}
-	}
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now)
+	listeners := []func(Event){cfg.Events}
+	var notices *notifications
+	if cfg.notifying() {
+		notices = newNotifications(cfg.Notifications, cfg.Notifier, state, cfg.Now)
+		listeners = append(listeners, notices.hear)
+	}
+	emit := hearing(listeners...)
 	sessions := newSessions(cfg.Now)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
 	health := newHealth(cfg.Now, emit)
@@ -141,7 +157,8 @@ func New(cfg Config) (*Router, error) {
 			emit:      emit,
 			errorLog:  logs.StdLogger("router", slog.LevelWarn),
 		},
-		started: cfg.Now().UTC(),
+		notifications: notices,
+		started:       cfg.Now().UTC(),
 	}, nil
 }
 

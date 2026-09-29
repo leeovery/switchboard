@@ -333,6 +333,33 @@ func (s *state) statuses(now time.Time) (all, open []status.Account) {
 	return all, open
 }
 
+// standings returns how every account with a token stands at now, in the
+// order configured.
+func (s *state) standings(now time.Time) standings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var all standings
+	for _, a := range s.accounts {
+		if a.hasToken {
+			all = append(all, s.usage[a.ID].standing(a, s.policy, now))
+		}
+	}
+	return all
+}
+
+// standing is how the account stands at now. It has no room for a request of
+// any model while it's barred from them, as at a limit or a refusal, or while
+// a window every model shares is spent, as last read, and hasn't reset since.
+func (u *usage) standing(a account, policy score.Policy, now time.Time) standing {
+	barred := u.barred(now, policy.IsShared)
+	st := u.status(a, now)
+	return standing{
+		Account: st,
+		room:    !barred && score.Available(st.Windows, policy.IsShared, now),
+		known:   barred || len(st.Windows) > 0,
+	}
+}
+
 // status is the account's usage as last read, or why there's none, and the
 // limit that holds on it at now, if one does.
 func (u *usage) status(a account, now time.Time) status.Account {

@@ -1,6 +1,9 @@
 package router
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // Event is news from the router that something outside it may want to act
 // on, such as by notifying the user: LimitReached, Moved, Refused or
@@ -49,3 +52,14 @@ func (LimitReached) event()  {}
 func (Moved) event()         {}
 func (Refused) event()       {}
 func (HealthChanged) event() {}
+
+// hearing returns what hears each event with every one of listeners that
+// isn't nil, in turn.
+func hearing(listeners ...func(Event)) func(Event) {
+	listeners = slices.DeleteFunc(listeners, func(l func(Event)) bool { return l == nil })
+	return func(e Event) {
+		for _, hear := range listeners {
+			hear(e)
+		}
+	}
+}
