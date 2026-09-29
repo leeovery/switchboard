@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -19,27 +20,21 @@ import (
 // takes it to mean routing, not an account.
 const ReservedID = "auto"
 
-var (
-	idPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
-	envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-)
+// idPattern is what an account's id may be. The id names the account's token
+// file, which these characters keep a plain file name, with no path in it.
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
 
-// validate reports every problem with the config together, including the keys
-// decoding left unused.
-func (c *Config) validate(undecoded []toml.Key) error {
-	return errors.Join(
-		checkKeys(undecoded),
-		checkListen(c.Listen),
-		checkUpstream(c.Upstream),
-		checkAccounts(c.Accounts),
-		checkSharedTokenEnvs(c.Accounts),
-		checkWarning(c.Notifications.Warning),
-	)
+// retired says, of each key switchboard once read and reads no longer, what
+// has become of it.
+var retired = map[string]string{
+	"account.token_env": "tokens now live in files, at <state dir>/tokens/<id>, " +
+		"the state dir being $XDG_STATE_HOME/switchboard, else ~/.local/state/switchboard",
 }
 
-// checkKeys reports each unknown key once. The decoder lists a key again for
-// every [[account]] table that repeats it, and lists every key inside an
-// unknown table as well as the table itself.
+// checkKeys reports each unknown key once, saying what has become of a key
+// that's retired. The decoder lists a key again for every [[account]] table
+// that repeats it, and lists every key inside an unknown table as well as the
+// table itself.
 func checkKeys(undecoded []toml.Key) error {
 	var errs []error
 	reported := make(map[string]bool)
@@ -48,7 +43,7 @@ func checkKeys(undecoded []toml.Key) error {
 			continue
 		}
 		reported[key.String()] = true
-		errs = append(errs, fmt.Errorf("unknown key %q", key.String()))
+		errs = append(errs, unknownKey(key.String()))
 	}
 	return errors.Join(errs...)
 }
@@ -61,6 +56,16 @@ func alreadyReported(reported map[string]bool, key toml.Key) bool {
 		}
 	}
 	return false
+}
+
+// unknownKey is the error of a key switchboard doesn't read, which says what
+// has become of it if it once did. It never quotes the key's value, which
+// can be a token pasted by mistake.
+func unknownKey(key string) error {
+	if fate, ok := retired[key]; ok {
+		return fmt.Errorf("unknown key %q: %s", key, fate)
+	}
+	return fmt.Errorf("unknown key %q", key)
 }
 
 // checkListen keeps the proxy on loopback, at an address: it adds account
@@ -111,7 +116,7 @@ func isAbsoluteHTTP(u *url.URL) bool {
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != ""
 }
 
-func checkAccounts(accounts []Account) error {
+func checkAccounts(accounts []fileAccount) error {
 	if len(accounts) == 0 {
 		return errors.New("no accounts: add an [[account]] table for each Claude subscription")
 	}
@@ -124,17 +129,18 @@ func checkAccounts(accounts []Account) error {
 			errs = append(errs, fmt.Errorf("duplicate account id %q", a.ID))
 		}
 	}
+	errs = append(errs, checkPrimaries(accounts))
 	return errors.Join(errs...)
 }
 
 // check reports what's wrong with the account at index i of the file.
-func (a Account) check(i int) error {
+func (a fileAccount) check(i int) error {
 	name := a.name(i)
-	return errors.Join(checkID(name, a.ID), checkTokenEnv(name, a.TokenEnv))
+	return errors.Join(checkID(name, a.ID), checkReserve(name, a.Reserve))
 }
 
 // name identifies the account in errors: by its id, else by its position.
-func (a Account) name(i int) string {
+func (a fileAccount) name(i int) string {
 	if a.ID == "" {
 		return fmt.Sprintf("account #%d", i+1)
 	}
@@ -153,40 +159,56 @@ func checkID(account, id string) error {
 	return nil
 }
 
-func checkTokenEnv(account, name string) error {
-	switch {
-	case name == "":
-		return fmt.Errorf("%s: token_env is required: the name of the environment variable holding the account's token", account)
-	case !envNamePattern.MatchString(name):
-		// The value stays out of the message: a token pasted here by mistake
-		// must not reach a terminal or a log.
-		return fmt.Errorf("%s: token_env must be an environment variable name, such as CLAUDE_TOKEN_WORK: letters, digits and '_', not starting with a digit", account)
+// checkReserve keeps a reserve a share of each window short of the whole of
+// it, which would leave the router nothing of the account, or 0 for none.
+// There's nothing to check of a reserve the account doesn't give.
+func checkReserve(account string, reserve *float64) error {
+	if reserve == nil || (*reserve >= 0 && *reserve < 1) {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("%s: reserve %v: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1", account, *reserve)
 }
 
-// checkSharedTokenEnvs reports each token variable that more than one account
-// names, listing those accounts.
-func checkSharedTokenEnvs(accounts []Account) error {
-	var envs []string
-	sharers := make(map[string][]string)
+// checkPrimaries reports more than one account marked primary, naming each.
+func checkPrimaries(accounts []fileAccount) error {
+	var marked []string
 	for i, a := range accounts {
-		// An invalid name is already reported, and may be a pasted token.
-		if !envNamePattern.MatchString(a.TokenEnv) {
-			continue
-		}
-		if sharers[a.TokenEnv] == nil {
-			envs = append(envs, a.TokenEnv)
-		}
-		sharers[a.TokenEnv] = append(sharers[a.TokenEnv], a.name(i))
-	}
-	var errs []error
-	for _, env := range envs {
-		if names := sharers[env]; len(names) > 1 {
-			errs = append(errs, fmt.Errorf("token_env %q is shared by %s: one token is one subscription, so each account needs its own", env, prose.List(names)))
+		if a.Primary {
+			marked = append(marked, a.name(i))
 		}
 	}
-	return errors.Join(errs...)
+	if len(marked) < 2 {
+		return nil
+	}
+	return fmt.Errorf("primary is set on %s: only one account can be the primary, the one the browser and the Claude apps use", prose.List(marked))
+}
+
+// parseDay reads the day [prime] gives: two times of day, HH:MM, joined by
+// -, and not the same time twice. "" is none.
+func parseDay(text string) (Day, error) {
+	if text == "" {
+		return Day{}, nil
+	}
+	first, last, _ := strings.Cut(text, "-")
+	start, startOK := parseTimeOfDay(first)
+	end, endOK := parseTimeOfDay(last)
+	switch {
+	case !startOK || !endOK:
+		return Day{}, fmt.Errorf("prime.day %q: must be two times of day, HH:MM, joined by -, such as 08:00-23:00", text)
+	case start == end:
+		return Day{}, fmt.Errorf("prime.day %q: must end at another time than it starts; an end before the start is past midnight", text)
+	}
+	return Day{Start: start, End: end}, nil
+}
+
+// parseTimeOfDay reads a time of day, HH:MM, as the time since midnight.
+func parseTimeOfDay(text string) (time.Duration, bool) {
+	const layout = "15:04"
+	t, err := time.Parse(layout, text)
+	if err != nil || len(text) != len(layout) {
+		return 0, false
+	}
+	return time.Duration(t.Hour())*time.Hour + time.Duration(t.Minute())*time.Minute, true
 }
 
 // checkWarning keeps the warning a share of a window's limit, short of the

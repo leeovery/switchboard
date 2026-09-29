@@ -212,7 +212,7 @@ func TestAChoiceLeavesTheAssignmentAnotherRequestMadeSinceItLooked(t *testing.T)
 	var heard []Event
 	r, err := New(Config{
 		Accounts: testConfigured,
-		Getenv:   testGetenv,
+		Token:    testTokens.Read,
 		Upstream: "http://127.0.0.1:1",
 		Provider: claude.Provider{},
 		Prober:   &stubProber{},

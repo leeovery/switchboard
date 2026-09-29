@@ -22,6 +22,8 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/tokens"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const (
@@ -49,14 +51,13 @@ var (
 // testConfig configures a router for three accounts, sending requests to
 // upstream: work and side, with tokens, and personal, without one.
 func testConfig(upstream string) router.Config {
-	env := map[string]string{"CLAUDE_TOKEN_WORK": workToken, "CLAUDE_TOKEN_SIDE": sideToken}
 	return router.Config{
 		Accounts: []config.Account{
-			{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-			{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
-			{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
+			{ID: "work", Label: "Work"},
+			{ID: "personal", Label: "Personal"},
+			{ID: "side", Label: "Side"},
 		},
-		Getenv:   func(key string) string { return env[key] },
+		Token:    tokenstest.Files{"work": workToken, "side": sideToken}.Read,
 		Upstream: upstream,
 		Provider: claude.Provider{},
 		Prober:   &fakeProber{},
@@ -66,15 +67,42 @@ func testConfig(upstream string) router.Config {
 	}
 }
 
+// personalMissing is why personal has no token, unless the test gives it one.
+var personalMissing = tokenstest.Missing("personal").Error()
+
 // withPersonalToken gives personal a token, so requests can go out on all
 // three accounts.
 func withPersonalToken(cfg *router.Config) {
-	getenv := cfg.Getenv
-	cfg.Getenv = func(key string) string {
-		if key == "CLAUDE_TOKEN_PERSONAL" {
-			return personalToken
+	read := cfg.Token
+	cfg.Token = func(id string) (tokens.Token, error) {
+		if id == "personal" {
+			return tokens.Parse(personalToken)
 		}
-		return getenv(key)
+		return read(id)
+	}
+}
+
+// withTokenFiles has the router read work's and side's tokens from files of
+// their own, in a state directory of the test's, which it returns, so the
+// test can change them.
+func withTokenFiles(t *testing.T) (tokens.Store, func(*router.Config)) {
+	t.Helper()
+	store := tokens.NewStore(t.TempDir(), os.Getuid())
+	writeToken(t, store, "work", workToken)
+	writeToken(t, store, "side", sideToken)
+	return store, func(cfg *router.Config) { cfg.Token = store.Read }
+}
+
+// writeToken writes secret to the token file of the account with the given
+// id.
+func writeToken(t *testing.T, store tokens.Store, id, secret string) {
+	t.Helper()
+	token, err := tokens.Parse(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Write(id, token); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -185,13 +213,24 @@ func (u *upstream) count() int {
 // accounts returns the account each request that reached the upstream went
 // out on, by the token it carried, in the order they came.
 func (u *upstream) accounts() []string {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	ids := make([]string, len(u.requests))
-	for i, r := range u.requests {
-		ids[i] = accountOf(bearerOf(&http.Request{Header: r.header}))
+	bearers := u.bearers()
+	ids := make([]string, len(bearers))
+	for i, token := range bearers {
+		ids[i] = accountOf(token)
 	}
 	return ids
+}
+
+// bearers returns the token each request that reached the upstream carried,
+// in the order they came.
+func (u *upstream) bearers() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	tokens := make([]string, len(u.requests))
+	for i, r := range u.requests {
+		tokens[i] = bearerOf(&http.Request{Header: r.header})
+	}
+	return tokens
 }
 
 // bodies returns the body of each request that reached the upstream.

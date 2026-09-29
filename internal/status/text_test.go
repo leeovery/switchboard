@@ -13,7 +13,7 @@ import (
 
 func TestText(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
-	personal := status.Account{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"}
+	personal := status.Account{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"}
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -59,7 +59,7 @@ side · Side
   burst      100%  exhausted
 
 personal · Personal
-  token missing: set CLAUDE_TOKEN_PERSONAL
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
 spare · Spare
   HTTP 401 · Invalid bearer token
@@ -72,7 +72,7 @@ probed directly
 			name: "no account to use next",
 			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Accounts: []status.Account{personal}},
 			want: `personal · Personal
-  token missing: set CLAUDE_TOKEN_PERSONAL
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
 probed directly
 `,
@@ -115,7 +115,7 @@ side · Side
   1 session
 
 personal · Personal
-  token missing: set CLAUDE_TOKEN_PERSONAL
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
 best next: work · Work
 from the router: healthy  ·  3 sessions  ·  pinned to side · Side
@@ -187,7 +187,7 @@ from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·
 				Accounts:    []status.Account{personal},
 			},
 			want: `personal · Personal
-  token missing: set CLAUDE_TOKEN_PERSONAL
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
 probed directly: the router isn't running
 `,
@@ -201,7 +201,7 @@ probed directly: the router isn't running
 				Accounts:    []status.Account{personal},
 			},
 			want: `personal · Personal
-  token missing: set CLAUDE_TOKEN_PERSONAL
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
 probed directly: the router is unhealthy, no answer within 500ms
 `,

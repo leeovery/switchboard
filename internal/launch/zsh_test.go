@@ -16,10 +16,9 @@ var update = flag.Bool("update", false, "rewrite the golden files with what the 
 // zshPath is the zsh the tests check scripts with: the system's.
 const zshPath = "/bin/zsh"
 
-// integration is the integration of this switchboard binary and the accounts,
-// with the tokens getenv gives set.
+// integration is the integration of this switchboard binary and the accounts.
 func integration() launch.Integration {
-	return launch.Integration{Binary: "/usr/local/bin/switchboard", Prefix: "cx", Accounts: accounts, Getenv: getenv}
+	return launch.Integration{Binary: "/usr/local/bin/switchboard", Prefix: "cx", Accounts: accounts}
 }
 
 func TestZsh(t *testing.T) {
@@ -88,33 +87,6 @@ func TestZshQuotesTheBinary(t *testing.T) {
 	parses(t, b.String())
 }
 
-func TestZshExportsTheFirstTokenSet(t *testing.T) {
-	tests := []struct {
-		name string
-		env  map[string]string
-		want string
-	}{
-		{name: "the first account's, when it's set", env: map[string]string{"CLAUDE_TOKEN_WORK": workToken, "CLAUDE_TOKEN_SIDE": sideToken}, want: "CLAUDE_TOKEN_WORK"},
-		{name: "a later account's, when the first's isn't set", env: map[string]string{"CLAUDE_TOKEN_PERSONAL": " ", "CLAUDE_TOKEN_SIDE": sideToken}, want: "CLAUDE_TOKEN_SIDE"},
-		{name: "the first account's, when none is set", want: "CLAUDE_TOKEN_WORK"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			i := integration()
-			i.Getenv = func(key string) string { return tt.env[key] }
-			var b strings.Builder
-			if err := i.Zsh(&b); err != nil {
-				t.Fatalf("Zsh() error = %v", err)
-			}
-
-			want := "if [[ -n ${" + tt.want + "-} ]]; then\n  export CLAUDE_CODE_OAUTH_TOKEN=\"${" + tt.want + "}\"\nfi\n"
-			if got := b.String(); !strings.HasSuffix(got, want) {
-				t.Errorf("Zsh() wrote\n%s\nwant it to end\n%s", got, want)
-			}
-		})
-	}
-}
-
 func TestZshNamesTheLaunchersWithThePrefix(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -161,8 +133,9 @@ func TestZshStartsClaudeThroughRun(t *testing.T) {
 	if _, err := os.Stat(zshPath); err != nil {
 		t.Skipf("no zsh at %s", zshPath)
 	}
-	// A switchboard, at a path zsh must quote, that prints its arguments and
-	// the token it's given, a line each; and a config at such a path too.
+	// A switchboard, at a path zsh must quote, that prints its arguments, a
+	// line each, and the token Claude Code would start on, which run alone
+	// gives it; and a config at such a path too.
 	dir := filepath.Join(t.TempDir(), "it's a")
 	binary := filepath.Join(dir, "switch board")
 	config := filepath.Join(dir, `"$(my)" config.toml`)
@@ -176,22 +149,18 @@ func TestZshStartsClaudeThroughRun(t *testing.T) {
 	tests := []struct {
 		name   string
 		config string
-		// env is the shell's environment, beyond its home and PATH.
-		env  []string
-		call string
-		want string
+		call   string
+		want   string
 	}{
 		{
 			name: "claude",
-			env:  []string{"CLAUDE_TOKEN_WORK=" + workToken},
 			call: `claude --print 'a prompt'`,
-			want: "run\n--\n--print\na prompt\ntoken=" + workToken + "\n",
+			want: "run\n--\n--print\na prompt\ntoken=unset\n",
 		},
 		{
 			name: "an account's launcher",
-			env:  []string{"CLAUDE_TOKEN_WORK=" + workToken},
 			call: `cxside --resume ''`,
-			want: "run\n--account\nside\n--\n--resume\n\ntoken=" + workToken + "\n",
+			want: "run\n--account\nside\n--\n--resume\n\ntoken=unset\n",
 		},
 		{
 			name:   "claude, reading the config given",
@@ -205,11 +174,6 @@ func TestZshStartsClaudeThroughRun(t *testing.T) {
 			call:   `cxwork`,
 			want:   "--config\n" + config + "\nrun\n--account\nwork\n--\ntoken=unset\n",
 		},
-		{
-			name: "claude, without the token the export names",
-			call: "claude",
-			want: "run\n--\ntoken=unset\n",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -220,7 +184,7 @@ func TestZshStartsClaudeThroughRun(t *testing.T) {
 				t.Fatalf("Zsh() error = %v", err)
 			}
 			cmd := exec.CommandContext(t.Context(), zshPath, "-f", "-c", script.String()+tt.call)
-			cmd.Env = append([]string{"HOME=" + t.TempDir(), "PATH=/usr/bin:/bin"}, tt.env...)
+			cmd.Env = []string{"HOME=" + t.TempDir(), "PATH=/usr/bin:/bin"}
 
 			out, err := cmd.CombinedOutput()
 			if err != nil || string(out) != tt.want {

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -27,19 +28,22 @@ const workAtStatus = `work · Work
 `
 
 // othersAtStatus is how status prints personal and side from fakeClaudeAPI's
-// probes.
-const othersAtStatus = `personal · Personal
-  token missing: set CLAUDE_TOKEN_PERSONAL
+// probes, commands run with deps finding personal's token file missing.
+func othersAtStatus(t *testing.T, deps cli.Deps) string {
+	t.Helper()
+	return `personal · Personal
+  token missing: write it to ` + tokenPath(t, deps, "personal") + `
 
 side · Side
   HTTP 401 · Invalid bearer token
 `
+}
 
 func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := routingSetup(t)
 
 	got := run(t, srv.deps, "status")
-	want := result{stdout: workAtStatus + "  1 session\n\n" + othersAtStatus + `
+	want := result{stdout: workAtStatus + "  1 session\n\n" + othersAtStatus(t, srv.deps) + `
 best next: work · Work
 from the router: healthy  ·  1 session  ·  pinned to side · Side
 `}
@@ -94,7 +98,7 @@ func TestStatusProbesPastARouterThatDoesntAnswer(t *testing.T) {
 	serveSilently(t, srv.socket())
 
 	got := run(t, srv.deps, "status")
-	want := result{stdout: workAtStatus + "\n" + othersAtStatus + `
+	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
 best next: work · Work
 probed directly: the router is unhealthy, no answer within 500ms
 `}
@@ -111,7 +115,7 @@ func TestStatusProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 
 	got := run(t, srv.deps, "status", "--probe")
-	want := result{stdout: workAtStatus + "\n" + othersAtStatus + `
+	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
 best next: work · Work
 probed directly
 `}
@@ -125,7 +129,10 @@ probed directly
 }
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
-	srv := routingSetup(t)
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	// A token for personal, as goldenDeps gives it.
+	writeToken(t, srv.deps, "personal", "test-token-personal")
+	routing(t, srv)
 
 	got := run(t, srv.deps, "usage")
 	if got.code != 0 || got.stderr != "" {
@@ -197,11 +204,16 @@ func TestUsageWatchProbesAsAsked(t *testing.T) {
 	}
 }
 
-// routingSetup starts a router of statusDeps' accounts, once it has probed
-// them, with a session on work, and pinned to side.
+// routingSetup starts a router of statusDeps' accounts, as routing does.
 func routingSetup(t *testing.T) *serveSetup {
 	t.Helper()
-	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	return routing(t, newServeSetup(t, fakeClaudeAPI(t), nil))
+}
+
+// routing starts srv's router, once it has probed the accounts, with a
+// session on work, and pinned to side, and returns srv.
+func routing(t *testing.T, srv *serveSetup) *serveSetup {
+	t.Helper()
 	srv.start(t)
 	srv.waitForProbes(t)
 	srv.route(t, "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", "claude-haiku-4-5-20251001")
@@ -211,13 +223,14 @@ func routingSetup(t *testing.T) *serveSetup {
 	return srv
 }
 
-// waitForProbes waits for the router to have probed statusDeps' accounts.
+// waitForProbes waits for the router to have probed every account it has a
+// token for: to have read its usage, or why it couldn't.
 func (s *serveSetup) waitForProbes(t *testing.T) {
 	t.Helper()
 	s.waitForStatus(t, func(doc status.Document) bool {
-		work, _ := doc.Account("work")
-		side, _ := doc.Account("side")
-		return len(work.Windows) == 3 && side.Error != ""
+		return !slices.ContainsFunc(doc.Accounts, func(a status.Account) bool {
+			return a.TokenSet && len(a.Windows) == 0 && a.Error == ""
+		})
 	})
 }
 

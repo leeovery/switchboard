@@ -267,7 +267,7 @@ func (s *state) view(model string, now time.Time) view {
 		barred, refused []string
 	)
 	for _, a := range s.accounts {
-		if !a.hasToken {
+		if !a.hasToken() {
 			continue
 		}
 		u := s.usage[a.ID]
@@ -404,7 +404,7 @@ func (s *state) standings(now time.Time) standings {
 	defer s.mu.Unlock()
 	var all standings
 	for _, a := range s.accounts {
-		if a.hasToken {
+		if a.hasToken() {
 			all = append(all, s.usage[a.ID].standing(a, s.policy, now))
 		}
 	}
@@ -428,9 +428,9 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 // status is the account's usage as last read, or why there's none, and the
 // limit and the refusal in force on it at now, if any are.
 func (u *usage) status(a account, now time.Time) status.Account {
-	st := status.Account{ID: a.ID, Label: a.Label, TokenSet: a.hasToken}
-	if !a.hasToken {
-		st.Error = status.TokenMissing(a.Account)
+	st := status.Account{ID: a.ID, Label: a.Label, TokenSet: a.hasToken()}
+	if !a.hasToken() {
+		st.Error = a.problem
 		return st
 	}
 	st.FetchedAt = u.updated

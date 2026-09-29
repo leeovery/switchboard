@@ -40,7 +40,7 @@ func TestUsage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, statusDeps(t, fakeClaudeAPI(t), tt.env), "usage")
+			got := run(t, goldenDeps(t, tt.env), "usage")
 			if got.code != 0 || got.stderr != "" {
 				t.Fatalf("switchboard usage = %+v, want exit status 0 and nothing on stderr", got)
 			}
@@ -81,7 +81,7 @@ func TestUsageColor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, statusDeps(t, fakeClaudeAPI(t), tt.env), "usage")
+			got := run(t, goldenDeps(t, tt.env), "usage")
 			if got.code != 0 {
 				t.Fatalf("switchboard usage = %+v, want exit status 0", got)
 			}
@@ -306,6 +306,16 @@ func recordWatch(t *testing.T, deps *cli.Deps) *watch.Config {
 		}
 	})
 	return &cfg
+}
+
+// goldenDeps are statusDeps, with env added to their environment, but for a
+// token for personal, which fakeClaudeAPI refuses: the reason for one missing
+// names the test's own state directory, which no golden file can.
+func goldenDeps(t *testing.T, env map[string]string) cli.Deps {
+	t.Helper()
+	deps := statusDeps(t, fakeClaudeAPI(t), env)
+	writeToken(t, deps, "personal", "test-token-personal")
+	return deps
 }
 
 func readGolden(t *testing.T, name string) string {

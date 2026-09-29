@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // tokenShaped is shaped like a Claude token, though it's none.
@@ -187,9 +187,9 @@ func keepStandardLog(t *testing.T) {
 }
 
 func TestTokensLogAsRedacted(t *testing.T) {
-	token, ok := config.Account{TokenEnv: "CLAUDE_TOKEN_WORK"}.Token(envFrom(map[string]string{"CLAUDE_TOKEN_WORK": "test-token-work"}))
-	if !ok {
-		t.Fatal("Token() found no token")
+	token, err := tokens.Parse("test-token-work")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
 	}
 	path := start(t, logs.Options{})
 	logs.For("test").Info("request", "token", token, slog.Any("again", token))

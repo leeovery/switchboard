@@ -36,8 +36,8 @@ go build ./...
 - **Comments are rare and earned:** only what the code can't say, such as a non-obvious constraint,
   or something that looks wrong but was proven right (say so). Never narration.
 - **Nothing personal, ever**, in code, tests, fixtures, docs or commit messages: no real account
-  emails or labels, tokens, env-file paths or machine names. Use placeholders such as `work`,
-  `personal` and `CLAUDE_TOKEN_WORK`. The repo will go public, and its history goes with it.
+  emails or labels, tokens, token file paths or machine names. Use placeholders such as `work`,
+  `personal` and `test-token-work`. The repo will go public, and its history goes with it.
 - **Never log a token.** Redact `Authorization` and anything token-shaped in logs, errors and test
   output.
 
@@ -47,8 +47,8 @@ No test touches the real network, environment, home directory, config, state, bi
 notifications. Ever.
 
 - **Inject** what a test needs: fake upstreams with `net/http/httptest`, and runners, clocks,
-  probers, a `getenv` and a home directory of its own. Write files under `t.TempDir()` or
-  `os.MkdirTemp`; set variables with `t.Setenv`.
+  probers, a `getenv`, a home directory and a state directory, with its token files, of its own.
+  Write files under `t.TempDir()` or `os.MkdirTemp`; set variables with `t.Setenv`.
 - **Every package with tests** runs them through `internal/testguard`, in a `TestMain` of that one
   statement: `func TestMain(m *testing.M) { os.Exit(testguard.Main(m)) }`. Before the tests, it:
   - points `HOME` and XDG's directories into a throwaway root;

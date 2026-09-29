@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 func TestRun(t *testing.T) {
@@ -58,7 +59,7 @@ func TestRun(t *testing.T) {
 	})
 	want := []status.Account{
 		{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown}, Sessions: 1},
-		{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+		{ID: "personal", Label: "Personal", Error: personalMissing},
 		{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 	}
 	if !reflect.DeepEqual(probed.Accounts, want) {
@@ -75,7 +76,7 @@ func TestRun(t *testing.T) {
 		t.Errorf("control socket after stopping: %v, want it gone", err)
 	}
 	for _, want := range [][]string{
-		{"level=WARN", `msg="account has no token; nothing will go out on it"`, "account=personal", "token_env=CLAUDE_TOKEN_PERSONAL"},
+		{"level=WARN", `msg="account has no usable token; nothing will go out on it"`, "account=personal", `error="` + personalMissing + `"`},
 		{"level=INFO", "msg=listening", "address=" + cfg.Listen, "control=" + socket, "upstream=" + up.URL, "token_set.work=true token_set.personal=false token_set.side=true"},
 		{"level=DEBUG", `msg="probed account"`, "account=work", "windows=2"},
 		{"level=WARN", `msg="window unread"`, "account=work", "window=7d_oi"},
@@ -86,6 +87,20 @@ func TestRun(t *testing.T) {
 		if !log.Has(want...) {
 			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 		}
+	}
+}
+
+func TestNewWithoutAUsableToken(t *testing.T) {
+	cfg := testConfig("http://127.0.0.1:1")
+	cfg.Token = tokenstest.Files{"work": " "}.Read
+
+	_, err := router.New(cfg)
+	want := "no account has a usable token, so there's nothing to route to:\n" +
+		"work: token missing\n" +
+		"personal: " + personalMissing + "\n" +
+		"side: " + tokenstest.Missing("side").Error()
+	if err == nil || err.Error() != want {
+		t.Errorf("New() error = %v, want\n%s", err, want)
 	}
 }
 

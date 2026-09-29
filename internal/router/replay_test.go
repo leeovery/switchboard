@@ -12,10 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // sessionSpent is a session window at its limit, as a 429 reports it.
@@ -275,6 +277,134 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
 		t.Errorf("events = %+v, want %+v", got, wantEvents)
 	}
+}
+
+func TestARefusedTokenIsReadAgainFromItsFile(t *testing.T) {
+	const renewed = "test-token-work-renewed"
+	refused := refuseWith(http.StatusUnauthorized, "Invalid bearer token")
+	tests := []struct {
+		name string
+		// change changes work's token file once the router has read it.
+		change func(t *testing.T, store tokens.Store)
+		// renewedRefused has the upstream refuse the token the file holds
+		// now too.
+		renewedRefused bool
+		// wantTokens are the tokens the request went out with, in turn.
+		wantTokens []string
+		// wantRead is what the log says of reading the file again.
+		wantRead []string
+		// wantRefused is whether work is refused for ten minutes.
+		wantRefused bool
+	}{
+		{
+			name:       "holding a new token, which the request goes out on again",
+			change:     func(t *testing.T, store tokens.Store) { writeToken(t, store, "work", renewed) },
+			wantTokens: []string{workToken, renewed},
+			wantRead:   []string{"changed=true"},
+		},
+		{
+			name:        "holding the token refused, so the request goes to another account",
+			change:      func(*testing.T, tokens.Store) {},
+			wantTokens:  []string{workToken, sideToken},
+			wantRead:    []string{"changed=false"},
+			wantRefused: true,
+		},
+		{
+			name: "gone, so the request goes to another account",
+			change: func(t *testing.T, store tokens.Store) {
+				if err := store.Remove("work"); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantTokens:  []string{workToken, sideToken},
+			wantRead:    []string{"changed=false", `error="token missing: write it to `},
+			wantRefused: true,
+		},
+		{
+			name:           "holding a new token that's refused too, read once for the request",
+			change:         func(t *testing.T, store tokens.Store) { writeToken(t, store, "work", renewed) },
+			renewedRefused: true,
+			wantTokens:     []string{workToken, renewed, sideToken},
+			wantRead:       []string{"changed=true"},
+			wantRefused:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			store, files := withTokenFiles(t)
+			r := newRouted(t, files)
+			// Work's quota needs using first, so the session goes there.
+			r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+			r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+			r.api.script(workToken, refused)
+			if tt.renewedRefused {
+				r.api.script(renewed, refused)
+			}
+			tt.change(t, store)
+
+			resp := send(t, http.MethodPost, r.proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
+			if body := readAll(t, resp); resp.StatusCode != http.StatusOK || body != `{"type":"message"}` {
+				t.Errorf("answered %d %s, want a 200", resp.StatusCode, body)
+			}
+			if got := r.api.bearers(); !slices.Equal(got, tt.wantTokens) {
+				t.Errorf("the request went out with %q, want %q", got, tt.wantTokens)
+			}
+			read := append([]string{"level=INFO", `msg="read the token file again"`, "account=work"}, tt.wantRead...)
+			waitForLine(t, log, read...)
+			if n := strings.Count(log.String(), `msg="read the token file again"`); n != 1 {
+				t.Errorf("the log reads\n%s\nwant the token file read again once, not %d times", log, n)
+			}
+			if work, _ := r.rt.Status().Account("work"); (work.Refused.Status == http.StatusUnauthorized) != tt.wantRefused {
+				t.Errorf("work's refusal = %+v, want its token refused: %v", work.Refused, tt.wantRefused)
+			}
+			for _, token := range []string{workToken, renewed} {
+				if strings.Contains(log.String(), token) {
+					t.Errorf("the log reads\n%s\nwhich shows a token", log)
+				}
+			}
+		})
+	}
+}
+
+func TestAnAccountGoesOutOnTheTokenItsFileHeldWhenReadAgain(t *testing.T) {
+	const renewed = "test-token-work-renewed"
+	log := logstest.Capture(t)
+	store, files := withTokenFiles(t)
+	r := newRouted(t, files)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, refuseWith(http.StatusUnauthorized, "Invalid bearer token"))
+	writeToken(t, store, "work", renewed)
+	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+
+	// Another session, on side's token, pinned to work.
+	pinned := with(with(claudeCode(sideToken), claude.SessionHeader, "two"), router.PinHeader, "work")
+	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", pinned, strings.NewReader(messages)))
+	if got, want := r.api.bearers(), []string{workToken, renewed, renewed}; !slices.Equal(got, want) {
+		t.Errorf("the requests went out with %q, want %q: the first renewed work's token, which the second goes out on", got, want)
+	}
+	r.clock.advance(time.Minute)
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Nanosecond); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	if n := r.prober.probes(renewed); n != 1 {
+		t.Errorf("work was probed on its new token %d times, want once", n)
+	}
+	for _, want := range [][]string{
+		{"level=INFO", "msg=replaying", "attempt=2", "from=work", "to=work", `why="has a new token"`},
+		{"level=INFO", "msg=routed", "session=0b5c6f2e", "account=work", "status=200", "attempts=2"},
+	} {
+		waitForLine(t, log, want...)
+	}
+	if got := r.events.heard(); slices.ContainsFunc(got, isRefusal) {
+		t.Errorf("events = %+v, want no refusal: work's new token wasn't refused", got)
+	}
+}
+
+func isRefusal(e router.Event) bool {
+	_, refused := e.(router.Refused)
+	return refused
 }
 
 func TestAnAccountThatRefusesARequestIsSkippedForItsModelsFamilyAlone(t *testing.T) {

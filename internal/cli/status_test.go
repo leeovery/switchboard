@@ -16,7 +16,9 @@ import (
 )
 
 func TestStatus(t *testing.T) {
-	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status")
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+
+	got := run(t, deps, "status")
 	want := result{
 		stdout: `work · Work
   Session     23%  resets in 4h 58m · Mon 18:10
@@ -24,7 +26,7 @@ func TestStatus(t *testing.T) {
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
 
 personal · Personal
-  token missing: set CLAUDE_TOKEN_PERSONAL
+  token missing: write it to ` + tokenPath(t, deps, "personal") + `
 
 side · Side
   HTTP 401 · Invalid bearer token
@@ -40,7 +42,9 @@ probed directly: the router isn't running
 }
 
 func TestStatusJSON(t *testing.T) {
-	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json")
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+
+	got := run(t, deps, "status", "--json")
 	want := result{
 		stdout: `{
   "generated_at": "2026-09-28T13:12:00Z",
@@ -83,7 +87,7 @@ func TestStatusJSON(t *testing.T) {
       "id": "personal",
       "label": "Personal",
       "token_set": false,
-      "error": "token missing: set CLAUDE_TOKEN_PERSONAL"
+      "error": "token missing: write it to ` + tokenPath(t, deps, "personal") + `"
     },
     {
       "id": "side",
@@ -102,10 +106,10 @@ func TestStatusJSON(t *testing.T) {
 }
 
 func TestStatusWithInvalidConfig(t *testing.T) {
-	path := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	path := writeConfig(t, invalidConfig)
 
 	got := run(t, testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir()), "status")
-	wantErr := "Error: invalid config " + path + ":\n" + `account "work": token_env is required`
+	wantErr := "Error: invalid config " + path + ":\n" + `unknown key "account.token_env": tokens now live in files`
 	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, wantErr) {
 		t.Errorf("switchboard status = %+v, want exit status 1 and an error starting %q", got, wantErr)
 	}
@@ -132,8 +136,9 @@ func TestStatusNeverPrintsTheToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := writeConfig(t, fmt.Sprintf("upstream = %q\n\n[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n", tt.upstream))
-			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "CLAUDE_TOKEN_WORK": token, "SWITCHBOARD_LOG_LEVEL": "debug"}, t.TempDir())
+			path := writeConfig(t, fmt.Sprintf("upstream = %q\n\n[[account]]\nid = \"work\"\n", tt.upstream))
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "SWITCHBOARD_LOG_LEVEL": "debug"}, t.TempDir())
+			writeToken(t, deps, "work", token)
 
 			got := run(t, deps, tt.args...)
 			if strings.Contains(got.stdout+got.stderr, token) {
@@ -154,35 +159,33 @@ func TestStatusNeverPrintsTheToken(t *testing.T) {
 }
 
 // statusDeps configures three accounts against upstream: work, whose token
-// fakeClaudeAPI accepts; personal, without a token; and side, whose token
+// fakeClaudeAPI accepts; personal, without a token file; and side, whose token
 // fakeClaudeAPI rejects. env adds to their environment.
 func statusDeps(t *testing.T, upstream string, env map[string]string) cli.Deps {
 	t.Helper()
-	path := writeConfig(t, fmt.Sprintf(`upstream = %q
-
-[[account]]
-id        = "work"
-label     = "Work"
-token_env = "CLAUDE_TOKEN_WORK"
-
-[[account]]
-id        = "personal"
-label     = "Personal"
-token_env = "CLAUDE_TOKEN_PERSONAL"
-
-[[account]]
-id        = "side"
-label     = "Side"
-token_env = "CLAUDE_TOKEN_SIDE"
-`, upstream))
-	vars := map[string]string{
-		"SWITCHBOARD_CONFIG": path,
-		"CLAUDE_TOKEN_WORK":  "test-token-work",
-		"CLAUDE_TOKEN_SIDE":  "test-token-side",
-	}
+	path := writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts)
+	vars := map[string]string{"SWITCHBOARD_CONFIG": path}
 	maps.Copy(vars, env)
-	return testDeps(vars, t.TempDir())
+	deps := testDeps(vars, t.TempDir())
+	writeToken(t, deps, "work", "test-token-work")
+	writeToken(t, deps, "side", "test-token-side")
+	return deps
 }
+
+// threeAccounts are the accounts statusDeps configures.
+const threeAccounts = `
+[[account]]
+id    = "work"
+label = "Work"
+
+[[account]]
+id    = "personal"
+label = "Personal"
+
+[[account]]
+id    = "side"
+label = "Side"
+`
 
 // fakeClaudeAPI serves a probe of the work account from Claude Code
 // testClaudeVersion with its usage headers, and rejects anything else. The

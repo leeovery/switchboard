@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const day = 24 * time.Hour
@@ -548,7 +549,7 @@ func TestARouterPostsNotificationsOnlyWhenAskedTo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r, err := New(Config{
 				Accounts:      testConfigured,
-				Getenv:        testGetenv,
+				Token:         testTokens.Read,
 				Upstream:      "http://127.0.0.1:1",
 				Provider:      claude.Provider{},
 				Prober:        &stubProber{},
@@ -660,15 +661,13 @@ func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
 // numbered are accounts named as the design's examples name them: 1 · one,
 // 2 · two and 3 · three, each with a token.
 var numbered = []config.Account{
-	{ID: "1", Label: "one", TokenEnv: "CLAUDE_TOKEN_1"},
-	{ID: "2", Label: "two", TokenEnv: "CLAUDE_TOKEN_2"},
-	{ID: "3", Label: "three", TokenEnv: "CLAUDE_TOKEN_3"},
+	{ID: "1", Label: "one"},
+	{ID: "2", Label: "two"},
+	{ID: "3", Label: "three"},
 }
 
-// numberedToken reads the numbered accounts' tokens.
-func numberedToken(key string) string {
-	return "test-token-" + strings.TrimPrefix(key, "CLAUDE_TOKEN_")
-}
+// numberedTokens are the numbered accounts' tokens.
+var numberedTokens = tokenstest.Files{"1": "test-token-1", "2": "test-token-2", "3": "test-token-3"}
 
 // notifying is notifications at work in a synctest bubble, over the state of
 // the numbered accounts, on the bubble's clock read in UTC, which begins on a
@@ -689,7 +688,7 @@ type notifying struct {
 func newNotifying(t *testing.T, settings config.Notifications) *notifying {
 	t.Helper()
 	now := func() time.Time { return time.Now().UTC() }
-	s := newState(resolve(numbered, numberedToken), testPolicy, claude.Provider{}.Family, now)
+	s := newState(resolve(numbered, numberedTokens.Read), testPolicy, claude.Provider{}.Family, now)
 	notifier := &noting{}
 	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, now), notifier: notifier, began: now()}
 }

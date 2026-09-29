@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -20,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 var logger = logs.For("router")
@@ -62,8 +62,10 @@ type Prober interface {
 type Config struct {
 	// Accounts are the configured accounts, in the order they're shown.
 	Accounts config.Accounts
-	// Getenv reads the variables holding the accounts' tokens.
-	Getenv func(key string) string
+	// Token reads an account's token, by the account's id, from its file: as
+	// the router starts, and again when the upstream refuses the token it
+	// has, which may have been replaced since.
+	Token func(id string) (tokens.Token, error)
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
@@ -117,14 +119,14 @@ type Router struct {
 	proxyAddr string
 }
 
-// New builds a router for the accounts configured. An account without a token
-// is listed, but nothing goes out on it; New fails when no account has one,
-// as there'd be nothing to route to.
+// New builds a router for the accounts configured. An account without a
+// usable token is listed, but nothing goes out on it; New fails when no
+// account has one, as there'd be nothing to route to, saying why of each.
 func New(cfg Config) (*Router, error) {
 	cfg.Now = wallClock(cfg.Now)
-	accounts := resolve(cfg.Accounts, cfg.Getenv)
-	if !accounts.anyToken() {
-		return nil, fmt.Errorf("no account has a token, so there's nothing to route to: set %s", strings.Join(cfg.Accounts.TokenEnvs(), " or "))
+	accounts := resolve(cfg.Accounts, cfg.Token)
+	if err := accounts.checkTokens(); err != nil {
+		return nil, err
 	}
 	upstream, err := url.Parse(cfg.Upstream)
 	if err != nil {
@@ -154,6 +156,7 @@ func New(cfg Config) (*Router, error) {
 			upstream:  upstream,
 			transport: newTransport(),
 			accounts:  accounts,
+			readToken: cfg.Token,
 			state:     state,
 			provider:  cfg.Provider,
 			chooser:   scheduler,

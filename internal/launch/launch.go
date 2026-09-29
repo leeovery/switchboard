@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 var logger = logs.For("launch")
@@ -53,8 +54,8 @@ type Launcher struct {
 // Route is what starting Claude Code on an account's token takes.
 type Route struct {
 	Config *config.Config
-	// Getenv reads the accounts' tokens.
-	Getenv func(key string) string
+	// Token reads an account's token, by the account's id, from its file.
+	Token  func(id string) (tokens.Token, error)
 	Router Router
 	// Account is the id of the account to pin the session to, or "" to leave
 	// it to the router.
@@ -63,13 +64,13 @@ type Route struct {
 
 // Run starts Claude Code with args in this process's place, on the token of
 // the account pinned, else the one the router rates best, else the first with
-// a token. While the router is healthy, Claude Code sends its requests there,
-// to the address the router says its proxy listens on, whatever the config
-// says, pinned when an account is; otherwise it sends them straight to the
-// API, and Stderr hears why. With no account's token to start on, it starts
-// Unaided. A pin that can't be kept, to an account not configured or without
-// a token, fails: it's the command line's mistake. Run returns only when
-// Claude Code couldn't start.
+// a usable token. While the router is healthy, Claude Code sends its requests
+// there, to the address the router says its proxy listens on, whatever the
+// config says, pinned when an account is; otherwise it sends them straight to
+// the API, and Stderr hears why. With no account's token to start on, it
+// starts Unaided. A pin that can't be kept, to an account not configured or
+// without a usable token, fails: it's the command line's mistake. Run returns
+// only when Claude Code couldn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -80,9 +81,9 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 		return err
 	}
 	state := r.health(ctx)
-	c, ok := r.choose(ctx, pin, state)
-	if !ok {
-		return l.unaided(path, args, "no account has a token", fmt.Errorf("set %s", strings.Join(r.Config.Accounts.TokenEnvs(), " or ")))
+	c, err := r.choose(ctx, pin, state)
+	if err != nil {
+		return l.unaided(path, args, "no account has a usable token", err)
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
@@ -224,27 +225,28 @@ func (r Route) health(ctx context.Context) routerState {
 // chosen.
 type choice struct {
 	account config.Account
-	token   config.Token
+	token   tokens.Token
 	why     string
 }
 
 // choose picks the account whose token Claude Code starts on: pin's, when
 // there's one; else, while the router is healthy, the one it rates best;
-// else the first with a token. It reports false when there's none.
-func (r Route) choose(ctx context.Context, pin choice, state routerState) (choice, bool) {
+// else the first with a usable token. It fails, saying why of each account,
+// when there's none.
+func (r Route) choose(ctx context.Context, pin choice, state routerState) (choice, error) {
 	if pin.account.ID != "" {
-		return pin, true
+		return pin, nil
 	}
 	if state.healthy() {
 		if c, ok := r.best(ctx); ok {
-			return c, true
+			return c, nil
 		}
 	}
 	return r.first()
 }
 
 // pinned is the account the session is pinned to, which must be configured
-// and have a token; none when it isn't pinned.
+// and have a usable token; none when it isn't pinned.
 func (r Route) pinned() (choice, error) {
 	if r.Account == "" {
 		return choice{}, nil
@@ -254,15 +256,15 @@ func (r Route) pinned() (choice, error) {
 		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(r.Config.Accounts.IDs(), " or "))
 	}
 	a := r.Config.Accounts[i]
-	token, ok := a.Token(r.Getenv)
-	if !ok {
-		return choice{}, fmt.Errorf("account %s has no token for Claude Code to start on: set %s", a.ID, a.TokenEnv)
+	token, err := r.Token(a.ID)
+	if err != nil {
+		return choice{}, fmt.Errorf("account %s has no usable token for Claude Code to start on: %w", a.ID, err)
 	}
 	return choice{account: a, token: token, why: "pinned"}, nil
 }
 
-// best is the account the router rates best, when it names one this process
-// has the token of.
+// best is the account the router rates best, when it names one with a usable
+// token.
 func (r Route) best(ctx context.Context) (choice, bool) {
 	ctx, cancel := context.WithTimeout(ctx, AskTimeout)
 	defer cancel()
@@ -271,33 +273,30 @@ func (r Route) best(ctx context.Context) (choice, bool) {
 		logger.Warn("can't ask the router which account is best", "error", err)
 		return choice{}, false
 	}
-	for _, a := range r.Config.Accounts {
-		if a.ID != doc.Best {
-			continue
-		}
-		if token, ok := a.Token(r.Getenv); ok {
-			return choice{account: a, token: token, why: "the router's best"}, true
-		}
+	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == doc.Best })
+	if i < 0 {
+		return choice{}, false
 	}
-	return choice{}, false
+	a := r.Config.Accounts[i]
+	token, err := r.Token(a.ID)
+	if err != nil {
+		return choice{}, false
+	}
+	return choice{account: a, token: token, why: "the router's best"}, true
 }
 
-// first is the first account with a token, reporting false when there's
-// none.
-func (r Route) first() (choice, bool) {
-	a, token, ok := firstWithToken(r.Config.Accounts, r.Getenv)
-	return choice{account: a, token: token, why: "the first with a token"}, ok
-}
-
-// firstWithToken returns the first of accounts whose token getenv finds, with
-// the token, reporting false when none has one.
-func firstWithToken(accounts config.Accounts, getenv func(key string) string) (config.Account, config.Token, bool) {
-	for _, a := range accounts {
-		if token, ok := a.Token(getenv); ok {
-			return a, token, true
+// first is the first account with a usable token. It fails, saying why of
+// each account, when there's none.
+func (r Route) first() (choice, error) {
+	problems := make([]error, len(r.Config.Accounts))
+	for i, a := range r.Config.Accounts {
+		token, err := r.Token(a.ID)
+		if err == nil {
+			return choice{account: a, token: token, why: "the first with a token"}, nil
 		}
+		problems[i] = fmt.Errorf("%s: %w", a.ID, err)
 	}
-	return config.Account{}, config.Token{}, false
+	return choice{}, errors.Join(problems...)
 }
 
 // title names an account as every command does, such as "work · Work".

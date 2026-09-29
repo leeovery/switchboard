@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 )
@@ -20,14 +21,18 @@ listen   = "[::1]:9000"
 upstream = "http://127.0.0.1:8080"
 
 [[account]]
-id        = "work"
-label     = "Work"
-token_env = "CLAUDE_TOKEN_WORK"
+id      = "work"
+label   = "Work"
+reserve = 0.05
 
 [[account]]
-id        = "personal"
-label     = "Personal"
-token_env = "CLAUDE_TOKEN_PERSONAL"
+id      = "personal"
+label   = "Personal"
+primary = true
+reserve = 0.2
+
+[prime]
+day = "07:30-22:45"
 
 [notifications]
 limits  = false
@@ -39,9 +44,10 @@ moves   = true
 		Listen:   "[::1]:9000",
 		Upstream: "http://127.0.0.1:8080",
 		Accounts: []config.Account{
-			{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-			{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
+			{ID: "work", Label: "Work", Reserve: 0.05},
+			{ID: "personal", Label: "Personal", Primary: true, Reserve: 0.2},
 		},
+		Prime:         config.Prime{Day: config.Day{Start: 7*time.Hour + 30*time.Minute, End: 22*time.Hour + 45*time.Minute}},
 		Notifications: config.Notifications{Room: true, Warning: 0.75, Moves: true},
 	}
 
@@ -54,36 +60,21 @@ moves   = true
 	}
 }
 
-func TestAccountsLists(t *testing.T) {
-	accounts := config.Accounts{
-		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
-	}
-	if got, want := accounts.IDs(), []string{"work", "side"}; !slices.Equal(got, want) {
-		t.Errorf("IDs() = %q, want %q", got, want)
-	}
-	if got, want := accounts.TokenEnvs(), []string{"CLAUDE_TOKEN_WORK", "CLAUDE_TOKEN_SIDE"}; !slices.Equal(got, want) {
-		t.Errorf("TokenEnvs() = %q, want %q", got, want)
-	}
-}
-
 func TestLoadFillsDefaults(t *testing.T) {
 	path := writeConfig(t, `
 [[account]]
-id        = "work"
-token_env = "CLAUDE_TOKEN_WORK"
+id = "work"
 
 [[account]]
-id        = "personal"
-label     = "Personal"
-token_env = "CLAUDE_TOKEN_PERSONAL"
+id    = "personal"
+label = "Personal"
 `)
 	want := &config.Config{
 		Listen:   "127.0.0.1:4747",
 		Upstream: "https://api.anthropic.com",
 		Accounts: []config.Account{
-			{ID: "work", Label: "work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-			{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
+			{ID: "work", Label: "work", Primary: true, Reserve: 0.1},
+			{ID: "personal", Label: "Personal"},
 		},
 		Notifications: config.Notifications{Limits: true, Room: true, Warning: 0.9},
 	}
@@ -94,6 +85,115 @@ token_env = "CLAUDE_TOKEN_PERSONAL"
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Load() = %+v, want %+v", got, want)
+	}
+	if got.Prime.On() {
+		t.Errorf("Load() primes on %+v, want priming off without a day", got.Prime.Day)
+	}
+}
+
+func TestLoadThePrimaryAndTheReserves(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   []config.Account
+	}{
+		{
+			name:   "the first, without one marked",
+			config: accountTOML("work") + accountTOML("side"),
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.1}, {ID: "side", Label: "side"}},
+		},
+		{
+			name:   "the one marked",
+			config: accountTOML("work") + accountTOML("side") + "primary = true\n",
+			want:   []config.Account{{ID: "work", Label: "work"}, {ID: "side", Label: "side", Primary: true, Reserve: 0.1}},
+		},
+		{
+			name:   "the first, with the others marked not to be",
+			config: accountTOML("work") + "primary = false\n" + accountTOML("side") + "primary = false\n",
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.1}, {ID: "side", Label: "side"}},
+		},
+		{
+			name:   "with the primary's reserve given",
+			config: accountTOML("work") + "reserve = 0.25\n" + accountTOML("side"),
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.25}, {ID: "side", Label: "side"}},
+		},
+		{
+			name:   "with none on the primary",
+			config: accountTOML("work") + "reserve = 0\n" + accountTOML("side"),
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true}, {ID: "side", Label: "side"}},
+		},
+		{
+			name:   "with a reserve on another account",
+			config: accountTOML("work") + accountTOML("side") + "reserve = 0.05\n",
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.1}, {ID: "side", Label: "side", Reserve: 0.05}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, tt.config))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if !slices.Equal(cfg.Accounts, tt.want) {
+				t.Errorf("Load() accounts = %+v, want %+v", cfg.Accounts, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadThePrimingDay(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   config.Day
+	}{
+		{name: "none without the table", want: config.Day{}},
+		{name: "none with the table empty", config: "[prime]\n", want: config.Day{}},
+		{name: "within a day", config: "[prime]\nday = \"08:00-23:00\"\n", want: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}},
+		{name: "past midnight", config: "[prime]\nday = \"22:15-02:30\"\n", want: config.Day{Start: 22*time.Hour + 15*time.Minute, End: 2*time.Hour + 30*time.Minute}},
+		{name: "ending at midnight", config: "[prime]\nday = \"08:00-00:00\"\n", want: config.Day{Start: 8 * time.Hour}},
+		{name: "from midnight", config: "[prime]\nday = \"00:00-23:59\"\n", want: config.Day{End: 23*time.Hour + 59*time.Minute}},
+		{name: "as an inline table", config: "prime = { day = \"06:00-21:00\" }\n", want: config.Day{Start: 6 * time.Hour, End: 21 * time.Hour}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.Prime.Day != tt.want {
+				t.Errorf("Load() day = %+v, want %+v", cfg.Prime.Day, tt.want)
+			}
+			if on, want := cfg.Prime.On(), tt.want != (config.Day{}); on != want {
+				t.Errorf("Load() primes: %v, want %v", on, want)
+			}
+		})
+	}
+}
+
+func TestAccountsIDs(t *testing.T) {
+	accounts := config.Accounts{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side"}}
+	if got, want := accounts.IDs(), []string{"work", "side"}; !slices.Equal(got, want) {
+		t.Errorf("IDs() = %q, want %q", got, want)
+	}
+}
+
+func TestAccountsPrimary(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts config.Accounts
+		want     string
+	}{
+		{name: "the one marked", accounts: config.Accounts{{ID: "work"}, {ID: "side", Primary: true}}, want: "side"},
+		{name: "the first, without one marked", accounts: config.Accounts{{ID: "work"}, {ID: "side"}}, want: "work"},
+		{name: "the only one", accounts: config.Accounts{{ID: "work"}}, want: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.accounts.Primary().ID; got != tt.want {
+				t.Errorf("Primary() = %s, want %s", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -113,7 +213,7 @@ func TestLoadAcceptsLoopbackListenAndHTTPUpstream(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content := fmt.Sprintf("listen = %q\nupstream = %q\n", tt.listen, tt.upstream) + accountTOML("work", "CLAUDE_TOKEN_WORK")
+			content := fmt.Sprintf("listen = %q\nupstream = %q\n", tt.listen, tt.upstream) + accountTOML("work")
 
 			cfg, err := config.Load(writeConfig(t, content))
 			if err != nil {
@@ -148,7 +248,7 @@ func TestLoadNotifications(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work", "CLAUDE_TOKEN_WORK")))
+			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -160,8 +260,15 @@ func TestLoadNotifications(t *testing.T) {
 }
 
 func TestExampleIsValid(t *testing.T) {
-	if _, err := config.Load(writeConfig(t, config.Example)); err != nil {
-		t.Errorf("Load(Example) error = %v", err)
+	cfg, err := config.Load(writeConfig(t, config.Example))
+	if err != nil {
+		t.Fatalf("Load(Example) error = %v", err)
+	}
+	if primary := cfg.Accounts.Primary(); primary.ID != "work" || primary.Reserve != 0.1 {
+		t.Errorf("Load(Example) primary = %+v, want work, with a reserve of 0.1", primary)
+	}
+	if !strings.Contains(config.Example, "# [prime]\n# day = \"08:00-23:00\"\n") || cfg.Prime.On() {
+		t.Errorf("Example reads\n%s\nwant priming shown, and left off", config.Example)
 	}
 }
 
@@ -181,6 +288,9 @@ func TestLoadUndecodableFile(t *testing.T) {
 		{name: "wrong type", config: "listen = 4747\n"},
 		{name: "account as a single table", config: "[account]\nid = \"work\"\n"},
 		{name: "a warning in words", config: "notifications = { warning = \"high\" }\n"},
+		{name: "a reserve in words", config: "account = [{ id = \"work\", reserve = \"some\" }]\n"},
+		{name: "the primary in words", config: "account = [{ id = \"work\", primary = \"yes\" }]\n"},
+		{name: "a day as a number", config: "prime = { day = 8 }\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -198,13 +308,21 @@ func TestLoadUndecodableFile(t *testing.T) {
 }
 
 func TestLoadReportsProblems(t *testing.T) {
-	work := accountTOML("work", "CLAUDE_TOKEN_WORK")
+	work := accountTOML("work")
 	notLoopback := func(listen string) string {
 		return fmt.Sprintf("listen %q: host must be a loopback IP address, 127.0.0.1 or ::1, so no other machine can use the proxy's tokens; a name, even localhost, can lead a client to another address", listen)
 	}
 	plaintext := func(upstream string) string {
 		return fmt.Sprintf("upstream %q: must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext", upstream)
 	}
+	reserve := func(account string, share string) string {
+		return fmt.Sprintf("account %q: reserve %s: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1", account, share)
+	}
+	day := func(given string) string {
+		return fmt.Sprintf("prime.day %q: must be two times of day, HH:MM, joined by -, such as 08:00-23:00", given)
+	}
+	const tokenEnv = `unknown key "account.token_env": tokens now live in files, at <state dir>/tokens/<id>, ` +
+		"the state dir being $XDG_STATE_HOME/switchboard, else ~/.local/state/switchboard"
 	tests := []struct {
 		name   string
 		config string
@@ -216,10 +334,9 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{`unknown key "listn"`},
 		},
 		{
-			name: "unknown account key, once however many accounts repeat it",
-			config: accountTOML("work", "CLAUDE_TOKEN_WORK") + "tokn_env = \"CLAUDE_TOKEN_WORK\"\n" +
-				accountTOML("personal", "CLAUDE_TOKEN_PERSONAL") + "tokn_env = \"CLAUDE_TOKEN_PERSONAL\"\n",
-			want: []string{`unknown key "account.tokn_env"`},
+			name:   "unknown account key, once however many accounts repeat it",
+			config: accountTOML("work") + "labl = \"Work\"\n" + accountTOML("personal") + "labl = \"Personal\"\n",
+			want:   []string{`unknown key "account.labl"`},
 		},
 		{
 			name:   "unknown table, without its keys",
@@ -230,6 +347,16 @@ func TestLoadReportsProblems(t *testing.T) {
 			name:   "unknown notifications key",
 			config: "[notifications]\nsound = true\n" + work,
 			want:   []string{`unknown key "notifications.sound"`},
+		},
+		{
+			name:   "unknown prime key",
+			config: "[prime]\nstart = \"08:00\"\n" + work,
+			want:   []string{`unknown key "prime.start"`},
+		},
+		{
+			name:   "the token variable of a config from before token files, once however many accounts give one",
+			config: work + "token_env = \"CLAUDE_TOKEN_WORK\"\n" + accountTOML("personal") + "token_env = \"CLAUDE_TOKEN_PERSONAL\"\n",
+			want:   []string{tokenEnv},
 		},
 		{
 			name:   "a warning at the whole of a window's limit",
@@ -257,6 +384,57 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{"notifications.warning +Inf: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none"},
 		},
 		{
+			name:   "a reserve of the whole of each window",
+			config: work + "reserve = 1\n",
+			want:   []string{reserve("work", "1")},
+		},
+		{
+			name:   "a reserve past the whole of each window",
+			config: work + "reserve = 1.5\n",
+			want:   []string{reserve("work", "1.5")},
+		},
+		{
+			name:   "a reserve below none",
+			config: work + accountTOML("side") + "reserve = -0.1\n",
+			want:   []string{reserve("side", "-0.1")},
+		},
+		{
+			name:   "a reserve that isn't a number",
+			config: work + "reserve = nan\n",
+			want:   []string{reserve("work", "NaN")},
+		},
+		{
+			name:   "an endless reserve",
+			config: work + "reserve = inf\n",
+			want:   []string{reserve("work", "+Inf")},
+		},
+		{
+			name:   "two primaries",
+			config: work + "primary = true\n" + accountTOML("side") + "primary = true\n",
+			want:   []string{`primary is set on account "work" and account "side": only one account can be the primary, the one the browser and the Claude apps use`},
+		},
+		{
+			name: "three primaries, once, naming each",
+			config: work + "primary = true\n" + accountTOML("personal") + "primary = false\n" +
+				"\n[[account]]\nprimary = true\n" + accountTOML("side") + "primary = true\n",
+			want: []string{
+				"account #3: id is required",
+				`primary is set on account "work", account #3 and account "side": only one account can be the primary, the one the browser and the Claude apps use`,
+			},
+		},
+		{name: "a day without its end", config: "[prime]\nday = \"08:00\"\n" + work, want: []string{day("08:00")}},
+		{name: "a day with a time of day that isn't one", config: "[prime]\nday = \"08:00-24:00\"\n" + work, want: []string{day("08:00-24:00")}},
+		{name: "a day with an hour of one digit", config: "[prime]\nday = \"8:00-23:00\"\n" + work, want: []string{day("8:00-23:00")}},
+		{name: "a day with seconds", config: "[prime]\nday = \"08:00:00-23:00:00\"\n" + work, want: []string{day("08:00:00-23:00:00")}},
+		{name: "a day with spaces", config: "[prime]\nday = \"08:00 - 23:00\"\n" + work, want: []string{day("08:00 - 23:00")}},
+		{name: "a day of three times", config: "[prime]\nday = \"08:00-12:00-23:00\"\n" + work, want: []string{day("08:00-12:00-23:00")}},
+		{name: "a day in words", config: "[prime]\nday = \"mornings\"\n" + work, want: []string{day("mornings")}},
+		{
+			name:   "a day that ends as it starts",
+			config: "[prime]\nday = \"08:00-08:00\"\n" + work,
+			want:   []string{`prime.day "08:00-08:00": must end at another time than it starts; an end before the start is past midnight`},
+		},
+		{
 			name:   "no accounts",
 			config: "listen = \"127.0.0.1:4747\"\n",
 			want:   []string{"no accounts: add an [[account]] table for each Claude subscription"},
@@ -268,74 +446,43 @@ func TestLoadReportsProblems(t *testing.T) {
 		},
 		{
 			name:   "missing id",
-			config: work + "\n[[account]]\ntoken_env = \"CLAUDE_TOKEN_PERSONAL\"\n",
+			config: work + "\n[[account]]\nlabel = \"Personal\"\n",
 			want:   []string{"account #2: id is required"},
 		},
 		{
 			name:   "id starting with a dash",
-			config: accountTOML("-work", "CLAUDE_TOKEN_WORK"),
+			config: accountTOML("-work"),
 			want:   []string{`account "-work": id must start with a letter or digit and contain only letters, digits, '-' and '_'`},
 		},
 		{
 			name:   "id with a space",
-			config: accountTOML("side project", "CLAUDE_TOKEN_SIDE"),
+			config: accountTOML("side project"),
 			want:   []string{`account "side project": id must start with a letter or digit and contain only letters, digits, '-' and '_'`},
 		},
 		{
+			name:   "id that's a path, which would name a token file elsewhere",
+			config: accountTOML("../work"),
+			want:   []string{`account "../work": id must start with a letter or digit and contain only letters, digits, '-' and '_'`},
+		},
+		{
+			name:   "id with a dot",
+			config: accountTOML("work.old"),
+			want:   []string{`account "work.old": id must start with a letter or digit and contain only letters, digits, '-' and '_'`},
+		},
+		{
 			name:   "the id pin takes to mean routing",
-			config: accountTOML("auto", "CLAUDE_TOKEN_AUTO"),
+			config: accountTOML("auto"),
 			want:   []string{`account "auto": id is reserved for switchboard pin auto`},
 		},
 		{
 			name:   "the id pin takes to mean routing, in another case",
-			config: accountTOML("Auto", "CLAUDE_TOKEN_AUTO"),
+			config: accountTOML("Auto"),
 			want:   []string{`account "Auto": id is reserved for switchboard pin auto`},
 		},
 		{
 			name:   "duplicate id, once however often it repeats",
-			config: work + accountTOML("work", "CLAUDE_TOKEN_OTHER") + accountTOML("work", "CLAUDE_TOKEN_THIRD"),
+			config: work + accountTOML("work") + accountTOML("work"),
 			want:   []string{`duplicate account id "work"`},
-		},
-		{
-			name:   "missing token_env",
-			config: "[[account]]\nid = \"work\"\n",
-			want:   []string{`account "work": token_env is required: the name of the environment variable holding the account's token`},
-		},
-		{
-			name:   "token_env with a dash",
-			config: accountTOML("work", "CLAUDE-TOKEN-WORK"),
-			want:   []string{`account "work": token_env must be an environment variable name, such as CLAUDE_TOKEN_WORK: letters, digits and '_', not starting with a digit`},
-		},
-		{
-			name:   "token_env starting with a digit",
-			config: accountTOML("work", "1CLAUDE_TOKEN"),
-			want:   []string{`account "work": token_env must be an environment variable name, such as CLAUDE_TOKEN_WORK: letters, digits and '_', not starting with a digit`},
-		},
-		{
-			name:   "token_env shared by two accounts",
-			config: work + accountTOML("personal", "CLAUDE_TOKEN_WORK"),
-			want:   []string{`token_env "CLAUDE_TOKEN_WORK" is shared by account "work" and account "personal": one token is one subscription, so each account needs its own`},
-		},
-		{
-			name: "each shared token_env once, naming every account that shares it",
-			config: work +
-				accountTOML("personal", "CLAUDE_TOKEN_PERSONAL") +
-				"\n[[account]]\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n" +
-				accountTOML("side", "CLAUDE_TOKEN_PERSONAL") +
-				accountTOML("other", "CLAUDE_TOKEN_WORK"),
-			want: []string{
-				"account #3: id is required",
-				`token_env "CLAUDE_TOKEN_WORK" is shared by account "work", account #3 and account "other": one token is one subscription, so each account needs its own`,
-				`token_env "CLAUDE_TOKEN_PERSONAL" is shared by account "personal" and account "side": one token is one subscription, so each account needs its own`,
-			},
-		},
-		{
-			name:   "invalid token_env shared by two accounts, reported only as invalid",
-			config: accountTOML("work", "CLAUDE-TOKEN") + accountTOML("personal", "CLAUDE-TOKEN"),
-			want: []string{
-				`account "work": token_env must be an environment variable name, such as CLAUDE_TOKEN_WORK: letters, digits and '_', not starting with a digit`,
-				`account "personal": token_env must be an environment variable name, such as CLAUDE_TOKEN_WORK: letters, digits and '_', not starting with a digit`,
-			},
 		},
 		{
 			name:   "empty listen",
@@ -428,31 +575,24 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{plaintext("http://localhost:8080")},
 		},
 		{
-			name: "plaintext upstream and shared token_env alongside another problem",
-			config: "upstream = \"http://api.anthropic.com\"\n" +
-				work +
-				accountTOML("personal", "CLAUDE_TOKEN_WORK") +
-				accountTOML("side project", "CLAUDE_TOKEN_SIDE"),
-			want: []string{
-				plaintext("http://api.anthropic.com"),
-				`account "side project": id must start with a letter or digit and contain only letters, digits, '-' and '_'`,
-				`token_env "CLAUDE_TOKEN_WORK" is shared by account "work" and account "personal": one token is one subscription, so each account needs its own`,
-			},
-		},
-		{
 			name: "several problems at once",
 			config: "listen = \"0.0.0.0:4747\"\nupstream = \"api.anthropic.com\"\nverbose = true\n" +
-				work +
-				"\n[[account]]\ntoken_env = \"CLAUDE-TOKEN\"\n" +
-				accountTOML("work", ""),
+				work + "primary = true\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n" +
+				"\n[[account]]\nreserve = 2.0\n" +
+				accountTOML("work") + "primary = true\n" +
+				"\n[prime]\nday = \"23:00-23:00\"\n" +
+				"\n[notifications]\nwarning = 1\n",
 			want: []string{
 				`unknown key "verbose"`,
+				tokenEnv,
 				notLoopback("0.0.0.0:4747"),
 				`upstream "api.anthropic.com": must be an absolute http or https URL, such as https://api.anthropic.com`,
 				"account #2: id is required",
-				`account #2: token_env must be an environment variable name, such as CLAUDE_TOKEN_WORK: letters, digits and '_', not starting with a digit`,
-				`account "work": token_env is required: the name of the environment variable holding the account's token`,
+				"account #2: reserve 2: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1",
 				`duplicate account id "work"`,
+				`primary is set on account "work" and account "work": only one account can be the primary, the one the browser and the Claude apps use`,
+				`prime.day "23:00-23:00": must end at another time than it starts; an end before the start is past midnight`,
+				"notifications.warning 1: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none",
 			},
 		},
 	}
@@ -468,9 +608,9 @@ func TestLoadReportsProblems(t *testing.T) {
 	}
 }
 
-func TestLoadNeverQuotesAnInvalidTokenEnv(t *testing.T) {
-	const pasted = "token-pasted-by-mistake"
-	path := writeConfig(t, accountTOML("work", pasted)+accountTOML("personal", pasted))
+func TestLoadNeverQuotesAnOldConfigsTokenVariable(t *testing.T) {
+	const pasted = "test-token-pasted-by-mistake"
+	path := writeConfig(t, accountTOML("work")+"token_env = \""+pasted+"\"\n")
 
 	_, err := config.Load(path)
 	if err == nil {
@@ -495,9 +635,10 @@ func problems(t *testing.T, path string, err error) []string {
 	return strings.Split(msg, "\n")
 }
 
-// accountTOML returns an [[account]] table with the given id and token_env.
-func accountTOML(id, tokenEnv string) string {
-	return fmt.Sprintf("\n[[account]]\nid = %q\ntoken_env = %q\n", id, tokenEnv)
+// accountTOML returns an [[account]] table with the given id, which the
+// test's own keys can follow.
+func accountTOML(id string) string {
+	return fmt.Sprintf("\n[[account]]\nid = %q\n", id)
 }
 
 // writeConfig writes a config file under the test's temp dir and returns its path.

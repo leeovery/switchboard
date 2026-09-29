@@ -19,8 +19,7 @@
 
  ╭─ personal · Personal ──────────────────────╮
  │                                            │
- │  ✗ token missing: set                      │
- │    CLAUDE_TOKEN_PERSONAL                   │
+ │  ✗ HTTP 401 · Invalid bearer token         │
  │                                            │
  ╰────────────────────────────────────────────╯
 

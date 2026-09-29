@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // The sources a document can come from.
@@ -89,9 +90,10 @@ type Pin struct {
 
 // Account is one account's status.
 type Account struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	TokenSet bool   `json:"token_set"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	// TokenSet is whether the account's token file is there, and usable.
+	TokenSet bool `json:"token_set"`
 	// FetchedAt is when Usage was read; zero when it wasn't.
 	FetchedAt time.Time `json:"fetched_at,omitzero"`
 	quota.Usage
@@ -148,24 +150,24 @@ type Collector struct {
 	Prober Prober
 	// Policy is the provider's say in which account is best.
 	Policy score.Policy
-	// Getenv reads the variables holding the accounts' tokens.
-	Getenv func(key string) string
+	// Token reads an account's token, by the account's id, from its file.
+	Token func(id string) (tokens.Token, error)
 	// Now reads the clock. Concurrent probes call it.
 	Now func() time.Time
 }
 
-// Collect probes every account that has a token, all at once, and reports
-// them in the order given, along with the best of them. An account without a
-// token isn't probed: its status says which variable to set.
+// Collect probes every account that has a usable token, all at once, and
+// reports them in the order given, along with the best of them. An account
+// without one isn't probed: its status says why, and what would put it right.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
 	var wg sync.WaitGroup
 	for i, acct := range accounts {
 		statuses[i] = Account{ID: acct.ID, Label: acct.Label}
-		token, ok := acct.Token(c.Getenv)
-		if !ok {
-			statuses[i].Error = TokenMissing(acct)
-			logger.Debug("not probed: token missing", "account", acct.ID)
+		token, err := c.Token(acct.ID)
+		if err != nil {
+			statuses[i].Error = err.Error()
+			logger.Debug("not probed: no usable token", "account", acct.ID, "error", err)
 			continue
 		}
 		statuses[i].TokenSet = true
@@ -176,15 +178,9 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	return Document{GeneratedAt: now.UTC(), Source: SourceProbe, Best: Best(c.Policy, statuses, now), Accounts: statuses}
 }
 
-// TokenMissing is the error of an account whose token isn't set: it says
-// which variable to set.
-func TokenMissing(acct config.Account) string {
-	return "token missing: set " + acct.TokenEnv
-}
-
 // probe fills in an account's usage, or why it couldn't be read, and logs
 // how the probe went.
-func (c Collector) probe(ctx context.Context, account *Account, token config.Token) {
+func (c Collector) probe(ctx context.Context, account *Account, token tokens.Token) {
 	started := time.Now()
 	probed, err := c.Prober.Probe(ctx, token.Reveal())
 	took := time.Since(started).Round(time.Millisecond)

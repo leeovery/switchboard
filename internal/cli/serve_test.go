@@ -26,12 +26,15 @@ import (
 )
 
 func TestServe(t *testing.T) {
-	var probed status.Document
-	if err := json.Unmarshal([]byte(run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--json", "--probe").stdout), &probed); err != nil {
-		t.Fatal(err)
-	}
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
+	// Probed from the same state directory, and so the same token files, which
+	// the document names.
+	var probed status.Document
+	probing := statusDeps(t, fakeClaudeAPI(t), map[string]string{"XDG_STATE_HOME": filepath.Dir(srv.state)})
+	if err := json.Unmarshal([]byte(run(t, probing, "status", "--json", "--probe").stdout), &probed); err != nil {
+		t.Fatal(err)
+	}
 
 	stop := srv.start(t)
 	doc := srv.waitForStatus(t, func(doc status.Document) bool {
@@ -63,7 +66,7 @@ func TestServe(t *testing.T) {
 	log := srv.routerLog(t)
 	for _, want := range [][]string{
 		{"level=INFO", "msg=start component=process", "role=router", `command="switchboard serve"`},
-		{"level=WARN", `msg="account has no token; nothing will go out on it" component=router`, "account=personal"},
+		{"level=WARN", `msg="account has no usable token; nothing will go out on it" component=router`, "account=personal", `error="token missing: write it to ` + tokenPath(t, srv.deps, "personal") + `"`},
 		{"level=INFO", "msg=listening component=router", "address=" + srv.listen, "upstream=" + api.URL, "token_set.work=true token_set.personal=false token_set.side=true"},
 		{"level=WARN", `msg="probe failed" component=router`, "account=side", `error="HTTP 401 · Invalid bearer token"`},
 		{"level=INFO", "msg=stopping component=router"},
@@ -138,12 +141,17 @@ func TestServeWhenItsAddressIsTaken(t *testing.T) {
 }
 
 func TestServeWithoutAnyToken(t *testing.T) {
-	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"CLAUDE_TOKEN_WORK": "", "CLAUDE_TOKEN_SIDE": " "})
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	removeToken(t, srv.deps, "work")
+	writeToken(t, srv.deps, "side", " ")
 
 	got := run(t, srv.deps, "serve")
 	want := result{
-		stderr: "Error: no account has a token, so there's nothing to route to: set CLAUDE_TOKEN_WORK or CLAUDE_TOKEN_PERSONAL or CLAUDE_TOKEN_SIDE\n",
-		code:   1,
+		stderr: "Error: no account has a usable token, so there's nothing to route to:\n" +
+			"work: token missing: write it to " + tokenPath(t, srv.deps, "work") + "\n" +
+			"personal: token missing: write it to " + tokenPath(t, srv.deps, "personal") + "\n" +
+			"side: token missing: write it to " + tokenPath(t, srv.deps, "side") + ", which is empty\n",
+		code: 1,
 	}
 	if got != want {
 		t.Errorf("switchboard serve = %+v, want %+v", got, want)
@@ -267,38 +275,18 @@ func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveS
 		config:   filepath.Join(t.TempDir(), "config.toml"),
 	}
 	s.writeConfig(t)
-	vars := map[string]string{
-		"SWITCHBOARD_CONFIG": s.config,
-		"XDG_STATE_HOME":     stateHome,
-		"CLAUDE_TOKEN_WORK":  "test-token-work",
-		"CLAUDE_TOKEN_SIDE":  "test-token-side",
-	}
+	vars := map[string]string{"SWITCHBOARD_CONFIG": s.config, "XDG_STATE_HOME": stateHome}
 	maps.Copy(vars, env)
 	s.deps = testDeps(vars, t.TempDir())
+	writeToken(t, s.deps, "work", "test-token-work")
+	writeToken(t, s.deps, "side", "test-token-side")
 	return s
 }
 
 // writeConfig writes the config file serve reads.
 func (s *serveSetup) writeConfig(t *testing.T) {
 	t.Helper()
-	content := fmt.Sprintf(`listen   = %q
-upstream = %q
-
-[[account]]
-id        = "work"
-label     = "Work"
-token_env = "CLAUDE_TOKEN_WORK"
-
-[[account]]
-id        = "personal"
-label     = "Personal"
-token_env = "CLAUDE_TOKEN_PERSONAL"
-
-[[account]]
-id        = "side"
-label     = "Side"
-token_env = "CLAUDE_TOKEN_SIDE"
-`, s.listen, s.upstream) + s.extra
+	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + threeAccounts + s.extra
 	if err := os.WriteFile(s.config, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}

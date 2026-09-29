@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const (
@@ -36,20 +37,18 @@ const (
 // accounts are the configured accounts: work and side have tokens, personal
 // doesn't.
 var accounts = []config.Account{
-	{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-	{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
-	{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
+	{ID: "work", Label: "Work"},
+	{ID: "personal", Label: "Personal"},
+	{ID: "side", Label: "Side"},
 }
 
-func getenv(key string) string {
-	return map[string]string{"CLAUDE_TOKEN_WORK": workToken, "CLAUDE_TOKEN_SIDE": sideToken}[key]
-}
+var testTokens = tokenstest.Files{"work": workToken, "side": sideToken}
 
 // route is a launch through r, pinned to account unless it's "".
 func route(r launch.Router, account string) launch.Route {
 	return launch.Route{
 		Config:  &config.Config{Listen: "127.0.0.1:4747", Accounts: accounts},
-		Getenv:  getenv,
+		Token:   testTokens.Read,
 		Router:  r,
 		Account: account,
 	}
@@ -278,7 +277,7 @@ func TestRunRefusesAPinItCantKeep(t *testing.T) {
 		wantErr string
 	}{
 		{account: "nope", wantErr: `there's no account "nope": pin work or personal or side`},
-		{account: "personal", wantErr: "account personal has no token for Claude Code to start on: set CLAUDE_TOKEN_PERSONAL"},
+		{account: "personal", wantErr: "account personal has no usable token for Claude Code to start on: " + tokenstest.Missing("personal").Error()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.account, func(t *testing.T) {
@@ -300,9 +299,10 @@ func TestRunWithoutATokenStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
 		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side",
 	}
+	log := logstest.Capture(t)
 	h := newHarness(inherited...)
 	r := route(healthy("work"), "")
-	r.Getenv = func(string) string { return "" }
+	r.Token = tokenstest.Files{"personal": " "}.Read
 
 	if err := h.launcher.Run(t.Context(), r, []string{"--print", "a prompt"}); err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -312,9 +312,16 @@ func TestRunWithoutATokenStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	if want := []string{"claude", "--print", "a prompt"}; !slices.Equal(got.argv, want) || !slices.Equal(got.env, inherited) {
 		t.Errorf("started claude as %q with %q, want %q with the environment untouched, %q", got.argv, got.env, want, inherited)
 	}
-	want := "switchboard: no account has a token (set CLAUDE_TOKEN_WORK or CLAUDE_TOKEN_PERSONAL or CLAUDE_TOKEN_SIDE) — starting claude without it\n"
+	want := "switchboard: no account has a usable token (work: " + tokenstest.Missing("work").Error() + ") — starting claude without it\n"
 	if said := h.stderr.String(); said != want {
 		t.Errorf("said %q on stderr, want %q", said, want)
+	}
+	wantLog := []string{
+		"level=WARN", `msg="starting claude without switchboard"`, `reason="no account has a usable token"`,
+		`error="work: ` + tokenstest.Missing("work").Error() + `\npersonal: token missing\nside: ` + tokenstest.Missing("side").Error() + `"`,
+	}
+	if !log.Has(wantLog...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, wantLog)
 	}
 }
 
@@ -332,7 +339,7 @@ func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 		},
 		{
 			name:     "with an invalid config",
-			err:      errors.New("invalid config " + config + ":\naccount \"work\": token_env is required"),
+			err:      errors.New("invalid config " + config + ":\nunknown key \"listn\""),
 			wantSaid: "switchboard: couldn't read the config (invalid config " + config + ") — starting claude without it\n",
 		},
 	}
@@ -511,7 +518,7 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			h := newHarness("CLAUDE_TOKEN_WORK="+workToken, "CLAUDE_TOKEN_SIDE="+sideToken)
+			h := newHarness("CLAUDE_CODE_OAUTH_TOKEN=" + sideToken)
 
 			if err := tt.launch(t.Context(), h.launcher); err != nil {
 				t.Fatalf("launch error = %v", err)

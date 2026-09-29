@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 // policy scores the windows as Claude's are: the session and the week apply
@@ -38,16 +39,8 @@ func TestCollect(t *testing.T) {
 	collector := status.Collector{
 		Prober: prober,
 		Policy: policy,
-		Getenv: envFrom(map[string]string{
-			"CLAUDE_TOKEN_WORK": "test-token-work",
-			"CLAUDE_TOKEN_SIDE": " test-token-side\n",
-		}),
-		Now: func() time.Time { return now },
-	}
-	accounts := []config.Account{
-		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-		{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
-		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
+		Token:  tokenstest.Files{"work": "test-token-work", "side": " test-token-side\n"}.Read,
+		Now:    func() time.Time { return now },
 	}
 
 	got := collector.Collect(t.Context(), accounts)
@@ -57,7 +50,7 @@ func TestCollect(t *testing.T) {
 		Best:        "work",
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(), Usage: workUsage},
-			{ID: "personal", Label: "Personal", TokenSet: false, Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+			{ID: "personal", Label: "Personal", TokenSet: false, Error: tokenstest.Missing("personal").Error()},
 			{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 		},
 	}
@@ -84,20 +77,15 @@ func TestCollectLogsEachAccount(t *testing.T) {
 			"test-token-side": {err: errors.New("HTTP 401 · Invalid bearer token")},
 		}},
 		Policy: policy,
-		Getenv: envFrom(map[string]string{"CLAUDE_TOKEN_WORK": "test-token-work", "CLAUDE_TOKEN_SIDE": "test-token-side"}),
+		Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
 		Now:    func() time.Time { return now },
-	}
-	accounts := []config.Account{
-		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-		{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
-		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
 	}
 
 	collector.Collect(t.Context(), accounts)
 	for _, want := range [][]string{
 		{"level=DEBUG", `msg="probed account" component=status`, "account=work", "duration=", "windows=2"},
 		{"level=WARN", `msg="window unread" component=status`, "account=work", "window=7d_oi", `error="HTTP 529 · Overloaded"`},
-		{"level=DEBUG", `msg="not probed: token missing" component=status`, "account=personal"},
+		{"level=DEBUG", `msg="not probed: no usable token" component=status`, "account=personal", `error="` + tokenstest.Missing("personal").Error() + `"`},
 		{"level=WARN", `msg="probe failed" component=status`, "account=side", "duration=", `error="HTTP 401 · Invalid bearer token"`},
 	} {
 		if !log.Has(want...) {
@@ -112,19 +100,10 @@ func TestCollectLogsEachAccount(t *testing.T) {
 }
 
 func TestCollectProbesAccountsAtOnce(t *testing.T) {
-	accounts := []config.Account{
-		{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-		{ID: "personal", Label: "Personal", TokenEnv: "CLAUDE_TOKEN_PERSONAL"},
-		{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
-	}
 	collector := status.Collector{
 		Prober: &gatheringProber{waitFor: len(accounts), gathered: make(chan struct{})},
-		Getenv: envFrom(map[string]string{
-			"CLAUDE_TOKEN_WORK":     "test-token-work",
-			"CLAUDE_TOKEN_PERSONAL": "test-token-personal",
-			"CLAUDE_TOKEN_SIDE":     "test-token-side",
-		}),
-		Now: time.Now,
+		Token:  tokenstest.Files{"work": "test-token-work", "personal": "test-token-personal", "side": "test-token-side"}.Read,
+		Now:    time.Now,
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
@@ -187,13 +166,10 @@ func TestCollectBest(t *testing.T) {
 			collector := status.Collector{
 				Prober: &fakeProber{results: map[string]probeResult{"test-token-work": tt.work, "test-token-side": tt.side}},
 				Policy: policy,
-				Getenv: envFrom(map[string]string{"CLAUDE_TOKEN_WORK": "test-token-work", "CLAUDE_TOKEN_SIDE": "test-token-side"}),
+				Token:  tokenstest.Files{"work": "test-token-work", "side": "test-token-side"}.Read,
 				Now:    func() time.Time { return now },
 			}
-			accounts := []config.Account{
-				{ID: "work", Label: "Work", TokenEnv: "CLAUDE_TOKEN_WORK"},
-				{ID: "side", Label: "Side", TokenEnv: "CLAUDE_TOKEN_SIDE"},
-			}
+			accounts := []config.Account{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side"}}
 
 			if got := collector.Collect(t.Context(), accounts).Best; got != tt.want {
 				t.Errorf("Collect().Best = %q, want %q", got, tt.want)
@@ -224,7 +200,7 @@ func TestDocumentJSON(t *testing.T) {
 						},
 						Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
 					},
-					{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+					{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"},
 					{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 				},
 			},
@@ -264,7 +240,7 @@ func TestDocumentJSON(t *testing.T) {
       "id": "personal",
       "label": "Personal",
       "token_set": false,
-      "error": "token missing: set CLAUDE_TOKEN_PERSONAL"
+      "error": "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"
     },
     {
       "id": "side",
@@ -280,7 +256,7 @@ func TestDocumentJSON(t *testing.T) {
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceProbe,
-				Accounts:    []status.Account{{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"}},
+				Accounts:    []status.Account{{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"}},
 			},
 			want: `{
   "generated_at": "2026-09-28T13:12:00Z",
@@ -290,7 +266,7 @@ func TestDocumentJSON(t *testing.T) {
       "id": "personal",
       "label": "Personal",
       "token_set": false,
-      "error": "token missing: set CLAUDE_TOKEN_PERSONAL"
+      "error": "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"
     }
   ]
 }`,
@@ -529,7 +505,9 @@ func (p *gatheringProber) Probe(ctx context.Context, _ string) (quota.Probe, err
 	}
 }
 
-// envFrom returns a getenv backed by vars, so tests never read the real environment.
-func envFrom(vars map[string]string) func(string) string {
-	return func(key string) string { return vars[key] }
+// accounts are three accounts, which the tests give tokens as they need.
+var accounts = []config.Account{
+	{ID: "work", Label: "Work"},
+	{ID: "personal", Label: "Personal"},
+	{ID: "side", Label: "Side"},
 }

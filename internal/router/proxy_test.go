@@ -86,7 +86,7 @@ func TestPins(t *testing.T) {
 			pin:         "personal",
 			wantAccount: "work",
 			wantReason:  unpinned,
-			wantWarning: []string{"level=WARN", `msg="pin ignored: account has no token"`, "pin=personal"},
+			wantWarning: []string{"level=WARN", `msg="pin ignored: account has no usable token"`, "pin=personal"},
 		},
 	}
 	for _, tt := range tests {

@@ -32,10 +32,7 @@ switchboard serve at login, and again whenever it stops.`,
 }
 
 func newServiceInstallCommand(a *app) *cobra.Command {
-	var (
-		envFile  string
-		logLevel slog.Leveler
-	)
+	var logLevel slog.Leveler
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install the LaunchAgent, which starts the router",
@@ -45,18 +42,15 @@ install first. The router serves the config --config gives, else the one it
 finds, as the CLI does; a config the router couldn't serve fails the install.
 It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
 
-A LaunchAgent doesn't see the shell's environment, where the accounts' tokens
-are. --env-file names a file the shell sources for them: zsh sources it too,
-each time the router starts, so it must be yours, and neither it nor its
-directory writable by anyone else. After the tokens change, switchboard
-service restart picks them up.`,
+The router reads the accounts' tokens from their files, as the CLI does, so it
+needs none of the shell's environment. Install warns when no account has a
+usable token, as the router would have nothing to route to.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			opts := service.InstallOptions{EnvFile: envFile, LogLevel: levelFlag{&logLevel}.String()}
+			opts := service.InstallOptions{LogLevel: levelFlag{&logLevel}.String()}
 			return a.installService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), opts)
 		},
 	}
-	cmd.Flags().StringVar(&envFile, "env-file", "", "have zsh source `FILE`, which sets the accounts' tokens, before the router starts")
 	cmd.Flags().Var(levelFlag{&logLevel}, "log-level",
 		"have the router log at `LEVEL` and above: debug, info, warn or error (default $SWITCHBOARD_LOG_LEVEL, else info)")
 	return cmd
@@ -76,7 +70,7 @@ func newServiceUninstallCommand(a *app) *cobra.Command {
 func newServiceRestartCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
-		Short: "Restart the router, as after the tokens change",
+		Short: "Restart the router, which reads the config and the tokens afresh",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.restartService(cmd.Context(), cmd.OutOrStdout())

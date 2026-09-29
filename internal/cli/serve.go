@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 func newServeCommand(a *app) *cobra.Command {
@@ -53,7 +54,7 @@ func (a *app) serve(ctx context.Context) error {
 	defer stop()
 	return router.Run(ctx, router.Config{
 		Accounts:      cfg.Accounts,
-		Getenv:        a.Getenv,
+		Token:         tokens.NewStore(stateDir, a.UID).Read,
 		Upstream:      cfg.Upstream,
 		Provider:      claude.Provider{},
 		Prober:        installedProber{upstream: cfg.Upstream, version: a.ClaudeVersion},

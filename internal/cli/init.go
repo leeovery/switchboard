@@ -27,10 +27,7 @@ func newInitCommand(a *app) *cobra.Command {
 It defines claude as a function that starts Claude Code through switchboard
 run, and for each account a launcher that starts it pinned to that account,
 named the prefix followed by the account's id, such as cxwork. Each has run
-read the config --config gives, when it's given. For programs that start
-claude themselves, it exports as CLAUDE_CODE_OAUTH_TOKEN the token of the
-first account whose token is set as it runs, else the first account's, by
-the name of the variable that holds it, so the output holds no token.
+read the config --config gives, when it's given.
 
 Without a config it can read, it defines claude alone, and says so on stderr:
 what it prints never fails the eval, nor stands between the shell and claude.`,
@@ -75,7 +72,7 @@ func (a *app) initZsh(out, errOut io.Writer, prefix string) error {
 	} else {
 		accounts = cfg.Accounts
 	}
-	return launch.Integration{Binary: binary, Config: configPath, Prefix: prefix, Accounts: accounts, Getenv: a.Getenv}.Zsh(out)
+	return launch.Integration{Binary: binary, Config: configPath, Prefix: prefix, Accounts: accounts}.Zsh(out)
 }
 
 // defineNothing prints no integration, saying on errOut what switchboard

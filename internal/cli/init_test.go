@@ -16,17 +16,9 @@ func TestInitZsh(t *testing.T) {
 function cxwork { '/usr/local/bin/switchboard' run --account work -- "$@"; }
 function cxpersonal { '/usr/local/bin/switchboard' run --account personal -- "$@"; }
 function cxside { '/usr/local/bin/switchboard' run --account side -- "$@"; }
-if [[ -n ${CLAUDE_TOKEN_WORK-} ]]; then
-  export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_TOKEN_WORK}"
-fi
 `}
 	if got != want {
 		t.Errorf("switchboard init zsh =\n%+v\nwant\n%+v", got, want)
-	}
-	for _, token := range []string{"test-token-work", "test-token-side"} {
-		if strings.Contains(got.stdout+got.stderr, token) {
-			t.Errorf("switchboard init zsh printed a token set for an account:\n%s", got.stdout)
-		}
 	}
 }
 
@@ -39,7 +31,7 @@ func TestInitZshHandsTheConfigGivenOnToRun(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("[[account]]\nid = \"side\"\ntoken_env = \"CLAUDE_TOKEN_SIDE\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("[[account]]\nid = \"side\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(dir)
@@ -49,43 +41,9 @@ func TestInitZshHandsTheConfigGivenOnToRun(t *testing.T) {
 	got := run(t, deps, "--config", filepath.Join("it's here", "config.toml"), "init", "zsh")
 	want := result{stdout: `function claude { '/usr/local/bin/switchboard' --config '` + dir + `/it'\''s here/config.toml' run -- "$@"; }
 function cxside { '/usr/local/bin/switchboard' --config '` + dir + `/it'\''s here/config.toml' run --account side -- "$@"; }
-if [[ -n ${CLAUDE_TOKEN_SIDE-} ]]; then
-  export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_TOKEN_SIDE}"
-fi
 `}
 	if got != want {
 		t.Errorf("switchboard --config init zsh =\n%+v\nwant\n%+v", got, want)
-	}
-}
-
-func TestInitZshExportsATokenThatsSet(t *testing.T) {
-	tests := []struct {
-		name string
-		env  map[string]string
-		want string
-	}{
-		{name: "the first account's, when it's set", env: map[string]string{"CLAUDE_TOKEN_SIDE": "test-token-side", "CLAUDE_TOKEN_WORK": "test-token-work"}, want: "CLAUDE_TOKEN_WORK"},
-		{name: "the first account's whose token is set", env: map[string]string{"CLAUDE_TOKEN_SIDE": "test-token-side"}, want: "CLAUDE_TOKEN_SIDE"},
-		{name: "the first account's, when none is", want: "CLAUDE_TOKEN_WORK"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"CLAUDE_TOKEN_WORK": "", "CLAUDE_TOKEN_SIDE": ""})
-			getenv := deps.Getenv
-			deps.Getenv = func(key string) string {
-				if value, ok := tt.env[key]; ok {
-					return value
-				}
-				return getenv(key)
-			}
-			deps.Executable = func() (string, error) { return "/usr/local/bin/switchboard", nil }
-
-			got := run(t, deps, "init", "zsh")
-			want := "if [[ -n ${" + tt.want + "-} ]]; then\n  export CLAUDE_CODE_OAUTH_TOKEN=\"${" + tt.want + "}\"\nfi\n"
-			if got.code != 0 || !strings.HasSuffix(got.stdout, want) {
-				t.Errorf("switchboard init zsh = %+v, want it to end\n%s", got, want)
-			}
-		})
 	}
 }
 

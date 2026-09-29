@@ -23,6 +23,7 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // Deps is what the commands take from the process around them. main passes the
@@ -58,7 +59,7 @@ type Deps struct {
 	// Launchctl runs launchctl, as service.Launchctl does.
 	Launchctl service.Runner
 	// GOOS is the operating system, as runtime.GOOS names it, and UID the
-	// user's id.
+	// user's id: the token files must be theirs.
 	GOOS string
 	UID  int
 }
@@ -179,6 +180,25 @@ func (a *app) logDir() (string, error) {
 	return logs.Dir(state), nil
 }
 
+// tokens returns the accounts' token files, in the state directory.
+func (a *app) tokens() (tokens.Store, error) {
+	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return tokens.Store{}, err
+	}
+	return tokens.NewStore(dir, a.UID), nil
+}
+
+// readToken reads the token of the account with the given id from its file,
+// failing as locating the state directory does, when it does.
+func (a *app) readToken(id string) (tokens.Token, error) {
+	files, err := a.tokens()
+	if err != nil {
+		return tokens.Token{}, err
+	}
+	return files.Read(id)
+}
+
 // errRouterDown is what a command that needs the router fails with when the
 // router isn't running, saying how to start it.
 var errRouterDown = fmt.Errorf("%w: start it with switchboard service install (or switchboard serve)", router.ErrNotRunning)
@@ -243,7 +263,7 @@ func (a *app) collect(ctx context.Context, probe bool) (status.Document, error) 
 // config. Every command that reports usage reads it here, so they all read it
 // the same way.
 func (a *app) source(cfg *config.Config, probe bool) usageSource {
-	source := usageSource{probe: probeSource{deps: a.Deps, upstream: cfg.Upstream, accounts: cfg.Accounts}, ask: !probe}
+	source := usageSource{probe: probeSource{deps: a.Deps, readToken: a.readToken, upstream: cfg.Upstream, accounts: cfg.Accounts}, ask: !probe}
 	if source.ask {
 		// Without a state directory there's no socket to find the router at,
 		// which reads as a router that isn't running.
