@@ -94,12 +94,11 @@ func TestTheEnvFileLauncherServesWithTheTokens(t *testing.T) {
 	}
 }
 
-// newService returns the service as cfg configures it, on macOS, for the
-// user 501, with launchctl and the router refusing to be asked unless cfg
-// says otherwise.
+// newService returns the service as cfg configures it, on macOS, with
+// launchctl and the router refusing to be asked unless cfg says otherwise.
 func newService(t *testing.T, cfg service.Config) *service.Service {
 	t.Helper()
-	cfg.GOOS, cfg.UID = "darwin", 501
+	cfg.GOOS = "darwin"
 	if cfg.Launchctl == nil {
 		cfg.Launchctl = (&fakeLaunchctl{t: t, refuse: true}).run
 	}

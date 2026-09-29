@@ -41,8 +41,9 @@ finds, as the CLI does.
 
 A LaunchAgent doesn't see the shell's environment, where the accounts' tokens
 are. --env-file names a file the shell sources for them: zsh sources it too,
-each time the router starts. After the tokens change, switchboard service
-restart picks them up.`,
+each time the router starts, so it must be yours, and neither it nor its
+directory writable by anyone else. After the tokens change, switchboard
+service restart picks them up.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.installService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), envFile)
