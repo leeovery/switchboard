@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 #
 # Runs every test, race detector on, inside the macOS sandbox in
-# scripts/isolation.sb: no network beyond this machine, no writes into the home
-# directory but Go's caches, and none of the real programs tests must never
-# run. Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
+# scripts/isolation.sb: no network beyond this machine, no unix socket outside
+# the temporary directory, nothing on the router's port, no writes into the
+# home directory but Go's caches, and none of the real programs tests must
+# never run. Arguments go on to go test, as in:
+# scripts/test-isolated -run TestStatus
 #
-# Each run first proves the sandbox denies a dial off this machine, a write
-# into the home directory and running osascript; --self-check does only that.
-# Where there's no sandbox-exec, the tests run without the sandbox, and
-# internal/testguard still guards them from inside.
+# Each run first proves the sandbox denies each of those; --self-check does
+# only that. Where there's no sandbox-exec, the tests run without the
+# sandbox, and internal/testguard still guards them from inside.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
@@ -30,12 +31,13 @@ resolved() {
 }
 
 home=$(resolved "$HOME")
+tmp=$(resolved "${TMPDIR:-/tmp}")
 gocache=$(resolved "$(go env GOCACHE)")
 gomodcache=$(resolved "$(go env GOMODCACHE)")
 
 sandboxed() {
 	sandbox-exec -f "$repo/scripts/isolation.sb" \
-		-D HOME="$home" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" "$@"
+		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" "$@"
 }
 
 # denied runs a command in the sandbox, which must fail it with the refusal
@@ -56,10 +58,56 @@ denied() {
 	return 1
 }
 
+# denies_foreign_socket proves the sandbox denies a connect to a unix socket
+# outside the temporary directory: to one listening in the user's cache
+# directory, which the sandbox lets tests write to, but isn't the temporary
+# directory. A socket that isn't there won't do: connecting to one fails as no
+# such file, in the sandbox or out (tried). curl says why a connect failed,
+# where nc doesn't, and -q keeps it from reading the user's .curlrc.
+denies_foreign_socket() {
+	local cache dir socket listener status=0
+	cache=$(getconf DARWIN_USER_CACHE_DIR)
+	dir=$(mktemp -d "${cache%/}/sb-check.XXXXXX") || return 1
+	socket=$dir/live.sock
+	/usr/bin/nc -lkU "$socket" </dev/null >/dev/null 2>&1 &
+	listener=$!
+	if answers "$socket"; then
+		denied "a connect to a unix socket outside the temporary directory" "Operation not permitted" \
+			/usr/bin/curl -q -sv --max-time 2 --unix-socket "$socket" http://switchboard/ || status=1
+	else
+		echo "test-isolated: nothing answered on $socket, so the sandbox's denying it can't be told" >&2
+		status=1
+	fi
+	kill "$listener" 2>/dev/null || true
+	wait "$listener" 2>/dev/null || true
+	rm -rf "$dir"
+	return "$status"
+}
+
+# answers waits a second at most for a connection to the unix socket at path
+# to be accepted, outside the sandbox.
+answers() {
+	local tries=50
+	until /usr/bin/nc -U "$1" </dev/null >/dev/null 2>&1; do
+		tries=$((tries - 1))
+		if [ "$tries" = 0 ]; then
+			return 1
+		fi
+		sleep 0.02
+	done
+}
+
 self_check() {
 	local scratch="$home/.switchboard-isolation-check.$$" status=0
 	denied "a dial off this machine" "connectx to 192.0.2.1 port 9 (tcp) failed: Operation not permitted" \
 		/usr/bin/nc -vz -G 2 192.0.2.1 9 || status=1
+	denies_foreign_socket || status=1
+	denied "a connect to the router's port, 4747" "connectx to 127.0.0.1 port 4747 (tcp) failed: Operation not permitted" \
+		/usr/bin/nc -vz -G 2 127.0.0.1 4747 || status=1
+	# curl binds its own end to the port before it connects: the bind a
+	# listener needs, which returns at once, where a listener would wait.
+	denied "binding the router's port, 4747" "bind failed with errno 1: Operation not permitted" \
+		/usr/bin/curl -q -sS --max-time 2 --local-port 4747 http://127.0.0.1:9/ || status=1
 	denied "a write into the home directory" "$scratch: Operation not permitted" \
 		/usr/bin/touch "$scratch" || status=1
 	# There only when the sandbox let the write through.

@@ -1,8 +1,10 @@
 package testguard_test
 
 import (
+	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -46,6 +48,11 @@ var (
 	agentFile  = filepath.Join("Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
 )
 
+// outsideSocket is a control socket outside the temporary directory, where a
+// live router's is: nothing's there, but the guard must block the dial all
+// the same.
+const outsideSocket = "/nonexistent/switchboard/control.sock"
+
 func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 	tests := []struct {
 		does string
@@ -53,6 +60,7 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 	}{
 		{does: "run-a-stub", want: "ran osascript -e return 1"},
 		{does: "dial-off-the-machine", want: "blocked dial to 192.0.2.1:80"},
+		{does: "dial-a-socket-outside-the-temporary-directory", want: "blocked dial to " + outsideSocket},
 		{does: "overwrite-the-real-config", want: "the real ~/.config/switchboard/config.toml was modified"},
 		{does: "create-the-real-state", want: "the real ~/.local/state/switchboard appeared"},
 		{does: "install-the-real-launch-agent", want: "the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was created"},
@@ -116,6 +124,14 @@ func TestInChild(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "testguard: blocked dial to 192.0.2.1:80") {
 			t.Errorf("GET http://192.0.2.1/: error = %v, want the dial blocked", err)
 		}
+	case "dial-a-socket-outside-the-temporary-directory":
+		resp, err := overSocket(outsideSocket).Get("http://switchboard/health")
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		if err == nil || !strings.Contains(err.Error(), "testguard: blocked dial to "+outsideSocket) {
+			t.Errorf("GET /health over %s: error = %v, want the dial blocked", outsideSocket, err)
+		}
 	case "overwrite-the-real-config":
 		writeFile(t, filepath.Join(realHome, configFile), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
 	case "create-the-real-state":
@@ -133,21 +149,61 @@ func TestInChild(t *testing.T) {
 	}
 }
 
-// stayInIsolation does what the guard allows: it dials loopback, writes a
-// config into the home the guard gives it, and writes under a temporary
-// directory.
+// stayInIsolation does what the guard allows: it dials loopback and a unix
+// socket in the temporary directory, writes a config into the home the guard
+// gives it, and writes under a temporary directory.
 func stayInIsolation(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "ok")
-	}))
+	})
+	srv := httptest.NewServer(ok)
 	t.Cleanup(srv.Close)
 	resp, err := http.Get(srv.URL)
 	if err != nil {
 		t.Fatalf("GET %s: %v", srv.URL, err)
 	}
 	_ = resp.Body.Close()
+	socket := serveOnASocket(t, ok)
+	resp, err = overSocket(socket).Get("http://switchboard/")
+	if err != nil {
+		t.Fatalf("GET / over %s: %v", socket, err)
+	}
+	_ = resp.Body.Close()
 	writeFile(t, filepath.Join(os.Getenv("HOME"), configFile), "listen = \"127.0.0.1:4747\"\n")
 	writeFile(t, filepath.Join(t.TempDir(), "state.json"), "{}\n")
+}
+
+// serveOnASocket serves h on a unix socket in the temporary directory until
+// the test ends, and returns the socket's path.
+func serveOnASocket(t *testing.T, h http.Handler) string {
+	t.Helper()
+	// t.TempDir's can be too long for a unix socket on macOS.
+	dir, err := os.MkdirTemp("", "sb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	path := filepath.Join(dir, "control.sock")
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	return path
+}
+
+// overSocket returns a client whose every request goes to the unix socket at
+// path, as switchboard's router client's do, over a transport cloned from
+// http.DefaultTransport, which the guard guards.
+func overSocket(path string) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	dial := transport.DialContext
+	transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return dial(ctx, "unix", path)
+	}
+	return &http.Client{Transport: transport, Timeout: 5 * time.Second}
 }
 
 // writeLikeARouter rewrites the state file at state through a temporary file

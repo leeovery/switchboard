@@ -26,7 +26,8 @@ import (
 // throwaway root; clears the variables that configure switchboard, Claude
 // Code and the Anthropic API, and tmux's and proxies'; sets PATH to a
 // directory of stubs alone; and lets http.DefaultTransport, and every
-// transport cloned from it after, dial this machine alone.
+// transport cloned from it after, dial loopback, and unix sockets in the
+// temporary directory, alone.
 //
 // After them, it fails the run, even when every test passed, if a stub ran,
 // a dial was blocked, switchboard's config in the real home changed, its
@@ -61,7 +62,7 @@ func install() (*guard, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create a throwaway root: %w", err)
 	}
-	g := &guard{root: root, dials: &dialGuard{}, home: watchHome(home)}
+	g := &guard{root: root, dials: newDialGuard(os.TempDir()), home: watchHome(home)}
 	if err := g.isolate(); err != nil {
 		_ = os.RemoveAll(root)
 		return nil, err

@@ -1,10 +1,12 @@
 ;; The macOS sandbox scripts/test-isolated runs the tests in: nothing beyond
-;; this machine, no writes into the home directory but Go's caches, and none
-;; of the real programs tests must never run.
+;; this machine, no unix socket outside the temporary directory and nothing on
+;; the router's port, no writes into the home directory but Go's caches, and
+;; none of the real programs tests must never run.
 ;;
 ;; Parameters, each a path with its symlinks resolved, as the sandbox matches
 ;; resolved paths:
 ;;   HOME        the home directory
+;;   TMPDIR      the temporary directory
 ;;   GOCACHE     go env GOCACHE
 ;;   GOMODCACHE  go env GOMODCACHE
 
@@ -15,10 +17,20 @@
 (define (home-literal path) (literal (string-append (param "HOME") path)))
 (define (home-subpath path) (subpath (string-append (param "HOME") path)))
 
-;; Loopback and unix sockets alone. The sandbox's localhost is 127.0.0.1 and
-;; ::1, and macOS gives loopback no other address.
+;; Loopback alone, and unix sockets in the temporary directory alone, where
+;; the tests make theirs: not a live router's control socket, nor any other
+;; program's. The sandbox's localhost is 127.0.0.1 and ::1, and macOS gives
+;; loopback no other address. Nothing else needs a socket: every test passes,
+;; building from an empty Go cache (tried).
 (deny network-outbound)
-(allow network-outbound (remote ip "localhost:*") (remote unix-socket))
+(allow network-outbound
+  (remote ip "localhost:*")
+  (remote unix-socket (subpath (param "TMPDIR"))))
+
+;; Nor the router's port, either way: a live router listens there, and while
+;; it's down, what listened in its place would be sent real sessions' tokens.
+(deny network-bind (local ip "*:4747"))
+(deny network-outbound (remote ip "*:4747"))
 
 (deny file-write* (subpath (param "HOME")))
 (allow file-write* (subpath (param "GOCACHE")) (subpath (param "GOMODCACHE")))
