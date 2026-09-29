@@ -4,51 +4,78 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 func TestParse(t *testing.T) {
 	tests := []struct {
-		name        string
-		text        string
-		want        string
-		wantMissing bool
-		wantErr     bool
+		name    string
+		text    string
+		want    string
+		wantErr error
 	}{
 		{name: "a token", text: "test-token-work", want: "test-token-work"},
 		{name: "the whitespace around it ignored", text: " \ttest-token-work\r\n\n", want: "test-token-work"},
-		{name: "nothing", text: "", wantMissing: true},
-		{name: "whitespace alone", text: " \n\t", wantMissing: true},
-		{name: "two tokens", text: "test-token-work test-token-side", wantErr: true},
-		{name: "a token a line", text: "test-token-work\ntest-token-side\n", wantErr: true},
-		{name: "a shell's export of one", text: "export CLAUDE_CODE_OAUTH_TOKEN=test-token-work", wantErr: true},
-		{name: "a control character within", text: "test-token\x00work", wantErr: true},
+		{name: "nothing", text: "", wantErr: tokens.ErrMissing},
+		{name: "whitespace alone", text: " \n\t", wantErr: tokens.ErrMissing},
+		{name: "two tokens", text: "test-token-work test-token-side", wantErr: tokens.ErrNotAToken},
+		{name: "a token a line", text: "test-token-work\ntest-token-side\n", wantErr: tokens.ErrNotAToken},
+		{name: "a shell's export of one", text: "export CLAUDE_CODE_OAUTH_TOKEN=test-token-work", wantErr: tokens.ErrNotAToken},
+		{name: "a control character within", text: "test-token\x00work", wantErr: tokens.ErrNotAToken},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := tokens.Parse(tt.text)
-			switch {
-			case tt.wantMissing:
-				if !errors.Is(err, tokens.ErrMissing) {
-					t.Errorf("Parse() error = %v, want %v", err, tokens.ErrMissing)
-				}
-			case tt.wantErr:
-				if err == nil || errors.Is(err, tokens.ErrMissing) {
-					t.Errorf("Parse() error = %v, want one saying it's more than a token", err)
-				}
-			case err != nil:
-				t.Fatalf("Parse() error = %v", err)
-			case token.Reveal() != tt.want:
-				t.Errorf("Parse() = %q, want %q", token.Reveal(), tt.want)
-			}
-			if err != nil && strings.Contains(err.Error(), "test-token") {
-				t.Errorf("Parse() error = %q, which shows what it was given", err)
-			}
+			checkParsed(t, token, err, tt.want, tt.wantErr)
 		})
+	}
+}
+
+func TestParseFrom(t *testing.T) {
+	errRead := errors.New("read failed")
+	tests := []struct {
+		name    string
+		r       io.Reader
+		want    string
+		wantErr error
+	}{
+		{name: "a token", r: strings.NewReader("test-token-work\n"), want: "test-token-work"},
+		{name: "as large as a token file can be", r: strings.NewReader(strings.Repeat("x", 4<<10)), want: strings.Repeat("x", 4<<10)},
+		{name: "nothing", r: strings.NewReader(""), wantErr: tokens.ErrMissing},
+		{name: "two tokens", r: strings.NewReader("test-token-work test-token-side\n"), wantErr: tokens.ErrNotAToken},
+		{name: "larger than a token file can be", r: strings.NewReader(strings.Repeat("x", 4<<10+1)), wantErr: tokens.ErrNotAToken},
+		{name: "a read that fails", r: iotest.ErrReader(errRead), wantErr: errRead},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := tokens.ParseFrom(tt.r)
+			checkParsed(t, token, err, tt.want, tt.wantErr)
+		})
+	}
+}
+
+// checkParsed checks a token parsed from text is want, or that parsing it
+// failed with wantErr, without showing the text.
+func checkParsed(t *testing.T, token tokens.Token, err error, want string, wantErr error) {
+	t.Helper()
+	switch {
+	case wantErr != nil:
+		if !errors.Is(err, wantErr) {
+			t.Errorf("error = %v, want %v", err, wantErr)
+		}
+	case err != nil:
+		t.Fatalf("error = %v", err)
+	case token.Reveal() != want:
+		t.Errorf("token = %q, want %q", token.Reveal(), want)
+	}
+	if err != nil && strings.Contains(err.Error(), "test-token") {
+		t.Errorf("error = %q, which shows what was parsed", err)
 	}
 }
 

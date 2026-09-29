@@ -159,11 +159,35 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	f := file{Listen: defaultListen, Upstream: defaultUpstream, Notifications: defaultNotifications}
-	meta, err := toml.Decode(string(data), &f)
+	f, meta, err := decodeFile(path, data)
 	if err != nil {
-		return nil, fmt.Errorf("parse config %s: %w", path, err)
+		return nil, err
 	}
+	return f.check(path, meta)
+}
+
+// decodeFile reads data as the text of the config file at path, with its
+// defaults filled in where it gives none, failing when it isn't TOML or holds
+// a value of the wrong type.
+func decodeFile(path string, data []byte) (file, toml.MetaData, error) {
+	f, meta, err := decode(string(data))
+	if err != nil {
+		return file{}, toml.MetaData{}, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	return f, meta, nil
+}
+
+// decode reads text as a config file's, with its defaults filled in where it
+// gives none.
+func decode(text string) (file, toml.MetaData, error) {
+	f := file{Listen: defaultListen, Upstream: defaultUpstream, Notifications: defaultNotifications}
+	meta, err := toml.Decode(text, &f)
+	return f, meta, err
+}
+
+// check returns the Config the config file at path describes, as decoding it
+// found it, or every problem with it together.
+func (f file) check(path string, meta toml.MetaData) (*Config, error) {
 	cfg, err := f.config(meta.Undecoded())
 	if err != nil {
 		return nil, fmt.Errorf("invalid config %s:\n%w", path, err)

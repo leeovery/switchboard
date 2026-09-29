@@ -74,7 +74,7 @@ type reading struct {
 // and merges what they report, noting which models reported each window. A
 // family that owns a window and reads nothing is reported as a failure, unless
 // another family read that window anyway. Probe fails only when no family
-// reads anything, with the base family's error.
+// reads anything, with the base family's error, as ProbeModel gives it.
 func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	readings := make([]reading, len(families))
 	var wg sync.WaitGroup
@@ -123,37 +123,59 @@ func hasWindow(windows []quota.Window, key string) bool {
 
 // ProbeModel sends model a request capped at one output token and reads the
 // usage windows off the response. Any response that carries them counts: the
-// API sends them on a 429 as well as a 200. Its errors never contain the token.
+// API sends them on a 429 as well as a 200. Its errors never contain the
+// token, and have a Refused method, which reports whether the API refused the
+// probe: its token, answering 401, or the request, answering 403.
 func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.Window, error) {
-	windows, err := p.probeModel(ctx, token, model)
+	windows, status, err := p.probeModel(ctx, token, model)
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return nil, errors.New(redact.Text(err.Error(), token))
+		return nil, &probeError{text: redact.Text(err.Error(), token), status: status}
 	}
 	return windows, nil
 }
 
-func (p *Prober) probeModel(ctx context.Context, token, model string) ([]quota.Window, error) {
+// probeModel returns the windows the response to the probe reports, or the
+// status of a response that reports none, which is 0 when there's no
+// response.
+func (p *Prober) probeModel(ctx context.Context, token, model string) ([]quota.Window, int, error) {
 	timeout := cmp.Or(p.Timeout, defaultTimeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := p.newRequest(ctx, token, model)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	resp, err := probeClient.Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("timed out after %s", timeout)
+			return nil, 0, fmt.Errorf("timed out after %s", timeout)
 		}
-		return nil, err
+		return nil, 0, err
 	}
 	defer drainAndClose(resp.Body)
 	if windows := ParseWindows(resp.Header); len(windows) > 0 {
-		return windows, nil
+		return windows, 0, nil
 	}
-	return nil, errors.New(noUsageReason(resp, token))
+	return nil, resp.StatusCode, errors.New(noUsageReason(resp, token))
+}
+
+// probeError is why a probe read no usage, never holding the token.
+type probeError struct {
+	text string
+	// status is the status the API answered with, or 0 when it didn't answer.
+	status int
+}
+
+func (e *probeError) Error() string {
+	return e.text
+}
+
+// Refused reports whether the API refused the probe: its token, answering
+// 401, or the request, answering 403, as for a model the plan lacks.
+func (e *probeError) Refused() bool {
+	return e.status == http.StatusUnauthorized || e.status == http.StatusForbidden
 }
 
 type messagesRequest struct {

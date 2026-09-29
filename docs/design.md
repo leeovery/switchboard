@@ -601,6 +601,8 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
 | `internal/config` | Locating, parsing, validating and editing the config file: the accounts, the primary and the reserves, and the priming day |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private |
+| `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
+| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, and which models' thinking is bound to the account that produced it |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |

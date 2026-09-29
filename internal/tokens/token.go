@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"errors"
+	"io"
 	"log/slog"
 	"strings"
 	"unicode"
@@ -13,8 +14,9 @@ var (
 	// ErrMissing is what an account without a token fails with, wrapped: its
 	// token file isn't there, or holds nothing but whitespace.
 	ErrMissing = errors.New("token missing")
-	// errNotAToken is text holding more than a token.
-	errNotAToken = errors.New("more than a token")
+	// ErrNotAToken is what reading a token from text holding more than a
+	// token fails with.
+	ErrNotAToken = errors.New("more than a token")
 )
 
 // Token is an account's setup token. Printing or logging one shows a
@@ -27,18 +29,29 @@ type Token struct {
 }
 
 // Parse returns the token text holds, ignoring the whitespace around it. It
-// fails with ErrMissing when text holds nothing else, and when it holds more
-// than one word: a token has no whitespace or control character in it, which
-// would end or break the header it goes out in.
+// fails with ErrMissing when text holds nothing else, and with ErrNotAToken
+// when it holds more than one word: a token has no whitespace or control
+// character in it, which would end or break the header it goes out in.
 func Parse(text string) (Token, error) {
 	secret := strings.TrimSpace(text)
 	switch {
 	case secret == "":
 		return Token{}, ErrMissing
 	case strings.ContainsFunc(secret, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }):
-		return Token{}, errNotAToken
+		return Token{}, ErrNotAToken
 	}
 	return Token{secret: &secret}, nil
+}
+
+// ParseFrom returns the token r holds, read to its end, as a token file holds
+// one: as Parse does, but failing with ErrNotAToken for more than a token file
+// can hold.
+func ParseFrom(r io.Reader) (Token, error) {
+	data, err := io.ReadAll(io.LimitReader(r, maxFile+1))
+	if err != nil {
+		return Token{}, err
+	}
+	return parse(data)
 }
 
 // Reveal returns the secret itself, for passing on to whatever authenticates
