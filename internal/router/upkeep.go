@@ -1,0 +1,63 @@
+package router
+
+import (
+	"cmp"
+	"context"
+	"time"
+)
+
+// watchEvery is how often the router looks at what it was started from,
+// unless its config says otherwise.
+const watchEvery = 3 * time.Second
+
+// upkeep keeps the router in step with what it was started from while it
+// runs, looking every so often: the accounts' token files, which it takes up
+// in place, and its config file and its binary, which it restarts to take
+// up.
+type upkeep struct {
+	every    time.Duration
+	tokens   *tokenFiles
+	restarts *restarts
+}
+
+// newUpkeep returns the upkeep of a router built from cfg, with the accounts
+// given, noting each change to their tokens for the state file to keep with
+// changes, working out the schedule of primer, if it primes, again whenever
+// the accounts with tokens change, and restarting once inFlight counts no
+// request in flight.
+func newUpkeep(cfg Config, as accounts, changes *changes, primer *primer, inFlight *inFlight) *upkeep {
+	replan := func() {}
+	if primer != nil {
+		replan = primer.replan
+	}
+	return &upkeep{
+		every:    cmp.Or(cfg.WatchEvery, watchEvery),
+		tokens:   &tokenFiles{accounts: as, read: cfg.Token, now: cfg.Now, kept: changes.note, sendable: replan},
+		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Supervised, inFlight),
+	}
+}
+
+// run looks after the router every so often, until ctx ends or the router
+// restarts.
+func (u *upkeep) run(ctx context.Context) {
+	tick := time.NewTicker(u.every)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			u.tokens.look()
+			u.restarts.look()
+		case <-u.restarts.ready():
+			if u.restarts.restart() {
+				return
+			}
+		}
+	}
+}
+
+// restarted returns what's closed as the router restarts itself.
+func (u *upkeep) restarted() <-chan struct{} {
+	return u.restarts.restarted
+}

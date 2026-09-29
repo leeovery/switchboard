@@ -26,9 +26,11 @@ const (
 
 // Run builds a router and serves until ctx ends: the proxy on cfg.Listen, and
 // the control API on a socket in cfg.StateDir, where it keeps its state file
-// too. It fails when another router already answers there, or when it can't
-// listen. On its way out it stops taking requests, gives those in flight up
-// to 30 seconds to finish, saves its state, and removes the socket.
+// too. A supervised router also stops, returning nil, to restart, once its
+// config file or its binary has changed. It fails when another router
+// already answers there, or when it can't listen. On its way out it stops
+// taking requests, gives those in flight up to 30 seconds to finish, saves
+// its state, and removes the socket.
 func Run(ctx context.Context, cfg Config) error {
 	r, err := New(cfg)
 	if err != nil {
@@ -91,10 +93,11 @@ func listen(addr string) (net.Listener, error) {
 	return ln, nil
 }
 
-// serve serves the proxy and the control API until ctx ends or either fails,
-// probing each account nothing has been read of in the meantime, priming the
-// accounts on the schedule, keeping the state file and posting
-// notifications, then shuts both down.
+// serve serves the proxy and the control API until ctx ends, either fails,
+// or the router restarts itself, probing each account nothing has been read
+// of in the meantime, priming the accounts on the schedule, looking after
+// itself, keeping the state file and posting notifications, then shuts both
+// down.
 func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -103,10 +106,11 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	serving.Go(func() { failed <- serveOn(controlSrv, controlLn) })
 	r.logStart(proxyLn.Addr(), controlLn.Addr())
 	r.probes.start(r.accounts.sendable(), r.state.unread)
-	priming, stopPriming := context.WithCancel(ctx)
-	var primed sync.WaitGroup
+	looking, stopLooking := context.WithCancel(ctx)
+	var looked sync.WaitGroup
+	looked.Go(func() { r.upkeep.run(looking) })
 	if r.primer != nil {
-		primed.Go(func() { r.primer.run(priming) })
+		looked.Go(func() { r.primer.run(looking) })
 	}
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, so keeping and notifying outlast ctx.
@@ -121,10 +125,11 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	select {
 	case <-ctx.Done():
 	case err = <-failed:
+	case <-r.upkeep.restarted():
 	}
 	logger.Info("stopping")
-	stopPriming()
-	primed.Wait()
+	stopLooking()
+	looked.Wait()
 	r.probes.stop()
 	shutdown(controlSrv, proxySrv)
 	serving.Wait()
@@ -171,7 +176,7 @@ func (r *Router) logStart(proxy, control net.Addr) {
 	for i, a := range r.accounts {
 		tokens[i] = slog.Bool(a.ID, a.hasToken())
 		if !a.hasToken() {
-			logger.Warn("account has no usable token; nothing will go out on it", "account", a.ID, "error", a.problem)
+			logger.Warn("account has no usable token; nothing will go out on it", "account", a.ID, "error", a.problem())
 		}
 	}
 	logger.Info("listening", "address", proxy.String(), "control", control.String(),

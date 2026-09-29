@@ -54,6 +54,10 @@ type Deps struct {
 	// FollowEvery is how often logs --follow looks for new lines. Zero means
 	// every half second.
 	FollowEvery time.Duration
+	// WatchEvery is how often the router serve runs reads the token files
+	// again, and looks at its config file and its binary. Zero means every 3
+	// seconds.
+	WatchEvery time.Duration
 	// Exec replaces this process with the program at path, as launch.Exec
 	// does. It returns only when it fails.
 	Exec func(path string, argv, env []string) error
@@ -266,6 +270,11 @@ func (a *app) loadConfig() (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	return a.loadConfigAt(path)
+}
+
+// loadConfigAt loads the config file at path.
+func (a *app) loadConfigAt(path string) (*config.Config, error) {
 	cfg, err := config.Load(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		example := strings.TrimSuffix(config.Example, "\n")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -14,6 +15,8 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 // daytime is the day the tests prime over. Work, the first account with a
@@ -167,13 +170,79 @@ func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *tes
 	}
 }
 
+func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T) {
+	clock := &testClock{now: onDay(1, 2, 0)}
+	files := &changingFiles{files: testTokens}
+	r := newPrimingRouterReading(t, clock.read, &stubProber{}, daytime, files.read)
+	slots := func() []string {
+		var slots []string
+		for _, slot := range r.Status().Prime.Slots {
+			slots = append(slots, slot.Account+" "+slot.At)
+		}
+		return slots
+	}
+	if got, want := slots(), []string{"work 04:15", "side 06:45"}; !slices.Equal(got, want) {
+		t.Fatalf("as the router starts, the slots are %q, want %q", got, want)
+	}
+
+	files.set(tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken})
+	r.upkeep.tokens.look()
+	if got, want := slots(), []string{"work 03:50", "personal 05:30", "side 07:10"}; !slices.Equal(got, want) {
+		t.Errorf("with personal's token, the slots are %q, want %q", got, want)
+	}
+
+	files.set(tokenstest.Files{"personal": personalToken, "side": sideToken})
+	r.upkeep.tokens.look()
+	if got, want := slots(), []string{"personal 04:15", "side 06:45"}; !slices.Equal(got, want) {
+		t.Errorf("without work's token, the slots are %q, want %q", got, want)
+	}
+
+	files.set(tokenstest.Files{})
+	r.upkeep.tokens.look()
+	if got := r.Status().Prime; !reflect.DeepEqual(got, status.Prime{}) {
+		t.Errorf("with no account's token, the schedule is %+v, want none", got)
+	}
+}
+
+func TestAnAccountThatGainsItsTokenIsPrimedAtItsSlot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := newBubbleClock(onDay(1, 2, 0))
+		upstream := newWindowsUpstream(clock)
+		files := &changingFiles{files: testTokens}
+		r := newPrimingRouterReading(t, clock.read, upstream, daytime, files.read)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(30 * time.Minute)
+		files.set(tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken})
+		r.upkeep.tokens.look()
+		time.Sleep(6 * time.Hour)
+		synctest.Wait()
+		want := map[string][]time.Time{
+			workToken:     {onDay(1, 3, 50)},
+			personalToken: {onDay(1, 5, 30)},
+			sideToken:     {onDay(1, 7, 10)},
+		}
+		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
+			t.Errorf("once personal has its token, primed at %v, want each at its slot in the schedule of three %v", got, want)
+		}
+	})
+}
+
 // newPrimingRouter builds a router of testConfigured that primes on the
 // schedule prime gives, on now's time, probing with prober.
 func newPrimingRouter(t *testing.T, now func() time.Time, prober Prober, prime config.Prime) *Router {
 	t.Helper()
+	return newPrimingRouterReading(t, now, prober, prime, testTokens.Read)
+}
+
+// newPrimingRouterReading builds a router as newPrimingRouter does, reading
+// the accounts' tokens with read.
+func newPrimingRouterReading(t *testing.T, now func() time.Time, prober Prober, prime config.Prime, read func(id string) (tokens.Token, error)) *Router {
+	t.Helper()
 	r, err := New(Config{
 		Accounts: testConfigured,
-		Token:    testTokens.Read,
+		Token:    read,
 		Upstream: "http://127.0.0.1:1",
 		Provider: claude.Provider{},
 		Prober:   prober,

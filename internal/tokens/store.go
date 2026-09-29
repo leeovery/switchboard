@@ -23,6 +23,8 @@ const (
 	maxFile = 4 << 10
 	// shared are the permission bits that let others read or write a file.
 	shared fs.FileMode = 0o066
+	// private are the tokens directory's permissions: the user's alone.
+	private fs.FileMode = 0o700
 )
 
 // Store is the token files of a state directory: <state dir>/tokens/<id>, one
@@ -148,13 +150,41 @@ func (s Store) Write(id string, token Token) error {
 // keepPrivate makes the tokens directory, with any of the state directory
 // missing, or makes it the user's alone when it's there already.
 func (s Store) keepPrivate() error {
-	if err := os.MkdirAll(s.dir, 0o700); err != nil {
+	if err := os.MkdirAll(s.dir, private); err != nil {
 		return fmt.Errorf("create the tokens directory: %w", err)
 	}
-	if err := os.Chmod(s.dir, 0o700); err != nil {
+	if err := os.Chmod(s.dir, private); err != nil {
 		return fmt.Errorf("make the tokens directory private: %w", err)
 	}
 	return nil
+}
+
+// Dir is where the token files are.
+func (s Store) Dir() string {
+	return s.dir
+}
+
+// Tighten makes the tokens directory the user's alone, as Write keeps it,
+// when it's there: it never makes one. It returns the permissions the
+// directory had, and reports whether it changed them.
+func (s Store) Tighten() (was fs.FileMode, tightened bool, err error) {
+	info, err := os.Stat(s.dir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, fmt.Errorf("make the tokens directory private: %w", err)
+	case !info.IsDir():
+		return 0, false, fmt.Errorf("the tokens directory %s isn't a directory: remove it, and write the tokens again", s.dir)
+	}
+	was = info.Mode().Perm()
+	if was == private {
+		return was, false, nil
+	}
+	if err := os.Chmod(s.dir, private); err != nil {
+		return was, false, fmt.Errorf("make the tokens directory private: %w", err)
+	}
+	return was, true, nil
 }
 
 // Has reports whether the account has a token file, usable or not.

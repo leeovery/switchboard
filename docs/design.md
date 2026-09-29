@@ -362,15 +362,19 @@ it's asked for.
   reserve. See Config.
 - Each account's token is a file of its own, holding the token alone: `<state dir>/tokens/<id>`.
   Whitespace around the token is ignored. Switchboard keeps the directory 0700, creating it or
-  tightening it. A token file must be the user's, and neither readable nor writable by anyone
-  else; otherwise the account counts as having no token, and `accounts` and `status` say why and
-  how to fix it. Switchboard reads no token from the environment.
+  tightening it, and the router tightens it as it starts. A token file must be the user's, and
+  neither readable nor writable by anyone else; otherwise the account counts as having no token,
+  and `accounts` and `status` say why and how to fix it. Switchboard reads no token from the
+  environment.
 - Anything can write the files, such as a password manager's file export or a dotfiles secrets
   step. `accounts add` and `accounts token` write them for everyone else.
-- The router reads the tokens as it starts, and an account's file again when a request on it gets
-  a 401 (see Requests that need special handling), so a rotated token needs no restart. `run`,
-  `usage` and `status` read the files as they need them. The LaunchAgent needs none of the
-  user's environment.
+- The router reads the tokens as it starts, every account's file again every 3 seconds, and an
+  account's file again when a request on it gets a 401 (see Requests that need special
+  handling), so a changed token file needs no restart: an account whose file holds another token
+  goes out on that one, one that had no usable token gains the one its file comes to hold, and
+  one whose file goes, or becomes unusable, has nothing to send on until it's back (see The
+  router looking after itself). `run`, `usage` and `status` read the files as they need them.
+  The LaunchAgent needs none of the user's environment.
 - A token the router replaces stays its account's for 7 days: sessions started before hold it,
   and every session holds the primary's. The router keeps it as its SHA-256 hash, never the
   token, in `state.json`, and routes a request carrying it as the account's (see Proxy rules). A
@@ -530,7 +534,11 @@ notes the turn, and the turn back, at warn and info. `status` and the dashboard 
 loudly: they read an unhealthy router's document all the same, `status`'s last line reading `from
 the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>` and the dashboard heading its cards
 `router unhealthy — <reason>`, in red.
-Whether it should also fall back automatically is an open question (see Open questions).
+
+Sessions don't fall back to going direct automatically. A running Claude Code can't change where
+it sends its requests mid-session; the failures that count against the router, an upstream it
+can't reach and refusals with no account left, would meet a direct connection too; and a new
+launch already goes direct while the router is down or unhealthy.
 
 ## Notifications
 
@@ -593,8 +601,10 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **The router's own events:** at `info`, each prime, with the reset it read; an account held back
   by its reserve, and let go at its reset; a token file read again after a 401, and whether it held
   a different token; a token replaced while the router was away, which it finds as it starts; a
-  config change applied; and a restart for a config change or an upgrade. A config change
-  refused, as invalid, is logged at `warn`.
+  token file found holding another token, an account gaining a usable token, and one losing it,
+  with why; the tokens directory made private as the router starts, and what bringing the skill up
+  to date did; a config change, and an upgrade; a restart either makes due, once, and the restart
+  as it goes. A config change refused, as invalid, is logged at `warn`.
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -610,18 +620,40 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 
 ## The router looking after itself
 
-- **Config changes:** the router watches its config file, following links, and restarts itself
-  on a change that parses and validates, so `accounts add`, `accounts remove` and an edit by hand
-  all take effect without a command. A change that doesn't is logged at `warn`, and the router
-  carries on with the config it has.
-- **Upgrades:** it restarts itself when the binary its LaunchAgent runs, the Homebrew link, leads
-  to a different file from the one running, as after `brew upgrade`.
-- Either restart waits for a moment with no requests in flight; the router then exits, and
-  launchd starts it again. Sessions keep their accounts (`state.json`), readings persist, and
-  caches, being the API's, stay warm. A `claude` started in the second or so the router is away
-  connects directly. Run by hand with `serve` rather than by the LaunchAgent, the router logs that
-  a restart is due instead of exiting.
-- As it starts, the router brings the installed skill up to date (see The skill).
+Every 3 seconds, the router looks at what it was started from: the token files, its config file
+and its binary.
+
+- **Token files:** it reads each account's token file again, and takes up what it holds in place,
+  with no restart, logging each change, but never a token. An account whose file holds another
+  token goes out on that one, the one before still counting as the account's, as after a 401 (see
+  Accounts and tokens). One that had no usable token gains the one its file comes to hold, and
+  requests can go out on it. One whose file goes, or becomes unusable, has nothing to send on
+  until it's back, as though it had none as the router started: the sessions on it move, and a
+  request carrying its token passes through untouched, as one carrying a token the router
+  doesn't hold does (see Proxy rules). While the primary's is gone, that's every session's
+  request. The priming schedule is worked out again whenever an account gains a usable token or
+  loses it.
+- **Config changes:** it restarts itself on a change to its config file that parses and
+  validates, so `accounts add`, `accounts remove` and an edit by hand all take effect without a
+  command. It follows links, so a config kept in a dotfiles repo and linked counts, and a change
+  is the file's identity or modification time changing. A change that doesn't parse and validate
+  is logged at `warn`, and the router carries on with the config it has.
+- **Upgrades:** it restarts itself when the binary it was started as, the Homebrew link its
+  LaunchAgent runs, leads to a different file from the one running, as after `brew upgrade`. A
+  link that leads nowhere, as it may for a moment while an upgrade moves it on, isn't one.
+- Either restart waits for a moment with no requests in flight, there being no hurry, and for the
+  config file to make a valid config, which the router started again needs: an upgrade while the
+  config file is invalid waits for it to be put right. A connection upgraded, such as a
+  WebSocket, isn't a request in flight, as it can stay open for as long as its session runs. The
+  router then stops as it does at a signal, its state saved and the notifications still gathering
+  sent, and exits, and launchd starts it again. Sessions keep their accounts (`state.json`),
+  readings persist, and caches, being the API's, stay warm. A `claude` started in the second or
+  so the router is away connects directly.
+- Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
+  the job it runs, which the router checks against the service's. Run by hand with `serve`, the
+  router logs, once, that a restart is due instead of exiting.
+- As it starts, the router brings the installed skill up to date (see The skill), and makes the
+  tokens directory private when it's there.
 
 ## The skill
 
@@ -674,7 +706,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
 | `internal/dashboard` | Rendering the status document as a frame (Lip Gloss): cards, or a line per account |
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes |
-| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the router's health, the events it emits and the notifications it posts, the control API and its client, and restarting itself |
+| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting for a config change or an upgrade |
 | `internal/launch` | `run`'s hand-over to `claude`, finding the real `claude` past switchboard's own link, and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
 | `internal/skill` | The Claude Code skill: its text and version, and writing and updating the installed copy |
@@ -797,8 +829,9 @@ fails as it is; one that parses has every problem reported at once:
 - A request is routed only when its path is exactly `/v1/messages` or `/v1/messages/count_tokens`
   **and** its bearer token is one of the configured accounts' tokens, which Claude Code's, the
   primary's, is, or one an account had before the router took up another, for 7 days after (see
-  Accounts and tokens). Anything else passes through untouched: batches, whose ids belong to one
-  account, stay on it, and a local process that doesn't already hold a token can't borrow one.
+  Accounts and tokens): an account without a usable token has none that counts. Anything else
+  passes through untouched: batches, whose ids belong to one account, stay on it, and a local
+  process that doesn't already hold a token can't borrow one.
 - A token an account had before is known by its SHA-256 hash, which a request's token is hashed
   and compared with in constant time, as the current tokens are. A request carrying one is the
   account's, and goes out on the account's current token, as every routed request does.
@@ -984,11 +1017,6 @@ What's built but hasn't been seen against the real thing:
   primary, and whether a conversation request ever refers to an uploaded file by id.
 - `claude doctor` with the link in place.
 - Background sessions (`claude --bg`) going through the router.
-
-## Open questions
-
-- Whether sessions should fall back automatically when the router turns unhealthy mid-session (see
-  Health).
 
 ## Open-source hygiene
 

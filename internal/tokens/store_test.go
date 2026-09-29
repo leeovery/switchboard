@@ -227,6 +227,60 @@ func TestHas(t *testing.T) {
 	}
 }
 
+func TestTighten(t *testing.T) {
+	tests := []struct {
+		name string
+		// mode is the tokens directory's, or 0 when there's none.
+		mode          fs.FileMode
+		wantTightened bool
+	}{
+		{name: "a tokens directory others can use", mode: 0o755, wantTightened: true},
+		{name: "a tokens directory the user can't write to", mode: 0o500, wantTightened: true},
+		{name: "a private tokens directory", mode: 0o700},
+		{name: "no tokens directory"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			dir := filepath.Join(state, "tokens")
+			if tt.mode != 0 {
+				mkdirPrivate(t, dir)
+				if err := os.Chmod(dir, tt.mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			store := tokens.NewStore(state, os.Getuid())
+
+			was, tightened, err := store.Tighten()
+			if err != nil || was != tt.mode || tightened != tt.wantTightened {
+				t.Errorf("Tighten() = %04o, %v, %v, want %04o, %v, nil", was, tightened, err, tt.mode, tt.wantTightened)
+			}
+			if store.Dir() != dir {
+				t.Errorf("Dir() = %s, want %s", store.Dir(), dir)
+			}
+			if tt.mode == 0 {
+				if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+					t.Errorf("tokens directory: %v, want none made", err)
+				}
+				return
+			}
+			checkMode(t, dir, fs.ModeDir|0o700)
+		})
+	}
+}
+
+func TestTightenRefusesATokensDirectoryThatIsntOne(t *testing.T) {
+	state := t.TempDir()
+	writeFile(t, filepath.Join(state, "tokens"), "", 0o644)
+
+	_, tightened, err := tokens.NewStore(state, os.Getuid()).Tighten()
+	want := "the tokens directory " + filepath.Join(state, "tokens") + " isn't a directory: remove it, and write the tokens again"
+	if err == nil || err.Error() != want || tightened {
+		t.Errorf("Tighten() = %v, %v, want an error saying %q", tightened, err, want)
+	}
+	checkMode(t, filepath.Join(state, "tokens"), 0o644)
+}
+
 // parse returns the token text holds.
 func parse(t *testing.T, text string) tokens.Token {
 	t.Helper()

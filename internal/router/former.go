@@ -61,11 +61,22 @@ func hash(token string) string {
 func (s *secret) replace(token tokens.Token, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if token.Reveal() == s.token.Reveal() {
+	return s.swap(token, now)
+}
+
+// swap has the account hold token from now on, keeping the one it held
+// before, if it held one, among its former tokens, replaced at now. It
+// reports whether it replaced one. s.mu must be held.
+func (s *secret) swap(token tokens.Token, now time.Time) bool {
+	held := s.token.Reveal()
+	if token.Reveal() == held {
 		return false
 	}
-	s.former = append(s.former, formerToken{SHA256: hash(s.token.Reveal()), ReplacedAt: now.UTC()})
 	s.token = token
+	if held == "" {
+		return false
+	}
+	s.former = append(s.former, formerToken{SHA256: hash(held), ReplacedAt: now.UTC()})
 	return true
 }
 
