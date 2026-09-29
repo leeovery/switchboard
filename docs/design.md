@@ -815,7 +815,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
-| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary and `claude` link, for tests |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
@@ -1081,8 +1081,15 @@ Each account:
   `internal/claude` keeps the list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
-  be run, passing over any `claude` that leads, links followed, to switchboard's own executable,
-  and replaces itself with it (`exec`), so signals and the terminal behave as usual.
+  be run, passing over any `claude` that's switchboard, which would start it again: one that
+  leads, links followed, to switchboard's own executable, and another build of switchboard, as
+  the Go build info it holds says. It replaces itself with the `claude` it finds (`exec`), so
+  signals and the terminal behave as usual, and the `claude` keeps its process id. Every `claude`
+  it starts, as if switchboard weren't there or not, starts with `SWITCHBOARD_STARTED` set to that
+  id and where the `claude` is. A switchboard started with it naming its own id was started again
+  in that `claude`'s place, as by a wrapper named `claude` that `exec`s switchboard, and looks past
+  that `claude`, failing when there's none rather than start it again, and again. Any other, such
+  as a `claude` started within a Claude Code session, has an id of its own, and looks everywhere.
   Probes claim the version of the `claude` found the same way, so the router, whose `PATH` is
   launchd's, finds it where its installers put it. Claude Code's arguments go after `--`,
   untouched and never logged; the log notes the decision: routed or direct, the router's state,

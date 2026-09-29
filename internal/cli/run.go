@@ -88,6 +88,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		Environ:      a.Environ(),
 		InstallPaths: claude.InstallPaths(home),
 		Executable:   a.Executable,
+		PID:          a.PID,
 		Exec:         a.Exec,
 		Stderr:       stderr,
 	}

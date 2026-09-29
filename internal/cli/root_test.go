@@ -391,6 +391,9 @@ var testNow = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 // testClaudeVersion is the Claude Code version every command's probes claim in tests.
 const testClaudeVersion = "2.1.300"
 
+// testPID is every command's process id in tests.
+const testPID = 5150
+
 // testDeps gives commands env as their whole environment, home as their home
 // directory, a stopped clock, a fixed Claude Code version and a notifier that
 // posts nothing, so no test reads the real ones, runs the real claude or
@@ -423,6 +426,7 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		Hidden: cli.HiddenInput,
 		GOOS:   "darwin",
 		UID:    os.Getuid(),
+		PID:    testPID,
 	}
 }
 

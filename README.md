@@ -213,7 +213,7 @@ switchboard pin work --session 18bb   # one session, by the start of its id
 
 #### `claude`
 
-Once `setup` has linked it, `claude` is switchboard: a link named `claude` in switchboard's bin directory, ahead of the real one on `PATH`. Run by that name, switchboard starts the real Claude Code connected to the router, handing it every argument, so `claude --help` is Claude Code's.
+Once `setup` has linked it, `claude` is switchboard: a link named `claude` in switchboard's bin directory, ahead of the real one on `PATH`. Run by that name, switchboard starts the real Claude Code connected to the router, handing it every argument, so `claude --help` is Claude Code's. The real one is the first `claude` on `PATH`, else where its installers put it, that doesn't start switchboard again: past switchboard's link, any other build of switchboard, and a wrapper named `claude` that `exec`s switchboard.
 
 ```bash
 claude [<claude args>]

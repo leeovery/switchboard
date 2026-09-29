@@ -2,11 +2,22 @@ package launch
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/router"
 )
+
+// startedEnv marks the environment of each claude switchboard starts in its
+// own place, as "<pid>:<path>": switchboard's process id, which the claude
+// keeps, as exec keeps it, and where the claude is. A switchboard started
+// with the mark naming its own process id was started again in that claude's
+// place, as by a wrapper named claude that runs switchboard with exec, and
+// looks for claude past it rather than start it again, and again. Any other,
+// such as one started within a Claude Code session, has a process id of its
+// own, and looks everywhere, marking the claude it starts afresh.
+const startedEnv = "SWITCHBOARD_STARTED"
 
 // environ is an environment as os.Environ gives it: "key=value", a variable
 // each. Its methods return a changed copy, leaving it as it was.
@@ -35,6 +46,24 @@ func (e environ) get(key string) string {
 		}
 	}
 	return ""
+}
+
+// startingAt returns the environment marked as the one the claude at path
+// starts in, in the place of the switchboard whose process id is pid, in
+// place of any mark it held.
+func (e environ) startingAt(pid int, path string) environ {
+	return e.with(startedEnv, strconv.Itoa(pid)+":"+path)
+}
+
+// startedAt returns where the claude is that the switchboard whose process
+// id is pid started, as the environment's mark says, when this is that
+// switchboard, started again in the claude's place: "" when it isn't.
+func (e environ) startedAt(pid int) string {
+	id, path, _ := strings.Cut(e.get(startedEnv), ":")
+	if id != strconv.Itoa(pid) {
+		return ""
+	}
+	return path
 }
 
 // pinnedTo returns the environment with Claude Code's custom headers pinning
