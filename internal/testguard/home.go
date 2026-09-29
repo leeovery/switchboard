@@ -11,14 +11,16 @@ import (
 )
 
 // switchboard's directories in a home, the directory its LaunchAgent goes in,
-// and Claude Code's config directory; and the directory switchboard's skill
-// goes in, in that.
+// and Claude Code's config directory; the directory switchboard's token files
+// go in, in its state directory; and the directory switchboard's skill goes
+// in, in Claude Code's config directory.
 var (
 	configDir       = filepath.Join(".config", "switchboard")
 	stateDir        = filepath.Join(".local", "state", "switchboard")
 	binDir          = filepath.Join(".local", "share", "switchboard", "bin")
 	launchAgentsDir = filepath.Join("Library", "LaunchAgents")
 	claudeDir       = ".claude"
+	tokensDir       = "tokens"
 	skillDir        = filepath.Join("skills", "switchboard")
 )
 
@@ -51,11 +53,11 @@ func (ws watchers) changes() []string {
 // Code's config directory, by default in home, and wherever CLAUDE_CONFIG_DIR
 // puts it; its bin directory, which holds its claude link, by default in
 // home, and wherever XDG_DATA_HOME puts it; and what's named claude in each
-// directory on PATH. Nothing live writes the config, a LaunchAgent, the skill
-// or a claude link as it runs, so any change to one is a test's. A live
-// router writes its state as it runs, its logs and state.json among it, so
-// only a state directory appearing is a test's; and the OS sandbox denies a
-// test any write there anyway.
+// directory on PATH. Nothing live writes the config, a LaunchAgent, the skill,
+// a token file or a claude link as it runs, so any change to one is a test's.
+// A live router writes the rest of its state as it runs, its logs and
+// state.json among it, so of that, only a state directory appearing is a
+// test's; and the OS sandbox denies a test any write there anyway.
 func watchReal(home string, getenv func(string) string) watchers {
 	var ws watchers
 	for _, p := range configPlaces(home, getenv) {
@@ -64,7 +66,9 @@ func watchReal(home string, getenv func(string) string) watchers {
 	for _, p := range statePlaces(home, getenv) {
 		if !exists(p.path) {
 			ws = append(ws, absence{p})
+			continue
 		}
+		ws = append(ws, watchContents(p.in(tokensDir), nil, followed))
 	}
 	if home != "" {
 		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard, followed))
@@ -188,6 +192,11 @@ func inHome(home, dir string) place {
 // named is the place at where, named as the environment names it.
 func named(where string) place {
 	return place{path: resolve(where), shown: filepath.ToSlash(where)}
+}
+
+// in is the place named name in p, named from p.
+func (p place) in(name string) place {
+	return place{path: resolve(filepath.Join(p.path, name)), shown: path.Join(p.shown, filepath.ToSlash(name))}
 }
 
 // contents watches what's at a place, and everything under it, that keep
