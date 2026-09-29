@@ -72,7 +72,8 @@ notifications. Ever.
   package's init has run. Each run first proves the sandbox denies a dial off the machine, a
   connect to a live unix socket outside the temporary directory, connecting to and binding
   4747, a write into the home directory, and into the real config and state where they exist,
-  and running `osascript`, and that the tests start without those variables; `--self-check`
-  does only that.
+  and running each of those programs that's installed, where `PATH` finds it, links resolved,
+  and that the tests start without those variables; `--self-check` does only that. On macOS,
+  without `/usr/bin/sandbox-exec` the tests don't run; off macOS, testguard alone guards them.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.

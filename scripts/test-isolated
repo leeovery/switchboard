@@ -10,8 +10,8 @@
 # The variables that can hold real tokens, or lead to the real tmux server or
 # a proxy, are unset before anything runs. Each run first proves the sandbox
 # denies each of those, and that the tests start without these; --self-check
-# does only that. Where there's no sandbox-exec, the tests run without the
-# sandbox, and internal/testguard still guards them from inside.
+# does only that. On macOS, without the sandbox the tests don't run. Off
+# macOS there's none, and they run guarded by internal/testguard alone.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
@@ -73,14 +73,19 @@ config=$(resolved "$(absolute "${SWITCHBOARD_CONFIG-}" "$config_dir/config.toml"
 
 scrub
 
-if ! command -v sandbox-exec >/dev/null 2>&1; then
+if [ "$(uname -s)" != Darwin ]; then
 	if [ "${1-}" = --self-check ]; then
-		echo "test-isolated: no sandbox-exec here, so there's no sandbox to check" >&2
+		echo "test-isolated: there's no sandbox off macOS to check" >&2
 		exit 1
 	fi
-	echo "test-isolated: warning: no sandbox-exec here, so the tests run outside the OS sandbox, guarded by testguard alone" >&2
+	echo "test-isolated: warning: there's no sandbox off macOS, so the tests run outside one, guarded by testguard alone" >&2
 	cd "$repo"
 	exec go test -race -count=1 "$@" ./...
+fi
+sandbox_exec=/usr/bin/sandbox-exec
+if [ ! -x "$sandbox_exec" ]; then
+	echo "test-isolated: no $sandbox_exec, which macOS has, so no sandbox to run the tests in, and they don't run" >&2
+	exit 1
 fi
 
 home=$(resolved "$HOME")
@@ -89,7 +94,7 @@ gocache=$(resolved "$(go env GOCACHE)")
 gomodcache=$(resolved "$(go env GOMODCACHE)")
 
 sandboxed() {
-	sandbox-exec -f "$repo/scripts/isolation.sb" \
+	"$sandbox_exec" -f "$repo/scripts/isolation.sb" \
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
 		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" "$@"
 }
@@ -178,6 +183,22 @@ answers() {
 	done
 }
 
+# denies_running proves the sandbox denies running the program name, as
+# installed here: found on PATH, with its links resolved, as the sandbox's
+# rules match the file a link leads to. Were it to run, the arguments given
+# would have it say what it is and stop. One that isn't installed has no
+# running to deny.
+denies_running() {
+	local name=$1 found program
+	shift
+	if ! found=$(type -P "$name"); then
+		echo "test-isolated: no $name on PATH, so no running it to deny"
+		return 0
+	fi
+	program=$(resolved "$found")
+	denied "running $name, at $program" "execvp() of '$program' failed: Operation not permitted" "$program" "$@"
+}
+
 # starts_clean proves the tests start with none of the variables no test may
 # see, naming any they would, never its value.
 starts_clean() {
@@ -209,8 +230,12 @@ self_check() {
 	denies_writing_in "real config directory" "$config_dir" || status=1
 	denies_writing_in "real state directory" "$state_dir" || status=1
 	denies_writing_to "$config" || status=1
-	denied "running osascript" "execvp() of '/usr/bin/osascript' failed: Operation not permitted" \
-		/usr/bin/osascript -e 'return 1' || status=1
+	denies_running claude --version || status=1
+	denies_running osascript -e 'return 1' || status=1
+	denies_running launchctl version || status=1
+	# open with nothing to open says how it's used.
+	denies_running open || status=1
+	denies_running tmux -V || status=1
 	starts_clean || status=1
 	return "$status"
 }
