@@ -1,9 +1,9 @@
-// Package score judges accounts by their usage windows: how far through each
-// window they are and where its use is heading, whether an account can take a
-// request, within its limits or within its reserve, how urgently its quota
-// needs using, and which account to use next. Every function is pure and is
-// handed the clock. None knows a provider's windows by name: a Policy names
-// the ones that matter.
+// Package score judges accounts by their usage windows: which have lapsed,
+// how far through each window they are and where its use is heading, whether
+// an account can take a request, within its limits or within its reserve, how
+// urgently its quota needs using, and which account to use next. Every
+// function is pure and is handed the clock. None knows a provider's windows
+// by name: a Policy names the ones that matter.
 package score
 
 import (
@@ -41,11 +41,47 @@ type Policy struct {
 	// Tiebreak is the window whose reset decides between accounts scoring
 	// near enough equal: what's left of it at its reset is lost.
 	Tiebreak string
+	// Started is the window a request starts when it isn't running. Once its
+	// reset, as last read, has passed with nothing read since, it has lapsed,
+	// and it isn't running until a request starts it again.
+	Started string
 }
 
 // IsShared reports whether the window named key applies to every model.
 func (p Policy) IsShared(key string) bool {
 	return slices.Contains(p.Shared, key)
+}
+
+// Lapsed returns the keys of the windows, in the order given, that have
+// lapsed at now: the window a request starts, its reset passed with nothing
+// read since.
+func (p Policy) Lapsed(windows []quota.Window, now time.Time) []string {
+	var keys []string
+	for _, w := range windows {
+		if p.lapsed(w, now) {
+			keys = append(keys, w.Key)
+		}
+	}
+	return keys
+}
+
+// AsOf returns windows, in the order given, as they stand at now: one that
+// has lapsed reads empty, nothing used and no reset, as it isn't running, and
+// every other stands as read, whether its reset has passed or not.
+func (p Policy) AsOf(windows []quota.Window, now time.Time) []quota.Window {
+	standing := slices.Clone(windows)
+	for i, w := range standing {
+		if p.lapsed(w, now) {
+			standing[i] = quota.Window{Key: w.Key, Label: w.Label}
+		}
+	}
+	return standing
+}
+
+// lapsed reports whether w has lapsed at now: it's the window a request
+// starts, and it has reset since it was read.
+func (p Policy) lapsed(w quota.Window, now time.Time) bool {
+	return w.Key == p.Started && hasReset(w, now)
 }
 
 // Candidate is an account Pick can choose.

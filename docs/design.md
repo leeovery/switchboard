@@ -142,9 +142,9 @@ on a model whose thinking is bound to its account only when its account can't se
 7. **No forced return:** after the original account resets, the session isn't moved back; that
    would cost a cache rebuild for nothing. The idle rule brings it back when a move is free.
 8. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings
-   say they have none, each at most once a minute, waiting 5 seconds at most, as a reset may have
-   passed with no traffic to show it; then it decides again. Failing that, the last 429 is passed
-   through.
+   say they have none, each at most once a minute, but for one whose 5-hour window has lapsed (see
+   Priming), waiting 5 seconds at most, as a reset may have passed with no traffic to show it;
+   then it decides again. Failing that, the last 429 is passed through.
 
 Each request's account is decided in this order:
 
@@ -341,9 +341,11 @@ come back one at a time rather than together: once all are spent, the wait for t
 **No accidental windows.** A probe is a request, so probing an idle account starts its 5-hour
 window. The router never probes an account whose 5-hour window has lapsed, its last reading's reset
 passed with nothing read since, except to prime it: that window reads empty, and the account's
-weekly readings stand. This covers the probes as the router starts, before it decides afresh, and
-for `POST /refresh`. Readings persist in `state.json`, so a restart needs no probe; an account never
-read is probed once. Probing without the router, and with `--probe`, is unchanged: it's asked for.
+weekly readings stand. This covers the probes as the router starts, before it decides afresh, when
+no account has room, and for `POST /refresh`. Readings persist in `state.json`, with the model
+families each window has been seen to count, so a restart needs no probe; an account never read is
+probed once, as the router starts. Probing without the router, and with `--probe`, is unchanged:
+it's asked for.
 
 ## Accounts and tokens
 
@@ -459,18 +461,19 @@ rather than failing, reads `switchboard: …`.
   watch asks: sooner, backing off from 2 minutes to the interval, while an account can't be read.
   A minute after a window on screen resets, the next look has the router refresh first with a
   `max_age` of a minute, once a reset, so an idle account's window doesn't read `resets now`
-  until the next interval; a 5-hour window that has lapsed isn't probed (see Priming), and reads
-  empty instead. Probing, it reads every interval, a minute after a window on screen resets, and
+  until the next interval; but not for an account whose 5-hour window has lapsed, which the
+  router doesn't probe (see Priming): that window reads empty instead, and the account's others
+  as read. Probing, it reads every interval, a minute after a window on screen resets, and
   sooner after a failure, backing off from 2 minutes to the interval. When the router stops
   answering, the next look probes instead, and the footer says since when there's been no router.
   Probing, it asks after the router at each probe and once a minute between, and reads it again as
   soon as it answers, so it never goes back and forth faster than that.
-- **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, or,
-  without it, every account is probed. `q` quit. While it reads the router, `1`–`9` pin new
-  sessions to the account in that place, as configured; `a` routes automatically again; `m`
-  moves running sessions to the pinned account, or says nothing's pinned. Each says in the
-  footer what it did, or why it couldn't, for a few seconds, and the router's document is read
-  again at once. The footer lists only the keys that work:
+- **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, but for
+  those whose 5-hour window has lapsed, or, without it, every account is probed. `q` quit. While
+  it reads the router, `1`–`9` pin new sessions to the account in that place, as configured; `a`
+  routes automatically again; `m` moves running sessions to the pinned account, or says
+  nothing's pinned. Each says in the footer what it did, or why it couldn't, for a few seconds,
+  and the router's document is read again at once. The footer lists only the keys that work:
   `r refresh · 1–3 pin · a auto · m move · q quit` reading the router, `r refresh · q quit`
   probing.
 - Desktop notifications: see Notifications.
@@ -650,13 +653,13 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 
 Claude-specific knowledge lives in `internal/claude`. The router and `status` depend on small
 interfaces they define themselves (`router.Provider`, `router.Prober`, `status.Prober`), which
-`internal/claude` satisfies, and the windows that matter reach them, the scoring and the watch
-as a `score.Policy`, which the CLI fills in from `internal/claude`. `internal/cli`, which wires
-the rest together, and `internal/launch`, which exists to start Claude Code, use
-`internal/claude` directly: for the `claude` command, where it's installed, and the environment
-variables Claude Code reads. A few pieces stay outside it, deliberately, each where the code that
-needs it can't reach `internal/claude`, or where hiding it behind the provider would take a
-wider interface than it's worth:
+`internal/claude` satisfies, and the windows that matter, the one a request starts among them,
+reach them, the scoring and the watch as a `score.Policy`, which the CLI fills in from
+`internal/claude`. `internal/cli`, which wires the rest together, and `internal/launch`, which
+exists to start Claude Code, use `internal/claude` directly: for the `claude` command, where it's
+installed, and the environment variables Claude Code reads. A few pieces stay outside it,
+deliberately, each where the code that needs it can't reach `internal/claude`, or where hiding it
+behind the provider would take a wider interface than it's worth:
 
 - **The token's shape**, `sk-ant-…`, is in `internal/redact`: the logs hide it, and
   `internal/claude` logs through `internal/logs`, which therefore can't import it. The router
@@ -665,8 +668,6 @@ wider interface than it's worth:
   API's own words, which `score` judges a spent window by; and the shape of the API's window
   keys, `<n>h` or `<n>d`, as in `5h` and `7d_oi`, is what `quota` reads a window's length from,
   for pace, projection and perishability.
-- **The window priming starts**, the one keyed `5h`, which a request starts and which resets five
-  hours later, is named in `internal/prime`.
 - **The config's defaults** name the API, `upstream` defaulting to `https://api.anthropic.com`,
   and `accounts add` points to `claude setup-token` for a token.
 - **The proxy's own answers** are shaped as the Messages API shapes its errors, with its error
@@ -684,13 +685,16 @@ wider interface than it's worth:
   ignored, as the XDG spec says.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
   (the global pin, session assignments and the pins sessions were given while they ran, and each
-  account's last readings, so a restart doesn't scatter sessions or need a probe, and the hashes
-  of the accounts' tokens: see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
-  `state.json` is versioned, rewritten whole (a temporary file renamed over it) a second after a
-  change and on the way out, and drops assignments unused for 7 days, with the pins of the
-  sessions it forgets, at start and then hourly. At start it also drops the assignments, and the
-  pins, of accounts nothing can go out on, no longer configured or without a token. A corrupt one
-  is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
+  account's last readings, with the model families each window has been seen to count, so a
+  restart doesn't scatter sessions or need a probe, and the hashes of the accounts' tokens: see
+  Accounts and tokens), `control.sock`, `tokens/` and `logs/`. `state.json` is versioned, the
+  version changing only when a router couldn't read what another wrote: an older file, without
+  readings, loads as having none. It's rewritten whole (written beside it, synced, and renamed over
+  it) a second after a change and on the way out, and drops assignments unused for 7 days, with
+  the pins of the sessions it forgets, at start and then hourly. At start it also drops the
+  assignments, and the pins, of accounts nothing can go out on, no longer configured or without a
+  token, and the readings of accounts no longer configured. A corrupt one is set aside as
+  `state.json.corrupt-<unix time>`, and the router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -819,7 +823,8 @@ Each account:
 | `reserve` | Its reserve; left out at 0 |
 | `token_set` | Whether its token file is present and usable |
 | `fetched_at` | When its usage was last read; left out when it never was |
-| `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, as for a 5-hour window that has lapsed, which reads 0, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given. Left out when none has been read |
+| `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. Left out when none has been read |
+| `lapsed` | The keys of its windows that have lapsed: the 5-hour window, once its reset has passed with nothing read since, which isn't running, and reads empty, until a request starts it (see Priming). Left out when none has |
 | `at_reserve` | The keys of the windows at or past its reserve; left out otherwise. The router's own choices pass the account over while there are any; a pin spends the reserve |
 | `failures` | Windows a probe expected but couldn't read: `{label, window, error}`, `label` naming what should have read it, such as `Fable`. Left out when none |
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |

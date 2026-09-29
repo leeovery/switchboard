@@ -61,9 +61,14 @@ func testConfig(upstream string) router.Config {
 		Upstream: upstream,
 		Provider: claude.Provider{},
 		Prober:   &fakeProber{},
-		Policy:   score.Policy{Shared: claude.SharedWindows, Perishable: claude.PerishableWindow, Tiebreak: claude.TiebreakWindow},
-		Now:      func() time.Time { return now },
-		Version:  "1.2.3",
+		Policy: score.Policy{
+			Shared:     claude.SharedWindows,
+			Perishable: claude.PerishableWindow,
+			Tiebreak:   claude.TiebreakWindow,
+			Started:    claude.StartedWindow,
+		},
+		Now:     func() time.Time { return now },
+		Version: "1.2.3",
 	}
 }
 

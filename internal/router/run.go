@@ -59,7 +59,7 @@ func (r *Router) run(ctx context.Context) error {
 	}
 	// Only now is the state directory this router's: another starting
 	// alongside would have failed by here.
-	r.sessions.load(filepath.Join(r.cfg.StateDir, stateFileName), r.accounts)
+	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
 	return r.serve(ctx, proxyLn, controlLn)
 }
 
@@ -92,8 +92,8 @@ func listen(addr string) (net.Listener, error) {
 }
 
 // serve serves the proxy and the control API until ctx ends or either fails,
-// probing every account in the meantime, keeping the state file and posting
-// notifications, then shuts both down.
+// probing each account nothing has been read of in the meantime, keeping the
+// state file and posting notifications, then shuts both down.
 func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -101,12 +101,12 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	serving.Go(func() { failed <- serveOn(proxySrv, proxyLn) })
 	serving.Go(func() { failed <- serveOn(controlSrv, controlLn) })
 	r.logStart(proxyLn.Addr(), controlLn.Addr())
-	r.probes.start(r.accounts.sendable(), r.state.due)
+	r.probes.start(r.accounts.sendable(), r.state.unread)
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, so keeping and notifying outlast ctx.
 	background, stopBackground := context.WithCancel(context.WithoutCancel(ctx))
 	var running sync.WaitGroup
-	running.Go(func() { r.sessions.keep(background) })
+	running.Go(func() { r.file.keep(background) })
 	if r.notifications != nil {
 		running.Go(func() { r.notifications.run(background) })
 	}

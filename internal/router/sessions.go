@@ -2,7 +2,6 @@ package router
 
 import (
 	"cmp"
-	"context"
 	"maps"
 	"slices"
 	"sync"
@@ -11,17 +10,9 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-const (
-	// forgetAfter is how long a session's assignment lasts unused before
-	// it's forgotten.
-	forgetAfter = 7 * 24 * time.Hour
-	// pruneEvery is how often assignments unused for forgetAfter are
-	// forgotten.
-	pruneEvery = time.Hour
-	// saveAfter is how soon after a change the state file is written, so a
-	// burst of changes makes one write.
-	saveAfter = time.Second
-)
+// forgetAfter is how long a session's assignment lasts unused before it's
+// forgotten.
+const forgetAfter = 7 * 24 * time.Hour
 
 // key is what a session's assignment is remembered by: its id and a model,
 // as a prompt cache is a model's.
@@ -118,34 +109,27 @@ func (f found) pin(launched string) (string, time.Time) {
 }
 
 // sessions remembers the account each session's requests of each model go
-// to, the pins sessions are given while they run, and the global pin, and
-// keeps them in the state file once it has one, with what the accounts know
-// of their tokens. It's safe for concurrent use.
+// to, the pins sessions are given while they run, and the global pin, all of
+// which the state file keeps. It's safe for concurrent use.
 type sessions struct {
 	now func() time.Time
+	// changed hears of each change, for the state file to keep, with s.mu
+	// held: it mustn't block, nor call s.
+	changed func()
 
-	mu sync.Mutex
-	// file is the state file, or nil to keep nothing.
-	file *stateFile
-	// accounts are those whose tokens the state file keeps what's known of,
-	// once it's loaded.
-	accounts    accounts
+	mu          sync.Mutex
 	assignments map[key]assignment
 	// own holds the pins sessions were given while they ran, by session id.
 	own map[string]ownPin
 	pin status.Pin
-	// unsaved is set while the state file lacks a change.
-	unsaved bool
-	// changed signals a change to keep.
-	changed chan struct{}
 }
 
-func newSessions(now func() time.Time) *sessions {
+func newSessions(now func() time.Time, changed func()) *sessions {
 	return &sessions{
 		now:         now,
+		changed:     changed,
 		assignments: make(map[key]assignment),
 		own:         make(map[string]ownPin),
-		changed:     make(chan struct{}, 1),
 	}
 }
 
@@ -180,7 +164,7 @@ func (s *sessions) remember(k key, was assignment, pin string, d decision, now t
 	}
 	a.Pin, a.LastSeen = pin, now
 	s.assignments[k] = a.inUTC()
-	s.change()
+	s.changed()
 	return found, true
 }
 
@@ -200,7 +184,7 @@ func (s *sessions) setPin(pin status.Pin, force bool) (cleared int) {
 	if force {
 		cleared = s.clearOwn()
 	}
-	s.change()
+	s.changed()
 	return cleared
 }
 
@@ -215,7 +199,7 @@ func (s *sessions) unpin(force bool) (was status.Pin, cleared int) {
 		cleared = s.clearOwn()
 	}
 	if was != (status.Pin{}) || cleared > 0 {
-		s.change()
+		s.changed()
 	}
 	return was, cleared
 }
@@ -231,7 +215,7 @@ func (s *sessions) pinSession(id, account string) bool {
 		return false
 	}
 	s.own[id] = ownPin{Account: account, Since: s.now().UTC()}
-	s.change()
+	s.changed()
 	return true
 }
 
@@ -289,8 +273,7 @@ func (s *sessions) active(now time.Time) (byAccount map[string]int, all int) {
 }
 
 // prune forgets the assignments gone unused for forgetAfter at now, with the
-// pins of the sessions it forgets, and the accounts' former tokens that no
-// longer count.
+// pins of the sessions it forgets.
 func (s *sessions) prune(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -299,29 +282,7 @@ func (s *sessions) prune(now time.Time) {
 	if forgotten := held - len(s.assignments); forgotten > 0 {
 		logger.Debug("forgot sessions unused for a week", "assignments", forgotten)
 		maps.DeleteFunc(s.own, func(id string, _ ownPin) bool { return !s.seen(id) })
-		s.change()
-	}
-	if s.accounts.forget(now) {
-		logger.Debug("forgot tokens replaced a week ago")
-		s.change()
-	}
-}
-
-// tokensChanged notes that what the accounts know of their tokens has
-// changed, for the state file to keep.
-func (s *sessions) tokensChanged() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.change()
-}
-
-// change notes a change the state file lacks, for keep to save. s.mu must be
-// held.
-func (s *sessions) change() {
-	s.unsaved = true
-	select {
-	case s.changed <- struct{}{}:
-	default:
+		s.changed()
 	}
 }
 
@@ -388,34 +349,45 @@ func (s *sessions) seen(id string) bool {
 	return false
 }
 
-// load takes in the state file at path, and keeps in it from then on the
-// sessions, their own pins, the global pin, and what accounts know of their
-// tokens. Assignments gone unused for forgetAfter are forgotten, and none of
-// an assignment, a session's own pin and the global pin is kept for an
-// account requests can't go out on.
-func (s *sessions) load(path string, accounts accounts) {
-	file := &stateFile{path: path, write: writeAtomic}
-	now := s.now()
-	saved := file.read(now)
+// saved is what the state file keeps of the sessions, in a steady order: the
+// global pin, the sessions' assignments, and the pins they were given while
+// they ran.
+func (s *sessions) saved() savedSessions {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.file, s.accounts = file, accounts
-	changed := accounts.recall(saved.Tokens, now)
-	changed = s.loadAssignments(saved.Sessions, now) || changed
-	changed = s.loadOwnPins(saved.SessionPins) || changed
-	changed = s.loadPin(saved.Pin) || changed
-	if changed {
-		s.change()
+	saved := savedSessions{
+		Pin:         s.pin,
+		Sessions:    make([]savedAssignment, 0, len(s.assignments)),
+		SessionPins: maps.Clone(s.own),
 	}
-	logger.Info("loaded state", "path", path, "assignments", len(s.assignments), "pin", s.pin.Account)
+	for k, a := range s.assignments {
+		saved.Sessions = append(saved.Sessions, savedAssignment{Session: k.session, Model: k.model, assignment: a})
+	}
+	slices.SortFunc(saved.Sessions, func(a, b savedAssignment) int {
+		return cmp.Or(cmp.Compare(a.Session, b.Session), cmp.Compare(a.Model, b.Model))
+	})
+	return saved
 }
 
-// loadAssignments takes in the assignments saved, but those gone unused for
+// recall takes in what the state file kept of the sessions, as the router
+// starts at now, but for what can no longer be used: assignments gone unused
+// for forgetAfter, and any assignment, session's own pin or global pin to an
+// account requests can't go out on, of the accounts given. It reports
+// whether it left anything out.
+func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time) (dropped bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	dropped = s.recallAssignments(saved.Sessions, accounts, now)
+	dropped = s.recallOwnPins(saved.SessionPins, accounts) || dropped
+	return s.recallPin(saved.Pin, accounts) || dropped
+}
+
+// recallAssignments takes in the assignments saved, but those gone unused for
 // forgetAfter at now, and those of accounts requests can't go out on, and
 // reports whether it left any out. s.mu must be held.
-func (s *sessions) loadAssignments(saved []savedAssignment, now time.Time) (dropped bool) {
+func (s *sessions) recallAssignments(saved []savedAssignment, accounts accounts, now time.Time) (dropped bool) {
 	for _, a := range saved {
-		if a.Session == "" || a.forgotten(now) || !s.accounts.canSend(a.Account) {
+		if a.Session == "" || a.forgotten(now) || !accounts.canSend(a.Account) {
 			dropped = true
 			continue
 		}
@@ -424,15 +396,15 @@ func (s *sessions) loadAssignments(saved []savedAssignment, now time.Time) (drop
 	return dropped
 }
 
-// loadOwnPins takes in the sessions' own pins saved, but those of sessions
+// recallOwnPins takes in the sessions' own pins saved, but those of sessions
 // without an assignment, and those to accounts requests can't go out on, and
 // reports whether it left any out. s.mu must be held.
-func (s *sessions) loadOwnPins(saved map[string]ownPin) (dropped bool) {
+func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dropped bool) {
 	for id, own := range saved {
 		switch {
 		case !s.seen(id):
 			dropped = true
-		case own.Account != "" && !s.accounts.canSend(own.Account):
+		case own.Account != "" && !accounts.canSend(own.Account):
 			logger.Warn("session's pin dropped: nothing can go out on its account", "session", status.ShortID(id), "account", own.Account)
 			dropped = true
 		default:
@@ -442,77 +414,16 @@ func (s *sessions) loadOwnPins(saved map[string]ownPin) (dropped bool) {
 	return dropped
 }
 
-// loadPin takes in the global pin saved, unless it's to an account requests
+// recallPin takes in the global pin saved, unless it's to an account requests
 // can't go out on, and reports whether it left it out. s.mu must be held.
-func (s *sessions) loadPin(saved status.Pin) (dropped bool) {
+func (s *sessions) recallPin(saved status.Pin, accounts accounts) (dropped bool) {
 	switch {
 	case saved.Account == "":
-	case s.accounts.canSend(saved.Account):
+	case accounts.canSend(saved.Account):
 		s.pin = saved
 	default:
 		logger.Warn("pin dropped: nothing can go out on its account", "account", saved.Account)
 		dropped = true
 	}
 	return dropped
-}
-
-// keep writes the state file saveAfter after a change, so a burst of changes
-// makes one write; forgets the assignments gone unused for forgetAfter every
-// pruneEvery; and writes the file once more as ctx ends.
-func (s *sessions) keep(ctx context.Context) {
-	prune := time.NewTicker(pruneEvery)
-	defer prune.Stop()
-	for {
-		select {
-		case <-s.changed:
-			select {
-			case <-time.After(saveAfter):
-			case <-ctx.Done():
-			}
-			s.save()
-		case <-prune.C:
-			s.prune(s.now())
-		case <-ctx.Done():
-			s.save()
-			return
-		}
-	}
-}
-
-// save writes the state file, when it lacks a change. A write that fails
-// leaves the change for the next.
-func (s *sessions) save() {
-	s.mu.Lock()
-	if s.file == nil || !s.unsaved {
-		s.mu.Unlock()
-		return
-	}
-	file, snapshot := s.file, s.snapshot()
-	s.unsaved = false
-	s.mu.Unlock()
-	if err := file.save(snapshot); err != nil {
-		logger.Warn("can't save the state file", "path", file.path, "error", err)
-		s.mu.Lock()
-		s.unsaved = true
-		s.mu.Unlock()
-	}
-}
-
-// snapshot is what the state file is to hold, in a steady order. s.mu must be
-// held.
-func (s *sessions) snapshot() savedState {
-	saved := savedState{
-		Version:     stateVersion,
-		Pin:         s.pin,
-		Sessions:    make([]savedAssignment, 0, len(s.assignments)),
-		SessionPins: maps.Clone(s.own),
-		Tokens:      s.accounts.kept(),
-	}
-	for k, a := range s.assignments {
-		saved.Sessions = append(saved.Sessions, savedAssignment{Session: k.session, Model: k.model, assignment: a})
-	}
-	slices.SortFunc(saved.Sessions, func(a, b savedAssignment) int {
-		return cmp.Or(cmp.Compare(a.Session, b.Session), cmp.Compare(a.Model, b.Model))
-	})
-	return saved
 }

@@ -177,6 +177,24 @@ func (h *harness) tickUntil(t time.Time) int {
 	return fired
 }
 
+// refreshesUntil fires the live chain's ticks until t, and returns when each
+// read asked for then had the router refresh what it hadn't read in the last
+// minute.
+func (h *harness) refreshesUntil(t time.Time) []time.Time {
+	h.t.Helper()
+	var refreshed []time.Time
+	for h.clock.now.Before(t) {
+		asked := len(h.source.asked)
+		h.fire(h.lastTick())
+		for _, r := range h.source.asked[asked:] {
+			if r == (Read{Refresh: freshFor, Probe: true}) {
+				refreshed = append(refreshed, h.clock.now)
+			}
+		}
+	}
+	return refreshed
+}
+
 // pending is the timer armed to deliver msg and not yet fired, if any.
 func (h *harness) pending(msg tea.Msg) (*timer, bool) {
 	for _, tm := range h.timers {

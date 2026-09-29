@@ -116,9 +116,11 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
-	probes   *probes
-	health   *health
-	proxy    *proxy
+	// file keeps what should outlast the router, once Run has loaded it.
+	file   *stateFile
+	probes *probes
+	health *health
+	proxy  *proxy
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
@@ -140,7 +142,8 @@ func New(cfg Config) (*Router, error) {
 	if err != nil {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
-	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now)
+	changes := newChanges()
+	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note)
 	listeners := []func(Event){cfg.Events}
 	var notices *notifications
 	if cfg.notifying() {
@@ -148,7 +151,7 @@ func New(cfg Config) (*Router, error) {
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)
-	sessions := newSessions(cfg.Now)
+	sessions := newSessions(cfg.Now, changes.note)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
 	health := newHealth(cfg.Now, emit)
 	scheduler := &scheduler{accounts: accounts.sendable(), state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
@@ -158,6 +161,7 @@ func New(cfg Config) (*Router, error) {
 		accounts: accounts,
 		state:    state,
 		sessions: sessions,
+		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
 		probes:   probes,
 		health:   health,
 		proxy: &proxy{
@@ -165,7 +169,7 @@ func New(cfg Config) (*Router, error) {
 			transport:      newTransport(),
 			accounts:       accounts,
 			readToken:      cfg.Token,
-			tokensReplaced: sessions.tokensChanged,
+			tokensReplaced: changes.note,
 			state:          state,
 			provider:       cfg.Provider,
 			chooser:        scheduler,

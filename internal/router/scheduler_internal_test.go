@@ -38,6 +38,46 @@ func TestAChoiceAfreshProbesTheAccountsWhoseUsageIsStale(t *testing.T) {
 	}
 }
 
+func TestAChoiceAfreshProbesNoAccountWhoseSessionHasLapsed(t *testing.T) {
+	clock := &testClock{now: start.Add(-20 * time.Minute)}
+	prober := &stubProber{}
+	r := newTestRouter(t, clock.read, prober)
+	// Both were read 20 minutes ago: work's session has lapsed since, with
+	// nothing read of it, and side's still runs.
+	lapsing, running := session, session
+	lapsing.ResetsAt, running.ResetsAt = start.Add(-5*time.Minute), start.Add(2*time.Hour)
+	r.state.record("work", []quota.Window{lapsing, week})
+	r.state.record("side", []quota.Window{running, week})
+	clock.now = start
+
+	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+	if got, want := prober.counts(), map[string]int{sideToken: 1}; !maps.Equal(got, want) {
+		t.Errorf("probes = %v, want %v: side's usage is stale, and so is work's, but a probe would start work's session", got, want)
+	}
+}
+
+func TestWithNoRoomNoAccountWhoseSessionHasLapsedIsProbedAgain(t *testing.T) {
+	clock := &testClock{now: start.Add(-2 * time.Minute)}
+	prober := &stubProber{}
+	r := newTestRouter(t, clock.read, prober)
+	// Read two minutes ago, neither has room: work's week is spent, and its
+	// session has lapsed since, and side's session is spent till later.
+	lapsing, spentSession, spentWeek := session, session, week
+	lapsing.ResetsAt = start.Add(-time.Minute)
+	spentSession.Utilization, spentSession.Status = 1, quota.StatusRejected
+	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
+	r.state.record("work", []quota.Window{lapsing, spentWeek})
+	r.state.record("side", []quota.Window{spentSession, week})
+	clock.now = start
+
+	if got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"}); !got.NoRoom {
+		t.Fatalf("Choose() = %+v, want no account with room", got)
+	}
+	if got, want := prober.counts(), map[string]int{sideToken: 1}; !maps.Equal(got, want) {
+		t.Errorf("probes = %v, want %v: with no room anywhere, side is probed again, but not work, whose session a probe would start", got, want)
+	}
+}
+
 func TestAStickyChoiceProbesNothing(t *testing.T) {
 	prober := &stubProber{}
 	r := newTestRouter(t, at(start), prober)

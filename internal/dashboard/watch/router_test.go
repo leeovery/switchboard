@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -85,33 +86,59 @@ func TestHasTheRouterRefreshSoonerWhileAnAccountCantBeRead(t *testing.T) {
 }
 
 func TestHasTheRouterRefreshOnceAWindowOnScreenResets(t *testing.T) {
-	// The router's document shows work's session resetting at 13:20, and goes
-	// on showing it after, as it would were work idle.
+	// The router's document shows work's week resetting at 13:20, and goes on
+	// showing it after, as it would were work idle.
 	h := routedHarness(t, routerDocument(
-		account("work", "Work", session(0.25, 8*time.Minute), week(0.5)),
+		account("work", "Work", session(0.25, 3*time.Hour), window("7d", "Week", 0.5, 8*time.Minute)),
 		account("side", "Side", session(0.4, 2*time.Hour), week(0.6)),
 	))
 	h.start()
 
-	var refreshed []time.Time
-	for h.clock.now.Before(at(13, 25, 0)) {
-		asked := len(h.source.asked)
-		h.fire(h.lastTick())
-		for _, r := range h.source.asked[asked:] {
-			if r == (Read{Refresh: freshFor, Probe: true}) {
-				refreshed = append(refreshed, h.clock.now)
-			}
-		}
-	}
+	refreshed := h.refreshesUntil(at(13, 25, 0))
 	due := at(13, 21, 0)
 	if len(refreshed) != 1 || refreshed[0].Before(due) || refreshed[0].After(due.Add(lookEvery+tickSlack)) {
-		t.Errorf("the router refreshed what it hadn't read in the last minute at %v, want once, at the first look from %s, a minute after work's session reset",
+		t.Errorf("the router refreshed what it hadn't read in the last minute at %v, want once, at the first look from %s, a minute after work's week reset",
+			refreshed, due.Format(time.Kitchen))
+	}
+}
+
+func TestShowsASessionThatHasLapsedEmptyRatherThanRefreshingIt(t *testing.T) {
+	// Work's session resets at 13:20, and nothing is read of work since, so
+	// from then on the router's document shows it lapsed.
+	side := account("side", "Side", session(0.4, 2*time.Hour), week(0.6))
+	h := routedHarness(t, routerDocument(account("work", "Work", session(0.25, 8*time.Minute), week(0.5)), side))
+	h.start()
+	h.tickUntil(at(13, 20, 0))
+	work := account("work", "Work", quota.Window{Key: "5h", Label: "Session"}, week(0.5))
+	work.Lapsed = []string{"5h"}
+	h.startRouter(routerDocument(work, side))
+
+	if refreshed := h.refreshesUntil(at(13, 25, 0)); len(refreshed) > 0 {
+		t.Errorf("the router refreshed what it hadn't read in the last minute at %v, want never: it doesn't probe an account whose session has lapsed", refreshed)
+	}
+	if !strings.Contains(h.view(), status.NotStarted) {
+		t.Errorf("the screen is\n%s\nwant work's session empty, %s", h.view(), status.NotStarted)
+	}
+}
+
+func TestAWindowResettingOnAnAccountWhoseSessionHasLapsedHasTheRouterRefreshNothing(t *testing.T) {
+	// Work's session has lapsed, and its week resets at 13:20; side's session
+	// runs, and its week resets at 13:22.
+	work := account("work", "Work", quota.Window{Key: "5h", Label: "Session"}, window("7d", "Week", 0.5, 8*time.Minute))
+	work.Lapsed = []string{"5h"}
+	h := routedHarness(t, routerDocument(work, account("side", "Side", session(0.4, 2*time.Hour), window("7d", "Week", 0.6, 10*time.Minute))))
+	h.start()
+
+	refreshed := h.refreshesUntil(at(13, 25, 0))
+	due := at(13, 23, 0)
+	if len(refreshed) != 1 || refreshed[0].Before(due) || refreshed[0].After(due.Add(lookEvery+tickSlack)) {
+		t.Errorf("the router refreshed what it hadn't read in the last minute at %v, want once, at the first look from %s, a minute after side's week reset: the router won't probe work",
 			refreshed, due.Format(time.Kitchen))
 	}
 }
 
 func TestHasTheRouterRefreshAtOnceForAWindowThatResetBeforeTheWatchBegan(t *testing.T) {
-	h := routedHarness(t, routerDocument(account("work", "Work", session(0.25, -12*time.Minute), week(0.5))))
+	h := routedHarness(t, routerDocument(account("work", "Work", session(0.25, 3*time.Hour), window("7d", "Week", 0.5, -12*time.Minute))))
 	h.start()
 
 	h.fire(h.lastTick())

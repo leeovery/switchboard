@@ -114,6 +114,9 @@ type state struct {
 	// family names the family of models a model belongs to.
 	family func(model string) string
 	now    func() time.Time
+	// changed hears of each change to what the state file keeps of the
+	// accounts' usage, with s.mu held: it mustn't block, nor call s.
+	changed func()
 
 	mu    sync.Mutex
 	usage map[string]*usage
@@ -122,12 +125,13 @@ type state struct {
 	seen map[string]map[string]bool
 }
 
-func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time) *state {
+func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed func()) *state {
 	s := &state{
 		accounts: accounts,
 		policy:   policy,
 		family:   family,
 		now:      now,
+		changed:  changed,
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
 	}
@@ -144,7 +148,9 @@ func (s *state) record(id string, windows []quota.Window) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].take(windows, at)
+	if s.usage[id].take(windows, at) {
+		s.changed()
+	}
 }
 
 // recordProbe takes in what probing an account found: its usage and which
@@ -160,11 +166,14 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error) {
 		return
 	}
 	u.failures = slices.Clone(probed.Failures)
-	u.take(probed.Windows, at)
+	news := u.take(probed.Windows, at)
 	for key, models := range probed.Models {
 		for _, model := range models {
-			s.see(key, model)
+			news = s.see(key, model) || news
 		}
+	}
+	if news {
+		s.changed()
 	}
 }
 
@@ -173,21 +182,36 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error) {
 func (s *state) learn(model string, windows []quota.Window) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	news := false
 	for _, w := range windows {
-		s.see(w.Key, model)
+		news = s.see(w.Key, model) || news
+	}
+	if news {
+		s.changed()
 	}
 }
 
-// see notes that the window named key counts requests of model's family. A
-// model that isn't known says nothing.
-func (s *state) see(key, model string) {
+// see notes that the window named key counts requests of model's family, and
+// reports whether that's news. A model that isn't known says nothing. s.mu
+// must be held.
+func (s *state) see(key, model string) bool {
 	if model == "" {
-		return
+		return false
+	}
+	return s.seeFamily(key, s.family(model))
+}
+
+// seeFamily notes that the window named key counts requests of family, and
+// reports whether that's news. s.mu must be held.
+func (s *state) seeFamily(key, family string) bool {
+	if s.seen[key][family] {
+		return false
 	}
 	if s.seen[key] == nil {
 		s.seen[key] = make(map[string]bool)
 	}
-	s.seen[key][s.family(model)] = true
+	s.seen[key][family] = true
+	return true
 }
 
 // refuse notes that the upstream refused the account's token, answering with
@@ -229,6 +253,15 @@ func (s *state) limit(id string, windows []string, until time.Time) LimitReached
 	return LimitReached{Account: id, Windows: slices.Clone(windows), Until: reached.until, Again: again}
 }
 
+// unread reports whether nothing has been read of an account, which wants
+// probing as the router starts: one read before, whose reading the state file
+// kept, wants none.
+func (s *state) unread(id string, _ time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.usage[id].updated.IsZero()
+}
+
 // due reports whether an account's usage wants probing at now, before a
 // choice: nothing has been read of it for staleAfter, as olderThan says.
 func (s *state) due(id string, now time.Time) bool {
@@ -236,30 +269,38 @@ func (s *state) due(id string, now time.Time) bool {
 }
 
 // olderThan returns what reports whether an account's usage wants probing at
-// now: nothing has been read of it for longer than age, and no probe of it
-// has ended in the last reprobeAfter, so an account whose probes fail isn't
-// probed at every ask.
+// now: nothing has been read of it for longer than age, and it can be
+// probed, as probeable says.
 func (s *state) olderThan(age time.Duration) func(id string, now time.Time) bool {
 	return func(id string, now time.Time) bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		u := s.usage[id]
-		return now.Sub(u.updated) > age && now.Sub(u.probed) >= reprobeAfter
+		return now.Sub(u.updated) > age && s.probeable(u, now)
 	}
 }
 
 // dueAgain reports whether an account whose usage leaves it no room wants
 // probing again at now, in case a window has reset unseen: nothing has been
-// read of it, nor has a probe of it ended, in the last reprobeAfter.
+// read of it in the last reprobeAfter, and it can be probed, as probeable
+// says.
 func (s *state) dueAgain(id string, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	return now.Sub(u.updated) >= reprobeAfter && now.Sub(u.probed) >= reprobeAfter
+	return now.Sub(u.updated) >= reprobeAfter && s.probeable(u, now)
+}
+
+// probeable reports whether the account whose usage is u can be probed at
+// now: no probe of it has ended in the last reprobeAfter, so an account whose
+// probes fail isn't probed at every ask, and none of its windows has lapsed,
+// as a probe is a request, and would start it. s.mu must be held.
+func (s *state) probeable(u *usage, now time.Time) bool {
+	return now.Sub(u.probed) >= reprobeAfter && len(s.policy.Lapsed(u.latest(), now)) == 0
 }
 
 // view returns what a choice of account for a request of model knows at now:
-// every account with a token, as last read, with its reserve, which windows
+// every account with a token, as it stands, with its reserve, which windows
 // count the request, which accounts have no room for it whatever their windows
 // read, and which of those refused it lately. It notes in the log how the
 // accounts' reserves hold them back, as noteReserves says.
@@ -277,7 +318,7 @@ func (s *state) view(model string, now time.Time) view {
 			continue
 		}
 		u := s.usage[a.ID]
-		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.latest(), Reserve: a.Reserve})
+		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve})
 		if u.barred(now, family, applies) {
 			barred = append(barred, a.ID)
 		}
@@ -297,15 +338,16 @@ func (s *state) view(model string, now time.Time) view {
 func (s *state) noteReserves(now time.Time) {
 	for _, a := range s.accounts {
 		if a.hasToken() {
-			s.usage[a.ID].noteReserve(a, now)
+			s.usage[a.ID].noteReserve(a, s.policy, now)
 		}
 	}
 }
 
 // noteReserve notes in the log the account's windows that have reached its
-// reserve at now since it was last looked at, and those that have reset since.
-func (u *usage) noteReserve(a account, now time.Time) {
-	reserved := score.AtReserve(u.latest(), a.Reserve, now)
+// reserve at now since it was last looked at, as they stand as policy judges,
+// and those that have reset since.
+func (u *usage) noteReserve(a account, policy score.Policy, now time.Time) {
+	reserved := score.AtReserve(u.current(policy, now), a.Reserve, now)
 	if held := except(reserved, u.reserved); len(held) > 0 {
 		logger.Info("held back by its reserve", "account", a.ID, "windows", strings.Join(held, ","), "reserve", a.Reserve)
 	}
@@ -357,9 +399,9 @@ func (s *state) counting(model string) func(key string) bool {
 
 // take takes in windows read at a time, each merged with the reading of its
 // key before it, as mergeLater merges them, and lifts the account's limit
-// when the windows merged show it lifted. Windows that are all stale leave
-// the account as it was.
-func (u *usage) take(windows []quota.Window, at time.Time) {
+// when the windows merged show it lifted. It reports whether it took any:
+// windows that are all stale leave the account as it was.
+func (u *usage) take(windows []quota.Window, at time.Time) bool {
 	var merged []quota.Window
 	for _, w := range windows {
 		kept, current := mergeLater(u.windows[w.Key], w)
@@ -371,12 +413,13 @@ func (u *usage) take(windows []quota.Window, at time.Time) {
 		merged = append(merged, kept)
 	}
 	if len(merged) == 0 {
-		return
+		return false
 	}
 	u.updated, u.probeErr = at, ""
 	if u.limited.liftedBy(merged, at) {
 		u.limited = limit{}
 	}
+	return true
 }
 
 // mergeLater returns what to keep of a window, given held, as it was read
@@ -428,7 +471,7 @@ func (s *state) statuses(now time.Time) (all, open []status.Account) {
 	all = make([]status.Account, len(s.accounts))
 	for i, a := range s.accounts {
 		u := s.usage[a.ID]
-		all[i] = u.status(a, now)
+		all[i] = u.status(a, s.policy, now)
 		if !u.shut(now, s.policy.IsShared) {
 			open = append(open, all[i])
 		}
@@ -456,7 +499,7 @@ func (s *state) standings(now time.Time) standings {
 // as last read, and hasn't reset since.
 func (u *usage) standing(a account, policy score.Policy, now time.Time) standing {
 	limited := u.limited.holds(now, policy.IsShared)
-	st := u.status(a, now)
+	st := u.status(a, policy, now)
 	return standing{
 		Account: st,
 		quota:   !limited && score.Available(st.Windows, a.Reserve, policy.IsShared, now),
@@ -465,10 +508,10 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 	}
 }
 
-// status is the account as configured, with its usage as last read, or why
-// there's none, the windows at its reserve at now, and the limit and the
-// refusal in force on it then, if any are.
-func (u *usage) status(a account, now time.Time) status.Account {
+// status is the account as configured, with its usage as last read, standing
+// as it does at now as policy judges, or why there's none, and the limit and
+// the refusal in force on it then, if any are.
+func (u *usage) status(a account, policy score.Policy, now time.Time) status.Account {
 	st := status.Configured(a.Account)
 	st.TokenSet = a.hasToken()
 	if !a.hasToken() {
@@ -477,7 +520,7 @@ func (u *usage) status(a account, now time.Time) status.Account {
 	}
 	st.FetchedAt = u.updated
 	st.Windows = u.latest()
-	st.AtReserve = score.AtReserve(st.Windows, a.Reserve, now)
+	st = st.AsOf(policy, now)
 	st.Failures = slices.Clone(u.failures)
 	st.Error = u.probeErr
 	if u.limited.inForce(now) {
@@ -512,4 +555,53 @@ func (u *usage) latest() []quota.Window {
 	windows := slices.Collect(maps.Values(u.windows))
 	quota.Sort(windows)
 	return windows
+}
+
+// current returns the latest reading of each window as it stands at now, as
+// policy judges, in quota.Sort's order: one that has lapsed reads empty.
+func (u *usage) current(policy score.Policy, now time.Time) []quota.Window {
+	return policy.AsOf(u.latest(), now)
+}
+
+// saved is what the state file keeps of the accounts' usage: each account's
+// windows as last read, and when, and the model families each window has been
+// reported on.
+func (s *state) saved() savedUsage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string)}
+	for id, u := range s.usage {
+		if len(u.windows) > 0 {
+			saved.Readings[id] = savedReading{ReadAt: u.updated, Windows: u.latest()}
+		}
+	}
+	for key, families := range s.seen {
+		saved.WindowFamilies[key] = slices.Sorted(maps.Keys(families))
+	}
+	return saved
+}
+
+// recall takes in what the state file kept of the accounts' usage, as the
+// router starts, but for the readings of accounts no longer configured, and
+// reports whether it left any out.
+func (s *state) recall(saved savedUsage) (dropped bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, reading := range saved.Readings {
+		u, configured := s.usage[id]
+		if !configured {
+			dropped = true
+			continue
+		}
+		for _, w := range reading.Windows {
+			u.windows[w.Key] = w
+		}
+		u.updated = reading.ReadAt.UTC()
+	}
+	for key, families := range saved.WindowFamilies {
+		for _, family := range families {
+			s.seeFamily(key, family)
+		}
+	}
+	return dropped
 }

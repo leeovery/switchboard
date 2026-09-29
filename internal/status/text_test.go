@@ -163,6 +163,32 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 `,
 		},
 		{
+			name: "the router's, with a session that has lapsed",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Best:        "work",
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC().Add(-6 * time.Hour),
+						Windows: []quota.Window{
+							{Key: "5h", Label: "Session"},
+							{Key: "7d", Label: "Week", Utilization: 0.4, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)},
+						},
+						Lapsed: []string{"5h"},
+					},
+				},
+			},
+			want: `work · Work
+  Session   0%  not started
+  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+
+best next: work · Work
+from the router: healthy  ·  no sessions  ·  routing automatically
+`,
+		},
+		{
 			name: "the router's, unhealthy, routing automatically, and a limit that has lifted",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),

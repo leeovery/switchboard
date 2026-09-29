@@ -16,3 +16,9 @@ const PerishableWindow = "7d"
 // weeks score near enough equal: the five-hour session, whose allowance left
 // at its reset is lost.
 const TiebreakWindow = "5h"
+
+// StartedWindow is the window a request starts when it isn't running: the
+// five-hour session, which begins at an account's first request after its
+// last one ended, and resets five hours later. A probe is a request, so
+// probing an account whose session has lapsed starts it.
+const StartedWindow = "5h"

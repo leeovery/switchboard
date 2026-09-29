@@ -13,6 +13,15 @@ import (
 // countdown to show seconds.
 const secondsWithin = 10 * time.Minute
 
+// outlook says where an account's window is heading and when it resets, as
+// detail does, or, once the window has lapsed, that it hasn't started.
+func outlook(a status.Account, w quota.Window, p score.Projection, now time.Time, width int) line {
+	if a.HasLapsed(w) {
+		return line{{status.NotStarted, dimInk}}.fit(width)
+	}
+	return detail(w, p, now, width)
+}
+
 // detail says where a window is heading and when it resets, as fully as width
 // cells allow: the reset's clock gives way first, then its countdown, and
 // what's left is cut short. It never wraps.

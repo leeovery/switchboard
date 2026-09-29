@@ -60,6 +60,8 @@ func layouts() []layout {
 		{name: "router-reserve-pinned", doc: spendingReserve(), opts: dashboard.Options{Width: 160}},
 		{name: "router-reserve-compact", doc: atReserve(), opts: dashboard.Options{Width: 130, Height: 10}},
 		{name: "router-reserve-compact-narrow", doc: spendingReserve(), opts: dashboard.Options{Width: 100, Height: 10}},
+		{name: "router-lapsed", doc: lapsed(), opts: dashboard.Options{Width: 110}},
+		{name: "router-lapsed-compact", doc: lapsed(), opts: dashboard.Options{Width: 100, Height: 8}},
 	}
 }
 
@@ -565,6 +567,22 @@ func atReserve() status.Document {
 func spendingReserve() status.Document {
 	doc := atReserve()
 	doc.Pin.Account = "1"
+	return doc
+}
+
+// lapsed is the router's document of two accounts: work, the primary, whose
+// session runs, and side, whose session has lapsed, its reset passed with
+// nothing read of side since, so it reads empty, its week standing as read.
+func lapsed() status.Document {
+	doc := document("1",
+		read("1", "Work", windows(session(0.37, 2*hour), week(0.4, 3*day))),
+		read("2", "Side", windows(quota.Window{Key: "5h", Label: "Session"}, week(0.64, 3*day+4*hour))),
+	)
+	doc.Source = status.SourceRouter
+	doc.Router = status.Health{Healthy: true, Requests: 12}
+	doc.Primary, doc.Accounts[0].Primary, doc.Accounts[0].Reserve = "1", true, 0.1
+	doc.Accounts[1].FetchedAt = now.Add(-6 * hour).UTC()
+	doc.Accounts[1].Lapsed = []string{"5h"}
 	return doc
 }
 

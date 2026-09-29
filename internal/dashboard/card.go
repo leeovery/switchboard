@@ -228,7 +228,7 @@ func heldBy(doc status.Document, a status.Account, now time.Time, cw int) []line
 func usage(a status.Account, now time.Time, cw int) [][]line {
 	var blocks [][]line
 	for _, w := range a.Windows {
-		blocks = append(blocks, windowBlock(w, a.Reserve, now, cw))
+		blocks = append(blocks, windowBlock(a, w, now, cw))
 	}
 	for _, f := range a.Failures {
 		blocks = append(blocks, failureBlock(f, cw))
@@ -242,15 +242,16 @@ func usage(a status.Account, now time.Time, cw int) [][]line {
 	return blocks
 }
 
-// windowBlock shows a window cw cells wide: its label and how much of it is
-// used, a bar marking where the account's reserve starts and where even use
-// would be, and where it's heading.
-func windowBlock(w quota.Window, reserve float64, now time.Time, cw int) []line {
+// windowBlock shows an account's window cw cells wide: its label and how much
+// of it is used, a bar marking where the account's reserve starts and where
+// even use would be, and where it's heading, or, once it has lapsed, that it
+// hasn't started.
+func windowBlock(a status.Account, w quota.Window, now time.Time, cw int) []line {
 	p := score.Project(w, now)
 	return []line{
 		spread(line{{status.Clean(w.Label), textInk}}, line{use(w, p)}, cw),
-		bar(w.Utilization, cw).mark(reserveCell(reserve, cw), reserveMarker).mark(pace(w, p, now, cw), paceMarker),
-		detail(w, p, now, cw),
+		bar(w.Utilization, cw).mark(reserveCell(a.Reserve, cw), reserveMarker).mark(pace(w, p, now, cw), paceMarker),
+		outlook(a, w, p, now, cw),
 	}
 }
 

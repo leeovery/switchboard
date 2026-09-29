@@ -55,6 +55,18 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			want:   map[string]int{workToken: 1, sideToken: 1},
 		},
 		{
+			name:   "not one whose session has lapsed, however long ago it was read",
+			maxAge: "30m",
+			before: func(r *Router, clock *testClock) {
+				clock.now = start.Add(-40 * time.Minute)
+				lapsing := session
+				lapsing.ResetsAt = start.Add(-time.Minute)
+				r.state.record("work", []quota.Window{lapsing, week})
+				r.state.record("side", []quota.Window{session, week})
+			},
+			want: map[string]int{sideToken: 1},
+		},
+		{
 			name:   "not one whose probe failed in the last minute",
 			maxAge: "30m",
 			before: func(r *Router, clock *testClock) {
