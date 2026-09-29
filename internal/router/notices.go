@@ -139,17 +139,28 @@ func (l *limitNotices) next() (time.Time, bool) {
 // due removes the limits gathering whose notifications are due at now, and
 // returns them, the first due first.
 func (l *limitNotices) due(now time.Time) []*gathering {
-	var due []*gathering
+	return l.remove(func(g *gathering) bool { return !g.due.After(now) })
+}
+
+// all removes every limit gathering, and returns them, the first due first.
+func (l *limitNotices) all() []*gathering {
+	return l.remove(func(*gathering) bool { return true })
+}
+
+// remove removes the limits gathering that which picks, and returns them, the
+// first due first.
+func (l *limitNotices) remove(which func(g *gathering) bool) []*gathering {
+	var removed []*gathering
 	for id, g := range l.gathering {
-		if !g.due.After(now) {
-			due = append(due, g)
+		if which(g) {
+			removed = append(removed, g)
 			delete(l.gathering, id)
 		}
 	}
-	slices.SortFunc(due, func(a, b *gathering) int {
+	slices.SortFunc(removed, func(a, b *gathering) int {
 		return cmp.Or(a.due.Compare(b.due), cmp.Compare(a.Account, b.Account))
 	})
-	return due
+	return removed
 }
 
 // join takes in the account reaching its limit again while this gathers: in

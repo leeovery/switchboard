@@ -609,18 +609,51 @@ func TestANotificationThatFailsIsLogged(t *testing.T) {
 	})
 }
 
-func TestNotificationsStopAtOnce(t *testing.T) {
+func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newNotifying(t, config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true})
+		h.read("2", h.session(1, time.Hour), h.week(0.5, 3*day))
 		h.start()
 		h.limit("2", []string{"5h"}, time.Hour)
+		h.hear(forced("a", "2", "1"))
 
 		began := time.Now()
 		h.stop()
 		if waited := time.Since(began); waited != 0 {
 			t.Errorf("stopping took %v, want no wait, even with a limit gathering", waited)
 		}
-		h.expect()
+		h.expect("2 · two hit its Session limit, back at Sat 01:00 — 1 session moved to 1 · one")
+	})
+}
+
+func TestStoppingWaitsForANotifierThatHangsAShortWhileAtMost(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.notifier.hold = make(chan struct{})
+		h.start()
+		h.limit("2", []string{"5h"}, time.Hour)
+
+		began := time.Now()
+		h.stop()
+		if waited := time.Since(began); waited != 3*time.Second {
+			t.Errorf("stopping took %v with the notifier hanging, want 3s", waited)
+		}
+		if !log.Has("level=WARN", `msg="stopped waiting for notifications to post"`, "after=3s") {
+			t.Errorf("log reads\n%s\nwant the wait cut short", log)
+		}
+		close(h.notifier.hold)
+	})
+}
+
+func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.read("2", h.session(1, time.Hour), h.week(0.5, 3*day))
+
+		h.n.hear(h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour)))
+		h.n.finish()
+		h.expect("2 · two hit its Session limit, back at Sat 01:00")
 	})
 }
 
