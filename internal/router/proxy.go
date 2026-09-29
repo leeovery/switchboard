@@ -190,16 +190,16 @@ func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 	pr.Out.Header.Del(PinHeader)
 }
 
-// refusal is the upstream refusing the token of the account a routed request
-// went out on last, answering with status, when there was no other account
-// to send it on. Claude Code takes a 401 or 403 as its own login failing, and
+// refusedError is the upstream refusing a routed request on the account it
+// went out on last, answering with status, when there was no other account to
+// send it on. Claude Code takes a 401 or 403 as its own login failing, and
 // drops it on a 403, but a routed request's token needn't be its own: so
 // neither is relayed.
-type refusal struct {
+type refusedError struct {
 	status int
 }
 
-func (e refusal) Error() string {
+func (e refusedError) Error() string {
 	return fmt.Sprintf("upstream answered HTTP %d", e.status)
 }
 
@@ -211,7 +211,7 @@ func (p *proxy) fail(w http.ResponseWriter, r *http.Request, ex *exchange, err e
 		return
 	}
 	ex.status, ex.failed = http.StatusBadGateway, true
-	if refused, ok := errors.AsType[refusal](err); ok {
+	if refused, ok := errors.AsType[refusedError](err); ok {
 		// The API's clients retry a 5xx unless told not to, and the same
 		// token would only be refused again.
 		w.Header().Set("X-Should-Retry", "false")

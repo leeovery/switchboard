@@ -31,21 +31,22 @@ type scheduler struct {
 }
 
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
-	d := s.decide(req)
+	d, was := s.decide(req)
 	if d.afresh && s.probes.await(ctx, s.accounts, s.state.due, probeWait) {
-		d = s.decide(req)
+		d, was = s.decide(req)
 	}
 	if d.noRoom && s.recheck(ctx, req) {
-		d = s.decide(req)
+		d, was = s.decide(req)
 	}
 	if req.Session != "" {
-		s.remember(req, d)
+		s.remember(req, was, d)
 	}
 	return Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom}
 }
 
-// decide chooses on what's known now.
-func (s *scheduler) decide(req Request) decision {
+// decide chooses on what's known now, and returns the session's assignment
+// the choice was made on, zero for none.
+func (s *scheduler) decide(req Request) (decision, assignment) {
 	now := s.now()
 	current, assigned, pin := s.sessions.lookup(key{session: req.Session, model: req.Model})
 	return decide(situation{
@@ -55,7 +56,7 @@ func (s *scheduler) decide(req Request) decision {
 		assigned: assigned,
 		pin:      pin,
 		accounts: s.view(req, now),
-	})
+	}), current
 }
 
 // view is what a choice for req knows at now: an account the request has
@@ -78,16 +79,21 @@ func (s *scheduler) recheck(ctx context.Context, req Request) bool {
 	return true
 }
 
-// remember notes where a session's request went, and logs and tells of a
-// move.
-func (s *scheduler) remember(req Request, d decision) {
+// remember notes where a session's request went, as its choice d says, made
+// on the session's assignment as was, and logs and tells of a move. Should
+// another request of the session have moved it since, the newer assignment
+// stands, and the log says so: the request goes where d says all the same.
+func (s *scheduler) remember(req Request, was assignment, d decision) {
 	now := s.now()
-	before := s.sessions.remember(key{session: req.Session, model: req.Model}, req.Pin, d, now)
-	if before == "" || before == d.account {
-		return
+	found, noted := s.sessions.remember(key{session: req.Session, model: req.Model}, was, req.Pin, d, now)
+	switch {
+	case !noted:
+		logger.Info("session moved meanwhile; its newer assignment stands", "session", prefix(req.Session, sessionShown), "model", req.Model,
+			"account", found.Account, "chosen", d.account)
+	case found.Account != "" && found.Account != d.account:
+		logger.Info("moved", "session", prefix(req.Session, sessionShown), "model", req.Model,
+			"from", found.Account, "to", d.account, "reason", d.reason)
+		s.emit(Moved{Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason,
+			Forced: !s.view(req, now).room(found.Account)})
 	}
-	logger.Info("moved", "session", prefix(req.Session, sessionShown), "model", req.Model,
-		"from", before, "to", d.account, "reason", d.reason)
-	s.emit(Moved{Session: req.Session, Model: req.Model, From: before, To: d.account, Reason: d.reason,
-		Forced: !s.view(req, now).room(before)})
 }

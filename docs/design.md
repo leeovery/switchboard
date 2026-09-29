@@ -32,7 +32,8 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   reads them off real traffic, so it knows each account's usage without spending requests.
   Windows are parsed generically, not hard-coded. A window's reset says which reading is current:
   a later reset is a new window; with the same reset the higher utilization stands, as use only
-  rises within a window, so a slow response can't pull it back; an earlier reset is ignored.
+  rises within a window, so a slow response can't pull it back, nor lift a rejection either
+  reading holds; an earlier reset is ignored.
 - An account with no recent traffic is refreshed with a 1-token probe, and only when a decision
   needs fresh numbers, or a dashboard asks for them, once its interval.
 
@@ -64,19 +65,20 @@ Hence: move a session only when its cache is already cold or its account can't s
    session's Haiku calls can sit on a different account from its Opus calls at no cache cost.
    The id survives `--resume`, so a resumed session finds its account again.
 4. **Sticky:** the session stays on that account. It is only re-scored when:
-   - it has been idle for more than an hour, the cache TTL, so its cache is cold and a move costs
-     nothing. Re-scoring prefers its own account, which another must beat by 20%, so near-equal
-     accounts don't trade places; or
+   - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
+     the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
+     account, which another must beat by 20%, so near-equal accounts don't trade places; or
    - its account can't serve the request. An account nothing has been read of counts as able, so
      neither a session nor a pin moves on no evidence.
 5. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
    exhaustion. Switchboard replays the buffered request on the next candidate, among the accounts
    the request hasn't been tried on, before any response reaches Claude Code, and the session
    moves there and stays. Claude Code sees a normal, slower response. The account then has no
-   room, whatever its windows read, for the requests the rejected windows count (every request
-   when the 429 names none) until the reset the 429 gives: the overall reset, else the latest of
-   the rejected windows', else 5 minutes on. A later reading showing those windows with room
-   lifts it sooner.
+   room, whatever its windows read, for the requests the windows the 429 rejects count, whether
+   or not it gives their utilization (every request when it names none), until the reset the 429
+   gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. A later
+   reading showing those windows with room lifts it sooner. A limit reached again while it holds
+   is the same limit, and holds as the latest 429 says.
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
@@ -98,7 +100,8 @@ Each request's account is decided in this order, and the routed line in the log 
 4. Afresh: the global pin's account while it can serve the request (`pinned (global)`), else the
    best candidate (`new`, `rescored after <idle> idle`, `moved: <id> has no room`, and when a
    replay moves it, `moved: <id> hit its limit` or `moved: <id> was refused`).
-5. With no candidate, the session's account, else the client's (`no account has room`).
+5. With no candidate, the session's account, else the client's, else any other, passing over
+   those that refused the request lately (`no account has room`).
 
 A request without a session id is decided afresh every time and not remembered (`unsessioned`).
 Before deciding afresh, and never for a sticky request, switchboard probes every account it hasn't
@@ -130,10 +133,14 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   account, so a mismatch is already normal without switchboard. Setup tokens can't read the
   profile endpoint (403), so the right UUID isn't available to rewrite it with anyway. The spike's
   mismatched requests were all accepted.
-- **401s and 403s:** an upstream refusal of a routed request's token is never relayed, because
-  Claude Code drops its login on a 403. The account counts as having no room for 10 minutes, and
-  the request is replayed on another, as at a limit. With none left, switchboard returns 502
-  instead, marked not to be retried, as the same token would only be refused again.
+- **401s and 403s:** an upstream refusal of a routed request is never relayed, because Claude
+  Code drops its login on a 403. A 401 refuses the account's token: the account has no room for
+  any request for 10 minutes. A 403 refuses the request alone, as for a model or beta the plan
+  lacks: the account has no room for requests of that model's family for 10 minutes. Either way
+  the request is replayed on another account, as at a limit. With none left, switchboard answers
+  with the 429 of the first account whose limit the request reached, as it came, when one did:
+  that's why there's no account left. Otherwise it returns 502, marked not to be retried, as the
+  same token would only be refused again.
 - **Replay:** request bodies are buffered so they can be replayed. Replay only happens before
   response headers have been sent; a failure mid-stream is passed through and Claude Code retries.
   Nor is a request that couldn't reach the upstream at all replayed elsewhere: that isn't the
@@ -251,7 +258,7 @@ moves   = false  # every other session move, such as after an idle hour or by pi
   `work · Work hit its Session limit, back at Mon 18:10 — 3 sessions moved to side · Side`. With
   none moved, it says when no other account has room. When the account is back goes unsaid where
   it would make the message longer than a banner shows. One notification a limit, however many
-  requests reach it.
+  requests reach it: one reached again while it holds is the same limit.
 - **Room again:** an account whose quota for a request of any model ran out, under a limit or
   with a shared window spent, and has come back: `work · Work has room again`. A refusal isn't
   quota, so one lifting is no news, or a revoked token would be announced every ten minutes; an
@@ -264,11 +271,12 @@ moves   = false  # every other session move, such as after an idle hour or by pi
 
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
-always goes out. Any other goes out only a minute or more after the last about its account, a
-limit's included: one due sooner is dropped, and the log says so at debug. One that fails to post
-is logged at warn, and dropped too. The log names accounts by id alone. Notifications never hold a
-request up: the router queues what happens, and posts from a goroutine of its own. `warning` must
-be 0, or more than 0 and less than 1.
+always goes out: as the router stops, those still gathering go out at once, within 3 seconds.
+Any other goes out only a minute or more after the last about its account, a limit's included:
+one due sooner is dropped, and the log says so at debug. One that fails to post is logged at
+warn, and dropped too. The log names accounts by id alone. Notifications never hold a request up:
+the router queues what happens, and posts from a goroutine of its own. `warning` must be 0, or
+more than 0 and less than 1.
 
 The dashboard in watch mode posts its own, of an account's return and a window passing 90%, only
 while it probes: while it reads the router, it posts none, so nothing is told twice.
@@ -379,12 +387,12 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | Endpoint | Job |
 |---|---|
 | `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health) |
-| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), `sessions`, those used in the last hour, each counted once, and each account's `sessions` and `limit` (`{windows, until}`) while one holds |
+| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), `sessions`, those used in the last hour, each counted once, and each account's `sessions`, `limit` (`{windows, until}`) while one holds, and `refused` (`{until, status, family}`) while a refusal does: `status` 401 for its token refused, which holds back every request, or 403 for a request refused alone, which holds back its model's `family`; with both, the token's, and with several families, the latest |
 | `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, sharing the probes choices make and waiting a minute after one fails, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval |
 
-A request the API refuses is answered `{"error": "<why>"}`.
+A request the API refuses is answered `{"error": "<why>"}`. Times are given in UTC.
 
 ### Launching
 
@@ -412,7 +420,8 @@ A request the API refuses is answered `{"error": "<why>"}`.
   the output never holds a token. A shell function isn't on `PATH`, so `run` finds the real
   `claude`, never the function. Without a config it can read, it prints the `claude` function
   alone, and warns on stderr: the `eval` never fails.
-- `service install` writes the LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`) to
+- `service install` writes the LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and
+  an `ExitTimeOut` of 45 seconds, over the 30 the router gives requests in flight as it stops) to
   run this binary by the path it was run by, so a Homebrew link stays the link an upgrade moves
   on, with `serve` and any `--config` given. It refuses a temporary build, such as `go run`'s,
   judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and

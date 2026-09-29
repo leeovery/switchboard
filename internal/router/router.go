@@ -118,6 +118,7 @@ type Router struct {
 // is listed, but nothing goes out on it; New fails when no account has one,
 // as there'd be nothing to route to.
 func New(cfg Config) (*Router, error) {
+	cfg.Now = wallClock(cfg.Now)
 	accounts := resolve(cfg.Accounts, cfg.Getenv)
 	if !accounts.anyToken() {
 		return nil, fmt.Errorf("no account has a token, so there's nothing to route to: set %s", strings.Join(accounts.tokenEnvs(), " or "))
@@ -160,6 +161,13 @@ func New(cfg Config) (*Router, error) {
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}, nil
+}
+
+// wallClock reads now without its monotonic reading, which stops while a Mac
+// sleeps: kept, it would have the router take a night asleep for no time at
+// all, and a session's cache for warm long after it went cold.
+func wallClock(now func() time.Time) func() time.Time {
+	return func() time.Time { return now().Round(0) }
 }
 
 // Proxy is the handler Claude Code's requests come to.

@@ -73,6 +73,9 @@ func TestCompare(t *testing.T) {
 			if cmp.Compare(got, 0) != tt.want {
 				t.Errorf("Compare(%q, %q) = %d, want its sign to be %d", tt.a, tt.b, got, tt.want)
 			}
+			if got := quota.CompareKeys(tt.a, tt.b); cmp.Compare(got, 0) != tt.want {
+				t.Errorf("CompareKeys(%q, %q) = %d, want its sign to be %d", tt.a, tt.b, got, tt.want)
+			}
 		})
 	}
 }

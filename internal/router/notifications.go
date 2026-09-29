@@ -24,6 +24,9 @@ const (
 	// queueSize is how many events can wait to be dealt with. Past that, an
 	// event is dropped rather than hold the router up.
 	queueSize = 256
+	// finishWait bounds how long the notifications due as the router stops
+	// get to post, so a notifier that hangs can't hold it up.
+	finishWait = 3 * time.Second
 )
 
 // Notifier posts a desktop notification.
@@ -46,7 +49,8 @@ type notifications struct {
 	now    func() time.Time
 	events chan Event
 
-	// Only run's goroutine touches what follows.
+	// Only run's goroutine touches what follows, and finish's once run hands
+	// it over as it ends.
 	limits  *limitNotices
 	lookout *lookout
 	// posted holds, by account, when a notification about it last went out.
@@ -77,8 +81,8 @@ func (n *notifications) hear(e Event) {
 }
 
 // run deals with the events heard, and looks at the accounts, posting what
-// they call for, until ctx ends. Its first look calls for nothing, as there's
-// nothing yet to compare the accounts with.
+// they call for, until ctx ends, when it finishes. Its first look calls for
+// nothing, as there's nothing yet to compare the accounts with.
 func (n *notifications) run(ctx context.Context) {
 	ticker := time.NewTicker(lookEvery)
 	defer ticker.Stop()
@@ -86,6 +90,7 @@ func (n *notifications) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			n.finish()
 			return
 		case e := <-n.events:
 			accounts := n.standings()
@@ -94,7 +99,39 @@ func (n *notifications) run(ctx context.Context) {
 		case <-ticker.C:
 			n.look(n.standings())
 		case <-n.wake():
-			n.tell()
+			n.tell(n.limits.due(time.Now()))
+		}
+	}
+}
+
+// finish deals with the events still queued, as the router stops, and tells
+// of every limit still gathering at once: a limit's notification always goes
+// out. It waits finishWait for them at most, so a notifier that hangs can't
+// hold the router up.
+func (n *notifications) finish() {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		n.takeQueued()
+		n.tell(n.limits.all())
+	}()
+	timeout := time.NewTimer(finishWait)
+	defer timeout.Stop()
+	select {
+	case <-done:
+	case <-timeout.C:
+		logger.Warn("stopped waiting for notifications to post", "after", finishWait)
+	}
+}
+
+// takeQueued deals with each event still queued, as take does.
+func (n *notifications) takeQueued() {
+	for {
+		select {
+		case e := <-n.events:
+			n.take(e, n.standings())
+		default:
+			return
 		}
 	}
 }
@@ -139,10 +176,10 @@ func (n *notifications) wake() <-chan time.Time {
 // tell posts the notifications of the limits done gathering, whatever went
 // out before them: a limit is the most pressing news, and is told of once a
 // limit already.
-func (n *notifications) tell() {
+func (n *notifications) tell(done []*gathering) {
 	now := n.now()
 	accounts := n.state.standings(now)
-	for _, g := range n.limits.due(time.Now()) {
+	for _, g := range done {
 		n.send(g.notice(accounts, now))
 	}
 }

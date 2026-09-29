@@ -325,13 +325,21 @@ func TestUsageIsReadOffResponses(t *testing.T) {
 	}
 }
 
-func TestRefusedTokensAreNeverRelayed(t *testing.T) {
+func TestRefusalsAreNeverRelayed(t *testing.T) {
 	const planted = "sk-ant-oat01-planted_fake"
-	for _, refusal := range []int{http.StatusUnauthorized, http.StatusForbidden} {
-		t.Run(http.StatusText(refusal), func(t *testing.T) {
+	tests := []struct {
+		refusal int
+		// wantLog is what the log says of each account's refusal.
+		wantLog []string
+	}{
+		{refusal: http.StatusUnauthorized, wantLog: []string{`msg="upstream refused the account's token"`}},
+		{refusal: http.StatusForbidden, wantLog: []string{`msg="upstream refused the request on the account"`, "family=opus"}},
+	}
+	for _, tt := range tests {
+		t.Run(http.StatusText(tt.refusal), func(t *testing.T) {
 			log := logstest.Capture(t)
 			up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
-				refuseWith(refusal, "token "+bearerOf(r)+" refused, as was "+planted)(w, r)
+				refuseWith(tt.refusal, "token "+bearerOf(r)+" refused, as was "+planted)(w, r)
 			})
 			cfg := testConfig(up.URL)
 			cfg.Prober = readingEvery(session, week)
@@ -339,7 +347,7 @@ func TestRefusedTokensAreNeverRelayed(t *testing.T) {
 
 			resp := send(t, http.MethodPost, proxy+"/v1/messages", with(claudeCode(workToken), "X-Switchboard-Account", "side"), strings.NewReader(messages))
 			body := readAll(t, resp)
-			want := fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":"switchboard: the upstream refused account work (HTTP %d)"}}`+"\n", refusal)
+			want := fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":"switchboard: the upstream refused account work (HTTP %d)"}}`+"\n", tt.refusal)
 			if resp.StatusCode != http.StatusBadGateway || resp.Header.Get("Content-Type") != "application/json" || body != want {
 				t.Errorf("answered %d (%s) %s\nwant 502 (application/json) %s", resp.StatusCode, resp.Header.Get("Content-Type"), body, want)
 			}
@@ -350,8 +358,8 @@ func TestRefusedTokensAreNeverRelayed(t *testing.T) {
 				t.Errorf("the request went out on %q, want side, its pin, then work", got)
 			}
 			for _, id := range []string{"side", "work"} {
-				waitForLine(t, log, "level=WARN", `msg="upstream refused the account's token"`, "account="+id,
-					fmt.Sprintf("status=%d", refusal), `error="token [redacted] refused, as was [redacted]"`)
+				waitForLine(t, log, slices.Concat(tt.wantLog, []string{"level=WARN", "account=" + id,
+					fmt.Sprintf("status=%d", tt.refusal), `error="token [redacted] refused, as was [redacted]"`})...)
 			}
 			waitForLine(t, log, "level=INFO", "msg=replaying", "attempt=2", "from=side", "to=work", `why="was refused"`)
 			waitForLine(t, log, "level=WARN", `msg="no account left to try"`, "attempts=2")
@@ -371,7 +379,7 @@ func TestARefusalsReasonIsLoggedCutShort(t *testing.T) {
 	proxy := serveProxy(t, newRouter(t, up.URL))
 
 	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
-	waitForLine(t, log, "level=WARN", `msg="upstream refused the account's token"`, "error="+strings.Repeat("x", 200))
+	waitForLine(t, log, "level=WARN", `msg="upstream refused the request on the account"`, "error="+strings.Repeat("x", 200))
 	if strings.Contains(log.String(), strings.Repeat("x", 201)) {
 		t.Errorf("log reads\n%s\nwant the upstream's reason cut to 200 characters", log)
 	}

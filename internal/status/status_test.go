@@ -392,6 +392,48 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
+			name: "the router's, with refusals",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true, Requests: 2},
+				Accounts: []status.Account{
+					{ID: "work", Label: "Work", TokenSet: true, Refused: status.Refusal{Until: generated.Add(10 * time.Minute), Status: 401}},
+					{ID: "side", Label: "Side", TokenSet: true, Refused: status.Refusal{Until: generated.Add(9 * time.Minute), Status: 403, Family: "opus"}},
+				},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 2,
+    "failures": 0
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "refused": {
+        "until": "2026-09-28T13:22:00Z",
+        "status": 401
+      }
+    },
+    {
+      "id": "side",
+      "label": "Side",
+      "token_set": true,
+      "refused": {
+        "until": "2026-09-28T13:21:00Z",
+        "status": 403,
+        "family": "opus"
+      }
+    }
+  ]
+}`,
+		},
+		{
 			name: "the router's, healthy",
 			doc: status.Document{
 				GeneratedAt: generated,

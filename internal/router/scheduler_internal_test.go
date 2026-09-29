@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -39,7 +41,7 @@ func TestAChoiceAfreshProbesTheAccountsWhoseUsageIsStale(t *testing.T) {
 func TestAStickyChoiceProbesNothing(t *testing.T) {
 	prober := &stubProber{}
 	r := newTestRouter(t, at(start), prober)
-	r.sessions.remember(key{session: "one", model: opus}, "", decision{account: "side", reason: reasonNew}, start.Add(-time.Minute))
+	assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "side", reason: reasonNew}, start.Add(-time.Minute))
 
 	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
 	if want := (Choice{Account: "side", Reason: "sticky"}); got != want {
@@ -74,7 +76,7 @@ func TestASessionStaysWhenFreshUsageFindsRoomOnItsAccount(t *testing.T) {
 	r := newTestRouter(t, clock.read, prober)
 	r.state.record("work", []quota.Window{refused, laterWeek}, fromResponse)
 	clock.now = start
-	r.sessions.remember(key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+	assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 
 	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
 	if want := (Choice{Account: "work", Reason: "sticky"}); got != want {
@@ -205,10 +207,57 @@ func TestARequestWithoutASessionIsntRemembered(t *testing.T) {
 	}
 }
 
+func TestAChoiceLeavesTheAssignmentAnotherRequestMadeSinceItLooked(t *testing.T) {
+	log := logstest.Capture(t)
+	var heard []Event
+	r, err := New(Config{
+		Accounts: testConfigured,
+		Getenv:   testGetenv,
+		Upstream: "http://127.0.0.1:1",
+		Provider: claude.Provider{},
+		Prober:   &stubProber{},
+		Policy:   testPolicy,
+		Now:      at(start),
+		Events:   func(e Event) { heard = append(heard, e) },
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	s := r.proxy.chooser.(*scheduler)
+	r.state.record("work", []quota.Window{session, soonWeek}, fromResponse)
+	r.state.record("side", []quota.Window{session, laterWeek}, fromResponse)
+	k := key{session: "one", model: opus}
+	assign(r.sessions, k, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+	first := Request{Session: "one", Model: opus, Client: "work"}
+
+	// One request of the session finds it on work, and chooses to stay; then
+	// another, which reached work's limit, moves it to side on its replay;
+	// then the first remembers its choice.
+	stay, was := s.decide(first)
+	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work", Tried: []Attempt{{Account: "work", Why: whyLimit}}})
+	s.remember(first, was, stay)
+
+	want := assignment{Account: "side", Reason: "moved: work hit its limit", AssignedAt: start, LastSeen: start}
+	if got, _, _ := r.sessions.lookup(k); got != want {
+		t.Errorf("the session is assigned %+v, want %+v: the move stands", got, want)
+	}
+	wantEvents := []Event{Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true}}
+	if !reflect.DeepEqual(heard, wantEvents) {
+		t.Errorf("events = %+v, want %+v alone", heard, wantEvents)
+	}
+	if log.Has("msg=moved", "from=side") {
+		t.Errorf("log reads\n%s\nwant no move back to work", log)
+	}
+	want2 := []string{"level=INFO", `msg="session moved meanwhile; its newer assignment stands"`, "session=one", "account=side", "chosen=work"}
+	if !log.Has(want2...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, want2)
+	}
+}
+
 func TestMovesAreLogged(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newTestRouter(t, at(start), &stubProber{})
-	r.sessions.remember(key{session: "0b5c6f2e-7d41", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+	assign(r.sessions, key{session: "0b5c6f2e-7d41", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 
 	choose(t.Context(), r, Request{Session: "0b5c6f2e-7d41", Model: opus, Pin: "side", Client: "work"})
 	want := []string{"level=INFO", "msg=moved", "session=0b5c6f2e", "model=claude-opus-5-5", "from=work", "to=side", "reason=pinned"}

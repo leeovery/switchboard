@@ -28,6 +28,8 @@
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
+	<key>ExitTimeOut</key>
+	<integer>45</integer>
 	<key>StandardOutPath</key>
 	<string>/Users/tester/.local/state/switchboard/logs/launchd.log</string>
 	<key>StandardErrorPath</key>

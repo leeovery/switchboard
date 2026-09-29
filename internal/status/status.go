@@ -100,6 +100,10 @@ type Account struct {
 	// Limit is the limit the router saw the account reach, while it holds:
 	// zero when there's none, and in a document that isn't the router's.
 	Limit Limit `json:"limit,omitzero"`
+	// Refused is the upstream's refusal of requests on the account the router
+	// saw, while it holds: zero when there's none, and in a document that
+	// isn't the router's.
+	Refused Refusal `json:"refused,omitzero"`
 	// Sessions is how many sessions the router has sent to the account in the
 	// last hour: zero in a document that isn't the router's.
 	Sessions int `json:"sessions,omitzero"`
@@ -117,6 +121,16 @@ type Limit struct {
 // Holds reports whether the limit still holds at now.
 func (l Limit) Holds(now time.Time) bool {
 	return l.Until.After(now)
+}
+
+// Refusal is the upstream refusing requests on an account, answering with
+// Status, as the router saw it: until Until, the account has no room for them,
+// whatever its windows read. They're every request, or, when Family is set,
+// the requests of that model family alone.
+type Refusal struct {
+	Until  time.Time `json:"until"`
+	Status int       `json:"status"`
+	Family string    `json:"family,omitempty"`
 }
 
 // Prober reads an account's usage with its token.

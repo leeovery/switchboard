@@ -54,6 +54,18 @@ func (a assignment) forgotten(now time.Time) bool {
 	return now.Sub(a.LastSeen) >= forgetAfter
 }
 
+// same reports whether a and b are the same assignment: to the same account,
+// made at the same time, however it has been used since.
+func (a assignment) same(b assignment) bool {
+	return a.Account == b.Account && a.AssignedAt.Equal(b.AssignedAt)
+}
+
+// inUTC is the assignment with its times in UTC.
+func (a assignment) inUTC() assignment {
+	a.AssignedAt, a.LastSeen = a.AssignedAt.UTC(), a.LastSeen.UTC()
+	return a
+}
+
 // export is the assignment as the control API gives it, for model.
 func (a assignment) export(model string) Assignment {
 	return Assignment{
@@ -96,23 +108,29 @@ func (s *sessions) lookup(k key) (assignment, bool, status.Pin) {
 }
 
 // remember notes that a request of the session and model k names went where
-// d says at now, carrying pin as the session's own. It returns the account
-// they went to before, or "" for a new session.
-func (s *sessions) remember(k key, pin string, d decision, now time.Time) string {
+// d says at now, carrying pin as the session's own, unless the assignment of
+// k has changed since the request's choice found it as was, zero for none:
+// another request of the session moved it meanwhile, and that newer
+// assignment stands. It returns the assignment it found, and reports whether
+// it noted the request.
+func (s *sessions) remember(k key, was assignment, pin string, d decision, now time.Time) (assignment, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	a, ok := s.assignments[k]
-	before := a.Account
-	if !ok || a.Account != d.account {
+	found := s.assignments[k]
+	if !found.same(was) {
+		return found, false
+	}
+	a := found
+	if a.Account != d.account {
 		a.Account, a.AssignedAt = d.account, now
 	}
 	if !d.sticky {
 		a.Reason = d.reason
 	}
 	a.Pin, a.LastSeen = pin, now
-	s.assignments[k] = a
+	s.assignments[k] = a.inUTC()
 	s.change()
-	return before
+	return found, true
 }
 
 // globalPin returns the global pin, zero when there's none.
@@ -222,7 +240,7 @@ func (s *sessions) load(path string, sendable func(id string) bool) {
 			dropped = true
 			continue
 		}
-		s.assignments[key{session: a.Session, model: a.Model}] = a.assignment
+		s.assignments[key{session: a.Session, model: a.Model}] = a.inUTC()
 	}
 	switch pin := saved.Pin; {
 	case pin.Account == "":

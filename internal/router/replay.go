@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"io"
@@ -20,8 +21,9 @@ const (
 	// waits whatever the upstream says.
 	throttleWait    = 2 * time.Second
 	maxThrottleWait = 10 * time.Second
-	// maxDiscard is how much of an answer the client isn't to have is read
+	// maxDiscard is how much of an answer held back from the client is read
 	// before it's closed, which lets its connection carry the next request.
+	// An answer the client may yet have is kept only when that's all of it.
 	maxDiscard = 64 << 10
 )
 
@@ -37,131 +39,175 @@ const (
 // request on the exchange's account, and again, before the client has any of
 // an answer, while the account can't serve it: on the same account after a
 // pause when the account is throttled, and on another when its limit is
-// reached or its token refused. It reads the usage off every answer. What the
-// client gets is the answer to the last attempt, or a refusal when that
-// refused the account's token.
+// reached or it refuses the request. It reads the usage off every answer.
+// What the client gets is the answer to the last attempt, unless that refused
+// the request: then it's the answer of the first account whose limit the
+// request reached, if one did, and a refusal if not.
 type replay struct {
 	p  *proxy
 	ex *exchange
 	// throttled counts the times the request was sent again on its account
 	// after being throttled there.
 	throttled int
+	// limit is the answer of the first account whose limit the request
+	// reached, held back from the client, or nil while there's none.
+	limit *heldAnswer
+}
+
+// heldAnswer is an answer held back from the client, its body read whole, so
+// the client can still have it, and the account that gave it.
+type heldAnswer struct {
+	account string
+	resp    *http.Response
 }
 
 func (rp *replay) RoundTrip(out *http.Request) (*http.Response, error) {
 	for {
-		resp, windows, err := rp.send(out)
+		resp, err := rp.send(out)
 		if err != nil {
 			// A failure to reach the upstream isn't the account's, so
 			// another would fare no better.
 			return nil, err
 		}
-		again, err := rp.settle(out.Context(), resp, windows)
-		switch {
-		case err != nil:
-			return nil, err
-		case !again:
-			return resp, nil
+		answer, again, err := rp.settle(out.Context(), resp)
+		if !again {
+			return answer, err
 		}
 	}
 }
 
 // send sends the request out on the exchange's account, with a body of its
-// own, and reads the account's usage off the answer, which it returns with
-// the windows read.
-func (rp *replay) send(out *http.Request) (*http.Response, []quota.Window, error) {
+// own, and reads the account's usage off the answer, which it returns.
+func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	ex := rp.ex
 	ex.attempts++
 	attempt := out.Clone(out.Context())
 	if out.Body != nil {
 		body, err := out.GetBody()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		attempt.Body = body
 	}
 	attempt.Header.Set("Authorization", "Bearer "+ex.account.token.Reveal())
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	windows := rp.p.provider.Usage(resp.Header)
-	if len(windows) > 0 {
+	if windows := rp.p.provider.Usage(resp.Header); len(windows) > 0 {
 		rp.p.state.record(ex.account.ID, windows, fromResponse)
 		rp.p.state.learn(ex.req.Model, windows)
 	}
-	return resp, windows, nil
+	return resp, nil
 }
 
-// settle decides what's to become of an answer: it's the client's, or the
-// request goes out again, when settle reports true, or the client has err
-// instead. An answer the client isn't to have is closed.
-func (rp *replay) settle(ctx context.Context, resp *http.Response, windows []quota.Window) (bool, error) {
+// settle decides what's to become of an answer: the request goes out again,
+// when settle reports true, or else the client has an answer, this one or
+// one held back before it, or err instead. An answer the client isn't to
+// have is closed.
+func (rp *replay) settle(ctx context.Context, resp *http.Response) (*http.Response, bool, error) {
 	outcome := rp.p.provider.Classify(resp.StatusCode, resp.Header)
 	switch outcome.Verdict {
 	case quota.LimitReached:
-		return rp.limitReached(ctx, resp, windows, outcome.LimitedUntil), nil
+		return rp.limitReached(ctx, resp, outcome.Rejected, outcome.LimitedUntil)
 	case quota.Throttled:
 		return rp.throttle(ctx, resp, outcome.RetryAfter)
-	case quota.Refused:
-		return rp.refused(ctx, resp)
+	case quota.Refused, quota.Forbidden:
+		return rp.refused(ctx, resp, outcome.Verdict)
 	default:
-		return false, nil
+		return resp, false, nil
 	}
 }
 
-// limitReached bars an account whose limit the request reached, until when
-// the answer says, from the requests its rejected windows count, and moves on
-// from it, when another account can take the request. When none can, the
-// answer is the client's.
-func (rp *replay) limitReached(ctx context.Context, resp *http.Response, windows []quota.Window, until time.Time) bool {
-	id := rp.ex.account.ID
-	keys := rejected(windows)
-	until = rp.p.state.limit(id, keys, until)
-	logger.Warn("limit reached", "id", rp.ex.id, "account", id, "windows", strings.Join(keys, ","), "until", until)
-	rp.p.emit(LimitReached{Account: id, Windows: keys, Until: until})
-	if !rp.moveOn(ctx, whyLimit) {
-		return false
+// limitReached bars an account whose limit the request reached in the
+// windows rejected, if any, until when the answer says, from the requests
+// those windows count, and moves on from it, when another account can take
+// the request, holding the answer back. When none can, the answer is the
+// client's.
+func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejected []string, until time.Time) (*http.Response, bool, error) {
+	reached := rp.p.state.limit(rp.ex.account.ID, rejected, until)
+	news := "limit reached"
+	if reached.Again {
+		news = "limit reached again"
 	}
-	discard(resp)
-	return true
+	logger.Warn(news, "id", rp.ex.id, "account", reached.Account, "windows", strings.Join(reached.Windows, ","), "until", reached.Until)
+	rp.p.emit(reached)
+	if !rp.moveOn(ctx, whyLimit) {
+		return resp, false, nil
+	}
+	rp.holdBack(reached.Account, resp)
+	return nil, true, nil
+}
+
+// holdBack keeps the answer of the first account whose limit the request
+// reached, with the account's id, should no other account serve the request:
+// it's why. Any other, and one whose body can't be kept whole, it discards.
+func (rp *replay) holdBack(account string, resp *http.Response) {
+	if rp.limit != nil {
+		discard(resp)
+		return
+	}
+	if held, ok := hold(resp); ok {
+		rp.limit = &heldAnswer{account: account, resp: held}
+	}
 }
 
 // throttle waits, and has the request sent again on its account, while it has
 // been throttled there no more than throttleRetries times; after that, the
 // answer is the client's. The wait is the one the upstream asks for, within
 // reason, and ends early, failing, should the client go.
-func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter time.Duration) (bool, error) {
+func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter time.Duration) (*http.Response, bool, error) {
 	id := rp.ex.account.ID
 	if rp.throttled >= throttleRetries {
 		logger.Warn("still throttled; passing the answer on", "id", rp.ex.id, "account", id, "attempts", rp.ex.attempts)
-		return false, nil
+		return resp, false, nil
 	}
 	rp.throttled++
 	wait := min(cmp.Or(retryAfter, throttleWait), maxThrottleWait)
 	logger.Warn("throttled", "id", rp.ex.id, "account", id, "wait", wait)
 	discard(resp)
 	if err := sleep(ctx, wait); err != nil {
-		return false, err
+		return nil, false, err
 	}
 	rp.replaying(id, whyThrottled)
-	return true, nil
+	return nil, true, nil
 }
 
-// refused bars an account whose token the upstream refused for a while, and
-// moves on from it when another account can take the request. When none can,
-// the client has a refusal.
-func (rp *replay) refused(ctx context.Context, resp *http.Response) (bool, error) {
-	a := rp.ex.account
-	message := rp.p.provider.ErrorMessage(resp.Body, a.token.Reveal())
+// refused bars an account that refused the request for a while, as bar
+// does, and moves on from it when another account can take the request. When
+// none can, the client has the answer of the first account whose limit the
+// request reached, as that's why no account was left, else a refusal.
+func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quota.Verdict) (*http.Response, bool, error) {
+	reason := rp.p.provider.ErrorMessage(resp.Body, rp.ex.account.token.Reveal())
 	discard(resp)
-	rp.p.state.refuse(a.ID)
-	logger.Warn("upstream refused the account's token", "id", rp.ex.id, "account", a.ID, "status", resp.StatusCode, "error", prefix(message, refusalShown))
-	rp.p.emit(Refused{Account: a.ID, Status: resp.StatusCode})
-	if rp.moveOn(ctx, whyRefused) {
-		return true, nil
+	rp.p.emit(rp.bar(verdict, resp.StatusCode, prefix(reason, refusalShown)))
+	switch {
+	case rp.moveOn(ctx, whyRefused):
+		return nil, true, nil
+	case rp.limit != nil:
+		logger.Info("answering with the limit reached before", "id", rp.ex.id, "account", rp.limit.account)
+		return rp.limit.resp, false, nil
+	default:
+		return nil, false, refusedError{status: resp.StatusCode}
 	}
-	return false, refusal{status: resp.StatusCode}
+}
+
+// bar bars the account the request went out on, which refused it with
+// status, for the reason given: from every request when the verdict is its
+// token refused, else from the requests of the request's model family. It
+// logs the refusal, and returns the news of it.
+func (rp *replay) bar(verdict quota.Verdict, status int, reason string) Refused {
+	ex := rp.ex
+	news := Refused{Account: ex.account.ID, Status: status}
+	if verdict == quota.Refused {
+		rp.p.state.refuse(news.Account, status)
+		logger.Warn("upstream refused the account's token", "id", ex.id, "account", news.Account, "status", status, "error", reason)
+		return news
+	}
+	news.Family = rp.p.provider.Family(ex.req.Model)
+	rp.p.state.forbid(news.Account, news.Family, status)
+	logger.Warn("upstream refused the request on the account", "id", ex.id, "account", news.Account, "status", status, "family", news.Family, "error", reason)
+	return news
 }
 
 // moveOn has the request go out next on another account, as the one it went
@@ -188,22 +234,25 @@ func (rp *replay) replaying(from, why string) {
 	logger.Info("replaying", "id", rp.ex.id, "attempt", rp.ex.attempts+1, "from", from, "to", rp.ex.account.ID, "why", why)
 }
 
-// rejected returns the keys of the windows that rejected a request.
-func rejected(windows []quota.Window) []string {
-	var keys []string
-	for _, w := range windows {
-		if w.Status == quota.StatusRejected {
-			keys = append(keys, w.Key)
-		}
-	}
-	return keys
-}
-
 // discard reads what's left of an answer the client isn't to have, up to
 // maxDiscard, and closes it.
 func discard(resp *http.Response) {
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxDiscard))
 	_ = resp.Body.Close()
+}
+
+// hold reads the rest of an answer held back from the client, up to
+// maxDiscard, and closes it, returning the answer with a body of what was
+// read. It reports false when that isn't all of the body.
+func hold(resp *http.Response) (*http.Response, bool) {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDiscard+1))
+	_ = resp.Body.Close()
+	if err != nil || len(body) > maxDiscard {
+		return nil, false
+	}
+	held := *resp
+	held.Body, held.ContentLength = io.NopCloser(bytes.NewReader(body)), int64(len(body))
+	return &held, true
 }
 
 // sleep waits for d, or fails as soon as ctx ends.

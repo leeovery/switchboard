@@ -18,9 +18,12 @@ type view struct {
 	// applies reports whether the window named key counts the request.
 	applies func(key string) bool
 	// barred are the accounts that have no room whatever their windows say,
-	// by id: their tokens were refused lately, a limit they reached holds the
+	// by id: they refused the request lately, a limit they reached holds the
 	// request back, or the request has been tried on them.
 	barred []string
+	// refused are the accounts, of those barred, that refused the request
+	// lately, by id: they'd only refuse it again.
+	refused []string
 }
 
 // without returns the view with the accounts given barred as well.
@@ -32,6 +35,29 @@ func (v view) without(ids []string) view {
 // has reports whether the request can go out on the account with the given id.
 func (v view) has(id string) bool {
 	return slices.ContainsFunc(v.candidates, func(c score.Candidate) bool { return c.ID == id })
+}
+
+// unrefused returns the first of the accounts with the ids given that the
+// request can go out on and that hasn't refused it lately, else the first
+// such of the rest, in the order configured. It reports false when every
+// account has refused it.
+func (v view) unrefused(first ...string) (string, bool) {
+	for _, id := range slices.Concat(first, v.ids()) {
+		if v.has(id) && !slices.Contains(v.refused, id) {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// ids returns the ids of the accounts the request can go out on, in the
+// order configured.
+func (v view) ids() []string {
+	ids := make([]string, len(v.candidates))
+	for i, c := range v.candidates {
+		ids[i] = c.ID
+	}
+	return ids
 }
 
 // room reports whether the account with the given id can take the request:

@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -131,7 +132,7 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 				for _, id := range []string{"1", "3"} {
 					h.read(id, h.session(used, time.Hour), h.week(0.5, 3*day))
 					if tt.refused {
-						h.state.refuse(id)
+						h.state.refuse(id, http.StatusUnauthorized)
 					}
 				}
 				h.start()
@@ -166,7 +167,25 @@ func TestALimitIsToldOfOnce(t *testing.T) {
 		h.after(10 * time.Minute)
 		h.limit("2", []string{"5h"}, 5*time.Hour)
 		h.after(gatherFor)
-		h.expect(first, "2 · two hit its Session limit, back at Sat 05:00")
+		h.expect(first)
+
+		h.after(4 * day)
+		h.limit("2", []string{"5h"}, 4*day+5*time.Hour)
+		h.after(gatherFor)
+		h.expect(first, "2 · two hit its Session limit, back at Wed 05:00")
+	})
+}
+
+func TestALimitThatDoesntSayWhenItLiftsIsToldOfOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.start()
+
+		for range 4 {
+			h.hear(h.state.limit("2", nil, time.Time{}))
+			h.after(time.Minute)
+		}
+		h.expect("2 · two hit its limit, back at Sat 00:05")
 	})
 }
 
@@ -252,8 +271,8 @@ func TestRoomAgainOnceQuotaIsBackAndARefusalAlongsideHasLifted(t *testing.T) {
 		h.read("2", h.session(1, 2*time.Minute), h.week(0.5, 3*day))
 		h.start()
 
-		h.state.refuse("2")
-		h.hear(Refused{Account: "2", Status: 403})
+		h.state.refuse("2", http.StatusUnauthorized)
+		h.hear(Refused{Account: "2", Status: http.StatusUnauthorized})
 		h.after(5 * time.Minute)
 		h.expect()
 		h.after(refusedFor - 5*time.Minute)
@@ -268,8 +287,8 @@ func TestARevokedTokenIsNeverRoomAgain(t *testing.T) {
 		h.start()
 
 		for range 5 {
-			h.state.refuse("2")
-			h.hear(Refused{Account: "2", Status: 403})
+			h.state.refuse("2", http.StatusUnauthorized)
+			h.hear(Refused{Account: "2", Status: http.StatusUnauthorized})
 			h.after(refusedFor + lookEvery)
 		}
 		h.expect()
@@ -308,14 +327,14 @@ func TestNoRoomAgainUnlessQuotaRanOut(t *testing.T) {
 			setUp: func(h *notifying) {
 				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
 				h.start()
-				h.state.refuse("2")
+				h.state.refuse("2", http.StatusUnauthorized)
 			},
 		},
 		{
 			name: "once a refusal lifts, with nothing read of it",
 			setUp: func(h *notifying) {
 				h.start()
-				h.state.refuse("2")
+				h.state.refuse("2", http.StatusUnauthorized)
 			},
 		},
 	}
@@ -590,18 +609,51 @@ func TestANotificationThatFailsIsLogged(t *testing.T) {
 	})
 }
 
-func TestNotificationsStopAtOnce(t *testing.T) {
+func TestStoppingTellsOfTheLimitsStillGatheringAtOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newNotifying(t, config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true})
+		h.read("2", h.session(1, time.Hour), h.week(0.5, 3*day))
 		h.start()
 		h.limit("2", []string{"5h"}, time.Hour)
+		h.hear(forced("a", "2", "1"))
 
 		began := time.Now()
 		h.stop()
 		if waited := time.Since(began); waited != 0 {
 			t.Errorf("stopping took %v, want no wait, even with a limit gathering", waited)
 		}
-		h.expect()
+		h.expect("2 · two hit its Session limit, back at Sat 01:00 — 1 session moved to 1 · one")
+	})
+}
+
+func TestStoppingWaitsForANotifierThatHangsAShortWhileAtMost(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.notifier.hold = make(chan struct{})
+		h.start()
+		h.limit("2", []string{"5h"}, time.Hour)
+
+		began := time.Now()
+		h.stop()
+		if waited := time.Since(began); waited != 3*time.Second {
+			t.Errorf("stopping took %v with the notifier hanging, want 3s", waited)
+		}
+		if !log.Has("level=WARN", `msg="stopped waiting for notifications to post"`, "after=3s") {
+			t.Errorf("log reads\n%s\nwant the wait cut short", log)
+		}
+		close(h.notifier.hold)
+	})
+}
+
+func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.read("2", h.session(1, time.Hour), h.week(0.5, 3*day))
+
+		h.n.hear(h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour)))
+		h.n.finish()
+		h.expect("2 · two hit its Session limit, back at Sat 01:00")
 	})
 }
 
@@ -669,8 +721,7 @@ func (h *notifying) hear(events ...Event) {
 // limit has the account with the given id reach its limit in the windows
 // given, until lifts after the clock began, and tells of it.
 func (h *notifying) limit(id string, windows []string, lifts time.Duration) {
-	until := h.state.limit(id, windows, h.began.Add(lifts))
-	h.hear(LimitReached{Account: id, Windows: windows, Until: until})
+	h.hear(h.state.limit(id, windows, h.began.Add(lifts)))
 }
 
 // read has the router read windows of the account with the given id.

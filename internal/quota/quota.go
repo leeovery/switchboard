@@ -76,6 +76,10 @@ const (
 	Throttled
 	// Refused is the account's token refused.
 	Refused
+	// Forbidden is the request refused on the account, whose token stands:
+	// the account can't make requests of its kind, as of a model its plan
+	// lacks.
+	Forbidden
 )
 
 // Outcome is a response's verdict on the account a request went out on.
@@ -84,6 +88,10 @@ type Outcome struct {
 	// RetryAfter is how long a throttled account is asked to wait before
 	// sending again, or zero when the response doesn't say.
 	RetryAfter time.Duration
+	// Rejected are the keys of the windows an account's limit is reached in,
+	// in Sort's order, however little else the response says of them: none
+	// when only its overall verdict says so.
+	Rejected []string
 	// LimitedUntil is when an account whose limit is reached has room again,
 	// as far as the response says, or zero when it doesn't say.
 	LimitedUntil time.Time
@@ -119,7 +127,12 @@ func Sort(windows []Window) {
 // Compare orders two windows as Sort does: negative when a comes first,
 // positive when b does, and zero when they share a key.
 func Compare(a, b Window) int {
-	return cmp.Or(cmp.Compare(sortLength(a.Key), sortLength(b.Key)), cmp.Compare(a.Key, b.Key))
+	return CompareKeys(a.Key, b.Key)
+}
+
+// CompareKeys orders the keys of two windows as Sort orders the windows.
+func CompareKeys(a, b string) int {
+	return cmp.Or(cmp.Compare(sortLength(a), sortLength(b)), cmp.Compare(a, b))
 }
 
 // sortLength is a key's length for sorting, where an unreadable one counts as endless.
