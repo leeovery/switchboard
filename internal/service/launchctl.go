@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/childenv"
 )
 
 // launchctlTimeout bounds each run of launchctl, which normally takes a
@@ -24,9 +27,13 @@ const unknownService = 113
 type Runner func(ctx context.Context, args ...string) ([]byte, error)
 
 // Launchctl runs launchctl with args, by name, so the one on PATH runs, and
-// returns what it printed, its output and its errors together.
+// returns what it printed, its output and its errors together. It runs in no
+// more of this process's environment than it needs: a command run from the
+// shell holds every token.
 func Launchctl(ctx context.Context, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, "launchctl", args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, "launchctl", args...)
+	cmd.Env = childenv.Minimal(os.Getenv)
+	return cmd.CombinedOutput()
 }
 
 // exitError is a program's exit with a status other than 0.
