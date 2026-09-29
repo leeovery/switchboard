@@ -253,6 +253,24 @@ type probeSource struct {
 	accounts []config.Account
 }
 
+// Read probes every account, for a read that may: there's no router to read.
+func (s probeSource) Read(ctx context.Context, r watch.Read) (status.Document, error) {
+	if !r.Probe {
+		return status.Document{}, watch.ErrNoRouter
+	}
+	return s.Fetch(ctx)
+}
+
+// Pin can't be carried out without the router.
+func (probeSource) Pin(context.Context, string, bool) error {
+	return errRouterDown
+}
+
+// Unpin can't be carried out without the router.
+func (probeSource) Unpin(context.Context) error {
+	return errRouterDown
+}
+
 // Fetch probes every account, claiming the Claude Code version installed now:
 // a watch can outlive the one it started with. It never fails: an account that
 // can't be read says why in the document.

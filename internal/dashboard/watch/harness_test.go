@@ -157,6 +157,30 @@ func (h *harness) lastTick() *timer {
 	return nil
 }
 
+// tickUntil fires the live chain's ticks until the next is due after t, and
+// returns how many it fired.
+func (h *harness) tickUntil(t time.Time) int {
+	h.t.Helper()
+	fired := 0
+	for tick := h.lastTick(); !tick.due.After(t); tick = h.lastTick() {
+		h.fire(tick)
+		if fired++; fired > 100_000 {
+			h.t.Fatalf("still ticking at %s, short of %s", h.clock.now.Format(time.StampMilli), t.Format(time.StampMilli))
+		}
+	}
+	return fired
+}
+
+// pending is the timer armed to deliver msg and not yet fired, if any.
+func (h *harness) pending(msg tea.Msg) (*timer, bool) {
+	for _, tm := range h.timers {
+		if tm.msg == msg && !tm.fired {
+			return tm, true
+		}
+	}
+	return nil, false
+}
+
 // pendingFrame is the frame armed and not yet fired, if any.
 func (h *harness) pendingFrame() (*timer, bool) {
 	for _, tm := range h.timers {
@@ -210,17 +234,73 @@ func (c *fakeClock) Now() time.Time {
 	return c.now
 }
 
-// fakeSource answers every read with doc, or with err when it's set, and
-// counts the reads.
+// fakeSource reads as a source does: the router's document while the router
+// answers, and, for a read that probes when it doesn't, doc, or err when
+// that's set. Orders change the router's pin, or fail with refuse when that's
+// set. It notes every read asked of it, and every order.
 type fakeSource struct {
-	doc   status.Document
-	err   error
+	doc status.Document
+	err error
+	// router is the router's document, while the router answers.
+	router *status.Document
+	refuse error
+	// reads counts the reads that probed, or failed.
 	reads int
+	// asked lists every read asked for, in turn.
+	asked []Read
+	// orders lists the orders given, in turn, as "pin work", "move work" or
+	// "unpin".
+	orders []string
 }
 
-func (s *fakeSource) Fetch(context.Context) (status.Document, error) {
+func (s *fakeSource) Read(_ context.Context, r Read) (status.Document, error) {
+	s.asked = append(s.asked, r)
+	switch {
+	case s.router != nil:
+		return *s.router, nil
+	case !r.Probe:
+		return status.Document{}, ErrNoRouter
+	}
 	s.reads++
 	return s.doc, s.err
+}
+
+func (s *fakeSource) Pin(_ context.Context, account string, move bool) error {
+	verb := "pin"
+	if move {
+		verb = "move"
+	}
+	return s.order(verb+" "+account, status.Pin{Account: account, Since: start.UTC(), Move: move})
+}
+
+func (s *fakeSource) Unpin(context.Context) error {
+	return s.order("unpin", status.Pin{})
+}
+
+// order notes an order, and has the router take pin, unless it refuses.
+func (s *fakeSource) order(what string, pin status.Pin) error {
+	s.orders = append(s.orders, what)
+	if s.refuse == nil && s.router != nil {
+		s.router.Pin = pin
+	}
+	return s.refuse
+}
+
+// looks counts the reads asked for that looked at the router's document as
+// it stood.
+func (s *fakeSource) looks() int {
+	return countReads(s.asked, Read{Probe: true})
+}
+
+// countReads counts the reads in asked that asked for r.
+func countReads(asked []Read, r Read) int {
+	n := 0
+	for _, a := range asked {
+		if a == r {
+			n++
+		}
+	}
+	return n
 }
 
 // fakeNotifier records what it's asked to post, and fails when err is set.
@@ -277,6 +357,48 @@ func partlyRead(id, label string) status.Account {
 
 func document(accounts ...status.Account) status.Document {
 	return status.Document{GeneratedAt: start.UTC(), Source: status.SourceProbe, Accounts: accounts}
+}
+
+// routerDocument is the router's document of the accounts, healthy.
+func routerDocument(accounts ...status.Account) status.Document {
+	return status.Document{GeneratedAt: start.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: accounts}
+}
+
+// three are three accounts with room, whose windows reset long after the
+// interval.
+func three() []status.Account {
+	return []status.Account{
+		account("work", "Work", session(0.25, 3*time.Hour), week(0.5)),
+		account("personal", "Personal", session(0.1, 4*time.Hour), week(0.2)),
+		account("side", "Side", session(0.4, 2*time.Hour), week(0.6)),
+	}
+}
+
+// probedWithoutTheRouter is three, probed as the router isn't running.
+func probedWithoutTheRouter() status.Document {
+	doc := document(three()...)
+	doc.Fallback = status.Fallback{Router: status.RouterNotRunning}
+	return doc
+}
+
+// routedHarness is a model of a source whose router answers with doc, in a
+// terminal 150 cells wide and 50 lines tall. Without the router, the source
+// probes as the router isn't running. It hasn't started.
+func routedHarness(t *testing.T, doc status.Document) *harness {
+	t.Helper()
+	h := newHarness(t, probedWithoutTheRouter())
+	h.source.router = &doc
+	return h
+}
+
+// stopRouter has the router stop answering.
+func (h *harness) stopRouter() {
+	h.source.router = nil
+}
+
+// startRouter has the router answer with doc.
+func (h *harness) startRouter(doc status.Document) {
+	h.source.router = &doc
 }
 
 // calm is one account with room, whose windows reset long after the interval.

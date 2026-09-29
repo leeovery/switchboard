@@ -142,9 +142,9 @@ func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
 	cfg := recordWatch(t, &deps)
 	run(t, deps, "usage", "--watch")
 
-	doc, err := cfg.Source.Fetch(t.Context())
+	doc, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true})
 	if err != nil {
-		t.Fatalf("Fetch() error = %v", err)
+		t.Fatalf("Read() error = %v", err)
 	}
 	var fetched strings.Builder
 	enc := json.NewEncoder(&fetched)
@@ -210,8 +210,8 @@ func TestUsageWatchClaimsTheVersionInstalledAtEachRead(t *testing.T) {
 		mu.Lock()
 		agents = nil
 		mu.Unlock()
-		if _, err := cfg.Source.Fetch(t.Context()); err != nil {
-			t.Fatalf("Fetch() error = %v", err)
+		if _, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true}); err != nil {
+			t.Fatalf("Read() error = %v", err)
 		}
 		mu.Lock()
 		claimed := slices.Compact(slices.Sorted(slices.Values(agents)))
