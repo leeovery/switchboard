@@ -144,9 +144,10 @@ on a model whose thinking is bound to its account only when its account can't se
 
 Each request's account is decided in this order:
 
-1. The session's own pin, while its account can serve it; else the pin yields to the rest. A
-   session that yielded stays where it went while its cache is warm, and goes back once it's cold,
-   unless its model's thinking is bound to the account it went to.
+1. The session's own pin, set by `run --account` as it starts or by `pin --session` while it runs,
+   the later winning, while its account can serve it; else the pin yields to the rest. A session
+   that yielded stays where it went while its cache is warm, and goes back once it's cold, unless
+   its model's thinking is bound to the account it went to.
 2. A global pin set with `--move`, for a session assigned before it: once each.
 3. The session's account, while its cache is warm, or for a model whose thinking is bound to it,
    and the account can serve it.
@@ -189,15 +190,27 @@ The routed line in the log gives the reason for each request's account, one of:
 |---|---|---|
 | `run --account <id>` | That session's conversation; Claude Code's own token stays the primary's | Unaffected |
 | `pin <id>` | Every new session, and any other whose account is chosen afresh | Stay where they are while their caches are warm and their accounts have room |
-| `pin <id> --move` | Every new session and every running one | Move on their next request (one cache rebuild each, and a session on a model whose thinking is bound to its account loses its reasoning) |
-| `pin auto` | Back to routing (`auto` in any case) | n/a |
+| `pin <id> --move` | Every new session and every running one but those with their own pin | Move on their next request (one cache rebuild each, and a session on a model whose thinking is bound to its account loses its reasoning) |
+| `pin <id> --move --force` | Every session, their own pins included, which it clears | Move on their next request |
+| `pin auto` | Back to routing (`auto` in any case) | Stay where they are while their caches are warm and their accounts have room |
+| `pin auto --force` | Back to routing, every session's own pin cleared too | As `pin auto` |
+| `pin <id> --session <session>` | That one session, its own pin from now on, replacing any it had | Moves on its next request |
+| `pin auto --session <session>` | That one session's own pin cleared | Routed like any other from its next request |
 
-A per-session pin beats a global pin. Every pin yields at a limit: a pinned session that hits one
-moves by the normal rules rather than failing. A pin spends its account's reserve: the reserve
-holds back the router's own choices, and a pin is the user's. So when every other account is out
-and the primary is at its reserve, `pin <primary> --move` carries the running sessions on there,
-in place, and `pin auto` hands them back to the router, reserve and all. The per-session pin
-reaches the proxy as a request header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`.
+A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
+header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
+it: the router remembers the new pin, and passes over the launch pin's header from then on. A
+session is named by its id, or as much of it as is unique: `status` lists the running sessions
+with their ids, and Claude Code's `/status` shows a session's own. `--force` clears every
+session's own pin, launch pins included, so `pin <id> --move --force` puts everything on one
+account, and `pin auto --force` hands everything back to the router.
+
+Every pin yields at a limit: a pinned session that hits one moves by the normal rules rather than
+failing. A pin spends its account's reserve: the reserve holds back the router's own choices, and
+a pin is the user's. So when every other account is out and the primary is at its reserve,
+`pin <primary> --move` carries the running sessions on there, in place, and `pin auto` hands them
+back to the router, reserve and all.
+
 Switchboard defines no per-account launchers: the user's own aliases for
 `switchboard run --account <id> --` serve.
 
@@ -371,11 +384,12 @@ Files says. `switchboard --version` prints the version. Run by the name `claude`
 | `accounts token <id>` | Replace an account's token |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them. `--json` prints the status document. `--session` prints one line naming the account the router sends a session's requests to, as a statusline asks, or with `--json`, `/sessions/{id}`'s answer; it needs the router |
+| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them, and from the router, the running sessions with their ids, accounts and own pins. `--json` prints the status document. `--session` prints one line naming the account the router sends a session's requests to, as a statusline asks, or with `--json`, `/sessions/{id}`'s answer; it needs the router |
 | `usage [--watch [interval]] [--no-notify] [--probe]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
-| `pin <id> [--move]`, `pin auto` | Set or clear the global pin: see Pinning. It needs the router |
+| `pin <id> [--move] [--force]`, `pin auto [--force]` | Set or clear the global pin: see Pinning. It needs the router |
+| `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
 | `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router, its conversation pinned to `--account`'s account if given. `--direct` skips the router and the token, so Claude Code uses its own login. See Launching |
 | `service install [--log-level <level>]` | Install the LaunchAgent, which starts the router: see Launching |
 | `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent; restart it; report the plist, whether launchd has it loaded, and the router's health |
@@ -733,7 +747,9 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /health` | `{ok, reason, listen, version, pid, started_at}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `run` sends sessions to a router that answers `ok` and gives `listen`; `usage` and `status` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it: see below |
 | `GET /sessions/{id}` | For statuslines: `{"session": "<id>", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account": {…}}`. `assignments` are the session's, a model each, the one used last first, each naming its account by id; `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
-| `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
+| `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `pin --session` finds a session from part of its id here |
+| `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
+| `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 
 A request the API refuses is answered `{"error": "<why>"}`. Times are given in UTC.
@@ -858,8 +874,9 @@ on its own before the router exists.
 
 **3. Setup, tokens and priming — next.** Token files and the `accounts` commands; `setup`; every
 `claude` through switchboard, and `init zsh` gone; the primary account and its reserve; priming,
-and no accidental windows; the 5-hour tiebreak; account-bound thinking; the router looking after
-itself; the skill; `status --session` in one line; macOS-only builds, and the README to match.
+and no accidental windows; the 5-hour tiebreak; account-bound thinking; pins for one running
+session, and `--force`; the router looking after itself; the skill; `status --session` in one
+line, and `status` listing the running sessions; macOS-only builds, and the README to match.
 
 **4. Switch-over.** The author's shell and dotfiles move onto switchboard, outside this repo.
 
