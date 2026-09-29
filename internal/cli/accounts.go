@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -154,7 +155,7 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 	}
 	taken, err := registry.SetToken(cmd.Context(), cfg, id)
 	if errors.Is(err, config.ErrNotConfigured) {
-		return fmt.Errorf("%w: add it with switchboard accounts add %s", err, id)
+		return fmt.Errorf("%w: add it with switchboard accounts add %s", err, redact.Text(id))
 	}
 	if err != nil {
 		return err

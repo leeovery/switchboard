@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -115,9 +116,10 @@ func (c *Client) session(ctx context.Context, method, id, path string, body any)
 }
 
 // unknownSession is the error for the session with the given id, which the
-// router hasn't seen.
+// router hasn't seen. It hides anything in the id that looks like a token, as
+// a token pasted where an id goes would be.
 func unknownSession(id string) error {
-	return fmt.Errorf("%w %s", ErrUnknownSession, id)
+	return fmt.Errorf("%w %s", ErrUnknownSession, redact.Text(id))
 }
 
 // Pin has the router pin as p asks: send every new session to its account,

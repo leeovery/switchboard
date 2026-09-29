@@ -30,6 +30,14 @@ var (
 	ErrNotConfigured = errors.New("not configured")
 )
 
+// NotConfigured is the error of acting on the account with the given id,
+// which no account has: it matches ErrNotConfigured, and hides anything in
+// the id that looks like a token, as a token pasted where an id goes would
+// be.
+func NotConfigured(id string) error {
+	return fmt.Errorf("%s is %w", accountNamed(id), ErrNotConfigured)
+}
+
 // NewAccount is an account to add to the config file.
 type NewAccount struct {
 	ID string
@@ -128,7 +136,7 @@ func (d *Draft) RemoveAccount(id string) error {
 	i := d.index(id)
 	switch {
 	case i < 0:
-		return fmt.Errorf("account %q is %w", id, ErrNotConfigured)
+		return NotConfigured(id)
 	case len(d.file.Accounts) == 1:
 		return fmt.Errorf("account %q is the only one, and a config needs one at least", id)
 	}
@@ -156,7 +164,7 @@ func (d *Draft) SetPrimary(id string) error {
 	i := d.index(id)
 	switch {
 	case i < 0:
-		return fmt.Errorf("account %q is %w", id, ErrNotConfigured)
+		return NotConfigured(id)
 	case d.file.Accounts[i].Primary:
 		return nil
 	}

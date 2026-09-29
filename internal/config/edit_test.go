@@ -459,6 +459,13 @@ func TestRemoveAccountRefuses(t *testing.T) {
 			wantIs:  config.ErrNotConfigured,
 		},
 		{
+			name:    "a token given as the id, never quoted",
+			config:  commented,
+			id:      tokenShaped,
+			wantErr: `account "[redacted]" is not configured`,
+			wantIs:  config.ErrNotConfigured,
+		},
+		{
 			name:    "an id in another case",
 			config:  commented,
 			id:      "Work",
@@ -588,6 +595,13 @@ func TestSetPrimaryRefuses(t *testing.T) {
 			config:  commented,
 			id:      "side",
 			wantErr: `account "side" is not configured`,
+			wantIs:  config.ErrNotConfigured,
+		},
+		{
+			name:    "a token given as the id, never quoted",
+			config:  commented,
+			id:      tokenShaped,
+			wantErr: `account "[redacted]" is not configured`,
 			wantIs:  config.ErrNotConfigured,
 		},
 		{

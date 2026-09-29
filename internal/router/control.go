@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -316,12 +317,13 @@ func (r *Router) pinnable(id string) error {
 
 // unknownAccount says there's no account with the given id, naming those of
 // the sendable accounts given that can be pinned instead, or saying there are
-// none.
+// none. It hides anything in the id that looks like a token, as a token
+// pasted where an id goes would be.
 func unknownAccount(id string, sendable accounts) error {
 	if len(sendable) == 0 {
-		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", id)
+		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", redact.Text(id))
 	}
-	return fmt.Errorf("there's no account %q: pin %s", id, strings.Join(sendable.configured().IDs(), " or "))
+	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), strings.Join(sendable.configured().IDs(), " or "))
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

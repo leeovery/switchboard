@@ -104,7 +104,7 @@ func (r Registry) Add(ctx context.Context, account config.NewAccount) (Taken, er
 // configures, with the one the user gives, unless the API refuses it.
 func (r Registry) SetToken(ctx context.Context, cfg *config.Config, id string) (Taken, error) {
 	if !slices.Contains(cfg.Accounts.IDs(), id) {
-		return Taken{}, fmt.Errorf("account %q is %w", id, config.ErrNotConfigured)
+		return Taken{}, config.NotConfigured(id)
 	}
 	return r.take(ctx, id, cfg.Upstream)
 }

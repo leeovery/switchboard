@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -295,7 +296,7 @@ func (r Route) pinned() (choice, error) {
 	}
 	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == r.Account })
 	if i < 0 {
-		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(r.Config.Accounts.IDs(), " or "))
+		return choice{}, fmt.Errorf("there's no account %q: pin %s", redact.Text(r.Account), strings.Join(r.Config.Accounts.IDs(), " or "))
 	}
 	a := r.Config.Accounts[i]
 	token, err := r.Token(a.ID)

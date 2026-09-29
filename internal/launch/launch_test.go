@@ -276,14 +276,24 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 
 func TestRunRefusesAPinItCantKeep(t *testing.T) {
 	tests := []struct {
+		name    string
 		account string
 		wantErr string
 	}{
-		{account: "nope", wantErr: `there's no account "nope": pin work or personal or side`},
-		{account: "personal", wantErr: "account personal has no usable token for Claude Code to start on: " + tokenstest.Missing("personal").Error()},
+		{name: "not configured", account: "nope", wantErr: `there's no account "nope": pin work or personal or side`},
+		{
+			name:    "a token given as the account, never quoted",
+			account: "sk-ant-oat01-fake_token-shaped",
+			wantErr: `there's no account "[redacted]": pin work or personal or side`,
+		},
+		{
+			name:    "without a usable token",
+			account: "personal",
+			wantErr: "account personal has no usable token for Claude Code to start on: " + tokenstest.Missing("personal").Error(),
+		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.account, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
 
 			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err == nil || err.Error() != tt.wantErr {
