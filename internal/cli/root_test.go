@@ -27,10 +27,11 @@ func TestVersion(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	deps.Version = "1.2.3"
 
-	got := run(t, deps, "--version")
 	want := result{stdout: "switchboard version 1.2.3\n", code: 0}
-	if got != want {
-		t.Errorf("switchboard --version = %+v, want %+v", got, want)
+	for _, args := range [][]string{{"--version"}, {"version"}} {
+		if got := run(t, deps, args...); got != want {
+			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+		}
 	}
 }
 
@@ -115,6 +116,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "unknown log level for the service", args: []string{"service", "install", "--log-level", "loud"}, wantUsage: true},
 		{name: "service install without a config", args: []string{"service", "install", "--config", "missing.toml"}, wantUsage: false},
 		{name: "service install without launchctl", args: []string{"service", "install"}, wantUsage: false},
+		{name: "unexpected version argument", args: []string{"version", "extra"}, wantUsage: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
