@@ -74,10 +74,18 @@ type exchange struct {
 	// failed is set when the router answered the request with a failure of
 	// its own.
 	failed bool
+	// newSession is set when a routed request's first choice said its session
+	// was new.
+	newSession bool
 }
 
 func (ex *exchange) routed() bool {
 	return ex.account.ID != ""
+}
+
+// succeeded reports whether the client was answered with success.
+func (ex *exchange) succeeded() bool {
+	return ex.status >= 200 && ex.status < 300
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +122,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	ex := &exchange{id: newID(), started: started}
 	ex.req = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
+	ex.newSession = choice.New
 	defer p.done(r, ex)
 	if choice.Reserved {
 		p.reserved(w, ex, choice)
@@ -129,6 +138,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) Request {
 	model := p.provider.Model(body)
 	return Request{
+		ID:      ex.id,
 		Session: p.provider.Session(r.Header),
 		Model:   model,
 		Bound:   p.provider.ThinkingBound(model),
@@ -278,11 +288,16 @@ func (ex *exchange) identity(r *http.Request) []any {
 }
 
 // done notes a routed request once it's done: in the log, and, once it was
-// answered, in the router's health.
+// answered, in the router's health. A new session's request that wasn't
+// answered with success has the chooser forget the session: it's remembered
+// once it's answered.
 func (p *proxy) done(r *http.Request, ex *exchange) {
 	p.logRouted(r, ex)
 	if ex.status != 0 {
 		p.health.record(ex.failed)
+	}
+	if ex.newSession && !ex.succeeded() {
+		p.chooser.Forget(ex.req)
 	}
 }
 

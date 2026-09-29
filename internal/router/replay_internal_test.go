@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -92,14 +93,9 @@ func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 				upstream := &scriptedUpstream{answers: map[string][]answer{workToken: tt.answers, sideToken: {served}}}
 				r.proxy.transport = upstream
-				ctx, cancel := context.WithCancel(t.Context())
-				defer cancel()
-				if tt.goneAfter > 0 {
-					time.AfterFunc(tt.goneAfter, cancel)
-				}
 
 				began := time.Now()
-				status := routeAlone(ctx, r, "one")
+				status := routeAlone(clientGoing(t, tt.goneAfter), r, "one")
 				if waited := time.Since(began); waited != tt.wantWait {
 					t.Errorf("the request took %v, want %v", waited, tt.wantWait)
 				}
@@ -167,7 +163,7 @@ func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {
 		r.state.record("work", []quota.Window{session, laterWeek})
 		r.state.record("side", []quota.Window{session, soonWeek})
 		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
-		upstream := &scriptedUpstream{answers: map[string][]answer{workToken: {refusedAlone, served}, sideToken: {served}}}
+		upstream := scripted(refusedAlone, served)
 		r.proxy.transport = upstream
 
 		began := time.Now()
@@ -267,6 +263,21 @@ func refusedAlone(r *http.Request) *http.Response {
 	return respond(r, http.StatusTooManyRequests, http.Header{"X-Should-Retry": {"true"}}, refusedAloneBody)
 }
 
+// forbidden answers with a 403, refusing the request on the account.
+func forbidden(r *http.Request) *http.Response {
+	return respond(r, http.StatusForbidden, http.Header{}, `{"type":"error","error":{"type":"permission_error","message":"This model isn't on your plan"}}`)
+}
+
+// serverError answers with a 500.
+func serverError(r *http.Request) *http.Response {
+	return respond(r, http.StatusInternalServerError, http.Header{}, `{"type":"error","error":{"type":"api_error","message":"Internal server error"}}`)
+}
+
+// unreachable is no answer: the upstream is never reached.
+func unreachable(*http.Request) *http.Response {
+	return nil
+}
+
 // throttled answers with a 429 that throttles the account, its usage allowed,
 // asking for a wait of retryAfter seconds, or none when it's empty.
 func throttled(retryAfter string) answer {
@@ -296,12 +307,17 @@ func respond(r *http.Request, status int, h http.Header, body string) *http.Resp
 // scriptedUpstream is the upstream as a transport, for tests that can't reach
 // it over a network, as those whose clock is synctest's can't: it answers
 // each request, by the token it carries, with the account's next answer, the
-// last answering every request after, and notes the account each went out
-// on.
+// last answering every request after, failing where the answer is none, and
+// notes the account each went out on.
 type scriptedUpstream struct {
 	mu       sync.Mutex
 	answers  map[string][]answer
 	accounts []string
+}
+
+// scripted is an upstream that answers work's requests and side's as given.
+func scripted(work, side answer) *scriptedUpstream {
+	return &scriptedUpstream{answers: map[string][]answer{workToken: {work}, sideToken: {side}}}
 }
 
 func (u *scriptedUpstream) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -314,7 +330,10 @@ func (u *scriptedUpstream) RoundTrip(r *http.Request) (*http.Response, error) {
 	if len(answers) > 1 {
 		u.answers[token] = answers[1:]
 	}
-	return answers[0](r), nil
+	if resp := answers[0](r); resp != nil {
+		return resp, nil
+	}
+	return nil, errors.New("dial tcp: connection refused")
 }
 
 // sent returns the account each request went out on, in order.
@@ -333,6 +352,17 @@ func routeAlone(ctx context.Context, r *Router, session string) int {
 		return 0
 	}
 	return rec.Code
+}
+
+// clientGoing returns the context of a client that goes after d, or stays
+// while the test runs where d is zero.
+func clientGoing(t *testing.T, d time.Duration) context.Context {
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	if d > 0 {
+		time.AfterFunc(d, cancel)
+	}
+	return ctx
 }
 
 // route has the router's proxy route a messages request of session on work's

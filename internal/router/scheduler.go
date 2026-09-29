@@ -42,10 +42,17 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	if d.noRoom && s.recheck(ctx, req) {
 		d, on = s.decide(req)
 	}
+	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
 	if req.Session != "" && !d.reserved {
-		s.remember(on, d)
+		c.New = s.remember(on, d)
 	}
-	return Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
+	return c
+}
+
+func (s *scheduler) Forget(req Request) {
+	if s.sessions.forget(req) {
+		logger.Debug("forgot a new session whose request went unanswered", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model)
+	}
 }
 
 // decide chooses on what's known now, and returns the situation the choice
@@ -53,7 +60,7 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 // while the session runs passing over the one it was launched with.
 func (s *scheduler) decide(req Request) (decision, situation) {
 	now := s.now()
-	found := s.sessions.lookup(key{session: req.Session, model: req.Model})
+	found := s.sessions.lookup(req.key())
 	on := situation{
 		req:      req,
 		now:      now,
@@ -89,10 +96,11 @@ func (s *scheduler) recheck(ctx context.Context, req Request) bool {
 // remember notes where a session's request went, as its choice d says, made
 // in the situation on, and logs and tells of a move. Should another request
 // of the session have moved it since, the newer assignment stands, and the
-// log says so: the request goes where d says all the same.
-func (s *scheduler) remember(on situation, d decision) {
+// log says so: the request goes where d says all the same. It reports whether
+// it gave the session its first account for the request's model.
+func (s *scheduler) remember(on situation, d decision) (first bool) {
 	req, now := on.req, s.now()
-	found, noted := s.sessions.remember(key{session: req.Session, model: req.Model}, on.current, req.Pin, d, now)
+	found, noted := s.sessions.remember(req, on.current, d, now)
 	switch {
 	case !noted:
 		logger.Info("session moved meanwhile; its newer assignment stands", "session", status.ShortID(req.Session), "model", req.Model,
@@ -103,4 +111,5 @@ func (s *scheduler) remember(on situation, d decision) {
 		s.emit(Moved{Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason,
 			Forced: !s.view(req, now).room(found.Account)})
 	}
+	return noted && !on.assigned
 }

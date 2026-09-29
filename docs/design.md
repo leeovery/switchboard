@@ -122,10 +122,16 @@ on a model whose thinking is bound to its account only when its account can't se
    whose reset isn't known, comes after those whose reset is to come. Between equal resets, or two
    of those, the higher score wins, then the account that has used less of its 5-hour window, then
    the first configured.
-3. **New session:** the best candidate is assigned and remembered, keyed on the session id Claude
-   Code sends (`x-claude-code-session-id`) and the model. Caches are per model anyway, so a
-   session's Haiku calls can sit on a different account from its Opus calls at no cache cost.
-   The id survives `--resume`, so a resumed session finds its account again.
+3. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
+   (`x-claude-code-session-id`) and the model, and remembered once the request is answered with
+   success. Caches are per model anyway, so a session's Haiku calls can sit on a different account
+   from its Opus calls at no cache cost. The id survives `--resume`, so a resumed session finds
+   its account again. A new session's request that ends otherwise, in a 429, a refusal, another
+   error or its client gone, leaves nothing remembered, unless another request of the session has
+   been routed since, whose account stands: the quota check `--resume` sends as it starts goes
+   under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 6), would
+   otherwise be kept, and listed among the sessions, for a week. A session already remembered
+   keeps its account whatever its requests end in.
 4. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own

@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"maps"
+	"net/http"
 	"reflect"
 	"slices"
 	"strings"
@@ -100,7 +101,7 @@ func TestAChoiceAfreshIsMadeOnFreshUsage(t *testing.T) {
 	r := newTestRouter(t, at(start), prober)
 
 	got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
-	if want := (Choice{Account: "side", Reason: "new"}); got != want {
+	if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
 		t.Errorf("Choose() = %+v, want %+v, chosen on what the probes read", got, want)
 	}
 }
@@ -148,7 +149,7 @@ func TestChoicesMadeTogetherShareTheirProbes(t *testing.T) {
 			t.Errorf("once they're chosen, probes = %v, want %v", got, want)
 		}
 		for i, got := range chosen {
-			if want := (Choice{Account: "side", Reason: "new"}); got != want {
+			if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
 				t.Errorf("session %d: Choose() = %+v, want %+v", i+1, got, want)
 			}
 		}
@@ -167,7 +168,7 @@ func TestAChoiceWaitsForProbesEightSecondsAtMost(t *testing.T) {
 		if waited := time.Since(began); waited != 8*time.Second {
 			t.Errorf("Choose() waited %v for probes that never end, want 8s", waited)
 		}
-		if want := (Choice{Account: "work", Reason: "no account has room", NoRoom: true}); got != want {
+		if want := (Choice{Account: "work", Reason: "no account has room", NoRoom: true, New: true}); got != want {
 			t.Errorf("Choose() = %+v, want %+v", got, want)
 		}
 		if !log.Has("level=DEBUG", `msg="stopped waiting for probes before choosing"`, "accounts=work,side", "after=8s") {
@@ -230,6 +231,136 @@ func TestChoosingRemembersTheSession(t *testing.T) {
 	moved := assignment{Account: "side", Pin: "side", Reason: "pinned", AssignedAt: clock.now, LastSeen: clock.now}
 	if got := r.sessions.lookup(k).current; got != moved {
 		t.Errorf("after a request pinned elsewhere, the session is assigned %+v, want %+v", got, moved)
+	}
+}
+
+func TestANewSessionIsRememberedOnceItsAnswered(t *testing.T) {
+	forgot := []string{"level=DEBUG", `msg="forgot a new session whose request went unanswered"`, "session=one", "model=" + opus}
+	tests := []struct {
+		name     string
+		upstream *scriptedUpstream
+		// goneAfter is when the client goes, if it does.
+		goneAfter time.Duration
+		// wantStatus is what the client is answered, or zero when it's gone.
+		wantStatus int
+		wantSent   []string
+		// want is the account the session is remembered on, "" for none.
+		want string
+	}{
+		{name: "answered", upstream: scripted(served, served), wantStatus: http.StatusOK, wantSent: []string{"work"}, want: "work"},
+		{
+			name:       "answered once it moved on",
+			upstream:   scripted(limitHit, served),
+			wantStatus: http.StatusOK,
+			wantSent:   []string{"work", "side"},
+			want:       "side",
+		},
+		{name: "a 429 passed on", upstream: scripted(refusedAlone, served), wantStatus: http.StatusTooManyRequests, wantSent: []string{"work"}},
+		{
+			name:       "at every account's limit, having moved on",
+			upstream:   scripted(limitHit, limitHit),
+			wantStatus: http.StatusTooManyRequests,
+			wantSent:   []string{"work", "side"},
+		},
+		{name: "refused on every account", upstream: scripted(forbidden, forbidden), wantStatus: http.StatusBadGateway, wantSent: []string{"work", "side"}},
+		{name: "another error", upstream: scripted(serverError, served), wantStatus: http.StatusInternalServerError, wantSent: []string{"work"}},
+		{name: "the upstream unreached", upstream: scripted(unreachable, served), wantStatus: http.StatusBadGateway, wantSent: []string{"work"}},
+		{name: "the client gone", upstream: scripted(throttled("5"), served), goneAfter: time.Second, wantSent: []string{"work"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				// Work's quota needs using first, so the session goes there.
+				r := newTestRouter(t, at(start), &stubProber{})
+				r.state.record("work", []quota.Window{session, soonWeek})
+				r.state.record("side", []quota.Window{session, laterWeek})
+				r.proxy.transport = tt.upstream
+
+				if got := routeAlone(clientGoing(t, tt.goneAfter), r, "one"); got != tt.wantStatus {
+					t.Errorf("answered %d, want %d", got, tt.wantStatus)
+				}
+				if got := tt.upstream.sent(); !slices.Equal(got, tt.wantSent) {
+					t.Errorf("the request went out on %q, want %q", got, tt.wantSent)
+				}
+				remembered, wantSessions := tt.want != "", 0
+				if remembered {
+					wantSessions = 1
+				}
+				if found := r.sessions.lookup(key{session: "one", model: opus}); found.assigned != remembered || found.current.Account != tt.want {
+					t.Errorf("the session is assigned %+v (%v), want %q", found.current, found.assigned, tt.want)
+				}
+				if got := r.Status().Sessions; got != wantSessions {
+					t.Errorf("the status counts %d sessions, want %d", got, wantSessions)
+				}
+				if got := len(r.sessions.saved().Sessions); got != wantSessions {
+					t.Errorf("the state file keeps %d sessions' assignments, want %d", got, wantSessions)
+				}
+				if log.Has(forgot...) == remembered {
+					t.Errorf("log reads\n%s\nwant a line with %q only where the session is forgotten", log, forgot)
+				}
+			})
+		})
+	}
+}
+
+func TestASessionKeepsItsAccountWhateverItsRequestsEnd(t *testing.T) {
+	tests := []struct {
+		name     string
+		upstream *scriptedUpstream
+		// goneAfter is when the client goes, if it does.
+		goneAfter time.Duration
+		// want is the account the session is on once it's done.
+		want string
+	}{
+		{name: "a 429 passed on", upstream: scripted(refusedAlone, served), want: "work"},
+		{name: "another error", upstream: scripted(serverError, served), want: "work"},
+		{name: "the upstream unreached", upstream: scripted(unreachable, served), want: "work"},
+		{name: "the client gone", upstream: scripted(throttled("5"), served), goneAfter: time.Second, want: "work"},
+		{name: "at every account's limit, having moved on", upstream: scripted(limitHit, limitHit), want: "side"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r := newTestRouter(t, at(start), &stubProber{})
+				r.state.record("work", []quota.Window{session, soonWeek})
+				r.state.record("side", []quota.Window{session, laterWeek})
+				k := key{session: "one", model: opus}
+				assign(r.sessions, k, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+				r.proxy.transport = tt.upstream
+
+				routeAlone(clientGoing(t, tt.goneAfter), r, "one")
+				if found := r.sessions.lookup(k); !found.assigned || found.current.Account != tt.want {
+					t.Errorf("the session is assigned %+v (%v), want %s", found.current, found.assigned, tt.want)
+				}
+			})
+		})
+	}
+}
+
+func TestForgettingANewSessionLeavesTheAccountAnotherRequestWasChosenSince(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newTestRouter(t, at(start), &stubProber{})
+	r.state.record("work", []quota.Window{session, soonWeek})
+	r.state.record("side", []quota.Window{session, laterWeek})
+	first := Request{ID: "a1b2c3d4", Session: "one", Model: opus, Client: "work"}
+	if got := choose(t.Context(), r, first); !got.New || got.Account != "work" {
+		t.Fatalf("Choose() = %+v, want the new session on work", got)
+	}
+
+	// Another request of the session, which reached work's limit, moves it
+	// to side on its replay; then the first goes unanswered.
+	moving := Request{ID: "e5f6a7b8", Session: "one", Model: opus, Client: "work", Tried: []Attempt{{Account: "work", Why: whyLimit}}}
+	if got := choose(t.Context(), r, moving); got.New || got.Account != "side" {
+		t.Fatalf("Choose() = %+v, want the session moved to side, and not new", got)
+	}
+	r.proxy.chooser.Forget(first)
+
+	if found := r.sessions.lookup(first.key()); found.current.Account != "side" {
+		t.Errorf("the session is assigned %+v (%v), want side: the move stands", found.current, found.assigned)
+	}
+	if log.Has("forgot") {
+		t.Errorf("log reads\n%s\nwant nothing forgotten", log)
 	}
 }
 

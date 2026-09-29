@@ -21,6 +21,12 @@ type key struct {
 	model   string
 }
 
+// key returns what the assignment of the request's session, for its model,
+// is remembered by.
+func (r Request) key() key {
+	return key{session: r.Session, model: r.Model}
+}
+
 // assignment is the account a session's requests of one model go to.
 type assignment struct {
 	Account string `json:"account"`
@@ -31,6 +37,9 @@ type assignment struct {
 	Reason     string    `json:"reason"`
 	AssignedAt time.Time `json:"assigned_at"`
 	LastSeen   time.Time `json:"last_seen"`
+	// by is the id of the request last noted on the assignment, which made
+	// it, moved it or stayed on it: none for one the state file kept.
+	by string
 }
 
 // warm reports whether the session's prompt cache on its account is warm at
@@ -142,15 +151,15 @@ func (s *sessions) lookup(k key) found {
 	return found{current: current, assigned: assigned, own: own, given: given, global: s.pin}
 }
 
-// remember notes that a request of the session and model k names went where
-// d says at now, carrying pin as the session's own, unless the assignment of
-// k has changed since the request's choice found it as was, zero for none:
-// another request of the session moved it meanwhile, and that newer
-// assignment stands. It returns the assignment it found, and reports whether
-// it noted the request.
-func (s *sessions) remember(k key, was assignment, pin string, d decision, now time.Time) (assignment, bool) {
+// remember notes that req went where d says at now, carrying its pin as its
+// session's own, unless the assignment of its session and model has changed
+// since req's choice found it as was, zero for none: another request of the
+// session moved it meanwhile, and that newer assignment stands. It returns
+// the assignment it found, and reports whether it noted the request.
+func (s *sessions) remember(req Request, was assignment, d decision, now time.Time) (assignment, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	k := req.key()
 	found := s.assignments[k]
 	if !found.same(was) {
 		return found, false
@@ -162,10 +171,25 @@ func (s *sessions) remember(k key, was assignment, pin string, d decision, now t
 	if !d.sticky {
 		a.Reason = d.reason
 	}
-	a.Pin, a.LastSeen = pin, now
+	a.Pin, a.LastSeen, a.by = req.Pin, now, req.ID
 	s.assignments[k] = a.inUTC()
 	s.changed()
 	return found, true
+}
+
+// forget forgets the assignment of req's session and model while req is the
+// last request noted on it, and reports whether it did: one noted since
+// stands, whether it made the assignment, moved it or stayed on it.
+func (s *sessions) forget(req Request) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := req.key()
+	if a, ok := s.assignments[k]; !ok || a.by != req.ID {
+		return false
+	}
+	delete(s.assignments, k)
+	s.changed()
+	return true
 }
 
 // globalPin returns the global pin, zero when there's none.
