@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/prime"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -51,6 +52,8 @@ type Document struct {
 	// Primary is the id of the primary account, whose token Claude Code
 	// holds: empty only when no account is marked the primary.
 	Primary string `json:"primary,omitempty"`
+	// Prime is the priming schedule: zero when priming is off.
+	Prime Prime `json:"prime,omitzero"`
 	// Pin is the router's global pin: zero when there's none, and in a
 	// document that isn't the router's.
 	Pin Pin `json:"pin,omitzero"`
@@ -166,8 +169,12 @@ type Prober interface {
 // Collector builds a status document by probing every account.
 type Collector struct {
 	Prober Prober
-	// Policy is the provider's say in which account is best.
+	// Policy is the provider's say in which account is best, and which
+	// window a prime starts.
 	Policy score.Policy
+	// Prime says when priming starts the accounts' windows, whose schedule
+	// the document gives.
+	Prime config.Prime
 	// Token reads an account's token, by the account's id, from its file.
 	Token func(id string) (tokens.Token, error)
 	// Now reads the clock. Concurrent probes call it.
@@ -176,10 +183,11 @@ type Collector struct {
 
 // Collect probes every account that has a usable token, all at once, and
 // reports them in the order given, as they stand once read, along with the
-// best of them. An account without one isn't probed: its status says why, and
-// what would put it right.
+// best of them, and the priming schedule over them. An account without one
+// isn't probed: its status says why, and what would put it right.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
+	var usable []string
 	var wg sync.WaitGroup
 	for i, acct := range accounts {
 		statuses[i] = Configured(acct)
@@ -190,6 +198,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 			continue
 		}
 		statuses[i].TokenSet = true
+		usable = append(usable, acct.ID)
 		wg.Go(func() { c.probe(ctx, &statuses[i], token) })
 	}
 	wg.Wait()
@@ -197,13 +206,17 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	for i, a := range statuses {
 		statuses[i] = a.AsOf(c.Policy, now)
 	}
-	return Document{
+	doc := Document{
 		GeneratedAt: now.UTC(),
 		Source:      SourceProbe,
 		Best:        Best(c.Policy, statuses, now),
 		Primary:     PrimaryOf(statuses),
 		Accounts:    statuses,
 	}
+	if schedule, ok := prime.New(c.Prime.Day, usable, c.Policy); ok {
+		doc.Prime = Priming(schedule)
+	}
+	return doc
 }
 
 // Configured is an account's status as the config gives it, before anything

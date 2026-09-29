@@ -192,7 +192,7 @@ func content(doc status.Document, a status.Account, now time.Time, cw int) []lin
 	if held := heldBy(doc, a, now, cw); held != nil {
 		blocks = append(blocks, held)
 	}
-	blocks = append(blocks, usage(a, now, cw)...)
+	blocks = append(blocks, usage(doc, a, now, cw)...)
 	if a.Sessions > 0 {
 		blocks = append(blocks, []line{{{status.SessionCount(a.Sessions), dimInk}}})
 	}
@@ -222,13 +222,13 @@ func heldBy(doc status.Document, a status.Account, now time.Time, cw int) []line
 	return lines
 }
 
-// usage is what a card says of an account's usage, a block each: each
+// usage is what a card says of an account's usage in doc, a block each: each
 // window, then each window that couldn't be read, then why the account
 // couldn't be; or that nothing has been read of it yet.
-func usage(a status.Account, now time.Time, cw int) [][]line {
+func usage(doc status.Document, a status.Account, now time.Time, cw int) [][]line {
 	var blocks [][]line
 	for _, w := range a.Windows {
-		blocks = append(blocks, windowBlock(a, w, now, cw))
+		blocks = append(blocks, windowBlock(doc, a, w, now, cw))
 	}
 	for _, f := range a.Failures {
 		blocks = append(blocks, failureBlock(f, cw))
@@ -242,16 +242,16 @@ func usage(a status.Account, now time.Time, cw int) [][]line {
 	return blocks
 }
 
-// windowBlock shows an account's window cw cells wide: its label and how much
-// of it is used, a bar marking where the account's reserve starts and where
-// even use would be, and where it's heading, or, once it has lapsed, that it
-// hasn't started.
-func windowBlock(a status.Account, w quota.Window, now time.Time, cw int) []line {
+// windowBlock shows an account's window in doc cw cells wide: its label and
+// how much of it is used, a bar marking where the account's reserve starts
+// and where even use would be, and where it's heading, or, once it has
+// lapsed, that it hasn't started, and when it's primed.
+func windowBlock(doc status.Document, a status.Account, w quota.Window, now time.Time, cw int) []line {
 	p := score.Project(w, now)
 	return []line{
 		spread(line{{status.Clean(w.Label), textInk}}, line{use(w, p)}, cw),
 		bar(w.Utilization, cw).mark(reserveCell(a.Reserve, cw), reserveMarker).mark(pace(w, p, now, cw), paceMarker),
-		outlook(a, w, p, now, cw),
+		outlook(doc, a, w, p, now, cw),
 	}
 }
 

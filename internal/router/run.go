@@ -92,8 +92,9 @@ func listen(addr string) (net.Listener, error) {
 }
 
 // serve serves the proxy and the control API until ctx ends or either fails,
-// probing each account nothing has been read of in the meantime, keeping the
-// state file and posting notifications, then shuts both down.
+// probing each account nothing has been read of in the meantime, priming the
+// accounts on the schedule, keeping the state file and posting
+// notifications, then shuts both down.
 func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -102,6 +103,11 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	serving.Go(func() { failed <- serveOn(controlSrv, controlLn) })
 	r.logStart(proxyLn.Addr(), controlLn.Addr())
 	r.probes.start(r.accounts.sendable(), r.state.unread)
+	priming, stopPriming := context.WithCancel(ctx)
+	var primed sync.WaitGroup
+	if r.primer != nil {
+		primed.Go(func() { r.primer.run(priming) })
+	}
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, so keeping and notifying outlast ctx.
 	background, stopBackground := context.WithCancel(context.WithoutCancel(ctx))
@@ -117,6 +123,8 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	case err = <-failed:
 	}
 	logger.Info("stopping")
+	stopPriming()
+	primed.Wait()
 	r.probes.stop()
 	shutdown(controlSrv, proxySrv)
 	serving.Wait()

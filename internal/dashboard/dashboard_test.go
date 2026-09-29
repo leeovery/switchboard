@@ -62,6 +62,9 @@ func layouts() []layout {
 		{name: "router-reserve-compact-narrow", doc: spendingReserve(), opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "router-lapsed", doc: lapsed(), opts: dashboard.Options{Width: 110}},
 		{name: "router-lapsed-compact", doc: lapsed(), opts: dashboard.Options{Width: 100, Height: 8}},
+		{name: "router-priming", doc: priming(), opts: dashboard.Options{Width: 110}},
+		{name: "router-priming-compact", doc: priming(), opts: dashboard.Options{Width: 100, Height: 9}},
+		{name: "probed-priming", doc: probedPriming(), opts: dashboard.Options{Width: 110}},
 	}
 }
 
@@ -583,6 +586,25 @@ func lapsed() status.Document {
 	doc.Primary, doc.Accounts[0].Primary, doc.Accounts[0].Reserve = "1", true, 0.1
 	doc.Accounts[1].FetchedAt = now.Add(-6 * hour).UTC()
 	doc.Accounts[1].Lapsed = []string{"5h"}
+	return doc
+}
+
+// priming is lapsed, primed on an 08:00-23:00 day: work next as its session
+// resets, and side, whose last prime failed, five minutes on.
+func priming() status.Document {
+	doc := lapsed()
+	doc.Prime = status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
+		{Account: "1", At: "04:15", Next: now.Add(2 * hour).UTC()},
+		{Account: "2", At: "06:45", Next: now.Add(5 * time.Minute).UTC()},
+	}}
+	return doc
+}
+
+// probedPriming is threeAccounts, probed on a day of priming: the router
+// isn't running to say when it next primes each account.
+func probedPriming() status.Document {
+	doc := probedWithoutTheRouter()
+	doc.Prime = status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "1", At: "03:50"}, {Account: "2", At: "05:30"}, {Account: "3", At: "07:10"}}}
 	return doc
 }
 

@@ -59,6 +59,7 @@ func (a *app) serve(ctx context.Context) error {
 		Provider:      claude.Provider{},
 		Prober:        installedProber{upstream: cfg.Upstream, version: a.ClaudeVersion},
 		Policy:        policy,
+		Prime:         cfg.Prime,
 		Now:           a.Now,
 		Version:       a.Version,
 		Notifier:      a.Notifier,

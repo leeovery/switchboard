@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -18,16 +19,17 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
-// NotStarted is what's said of a window that has lapsed: it isn't running,
+// notStarted is what's said of a window that has lapsed: it isn't running,
 // and reads empty, until a request starts it.
-const NotStarted = "not started"
+const notStarted = "not started"
 
 // Text renders the document for a terminal: each account, the primary marked,
 // with its windows, when they reset and where they're heading, or that one
-// that has lapsed hasn't started, whatever couldn't be read, what holds it
-// back, and how many sessions the router has sent it; then the sessions
-// given, as the router lists those it has routed in the last hour, a line
-// each; then the account to use next, and last where the usage came from.
+// that has lapsed hasn't started, and when it's primed, whatever couldn't be
+// read, what holds it back, and how many sessions the router has sent it;
+// then the sessions given, as the router lists those it has routed in the
+// last hour, a line each; then the priming schedule, and what comes next of
+// it; then the account to use next, and last where the usage came from.
 // Countdowns run from now, and times show in now's time zone. Every text it
 // shows that came from elsewhere, such as the config's labels or the
 // upstream's errors, it shows cleaned.
@@ -35,7 +37,7 @@ func (d Document) Text(now time.Time, sessions ...Session) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
 	for _, account := range d.Accounts {
-		account.write(&b, width, now)
+		d.writeAccount(&b, account, width, now)
 		d.writeNotes(&b, account, now)
 		b.WriteString("\n")
 	}
@@ -46,11 +48,33 @@ func (d Document) Text(now time.Time, sessions ...Session) string {
 		}
 		b.WriteString("\n")
 	}
+	d.writePriming(&b, now)
 	if best, ok := d.Account(d.Best); ok {
 		fmt.Fprintf(&b, "best next: %s\n", best.Title())
 	}
 	fmt.Fprintf(&b, "%s\n", d.origin())
 	return b.String()
+}
+
+// writePriming writes the priming schedule, when priming is on, such as
+// "priming 08:00-23:00: work at 03:50 and side at 06:45", and under it what
+// comes next of it at now.
+func (d Document) writePriming(b *strings.Builder, now time.Time) {
+	if len(d.Prime.Slots) == 0 {
+		return
+	}
+	slots := make([]string, len(d.Prime.Slots))
+	for i, s := range d.Prime.Slots {
+		slots[i] = Clean(s.Account) + " at " + Clean(s.At)
+	}
+	fmt.Fprintf(b, "priming %s: %s\n", Clean(d.Prime.Day), prose.List(slots))
+	if coming := d.Coming(now); len(coming) > 0 {
+		parts := make([]string, len(coming))
+		for i, c := range coming {
+			parts[i] = c.What + ": " + c.Account.Title() + ", " + Clock(now, c.At)
+		}
+		fmt.Fprintf(b, "%s\n", strings.Join(parts, Separator))
+	}
 }
 
 // writeNotes writes what's noted of the account beside its usage: what the
@@ -169,16 +193,20 @@ func (r Refusal) Text(now time.Time) string {
 	return "refused (" + answer + ") until " + TimeOfDay(now, r.Until)
 }
 
-// write writes the account's title, marking the primary, its windows with
-// their labels width wide, and whatever couldn't be read.
-func (a Account) write(b *strings.Builder, width int, now time.Time) {
+// writeAccount writes the account's title, marking the primary, its windows
+// with their labels width wide, and whatever couldn't be read.
+func (d Document) writeAccount(b *strings.Builder, a Account, width int, now time.Time) {
 	title := a.Title()
 	if a.Primary {
 		title += " (primary)"
 	}
 	fmt.Fprintf(b, "%s\n", title)
 	for _, w := range a.Windows {
-		fmt.Fprintf(b, "  %s\n", windowLine(w, a.HasLapsed(w), width, now))
+		notes := windowNotes(w, now)
+		if a.HasLapsed(w) {
+			notes = []string{d.NotStarted(a.ID, now)}
+		}
+		fmt.Fprintf(b, "  %s\n", windowLine(w, width, notes))
 	}
 	for _, f := range a.Failures {
 		fmt.Fprintf(b, "  %s offline: %s\n", Clean(f.Label), Clean(f.Error))
@@ -285,14 +313,19 @@ func (d Document) Account(id string) (Account, bool) {
 	return d.Accounts[i], true
 }
 
-// windowLine shows a window's label and utilization, then when it resets and
-// where it's heading, as far as those are known, or, once it has lapsed, that
-// it hasn't started.
-func windowLine(w quota.Window, lapsed bool, labelWidth int, now time.Time) string {
+// windowLine shows a window's label, labelWidth wide, and its utilization,
+// then the notes given of it.
+func windowLine(w quota.Window, labelWidth int, notes []string) string {
 	line := fmt.Sprintf("%-*s %4s", labelWidth, Clean(w.Label), Percent(w.Utilization))
-	if lapsed {
-		return line + "  " + NotStarted
+	if len(notes) == 0 {
+		return line
 	}
+	return line + "  " + strings.Join(notes, " · ")
+}
+
+// windowNotes say when a window resets and where it's heading at now, as far
+// as those are known.
+func windowNotes(w quota.Window, now time.Time) []string {
 	var notes []string
 	if !w.ResetsAt.IsZero() {
 		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
@@ -300,10 +333,7 @@ func windowLine(w quota.Window, lapsed bool, labelWidth int, now time.Time) stri
 	if projection := Projection(now, score.Project(w, now)); projection != "" {
 		notes = append(notes, projection)
 	}
-	if len(notes) == 0 {
-		return line
-	}
-	return line + "  " + strings.Join(notes, " · ")
+	return notes
 }
 
 // labelWidth is the length of the longest window label, which lines the

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prime"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -297,6 +298,29 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 // as a probe is a request, and would start it. s.mu must be held.
 func (s *state) probeable(u *usage, now time.Time) bool {
 	return now.Sub(u.probed) >= reprobeAfter && len(s.policy.Lapsed(u.latest(), now)) == 0
+}
+
+// nextPrime returns when the account with the given id is next to be primed,
+// at now or after: when schedule says of its windows as last read, but not
+// before reprobeAfter has passed since a probe of it last ended, or
+// reprimeAfter when that one read nothing. It reports false when the
+// schedule can't say.
+func (s *state) nextPrime(id string, schedule prime.Schedule, now time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.usage[id]
+	at, ok := schedule.Next(id, u.latest(), now)
+	if !ok {
+		return time.Time{}, false
+	}
+	retry := reprobeAfter
+	if u.probeErr != "" {
+		retry = reprimeAfter
+	}
+	if again := u.probed.Add(retry); again.After(at) {
+		at = again
+	}
+	return at, true
 }
 
 // view returns what a choice of account for a request of model knows at now:

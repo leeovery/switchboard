@@ -77,10 +77,15 @@ type Config struct {
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
-	// Prober reads the usage of accounts the router has had no traffic for.
+	// Prober reads the usage of accounts the router has had no traffic for,
+	// and primes them.
 	Prober Prober
-	// Policy is the provider's say in which account is best.
+	// Policy is the provider's say in which account is best, and which
+	// window a request starts.
 	Policy score.Policy
+	// Prime says when priming starts the accounts' windows: while Run runs,
+	// the router primes them on its schedule, and its status gives it.
+	Prime config.Prime
 	// Now reads the wall clock.
 	Now func() time.Time
 	// Version is switchboard's, which the control API reports.
@@ -121,6 +126,8 @@ type Router struct {
 	probes *probes
 	health *health
 	proxy  *proxy
+	// primer is nil when priming is off.
+	primer *primer
 	// notifications is nil when the router posts none.
 	notifications *notifications
 	started       time.Time
@@ -178,6 +185,7 @@ func New(cfg Config) (*Router, error) {
 			now:            cfg.Now,
 			errorLog:       logs.StdLogger("router", slog.LevelWarn),
 		},
+		primer:        newPrimer(cfg.Prime.Day, accounts.sendable(), state, probes, cfg.Now),
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}, nil
@@ -196,14 +204,19 @@ func (r *Router) Proxy() http.Handler {
 }
 
 // Status reports every account's usage as the router knows it, with how many
-// sessions each has, and all have, the best account to use next, the global
-// pin, and the router's own health.
+// sessions each has, and all have, the best account to use next, the priming
+// schedule, with when it next primes each account, the global pin, and the
+// router's own health.
 func (r *Router) Status() status.Document {
+	now := r.cfg.Now()
 	doc := r.state.document()
 	doc.Pin = r.sessions.globalPin()
 	doc.Router = r.health.report()
+	if r.primer != nil {
+		doc.Prime = r.primer.report(now)
+	}
 	var byAccount map[string]int
-	byAccount, doc.Sessions = r.sessions.active(r.cfg.Now())
+	byAccount, doc.Sessions = r.sessions.active(now)
 	for i, a := range doc.Accounts {
 		doc.Accounts[i].Sessions = byAccount[a.ID]
 	}

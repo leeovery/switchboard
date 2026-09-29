@@ -2,9 +2,12 @@ package router
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/quota"
 )
 
 const (
@@ -48,10 +51,28 @@ type probing struct {
 	done <-chan struct{}
 }
 
+// report notes how a probe of an account went: what it read, or why it read
+// nothing, and how long it took.
+type report func(a account, probed quota.Probe, err error, took time.Duration)
+
 // start probes each of the accounts that due says wants a probe, unless a
 // probe of it is under way already, and returns every probe of them under
 // way.
 func (p *probes) start(as accounts, due func(id string, now time.Time) bool) []probing {
+	return p.launch(as, due, logProbe)
+}
+
+// prime primes each of the accounts that due says wants a prime, as start
+// probes them, and returns every probe of them under way: a prime is a probe,
+// and one of an account already under way serves as its prime.
+func (p *probes) prime(as accounts, due func(id string, now time.Time) bool) []probing {
+	return p.launch(as, due, p.logPrime)
+}
+
+// launch probes each of the accounts that due says wants it, unless a probe
+// of it is under way already, noting how each goes with told, and returns
+// every probe of them under way.
+func (p *probes) launch(as accounts, due func(id string, now time.Time) bool, told report) []probing {
 	now := p.now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -65,7 +86,7 @@ func (p *probes) start(as accounts, due func(id string, now time.Time) bool) []p
 			done = make(chan struct{})
 			p.running[a.ID] = done
 			p.wg.Go(func() {
-				p.probe(a)
+				p.probe(a, told)
 				p.finish(a.ID)
 			})
 		}
@@ -152,8 +173,8 @@ func (p *probes) stop() {
 	p.wg.Wait()
 }
 
-// probe reads an account's usage, and logs how that went.
-func (p *probes) probe(a account) {
+// probe reads an account's usage, and notes how that went with told.
+func (p *probes) probe(a account, told report) {
 	started := time.Now()
 	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
 	took := time.Since(started).Round(time.Millisecond)
@@ -162,11 +183,38 @@ func (p *probes) probe(a account) {
 		return
 	}
 	p.state.recordProbe(a.ID, probed, err)
+	told(a, probed, err, took)
+}
+
+// logProbe logs how a probe of an account went.
+func logProbe(a account, probed quota.Probe, err error, took time.Duration) {
 	if err != nil {
 		logger.Warn("probe failed", "account", a.ID, "duration", took, "error", err)
 		return
 	}
 	logger.Debug("probed account", "account", a.ID, "duration", took, "windows", len(probed.Windows))
+	logUnread(a, probed)
+}
+
+// logPrime logs how a prime of an account went: at info, with the reset it
+// read of the window it primed.
+func (p *probes) logPrime(a account, probed quota.Probe, err error, took time.Duration) {
+	if err != nil {
+		logger.Warn("prime failed", "account", a.ID, "duration", took, "error", err)
+		return
+	}
+	attrs := []any{"account", a.ID, "duration", took}
+	key := p.state.policy.Started
+	if i := slices.IndexFunc(probed.Windows, func(w quota.Window) bool { return w.Key == key }); i >= 0 {
+		attrs = append(attrs, "resets", probed.Windows[i].ResetsAt)
+	}
+	logger.Info("primed", attrs...)
+	logUnread(a, probed)
+}
+
+// logUnread logs each window a probe of an account expected, and couldn't
+// read.
+func logUnread(a account, probed quota.Probe) {
 	for _, f := range probed.Failures {
 		logger.Warn("window unread", "account", a.ID, "window", f.Window, "error", f.Error)
 	}

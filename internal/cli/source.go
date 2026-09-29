@@ -129,6 +129,7 @@ type probeSource struct {
 	readToken func(id string) (tokens.Token, error)
 	upstream  string
 	accounts  []config.Account
+	prime     config.Prime
 }
 
 // Fetch probes every account, claiming the Claude Code version installed now:
@@ -139,6 +140,7 @@ func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
 	collector := status.Collector{
 		Prober: &claude.Prober{Upstream: s.upstream, Version: version},
 		Policy: policy,
+		Prime:  s.prime,
 		Token:  s.readToken,
 		Now:    s.deps.Now,
 	}
