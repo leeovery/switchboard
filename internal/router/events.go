@@ -13,13 +13,15 @@ type Event interface {
 }
 
 // LimitReached is an account's limit reached, as the upstream answered a
-// request on it: Windows are the keys of those it rejected, which can be
-// none when only its overall verdict did, and Until is when the account is
-// to have room again.
+// request on it: Windows are the keys of those it's reached in, which can be
+// none when only its overall verdict said so, and Until is when the account is
+// to have room again. Again is set when the account's last limit still held:
+// it's that limit, reached again, which now holds as Windows and Until say.
 type LimitReached struct {
 	Account string
 	Windows []string
 	Until   time.Time
+	Again   bool
 }
 
 // Moved is a session's requests of a model moving to another account, and

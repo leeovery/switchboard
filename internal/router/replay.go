@@ -113,10 +113,13 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response) (bool, error)
 // those windows count, and moves on from it, when another account can take
 // the request. When none can, the answer is the client's.
 func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejected []string, until time.Time) bool {
-	id := rp.ex.account.ID
-	until = rp.p.state.limit(id, rejected, until)
-	logger.Warn("limit reached", "id", rp.ex.id, "account", id, "windows", strings.Join(rejected, ","), "until", until)
-	rp.p.emit(LimitReached{Account: id, Windows: rejected, Until: until})
+	reached := rp.p.state.limit(rp.ex.account.ID, rejected, until)
+	news := "limit reached"
+	if reached.Again {
+		news = "limit reached again"
+	}
+	logger.Warn(news, "id", rp.ex.id, "account", reached.Account, "windows", strings.Join(reached.Windows, ","), "until", reached.Until)
+	rp.p.emit(reached)
 	if !rp.moveOn(ctx, whyLimit) {
 		return false
 	}

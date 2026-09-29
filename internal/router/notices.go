@@ -79,13 +79,10 @@ type limitNotices struct {
 	// gathering holds, by account, the limits whose notifications wait for
 	// the sessions they move.
 	gathering map[string]*gathering
-	// seen holds, by account, when the last limit it reached lifts, which
-	// tells that limit from the next: its notification is due, or gone.
-	seen map[string]time.Time
 }
 
 func newLimitNotices() *limitNotices {
-	return &limitNotices{gathering: make(map[string]*gathering), seen: make(map[string]time.Time)}
+	return &limitNotices{gathering: make(map[string]*gathering)}
 }
 
 // gathering is a limit an account reached, and the sessions it has moved so
@@ -99,16 +96,16 @@ type gathering struct {
 	sessions, to []string
 }
 
-// reached takes in a limit an account reached at now: a new one starts
-// gathering the sessions it moves for gatherFor, one reached while the
-// account's last is gathering joins it, and one seen already is ignored.
+// reached takes in a limit an account reached at now: one reached while the
+// account's last is gathering joins it, a new one starts gathering the
+// sessions it moves for gatherFor, and one reached again once its
+// notification has gone is no news.
 func (l *limitNotices) reached(e LimitReached, now time.Time) {
-	if until, ok := l.seen[e.Account]; ok && until.Equal(e.Until) {
-		return
-	}
-	l.seen[e.Account] = e.Until
 	if g, ok := l.gathering[e.Account]; ok {
 		g.join(e)
+		return
+	}
+	if e.Again {
 		return
 	}
 	g := &gathering{LimitReached: e, due: now.Add(gatherFor)}

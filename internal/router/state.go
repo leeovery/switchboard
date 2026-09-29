@@ -65,10 +65,31 @@ type limit struct {
 }
 
 // holds reports whether the limit holds back, at now, a request applies says
-// which windows count: it hasn't lifted, and it was reached in a window that
+// which windows count: it's in force, and it was reached in a window that
 // counts the request, or in none named.
 func (l limit) holds(now time.Time, applies func(key string) bool) bool {
-	return now.Before(l.until) && (len(l.windows) == 0 || slices.ContainsFunc(l.windows, applies))
+	return l.inForce(now) && (len(l.windows) == 0 || slices.ContainsFunc(l.windows, applies))
+}
+
+// inForce reports whether the limit is in force at now: it hasn't lifted.
+func (l limit) inForce(now time.Time) bool {
+	return now.Before(l.until)
+}
+
+// extend returns the limit l reached again, as again: until the later of the
+// two, for the requests either holds back, which is every one when either
+// names no window.
+func (l limit) extend(again limit) limit {
+	until := l.until
+	if again.until.After(until) {
+		until = again.until
+	}
+	if len(l.windows) == 0 || len(again.windows) == 0 {
+		return limit{until: until}
+	}
+	windows := slices.Concat(l.windows, again.windows)
+	slices.SortFunc(windows, quota.CompareKeys)
+	return limit{windows: slices.Compact(windows), until: until}
 }
 
 // liftedBy reports whether windows, read at a time, show the limit lifted:
@@ -182,17 +203,25 @@ func (s *state) refuse(id string) {
 }
 
 // limit notes that the account reached its limit, in the windows named, if
-// any, and returns until when it holds: until, or limitedFor from now when
-// that isn't to come. A reading showing it lifted lifts it sooner.
-func (s *state) limit(id string, windows []string, until time.Time) time.Time {
+// any, until until, or limitedFor from now when that isn't to come, and
+// returns the news of it. Reached while the account's last limit is in force,
+// it's that limit reached again, which it extends. A reading showing it lifted
+// lifts it sooner.
+func (s *state) limit(id string, windows []string, until time.Time) LimitReached {
 	now := s.now().UTC()
 	if !until.After(now) {
 		until = now.Add(limitedFor)
 	}
+	reached := limit{windows: slices.Clone(windows), until: until.UTC()}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].limited = limit{windows: slices.Clone(windows), until: until}
-	return until
+	u := s.usage[id]
+	again := u.limited.inForce(now)
+	if again {
+		reached = u.limited.extend(reached)
+	}
+	u.limited = reached
+	return LimitReached{Account: id, Windows: slices.Clone(reached.windows), Until: reached.until, Again: again}
 }
 
 // due reports whether an account's usage wants probing at now, before a
@@ -393,7 +422,7 @@ func (u *usage) status(a account, now time.Time) status.Account {
 	st.Windows = u.latest()
 	st.Failures = slices.Clone(u.failures)
 	st.Error = u.probeErr
-	if now.Before(u.limited.until) {
+	if u.limited.inForce(now) {
 		st.Limit = status.Limit{Windows: slices.Clone(u.limited.windows), Until: u.limited.until}
 	}
 	return st

@@ -166,7 +166,25 @@ func TestALimitIsToldOfOnce(t *testing.T) {
 		h.after(10 * time.Minute)
 		h.limit("2", []string{"5h"}, 5*time.Hour)
 		h.after(gatherFor)
-		h.expect(first, "2 · two hit its Session limit, back at Sat 05:00")
+		h.expect(first)
+
+		h.after(4 * day)
+		h.limit("2", []string{"5h"}, 4*day+5*time.Hour)
+		h.after(gatherFor)
+		h.expect(first, "2 · two hit its Session limit, back at Wed 05:00")
+	})
+}
+
+func TestALimitThatDoesntSayWhenItLiftsIsToldOfOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.start()
+
+		for range 4 {
+			h.hear(h.state.limit("2", nil, time.Time{}))
+			h.after(time.Minute)
+		}
+		h.expect("2 · two hit its limit, back at Sat 00:05")
 	})
 }
 
@@ -669,8 +687,7 @@ func (h *notifying) hear(events ...Event) {
 // limit has the account with the given id reach its limit in the windows
 // given, until lifts after the clock began, and tells of it.
 func (h *notifying) limit(id string, windows []string, lifts time.Duration) {
-	until := h.state.limit(id, windows, h.began.Add(lifts))
-	h.hear(LimitReached{Account: id, Windows: windows, Until: until})
+	h.hear(h.state.limit(id, windows, h.began.Add(lifts)))
 }
 
 // read has the router read windows of the account with the given id.
