@@ -1,9 +1,9 @@
 # Switchboard — design
 
 **Status:** the usage dashboard (one-off, and in watch mode with its desktop notifications),
-`status`, logging, and the router, with its scheduler, pins, state, limit handling, health and
-desktop notifications, are built. Launching (`run`, `init` and the service) and the dashboard
-reading the router come next.
+`status`, logging, the router, with its scheduler, pins, state, limit handling, health and
+desktop notifications, and launching (`run`, `init zsh` and the service) are built. The dashboard
+reading the router comes next.
 
 ## What it is
 
@@ -159,22 +159,22 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 - Switchboard never stores tokens. It reads them from its environment, so wherever they already
   live (a password manager, a generated env file) stays the source of truth.
 - The background service is a LaunchAgent, and a LaunchAgent doesn't see the shell's environment.
-  `service install --env-file <path>` gives it a launcher that loads that file before starting.
-  After tokens change, `service restart` picks them up.
+  `service install --env-file <path>` has zsh source that file, one the shell sources too, each
+  time the router starts. After tokens change, `service restart` picks them up.
 
 ## Commands
 
 | Command | Job |
 |---|---|
 | `serve` | Run the proxy in the foreground (normally started by the service) |
-| `service install\|uninstall\|restart` | Manage the LaunchAgent |
+| `service install [--env-file <path>]\|uninstall\|restart\|status` | Manage the LaunchAgent: see Launching |
 | `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router. Checks the router is healthy first and connects directly if not. `--direct` skips the router and the token, so Claude Code uses its own login |
 | `usage [-w]` | The dashboard; `-w` keeps it on screen |
 | `status [--session <id>] [--json]` | Accounts, windows, sessions, pins and router health. A statusline asks it for its session's account |
 | `pin <id> [--move]`, `pin auto` | Global pin |
 | `accounts` | List configured accounts and whether each token is present |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines, or follow it: see Logging |
-| `init zsh` | Print shell integration: a `claude` wrapper that goes through `run`, and one pinned launcher per account (name pattern configurable) |
+| `init zsh [--prefix cx]` | Print shell integration: a `claude` wrapper that goes through `run`, and one pinned launcher per account, `<prefix><id>` |
 
 ## Dashboard
 
@@ -309,6 +309,8 @@ interfaces they define themselves, which `internal/claude` satisfies.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
   Logging), and `launchd.log`, where the service's raw stdout and stderr, such as crash output,
   go.
+- **Service:** `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`, the LaunchAgent's
+  plist, 0644, named after its label.
 
 ```toml
 listen   = "127.0.0.1:4747"             # optional: the proxy's address
@@ -354,14 +356,34 @@ A request the API refuses is answered `{"error": "<why>"}`.
 
 ### Launching
 
-- `run` checks `GET /health`. When the router is healthy it starts Claude Code with
-  `ANTHROPIC_BASE_URL` pointing at the proxy, `CLAUDE_CODE_OAUTH_TOKEN` set to a configured account's
-  token (the pinned one, else the router's best, else the first with a token), and the pin header
-  when `--account` is given. Otherwise it connects directly on that same token, with a one-line
-  warning. It replaces itself with `claude` (`exec`), so signals and the terminal behave as usual.
-- `init zsh` prints a `claude` function that goes through `run`, one pinned launcher per account
-  (`<prefix><id>`, prefix `cx` by default), and an export of the first account's token for tools
-  that call `claude` directly.
+- `run` gives the router half a second to answer `GET /health` with `ok`. When it does, `run`
+  starts Claude Code with `ANTHROPIC_BASE_URL` pointing at the proxy, `CLAUDE_CODE_OAUTH_TOKEN` set
+  to a configured account's token (`--account`'s, else the router's best, else the first with a
+  token), and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set.
+  Otherwise it connects directly on that same token, without the base URL or the pin, saying why in
+  one line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
+  A pin inherited from the environment never survives: what this launch pins is the only pin.
+  `--direct` removes the token and the base URL, so Claude Code uses its own login.
+- It finds `claude` on `PATH`, else where its installers put it, and replaces itself with it
+  (`exec`), so signals and the terminal behave as usual. Claude Code's arguments go after `--`,
+  untouched and never logged; the log notes the decision: routed or direct, the router's state, and
+  the account and why.
+- `init zsh` prints, for `.zshrc` to `eval`, a `claude` function that goes through `run` by this
+  binary's absolute path, one pinned launcher per account (`<prefix><id>`, prefix `cx` by default),
+  and, for tools that call `claude` directly, an export of the first account's token by its
+  variable's name (`export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_TOKEN_WORK}"`, when that's set), so
+  the output never holds a token. A shell function isn't on `PATH`, so `run` finds the real
+  `claude`, never the function.
+- `service install` writes the LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`) to
+  run this binary, its symlinks resolved, with `serve` and any `--config` given, and refuses a
+  temporary build, such as `go run`'s. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and
+  `SWITCHBOARD_CONFIG` when they're set, so the service finds what the CLI does. With
+  `--env-file`, it runs `/bin/zsh -c 'source "$1" && exec "$2" serve "${@:3}"'`, the paths as
+  arguments, never in the script, and warns when others can read the file. It then boots out any
+  loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router
+  other than any running before to answer. `uninstall` boots it out and removes the plist;
+  `restart` is `launchctl kickstart -k`, waiting the same way; `status` reports the plist, whether
+  launchd has it loaded, and the router's health. macOS only for now.
 
 ## Milestones
 
