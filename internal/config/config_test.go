@@ -643,6 +643,22 @@ func TestLoadNeverQuotesATokenGivenAsAnIDOrALabel(t *testing.T) {
 	}
 }
 
+func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
+	path := writeConfig(t, "listen = \""+tokenShaped+"\"\nupstream = \""+tokenShaped+"\"\n"+tokenShaped+" = 1\n"+
+		accountTOML("work")+"\n[prime]\nday = \""+tokenShaped+"\"\n")
+
+	_, err := config.Load(path)
+	want := []string{
+		`unknown key "[redacted]"`,
+		`listen "[redacted]": must be host:port, such as 127.0.0.1:4747 or [::1]:4747`,
+		`upstream "[redacted]": must be an absolute http or https URL, such as https://api.anthropic.com`,
+		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
+	}
+	if got := problems(t, path, err); !slices.Equal(got, want) {
+		t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 func TestLoadNeverQuotesAnOldConfigsTokenVariable(t *testing.T) {
 	const pasted = "test-token-pasted-by-mistake"
 	path := writeConfig(t, accountTOML("work")+"token_env = \""+pasted+"\"\n")
