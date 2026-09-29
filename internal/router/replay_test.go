@@ -73,7 +73,7 @@ func TestARequestOverItsAccountsLimitIsReplayedOnAnother(t *testing.T) {
 	}
 	wantEvents := []router.Event{
 		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt},
-		router.Moved{Session: sessionID, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit"},
+		router.Moved{Session: sessionID, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true},
 	}
 	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
 		t.Errorf("events = %+v, want %+v", got, wantEvents)
@@ -203,7 +203,7 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 	}
 	wantEvents := []router.Event{
 		router.Refused{Account: "work", Status: http.StatusForbidden},
-		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work was refused"},
+		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work was refused", Forced: true},
 	}
 	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
 		t.Errorf("events = %+v, want %+v", got, wantEvents)

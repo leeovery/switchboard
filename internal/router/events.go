@@ -20,13 +20,16 @@ type LimitReached struct {
 }
 
 // Moved is a session's requests of a model moving to another account, and
-// why, as the routed line's reason says.
+// why, as the routed line's reason says. Forced is set when From couldn't
+// take the request, as when it reached its limit, so the session had to
+// move, rather than moving by choice, as after an idle hour or by pin.
 type Moved struct {
 	Session string
 	Model   string
 	From    string
 	To      string
 	Reason  string
+	Forced  bool
 }
 
 // Refused is the upstream refusing an account's token, answering with Status.
