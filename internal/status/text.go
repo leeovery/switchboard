@@ -13,6 +13,11 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
+// Separator sets apart the parts of a line that says several things, such as
+// where the usage came from: wider than the dot within an account's title, so
+// the title reads as one part.
+const Separator = "  ·  "
+
 // Text renders the document for a terminal: each account's windows with when
 // they reset and where they're heading, whatever couldn't be read, and what
 // the router notes of the account; then the account to use next, and last
@@ -81,7 +86,7 @@ func (d Document) origin() string {
 		if !d.Router.Healthy {
 			health = because("unhealthy", d.Router.Reason)
 		}
-		return "from the router: " + health + " · " + SessionCount(d.Sessions) + " · " + d.Routing()
+		return "from the router: " + health + Separator + SessionCount(d.Sessions) + Separator + d.Routing()
 	}
 	switch d.Fallback.Router {
 	case RouterNotRunning:

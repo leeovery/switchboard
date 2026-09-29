@@ -41,7 +41,7 @@ func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 	got := run(t, srv.deps, "status")
 	want := result{stdout: workAtStatus + "  1 session\n\n" + othersAtStatus + `
 best next: work · Work
-from the router: healthy · 1 session · pinned to side · Side
+from the router: healthy  ·  1 session  ·  pinned to side · Side
 `}
 	if got != want {
 		t.Errorf("switchboard status =\n%+v\nwant\n%+v", got, want)
@@ -68,7 +68,7 @@ func TestStatusReadsAnUnhealthyRoutersDocument(t *testing.T) {
 
 	got := run(t, srv.deps, "status")
 	const reason = "5 of the 5 requests in the last 5 minutes failed"
-	wantLast := "from the router: unhealthy, " + reason + " · no sessions · routing automatically\n"
+	wantLast := "from the router: unhealthy, " + reason + "  ·  no sessions  ·  routing automatically\n"
 	if got.code != 0 || !strings.HasSuffix(got.stdout, "\n"+wantLast) {
 		t.Errorf("switchboard status = %+v, want it to end %q", got, wantLast)
 	}

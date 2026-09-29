@@ -118,7 +118,7 @@ personal · Personal
   token missing: set CLAUDE_TOKEN_PERSONAL
 
 best next: work · Work
-from the router: healthy · 3 sessions · pinned to side · Side
+from the router: healthy  ·  3 sessions  ·  pinned to side · Side
 `,
 		},
 		{
@@ -159,7 +159,7 @@ side · Side
 spare · Spare
   Session  50%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 16:14
 
-from the router: healthy · no sessions · routing automatically
+from the router: healthy  ·  no sessions  ·  routing automatically
 `,
 		},
 		{
@@ -175,7 +175,7 @@ from the router: healthy · no sessions · routing automatically
 			want: `side · Side
   HTTP 401 · Invalid bearer token
 
-from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed · no sessions · routing automatically
+from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·  no sessions  ·  routing automatically
 `,
 		},
 		{
