@@ -26,6 +26,9 @@ const (
 	sideToken = "test-token-side"
 	// claudeOnPath is where claude is on PATH.
 	claudeOnPath = "/opt/tools/bin/claude"
+	// proxyAddr is where a healthy router says its proxy listens, which isn't
+	// where the config says: the router's word is the one that counts.
+	proxyAddr = "127.0.0.1:4848"
 	// unhealthy is why an unhealthy router says it is.
 	unhealthy = "5 of the 8 requests in the last 5 minutes failed"
 )
@@ -67,7 +70,7 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 	want := map[string]string{
 		"HOME":                     "/home/tester",
 		"PATH":                     "/usr/bin:/bin",
-		"ANTHROPIC_BASE_URL":       "http://127.0.0.1:4747",
+		"ANTHROPIC_BASE_URL":       "http://" + proxyAddr,
 		"CLAUDE_CODE_OAUTH_TOKEN":  sideToken,
 		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side",
 	}
@@ -76,6 +79,29 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 	}
 	if said := h.stderr.String(); said != "" {
 		t.Errorf("said %q on stderr, want nothing", said)
+	}
+}
+
+func TestRunSendsClaudeCodeWhereTheRouterListens(t *testing.T) {
+	tests := []struct {
+		listen string
+		want   string
+	}{
+		{listen: "127.0.0.1:4848", want: "http://127.0.0.1:4848"},
+		{listen: "[::1]:4747", want: "http://[::1]:4747"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.listen, func(t *testing.T) {
+			h := newHarness()
+			r := &fakeRouter{health: router.Health{OK: true, Listen: tt.listen, PID: 4242}, best: "work"}
+
+			if err := h.launcher.Run(t.Context(), route(r, ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if got := h.environment(t)["ANTHROPIC_BASE_URL"]; got != tt.want {
+				t.Errorf("started with ANTHROPIC_BASE_URL %q, want %q, where the router listens, not %q, where the config says", got, tt.want, "127.0.0.1:4747")
+			}
+		})
 	}
 }
 
@@ -94,7 +120,7 @@ func TestRunChoosesTheToken(t *testing.T) {
 		{name: "the first with a token, when the router rates none best", router: healthy(""), want: workToken, wantAsked: true},
 		{
 			name:      "the first with a token, when the router can't say which is best",
-			router:    &fakeRouter{health: router.Health{OK: true}, best: "side", statusErr: errors.New("the router answered GET /status with 500 Internal Server Error")},
+			router:    &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr}, best: "side", statusErr: errors.New("the router answered GET /status with 500 Internal Server Error")},
 			want:      workToken,
 			wantAsked: true,
 		},
@@ -148,6 +174,12 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 			name:      "answering as no router does",
 			router:    &fakeRouter{healthErr: errors.New("the router answered GET /health with 404 Not Found")},
 			wantSaid:  "switchboard: the router is unhealthy (the router answered GET /health with 404 Not Found) — connecting directly on work · Work\n",
+			wantToken: workToken,
+		},
+		{
+			name:      "not saying where it listens",
+			router:    &fakeRouter{health: router.Health{OK: true, PID: 4242}, best: "side"},
+			wantSaid:  "switchboard: the router is unhealthy (it doesn't say where it listens) — connecting directly on work · Work\n",
 			wantToken: workToken,
 		},
 		{
@@ -524,7 +556,7 @@ func (r *fakeRouter) Status(context.Context) (status.Document, error) {
 
 // healthy answers as a healthy router does, rating best the best account.
 func healthy(best string) *fakeRouter {
-	return &fakeRouter{health: router.Health{OK: true, PID: 4242}, best: best}
+	return &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr, PID: 4242}, best: best}
 }
 
 // notRunning answers as a router's client does when no router is listening.

@@ -89,6 +89,24 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestRunSaysWhereItListens(t *testing.T) {
+	up := newUpstream(t, answerOK)
+	cfg := runConfig(t, up.URL)
+	cfg.Listen = "127.0.0.1:0"
+	runRouter(t, cfg)
+
+	h, err := router.NewClient(router.SocketPath(cfg.StateDir)).Health(t.Context())
+	if err != nil {
+		t.Fatalf("Health() error = %v", err)
+	}
+	if host, port, err := net.SplitHostPort(h.Listen); err != nil || host != "127.0.0.1" || port == "0" {
+		t.Fatalf("Health() says the proxy listens on %q, want the address it took for 127.0.0.1:0", h.Listen)
+	}
+	if got := post("http://" + h.Listen + "/v1/messages"); !strings.HasPrefix(got, "200 ") {
+		t.Errorf("a request where the router says it listens answered %s, want 200", got)
+	}
+}
+
 func TestRunLetsRequestsInFlightFinish(t *testing.T) {
 	arrived, release := make(chan struct{}), make(chan struct{})
 	up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {

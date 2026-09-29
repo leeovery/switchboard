@@ -72,6 +72,24 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestRunGoesWhereTheRouterListensWhateverTheConfigSays(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.start(t)
+	routerListens := srv.listen
+	// The config's listen edited since the router started, which the router
+	// hasn't taken up: nothing listens there.
+	srv.listen = freeAddress(t)
+	srv.writeConfig(t)
+	handed := recordHandOffs(&srv.deps)
+
+	if got := run(t, srv.deps, "run"); got != (result{}) {
+		t.Errorf("switchboard run = %+v, want exit status 0 and no output", got)
+	}
+	if got, want := handed.only(t).env["ANTHROPIC_BASE_URL"], "http://"+routerListens; got != want {
+		t.Errorf("handed over with ANTHROPIC_BASE_URL %q, want %q, where the router listens", got, want)
+	}
+}
+
 func TestRunWithoutTheRouter(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"ANTHROPIC_BASE_URL": "http://127.0.0.1:4747"})
 	handed := recordHandOffs(&srv.deps)

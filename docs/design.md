@@ -392,7 +392,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health) |
+| `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health), and `listen`, the address its proxy listens on. A router that doesn't give one isn't sent sessions |
 | `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), `sessions`, those used in the last hour, each counted once, and each account's `sessions`, `limit` (`{windows, until}`) while one holds, and `refused` (`{until, status, family}`) while a refusal does: `status` 401 for its token refused, which holds back every request, or 403 for a request refused alone, which holds back its model's `family`; with both, the token's, and with several families, the latest |
 | `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
@@ -403,7 +403,8 @@ A request the API refuses is answered `{"error": "<why>"}`. Times are given in U
 ### Launching
 
 - `run` gives the router half a second to answer `GET /health` with `ok`. When it does, `run`
-  starts Claude Code with `ANTHROPIC_BASE_URL` pointing at the proxy, `CLAUDE_CODE_OAUTH_TOKEN` set
+  starts Claude Code with `ANTHROPIC_BASE_URL` pointing at the proxy, where the router says it
+  listens, not where the config says, which may have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set
   to a configured account's token (`--account`'s, else the router's best, else the first with a
   token), and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set.
   Otherwise it connects directly on that same token, without the base URL or the pin, saying why in
