@@ -63,6 +63,7 @@ spare · Spare
   HTTP 401 · Invalid bearer token
 
 best next: work · Work
+probed directly
 `,
 		},
 		{
@@ -70,7 +71,102 @@ best next: work · Work
 			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe, Accounts: []status.Account{personal}},
 			want: `personal · Personal
   token missing: set CLAUDE_TOKEN_PERSONAL
+
+probed directly
 `,
+		},
+		{
+			name: "the router's, pinned, with each account's sessions and a limit",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Best:        "work",
+				Pin:         status.Pin{Account: "side", Since: now.UTC().Add(-time.Hour)},
+				Router:      status.Health{Healthy: true, Requests: 12},
+				Sessions:    3,
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(), Sessions: 2,
+						Windows: []quota.Window{
+							{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+							{Key: "7d", Label: "Week", Utilization: 0.4, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)},
+						},
+					},
+					{
+						ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(), Sessions: 1,
+						Windows: []quota.Window{
+							{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+						},
+						Limit: status.Limit{Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)},
+					},
+					personal,
+				},
+			},
+			want: `work · Work
+  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
+  Week     40%  resets in 5d 11h · Sun 02:10 · runs out ~Wed 20:15
+  2 sessions
+
+side · Side
+  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33
+  limit until Mon 21:00
+  1 session
+
+personal · Personal
+  token missing: set CLAUDE_TOKEN_PERSONAL
+
+best next: work · Work
+from the router: healthy · 3 sessions · pinned to side · Side
+`,
+		},
+		{
+			name: "the router's, unhealthy, routing automatically, and a limit that has lifted",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Requests: 8, Failures: 6, Reason: "6 of the 8 requests in the last 5 minutes failed"},
+				Accounts: []status.Account{
+					{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", Limit: status.Limit{Until: now.Add(-time.Minute)}},
+				},
+			},
+			want: `side · Side
+  HTTP 401 · Invalid bearer token
+
+from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed · no sessions · routing automatically
+`,
+		},
+		{
+			name: "probed, as the router isn't running",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceProbe,
+				Fallback:    status.Fallback{Router: status.RouterNotRunning},
+				Accounts:    []status.Account{personal},
+			},
+			want: `personal · Personal
+  token missing: set CLAUDE_TOKEN_PERSONAL
+
+probed directly: the router isn't running
+`,
+		},
+		{
+			name: "probed, as the router didn't answer as it should",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceProbe,
+				Fallback:    status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"},
+				Accounts:    []status.Account{personal},
+			},
+			want: `personal · Personal
+  token missing: set CLAUDE_TOKEN_PERSONAL
+
+probed directly: the router is unhealthy, no answer within 500ms
+`,
+		},
+		{
+			name: "no accounts",
+			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe},
+			want: "probed directly\n",
 		},
 	}
 	for _, tt := range tests {
@@ -112,6 +208,16 @@ func TestAccountText(t *testing.T) {
   HTTP 401 · Invalid bearer token
 `,
 		},
+		{
+			name: "without what the router notes of it, as a statusline shows it",
+			account: status.Account{
+				ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", Sessions: 1,
+				Limit: status.Limit{Until: now.Add(time.Hour)},
+			},
+			want: `spare · Spare
+  HTTP 401 · Invalid bearer token
+`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -119,6 +225,69 @@ func TestAccountText(t *testing.T) {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSessionCount(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "no sessions"},
+		{n: 1, want: "1 session"},
+		{n: 2, want: "2 sessions"},
+		{n: 12, want: "12 sessions"},
+	}
+	for _, tt := range tests {
+		if got := status.SessionCount(tt.n); got != tt.want {
+			t.Errorf("SessionCount(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestRouting(t *testing.T) {
+	accounts := []status.Account{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side"}}
+	tests := []struct {
+		name string
+		pin  status.Pin
+		want string
+	}{
+		{name: "unpinned", want: "routing automatically"},
+		{name: "pinned", pin: status.Pin{Account: "side"}, want: "pinned to side · Side"},
+		{name: "pinned, moving running sessions", pin: status.Pin{Account: "work", Move: true}, want: "pinned to work · Work"},
+		{name: "pinned to an account the document lacks", pin: status.Pin{Account: "gone"}, want: "pinned to gone"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{Source: status.SourceRouter, Pin: tt.pin, Accounts: accounts}
+			if got := doc.Routing(); got != tt.want {
+				t.Errorf("Routing() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLimit(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	limit := status.Limit{Windows: []string{"5h"}, Until: time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)}
+	if got, want := limit.Text(now), "limit until Mon 21:00"; got != want {
+		t.Errorf("Text() = %q, want %q, in now's time zone", got, want)
+	}
+	for _, tt := range []struct {
+		at   time.Time
+		want bool
+	}{
+		{at: now, want: true},
+		{at: limit.Until.Add(-time.Second), want: true},
+		{at: limit.Until, want: false},
+		{at: limit.Until.Add(time.Hour), want: false},
+	} {
+		if got := limit.Holds(tt.at); got != tt.want {
+			t.Errorf("Holds(%s) = %v, want %v", tt.at.Format(time.Kitchen), got, tt.want)
+		}
+	}
+	if (status.Limit{}).Holds(now) {
+		t.Error("no limit holds")
 	}
 }
 

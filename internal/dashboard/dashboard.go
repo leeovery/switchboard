@@ -53,8 +53,8 @@ func Render(doc status.Document, now time.Time, opts Options) string {
 // under it.
 func frame(doc status.Document, now time.Time, body []line, width, room int, footer string) []line {
 	lines := []line{heading(now, width, room)}
-	if best, ok := bestNext(doc); ok {
-		lines = append(lines, best)
+	if overview := dotted(origin(doc), bestNext(doc)); overview != nil {
+		lines = append(lines, overview)
 	}
 	if len(body) > 0 {
 		lines = append(lines, nil)
@@ -80,16 +80,70 @@ func heading(now time.Time, width, room int) line {
 	return line{name}
 }
 
-// bestNext names the account to use next, or says that none has room. It
-// reports false when there are no accounts to speak of.
-func bestNext(doc status.Document) (line, bool) {
+// origin says where the document came from, when that's news: the router,
+// with how many sessions it has and where it sends new ones, unless it's
+// unhealthy, which it says loudly; or that the accounts were probed, as the
+// router wasn't running or wasn't answering as it should. A document probed as
+// asked says nothing.
+func origin(doc status.Document) line {
+	switch {
+	case doc.Source == status.SourceRouter && !doc.Router.Healthy:
+		return unhealthy(doc.Router.Reason)
+	case doc.Source == status.SourceRouter:
+		return routing(doc)
+	case doc.Fallback.Router == status.RouterNotRunning:
+		return line{{"probing directly (router not running)", dimInk}}
+	case doc.Fallback.Router == status.RouterUnhealthy:
+		return unhealthy(doc.Fallback.Reason)
+	default:
+		return nil
+	}
+}
+
+// routing says how many sessions the router has, and where it sends new ones.
+func routing(doc status.Document) line {
+	l := line{{"router · " + status.SessionCount(doc.Sessions) + " · ", dimInk}}
+	if doc.Pin.Account == "" {
+		return append(l, span{doc.Routing(), dimInk})
+	}
+	return append(l, span{clean(doc.Routing()), pinInk})
+}
+
+// unhealthy says the router is unhealthy, and why, in red.
+func unhealthy(reason string) line {
+	text := "router unhealthy"
+	if reason = clean(reason); reason != "" {
+		text += " — " + reason
+	}
+	return line{{text, errorInk}}
+}
+
+// bestNext names the account to use next, or says that none has room. It's
+// nil when there are no accounts to speak of.
+func bestNext(doc status.Document) line {
 	if best, ok := doc.Account(doc.Best); ok {
-		return line{{"best next: ", dimInk}, {clean(best.Title()), accentInk}}, true
+		return line{{"best next: ", dimInk}, {clean(best.Title()), accentInk}}
 	}
 	if len(doc.Accounts) == 0 {
-		return nil, false
+		return nil
 	}
-	return line{{"no account has room right now", errorInk}}, true
+	return line{{"no account has room right now", errorInk}}
+}
+
+// dotted runs the parts that aren't nil together, a dot between each. It's
+// nil when they all are.
+func dotted(parts ...line) line {
+	var l line
+	for _, part := range parts {
+		if part == nil {
+			continue
+		}
+		if l != nil {
+			l = append(l, span{" · ", dimInk})
+		}
+		l = append(l, part...)
+	}
+	return l
 }
 
 // draw writes the lines out, each after the margin and cut to room cells, in

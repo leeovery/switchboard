@@ -18,11 +18,11 @@ const (
 	// padding is the blank cells either side of a card's content.
 	padding = 2
 	// minContent and maxContent bound how wide a card's content is. It grows
-	// from the least to fit the longest title beside the best badge.
+	// from the least to fit the longest title beside both badges.
 	minContent = 40
 	maxContent = 50
 	// titleChrome is the cells of a top border that aren't its title or
-	// badge: a rule and a space before the title, a space and a rule after.
+	// badges: a rule and a space before the title, a space and a rule after.
 	titleChrome = 4
 	// A failed window's reason, and an account's error, wrap to at most
 	// these many lines.
@@ -31,12 +31,39 @@ const (
 )
 
 const (
-	// bestMark marks the account to use next, and badge its card.
-	bestMark = "▲"
-	badge    = bestMark + " best"
+	// bestMark marks the account to use next, and bestBadge its card.
+	bestMark  = "▲"
+	bestBadge = bestMark + " best"
+	// pinMark marks the account the router pins new sessions to, and
+	// pinBadge its card.
+	pinMark  = "●"
+	pinBadge = pinMark + " pinned"
 	// errorMark leads the reason an account couldn't be read.
 	errorMark = "✗ "
 )
+
+// badges are what a card's top border carries beside its title: whether the
+// router pins new sessions to its account, and whether it's the best.
+type badges struct {
+	pinned, best bool
+}
+
+// badgesOf are the badges of the account's card in doc.
+func badgesOf(doc status.Document, a status.Account) badges {
+	return badges{pinned: a.ID == doc.Pin.Account, best: a.ID == doc.Best}
+}
+
+// tail ends a card's top border with its badges.
+func (b badges) tail(border ink) line {
+	var l line
+	if b.pinned {
+		l = append(l, span{" ", border}, span{pinBadge, pinBadgeInk}, span{" ─", border})
+	}
+	if b.best {
+		l = append(l, span{" ", border}, span{bestBadge, badgeInk}, span{" ─", border})
+	}
+	return l
+}
 
 // grid lays the accounts' cards out in rows, as many to a row as fit in room
 // cells, and reports how wide a full row is. It reports false when not even
@@ -53,33 +80,35 @@ func grid(doc status.Document, now time.Time, room int) ([]line, int, bool) {
 		if body != nil {
 			body = append(body, nil)
 		}
-		body = append(body, cardRow(row, doc.Best, now, cw)...)
+		body = append(body, cardRow(doc, row, now, cw)...)
 	}
 	return body, max(perRow*(cardWidth+gutter)-gutter, 0), true
 }
 
 // contentWidth is how wide every card's content is: wide enough for the
-// longest title beside the best badge, within bounds.
+// longest title beside both badges, within bounds, so a card doesn't change
+// width as its badges come and go.
 func contentWidth(accounts []status.Account) int {
 	widest := 0
 	for _, a := range accounts {
 		widest = max(widest, ansi.StringWidth(clean(a.Title())))
 	}
-	return min(max(widest+titleChrome+badgeTail(borderInk).width()-2*padding, minContent), maxContent)
+	both := badges{pinned: true, best: true}.tail(borderInk).width()
+	return min(max(widest+titleChrome+both-2*padding, minContent), maxContent)
 }
 
-// cardRow draws the accounts' cards side by side, each padded to the tallest
-// so the row's borders line up.
-func cardRow(accounts []status.Account, best string, now time.Time, cw int) []line {
-	contents := make([][]line, len(accounts))
+// cardRow draws the cards of doc's accounts in row side by side, each padded
+// to the tallest so the row's borders line up.
+func cardRow(doc status.Document, row []status.Account, now time.Time, cw int) []line {
+	contents := make([][]line, len(row))
 	height := 0
-	for i, a := range accounts {
+	for i, a := range row {
 		contents[i] = content(a, now, cw)
 		height = max(height, len(contents[i]))
 	}
 	var lines []line
-	for i, a := range accounts {
-		c := card(clean(a.Title()), a.ID == best, contents[i], height, cw)
+	for i, a := range row {
+		c := card(clean(a.Title()), badgesOf(doc, a), contents[i], height, cw)
 		lines = beside(lines, c)
 	}
 	return lines
@@ -97,14 +126,13 @@ func beside(lines, card []line) []line {
 }
 
 // card draws content cw cells wide in a rounded border, the content padded
-// to height lines, with the title in the top border and, when it's the best,
-// the badge beside it.
-func card(title string, best bool, content []line, height, cw int) []line {
+// to height lines, with the title in the top border and its badges beside it.
+func card(title string, marks badges, content []line, height, cw int) []line {
 	border := borderInk
-	if best {
+	if marks.best {
 		border = bestBorderInk
 	}
-	lines := []line{top(title, best, cw, border), side(nil, cw, border)}
+	lines := []line{top(title, marks, cw, border), side(nil, cw, border)}
 	for i := range height {
 		var l line
 		if i < len(content) {
@@ -115,23 +143,15 @@ func card(title string, best bool, content []line, height, cw int) []line {
 	return append(lines, side(nil, cw, border), line{{"╰" + rule(cw+2*padding) + "╯", border}})
 }
 
-// top is a card's top border: its title at the left, and the badge at the
-// right when best.
-func top(title string, best bool, cw int, border ink) line {
+// top is a card's top border: its title at the left, and its badges at the
+// right.
+func top(title string, marks badges, cw int, border ink) line {
 	inner := cw + 2*padding
-	var tail line
-	if best {
-		tail = badgeTail(border)
-	}
+	tail := marks.tail(border)
 	room := inner - titleChrome - tail.width()
 	title = truncate(title, room)
 	l := line{{"╭─ ", border}, {title, titleInk}, {" " + rule(1+room-ansi.StringWidth(title)), border}}
 	return append(append(l, tail...), span{"╮", border})
-}
-
-// badgeTail ends the best card's top border with the badge.
-func badgeTail(border ink) line {
-	return line{{" ", border}, {badge, badgeInk}, {" ─", border}}
 }
 
 // side is a line of a card's content between its side borders.
@@ -144,10 +164,32 @@ func side(content line, cw int, border ink) line {
 	)
 }
 
-// content is what a card says of an account: each window, then each window
-// that couldn't be read, then why the account couldn't be, with a blank line
-// between each.
+// content is what a card says of an account: the limit that holds it back,
+// when one does; its usage; and last how many sessions it has, when it has
+// any. A blank line comes between each block.
 func content(a status.Account, now time.Time, cw int) []line {
+	var blocks [][]line
+	if a.Limit.Holds(now) {
+		blocks = append(blocks, []line{{{truncate(a.Limit.Text(now), cw), exhaustedInk}}})
+	}
+	blocks = append(blocks, usage(a, now, cw)...)
+	if a.Sessions > 0 {
+		blocks = append(blocks, []line{{{status.SessionCount(a.Sessions), dimInk}}})
+	}
+	var lines []line
+	for i, block := range blocks {
+		if i > 0 {
+			lines = append(lines, nil)
+		}
+		lines = append(lines, block...)
+	}
+	return lines
+}
+
+// usage is what a card says of an account's usage, a block each: each
+// window, then each window that couldn't be read, then why the account
+// couldn't be; or that nothing has been read of it yet.
+func usage(a status.Account, now time.Time, cw int) [][]line {
 	var blocks [][]line
 	for _, w := range a.Windows {
 		blocks = append(blocks, windowBlock(w, now, cw))
@@ -161,14 +203,7 @@ func content(a status.Account, now time.Time, cw int) []line {
 	if len(blocks) == 0 {
 		blocks = append(blocks, []line{{{"no usage yet", dimInk}}})
 	}
-	var lines []line
-	for i, block := range blocks {
-		if i > 0 {
-			lines = append(lines, nil)
-		}
-		lines = append(lines, block...)
-	}
-	return lines
+	return blocks
 }
 
 // windowBlock shows a window cw cells wide: its label and how much of it is

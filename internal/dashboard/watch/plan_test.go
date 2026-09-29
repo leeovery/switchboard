@@ -1,0 +1,93 @@
+package watch
+
+import (
+	"testing"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/status"
+)
+
+func TestPlanAt(t *testing.T) {
+	p := plan{interval: interval, due: at(13, 42, 0), next: at(13, 12, 5), asked: at(13, 12, 0)}
+	full := Read{Refresh: interval, Probe: true}
+	tests := []struct {
+		name   string
+		now    time.Time
+		routed bool
+		want   Read
+		wantOK bool
+	}{
+		{name: "reading the router, before the next look", now: at(13, 12, 4), routed: true},
+		{name: "reading the router, a look once it's due", now: at(13, 12, 5), routed: true, want: Read{Probe: true}, wantOK: true},
+		{name: "reading the router, a refresh once it's due", now: at(13, 42, 0), routed: true, want: full, wantOK: true},
+		{name: "probing, in the minute the router was last asked after", now: at(13, 12, 59), routed: false},
+		{name: "probing, a question after the router in the next minute", now: at(13, 13, 0), routed: false, want: Read{Refresh: interval}, wantOK: true},
+		{name: "probing, a probe once it's due", now: at(13, 42, 0), routed: false, want: full, wantOK: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := p.at(tt.now, tt.routed)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("at() = %+v, %v; want %+v, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestPlanLanded(t *testing.T) {
+	now := at(13, 20, 0)
+	before := plan{interval: interval, due: at(13, 42, 0), next: at(13, 12, 5), asked: at(13, 12, 0), failures: 1}
+	unread := routerDocument(account("work", "Work", session(0.25, 3*time.Hour), week(0.5)), unreadable("side", "Side"))
+	tests := []struct {
+		name string
+		read Read
+		doc  status.Document
+		want plan
+	}{
+		{
+			name: "a look at the router's document",
+			read: Read{Probe: true},
+			doc:  routerDocument(three()...),
+			want: plan{interval: interval, due: at(13, 42, 0), next: now.Add(lookEvery), asked: now, failures: 1},
+		},
+		{
+			name: "the router refreshing",
+			read: Read{Refresh: interval, Probe: true},
+			doc:  routerDocument(three()...),
+			want: plan{interval: interval, due: now.Add(interval), next: now.Add(lookEvery), asked: now},
+		},
+		{
+			name: "the router refreshing, and failing to read an account",
+			read: Read{Refresh: interval},
+			doc:  unread,
+			want: plan{interval: interval, due: now.Add(2 * retryAfter), next: now.Add(lookEvery), asked: now, failures: 2},
+		},
+		{
+			name: "probing",
+			read: Read{Probe: true},
+			doc:  probedWithoutTheRouter(),
+			want: plan{interval: interval, due: now.Add(interval), next: at(13, 12, 5), asked: now},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := before.landed(tt.read, tt.doc, now); got != tt.want {
+				t.Errorf("landed() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlanFailedAndMissed(t *testing.T) {
+	now := at(13, 20, 0)
+	before := plan{interval: interval, due: at(13, 42, 0), next: at(13, 12, 5), asked: at(13, 12, 0)}
+
+	want := plan{interval: interval, due: now.Add(retryAfter), next: at(13, 12, 5), asked: now, failures: 1}
+	if got := before.failed(calm(), now); got != want {
+		t.Errorf("failed() = %+v, want %+v", got, want)
+	}
+	want = plan{interval: interval, due: at(13, 42, 0), next: at(13, 12, 5), asked: now}
+	if got := before.missed(now); got != want {
+		t.Errorf("missed() = %+v, want %+v: asked after the router, and nothing else", got, want)
+	}
+}

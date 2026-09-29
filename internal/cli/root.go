@@ -227,44 +227,33 @@ func (a *app) configFile() (string, error) {
 	return config.Path(a.Getenv, a.HomeDir)
 }
 
-// collect loads the config and probes every account in it.
-func (a *app) collect(ctx context.Context) (status.Document, error) {
-	source, err := a.source()
+// collect reads the status document status and usage print, from the source
+// that decides where it comes from, probing alone when probe says so.
+func (a *app) collect(ctx context.Context, probe bool) (status.Document, error) {
+	source, err := a.source(probe)
 	if err != nil {
 		return status.Document{}, err
 	}
-	return source.Fetch(ctx)
+	return source.Read(ctx, watch.Read{Probe: true})
 }
 
-// source loads the config and returns what probes every account in it. Every
-// command that reports usage reads it here, so they all read it the same way.
-func (a *app) source() (probeSource, error) {
+// source loads the config and returns where the status document is read:
+// the router, unless probe says to probe alone, else probing every account in
+// the config. Every command that reports usage reads it here, so they all
+// read it the same way.
+func (a *app) source(probe bool) (usageSource, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return probeSource{}, err
+		return usageSource{}, err
 	}
-	return probeSource{deps: a.Deps, upstream: cfg.Upstream, accounts: cfg.Accounts}, nil
-}
-
-// probeSource reads the status document by probing accounts.
-type probeSource struct {
-	deps     Deps
-	upstream string
-	accounts []config.Account
-}
-
-// Fetch probes every account, claiming the Claude Code version installed now:
-// a watch can outlive the one it started with. It never fails: an account that
-// can't be read says why in the document.
-func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
-	version := s.deps.ClaudeVersion()
-	collector := status.Collector{
-		Prober: &claude.Prober{Upstream: s.upstream, Version: version},
-		Policy: policy,
-		Getenv: s.deps.Getenv,
-		Now:    s.deps.Now,
+	source := usageSource{probe: probeSource{deps: a.Deps, upstream: cfg.Upstream, accounts: cfg.Accounts}, ask: !probe}
+	if source.ask {
+		// Without a state directory there's no socket to find the router at,
+		// which reads as a router that isn't running.
+		source.router, err = a.routerClient()
+		if err != nil {
+			logger.Debug("can't find the router", "error", err)
+		}
 	}
-	doc := collector.Collect(ctx, s.accounts)
-	logger.Debug("probed accounts", "accounts", len(doc.Accounts), "best", doc.Best, "claude_version", version)
-	return doc, nil
+	return source, nil
 }

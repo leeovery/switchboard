@@ -14,20 +14,27 @@ import (
 func newStatusCommand(a *app) *cobra.Command {
 	var (
 		asJSON  bool
+		probe   bool
 		session string
 	)
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show every account's usage and when it resets",
-		Long: `Show every account's usage and when it resets, read by probing each account.
+		Long: `Show every account's usage and when it resets: the router's, while it runs,
+with its sessions, its pin, the limits it has seen and its health; else read by
+probing each account, as --probe does whether the router runs or not. The last
+line says which.
 
 With --session, show the account the router sends a Claude Code session's
 requests to, as a statusline asks: that account alone, or with --json, the
 session's every model and why it went where it did. It needs the router
 running.`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("session") && session == "" {
+			switch {
+			case cmd.Flags().Changed("session") && session == "":
 				return errors.New("--session takes the id of a session")
+			case session != "" && probe:
+				return errors.New("--session asks the router, so it takes no --probe")
 			}
 			return cobra.NoArgs(cmd, args)
 		},
@@ -35,7 +42,7 @@ running.`,
 			if session != "" {
 				return a.sessionStatus(cmd.Context(), cmd.OutOrStdout(), session, asJSON)
 			}
-			doc, err := a.collect(cmd.Context())
+			doc, err := a.collect(cmd.Context(), probe)
 			if err != nil {
 				return err
 			}
@@ -47,6 +54,7 @@ running.`,
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print as JSON")
+	cmd.Flags().BoolVar(&probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().StringVar(&session, "session", "", "show the account the router sends session `ID`'s requests to")
 	return cmd
 }

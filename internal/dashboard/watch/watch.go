@@ -1,14 +1,18 @@
-// Package watch keeps the dashboard on screen. It reads the status document as
-// each read falls due, redraws as the clock moves, eases each bar to its new
-// reading, and posts a desktop notification when an account has room again or
-// a window passes 90%. Beyond its log, the model does no I/O of its own: it's
-// handed its source, its clock and its notifier, so tests drive it as a
-// terminal would.
+// Package watch keeps the dashboard on screen. While the router answers, it
+// reads the router's status document every few seconds, and takes keys that
+// tell the router where to send sessions, leaving desktop notifications to the
+// router. While it doesn't, it probes every account as each read falls due,
+// and posts its own notification when an account has room again or a window
+// passes 90%. It redraws as the clock moves, and eases each bar to its new
+// reading. Beyond its log, the model does no I/O of its own: it's handed its
+// source, its clock and its notifier, so tests drive it as a terminal would.
 package watch
 
 import (
 	"cmp"
 	"context"
+	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -25,9 +29,37 @@ import (
 // say what went wrong.
 var logger = logs.For("watch")
 
-// Source reads the status document the dashboard shows.
+// ErrNoRouter is what a read that doesn't probe fails with when the router
+// doesn't answer.
+var ErrNoRouter = errors.New("the router isn't answering")
+
+// Source is where the dashboard reads the status document: the router, while
+// it answers, else probing every account. It also tells the router where to
+// send sessions.
 type Source interface {
-	Fetch(ctx context.Context) (status.Document, error)
+	// Read reads the document as r asks.
+	Read(ctx context.Context, r Read) (status.Document, error)
+	// Pin has the router send every new session to the account with the
+	// given id, and with move, every running session too.
+	Pin(ctx context.Context, account string, move bool) error
+	// Unpin has the router route every session on its merits again.
+	Unpin(ctx context.Context) error
+}
+
+// A Read is what a read of the source asks for.
+type Read struct {
+	// Refresh, when the router answers, has it first probe the accounts it
+	// hasn't read for this long; zero takes its document as it stands.
+	Refresh time.Duration
+	// Probe, when the router doesn't answer, builds the document by probing
+	// every account instead. Without it, such a read fails with ErrNoRouter.
+	Probe bool
+}
+
+// full reports whether the read brings every account up to date: the router
+// refreshes those it hasn't read lately, or every account is probed.
+func (r Read) full() bool {
+	return r.Probe && r.Refresh > 0
 }
 
 // Notifier posts a desktop notification.
@@ -41,7 +73,8 @@ type Config struct {
 	Notifier Notifier
 	// Now reads the wall clock.
 	Now func() time.Time
-	// Interval is the longest the dashboard goes between reads.
+	// Interval is the longest the dashboard goes between full reads: ones
+	// that probe, or have the router refresh what it hasn't read lately.
 	Interval time.Duration
 	// Policy is the provider's say in which windows leave an account without
 	// room.
@@ -62,12 +95,8 @@ func (s Size) or(known Size) Size {
 	return Size{Width: cmp.Or(s.Width, known.Width), Height: cmp.Or(s.Height, known.Height)}
 }
 
-const (
-	// keys says what the keys do, at the end of the footer.
-	keys = "r refresh · q quit"
-	// topMargin is the blank lines above the frame.
-	topMargin = 1
-)
+// topMargin is the blank lines above the frame.
+const topMargin = 1
 
 // Model is a watch's state, as Bubble Tea runs it. Build one with New.
 type Model struct {
@@ -84,14 +113,25 @@ type Model struct {
 	doc status.Document
 	// updated is when doc arrived: zero until one has.
 	updated time.Time
-	// next is when the next read is due.
-	next     time.Time
-	fetching bool
+	// plan is when the next reads are due, and what they ask for.
+	plan plan
+	// fetching is set while a read is under way, and loud while the footer
+	// tells of it.
+	fetching, loud bool
+	// again asks for a look at the router's document as soon as the read
+	// under way lands.
+	again bool
 	// failed says why the last read failed, if it did.
 	failed string
-	// failures counts the reads that have failed in a row, in whole or in
-	// part.
-	failures int
+	// lost is when the router stopped answering, while the dashboard has
+	// probed since.
+	lost time.Time
+
+	// ordering is set while the router carries out an order a key gave.
+	ordering bool
+	// note says what the last key did, till noteUntil.
+	note      string
+	noteUntil time.Time
 
 	// chain numbers the live chain of ticks: a tick from an earlier one is
 	// dropped.
@@ -103,10 +143,11 @@ type Model struct {
 	readings readings
 }
 
-// fetchedMsg is what a read found.
+// fetchedMsg is what a read that asked for read found.
 type fetchedMsg struct {
-	doc status.Document
-	err error
+	read Read
+	doc  status.Document
+	err  error
 }
 
 // tickMsg wakes the model to redraw, and to read again once that's due.
@@ -120,7 +161,7 @@ type frameMsg struct{}
 // New returns a model that reads cfg's source at once, and whenever a read
 // falls due after, under ctx.
 func New(ctx context.Context, cfg Config) Model {
-	return Model{ctx: ctx, cfg: cfg, after: after, size: cfg.Size, fetching: true}
+	return Model{ctx: ctx, cfg: cfg, after: after, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true}
 }
 
 // after delivers msg once d has passed.
@@ -128,13 +169,14 @@ func after(d time.Duration, msg tea.Msg) tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 }
 
-// Init starts the first read and the ticks.
+// Init starts the first read, a full one, and the ticks.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.fetch(), m.armTick(m.now()))
+	return tea.Batch(m.fetch(m.plan.full()), m.armTick(m.now()))
 }
 
-// Update takes in a message: a key, a resize, a read, a tick or a frame. The
-// view is drawn again after each.
+// Update takes in a message: a key, a resize, a read, the router carrying
+// out an order, a tick or a frame. The view is drawn again after each, which
+// is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -143,6 +185,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.pressed(msg)
 	case fetchedMsg:
 		return m.fetched(msg)
+	case orderedMsg:
+		return m.ordered(msg)
 	case tickMsg:
 		return m.ticked(msg)
 	case frameMsg:
@@ -181,63 +225,58 @@ func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	return m, func() tea.Msg { return size }
 }
 
-// pressed acts on a key: r reads now, and q or ctrl+c quits.
-func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch key.String() {
-	case "r", "R":
-		logger.Debug("refresh key pressed", "already_reading", m.fetching)
-		return m.refresh()
-	case "q", "Q", "ctrl+c":
-		return m, tea.Quit
-	}
-	return m, nil
-}
-
-// refresh starts a read, unless one is under way.
-func (m Model) refresh() (Model, tea.Cmd) {
+// read reads the source as r asks, unless a read is under way.
+func (m Model) read(r Read) (Model, tea.Cmd) {
 	if m.fetching {
 		return m, nil
 	}
-	m.fetching = true
-	return m, m.fetch()
+	m.fetching, m.loud = true, r.full()
+	return m, m.fetch(r)
 }
 
-// fetch reads the source.
-func (m Model) fetch() tea.Cmd {
+// fetch reads the source as r asks.
+func (m Model) fetch(r Read) tea.Cmd {
 	ctx, source := m.ctx, m.cfg.Source
 	return func() tea.Msg {
-		doc, err := source.Fetch(ctx)
-		return fetchedMsg{doc: doc, err: err}
+		doc, err := source.Read(ctx, r)
+		return fetchedMsg{read: r, doc: doc, err: err}
 	}
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none. After a read that failed, in whole or in part, the next comes sooner
-// than the interval, backing off as the failures run on; either way, a window
-// on screen that resets brings it on.
+// none, and plans the next read by it. A question after the router that found
+// it gone changes nothing. Each read starts a new chain of ticks at the pace
+// it calls for, and lets a look at the router's document asked for while it
+// was under way go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
-	m.fetching = false
-	var wait time.Duration
-	m.failures, wait = backoff(m.failures, msg.err != nil || incomplete(msg.doc), m.cfg.Interval)
-	var cmd tea.Cmd
-	if msg.err != nil {
+	m.fetching, m.loud = false, false
+	var shown tea.Cmd
+	switch {
+	case errors.Is(msg.err, ErrNoRouter):
+		m.plan = m.plan.missed(now)
+	case msg.err != nil:
 		m.failed = msg.err.Error()
-	} else {
-		m, cmd = m.show(msg.doc, now)
+		m.plan = m.plan.failed(m.doc, now)
+		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
+	default:
+		m.plan = m.plan.landed(msg.read, msg.doc, now)
+		m, shown = m.show(msg.doc, now)
+		logRead(msg, m.plan.due)
 	}
-	m.next = nextFetch(m.doc, now, wait)
-	logRead(msg, m.next)
-	return m, cmd
+	m.chain++
+	var again tea.Cmd
+	if m.again {
+		m.again = false
+		m, again = m.reread()
+	}
+	return m, tea.Batch(shown, m.armTick(now), again)
 }
 
-// logRead notes a read: the accounts it read and those it couldn't, or why it
-// failed; and when the next is due.
+// logRead notes a read: where it came from, the accounts it read and those it
+// couldn't, and when the next full read is due. A look at the router's
+// document as it stands, every few seconds, is noted only at debug.
 func logRead(msg fetchedMsg, next time.Time) {
-	if msg.err != nil {
-		logger.Warn("usage read failed", "error", msg.err, "next", next)
-		return
-	}
 	var read, failed []string
 	for _, a := range msg.doc.Accounts {
 		if wasRead(a) {
@@ -246,20 +285,43 @@ func logRead(msg fetchedMsg, next time.Time) {
 			failed = append(failed, a.ID)
 		}
 	}
-	logger.Info("usage read", "read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
+	level := slog.LevelInfo
+	if routed(msg.doc) && msg.read.Refresh == 0 {
+		level = slog.LevelDebug
+	}
+	logger.Log(context.Background(), level, "usage read", "source", msg.doc.Source,
+		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
 // show puts doc, read at now, on screen: it posts what the change calls for,
-// eases the bars to it from where they stand, and starts a new chain of ticks
-// at its pace, as it may count seconds where the last didn't, or stop.
+// unless doc is the router's, as the router posts its own and nothing is to
+// be told twice; follows the router as it goes and comes back; and eases the
+// bars to doc from where they stand.
 func (m Model) show(doc status.Document, now time.Time) (Model, tea.Cmd) {
-	post := m.post(m.readings.alerts(doc, now, m.cfg.Policy))
+	var post tea.Cmd
+	if !routed(doc) {
+		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy))
+	}
 	m.readings = m.readings.with(doc, now)
+	m = m.follow(doc, now)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
-	m.chain++
 	m, frames := m.startFrames()
-	return m, tea.Batch(post, m.armTick(now), frames)
+	return m, tea.Batch(post, frames)
+}
+
+// follow notes where doc, read at now, came from, against where the document
+// on screen did: the router lost when it stops answering, and found again.
+func (m Model) follow(doc status.Document, now time.Time) Model {
+	switch was, is := m.routed(), routed(doc); {
+	case was && !is:
+		m.lost = now
+		logger.Warn("the router stopped answering; probing directly", "router", doc.Fallback.Router, "reason", doc.Fallback.Reason)
+	case !was && is:
+		m.lost = time.Time{}
+		logger.Info("reading the router")
+	}
+	return m
 }
 
 // shown is the document as it's drawn at now, its bars part way along their
@@ -275,19 +337,25 @@ func (m Model) ticked(msg tickMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	now := m.now()
-	var fetch tea.Cmd
-	if !now.Before(m.next) {
-		m, fetch = m.refresh()
+	var read tea.Cmd
+	if r, ok := m.plan.at(now, m.routed()); ok {
+		m, read = m.read(r)
 	}
-	return m, tea.Batch(fetch, m.armTick(now))
+	return m, tea.Batch(read, m.armTick(now))
 }
 
-// armTick arms the live chain's next tick. Ticks come at least every minute,
-// never as one long timer to the next read: a timer's clock stops while a Mac
-// sleeps, so one set for half an hour before the lid closes would fire half an
-// hour after it opens. Each tick reads the wall clock instead.
+// armTick arms the live chain's next tick: just past the next second while a
+// countdown shows seconds, else just past the next minute, or, reading the
+// router, just past the next look at its document when that comes sooner.
+// Ticks never come as one long timer to the next read: a timer's clock stops
+// while a Mac sleeps, so one set for half an hour before the lid closes would
+// fire half an hour after it opens. Each tick reads the wall clock instead.
 func (m Model) armTick(now time.Time) tea.Cmd {
-	return m.after(tickDelay(m.doc, now), tickMsg{chain: m.chain})
+	delay := tickDelay(m.doc, now)
+	if until := m.plan.next.Sub(now); m.routed() && until > 0 {
+		delay = min(delay, until+tickSlack)
+	}
+	return m.after(delay, tickMsg{chain: m.chain})
 }
 
 // startFrames starts drawing frames while the bars ease, unless none moves or
@@ -327,21 +395,45 @@ func (m Model) post(alerts []notify.Notice) tea.Cmd {
 	}
 }
 
-// footer says when the document was read and will be next, that a read is
-// under way, or why the last one failed; then what the keys do.
+// footer says since when the router hasn't answered, while the dashboard
+// probes for want of it; then what the last key did, while that's news, or
+// else how reading goes; and last what the keys do.
 func (m Model) footer(now time.Time) string {
-	var state string
-	switch {
-	case m.fetching && m.updated.IsZero():
-		state = "reading usage…"
-	case m.fetching:
-		state = "refreshing…"
-	case m.failed != "":
-		state = "couldn't read usage: " + m.failed + " · next " + hourMinute(now, m.next)
-	default:
-		state = "updated " + hourMinute(now, m.updated) + " · next " + hourMinute(now, m.next)
+	parts := []string{m.state(now), m.keys()}
+	if !m.lost.IsZero() {
+		parts = append([]string{"no router since " + hourMinute(now, m.lost)}, parts...)
 	}
-	return state + " · " + keys
+	return strings.Join(parts, " · ")
+}
+
+// state says what the last key did, while that's news; else that a read is
+// under way, why the last one failed, or when the document was read, and,
+// while it's probed, when it will be next.
+func (m Model) state(now time.Time) string {
+	switch {
+	case now.Before(m.noteUntil):
+		return m.note
+	case m.fetching && m.updated.IsZero():
+		return "reading usage…"
+	case m.fetching && m.loud:
+		return "refreshing…"
+	case m.failed != "":
+		return "couldn't read usage: " + m.failed + " · next " + hourMinute(now, m.plan.due)
+	case m.routed():
+		return "updated " + hourMinute(now, m.updated)
+	default:
+		return "updated " + hourMinute(now, m.updated) + " · next " + hourMinute(now, m.plan.due)
+	}
+}
+
+// routed reports whether the document on screen is the router's.
+func (m Model) routed() bool {
+	return routed(m.doc)
+}
+
+// routed reports whether doc is the router's.
+func routed(doc status.Document) bool {
+	return doc.Source == status.SourceRouter
 }
 
 // now reads the wall clock without its monotonic reading, which stops while a

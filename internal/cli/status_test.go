@@ -30,6 +30,7 @@ side · Side
   HTTP 401 · Invalid bearer token
 
 best next: work · Work
+probed directly: the router isn't running
 `,
 		code: 0,
 	}
@@ -44,6 +45,9 @@ func TestStatusJSON(t *testing.T) {
 		stdout: `{
   "generated_at": "2026-09-28T13:12:00Z",
   "source": "probe",
+  "fallback": {
+    "router": "not running"
+  },
   "best": "work",
   "accounts": [
     {

@@ -2,9 +2,11 @@ package router_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -45,6 +47,7 @@ func TestClientStatus(t *testing.T) {
 		Source:      "router",
 		Best:        "work",
 		Router:      status.Health{Healthy: true, Requests: 1},
+		Sessions:    1,
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
@@ -121,6 +124,68 @@ func TestPinTakesJSON(t *testing.T) {
 	want := `{"error":"give the account to pin as JSON, such as {\"account\": \"work\", \"move\": false}"}` + "\n"
 	if body := readAll(t, resp); resp.StatusCode != http.StatusBadRequest || resp.Header.Get("Content-Type") != "application/json" || body != want {
 		t.Errorf("POST /pin with a body that isn't JSON answered %d (%s) %s, want 400 (application/json) %s", resp.StatusCode, resp.Header.Get("Content-Type"), body, want)
+	}
+}
+
+func TestClientRefresh(t *testing.T) {
+	cfg := testConfig("http://127.0.0.1:1")
+	prober := readingEvery(session, week)
+	cfg.Prober = prober
+	client := router.NewClient(serveControl(t, newRouterFrom(t, cfg)))
+
+	got, err := client.Refresh(t.Context(), 30*time.Minute)
+	if err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	want := status.Document{
+		GeneratedAt: now,
+		Source:      "router",
+		Best:        "work",
+		Router:      status.Health{Healthy: true},
+		Accounts: []status.Account{
+			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
+			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},
+			{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Refresh() =\n%+v\nwant the document with what the probes read\n%+v", got, want)
+	}
+	if probed, want := prober.probed(), []string{sideToken, workToken}; !reflect.DeepEqual(probed, want) {
+		t.Errorf("probed %q, want %q", probed, want)
+	}
+}
+
+func TestRefreshTakesHowOldUsageCanBe(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{name: "not JSON", body: "30m", wantErr: `give how old usage can be as JSON, such as {"max_age": "30m"}`},
+		{name: "a number", body: `{"max_age": 30}`, wantErr: `give how old usage can be as JSON, such as {"max_age": "30m"}`},
+		{name: "without it", body: `{}`, wantErr: `give how old usage can be, such as {"max_age": "30m"}`},
+		{name: "not a duration", body: `{"max_age": "soon"}`, wantErr: `max_age "soon" isn't a duration, such as 30m`},
+		{name: "less than nothing", body: `{"max_age": "-5m"}`, wantErr: "max_age -5m is less than nothing"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := testConfig("http://127.0.0.1:1")
+			prober := &fakeProber{}
+			cfg.Prober = prober
+			rt := newRouterFrom(t, cfg)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/refresh", strings.NewReader(tt.body))
+			rec := httptest.NewRecorder()
+
+			rt.Control().ServeHTTP(rec, req)
+			want, _ := json.Marshal(map[string]string{"error": tt.wantErr})
+			if got := rec.Body.String(); rec.Code != http.StatusBadRequest || rec.Header().Get("Content-Type") != "application/json" || got != string(want)+"\n" {
+				t.Errorf("POST /refresh %s answered %d (%s) %s, want 400 (application/json) %s", tt.body, rec.Code, rec.Header().Get("Content-Type"), got, want)
+			}
+			if probed := prober.probed(); len(probed) > 0 {
+				t.Errorf("probed %q, want nothing", probed)
+			}
+		})
 	}
 }
 
@@ -203,6 +268,9 @@ func TestClientWithoutARouter(t *testing.T) {
 			}
 			if _, err := client.Unpin(t.Context()); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Unpin() error = %v, want ErrNotRunning", err)
+			}
+			if _, err := client.Refresh(t.Context(), time.Minute); !errors.Is(err, router.ErrNotRunning) {
+				t.Errorf("Refresh() error = %v, want ErrNotRunning", err)
 			}
 		})
 	}

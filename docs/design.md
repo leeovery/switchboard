@@ -1,9 +1,9 @@
 # Switchboard — design
 
-**Status:** the usage dashboard (one-off, and in watch mode with its desktop notifications),
-`status`, logging, the router, with its scheduler, pins, state, limit handling, health and
-desktop notifications, and launching (`run`, `init zsh` and the service) are built. The dashboard
-reading the router comes next.
+**Status:** everything in milestones 1 and 2 is built: the usage dashboard (one-off, and in watch
+mode) and `status`, which read the router while it runs and probe when it doesn't; logging; the
+router, with its scheduler, pins, state, limit handling, health and desktop notifications; and
+launching (`run`, `init zsh` and the service). Milestone 3 happens outside this repo.
 
 ## What it is
 
@@ -34,7 +34,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   a later reset is a new window; with the same reset the higher utilization stands, as use only
   rises within a window, so a slow response can't pull it back; an earlier reset is ignored.
 - An account with no recent traffic is refreshed with a 1-token probe, and only when a decision
-  needs fresh numbers.
+  needs fresh numbers, or a dashboard asks for them, once its interval.
 
 ## Prompt cache facts the design rests on
 
@@ -169,8 +169,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 | `serve` | Run the proxy in the foreground (normally started by the service) |
 | `service install [--env-file <path>]\|uninstall\|restart\|status` | Manage the LaunchAgent: see Launching |
 | `run [--account <id>] [--direct] [-- <claude args>]` | Start Claude Code connected to the router. Checks the router is healthy first and connects directly if not. `--direct` skips the router and the token, so Claude Code uses its own login |
-| `usage [-w]` | The dashboard; `-w` keeps it on screen |
-| `status [--session <id>] [--json]` | Accounts, windows, sessions, pins and router health. A statusline asks it for its session's account |
+| `usage [-w [interval]] [--probe]` | The dashboard; `-w` keeps it on screen. It reads the router while it runs; `--probe` probes instead |
+| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pins and router health, read as `usage` reads them. A statusline asks it for its session's account |
 | `pin <id> [--move]`, `pin auto` | Global pin |
 | `accounts` | List configured accounts and whether each token is present |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines, or follow it: see Logging |
@@ -178,14 +178,45 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 
 ## Dashboard
 
-- One card per account. Any number of accounts; the layout adapts to the terminal.
+- One card per account. Any number of accounts; the layout adapts to the terminal, down to a line
+  per account when the cards don't fit its width or height.
 - Bars with a pace marker (where even use across the window would put you) and a projection
   ("on pace for 92%", "runs out ~Fri 19:40").
 - For an exhausted account, a live countdown until it's back.
-- Which sessions are on each account, and the current global pin.
-- Desktop notification when an account comes back, or passes 90%.
-- Keys: `r` refresh, `1`–`9` pin, `a` auto, `q` quit.
-- Reads live state from the router. When the router isn't running, it probes directly.
+- Under the heading, where the usage came from, then `best next: …`: the router, how many
+  sessions it has and where it sends new ones (`router · 3 sessions · pinned to 2 · two`, or
+  `… · routing automatically`); `router unhealthy — <reason>`, in red; or, dim,
+  `probing directly (router not running)`. Probing as asked says nothing of the router.
+- The global pin's account carries a `● pinned` badge beside the best's `▲ best`, and cards are
+  wide enough for both, so pinning never reflows them. A limit the router saw an account reach
+  shows at the top of its card, `limit until Mon 21:00`, in red, while it holds, and the
+  account's sessions, `2 sessions`, at its foot. A line per account carries the pin's mark beside
+  the best's, and the sessions where there's room.
+- **Where it reads:** `usage` and `status` read the router's status document whenever the router
+  answers its health check within the half second `run` gives it, healthy or not: an unhealthy
+  router's trouble is for them to show, and it still posts the notifications. Otherwise they
+  probe every account, and the document's `fallback` says why the router's wasn't read:
+  `{"router": "not running"}`, or `{"router": "unhealthy", "reason": "…"}` when something
+  answered its socket, but not as a router does. `--probe` probes regardless, saying nothing of
+  the router.
+- **Watch mode** (`usage -w [interval]`: 30m unless given, 5m at the least). Reading the router,
+  it looks at the router's document every 5 seconds, which costs nothing upstream, and every
+  interval has the router `POST /refresh` with the interval as `max_age`, so idle accounts are
+  probed no more often than the watch asks: sooner, backing off, while an account can't be read.
+  Probing, it reads every interval, a minute after a window on screen resets, and sooner after a
+  failure, backing off from 2 minutes to the interval. When the router stops answering, the next
+  look probes instead, and the footer says since when there's been no router. Probing, it asks
+  after the router at each probe and once a minute between, and reads it again as soon as it
+  answers, so it never goes back and forth faster than that.
+- **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, or,
+  without it, every account is probed. `q` quit. While it reads the router, `1`–`9` pin new
+  sessions to the account in that place, as configured; `a` routes automatically again; `m`
+  moves running sessions to the pinned account, or says nothing's pinned. Each says in the
+  footer what it did, or why it couldn't, for a few seconds, and the router's document is read
+  again at once. The footer lists only the keys that work:
+  `r refresh · 1–3 pin · a auto · m move · q quit` reading the router, `r refresh · q quit`
+  probing.
+- Desktop notifications: see Notifications.
 - Built with Bubble Tea v2 and Lip Gloss v2.
 
 ## Health
@@ -198,7 +229,8 @@ fail over to. The upstream's own 429s and 5xx, passed through, don't count again
 unhealthy once it has failed 5 of them at least, and half at least: `GET /health` then answers
 `ok: false` with a `reason`, the status document's `router` object says the same, and the log
 notes the turn, and the turn back, at warn and info. `status` and the dashboard show trouble
-loudly. Whether it should also fall back automatically is an open question.
+loudly: they read an unhealthy router's document all the same, and say `router unhealthy —
+<reason>`. Whether it should also fall back automatically is an open question.
 
 ## Notifications
 
@@ -238,8 +270,8 @@ is logged at warn, and dropped too. The log names accounts by id alone. Notifica
 request up: the router queues what happens, and posts from a goroutine of its own. `warning` must
 be 0, or more than 0 and less than 1.
 
-The dashboard in watch mode posts its own, of an account's return and a window passing 90%,
-until it reads the router.
+The dashboard in watch mode posts its own, of an account's return and a window passing 90%, only
+while it probes: while it reads the router, it posts none, so nothing is told twice.
 
 ## Logging
 
@@ -286,7 +318,7 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token), which paths are routed, the session header |
 | `internal/score` | Pace, projection, eligibility, perishability and the best-account pick. Pure functions of a snapshot and a clock |
-| `internal/dashboard` | Rendering (Lip Gloss), and watch mode (Bubble Tea) with its desktop notifications |
+| `internal/dashboard` | Rendering (Lip Gloss), and watch mode (Bubble Tea): reading the router or probing, its keys, and its desktop notifications while it probes |
 | `internal/notify` | Posting desktop notifications, and the wording the router's and the dashboard's share |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, redaction, and reading logs back |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, the router's health, the events it emits and the notifications it posts, and the control API |
@@ -347,10 +379,10 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | Endpoint | Job |
 |---|---|
 | `GET /health` | Liveness, with `ok: false` and a `reason` while the router is unhealthy (see Health) |
-| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), and each account's `sessions`, those used in the last hour, and `limit` (`{windows, until}`) while one holds |
+| `GET /status` | Accounts, windows, sessions, pin, health: the same JSON `status --json` prints, with the router's `pin` (`{account, since, move}`), its health, `router` (`{healthy, requests, failures, reason}`), `sessions`, those used in the last hour, each counted once, and each account's `sessions` and `limit` (`{windows, until}`) while one holds |
 | `GET /sessions/{id}` | For statuslines: `{"session", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account"}`, the assignment used last first, and `account` its account's status; 404 for a session never seen |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false}`) or clear the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
-| `POST /refresh` | Probe accounts whose data is older than `{"max_age": "30m"}` |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, sharing the probes choices make and waiting a minute after one fails, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval |
 
 A request the API refuses is answered `{"error": "<why>"}`.
 
@@ -415,10 +447,11 @@ Still unseen: what a quota 429 and a burst 429 look like (needs a real limit), t
 paths (not exercised by a plain session), and what Claude Code's own `/usage` and `/status`
 report under the router.
 
-**1. Core.** Config and accounts, header parser, probe, scoring, `usage`, `status`. Useful on its
-own before the router exists.
+**1. Core — done.** Config and accounts, header parser, probe, scoring, `usage`, `status`. Useful
+on its own before the router exists.
 
-**2. Router.** `serve`, stickiness, replay, special handling, pins, `service`, `run`, `init`.
+**2. Router — done.** `serve`, stickiness, replay, special handling, pins, `service`, `run`,
+`init`, and the dashboard and `status` reading the router.
 
 **3. Launch.** Switch the shell over to it. That work happens outside this repo.
 

@@ -65,6 +65,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "invalid config for status", args: []string{"status", "--json", "--config", invalid}, wantUsage: false},
 		{name: "a session without an id", args: []string{"status", "--session", ""}, wantUsage: true},
 		{name: "a session's status without the router", args: []string{"status", "--session", "0b5c6f2e"}, wantUsage: false},
+		{name: "a session's status, probing", args: []string{"status", "--session", "0b5c6f2e", "--probe"}, wantUsage: true},
 		{name: "pin without an account", args: []string{"pin"}, wantUsage: true},
 		{name: "pin with two accounts", args: []string{"pin", "work", "side"}, wantUsage: true},
 		{name: "pin auto, moving sessions", args: []string{"pin", "auto", "--move"}, wantUsage: true},

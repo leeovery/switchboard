@@ -22,9 +22,10 @@ import (
 
 var logger = logs.For("launch")
 
-// askTimeout bounds each question run asks the router, so a router that's
-// stuck holds Claude Code up for a moment at most.
-const askTimeout = 500 * time.Millisecond
+// AskTimeout bounds each question run asks the router, so a router that's
+// stuck holds Claude Code up for a moment at most. What else asks whether the
+// router answers gives it as long.
+const AskTimeout = 500 * time.Millisecond
 
 // Router is the router, as run asks it how it is and which account it rates
 // best: *router.Client is one.
@@ -208,16 +209,16 @@ func (s routerState) String() string {
 	}
 }
 
-// health asks the router how it is, giving it askTimeout to answer.
+// health asks the router how it is, giving it AskTimeout to answer.
 func (r Route) health(ctx context.Context) routerState {
-	ctx, cancel := context.WithTimeout(ctx, askTimeout)
+	ctx, cancel := context.WithTimeout(ctx, AskTimeout)
 	defer cancel()
 	h, err := r.Router.Health(ctx)
 	switch {
 	case errors.Is(err, router.ErrNotRunning):
 		return routerState{name: notRunning}
 	case errors.Is(err, context.DeadlineExceeded):
-		return routerState{name: unhealthy, reason: "no answer within " + askTimeout.String()}
+		return routerState{name: unhealthy, reason: "no answer within " + AskTimeout.String()}
 	case err != nil:
 		return routerState{name: unhealthy, reason: err.Error()}
 	case !h.OK:
@@ -270,7 +271,7 @@ func (r Route) pinned() (choice, error) {
 // best is the account the router rates best, when it names one this process
 // has the token of.
 func (r Route) best(ctx context.Context) (choice, bool) {
-	ctx, cancel := context.WithTimeout(ctx, askTimeout)
+	ctx, cancel := context.WithTimeout(ctx, AskTimeout)
 	defer cancel()
 	doc, err := r.Router.Status(ctx)
 	if err != nil {
