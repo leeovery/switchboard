@@ -47,6 +47,14 @@ func layouts() []layout {
 		{name: "errors-compact", doc: mixed, opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "unknown-reset", doc: unknownReset(), opts: dashboard.Options{Width: 80}},
 		{name: "long-labels", doc: longLabels(), opts: dashboard.Options{Width: 120}},
+		{name: "router-pinned", doc: routed(), opts: dashboard.Options{Width: 150}},
+		{name: "router-pinned-elsewhere", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 100}},
+		{name: "router-automatic", doc: routedAutomatically(), opts: dashboard.Options{Width: 150}},
+		{name: "router-unhealthy", doc: routerUnhealthy(), opts: dashboard.Options{Width: 150}},
+		{name: "router-compact", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 100, Height: 10}},
+		{name: "router-compact-narrow", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 72, Height: 10}},
+		{name: "router-not-running", doc: probedWithoutTheRouter(), opts: dashboard.Options{Width: 100}},
+		{name: "router-not-answering", doc: probedPastAStuckRouter(), opts: dashboard.Options{Width: 100}},
 	}
 }
 
@@ -186,6 +194,53 @@ func TestRenderCleansText(t *testing.T) {
 		if !strings.Contains(frame, want) {
 			t.Errorf("Render() =\n%s\nwant it to contain %q", frame, want)
 		}
+	}
+}
+
+func TestRenderCleansWhatTheRouterSays(t *testing.T) {
+	for _, doc := range []status.Document{
+		{
+			Source:   status.SourceRouter,
+			Router:   status.Health{Healthy: true},
+			Pin:      status.Pin{Account: "work"},
+			Accounts: []status.Account{{ID: "work", Label: "Work\x1b[31m\tteam\n", TokenSet: true}},
+		},
+		{
+			Source:   status.SourceRouter,
+			Router:   status.Health{Reason: "7 of\x1b[31m the 9\r\nfailed"},
+			Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+		},
+		{
+			Source:   status.SourceProbe,
+			Fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "the router answered\x07\n404"},
+			Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+		},
+	} {
+		frame := dashboard.Render(doc, now, dashboard.Options{Width: 150})
+		if strings.ContainsAny(frame, "\x1b\t\r\a") {
+			t.Errorf("Render() = %q, want no control characters from the document", frame)
+		}
+	}
+}
+
+func TestRenderShowsALimitWhileItHolds(t *testing.T) {
+	tests := []struct {
+		name  string
+		until time.Time
+		want  bool
+	}{
+		{name: "holding", until: now.Add(time.Minute), want: true},
+		{name: "lifted", until: now, want: false},
+		{name: "none", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := routed()
+			doc.Accounts[2].Limit.Until = tt.until
+			if shown := strings.Contains(dashboard.Render(doc, now, dashboard.Options{Width: 150}), "limit until"); shown != tt.want {
+				t.Errorf("limit shown = %v, want %v", shown, tt.want)
+			}
+		})
 	}
 }
 
@@ -399,6 +454,56 @@ func unknownReset() status.Document {
 			window("burst", "burst", 0.62, 42*time.Minute),
 		)),
 	)
+}
+
+// routed is the router's document of threeAccounts: a session on work and
+// two on personal, the best, which the router pins new sessions to, and side
+// held back by the limit it reached until its session resets.
+func routed() status.Document {
+	doc := threeAccounts()
+	doc.Source = status.SourceRouter
+	doc.Router = status.Health{Healthy: true, Requests: 42}
+	doc.Pin = status.Pin{Account: "2", Since: now.Add(-hour).UTC()}
+	doc.Sessions = 3
+	doc.Accounts[0].Sessions = 1
+	doc.Accounts[1].Sessions = 2
+	doc.Accounts[2].Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(hour + 20*time.Minute).UTC()}
+	return doc
+}
+
+// pinnedElsewhere is routed, pinned to work rather than the best.
+func pinnedElsewhere() status.Document {
+	doc := routed()
+	doc.Pin.Account = "1"
+	return doc
+}
+
+// routedAutomatically is routed without a pin.
+func routedAutomatically() status.Document {
+	doc := routed()
+	doc.Pin = status.Pin{}
+	return doc
+}
+
+// routerUnhealthy is routed by a router failing most of what it routes.
+func routerUnhealthy() status.Document {
+	doc := routed()
+	doc.Router = status.Health{Requests: 9, Failures: 7, Reason: "7 of the 9 requests in the last 5 minutes failed"}
+	return doc
+}
+
+// probedWithoutTheRouter is threeAccounts, probed as the router isn't running.
+func probedWithoutTheRouter() status.Document {
+	doc := threeAccounts()
+	doc.Fallback = status.Fallback{Router: status.RouterNotRunning}
+	return doc
+}
+
+// probedPastAStuckRouter is threeAccounts, probed as the router didn't answer.
+func probedPastAStuckRouter() status.Document {
+	doc := threeAccounts()
+	doc.Fallback = status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"}
+	return doc
 }
 
 // longLabels has an account and a window whose labels are too long to show whole.

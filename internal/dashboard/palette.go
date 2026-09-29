@@ -22,6 +22,7 @@ var (
 	yellow      = lipgloss.Color("#EBCB8B")
 	orange      = lipgloss.Color("#D08770")
 	red         = lipgloss.Color("#BF616A")
+	purple      = lipgloss.Color("#B48EAD")
 )
 
 // ink is how a span is drawn: its colour, and whether it's bold. The zero ink
@@ -40,6 +41,8 @@ var (
 	bestBorderInk = ink{color: accentColor}
 	titleInk      = ink{color: brightColor, bold: true}
 	badgeInk      = ink{color: accentColor, bold: true}
+	pinInk        = ink{color: purple}
+	pinBadgeInk   = ink{color: purple, bold: true}
 	trackInk      = ink{color: borderColor}
 	markerInk     = ink{color: brightColor}
 	offlineInk    = ink{color: yellow}
