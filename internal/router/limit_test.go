@@ -40,7 +40,7 @@ func TestAnOverallRejectionBarsItsAccountUntilItsReset(t *testing.T) {
 	checkLimit(t, r.rt, "work", status.Limit{})
 }
 
-func TestRejectedWindowsBarTheAccountTheirWindowsReadAsHavingRoom(t *testing.T) {
+func TestARejectionReadBelowTheUseLastReadBarsItsAccount(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t)
 	// Work's session reads as nearly spent, and its quota needs using first.
@@ -49,7 +49,7 @@ func TestRejectedWindowsBarTheAccountTheirWindowsReadAsHavingRoom(t *testing.T) 
 	r.readsAs(workToken, nearlySpent, weekOf(0.5, 24*time.Hour))
 	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
 	// The 429 rejecting it reads it a little lower, as an answer to a request
-	// sent earlier can, so the higher reading, with room, stands.
+	// sent earlier can: the higher use stands, and so does the rejection.
 	rejected := nearlySpent
 	rejected.Utilization, rejected.Status = 0.98, quota.StatusRejected
 	r.api.script(workToken, limitReached("You've hit your limit", rejected))
@@ -57,8 +57,10 @@ func TestRejectedWindowsBarTheAccountTheirWindowsReadAsHavingRoom(t *testing.T) 
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 	}
-	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(work.Windows[0], nearlySpent) {
-		t.Fatalf("work's session reads %+v, want %+v: the reading with room stands", work.Windows[0], nearlySpent)
+	spent := nearlySpent
+	spent.Status = quota.StatusRejected
+	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(work.Windows[0], spent) {
+		t.Fatalf("work's session reads %+v, want %+v: its higher use, rejected", work.Windows[0], spent)
 	}
 	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt})
 	r.clock.advance(time.Minute)

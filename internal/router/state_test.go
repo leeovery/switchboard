@@ -21,6 +21,10 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 	busier := sessionAt(0.31, session.ResetsAt)
 	busierWarned := busier
 	busierWarned.Status = quota.StatusAllowedWarning
+	busierRejected := busier
+	busierRejected.Status = quota.StatusRejected
+	rejected := session
+	rejected.Status = quota.StatusRejected
 	nextFive := sessionAt(0.01, session.ResetsAt.Add(5*time.Hour))
 	lastFive := sessionAt(0.9, session.ResetsAt.Add(-5*time.Hour))
 	unsure, unsureLower := sessionAt(0.5, time.Time{}), sessionAt(0.2, time.Time{})
@@ -51,6 +55,24 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 		{
 			name:     "the same reset and use takes the latest reading",
 			held:     busier,
+			incoming: busierWarned,
+			want:     reading{Window: busierWarned, at: later},
+		},
+		{
+			name:     "the same reset read before with a rejection, arriving late, leaves the higher use, rejected",
+			held:     busierWarned,
+			incoming: rejected,
+			want:     reading{Window: busierRejected, at: later},
+		},
+		{
+			name:     "a rejection stands against the same reset read with room before it",
+			held:     busierRejected,
+			incoming: session,
+			want:     reading{Window: busierRejected, at: later},
+		},
+		{
+			name:     "a rejection gives way to the same reset read as high since",
+			held:     busierRejected,
 			incoming: busierWarned,
 			want:     reading{Window: busierWarned, at: later},
 		},
@@ -91,6 +113,32 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 				t.Errorf("5h reads %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAReadingFromBeforeALimitNeverLiftsIt(t *testing.T) {
+	sessionAt := func(utilization float64, status quota.Status) quota.Window {
+		w := session
+		w.Utilization, w.Status = utilization, status
+		return w
+	}
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.record("work", []quota.Window{sessionAt(0.97, quota.StatusAllowedWarning), week}, fromResponse)
+	// A 429 reads the session a little lower than it stands, as an answer to
+	// a request sent earlier can, and rejects it; then an answer to one sent
+	// earlier still reads it with room.
+	clock.now = start.Add(time.Second)
+	s.record("work", []quota.Window{sessionAt(0.96, quota.StatusRejected)}, fromResponse)
+	s.limit("work", []string{"5h"}, session.ResetsAt)
+	clock.now = start.Add(2 * time.Second)
+	s.record("work", []quota.Window{sessionAt(0.965, quota.StatusAllowed)}, fromResponse)
+
+	if s.view(opus, clock.now).room("work") {
+		t.Error("work has room, want its limit to hold: the reading with room is from before it")
+	}
+	if got, want := s.usage["work"].windows["5h"].Window, sessionAt(0.97, quota.StatusRejected); got != want {
+		t.Errorf("work's session reads %+v, want %+v: its highest use, rejected", got, want)
 	}
 }
 

@@ -276,10 +276,10 @@ func (s *state) counting(model string) func(key string) bool {
 }
 
 // take takes in windows read at a time, each merged with the reading of its
-// key before it, and lifts the account's limit when they show it lifted.
-// Windows that are all stale leave the account as it was.
+// key before it, and lifts the account's limit when the windows merged show
+// it lifted. Windows that are all stale leave the account as it was.
 func (u *usage) take(windows []quota.Window, from origin, at time.Time) {
-	var read []quota.Window
+	var merged []quota.Window
 	for _, w := range windows {
 		kept, current := u.windows[w.Key].merge(w, at)
 		if !current {
@@ -287,13 +287,13 @@ func (u *usage) take(windows []quota.Window, from origin, at time.Time) {
 		}
 		u.windows[w.Key] = kept
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
-		read = append(read, w)
+		merged = append(merged, kept.Window)
 	}
-	if len(read) == 0 {
+	if len(merged) == 0 {
 		return
 	}
 	u.updated, u.from, u.probeErr = at, from, ""
-	if u.limited.liftedBy(read, at) {
+	if u.limited.liftedBy(merged, at) {
 		u.limited = limit{}
 	}
 }
@@ -301,9 +301,11 @@ func (u *usage) take(windows []quota.Window, from origin, at time.Time) {
 // merge returns what to keep of a window, given r and a reading w of it at a
 // time, and reports whether w is current. A later reset is a new window,
 // however little used. The same reset is the same window, whose use only
-// rises, so the higher reading stands, as of w's time: a slow response
-// reporting it late can't pull it back. An earlier reset is a window that's
-// gone, and w is stale. Without a reset to go by, the newest reading stands.
+// rises, so a reading as high stands, and a lower one is from before r: it
+// leaves r's higher use, as of w's time, so a slow response reporting it late
+// can't pull it back, and it can't lift a rejection either reading holds. An
+// earlier reset is a window that's gone, and w is stale. Without a reset to go
+// by, the newest reading stands.
 func (r reading) merge(w quota.Window, at time.Time) (reading, bool) {
 	switch {
 	case w.ResetsAt.IsZero() || w.ResetsAt.After(r.ResetsAt):
@@ -311,7 +313,11 @@ func (r reading) merge(w quota.Window, at time.Time) (reading, bool) {
 	case w.ResetsAt.Before(r.ResetsAt):
 		return r, false
 	case w.Utilization < r.Utilization:
-		return reading{Window: r.Window, at: at}, true
+		kept := r.Window
+		if w.Status == quota.StatusRejected {
+			kept.Status = w.Status
+		}
+		return reading{Window: kept, at: at}, true
 	default:
 		return reading{Window: w, at: at}, true
 	}
