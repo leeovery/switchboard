@@ -63,7 +63,7 @@ switchboard serve).`,
 			return a.pin(cmd.Context(), cmd.OutOrStdout(), args, opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.move, "move", false, "move running sessions to the accounts too, each on its next request")
+	cmd.Flags().BoolVar(&opts.move, "move", false, "move running sessions on other accounts to them too, each on its next request")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "clear every session's own pin too, the one run --account gave it included")
 	cmd.Flags().StringVar(&opts.session, "session", "", "pin session `ID` alone, by as much of its id as is unique")
 	return cmd

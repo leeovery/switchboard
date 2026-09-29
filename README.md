@@ -199,7 +199,7 @@ switchboard pin <account>|auto --session <id>
 
 A session's own pin beats the global one. Every pin yields at a limit: a pinned session that hits one moves by the usual rules rather than failing. A pin spends the reserves of the accounts it names, and no other's (see [The primary and its reserve](#the-primary-and-its-reserve)).
 
-Pinning several accounts sets an order to use them up in: with `pin work side`, `work` and `side` take the new sessions, the better of the two first, until both are out, and only then does anything go to the rest. Say two accounts have a weekly reset banked on claude.ai and a third hasn't: pin the two, let them run out, and reset them by hand. The router sees a reset the next time it reads the account: before a choice it makes afresh, once its reading is 15 minutes old, or at once with `switchboard usage -r`, or `r` on the dashboard.
+Pinning several accounts sets an order to use them up in: with `pin work side`, `work` and `side` take the new sessions, the better of the two first, until both are out, and only then does anything go to the rest. Say two accounts have a weekly reset banked on claude.ai and a third hasn't: pin the two, let them run out, and reset them by hand. The router sees a reset the next time it reads the account: before a choice it makes afresh once its reading is 15 minutes old, or at once with `switchboard usage -r`, or `r` on the dashboard.
 
 Name a session by its id, or as much of it as is unique among the sessions routed in the last hour: `switchboard status` lists them, Claude Code's `/status` shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it.
 
