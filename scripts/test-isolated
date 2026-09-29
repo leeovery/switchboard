@@ -4,8 +4,9 @@
 # scripts/isolation.sb: no network beyond this machine, no unix socket outside
 # the temporary directory, nothing on the router's port, no writes into the
 # home directory but Go's caches, nor into switchboard's real config and
-# state wherever they are, and none of the real programs tests must never
-# run. Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
+# state, or Claude Code's config directory, wherever they are, and none of the
+# real programs tests must never run. Arguments go on to go test, as in:
+# scripts/test-isolated -run TestStatus
 #
 # The variables that can hold real tokens, or lead to the real tmux server or
 # a proxy, are unset before anything runs. Each run first proves the sandbox
@@ -57,7 +58,8 @@ resolved() {
 }
 
 # absolute prints path when it's absolute, else fallback: switchboard ignores
-# a relative XDG directory, and a relative config file leads wherever it runs.
+# a relative XDG directory, and a relative config file, or Claude Code config
+# directory, leads wherever the program reading it runs.
 absolute() {
 	case $1 in
 	/*) printf '%s\n' "$1" ;;
@@ -65,11 +67,13 @@ absolute() {
 	esac
 }
 
-# switchboard's real config and state, where it finds them: read before
-# scrub unsets SWITCHBOARD_CONFIG.
+# switchboard's real config and state, where it finds them, and Claude Code's
+# config directory, where it reads switchboard's skill: read before scrub
+# unsets SWITCHBOARD_CONFIG and CLAUDE_CONFIG_DIR.
 config_dir=$(resolved "$(absolute "${XDG_CONFIG_HOME-}" "$HOME/.config")/switchboard")
 state_dir=$(resolved "$(absolute "${XDG_STATE_HOME-}" "$HOME/.local/state")/switchboard")
 config=$(resolved "$(absolute "${SWITCHBOARD_CONFIG-}" "$config_dir/config.toml")")
+claude_dir=$(resolved "$(absolute "${CLAUDE_CONFIG_DIR-}" "$HOME/.claude")")
 
 scrub
 
@@ -96,7 +100,7 @@ gomodcache=$(resolved "$(go env GOMODCACHE)")
 sandboxed() {
 	"$sandbox_exec" -f "$repo/scripts/isolation.sb" \
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
-		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" "$@"
+		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" -D CLAUDE_DIR="$claude_dir" "$@"
 }
 
 # denied runs a command in the sandbox, which must fail it with the refusal
@@ -240,6 +244,7 @@ self_check() {
 	denies_writing_in "home directory" "$home" || status=1
 	denies_writing_in "real config directory" "$config_dir" || status=1
 	denies_writing_in "real state directory" "$state_dir" || status=1
+	denies_writing_in "real Claude Code config directory" "$claude_dir" || status=1
 	denies_writing_to "$config" || status=1
 	denies_running claude --version || status=1
 	denies_running osascript -e 'return 1' || status=1

@@ -217,6 +217,114 @@ func TestChangesToTheRealLaunchAgentThroughALink(t *testing.T) {
 	}
 }
 
+func TestChangesToTheRealSkill(t *testing.T) {
+	skill := filepath.Join(claudeDir, skillDir, "SKILL.md")
+	other := filepath.Join(claudeDir, "skills", "other", "SKILL.md")
+	tests := []struct {
+		name string
+		// files are what the home holds before, by path from it.
+		files []string
+		// change changes the home at home.
+		change func(t *testing.T, home string)
+		want   []string
+	}{
+		{
+			name:   "nothing",
+			files:  []string{skill, other},
+			change: func(*testing.T, string) {},
+		},
+		{
+			name:  "installed where there was none",
+			files: []string{other},
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, skill), "---\nname: switchboard\n---\n")
+			},
+			want: []string{"the real ~/.claude/skills/switchboard was created", "the real ~/.claude/skills/switchboard/SKILL.md was created"},
+		},
+		{
+			name:  "rewritten",
+			files: []string{skill},
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, skill), "---\nname: switchboard\ndescription: rewritten\n---\n")
+			},
+			want: []string{"the real ~/.claude/skills/switchboard/SKILL.md was modified"},
+		},
+		{
+			name:  "removed",
+			files: []string{skill},
+			change: func(t *testing.T, home string) {
+				if err := os.Remove(filepath.Join(home, skill)); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: []string{"the real ~/.claude/skills/switchboard was modified", "the real ~/.claude/skills/switchboard/SKILL.md was removed"},
+		},
+		{
+			name:  "Claude Code's own files and other skills",
+			files: []string{skill, other},
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, other), "---\nname: other\ndescription: rewritten\n---\n")
+				write(t, filepath.Join(home, claudeDir, "skills", "new", "SKILL.md"), "---\nname: new\n---\n")
+				write(t, filepath.Join(home, claudeDir, "settings.json"), "{}\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			for _, file := range tt.files {
+				write(t, filepath.Join(home, file), "---\nname: before\n---\n")
+			}
+			backdate(t, home)
+			watched := watchReal(home, noEnv)
+
+			tt.change(t, home)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChangesToTheRealSkillThroughLinks(t *testing.T) {
+	tests := []struct {
+		name string
+		// link links what's kept in dotfiles into home.
+		link func(t *testing.T, home, dotfiles string)
+	}{
+		{
+			name: "Claude Code's config directory linked in",
+			link: func(t *testing.T, home, dotfiles string) {
+				symlink(t, filepath.Join(dotfiles, "claude"), filepath.Join(home, claudeDir))
+			},
+		},
+		{
+			name: "the skills linked in",
+			link: func(t *testing.T, home, dotfiles string) {
+				symlink(t, filepath.Join(dotfiles, "claude", "skills"), filepath.Join(home, claudeDir, "skills"))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home, dotfiles := t.TempDir(), t.TempDir()
+			skill := filepath.Join(dotfiles, "claude", skillDir, "SKILL.md")
+			write(t, skill, "---\nname: switchboard\n---\n")
+			tt.link(t, home, dotfiles)
+			backdate(t, dotfiles)
+			watched := watchReal(home, noEnv)
+
+			write(t, skill, "---\nname: switchboard\ndescription: rewritten\n---\n")
+
+			want := []string{"the real ~/.claude/skills/switchboard/SKILL.md was modified"}
+			if got := watched.changes(); !slices.Equal(got, want) {
+				t.Errorf("changes() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestTheRealStateDirectoryAppearing(t *testing.T) {
 	tests := []struct {
 		name string
@@ -277,7 +385,7 @@ func TestNoHomeWatchesNothing(t *testing.T) {
 	}
 }
 
-func TestChangesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
+func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 	tests := []struct {
 		name string
 		// before lays out elsewhere, where the environment puts the config
@@ -321,6 +429,23 @@ func TestChangesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
 				write(t, filepath.Join(elsewhere, "state", "switchboard", "logs", "router.log"), "level=INFO msg=routed\nlevel=INFO msg=routed\n")
 			},
 		},
+		{
+			name: "the skill installed where CLAUDE_CONFIG_DIR puts it",
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "claude", skillDir, "SKILL.md"), "---\nname: switchboard\n---\n")
+			},
+			want: []string{"the real %[1]s/claude/skills/switchboard was created", "the real %[1]s/claude/skills/switchboard/SKILL.md was created"},
+		},
+		{
+			name: "the skill rewritten there",
+			before: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "claude", skillDir, "SKILL.md"), "before\n")
+			},
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "claude", skillDir, "SKILL.md"), "after, and longer\n")
+			},
+			want: []string{"the real %[1]s/claude/skills/switchboard/SKILL.md was modified"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -333,6 +458,7 @@ func TestChangesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
 				"SWITCHBOARD_CONFIG": filepath.Join(elsewhere, "work.toml"),
 				"XDG_CONFIG_HOME":    filepath.Join(elsewhere, "config"),
 				"XDG_STATE_HOME":     filepath.Join(elsewhere, "state"),
+				"CLAUDE_CONFIG_DIR":  filepath.Join(elsewhere, "claude"),
 			}
 			watched := watchReal(t.TempDir(), func(key string) string { return env[key] })
 
@@ -349,31 +475,44 @@ func TestChangesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
 	}
 }
 
-func TestTheConfigIsWatchedWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
-	dotfiles := t.TempDir()
-	config := filepath.Join(dotfiles, "work.toml")
-	write(t, config, "before\n")
-	link := filepath.Join(t.TempDir(), "work.toml")
-	symlink(t, config, link)
-	backdate(t, dotfiles)
-	watched := watchReal("", func(key string) string { return map[string]string{"SWITCHBOARD_CONFIG": link}[key] })
-
-	// The link moved to lead elsewhere, and the config it led to changed.
-	if err := os.Remove(link); err != nil {
-		t.Fatal(err)
+func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
+	tests := []struct {
+		name string
+		// variable names the link, and file is what's watched in what the
+		// link leads to, "" for that itself.
+		variable, file string
+	}{
+		{name: "the config", variable: "SWITCHBOARD_CONFIG"},
+		{name: "the skill", variable: "CLAUDE_CONFIG_DIR", file: filepath.Join(skillDir, "SKILL.md")},
 	}
-	symlink(t, filepath.Join(t.TempDir(), "other.toml"), link)
-	write(t, config, "after, and longer\n")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dotfiles := t.TempDir()
+			kept := filepath.Join(dotfiles, "kept")
+			write(t, filepath.Join(kept, tt.file), "before\n")
+			link := filepath.Join(t.TempDir(), "link")
+			symlink(t, kept, link)
+			backdate(t, dotfiles)
+			watched := watchReal("", func(key string) string { return map[string]string{tt.variable: link}[key] })
 
-	if got, want := watched.changes(), []string{"the real " + link + " was modified"}; !slices.Equal(got, want) {
-		t.Errorf("changes() = %q, want %q", got, want)
+			// The link moved to lead elsewhere, and what it led to changed.
+			if err := os.Remove(link); err != nil {
+				t.Fatal(err)
+			}
+			symlink(t, filepath.Join(t.TempDir(), "other"), link)
+			write(t, filepath.Join(kept, tt.file), "after, and longer\n")
+
+			if got, want := watched.changes(), []string{"the real " + filepath.Join(link, tt.file) + " was modified"}; !slices.Equal(got, want) {
+				t.Errorf("changes() = %q, want %q", got, want)
+			}
+		})
 	}
 }
 
 func TestRelativePlacesAreNoneTestguardCanKnow(t *testing.T) {
-	env := map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "XDG_CONFIG_HOME": "config", "XDG_STATE_HOME": "state"}
+	env := map[string]string{"SWITCHBOARD_CONFIG": "work.toml", "XDG_CONFIG_HOME": "config", "XDG_STATE_HOME": "state", "CLAUDE_CONFIG_DIR": "claude"}
 	if got := watchReal("", func(key string) string { return env[key] }); len(got) > 0 {
-		t.Errorf("watchReal() watches %d places, want none: a relative one leads wherever switchboard runs", len(got))
+		t.Errorf("watchReal() watches %d places, want none: a relative one leads wherever the program reading it runs", len(got))
 	}
 }
 
