@@ -1,6 +1,5 @@
 // Package launch starts Claude Code through switchboard: run, which hands
-// this process over to Claude Code, pointed at the router while it's healthy,
-// and the shell integration that has the shell start claude through run.
+// this process over to Claude Code, pointed at the router while it's healthy.
 package launch
 
 import (
@@ -35,13 +34,15 @@ type Router interface {
 // Launcher starts Claude Code in this process's place.
 type Launcher struct {
 	// Environ is the environment Claude Code starts from, as os.Environ
-	// gives it.
+	// gives it, and whose PATH it's looked for on.
 	Environ []string
-	// LookPath finds a program on PATH, as exec.LookPath does.
-	LookPath func(file string) (string, error)
 	// InstallPaths are where Claude Code's installers put it, tried in order
 	// when it isn't on PATH.
 	InstallPaths []string
+	// Executable returns the path of this switchboard binary, as
+	// os.Executable does: a claude that leads to it is switchboard's link,
+	// never Claude Code.
+	Executable func() (string, error)
 	// Exec replaces this process with the program at path, as Exec does.
 	Exec func(path string, argv, env []string) error
 	// Stderr hears why, when Claude Code starts without the router, or
@@ -109,6 +110,20 @@ func (l Launcher) Direct(args []string) error {
 	return l.exec(path, args, environ(l.Environ).without(claude.TokenEnv, claude.BaseURLEnv).pinnedTo(""))
 }
 
+// Local starts Claude Code with args, which run one of its local
+// subcommands, as claude.IsLocal says, in this process's place as if
+// switchboard weren't there: switchboard has no part in them. Its environment
+// goes as it is, a pin inherited from a session included, and Stderr hears
+// nothing. It returns only when Claude Code couldn't start.
+func (l Launcher) Local(args []string) error {
+	path, err := l.find()
+	if err != nil {
+		return err
+	}
+	logger.Debug("starting claude", "mode", "local", "claude", path)
+	return l.exec(path, args, l.Environ)
+}
+
 // Unaided starts Claude Code with args in this process's place as if
 // switchboard weren't there, its environment as it is, for when switchboard
 // can't take part: switchboard mustn't stand between the user and claude.
@@ -161,9 +176,10 @@ func (l Launcher) exec(path string, args []string, env environ) error {
 	return nil
 }
 
-// find returns where Claude Code is, as claude.Find finds it.
+// find returns where Claude Code is, as claude.Find finds it on the PATH it
+// starts with.
 func (l Launcher) find() (string, error) {
-	return claude.Find(l.LookPath, l.InstallPaths)
+	return claude.Find(environ(l.Environ).get("PATH"), l.InstallPaths, l.Executable)
 }
 
 // How the router can answer its health check, as the log names it.
