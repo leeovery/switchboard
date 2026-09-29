@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 func TestClientHealth(t *testing.T) {
@@ -82,16 +83,47 @@ func TestClientPin(t *testing.T) {
 
 func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 	tests := []struct {
+		name string
+		// tokens are what the accounts' token files hold, work's and side's
+		// tokens unless given.
+		tokens  tokenstest.Files
 		account string
 		wantErr string
 	}{
-		{account: "nope", wantErr: `there's no account "nope": pin work or side`},
-		{account: "personal", wantErr: "account personal has no usable token, so nothing can go out on it: " + personalMissing},
-		{account: "", wantErr: `give the account to pin, such as {"account": "work"}`},
+		{
+			name:    "an account there's none of",
+			account: "nope",
+			wantErr: `there's no account "nope": pin work or side`,
+		},
+		{
+			name:    "an account there's none of, with no account to pin",
+			tokens:  tokenstest.Files{},
+			account: "nope",
+			wantErr: `there's no account "nope", and no account has a usable token to pin`,
+		},
+		{
+			name:    "an account without a usable token",
+			account: "personal",
+			wantErr: "account personal has no usable token, so nothing can go out on it: " + personalMissing,
+		},
+		{
+			name:    "an account without a usable token, with no account to pin",
+			tokens:  tokenstest.Files{},
+			account: "work",
+			wantErr: "account work has no usable token, so nothing can go out on it: " + tokenstest.Missing("work").Error(),
+		},
+		{
+			name:    "no account",
+			wantErr: `give the account to pin, such as {"account": "work"}`,
+		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.account, func(t *testing.T) {
-			rt := newRouter(t, "http://127.0.0.1:1")
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := testConfig("http://127.0.0.1:1")
+			if tt.tokens != nil {
+				cfg.Token = tt.tokens.Read
+			}
+			rt := newRouterFrom(t, cfg)
 			client := router.NewClient(serveControl(t, rt))
 
 			if _, err := client.Pin(t.Context(), router.PinRequest{Account: tt.account}); err == nil || err.Error() != tt.wantErr {

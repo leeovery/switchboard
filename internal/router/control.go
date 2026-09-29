@@ -307,11 +307,21 @@ func (r *Router) pinnable(id string) error {
 	case id == "":
 		return errors.New(`give the account to pin, such as {"account": "work"}`)
 	case !ok:
-		return fmt.Errorf("there's no account %q: pin %s", id, strings.Join(r.accounts.sendable().configured().IDs(), " or "))
+		return unknownAccount(id, r.accounts.sendable())
 	case !a.hasToken():
 		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem())
 	}
 	return nil
+}
+
+// unknownAccount says there's no account with the given id, naming those of
+// the sendable accounts given that can be pinned instead, or saying there are
+// none.
+func unknownAccount(id string, sendable accounts) error {
+	if len(sendable) == 0 {
+		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", id)
+	}
+	return fmt.Errorf("there's no account %q: pin %s", id, strings.Join(sendable.configured().IDs(), " or "))
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
