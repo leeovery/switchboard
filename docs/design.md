@@ -47,13 +47,14 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - Claude Code's own token is the primary account's, so what it sends that isn't the conversation,
   such as publishing an artifact, and what it sends around the router, goes out on the primary,
   whichever account the conversation is on. See The primary account.
-- Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization
-  and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Switchboard
-  reads them off real traffic, so it knows each account's usage without spending requests.
-  Windows are parsed generically, not hard-coded. A window's reset says which of two readings
-  taken apart is current: a later reset is a new window; with the same reset the higher
-  utilization stands, as use only rises within a window, so a slow response can't pull it back,
-  nor lift a rejection either reading holds; an earlier reset is ignored.
+- Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers, but a 429 that
+  refuses the request itself (see Choosing an account, step 6): utilization and reset time for
+  each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Switchboard reads them off
+  real traffic, so it knows each account's usage without spending requests. Windows are parsed
+  generically, not hard-coded. A window's reset says which of two readings taken apart is current:
+  a later reset is a new window; with the same reset the higher utilization stands, as use only
+  rises within a window, so a slow response can't pull it back, nor lift a rejection either
+  reading holds; an earlier reset is ignored.
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed only when a decision needs fresh
   numbers, a dashboard asks for them, or it's due a prime, and never once its 5-hour window has
@@ -146,7 +147,11 @@ on a model whose thinking is bound to its account only when its account can't se
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
-   away for nothing.
+   away for nothing. A 429 without the usage headers, neither the overall status nor any window's,
+   isn't throttling: it says nothing of the account's quota, but refuses the request itself, as
+   the API refuses the quota check Claude Code sends as it starts, on Claude Opus 5.5 today. Sent
+   again, the request would fare no better, so the 429 is passed through at once, as it came, with
+   nothing held against the account, for Claude Code to retry if it will.
 7. **No forced return:** after the original account resets, the session isn't moved back; that
    would cost a cache rebuild for nothing. The idle rule brings it back when a move is free.
 8. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings

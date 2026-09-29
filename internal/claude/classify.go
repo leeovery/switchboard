@@ -25,19 +25,22 @@ const maxRetrySeconds = math.MaxInt64 / int64(time.Second)
 
 // Classify says what a response to a request says of the account it went out
 // on. A 401 refuses the account's token, and a 403 forbids the account the
-// request alone, as for a model or beta its plan lacks. A 429 is the account's
-// limit reached when the overall status or any window's is rejected, carrying
-// the windows rejected and until when as far as the headers say, and otherwise
-// throttling, carrying the Retry-After it gives. Anything else, a 529 or
-// another 5xx among them, says nothing against the account: Claude Code
-// retries those itself.
+// request alone, as for a model or beta its plan lacks. A 429 that carries the
+// usage headers is the account's limit reached when the overall status or any
+// window's is rejected, carrying the windows rejected and until when as far as
+// the headers say, and otherwise throttling, carrying the Retry-After it
+// gives. A 429 without them, neither the overall status nor any window's,
+// says nothing of the account's quota: it refuses the request itself, which
+// would fare no better sent again. That, and anything else, a 529 or another
+// 5xx among them, says nothing against the account: Claude Code retries those
+// itself.
 func (Provider) Classify(status int, h http.Header) quota.Outcome {
 	switch {
 	case status == http.StatusUnauthorized:
 		return quota.Outcome{Verdict: quota.Refused}
 	case status == http.StatusForbidden:
 		return quota.Outcome{Verdict: quota.Forbidden}
-	case status != http.StatusTooManyRequests:
+	case status != http.StatusTooManyRequests || !carriesUsage(h):
 		return quota.Outcome{Verdict: quota.Served}
 	}
 	if rejected, until, reached := limitReached(h); reached {
@@ -55,6 +58,12 @@ func (Provider) MarkLimited(h http.Header, until time.Time) {
 	if !until.IsZero() {
 		h.Set(overallReset, strconv.FormatInt(until.Unix(), 10))
 	}
+}
+
+// carriesUsage reports whether the headers say anything of the account's
+// quota: the overall status, or any window's fields.
+func carriesUsage(h http.Header) bool {
+	return h.Get(overallStatus) != "" || len(windowFields(h)) > 0
 }
 
 // limitReached reports whether the headers reject a request for want of
