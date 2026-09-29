@@ -100,22 +100,6 @@ func (l limit) inForce(now time.Time) bool {
 	return now.Before(l.until)
 }
 
-// extend returns the limit l reached again, as again: until the later of the
-// two, for the requests either holds back, which is every one when either
-// names no window.
-func (l limit) extend(again limit) limit {
-	until := l.until
-	if again.until.After(until) {
-		until = again.until
-	}
-	if len(l.windows) == 0 || len(again.windows) == 0 {
-		return limit{until: until}
-	}
-	windows := slices.Concat(l.windows, again.windows)
-	slices.SortFunc(windows, quota.CompareKeys)
-	return limit{windows: slices.Compact(windows), until: until}
-}
-
 // liftedBy reports whether windows, read at a time, show the limit lifted:
 // each window that reached it read again, with room. A limit reached in no
 // window named can't be seen to lift, and lifts only in time.
@@ -239,8 +223,9 @@ func (s *state) forbid(id, family string, status int) {
 // limit notes that the account reached its limit, in the windows named, if
 // any, until until, or limitedFor from now when that isn't to come, and
 // returns the news of it. Reached while the account's last limit is in force,
-// it's that limit reached again, which it extends. A reading showing it lifted
-// lifts it sooner.
+// it's that limit reached again, which now holds as this answer says, the
+// upstream's latest word: one that doesn't say until when extends it. A
+// reading showing it lifted lifts it sooner.
 func (s *state) limit(id string, windows []string, until time.Time) LimitReached {
 	now := s.now().UTC()
 	if !until.After(now) {
@@ -251,11 +236,8 @@ func (s *state) limit(id string, windows []string, until time.Time) LimitReached
 	defer s.mu.Unlock()
 	u := s.usage[id]
 	again := u.limited.inForce(now)
-	if again {
-		reached = u.limited.extend(reached)
-	}
 	u.limited = reached
-	return LimitReached{Account: id, Windows: slices.Clone(reached.windows), Until: reached.until, Again: again}
+	return LimitReached{Account: id, Windows: slices.Clone(windows), Until: reached.until, Again: again}
 }
 
 // due reports whether an account's usage wants probing at now, before a

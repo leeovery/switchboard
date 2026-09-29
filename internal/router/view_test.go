@@ -232,7 +232,7 @@ func TestALimitThatsAlreadyDueHoldsFiveMinutes(t *testing.T) {
 	}
 }
 
-func TestALimitReachedAgainWhileItsInForceExtendsIt(t *testing.T) {
+func TestALimitReachedAgainWhileItsInForceIsTheSameLimit(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
 	s.record("work", []quota.Window{session, week, fableWeek}, fromResponse)
@@ -252,21 +252,21 @@ func TestALimitReachedAgainWhileItsInForceExtendsIt(t *testing.T) {
 		{
 			name:  "reached again in another window, until sooner",
 			after: 10 * time.Minute, windows: []string{"5h"}, until: start.Add(30 * time.Minute),
-			want: LimitReached{Account: "work", Windows: []string{"5h", "7d_oi"}, Until: start.Add(time.Hour), Again: true},
+			want: LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(30 * time.Minute), Again: true},
 		},
 		{
 			name:  "reached again in no window named, until it doesn't say",
 			after: 20 * time.Minute,
-			want:  LimitReached{Account: "work", Until: start.Add(time.Hour), Again: true},
+			want:  LimitReached{Account: "work", Until: start.Add(25 * time.Minute), Again: true},
 		},
 		{
-			name:  "reached again, until later",
-			after: 30 * time.Minute, windows: []string{"5h"}, until: start.Add(2 * time.Hour),
-			want: LimitReached{Account: "work", Until: start.Add(2 * time.Hour), Again: true},
+			name:  "reached again, until it still doesn't say, which extends it",
+			after: 24 * time.Minute,
+			want:  LimitReached{Account: "work", Until: start.Add(29 * time.Minute), Again: true},
 		},
 		{
 			name:  "reached once it has lifted",
-			after: 2 * time.Hour, windows: []string{"5h"}, until: start.Add(3 * time.Hour),
+			after: 30 * time.Minute, windows: []string{"5h"}, until: start.Add(3 * time.Hour),
 			want: LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(3 * time.Hour)},
 		},
 	}
@@ -275,6 +275,23 @@ func TestALimitReachedAgainWhileItsInForceExtendsIt(t *testing.T) {
 		if got := s.limit("work", step.windows, step.until); !reflect.DeepEqual(got, step.want) {
 			t.Errorf("%s: limit() = %+v, want %+v", step.name, got, step.want)
 		}
+	}
+}
+
+func TestALimitReachedAgainInAnotherWindowHoldsAsItsLatestAnswerSays(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.record("work", []quota.Window{session, week, fableWeek}, fromResponse)
+	s.learn(fable, []quota.Window{session, week, fableWeek})
+	// A Fable request reaches the Fable week's limit, for three days; then a
+	// Haiku request, which that doesn't hold back, reaches the session's,
+	// which resets in two hours.
+	s.limit("work", []string{"7d_oi"}, start.Add(3*24*time.Hour))
+	clock.now = start.Add(time.Hour)
+	s.limit("work", []string{"5h"}, start.Add(3*time.Hour))
+
+	if !s.view(haiku, start.Add(3*time.Hour)).room("work") {
+		t.Error("once the session resets, work has no room for Haiku, want room: the Fable week never held Haiku back")
 	}
 }
 

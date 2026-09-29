@@ -78,7 +78,7 @@ Hence: move a session only when its cache is already cold or its account can't s
    or not it gives their utilization (every request when it names none), until the reset the 429
    gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. A later
    reading showing those windows with room lifts it sooner. A limit reached again while it holds
-   is the same limit, which it extends.
+   is the same limit, and holds as the latest 429 says.
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
