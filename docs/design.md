@@ -366,8 +366,11 @@ token_env = "CLAUDE_TOKEN_WORK"    # environment variable holding the setup toke
 ```
 
 Unknown keys, duplicate ids and a config without accounts are errors, and so is the id `auto`, in
-any case, which `pin auto` takes to mean routing. An optional `[notifications]` table says which
-desktop notifications the router posts: see Notifications.
+any case, which `pin auto` takes to mean routing. `listen` must be a loopback IP address, never a
+name such as `localhost`, which a client can look up to `::1` while the proxy listens on
+`127.0.0.1`, and send its token to whatever listens there; a plain `http` upstream likewise. An
+optional `[notifications]` table says which desktop notifications the router posts: see
+Notifications.
 
 ### Proxy rules
 
