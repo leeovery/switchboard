@@ -116,7 +116,7 @@ func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
 				if got, want := upstream.sent(), slices.Repeat([]string{"work"}, tt.wantSent); !slices.Equal(got, want) {
 					t.Errorf("the request went out on %q, want %q: throttling never moves it", got, want)
 				}
-				if got, _, _ := r.sessions.lookup(key{session: "one", model: opus}); got.Account != "work" {
+				if got := r.sessions.lookup(key{session: "one", model: opus}).current; got.Account != "work" {
 					t.Errorf("the session is on %s, want work, where it was", got.Account)
 				}
 				for _, want := range tt.wantLog {

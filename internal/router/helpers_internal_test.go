@@ -93,8 +93,7 @@ func choose(ctx context.Context, r *Router, req Request) Choice {
 // assign has the session and model k go where d says at at, carrying pin as
 // the session's own, as a choice made on the assignment found then would.
 func assign(s *sessions, k key, pin string, d decision, at time.Time) {
-	was, _, _ := s.lookup(k)
-	s.remember(k, was, pin, d, at)
+	s.remember(k, s.lookup(k).current, pin, d, at)
 }
 
 // at is a clock stopped at t.

@@ -173,7 +173,7 @@ func TestChoosingRemembersTheSession(t *testing.T) {
 
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
 	first := assignment{Account: "work", Reason: "new", AssignedAt: start, LastSeen: start}
-	if got, _, _ := r.sessions.lookup(k); got != first {
+	if got := r.sessions.lookup(k).current; got != first {
 		t.Errorf("after its first request, the session is assigned %+v, want %+v", got, first)
 	}
 
@@ -181,14 +181,14 @@ func TestChoosingRemembersTheSession(t *testing.T) {
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
 	sticky := first
 	sticky.LastSeen = clock.now
-	if got, _, _ := r.sessions.lookup(k); got != sticky {
+	if got := r.sessions.lookup(k).current; got != sticky {
 		t.Errorf("after a request that stuck, the session is assigned %+v, want %+v: seen again, but assigned as before", got, sticky)
 	}
 
 	clock.now = start.Add(20 * time.Minute)
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Pin: "side", Client: "work"})
 	moved := assignment{Account: "side", Pin: "side", Reason: "pinned", AssignedAt: clock.now, LastSeen: clock.now}
-	if got, _, _ := r.sessions.lookup(k); got != moved {
+	if got := r.sessions.lookup(k).current; got != moved {
 		t.Errorf("after a request pinned elsewhere, the session is assigned %+v, want %+v", got, moved)
 	}
 }
@@ -233,12 +233,12 @@ func TestAChoiceLeavesTheAssignmentAnotherRequestMadeSinceItLooked(t *testing.T)
 	// One request of the session finds it on work, and chooses to stay; then
 	// another, which reached work's limit, moves it to side on its replay;
 	// then the first remembers its choice.
-	stay, was := s.decide(first)
+	stay, on := s.decide(first)
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work", Tried: []Attempt{{Account: "work", Why: whyLimit}}})
-	s.remember(first, was, stay)
+	s.remember(on, stay)
 
 	want := assignment{Account: "side", Reason: "moved: work hit its limit", AssignedAt: start, LastSeen: start}
-	if got, _, _ := r.sessions.lookup(k); got != want {
+	if got := r.sessions.lookup(k).current; got != want {
 		t.Errorf("the session is assigned %+v, want %+v: the move stands", got, want)
 	}
 	wantEvents := []Event{Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true}}

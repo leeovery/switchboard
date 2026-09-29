@@ -66,12 +66,46 @@ func (c *Client) Status(ctx context.Context) (status.Document, error) {
 	return doc, err
 }
 
+// Sessions asks which sessions the router has routed in the last hour, the
+// one seen last first, and where their requests go.
+func (c *Client) Sessions(ctx context.Context) ([]status.Session, error) {
+	var sessions []status.Session
+	err := c.call(ctx, clientTimeout, http.MethodGet, "/sessions", nil, &sessions)
+	return sessions, err
+}
+
 // Session asks which accounts the session with the given id has its requests
 // go to. It fails with ErrUnknownSession for a session the router hasn't
 // seen.
-func (c *Client) Session(ctx context.Context, id string) (Session, error) {
-	var s Session
-	err := c.call(ctx, clientTimeout, http.MethodGet, "/sessions/"+url.PathEscape(id), nil, &s)
+func (c *Client) Session(ctx context.Context, id string) (status.Session, error) {
+	return c.session(ctx, http.MethodGet, id, "", nil)
+}
+
+// PinSession has the router send the requests of the session with the given
+// id to the account with the given id from its next request on, passing over
+// the pin the session was launched with. It returns the session as that
+// leaves it, and fails with ErrUnknownSession for a session the router hasn't
+// seen, and saying why for an account the router can't send requests on.
+func (c *Client) PinSession(ctx context.Context, id, account string) (status.Session, error) {
+	return c.session(ctx, http.MethodPost, id, "/pin", sessionPinRequest{Account: account})
+}
+
+// UnpinSession has the router clear the own pin of the session with the
+// given id, the one it was launched with included, so the session is routed
+// like any other from its next request. It returns the session as that
+// leaves it, and fails with ErrUnknownSession for a session the router hasn't
+// seen.
+func (c *Client) UnpinSession(ctx context.Context, id string) (status.Session, error) {
+	return c.session(ctx, http.MethodDelete, id, "/pin", nil)
+}
+
+// session sends the router a request for path under the session with the
+// given id, with body as JSON unless it's nil, and returns the session as the
+// router answers with it. It fails with ErrUnknownSession for a session the
+// router hasn't seen.
+func (c *Client) session(ctx context.Context, method, id, path string, body any) (status.Session, error) {
+	var s status.Session
+	err := c.call(ctx, clientTimeout, method, "/sessions/"+url.PathEscape(id)+path, body, &s)
 	// A 404 is the router's for an unknown session only when it says why:
 	// anything else answering on the socket is trouble.
 	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason != "" {
@@ -86,21 +120,27 @@ func unknownSession(id string) error {
 	return fmt.Errorf("%w %s", ErrUnknownSession, id)
 }
 
-// Pin has the router send every new session to the account with the given
-// id, and with move, every running session too, on its next request. It
-// returns the status document as pinning leaves it, and fails, saying why,
-// for an account the router can't send requests on.
-func (c *Client) Pin(ctx context.Context, account string, move bool) (status.Document, error) {
+// Pin has the router pin as p asks: send every new session to its account,
+// with Move, every running session too, on its next request, and with Force,
+// clear every session's own pin. It returns the status document as pinning
+// leaves it, and fails, saying why, for an account the router can't send
+// requests on.
+func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, clientTimeout, http.MethodPost, "/pin", pinRequest{Account: account, Move: move}, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodPost, "/pin", p, &doc)
 	return doc, err
 }
 
-// Unpin has the router route every session on its merits again. It returns
-// the status document as unpinning leaves it.
-func (c *Client) Unpin(ctx context.Context) (status.Document, error) {
+// Unpin has the router route every session on its merits again, but for
+// those with pins of their own, whose pins force clears too. It returns the
+// status document as unpinning leaves it.
+func (c *Client) Unpin(ctx context.Context, force bool) (status.Document, error) {
+	path := "/pin"
+	if force {
+		path += "?force=true"
+	}
 	var doc status.Document
-	err := c.call(ctx, clientTimeout, http.MethodDelete, "/pin", nil, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodDelete, path, nil, &doc)
 	return doc, err
 }
 

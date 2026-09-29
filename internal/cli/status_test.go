@@ -108,6 +108,30 @@ func TestStatusJSON(t *testing.T) {
 	}
 }
 
+func TestStatusListsTheRoutersSessions(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.start(t)
+	srv.waitForProbes(t)
+	srv.routePinned(t, sessionThree, "claude-haiku-4-5-20251001", "work")
+	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
+	if got := run(t, srv.deps, "pin", "side", "--session", "18bb"); got.code != 0 {
+		t.Fatalf("switchboard pin side --session 18bb = %+v", got)
+	}
+
+	got := run(t, srv.deps, "status")
+	want := result{stdout: workAtStatus + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
+sessions
+  0b5c6f2e  haiku on work  ·  seen just now
+  18bb978f  haiku on work  ·  pinned to side  ·  seen just now
+
+best next: work · Work
+from the router: healthy  ·  2 sessions  ·  routing automatically
+`}
+	if got != want {
+		t.Errorf("switchboard status =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
 func TestStatusWithInvalidConfig(t *testing.T) {
 	path := writeConfig(t, invalidConfig)
 

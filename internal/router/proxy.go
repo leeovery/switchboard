@@ -14,7 +14,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -25,8 +25,6 @@ const PinHeader = "X-Switchboard-Account"
 const (
 	// maxBody caps the body of a routed request, which is held in memory.
 	maxBody = 64 << 20
-	// sessionShown is how many characters of a session's id the log shows.
-	sessionShown = 8
 	// refusalShown is how many characters of the upstream's reason for
 	// refusing a token the log shows.
 	refusalShown = 200
@@ -294,7 +292,7 @@ func (p *proxy) done(r *http.Request, ex *exchange) {
 func (p *proxy) logRouted(r *http.Request, ex *exchange) {
 	attrs := []any{
 		"id", ex.id,
-		"session", prose.Truncate(ex.req.Session, sessionShown),
+		"session", status.ShortID(ex.req.Session),
 		"model", ex.req.Model,
 		"account", ex.account.ID,
 		"reason", ex.reason,

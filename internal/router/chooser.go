@@ -28,8 +28,9 @@ type Request struct {
 	// produced it: moving the session loses its reasoning, so it stays on its
 	// account, cache cold or not, while the account can serve it.
 	Bound bool
-	// Pin is the account the request is pinned to, or "" when it isn't. It's
-	// only ever an account with a token.
+	// Pin is the account the request is pinned to, as the session was
+	// launched with it, or "" when it isn't: a pin the session is given while
+	// it runs passes over it. It's only ever an account with a token.
 	Pin string
 	// Client is the account whose token the client sent.
 	Client string

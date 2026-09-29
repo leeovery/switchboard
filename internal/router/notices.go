@@ -245,7 +245,7 @@ func (t limitText) say(name func(id string) string) string {
 // account the session left.
 func moveNotice(e Moved, accounts standings) notify.Notice {
 	say := func(name func(id string) string) string {
-		return fmt.Sprintf("session %s moved from %s to %s (%s)", prose.Truncate(e.Session, sessionShown), name(e.From), name(e.To), e.Reason)
+		return fmt.Sprintf("session %s moved from %s to %s (%s)", status.ShortID(e.Session), name(e.From), name(e.To), e.Reason)
 	}
 	return notify.Notice{Account: e.From, News: say(byID), Message: say(accounts.title)}
 }

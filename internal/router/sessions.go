@@ -66,21 +66,61 @@ func (a assignment) inUTC() assignment {
 	return a
 }
 
-// export is the assignment as the control API gives it, for model.
-func (a assignment) export(model string) Assignment {
-	return Assignment{
-		Model:      model,
-		Account:    a.Account,
-		Pinned:     a.Pin != "" && a.Pin == a.Account,
-		Reason:     a.Reason,
-		AssignedAt: a.AssignedAt,
-		LastSeen:   a.LastSeen,
+// entry is a session's assignment for one model.
+type entry struct {
+	model string
+	assignment
+}
+
+// export is the assignment as the control API gives it.
+func (e entry) export() status.Assignment {
+	return status.Assignment{
+		Model:      e.model,
+		Account:    e.Account,
+		Pinned:     e.Pin != "" && e.Pin == e.Account,
+		Reason:     e.Reason,
+		AssignedAt: e.AssignedAt,
+		LastSeen:   e.LastSeen,
 	}
 }
 
+// ownPin is a pin a session was given while it ran, which passes over the one
+// it was launched with from then on: the session's requests go to Account
+// while it has room, or, where Account is "", the pin was cleared, and the
+// session has none.
+type ownPin struct {
+	Account string    `json:"account"`
+	Since   time.Time `json:"since"`
+}
+
+// found is what's remembered of a session as a request of one of its models
+// is chosen for.
+type found struct {
+	// current is the session's assignment for the model, when assigned is set.
+	current  assignment
+	assigned bool
+	// own is the pin the session was given while it ran, when given is set.
+	own   ownPin
+	given bool
+	// global is the global pin, zero when there's none.
+	global status.Pin
+}
+
+// pin returns the session's own pin for a request that carries launched, the
+// pin the session was launched with, and when the session was given it: the
+// pin given while it runs, which passes over launched, else launched, given as
+// the session started, which zero stands for.
+func (f found) pin(launched string) (string, time.Time) {
+	if f.given {
+		return f.own.Account, f.own.Since
+	}
+	return launched, time.Time{}
+}
+
 // sessions remembers the account each session's requests of each model go
-// to, and the global pin, and keeps them in the state file once it has one,
-// with what the accounts know of their tokens. It's safe for concurrent use.
+// to, the pins sessions are given while they run, and the global pin, and
+// keeps them in the state file once it has one, with what the accounts know
+// of their tokens. It's safe for concurrent use.
 type sessions struct {
 	now func() time.Time
 
@@ -91,7 +131,9 @@ type sessions struct {
 	// once it's loaded.
 	accounts    accounts
 	assignments map[key]assignment
-	pin         status.Pin
+	// own holds the pins sessions were given while they ran, by session id.
+	own map[string]ownPin
+	pin status.Pin
 	// unsaved is set while the state file lacks a change.
 	unsaved bool
 	// changed signals a change to keep.
@@ -99,15 +141,21 @@ type sessions struct {
 }
 
 func newSessions(now func() time.Time) *sessions {
-	return &sessions{now: now, assignments: make(map[key]assignment), changed: make(chan struct{}, 1)}
+	return &sessions{
+		now:         now,
+		assignments: make(map[key]assignment),
+		own:         make(map[string]ownPin),
+		changed:     make(chan struct{}, 1),
+	}
 }
 
-// lookup returns the assignment k names, if there is one, and the global pin.
-func (s *sessions) lookup(k key) (assignment, bool, status.Pin) {
+// lookup returns what's remembered of the session and model k name.
+func (s *sessions) lookup(k key) found {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	a, ok := s.assignments[k]
-	return a, ok, s.pin
+	current, assigned := s.assignments[k]
+	own, given := s.own[k.session]
+	return found{current: current, assigned: assigned, own: own, given: given, global: s.pin}
 }
 
 // remember notes that a request of the session and model k names went where
@@ -143,41 +191,77 @@ func (s *sessions) globalPin() status.Pin {
 	return s.pin
 }
 
-// setPin sets the global pin.
-func (s *sessions) setPin(pin status.Pin) {
+// setPin sets the global pin, and with force, clears every session's own pin
+// at once, as clearOwn does. It returns how many sessions had one.
+func (s *sessions) setPin(pin status.Pin, force bool) (cleared int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pin = pin
+	if force {
+		cleared = s.clearOwn()
+	}
 	s.change()
+	return cleared
 }
 
-// unpin clears the global pin, and returns it as it was.
-func (s *sessions) unpin() status.Pin {
+// unpin clears the global pin, and with force, every session's own pin, as
+// clearOwn does. It returns the global pin as it was, and how many sessions
+// had a pin of their own.
+func (s *sessions) unpin(force bool) (was status.Pin, cleared int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	was := s.pin
-	if was != (status.Pin{}) {
-		s.pin = status.Pin{}
+	was, s.pin = s.pin, status.Pin{}
+	if force {
+		cleared = s.clearOwn()
+	}
+	if was != (status.Pin{}) || cleared > 0 {
 		s.change()
 	}
-	return was
+	return was, cleared
 }
 
-// of returns the assignments of the session with the given id, the one used
-// last first.
-func (s *sessions) of(id string) []Assignment {
+// pinSession gives the session with the given id its own pin to account from
+// now on, passing over the one it was launched with, or, where account is "",
+// clears its own pin, the one it was launched with included. It reports
+// false, and does nothing, for a session never seen.
+func (s *sessions) pinSession(id, account string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var found []Assignment
-	for k, a := range s.assignments {
-		if k.session == id {
-			found = append(found, a.export(k.model))
+	if !s.seen(id) {
+		return false
+	}
+	s.own[id] = ownPin{Account: account, Since: s.now().UTC()}
+	s.change()
+	return true
+}
+
+// session reports what the router says of the session with the given id,
+// but for the status of its account, and false for a session never seen.
+func (s *sessions) session(id string) (status.Session, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries, ok := s.entries()[id]
+	if !ok {
+		return status.Session{}, false
+	}
+	return s.report(id, entries), true
+}
+
+// running reports the sessions routed in the last hour at now, each as
+// session does, the one seen last first.
+func (s *sessions) running(now time.Time) []status.Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	listed := []status.Session{}
+	for id, entries := range s.entries() {
+		if entries[0].warm(now) {
+			listed = append(listed, s.report(id, entries))
 		}
 	}
-	slices.SortFunc(found, func(a, b Assignment) int {
-		return cmp.Or(b.LastSeen.Compare(a.LastSeen), cmp.Compare(a.Model, b.Model))
+	slices.SortFunc(listed, func(a, b status.Session) int {
+		return cmp.Or(b.Assignments[0].LastSeen.Compare(a.Assignments[0].LastSeen), cmp.Compare(a.ID, b.ID))
 	})
-	return found
+	return listed
 }
 
 // active counts the sessions whose caches are warm at now: by account, and in
@@ -204,8 +288,9 @@ func (s *sessions) active(now time.Time) (byAccount map[string]int, all int) {
 	return byAccount, len(anywhere)
 }
 
-// prune forgets the assignments gone unused for forgetAfter at now, and the
-// accounts' former tokens that no longer count.
+// prune forgets the assignments gone unused for forgetAfter at now, with the
+// pins of the sessions it forgets, and the accounts' former tokens that no
+// longer count.
 func (s *sessions) prune(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -213,6 +298,7 @@ func (s *sessions) prune(now time.Time) {
 	maps.DeleteFunc(s.assignments, func(_ key, a assignment) bool { return a.forgotten(now) })
 	if forgotten := held - len(s.assignments); forgotten > 0 {
 		logger.Debug("forgot sessions unused for a week", "assignments", forgotten)
+		maps.DeleteFunc(s.own, func(id string, _ ownPin) bool { return !s.seen(id) })
 		s.change()
 	}
 	if s.accounts.forget(now) {
@@ -239,10 +325,74 @@ func (s *sessions) change() {
 	}
 }
 
+// entries returns every session's assignments, by the session's id, the one
+// used last first. s.mu must be held.
+func (s *sessions) entries() map[string][]entry {
+	bySession := make(map[string][]entry)
+	for k, a := range s.assignments {
+		bySession[k.session] = append(bySession[k.session], entry{model: k.model, assignment: a})
+	}
+	for _, entries := range bySession {
+		slices.SortFunc(entries, func(a, b entry) int {
+			return cmp.Or(b.LastSeen.Compare(a.LastSeen), cmp.Compare(a.model, b.model))
+		})
+	}
+	return bySession
+}
+
+// report is what the router says of the session with the given id, whose
+// assignments are entries, the one used last first, but for the status of its
+// account. s.mu must be held.
+func (s *sessions) report(id string, entries []entry) status.Session {
+	assignments := make([]status.Assignment, len(entries))
+	for i, e := range entries {
+		assignments[i] = e.export()
+	}
+	return status.Session{ID: id, Pin: s.pinOf(id, entries[0].assignment), Assignments: assignments}
+}
+
+// pinOf returns the own pin of the session with the given id, whose last-used
+// assignment is last: the one it was given while it ran, else the one its
+// requests last carried. s.mu must be held.
+func (s *sessions) pinOf(id string, last assignment) string {
+	if own, given := s.own[id]; given {
+		return own.Account
+	}
+	return last.Pin
+}
+
+// clearOwn clears the own pin of every session that has one, the one it was
+// launched with included, which its requests go on carrying and are passed
+// over from then on, and returns how many sessions had one. A session first
+// seen afterwards has the pin it's launched with. s.mu must be held.
+func (s *sessions) clearOwn() int {
+	cleared := ownPin{Since: s.now().UTC()}
+	n := 0
+	for id, entries := range s.entries() {
+		if s.pinOf(id, entries[0].assignment) != "" {
+			s.own[id] = cleared
+			n++
+		}
+	}
+	return n
+}
+
+// seen reports whether the session with the given id has an assignment. s.mu
+// must be held.
+func (s *sessions) seen(id string) bool {
+	for k := range s.assignments {
+		if k.session == id {
+			return true
+		}
+	}
+	return false
+}
+
 // load takes in the state file at path, and keeps in it from then on the
-// sessions, the global pin, and what accounts know of their tokens.
-// Assignments gone unused for forgetAfter are forgotten, and neither an
-// assignment nor the pin is kept for an account requests can't go out on.
+// sessions, their own pins, the global pin, and what accounts know of their
+// tokens. Assignments gone unused for forgetAfter are forgotten, and none of
+// an assignment, a session's own pin and the global pin is kept for an
+// account requests can't go out on.
 func (s *sessions) load(path string, accounts accounts) {
 	file := &stateFile{path: path, write: writeAtomic}
 	now := s.now()
@@ -251,25 +401,59 @@ func (s *sessions) load(path string, accounts accounts) {
 	defer s.mu.Unlock()
 	s.file, s.accounts = file, accounts
 	changed := accounts.recall(saved.Tokens, now)
-	for _, a := range saved.Sessions {
-		if a.Session == "" || a.forgotten(now) || !accounts.canSend(a.Account) {
-			changed = true
-			continue
-		}
-		s.assignments[key{session: a.Session, model: a.Model}] = a.inUTC()
-	}
-	switch pin := saved.Pin; {
-	case pin.Account == "":
-	case accounts.canSend(pin.Account):
-		s.pin = pin
-	default:
-		logger.Warn("pin dropped: nothing can go out on its account", "account", pin.Account)
-		changed = true
-	}
+	changed = s.loadAssignments(saved.Sessions, now) || changed
+	changed = s.loadOwnPins(saved.SessionPins) || changed
+	changed = s.loadPin(saved.Pin) || changed
 	if changed {
 		s.change()
 	}
 	logger.Info("loaded state", "path", path, "assignments", len(s.assignments), "pin", s.pin.Account)
+}
+
+// loadAssignments takes in the assignments saved, but those gone unused for
+// forgetAfter at now, and those of accounts requests can't go out on, and
+// reports whether it left any out. s.mu must be held.
+func (s *sessions) loadAssignments(saved []savedAssignment, now time.Time) (dropped bool) {
+	for _, a := range saved {
+		if a.Session == "" || a.forgotten(now) || !s.accounts.canSend(a.Account) {
+			dropped = true
+			continue
+		}
+		s.assignments[key{session: a.Session, model: a.Model}] = a.inUTC()
+	}
+	return dropped
+}
+
+// loadOwnPins takes in the sessions' own pins saved, but those of sessions
+// without an assignment, and those to accounts requests can't go out on, and
+// reports whether it left any out. s.mu must be held.
+func (s *sessions) loadOwnPins(saved map[string]ownPin) (dropped bool) {
+	for id, own := range saved {
+		switch {
+		case !s.seen(id):
+			dropped = true
+		case own.Account != "" && !s.accounts.canSend(own.Account):
+			logger.Warn("session's pin dropped: nothing can go out on its account", "session", status.ShortID(id), "account", own.Account)
+			dropped = true
+		default:
+			s.own[id] = own
+		}
+	}
+	return dropped
+}
+
+// loadPin takes in the global pin saved, unless it's to an account requests
+// can't go out on, and reports whether it left it out. s.mu must be held.
+func (s *sessions) loadPin(saved status.Pin) (dropped bool) {
+	switch {
+	case saved.Account == "":
+	case s.accounts.canSend(saved.Account):
+		s.pin = saved
+	default:
+		logger.Warn("pin dropped: nothing can go out on its account", "account", saved.Account)
+		dropped = true
+	}
+	return dropped
 }
 
 // keep writes the state file saveAfter after a change, so a burst of changes
@@ -318,10 +502,11 @@ func (s *sessions) save() {
 // held.
 func (s *sessions) snapshot() savedState {
 	saved := savedState{
-		Version:  stateVersion,
-		Pin:      s.pin,
-		Sessions: make([]savedAssignment, 0, len(s.assignments)),
-		Tokens:   s.accounts.kept(),
+		Version:     stateVersion,
+		Pin:         s.pin,
+		Sessions:    make([]savedAssignment, 0, len(s.assignments)),
+		SessionPins: maps.Clone(s.own),
+		Tokens:      s.accounts.kept(),
 	}
 	for k, a := range s.assignments {
 		saved.Sessions = append(saved.Sessions, savedAssignment{Session: k.session, Model: k.model, assignment: a})

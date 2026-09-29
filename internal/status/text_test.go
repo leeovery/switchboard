@@ -303,64 +303,120 @@ func TestReserved(t *testing.T) {
 	}
 }
 
-func TestAccountText(t *testing.T) {
+func TestTextListsTheRoutersSessionsGiven(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	doc := status.Document{
+		GeneratedAt: now.UTC(),
+		Source:      status.SourceRouter,
+		Best:        "work",
+		Router:      status.Health{Healthy: true, Requests: 4},
+		Sessions:    2,
+		Accounts: []status.Account{
+			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(), Sessions: 2},
+			{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now.UTC(), Sessions: 1},
+		},
+	}
+	sessions := []status.Session{
+		{
+			ID: "18bb978f-3c2d-4e5f-8a9b-0c1d2e3f4a5b",
+			Assignments: []status.Assignment{
+				{Model: "claude-sonnet-5-5", Family: "sonnet", Account: "work", LastSeen: now.Add(-20 * time.Second)},
+			},
+		},
+		{
+			ID:  "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e",
+			Pin: "side",
+			Assignments: []status.Assignment{
+				{Model: "claude-opus-5-5", Family: "opus", Account: "side", Pinned: true, LastSeen: now.Add(-2 * time.Minute)},
+				{Model: "claude-haiku-4-5-20251001", Family: "haiku", Account: "work", LastSeen: now.Add(-50 * time.Minute)},
+			},
+		},
+	}
+	want := `work · Work
+  2 sessions
+
+side · Side
+  1 session
+
+sessions
+  18bb978f  sonnet on work  ·  seen just now
+  0b5c6f2e  opus on side, haiku on work  ·  pinned to side  ·  seen 2m ago
+
+best next: work · Work
+from the router: healthy  ·  2 sessions  ·  routing automatically
+`
+	if got := doc.Text(now, sessions...); got != want {
+		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+	}
+	if got, without := doc.Text(now, []status.Session{}...), doc.Text(now); got != without || strings.Contains(got, "sessions\n  ") {
+		t.Errorf("Text() given no sessions =\n%s\nwant it as without them, listing none\n%s", got, without)
+	}
+}
+
+func TestSessionLine(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
+	const id = "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e"
+	on := func(family, model, account string, idle time.Duration) status.Assignment {
+		return status.Assignment{Model: model, Family: family, Account: account, LastSeen: now.Add(-idle)}
+	}
 	tests := []struct {
 		name    string
-		account status.Account
+		session status.Session
 		want    string
 	}{
 		{
-			name: "its windows, lined up by their own labels",
-			account: status.Account{
-				ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
-				Windows: []quota.Window{
-					{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC), Status: quota.StatusAllowed},
-					{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC), Status: quota.StatusAllowedWarning},
-				},
-				Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
-			},
-			want: `work · Work
-  Session  23%  resets in 2h 58m · Mon 17:10 · on pace for 57%
-  Week     93%  resets in 5d 11h · Sun 02:10 · runs out ~Mon 16:54
-  Fable offline: HTTP 529 · Overloaded
-`,
+			name:    "its models on one account together",
+			session: status.Session{ID: id, Assignments: []status.Assignment{on("opus", "claude-opus-5-5", "work", 0), on("haiku", "claude-haiku-4-5", "work", time.Hour)}},
+			want:    "0b5c6f2e  opus and haiku on work  ·  seen just now",
 		},
 		{
-			name:    "why it couldn't be read",
-			account: status.Account{ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
-			want: `spare · Spare
-  HTTP 401 · Invalid bearer token
-`,
+			name: "its models on two accounts, the one used last first",
+			session: status.Session{ID: id, Assignments: []status.Assignment{
+				on("haiku", "claude-haiku-4-5", "side", 90*time.Second),
+				on("opus", "claude-opus-5-5", "work", 2*time.Minute),
+				on("fable", "claude-fable-5-1", "side", 3*time.Minute),
+			}},
+			want: "0b5c6f2e  haiku and fable on side, opus on work  ·  seen 1m ago",
 		},
 		{
-			name: "the primary, marked",
-			account: status.Account{
-				ID: "work", Label: "Work", Primary: true, Reserve: 0.1, TokenSet: true, FetchedAt: now.UTC(),
-				Windows:   []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.93, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}},
-				AtReserve: []string{"5h"},
-			},
-			want: `work · Work (primary)
-  Session  93%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 14:21
-`,
+			name:    "its own pin",
+			session: status.Session{ID: id, Pin: "side", Assignments: []status.Assignment{on("opus", "claude-opus-5-5", "work", 59*time.Minute)}},
+			want:    "0b5c6f2e  opus on work  ·  pinned to side  ·  seen 59m ago",
 		},
 		{
-			name: "without what the router notes of it, as a statusline shows it",
-			account: status.Account{
-				ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", Sessions: 1,
-				Limit: status.Limit{Until: now.Add(time.Hour)},
-			},
-			want: `spare · Spare
-  HTTP 401 · Invalid bearer token
-`,
+			name:    "a family's two models, named once",
+			session: status.Session{ID: id, Assignments: []status.Assignment{on("opus", "claude-opus-5-5", "work", time.Hour), on("opus", "claude-opus-4-1", "work", time.Hour)}},
+			want:    "0b5c6f2e  opus on work  ·  seen 1h ago",
+		},
+		{
+			name:    "a model without a family, by its id, and one without an id",
+			session: status.Session{ID: id, Assignments: []status.Assignment{on("", "claude-next", "work", 0), on("", "", "side", 0)}},
+			want:    "0b5c6f2e  claude-next on work, unknown model on side  ·  seen just now",
+		},
+		{
+			name:    "an id shorter than it's cut to",
+			session: status.Session{ID: "one", Assignments: []status.Assignment{on("opus", "claude-opus-5-5", "work", 0)}},
+			want:    "one  opus on work  ·  seen just now",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.account.Text(now); got != tt.want {
-				t.Errorf("Text() =\n%s\nwant\n%s", got, tt.want)
+			if got := tt.session.Line(now); got != tt.want {
+				t.Errorf("Line() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestShortID(t *testing.T) {
+	for id, want := range map[string]string{
+		"0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e": "0b5c6f2e",
+		"0b5c6f2e":                             "0b5c6f2e",
+		"short":                                "short",
+	} {
+		if got := status.ShortID(id); got != want {
+			t.Errorf("ShortID(%q) = %q, want %q", id, got, want)
+		}
 	}
 }
 
@@ -374,15 +430,21 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 		Failures: []quota.Failure{{Label: "Fable" + clear, Window: "7d_oi", Error: "HTTP 529 · " + clear + "Overloaded"}},
 		Error:    "HTTP 401 · " + clear + "Invalid bearer token",
 	}
+	running := status.Session{
+		ID:          "0b5c" + clear + "6f2e",
+		Pin:         "side" + clear,
+		Assignments: []status.Assignment{{Model: "claude-next" + clear, Family: "next" + clear, Account: "work" + clear, LastSeen: now}},
+	}
+	routers := status.Document{
+		Source:   status.SourceRouter,
+		Best:     "work",
+		Pin:      status.Pin{Account: "gone" + clear},
+		Router:   status.Health{Reason: clear + "6 of the 8 requests in the last 5 minutes failed"},
+		Accounts: []status.Account{work},
+	}.Text(now, running)
 	shown := map[string]string{
-		"an account, as status --session shows it": work.Text(now),
-		"the router's document": status.Document{
-			Source:   status.SourceRouter,
-			Best:     "work",
-			Pin:      status.Pin{Account: "gone" + clear},
-			Router:   status.Health{Reason: clear + "6 of the 8 requests in the last 5 minutes failed"},
-			Accounts: []status.Account{work},
-		}.Text(now),
+		"the router's document, and its sessions": routers,
+		"a session, as its line reads":            running.Line(now),
 		"a document probed, as something else answered for the router": status.Document{
 			Source:   status.SourceProbe,
 			Fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "answered " + clear},
@@ -398,8 +460,11 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 		"  Session [2J  23%\n" +
 		"  Fable [2J offline: HTTP 529 · [2JOverloaded\n" +
 		"  HTTP 401 · [2JInvalid bearer token\n"
-	if got := work.Text(now); got != want {
-		t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+	if !strings.HasPrefix(routers, want) {
+		t.Errorf("Text() =\n%s\nwant it to start\n%s", routers, want)
+	}
+	if got, want := running.Line(now), "0b5c [2J  next [2J on work [2J  ·  pinned to side [2J  ·  seen just now"; got != want {
+		t.Errorf("Line() = %q, want %q", got, want)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -44,31 +45,20 @@ type Health struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
-// Session is what GET /sessions/{id} answers: the accounts a session's
-// requests go to, as a statusline asks.
-type Session struct {
-	ID string `json:"session"`
-	// Assignments are the session's, a model each, the one used last first.
-	Assignments []Assignment `json:"assignments"`
-	// Account is the account of the assignment used last.
-	Account status.Account `json:"account"`
-}
-
-// Assignment is the account a session's requests of one model go to, and why.
-type Assignment struct {
-	Model   string `json:"model"`
-	Account string `json:"account"`
-	// Pinned is set when the session's own pin put it on the account.
-	Pinned     bool      `json:"pinned"`
-	Reason     string    `json:"reason"`
-	AssignedAt time.Time `json:"assigned_at"`
-	LastSeen   time.Time `json:"last_seen"`
-}
-
-// pinRequest is what POST /pin takes.
-type pinRequest struct {
+// PinRequest is what POST /pin takes: the account every new session goes
+// to; whether every running session moves there too, on its next request;
+// and whether every session's own pin is cleared, the one it was launched
+// with included.
+type PinRequest struct {
 	Account string `json:"account"`
 	Move    bool   `json:"move"`
+	Force   bool   `json:"force"`
+}
+
+// sessionPinRequest is what POST /sessions/{id}/pin takes: the account the
+// session's requests go to from its next request on.
+type sessionPinRequest struct {
+	Account string `json:"account"`
 }
 
 // refreshRequest is what POST /refresh takes: how old an account's usage can
@@ -87,11 +77,13 @@ type problem struct {
 }
 
 // Control is the control API: GET /health says the router is alive, and
-// whether it's healthy, GET /status gives its status document, GET
-// /sessions/{id} says where a session's requests go, POST and DELETE /pin
-// set and clear the global pin, and POST /refresh probes the accounts whose
-// usage is older than it asks, each of the last three answering with the
-// status document as it leaves it.
+// whether it's healthy, and GET /status gives its status document. GET
+// /sessions lists the sessions routed in the last hour, and GET
+// /sessions/{id} says where a session's requests go, which POST and DELETE
+// /sessions/{id}/pin change as they set and clear its own pin, answering with
+// the session as they leave it. POST and DELETE /pin set and clear the global
+// pin, and POST /refresh probes the accounts whose usage is older than it
+// asks, each of the three answering with the status document as it leaves it.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -101,29 +93,44 @@ func (r *Router) Control() http.Handler {
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, r.Status())
 	})
+	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, r.running())
+	})
 	mux.HandleFunc("GET /sessions/{id}", func(w http.ResponseWriter, req *http.Request) {
-		id := req.PathValue("id")
-		session, ok := r.session(id)
-		if !ok {
-			writeProblem(w, http.StatusNotFound, unknownSession(id).Error())
+		r.answerSession(w, req.PathValue("id"), nil)
+	})
+	mux.HandleFunc("POST /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
+		var pin sessionPinRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&pin); err != nil {
+			writeProblem(w, http.StatusBadRequest, `give the account to pin the session to as JSON, such as {"account": "work"}`)
 			return
 		}
-		writeJSON(w, session)
+		id := req.PathValue("id")
+		r.answerSession(w, id, r.pinSession(id, pin.Account))
+	})
+	mux.HandleFunc("DELETE /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
+		id := req.PathValue("id")
+		r.answerSession(w, id, r.unpinSession(id))
 	})
 	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
-		var pin pinRequest
+		var pin PinRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&pin); err != nil {
-			writeProblem(w, http.StatusBadRequest, `give the account to pin as JSON, such as {"account": "work", "move": false}`)
+			writeProblem(w, http.StatusBadRequest, `give the account to pin as JSON, such as {"account": "work", "move": false, "force": false}`)
 			return
 		}
-		if err := r.pin(pin.Account, pin.Move); err != nil {
+		if err := r.pin(pin); err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		writeJSON(w, r.Status())
 	})
-	mux.HandleFunc("DELETE /pin", func(w http.ResponseWriter, _ *http.Request) {
-		r.unpin()
+	mux.HandleFunc("DELETE /pin", func(w http.ResponseWriter, req *http.Request) {
+		force, err := forceAsked(req)
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		r.unpin(force)
 		writeJSON(w, r.Status())
 	})
 	mux.HandleFunc("POST /refresh", func(w http.ResponseWriter, req *http.Request) {
@@ -175,21 +182,126 @@ func (r *Router) refresh(ctx context.Context, age time.Duration) {
 	}
 }
 
-// session reports where the session with the given id has its requests go,
-// and false when the router hasn't seen it.
-func (r *Router) session(id string) (Session, bool) {
-	assignments := r.sessions.of(id)
-	if len(assignments) == 0 {
-		return Session{}, false
+// forceAsked reads whether DELETE /pin is to clear every session's own pin
+// too, as ?force=true asks.
+func forceAsked(req *http.Request) (bool, error) {
+	value := req.URL.Query().Get("force")
+	if value == "" {
+		return false, nil
 	}
-	account, _ := r.Status().Account(assignments[0].Account)
-	return Session{ID: id, Assignments: assignments, Account: account}, true
+	force, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("force is true or false, not %q", value)
+	}
+	return force, nil
 }
 
-// pin sends every new session to the account with the given id, and with
-// move, every running session too. It fails, saying why, for an account
-// nothing can go out on.
-func (r *Router) pin(id string, move bool) error {
+// answerSession answers as GET /sessions/{id} does, with the session as it
+// stands, unless err, from what was asked of the session, says why not: 404
+// for a session the router hasn't seen, else 400.
+func (r *Router) answerSession(w http.ResponseWriter, id string, err error) {
+	var session status.Session
+	if err == nil {
+		session, err = r.session(id)
+	}
+	switch {
+	case errors.Is(err, ErrUnknownSession):
+		writeProblem(w, http.StatusNotFound, err.Error())
+	case err != nil:
+		writeProblem(w, http.StatusBadRequest, err.Error())
+	default:
+		writeJSON(w, session)
+	}
+}
+
+// session reports where the session with the given id has its requests go,
+// with the status of the account its last-used model went to. It fails with
+// ErrUnknownSession when the router hasn't seen it.
+func (r *Router) session(id string) (status.Session, error) {
+	s, ok := r.sessions.session(id)
+	if !ok {
+		return status.Session{}, unknownSession(id)
+	}
+	s.Account, _ = r.Status().Account(s.Assignments[0].Account)
+	return r.named(s), nil
+}
+
+// running reports the sessions routed in the last hour, the one seen last
+// first, each as session does but for its account's status.
+func (r *Router) running() []status.Session {
+	listed := r.sessions.running(r.cfg.Now())
+	for i, s := range listed {
+		listed[i] = r.named(s)
+	}
+	return listed
+}
+
+// named is s with the family of each of its models, as the provider names it.
+func (r *Router) named(s status.Session) status.Session {
+	for i, a := range s.Assignments {
+		s.Assignments[i].Family = r.cfg.Provider.Family(a.Model)
+	}
+	return s
+}
+
+// pin sends every new session to the account the request names, with Move,
+// every running session too, and with Force, clears every session's own pin.
+// It fails, saying why, for an account nothing can go out on.
+func (r *Router) pin(p PinRequest) error {
+	if err := r.pinnable(p.Account); err != nil {
+		return err
+	}
+	cleared := r.sessions.setPin(status.Pin{Account: p.Account, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
+	attrs := []any{"account", p.Account, "move", p.Move}
+	if p.Force {
+		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
+	}
+	logger.Info("pinned", attrs...)
+	return nil
+}
+
+// unpin clears the global pin, so every session is routed on its merits but
+// for those with pins of their own, and with force, clears theirs too.
+func (r *Router) unpin(force bool) {
+	was, cleared := r.sessions.unpin(force)
+	switch {
+	case force:
+		logger.Info("unpinned", "account", was.Account, "force", true, "sessions_unpinned", cleared)
+	case was.Account != "":
+		logger.Info("unpinned", "account", was.Account)
+	}
+}
+
+// pinSession sends the requests of the session with the given id to the
+// account with the given id from its next request on, passing over the pin it
+// was launched with. It fails, saying why, for an account nothing can go out
+// on, and with ErrUnknownSession for a session the router hasn't seen.
+func (r *Router) pinSession(id, account string) error {
+	if err := r.pinnable(account); err != nil {
+		return err
+	}
+	if !r.sessions.pinSession(id, account) {
+		return unknownSession(id)
+	}
+	logger.Info("pinned session", "session", status.ShortID(id), "account", account)
+	return nil
+}
+
+// unpinSession clears the own pin of the session with the given id, the one
+// it was launched with included, so it's routed like any other from its next
+// request. It fails with ErrUnknownSession for a session the router hasn't
+// seen.
+func (r *Router) unpinSession(id string) error {
+	if !r.sessions.pinSession(id, "") {
+		return unknownSession(id)
+	}
+	logger.Info("unpinned session", "session", status.ShortID(id))
+	return nil
+}
+
+// pinnable fails, saying why, unless requests can go out on the account with
+// the given id, as a pin to it needs.
+func (r *Router) pinnable(id string) error {
 	a, ok := r.accounts.byID(id)
 	switch {
 	case id == "":
@@ -199,16 +311,7 @@ func (r *Router) pin(id string, move bool) error {
 	case !a.hasToken():
 		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem)
 	}
-	r.sessions.setPin(status.Pin{Account: id, Since: r.cfg.Now().UTC(), Move: move})
-	logger.Info("pinned", "account", id, "move", move)
 	return nil
-}
-
-// unpin clears the global pin, so every session is routed on its merits.
-func (r *Router) unpin() {
-	if was := r.sessions.unpin(); was.Account != "" {
-		logger.Info("unpinned", "account", was.Account)
-	}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

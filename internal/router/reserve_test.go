@@ -88,7 +88,7 @@ func TestAPinSpendsItsAccountsReserve(t *testing.T) {
 	}
 
 	r.clock.advance(time.Minute)
-	if _, err := client.Pin(t.Context(), "work", true); err != nil {
+	if _, err := client.Pin(t.Context(), router.PinRequest{Account: "work", Move: true}); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
 	for _, reason := range []string{`reason="moved by pin"`, "reason=sticky"} {
@@ -105,7 +105,7 @@ func TestAPinSpendsItsAccountsReserve(t *testing.T) {
 		t.Errorf("the document says of work's reserve %q, want it spent by the pin", doc.Reserved(work))
 	}
 
-	if _, err := client.Unpin(t.Context()); err != nil {
+	if _, err := client.Unpin(t.Context(), false); err != nil {
 		t.Fatalf("Unpin() error = %v", err)
 	}
 	if got := r.ask(t, "one", opus, ""); got != "side" {

@@ -148,10 +148,11 @@ on a model whose thinking is bound to its account only when its account can't se
 
 Each request's account is decided in this order:
 
-1. The session's own pin, set by `run --account` as it starts or by `pin --session` while it runs,
-   the later winning, while its account can serve it; else the pin yields to the rest. A session
-   that yielded stays where it went while its cache is warm, and goes back once it's cold, unless
-   its model's thinking is bound to the account it went to.
+1. The session's own pin, while its account can serve it: the one `pin --session` gave it while it
+   ran, else the one `run --account` gave it as it started; else the pin yields to the rest. A
+   session that yielded stays where it went while its cache is warm, and goes back once it's
+   cold, unless its model's thinking is bound to the account it went to. A pin it's given while
+   it runs moves it on its next request, back to the account it yielded included.
 2. A global pin set with `--move`, for a session assigned before it: once each.
 3. The session's account, while its cache is warm, or for a model whose thinking is bound to it,
    and the account can serve it.
@@ -194,6 +195,7 @@ The routed line in the log gives the reason for each request's account, one of:
 |---|---|---|
 | `run --account <id>` | That session's conversation; Claude Code's own token stays the primary's | Unaffected |
 | `pin <id>` | Every new session, and any other whose account is chosen afresh | Stay where they are while their caches are warm and their accounts have room |
+| `pin <id> --force` | As `pin <id>`, every session's own pin cleared | Stay where they are while their caches are warm and their accounts have room |
 | `pin <id> --move` | Every new session and every running one but those with their own pin | Move on their next request (one cache rebuild each, and a session on a model whose thinking is bound to its account loses its reasoning) |
 | `pin <id> --move --force` | Every session, their own pins included, which it clears | Move on their next request |
 | `pin auto` | Back to routing (`auto` in any case) | Stay where they are while their caches are warm and their accounts have room |
@@ -207,11 +209,19 @@ account.
 
 A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
 header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
-it: the router remembers the new pin, and passes over the launch pin's header from then on. A
-session is named by its id, or as much of it as is unique: `status` lists the running sessions
-with their ids, and Claude Code's `/status` shows a session's own. `--force` clears every
-session's own pin, launch pins included, so `pin <id> --move --force` puts everything on one
-account, and `pin auto --force` hands everything back to the router.
+it: the router remembers the new pin in `state.json`, with the session's assignments, and passes
+over the launch pin's header from then on, as it does once `pin auto --session` has cleared the
+session's pin. It holds as long as the router remembers the session, so a session resumed with
+`--resume` keeps it. A session is named by its id, or as much of it as is unique among the
+sessions routed in the last hour: `status` lists them with their ids, Claude Code's `/status`
+shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it; one idle for
+longer is named by its whole id. `--session` pins one session alone, so it takes neither `--move`
+nor `--force`.
+
+`--force` clears every session's own pin, launch pins included, which the router passes over from
+then on, so `pin <id> --move --force` puts everything on one account, and `pin auto --force` hands
+everything back to the router. A session first seen afterwards has the pin it's launched with, as
+usual.
 
 Every pin yields at a limit: a pinned session that hits one moves by the normal rules rather than
 failing. A pin spends its account's reserve: the reserve holds back the router's own choices, and
@@ -397,7 +407,7 @@ Files says. `switchboard --version` prints the version. Run by the name `claude`
 | `accounts token <id>` | Replace an account's token |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them, and from the router, the running sessions with their ids, accounts and own pins. `--json` prints the status document. `--session` prints one line naming the account the router sends a session's requests to, as a statusline asks, or with `--json`, `/sessions/{id}`'s answer; it needs the router |
+| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them, and from the router, the running sessions: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. `--json` prints the status document. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id or as much of it as is unique, as `pin --session` takes it, and it needs the router |
 | `usage [--watch [interval]] [--no-notify] [--probe]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
@@ -623,7 +633,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the config, the readings and a clock |
-| `internal/status` | The status document, building it by probing every account, and its words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
+| `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
 | `internal/dashboard` | Rendering the status document as a frame (Lip Gloss): cards, or a line per account |
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the router's health, the events it emits and the notifications it posts, the control API and its client, and restarting itself |
@@ -673,13 +683,14 @@ wider interface than it's worth:
   `~/.config/switchboard/config.toml`. A relative `XDG_CONFIG_HOME` or `XDG_STATE_HOME` is
   ignored, as the XDG spec says.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
-  (pins, session assignments and each account's last readings, so a restart doesn't scatter
-  sessions or need a probe, and the hashes of the accounts' tokens: see Accounts and tokens),
-  `control.sock`, `tokens/` and `logs/`. `state.json` is versioned, rewritten whole (a temporary
-  file renamed over it) a second after a change and on the way out, and drops assignments unused
-  for 7 days, at start and then hourly. At start it also drops the assignments, and the pin, of
-  accounts nothing can go out on, no longer configured or without a token. A corrupt one is set
-  aside as `state.json.corrupt-<unix time>`, and the router starts without it.
+  (the global pin, session assignments and the pins sessions were given while they ran, and each
+  account's last readings, so a restart doesn't scatter sessions or need a probe, and the hashes
+  of the accounts' tokens: see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
+  `state.json` is versioned, rewritten whole (a temporary file renamed over it) a second after a
+  change and on the way out, and drops assignments unused for 7 days, with the pins of the
+  sessions it forgets, at start and then hourly. At start it also drops the assignments, and the
+  pins, of accounts nothing can go out on, no longer configured or without a token. A corrupt one
+  is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -770,8 +781,8 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `run` sends sessions to a router that answers `ok` and gives `listen`; `usage` and `status` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it: see below |
-| `GET /sessions/{id}` | For statuslines: `{"session": "<id>", "assignments": [{model, account, pinned, reason, assigned_at, last_seen}], "account": {…}}`. `assignments` are the session's, a model each, the one used last first, each naming its account by id; `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
-| `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `pin --session` finds a session from part of its id here |
+| `GET /sessions/{id}` | For statuslines: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, pinned, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
+| `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"account": "work", "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. Pinning an account nothing can go out on is a 400 |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |

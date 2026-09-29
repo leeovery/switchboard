@@ -21,35 +21,30 @@ const Separator = "  ·  "
 // Text renders the document for a terminal: each account, the primary marked,
 // with its windows, when they reset and where they're heading, whatever
 // couldn't be read, what holds it back, and how many sessions the router has
-// sent it; then the account to use next, and last where the usage came from.
-// Countdowns run from now, and times show in now's time zone. Every text it
-// shows that came from elsewhere, such as the config's labels or the
-// upstream's errors, it shows cleaned.
-func (d Document) Text(now time.Time) string {
+// sent it; then the sessions given, as the router lists those it has routed
+// in the last hour, a line each; then the account to use next, and last where
+// the usage came from. Countdowns run from now, and times show in now's time
+// zone. Every text it shows that came from elsewhere, such as the config's
+// labels or the upstream's errors, it shows cleaned.
+func (d Document) Text(now time.Time, sessions ...Session) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
-	for i, account := range d.Accounts {
-		if i > 0 {
-			b.WriteString("\n")
-		}
+	for _, account := range d.Accounts {
 		account.write(&b, width, now)
 		d.writeNotes(&b, account, now)
+		b.WriteString("\n")
 	}
-	if len(d.Accounts) > 0 {
+	if len(sessions) > 0 {
+		b.WriteString("sessions\n")
+		for _, s := range sessions {
+			fmt.Fprintf(&b, "  %s\n", s.Line(now))
+		}
 		b.WriteString("\n")
 	}
 	if best, ok := d.Account(d.Best); ok {
 		fmt.Fprintf(&b, "best next: %s\n", best.Title())
 	}
 	fmt.Fprintf(&b, "%s\n", d.origin())
-	return b.String()
-}
-
-// Text renders the account for a terminal as the document's Text does, but
-// for what's noted of it beside its usage.
-func (a Account) Text(now time.Time) string {
-	var b strings.Builder
-	a.write(&b, labelWidth([]Account{a}), now)
 	return b.String()
 }
 
