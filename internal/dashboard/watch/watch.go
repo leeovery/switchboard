@@ -3,10 +3,11 @@
 // tell the router where to send sessions, leaving desktop notifications to the
 // router. While it doesn't, it probes every account as each read falls due,
 // and posts its own notifications, as the config asks, when an account has
-// room again or a window passes the warning. It redraws as the clock moves,
-// and eases each bar to its new reading. Beyond its log, the model does no
-// I/O of its own: it's handed its source, its clock and its notifier, so
-// tests drive it as a terminal would.
+// room again or a window passes the warning. Probing as asked while the
+// router answers, it leaves them to the router all the same. It redraws as
+// the clock moves, and eases each bar to its new reading. Beyond its log, the
+// model does no I/O of its own: it's handed its source, its clock and its
+// notifier, so tests drive it as a terminal would.
 package watch
 
 import (
@@ -46,6 +47,9 @@ type Source interface {
 	Pin(ctx context.Context, account string, move bool) error
 	// Unpin has the router route every session on its merits again.
 	Unpin(ctx context.Context) error
+	// RouterAnswers reports whether the router answers: while it does, it
+	// posts the desktop notifications, even as the source probes as asked.
+	RouterAnswers(ctx context.Context) bool
 }
 
 // A Read is what a read of the source asks for.
@@ -74,8 +78,9 @@ type Config struct {
 	Source   Source
 	Notifier Notifier
 	// Notifications says which notifications the dashboard posts while it
-	// probes: room again, and a window passing the warning. The others are
-	// the router's alone, as only it sees limits reached and sessions moved.
+	// probes without the router: room again, and a window passing the
+	// warning. The others are the router's alone, as only it sees limits
+	// reached and sessions moved.
 	Notifications config.Notifications
 	// Now reads the wall clock.
 	Now func() time.Time
@@ -300,13 +305,13 @@ func logRead(msg fetchedMsg, next time.Time) {
 }
 
 // show puts doc, read at now, on screen: it posts what the change calls for,
-// unless doc is the router's, as the router posts its own and nothing is to
-// be told twice; follows the router as it goes and comes back; and eases the
-// bars to doc from where they stand.
+// unless the router is there to post its own, as nothing is to be told twice;
+// follows the router as it goes and comes back; and eases the bars to doc
+// from where they stand.
 func (m Model) show(doc status.Document, now time.Time) (Model, tea.Cmd) {
 	var post tea.Cmd
 	if !routed(doc) {
-		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications))
+		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
 	}
 	m.readings = m.readings.with(doc, now)
 	m = m.follow(doc, now)
@@ -383,13 +388,21 @@ func (m Model) framed() (tea.Model, tea.Cmd) {
 	return m, m.after(frameEvery, frameMsg{})
 }
 
-// post posts the alerts in turn, noting each in the log.
-func (m Model) post(alerts []notify.Notice) tea.Cmd {
+// post posts the alerts in turn, noting each in the log. Of a document probed
+// as asked, it asks after the router first, and posts none while it answers,
+// as the router posts its own.
+func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 	if len(alerts) == 0 {
 		return nil
 	}
-	notifier := m.cfg.Notifier
+	ctx, source, notifier := m.ctx, m.cfg.Source, m.cfg.Notifier
 	return func() tea.Msg {
+		if asked && source.RouterAnswers(ctx) {
+			for _, a := range alerts {
+				logger.Debug("notification left to the router", "account", a.Account, "news", a.News)
+			}
+			return nil
+		}
 		for _, a := range alerts {
 			if err := notifier.Notify(a.Message); err != nil {
 				logger.Warn("notification failed", "account", a.Account, "news", a.News, "error", err)
@@ -440,6 +453,13 @@ func (m Model) routed() bool {
 // routed reports whether doc is the router's.
 func routed(doc status.Document) bool {
 	return doc.Source == status.SourceRouter
+}
+
+// probedAsAsked reports whether doc was built by probing as asked, rather
+// than for want of the router, which may be running all the same: one probed
+// for want of it says why.
+func probedAsAsked(doc status.Document) bool {
+	return !routed(doc) && doc.Fallback == (status.Fallback{})
 }
 
 // now reads the wall clock without its monotonic reading, which stops while a

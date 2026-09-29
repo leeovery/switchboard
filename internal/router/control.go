@@ -308,22 +308,23 @@ func (r *Router) pinnable(id string) error {
 	case id == "":
 		return errors.New(`give the account to pin, such as {"account": "work"}`)
 	case !ok:
-		return unknownAccount(id, r.accounts.sendable())
+		return UnknownAccount(id, r.accounts.sendable().configured().IDs())
 	case !a.hasToken():
 		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem())
 	}
 	return nil
 }
 
-// unknownAccount says there's no account with the given id, naming those of
-// the sendable accounts given that can be pinned instead, or saying there are
-// none. It hides anything in the id that looks like a token, as a token
-// pasted where an id goes would be.
-func unknownAccount(id string, sendable accounts) error {
-	if len(sendable) == 0 {
+// UnknownAccount says there's no account with the given id to pin, naming
+// the accounts that can be pinned instead, pinnable, those with a usable
+// token, or saying there are none: pin and run --account say it alike. It
+// hides anything in the id that looks like a token, as a token pasted where
+// an id goes would be.
+func UnknownAccount(id string, pinnable []string) error {
+	if len(pinnable) == 0 {
 		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", redact.Text(id))
 	}
-	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), strings.Join(sendable.configured().IDs(), " or "))
+	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), strings.Join(pinnable, " or "))
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

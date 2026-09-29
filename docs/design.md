@@ -239,7 +239,7 @@ usual.
 A pin needs an account requests can go out on. `pin` to one that isn't configured fails, naming the
 accounts that can be pinned, or, when no account has a usable token, saying that none has one to
 pin; to one without a usable token, it fails, saying why it has none. `run --account` fails for
-either too, naming every account configured for one that isn't (see Launching).
+either too, saying what `pin` does of one that isn't configured (see Launching).
 
 Every pin yields at a limit: a pinned session that hits one moves by the normal rules rather than
 failing. A pin spends its account's reserve: the reserve holds back the router's own choices, and
@@ -629,11 +629,11 @@ at warn, and dropped too; not having gone out, it starts no quiet minute. The lo
 id alone. Notifications never hold a request up: the router queues what happens, 256 events at most,
 dropping any past that with a warning in the log, and posts from a goroutine of its own.
 
-The dashboard in watch mode posts its own, only while it probes, of an account with room again
-and a window passing the warning, as `room` and `warning` say, and none with `--no-notify`:
-while it reads the router, it posts none, so nothing is told twice. With `--probe`, it probes, and
-posts, while the router runs and posts too. It sees no limits or moves, which are the router's
-alone.
+The dashboard in watch mode posts its own only while it probes because the router isn't there to:
+of an account with room again and a window passing the warning, as `room` and `warning` say, and
+none with `--no-notify`. While the router answers, the dashboard posts none, so nothing is told
+twice: probing with `--probe`, it asks after the router before it posts, and posts only when it
+doesn't answer. It sees no limits or moves, which are the router's alone.
 
 ## Logging
 
@@ -780,7 +780,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
 | `internal/dashboard` | Rendering the status document as a frame (Lip Gloss): cards, or a line per account |
-| `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes |
+| `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes without the router |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting for a config change or an upgrade |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
@@ -903,9 +903,10 @@ fails as it is; one that parses has every problem reported at once:
 - **`[prime]`**: `day` is two times of day, `HH:MM`, joined by `-`, and not the same time twice.
 - **`[notifications]`**: each key defaults as shown. `warning` is 0, or more than 0 and less than
   1.
-- **No error quotes a token:** one that quotes a value, of `listen`, `upstream` or `prime.day`, or
-  an unknown key's name, shows anything in it shaped like a token as `[redacted]`, and an unknown
-  key's value is never quoted.
+- **No error quotes a token:** one that quotes a value, of `listen`, `upstream` or `prime.day`, an
+  unknown key's name, or the key a file that isn't TOML fails at, such as one without a value or
+  given twice, shows anything in it shaped like a token as `[redacted]`, and an unknown key's value
+  is never quoted.
 
 ### Proxy rules
 

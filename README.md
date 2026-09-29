@@ -428,7 +428,7 @@ warning = 0.9
 moves   = false
 ```
 
-The accounts keep their file order, which is their order everywhere they're shown, and the order priming gives them their slots in. Unknown keys are errors, and a file that parses has every problem reported at once, none of them quoting a token pasted into the config: it shows as `[redacted]`, or not at all.
+The accounts keep their file order, which is their order everywhere they're shown, and the order priming gives them their slots in. Unknown keys are errors, and a file that parses has every problem reported at once. No error quotes a token pasted into the config, not even where a file that doesn't parse fails: it shows as `[redacted]`, or not at all.
 
 ### Top-level keys
 
@@ -504,7 +504,7 @@ While it runs, the router posts desktop notifications, whether or not a dashboar
 
 A limit's notification always goes out. Any other goes out only a minute or more after the last posted about its account, and is dropped otherwise. Notifications never hold a request up.
 
-A dashboard watching without the router posts its own, of an account with room again and a window passing the warning, unless `--no-notify`. While it reads the router it posts none, so nothing is told twice; with `--probe` it probes, and posts, while the router runs and posts too.
+A dashboard watching without the router posts its own, of an account with room again and a window passing the warning, unless `--no-notify`. While the router runs, the dashboard posts none, so nothing is told twice, even probing with `--probe`.
 
 ## Logs
 

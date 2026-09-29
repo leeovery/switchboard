@@ -278,13 +278,21 @@ func TestRunRefusesAPinItCantKeep(t *testing.T) {
 	tests := []struct {
 		name    string
 		account string
+		// tokens are the token files there are, testTokens unless given.
+		tokens  tokenstest.Files
 		wantErr string
 	}{
-		{name: "not configured", account: "nope", wantErr: `there's no account "nope": pin work or personal or side`},
+		{name: "not configured, naming those with a usable token", account: "nope", wantErr: `there's no account "nope": pin work or side`},
+		{
+			name:    "not configured, while no account has a usable token",
+			account: "nope",
+			tokens:  tokenstest.Files{"personal": " "},
+			wantErr: `there's no account "nope", and no account has a usable token to pin`,
+		},
 		{
 			name:    "a token given as the account, never quoted",
 			account: "sk-ant-oat01-fake_token-shaped",
-			wantErr: `there's no account "[redacted]": pin work or personal or side`,
+			wantErr: `there's no account "[redacted]": pin work or side`,
 		},
 		{
 			name:    "without a usable token",
@@ -295,8 +303,12 @@ func TestRunRefusesAPinItCantKeep(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
+			r := route(healthy(), tt.account)
+			if tt.tokens != nil {
+				r.Token = tt.tokens.Read
+			}
 
-			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err == nil || err.Error() != tt.wantErr {
+			if err := h.launcher.Run(t.Context(), r, nil); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
 			}
 			if len(h.starts) > 0 {

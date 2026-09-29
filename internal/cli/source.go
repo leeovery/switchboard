@@ -23,7 +23,8 @@ type usageSource struct {
 	// ask is set when the router is to be read first, as it is unless probing
 	// was asked for.
 	ask bool
-	// router is the router to read, nil when there's no socket to find it at.
+	// router is the router, nil when there's no socket to find it at: read
+	// when ask is set, and asked after either way.
 	router *router.Client
 }
 
@@ -78,6 +79,17 @@ func (s usageSource) answers(ctx context.Context) (status.Fallback, bool) {
 		return status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within " + launch.AskTimeout.String()}, false
 	}
 	return fallbackFrom(err), err == nil
+}
+
+// RouterAnswers reports whether the router answers its health check within
+// launch.AskTimeout, as run gives it, healthy or not: while it does, it posts
+// the desktop notifications, whether its document is read or not.
+func (s usageSource) RouterAnswers(ctx context.Context) bool {
+	if s.router == nil {
+		return false
+	}
+	_, ok := s.answers(ctx)
+	return ok
 }
 
 // document is the router's status document, once it has probed the accounts

@@ -259,15 +259,18 @@ func (c *fakeClock) Now() time.Time {
 }
 
 // fakeSource reads as a source does: the router's document while the router
-// answers, and, for a read that probes when it doesn't, doc, or err when
-// that's set. Orders change the router's pin, or fail with refuse when that's
-// set. It notes every read asked of it, and every order.
+// answers, unless it probes as asked, and, for a read that probes, doc, or
+// err when that's set. Orders change the router's pin, or fail with refuse
+// when that's set. It notes every read asked of it, and every order.
 type fakeSource struct {
 	doc status.Document
 	err error
 	// router is the router's document, while the router answers.
 	router *status.Document
-	refuse error
+	// probing is set when the source probes as asked, as with --probe, even
+	// while the router answers.
+	probing bool
+	refuse  error
 	// reads counts the reads that probed, or failed.
 	reads int
 	// asked lists every read asked for, in turn.
@@ -280,13 +283,17 @@ type fakeSource struct {
 func (s *fakeSource) Read(_ context.Context, r Read) (status.Document, error) {
 	s.asked = append(s.asked, r)
 	switch {
-	case s.router != nil:
+	case s.router != nil && !s.probing:
 		return *s.router, nil
 	case !r.Probe:
 		return status.Document{}, ErrNoRouter
 	}
 	s.reads++
 	return s.doc, s.err
+}
+
+func (s *fakeSource) RouterAnswers(context.Context) bool {
+	return s.router != nil
 }
 
 func (s *fakeSource) Pin(_ context.Context, account string, move bool) error {

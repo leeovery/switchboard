@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 const (
@@ -178,11 +180,15 @@ func Load(path string) (*Config, error) {
 
 // decodeFile reads data as the text of the config file at path, with its
 // defaults filled in where it gives none, failing when it isn't TOML or holds
-// a value of the wrong type.
+// a value of the wrong type. The error hides anything that looks like a
+// token.
 func decodeFile(path string, data []byte) (file, toml.MetaData, error) {
 	f, meta, err := decode(string(data))
 	if err != nil {
-		return file{}, toml.MetaData{}, fmt.Errorf("parse config %s: %w", path, err)
+		// Not wrapped: the decoder's text quotes the key it stopped at, which
+		// can be a token pasted by mistake, as one without a value or given
+		// twice would be.
+		return file{}, toml.MetaData{}, fmt.Errorf("parse config %s: %s", path, redact.Text(err.Error()))
 	}
 	return f, meta, nil
 }

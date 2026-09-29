@@ -207,6 +207,21 @@ func TestUsageWatchProbesAsAsked(t *testing.T) {
 	}
 }
 
+func TestUsageWatchProbingAsAskedAsksAfterTheRouter(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	stop := srv.start(t)
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "usage", "--watch", "--probe")
+
+	if !cfg.Source.RouterAnswers(t.Context()) {
+		t.Error("RouterAnswers() = false while the router runs, want true: it posts the notifications")
+	}
+	stop()
+	if cfg.Source.RouterAnswers(t.Context()) {
+		t.Error("RouterAnswers() = true once the router stopped, want false: the dashboard posts its own")
+	}
+}
+
 // routingSetup starts a router of statusDeps' accounts, as routing does.
 func routingSetup(t *testing.T) *serveSetup {
 	t.Helper()
