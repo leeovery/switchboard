@@ -293,7 +293,7 @@ func (s *Service) Binary(exe string) (string, error) {
 		return "", fmt.Errorf("find this switchboard binary: %w", err)
 	}
 	if temporary(built, cmp.Or(s.cfg.Getenv("TMPDIR"), "/tmp")) {
-		return "", fmt.Errorf("this switchboard is a temporary build, %s, which won't be there for launchd to start: install it with go install, and install the service with that one", built)
+		return "", fmt.Errorf("this switchboard is a temporary build, %s, which won't last: use one that does, such as Homebrew's or one go install built", built)
 	}
 	return path, nil
 }

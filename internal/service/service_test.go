@@ -191,7 +191,7 @@ func TestInstallRefusesATemporaryBuild(t *testing.T) {
 			exe, found := tt.build(t, s.root, s.tmp)
 
 			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: exe})
-			want := "this switchboard is a temporary build, " + found + ", which won't be there for launchd to start: install it with go install, and install the service with that one"
+			want := "this switchboard is a temporary build, " + found + ", which won't last: use one that does, such as Homebrew's or one go install built"
 			if err == nil || err.Error() != want {
 				t.Errorf("Install() error = %v, want %q", err, want)
 			}

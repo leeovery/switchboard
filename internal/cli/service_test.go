@@ -36,6 +36,15 @@ func TestServiceInstall(t *testing.T) {
 	)
 }
 
+func TestServiceInstallHelpAsksForASwitchboardThatLasts(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "service", "install", "--help")
+	want := "It runs this switchboard binary, which must be one that lasts, such as Homebrew's or one go install built: " +
+		"a temporary build, such as go run's, is refused."
+	if help := strings.Join(strings.Fields(got.stdout), " "); got.code != 0 || !strings.Contains(help, want) {
+		t.Errorf("switchboard service install --help = %+v, want help saying %q", got, want)
+	}
+}
+
 func TestServiceInstallWithAConfig(t *testing.T) {
 	s := newServiceSetup(t)
 	dir := t.TempDir()

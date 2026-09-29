@@ -37,10 +37,11 @@ func newServiceInstallCommand(a *app) *cobra.Command {
 		Use:   "install",
 		Short: "Install the LaunchAgent, which starts the router",
 		Long: `Install the LaunchAgent, which starts the router now, at every login, and
-whenever it stops. It runs this switchboard binary, so install that with go
-install first. The router serves the config --config gives, else the one it
-finds, as the CLI does; a config the router couldn't serve fails the install.
-It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
+whenever it stops. It runs this switchboard binary, which must be one that
+lasts, such as Homebrew's or one go install built: a temporary build, such as
+go run's, is refused. The router serves the config --config gives, else the
+one it finds, as the CLI does; a config the router couldn't serve fails the
+install. It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
 
 The router reads the accounts' tokens from their files, as the CLI does, so it
 needs none of the shell's environment. Install warns when no account has a
