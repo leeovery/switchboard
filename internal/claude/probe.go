@@ -13,13 +13,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 // defaultTimeout bounds each request. Healthy probes answer in under a second,
@@ -37,11 +36,6 @@ const (
 	// maxErrorMessage is how many characters of that message an error keeps.
 	maxErrorMessage = 60
 )
-
-const redacted = "[redacted]"
-
-// tokenShaped matches Claude API keys and OAuth tokens, which all begin sk-ant-.
-var tokenShaped = regexp.MustCompile(`sk-ant-[A-Za-z0-9_-]+`)
 
 // probeClient sends probes, over http.DefaultTransport, following no
 // redirect: a client that did would carry the token along to the upstream's
@@ -134,7 +128,7 @@ func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.W
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return nil, errors.New(redact(err.Error(), token))
+		return nil, errors.New(redact.Text(err.Error(), token))
 	}
 	return windows, nil
 }
@@ -225,15 +219,7 @@ func errorMessage(body io.Reader, token string) string {
 	if err := json.NewDecoder(io.LimitReader(body, maxErrorBody)).Decode(&apiError); err != nil {
 		return ""
 	}
-	return redact(apiError.Error.Message, token)
-}
-
-// redact hides the token, and anything else shaped like a Claude token, in text.
-func redact(text, token string) string {
-	if token != "" {
-		text = strings.ReplaceAll(text, token, redacted)
-	}
-	return tokenShaped.ReplaceAllString(text, redacted)
+	return redact.Text(apiError.Error.Message, token)
 }
 
 // truncate keeps the first n characters of s.

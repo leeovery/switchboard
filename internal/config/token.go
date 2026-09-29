@@ -3,6 +3,8 @@ package config
 import (
 	"log/slog"
 	"strings"
+
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 // Token is an account's setup token. Printing or logging one shows a
@@ -35,7 +37,7 @@ func (t Token) Reveal() string {
 
 // String returns a placeholder, never the secret.
 func (t Token) String() string {
-	return "[redacted]"
+	return redact.Placeholder
 }
 
 // LogValue returns the same placeholder as String.
