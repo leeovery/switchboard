@@ -111,8 +111,8 @@ type installedCLI struct {
 // systemCLI is the claude command installed here, found on the PATH getenv
 // gives, else where its installers put it for the home directory home,
 // passing over switchboard's own executable, as executable gives it. It runs
-// in no more of the environment getenv gives than it needs: the router's
-// holds every token.
+// in no more of the environment getenv gives than it needs, which can hold a
+// token, as a Claude Code session's does.
 func systemCLI(getenv func(key string) string, home string, executable func() (string, error)) installedCLI {
 	return installedCLI{
 		pathList:   getenv("PATH"),

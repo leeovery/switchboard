@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -121,6 +122,29 @@ func (l Launcher) Local(args []string) error {
 		return err
 	}
 	logger.Debug("starting claude", "mode", "local", "claude", path)
+	return l.exec(path, args, l.Environ)
+}
+
+// KeyEnv returns the variable of the environment Claude Code starts in that
+// holds a key it may use in place of an account's token, as claude.KeyEnv
+// finds one: "" when none does.
+func (l Launcher) KeyEnv() string {
+	return claude.KeyEnv(environ(l.Environ).get)
+}
+
+// StepAside starts Claude Code with args in this process's place as if
+// switchboard weren't there, its environment as it is, for when that
+// environment sets key, a variable holding a key Claude Code may use in
+// place of an account's token: its requests would go unrouted, and be billed
+// to the key. Stderr hears why. It returns only when Claude Code couldn't
+// start.
+func (l Launcher) StepAside(args []string, key string) error {
+	path, err := l.find()
+	if err != nil {
+		return err
+	}
+	logger.Info("starting claude without switchboard", "reason", key+" is set", "claude", path)
+	Notice(l.Stderr, key+" is set, so Claude Code uses it — starting claude without switchboard")
 	return l.exec(path, args, l.Environ)
 }
 
@@ -272,7 +296,7 @@ func (r Route) pinned() (choice, error) {
 	}
 	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == r.Account })
 	if i < 0 {
-		return choice{}, fmt.Errorf("there's no account %q: pin %s", r.Account, strings.Join(r.Config.Accounts.IDs(), " or "))
+		return choice{}, fmt.Errorf("there's no account %q: pin %s", redact.Text(r.Account), strings.Join(r.Config.Accounts.IDs(), " or "))
 	}
 	a := r.Config.Accounts[i]
 	token, err := r.Token(a.ID)

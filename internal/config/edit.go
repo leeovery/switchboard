@@ -30,6 +30,14 @@ var (
 	ErrNotConfigured = errors.New("not configured")
 )
 
+// NotConfigured is the error of acting on the account with the given id,
+// which no account has: it matches ErrNotConfigured, and hides anything in
+// the id that looks like a token, as a token pasted where an id goes would
+// be.
+func NotConfigured(id string) error {
+	return fmt.Errorf("%s is %w", accountNamed(id), ErrNotConfigured)
+}
+
 // NewAccount is an account to add to the config file.
 type NewAccount struct {
 	ID string
@@ -37,6 +45,13 @@ type NewAccount struct {
 	Label string
 	// Primary makes it the primary, in place of any other.
 	Primary bool
+}
+
+// check fails, saying why, unless the account's id is one an account can
+// have, and its label holds nothing that looks like a token.
+func (a NewAccount) check() error {
+	name := accountNamed(a.ID)
+	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label))
 }
 
 // Draft is the config file's text, edited as text: its comments and layout
@@ -86,7 +101,7 @@ func (d *Draft) Config() *Config {
 // it takes primary off every other account. It fails, matching ErrConfigured,
 // when an account has its id already.
 func (d *Draft) AddAccount(a NewAccount) error {
-	if err := CheckID(a.ID); err != nil {
+	if err := a.check(); err != nil {
 		return err
 	}
 	if d.index(a.ID) >= 0 {
@@ -121,7 +136,7 @@ func (d *Draft) RemoveAccount(id string) error {
 	i := d.index(id)
 	switch {
 	case i < 0:
-		return fmt.Errorf("account %q is %w", id, ErrNotConfigured)
+		return NotConfigured(id)
 	case len(d.file.Accounts) == 1:
 		return fmt.Errorf("account %q is the only one, and a config needs one at least", id)
 	}
@@ -149,7 +164,7 @@ func (d *Draft) SetPrimary(id string) error {
 	i := d.index(id)
 	switch {
 	case i < 0:
-		return fmt.Errorf("account %q is %w", id, ErrNotConfigured)
+		return NotConfigured(id)
 	case d.file.Accounts[i].Primary:
 		return nil
 	}

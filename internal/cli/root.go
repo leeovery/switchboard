@@ -111,7 +111,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
 	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newLogsCommand(a), newServeCommand(a),
-		newPinCommand(a), newRunCommand(a), newServiceCommand(a))
+		newPinCommand(a), newRunCommand(a), newServiceCommand(a), newVersionCommand())
 	return root
 }
 

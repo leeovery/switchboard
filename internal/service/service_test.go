@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -191,7 +192,7 @@ func TestInstallRefusesATemporaryBuild(t *testing.T) {
 			exe, found := tt.build(t, s.root, s.tmp)
 
 			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: exe})
-			want := "this switchboard is a temporary build, " + found + ", which won't be there for launchd to start: install it with go install, and install the service with that one"
+			want := "this switchboard is a temporary build, " + found + ", which won't last: use one that does, such as Homebrew's or one go install built"
 			if err == nil || err.Error() != want {
 				t.Errorf("Install() error = %v, want %q", err, want)
 			}
@@ -391,7 +392,7 @@ func TestUninstall(t *testing.T) {
 			s := newSetup(t, nil, nil)
 			s.launchctl.loaded, s.launchctl.exits = tt.loaded, tt.exits
 			if tt.installed {
-				s.putPlist(t)
+				s.putPlist(t, "<plist/>\n")
 			}
 
 			removed, err := s.svc.Uninstall(t.Context())
@@ -409,39 +410,137 @@ func TestUninstall(t *testing.T) {
 	}
 }
 
-func TestRestart(t *testing.T) {
-	s := newSetup(t, nil, func(asked int) (router.Health, error) {
-		if asked == 0 {
-			return up(100)
-		}
-		return up(4242)
-	})
-	s.launchctl.loaded = true
+// restartWait is how long restarting the service waits for a router that
+// answered to be back: the ExitTimeOut launchd gives the router to stop,
+// then StartWait for the next to start.
+const restartWait = 45*time.Second + service.StartWait
 
-	h, err := s.svc.Restart(t.Context())
-	if err != nil {
-		t.Fatalf("Restart() error = %v", err)
+func TestRestart(t *testing.T) {
+	stopped := [][]string{{"print", target}, {"kill", "SIGTERM", target}}
+	startedAfresh := [][]string{{"print", target}, {"kickstart", "-k", target}}
+	tests := []struct {
+		name string
+		// answer answers a health check made since Restart began, when asked
+		// checks came before it.
+		answer func(since time.Duration, asked int) (router.Health, error)
+		// wantPID is the answering router's, or 0 for none.
+		wantPID    int
+		wantWaited time.Duration
+		wantRuns   [][]string
+		// wantDraining is set when Restart says, before it waits, that the
+		// router is finishing its requests in flight.
+		wantDraining bool
+	}{
+		{
+			name: "a router answering: stopped as at a signal, and back once launchd starts it again",
+			answer: func(_ time.Duration, asked int) (router.Health, error) {
+				if asked == 0 {
+					return up(100)
+				}
+				return up(4242)
+			},
+			wantPID:      4242,
+			wantRuns:     stopped,
+			wantDraining: true,
+		},
+		{
+			name: "a router answering: back once the requests it had in flight have finished",
+			answer: func(since time.Duration, asked int) (router.Health, error) {
+				switch {
+				case asked == 0:
+					return up(100)
+				case since < 40*time.Second:
+					return router.Health{}, errNotRunning
+				}
+				return up(4242)
+			},
+			wantPID:      4242,
+			wantWaited:   40 * time.Second,
+			wantRuns:     stopped,
+			wantDraining: true,
+		},
+		{
+			name: "a router answering: not back by when launchd would have killed it and started another",
+			answer: func(_ time.Duration, asked int) (router.Health, error) {
+				if asked == 0 {
+					return up(100)
+				}
+				return router.Health{}, errNotRunning
+			},
+			wantWaited:   restartWait,
+			wantRuns:     stopped,
+			wantDraining: true,
+		},
+		{
+			name:     "none answering: started afresh at once",
+			answer:   func(_ time.Duration, asked int) (router.Health, error) { return upAfter(asked, 1, 4242) },
+			wantPID:  4242,
+			wantRuns: startedAfresh,
+		},
+		{
+			name:       "none answering: started afresh, and not back",
+			answer:     func(time.Duration, int) (router.Health, error) { return router.Health{}, errNotRunning },
+			wantWaited: service.StartWait,
+			wantRuns:   startedAfresh,
+		},
 	}
-	if h == nil || h.PID != 4242 {
-		t.Errorf("Restart() found the router %v, want the one at pid 4242", h)
-	}
-	if want := [][]string{{"print", target}, {"kickstart", "-k", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
-		t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				began := time.Now()
+				s := newSetup(t, nil, func(asked int) (router.Health, error) { return tt.answer(time.Since(began), asked) })
+				s.launchctl.loaded = true
+
+				var saidAfter []time.Duration
+				h, err := s.svc.Restart(t.Context(), func() { saidAfter = append(saidAfter, time.Since(began)) })
+				if err != nil {
+					t.Fatalf("Restart() error = %v", err)
+				}
+				if said := slices.Equal(saidAfter, []time.Duration{0}); said != tt.wantDraining {
+					t.Errorf("said the router is finishing its requests after %v; want it said once, before any wait: %v", saidAfter, tt.wantDraining)
+				}
+				if waited := time.Since(began); waited != tt.wantWaited {
+					t.Errorf("waited %v for the router, want %v", waited, tt.wantWaited)
+				}
+				switch {
+				case tt.wantPID == 0 && h != nil:
+					t.Errorf("Restart() found the router %+v, want none answering", *h)
+				case tt.wantPID != 0 && (h == nil || h.PID != tt.wantPID):
+					t.Errorf("Restart() found the router %v, want pid %d", h, tt.wantPID)
+				}
+				if !reflect.DeepEqual(s.launchctl.calls, tt.wantRuns) {
+					t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, tt.wantRuns)
+				}
+			})
+		})
 	}
 }
 
 func TestRestartFails(t *testing.T) {
 	tests := []struct {
-		name     string
-		loaded   bool
-		exits    map[string]int
-		want     func(err error) bool
-		wantRuns [][]string
+		name   string
+		loaded bool
+		// answering has a router answer, at pid 100.
+		answering bool
+		exits     map[string]int
+		want      func(err error) bool
+		wantRuns  [][]string
 	}{
 		{
 			name:     "when launchd hasn't loaded the service",
 			want:     func(err error) bool { return errors.Is(err, service.ErrNotLoaded) },
 			wantRuns: [][]string{{"print", target}},
+		},
+		{
+			name:      "when launchctl can't signal the router",
+			loaded:    true,
+			answering: true,
+			exits:     map[string]int{"kill": 5},
+			want: func(err error) bool {
+				return err != nil && !errors.Is(err, service.ErrNotLoaded) &&
+					err.Error() == "launchctl kill SIGTERM "+target+": kill failed: 5: Input/output error (exit status 5)"
+			},
+			wantRuns: [][]string{{"print", target}, {"kill", "SIGTERM", target}},
 		},
 		{
 			name:   "when launchctl can't kickstart it",
@@ -456,15 +555,61 @@ func TestRestartFails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newSetup(t, nil, func(int) (router.Health, error) { return router.Health{}, errNotRunning })
+			s := newSetup(t, nil, func(int) (router.Health, error) {
+				if tt.answering {
+					return up(100)
+				}
+				return router.Health{}, errNotRunning
+			})
 			s.launchctl.loaded, s.launchctl.exits = tt.loaded, tt.exits
 
-			if h, err := s.svc.Restart(t.Context()); h != nil || !tt.want(err) {
+			draining := func() {
+				t.Error("said the router is finishing its requests, want nothing said of a restart that failed")
+			}
+			if h, err := s.svc.Restart(t.Context(), draining); h != nil || !tt.want(err) {
 				t.Errorf("Restart() = %v, %v", h, err)
 			}
 			if !reflect.DeepEqual(s.launchctl.calls, tt.wantRuns) {
 				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, tt.wantRuns)
 			}
+		})
+	}
+}
+
+func TestBootingTheServiceOutWaitsForTheRouterToStop(t *testing.T) {
+	tests := []struct {
+		name string
+		// bootOut boots the loaded service out, as the method named does.
+		bootOut func(ctx context.Context, s *setup) error
+	}{
+		{
+			name: "Install, over a loaded service",
+			bootOut: func(ctx context.Context, s *setup) error {
+				_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+				return err
+			},
+		},
+		{
+			name: "Uninstall",
+			bootOut: func(ctx context.Context, s *setup) error {
+				_, err := s.svc.Uninstall(ctx)
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newSetup(t, nil, upOnceStarted(4242))
+				s.launchctl.loaded = true
+				// Booting out waits for the router to stop, which launchd gives
+				// it its ExitTimeOut, 45 seconds, to do.
+				s.launchctl.takes = map[string]time.Duration{"bootout": 45 * time.Second}
+
+				if err := tt.bootOut(t.Context(), s); err != nil {
+					t.Errorf("error = %v, want none: bootout given as long as launchd gives the router to stop", err)
+				}
+			})
 		})
 	}
 }
@@ -495,7 +640,7 @@ func TestStatus(t *testing.T) {
 			s := newSetup(t, nil, tt.answer)
 			s.launchctl.loaded = tt.loaded
 			if tt.installed {
-				s.putPlist(t)
+				s.putPlist(t, "<plist/>\n")
 			}
 
 			st, err := s.svc.Status(t.Context())
@@ -507,6 +652,41 @@ func TestStatus(t *testing.T) {
 			}
 			if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchctl.calls, want) {
 				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
+			}
+		})
+	}
+}
+
+func TestStatusNamesTheBinaryThePlistRuns(t *testing.T) {
+	// A path holding what XML escapes.
+	const binary = "/Users/tester/it's <mine> & co/bin/switchboard"
+	written, err := newService(t, service.Config{Home: "/Users/tester", StateDir: "/Users/tester/.local/state/switchboard", Getenv: func(string) string { return "" }}).
+		PlistOf(service.InstallOptions{Executable: binary, Config: "/Users/tester/work.toml", LogLevel: "debug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		// plist is what's in the plist's place, "" for nothing.
+		plist string
+		want  string
+	}{
+		{name: "one as install writes it", plist: string(written), want: binary},
+		{name: "none"},
+		{name: "one naming no program", plist: "<plist/>\n"},
+		{name: "one whose program has no arguments", plist: "<plist><dict><key>ProgramArguments</key><array/></dict></plist>\n"},
+		{name: "one that isn't XML, as a binary one isn't", plist: "bplist00\xd1\x01\x02"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSetup(t, nil, func(int) (router.Health, error) { return up(4242) })
+			if tt.plist != "" {
+				s.putPlist(t, tt.plist)
+			}
+
+			st, err := s.svc.Status(t.Context())
+			if err != nil || st.Binary != tt.want {
+				t.Errorf("Status() = %+v, %v; want the binary %q", st, err, tt.want)
 			}
 		})
 	}
@@ -696,13 +876,13 @@ func (s *setup) checkPlist(t *testing.T, binary, config string) {
 	}
 }
 
-// putPlist puts a plist where the service's goes, as an install leaves one.
-func (s *setup) putPlist(t *testing.T) {
+// putPlist puts a plist holding content where the service's goes.
+func (s *setup) putPlist(t *testing.T, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(s.plist), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(s.plist, []byte("<plist/>\n"), 0o644); err != nil {
+	if err := os.WriteFile(s.plist, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -722,19 +902,22 @@ func writeBinary(t *testing.T, path string) string {
 // fakeLaunchctl stands in for launchctl, and launchd behind it, noting each
 // run. Printing the service succeeds while it's loaded, and exits 113 when
 // it isn't, as launchctl does; bootstrapping loads it, and booting it out
-// unloads it. A subcommand exits with the status exits gives it instead,
-// saying why as launchctl does. cantRun fails every run, as when there's no
-// launchctl to run, and refuse fails the test on any.
+// unloads it. A subcommand takes as long as takes gives it, killed as
+// exec.CommandContext kills it when its context ends first, and exits with
+// the status exits gives it, saying why as launchctl does. cantRun fails
+// every run, as when there's no launchctl to run, and refuse fails the test
+// on any.
 type fakeLaunchctl struct {
 	t       *testing.T
 	refuse  bool
 	loaded  bool
+	takes   map[string]time.Duration
 	exits   map[string]int
 	cantRun error
 	calls   [][]string
 }
 
-func (f *fakeLaunchctl) run(_ context.Context, args ...string) ([]byte, error) {
+func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error) {
 	if f.refuse {
 		f.t.Errorf("ran launchctl %q, want launchctl left alone", args)
 		return nil, errors.New("launchctl mustn't run here")
@@ -742,6 +925,11 @@ func (f *fakeLaunchctl) run(_ context.Context, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, args)
 	if f.cantRun != nil {
 		return nil, f.cantRun
+	}
+	select {
+	case <-time.After(f.takes[args[0]]):
+	case <-ctx.Done():
+		return nil, errors.New("signal: killed")
 	}
 	if status := f.exits[args[0]]; status != 0 {
 		return fmt.Appendf(nil, "%s failed: %d: Input/output error\n", args[0], status), exitStatus(status)

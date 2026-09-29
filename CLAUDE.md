@@ -60,9 +60,9 @@ notifications. Ever.
     directory.
 - **testguard fails the run, even when every test passed,** when:
   - a stub ran, or a dial was blocked;
-  - the real switchboard config changed, or its state directory appeared: in the home, or where
-    `SWITCHBOARD_CONFIG`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME` put them as the run began,
-    links resolved;
+  - the real switchboard config changed, its state directory appeared, or a token file in its
+    `tokens` directory appeared or changed: in the home, or where `SWITCHBOARD_CONFIG`,
+    `XDG_CONFIG_HOME` and `XDG_STATE_HOME` put them as the run began, links resolved;
   - a switchboard file in the real `~/Library/LaunchAgents` appeared or changed;
   - switchboard's skill in Claude Code's real config directory appeared or changed: in
     `~/.claude`, or where `CLAUDE_CONFIG_DIR` put it as the run began, links resolved;
@@ -99,7 +99,8 @@ notifications. Ever.
     directory, and Claude Code's config directory, where they exist;
   - it denies a write into each directory on `PATH` outside the home that the user can write to;
   - it denies running each of those programs that's installed, where `PATH` finds it, links
-    resolved;
+    resolved: the real `claude` where switchboard finds it, past switchboard's bin directory and
+    any `claude` that's a switchboard binary, such as its link;
   - the tests start without those variables.
 - **Without the sandbox:** on macOS, without `/usr/bin/sandbox-exec`, the tests don't run; off
   macOS, testguard alone guards them.

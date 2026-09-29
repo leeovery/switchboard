@@ -590,6 +590,90 @@ func TestTheRealStateDirectoryAppearing(t *testing.T) {
 	}
 }
 
+func TestChangesToTheRealTokenFiles(t *testing.T) {
+	const tokens = "the real ~/.local/state/switchboard/tokens"
+	tests := []struct {
+		name string
+		// before lays out the state directory, at state, before the tests
+		// begin.
+		before func(t *testing.T, state string)
+		// during changes it as the tests run.
+		during func(t *testing.T, state string)
+		want   []string
+	}{
+		{
+			name:   "nothing",
+			before: writeTokens,
+			during: func(*testing.T, string) {},
+		},
+		{
+			name:   "one written where there was none",
+			before: writeState,
+			during: func(t *testing.T, state string) {
+				write(t, filepath.Join(state, tokensDir, "work"), "test-token-work\n")
+			},
+			want: []string{tokens + " was created", tokens + "/work was created"},
+		},
+		{
+			name:   "one rewritten",
+			before: writeTokens,
+			during: func(t *testing.T, state string) {
+				write(t, filepath.Join(state, tokensDir, "work"), "test-token-other\n")
+			},
+			want: []string{tokens + "/work was modified"},
+		},
+		{
+			name:   "one removed",
+			before: writeTokens,
+			during: func(t *testing.T, state string) {
+				if err := os.Remove(filepath.Join(state, tokensDir, "work")); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: []string{tokens + " was modified", tokens + "/work was removed"},
+		},
+		{
+			name:   "a live router writing the rest of its state",
+			before: writeTokens,
+			during: func(t *testing.T, state string) {
+				write(t, filepath.Join(state, "logs", "router.log"), "level=INFO msg=routed\nlevel=INFO msg=routed\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			state := filepath.Join(home, stateDir)
+			tt.before(t, state)
+			backdate(t, home)
+			watched := watchReal(home, noEnv)
+
+			tt.during(t, state)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChangesToARealTokenFileThroughALink(t *testing.T) {
+	home, secrets := t.TempDir(), t.TempDir()
+	kept := filepath.Join(secrets, "work")
+	write(t, kept, "test-token-work\n")
+	writeState(t, filepath.Join(home, stateDir))
+	symlink(t, kept, filepath.Join(home, stateDir, tokensDir, "work"))
+	backdate(t, secrets)
+	watched := watchReal(home, noEnv)
+
+	write(t, kept, "test-token-other\n")
+
+	want := []string{"the real ~/.local/state/switchboard/tokens/work was modified"}
+	if got := watched.changes(); !slices.Equal(got, want) {
+		t.Errorf("changes() = %q, want %q", got, want)
+	}
+}
+
 func TestNoHomeWatchesNothing(t *testing.T) {
 	if got := watchReal("", noEnv).changes(); got != nil {
 		t.Errorf("changes() with no home = %q, want none", got)
@@ -639,6 +723,14 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 			during: func(t *testing.T, elsewhere string) {
 				write(t, filepath.Join(elsewhere, "state", "switchboard", "logs", "router.log"), "level=INFO msg=routed\nlevel=INFO msg=routed\n")
 			},
+		},
+		{
+			name:   "a token file written in the state there all along",
+			before: func(t *testing.T, elsewhere string) { writeState(t, filepath.Join(elsewhere, "state", "switchboard")) },
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "state", "switchboard", tokensDir, "work"), "test-token-work\n")
+			},
+			want: []string{"the real %[1]s/state/switchboard/tokens was created", "the real %[1]s/state/switchboard/tokens/work was created"},
 		},
 		{
 			name: "the skill installed where CLAUDE_CONFIG_DIR puts it",
@@ -702,6 +794,7 @@ func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
 		variable, file string
 	}{
 		{name: "the config", variable: "SWITCHBOARD_CONFIG"},
+		{name: "a token file", variable: "XDG_STATE_HOME", file: filepath.Join("switchboard", tokensDir, "work")},
 		{name: "the skill", variable: "CLAUDE_CONFIG_DIR", file: filepath.Join(skillDir, "SKILL.md")},
 		{name: "claude on PATH", variable: "PATH", file: "claude"},
 		{name: "switchboard's bin directory", variable: "XDG_DATA_HOME", file: filepath.Join("switchboard", "bin", "claude")},
@@ -752,6 +845,14 @@ func writeState(t *testing.T, state string) {
 	t.Helper()
 	write(t, filepath.Join(state, "state.json"), "{\"version\": 1, \"sessions\": []}\n")
 	write(t, filepath.Join(state, "logs", "router.log"), "level=INFO msg=routed\n")
+}
+
+// writeTokens lays out a state directory at state as writeState does, with
+// work's token file in it.
+func writeTokens(t *testing.T, state string) {
+	t.Helper()
+	writeState(t, state)
+	write(t, filepath.Join(state, tokensDir, "work"), "test-token-work\n")
 }
 
 // write writes content to a file at path, creating its directories.

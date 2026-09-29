@@ -14,6 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 // ReservedID is the one id no account may have, in any case: switchboard pin
@@ -60,12 +61,19 @@ func alreadyReported(reported map[string]bool, key toml.Key) bool {
 
 // unknownKey is the error of a key switchboard doesn't read, which says what
 // has become of it if it once did. It never quotes the key's value, which
-// can be a token pasted by mistake.
+// can be a token pasted by mistake, and hides anything in the key that looks
+// like one.
 func unknownKey(key string) error {
 	if fate, ok := retired[key]; ok {
 		return fmt.Errorf("unknown key %q: %s", key, fate)
 	}
-	return fmt.Errorf("unknown key %q", key)
+	return fmt.Errorf("unknown key %q", redact.Text(key))
+}
+
+// wrongValue is the error of the value the config gives key, wrong as why
+// says, which it quotes, anything in it that looks like a token hidden.
+func wrongValue(key, value, why string) error {
+	return fmt.Errorf("%s %q: %s", key, redact.Text(value), why)
 }
 
 // checkListen keeps the proxy on loopback, at an address: it adds account
@@ -75,11 +83,11 @@ func checkListen(addr string) error {
 	host, port, err := net.SplitHostPort(addr)
 	switch {
 	case err != nil:
-		return fmt.Errorf("listen %q: must be host:port, such as 127.0.0.1:4747 or [::1]:4747", addr)
+		return wrongValue("listen", addr, "must be host:port, such as 127.0.0.1:4747 or [::1]:4747")
 	case !isLoopbackIP(host):
-		return fmt.Errorf("listen %q: host must be a loopback IP address, 127.0.0.1 or ::1, so no other machine can use the proxy's tokens; a name, even localhost, can lead a client to another address", addr)
+		return wrongValue("listen", addr, "host must be a loopback IP address, 127.0.0.1 or ::1, so no other machine can use the proxy's tokens; a name, even localhost, can lead a client to another address")
 	case !isPort(port):
-		return fmt.Errorf("listen %q: port must be a number from 1 to 65535", addr)
+		return wrongValue("listen", addr, "port must be a number from 1 to 65535")
 	}
 	return nil
 }
@@ -105,9 +113,9 @@ func checkUpstream(upstream string) error {
 	u, err := url.Parse(upstream)
 	switch {
 	case err != nil || !isAbsoluteHTTP(u):
-		return fmt.Errorf("upstream %q: must be an absolute http or https URL, such as %s", upstream, defaultUpstream)
+		return wrongValue("upstream", upstream, "must be an absolute http or https URL, such as "+defaultUpstream)
 	case u.Scheme == "http" && !isLoopbackIP(u.Hostname()):
-		return fmt.Errorf("upstream %q: must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext", upstream)
+		return wrongValue("upstream", upstream, "must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext")
 	}
 	return nil
 }
@@ -125,7 +133,7 @@ func checkAccounts(accounts []fileAccount) error {
 	for i, a := range accounts {
 		errs = append(errs, a.check(i))
 		uses[a.ID]++
-		if a.ID != "" && uses[a.ID] == 2 {
+		if a.named() && uses[a.ID] == 2 {
 			errs = append(errs, fmt.Errorf("duplicate account id %q", a.ID))
 		}
 	}
@@ -136,30 +144,52 @@ func checkAccounts(accounts []fileAccount) error {
 // check reports what's wrong with the account at index i of the file.
 func (a fileAccount) check(i int) error {
 	name := a.name(i)
-	return errors.Join(checkID(name, a.ID), checkReserve(name, a.Reserve))
+	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label), checkReserve(name, a.Reserve))
 }
 
 // name identifies the account in errors: by its id, else by its position.
 func (a fileAccount) name(i int) string {
-	if a.ID == "" {
+	if !a.named() {
 		return fmt.Sprintf("account #%d", i+1)
 	}
-	return fmt.Sprintf("account %q", a.ID)
+	return accountNamed(a.ID)
+}
+
+// named reports whether the account's id can name it in errors: it has one,
+// and it doesn't look like a token, which no error quotes.
+func (a fileAccount) named() bool {
+	return a.ID != "" && !redact.HoldsToken(a.ID)
+}
+
+// accountNamed names the account with the given id in errors, as in account
+// "work", hiding anything in the id that looks like a token.
+func accountNamed(id string) string {
+	return fmt.Sprintf("account %q", redact.Text(id))
 }
 
 // CheckID fails, saying why, unless id is one an account can have.
 func CheckID(id string) error {
-	return checkID(fmt.Sprintf("account %q", id), id)
+	return checkID(accountNamed(id), id)
 }
 
 func checkID(account, id string) error {
 	switch {
 	case id == "":
 		return fmt.Errorf("%s: id is required", account)
+	case redact.HoldsToken(id):
+		return fmt.Errorf("%s: id looks like a token, which an id mustn't, as it shows wherever the account does", account)
 	case !idPattern.MatchString(id):
 		return fmt.Errorf("%s: id must start with a letter or digit and contain only letters, digits, '-' and '_'", account)
 	case strings.EqualFold(id, ReservedID):
 		return fmt.Errorf("%s: id is reserved for switchboard pin %s", account, ReservedID)
+	}
+	return nil
+}
+
+// checkLabel keeps anything that looks like a token out of a label.
+func checkLabel(account, label string) error {
+	if redact.HoldsToken(label) {
+		return fmt.Errorf("%s: label looks like a token, which a label mustn't, as it shows wherever the account does", account)
 	}
 	return nil
 }
@@ -199,9 +229,9 @@ func ParseDay(text string) (Day, error) {
 	end, endOK := parseTimeOfDay(last)
 	switch {
 	case !startOK || !endOK:
-		return Day{}, fmt.Errorf("prime.day %q: must be two times of day, HH:MM, joined by -, such as 08:00-23:00", text)
+		return Day{}, wrongValue("prime.day", text, "must be two times of day, HH:MM, joined by -, such as 08:00-23:00")
 	case start == end:
-		return Day{}, fmt.Errorf("prime.day %q: must end at another time than it starts; an end before the start is past midnight", text)
+		return Day{}, wrongValue("prime.day", text, "must end at another time than it starts; an end before the start is past midnight")
 	}
 	return Day{Start: start, End: end}, nil
 }

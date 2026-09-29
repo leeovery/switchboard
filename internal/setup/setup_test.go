@@ -183,7 +183,7 @@ func TestSetupRefusesATemporaryBuildBeforeItAsksAnything(t *testing.T) {
 	before := w.snapshot(t)
 
 	shown, err := w.run(t)
-	want := "this switchboard is a temporary build, " + built + ", which won't be there for launchd to start: install it with go install, and install the service with that one"
+	want := "this switchboard is a temporary build, " + built + ", which won't last: use one that does, such as Homebrew's or one go install built"
 	if err == nil || err.Error() != want || shown != "" {
 		t.Errorf("Run() error = %v, the terminal showing %q; want %q, and nothing shown", err, shown, want)
 	}

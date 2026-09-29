@@ -30,7 +30,8 @@ const Label = "io.github.leeovery.switchboard"
 
 const (
 	// StartWait is how long installing or restarting the service waits for
-	// the router launchd starts to answer.
+	// the router launchd starts to answer, once any router before it has had
+	// the time launchd gives it to stop.
 	StartWait = 5 * time.Second
 	// startPoll is how often it asks.
 	startPoll = 100 * time.Millisecond
@@ -140,7 +141,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 		return Installed{}, err
 	}
 	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
-	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, before)}, nil
+	return Installed{Warnings: warnings, Router: s.waitForRouter(ctx, before, StartWait)}, nil
 }
 
 // prepare checks what the service is to run, and describes the LaunchAgent
@@ -189,11 +190,16 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 	return true, nil
 }
 
-// Restart has launchd stop the router and start it again, reading the config
-// and the tokens afresh, and returns the answer of the router it starts, or
-// nil when none answers within StartWait. It fails with ErrNotLoaded when
-// launchd hasn't loaded the service.
-func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
+// Restart has the router stop and launchd start it again, reading the config
+// and the tokens afresh, and returns the answer of the router launchd starts,
+// or nil when none answers in time. A router that answers is sent SIGTERM,
+// and stops as it does at any signal, finishing the requests in flight
+// within exitTimeout, as launchd would give it; launchd, keeping the service
+// alive, then starts it again. Restart calls draining as that router
+// finishes its requests, before it waits. With none answering, there's
+// nothing to finish, and launchd starts the service afresh at once. It fails
+// with ErrNotLoaded when launchd hasn't loaded the service.
+func (s *Service) Restart(ctx context.Context, draining func()) (*router.Health, error) {
 	loaded, err := s.loaded(ctx)
 	switch {
 	case err != nil:
@@ -202,11 +208,26 @@ func (s *Service) Restart(ctx context.Context) (*router.Health, error) {
 		return nil, ErrNotLoaded
 	}
 	before := s.pid(ctx)
+	if before == 0 {
+		return s.startAfresh(ctx)
+	}
+	if err := s.launchctl(ctx, "kill", "SIGTERM", s.target()); err != nil {
+		return nil, err
+	}
+	logger.Info("stopping the router, for launchd to start again", "pid", before)
+	draining()
+	return s.waitForRouter(ctx, before, exitTimeout+StartWait), nil
+}
+
+// startAfresh has launchd start the service afresh, stopping any process of
+// it at once, and returns the answer of the router it starts, or nil when
+// none answers within StartWait.
+func (s *Service) startAfresh(ctx context.Context) (*router.Health, error) {
 	if err := s.launchctl(ctx, "kickstart", "-k", s.target()); err != nil {
 		return nil, err
 	}
-	logger.Info("restarted the service")
-	return s.waitForRouter(ctx, before), nil
+	logger.Info("started the service afresh")
+	return s.waitForRouter(ctx, 0, StartWait), nil
 }
 
 // Status is how the service stands.
@@ -214,17 +235,20 @@ type Status struct {
 	// Installed is whether its plist is in place, and Loaded whether launchd
 	// has loaded it.
 	Installed, Loaded bool
+	// Binary is the switchboard binary its plist has launchd run, as the
+	// plist names it: "" when there's no plist, or it names none.
+	Binary string
 	// Router is the router's answer to its health check, or nil when it
 	// didn't answer, and RouterErr then says why.
 	Router    *router.Health
 	RouterErr error
 }
 
-// Status reports whether the service is installed, whether launchd has
-// loaded it, and how the router answers.
+// Status reports whether the service is installed, which switchboard binary
+// it runs, whether launchd has loaded it, and how the router answers.
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	_, err := os.Stat(s.Plist())
-	st := Status{Installed: err == nil}
+	st := Status{Installed: err == nil, Binary: s.installedBinary()}
 	if st.Loaded, err = s.loaded(ctx); err != nil {
 		return Status{}, err
 	}
@@ -234,6 +258,16 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		st.RouterErr = err
 	}
 	return st, nil
+}
+
+// installedBinary is the switchboard binary the plist in place has launchd
+// run, as it names it: "" when there's no plist to read, or it names none.
+func (s *Service) installedBinary() string {
+	plist, err := os.ReadFile(s.Plist())
+	if err != nil {
+		return ""
+	}
+	return binaryOf(plist)
 }
 
 // Answered fails, saying where to find out why, when the router launchd
@@ -280,7 +314,7 @@ func (s *Service) Binary(exe string) (string, error) {
 		return "", fmt.Errorf("find this switchboard binary: %w", err)
 	}
 	if temporary(built, cmp.Or(s.cfg.Getenv("TMPDIR"), "/tmp")) {
-		return "", fmt.Errorf("this switchboard is a temporary build, %s, which won't be there for launchd to start: install it with go install, and install the service with that one", built)
+		return "", fmt.Errorf("this switchboard is a temporary build, %s, which won't last: use one that does, such as Homebrew's or one go install built", built)
 	}
 	return path, nil
 }
@@ -339,7 +373,7 @@ func (s *Service) unload(ctx context.Context) error {
 	if err != nil || !loaded {
 		return err
 	}
-	return s.launchctl(ctx, "bootout", s.target())
+	return s.launchctlWithin(ctx, bootoutTimeout, "bootout", s.target())
 }
 
 // pid is the process id of the router answering now, or 0 when none is.
@@ -351,11 +385,11 @@ func (s *Service) pid(ctx context.Context) int {
 	return h.PID
 }
 
-// waitForRouter waits up to StartWait for a router to answer, other than the
-// one whose process id is before, which launchd may not have stopped yet,
-// and returns its answer, or nil when none does.
-func (s *Service) waitForRouter(ctx context.Context, before int) *router.Health {
-	ctx, cancel := context.WithTimeout(ctx, StartWait)
+// waitForRouter waits up to wait for a router to answer, other than the one
+// whose process id is before, which launchd may not have stopped yet, and
+// returns its answer, or nil when none does.
+func (s *Service) waitForRouter(ctx context.Context, before int, wait time.Duration) *router.Health {
+	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	for {
 		if h, err := s.cfg.Router.Health(ctx); err == nil && h.PID != before {
@@ -364,7 +398,7 @@ func (s *Service) waitForRouter(ctx context.Context, before int) *router.Health 
 		}
 		select {
 		case <-ctx.Done():
-			logger.Warn("the router didn't answer", "within", StartWait)
+			logger.Warn("the router didn't answer", "within", wait)
 			return nil
 		case <-time.After(startPoll):
 		}

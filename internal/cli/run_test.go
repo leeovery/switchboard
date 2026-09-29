@@ -131,6 +131,50 @@ func TestRunWithoutAConfigItCanRead(t *testing.T) {
 	}
 }
 
+func TestRunStepsAsideForAKeyClaudeCodeMayUse(t *testing.T) {
+	for _, key := range []string{"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"} {
+		t.Run(key, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{key: "test-key", "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"})
+			srv.start(t)
+			inherited := environMap(srv.deps.Environ())
+			handed := recordHandOffs(t, &srv.deps)
+
+			got := run(t, srv.deps, "run", "--account", "side", "--", "--resume")
+			if want := (result{stderr: "switchboard: " + key + " is set, so Claude Code uses it — starting claude without switchboard\n"}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			if h := handed.only(t); !slices.Equal(h.argv, []string{"claude", "--resume"}) || !maps.Equal(h.env, inherited) {
+				t.Errorf("handed over as %q with %q, want claude --resume, its environment untouched", h.argv, h.env)
+			}
+		})
+	}
+}
+
+func TestRunDirectAndLocalSubcommandsGoAsTheyDoWithAKey(t *testing.T) {
+	env := map[string]string{"ANTHROPIC_API_KEY": "test-key", "CLAUDE_CODE_OAUTH_TOKEN": "test-token-work", "ANTHROPIC_BASE_URL": "http://127.0.0.1:4747"}
+	tests := []struct {
+		name    string
+		args    []string
+		wantEnv map[string]string
+	}{
+		{name: "on Claude Code's own login", args: []string{"run", "--direct", "--", "--resume"}, wantEnv: map[string]string{"ANTHROPIC_API_KEY": "test-key"}},
+		{name: "a local subcommand", args: []string{"run", "--", "doctor"}, wantEnv: env},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := testDeps(env, t.TempDir())
+			handed := recordHandOffs(t, &deps)
+
+			if got := run(t, deps, tt.args...); got != (result{}) {
+				t.Errorf("switchboard %s = %+v, want exit status 0 and no output", strings.Join(tt.args, " "), got)
+			}
+			if got := handed.only(t).env; !maps.Equal(got, tt.wantEnv) {
+				t.Errorf("handed over with %q, want %q", got, tt.wantEnv)
+			}
+		})
+	}
+}
+
 func TestRunDirect(t *testing.T) {
 	tests := []struct {
 		name string

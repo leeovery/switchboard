@@ -38,8 +38,8 @@ type Desktop struct {
 }
 
 // NewDesktop returns a Desktop for the system it runs on, whose osascript
-// runs in no more of this process's environment than it needs: the router's
-// holds every token.
+// runs in no more of this process's environment than it needs, which can
+// hold a token, as a Claude Code session's does.
 func NewDesktop() Desktop {
 	return Desktop{goos: runtime.GOOS, env: childenv.Minimal(os.Getenv), run: runCommand}
 }

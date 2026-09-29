@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"encoding/xml"
 	"fmt"
 	"slices"
 	"strings"
@@ -92,6 +93,32 @@ func (s *Service) environment() ([]variable, error) {
 		environment = append(environment, variable{Name: name, Value: value})
 	}
 	return environment, nil
+}
+
+// binaryOf returns the program a LaunchAgent's plist has launchd run, as the
+// first of its ProgramArguments names it: "" for a plist that names none, or
+// isn't XML, as a binary one isn't.
+func binaryOf(plist []byte) string {
+	var doc struct {
+		Dict struct {
+			Entries []struct {
+				XMLName xml.Name
+				Text    string   `xml:",chardata"`
+				Strings []string `xml:"string"`
+			} `xml:",any"`
+		} `xml:"dict"`
+	}
+	if xml.Unmarshal(plist, &doc) != nil {
+		return ""
+	}
+	entries := doc.Dict.Entries
+	for i := 1; i < len(entries); i++ {
+		key, value := entries[i-1], entries[i]
+		if key.XMLName.Local == "key" && key.Text == "ProgramArguments" && len(value.Strings) > 0 {
+			return value.Strings[0]
+		}
+	}
+	return ""
 }
 
 // plist is the agent's plist, which launchd loads it from: it runs the

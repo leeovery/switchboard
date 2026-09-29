@@ -42,6 +42,11 @@ as if switchboard weren't there, saying nothing: switchboard has no part in
 them. Only the first of Claude Code's arguments names one, so -p doctor is a
 prompt.
 
+When ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN is set, Claude Code may use
+that key in place of an account's token, so its requests wouldn't be routed,
+but billed to the key: Claude Code starts as if switchboard weren't there, and
+run says why.
+
 Give Claude Code's own arguments after --, as in: switchboard run -- --resume
 
 Run by the name claude, as through a link named claude ahead of the real one
@@ -73,8 +78,9 @@ func (o *runOptions) parseArgs(cmd *cobra.Command, args []string) error {
 
 // run starts Claude Code with args in this process's place: through
 // switchboard, or as if switchboard weren't there, for one of Claude Code's
-// local subcommands, or when it can't read its config or locate the state
-// directory the router's socket is in.
+// local subcommands, when its environment sets a key Claude Code may use in
+// place of an account's token, or when it can't read its config or locate
+// the state directory the router's socket is in.
 func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args []string) error {
 	// Without a home directory, only the install paths outside it are tried.
 	home, _ := a.HomeDir()
@@ -90,6 +96,9 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		return l.Direct(args)
 	case claude.IsLocal(args):
 		return l.Local(args)
+	}
+	if key := l.KeyEnv(); key != "" {
+		return l.StepAside(args, key)
 	}
 	cfg, err := a.loadConfig()
 	if err != nil {

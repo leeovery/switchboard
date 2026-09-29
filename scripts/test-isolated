@@ -97,6 +97,8 @@ home=$(resolved "$HOME")
 tmp=$(resolved "${TMPDIR:-/tmp}")
 gocache=$(resolved "$(go env GOCACHE)")
 gomodcache=$(resolved "$(go env GOMODCACHE)")
+# switchboard's main package, which a switchboard binary's Go build info names.
+switchboard_main=$(cd "$repo" && go list -m)/cmd/switchboard
 
 # outside_home_on_path prints the directories on PATH outside the home,
 # where a program run by name is found, joined by colons as PATH joins them:
@@ -246,19 +248,51 @@ answers() {
 }
 
 # denies_running proves the sandbox denies running the program name, as
-# installed here: found on PATH, with its links resolved, as the sandbox's
-# rules match the file a link leads to. Were it to run, the arguments given
-# would have it say what it is and stop. One that isn't installed has no
-# running to deny.
+# installed here, at found: with its links resolved, as the sandbox's rules
+# match the file a link leads to. Were it to run, the arguments given would
+# have it say what it is and stop. One that isn't installed, found nowhere,
+# has no running to deny.
 denies_running() {
-	local name=$1 found program
-	shift
-	if ! found=$(type -P "$name"); then
-		echo "test-isolated: no $name on PATH, so no running it to deny"
+	local name=$1 found=$2 program
+	shift 2
+	if [ -z "$found" ]; then
+		echo "test-isolated: no $name installed, so no running it to deny"
 		return 0
 	fi
 	program=$(resolved "$found")
 	denied "running $name, at $program" "execvp() of '$program' failed: Operation not permitted" "$program" "$@"
+}
+
+# real_claude prints where the real claude is, found as switchboard finds it:
+# the first program named claude in a directory on PATH, else where its
+# installers put it, passing over switchboard's bin directory, and any claude
+# that's a switchboard binary, such as its claude link, links followed.
+real_claude() {
+	local entries dir candidates=() candidate
+	IFS=: read -r -a entries <<<"$PATH"
+	for dir in "${entries[@]}"; do
+		case $dir in
+		/*) ;;
+		*) continue ;;
+		esac
+		if [ "$(resolved "$dir")" != "$bin_dir" ]; then
+			candidates+=("$dir/claude")
+		fi
+	done
+	candidates+=("$HOME/.local/bin/claude" /opt/homebrew/bin/claude /usr/local/bin/claude "$HOME/.claude/local/claude")
+	for candidate in "${candidates[@]}"; do
+		if [ -f "$candidate" ] && [ -x "$candidate" ] && ! switchboard_binary "$candidate"; then
+			printf '%s\n' "$candidate"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# switchboard_binary reports whether the program at path is a switchboard
+# binary, as its Go build info says, which go reads without running it.
+switchboard_binary() {
+	go version -m "$1" 2>/dev/null | awk -v main="$switchboard_main" '$1 == "path" && $2 == main { found = 1 } END { exit !found }'
 }
 
 # starts_clean proves the tests start with none of the variables no test may
@@ -295,12 +329,12 @@ self_check() {
 	denies_writing_in "real Claude Code config directory" "$claude_dir" || status=1
 	denies_writing_on_path || status=1
 	denies_writing_to "$config" || status=1
-	denies_running claude --version || status=1
-	denies_running osascript -e 'return 1' || status=1
-	denies_running launchctl version || status=1
+	denies_running claude "$(real_claude)" --version || status=1
+	denies_running osascript "$(type -P osascript)" -e 'return 1' || status=1
+	denies_running launchctl "$(type -P launchctl)" version || status=1
 	# open with nothing to open says how it's used.
-	denies_running open || status=1
-	denies_running tmux -V || status=1
+	denies_running open "$(type -P open)" || status=1
+	denies_running tmux "$(type -P tmux)" -V || status=1
 	starts_clean || status=1
 	return "$status"
 }

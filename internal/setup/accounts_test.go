@@ -2,17 +2,9 @@ package setup_test
 
 import (
 	"os"
-	"slices"
 	"strings"
 	"testing"
 )
-
-// restarted are the launchctl subcommands a run of setup runs that restarts
-// the router: it asks whether the service is loaded, then restarts it.
-var restarted = []string{"print", "print", "kickstart"}
-
-// untouched are those of a run that leaves the service as it is.
-var untouched = []string{"print"}
 
 const (
 	// tokenShaped is shaped like a Claude token, though it's none, as a user
@@ -36,14 +28,13 @@ func TestTheAccountsStep(t *testing.T) {
 		want    string
 		// check checks what setup left, beyond what it showed.
 		check func(t *testing.T, w *world)
-		// wantRan are the launchctl subcommands run.
-		wantRan []string
+		// changed is set when setup changes the config or a token.
+		changed bool
 	}{
 		{
 			name:    "every token usable, no account added",
 			answers: []string{""},
 			want:    listed + "side · Side: its token is usable.\n" + noMore + primary,
-			wantRan: untouched,
 		},
 		{
 			name:    "a missing token, taken",
@@ -52,7 +43,7 @@ func TestTheAccountsStep(t *testing.T) {
 			want: listed + "side · Side has no usable token: token missing: write it to " + sideToken + "\n" +
 				pasteSide + "Saved side's token.\n" + noMore + primary,
 			check:   func(t *testing.T, w *world) { w.checkToken(t, "side", "test-token-side") },
-			wantRan: restarted,
+			changed: true,
 		},
 		{
 			name:    "a missing token, left for later",
@@ -60,8 +51,7 @@ func TestTheAccountsStep(t *testing.T) {
 			answers: []string{"", ""},
 			want: listed + "side · Side has no usable token: token missing: write it to " + sideToken + "\n" +
 				pasteSide + "side has none still: no token given. Run setup again, or switchboard accounts token side, to give it one.\n" + noMore + primary,
-			check:   func(t *testing.T, w *world) { w.checkNoToken(t, "side") },
-			wantRan: untouched,
+			check: func(t *testing.T, w *world) { w.checkNoToken(t, "side") },
 		},
 		{
 			name:    "a missing token the API refuses",
@@ -71,8 +61,7 @@ func TestTheAccountsStep(t *testing.T) {
 				pasteSide + "side has none still: the API refused the token (HTTP 401 · Invalid bearer token), so nothing is saved: " +
 				"make another with claude setup-token, run while signed in to that subscription. Run setup again, or switchboard accounts token side, to give it one.\n" +
 				noMore + primary,
-			check:   func(t *testing.T, w *world) { w.checkNoToken(t, "side") },
-			wantRan: untouched,
+			check: func(t *testing.T, w *world) { w.checkNoToken(t, "side") },
 		},
 		{
 			name: "a token others can read, replaced",
@@ -85,7 +74,7 @@ func TestTheAccountsStep(t *testing.T) {
 			want: listed + "side · Side has no usable token: other users can read the token file (mode 0644): chmod 600 " + sideToken + "\n" +
 				pasteSide + "Saved side's token.\n" + noMore + primary,
 			check:   func(t *testing.T, w *world) { w.checkToken(t, "side", "test-token-side") },
-			wantRan: restarted,
+			changed: true,
 		},
 		{
 			name:    "an account added",
@@ -101,7 +90,7 @@ func TestTheAccountsStep(t *testing.T) {
 					t.Errorf("the config reads\n%s\nwant\n%s", got, want)
 				}
 			},
-			wantRan: restarted,
+			changed: true,
 		},
 		{
 			name:    "an account added, asked for an id again until it's one an account can have",
@@ -113,7 +102,7 @@ func TestTheAccountsStep(t *testing.T) {
 				"Paste spare's token, from claude setup-token run while signed in to that subscription (it won't show): \n" +
 				"Added spare.\n" + noMore + primary,
 			check:   func(t *testing.T, w *world) { w.checkToken(t, "spare", "test-token-spare") },
-			wantRan: restarted,
+			changed: true,
 		},
 		{
 			name: "an account added, a token pasted where it shows never taken",
@@ -133,7 +122,7 @@ func TestTheAccountsStep(t *testing.T) {
 					t.Errorf("the config reads\n%s\nwant no token in it", got)
 				}
 			},
-			wantRan: restarted,
+			changed: true,
 		},
 		{
 			name:    "an account added, keeping the usable token its token file holds",
@@ -143,7 +132,7 @@ func TestTheAccountsStep(t *testing.T) {
 				"Its id, for good: letters, digits, - and _, such as work: spare\nIts label, to show it by (Enter for spare): Spare\n" +
 				"Added spare, keeping the token in <root>/state/switchboard/tokens/spare.\n" + noMore + primary,
 			check:   func(t *testing.T, w *world) { w.checkToken(t, "spare", "test-token-spare") },
-			wantRan: restarted,
+			changed: true,
 		},
 		{
 			name:    "an account whose token the API refuses, not added",
@@ -159,7 +148,6 @@ func TestTheAccountsStep(t *testing.T) {
 					t.Errorf("the config reads\n%s\nwant it as it was", got)
 				}
 			},
-			wantRan: untouched,
 		},
 		{
 			name:    "an account configured already, not added again",
@@ -167,14 +155,12 @@ func TestTheAccountsStep(t *testing.T) {
 			want: listed + "side · Side: its token is usable.\nAdd another account? [y/N] y\n" +
 				"Its id, for good: letters, digits, - and _, such as work: side\nIts label, to show it by (Enter for side): Side again\n" +
 				"side isn't added: account \"side\" is already configured.\n" + noMore + primary,
-			wantRan: untouched,
 		},
 		{
 			name:    "no id given for another account",
 			answers: []string{"y", ""},
 			want: listed + "side · Side: its token is usable.\nAdd another account? [y/N] y\n" +
 				"Its id, for good: letters, digits, - and _, such as work: \n" + primary,
-			wantRan: untouched,
 		},
 	}
 	for _, tt := range tests {
@@ -192,9 +178,7 @@ func TestTheAccountsStep(t *testing.T) {
 			if tt.check != nil {
 				tt.check(t, w)
 			}
-			if ran := w.launchd.ran(); !slices.Equal(ran, tt.wantRan) {
-				t.Errorf("ran launchctl %q, want %q", ran, tt.wantRan)
-			}
+			w.checkLeftToTheRouter(t, shown, tt.changed)
 		})
 	}
 }
@@ -211,7 +195,8 @@ func TestTheAccountsStepSettlesThePrimary(t *testing.T) {
 		want    string
 		// wantConfig is the config setup leaves.
 		wantConfig string
-		wantRan    []string
+		// changed is set when setup changes the config.
+		changed bool
 	}{
 		{
 			name:       "more than one, none marked: the one named, marked",
@@ -219,7 +204,7 @@ func TestTheAccountsStepSettlesThePrimary(t *testing.T) {
 			answers:    []string{"", "side"},
 			want:       asked + question + "side\nThe primary is side · Side.\n",
 			wantConfig: strings.Replace(twoUnmarked, "label = \"Side\"\n", "label = \"Side\"\nprimary = true\n", 1),
-			wantRan:    restarted,
+			changed:    true,
 		},
 		{
 			name:       "more than one, none marked: the first, as Enter gives, marked",
@@ -227,7 +212,7 @@ func TestTheAccountsStepSettlesThePrimary(t *testing.T) {
 			answers:    []string{"", "nope", ""},
 			want:       asked + question + "nope\nThere's no account \"nope\".\n" + question + "\nThe primary is work · Work.\n",
 			wantConfig: strings.Replace(twoUnmarked, "label = \"Work\"\n", "label = \"Work\"\nprimary = true\n", 1),
-			wantRan:    restarted,
+			changed:    true,
 		},
 		{
 			name:       "one marked: not asked",
@@ -235,7 +220,6 @@ func TestTheAccountsStepSettlesThePrimary(t *testing.T) {
 			answers:    []string{""},
 			want:       "The primary, the account the browser and the Claude apps are signed into, is work · Work.\n",
 			wantConfig: doneConfig,
-			wantRan:    untouched,
 		},
 		{
 			name:       "one account, not marked: not asked",
@@ -243,7 +227,6 @@ func TestTheAccountsStepSettlesThePrimary(t *testing.T) {
 			answers:    []string{""},
 			want:       "The primary, the account the browser and the Claude apps are signed into, is work · work.\n",
 			wantConfig: "[[account]]\nid = \"work\"\n\n[prime]\nday = \"08:00-23:00\"\n",
-			wantRan:    untouched,
 		},
 	}
 	for _, tt := range tests {
@@ -260,9 +243,7 @@ func TestTheAccountsStepSettlesThePrimary(t *testing.T) {
 			if config := w.readConfig(t); config != tt.wantConfig {
 				t.Errorf("the config reads\n%s\nwant\n%s", config, tt.wantConfig)
 			}
-			if ran := w.launchd.ran(); !slices.Equal(ran, tt.wantRan) {
-				t.Errorf("ran launchctl %q, want %q", ran, tt.wantRan)
-			}
+			w.checkLeftToTheRouter(t, shown, tt.changed)
 		})
 	}
 }

@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/leeovery/switchboard/internal/router"
@@ -8,8 +9,10 @@ import (
 )
 
 // service installs the LaunchAgent, which starts the router, when launchd
-// hasn't loaded it; restarts the router when this run has changed what it
-// reads as it starts, or it doesn't answer; and otherwise says it's up.
+// hasn't loaded it, or it runs another switchboard than this one; restarts
+// the router when it doesn't answer; and otherwise says it's up, and, when
+// setup has changed the config or a token, that the router takes the change
+// up on its own.
 func (r *run) service(ctx context.Context) error {
 	st, err := r.Service.Status(ctx)
 	switch {
@@ -17,12 +20,17 @@ func (r *run) service(ctx context.Context) error {
 		return err
 	case !st.Installed || !st.Loaded:
 		return r.install(ctx)
-	case r.changed:
-		return r.restart(ctx, "to read the config and the tokens afresh")
+	case st.Binary != r.switchboard:
+		r.Terminal.sayf("The service runs %s, not this switchboard, %s, so it's installed afresh.", cmp.Or(st.Binary, "a program its plist doesn't name"), r.switchboard)
+		return r.install(ctx)
 	case st.Router == nil:
-		return r.restart(ctx, "as it didn't answer")
+		return r.restart(ctx)
 	}
-	r.Terminal.sayf("The service is installed, and the router is up: %s.", service.Health(*st.Router))
+	up := "The service is installed, and the router is up: " + service.Health(*st.Router) + "."
+	if r.changed {
+		up += " It takes up setup's changes on its own."
+	}
+	r.Terminal.sayf("%s", up)
 	return nil
 }
 
@@ -42,14 +50,18 @@ func (r *run) install(ctx context.Context) error {
 	return r.up(installed.Router)
 }
 
-// restart has launchd restart the router, why says why, and says how it
-// answers.
-func (r *run) restart(ctx context.Context, why string) error {
-	h, err := r.Service.Restart(ctx)
+// restart has launchd restart the router, which didn't answer, and says how
+// the one launchd starts answers. Should the router answer by then after all,
+// as one starting might, it says first that the router is finishing its
+// requests in flight.
+func (r *run) restart(ctx context.Context) error {
+	h, err := r.Service.Restart(ctx, func() {
+		r.Terminal.sayf("The router is finishing its requests in flight, then launchd starts it again.")
+	})
 	if err != nil {
 		return err
 	}
-	r.Terminal.sayf("Restarted the router, %s.", why)
+	r.Terminal.sayf("Restarted the router, as it didn't answer.")
 	return r.up(h)
 }
 

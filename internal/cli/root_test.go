@@ -27,10 +27,11 @@ func TestVersion(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	deps.Version = "1.2.3"
 
-	got := run(t, deps, "--version")
 	want := result{stdout: "switchboard version 1.2.3\n", code: 0}
-	if got != want {
-		t.Errorf("switchboard --version = %+v, want %+v", got, want)
+	for _, args := range [][]string{{"--version"}, {"version"}} {
+		if got := run(t, deps, args...); got != want {
+			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+		}
 	}
 }
 
@@ -115,6 +116,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "unknown log level for the service", args: []string{"service", "install", "--log-level", "loud"}, wantUsage: true},
 		{name: "service install without a config", args: []string{"service", "install", "--config", "missing.toml"}, wantUsage: false},
 		{name: "service install without launchctl", args: []string{"service", "install"}, wantUsage: false},
+		{name: "unexpected version argument", args: []string{"version", "extra"}, wantUsage: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -124,6 +126,41 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 			}
 			if printed := strings.Contains(got.stdout+got.stderr, "Usage:"); printed != tt.wantUsage {
 				t.Errorf("usage printed = %v, want %v; output:\n%s%s", printed, tt.wantUsage, got.stdout, got.stderr)
+			}
+		})
+	}
+}
+
+func TestCommandsNeverEchoATokenGivenAsAnID(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.start(t)
+	srv.route(t, sessionThree, "claude-haiku-4-5-20251001")
+	deps := srv.deps
+	recordHandOffs(t, &deps)
+	const unseen = "Error: the router hasn't seen session [redacted]"
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "the account whose token to replace",
+			args: []string{"accounts", "token", tokenShaped},
+			want: `Error: account "[redacted]" is not configured: add it with switchboard accounts add [redacted]`,
+		},
+		{name: "the account to remove", args: []string{"accounts", "remove", tokenShaped}, want: `Error: account "[redacted]" is not configured`},
+		{name: "the account to pin", args: []string{"pin", tokenShaped}, want: `Error: there's no account "[redacted]": pin work or side`},
+		{name: "the account to pin a session to", args: []string{"pin", tokenShaped, "--session", "18bb"}, want: `Error: there's no account "[redacted]": pin work or side`},
+		{name: "the session to pin", args: []string{"pin", "side", "--session", tokenShaped}, want: unseen},
+		{name: "the session to unpin", args: []string{"pin", "auto", "--session", tokenShaped}, want: unseen},
+		{name: "the session to show", args: []string{"status", "--session", tokenShaped}, want: unseen},
+		{name: "the account to launch on", args: []string{"run", "--account", tokenShaped}, want: `Error: there's no account "[redacted]": pin work or personal or side`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := runWithInput(t, deps, "test-token-work\n", tt.args...)
+			if want := (result{stderr: tt.want + "\n", code: 1}); got != want {
+				t.Errorf("got %+v, want %+v", got, want)
 			}
 		})
 	}

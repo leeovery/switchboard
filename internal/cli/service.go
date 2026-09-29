@@ -37,10 +37,11 @@ func newServiceInstallCommand(a *app) *cobra.Command {
 		Use:   "install",
 		Short: "Install the LaunchAgent, which starts the router",
 		Long: `Install the LaunchAgent, which starts the router now, at every login, and
-whenever it stops. It runs this switchboard binary, so install that with go
-install first. The router serves the config --config gives, else the one it
-finds, as the CLI does; a config the router couldn't serve fails the install.
-It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
+whenever it stops. It runs this switchboard binary, which must be one that
+lasts, such as Homebrew's or one go install built: a temporary build, such as
+go run's, is refused. The router serves the config --config gives, else the
+one it finds, as the CLI does; a config the router couldn't serve fails the
+install. It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
 
 The router reads the accounts' tokens from their files, as the CLI does, so it
 needs none of the shell's environment. Install warns when no account has a
@@ -71,7 +72,12 @@ func newServiceRestartCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the router, which reads the config and the tokens afresh",
-		Args:  cobra.NoArgs,
+		Long: `Restart the router, which reads the config and the tokens afresh. It stops as
+it does at a signal, giving the requests in flight up to 30 seconds to finish,
+and launchd starts it again; restart waits for the new one to answer. With no
+router answering, there's nothing to finish, and launchd starts the service
+afresh at once.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.restartService(cmd.Context(), cmd.OutOrStdout())
 		},
@@ -158,13 +164,17 @@ func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 	return err
 }
 
-// restartService has launchd restart the router, and says how it answers.
+// restartService has launchd restart the router, saying so while a router
+// finishes its requests in flight first, and says how the one launchd starts
+// answers.
 func (a *app) restartService(ctx context.Context, out io.Writer) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	h, err := svc.Restart(ctx)
+	h, err := svc.Restart(ctx, func() {
+		_, _ = fmt.Fprintln(out, "the router is finishing its requests in flight, then launchd starts it again")
+	})
 	if errors.Is(err, service.ErrNotLoaded) {
 		return fmt.Errorf("%w: run switchboard service install", err)
 	}
