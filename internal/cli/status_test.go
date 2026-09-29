@@ -30,6 +30,7 @@ side · Side
   HTTP 401 · Invalid bearer token
 
 best next: work · Work
+probed directly
 `,
 		code: 0,
 	}

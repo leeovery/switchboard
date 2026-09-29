@@ -159,11 +159,13 @@ func (s *sessions) of(id string) []Assignment {
 	return found
 }
 
-// active counts, by account, the sessions whose caches on it are warm at now.
-func (s *sessions) active(now time.Time) map[string]int {
+// active counts the sessions whose caches are warm at now: by account, and in
+// all, where a session whose models went to two accounts counts once.
+func (s *sessions) active(now time.Time) (byAccount map[string]int, all int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	on := make(map[string]map[string]bool)
+	anywhere := make(map[string]bool)
 	for k, a := range s.assignments {
 		if !a.warm(now) {
 			continue
@@ -172,12 +174,13 @@ func (s *sessions) active(now time.Time) map[string]int {
 			on[a.Account] = make(map[string]bool)
 		}
 		on[a.Account][k.session] = true
+		anywhere[k.session] = true
 	}
-	counts := make(map[string]int, len(on))
+	byAccount = make(map[string]int, len(on))
 	for account, sessions := range on {
-		counts[account] = len(sessions)
+		byAccount[account] = len(sessions)
 	}
-	return counts
+	return byAccount, len(anywhere)
 }
 
 // prune forgets the assignments gone unused for forgetAfter at now.

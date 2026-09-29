@@ -168,15 +168,16 @@ func (r *Router) Proxy() http.Handler {
 }
 
 // Status reports every account's usage as the router knows it, with how many
-// sessions each has, the best account to use next, the global pin, and the
-// router's own health.
+// sessions each has, and all have, the best account to use next, the global
+// pin, and the router's own health.
 func (r *Router) Status() status.Document {
 	doc := r.state.document()
 	doc.Pin = r.sessions.globalPin()
 	doc.Router = r.health.report()
-	active := r.sessions.active(r.cfg.Now())
+	var byAccount map[string]int
+	byAccount, doc.Sessions = r.sessions.active(r.cfg.Now())
 	for i, a := range doc.Accounts {
-		doc.Accounts[i].Sessions = active[a.ID]
+		doc.Accounts[i].Sessions = byAccount[a.ID]
 	}
 	return doc
 }

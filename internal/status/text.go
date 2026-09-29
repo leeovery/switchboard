@@ -12,9 +12,10 @@ import (
 )
 
 // Text renders the document for a terminal: each account's windows with when
-// they reset and where they're heading, then whatever couldn't be read, and
-// last the account to use next. Countdowns run from now, and times show in
-// now's time zone.
+// they reset and where they're heading, whatever couldn't be read, and what
+// the router notes of the account; then the account to use next, and last
+// where the usage came from. Countdowns run from now, and times show in now's
+// time zone.
 func (d Document) Text(now time.Time) string {
 	width := labelWidth(d.Accounts)
 	var b strings.Builder
@@ -23,18 +24,96 @@ func (d Document) Text(now time.Time) string {
 			b.WriteString("\n")
 		}
 		account.write(&b, width, now)
+		account.writeRouted(&b, now)
+	}
+	if len(d.Accounts) > 0 {
+		b.WriteString("\n")
 	}
 	if best, ok := d.Account(d.Best); ok {
-		fmt.Fprintf(&b, "\nbest next: %s\n", best.Title())
+		fmt.Fprintf(&b, "best next: %s\n", best.Title())
 	}
+	fmt.Fprintf(&b, "%s\n", d.origin())
 	return b.String()
 }
 
-// Text renders the account for a terminal as the document's Text does.
+// Text renders the account for a terminal as the document's Text does, but
+// for what the router notes of it.
 func (a Account) Text(now time.Time) string {
 	var b strings.Builder
 	a.write(&b, labelWidth([]Account{a}), now)
 	return b.String()
+}
+
+// writeRouted writes what the router notes of the account: the limit that
+// holds it back at now, if one does, and how many sessions it has.
+func (a Account) writeRouted(b *strings.Builder, now time.Time) {
+	if a.Limit.Holds(now) {
+		fmt.Fprintf(b, "  %s\n", a.Limit.Text(now))
+	}
+	if a.Sessions > 0 {
+		fmt.Fprintf(b, "  %s\n", SessionCount(a.Sessions))
+	}
+}
+
+// origin says where the document's usage came from: the router, with how it
+// fares, how many sessions it has and where it sends new ones; or probing,
+// and why the router's document wasn't read, when it was asked for.
+func (d Document) origin() string {
+	if d.Source == SourceRouter {
+		health := "healthy"
+		if !d.Router.Healthy {
+			health = because("unhealthy", d.Router.Reason)
+		}
+		return "from the router: " + health + " · " + SessionCount(d.Sessions) + " · " + d.Routing()
+	}
+	switch d.Fallback.Router {
+	case RouterNotRunning:
+		return "probed directly: the router isn't running"
+	case RouterUnhealthy:
+		return "probed directly: " + because("the router is unhealthy", d.Fallback.Reason)
+	default:
+		return "probed directly"
+	}
+}
+
+// because follows what with why, when there's a why.
+func because(what, why string) string {
+	if why == "" {
+		return what
+	}
+	return what + ", " + why
+}
+
+// Routing says where the router sends new sessions: to the account pinned, as
+// in "pinned to side · Side", or wherever suits, "routing automatically".
+func (d Document) Routing() string {
+	if d.Pin.Account == "" {
+		return "routing automatically"
+	}
+	name := d.Pin.Account
+	if account, ok := d.Account(name); ok {
+		name = account.Title()
+	}
+	return "pinned to " + name
+}
+
+// SessionCount counts sessions in words, such as "3 sessions", "1 session" or
+// "no sessions".
+func SessionCount(n int) string {
+	switch n {
+	case 0:
+		return "no sessions"
+	case 1:
+		return "1 session"
+	default:
+		return fmt.Sprintf("%d sessions", n)
+	}
+}
+
+// Text says until when the limit holds, such as "limit until Mon 21:00", in
+// now's time zone.
+func (l Limit) Text(now time.Time) string {
+	return "limit until " + Clock(l.Until.In(now.Location()))
 }
 
 // write writes the account's title, its windows with their labels width wide,

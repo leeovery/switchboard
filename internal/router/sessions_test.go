@@ -286,13 +286,13 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { s.setPin(status.Pin{Account: "side", Since: start}) })
 		wg.Go(func() { _ = s.unpin() })
 		wg.Go(func() { _ = s.of(k.session) })
-		wg.Go(func() { _ = s.active(start) })
+		wg.Go(func() { _, _ = s.active(start) })
 		wg.Go(func() { s.prune(start) })
 	}
 	wg.Wait()
 }
 
-func TestActiveCountsEachSessionOnceByAccount(t *testing.T) {
+func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
 	s := newSessions(at(start))
 	remember := func(session, model, account string, lastSeen time.Time) {
 		s.remember(key{session: session, model: model}, "", decision{account: account, reason: reasonNew}, lastSeen)
@@ -304,8 +304,12 @@ func TestActiveCountsEachSessionOnceByAccount(t *testing.T) {
 	remember("three", opus, "side", start.Add(-time.Hour-time.Second))
 
 	want := map[string]int{"work": 2, "side": 1}
-	if got := s.active(start); !maps.Equal(got, want) {
-		t.Errorf("active() = %v, want %v: sessions used within the hour, each once an account", got, want)
+	byAccount, all := s.active(start)
+	if !maps.Equal(byAccount, want) {
+		t.Errorf("active() by account = %v, want %v: sessions used within the hour, each once an account", byAccount, want)
+	}
+	if all != 2 {
+		t.Errorf("active() in all = %d, want 2: two's models went to two accounts, and it counts once", all)
 	}
 }
 

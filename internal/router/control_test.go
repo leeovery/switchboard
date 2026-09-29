@@ -47,6 +47,7 @@ func TestClientStatus(t *testing.T) {
 		Source:      "router",
 		Best:        "work",
 		Router:      status.Health{Healthy: true, Requests: 1},
+		Sessions:    1,
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 			{ID: "personal", Label: "Personal", Error: "token missing: set CLAUDE_TOKEN_PERSONAL"},

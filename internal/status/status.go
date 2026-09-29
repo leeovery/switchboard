@@ -24,12 +24,25 @@ const (
 
 var logger = logs.For("status")
 
+// How the router was found when it was asked for its document and couldn't
+// give it, as a Fallback says.
+const (
+	// RouterNotRunning is nothing answering on the router's socket.
+	RouterNotRunning = "not running"
+	// RouterUnhealthy is something answering there, but not as a router does.
+	RouterUnhealthy = "unhealthy"
+)
+
 // Document is the status of every configured account, as `status --json`
 // prints it. Fields may be added to it, never renamed.
 type Document struct {
 	GeneratedAt time.Time `json:"generated_at"`
 	// Source says where the usage came from, such as SourceProbe.
 	Source string `json:"source"`
+	// Fallback says why a document built by probing isn't the router's, when
+	// the router was asked for its own first: zero in the router's own, and
+	// in one probed as asked.
+	Fallback Fallback `json:"fallback,omitzero"`
 	// Best is the account to use next: of those with room in the windows every
 	// model shares, the one whose quota most needs using. Empty when there's none.
 	Best string `json:"best,omitempty"`
@@ -38,8 +51,21 @@ type Document struct {
 	Pin Pin `json:"pin,omitzero"`
 	// Router is the router's health: zero in a document that isn't the
 	// router's.
-	Router   Health    `json:"router,omitzero"`
+	Router Health `json:"router,omitzero"`
+	// Sessions is how many sessions the router has sent anywhere in the last
+	// hour, each counted once however many accounts its models went to: zero
+	// in a document that isn't the router's.
+	Sessions int       `json:"sessions,omitzero"`
 	Accounts []Account `json:"accounts"`
+}
+
+// Fallback is why a document was built by probing though the router was
+// asked for its own first.
+type Fallback struct {
+	// Router is how the router was found: RouterNotRunning or RouterUnhealthy.
+	Router string `json:"router"`
+	// Reason says what was wrong with its answer, when it answered.
+	Reason string `json:"reason,omitempty"`
 }
 
 // Health is how the router has fared with the requests it routed over the
@@ -86,6 +112,11 @@ type Account struct {
 type Limit struct {
 	Windows []string  `json:"windows,omitempty"`
 	Until   time.Time `json:"until"`
+}
+
+// Holds reports whether the limit still holds at now.
+func (l Limit) Holds(now time.Time) bool {
+	return l.Until.After(now)
 }
 
 // Prober reads an account's usage with its token.

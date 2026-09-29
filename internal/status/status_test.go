@@ -296,12 +296,60 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
-			name: "the router's, with its pin, its health and each account's sessions",
+			name: "probed, as the router isn't running",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceProbe,
+				Fallback:    status.Fallback{Router: status.RouterNotRunning},
+				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "probe",
+  "fallback": {
+    "router": "not running"
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true
+    }
+  ]
+}`,
+		},
+		{
+			name: "probed, as the router didn't answer as it should",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceProbe,
+				Fallback:    status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 500ms"},
+				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "probe",
+  "fallback": {
+    "router": "unhealthy",
+    "reason": "no answer within 500ms"
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true
+    }
+  ]
+}`,
+		},
+		{
+			name: "the router's, with its pin, its health and the sessions",
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceRouter,
 				Pin:         status.Pin{Account: "side", Since: generated.Add(-time.Hour), Move: true},
 				Router:      status.Health{Requests: 8, Failures: 6, Reason: "6 of the 8 requests in the last 5 minutes failed"},
+				Sessions:    2,
 				Accounts: []status.Account{
 					{ID: "work", Label: "Work", TokenSet: true, Sessions: 2},
 					{ID: "side", Label: "Side", TokenSet: true, Limit: status.Limit{Windows: []string{"5h"}, Until: generated.Add(2 * time.Hour)}},
@@ -321,6 +369,7 @@ func TestDocumentJSON(t *testing.T) {
     "failures": 6,
     "reason": "6 of the 8 requests in the last 5 minutes failed"
   },
+  "sessions": 2,
   "accounts": [
     {
       "id": "work",
