@@ -10,12 +10,15 @@ import (
 	"strings"
 )
 
-// switchboard's directories in a home, and the directory its LaunchAgent goes
-// in.
+// switchboard's directories in a home, the directory its LaunchAgent goes in,
+// and Claude Code's config directory; and the directory switchboard's skill
+// goes in, in that.
 var (
 	configDir       = filepath.Join(".config", "switchboard")
 	stateDir        = filepath.Join(".local", "state", "switchboard")
 	launchAgentsDir = filepath.Join("Library", "LaunchAgents")
+	claudeDir       = ".claude"
+	skillDir        = filepath.Join("skills", "switchboard")
 )
 
 // watcher watches something of the real system's, as closely as a live
@@ -39,11 +42,13 @@ func (ws watchers) changes() []string {
 // watchReal notes, before the tests begin, what the real system holds of
 // switchboard's: its config and its state, by default in home, and wherever
 // SWITCHBOARD_CONFIG, XDG_CONFIG_HOME and XDG_STATE_HOME put them, as getenv
-// reads them; and its files among the LaunchAgents in home. Nothing live
-// writes the config or a LaunchAgent, so any change to either is a test's. A
-// live router writes its state as it runs, its logs and state.json among it,
-// so only a state directory appearing is a test's; and the OS sandbox denies
-// a test any write there anyway.
+// reads them; its files among the LaunchAgents in home; and its skill in
+// Claude Code's config directory, by default in home, and wherever
+// CLAUDE_CONFIG_DIR puts it. Nothing live writes the config, a LaunchAgent or
+// the skill as it runs, so any change to one is a test's. A live router
+// writes its state as it runs, its logs and state.json among it, so only a
+// state directory appearing is a test's; and the OS sandbox denies a test any
+// write there anyway.
 func watchReal(home string, getenv func(string) string) watchers {
 	var ws watchers
 	for _, p := range configPlaces(home, getenv) {
@@ -56,6 +61,9 @@ func watchReal(home string, getenv func(string) string) watchers {
 	}
 	if home != "" {
 		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard))
+	}
+	for _, p := range skillPlaces(home, getenv) {
+		ws = append(ws, watchContents(p, nil))
 	}
 	return ws
 }
@@ -97,6 +105,21 @@ func statePlaces(home string, getenv func(string) string) []place {
 	}
 	if dir := getenv("XDG_STATE_HOME"); filepath.IsAbs(dir) {
 		places = append(places, named(filepath.Join(dir, "switchboard")))
+	}
+	return places
+}
+
+// skillPlaces are where switchboard's skill is, in Claude Code's config
+// directory: by default in home, and where CLAUDE_CONFIG_DIR says. A relative
+// one names none testguard can know, as it's relative to wherever Claude Code
+// runs.
+func skillPlaces(home string, getenv func(string) string) []place {
+	var places []place
+	if home != "" {
+		places = append(places, inHome(home, filepath.Join(claudeDir, skillDir)))
+	}
+	if dir := getenv("CLAUDE_CONFIG_DIR"); filepath.IsAbs(dir) {
+		places = append(places, named(filepath.Join(dir, skillDir)))
 	}
 	return places
 }

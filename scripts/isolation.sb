@@ -1,8 +1,9 @@
 ;; The macOS sandbox scripts/test-isolated runs the tests in: nothing beyond
 ;; this machine, no unix socket outside the temporary directory and nothing on
 ;; the router's port, no writes into the home directory but Go's caches, nor
-;; into switchboard's real config and state wherever they are, and none of the
-;; real programs tests must never run.
+;; into switchboard's real config and state, or Claude Code's config
+;; directory, wherever they are, and none of the real programs tests must
+;; never run.
 ;;
 ;; Parameters, each a path with its symlinks resolved, as the sandbox matches
 ;; resolved paths:
@@ -13,6 +14,7 @@
 ;;   CONFIG      the config file switchboard reads
 ;;   CONFIG_DIR  its config directory
 ;;   STATE_DIR   its state directory
+;;   CLAUDE_DIR  Claude Code's config directory, where switchboard's skill goes
 
 (version 1)
 (debug deny)
@@ -41,11 +43,13 @@
 
 (deny file-write* (subpath (param "HOME")))
 (allow file-write* (subpath (param "GOCACHE")) (subpath (param "GOMODCACHE")))
-;; The real config and state, where the environment puts them, home or not.
+;; The real config and state, and Claude Code's config directory, where the
+;; environment puts them, home or not.
 (deny file-write*
   (literal (param "CONFIG"))
   (subpath (param "CONFIG_DIR"))
-  (subpath (param "STATE_DIR")))
+  (subpath (param "STATE_DIR"))
+  (subpath (param "CLAUDE_DIR")))
 
 ;; A rule here matches the file a symlink resolves to, not the link (proven by
 ;; experiment), so each install is denied where its real file lands. The

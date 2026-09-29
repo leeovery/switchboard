@@ -37,6 +37,7 @@ var seeded = []string{
 	"ANTHROPIC_API_KEY=test-key",
 	"ANTHROPIC_BASE_URL=http://192.0.2.1",
 	"SWITCHBOARD_CONFIG=/nonexistent/config.toml",
+	"CLAUDE_CONFIG_DIR=/nonexistent/claude",
 	"SWITCHBOARD_LOG_LEVEL=debug",
 	"TMUX=/nonexistent/tmux,1,0",
 	"TMUX_PANE=%1",
@@ -46,12 +47,13 @@ var seeded = []string{
 	"ALL_PROXY=socks5://127.0.0.1:9",
 }
 
-// Where switchboard keeps its config, its state and its LaunchAgent, from a
-// home.
+// Where switchboard keeps its config, its state, its LaunchAgent and its
+// skill, from a home.
 var (
 	configFile = filepath.Join(".config", "switchboard", "config.toml")
 	stateFile  = filepath.Join(".local", "state", "switchboard", "state.json")
 	agentFile  = filepath.Join("Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
+	skillFile  = filepath.Join(".claude", "skills", "switchboard", "SKILL.md")
 )
 
 // outsideSocket is a control socket outside the temporary directory, where a
@@ -70,6 +72,7 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 		{does: "overwrite-the-real-config", want: "the real ~/.config/switchboard/config.toml was modified"},
 		{does: "create-the-real-state", want: "the real ~/.local/state/switchboard appeared"},
 		{does: "install-the-real-launch-agent", want: "the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was created"},
+		{does: "install-the-real-skill", want: "the real ~/.claude/skills/switchboard/SKILL.md was created"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
@@ -88,7 +91,7 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 	}
 }
 
-func TestEscapesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
+func TestEscapesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 	tests := []struct {
 		does string
 		// want is what the guard fails the run as, %s standing for where the
@@ -98,6 +101,7 @@ func TestEscapesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
 		{does: "overwrite-the-config-SWITCHBOARD_CONFIG-names", want: "the real %s/work.toml was modified"},
 		{does: "create-the-state-where-XDG_STATE_HOME-puts-it", want: "the real %s/state/switchboard appeared"},
 		{does: "dial-the-control-socket-where-XDG_STATE_HOME-puts-it", want: "blocked dial to %s/state/switchboard/control.sock"},
+		{does: "install-the-skill-where-CLAUDE_CONFIG_DIR-puts-it", want: "the real %s/claude/skills/switchboard/SKILL.md was created"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
@@ -107,6 +111,7 @@ func TestEscapesWhereTheEnvironmentPutsTheConfigAndState(t *testing.T) {
 			out, err := runChild(t, tt.does, t.TempDir(),
 				"SWITCHBOARD_CONFIG="+filepath.Join(elsewhere, "work.toml"),
 				"XDG_STATE_HOME="+filepath.Join(elsewhere, "state"),
+				"CLAUDE_CONFIG_DIR="+filepath.Join(elsewhere, "claude"),
 				childElsewhere+"="+elsewhere)
 			if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 {
 				t.Errorf("child: error = %v, want exit status 1", err)
@@ -176,10 +181,14 @@ func TestInChild(t *testing.T) {
 		writeFile(t, filepath.Join(realHome, stateFile), "{\"version\": 1, \"sessions\": []}\n")
 	case "install-the-real-launch-agent":
 		writeFile(t, filepath.Join(realHome, agentFile), "<plist version=\"1.0\"/>\n")
+	case "install-the-real-skill":
+		writeFile(t, filepath.Join(realHome, skillFile), "---\nname: switchboard\n---\n")
 	case "overwrite-the-config-SWITCHBOARD_CONFIG-names":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "work.toml"), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
 	case "create-the-state-where-XDG_STATE_HOME-puts-it":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "state", "switchboard", "state.json"), "{\"version\": 1, \"sessions\": []}\n")
+	case "install-the-skill-where-CLAUDE_CONFIG_DIR-puts-it":
+		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "claude", "skills", "switchboard", "SKILL.md"), "---\nname: switchboard\n---\n")
 	case "dial-the-control-socket-where-XDG_STATE_HOME-puts-it":
 		// In the temporary directory, as the state directory is here, but a
 		// live router's all the same.

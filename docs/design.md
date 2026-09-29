@@ -569,9 +569,11 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 ## The skill
 
 A Claude Code skill tells Claude what switchboard does under `claude`, so no session needs it
-explained. Switchboard carries the skill in its binary, with a version. `setup` writes it to
-`~/.claude/skills/switchboard/SKILL.md`; the router, as it starts, rewrites an installed copy whose
-version is older, and never creates one `setup` didn't. Switchboard owns the file, and overwrites
+explained. Switchboard carries the skill in its binary, with a version, which an HTML comment in its
+body gives, as Claude Code takes only the frontmatter keys it knows. `setup` writes it where Claude
+Code reads skills: `skills/switchboard/SKILL.md` in its config directory, `$CLAUDE_CONFIG_DIR`,
+else `~/.claude`. The router, as it starts, rewrites an installed copy whose version is older, or
+can't be read, and never creates one `setup` didn't. Switchboard owns the file, and overwrites
 edits to it.
 
 It's short: `claude` runs through switchboard; `status --session`, `usage`, `pin` and `logs`; a
@@ -678,7 +680,8 @@ wider interface than it's worth:
   plist, 0644, named after its label.
 - **The `claude` link:** a link named `claude` to switchboard, in a directory ahead of the real
   `claude` on `PATH`, where `setup` put it or the user did.
-- **The skill:** `~/.claude/skills/switchboard/SKILL.md`, once `setup` has written it.
+- **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
+  `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
 
 ### Config
 

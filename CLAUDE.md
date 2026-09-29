@@ -61,7 +61,9 @@ notifications. Ever.
   - the real switchboard config changed, or its state directory appeared: in the home, or where
     `SWITCHBOARD_CONFIG`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME` put them as the run began,
     links resolved;
-  - a switchboard file in the real `~/Library/LaunchAgents` appeared or changed.
+  - a switchboard file in the real `~/Library/LaunchAgents` appeared or changed;
+  - switchboard's skill in Claude Code's real config directory appeared or changed: in
+    `~/.claude`, or where `CLAUDE_CONFIG_DIR` put it as the run began, links resolved.
 - **testguard's own tests fail**, reading the module's source:
   - a package with tests but without that `TestMain`, or with anything else in it;
   - a change to the environment anywhere but `testguard`;
@@ -76,8 +78,8 @@ notifications. Ever.
   - the network beyond loopback;
   - unix sockets outside the temporary directory;
   - the router's port, 4747, either way;
-  - writes into the home directory, but Go's caches, and into the real config and state,
-    wherever the environment puts them;
+  - writes into the home directory, but Go's caches, and into the real config and state, and
+    Claude Code's config directory, wherever the environment puts them;
   - running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`.
 - **It unsets the variables testguard clears** before anything starts, as testguard clears them
   only once every package's init has run.
@@ -85,8 +87,8 @@ notifications. Ever.
   - it denies a dial off the machine, and a connect to a live unix socket outside the temporary
     directory;
   - it denies connecting to and binding 4747;
-  - it denies a write into the home directory, and into the real config and state where they
-    exist;
+  - it denies a write into the home directory, and into the real config and state, and Claude
+    Code's config directory, where they exist;
   - it denies running each of those programs that's installed, where `PATH` finds it, links
     resolved;
   - the tests start without those variables.
