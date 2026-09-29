@@ -29,8 +29,9 @@ import (
 // transport cloned from it after, dial this machine alone.
 //
 // After them, it fails the run, even when every test passed, if a stub ran,
-// a dial was blocked, or switchboard's config or state in the real home
-// changed, saying which on stderr. Then it removes the root.
+// a dial was blocked, switchboard's config in the real home changed, or its
+// state directory there appeared, saying which on stderr. Then it removes the
+// root.
 func Main(m *testing.M) int {
 	g, err := install()
 	if err != nil {
@@ -47,10 +48,8 @@ type guard struct {
 	root  string
 	stubs stubs
 	dials *dialGuard
-	// home is the real home directory, "" when there's none to watch, and
-	// before what its switchboard directories held as the tests began.
-	home   string
-	before snapshot
+	// home is the real home, watched from before the tests began.
+	home realHome
 }
 
 // install isolates the process as Main says, having first noted what the real
@@ -61,7 +60,7 @@ func install() (*guard, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create a throwaway root: %w", err)
 	}
-	g := &guard{root: root, dials: &dialGuard{}, home: home, before: take(home)}
+	g := &guard{root: root, dials: &dialGuard{}, home: watchHome(home)}
 	if err := g.isolate(); err != nil {
 		_ = os.RemoveAll(root)
 		return nil, err
@@ -88,7 +87,7 @@ func (g *guard) isolate() error {
 // finish removes the root and returns the status to exit with: status, or 1
 // in place of 0 when the tests reached past their isolation, which it reports.
 func (g *guard) finish(status int) int {
-	escapes := slices.Concat(g.stubs.runs(), g.dials.escapes(), changes(g.before, take(g.home)))
+	escapes := slices.Concat(g.stubs.runs(), g.dials.escapes(), g.home.changes())
 	if err := os.RemoveAll(g.root); err != nil {
 		fmt.Fprintf(os.Stderr, "testguard: %v\n", err)
 	}

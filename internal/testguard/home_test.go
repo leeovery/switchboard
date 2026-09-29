@@ -9,10 +9,8 @@ import (
 	"time"
 )
 
-func TestChangesToTheRealHome(t *testing.T) {
-	config := filepath.Join(".config", "switchboard", "config.toml")
-	cliLog := filepath.Join(".local", "state", "switchboard", "logs", "cli.log")
-	state := filepath.Join(".local", "state", "switchboard", "state.json")
+func TestChangesToTheRealConfig(t *testing.T) {
+	config := filepath.Join(configDir, "config.toml")
 	tests := []struct {
 		name string
 		// files are what the home holds before, by path from it.
@@ -23,18 +21,18 @@ func TestChangesToTheRealHome(t *testing.T) {
 	}{
 		{
 			name:   "nothing",
-			files:  []string{config, cliLog, state},
+			files:  []string{config},
 			change: func(*testing.T, string) {},
 		},
 		{
-			name: "the config written where there was none",
+			name: "written where there was none",
 			change: func(t *testing.T, home string) {
 				write(t, filepath.Join(home, config), "listen = \"127.0.0.1:4747\"\n")
 			},
 			want: []string{"the real ~/.config/switchboard was created", "the real ~/.config/switchboard/config.toml was created"},
 		},
 		{
-			name:  "the config overwritten in place",
+			name:  "overwritten in place",
 			files: []string{config},
 			change: func(t *testing.T, home string) {
 				write(t, filepath.Join(home, config), "listen = \"127.0.0.1:4748\"\n")
@@ -42,46 +40,30 @@ func TestChangesToTheRealHome(t *testing.T) {
 			want: []string{"the real ~/.config/switchboard/config.toml was modified"},
 		},
 		{
-			name:  "a log appended to",
-			files: []string{cliLog},
-			change: func(t *testing.T, home string) {
-				f, err := os.OpenFile(filepath.Join(home, cliLog), os.O_APPEND|os.O_WRONLY, 0)
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer func() { _ = f.Close() }()
-				if _, err := f.WriteString("level=INFO msg=start\n"); err != nil {
-					t.Fatal(err)
-				}
-			},
-			want: []string{"the real ~/.local/state/switchboard/logs/cli.log was modified"},
-		},
-		{
-			name:  "the state file touched",
-			files: []string{state},
+			name:  "touched",
+			files: []string{config},
 			change: func(t *testing.T, home string) {
 				now := time.Now()
-				if err := os.Chtimes(filepath.Join(home, state), now, now); err != nil {
+				if err := os.Chtimes(filepath.Join(home, config), now, now); err != nil {
 					t.Fatal(err)
 				}
 			},
-			want: []string{"the real ~/.local/state/switchboard/state.json was modified"},
+			want: []string{"the real ~/.config/switchboard/config.toml was modified"},
 		},
 		{
-			name:  "the state file removed",
-			files: []string{state},
+			name:  "removed",
+			files: []string{config},
 			change: func(t *testing.T, home string) {
-				if err := os.Remove(filepath.Join(home, state)); err != nil {
+				if err := os.Remove(filepath.Join(home, config)); err != nil {
 					t.Fatal(err)
 				}
 			},
-			want: []string{"the real ~/.local/state/switchboard was modified", "the real ~/.local/state/switchboard/state.json was removed"},
+			want: []string{"the real ~/.config/switchboard was modified", "the real ~/.config/switchboard/config.toml was removed"},
 		},
 		{
-			name: "only outside switchboard's directories",
+			name: "only elsewhere",
 			change: func(t *testing.T, home string) {
 				write(t, filepath.Join(home, ".config", "other", "config.toml"), "")
-				write(t, filepath.Join(home, ".local", "state", "other.log"), "")
 				write(t, filepath.Join(home, "switchboard"), "")
 			},
 		},
@@ -93,33 +75,33 @@ func TestChangesToTheRealHome(t *testing.T) {
 				write(t, filepath.Join(home, file), "before\n")
 			}
 			backdate(t, home)
-			before := take(home)
+			watched := watchHome(home)
 
 			tt.change(t, home)
 
-			if got := changes(before, take(home)); !slices.Equal(got, tt.want) {
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
 				t.Errorf("changes() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestChangesThroughLinks(t *testing.T) {
+func TestChangesToTheRealConfigThroughLinks(t *testing.T) {
 	tests := []struct {
 		name string
 		// link links the config, kept in dotfiles, into home.
 		link func(t *testing.T, home, dotfiles string)
 	}{
 		{
-			name: "the config directory linked in",
+			name: "the directory linked in",
 			link: func(t *testing.T, home, dotfiles string) {
-				symlink(t, filepath.Join(dotfiles, "switchboard"), filepath.Join(home, ".config", "switchboard"))
+				symlink(t, filepath.Join(dotfiles, "switchboard"), filepath.Join(home, configDir))
 			},
 		},
 		{
-			name: "the config file linked in",
+			name: "the file linked in",
 			link: func(t *testing.T, home, dotfiles string) {
-				symlink(t, filepath.Join(dotfiles, "switchboard", "config.toml"), filepath.Join(home, ".config", "switchboard", "config.toml"))
+				symlink(t, filepath.Join(dotfiles, "switchboard", "config.toml"), filepath.Join(home, configDir, "config.toml"))
 			},
 		},
 	}
@@ -130,22 +112,83 @@ func TestChangesThroughLinks(t *testing.T) {
 			write(t, config, "listen = \"127.0.0.1:4747\"\n")
 			tt.link(t, home, dotfiles)
 			backdate(t, dotfiles)
-			before := take(home)
+			watched := watchHome(home)
 
 			write(t, config, "listen = \"127.0.0.1:4748\"\n")
 
 			want := []string{"the real ~/.config/switchboard/config.toml was modified"}
-			if got := changes(before, take(home)); !slices.Equal(got, want) {
+			if got := watched.changes(); !slices.Equal(got, want) {
 				t.Errorf("changes() = %q, want %q", got, want)
 			}
 		})
 	}
 }
 
-func TestNoHomeHoldsNothing(t *testing.T) {
-	if s := take(""); s != nil {
-		t.Errorf("take(\"\") = %v, want nothing", s)
+func TestTheRealStateDirectoryAppearing(t *testing.T) {
+	tests := []struct {
+		name string
+		// before lays out the state directory, when it's there at the start.
+		before func(t *testing.T, state string)
+		// during changes the state directory as the tests run.
+		during func(t *testing.T, state string)
+		want   []string
+	}{
+		{
+			name:   "appeared during the run",
+			during: writeState,
+			want:   []string{"the real ~/.local/state/switchboard appeared"},
+		},
+		{
+			name:   "a live router rewrote state.json and logged during the run",
+			before: writeState,
+			during: func(t *testing.T, state string) {
+				write(t, filepath.Join(state, "state.json.tmp"), "{\"version\": 1, \"sessions\": []}\n")
+				if err := os.Rename(filepath.Join(state, "state.json.tmp"), filepath.Join(state, "state.json")); err != nil {
+					t.Fatal(err)
+				}
+				write(t, filepath.Join(state, "logs", "router.log"), "level=INFO msg=routed\nlevel=INFO msg=routed\n")
+			},
+		},
+		{
+			name:   "there all along",
+			before: writeState,
+			during: func(*testing.T, string) {},
+		},
+		{
+			name:   "never there",
+			during: func(*testing.T, string) {},
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			state := filepath.Join(home, stateDir)
+			if tt.before != nil {
+				tt.before(t, state)
+			}
+			backdate(t, home)
+			watched := watchHome(home)
+
+			tt.during(t, state)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNoHomeWatchesNothing(t *testing.T) {
+	if got := watchHome("").changes(); got != nil {
+		t.Errorf("changes() with no home = %q, want none", got)
+	}
+}
+
+// writeState lays out a state directory at state as a router leaves it.
+func writeState(t *testing.T, state string) {
+	t.Helper()
+	write(t, filepath.Join(state, "state.json"), "{\"version\": 1, \"sessions\": []}\n")
+	write(t, filepath.Join(state, "logs", "router.log"), "level=INFO msg=routed\n")
 }
 
 // write writes content to a file at path, creating its directories.

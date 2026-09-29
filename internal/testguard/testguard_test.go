@@ -38,6 +38,12 @@ var seeded = []string{
 	"http_proxy=http://127.0.0.1:9",
 }
 
+// Where switchboard keeps its config and its state, from a home.
+var (
+	configFile = filepath.Join(".config", "switchboard", "config.toml")
+	stateFile  = filepath.Join(".local", "state", "switchboard", "state.json")
+)
+
 func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 	tests := []struct {
 		does string
@@ -46,11 +52,12 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 		{does: "run-a-stub", want: "ran osascript -e return 1"},
 		{does: "dial-off-the-machine", want: "blocked dial to 192.0.2.1:80"},
 		{does: "overwrite-the-real-config", want: "the real ~/.config/switchboard/config.toml was modified"},
+		{does: "create-the-real-state", want: "the real ~/.local/state/switchboard appeared"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
 			home := t.TempDir()
-			writeConfig(t, home, "listen = \"127.0.0.1:4747\"\n")
+			writeFile(t, filepath.Join(home, configFile), "listen = \"127.0.0.1:4747\"\n")
 
 			out, err := runChild(t, tt.does, home)
 			if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 {
@@ -64,10 +71,17 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 	}
 }
 
-func TestWhatStaysInIsolationPasses(t *testing.T) {
-	out, err := runChild(t, "stay-in-isolation", t.TempDir())
-	if err != nil || strings.Contains(out, "testguard") {
-		t.Errorf("child: error = %v, printing\n%s\nwant it to pass, with nothing from the guard", err, out)
+func TestWhatTheGuardLetsBePasses(t *testing.T) {
+	for _, does := range []string{"stay-in-isolation", "write-the-real-state-as-a-live-router-does"} {
+		t.Run(does, func(t *testing.T) {
+			home := t.TempDir()
+			writeFile(t, filepath.Join(home, stateFile), "{\"version\": 1, \"sessions\": []}\n")
+
+			out, err := runChild(t, does, home)
+			if err != nil || strings.Contains(out, "testguard") {
+				t.Errorf("child: error = %v, printing\n%s\nwant it to pass, with nothing from the guard", err, out)
+			}
+		})
 	}
 }
 
@@ -100,7 +114,11 @@ func TestInChild(t *testing.T) {
 			t.Errorf("GET http://192.0.2.1/: error = %v, want the dial blocked", err)
 		}
 	case "overwrite-the-real-config":
-		writeConfig(t, realHome, "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
+		writeFile(t, filepath.Join(realHome, configFile), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
+	case "create-the-real-state":
+		writeFile(t, filepath.Join(realHome, stateFile), "{\"version\": 1, \"sessions\": []}\n")
+	case "write-the-real-state-as-a-live-router-does":
+		writeLikeARouter(t, filepath.Join(realHome, stateFile))
 	case "stay-in-isolation":
 		stayInIsolation(t)
 	case "check-the-environment":
@@ -123,10 +141,19 @@ func stayInIsolation(t *testing.T) {
 		t.Fatalf("GET %s: %v", srv.URL, err)
 	}
 	_ = resp.Body.Close()
-	writeConfig(t, os.Getenv("HOME"), "listen = \"127.0.0.1:4747\"\n")
-	if err := os.WriteFile(filepath.Join(t.TempDir(), "state.json"), []byte("{}\n"), 0o600); err != nil {
+	writeFile(t, filepath.Join(os.Getenv("HOME"), configFile), "listen = \"127.0.0.1:4747\"\n")
+	writeFile(t, filepath.Join(t.TempDir(), "state.json"), "{}\n")
+}
+
+// writeLikeARouter rewrites the state file at state through a temporary file
+// renamed over it, and writes to the log beside it, as a live router does.
+func writeLikeARouter(t *testing.T, state string) {
+	t.Helper()
+	writeFile(t, state+".tmp", "{\"version\": 1, \"sessions\": [], \"pin\": {\"account\": \"work\"}}\n")
+	if err := os.Rename(state+".tmp", state); err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(filepath.Dir(state), "logs", "router.log"), "level=INFO msg=routed account=work\n")
 }
 
 // checkEnvironment checks that the guard cleared the seeded variables, kept
@@ -187,10 +214,9 @@ func runChild(t *testing.T, does, home string, env ...string) (string, error) {
 	return string(out), err
 }
 
-// writeConfig writes content to switchboard's config in home.
-func writeConfig(t *testing.T, home, content string) {
+// writeFile writes content to a file at path, creating its directories.
+func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	path := filepath.Join(home, ".config", "switchboard", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}

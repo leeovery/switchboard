@@ -52,8 +52,9 @@ notifications. Ever.
   directories into a throwaway root; clears the `SWITCHBOARD_`, `CLAUDE_` and `ANTHROPIC_`
   variables, tmux's and proxies'; puts only stubs of `claude`, `osascript`, `launchctl`, `tmux`
   and `open` on `PATH`; and lets `http.DefaultTransport`, and transports cloned from it, dial
-  loopback alone. A run in which a stub ran, a dial was blocked, or the real switchboard config or
-  state changed fails, even when every test passed. Its own tests fail a package without that
+  loopback alone. A run in which a stub ran, a dial was blocked, the real switchboard config
+  changed, or its state directory appeared fails, even when every test passed. Its own tests fail a
+  package without that
   `TestMain`, a change to the environment anywhere but `testguard`, and a process started outside
   the runners its allow-list names.
 - **`scripts/test-isolated` is the test gate:** every test, race detector on, inside a macOS
