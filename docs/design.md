@@ -1468,9 +1468,19 @@ any of it. Times are the Mac's, UTC+1.
   with the same reset, which the router takes as current only as it came off a request sent after
   the one before was taken in (see How it works). It cleared the 5-hour window too; the probe
   started the next, off the priming schedule, its reset at 21:40, a ten-minute mark, for a probe
-  at 16:46. Hence a window read so runs from then, for its pace and projection (see Dashboard).
+  at 16:46. Hence a window read so, fallen by a tenth or more, runs from then, for its pace and
+  projection (see Dashboard).
+- **30 September 2026, 17:26: a second weekly limit.** Another account's shared week ran out under
+  traffic. The router replayed the request on the pinned account with room, and moved the
+  account's three sessions there within 16 seconds, notifying "hit its Week limit — 2 sessions
+  moved to 3": the notification told of the two its 5 seconds gathered, the third moving 13
+  seconds after it.
+- **30 September 2026, 17:31: a second banked weekly reset.** That account's banked reset read as
+  the first did: the week's use dropped to 0%, its reset time, Monday 21:00, kept; the 5-hour
+  window cleared, and the refresh's probe started the next, its reset at 22:30; and "room again"
+  posted 13 seconds after the refresh.
 - **30 September 2026: resets on ten-minute marks.** Every 5-hour reset seen falls on one: 00:20,
-  05:20, 10:10, 10:20, 20:10, 20:20, 21:40.
+  05:20, 10:10, 10:20, 20:10, 20:20, 21:40, 22:30.
 - **30 September 2026, 11:15: macOS refused an upgraded binary.** After a login, `brew upgrade`
   replaced the ad-hoc-signed binary; the router exited for launchd to start the new one, and
   macOS refused it (`Launch Constraint Violation`), launchd starting it ten seconds later and
@@ -1500,13 +1510,13 @@ What's built but hasn't been seen against the real thing:
   its listeners taken up, under the same pid, and the system log no `Launch Constraint Violation`.
   The upgrade to that release still restarts the old way, by exiting.
 - The 5-hour window's mechanics, on the first primes: the reset a prime reads should be five hours
-  on.
+  after its slot, the ten-minute mark it goes 5 seconds after.
 - That a 5-hour window starts only with the first request after the last one lapsed, which priming
   rests on. On 30 September 2026, two accounts with no routed traffic overnight had resets stepping
   exactly five hours apart, at 00:20, 05:20 and 10:20, and a prime at 07:10 landed in the window
   resetting at 10:20: sessions not routed may have kept those windows going, or the windows run
   back to back whatever the use, which would leave priming nothing to do. After a quiet night with
-  every session routed, each primed account's reset should sit five hours after its prime.
+  every session routed, each primed account's reset should sit five hours after its slot.
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
 - `claude doctor` with the link in place.
