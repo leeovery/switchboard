@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/tokens"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const workToken = "test-token-work"
@@ -104,6 +105,37 @@ func TestReadIsTheStateDirectorys(t *testing.T) {
 	token, err := tokens.NewStore(state, os.Getuid()).Read("work")
 	if err != nil || token.Reveal() != workToken {
 		t.Errorf("Read() = %q, %v, want the token in <state dir>/tokens/work", token.Reveal(), err)
+	}
+}
+
+func TestTheStandInFailsAsTheStoreDoes(t *testing.T) {
+	tests := []struct {
+		name string
+		// content is what the token file holds; nil leaves no file.
+		content *string
+	}{
+		{name: "missing"},
+		{name: "empty", content: new("")},
+		{name: "whitespace alone", content: new(" \n\t\n")},
+		{name: "two tokens", content: new(workToken + " test-token-side")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			files := tokenstest.Files{}
+			if tt.content != nil {
+				writeFile(t, store.Path("work"), *tt.content, 0o600)
+				files["work"] = *tt.content
+			}
+
+			_, want := store.Read("work")
+			_, got := files.Read("work")
+			for _, kind := range []error{tokens.ErrMissing, tokens.ErrEmpty} {
+				if errors.Is(got, kind) != errors.Is(want, kind) {
+					t.Errorf("tokenstest.Files' Read() error = %v, and the store's %v: want both %v, or neither", got, want, kind)
+				}
+			}
+		})
 	}
 }
 

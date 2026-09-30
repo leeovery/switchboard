@@ -154,9 +154,6 @@ func TestRunChoosesTheToken(t *testing.T) {
 }
 
 func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
-	empty := func(id string) error {
-		return fmt.Errorf("%w: write it to tokens/%s, which is empty", tokens.ErrEmpty, id)
-	}
 	exposed := func(id string) error {
 		return fmt.Errorf("other users can read the token file (mode 0644): chmod 600 tokens/%s", id)
 	}
@@ -175,14 +172,14 @@ func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
 		wantPaused bool
 	}{
 		{name: "the primary's, at the first look", router: healthy(), want: workToken},
-		{name: "the primary's, written again", router: healthy(), rewritten: "work", caught: empty, written: true, want: workToken, wantPaused: true},
-		{name: "the primary's, empty still, the first with a token's", router: healthy(), rewritten: "work", caught: empty, want: sideToken, wantPaused: true},
+		{name: "the primary's, written again", router: healthy(), rewritten: "work", caught: tokenstest.Empty, written: true, want: workToken, wantPaused: true},
+		{name: "the primary's, empty still, the first with a token's", router: healthy(), rewritten: "work", caught: tokenstest.Empty, want: sideToken, wantPaused: true},
 		{
 			name:       "the primary's, written again, pinned to another",
 			router:     healthy(),
 			account:    "side",
 			rewritten:  "work",
-			caught:     empty,
+			caught:     tokenstest.Empty,
 			written:    true,
 			want:       workToken,
 			wantPaused: true,
@@ -192,7 +189,7 @@ func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
 			router:     healthy(),
 			account:    "side",
 			rewritten:  "work",
-			caught:     empty,
+			caught:     tokenstest.Empty,
 			want:       sideToken,
 			wantPaused: true,
 		},
@@ -203,7 +200,7 @@ func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
 			router:     notRunning(),
 			account:    "side",
 			rewritten:  "side",
-			caught:     empty,
+			caught:     tokenstest.Empty,
 			written:    true,
 			want:       sideToken,
 			wantPaused: true,
@@ -213,7 +210,7 @@ func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
 			router:     notRunning(),
 			account:    "side",
 			rewritten:  "side",
-			caught:     empty,
+			caught:     tokenstest.Empty,
 			wantErr:    "account side has no usable token for Claude Code to start on: token missing: write it to tokens/side, which is empty",
 			wantPaused: true,
 		},
@@ -457,7 +454,7 @@ func TestRunWithoutATokenStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	}
 	wantLog := []string{
 		"level=WARN", `msg="starting claude without switchboard"`, `reason="no account has a usable token"`,
-		`error="work: ` + tokenstest.Missing("work").Error() + `\npersonal: token missing\nside: ` + tokenstest.Missing("side").Error() + `"`,
+		`error="work: ` + tokenstest.Missing("work").Error() + `\npersonal: ` + tokenstest.Empty("personal").Error() + `\nside: ` + tokenstest.Missing("side").Error() + `"`,
 	}
 	if !log.Has(wantLog...) {
 		t.Errorf("log reads\n%s\nwant a line with %q", log, wantLog)
