@@ -166,6 +166,28 @@ func TestAQuietAccountStaysQuietAcrossARestart(t *testing.T) {
 	}
 }
 
+func TestARiseAcrossAGapInTheHistoryIsSpreadOverItAfterARestart(t *testing.T) {
+	// Work's session was last read two hours before the restart, then a
+	// probe read the use outside the router it came to since, just before.
+	now := start.Add(2 * time.Hour)
+	dir := t.TempDir()
+	h := newHistory(at(now))
+	h.open(dir)
+	s := newTestState(&testClock{now: now})
+	busier := session
+	busier.Utilization = 0.43
+	s.usage["work"].windows["5h"] = busier
+	h.write([]reading{
+		{At: start, Account: "work", Window: "5h", Utilization: 0.23, ResetsAt: session.ResetsAt, Source: fromAnswer},
+		{At: now.Add(-time.Minute), Account: "work", Window: "5h", Utilization: 0.43, ResetsAt: session.ResetsAt, Source: fromProbe},
+	})
+
+	s.seed(h.readBack(now))
+	if pace, ok := s.usage["work"].pace(testPolicy, now); !ok || !pace.Recent || math.Abs(pace.Rate-0.1) > 1e-9 {
+		t.Errorf("after the restart, work's session is used at %+v, %v, want 10%% an hour, its rise spread over the two hours since it was read", pace, ok)
+	}
+}
+
 func TestReadingBackTakesTheTwoNewestFilesByName(t *testing.T) {
 	now := time.Date(2026, 9, 29, 0, 10, 0, 0, time.Local)
 	lineAt := func(at time.Time, u float64) reading {
@@ -249,7 +271,7 @@ func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 		wantRate float64
 		wantOK   bool
 	}{
-		{name: "the window as it runs, from its reading before the half hour", held: quota.Window{Key: "5h", Utilization: 0.6, ResetsAt: session.ResetsAt}, wantRate: 1, wantOK: true},
+		{name: "the window as it runs, from its baseline, read 40 minutes back and taken as read last then", held: quota.Window{Key: "5h", Utilization: 0.6, ResetsAt: session.ResetsAt}, wantRate: 0.75, wantOK: true},
 		{name: "the window reset since", held: quota.Window{Key: "5h", Utilization: 0.02, ResetsAt: session.ResetsAt.Add(5 * time.Hour)}},
 	}
 	for _, tt := range tests {
@@ -265,7 +287,7 @@ func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 			h.open(dir)
 
 			s.seed(h.readBack(now))
-			rate, ok := score.RecentRate(tt.held, s.usage["work"].trails["5h"], now)
+			rate, _, ok := score.RecentRate(tt.held, s.usage["work"].trails["5h"], now)
 			if math.Abs(rate-tt.wantRate) > 1e-9 || ok != tt.wantOK {
 				t.Errorf("work's session's recent rate = %v, %v, want %v, %v", rate, ok, tt.wantRate, tt.wantOK)
 			}

@@ -66,12 +66,12 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 			want:     score.Pace{Rate: 0.325 / (2*time.Hour + 5*time.Minute).Hours()}, wantOK: true,
 		},
 		{
-			name: "from the reading taken last before the half hour, those older left behind",
+			name: "a baseline read once, 45 minutes back: its rise spread since, those older left behind",
 			readings: []sessionReading{
 				{0, 0.1, resets, false}, {20 * time.Minute, 0.2, resets, false}, {40 * time.Minute, 0.3, resets, false}, {45 * time.Minute, 0.35, resets, false},
 			},
 			at:   45 * time.Minute,
-			want: score.Pace{Rate: 0.5, Recent: true}, wantOK: true,
+			want: score.Pace{Rate: 0.25 / 0.75, Recent: true}, wantOK: true,
 		},
 		{
 			name: "a later reset, a new window, starts the readings afresh",
@@ -96,6 +96,18 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 			},
 			at:   12 * time.Minute,
 			want: score.Pace{Rate: 0.5, Recent: true}, wantOK: true,
+		},
+		{
+			name:     "use outside the router, read two hours on by a probe, spread over the gap",
+			readings: []sessionReading{{0, 0.3, resets, false}, {2 * time.Hour, 0.5, resets, false}},
+			at:       2 * time.Hour,
+			want:     score.Pace{Rate: 0.1, Recent: true}, wantOK: true,
+		},
+		{
+			name:     "climbing back from a dip too small to be a reset made by hand, no use",
+			readings: []sessionReading{{0, 0.5, resets, false}, {5 * time.Minute, 0.41, resets, false}, {35 * time.Minute, 0.5, resets, false}},
+			at:       40 * time.Minute,
+			want:     score.Pace{Recent: true}, wantOK: true,
 		},
 		{
 			name:     "read once, quiet since, quiet",
@@ -139,6 +151,26 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 	}
 }
 
+func TestATrailKeepsALevelForEachChangeOfUseAlone(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	for i := range 100 {
+		clock.now = start.Add(time.Duration(i) * 12 * time.Second)
+		s.record("work", []quota.Window{session}, s.mark())
+	}
+
+	trail := s.usage["work"].trails["5h"]
+	if len(trail) != 1 || !trail[0].At.Equal(start) || !trail[0].Last.Equal(clock.now) {
+		t.Fatalf("after 100 readings of the same use, the trail holds %+v, want one level, first read at %v and last at %v", trail, start, clock.now)
+	}
+	busier := session
+	busier.Utilization += 0.01
+	s.record("work", []quota.Window{busier}, s.mark())
+	if got := len(s.usage["work"].trails["5h"]); got != 2 {
+		t.Errorf("after the use changed, the trail holds %d levels, want 2", got)
+	}
+}
+
 func TestOnlyAFallOfATenthShowsAWindowResetByHand(t *testing.T) {
 	// Work's session, read over 20 minutes, rises to 30%; a minute on, a
 	// request sent since reads it lower, its reset the same.
@@ -167,7 +199,7 @@ func TestOnlyAFallOfATenthShowsAWindowResetByHand(t *testing.T) {
 				t.Errorf("the session reads %v, want %v: the reading since is the upstream's latest word", got.Utilization, tt.utilization)
 			}
 			var wantRestart time.Time
-			wantReadings := 4
+			wantReadings := 3
 			if tt.wantReset {
 				wantRestart, wantReadings = clock.now, 1
 			}

@@ -24,7 +24,7 @@ func TestPaceOf(t *testing.T) {
 		{
 			name:     "its recent rate",
 			window:   running,
-			readings: []score.Reading{readAt(40*time.Minute, 0.3), readAt(0, 0.4)},
+			readings: []score.Reading{readSpan(40*time.Minute, 20*time.Minute, 0.3), readAt(0, 0.4)},
 			want:     score.Pace{Rate: 0.2, Recent: true}, wantOK: true,
 		},
 		{
@@ -75,69 +75,76 @@ func TestRecentRate(t *testing.T) {
 		name     string
 		readings []score.Reading
 		want     float64
+		// wantOver is how long before now the rate is measured from.
+		wantOver time.Duration
 		wantOK   bool
 	}{
 		{
-			name:     "the rise over the half hour from the reading before it",
-			readings: []score.Reading{readAt(45*time.Minute, 0.34), readAt(20*time.Minute, 0.37), readAt(0, 0.4)},
-			want:     0.12, wantOK: true,
+			name:     "the rise over the half hour, from a baseline read again since it began",
+			readings: []score.Reading{readSpan(45*time.Minute, 25*time.Minute, 0.34), readAt(20*time.Minute, 0.37), readAt(0, 0.4)},
+			want:     0.12, wantOver: 30 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "the rise from a reading at the half hour's start exactly",
+			name:     "the rise from a baseline read last as the half hour began",
 			readings: []score.Reading{readAt(30*time.Minute, 0.37), readAt(0, 0.4)},
-			want:     0.06, wantOK: true,
+			want:     0.06, wantOver: 30 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "no reading since the half hour started, quiet",
+			name:     "a rise across a gap, as a probe reads use outside the router, spread since the baseline was read",
+			readings: []score.Reading{readAt(2*time.Hour, 0.3), readAt(0, 0.5)},
+			want:     0.1, wantOver: 2 * time.Hour, wantOK: true,
+		},
+		{
+			name:     "a rise across a gap, spread since the baseline was last read, an hour back",
+			readings: []score.Reading{readSpan(3*time.Hour, time.Hour, 0.3), readAt(0, 0.5)},
+			want:     0.2, wantOver: time.Hour, wantOK: true,
+		},
+		{
+			name:     "no level since the half hour began, quiet",
 			readings: []score.Reading{readAt(2*time.Hour, 0.3), readAt(45*time.Minute, 0.4)},
-			want:     0, wantOK: true,
+			want:     0, wantOver: 45 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "read just now, unchanged since before the half hour, quiet",
-			readings: []score.Reading{readAt(45*time.Minute, 0.4), readAt(0, 0.4)},
-			want:     0, wantOK: true,
+			name:     "read again just now, its use unchanged since before the half hour, quiet",
+			readings: []score.Reading{readSpan(45*time.Minute, 0, 0.4)},
+			want:     0, wantOver: 30 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "no reading before the half hour, from the first, 20 minutes back",
+			name:     "no baseline, from the first level, 20 minutes back",
 			readings: []score.Reading{readAt(20*time.Minute, 0.36), readAt(0, 0.4)},
-			want:     0.12, wantOK: true,
+			want:     0.12, wantOver: 20 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "no reading before the half hour, from the first, 10 minutes back",
+			name:     "no baseline, from the first level, 10 minutes back",
 			readings: []score.Reading{readAt(10*time.Minute, 0.38), readAt(0, 0.4)},
-			want:     0.12, wantOK: true,
+			want:     0.12, wantOver: 10 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "no reading before the half hour, the first under 10 minutes back",
+			name:     "no baseline, the first level under 10 minutes back",
 			readings: []score.Reading{readAt(9*time.Minute, 0.39), readAt(0, 0.4)},
 		},
 		{
-			name:     "a burst of 10 minutes as it ends",
-			readings: []score.Reading{readAt(40*time.Minute, 0.3), readAt(10*time.Minute, 0.3), readAt(0, 0.4)},
-			want:     0.2, wantOK: true,
+			name:     "a burst, holding its rate for the half hour",
+			readings: []score.Reading{readSpan(60*time.Minute, 25*time.Minute, 0.3), readAt(20*time.Minute, 0.4)},
+			want:     0.2, wantOver: 30 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "the same burst, quiet for 20 minutes since",
-			readings: []score.Reading{readAt(60*time.Minute, 0.3), readAt(30*time.Minute, 0.3), readAt(20*time.Minute, 0.4)},
-			want:     0.2, wantOK: true,
+			name:     "the same burst, 40 minutes on, past",
+			readings: []score.Reading{readSpan(80*time.Minute, 45*time.Minute, 0.3), readAt(40*time.Minute, 0.4)},
+			want:     0, wantOver: 40 * time.Minute, wantOK: true,
 		},
 		{
-			name:     "the same burst, quiet for 40 minutes since, past",
-			readings: []score.Reading{readAt(80*time.Minute, 0.3), readAt(50*time.Minute, 0.3), readAt(40*time.Minute, 0.4)},
-			want:     0, wantOK: true,
-		},
-		{
-			name: "steady use, read every 5 minutes",
+			name: "steady use, a level every 5 minutes",
 			readings: []score.Reading{
 				readAt(35*time.Minute, 0.335), readAt(30*time.Minute, 0.34), readAt(25*time.Minute, 0.35), readAt(20*time.Minute, 0.36),
 				readAt(15*time.Minute, 0.37), readAt(10*time.Minute, 0.38), readAt(5*time.Minute, 0.39), readAt(0, 0.4),
 			},
-			want: 0.12, wantOK: true,
+			want: 0.12, wantOver: 30 * time.Minute, wantOK: true,
 		},
 		{
 			name:     "a dip reads no negative rate",
-			readings: []score.Reading{readAt(45*time.Minute, 0.41), readAt(0, 0.4)},
-			want:     0, wantOK: true,
+			readings: []score.Reading{readSpan(45*time.Minute, 20*time.Minute, 0.41), readAt(0, 0.4)},
+			want:     0, wantOver: 30 * time.Minute, wantOK: true,
 		},
 		{
 			name: "no readings",
@@ -145,13 +152,17 @@ func TestRecentRate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := score.RecentRate(running, tt.readings, now)
-			if math.Abs(got-tt.want) > 1e-9 || ok != tt.wantOK {
-				t.Errorf("RecentRate() = %v, %v, want %v, %v", got, ok, tt.want, tt.wantOK)
+			got, since, ok := score.RecentRate(running, tt.readings, now)
+			var wantSince time.Time
+			if tt.wantOK {
+				wantSince = now.Add(-tt.wantOver)
+			}
+			if math.Abs(got-tt.want) > 1e-9 || !since.Equal(wantSince) || ok != tt.wantOK {
+				t.Errorf("RecentRate() = %v, since %v, %v, want %v, since %v, %v", got, since, ok, tt.want, wantSince, tt.wantOK)
 			}
 		})
 	}
-	if got, ok := score.RecentRate(week(0.4, 8*24*time.Hour), []score.Reading{readAt(45*time.Minute, 0.37), readAt(0, 0.4)}, now); ok {
+	if got, _, ok := score.RecentRate(week(0.4, 8*24*time.Hour), []score.Reading{readAt(45*time.Minute, 0.37), readAt(0, 0.4)}, now); ok {
 		t.Errorf("RecentRate() of a week reset since it was read = %v, true, want false", got)
 	}
 }
@@ -334,4 +345,10 @@ func TestProjectAt(t *testing.T) {
 // readAt returns a reading at utilization, taken ago before now.
 func readAt(ago time.Duration, utilization float64) score.Reading {
 	return score.Reading{At: now.Add(-ago), Utilization: utilization}
+}
+
+// readSpan returns a reading at utilization, first taken ago before now, and
+// last lastAgo before it.
+func readSpan(ago, lastAgo time.Duration, utilization float64) score.Reading {
+	return score.Reading{At: now.Add(-ago), Utilization: utilization, Last: now.Add(-lastAgo)}
 }

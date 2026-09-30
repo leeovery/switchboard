@@ -133,22 +133,27 @@ on a model whose thinking is bound to its account only when its account can't se
    configured.
 3. **Pressure:** several busy sessions on one account run its 5-hour window out together, then
    move at once, each rebuilding its cache on another account; scoring by the week alone doesn't
-   see it coming. So the router keeps, of each of each account's windows, its baseline, the
-   reading taken last before the last 30 minutes, and each reading since that changed its use,
-   the time each came in and the utilization it read, within the window as it now runs: a later
-   reset, a new window, clears them, and so does a reading taken as current that has fallen by a
-   tenth of the window or more, as a reset made by hand leaves it (see Dashboard). A window's
-   recent rate is its rise over the last 30 minutes, from its baseline to its latest reading,
-   never less than 0: its use changes only as it's used, so a window with a baseline and no
-   reading since has been quiet, and reads 0, and a burst reads slower as time passes, until it's
-   past. Without a baseline, as for a window started less than 30 minutes ago, the rise is from
-   its first reading, over the time since, which must be 10 minutes back at least. The weekly
-   windows' projections go by it too (see Dashboard). The 5-hour window's rate is its recent rate,
-   or, without a baseline or a reading 10 minutes back, its use since it started, once 5% of it
-   has passed, as the dashboard's projection measures it. An account is under pressure when, at
-   that rate, its 5-hour window reaches where the account runs out before it resets: where its
-   reserve starts, or its limit where the request may spend the reserve, as a pin spends its
-   accounts' (see Pinning).
+   see it coming. So the router keeps, of each of each account's windows, the levels its use was
+   read at, each with when it was first read so and when last: its baseline, the level read last
+   before the last 30 minutes, and each higher level since, within the window as it now runs. A
+   later reset, a new window, clears them, and so does a reading taken as current that has fallen
+   by a tenth of the window or more, as a reset made by hand leaves it (see Dashboard); a smaller
+   dip stands as the window's reading but is no level, so climbing back from it reads as no use.
+   A window's recent rate is its rise from its baseline to its latest level, never less than 0,
+   over the last 30 minutes when the baseline was read again after they began, its use holding
+   there till then; else over the time since the baseline was last read: an account is read only
+   on its own traffic, its primes, and a probe before a choice once 15 minutes stale, so use
+   outside the router, as in the Claude apps, arrives as one rise across a gap, which came at no
+   telling when within it, and 20% read two hours on reads 10% an hour, not 40% for half an hour.
+   A window with a baseline and no level since has been quiet, and reads 0, so a burst holds its
+   rate for the 30 minutes after it, then drops to 0. Without a baseline, as for a window started
+   less than 30 minutes ago, the rise is from its first level, over the time since it was first
+   read, which must be 10 minutes back at least. The weekly windows' projections go by it too (see
+   Dashboard). The 5-hour window's rate is its recent rate, or, without a baseline or a level 10
+   minutes back, its use since it started, once 5% of it has passed, as the dashboard's projection
+   measures it. An account is under pressure when, at that rate, its 5-hour window reaches where
+   the account runs out before it resets: where its reserve starts, or its limit where the
+   request may spend the reserve, as a pin spends its accounts' (see Pinning).
    A choice made afresh sets the candidates under pressure aside first, then scores the rest as
    step 2 says, keeping an idle session's own account unless another is well ahead; when every
    candidate is under pressure, pressure changes nothing, so it never leaves a request without an
@@ -1306,7 +1311,7 @@ Each account:
 | `limit` | *router* A limit it reached, while it holds: `{windows, until}`, `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
 | `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets: the account is under pressure (see Choosing an account). Left out when the rate can't be said, as when the window isn't running |
-| `rates` | *router* How fast its windows have been used lately: `[{window, rate}]`, in `windows`' order, `window` a window's key and `rate` its rise over the last 30 minutes, from the reading taken last before them to its latest, as a share of it an hour, or, with no reading that far back, from its first, over the time since, 10 minutes at least; never negative, and 0 for a window read but unused since (see Choosing an account). The projections go by them (see Dashboard). Left out when no window has one |
+| `rates` | *router* How fast its windows have been used lately: `[{window, rate}]`, in `windows`' order, `window` a window's key and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The projections go by them (see Dashboard). Left out when no window has one |
 | `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
 ### Launching

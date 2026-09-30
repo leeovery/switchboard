@@ -9,27 +9,32 @@ import (
 )
 
 // trails are how each of an account's windows has been read lately, as it
-// now runs, by the window's key: its baseline, the reading taken last before
-// the half hour, and each reading since that changed its use, in the order
-// taken, which the pressure window's pace, and each window's recent rate, are
-// measured over. A router started afresh takes them up from the readings
-// history, as seed says.
+// now runs, by the window's key: the levels its use was read at, each with
+// when it was first and last read so, its baseline, the level read last
+// before the half hour, and each since, in the order read. The pressure
+// window's pace, and each window's recent rate, are measured over them. A
+// router started afresh takes them up from the readings history, as seed
+// says.
 type trails map[string][]score.Reading
 
 // note takes in kept, the reading of a window the account now stands as,
 // taken in at a time, held being the one it stood as before: a reading that
-// starts the window afresh, as startsAfresh says, leaves none of its readings
-// before it, and one that reads its use as the reading before it did adds
-// nothing. What the half hour before at has passed by goes, as score.Lately
-// says.
+// starts the window afresh, as startsAfresh says, leaves none of its levels
+// before it; one that reads its use as its latest level does reads that
+// level again; and one that reads it lower, a dip too small to be a reset
+// made by hand, leaves the trail as it was, as rising back from it is no use.
+// What the half hour before at has passed by goes, as score.Lately says.
 func (t trails) note(held, kept quota.Window, at time.Time) {
 	readings := t[kept.Key]
 	if startsAfresh(held, kept) {
 		readings = nil
 	}
 	readings = score.Lately(readings, at)
-	if n := len(readings); n == 0 || readings[n-1].Utilization != kept.Utilization {
-		readings = append(readings, score.Reading{At: at, Utilization: kept.Utilization})
+	switch n := len(readings); {
+	case n == 0 || kept.Utilization > readings[n-1].Utilization:
+		readings = append(readings, score.Reading{At: at, Utilization: kept.Utilization, Last: at})
+	case kept.Utilization == readings[n-1].Utilization:
+		readings[n-1].Last = at
 	}
 	t[kept.Key] = readings
 }
@@ -90,7 +95,7 @@ func (u *usage) pace(policy score.Policy, now time.Time) (score.Pace, bool) {
 func (u *usage) rates(now time.Time) []status.Rate {
 	var rates []status.Rate
 	for _, w := range u.latest() {
-		if rate, ok := score.RecentRate(w, u.trails[w.Key], now); ok {
+		if rate, _, ok := score.RecentRate(w, u.trails[w.Key], now); ok {
 			rates = append(rates, status.Rate{Window: w.Key, Rate: rate})
 		}
 	}
