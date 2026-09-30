@@ -104,8 +104,9 @@ func TestNext(t *testing.T) {
 		{name: "never read, the day over, at tomorrow's slot", account: "work", now: at(1, 23, 0), want: at(2, 4, 15), wantOK: true},
 		{name: "the other account, at its own slot", account: "side", now: at(1, 5, 0), want: at(1, 6, 45), wantOK: true},
 		{name: "lapsed as the day runs, at once", account: "work", windows: running(at(1, 13, 0)), now: at(1, 13, 40), want: at(1, 13, 40), wantOK: true},
-		{name: "running as the day runs, at its reset", account: "work", windows: running(at(1, 14, 15)), now: at(1, 10, 0), want: at(1, 14, 15), wantOK: true},
-		{name: "running at its slot, from a late night, at its reset", account: "work", windows: running(at(1, 6, 0)), now: at(1, 4, 15), want: at(1, 6, 0), wantOK: true},
+		{name: "running as the day runs, just after its reset", account: "work", windows: running(at(1, 14, 15)), now: at(1, 10, 0), want: justAfter(at(1, 14, 15)), wantOK: true},
+		{name: "its reset passed a moment ago, just after it", account: "work", windows: running(at(1, 14, 15)), now: at(1, 14, 15).Add(time.Second), want: justAfter(at(1, 14, 15)), wantOK: true},
+		{name: "running at its slot, from a late night, just after its reset", account: "work", windows: running(at(1, 6, 0)), now: at(1, 4, 15), want: justAfter(at(1, 6, 0)), wantOK: true},
 		{name: "running until after the day ends, at tomorrow's slot", account: "work", windows: running(at(1, 23, 50)), now: at(1, 20, 0), want: at(2, 4, 15), wantOK: true},
 		{name: "running until after the day ends, its reset read in UTC, at tomorrow's slot", account: "work", windows: running(at(1, 23, 50).UTC()), now: at(1, 20, 0), want: at(2, 4, 15), wantOK: true},
 		{name: "lapsed overnight, at its slot", account: "work", windows: running(at(1, 23, 50)), now: at(2, 1, 0), want: at(2, 4, 15), wantOK: true},
@@ -121,6 +122,12 @@ func TestNext(t *testing.T) {
 			}
 		})
 	}
+}
+
+// justAfter is a few seconds after a reset at t, when a prime is sent, so
+// the upstream, its clock a little behind, takes it in after the reset.
+func justAfter(t time.Time) time.Time {
+	return t.Add(5 * time.Second)
 }
 
 func TestNextOverADayPastMidnight(t *testing.T) {

@@ -32,6 +32,12 @@ func onDay(day, hour, minute int) time.Time {
 	return time.Date(2026, time.September, 27+day, hour, minute, 0, 0, local)
 }
 
+// afterResets is t moved on by the few seconds a prime waits after each of n
+// resets.
+func afterResets(t time.Time, n int) time.Time {
+	return t.Add(time.Duration(n) * 5 * time.Second)
+}
+
 func TestTheRouterPrimesEachAccountThroughTheDay(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		clock := newBubbleClock(onDay(1, 0, 0))
@@ -42,12 +48,14 @@ func TestTheRouterPrimesEachAccountThroughTheDay(t *testing.T) {
 
 		time.Sleep(29 * time.Hour)
 		synctest.Wait()
+		// Each prime goes out a few seconds after the reset before, so the
+		// resets move on by as much.
 		want := map[string][]time.Time{
-			workToken: {onDay(1, 4, 15), onDay(1, 9, 15), onDay(1, 14, 15), onDay(1, 19, 15), onDay(2, 4, 15)},
-			sideToken: {onDay(1, 6, 45), onDay(1, 11, 45), onDay(1, 16, 45), onDay(1, 21, 45)},
+			workToken: {onDay(1, 4, 15), afterResets(onDay(1, 9, 15), 1), afterResets(onDay(1, 14, 15), 2), afterResets(onDay(1, 19, 15), 3), onDay(2, 4, 15)},
+			sideToken: {onDay(1, 6, 45), afterResets(onDay(1, 11, 45), 1), afterResets(onDay(1, 16, 45), 2), afterResets(onDay(1, 21, 45), 3)},
 		}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
-			t.Errorf("primed at\n%v\nwant each at its slot, at once at each reset through the day, and none once it ends till the next day's slot\n%v", got, want)
+			t.Errorf("primed at\n%v\nwant each at its slot, just after each reset through the day, and none once it ends till the next day's slot\n%v", got, want)
 		}
 	})
 }
@@ -64,9 +72,9 @@ func TestAnAccountWhoseWindowRunsAtItsSlotIsPrimedAsItResets(t *testing.T) {
 
 		time.Sleep(6 * time.Hour)
 		synctest.Wait()
-		want := map[string][]time.Time{workToken: {onDay(1, 6, 0)}, sideToken: {onDay(1, 6, 45)}}
+		want := map[string][]time.Time{workToken: {afterResets(onDay(1, 6, 0), 1)}, sideToken: {onDay(1, 6, 45)}}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
-			t.Errorf("primed at %v, want %v: work's session was running at its slot, 04:15, so it's primed once that resets", got, want)
+			t.Errorf("primed at %v, want %v: work's session was running at its slot, 04:15, so it's primed just after that resets", got, want)
 		}
 	})
 }
@@ -245,7 +253,7 @@ func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *tes
 		Day:    "08:00-23:00",
 		Window: "5h",
 		Slots: []status.Slot{
-			{Account: "work", At: "04:15", Next: onDay(1, 9, 15).UTC()},
+			{Account: "work", At: "04:15", Next: afterResets(onDay(1, 9, 15), 1).UTC()},
 			{Account: "side", At: "06:45", Next: onDay(1, 6, 45).UTC()},
 		},
 	}
