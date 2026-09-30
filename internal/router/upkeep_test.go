@@ -111,6 +111,10 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 	waitForLine(t, log, `msg="restart due; restarting once no request is in flight"`)
 	time.Sleep(10 * watchEvery)
 	r.checkRunning(t)
+	want := status.Restart{Reason: "config changed", Since: now, InFlight: 1}
+	if doc := waitForStatus(t, router.SocketPath(s.cfg.StateDir), func(status.Document) bool { return true }); doc.Restart != want {
+		t.Errorf("the status document gives the restart due as %+v, want %+v", doc.Restart, want)
+	}
 	close(release)
 	if got := <-answered; got != `200 {"type":"message"}` {
 		t.Errorf("the request in flight was answered %q, want 200 and its body", got)
@@ -129,6 +133,10 @@ func TestARouterRunByHandSaysARestartIsDueOnce(t *testing.T) {
 	writeFile(t, s.config, oneAccount)
 	time.Sleep(10 * watchEvery)
 	r.checkRunning(t)
+	want := status.Restart{Reason: "config changed", Since: now, ByHand: true}
+	if doc := waitForStatus(t, router.SocketPath(s.cfg.StateDir), func(status.Document) bool { return true }); doc.Restart != want {
+		t.Errorf("the status document gives the restart due as %+v, want %+v", doc.Restart, want)
+	}
 	if n := strings.Count(log.String(), `msg="restart due`); n != 1 {
 		t.Errorf("log reads\n%s\nwant the restart due said once, not %d times", log, n)
 	}

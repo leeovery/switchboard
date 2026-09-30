@@ -61,6 +61,9 @@ type Document struct {
 	// Router is the router's health: zero in a document that isn't the
 	// router's.
 	Router Health `json:"router,omitzero"`
+	// Restart is the restart the router has due: zero when none is, and in a
+	// document that isn't the router's.
+	Restart Restart `json:"restart,omitzero"`
 	// Sessions is how many sessions the router has sent anywhere in the last
 	// hour, each counted once however many accounts its models went to: zero
 	// in a document that isn't the router's.
@@ -86,6 +89,27 @@ type Health struct {
 	Failures int  `json:"failures"`
 	// Reason says why the router is unhealthy; empty while it's healthy.
 	Reason string `json:"reason,omitempty"`
+}
+
+// Restart is a restart the router has due, having found what it was started
+// from changed, such as its config file. The service's router restarts
+// itself once no request is in flight; one run by hand, only when it's run
+// again.
+type Restart struct {
+	// Reason says why it's due, such as "config changed".
+	Reason string `json:"reason"`
+	// Since is when the router found it due.
+	Since time.Time `json:"since"`
+	// InFlight is how many requests the router had in flight as it gave the
+	// document.
+	InFlight int `json:"in_flight"`
+	// ByHand is set when the router was run by hand, with serve.
+	ByHand bool `json:"by_hand,omitempty"`
+}
+
+// Due reports whether a restart is due.
+func (r Restart) Due() bool {
+	return r.Reason != ""
 }
 
 // Pin sends every new session to the best of Accounts, and with Move, every

@@ -29,7 +29,8 @@ const notStarted = "not started"
 // read, what holds it back, and how many sessions the router has sent it;
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
-// it; then the account to use next, and last where the usage came from.
+// it; then the account to use next; then where the usage came from, and last
+// a restart the router has due.
 // Countdowns run from now, and times show in now's time zone. Every text it
 // shows that came from elsewhere, such as the config's labels or the
 // upstream's errors, it shows cleaned.
@@ -53,6 +54,9 @@ func (d Document) Text(now time.Time, sessions ...Session) string {
 		fmt.Fprintf(&b, "best next: %s\n", best.Title())
 	}
 	fmt.Fprintf(&b, "%s\n", d.origin())
+	if d.Restart.Due() {
+		fmt.Fprintf(&b, "%s\n", d.Restart.Text(now))
+	}
 	return b.String()
 }
 
@@ -201,6 +205,21 @@ func SessionCount(n int) string {
 // now's time zone.
 func (l Limit) Text(now time.Time) string {
 	return "limit until " + Clock(now, l.Until)
+}
+
+// Text says why the restart is due, and since when, in now's time zone, and
+// how it's to come: once no request is in flight, or now, with the service
+// restarted, as in "restart due since Mon 14:02 (config changed), once no
+// request is in flight (3 now): switchboard service restart restarts it now,
+// cutting off requests still in flight after 30 seconds"; or, the router run
+// by hand, once it's run again.
+func (r Restart) Text(now time.Time) string {
+	due := "restart due since " + Clock(now, r.Since) + " (" + Clean(r.Reason) + ")"
+	if r.ByHand {
+		return due + ": run switchboard serve again to take it up"
+	}
+	return fmt.Sprintf("%s, once no request is in flight (%d now): switchboard service restart restarts it now, "+
+		"cutting off requests still in flight after 30 seconds", due, r.InFlight)
 }
 
 // Text says how the upstream refused, and until when the refusal holds, such

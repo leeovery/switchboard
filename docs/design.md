@@ -599,7 +599,9 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   wider than the one within an account's title: the router, how many sessions it has and where
   it sends new ones (`router  ·  3 sessions  ·  pinned to 2 · two  ·  best next: …`,
   `…  ·  pinned to 1 · one and 2 · two  ·  …`, or `…  ·  routing automatically  ·  …`);
-  `router unhealthy — <reason>`, in red; or, dim, `probing directly (router not running)`.
+  `router unhealthy — <reason>`, in red; or, dim, `probing directly (router not running)`. A
+  restart the router has due follows the router's part, in the warning colour:
+  `…  ·  routing automatically  ·  restart due (config changed)  ·  …`.
   Probing as asked says nothing of the router. With no account to use next, `no account has room
   right now` stands in for `best next`, in red, or, while nothing has been read of any account,
   `nothing read yet`, dim. With priming on, a line under it gives the next reset among the
@@ -675,7 +677,7 @@ sleep left dead (see The router looking after itself). It's unhealthy once it ha
 them at least, and half at least: `GET /health` then answers `ok: false` with a `reason`, the status
 document's `router` object says the same, and the log notes the turn, and the turn back, at warn and
 info. `status` and the dashboard show trouble loudly: they read an unhealthy router's document all
-the same, `status`'s last line reading
+the same, `status`'s router line reading
 `from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>` and the dashboard heading its
 cards `router unhealthy — <reason>`, in red.
 
@@ -823,6 +825,14 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 - Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
   the job it runs, which the router checks against the service's. Run by hand with `serve`, the
   router logs, once, that a restart is due instead of exiting.
+- **A restart due shows.** With many long sessions, a moment with no request in flight can be
+  hours coming, so the status document gives a restart due, why and since when, and how many
+  requests are in flight (see The status document). `status` says so under its router line:
+  `restart due since Mon 14:02 (config changed), once no request is in flight (3 now): switchboard
+  service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, run
+  by hand, `…: run switchboard serve again to take it up`; and the dashboard's heading, `restart due
+  (config changed)`. `service restart` stops the router as at a signal, giving its requests in
+  flight up to 30 seconds, and launchd starts it again (see Launching).
 - As it starts, the router brings the installed skill up to date (see The skill), and makes the
   tokens directory private when it's there.
 
@@ -1077,6 +1087,7 @@ probing.
 | `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
 | `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
+| `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again. Left out while none is due (see The router looking after itself) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `accounts` | Every configured account, in the config's order, as below |
 

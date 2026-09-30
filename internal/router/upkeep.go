@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // watchEvery is how often the router looks at what it was started from,
@@ -42,7 +44,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			sendable: replan,
 			replaced: state.tokenReplaced,
 		},
-		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight),
+		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now),
 		wakes:    wakes,
 	}
 }
@@ -66,6 +68,11 @@ func (u *upkeep) run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// restartDue is the restart the router has due, zero while none is.
+func (u *upkeep) restartDue() status.Restart {
+	return u.restarts.report()
 }
 
 // restarted returns what's closed as the router restarts itself.

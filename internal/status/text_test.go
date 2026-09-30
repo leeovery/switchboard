@@ -244,6 +244,22 @@ from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·
 `,
 		},
 		{
+			name: "the router's, with a restart due",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Restart:     status.Restart{Reason: "upgraded", Since: now.Add(-time.Hour), InFlight: 3},
+				Accounts:    []status.Account{personal},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+from the router: healthy  ·  no sessions  ·  routing automatically
+restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): switchboard service restart restarts it now, cutting off requests still in flight after 30 seconds
+`,
+		},
+		{
 			name: "probed, as the router isn't running",
 			doc: status.Document{
 				GeneratedAt: now.UTC(),
@@ -607,6 +623,46 @@ func TestDestination(t *testing.T) {
 		if got := doc.Destination(tt.ids); got != tt.want {
 			t.Errorf("Destination(%q) = %q, want %q", tt.ids, got, tt.want)
 		}
+	}
+}
+
+func TestRestart(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	since := time.Date(2026, 9, 28, 12, 2, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		restart status.Restart
+		want    string
+	}{
+		{
+			name:    "the service's router, waiting for no request in flight",
+			restart: status.Restart{Reason: "config changed", Since: since, InFlight: 1},
+			want: "restart due since Mon 13:02 (config changed), once no request is in flight (1 now): " +
+				"switchboard service restart restarts it now, cutting off requests still in flight after 30 seconds",
+		},
+		{
+			name:    "a router run by hand",
+			restart: status.Restart{Reason: "time zone changed", Since: since, ByHand: true},
+			want:    "restart due since Mon 13:02 (time zone changed): run switchboard serve again to take it up",
+		},
+		{
+			name:    "a reason from elsewhere, cleaned",
+			restart: status.Restart{Reason: "upgraded\x1b[2J", Since: since, ByHand: true},
+			want:    "restart due since Mon 13:02 (upgraded [2J): run switchboard serve again to take it up",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.restart.Due() {
+				t.Error("Due() = false, want true")
+			}
+			if got := tt.restart.Text(now); got != tt.want {
+				t.Errorf("Text() = %q, want %q, in now's time zone", got, tt.want)
+			}
+		})
+	}
+	if (status.Restart{}).Due() {
+		t.Error("no restart is due")
 	}
 }
 

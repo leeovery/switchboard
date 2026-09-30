@@ -3,8 +3,11 @@ package router
 import (
 	"io/fs"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Why the router restarts itself, as the log gives it.
@@ -21,26 +24,34 @@ const (
 // A restart waits for a moment with no request in flight, and for the config
 // file to make a valid config, which the router started again needs. Only a
 // supervised router, started again whenever it exits, restarts: any other
-// logs, once, that a restart is due.
+// logs, once, that a restart is due. Either reports a restart due, which the
+// status document gives.
 type restarts struct {
 	config     *configFile
 	binary     *ledFile
 	zone       *ledFile
 	supervised bool
 	inFlight   *inFlight
+	now        func() time.Time
 	// told is set once the log has said a restart is due.
 	told bool
 	// restarted closes as the router restarts.
 	restarted chan struct{}
+
+	mu sync.Mutex
+	// pending is the restart due as what the router was started from last
+	// looked, zero while none is.
+	pending status.Restart
 }
 
-func newRestarts(config, binary, zone Watched, supervised bool, inFlight *inFlight) *restarts {
+func newRestarts(config, binary, zone Watched, supervised bool, inFlight *inFlight, now func() time.Time) *restarts {
 	return &restarts{
 		config:     &configFile{path: config.path, seen: config.found, valid: true},
 		binary:     &ledFile{path: binary.path, running: binary.found, news: "the binary leads to another file, as after an upgrade"},
 		zone:       &ledFile{path: zone.path, running: zone.found, news: "the time zone's file leads to another, as in another time zone"},
 		supervised: supervised,
 		inFlight:   inFlight,
+		now:        now,
 		restarted:  make(chan struct{}),
 	}
 }
@@ -68,6 +79,7 @@ func (r *restarts) look() {
 	r.binary.look()
 	r.zone.look()
 	why := r.due()
+	r.note(why)
 	if why == "" || r.told {
 		return
 	}
@@ -77,6 +89,33 @@ func (r *restarts) look() {
 		return
 	}
 	logger.Info("restart due; run switchboard serve again to take it up", "reason", why)
+}
+
+// note notes why a restart is due, "" for none, for report to give: since it
+// was first found due, while it has been due since.
+func (r *restarts) note(why string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch {
+	case why == "":
+		r.pending = status.Restart{}
+	case !r.pending.Due():
+		r.pending = status.Restart{Reason: why, Since: r.now().UTC(), ByHand: !r.supervised}
+	default:
+		r.pending.Reason = why
+	}
+}
+
+// report is the restart due as what the router was started from last looked,
+// with the requests in flight now, or zero while none is.
+func (r *restarts) report() status.Restart {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pending := r.pending
+	if pending.Due() {
+		pending.InFlight = r.inFlight.requests()
+	}
+	return pending
 }
 
 // due says why a restart is due, as the config file, the binary and the time
