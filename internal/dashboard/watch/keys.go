@@ -107,27 +107,51 @@ func (m Model) toggle(n int) (Model, tea.Cmd) {
 	return m.command(order{accounts: pinned, done: "new sessions go to " + m.doc.Destination(pinned)})
 }
 
-// toggled returns the ids of the accounts doc's pin names, in the order
-// configured, with the account with the given id put in when it isn't one of
-// them, and taken out when it is.
+// toggled returns the ids of the accounts doc's pin names that stay pinned,
+// as stays says, in the order configured, with the account with the given id
+// put in when the pin doesn't name it, and taken out when it does. The one
+// put in is put in whether it has a token or not, so the router says why it
+// can't be pinned.
 func toggled(doc status.Document, id string) []string {
 	var ids []string
 	for _, a := range doc.Accounts {
-		if doc.Pin.Has(a.ID) != (a.ID == id) {
+		if a.ID == id && !doc.Pin.Has(id) || a.ID != id && stays(doc, a) {
 			ids = append(ids, a.ID)
 		}
 	}
 	return ids
 }
 
-// move has the router move running sessions to the accounts pinned, or says
-// there's none to move them to.
+// staying returns the ids of the accounts doc's pin names that stay pinned,
+// as stays says, in the order configured.
+func staying(doc status.Document) []string {
+	var ids []string
+	for _, a := range doc.Accounts {
+		if stays(doc, a) {
+			ids = append(ids, a.ID)
+		}
+	}
+	return ids
+}
+
+// stays reports whether the account a stays pinned in an order a key gives:
+// doc's pin names it, and it has a usable token, as doc shows. The router
+// refuses a pin naming any account without one, as one that lost its token
+// since it was pinned.
+func stays(doc status.Document, a status.Account) bool {
+	return doc.Pin.Has(a.ID) && a.TokenSet
+}
+
+// move has the router move running sessions to the accounts pinned that have
+// a usable token, or says there's none to move them to.
 func (m Model) move() (Model, tea.Cmd) {
-	switch pinned := m.doc.Pin.Accounts; {
+	switch pinned := staying(m.doc); {
 	case !m.routed():
 		return m, nil
-	case len(pinned) == 0:
+	case m.doc.Pin.IsZero():
 		return m.noting("nothing's pinned to move sessions to: pin an account with " + places(len(m.doc.Accounts)))
+	case len(pinned) == 0:
+		return m.noting("no account pinned has a usable token to move sessions to: pin another with " + places(len(m.doc.Accounts)))
 	default:
 		return m.command(order{accounts: pinned, move: true, done: "running sessions move to " + m.doc.Destination(pinned)})
 	}

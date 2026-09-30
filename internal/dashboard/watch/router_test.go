@@ -292,6 +292,9 @@ func TestKeysTellTheRouterWhereToSendSessions(t *testing.T) {
 		doc.Pin = status.Pin{Accounts: ids, Since: start.UTC()}
 		return doc
 	}
+	// Personal, pinned beside work, has lost its token since.
+	lost := pinned("work", "personal")
+	lost.Accounts[1] = tokenless("personal", "Personal")
 	tests := []struct {
 		name       string
 		doc        status.Document
@@ -362,6 +365,29 @@ func TestKeysTellTheRouterWhereToSendSessions(t *testing.T) {
 			wantNote:   "running sessions move to the best of work · Work and side · Side",
 			wantPin:    []string{"work", "side"},
 		},
+		{
+			name:       "3 pins the third beside the first, leaving out one that has lost its token",
+			doc:        lost,
+			key:        "3",
+			wantOrders: []string{"pin work,side"},
+			wantNote:   "new sessions go to the best of work · Work and side · Side",
+			wantPin:    []string{"work", "side"},
+		},
+		{
+			name:       "1 unpins the first, leaving out one that has lost its token",
+			doc:        lost,
+			key:        "1",
+			wantOrders: []string{"unpin"},
+			wantNote:   "routing automatically",
+		},
+		{
+			name:       "m moves running sessions to the accounts pinned with a token",
+			doc:        lost,
+			key:        "m",
+			wantOrders: []string{"move work"},
+			wantNote:   "running sessions move to work · Work",
+			wantPin:    []string{"work"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -386,17 +412,32 @@ func TestKeysTellTheRouterWhereToSendSessions(t *testing.T) {
 	}
 }
 
-func TestMoveWithoutAPinSaysSo(t *testing.T) {
-	h := routedHarness(t, routerDocument(three()...))
-	h.start()
-	asked := len(h.source.asked)
-
-	h.deliver(h.press("m")...)
-	if len(h.source.orders) > 0 || len(h.source.asked) > asked {
-		t.Errorf("orders = %q, and read %d times, want neither", h.source.orders, len(h.source.asked)-asked)
+func TestMoveWithoutAnAccountPinnedToMoveToSaysSo(t *testing.T) {
+	lost := routerDocument(three()...)
+	lost.Accounts[1] = tokenless("personal", "Personal")
+	lost.Pin = status.Pin{Accounts: []string{"personal"}, Since: start.UTC()}
+	tests := []struct {
+		name     string
+		doc      status.Document
+		wantNote string
+	}{
+		{name: "nothing pinned", doc: routerDocument(three()...), wantNote: "nothing's pinned to move sessions to: pin an account with 1–3"},
+		{name: "the one pinned without a token", doc: lost, wantNote: "no account pinned has a usable token to move sessions to: pin another with 1–3"},
 	}
-	if got, want := h.footer(), "nothing's pinned to move sessions to: pin an account with 1–3 · "+routerKeys; got != want {
-		t.Errorf("footer = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, tt.doc)
+			h.start()
+			asked := len(h.source.asked)
+
+			h.deliver(h.press("m")...)
+			if len(h.source.orders) > 0 || len(h.source.asked) > asked {
+				t.Errorf("orders = %q, and read %d times, want neither", h.source.orders, len(h.source.asked)-asked)
+			}
+			if got, want := h.footer(), tt.wantNote+" · "+routerKeys; got != want {
+				t.Errorf("footer = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

@@ -383,6 +383,11 @@ func unreadable(id, label string) status.Account {
 	return status.Account{ID: id, Label: label, TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}
 }
 
+// tokenless is an account without a usable token.
+func tokenless(id, label string) status.Account {
+	return status.Account{ID: id, Label: label, Error: "token missing: write it to tokens/" + id}
+}
+
 // partlyRead is an account whose Fable window couldn't be read.
 func partlyRead(id, label string) status.Account {
 	return status.Account{
