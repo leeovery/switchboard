@@ -123,10 +123,10 @@ func candidates(pathList string, installPaths []string) []string {
 
 // ThroughSwitchboard reports whether the claude a shell runs from PATH, the
 // first program named claude in the directories pathList names, is
-// switchboard's own executable, as executable gives it, links followed: its
-// claude link, which every claude started from PATH goes through. With no
-// claude on PATH, none does. It fails when executable does, as there's no
-// telling then.
+// switchboard, as Find tells it: its own executable, as executable gives it,
+// links followed, which is its claude link, or another build of it, either of
+// which every claude started from PATH goes through. With no claude on PATH,
+// none does. It fails when executable does, as there's no telling then.
 func ThroughSwitchboard(pathList string, executable func() (string, error)) (bool, error) {
 	self, err := describeSelf(executable)
 	if err != nil {
@@ -134,7 +134,7 @@ func ThroughSwitchboard(pathList string, executable func() (string, error)) (boo
 	}
 	for _, path := range onPath(pathList) {
 		if info, err := os.Stat(path); err == nil && isProgram(info) {
-			return os.SameFile(info, self.info), nil
+			return self.passedOver(path, info) != "", nil
 		}
 	}
 	return false, nil
