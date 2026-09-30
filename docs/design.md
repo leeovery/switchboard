@@ -386,8 +386,9 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
 ## Priming
 
 Anthropic describes the 5-hour window as starting at an account's first message after its last
-window ended, and resetting five hours later; resets aren't rounded to the hour (two accounts'
-resets were ten minutes apart in the tests). Left alone, an account's first window starts with the
+window ended, and resetting five hours later. Every reset seen so far falls on a ten-minute mark,
+as though the window's start is taken back to the ten minutes it falls in: a probe at 16:46 read a
+reset at 21:40 (see Observed). Left alone, an account's first window starts with the
 day's first request on it, so an 08:00–23:00 day meets three of its windows. Started earlier, a
 fourth fits, the first and last partly outside the day. Started at staggered times, the accounts
 come back one at a time rather than together: once all are spent, the wait for the next is at most
@@ -1348,18 +1349,60 @@ steps aside for an API key; and `switchboard version`.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
+## Observed
+
+What the real API, Claude Code and macOS were seen to do, dated, as Anthropic and Apple may change
+any of it. Times are the Mac's, UTC+1.
+
+- **29–30 September 2026: Claude Code's quota check.** Each `claude` sends, before any prompt, a
+  request of its own on its main model: `max_tokens` 1, the content `quota`, sent without retries.
+  On Claude Opus 5.5 the API answers it with a 429 carrying no `anthropic-ratelimit-unified-*`
+  header, only `x-should-retry: true` and a `rate_limit_error` whose message is `Error`, sent
+  directly as through the router, on every account; on Claude Haiku 4.5 it's answered 200, with
+  every usage header. Claude Code ignores the failure. `--resume` sends it under a session id
+  never used again. Hence step 6 of Choosing an account, and a session remembered only once
+  answered (step 3).
+- **30 September 2026, 15:37: a weekly limit.** An account's shared week reached 100% under
+  traffic. The 429 carried the usage headers: the week `rejected`, and its reset, Monday 10:00,
+  as the overall reset. The router held the account back until then, replayed the request on the
+  pinned account with room before Claude Code saw any of it, moved the session there, and posted
+  the notification "hit its Week limit, back at Mon 10:00 — 1 session moved to 1".
+- **30 September 2026, 16:46: a banked weekly reset.** The account's owner used the free reset
+  claude.ai offered, on the account held back by that limit. `usage --refresh` probed it at once,
+  its limit holding back every request, and the reading lifted the limit, "room again" posting:
+
+  | Window | Before | After |
+  |---|---|---|
+  | Week | 100%, `rejected`, resets Mon 10:00 | 0%, resets Mon 10:00 |
+  | Fable's week | 0%, resets Mon 10:00 | 0%, resets Mon 10:00 |
+  | 5-hour | 25%, resets 20:20 | 0%, resets 21:40 |
+
+  The reset kept the week's reset time, and dropped its use: a reading lower than the one before,
+  with the same reset, which the router takes as current only as it came off a request sent after
+  the one before was taken in (see How it works). It cleared the 5-hour window too; the probe
+  started the next, off the priming schedule, its reset at 21:40, a ten-minute mark, for a probe
+  at 16:46.
+- **30 September 2026: resets on ten-minute marks.** Every 5-hour reset seen falls on one: 00:20,
+  05:20, 10:10, 10:20, 20:10, 20:20, 21:40.
+- **30 September 2026, 11:15: macOS refused an upgraded binary.** After a login, `brew upgrade`
+  replaced the ad-hoc-signed binary; the router exited for launchd to start the new one, and
+  macOS refused it (`Launch Constraint Violation`), launchd starting it ten seconds later and
+  macOS posting that switchboard can run in the background (see The router looking after itself).
+  Before that login, the same exit and start after an upgrade took 40 ms.
+- **29–30 September 2026: no burst limit seen.** Over two thousand requests on one account in a
+  night, from a session and up to five subagents at once, drew no 429 but the quota check's.
+
 ## Checks owed
 
 What's built but hasn't been seen against the real thing:
 
-- What a quota 429 and a burst 429 look like (needs a real limit), and that a burst 429, or one
-  at the edge of a limit, carries the usage headers: passing a 429 without them through at once
-  rests on one observation, the quota check `--resume` sends on Claude Opus 5.5.
-- Whether a weekly reset made by hand, or one banked on claude.ai, keeps the week's reset time, or
-  starts a new week.
+- What a burst 429 looks like, and that it, or one at the edge of a limit, carries the usage
+  headers: passing a 429 without them through at once rests on one observation, the quota check
+  Claude Code sends on Claude Opus 5.5 (see Observed).
+- Whether a reset made by hand clears a model's own week, such as Fable's: the one seen cleared
+  the shared week and the 5-hour window, but Fable's week read 0% before it.
 - That the API reports usage in the order it takes requests in: a reading off a request sent after
   another was taken in counting, whatever it reads, rests on it.
-- A desktop notification posting.
 - `service install`, `service restart` and setup's service step against the real launchd:
   `restart` of a router from before routers restarted when asked relies on launchd's `KeepAlive`
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
