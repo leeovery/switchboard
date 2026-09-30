@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"math"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -257,6 +258,52 @@ func TestTheDocumentGivesEachAccountsPressure(t *testing.T) {
 					got.RunsOut.Sub(want.RunsOut).Abs() > time.Microsecond || got.Under != want.Under {
 					t.Errorf("%s's pressure = %+v, want %+v", a.ID, got, want)
 				}
+			}
+		})
+	}
+}
+
+func TestAnAccountIsUnderPressureOnlyWhileItCanTakeARequestOfSomeModel(t *testing.T) {
+	// Work keeps a tenth of every window back. Its session, read over 20
+	// minutes, rises at 30% an hour, from 40%: it runs out before it resets.
+	far := start.Add(3 * time.Hour)
+	roomyWeek, fullWeek := week, week
+	roomyWeek.Utilization, fullWeek.Utilization = 0.5, 0.95
+	tests := []struct {
+		name string
+		// holdBack holds work back, or not.
+		holdBack func(s *state)
+		pinned   []string
+		want     bool
+	}{
+		{name: "held back by nothing", holdBack: func(*state) {}, want: true},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest) }},
+		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("work", nil, far) }},
+		{name: "a limit on its week, which every model shares", holdBack: func(s *state) { s.limit("work", []string{"7d"}, far) }},
+		{name: "a limit on Fable's week alone", holdBack: func(s *state) { s.limit("work", []string{"7d_oi"}, far) }, want: true},
+		{name: "a refusal of Opus requests alone", holdBack: func(s *state) { s.forbid("work", "opus", http.StatusForbidden, someRequest) }, want: true},
+		{name: "its week at its reserve", holdBack: func(s *state) { s.record("work", []quota.Window{fullWeek}, s.mark()) }},
+		{
+			name:     "its week at its reserve, which the global pin spends",
+			holdBack: func(s *state) { s.record("work", []quota.Window{fullWeek}, s.mark()) },
+			pinned:   []string{"work"},
+			want:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configured := slices.Clone(testConfigured)
+			configured[0].Reserve = 0.1
+			clock := &testClock{now: start}
+			s := newState(resolve(configured, testTokens.Read), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+			s.learn(fable, []quota.Window{fableWeek})
+			readSessions(s, clock, "work", []sessionReading{{0, 0.4, start.Add(3 * time.Hour), false}, {20 * time.Minute, 0.5, start.Add(3 * time.Hour), false}})
+			s.record("work", []quota.Window{roomyWeek, fableWeek}, s.mark())
+			tt.holdBack(s)
+
+			work, _ := s.document(tt.pinned...).Account("work")
+			if work.Pressure.Under != tt.want {
+				t.Errorf("work under pressure = %v, want %v: %+v", work.Pressure.Under, tt.want, work.Pressure)
 			}
 		})
 	}

@@ -134,11 +134,11 @@ func (d Document) Reserved(a Account) string {
 // router saw its pressure window used, it runs out for the router, in now's
 // time zone: "under pressure: runs out ~18:21", or, with its reserve holding
 // it back there, "under pressure: at its reserve ~18:21". It's "" while it
-// isn't under pressure, and while something else holds it back already, as
-// a limit, a refusal or its reserve does: pressure isn't what passes it over
-// then.
+// isn't under pressure, which the router says of an account that can take a
+// request of some model alone: of one that can take none, pressure isn't
+// what passes it over.
 func (d Document) Pressed(a Account, now time.Time) string {
-	if !a.Pressure.Under || len(a.HeldBy(now)) > 0 || len(a.AtReserve) > 0 && !d.Pin.Has(a.ID) {
+	if !a.Pressure.Under {
 		return ""
 	}
 	out := "runs out"

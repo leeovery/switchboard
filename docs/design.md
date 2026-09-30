@@ -713,12 +713,12 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   while it holds: a limit it reached, `limit until Mon 21:00`, and under it a refusal,
   `refused (403, opus) until 21:40`. An account held back by its reserve says so there, in the
   warning colour: `at its reserve (90%)`, or, with the global pin naming it, `spending its reserve
-  (pinned)`. An account under pressure, with nothing else holding it back, says so under that,
-  in the warning colour, with when it runs out at its rate: `under pressure: runs out ~18:21`, or,
-  where its reserve would hold it back, `under pressure: at its reserve ~18:21`; `status` adds
-  the rate it goes by and the reset it runs out before: `under pressure: runs out ~18:21 at
-  Session's rate over the last 30 min, before its reset at 20:10`. The account's sessions, `2
-  sessions`, show at its foot.
+  (pinned)`. An account under pressure, while it can take a request of some model, says so under
+  that, in the warning colour, with when it runs out at its rate: `under pressure: runs out
+  ~18:21`, or, where its reserve would hold it back, `under pressure: at its reserve ~18:21`;
+  `status` adds the rate it goes by and the reset it runs out before: `under pressure: runs out
+  ~18:21 at Session's rate over the last 30 min, before its reset at 20:10`. The account's
+  sessions, `2 sessions`, show at its foot.
   A line per account carries the primary's, the pin's and the best's marks, `◆`, `●` and `▲`,
   and, where there's room, how its reserve stands, its pressure and its sessions.
 - **Where it reads:** `usage` and `status` read the router's status document whenever the router
@@ -1312,7 +1312,7 @@ Each account:
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
 | `limit` | *router* A limit it reached, while it holds: `{windows, until}`, `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
-| `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets: the account is under pressure (see Choosing an account). Left out when the rate can't be said, as when the window isn't running |
+| `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets, while the account can take a request of some model, as one refused a model or held back in a model's own week still can: the account is under pressure (see Choosing an account). Of an account that can take no request, pressure isn't what passes it over, and `under` is left out. Left out when the rate can't be said, as when the window isn't running |
 | `rates` | *router* How fast its windows have been used lately: `[{window, rate, since}]`, in `windows`' order, `window` a window's key, `since` when the rate is measured from, and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The projections go by them (see Dashboard). Left out when no window has one |
 | `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
