@@ -117,9 +117,9 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	saved := newTestFile(clock.read, testAccounts())
 	saved.load(path)
 	models := map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}}
-	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil)
+	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil, saved.state.mark())
 	clock.now = start
-	saved.state.record("work", []quota.Window{session, week})
+	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
 	saved.state.learn(opus, []quota.Window{session, week})
 	saved.save()
 
@@ -480,7 +480,7 @@ func TestLoadingAStateFileThatKnowsTheTokensChangesNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	first := newTestFile(at(start), testAccounts())
 	first.load(path)
-	first.state.record("work", []quota.Window{session, week})
+	first.state.record("work", []quota.Window{session, week}, first.state.mark())
 	first.save()
 
 	f := newTestFile(at(start.Add(time.Hour)), testAccounts())
@@ -712,7 +712,7 @@ func TestABurstOfChangesIsSavedOnce(t *testing.T) {
 
 		for i := range 100 {
 			assign(f.sessions, key{session: fmt.Sprint(i), model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
-			f.state.record("work", []quota.Window{session, week})
+			f.state.record("work", []quota.Window{session, week}, f.state.mark())
 		}
 		synctest.Wait()
 		if n := writes.Load(); n != 0 {

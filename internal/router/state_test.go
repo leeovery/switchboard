@@ -35,7 +35,10 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 		name     string
 		held     quota.Window
 		incoming quota.Window
-		want     quota.Window
+		// since is set when incoming's request was sent after held was taken
+		// in; otherwise it was sent before, and its answer arrives late.
+		since bool
+		want  quota.Window
 	}{
 		{
 			name:     "a later reset is a new window, taken however little it's used",
@@ -77,13 +80,35 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 			name:     "a rejection gives way to the same reset read as high since",
 			held:     busierRejected,
 			incoming: busierWarned,
+			since:    true,
 			want:     busierWarned,
+		},
+		{
+			name:     "a rejection gives way to the same reset read with room since",
+			held:     busierRejected,
+			incoming: session,
+			since:    true,
+			want:     session,
+		},
+		{
+			name:     "the same reset read lower since stands, as after a reset made by hand",
+			held:     busierWarned,
+			incoming: session,
+			since:    true,
+			want:     session,
 		},
 		{
 			name:     "an earlier reset is a window that's gone, and ignored",
 			held:     session,
 			incoming: lastFive,
 			want:     session,
+		},
+		{
+			name:     "an earlier reset read since stands, as the upstream's latest word",
+			held:     session,
+			incoming: lastFive,
+			since:    true,
+			want:     lastFive,
 		},
 		{
 			name:     "without a reset, the newest reading stands",
@@ -108,14 +133,34 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			s := newTestState(clock)
-			s.record("work", []quota.Window{tt.held})
+			sent := s.mark()
+			s.record("work", []quota.Window{tt.held}, s.mark())
 			clock.now = later
+			if tt.since {
+				sent = s.mark()
+			}
 
-			s.record("work", []quota.Window{tt.incoming})
+			s.record("work", []quota.Window{tt.incoming}, sent)
 			if got := s.usage["work"].windows["5h"]; got != tt.want {
 				t.Errorf("5h reads %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAReadingReadAgainSinceOutweighsALateAnswerToARequestSentBefore(t *testing.T) {
+	s := newTestState(&testClock{now: start})
+	busier := session
+	busier.Utilization = 0.31
+	s.record("work", []quota.Window{busier}, s.mark())
+	// A request is sent, then another, sent after it, reads the session as
+	// it was; the first is answered last, reading it lower.
+	sent := s.mark()
+	s.record("work", []quota.Window{busier}, s.mark())
+	s.record("work", []quota.Window{session}, sent)
+
+	if got := s.usage["work"].windows["5h"]; got != busier {
+		t.Errorf("5h reads %+v, want %+v: the reading since may be the newer", got, busier)
 	}
 }
 
@@ -127,21 +172,61 @@ func TestAReadingFromBeforeALimitNeverLiftsIt(t *testing.T) {
 	}
 	clock := &testClock{now: start}
 	s := newTestState(clock)
-	s.record("work", []quota.Window{sessionAt(0.97, quota.StatusAllowedWarning), week})
+	earlier, earlierStill := s.mark(), s.mark()
+	s.record("work", []quota.Window{sessionAt(0.97, quota.StatusAllowedWarning), week}, s.mark())
 	// A 429 reads the session a little lower than it stands, as an answer to
 	// a request sent earlier can, and rejects it; then an answer to one sent
 	// earlier still reads it with room.
 	clock.now = start.Add(time.Second)
-	s.record("work", []quota.Window{sessionAt(0.96, quota.StatusRejected)})
+	s.record("work", []quota.Window{sessionAt(0.96, quota.StatusRejected)}, earlier)
 	s.limit("work", []string{"5h"}, session.ResetsAt)
 	clock.now = start.Add(2 * time.Second)
-	s.record("work", []quota.Window{sessionAt(0.965, quota.StatusAllowed)})
+	s.record("work", []quota.Window{sessionAt(0.965, quota.StatusAllowed)}, earlierStill)
 
 	if s.view(opus, clock.now).room("work") {
 		t.Error("work has room, want its limit to hold: the reading with room is from before it")
 	}
 	if got, want := s.usage["work"].windows["5h"], sessionAt(0.97, quota.StatusRejected); got != want {
 		t.Errorf("work's session reads %+v, want %+v: its highest use, rejected", got, want)
+	}
+}
+
+func TestALimitLiftsOnlyOnTheAnswerToARequestSentSinceItWasSet(t *testing.T) {
+	admitted := func(s *state, sent moment) { s.admitted("work", sent) }
+	// readRoom reads work's Fable week with room, which the 429 that set the
+	// limit didn't read.
+	readRoom := func(s *state, sent moment) { s.record("work", []quota.Window{fableWeek}, sent) }
+	tests := []struct {
+		name string
+		// reached are the windows the limit was reached in.
+		reached []string
+		// answer answers a request on work, sent at sent.
+		answer func(s *state, sent moment)
+		// since is set when the request was sent after the limit was set.
+		since      bool
+		wantLifted bool
+	}{
+		{name: "a success since, of a limit in no window named", answer: admitted, since: true, wantLifted: true},
+		{name: "a success sent before, of a limit in no window named", answer: admitted},
+		{name: "a success since, of a limit in a window named", reached: []string{"7d_oi"}, answer: admitted, since: true},
+		{name: "a reading with room since, of a limit in a window named", reached: []string{"7d_oi"}, answer: readRoom, since: true, wantLifted: true},
+		{name: "a reading with room sent before, of a limit in a window named", reached: []string{"7d_oi"}, answer: readRoom},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestState(&testClock{now: start})
+			s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
+			sent := s.mark()
+			s.limit("work", tt.reached, start.Add(72*time.Hour))
+			if tt.since {
+				sent = s.mark()
+			}
+
+			tt.answer(s, sent)
+			if lifted := !s.usage["work"].limited.inForce(start); lifted != tt.wantLifted {
+				t.Errorf("the limit lifted = %v, want %v", lifted, tt.wantLifted)
+			}
+		})
 	}
 }
 
@@ -152,9 +237,9 @@ func TestRecordMergesOnlyTheWindowsItReads(t *testing.T) {
 	busier := session
 	busier.Utilization = 0.31
 
-	s.record("work", []quota.Window{session, week})
+	s.record("work", []quota.Window{session, week}, s.mark())
 	clock.now = later
-	s.record("work", []quota.Window{busier})
+	s.record("work", []quota.Window{busier}, s.mark())
 
 	u := s.usage["work"]
 	want := map[string]quota.Window{"5h": busier, "7d": week}
@@ -174,11 +259,12 @@ func TestRecordOfStaleWindowsLeavesTheAccountAsItWas(t *testing.T) {
 	s := newTestState(clock)
 	lastWeek := week
 	lastWeek.Utilization, lastWeek.ResetsAt = 1, week.ResetsAt.Add(-7*24*time.Hour)
-	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil)
-	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"))
+	sent := s.mark()
+	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil, s.mark())
+	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark())
 	clock.now = start.Add(time.Minute)
 
-	s.record("work", []quota.Window{lastWeek})
+	s.record("work", []quota.Window{lastWeek}, sent)
 	u := s.usage["work"]
 	if u.windows["7d"] != week || u.updated != start || u.probeErr == "" {
 		t.Errorf("after a stale reading, work reads %+v, want it as it was", u)
@@ -189,7 +275,7 @@ func TestRecordTimesAreWallClockUTC(t *testing.T) {
 	local := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	s := newTestState(&testClock{now: local})
 
-	s.record("work", []quota.Window{session})
+	s.record("work", []quota.Window{session}, s.mark())
 	if got := s.usage["work"].updated; got != local.UTC() {
 		t.Errorf("read at %v, want %v", got, local.UTC())
 	}
@@ -205,12 +291,12 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 		return account
 	}
 
-	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"))
+	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"), s.mark())
 	if got := work(); got.Error != "HTTP 401 · Invalid bearer token" || !got.FetchedAt.IsZero() {
 		t.Errorf("after a failed probe, work reads %+v, want the probe's error and nothing read", got)
 	}
 
-	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown}}, nil)
+	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown}}, nil, s.mark())
 	want := status.Account{
 		ID: "work", Label: "Work", TokenSet: true, FetchedAt: start,
 		Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown},
@@ -220,17 +306,17 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 	}
 
 	clock.now = start.Add(time.Minute)
-	s.record("work", []quota.Window{session, fableWeek})
+	s.record("work", []quota.Window{session, fableWeek}, s.mark())
 	if got := work().Failures; !reflect.DeepEqual(got, []quota.Failure{opusDown}) {
 		t.Errorf("once the Fable week is read, failures = %+v, want only %+v", got, opusDown)
 	}
 
-	s.recordProbe("work", quota.Probe{}, errors.New("dial tcp: connection refused"))
+	s.recordProbe("work", quota.Probe{}, errors.New("dial tcp: connection refused"), s.mark())
 	if got := work(); got.Error != "dial tcp: connection refused" || len(got.Windows) != 3 || got.FetchedAt != clock.now {
 		t.Errorf("after another failed probe, work reads %+v, want its error beside the windows last read", got)
 	}
 	clock.now = start.Add(2 * time.Minute)
-	s.record("work", []quota.Window{session})
+	s.record("work", []quota.Window{session}, s.mark())
 	if got := work().Error; got != "" {
 		t.Errorf("once traffic reads the account, its error = %q, want none", got)
 	}
@@ -241,9 +327,9 @@ func TestDocument(t *testing.T) {
 	s := newTestState(clock)
 	soonerWeek := week
 	soonerWeek.Utilization, soonerWeek.ResetsAt = 0.5, start.Add(24*time.Hour)
-	s.record("work", []quota.Window{week, session})
+	s.record("work", []quota.Window{week, session}, s.mark())
 	clock.now = start.Add(time.Minute)
-	s.record("side", []quota.Window{session, soonerWeek})
+	s.record("side", []quota.Window{session, soonerWeek}, s.mark())
 
 	want := status.Document{
 		GeneratedAt: clock.now,
@@ -333,8 +419,8 @@ func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestState(&testClock{now: start})
-			s.record("work", []quota.Window{session, week})
-			s.record("side", []quota.Window{session, soonerWeek})
+			s.record("work", []quota.Window{session, week}, s.mark())
+			s.record("side", []quota.Window{session, soonerWeek}, s.mark())
 			s.learn(fable, []quota.Window{fableWeek})
 
 			tt.bar(s)
@@ -365,7 +451,7 @@ func TestDocumentBeforeAnythingIsRead(t *testing.T) {
 func TestTheWindowARequestStartsReadsEmptyOnceItHasLapsed(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
-	s.record("work", []quota.Window{session, week})
+	s.record("work", []quota.Window{session, week}, s.mark())
 	empty := quota.Window{Key: "5h", Label: "Session"}
 	started := session
 	started.Utilization, started.ResetsAt = 0.02, session.ResetsAt.Add(3*time.Hour)
@@ -385,7 +471,7 @@ func TestTheWindowARequestStartsReadsEmptyOnceItHasLapsed(t *testing.T) {
 	for _, step := range steps {
 		clock.now = step.at
 		if step.read != nil {
-			s.record("work", step.read)
+			s.record("work", step.read, s.mark())
 		}
 		work, _ := s.document().Account("work")
 		if !reflect.DeepEqual(work.Windows, step.want) || !slices.Equal(work.Lapsed, step.wantLapsed) {
@@ -400,28 +486,31 @@ func TestTheWindowARequestStartsReadsEmptyOnceItHasLapsed(t *testing.T) {
 func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 	lastWeek := week
 	lastWeek.ResetsAt = week.ResetsAt.Add(-7 * 24 * time.Hour)
+	overloaded := errors.New("HTTP 529 · Overloaded")
 	tests := []struct {
-		name   string
-		change func(s *state)
+		name string
+		// change changes s, whose reading of work was taken in after earlier.
+		change func(s *state, earlier moment)
 		want   changeCount
 	}{
-		{name: "a reading", change: func(s *state) { s.record("side", []quota.Window{session}) }, want: 1},
-		{name: "a stale reading, which changes nothing", change: func(s *state) { s.record("work", []quota.Window{lastWeek}) }},
-		{name: "a probe that read", change: func(s *state) { s.recordProbe("side", probed(nil, session), nil) }, want: 1},
-		{name: "a probe that failed", change: func(s *state) { s.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded")) }},
-		{name: "a window seen on a family anew", change: func(s *state) { s.learn(fable, []quota.Window{week}) }, want: 1},
-		{name: "a window seen on its family before", change: func(s *state) { s.learn(opus, []quota.Window{week}) }},
-		{name: "a refusal, which isn't kept", change: func(s *state) { s.refuse("work", http.StatusUnauthorized) }},
+		{name: "a reading", change: func(s *state, _ moment) { s.record("side", []quota.Window{session}, s.mark()) }, want: 1},
+		{name: "a stale reading, which changes nothing", change: func(s *state, earlier moment) { s.record("work", []quota.Window{lastWeek}, earlier) }},
+		{name: "a probe that read", change: func(s *state, _ moment) { s.recordProbe("side", probed(nil, session), nil, s.mark()) }, want: 1},
+		{name: "a probe that failed", change: func(s *state, _ moment) { s.recordProbe("side", quota.Probe{}, overloaded, s.mark()) }},
+		{name: "a window seen on a family anew", change: func(s *state, _ moment) { s.learn(fable, []quota.Window{week}) }, want: 1},
+		{name: "a window seen on its family before", change: func(s *state, _ moment) { s.learn(opus, []quota.Window{week}) }},
+		{name: "a refusal, which isn't kept", change: func(s *state, _ moment) { s.refuse("work", http.StatusUnauthorized) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var changes changeCount
 			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear)
-			s.record("work", []quota.Window{session, week})
+			earlier := s.mark()
+			s.record("work", []quota.Window{session, week}, s.mark())
 			s.learn(opus, []quota.Window{session, week})
 			changes = 0
 
-			tt.change(s)
+			tt.change(s, earlier)
 			if changes != tt.want {
 				t.Errorf("told of %d changes, want %d", changes, tt.want)
 			}
@@ -432,7 +521,7 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 func TestStandings(t *testing.T) {
 	spent := session
 	spent.Utilization, spent.Status = 1, quota.StatusRejected
-	readWithRoom := func(s *state) { s.record("side", []quota.Window{session, week}) }
+	readWithRoom := func(s *state) { s.record("side", []quota.Window{session, week}, s.mark()) }
 	// judged is how a standing judges an account.
 	type judged struct {
 		quota, known, refused bool
@@ -453,7 +542,7 @@ func TestStandings(t *testing.T) {
 		},
 		{
 			name: "no quota while a shared window is spent",
-			side: func(s *state) { s.record("side", []quota.Window{spent, week}) },
+			side: func(s *state) { s.record("side", []quota.Window{spent, week}, s.mark()) },
 			want: judged{known: true},
 		},
 		{
@@ -467,7 +556,7 @@ func TestStandings(t *testing.T) {
 		{
 			name: "quota under a limit a model's own window holds",
 			side: func(s *state) {
-				s.record("side", []quota.Window{session, week, fableWeek})
+				s.record("side", []quota.Window{session, week, fableWeek}, s.mark())
 				s.limit("side", []string{"7d_oi"}, start.Add(time.Hour))
 			},
 			want: judged{quota: true, known: true},
@@ -506,7 +595,7 @@ func TestStandings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestState(&testClock{now: start})
-			s.record("work", []quota.Window{session, week})
+			s.record("work", []quota.Window{session, week}, s.mark())
 			tt.side(s)
 
 			got := s.standings(start.Add(tt.after))
@@ -527,7 +616,7 @@ func TestASpentWindowsQuotaIsBackOnceItResets(t *testing.T) {
 	spent := session
 	spent.Utilization, spent.Status = 1, quota.StatusRejected
 	s := newTestState(&testClock{now: start})
-	s.record("work", []quota.Window{spent, week})
+	s.record("work", []quota.Window{spent, week}, s.mark())
 
 	for at, want := range map[time.Time]bool{start: false, spent.ResetsAt.Add(-time.Second): false, spent.ResetsAt: true} {
 		if got := s.standings(at)[0].quota; got != want {
@@ -540,10 +629,10 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 	s := newTestState(&testClock{now: start})
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Go(func() { s.record("work", []quota.Window{session, week}) })
+		wg.Go(func() { s.record("work", []quota.Window{session, week}, s.mark()) })
 		wg.Go(func() { s.learn(opus, []quota.Window{session, week}) })
-		wg.Go(func() { s.recordProbe("side", quota.Probe{Windows: []quota.Window{session}}, nil) })
-		wg.Go(func() { s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded")) })
+		wg.Go(func() { s.recordProbe("side", quota.Probe{Windows: []quota.Window{session}}, nil, s.mark()) })
+		wg.Go(func() { s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark()) })
 		wg.Go(func() { _ = s.document() })
 		wg.Go(func() { _ = s.view(opus, start).room("work") })
 		wg.Go(func() { _ = s.standings(start) })

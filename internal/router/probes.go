@@ -175,14 +175,14 @@ func (p *probes) stop() {
 
 // probe reads an account's usage, and notes how that went with told.
 func (p *probes) probe(a account, told report) {
-	started := time.Now()
+	started, sent := time.Now(), p.state.mark()
 	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if p.ctx.Err() != nil {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
-	p.state.recordProbe(a.ID, probed, err)
+	p.state.recordProbe(a.ID, probed, err, sent)
 	told(a, probed, err, took)
 }
 

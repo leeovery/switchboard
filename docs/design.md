@@ -51,10 +51,14 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Only a 429
   that refuses the request itself carries none (see Choosing an account, step 6). Switchboard
   reads them off real traffic, so it knows each account's usage without spending requests.
-  Windows are parsed generically, not hard-coded. A window's reset says which of two readings
-  taken apart is current: a later reset is a new window; with the same reset the higher
-  utilization stands, as use only rises within a window, so a slow response can't pull it back,
-  nor lift a rejection either reading holds; an earlier reset is ignored.
+  Windows are parsed generically, not hard-coded. Of two readings of a window taken apart, one off
+  a request sent after the other was taken in is current, whatever it reads: the API reckons use
+  as it takes a request in, so no reordering can make that reading the older, and a reset made by
+  hand on claude.ai, which drops use but may keep the reset, is seen. The answer to a request sent
+  before may have been overtaken, so then the window's reset says which is current: a later reset
+  is a new window; with the same reset the higher utilization stands, as use only rises within a
+  window, so a slow response can't pull it back, nor lift a rejection either reading holds; an
+  earlier reset is ignored.
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed only when a decision needs fresh
   numbers, a dashboard asks for them, or it's due a prime, and never once its 5-hour window has
@@ -152,10 +156,12 @@ on a model whose thinking is bound to its account only when its account can't se
    moves there and stays. Claude Code sees a normal, slower response. The account then has no
    room, whatever its windows read, for the requests the windows the 429 rejects count, whether
    or not it gives their utilization (every request when it names none), until the reset the 429
-   gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. A later
-   reading showing those windows with room lifts it sooner, as a probe's does once the limit is
-   reset by hand (see Priming). A limit reached again while it holds is the same limit, and holds
-   as the latest 429 says; a probe that reads it again changes nothing.
+   gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. The
+   answer to a request sent after the limit was set lifts it sooner when it shows those windows
+   with room, as a probe's does once the limit is reset by hand (see Priming), or, for a limit
+   whose 429 named no window, when it's a success, a probe's included. A limit reached again while
+   it holds is the same limit, and holds as the latest 429 says; a probe that reads it again
+   changes nothing.
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache

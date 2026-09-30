@@ -57,7 +57,7 @@ func TestAnAccountWhoseWindowRunsAtItsSlotIsPrimedAsItResets(t *testing.T) {
 		upstream := newWindowsUpstream(clock)
 		r := newPrimingRouter(t, clock.read, upstream, daytime)
 		// Work's session runs from a late night till 06:00.
-		r.state.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 6, 0)}, week})
+		r.state.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 6, 0)}, week}, r.state.mark())
 		stop := startPriming(r)
 		defer stop()
 
@@ -177,7 +177,7 @@ func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *tes
 	clock := &testClock{now: onDay(1, 5, 0)}
 	r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
 	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: onDay(1, 9, 15)}
-	r.state.record("work", []quota.Window{running, week})
+	r.state.record("work", []quota.Window{running, week}, r.state.mark())
 
 	want := status.Prime{
 		Day:    "08:00-23:00",

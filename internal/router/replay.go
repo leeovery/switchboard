@@ -88,8 +88,9 @@ func (rp *replay) RoundTrip(out *http.Request) (*http.Response, error) {
 }
 
 // send sends the request out on the exchange's account, with a body of its
-// own and the account's token as the router holds it now, and reads the
-// account's usage off the answer, which it returns.
+// own and the account's token as the router holds it now, and reads off the
+// answer, which it returns, the account's usage and whether it took the
+// request.
 func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	ex := rp.ex
 	ex.attempts++
@@ -103,13 +104,17 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	}
 	rp.sent = ex.account.token()
 	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
+	sent := rp.p.state.mark()
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
 		return nil, err
 	}
 	if windows := rp.p.provider.Usage(resp.Header); len(windows) > 0 {
-		rp.p.state.record(ex.account.ID, windows)
+		rp.p.state.record(ex.account.ID, windows, sent)
 		rp.p.state.learn(ex.req.Model, windows)
+	}
+	if succeeded(resp.StatusCode) {
+		rp.p.state.admitted(ex.account.ID, sent)
 	}
 	return resp, nil
 }

@@ -236,6 +236,8 @@ func TestProbe(t *testing.T) {
 	nudged.Utilization = 0.24
 	rejected := session
 	rejected.Utilization, rejected.Status = 1, quota.StatusRejected
+	spentFableWeek := fableWeek
+	spentFableWeek.Utilization, spentFableWeek.Status = 1, quota.StatusRejected
 	overloaded := apiError(529, "Overloaded")
 	tests := []struct {
 		name      string
@@ -262,8 +264,20 @@ func TestProbe(t *testing.T) {
 				haiku: withUsage(http.StatusTooManyRequests, rejected, week),
 				fable: withUsage(http.StatusTooManyRequests, rejected, week, fableWeek),
 			},
+			want: quota.Probe{
+				Usage:  quota.Usage{Windows: []quota.Window{rejected, week, fableWeek}},
+				Models: map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			},
+			wantAsked: []string{haiku, fable},
+		},
+		{
+			name: "an account taking one family's requests, its Fable week spent",
+			replies: map[string]reply{
+				haiku: withUsage(http.StatusOK, session, week),
+				fable: withUsage(http.StatusTooManyRequests, session, week, spentFableWeek),
+			},
 			want: probed(
-				quota.Usage{Windows: []quota.Window{rejected, week, fableWeek}},
+				quota.Usage{Windows: []quota.Window{session, week, spentFableWeek}},
 				map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
 			),
 			wantAsked: []string{haiku, fable},
@@ -352,10 +366,10 @@ func TestProbe(t *testing.T) {
 	}
 }
 
-// probed is a probe that read usage, with models naming, by window key, the
-// models that reported each window.
+// probed is a probe that read usage, a request of it answered with success,
+// with models naming, by window key, the models that reported each window.
 func probed(usage quota.Usage, models map[string][]string) quota.Probe {
-	return quota.Probe{Usage: usage, Models: models}
+	return quota.Probe{Usage: usage, Models: models, Admitted: true}
 }
 
 func TestProbeAsksTheFamiliesAtOnce(t *testing.T) {

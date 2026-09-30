@@ -85,7 +85,12 @@ func (ex *exchange) routed() bool {
 
 // succeeded reports whether the client was answered with success.
 func (ex *exchange) succeeded() bool {
-	return ex.status >= 200 && ex.status < 300
+	return succeeded(ex.status)
+}
+
+// succeeded reports whether status is success.
+func succeeded(status int) bool {
+	return status >= 200 && status < 300
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {

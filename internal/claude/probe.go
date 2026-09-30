@@ -63,18 +63,20 @@ type Prober struct {
 }
 
 // reading is what probing one family found: the windows its model reported,
-// or why none did.
+// or why none did, and whether its request was answered with success.
 type reading struct {
-	model   string
-	windows []quota.Window
-	err     error
+	model    string
+	windows  []quota.Window
+	admitted bool
+	err      error
 }
 
 // Probe reads an account's usage: it probes the model families concurrently
-// and merges what they report, noting which models reported each window. A
-// family that owns a window and reads nothing is reported as a failure, unless
-// another family read that window anyway. Probe fails only when no family
-// reads anything, with the base family's error, as ProbeModel gives it.
+// and merges what they report, noting which models reported each window, and
+// whether any of its requests was answered with success. A family that owns a
+// window and reads nothing is reported as a failure, unless another family
+// read that window anyway. Probe fails only when no family reads anything,
+// with the base family's error, as ProbeModel gives it.
 func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 	readings := make([]reading, len(families))
 	var wg sync.WaitGroup
@@ -89,8 +91,7 @@ func (p *Prober) Probe(ctx context.Context, token string) (quota.Probe, error) {
 func (p *Prober) probeFamily(ctx context.Context, token string, f family) reading {
 	var r reading
 	for _, model := range f.models {
-		r.model = model
-		if r.windows, r.err = p.ProbeModel(ctx, token, model); r.err == nil {
+		if r = p.read(ctx, token, model); r.err == nil {
 			break
 		}
 	}
@@ -102,6 +103,7 @@ func combine(readings []reading) (quota.Probe, error) {
 	probe := quota.Probe{Models: make(map[string][]string)}
 	for _, r := range readings {
 		probe.Windows = quota.MergeMax(probe.Windows, r.windows)
+		probe.Admitted = probe.Admitted || r.admitted
 		for _, w := range r.windows {
 			probe.Models[w.Key] = append(probe.Models[w.Key], r.model)
 		}
@@ -127,18 +129,25 @@ func hasWindow(windows []quota.Window, key string) bool {
 // token, and have a Refused method, which reports whether the API refused the
 // probe: its token, answering 401, or the request, answering 403.
 func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.Window, error) {
+	r := p.read(ctx, token, model)
+	return r.windows, r.err
+}
+
+// read probes model as ProbeModel does, and says what it read, and whether
+// the request was answered with success.
+func (p *Prober) read(ctx context.Context, token, model string) reading {
 	windows, status, err := p.probeModel(ctx, token, model)
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return nil, &probeError{text: redact.Text(err.Error(), token), status: status}
+		return reading{model: model, err: &probeError{text: redact.Text(err.Error(), token), status: status}}
 	}
-	return windows, nil
+	return reading{model: model, windows: windows, admitted: status >= 200 && status < 300}
 }
 
-// probeModel returns the windows the response to the probe reports, or the
-// status of a response that reports none, which is 0 when there's no
-// response.
+// probeModel returns the windows the response to the probe reports, and its
+// status, or the status of a response that reports none, which is 0 when
+// there's no response.
 func (p *Prober) probeModel(ctx context.Context, token, model string) ([]quota.Window, int, error) {
 	timeout := cmp.Or(p.Timeout, defaultTimeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -156,7 +165,7 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) ([]quota.W
 	}
 	defer drainAndClose(resp.Body)
 	if windows := ParseWindows(resp.Header); len(windows) > 0 {
-		return windows, 0, nil
+		return windows, resp.StatusCode, nil
 	}
 	return nil, resp.StatusCode, errors.New(noUsageReason(resp, token))
 }

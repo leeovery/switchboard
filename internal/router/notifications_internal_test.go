@@ -765,7 +765,7 @@ func (h *notifying) limit(id string, windows []string, lifts time.Duration) {
 
 // read has the router read windows of the account with the given id.
 func (h *notifying) read(id string, windows ...quota.Window) {
-	h.state.record(id, windows)
+	h.state.record(id, windows, h.state.mark())
 }
 
 // after lets d pass, and notifications deal with all it brings.

@@ -336,7 +336,9 @@ type probeResult struct {
 	usage quota.Usage
 	// models are the models that reported each window, by its key.
 	models map[string][]string
-	err    error
+	// admitted is set when a request of the probe is answered with success.
+	admitted bool
+	err      error
 }
 
 func (p *fakeProber) Probe(_ context.Context, token string) (quota.Probe, error) {
@@ -344,7 +346,7 @@ func (p *fakeProber) Probe(_ context.Context, token string) (quota.Probe, error)
 	defer p.mu.Unlock()
 	p.tokens = append(p.tokens, token)
 	r := p.readings[token]
-	return quota.Probe{Usage: r.usage, Models: r.models}, r.err
+	return quota.Probe{Usage: r.usage, Models: r.models, Admitted: r.admitted}, r.err
 }
 
 // answer has the prober answer token with r from now on.
