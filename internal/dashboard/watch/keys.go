@@ -183,7 +183,7 @@ func (m Model) reread() (Model, tea.Cmd) {
 		m.again = true
 		return m, nil
 	default:
-		return m.read(Read{Probe: true})
+		return m.read(Read{})
 	}
 }
 

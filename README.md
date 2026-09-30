@@ -149,7 +149,7 @@ switchboard usage [-w [interval]] [--no-notify] [--probe] [-r]
 | `--probe` | probe every account, even while the router runs |
 | `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. Not with `--watch`, where `r` refreshes |
 
-In watch mode, reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
+In watch mode, reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time. Should the router stop answering, its last view stays on screen, saying since when, until it answers again or the interval's read, or `r`, probes the accounts directly. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
 
 | Key | Does |
 |---|---|

@@ -619,8 +619,12 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   router doesn't probe while it can take a request (see Priming): that window reads empty
   instead, and the account's others as read. Probing, it reads every interval, a minute after a
   window on screen resets, and sooner after a failure, backing off from 2 minutes to the
-  interval. When the router stops answering, the next look probes instead, and the footer says
-  since when there's been no router. Probing, it asks after the router at each probe and once a
+  interval. A look never probes: when the router stops answering one, the router's last document
+  stays on screen, the footer saying since when there's been no router, and the looks go on every
+  5 seconds, reading the router again as soon as it answers. A router away for a moment, as when it
+  restarts or is slow on waking, so has no account probed directly, which would start every lapsed
+  5-hour window at once, off the priming schedule. Only the next full read, due an interval after
+  the last, or `r`, probes instead. Probing, it asks after the router at each probe and once a
   minute between, and reads it again as soon as it answers, so it never goes back and forth
   faster than that.
 - **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, but for
