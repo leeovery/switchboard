@@ -1316,5 +1316,8 @@ What's built but hasn't been seen against the real thing:
 - **Move notice (deferred):** a `UserPromptSubmit` hook that shows a line in the TUI after a move,
   and gives Claude the same line as context. Never written into the conversation, which the
   thinking check rules out.
+- **OAuth logins in place of setup tokens (later, not now):** each account signed in with its
+  claude.ai login, as a browser is, rather than given a setup token, and switchboard keeping every
+  account's refresh token fresh, refreshing each before it lapses, so no login ever does.
 - **Intercepting traffic that ignores `ANTHROPIC_BASE_URL`** (a local-CA mode): not planned. What
   it would catch is in What doesn't go through the router.
