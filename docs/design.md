@@ -140,7 +140,9 @@ on a model whose thinking is bound to its account only when its account can't se
    the session has been routed since, whose account stands: the quota check `--resume` sends as it
    starts goes under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 6),
    would otherwise be kept, and listed among the sessions, for a week. A session already remembered
-   keeps its account whatever its requests end in.
+   keeps its account whatever its requests end in, but for a request every account it went out on
+   refused, which leaves the session where it was before (see Requests that need special
+   handling).
 4. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
@@ -325,7 +327,10 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   for 10 minutes, and every session of the family would fall back to the client's account, the
   primary, and move there. A refusal of an account's token, a 401, stands, as it says something of
   the account; so does a refusal another request met, and one met by a request another account
-  served, or whose limit it reached. The client still gets the 502.
+  served, or whose limit it reached. The request's session goes back where it was before the
+  request, as the moves its replays made came to nothing, unless another request of the session
+  has been routed since, whose account stands; the moves stand told, in the log and any
+  notification of them. The client still gets the 502.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
   be read 400, neither going upstream nor counting towards the router's health. Replay only

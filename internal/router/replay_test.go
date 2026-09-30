@@ -590,7 +590,7 @@ func TestARequestRefusedOnEveryAccountLeavesTheRefusalOfATokenStanding(t *testin
 	}
 }
 
-func TestARequestWithNoAccountLeftIsRememberedWhereItWentLast(t *testing.T) {
+func TestASessionWhoseRequestEveryAccountRefusedIsLeftWhereItWas(t *testing.T) {
 	r := newRouted(t, withPersonalToken)
 	// Work, the client's, is at its limit; side's quota needs using before
 	// personal's.
@@ -607,8 +607,14 @@ func TestARequestWithNoAccountLeftIsRememberedWhereItWentLast(t *testing.T) {
 	if got := r.ask(t, "one", opus, ""); got != "personal" {
 		t.Errorf("session one's request went out on %s last, want personal, after side", got)
 	}
-	if work, _ := r.rt.Status().Account("work"); work.Sessions > 0 {
-		t.Errorf("work has %d sessions, want none: no request went out on it", work.Sessions)
+	doc := r.rt.Status()
+	for id, want := range map[string]int{"work": 0, "personal": 0, "side": 1} {
+		if a, _ := doc.Account(id); a.Sessions != want {
+			t.Errorf("%s has %d sessions, want %d: session one is back on side, where it was, and no request went out on work", id, a.Sessions, want)
+		}
+	}
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Errorf("session one's next request went to %s, want side, where it was", got)
 	}
 	wantEvents := []router.Event{
 		router.Refused{Account: "side", Status: http.StatusForbidden, Family: "opus"},

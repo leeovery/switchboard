@@ -16,10 +16,12 @@ type Chooser interface {
 	// A session is remembered on the account picked, and on none when none
 	// is.
 	Choose(ctx context.Context, req Request) Choice
-	// Forget forgets the account chosen for req, whose first choice said its
-	// session was new, as the request was never answered with success: a
-	// session is remembered once it's answered. An account chosen for another
-	// request of the session since stands.
+	// Forget takes back the accounts chosen for req, as they came to nothing:
+	// its session's assignment for the request's model goes back to what it
+	// was before req, none for a session req's first choice said was new,
+	// which is remembered once a request is answered with success, or when
+	// req was refused on every account it went out on. An account chosen for
+	// another request of the session since stands.
 	Forget(req Request)
 }
 

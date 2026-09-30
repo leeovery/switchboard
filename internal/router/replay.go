@@ -255,15 +255,18 @@ func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quot
 	return nil, false, refusedError{status: resp.StatusCode, reason: reason}
 }
 
-// takeBack takes back the bars the request placed on its model family when
-// every account it went out on refused it, as a refusal of the request every
-// account that judged it gives says more of the request than of the
-// accounts. A bar on an account's token stands, as it says something of the
-// account, and so does a bar another request placed.
+// takeBack takes back what the request did when every account it went out
+// on refused it, as a refusal of the request every account that judged it
+// gives says more of the request than of the accounts: the moves of its
+// session, which goes back where it was, and the bars it placed on its model
+// family. A bar on an account's token stands, as it says something of the
+// account, and so does a bar another request placed, and a move another
+// request of the session made since.
 func (rp *replay) takeBack() {
 	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused }) {
 		return
 	}
+	rp.p.chooser.Forget(rp.ex.req)
 	if rp.p.state.takeBack(rp.ex.id) {
 		logger.Info("refused on every account it went out on; its refusals of the request hold none back", "id", rp.ex.id, "attempts", rp.ex.attempts)
 	}
