@@ -23,6 +23,7 @@ func main() {
 		Version:       version,
 		Getenv:        os.Getenv,
 		Environ:       os.Environ,
+		Args:          os.Args,
 		HomeDir:       os.UserHomeDir,
 		Executable:    os.Executable,
 		Now:           time.Now,

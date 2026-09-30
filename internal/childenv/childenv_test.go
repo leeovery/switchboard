@@ -19,6 +19,9 @@ func TestMinimal(t *testing.T) {
 		"CLAUDE_CODE_OAUTH_TOKEN": "test-token-oauth",
 		"ANTHROPIC_API_KEY":       "test-key",
 		"TERM":                    "xterm-256color",
+		// The listeners a router that replaced itself was handed, which
+		// nothing it runs may take for its own.
+		"SWITCHBOARD_LISTENERS": "control=9,proxy=8",
 	}
 
 	got := childenv.Minimal(func(key string) string { return env[key] })

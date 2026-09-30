@@ -34,9 +34,13 @@ type Deps struct {
 	Version string
 	Getenv  func(key string) string
 	// Environ lists the whole environment, as os.Environ does: the one run
-	// starts Claude Code in, and where the dashboard reads which colours the
-	// terminal shows.
+	// starts Claude Code in, the router serve runs replaces itself in, and
+	// where the dashboard reads which colours the terminal shows.
 	Environ func() []string
+	// Args is the command line switchboard was started with, as os.Args
+	// gives it, which the router serve runs is run with again as it replaces
+	// itself.
+	Args    []string
 	HomeDir func() (string, error)
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes

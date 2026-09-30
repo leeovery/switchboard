@@ -103,6 +103,7 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 	})
 	s := newSelfWatching(t, true)
 	s.cfg.Upstream = up.URL
+	execs := replacing(&s.cfg, nil)
 	r := startRouter(t, s.cfg)
 	answered := make(chan string, 1)
 	go func() { answered <- post("http://" + s.cfg.Listen + "/v1/messages") }()
@@ -112,6 +113,9 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 	waitForLine(t, log, `msg="restart due; restarting once no request is in flight"`)
 	time.Sleep(10 * watchEvery)
 	r.checkRunning(t)
+	if made := execs.count(); made != 0 {
+		t.Errorf("replaced itself %d times with a request in flight, want none", made)
+	}
 	want := status.Restart{Reason: "config changed", Since: now, InFlight: 1}
 	if doc := waitForStatus(t, router.SocketPath(s.cfg.StateDir), func(status.Document) bool { return true }); doc.Restart != want {
 		t.Errorf("the status document gives the restart due as %+v, want %+v", doc.Restart, want)
@@ -121,11 +125,13 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 		t.Errorf("the request in flight was answered %q, want 200 and its body", got)
 	}
 	r.waitForExit(t)
+	execs.only(t)
 }
 
 func TestARouterRunByHandSaysARestartIsDueOnce(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newSelfWatching(t, false)
+	execs := replacing(&s.cfg, nil)
 	r := startRouter(t, s.cfg)
 
 	writeFile(t, s.config, twoAccounts)
@@ -141,8 +147,8 @@ func TestARouterRunByHandSaysARestartIsDueOnce(t *testing.T) {
 	if n := strings.Count(log.String(), `msg="restart due`); n != 1 {
 		t.Errorf("log reads\n%s\nwant the restart due said once, not %d times", log, n)
 	}
-	if log.Has("msg=restarting") {
-		t.Errorf("log reads\n%s\nwant no restart", log)
+	if log.Has("msg=restarting") || execs.count() != 0 {
+		t.Errorf("log reads\n%s\nwant no restart, and the router not replacing itself", log)
 	}
 }
 

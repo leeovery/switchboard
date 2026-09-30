@@ -1,6 +1,8 @@
 package router
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"sync"
@@ -15,6 +17,7 @@ const (
 	restartForConfig  = "config changed"
 	restartForUpgrade = "upgraded"
 	restartForZone    = "time zone changed"
+	restartAsked      = "asked to"
 )
 
 // restarts restarts the router once what it was started from has changed:
@@ -25,7 +28,8 @@ const (
 // file to make a valid config, which the router started again needs. Only a
 // supervised router, started again whenever it exits, restarts: any other
 // logs, once, that a restart is due. Either reports a restart due, which the
-// status document gives.
+// status document gives. A supervised router also restarts at once when
+// asked to, as service restart asks.
 type restarts struct {
 	config     *configFile
 	binary     *ledFile
@@ -35,8 +39,10 @@ type restarts struct {
 	now        func() time.Time
 	// told is set once the log has said a restart is due.
 	told bool
-	// restarted closes as the router restarts.
-	restarted chan struct{}
+	// restarted closes as the router restarts, reason then saying why.
+	restarted  chan struct{}
+	restarting sync.Once
+	reason     string
 
 	mu sync.Mutex
 	// pending is the restart due as what the router was started from last
@@ -160,9 +166,42 @@ func (r *restarts) restart() bool {
 	if why == "" {
 		return false
 	}
-	logger.Info("restarting", "reason", why)
-	close(r.restarted)
+	r.begin(why)
 	return true
+}
+
+// restartable fails, saying why, when the router can't restart at once, as
+// it's asked to: it isn't supervised, so nothing would start it again, or its
+// config file doesn't make a valid config, which the router started again
+// couldn't start from. It reads the config file afresh, and is safe for
+// concurrent use.
+func (r *restarts) restartable() error {
+	if !r.supervised {
+		return errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
+	}
+	if r.config.path == "" {
+		return nil
+	}
+	if _, err := config.Load(r.config.path); err != nil {
+		return fmt.Errorf("the router's config file doesn't make a valid config, which it couldn't start again from: %w", err)
+	}
+	return nil
+}
+
+// atOnce restarts the router, whatever is in flight, once restartable
+// has found it can.
+func (r *restarts) atOnce() {
+	r.begin(restartAsked)
+}
+
+// begin restarts the router, for the reason given, unless it's restarting
+// already.
+func (r *restarts) begin(why string) {
+	r.restarting.Do(func() {
+		r.reason = why
+		logger.Info("restarting", "reason", why)
+		close(r.restarted)
+	})
 }
 
 // configFile is the config file the router was started from, as it was last

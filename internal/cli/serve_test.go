@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/skill"
@@ -293,27 +294,70 @@ func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"XPC_SERVICE_NAME": service.Label})
 			srv.watch(t)
+			argv := []string{srv.binary, "serve"}
+			made := srv.replaceable(t, argv...)
 			stop := srv.start(t)
 
 			tt.change(t, srv)
-			select {
-			case <-srv.exited:
-			case <-time.After(5 * time.Second):
-				t.Fatal("gave up waiting for switchboard serve to restart")
-			}
+			replaced := waitForReplacement(t, made)
 			if got := stop(); got != (result{}) {
-				t.Errorf("switchboard serve = %+v as it restarted, want exit status 0 and no output, for launchd to start it again", got)
+				t.Errorf("switchboard serve = %+v as it replaced itself, want no output", got)
+			}
+			if replaced.path != srv.binary || !slices.Equal(replaced.argv, argv) {
+				t.Errorf("serve replaced itself with %s run as %q, want its binary, by the link it was run as, %s, run as it was, %q", replaced.path, replaced.argv, srv.binary, argv)
+			}
+			env := environMap(replaced.env)
+			if env["XPC_SERVICE_NAME"] != service.Label || env["SWITCHBOARD_CONFIG"] != srv.config || env[handover.Variable] == "" {
+				t.Errorf("serve replaced itself in the environment %q, want the one it ran in, naming the listeners it handed over", replaced.env)
+			}
+			waitUntil(t, "the router serve became answers", func() bool {
+				h, err := router.NewClient(srv.socket()).Health(t.Context())
+				return err == nil && h.StartedAt.Equal(testNow.Add(time.Minute))
+			})
+			srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
+			if got := replaced.stop(); got.code != 0 {
+				t.Errorf("the switchboard serve it became = %+v, want exit status 0", got)
 			}
 			log := srv.routerLog(t)
 			for _, want := range [][]string{
 				{"level=INFO", "msg=restarting component=router", tt.wantReason},
-				{"level=INFO", "msg=exit component=process", "status=0"},
+				{"level=INFO", `msg="replacing itself" component=router`, "path=" + srv.binary, tt.wantReason},
+				{"level=INFO", `msg="took up the listener handed over" component=router`, "listener=proxy", "address=" + srv.listen},
+				{"level=INFO", `msg="took up the listener handed over" component=router`, "listener=control", "address=" + srv.socket()},
 			} {
 				if !hasLine(log, want...) {
 					t.Errorf("router.log reads\n%s\nwant a line with %q", log, want)
 				}
 			}
 		})
+	}
+}
+
+func TestServeExitsForLaunchdToStartItAgainWhenItCantReplaceItself(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"XPC_SERVICE_NAME": service.Label})
+	srv.watch(t)
+	stop := srv.start(t)
+
+	srv.upgrade(t)
+	select {
+	case <-srv.exited:
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for switchboard serve to restart")
+	}
+	if got := stop(); got != (result{}) {
+		t.Errorf("switchboard serve = %+v as it restarted, want exit status 0 and no output, for launchd to start it again", got)
+	}
+	if _, err := os.Stat(srv.socket()); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("control socket once exited: %v, want it gone", err)
+	}
+	log := srv.routerLog(t)
+	for _, want := range [][]string{
+		{"level=WARN", `msg="couldn't replace itself; exiting for launchd to start it again" component=router`, "path=" + srv.binary, `error="no test starts a program"`},
+		{"level=INFO", "msg=exit component=process", "status=0"},
+	} {
+		if !hasLine(log, want...) {
+			t.Errorf("router.log reads\n%s\nwant a line with %q", log, want)
+		}
 	}
 }
 
@@ -530,7 +574,7 @@ type serveSetup struct {
 	// extra ends the config file.
 	extra string
 	// exited closes once the serve start runs has exited.
-	exited chan struct{}
+	exited <-chan struct{}
 	// binary is the switchboard binary serve runs as, once watch has it
 	// watched: a link to one version, which upgrade moves on to next.
 	binary, next string
@@ -689,16 +733,25 @@ func (s *serveSetup) start(t *testing.T, args ...string) (stop func() result) {
 // with, or until the test ends.
 func (s *serveSetup) launch(t *testing.T, args ...string) (stop func() result) {
 	t.Helper()
+	stop, s.exited = launchWith(t, s.deps, append([]string{"serve"}, args...))
+	return stop
+}
+
+// launchWith runs the command line args with deps in the background, until
+// the test calls the stop it returns, which returns what it printed and
+// exited with, or until the test ends. What it returns second closes once
+// it has exited.
+func launchWith(t *testing.T, deps cli.Deps, args []string) (stop func() result, exited <-chan struct{}) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
-	root := cli.NewRootCommand(s.deps)
+	root := cli.NewRootCommand(deps)
 	root.SetContext(ctx)
-	root.SetArgs(append([]string{"serve"}, args...))
+	root.SetArgs(args)
 	var stdout, stderr syncBuffer
 	root.SetOut(&stdout)
 	root.SetErr(&stderr)
 	var code int
 	finished := make(chan struct{})
-	s.exited = finished
 	go func() {
 		code = cli.Execute(root)
 		close(finished)
@@ -709,7 +762,56 @@ func (s *serveSetup) launch(t *testing.T, args ...string) (stop func() result) {
 		return result{stdout: stdout.String(), stderr: stderr.String(), code: code}
 	}
 	t.Cleanup(func() { stop() })
-	return stop
+	return stop, finished
+}
+
+// replacement is serve's replacing itself, as the router it runs restarts:
+// what it exec'd, and the stop of the serve that took its place.
+type replacement struct {
+	path      string
+	argv, env []string
+	stop      func() result
+}
+
+// replaceable has serve run as argv, and replace itself, as the router it
+// runs restarts, with a serve the test runs as exec would run it, once the
+// serve it replaces has gone: in place, with the command line and the
+// environment exec is given, but by a clock a minute on, so it's told from
+// the serve it replaced. The replacement is sent once it runs.
+func (s *serveSetup) replaceable(t *testing.T, argv ...string) <-chan replacement {
+	t.Helper()
+	made := make(chan replacement, 1)
+	s.deps.Args = argv
+	s.deps.Exec = func(path string, argv, env []string) error {
+		next := s.deps
+		vars := environMap(env)
+		next.Getenv = func(key string) string { return vars[key] }
+		next.Environ = func() []string { return env }
+		next.Args = argv
+		next.Now = func() time.Time { return testNow.Add(time.Minute) }
+		next.Exec = func(string, []string, []string) error { return errors.New("no test starts a program") }
+		replaced := s.exited
+		go func() {
+			<-replaced
+			stop, _ := launchWith(t, next, cli.Args(argv))
+			made <- replacement{path: path, argv: argv, env: env, stop: stop}
+		}()
+		return nil
+	}
+	return made
+}
+
+// waitForReplacement waits a few seconds at most for serve to have replaced
+// itself, and returns the replacement.
+func waitForReplacement(t *testing.T, made <-chan replacement) replacement {
+	t.Helper()
+	select {
+	case r := <-made:
+		return r
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for switchboard serve to replace itself")
+		return replacement{}
+	}
 }
 
 // waitForStatus waits a few seconds at most for the router to report a
