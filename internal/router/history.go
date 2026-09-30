@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"iter"
 	"math"
 	"os"
 	"path/filepath"
@@ -34,6 +35,10 @@ const (
 	// pruneLook is how often the history looks at whether a new day has
 	// come, and its files are to be pruned, with no reading to write.
 	pruneLook = time.Hour
+	// historyLineMax is the longest line of the history read back: a
+	// reading's is a couple of hundred bytes, and a longer line, which no
+	// reading makes, is skipped without being held.
+	historyLineMax = 4096
 )
 
 // source is where a reading came from, as the readings history gives it.
@@ -269,7 +274,9 @@ func (h *history) pruneDaily() {
 }
 
 // prune removes the history's files whose day ended 14 days or more before
-// now, leaving anything else in the directory alone.
+// now, and those of a day after tomorrow, as a clock once set ahead named
+// them, which would crowd out the real ones, leaving anything else in the
+// directory alone.
 func (h *history) prune() {
 	now := h.now()
 	h.pruned = now.Local().Format(historyDay)
@@ -282,7 +289,7 @@ func (h *history) prune() {
 	}
 	for _, e := range entries {
 		day, ok := dayOf(e.Name())
-		if !ok || now.Sub(day.AddDate(0, 0, 1)) < historyKeptFor {
+		if !ok || now.Sub(day.AddDate(0, 0, 1)) < historyKeptFor && !afterTomorrow(day, now) {
 			continue
 		}
 		if err := os.Remove(filepath.Join(h.dir, e.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -292,34 +299,35 @@ func (h *history) prune() {
 }
 
 // readBack returns the readings the history's two newest files hold, taken
-// at or before now, in the order they were read: the newest by their names'
-// dates, as a change of time zone can put today's file under another date
-// than the clock's. A window's readings since the half hour before now, and
-// its baseline before that, are among them unless it has been quiet since
-// before yesterday's file, and then it has no recent rate to go by. A line
-// that doesn't read as a reading that can be is left out.
-func (h *history) readBack(now time.Time) []reading {
-	var readings []reading
-	skipped := 0
-	for _, name := range h.newest(2) {
-		read, bad := readFile(filepath.Join(h.dir, name))
-		skipped += bad
-		for _, r := range read {
-			if !r.At.After(now) {
-				readings = append(readings, r)
+// at or before now, one at a time, in the order of their lines, each file's
+// after the older's: the newest by their names' dates, as a change of time
+// zone can put today's file under another date than the clock's, but for
+// those of a day after tomorrow. A window's readings since the half hour
+// before now, and its baseline before that, are among them unless it has
+// been quiet since before the older file, and then it has no recent rate to
+// go by. A line that doesn't read as a reading that can be is left out.
+func (h *history) readBack(now time.Time) iter.Seq[reading] {
+	return func(yield func(reading) bool) {
+		skipped := 0
+		for _, name := range h.newest(now, 2) {
+			bad, more := readFile(filepath.Join(h.dir, name), func(r reading) bool {
+				return r.At.After(now) || yield(r)
+			})
+			skipped += bad
+			if !more {
+				break
 			}
 		}
+		if skipped > 0 {
+			logger.Warn("readings history lines unread", "lines", skipped)
+		}
 	}
-	if skipped > 0 {
-		logger.Warn("readings history lines unread", "lines", skipped)
-	}
-	slices.SortStableFunc(readings, func(a, b reading) int { return a.At.Compare(b.At) })
-	return readings
 }
 
-// newest returns the names of the history's n newest files, by the dates
-// their names give, oldest first.
-func (h *history) newest(n int) []string {
+// newest returns the names of the history's n newest files at now, by the
+// dates their names give, oldest first, but for those of a day after
+// tomorrow.
+func (h *history) newest(now time.Time, n int) []string {
 	entries, err := os.ReadDir(h.dir)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -329,7 +337,7 @@ func (h *history) newest(n int) []string {
 	}
 	var names []string
 	for _, e := range entries {
-		if _, ok := dayOf(e.Name()); ok {
+		if day, ok := dayOf(e.Name()); ok && !afterTomorrow(day, now) {
 			names = append(names, e.Name())
 		}
 	}
@@ -337,34 +345,61 @@ func (h *history) newest(n int) []string {
 	return names[max(len(names)-n, 0):]
 }
 
-// readFile returns the readings the file at path holds, and how many of its
-// lines didn't read as one, however long. A file that can't be read holds
-// none, which is logged but for one that isn't there.
-func readFile(path string) (readings []reading, bad int) {
+// afterTomorrow reports whether day, a local day as dayOf gives it, is after
+// the day after now's: a file of it was named by a clock set ahead.
+func afterTomorrow(day, now time.Time) bool {
+	y, m, d := now.Local().Date()
+	return day.After(time.Date(y, m, d+1, 0, 0, 0, 0, time.Local))
+}
+
+// readFile hands take each reading the file at path holds, in the order of
+// its lines, until take reports false, and returns how many of its lines
+// didn't read as a reading, and whether take wanted more. A line longer than
+// historyLineMax is skipped without being held. A file that can't be read
+// holds none, which is logged but for one that isn't there.
+func readFile(path string, take func(reading) bool) (bad int, more bool) {
 	f, err := os.Open(path)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			logger.Warn("can't read the readings history", "file", filepath.Base(path), "error", err)
 		}
-		return nil, 0
+		return 0, true
 	}
 	defer func() { _ = f.Close() }()
-	lines := bufio.NewReader(f)
+	lines := bufio.NewReaderSize(f, historyLineMax)
 	for {
-		line, err := lines.ReadBytes('\n')
+		line, err := lines.ReadSlice('\n')
+		if errors.Is(err, bufio.ErrBufferFull) {
+			bad++
+			if err = skipLine(lines); err == nil {
+				continue
+			}
+			line = nil
+		}
 		if len(line) > 0 {
 			var r reading
-			if json.Unmarshal(line, &r) != nil || !r.valid() {
+			switch {
+			case json.Unmarshal(line, &r) != nil || !r.valid():
 				bad++
-			} else {
-				readings = append(readings, r)
+			case !take(r):
+				return bad, false
 			}
 		}
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				logger.Warn("readings history read short", "file", filepath.Base(path), "error", err)
 			}
-			return readings, bad
+			return bad, true
+		}
+	}
+}
+
+// skipLine reads past the rest of a line too long to hold, reporting why it
+// stopped short of the line's end, if it did.
+func skipLine(lines *bufio.Reader) error {
+	for {
+		if _, err := lines.ReadSlice('\n'); !errors.Is(err, bufio.ErrBufferFull) {
+			return err
 		}
 	}
 }

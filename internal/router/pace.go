@@ -1,6 +1,7 @@
 package router
 
 import (
+	"iter"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -47,12 +48,12 @@ func (t trails) note(held, kept quota.Window, at time.Time) {
 // state file kept it, has another reset than its readings last read, as when
 // it has reset since, keeps none of them. It returns how many the trails
 // keep.
-func (s *state) seed(readings []reading) int {
+func (s *state) seed(readings iter.Seq[reading]) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	type trailOf struct{ account, window string }
 	last := make(map[trailOf]quota.Window)
-	for _, r := range readings {
+	for r := range readings {
 		if u, configured := s.usage[r.Account]; configured {
 			of, w := trailOf{r.Account, r.Window}, r.window()
 			u.trails.note(last[of], w, r.At)

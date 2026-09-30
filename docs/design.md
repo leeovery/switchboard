@@ -1144,19 +1144,23 @@ hiding it behind the provider would take a wider interface than it's worth:
   them, and `source` where it came from: `answer`, off the answer to a routed request; `probe`;
   or `prime`. An account appears by its id alone: never a token or a label. Fields may be added
   to a line, never renamed, and a reader passes over those it doesn't know. The router removes a
-  day's file once its day ended 14 days ago, as it starts and on each day after, and leaves
-  anything else in the directory alone. Writing never holds a request up: the lines queue, those
-  of 1,024 answers or probes at most, dropping any past that, for a goroutine of their own to
-  write; a write that fails is logged once until one succeeds, and the reading goes unwritten, as
-  the history never stands in routing's way. As it starts, the router takes up the lines of its
-  two newest files, by the dates they're named for, as a change of time zone can name today's
-  file for another day than the clock's, into each window's recent readings, its baseline
-  included (see Choosing an account): the history holds each change of a window's use, so they
-  are as they were, and the recent rates outlast the restart. A window quiet since before the
-  older of the two has no baseline to take up. It passes over a line that doesn't read as a
-  reading, as one cut short, however long, one of an account no longer configured, and those of a
-  window that has reset since, as `state.json` has it. A reading that can't be put as a line, as
-  one whose use isn't a number, goes unwritten, logged once.
+  day's file once its day ended 14 days ago, and one named for a day after tomorrow, as a clock
+  once set ahead names it, which would crowd out the real ones, as it starts and on each day
+  after, and leaves anything else in the directory alone. Writing never holds a request up: the
+  lines queue, those of 1,024 answers or probes at most, dropping any past that, for a goroutine
+  of their own to write; a write that fails is logged once until one succeeds, and the reading
+  goes unwritten, as the history never stands in routing's way. As it starts, the router takes up
+  the lines of its two newest files, by the dates they're named for, as a change of time zone can
+  name today's file for another day than the clock's, but for one named for a day after tomorrow,
+  into each window's recent readings, its baseline included (see Choosing an account): the
+  history holds each change of a window's use, so they are as they were, but for when each level
+  was last read again, which it takes as its line's time, and the recent rates outlast the
+  restart. It reads them a line at a time, keeping what the recent readings need alone. A window
+  quiet since before the older of the two has no baseline to take up. It passes over a line that
+  doesn't read as a reading, as one cut short, or one over 4 KiB, which no reading makes and
+  which it skips without holding, one of an account no longer configured, and those of a window
+  that has reset since, as `state.json` has it. A reading that can't be put as a line, as one
+  whose use isn't a number, goes unwritten, logged once.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see

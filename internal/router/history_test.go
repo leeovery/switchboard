@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -237,10 +238,96 @@ func TestReadingBackTakesTheTwoNewestFilesByName(t *testing.T) {
 			h := newHistory(at(now))
 			h.open(dir)
 
-			if got := h.readBack(now); !slices.EqualFunc(got, tt.want, func(a, b reading) bool { return a.At.Equal(b.At) && a.Utilization == b.Utilization }) {
+			if got := slices.Collect(h.readBack(now)); !slices.EqualFunc(got, tt.want, func(a, b reading) bool { return a.At.Equal(b.At) && a.Utilization == b.Utilization }) {
 				t.Errorf("readBack() = %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFilesOfADayAfterTomorrowAreNeitherTakenUpNorKept(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.Local)
+	dir := t.TempDir()
+	day := func(offset int) string { return historyFile(now.AddDate(0, 0, offset).Format(historyDay)) }
+	lineAt := func(at time.Time, u float64) []byte {
+		line, err := json.Marshal(reading{At: at.UTC(), Account: "work", Window: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: fromAnswer})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return append(line, '\n')
+	}
+	// A clock once set days ahead named a file for a day to come.
+	files := map[string][]byte{
+		day(-1): lineAt(now.Add(-20*time.Hour), 0.1),
+		day(0):  lineAt(now.Add(-time.Hour), 0.2),
+		day(5):  lineAt(now.Add(-time.Minute), 0.9),
+	}
+	for name, data := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := newHistory(at(now))
+	h.open(dir)
+
+	got := slices.Collect(h.readBack(now))
+	if len(got) != 2 || got[0].Utilization != 0.1 || got[1].Utilization != 0.2 {
+		t.Errorf("readBack() = %+v, want yesterday's and today's, not the one of a day to come", got)
+	}
+	h.prune()
+	if _, err := os.Stat(filepath.Join(dir, day(5))); err == nil {
+		t.Error("the file of a day to come stayed, want it pruned")
+	}
+	if _, err := os.Stat(filepath.Join(dir, day(0))); err != nil {
+		t.Errorf("today's file went: %v", err)
+	}
+}
+
+func TestReadingBackSkipsALineTooLongToHoldAlone(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	lineAt := func(u float64, pad int) []byte {
+		line := `{"at":"` + start.UTC().Format(time.RFC3339) + `","account":"work","window":"5h","utilization":` +
+			strconv.FormatFloat(u, 'f', -1, 64) + `,"pad":"` + strings.Repeat("x", pad) + `","source":"answer"}`
+		return []byte(line + "\n")
+	}
+	data := slices.Concat(lineAt(0.1, 0), lineAt(0.2, historyLineMax), lineAt(0.3, 0))
+	if err := os.WriteFile(historyOf(dir, start), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := newHistory(at(start))
+	h.open(dir)
+
+	got := slices.Collect(h.readBack(start))
+	if len(got) != 2 || got[0].Utilization != 0.1 || got[1].Utilization != 0.3 {
+		t.Errorf("readBack() = %+v, want the lines either side of the one too long to hold", got)
+	}
+	if !log.Has("level=WARN", `msg="readings history lines unread"`, "lines=1") {
+		t.Errorf("log reads\n%s\nwant the line too long noted", log)
+	}
+}
+
+func TestTakingUpADaysHistoryKeepsWhatTheTrailsNeedAlone(t *testing.T) {
+	now := start.Add(24 * time.Hour)
+	dir := t.TempDir()
+	h := newHistory(at(now))
+	h.open(dir)
+	// Work's session, read every half minute for the day before, rising a
+	// little each time, in a window that resets after now.
+	var readings []reading
+	for i := range 2880 {
+		readings = append(readings, reading{
+			At: start.Add(time.Duration(i) * 30 * time.Second), Account: "work", Window: "5h",
+			Utilization: float64(i) / 10000, ResetsAt: now.Add(time.Hour), Source: fromAnswer,
+		})
+	}
+	h.write(readings)
+	s := newTestState(&testClock{now: now})
+	s.usage["work"].windows["5h"] = quota.Window{Key: "5h", Utilization: readings[len(readings)-1].Utilization, ResetsAt: now.Add(time.Hour)}
+
+	s.seed(h.readBack(now))
+	if got := len(s.usage["work"].trails["5h"]); got > 61 {
+		t.Errorf("the trail holds %d levels, want the baseline and the half hour's since alone, 61 at most", got)
 	}
 }
 
@@ -434,7 +521,7 @@ func TestAHistoryFileThatCantBeReadIsLogged(t *testing.T) {
 	h := newHistory(at(start))
 	h.open(dir)
 
-	if got := h.readBack(start); len(got) != 0 {
+	if got := slices.Collect(h.readBack(start)); len(got) != 0 {
 		t.Errorf("readBack() = %+v, want none", got)
 	}
 	if !log.Has("level=WARN", `msg="can't read the readings history"`) {
