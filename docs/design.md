@@ -62,8 +62,8 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed only when a decision needs fresh
   numbers, a dashboard asks for them, or it's due a prime, and never once its 5-hour window has
-  lapsed, as the probe would start the window off the schedule (see Priming), but while a limit
-  holds back its every request, when starting the window costs nothing. An account never read, as
+  lapsed, as the probe would start the window off the schedule (see Priming), but while it can take
+  no request anyway, when starting the window costs nothing. An account never read, as
   one whose probe failed as the router started, or one first given a token while the router runs,
   has no window known to have lapsed: it's probed whenever a decision or a dashboard needs it, at
   any hour, which may start its window off the schedule, once. A probe is one request per model
@@ -204,7 +204,7 @@ Each request's account is decided in this order:
 A request without a session id is never remembered: it goes to the launch pin it carries while that
 account can serve it, and is otherwise decided afresh every time. Before deciding afresh, and never
 for a sticky request, switchboard probes every account it hasn't read in 15 minutes, all at once,
-but for one whose 5-hour window has lapsed and that no limit holds back (see Priming), and waits
+but for one whose 5-hour window has lapsed and that can take a request (see Priming), and waits
 for them 8 seconds at most. Choices made together share a probe, and an account whose probe ended,
 read or not, waits a minute for the next.
 
@@ -395,7 +395,9 @@ come back one at a time rather than together: once all are spent, the wait for t
   and its slot shifts for that day. The log notes each prime at `info`, with the reset it read. A
   prime fails when it reads nothing (`prime failed`), or when the 5-hour window still reads as
   lapsed once it's done (`prime didn't start the window`): either is noted at `warn`, and the prime
-  is sent again five minutes on.
+  is sent again five minutes on. An account that can take no request anyway (see No accidental
+  windows), or whose token is refused, isn't primed while it's so, as a prime couldn't start its
+  window; it's still probed where the probe rules allow, which is how a reset made by hand is seen.
 - **Through the day,** when an idle account's window resets, the router primes it at once, so its
   windows stay back to back. After the day ends, it stops, so the windows lapse overnight and the
   next morning's primes start them afresh. An account's day of priming runs from its slot until
@@ -421,18 +423,19 @@ come back one at a time rather than together: once all are spent, the wait for t
 window. The router never probes an account whose 5-hour window has lapsed, its last reading's reset
 passed with nothing read since, except to prime it: that window reads empty, and the account's
 weekly readings stand. This covers the probes as the router starts, before it decides afresh, when
-no account has room, and for `POST /refresh`. The one exception is an account a limit holds back
-from every request, as when its week is spent: it can take no request anyway, so a probe that
-starts its window costs nothing, and a probe is how a limit lifted before its reset, as by a reset
-made by hand on claude.ai, is seen, the reading showing its windows with room lifting the limit.
-A limit reached in one model's week alone is no exception, as the account takes other models'
-requests, nor is a refused token or model. Readings persist in `state.json`, with the model
-families each window has been seen to count, so a restart needs no probe. An account never read has
-no window known to have lapsed: it's probed as the router starts, and, should that probe fail, or
-the account first gain a token while the router runs, whenever a choice made afresh or `POST
-/refresh` needs it, at any hour, which may start its window off the schedule, once. Probing without
-the router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a token
-`accounts add`, `accounts token` or `setup` is given.
+no account has room, and for `POST /refresh`. The one exception is an account that can take no
+request anyway: a limit holds back its every request, or a window every model shares reads spent, as
+last read, as when its week is spent, the limit or not, as a restart keeps the reading but not the
+limit. A probe that starts its window costs nothing then, and a probe is how a limit lifted before
+its reset, as by a reset made by hand on claude.ai, is seen, the reading showing its windows with
+room lifting the limit. A limit reached in one model's week alone is no exception, as the account
+takes other models' requests, nor is a refused token or model. Readings persist in `state.json`,
+with the model families each window has been seen to count, so a restart needs no probe. An account
+never read has no window known to have lapsed: it's probed as the router starts, and, should that
+probe fail, or the account first gain a token while the router runs, whenever a choice made afresh
+or `POST /refresh` needs it, at any hour, which may start its window off the schedule, once. Probing
+without the router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a
+token `accounts add`, `accounts token` or `setup` is given.
 
 ## Accounts and tokens
 
@@ -611,7 +614,7 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   A minute after a window on screen resets, the next look has the router refresh first with a
   `max_age` of a minute, once a reset, so an idle account's window doesn't read `resets now`
   until the next interval; but not for an account whose 5-hour window has lapsed, which the
-  router doesn't probe while no limit holds it back (see Priming): that window reads empty
+  router doesn't probe while it can take a request (see Priming): that window reads empty
   instead, and the account's others as read. Probing, it reads every interval, a minute after a
   window on screen resets, and sooner after a failure, backing off from 2 minutes to the
   interval. When the router stops answering, the next look probes instead, and the footer says
@@ -619,7 +622,7 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   minute between, and reads it again as soon as it answers, so it never goes back and forth
   faster than that.
 - **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, but for
-  those whose 5-hour window has lapsed and that no limit holds back, or, without it, every account
+  those whose 5-hour window has lapsed and that can take a request, or, without it, every account
   is probed, as `usage --refresh` does. `q` quit. While it reads the router, `1`–`9` toggle the
   account in that place, as configured, in the global pin: one it doesn't name joins those it
   does, new sessions going to the best of them, and one it names leaves, the last to leave
@@ -1022,7 +1025,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
-| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed and that no limit holds back (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.

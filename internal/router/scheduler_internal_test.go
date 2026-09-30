@@ -78,25 +78,50 @@ func TestAChoiceAfreshProbesAnAccountWhoseSessionHasLapsedUnderALimit(t *testing
 	}
 }
 
-func TestWithNoRoomNoAccountWhoseSessionHasLapsedIsProbedAgain(t *testing.T) {
-	clock := &testClock{now: start.Add(-2 * time.Minute)}
-	prober := &stubProber{}
-	r := newTestRouter(t, clock.read, prober)
-	// Read two minutes ago, neither has room: work's week is spent, and its
-	// session has lapsed since, and side's session is spent till later.
-	lapsing, spentSession, spentWeek := session, session, week
-	lapsing.ResetsAt = start.Add(-time.Minute)
+func TestWithNoRoomAnAccountWhoseSessionHasLapsedIsProbedAgainOnlyWhenSpent(t *testing.T) {
+	spentSession, spentWeek, spentFableWeek := session, week, fableWeek
 	spentSession.Utilization, spentSession.Status = 1, quota.StatusRejected
 	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
-	r.state.record("work", []quota.Window{lapsing, spentWeek}, r.state.mark())
-	r.state.record("side", []quota.Window{spentSession, week}, r.state.mark())
-	clock.now = start
-
-	if got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"}); !got.NoRoom {
-		t.Fatalf("Choose() = %+v, want no account with room", got)
+	spentFableWeek.Utilization, spentFableWeek.Status = 1, quota.StatusRejected
+	tests := []struct {
+		name string
+		// week and fableWeek are work's, as read.
+		week, fableWeek quota.Window
+		want            map[string]int
+	}{
+		{
+			name:      "not work, its Fable week spent, whose session a probe would start",
+			week:      week,
+			fableWeek: spentFableWeek,
+			want:      map[string]int{sideToken: 1},
+		},
+		{
+			name:      "work, its week spent, which can take no request anyway",
+			week:      spentWeek,
+			fableWeek: fableWeek,
+			want:      map[string]int{workToken: 1, sideToken: 1},
+		},
 	}
-	if got, want := prober.counts(), map[string]int{sideToken: 1}; !maps.Equal(got, want) {
-		t.Errorf("probes = %v, want %v: with no room anywhere, side is probed again, but not work, whose session a probe would start", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start.Add(-2 * time.Minute)}
+			prober := &stubProber{}
+			r := newTestRouter(t, clock.read, prober)
+			// Read two minutes ago, neither has room for a Fable request:
+			// work's session has lapsed since, and side's is spent till later.
+			lapsing := session
+			lapsing.ResetsAt = start.Add(-time.Minute)
+			r.state.record("work", []quota.Window{lapsing, tt.week, tt.fableWeek}, r.state.mark())
+			r.state.record("side", []quota.Window{spentSession, week, fableWeek}, r.state.mark())
+			clock.now = start
+
+			if got := choose(t.Context(), r, Request{Session: "one", Model: fable, Client: "work"}); !got.NoRoom {
+				t.Fatalf("Choose() = %+v, want no account with room", got)
+			}
+			if got := prober.counts(); !maps.Equal(got, tt.want) {
+				t.Errorf("probes = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

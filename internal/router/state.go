@@ -346,24 +346,27 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 // probeable reports whether the account whose usage is u can be probed at
 // now: no probe of it has ended in the last reprobeAfter, so an account whose
 // probes fail isn't probed at every ask, and none of its windows has lapsed,
-// as a probe is a request, and would start it. A limit holding back every
-// request is the exception: an account under one can take no request anyway,
-// so a probe that starts its window costs nothing, and a probe is how a limit
-// lifted before its reset, as by a reset made by hand, is seen. s.mu must be
-// held.
+// as a probe is a request, and would start it. An account that's spent, as
+// spent says, is the exception: it can take no request anyway, so a probe
+// that starts its window costs nothing, and a probe is how a limit lifted
+// before its reset, as by a reset made by hand, is seen. s.mu must be held.
 func (s *state) probeable(u *usage, now time.Time) bool {
-	return now.Sub(u.probed) >= reprobeAfter && (u.limited.holds(now, s.policy.IsShared) || len(s.policy.Lapsed(u.latest(), now)) == 0)
+	return now.Sub(u.probed) >= reprobeAfter && (u.spent(s.policy, now) || len(s.policy.Lapsed(u.latest(), now)) == 0)
 }
 
 // nextPrime returns when the account with the given id is next to be primed,
 // at now or after: when schedule says of its windows as last read, but not
 // before reprobeAfter has passed since a probe of it last ended, or
 // reprimeAfter when that one failed as a prime, as primeFailed says. It
-// reports false when the schedule can't say.
+// reports false when the schedule can't say, and while the account's token is
+// refused, or it's spent, as spent says: a prime couldn't start its window.
 func (s *state) nextPrime(id string, schedule prime.Schedule, now time.Time) (time.Time, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
+	if u.refused.inForce(now) || u.spent(s.policy, now) {
+		return time.Time{}, false
+	}
 	at, ok := schedule.Next(id, u.latest(), now)
 	if !ok {
 		return time.Time{}, false
@@ -476,6 +479,15 @@ func (u *usage) refuses(now time.Time, family string) bool {
 // the windows of.
 func (u *usage) shut(now time.Time, shared func(key string) bool) bool {
 	return u.refused.inForce(now) || u.limited.holds(now, shared)
+}
+
+// spent reports whether the account's quota leaves it no room at now for a
+// request of any model, as policy judges: a limit it reached holds back every
+// request, or a window every model shares is spent, as last read, and hasn't
+// reset since.
+func (u *usage) spent(policy score.Policy, now time.Time) bool {
+	windows := u.current(policy, now)
+	return u.limited.holds(now, policy.IsShared) || len(windows) > 0 && !score.Available(windows, 0, policy.IsShared, now)
 }
 
 // counting returns which windows count a request of model, by key: every
