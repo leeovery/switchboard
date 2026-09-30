@@ -420,15 +420,23 @@ come back one at a time rather than together: once all are spent, the wait for t
 - **The day:** `[prime] day = "08:00-23:00"`, in local time, turns priming on. An end before the
   start means past midnight.
 - **The schedule:** with N accounts that have usable tokens, resets fall every 5 hours ÷ N; the
-  first falls half a step after the day starts; each account, in config order, is primed five
-  hours before its first reset, to the minute. Every prime falls before the day starts, so the
-  day's first requests don't disturb the schedule, and may fall the evening before. For a day
+  first falls half a step after the day starts; each account, in config order, has its slot five
+  hours before its first reset, taken back to the ten-minute mark that falls in, as the API takes
+  back the start of the window a prime starts: so the slot is where the window starts, and the
+  reset it reads five hours after, as the schedule shows. Taken back rather than rounded, a slot
+  only ever moves earlier, so every prime still falls before the day starts, so the day's first
+  requests don't disturb the schedule, and may fall the evening before; and every slot moves by
+  the same rule, so the steps between them stay within ten minutes of each other, as even as the
+  marks allow where 5 hours ÷ N isn't a whole number of ten minutes. A slot's prime goes 5 seconds
+  after it, as a prime after a reset does (see below): sent on the mark, a prime the API took in
+  a moment before it, by its own clock, would start the window ten minutes earlier. For a day
   starting at 08:00:
 
   | Accounts | Primed | Resets |
   |---|---|---|
+  | 4 | 03:30, 04:50, 06:00, 07:20 | 08:30, 09:50, 11:00, 12:20, 13:30, 14:50, 16:00, 17:20, 18:30, 19:50, 21:00, 22:20 |
   | 3 | 03:50, 05:30, 07:10 | 08:50, 10:30, 12:10, 13:50, 15:30, 17:10, 18:50, 20:30, 22:10 |
-  | 2 | 04:15, 06:45 | 09:15, 11:45, 14:15, 16:45, 19:15, 21:45 |
+  | 2 | 04:10, 06:40 | 09:10, 11:40, 14:10, 16:40, 19:10, 21:40 |
 
   Each account still meets four windows in an 08:00–23:00 day. The cost is short windows at the
   day's edges: in the three-account schedule, the first account has 50 minutes of its first
@@ -653,7 +661,7 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   third day would show the marker a third of the way along, and be on pace for 0%.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
   shows empty, as not started, until something uses it or a prime starts it, and, from the
-  router, when its account is next primed: `not started · next prime Tue 04:15`.
+  router, when its account is next primed: `not started · next prime Tue 04:10`.
 - Under the heading, where the usage came from, then `best next: …`, each part set apart by a dot
   wider than the one within an account's title: the router, how many sessions it has and where
   it sends new ones (`router  ·  3 sessions  ·  pinned to 2 · two  ·  best next: …`,
@@ -666,7 +674,7 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   `nothing read yet`, dim. With priming on, a line under it gives the next reset among the
   accounts' 5-hour windows, and, from the router, the next prime, each with its account, rather
   than the daily schedule, which is `status`'s:
-  `next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Tue 06:45`.
+  `next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Tue 06:40`.
 - Each account the global pin names carries a `● pinned` badge beside the best's `▲ best`, and
   the primary a `◆ primary` badge, and cards are wide enough for all three, so pinning never
   reflows them. What the router holds an account back by shows at the top of its card, in red,

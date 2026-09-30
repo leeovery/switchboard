@@ -56,7 +56,7 @@ func TestCollectGivesTheScheduleOverTheAccountsWithTokens(t *testing.T) {
 	}
 
 	collector.Prime = config.Prime{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}}
-	want := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "04:15"}, {Account: "side", At: "06:45"}}}
+	want := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "04:10"}, {Account: "side", At: "06:40"}}}
 	if doc := collector.Collect(t.Context(), accounts); !reflect.DeepEqual(doc.Prime, want) {
 		t.Errorf("Collect().Prime = %+v, want %+v: personal has no token, and when each is next primed is the router's to say", doc.Prime, want)
 	}

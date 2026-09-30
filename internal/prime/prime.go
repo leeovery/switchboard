@@ -18,17 +18,21 @@ import (
 const (
 	// fullDay is how long a day runs on the clock.
 	fullDay = 24 * time.Hour
-	// afterReset is how long after a window's reset its account is primed:
-	// the upstream's clock may be a little behind this one's, and a prime it
-	// took in before the reset by its own would start nothing.
+	// afterReset is how long after a window's reset, or its slot, its account
+	// is primed: the upstream's clock may be a little behind this one's, and
+	// a prime it took in before the reset by its own would start nothing, as
+	// one before the slot would start the window in the ten minutes before.
 	afterReset = 5 * time.Second
+	// mark is the span the upstream takes a window's start back to the start
+	// of: every reset seen falls on a ten-minute mark.
+	mark = 10 * time.Minute
 )
 
 // Schedule is when the accounts are primed: each at its slot, before the day
-// starts, so that their first windows reset at even steps through it, the
-// first half a step after it starts; and again whenever its window isn't
-// running, from its slot until the day ends, so its windows run back to back
-// through the day, and lapse overnight.
+// starts, so that their first windows reset at steps through it as even as
+// ten-minute marks allow, the first about half a step after it starts; and
+// again whenever its window isn't running, from its slot until the day ends,
+// so its windows run back to back through the day, and lapse overnight.
 type Schedule struct {
 	day config.Day
 	// window is the key of the window a request starts, and length how long
@@ -53,21 +57,34 @@ type Slot struct {
 // order, priming the window a request starts, as policy names it: with N
 // accounts, their first windows reset every length ÷ N, the first half a step
 // after the day starts, and each account is primed a length before its first
-// reset, to the minute. It reports false when there's nothing to schedule: no
-// day, no account, or a window whose key doesn't give its length.
+// reset, taken back to the ten-minute mark that falls in, as the upstream
+// takes the start of the window it starts back, so each slot is where its
+// window starts, a length before the reset it reads. Taken back, never on, a
+// slot falls before the day starts wherever its reset does, and slots a step
+// apart stay that step apart to within ten minutes, as even as the marks
+// allow. It reports false when there's nothing to schedule: no day, no
+// account, or a window whose key doesn't give its length.
 func New(day config.Day, accounts []string, policy score.Policy) (Schedule, bool) {
 	length, ok := quota.Length(policy.Started)
 	if !ok || day == (config.Day{}) || len(accounts) == 0 {
 		return Schedule{}, false
 	}
-	step := length / time.Duration(len(accounts))
 	s := Schedule{day: day, window: policy.Started, length: length}
 	for i, id := range accounts {
-		reset := day.Start + step/2 + time.Duration(i)*step
-		offset := (reset - length).Round(time.Minute)
+		// Half a step on, and i steps more, of length ÷ N: multiplied out
+		// before it's divided, a reset due on a mark isn't a nanosecond short
+		// of it, taken back to the mark before.
+		reset := day.Start + length*time.Duration(2*i+1)/time.Duration(2*len(accounts))
+		offset := onMark(reset - length)
 		s.slots = append(s.slots, Slot{Account: id, At: timeOfDay(offset), offset: offset})
 	}
 	return s, true
+}
+
+// onMark is offset, the time since some midnight, taken back to the
+// ten-minute mark it falls in, the evening before's included.
+func onMark(offset time.Duration) time.Duration {
+	return offset - (offset%mark+mark)%mark
 }
 
 // Day is the day the schedule spreads the resets over.
@@ -89,10 +106,10 @@ func (s Schedule) Slots() []Slot {
 
 // Next returns when the account is next due a prime, at or after now, whose
 // time zone the day is kept in: when its window a request starts, among its
-// windows as last read, isn't running, from its slot until the day ends. Its
-// window isn't running when it has never been read, or has lapsed, its reset
-// passed with nothing read since; one read running is primed afterReset after
-// its reset. Next reports false when the window can't be judged, as when it
+// windows as last read, isn't running, from afterReset after its slot until
+// the day ends. Its window isn't running when it has never been read, or has
+// lapsed, its reset passed with nothing read since; one read running is
+// primed afterReset after its reset. Next reports false when the window can't be judged, as when it
 // was read without a reset, and may be running, and for an account the
 // schedule doesn't have.
 func (s Schedule) Next(account string, windows []quota.Window, now time.Time) (time.Time, bool) {
@@ -143,9 +160,9 @@ func (s Schedule) earliest(slot Slot, t time.Time) time.Time {
 }
 
 // span returns when the slot's account is primed on the day that starts on
-// the date given, in loc: from its slot until the day ends.
+// the date given, in loc: from afterReset after its slot until the day ends.
 func (s Schedule) span(slot Slot, y int, m time.Month, d int, loc *time.Location) (from, until time.Time) {
-	return wallClock(y, m, d, slot.offset, loc), wallClock(y, m, d, s.end(), loc)
+	return wallClock(y, m, d, slot.offset, loc).Add(afterReset), wallClock(y, m, d, s.end(), loc)
 }
 
 // end is when the day ends, as the time since the midnight that starts it:

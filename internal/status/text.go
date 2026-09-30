@@ -62,7 +62,7 @@ func (d Document) Text(now time.Time, sessions ...Session) string {
 }
 
 // writePriming writes the priming schedule, when priming is on, such as
-// "priming 08:00-23:00: work at 03:50 and side at 06:45", and under it what
+// "priming 08:00-23:00: work at 04:10 and side at 06:40", and under it what
 // comes next of it at now.
 func (d Document) writePriming(b *strings.Builder, now time.Time) {
 	if len(d.Prime.Slots) == 0 {

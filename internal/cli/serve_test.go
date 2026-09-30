@@ -233,9 +233,9 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	srv.extra = "\n[prime]\nday = \"08:00-23:00\"\n"
 	srv.writeConfig(t)
-	// Work and side have token files, so they're primed at 04:15 and 06:45,
+	// Work and side have token files, so they're primed at 04:10 and 06:40,
 	// and personal has none.
-	schedule := "priming 08:00-23:00: work at 04:15 and side at 06:45\n"
+	schedule := "priming 08:00-23:00: work at 04:10 and side at 06:40\n"
 
 	probed := run(t, srv.deps, "status")
 	if want := schedule + "next reset: work · Work, Mon 18:10\n"; !strings.Contains(probed.stdout, want) {
@@ -252,8 +252,8 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 		return len(work.Windows) == 3 && side.Error != ""
 	})
 	want := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-		{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 18, 10, 5, 0, time.UTC)},
-		{Account: "side", At: "06:45", Next: testNow.Add(5 * time.Minute)},
+		{Account: "work", At: "04:10", Next: time.Date(2026, 9, 28, 18, 10, 5, 0, time.UTC)},
+		{Account: "side", At: "06:40", Next: testNow.Add(5 * time.Minute)},
 	}}
 	if !reflect.DeepEqual(doc.Prime, want) {
 		t.Errorf("the router's schedule is\n%+v\nwant\n%+v", doc.Prime, want)
