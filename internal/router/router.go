@@ -179,7 +179,7 @@ func New(cfg Config) (*Router, error) {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
 	changes := newChanges()
-	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note)
+	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	listeners := []func(Event){cfg.Events}
 	var notices *notifications
 	if cfg.notifying() {
@@ -187,7 +187,7 @@ func New(cfg Config) (*Router, error) {
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)
-	sessions := newSessions(cfg.Now, changes.note, changes.used)
+	sessions := newSessions(cfg.Now, changes.note, changes.routine)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
 	health := newHealth(cfg.Now, emit)
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}

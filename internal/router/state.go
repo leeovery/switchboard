@@ -138,8 +138,10 @@ type state struct {
 	family func(model string) string
 	now    func() time.Time
 	// changed hears of each change to what the state file keeps of the
-	// accounts' usage, with s.mu held: it mustn't block, nor call s.
-	changed func()
+	// accounts' usage, and readOff of each that's only a reading off the
+	// answer to a request, which it keeps less often, both with s.mu held:
+	// they mustn't block, nor call s.
+	changed, readOff func()
 	// moments counts the moments marked.
 	moments atomic.Uint64
 
@@ -150,13 +152,14 @@ type state struct {
 	seen map[string]map[string]bool
 }
 
-func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed func()) *state {
+func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, readOff func()) *state {
 	s := &state{
 		accounts: accounts,
 		policy:   policy,
 		family:   family,
 		now:      now,
 		changed:  changed,
+		readOff:  readOff,
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
 	}
@@ -180,7 +183,7 @@ func (s *state) record(id string, windows []quota.Window, sent moment) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.usage[id].take(windows, at, sent, s.mark()) {
-		s.changed()
+		s.readOff()
 	}
 }
 

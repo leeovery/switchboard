@@ -913,16 +913,17 @@ hiding it behind the provider would take a wider interface than it's worth:
   with a usable token or not: see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
   `state.json` is versioned, the version changing only when a router couldn't read what another
   wrote: an older file, without readings, loads as having none, and a pin that names its account
-  alone, as pins did before they named several, as a pin to that one. It's rewritten whole
-  (written beside it, synced, and renamed over it) a second after a change and on the way out,
-  but once a minute at most while its only change is sessions used again, when they were last
-  seen, as every request uses its session; and drops assignments unused for 7 days, with the pins of the sessions it forgets, and the
-  hashes of tokens replaced 7 days before, at start and then hourly. At start it also drops the
-  assignments and the sessions' own pins of accounts no longer configured, those accounts from
-  the global pin, which goes with the last of them, and their readings and token hashes; those of
-  a configured account whose token file can't be read are kept, as the file may only have been
-  caught while it's rewritten, and choices pass the account over until it has a token. A corrupt
-  one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
+  alone, as pins did before they named several, as a pin to that one. It's rewritten whole (written
+  beside it, synced, and renamed over it) a second after a change and on the way out, but once a
+  minute at most while its only changes are those every request makes: its session's assignment used
+  again, and the reading off its answer; and drops assignments unused for 7 days, with the pins of
+  the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
+  hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
+  configured, those accounts from the global pin, which goes with the last of them, and their
+  readings and token hashes; those of a configured account whose token file can't be read are kept,
+  as the file may only have been caught while it's rewritten, and choices pass the account over
+  until it has a token. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the
+  router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see

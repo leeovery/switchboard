@@ -767,7 +767,7 @@ func TestAnAssignmentUsedAgainIsSavedOnceAMinute(t *testing.T) {
 		if n := writes.Load(); n != 1 {
 			t.Errorf("wrote the state file %d times as the session was used again, want no more", n)
 		}
-		time.Sleep(saveUsedEvery - saveAfter - 30*time.Second)
+		time.Sleep(saveRoutineEvery - saveAfter - 30*time.Second)
 		synctest.Wait()
 		if n, seen := writes.Load(), lastSeen(); n != 2 || !seen.Equal(used) {
 			t.Errorf("a minute on, wrote the state file %d times, the session last seen %v, want twice, and %v", n, seen, used)
@@ -778,6 +778,34 @@ func TestAnAssignmentUsedAgainIsSavedOnceAMinute(t *testing.T) {
 		stop()
 		if n, seen := writes.Load(), lastSeen(); n != 3 || !seen.Equal(used) {
 			t.Errorf("stopped, wrote the state file %d times, the session last seen %v, want three times, and %v", n, seen, used)
+		}
+	})
+}
+
+func TestReadingsOffAnswersAreSavedOnceAMinute(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "state.json")
+		f := newTestFile(time.Now, testAccounts())
+		f.load(path)
+		stop := keep(f)
+		defer stop()
+		// The tokens' hashes, new to the file, are saved first.
+		time.Sleep(saveAfter)
+		synctest.Wait()
+		writes := countWrites(f)
+
+		for range 30 {
+			f.state.record("work", []quota.Window{session, week}, f.state.mark())
+			time.Sleep(time.Second)
+		}
+		synctest.Wait()
+		if n := writes.Load(); n != 0 {
+			t.Errorf("wrote the state file %d times as readings came in, want none yet", n)
+		}
+		time.Sleep(saveRoutineEvery - saveAfter - 30*time.Second)
+		synctest.Wait()
+		if n := writes.Load(); n != 1 || len(readState(t, path).Readings) != 1 {
+			t.Errorf("a minute on, wrote the state file %d times, want once, with work's reading", n)
 		}
 	})
 }
