@@ -14,7 +14,7 @@ import (
 
 // routerKeys is what the footer says the keys do while the dashboard reads
 // the router of three accounts.
-const routerKeys = "r refresh · 1–3 pin · a auto · m move · q quit"
+const routerKeys = "r refresh · 1–3 toggle pin · a auto · m move · q quit"
 
 func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
@@ -255,15 +255,18 @@ func TestRefreshKeyReadingTheRouter(t *testing.T) {
 }
 
 func TestKeysTellTheRouterWhereToSendSessions(t *testing.T) {
-	pinned := routerDocument(three()...)
-	pinned.Pin = status.Pin{Account: "side", Since: start.UTC()}
+	pinned := func(ids ...string) status.Document {
+		doc := routerDocument(three()...)
+		doc.Pin = status.Pin{Accounts: ids, Since: start.UTC()}
+		return doc
+	}
 	tests := []struct {
 		name       string
 		doc        status.Document
 		key        string
 		wantOrders []string
 		wantNote   string
-		wantPin    string
+		wantPin    []string
 	}{
 		{
 			name:       "1 pins new sessions to the first account",
@@ -271,30 +274,61 @@ func TestKeysTellTheRouterWhereToSendSessions(t *testing.T) {
 			key:        "1",
 			wantOrders: []string{"pin work"},
 			wantNote:   "new sessions go to work · Work",
-			wantPin:    "work",
+			wantPin:    []string{"work"},
 		},
 		{
-			name:       "3 to the third",
-			doc:        pinned,
+			name:       "3 pins the third beside the first",
+			doc:        pinned("work"),
 			key:        "3",
-			wantOrders: []string{"pin side"},
-			wantNote:   "new sessions go to side · Side",
-			wantPin:    "side",
+			wantOrders: []string{"pin work,side"},
+			wantNote:   "new sessions go to the best of work · Work and side · Side",
+			wantPin:    []string{"work", "side"},
+		},
+		{
+			name:       "2 pins the second between them, in the order configured",
+			doc:        pinned("work", "side"),
+			key:        "2",
+			wantOrders: []string{"pin work,personal,side"},
+			wantNote:   "new sessions go to the best of work · Work, personal · Personal and side · Side",
+			wantPin:    []string{"work", "personal", "side"},
+		},
+		{
+			name:       "3 unpins the third, pinned already, leaving the first",
+			doc:        pinned("work", "side"),
+			key:        "3",
+			wantOrders: []string{"pin work"},
+			wantNote:   "new sessions go to work · Work",
+			wantPin:    []string{"work"},
+		},
+		{
+			name:       "3 unpins the last account pinned, routing every session automatically again",
+			doc:        pinned("side"),
+			key:        "3",
+			wantOrders: []string{"unpin"},
+			wantNote:   "routing automatically",
 		},
 		{
 			name:       "a routes every session automatically again",
-			doc:        pinned,
+			doc:        pinned("work", "side"),
 			key:        "a",
 			wantOrders: []string{"unpin"},
 			wantNote:   "routing automatically",
 		},
 		{
 			name:       "m moves running sessions to the account pinned",
-			doc:        pinned,
+			doc:        pinned("side"),
 			key:        "m",
 			wantOrders: []string{"move side"},
 			wantNote:   "running sessions move to side · Side",
-			wantPin:    "side",
+			wantPin:    []string{"side"},
+		},
+		{
+			name:       "m moves running sessions to the accounts pinned",
+			doc:        pinned("work", "side"),
+			key:        "m",
+			wantOrders: []string{"move work,side"},
+			wantNote:   "running sessions move to the best of work · Work and side · Side",
+			wantPin:    []string{"work", "side"},
 		},
 	}
 	for _, tt := range tests {
@@ -313,7 +347,7 @@ func TestKeysTellTheRouterWhereToSendSessions(t *testing.T) {
 			if got := h.source.looks(); got != looks+1 {
 				t.Errorf("looked at the router's document %d times after the key, want once", got-looks)
 			}
-			if got := h.model.doc.Pin.Account; got != tt.wantPin {
+			if got := h.model.doc.Pin.Accounts; !slices.Equal(got, tt.wantPin) {
 				t.Errorf("the document on screen is pinned to %q, want %q", got, tt.wantPin)
 			}
 		})
@@ -398,7 +432,7 @@ func TestAnOrderTheRouterRefusesSaysWhy(t *testing.T) {
 	if got, want := h.footer(), h.source.refuse.Error()+" · "+routerKeys; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
-	want := []string{"level=WARN", `msg="the router didn't take an order"`, "account=personal", "move=false", "error="}
+	want := []string{"level=WARN", `msg="the router didn't take an order"`, "accounts=personal", "move=false", "error="}
 	if !log.Has(want...) {
 		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 	}
@@ -430,7 +464,7 @@ func TestALookAskedForWhileAReadIsUnderWayComesOnceItLands(t *testing.T) {
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("once it lands, asked for %+v, want %+v", h.source.asked, want)
 	}
-	if got := h.model.doc.Pin.Account; got != "work" {
+	if got := h.model.doc.Pin.Accounts; !slices.Equal(got, []string{"work"}) {
 		t.Errorf("the document on screen is pinned to %q, want work", got)
 	}
 }
@@ -459,8 +493,8 @@ func TestFooterKeysByWhatTheDashboardReads(t *testing.T) {
 		want string
 	}{
 		{name: "the router of three accounts", doc: routerDocument(three()...), want: routerKeys},
-		{name: "the router of one", doc: routerDocument(three()[0]), want: "r refresh · 1 pin · a auto · m move · q quit"},
-		{name: "the router of twelve", doc: routerDocument(many...), want: "r refresh · 1–9 pin · a auto · m move · q quit"},
+		{name: "the router of one", doc: routerDocument(three()[0]), want: "r refresh · 1 toggle pin · a auto · m move · q quit"},
+		{name: "the router of twelve", doc: routerDocument(many...), want: "r refresh · 1–9 toggle pin · a auto · m move · q quit"},
 		{name: "a probe", doc: probedWithoutTheRouter(), want: "r refresh · q quit"},
 	}
 	for _, tt := range tests {
@@ -548,7 +582,7 @@ func TestLogsTheRouterGoingAndComingBack(t *testing.T) {
 		{"level=DEBUG", `msg="usage read" component=watch`, "source=router"},
 		{"level=WARN", `msg="the router stopped answering; probing directly" component=watch`, `router="not running"`},
 		{"level=INFO", `msg="usage read" component=watch`, "source=probe"},
-		{"level=INFO", "msg=pinned component=watch", "account=work", "move=false"},
+		{"level=INFO", "msg=pinned component=watch", "accounts=work", "move=false"},
 	} {
 		if !log.Has(want...) {
 			t.Errorf("log reads\n%s\nwant a line with %q", log, want)

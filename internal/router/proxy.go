@@ -200,7 +200,7 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 	logger.Warn("no account has room outside its reserve; answering 429", attrs...)
 	p.provider.MarkLimited(w.Header(), choice.Back)
 	writeError(w, ex.status, "rate_limit_error",
-		"switchboard: no account has room outside its reserve, which switchboard leaves unused but for a pinned account (switchboard pin <id>)")
+		"switchboard: no account has room outside its reserve, which switchboard leaves unused but on the accounts pinned (switchboard pin <id>...)")
 }
 
 // next asks the chooser which account a request goes out on after those it

@@ -108,6 +108,70 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 	}
 }
 
+func TestRefreshProbesAnAccountWhoseSessionHasLapsedUnderALimitHoldingBackEveryRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		// holdBack holds work back, its session lapsed, at the moment it's
+		// called, a minute before start.
+		holdBack   func(s *state)
+		wantProbed bool
+	}{
+		{
+			name:       "a limit reached in its week",
+			holdBack:   func(s *state) { s.limit("work", []string{"7d"}, start.Add(72*time.Hour)) },
+			wantProbed: true,
+		},
+		{
+			name:       "a limit reached in no window named",
+			holdBack:   func(s *state) { s.limit("work", nil, start.Add(72*time.Hour)) },
+			wantProbed: true,
+		},
+		{
+			name:     "a limit that has lifted",
+			holdBack: func(s *state) { s.limit("work", []string{"7d"}, start.Add(-time.Second)) },
+		},
+		{
+			name:     "a limit reached in its Fable week, which Opus requests can still go out beside",
+			holdBack: func(s *state) { s.limit("work", []string{"7d_oi"}, start.Add(72*time.Hour)) },
+		},
+		{
+			name:     "its token refused",
+			holdBack: func(s *state) { s.refuse("work", http.StatusUnauthorized) },
+		},
+		{
+			name:     "a model refused",
+			holdBack: func(s *state) { s.forbid("work", "opus", http.StatusForbidden) },
+		},
+		{
+			name:     "nothing",
+			holdBack: func(*state) {},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start.Add(-6 * time.Hour)}
+			prober := &stubProber{readings: map[string]quota.Probe{workToken: probed(nil, session, week)}}
+			r := newTestRouter(t, clock.read, prober)
+			// Read six hours ago, work's session has lapsed since, with
+			// nothing read of it; side was read just now.
+			lapsing, spentWeek := session, week
+			lapsing.ResetsAt = start.Add(-time.Hour)
+			spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
+			r.state.record("work", []quota.Window{lapsing, spentWeek})
+			clock.now = start.Add(-time.Minute)
+			tt.holdBack(r.state)
+			r.state.record("side", []quota.Window{session, week})
+			clock.now = start
+
+			// As the dashboard's r asks: what hasn't been read in a minute.
+			askToRefresh(t.Context(), r, `{"max_age": "1m"}`)
+			if probed := prober.counts()[workToken] > 0; probed != tt.wantProbed {
+				t.Errorf("work probed = %v, want %v", probed, tt.wantProbed)
+			}
+		})
+	}
+}
+
 func TestRefreshAnswersWithTheStatusDocumentItLeaves(t *testing.T) {
 	prober := &stubProber{readings: map[string]quota.Probe{workToken: probed(nil, session, week)}}
 	r := newTestRouter(t, at(start), prober)

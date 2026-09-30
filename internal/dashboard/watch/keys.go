@@ -7,11 +7,13 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 const (
 	// pinnable is how many accounts have a key that pins new sessions to
-	// them: the first nine.
+	// them, or unpins them: the first nine.
 	pinnable = 9
 	// noteFor is how long the footer says what a key did.
 	noteFor = 4 * time.Second
@@ -23,55 +25,60 @@ type orderedMsg struct {
 	err   error
 }
 
-// order is what a key tells the router: send new sessions to an account, and
-// with move, running ones too; or, with no account, route every session on
-// its merits again.
+// order is what a key tells the router: send new sessions to the best of
+// accounts, and with move, running ones on another account too; or, with no
+// accounts, route every session on its merits again.
 type order struct {
-	account string
-	move    bool
+	accounts []string
+	move     bool
 	// done says what the order did, for the footer.
 	done string
 }
 
+// routing is the order to route every session on its merits again.
+var routing = order{done: "routing automatically"}
+
 // give has the source carry the order out.
 func (o order) give(ctx context.Context, s Source) error {
-	if o.account == "" {
+	if len(o.accounts) == 0 {
 		return s.Unpin(ctx)
 	}
-	return s.Pin(ctx, o.account, o.move)
+	return s.Pin(ctx, o.accounts, o.move)
 }
 
-// log notes how the order went, naming the account by its id alone.
+// log notes how the order went, naming the accounts by their ids alone.
 func (o order) log(err error) {
+	accounts := strings.Join(o.accounts, ",")
 	switch {
 	case err != nil:
-		logger.Warn("the router didn't take an order", "account", o.account, "move", o.move, "error", err)
-	case o.account == "":
+		logger.Warn("the router didn't take an order", "accounts", accounts, "move", o.move, "error", err)
+	case len(o.accounts) == 0:
 		logger.Info("unpinned")
 	default:
-		logger.Info("pinned", "account", o.account, "move", o.move)
+		logger.Info("pinned", "accounts", accounts, "move", o.move)
 	}
 }
 
 // pressed acts on a key: r reads now, having the router refresh what it
 // hasn't read in the last minute, or probing when it doesn't answer; q or
 // ctrl+c quits. While the dashboard reads the router, 1–9 pin new sessions to
-// the account in that place, as configured; a routes every session on its
-// merits again; and m moves running sessions to the account pinned.
+// the account in that place, as configured, beside those pinned already, or
+// unpin it; a routes every session on its merits again; and m moves running
+// sessions to the accounts pinned.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); k {
 	case "r", "R":
 		logger.Debug("refresh key pressed", "already_reading", m.fetching)
-		return m.read(Read{Refresh: freshFor, Probe: true})
+		return m.read(Fresh())
 	case "q", "Q", "ctrl+c":
 		return m, tea.Quit
 	case "a", "A":
-		return m.command(order{done: "routing automatically"})
+		return m.command(routing)
 	case "m", "M":
 		return m.move()
 	default:
 		if n, ok := place(k); ok {
-			return m.pin(n)
+			return m.toggle(n)
 		}
 	}
 	return m, nil
@@ -85,30 +92,44 @@ func place(key string) (int, bool) {
 	return int(key[0] - '0'), true
 }
 
-// pin has the router send new sessions to the account in place n, counting
-// from 1 in the order they're configured.
-func (m Model) pin(n int) (Model, tea.Cmd) {
+// toggle has the router pin new sessions to the account in place n, counting
+// from 1 in the order they're configured, beside the accounts pinned already;
+// or, when it's one of them, unpin it, routing every session automatically
+// again once none is left.
+func (m Model) toggle(n int) (Model, tea.Cmd) {
 	if n > len(m.doc.Accounts) {
 		return m, nil
 	}
-	a := m.doc.Accounts[n-1]
-	return m.command(order{account: a.ID, done: "new sessions go to " + a.Title()})
+	pinned := toggled(m.doc, m.doc.Accounts[n-1].ID)
+	if len(pinned) == 0 {
+		return m.command(routing)
+	}
+	return m.command(order{accounts: pinned, done: "new sessions go to " + m.doc.Destination(pinned)})
 }
 
-// move has the router move running sessions to the account pinned, or says
+// toggled returns the ids of the accounts doc's pin names, in the order
+// configured, with the account with the given id put in when it isn't one of
+// them, and taken out when it is.
+func toggled(doc status.Document, id string) []string {
+	var ids []string
+	for _, a := range doc.Accounts {
+		if doc.Pin.Has(a.ID) != (a.ID == id) {
+			ids = append(ids, a.ID)
+		}
+	}
+	return ids
+}
+
+// move has the router move running sessions to the accounts pinned, or says
 // there's none to move them to.
 func (m Model) move() (Model, tea.Cmd) {
-	switch pin := m.doc.Pin.Account; {
+	switch pinned := m.doc.Pin.Accounts; {
 	case !m.routed():
 		return m, nil
-	case pin == "":
+	case len(pinned) == 0:
 		return m.noting("nothing's pinned to move sessions to: pin an account with " + places(len(m.doc.Accounts)))
 	default:
-		name := pin
-		if a, ok := m.doc.Account(pin); ok {
-			name = a.Title()
-		}
-		return m.command(order{account: pin, move: true, done: "running sessions move to " + name})
+		return m.command(order{accounts: pinned, move: true, done: "running sessions move to " + m.doc.Destination(pinned)})
 	}
 }
 
@@ -174,7 +195,7 @@ func (m Model) keys() string {
 	}
 	keys := []string{"r refresh"}
 	if len(m.doc.Accounts) > 0 {
-		keys = append(keys, places(len(m.doc.Accounts))+" pin")
+		keys = append(keys, places(len(m.doc.Accounts))+" toggle pin")
 	}
 	return strings.Join(append(keys, "a auto", "m move", "q quit"), " · ")
 }

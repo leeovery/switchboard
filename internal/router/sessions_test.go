@@ -101,7 +101,7 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 		k := key{session: fmt.Sprint(i % 2), model: opus}
 		wg.Go(func() { assign(s, k, "", decision{account: "work", reason: reasonNew}, start) })
 		wg.Go(func() { _ = s.lookup(k) })
-		wg.Go(func() { s.setPin(status.Pin{Account: "side", Since: start}, i%3 == 0) })
+		wg.Go(func() { s.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, i%3 == 0) })
 		wg.Go(func() { _, _ = s.unpin(i%3 == 1) })
 		wg.Go(func() { s.pinSession(k.session, "side") })
 		wg.Go(func() { _, _ = s.session(k.session) })
@@ -242,9 +242,18 @@ func TestForceClearsEverySessionsOwnPin(t *testing.T) {
 		wantPin status.Pin
 	}{
 		{
-			name:    "setting the global pin",
-			force:   func(s *sessions) int { return s.setPin(status.Pin{Account: "side", Since: later, Move: true}, true) },
-			wantPin: status.Pin{Account: "side", Since: later, Move: true},
+			name: "setting the global pin",
+			force: func(s *sessions) int {
+				return s.setPin(status.Pin{Accounts: []string{"side"}, Since: later, Move: true}, true)
+			},
+			wantPin: status.Pin{Accounts: []string{"side"}, Since: later, Move: true},
+		},
+		{
+			name: "setting the global pin to several accounts",
+			force: func(s *sessions) int {
+				return s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: later}, true)
+			},
+			wantPin: status.Pin{Accounts: []string{"work", "side"}, Since: later},
 		},
 		{
 			name: "clearing the global pin",
@@ -259,7 +268,7 @@ func TestForceClearsEverySessionsOwnPin(t *testing.T) {
 			clock := &testClock{now: start}
 			var changes changeCount
 			s := newSessions(clock.read, changes.hear)
-			s.setPin(status.Pin{Account: "work", Since: start.Add(-time.Hour)}, false)
+			s.setPin(status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)}, false)
 			assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 			assign(s, key{session: "given", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 			assign(s, key{session: "unpinned", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
@@ -274,7 +283,7 @@ func TestForceClearsEverySessionsOwnPin(t *testing.T) {
 			if !maps.Equal(s.own, want) {
 				t.Errorf("sessions' pins = %+v, want %+v: each cleared, the unpinned session's left alone", s.own, want)
 			}
-			if s.pin != tt.wantPin || changes == 0 {
+			if !reflect.DeepEqual(s.pin, tt.wantPin) || changes == 0 {
 				t.Errorf("global pin = %+v, and %d changes to save, want %+v, due to be saved", s.pin, changes, tt.wantPin)
 			}
 			for _, id := range []string{"launched", "given"} {
@@ -292,7 +301,24 @@ func TestUnpinningWithoutAPinOrForceChangesNothing(t *testing.T) {
 	assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 	changes = 0
 
-	if was, cleared := s.unpin(false); was != (status.Pin{}) || cleared != 0 || len(s.own) > 0 || changes > 0 {
+	if was, cleared := s.unpin(false); !was.IsZero() || cleared != 0 || len(s.own) > 0 || changes > 0 {
 		t.Errorf("unpin() = %+v, %d, sessions' pins %+v, and %d changes to save, want nothing changed", was, cleared, s.own, changes)
+	}
+}
+
+func TestAPinReplacesTheOneBeforeAndUnpinningSaysWhatItWas(t *testing.T) {
+	var changes changeCount
+	s := newSessions(at(start), changes.hear)
+	s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
+
+	pin := status.Pin{Accounts: []string{"side"}, Since: start}
+	if cleared := s.setPin(pin, false); cleared != 0 || !reflect.DeepEqual(s.globalPin(), pin) {
+		t.Errorf("setPin() cleared %d sessions' pins, leaving the pin %+v, want none cleared, and %+v alone", cleared, s.globalPin(), pin)
+	}
+	if was, cleared := s.unpin(false); !reflect.DeepEqual(was, pin) || cleared != 0 || !s.globalPin().IsZero() {
+		t.Errorf("unpin() = %+v, %d, leaving the pin %+v, want %+v, 0, and no pin", was, cleared, s.globalPin(), pin)
+	}
+	if changes != 3 {
+		t.Errorf("%d changes to save, want 3: each pin set, and the unpinning", changes)
 	}
 }

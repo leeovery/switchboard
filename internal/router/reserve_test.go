@@ -88,7 +88,7 @@ func TestAPinSpendsItsAccountsReserve(t *testing.T) {
 	}
 
 	r.clock.advance(time.Minute)
-	if _, err := client.Pin(t.Context(), router.PinRequest{Account: "work", Move: true}); err != nil {
+	if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"work"}, Move: true}); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
 	for _, reason := range []string{`reason="moved by pin"`, "reason=sticky"} {

@@ -36,12 +36,12 @@ func TestPin(t *testing.T) {
 		{
 			args:    []string{"pin", "side"},
 			want:    "new sessions go to side · Side\n",
-			wantPin: status.Pin{Account: "side", Since: testNow},
+			wantPin: status.Pin{Accounts: []string{"side"}, Since: testNow},
 		},
 		{
 			args:    []string{"pin", "work", "--move"},
 			want:    "new sessions go to work · Work, and running sessions move on their next request\n",
-			wantPin: status.Pin{Account: "work", Since: testNow, Move: true},
+			wantPin: status.Pin{Accounts: []string{"work"}, Since: testNow, Move: true},
 		},
 		{
 			args: []string{"pin", "auto"},
@@ -50,11 +50,26 @@ func TestPin(t *testing.T) {
 		{
 			args:    []string{"pin", "side"},
 			want:    "new sessions go to side · Side\n",
-			wantPin: status.Pin{Account: "side", Since: testNow},
+			wantPin: status.Pin{Accounts: []string{"side"}, Since: testNow},
 		},
 		{
 			args: []string{"pin", "AUTO"},
 			want: "routing automatically\n",
+		},
+		{
+			args:    []string{"pin", "side", "work"},
+			want:    "new sessions go to the best of work · Work and side · Side\n",
+			wantPin: status.Pin{Accounts: []string{"work", "side"}, Since: testNow},
+		},
+		{
+			args:    []string{"pin", "side", "side"},
+			want:    "new sessions go to side · Side\n",
+			wantPin: status.Pin{Accounts: []string{"side"}, Since: testNow},
+		},
+		{
+			args:    []string{"pin", "work", "side", "work", "--move"},
+			want:    "new sessions go to the best of work · Work and side · Side, and running sessions move on their next request\n",
+			wantPin: status.Pin{Accounts: []string{"work", "side"}, Since: testNow, Move: true},
 		},
 	}
 	for _, tt := range tests {
@@ -62,7 +77,7 @@ func TestPin(t *testing.T) {
 		if want := (result{stdout: tt.want}); got != want {
 			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
 		}
-		if doc := srv.status(t); doc.Pin != tt.wantPin {
+		if doc := srv.status(t); !reflect.DeepEqual(doc.Pin, tt.wantPin) {
 			t.Errorf("after switchboard %s, the router's pin = %+v, want %+v", strings.Join(tt.args, " "), doc.Pin, tt.wantPin)
 		}
 	}
@@ -77,12 +92,17 @@ func TestPinForce(t *testing.T) {
 		{
 			args:    []string{"pin", "side", "--force"},
 			want:    "new sessions go to side · Side, every session's own pin cleared\n",
-			wantPin: status.Pin{Account: "side", Since: testNow},
+			wantPin: status.Pin{Accounts: []string{"side"}, Since: testNow},
 		},
 		{
 			args:    []string{"pin", "side", "--move", "--force"},
 			want:    "new sessions go to side · Side, and running sessions move on their next request, every session's own pin cleared\n",
-			wantPin: status.Pin{Account: "side", Since: testNow, Move: true},
+			wantPin: status.Pin{Accounts: []string{"side"}, Since: testNow, Move: true},
+		},
+		{
+			args:    []string{"pin", "side", "work", "--move", "--force"},
+			want:    "new sessions go to the best of work · Work and side · Side, and running sessions move on their next request, every session's own pin cleared\n",
+			wantPin: status.Pin{Accounts: []string{"work", "side"}, Since: testNow, Move: true},
 		},
 		{
 			args: []string{"pin", "auto", "--force"},
@@ -102,11 +122,32 @@ func TestPinForce(t *testing.T) {
 			if want := (result{stdout: tt.want}); got != want {
 				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
 			}
-			if doc := srv.status(t); doc.Pin != tt.wantPin {
+			if doc := srv.status(t); !reflect.DeepEqual(doc.Pin, tt.wantPin) {
 				t.Errorf("the router's pin = %+v, want %+v", doc.Pin, tt.wantPin)
 			}
 			if session := srv.session(t, sessionOne); session.Pin != "" {
 				t.Errorf("the session launched pinned to work has pin %q, want none", session.Pin)
+			}
+		})
+	}
+}
+
+func TestPinChecksWhatItsGiven(t *testing.T) {
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"pin"}, want: "give the accounts to pin, or auto"},
+		{args: []string{"pin", "work", "auto"}, want: "auto goes back to routing, so it takes no account to pin"},
+		{args: []string{"pin", "AUTO", "side"}, want: "auto goes back to routing, so it takes no account to pin"},
+		{args: []string{"pin", "work", "side", "--session", "0b5c"}, want: "--session pins one session to one account, so give one"},
+		{args: []string{"pin", "auto", "--move"}, want: "--move goes with an account to pin, not auto"},
+	}
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			got := run(t, testDeps(nil, t.TempDir()), tt.args...)
+			if got.code != 1 || !strings.HasPrefix(got.stderr, "Error: "+tt.want+"\n") {
+				t.Errorf("switchboard %s = %+v, want exit status 1 and %q", strings.Join(tt.args, " "), got, tt.want)
 			}
 		})
 	}
@@ -118,19 +159,26 @@ func TestPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 	srv.route(t, sessionThree, "claude-haiku-4-5-20251001")
 	nope := `Error: there's no account "nope": pin work or side` + "\n"
 	personal := "Error: account personal has no usable token, so nothing can go out on it: token missing: write it to " + tokenPath(t, srv.deps, "personal") + "\n"
-	tests := [][]string{
-		{"pin", "nope"},
-		{"pin", "personal"},
-		{"pin", "nope", "--session", "18bb"},
-		{"pin", "personal", "--session", "18bb"},
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"pin", "nope"}, want: nope},
+		{args: []string{"pin", "personal"}, want: personal},
+		{args: []string{"pin", "side", "nope"}, want: nope},
+		{args: []string{"pin", "work", "personal"}, want: personal},
+		{args: []string{"pin", "nope", "--session", "18bb"}, want: nope},
+		{args: []string{"pin", "personal", "--session", "18bb"}, want: personal},
 	}
-	for _, args := range tests {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			want := result{stderr: map[string]string{"nope": nope, "personal": personal}[args[1]], code: 1}
-			if got := run(t, srv.deps, args...); got != want {
-				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			if got, want := run(t, srv.deps, tt.args...), (result{stderr: tt.want, code: 1}); got != want {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, want)
 			}
 		})
+	}
+	if doc := srv.status(t); !doc.Pin.IsZero() {
+		t.Errorf("the router's pin = %+v, want none: no account it named is pinned", doc.Pin)
 	}
 	if session := srv.session(t, sessionThree); session.Pin != "" {
 		t.Errorf("the session has pin %q, want none", session.Pin)
@@ -178,7 +226,7 @@ func TestPinSession(t *testing.T) {
 			t.Errorf("after switchboard %s, the session's pin = %q, want %q", strings.Join(tt.args, " "), session.Pin, tt.wantPin)
 		}
 	}
-	if doc := srv.status(t); doc.Pin != (status.Pin{}) {
+	if doc := srv.status(t); !doc.Pin.IsZero() {
 		t.Errorf("the router's pin = %+v, want none: a session's pin is its own", doc.Pin)
 	}
 }

@@ -61,23 +61,60 @@ func TestClientStatus(t *testing.T) {
 }
 
 func TestClientPin(t *testing.T) {
+	tests := []struct {
+		name string
+		pin  router.PinRequest
+		want status.Pin
+	}{
+		{
+			name: "one account, moving running sessions",
+			pin:  router.PinRequest{Accounts: []string{"side"}, Move: true},
+			want: status.Pin{Accounts: []string{"side"}, Since: now, Move: true},
+		},
+		{
+			name: "several, once each, in the order configured",
+			pin:  router.PinRequest{Accounts: []string{"side", "work", "side"}},
+			want: status.Pin{Accounts: []string{"work", "side"}, Since: now},
+		},
+		{
+			name: "one, as a switchboard from before pins named several asks",
+			pin:  router.PinRequest{Account: "side"},
+			want: status.Pin{Accounts: []string{"side"}, Since: now},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := newRouter(t, "http://127.0.0.1:1")
+			client := router.NewClient(serveControl(t, rt))
+
+			doc, err := client.Pin(t.Context(), tt.pin)
+			if err != nil || !reflect.DeepEqual(doc.Pin, tt.want) || len(doc.Accounts) != 3 {
+				t.Errorf("Pin() = %+v, %v, want the status document, pinned %+v", doc, err, tt.want)
+			}
+			if got := rt.Status().Pin; !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("once pinned, the router's pin = %+v, want %+v", got, tt.want)
+			}
+			doc, err = client.Unpin(t.Context(), false)
+			if err != nil || !doc.Pin.IsZero() || len(doc.Accounts) != 3 {
+				t.Errorf("Unpin() = %+v, %v, want the status document, without a pin", doc, err)
+			}
+			if _, err := client.Unpin(t.Context(), false); err != nil {
+				t.Errorf("Unpin() without a pin: %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestPinningReplacesThePin(t *testing.T) {
 	rt := newRouter(t, "http://127.0.0.1:1")
 	client := router.NewClient(serveControl(t, rt))
+	if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"work", "side"}, Move: true}); err != nil {
+		t.Fatalf("Pin() error = %v", err)
+	}
 
-	doc, err := client.Pin(t.Context(), router.PinRequest{Account: "side", Move: true})
-	want := status.Pin{Account: "side", Since: now, Move: true}
-	if err != nil || doc.Pin != want || len(doc.Accounts) != 3 {
-		t.Errorf("Pin() = %+v, %v, want the status document, pinned %+v", doc, err, want)
-	}
-	if got := rt.Status().Pin; got != want {
-		t.Errorf("once pinned, the router's pin = %+v, want %+v", got, want)
-	}
-	doc, err = client.Unpin(t.Context(), false)
-	if err != nil || doc.Pin != (status.Pin{}) || len(doc.Accounts) != 3 {
-		t.Errorf("Unpin() = %+v, %v, want the status document, without a pin", doc, err)
-	}
-	if _, err := client.Unpin(t.Context(), false); err != nil {
-		t.Errorf("Unpin() without a pin: %v, want nil", err)
+	doc, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side"}})
+	if want := (status.Pin{Accounts: []string{"side"}, Since: now}); err != nil || !reflect.DeepEqual(doc.Pin, want) {
+		t.Errorf("Pin() = pin %+v, %v, want %+v alone", doc.Pin, err, want)
 	}
 }
 
@@ -86,35 +123,45 @@ func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 		name string
 		// tokens are what the accounts' token files hold, work's and side's
 		// tokens unless given.
-		tokens  tokenstest.Files
-		account string
-		wantErr string
+		tokens   tokenstest.Files
+		accounts []string
+		wantErr  string
 	}{
 		{
-			name:    "an account there's none of",
-			account: "nope",
-			wantErr: `there's no account "nope": pin work or side`,
+			name:     "an account there's none of",
+			accounts: []string{"nope"},
+			wantErr:  `there's no account "nope": pin work or side`,
 		},
 		{
-			name:    "an account there's none of, with no account to pin",
-			tokens:  tokenstest.Files{},
-			account: "nope",
-			wantErr: `there's no account "nope", and no account has a usable token to pin`,
+			name:     "an account there's none of, among those there are",
+			accounts: []string{"work", "nope", "side"},
+			wantErr:  `there's no account "nope": pin work or side`,
 		},
 		{
-			name:    "an account without a usable token",
-			account: "personal",
-			wantErr: "account personal has no usable token, so nothing can go out on it: " + personalMissing,
+			name:     "an account there's none of, with no account to pin",
+			tokens:   tokenstest.Files{},
+			accounts: []string{"nope"},
+			wantErr:  `there's no account "nope", and no account has a usable token to pin`,
 		},
 		{
-			name:    "an account without a usable token, with no account to pin",
-			tokens:  tokenstest.Files{},
-			account: "work",
-			wantErr: "account work has no usable token, so nothing can go out on it: " + tokenstest.Missing("work").Error(),
+			name:     "an account without a usable token",
+			accounts: []string{"personal"},
+			wantErr:  "account personal has no usable token, so nothing can go out on it: " + personalMissing,
+		},
+		{
+			name:     "an account without a usable token, among those with one",
+			accounts: []string{"side", "personal"},
+			wantErr:  "account personal has no usable token, so nothing can go out on it: " + personalMissing,
+		},
+		{
+			name:     "an account without a usable token, with no account to pin",
+			tokens:   tokenstest.Files{},
+			accounts: []string{"work"},
+			wantErr:  "account work has no usable token, so nothing can go out on it: " + tokenstest.Missing("work").Error(),
 		},
 		{
 			name:    "no account",
-			wantErr: `give the account to pin, such as {"account": "work"}`,
+			wantErr: `give the accounts to pin, such as {"accounts": ["work"]}`,
 		},
 	}
 	for _, tt := range tests {
@@ -126,10 +173,10 @@ func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 			rt := newRouterFrom(t, cfg)
 			client := router.NewClient(serveControl(t, rt))
 
-			if _, err := client.Pin(t.Context(), router.PinRequest{Account: tt.account}); err == nil || err.Error() != tt.wantErr {
+			if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: tt.accounts}); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Pin() error = %v, want %q", err, tt.wantErr)
 			}
-			if got := rt.Status().Pin; got != (status.Pin{}) {
+			if got := rt.Status().Pin; !got.IsZero() {
 				t.Errorf("the router's pin = %+v, want none", got)
 			}
 		})
@@ -145,7 +192,7 @@ func TestPinningTakesWhatItAsksFor(t *testing.T) {
 			method:  http.MethodPost,
 			path:    "/pin",
 			body:    "side",
-			wantErr: `give the account to pin as JSON, such as {"account": "work", "move": false, "force": false}`,
+			wantErr: `give the accounts to pin as JSON, such as {"accounts": ["work"], "move": false, "force": false}`,
 		},
 		{
 			method:  http.MethodPost,
@@ -463,7 +510,7 @@ func TestClientWithoutARouter(t *testing.T) {
 			if _, err := client.UnpinSession(t.Context(), sessionID); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("UnpinSession() error = %v, want ErrNotRunning", err)
 			}
-			if _, err := client.Pin(t.Context(), router.PinRequest{Account: "side"}); !errors.Is(err, router.ErrNotRunning) {
+			if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side"}}); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Pin() error = %v, want ErrNotRunning", err)
 			}
 			if _, err := client.Unpin(t.Context(), false); !errors.Is(err, router.ErrNotRunning) {

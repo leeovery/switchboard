@@ -54,6 +54,17 @@ func TestUsage(t *testing.T) {
 	}
 }
 
+func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
+	for _, flag := range []string{"--refresh", "-r"} {
+		t.Run(flag, func(t *testing.T) {
+			got := run(t, goldenDeps(t, nil), "usage", flag)
+			if want := (result{stdout: readGolden(t, "usage.golden")}); got != want {
+				t.Errorf("switchboard usage %s =\n%+v\nwant what usage prints (testdata/usage.golden)\n%+v", flag, got, want)
+			}
+		})
+	}
+}
+
 func TestUsageColor(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -263,6 +274,8 @@ func TestUsageWatchArguments(t *testing.T) {
 		{name: "a number of minutes too few", args: []string{"usage", "-w", "2"}, wantErr: "interval 2 is too short: the shortest is 5m"},
 		{name: "no interval at all", args: []string{"usage", "-w", "0"}, wantErr: "interval 0 is too short: the shortest is 5m"},
 		{name: "a negative interval", args: []string{"usage", "-w", "--", "-10m"}, wantErr: "interval -10m is too short: the shortest is 5m"},
+		{name: "refreshing", args: []string{"usage", "-w", "-r"}, wantErr: "--refresh reads once, so it takes no --watch: in a watch, r refreshes"},
+		{name: "refreshing, with an interval", args: []string{"usage", "--watch", "15m", "--refresh"}, wantErr: "--refresh reads once, so it takes no --watch: in a watch, r refreshes"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

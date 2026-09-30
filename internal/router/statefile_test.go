@@ -28,7 +28,7 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 	saved := newTestFile(at(start), testAccounts())
 	saved.load(path)
 	s := saved.sessions
-	s.setPin(status.Pin{Account: "side", Since: start.Add(-time.Hour), Move: true}, false)
+	s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
@@ -39,7 +39,7 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 
 	loaded := newTestFile(at(start), testAccounts())
 	loaded.load(path)
-	if l := loaded.sessions; !maps.Equal(l.assignments, s.assignments) || !maps.Equal(l.own, s.own) || l.pin != s.pin {
+	if l := loaded.sessions; !maps.Equal(l.assignments, s.assignments) || !maps.Equal(l.own, s.own) || !reflect.DeepEqual(l.pin, s.pin) {
 		t.Errorf("loaded\n%+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v",
 			l.assignments, l.own, l.pin, s.assignments, s.own, s.pin)
 	}
@@ -50,7 +50,11 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 	want := `{
   "version": 1,
   "pin": {
-    "account": "side",
+    "accounts": [
+      "work",
+      "side"
+    ],
+    "account": "work",
     "since": "2026-09-28T12:12:00Z",
     "move": true
   },
@@ -235,7 +239,7 @@ func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
 	f := newTestFile(at(start), testAccounts())
 
 	f.load(path)
-	if got := f.sessions.lookup(key{session: "one", model: opus}); !got.assigned || got.current.Account != "work" || got.global.Account != "side" {
+	if got := f.sessions.lookup(key{session: "one", model: opus}); !got.assigned || got.current.Account != "work" || !slices.Equal(got.global.Accounts, []string{"side"}) {
 		t.Errorf("loaded %+v, want the session on work, and the pin to side, as the file holds", got)
 	}
 	for _, id := range []string{"work", "side"} {
@@ -248,6 +252,69 @@ func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
 	}
 	if !log.Has("level=INFO", `msg="loaded state"`, "assignments=1", "pin=side", "readings=0") {
 		t.Errorf("log reads\n%s\nwant the state loaded, without readings", log)
+	}
+}
+
+func TestLoadingThePin(t *testing.T) {
+	since := start.Add(-time.Hour)
+	tests := []struct {
+		name string
+		pin  string
+		want status.Pin
+		// wantDropped are the accounts the pin loses, as they're no longer
+		// configured.
+		wantDropped []string
+	}{
+		{
+			name: "to one account, as a switchboard from before pins named several wrote it",
+			pin:  `{"account": "side", "since": "2026-09-28T12:12:00Z", "move": true}`,
+			want: status.Pin{Accounts: []string{"side"}, Since: since, Move: true},
+		},
+		{
+			name: "to several",
+			pin:  `{"accounts": ["work", "side"], "account": "work", "since": "2026-09-28T12:12:00Z", "move": false}`,
+			want: status.Pin{Accounts: []string{"work", "side"}, Since: since},
+		},
+		{
+			name: "to several, named in the order configured",
+			pin:  `{"accounts": ["side", "work"], "account": "side", "since": "2026-09-28T12:12:00Z", "move": false}`,
+			want: status.Pin{Accounts: []string{"work", "side"}, Since: since},
+		},
+		{
+			name:        "to several, one no longer configured",
+			pin:         `{"accounts": ["retired", "side"], "account": "retired", "since": "2026-09-28T12:12:00Z", "move": true}`,
+			want:        status.Pin{Accounts: []string{"side"}, Since: since, Move: true},
+			wantDropped: []string{"retired"},
+		},
+		{
+			name:        "to one no longer configured, as a switchboard from before pins named several wrote it",
+			pin:         `{"account": "retired", "since": "2026-09-28T12:12:00Z", "move": false}`,
+			wantDropped: []string{"retired"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			path := filepath.Join(t.TempDir(), "state.json")
+			content := `{"version": 1, "pin": ` + tt.pin + `, "sessions": [], "tokens": {"side": {"sha256": "` + sideHash + `"}, "work": {"sha256": "` + workHash + `"}}}`
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			f := newTestFile(at(start), testAccounts())
+
+			f.load(path)
+			if got := f.sessions.globalPin(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("loaded pin %+v, want %+v", got, tt.want)
+			}
+			for _, id := range tt.wantDropped {
+				if want := []string{"level=WARN", `msg="dropped from the pin: the account is no longer configured"`, "account=" + id}; !log.Has(want...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+				}
+			}
+			if dropped := len(tt.wantDropped) > 0; f.changes.unsaved.Load() != dropped {
+				t.Errorf("due to be saved = %v, want %v: only what's dropped is a change", f.changes.unsaved.Load(), dropped)
+			}
+		})
 	}
 }
 
@@ -464,7 +531,7 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	week := 7 * 24 * time.Hour
 	putState(t, path, savedState{
 		Version: stateVersion,
-		Pin:     status.Pin{Account: "retired", Since: start.Add(-time.Hour)},
+		Pin:     status.Pin{Accounts: []string{"retired"}, Since: start.Add(-time.Hour)},
 		Sessions: []savedAssignment{
 			{Session: "recent", Model: opus, Account: "work", LastSeen: start.Add(-week + time.Second)},
 			{Session: "pinned", Model: opus, Account: "work", LastSeen: start},
@@ -492,11 +559,11 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	if want := map[string]ownPin{"pinned": {Account: "side", Since: start}}; !maps.Equal(s.own, want) {
 		t.Errorf("loaded sessions' pins %+v, want %+v alone: the others' sessions or accounts are gone", s.own, want)
 	}
-	if s.pin != (status.Pin{}) {
+	if !s.pin.IsZero() {
 		t.Errorf("loaded pin %+v, want none: its account is no longer configured", s.pin)
 	}
 	for _, want := range [][]string{
-		{"level=WARN", `msg="pin dropped: its account is no longer configured"`, "account=retired"},
+		{"level=WARN", `msg="dropped from the pin: the account is no longer configured"`, "account=retired"},
 		{"level=WARN", `msg="session's pin dropped: its account is no longer configured"`, "session=recent", "account=retired"},
 		{"level=INFO", `msg="loaded state"`, "path=" + path, "assignments=2", "pin=\"\""},
 	} {
@@ -512,7 +579,7 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t *testing.T) {
 	log := logstest.Capture(t)
 	path := filepath.Join(t.TempDir(), "state.json")
-	pin := status.Pin{Account: "work", Since: start.Add(-time.Hour)}
+	pin := status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)}
 	assignments := map[key]assignment{{session: "one", model: opus}: {Account: "work", LastSeen: start}}
 	own := map[string]ownPin{"one": {Account: "work", Since: start}}
 	putState(t, path, savedState{
@@ -526,7 +593,7 @@ func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t
 	f := newTestFile(at(start), resolve(testConfigured, tokenstest.Files{"work": "", "side": sideToken}.Read))
 
 	f.load(path)
-	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || s.pin != pin {
+	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || !reflect.DeepEqual(s.pin, pin) {
 		t.Errorf("loaded %+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v: work is still configured",
 			s.assignments, s.own, s.pin, assignments, own, pin)
 	}
@@ -578,7 +645,7 @@ func TestLoadingSetsACorruptStateFileAside(t *testing.T) {
 			f := newTestFile(at(start), testAccounts())
 
 			f.load(path)
-			if held := f.snapshot(); len(held.Sessions) > 0 || held.Pin != (status.Pin{}) || len(held.Readings) > 0 {
+			if held := f.snapshot(); len(held.Sessions) > 0 || !held.Pin.IsZero() || len(held.Readings) > 0 {
 				t.Errorf("loaded %+v, want nothing", held)
 			}
 			aside := filepath.Join(dir, fmt.Sprintf("state.json.corrupt-%d", start.Unix()))
@@ -624,7 +691,7 @@ func TestTheStateFileIsItsOwnersAlone(t *testing.T) {
 	}
 	f := newTestFile(at(start), testAccounts())
 	f.load(path)
-	f.sessions.setPin(status.Pin{Account: "side", Since: start}, false)
+	f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false)
 
 	f.save()
 	if info, err := os.Stat(path); err != nil || info.Mode() != 0o600 {
@@ -672,7 +739,7 @@ func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 		f := newTestFile(time.Now, testAccounts())
 		f.load(path)
 		stop := keep(f)
-		f.sessions.setPin(status.Pin{Account: "side", Since: time.Now()}, false)
+		f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
 		synctest.Wait()
 
 		began := time.Now()
@@ -680,7 +747,7 @@ func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 		if waited := time.Since(began); waited != 0 {
 			t.Errorf("stopping waited %v, want it to save at once", waited)
 		}
-		if held := readState(t, path); held.Pin.Account != "side" {
+		if held := readState(t, path); !slices.Equal(held.Pin.Accounts, []string{"side"}) {
 			t.Errorf("state file holds pin %+v, want the one just set", held.Pin)
 		}
 	})
@@ -738,7 +805,7 @@ func TestASaveThatFailsIsTriedAgain(t *testing.T) {
 			return writeState(path, data)
 		}
 		stop := keep(f)
-		f.sessions.setPin(status.Pin{Account: "side", Since: time.Now()}, false)
+		f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
 
 		time.Sleep(saveAfter)
 		synctest.Wait()
@@ -746,7 +813,7 @@ func TestASaveThatFailsIsTriedAgain(t *testing.T) {
 			t.Errorf("log reads\n%s\nwant the save's failure", log)
 		}
 		stop()
-		if held := readState(t, path); held.Pin.Account != "side" {
+		if held := readState(t, path); !slices.Equal(held.Pin.Accounts, []string{"side"}) {
 			t.Errorf("state file holds pin %+v, want the one that failed to save the first time", held.Pin)
 		}
 	})

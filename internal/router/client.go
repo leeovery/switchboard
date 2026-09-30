@@ -122,11 +122,11 @@ func unknownSession(id string) error {
 	return fmt.Errorf("%w %s", ErrUnknownSession, redact.Text(id))
 }
 
-// Pin has the router pin as p asks: send every new session to its account,
-// with Move, every running session too, on its next request, and with Force,
-// clear every session's own pin. It returns the status document as pinning
-// leaves it, and fails, saying why, for an account the router can't send
-// requests on.
+// Pin has the router pin as p asks: send every new session to the best of its
+// accounts, with Move, every running session on another account too, on its
+// next request, and with Force, clear every session's own pin. It returns the
+// status document as pinning leaves it, and fails, saying why, for an account
+// the router can't send requests on.
 func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error) {
 	var doc status.Document
 	err := c.call(ctx, clientTimeout, http.MethodPost, "/pin", p, &doc)

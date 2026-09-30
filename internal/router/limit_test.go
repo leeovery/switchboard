@@ -118,6 +118,82 @@ func TestAReadingShowingRoomLiftsALimitEarly(t *testing.T) {
 	checkLimit(t, r.rt, "work", status.Limit{})
 }
 
+func TestAResetMadeByHandIsSeenOnceTheRouterRefreshes(t *testing.T) {
+	r, client := limitedOnItsWeek(t)
+	// Work's session lapses, and then its week is reset by hand, a new week
+	// begun, well before the limit's own reset.
+	r.clock.advance(5 * time.Hour)
+	fresh := quota.Window{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: now.Add(10 * time.Hour), Status: quota.StatusAllowed}
+	r.readsAs(workToken, fresh, weekOf(0.01, 7*24*time.Hour))
+
+	if _, err := client.Refresh(t.Context(), time.Minute); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{})
+	if got := r.ask(t, "two", opus, ""); got != "work" {
+		t.Errorf("a new session went to %s, want work, its week reset", got)
+	}
+	if got := limitsReached(r.events.heard()); got != 1 {
+		t.Errorf("%d limits reached, want 1: the probe's reading lifted it", got)
+	}
+}
+
+func TestAProbeAnsweredWithTheLimitKeepsItsBar(t *testing.T) {
+	r, client := limitedOnItsWeek(t)
+	r.clock.advance(5 * time.Hour)
+	fresh := quota.Window{Key: "5h", Label: "Session", Utilization: 0, ResetsAt: now.Add(10 * time.Hour), Status: quota.StatusAllowed}
+	r.readsAs(workToken, fresh, spentWeek())
+	probes := r.prober.probes(workToken)
+
+	if _, err := client.Refresh(t.Context(), time.Minute); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	if r.prober.probes(workToken) == probes {
+		t.Fatal("work wasn't probed, want it probed: its limit holds back every request, so its session lapsing doesn't stop a probe")
+	}
+	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"7d"}, Until: spentWeek().ResetsAt})
+	if got := r.ask(t, "two", opus, ""); got != "side" {
+		t.Errorf("a new session went to %s, want side: work's week is still spent", got)
+	}
+	if got := limitsReached(r.events.heard()); got != 1 {
+		t.Errorf("%d limits reached, want 1: a probe reading the limit is no news", got)
+	}
+}
+
+// limitedOnItsWeek is a routed router whose work, its quota needing using
+// first, has just reached the limit of its week, and a client of its control
+// API.
+func limitedOnItsWeek(t *testing.T) (*routed, *router.Client) {
+	t.Helper()
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, limitReached("You've hit your weekly limit", session, spentWeek()))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"7d"}, Until: spentWeek().ResetsAt})
+	return r, router.NewClient(serveControl(t, r.rt))
+}
+
+// spentWeek is a week the API rejects, spent until tomorrow.
+func spentWeek() quota.Window {
+	w := weekOf(1, 24*time.Hour)
+	w.Status = quota.StatusRejected
+	return w
+}
+
+// limitsReached counts the limits reached among events.
+func limitsReached(events []router.Event) int {
+	n := 0
+	for _, e := range events {
+		if _, ok := e.(router.LimitReached); ok {
+			n++
+		}
+	}
+	return n
+}
+
 func TestAWindowRejectedWithoutItsUseBarsTheRequestsItCountsAlone(t *testing.T) {
 	r := newRouted(t)
 	models := map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}}

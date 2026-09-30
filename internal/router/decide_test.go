@@ -28,8 +28,8 @@ func TestDecide(t *testing.T) {
 		// unread is an account nothing has been read of.
 		unread []quota.Window
 	)
-	pinSide := status.Pin{Account: "side", Since: start.Add(-time.Hour)}
-	moveToSide := status.Pin{Account: "side", Since: start.Add(-time.Hour), Move: true}
+	pinSide := status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour)}
+	moveToSide := status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour), Move: true}
 	hitLimit := func(id string) []Attempt { return []Attempt{{Account: id, Why: "hit its limit"}} }
 	tests := []struct {
 		name string
@@ -159,7 +159,7 @@ func TestDecide(t *testing.T) {
 		{
 			name:   "a session's pin beats the global pin",
 			pin:    "side",
-			global: status.Pin{Account: "work", Since: start.Add(-time.Hour)},
+			global: status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)},
 			work:   soon, side: later,
 			want: decision{account: "side", reason: "pinned"},
 		},
@@ -486,8 +486,8 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(72 * time.Hour)},
 		}
 	)
-	pinWork := status.Pin{Account: "work", Since: start.Add(-time.Hour)}
-	moveToWork := status.Pin{Account: "work", Since: start.Add(-time.Hour), Move: true}
+	pinWork := status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)}
+	moveToWork := status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour), Move: true}
 	tests := []struct {
 		name string
 		// bound has the request ask for Sonnet, whose thinking is bound to
@@ -558,7 +558,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 		},
 		{
 			name:    "a pin elsewhere leaves an account's reserve alone",
-			global:  status.Pin{Account: "side", Since: start.Add(-time.Hour)},
+			global:  status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour)},
 			current: on("work", 5*time.Minute),
 			work:    reserved, side: later,
 			want: decision{account: "side", reason: "pinned (global)", afresh: true},
@@ -590,6 +590,207 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 				req.Model, req.Bound = sonnet, true
 			}
 			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(known(tt.work, tt.side), "work", 0.1)}
+			if tt.current != nil {
+				s.current, s.assigned = *tt.current, true
+			}
+			if got := decide(s); got != tt.want {
+				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecideWithTheGlobalPinOnSeveralAccounts(t *testing.T) {
+	var (
+		// soon's week resets tomorrow, sooner's in two days, and later's in
+		// five: soon's quota needs using first, then sooner's.
+		soon   = weekAt(0.5, 24*time.Hour)
+		sooner = weekAt(0.5, 48*time.Hour)
+		later  = weekAt(0.5, 5*24*time.Hour)
+		// even scores 0.01 an hour; a little ahead of it by 10%, and well
+		// ahead by 25%.
+		even        = weekAt(0.5, 50*time.Hour)
+		littleAhead = weekAt(0.45, 50*time.Hour)
+		wellAhead   = weekAt(0.375, 50*time.Hour)
+		// early's session resets in an hour, late's in four, their weeks
+		// near enough equal, late's a little ahead.
+		early = []quota.Window{
+			{Key: "5h", Utilization: 0.1, ResetsAt: start.Add(time.Hour)},
+			{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(50 * time.Hour)},
+		}
+		late = []quota.Window{
+			{Key: "5h", Utilization: 0.1, ResetsAt: start.Add(4 * time.Hour)},
+			{Key: "7d", Utilization: 0.45, ResetsAt: start.Add(50 * time.Hour)},
+		}
+		// reserved's session has reached a reserve of a tenth, where its
+		// account keeps one.
+		reserved = []quota.Window{
+			{Key: "5h", Utilization: 0.95, ResetsAt: start.Add(2 * time.Hour)},
+			{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(24 * time.Hour)},
+		}
+		spent = []quota.Window{
+			{Key: "5h", Utilization: 1, ResetsAt: start.Add(2 * time.Hour), Status: quota.StatusRejected},
+			{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(72 * time.Hour)},
+		}
+		// unread is an account nothing has been read of.
+		unread []quota.Window
+	)
+	// The pin names side and spare, not work, since an hour before start.
+	pinned := status.Pin{Accounts: []string{"side", "spare"}, Since: start.Add(-time.Hour)}
+	moving := status.Pin{Accounts: []string{"side", "spare"}, Since: start.Add(-time.Hour), Move: true}
+	tests := []struct {
+		name string
+		// unsessioned leaves the request without a session.
+		unsessioned bool
+		// current is the session's assignment, nil for a new session.
+		current *assignment
+		global  status.Pin
+		// work's, side's and spare's windows.
+		work, side, spare []quota.Window
+		// reserving is the account keeping a tenth of every window back, if
+		// any.
+		reserving string
+		want      decision
+	}{
+		{
+			name:   "a new session goes to the pinned account whose quota most needs using, passing over the one unpinned",
+			global: pinned,
+			work:   soon, side: later, spare: sooner,
+			want: decision{account: "spare", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:        "a request without a session goes to the best pinned account",
+			unsessioned: true,
+			global:      pinned,
+			work:        soon, side: sooner, spare: later,
+			want: decision{account: "side", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:   "between pinned accounts near enough equal, the one whose session resets soonest",
+			global: pinned,
+			work:   soon, side: early, spare: late,
+			want: decision{account: "side", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:      "a pinned account at its reserve takes the request, its reserve spent",
+			global:    pinned,
+			reserving: "side",
+			work:      later, side: reserved, spare: later,
+			want: decision{account: "side", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:   "a pinned account with room takes the request, the other pinned without",
+			global: pinned,
+			work:   soon, side: spent, spare: later,
+			want: decision{account: "spare", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:   "the pin yields to every account when none pinned has room",
+			global: pinned,
+			work:   later, side: spent, spare: spent,
+			want: decision{account: "work", reason: "new", afresh: true},
+		},
+		{
+			name:      "the pin yields, an unpinned account at its reserve held back by it",
+			global:    pinned,
+			reserving: "work",
+			work:      reserved, side: spent, spare: spent,
+			want: decision{account: "side", reason: "no account has room", afresh: true, noRoom: true},
+		},
+		{
+			name:   "a pinned account that can be scored comes before one nothing has been read of",
+			global: pinned,
+			work:   soon, side: unread, spare: later,
+			want: decision{account: "spare", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:   "the first pinned account takes the request when none pinned can be scored",
+			global: pinned,
+			work:   soon, side: unread, spare: unread,
+			want: decision{account: "side", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:    "the pin leaves a warm session where it is",
+			global:  pinned,
+			current: on("work", 5*time.Minute),
+			work:    later, side: soon, spare: soon,
+			want: decision{account: "work", reason: "sticky", sticky: true},
+		},
+		{
+			name:    "the pin takes a session whose account has no room",
+			global:  pinned,
+			current: on("work", 5*time.Minute),
+			work:    spent, side: later, spare: sooner,
+			want: decision{account: "spare", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:    "a session idle past the hour on a pinned account keeps to it against another pinned a little ahead",
+			global:  pinned,
+			current: on("side", 2*time.Hour),
+			work:    soon, side: even, spare: littleAhead,
+			want: decision{account: "side", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:    "a session idle past the hour on a pinned account leaves it for another pinned well ahead",
+			global:  pinned,
+			current: on("side", 2*time.Hour),
+			work:    soon, side: even, spare: wellAhead,
+			want: decision{account: "spare", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:    "a pin that moves sessions moves one on an account it doesn't name to the best it names",
+			global:  moving,
+			current: on("work", 5*time.Minute),
+			work:    soon, side: later, spare: sooner,
+			want: decision{account: "spare", reason: "moved by pin"},
+		},
+		{
+			name:    "a pin that moves sessions leaves one on an account it names",
+			global:  moving,
+			current: on("side", 5*time.Minute),
+			work:    soon, side: later, spare: sooner,
+			want: decision{account: "side", reason: "sticky", sticky: true},
+		},
+		{
+			name:    "a pin that moves sessions moves each once",
+			global:  moving,
+			current: assignedAt(on("work", 5*time.Minute), start.Add(-30*time.Minute)),
+			work:    soon, side: later, spare: sooner,
+			want: decision{account: "work", reason: "sticky", sticky: true},
+		},
+		{
+			name:    "a pin that moves sessions waits while none it names has room",
+			global:  moving,
+			current: on("work", 5*time.Minute),
+			work:    later, side: spent, spare: spent,
+			want: decision{account: "work", reason: "sticky", sticky: true},
+		},
+		{
+			name:      "a pin that moves sessions carries one onto a pinned account at its reserve",
+			global:    moving,
+			current:   on("work", 5*time.Minute),
+			reserving: "side",
+			work:      soon, side: reserved, spare: spent,
+			want: decision{account: "side", reason: "moved by pin"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := Request{Session: "0b5c6f2e", Model: opus, Client: "work"}
+			if tt.unsessioned {
+				req.Session = ""
+			}
+			accounts := view{
+				policy: testPolicy,
+				now:    start,
+				candidates: []score.Candidate{
+					{ID: "work", Windows: tt.work},
+					{ID: "side", Windows: tt.side},
+					{ID: "spare", Windows: tt.spare},
+				},
+				applies: testPolicy.IsShared,
+			}
+			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(accounts, tt.reserving, 0.1)}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}

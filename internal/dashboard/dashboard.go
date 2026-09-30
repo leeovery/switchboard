@@ -107,7 +107,7 @@ func origin(doc status.Document) line {
 // routing says how many sessions the router has, and where it sends new ones.
 func routing(doc status.Document) line {
 	l := line{{"router" + status.Separator + status.SessionCount(doc.Sessions) + status.Separator, dimInk}}
-	if doc.Pin.Account == "" {
+	if doc.Pin.IsZero() {
 		return append(l, span{doc.Routing(), dimInk})
 	}
 	return append(l, span{doc.Routing(), pinInk})

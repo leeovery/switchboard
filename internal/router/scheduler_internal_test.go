@@ -57,6 +57,27 @@ func TestAChoiceAfreshProbesNoAccountWhoseSessionHasLapsed(t *testing.T) {
 	}
 }
 
+func TestAChoiceAfreshProbesAnAccountWhoseSessionHasLapsedUnderALimit(t *testing.T) {
+	clock := &testClock{now: start.Add(-20 * time.Minute)}
+	prober := &stubProber{}
+	r := newTestRouter(t, clock.read, prober)
+	// Both were read 20 minutes ago: work's session has lapsed since, with
+	// nothing read of it, but work is under a limit reached in its week, which
+	// holds back every request; side's session still runs.
+	lapsing, running, spentWeek := session, session, week
+	lapsing.ResetsAt, running.ResetsAt = start.Add(-5*time.Minute), start.Add(2*time.Hour)
+	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
+	r.state.record("work", []quota.Window{lapsing, spentWeek})
+	r.state.limit("work", []string{"7d"}, start.Add(72*time.Hour))
+	r.state.record("side", []quota.Window{running, week})
+	clock.now = start
+
+	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+	if got, want := prober.counts(), map[string]int{workToken: 1, sideToken: 1}; !maps.Equal(got, want) {
+		t.Errorf("probes = %v, want %v: work can take no request, so a probe starting its session costs nothing", got, want)
+	}
+}
+
 func TestWithNoRoomNoAccountWhoseSessionHasLapsedIsProbedAgain(t *testing.T) {
 	clock := &testClock{now: start.Add(-2 * time.Minute)}
 	prober := &stubProber{}

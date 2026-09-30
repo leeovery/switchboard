@@ -222,7 +222,7 @@ func (s *sessions) unpin(force bool) (was status.Pin, cleared int) {
 	if force {
 		cleared = s.clearOwn()
 	}
-	if was != (status.Pin{}) || cleared > 0 {
+	if !was.IsZero() || cleared > 0 {
 		s.changed()
 	}
 	return was, cleared
@@ -440,16 +440,17 @@ func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dr
 	return dropped
 }
 
-// recallPin takes in the global pin saved, unless it's to an account no
-// longer configured, and reports whether it left it out. s.mu must be held.
+// recallPin takes in the global pin saved, but for its accounts no longer
+// configured, the pin going with the last of them, and reports whether it
+// left any out. It names the rest in the order configured. s.mu must be held.
 func (s *sessions) recallPin(saved status.Pin, accounts accounts) (dropped bool) {
-	switch {
-	case saved.Account == "":
-	case accounts.includes(saved.Account):
-		s.pin = saved
-	default:
-		logger.Warn("pin dropped: its account is no longer configured", "account", saved.Account)
+	kept := accounts.only(saved.Accounts).configured().IDs()
+	for _, id := range except(saved.Accounts, kept) {
+		logger.Warn("dropped from the pin: the account is no longer configured", "account", id)
 		dropped = true
+	}
+	if saved.Accounts = kept; !saved.IsZero() {
+		s.pin = saved
 	}
 	return dropped
 }

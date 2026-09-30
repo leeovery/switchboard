@@ -80,7 +80,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - **Choosing an account.** A new session goes to the account whose quota most needs using, among those with room in every window its model counts against: the room left in the shared weekly window, divided by the hours until it resets. So quota that resets tomorrow is used before quota that resets next week, and an account with little left scores low unless its week resets soon. Among accounts scoring at least 0.8 of the best, the one whose 5-hour window resets soonest wins, as what's left in a window at its reset is lost; with [priming](#priming), the accounts' resets are spread through the day.
 - **Sticky, for the cache.** A session is remembered by its session id and model once a request of it is answered with success, so a resumed session finds its account again, and a request under an id never used again that fails, as the quota check `claude --resume` sends as it starts can, leaves nothing behind. It stays on that account while its cache is warm, for an hour after its last request, and the account has room. Idle past the hour, its cache is cold and a move costs nothing, so it's re-scored, keeping its own account unless another beats it by 20%. A Claude Sonnet 5.5 session isn't re-scored for idling: its thinking works only on the account that produced it, and a move would lose it.
 - **Limits and replay.** A 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays; the account sits out of the requests the limit counts until the reset the 429 gives, or for five minutes when it gives none, so a limit on Fable's own week leaves its other models' sessions where they are. A 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing. A 429 without usage headers says nothing of the account, but refuses the request itself, so it reaches Claude Code at once, as it came. A request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. When no account has room, Claude Code gets a 429, as it would from one account at its limit; when every account has refused the request lately, a 502 that tells it not to retry.
-- **Pins.** `switchboard pin` sends new sessions to one account, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. Every pin yields at a limit rather than failing. See [`pin`](#pin).
+- **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. Every pin yields at a limit rather than failing. See [`pin`](#pin).
 - **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
 - **Looking after itself.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token. The service's router restarts itself, once no request is in flight, when its config changes or `brew upgrade` replaces it, so `accounts add`, an edit by hand and an upgrade all take effect without a command; a router started by hand with `serve` logs that a restart is due instead. See [`serve`](#serve).
 
@@ -110,7 +110,7 @@ Each account then meets four windows in an 08:00–23:00 day. The cost is short 
 - **A prime** is a probe, one request per model family, Haiku and Fable (falling back to the previous Fable), each capped at one output token, sent to an account whose 5-hour window isn't running. An account whose window is already running, as after a late night, gets none, and its slot shifts for the day. A prime that reads nothing, or doesn't start the window, is logged as a warning and sent again five minutes on.
 - **Through the day,** when an idle account's window resets, the router primes it at once, so its windows run back to back. After the day ends it stops, and the windows lapse overnight.
 - **A prime missed** while the Mac slept, or the router was away, goes out as soon as it can, unless the day has ended.
-- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe`, and `usage` or `status` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
+- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it, or while a limit holds back its every request, as when its week is spent: it can take nothing anyway, so starting its window costs nothing, and a probe is how the router sees a limit you've reset by hand. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe`, and `usage` or `status` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
 
 `status` shows the schedule. `status` and the dashboard show the next reset among the 5-hour windows and, from the router, the next prime, and a 5-hour window that hasn't started says when its account is next primed.
 
@@ -139,7 +139,7 @@ Every command takes `--config <file>`, naming the config file in place of the on
 Every account's usage as a dashboard: a card per account, with a bar for each window, where it's heading and when it resets (see [The Dashboard](#the-dashboard)). It reads the router while it runs, else probes each account.
 
 ```bash
-switchboard usage [-w [interval]] [--no-notify] [--probe]
+switchboard usage [-w [interval]] [--no-notify] [--probe] [-r]
 ```
 
 | Flag | Description |
@@ -147,15 +147,16 @@ switchboard usage [-w [interval]] [--no-notify] [--probe]
 | `-w, --watch` | stay on screen, reading usage every interval, given after the flag: `30m` unless given, `5m` at the least; a duration such as `15m` or `1h`, or a number of minutes |
 | `--no-notify` | with `--watch`, post no desktop notifications |
 | `--probe` | probe every account, even while the router runs |
+| `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. Not with `--watch`, where `r` refreshes |
 
 In watch mode, reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
 
 | Key | Does |
 |---|---|
-| `r` | refresh now: the router probes the accounts it hasn't read in the last minute; without it, every account is probed |
-| `1`–`9` | send new sessions to the account in that place, as configured |
+| `r` | refresh now: the router probes the accounts it hasn't read in the last minute, but for those whose 5-hour window has lapsed and that no limit holds back; without it, every account is probed |
+| `1`–`9` | pin the account in that place, as configured, beside any pinned already, so new sessions go to the best of them; or, pinned already, unpin it, routing automatically again once none is left |
 | `a` | route automatically again |
-| `m` | move running sessions to the pinned account |
+| `m` | move running sessions to the pinned accounts |
 | `q` | quit |
 
 `1`–`9`, `a` and `m` work while the dashboard reads the router. The footer lists the keys that work, and says what each one did.
@@ -165,40 +166,47 @@ switchboard usage              # once
 switchboard usage -w           # on screen, reading every 30 minutes
 switchboard usage -w 15m       # every 15 minutes
 switchboard usage --probe      # read every account from the API, whatever the router says
+switchboard usage -r           # have the router read every account it may first, as after a reset made by hand
 ```
 
 #### `pin`
 
-Tell the router where to send sessions. `pin <account>` sends every new session to one account while it has room, and any other session whose account is chosen afresh; `pin auto` goes back to routing. It needs the router.
+Tell the router where to send sessions. `pin <account>...` sends every new session, and any other session whose account is chosen afresh, to the accounts given while one has room: to the one, or to the best of several, as the router would choose were they the only accounts. It replaces any pin before it. When none of them has room, the router chooses among every account as though nothing were pinned. `pin auto` goes back to routing. It needs the router.
 
 ```bash
-switchboard pin <account>|auto [--move] [--force]
+switchboard pin <account>... [--move] [--force]
+switchboard pin auto [--force]
 switchboard pin <account>|auto --session <id>
 ```
 
 | Flag | Description |
 |---|---|
-| `--move` | move running sessions there too, each on its next request, at the cost of a cache rebuild each; not with `auto` |
+| `--move` | move running sessions on other accounts there too, each on its next request, at the cost of a cache rebuild each; not with `auto` |
 | `--force` | clear every session's own pin too, the one `run --account` gave it included |
-| `--session <id>` | pin one running session alone, from its next request, in place of any pin it had; takes neither `--move` nor `--force` |
+| `--session <id>` | pin one running session alone to one account, from its next request, in place of any pin it had; takes neither `--move` nor `--force` |
 
 | Command | New sessions | Running sessions |
 |---|---|---|
 | `pin work` | go to `work` | stay where they are while their caches are warm and their accounts have room |
 | `pin work --move` | go to `work` | move to `work` on their next request, but those with a pin of their own |
 | `pin work --move --force` | go to `work` | all move to `work`, their own pins cleared |
+| `pin work side` | go to the best of `work` and `side` | stay where they are while their caches are warm and their accounts have room |
+| `pin work side --move` | go to the best of `work` and `side` | those on neither move to the best of them on their next request, but those with a pin of their own |
 | `pin auto` | routed | stay where they are while their caches are warm and their accounts have room |
 | `pin auto --force` | routed | as `pin auto`, their own pins cleared |
 | `pin work --session 18bb978f` | unaffected | that session moves to `work` on its next request, and stays pinned there |
 | `pin auto --session 18bb978f` | unaffected | that session's own pin is cleared, and it's routed like any other |
 
-A session's own pin beats the global one. Every pin yields at a limit: a pinned session that hits one moves by the usual rules rather than failing. A pin spends its account's reserve (see [The primary and its reserve](#the-primary-and-its-reserve)).
+A session's own pin beats the global one. Every pin yields at a limit: a pinned session that hits one moves by the usual rules rather than failing. A pin spends the reserves of the accounts it names, and no other's (see [The primary and its reserve](#the-primary-and-its-reserve)).
+
+Pinning several accounts sets an order to use them up in: with `pin work side`, `work` and `side` take the new sessions, the better of the two first, until both are out, and only then does anything go to the rest. Say two accounts have a weekly reset banked on claude.ai and a third hasn't: pin the two, let them run out, and reset them by hand. The router sees a reset the next time it reads the account: before a choice it makes afresh once its reading is 15 minutes old, or at once with `switchboard usage -r`, or `r` on the dashboard.
 
 Name a session by its id, or as much of it as is unique among the sessions routed in the last hour: `switchboard status` lists them, Claude Code's `/status` shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it.
 
 ```bash
 switchboard pin side                  # new sessions go to side
 switchboard pin side --move           # and running ones move there too
+switchboard pin work side             # new sessions go to the better of work and side
 switchboard pin auto --force          # back to routing, every session's own pin cleared
 switchboard pin work --session 18bb   # one session, by the start of its id
 ```
@@ -488,7 +496,7 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 `switchboard usage` draws a card per account, laid out for the terminal, down to a line per account when the cards don't fit.
 
 - **Bars** for each window, with a marker where even use across the window would be, a projection ("on pace for 92%", "runs out ~Fri 19:40") and the reset; on an account with a reserve, a mark where the reserve starts. An exhausted window counts down until it's back. A 5-hour window that has lapsed shows empty, as not started, until something uses it or a prime starts it, and, from the router, says when the account is next primed: `not started · next prime Tue 04:15`.
-- **Badges:** the best account to use next is marked `▲ best`, the global pin's `● pinned`, and the primary `◆ primary`. What holds an account back shows at the top of its card: `limit until Mon 21:00`, `refused (403, opus) until 21:40`, `at its reserve (90%)`, or `spending its reserve (pinned)`. Its sessions show at its foot.
+- **Badges:** the best account to use next is marked `▲ best`, each account the global pin names `● pinned`, and the primary `◆ primary`. What holds an account back shows at the top of its card: `limit until Mon 21:00`, `refused (403, opus) until 21:40`, `at its reserve (90%)`, or `spending its reserve (pinned)`. Its sessions show at its foot.
 - **The heading** says where the usage came from, then the best account next: the router, with its sessions and where it sends new ones (`router  ·  3 sessions  ·  routing automatically  ·  best next: side · Side`); `router unhealthy — <reason>`, in red; or `probing directly (router not running)`; probing as asked, with `--probe`, it says nothing of where. With no account to use next, `no account has room right now` stands in for `best next`, or `nothing read yet` while nothing has been read of any account. With priming on, a line under it gives the next reset and, from the router, the next prime: `next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Tue 06:45`. `status` shows the daily schedule.
 
 With `-w` it stays on screen, reading as [`usage`](#usage) says, and takes its keys.

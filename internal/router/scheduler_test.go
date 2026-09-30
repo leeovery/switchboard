@@ -165,8 +165,8 @@ func TestTheGlobalPin(t *testing.T) {
 	}
 	r.clock.advance(time.Minute)
 
-	doc, err := client.Pin(t.Context(), router.PinRequest{Account: "side"})
-	if want := (status.Pin{Account: "side", Since: r.clock.read()}); err != nil || doc.Pin != want {
+	doc, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side"}})
+	if want := (status.Pin{Accounts: []string{"side"}, Since: r.clock.read()}); err != nil || !reflect.DeepEqual(doc.Pin, want) {
 		t.Fatalf("Pin() = pin %+v, %v, want %+v", doc.Pin, err, want)
 	}
 	if got := r.ask(t, "new", opus, ""); got != "side" {
@@ -178,7 +178,7 @@ func TestTheGlobalPin(t *testing.T) {
 	}
 
 	r.clock.advance(time.Minute)
-	if _, err := client.Pin(t.Context(), router.PinRequest{Account: "side", Move: true}); err != nil {
+	if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side"}, Move: true}); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
 	if got := r.ask(t, "running", opus, ""); got != "side" {
@@ -195,7 +195,7 @@ func TestTheGlobalPin(t *testing.T) {
 	waitForLine(t, log, "msg=routed", "session=running", "account=side", "reason=sticky")
 
 	doc = r.rt.Status()
-	if want := (status.Pin{Account: "side", Since: r.clock.read(), Move: true}); doc.Pin != want {
+	if want := (status.Pin{Accounts: []string{"side"}, Since: r.clock.read(), Move: true}); !reflect.DeepEqual(doc.Pin, want) {
 		t.Errorf("the document's pin = %+v, want %+v", doc.Pin, want)
 	}
 	for id, want := range map[string]int{"work": 0, "side": 2} {
@@ -204,21 +204,55 @@ func TestTheGlobalPin(t *testing.T) {
 		}
 	}
 
-	if doc, err := client.Unpin(t.Context(), false); err != nil || doc.Pin != (status.Pin{}) {
+	if doc, err := client.Unpin(t.Context(), false); err != nil || !doc.Pin.IsZero() {
 		t.Fatalf("Unpin() = pin %+v, %v, want none", doc.Pin, err)
 	}
 	if got := r.ask(t, "after", opus, ""); got != "work" {
 		t.Errorf("once unpinned, a new session went to %s, want work, whose quota needs using first", got)
 	}
 	for _, want := range [][]string{
-		{"level=INFO", "msg=pinned", "account=side", "move=false"},
-		{"level=INFO", "msg=pinned", "account=side", "move=true"},
-		{"level=INFO", "msg=unpinned", "account=side"},
+		{"level=INFO", "msg=pinned", "accounts=side", "move=false"},
+		{"level=INFO", "msg=pinned", "accounts=side", "move=true"},
+		{"level=INFO", "msg=unpinned", "accounts=side"},
 	} {
 		if !log.Has(want...) {
 			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 		}
 	}
+}
+
+func TestTheGlobalPinOnSeveralAccounts(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t, withPersonalToken)
+	client := router.NewClient(serveControl(t, r.rt))
+	// Work's quota needs using first, then side's, then personal's.
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 2*24*time.Hour))
+	r.readsAs(personalToken, session, weekOf(0.5, 5*24*time.Hour))
+	if got := r.ask(t, "on work", opus, ""); got != "work" {
+		t.Fatalf("the first session went to %s, want work", got)
+	}
+	pinning(t, client, router.PinRequest{Accounts: []string{"personal"}})
+	if got := r.ask(t, "on personal", opus, ""); got != "personal" {
+		t.Fatalf("the second session went to %s, want personal, as pinned", got)
+	}
+	r.clock.advance(time.Minute)
+
+	if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side", "personal"}, Move: true}); err != nil {
+		t.Fatalf("Pin() error = %v", err)
+	}
+	if got := r.ask(t, "new", opus, ""); got != "side" {
+		t.Errorf("a new session went to %s, want side, the best of those pinned", got)
+	}
+	if got := r.ask(t, "on work", opus, ""); got != "side" {
+		t.Errorf("the session on work went to %s, want side: the pin moves it to the best of those pinned", got)
+	}
+	if got := r.ask(t, "on personal", opus, ""); got != "personal" {
+		t.Errorf("the session on personal went to %s, want personal: the pin names it", got)
+	}
+	waitForLine(t, log, "level=INFO", "msg=pinned", "accounts=personal,side", "move=true")
+	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (global)"`)
+	waitForLine(t, log, "level=INFO", "msg=moved", `session="on work"`, "from=work", "to=side", `reason="moved by pin"`)
 }
 
 func TestAPinGivenWhileASessionRunsMovesItOnItsNextRequest(t *testing.T) {
@@ -305,24 +339,24 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 		{
 			name: "pinning, moving every session",
 			force: func(t *testing.T, client *router.Client) status.Document {
-				return pinning(t, client, router.PinRequest{Account: "work", Move: true, Force: true})
+				return pinning(t, client, router.PinRequest{Accounts: []string{"work"}, Move: true, Force: true})
 			},
-			wantPin:    status.Pin{Account: "work", Since: now.Add(time.Minute), Move: true},
+			wantPin:    status.Pin{Accounts: []string{"work"}, Since: now.Add(time.Minute), Move: true},
 			wantReason: `reason="moved by pin"`,
 		},
 		{
 			name: "pinning, running sessions staying while their caches are warm",
 			force: func(t *testing.T, client *router.Client) status.Document {
-				return pinning(t, client, router.PinRequest{Account: "work", Force: true})
+				return pinning(t, client, router.PinRequest{Accounts: []string{"work"}, Force: true})
 			},
 			idle:       2 * time.Hour,
-			wantPin:    status.Pin{Account: "work", Since: now.Add(time.Minute)},
+			wantPin:    status.Pin{Accounts: []string{"work"}, Since: now.Add(time.Minute)},
 			wantReason: `reason="pinned (global)"`,
 		},
 		{
 			name: "unpinning",
 			force: func(t *testing.T, client *router.Client) status.Document {
-				pinning(t, client, router.PinRequest{Account: "work"})
+				pinning(t, client, router.PinRequest{Accounts: []string{"work"}})
 				doc, err := client.Unpin(t.Context(), true)
 				if err != nil {
 					t.Fatalf("Unpin() error = %v", err)
@@ -352,7 +386,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			}
 			r.clock.advance(time.Minute)
 
-			if doc := tt.force(t, client); doc.Pin != tt.wantPin {
+			if doc := tt.force(t, client); !reflect.DeepEqual(doc.Pin, tt.wantPin) {
 				t.Errorf("once forced, the global pin = %+v, want %+v", doc.Pin, tt.wantPin)
 			}
 			r.clock.advance(tt.idle)

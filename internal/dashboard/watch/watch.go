@@ -42,9 +42,10 @@ var ErrNoRouter = errors.New("the router isn't answering")
 type Source interface {
 	// Read reads the document as r asks.
 	Read(ctx context.Context, r Read) (status.Document, error)
-	// Pin has the router send every new session to the account with the
-	// given id, and with move, every running session too.
-	Pin(ctx context.Context, account string, move bool) error
+	// Pin has the router send every new session to the best of the accounts
+	// with the given ids, and with move, every running session on another
+	// account too.
+	Pin(ctx context.Context, accounts []string, move bool) error
 	// Unpin has the router route every session on its merits again.
 	Unpin(ctx context.Context) error
 	// RouterAnswers reports whether the router answers: while it does, it
@@ -60,6 +61,14 @@ type Read struct {
 	// Probe, when the router doesn't answer, builds the document by probing
 	// every account instead. Without it, such a read fails with ErrNoRouter.
 	Probe bool
+}
+
+// Fresh is the read r asks for, which usage --refresh asks for too: the
+// router first refreshes every account it hasn't read in the last minute, the
+// least it waits between probes of one, or, without the router, every account
+// is probed.
+func Fresh() Read {
+	return Read{Refresh: freshFor, Probe: true}
 }
 
 // full reports whether the read brings every account up to date: the router

@@ -9,8 +9,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -56,7 +58,7 @@ from the router: healthy  ·  1 session  ·  pinned to side · Side
 
 	doc := statusJSON(t, srv.deps)
 	work, _ := doc.Account("work")
-	if doc.Source != status.SourceRouter || doc.Pin.Account != "side" || !doc.Router.Healthy || doc.Router.Requests != 1 || doc.Sessions != 1 || work.Sessions != 1 {
+	if doc.Source != status.SourceRouter || !slices.Equal(doc.Pin.Accounts, []string{"side"}) || !doc.Router.Healthy || doc.Router.Requests != 1 || doc.Sessions != 1 || work.Sessions != 1 {
 		t.Errorf("switchboard status --json printed\n%+v\nwant the router's document: pinned to side, healthy, with work's session", doc)
 	}
 }
@@ -154,6 +156,30 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	}
 }
 
+func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
+	var later atomic.Int64
+	api := newClaudeAPI(t)
+	srv := newServeSetup(t, api.URL, nil)
+	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
+	srv.start(t)
+	srv.waitForProbes(t)
+
+	for i, args := range [][]string{{"usage"}, {"usage", "--refresh"}, {"usage", "-r"}} {
+		// Two minutes on each time, every account last read over a minute
+		// ago, and last probed.
+		later.Store(int64(i+1) * int64(2*time.Minute))
+		asked := len(api.questions())
+		got := run(t, srv.deps, args...)
+		if got.code != 0 || got.stderr != "" || !strings.Contains(got.stdout, "\n router  ·  ") {
+			t.Fatalf("switchboard %s = %+v, want exit status 0 and the router's dashboard", strings.Join(args, " "), got)
+		}
+		refreshed := len(api.questions()) > asked
+		if want := len(args) > 1; refreshed != want {
+			t.Errorf("after switchboard %s, the router probed = %v, want %v", strings.Join(args, " "), refreshed, want)
+		}
+	}
+}
+
 func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
@@ -167,16 +193,16 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 			t.Errorf("Read(%+v) = %+v, %v, want the router's document", r, doc, err)
 		}
 	}
-	if err := cfg.Source.Pin(t.Context(), "side", true); err != nil {
+	if err := cfg.Source.Pin(t.Context(), []string{"side", "work"}, true); err != nil {
 		t.Fatalf("Pin() error = %v", err)
 	}
-	if got, want := srv.status(t).Pin, (status.Pin{Account: "side", Since: testNow, Move: true}); got != want {
+	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"work", "side"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
 		t.Errorf("once pinned, the router's pin = %+v, want %+v", got, want)
 	}
 	if err := cfg.Source.Unpin(t.Context()); err != nil {
 		t.Fatalf("Unpin() error = %v", err)
 	}
-	if got := srv.status(t).Pin; got != (status.Pin{}) {
+	if got := srv.status(t).Pin; !got.IsZero() {
 		t.Errorf("once unpinned, the router's pin = %+v, want none", got)
 	}
 
@@ -188,7 +214,7 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{Router: status.RouterNotRunning}) {
 		t.Errorf("once the router stopped, a read that may probe = %+v, %v, want one probed, as the router isn't running", doc, err)
 	}
-	if err := cfg.Source.Pin(t.Context(), "side", false); err == nil || err.Error() != "the router isn't running: start it with switchboard service install (or switchboard serve)" {
+	if err := cfg.Source.Pin(t.Context(), []string{"side"}, false); err == nil || err.Error() != "the router isn't running: start it with switchboard service install (or switchboard serve)" {
 		t.Errorf("once the router stopped, Pin() error = %v, want it to say so", err)
 	}
 }

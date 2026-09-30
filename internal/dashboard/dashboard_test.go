@@ -50,6 +50,8 @@ func layouts() []layout {
 		{name: "long-labels", doc: longLabels(), opts: dashboard.Options{Width: 120}},
 		{name: "router-pinned", doc: routed(), opts: dashboard.Options{Width: 160}},
 		{name: "router-pinned-elsewhere", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 110}},
+		{name: "router-pinned-to-two", doc: pinnedToTwo(), opts: dashboard.Options{Width: 160}},
+		{name: "router-pinned-to-two-compact", doc: pinnedToTwo(), opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "router-automatic", doc: routedAutomatically(), opts: dashboard.Options{Width: 160}},
 		{name: "router-unhealthy", doc: routerUnhealthy(), opts: dashboard.Options{Width: 160}},
 		{name: "router-refused", doc: routedRefused(), opts: dashboard.Options{Width: 160}},
@@ -213,7 +215,7 @@ func TestRenderCleansWhatTheRouterSays(t *testing.T) {
 		{
 			Source:   status.SourceRouter,
 			Router:   status.Health{Healthy: true},
-			Pin:      status.Pin{Account: "work"},
+			Pin:      status.Pin{Accounts: []string{"work"}},
 			Accounts: []status.Account{{ID: "work", Label: "Work\x1b[31m\tteam\n", TokenSet: true}},
 		},
 		{
@@ -559,7 +561,7 @@ func routed() status.Document {
 	doc := threeAccounts()
 	doc.Source = status.SourceRouter
 	doc.Router = status.Health{Healthy: true, Requests: 42}
-	doc.Pin = status.Pin{Account: "2", Since: now.Add(-hour).UTC()}
+	doc.Pin = status.Pin{Accounts: []string{"2"}, Since: now.Add(-hour).UTC()}
 	doc.Sessions = 3
 	doc.Accounts[0].Sessions = 1
 	doc.Accounts[1].Sessions = 2
@@ -579,7 +581,14 @@ func routedRefused() status.Document {
 // pinnedElsewhere is routed, pinned to work rather than the best.
 func pinnedElsewhere() status.Document {
 	doc := routed()
-	doc.Pin.Account = "1"
+	doc.Pin.Accounts = []string{"1"}
+	return doc
+}
+
+// pinnedToTwo is routed, pinned to work and personal, the best.
+func pinnedToTwo() status.Document {
+	doc := routed()
+	doc.Pin.Accounts = []string{"1", "2"}
 	return doc
 }
 
@@ -602,7 +611,7 @@ func atReserve() status.Document {
 // spendingReserve is atReserve pinned to work, whose reserve the pin spends.
 func spendingReserve() status.Document {
 	doc := atReserve()
-	doc.Pin.Account = "1"
+	doc.Pin.Accounts = []string{"1"}
 	return doc
 }
 

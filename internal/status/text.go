@@ -95,13 +95,13 @@ func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 
 // Reserved says how the account's reserve stands once a window has reached
 // it: "at its reserve (90%)", the router's own choices passing the account
-// over from that share of a window on, or, with the global pin on it,
+// over from that share of a window on, or, with the global pin naming it,
 // "spending its reserve (pinned)". It's "" while no window has reached it.
 func (d Document) Reserved(a Account) string {
 	switch {
 	case len(a.AtReserve) == 0:
 		return ""
-	case a.ID == d.Pin.Account:
+	case d.Pin.Has(a.ID):
 		return "spending its reserve (pinned)"
 	default:
 		return "at its reserve (" + Percent(1-a.Reserve) + ")"
@@ -151,17 +151,37 @@ func because(what, why string) string {
 	return what + ", " + why
 }
 
-// Routing says where the router sends new sessions: to the account pinned, as
-// in "pinned to side · Side", or wherever suits, "routing automatically".
+// Routing says where the router sends new sessions: to the accounts pinned,
+// as in "pinned to side · Side" or "pinned to work · Work and side · Side", or
+// wherever suits, "routing automatically".
 func (d Document) Routing() string {
-	if d.Pin.Account == "" {
+	if d.Pin.IsZero() {
 		return "routing automatically"
 	}
-	name := Clean(d.Pin.Account)
-	if account, ok := d.Account(d.Pin.Account); ok {
-		name = account.Title()
+	return "pinned to " + d.Names(d.Pin.Accounts)
+}
+
+// Destination says where a pin to the accounts with the given ids sends
+// sessions: to the one, as in "side · Side", or to the best of several, as in
+// "the best of work · Work and side · Side", named as Names names them.
+func (d Document) Destination(ids []string) string {
+	if len(ids) > 1 {
+		return "the best of " + d.Names(ids)
 	}
-	return "pinned to " + name
+	return d.Names(ids)
+}
+
+// Names names the accounts with the given ids, as in "work · Work and side ·
+// Side": each by its title, or by its id, cleaned, when the document lacks it.
+func (d Document) Names(ids []string) string {
+	names := make([]string, len(ids))
+	for i, id := range ids {
+		names[i] = Clean(id)
+		if account, ok := d.Account(id); ok {
+			names[i] = account.Title()
+		}
+	}
+	return prose.List(names)
 }
 
 // SessionCount counts sessions in words, such as "3 sessions", "1 session" or

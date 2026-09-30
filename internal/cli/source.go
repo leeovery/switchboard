@@ -115,13 +115,13 @@ func fallbackFrom(err error) status.Fallback {
 	}
 }
 
-// Pin has the router send every new session to the account with the given
-// id, and with move, every running session too.
-func (s usageSource) Pin(ctx context.Context, account string, move bool) error {
+// Pin has the router send every new session to the best of the accounts with
+// the given ids, and with move, every running session on another account too.
+func (s usageSource) Pin(ctx context.Context, accounts []string, move bool) error {
 	if s.router == nil {
 		return errRouterDown
 	}
-	_, err := s.router.Pin(ctx, router.PinRequest{Account: account, Move: move})
+	_, err := s.router.Pin(ctx, router.PinRequest{Accounts: accounts, Move: move})
 	return fromRouter(err)
 }
 

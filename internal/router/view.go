@@ -36,6 +36,13 @@ func (v view) without(ids []string) view {
 	return v
 }
 
+// within returns the view with the accounts given alone for the request to go
+// out on.
+func (v view) within(ids []string) view {
+	v.candidates = slices.DeleteFunc(slices.Clone(v.candidates), func(c score.Candidate) bool { return !slices.Contains(ids, c.ID) })
+	return v
+}
+
 // spend returns the view with the request able to spend the reserves of the
 // accounts given, as pins name them.
 func (v view) spend(ids ...string) view {

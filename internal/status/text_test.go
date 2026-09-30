@@ -83,7 +83,7 @@ probed directly
 				GeneratedAt: now.UTC(),
 				Source:      status.SourceRouter,
 				Best:        "work",
-				Pin:         status.Pin{Account: "side", Since: now.UTC().Add(-time.Hour)},
+				Pin:         status.Pin{Accounts: []string{"side"}, Since: now.UTC().Add(-time.Hour)},
 				Router:      status.Health{Healthy: true, Requests: 12},
 				Sessions:    3,
 				Accounts: []status.Account{
@@ -309,12 +309,12 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 	}{
 		{
 			name: "at its reserve",
-			pin:  status.Pin{Account: "side", Since: now.UTC().Add(-time.Hour)},
+			pin:  status.Pin{Accounts: []string{"side"}, Since: now.UTC().Add(-time.Hour)},
 			work: "  limit until Mon 21:00\n  at its reserve (90%)\n  2 sessions\n",
 		},
 		{
 			name: "spending its reserve, pinned",
-			pin:  status.Pin{Account: "work", Since: now.UTC().Add(-time.Hour)},
+			pin:  status.Pin{Accounts: []string{"work"}, Since: now.UTC().Add(-time.Hour)},
 			work: "  limit until Mon 21:00\n  spending its reserve (pinned)\n  2 sessions\n",
 		},
 	}
@@ -349,18 +349,20 @@ func TestReserved(t *testing.T) {
 	tests := []struct {
 		name    string
 		account status.Account
-		pin     string
-		want    string
+		// pin are the accounts the global pin names.
+		pin  []string
+		want string
 	}{
 		{name: "at its reserve, where the reserve starts", account: atReserve, want: "at its reserve (85%)"},
-		{name: "at its reserve, the global pin elsewhere", account: atReserve, pin: "side", want: "at its reserve (85%)"},
-		{name: "spent by the global pin", account: atReserve, pin: "work", want: "spending its reserve (pinned)"},
+		{name: "at its reserve, the global pin elsewhere", account: atReserve, pin: []string{"side"}, want: "at its reserve (85%)"},
+		{name: "spent by the global pin", account: atReserve, pin: []string{"work"}, want: "spending its reserve (pinned)"},
+		{name: "spent by the global pin, among others", account: atReserve, pin: []string{"work", "side"}, want: "spending its reserve (pinned)"},
 		{name: "short of its reserve", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}},
-		{name: "short of its reserve, pinned", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}, pin: "work"},
+		{name: "short of its reserve, pinned", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}, pin: []string{"work"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := status.Document{Pin: status.Pin{Account: tt.pin}, Accounts: []status.Account{tt.account}}
+			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
 			if got := doc.Reserved(tt.account); got != tt.want {
 				t.Errorf("Reserved() = %q, want %q", got, tt.want)
 			}
@@ -503,7 +505,7 @@ func TestTextShowsWhatCameFromElsewhereCleaned(t *testing.T) {
 	routers := status.Document{
 		Source:   status.SourceRouter,
 		Best:     "work",
-		Pin:      status.Pin{Account: "gone" + clear},
+		Pin:      status.Pin{Accounts: []string{"gone" + clear}},
 		Router:   status.Health{Reason: clear + "6 of the 8 requests in the last 5 minutes failed"},
 		Accounts: []status.Account{work},
 	}.Text(now, running)
@@ -575,9 +577,11 @@ func TestRouting(t *testing.T) {
 		want string
 	}{
 		{name: "unpinned", want: "routing automatically"},
-		{name: "pinned", pin: status.Pin{Account: "side"}, want: "pinned to side · Side"},
-		{name: "pinned, moving running sessions", pin: status.Pin{Account: "work", Move: true}, want: "pinned to work · Work"},
-		{name: "pinned to an account the document lacks", pin: status.Pin{Account: "gone"}, want: "pinned to gone"},
+		{name: "pinned", pin: status.Pin{Accounts: []string{"side"}}, want: "pinned to side · Side"},
+		{name: "pinned, moving running sessions", pin: status.Pin{Accounts: []string{"work"}, Move: true}, want: "pinned to work · Work"},
+		{name: "pinned to an account the document lacks", pin: status.Pin{Accounts: []string{"gone"}}, want: "pinned to gone"},
+		{name: "pinned to two", pin: status.Pin{Accounts: []string{"work", "side"}}, want: "pinned to work · Work and side · Side"},
+		{name: "pinned to three, one the document lacks", pin: status.Pin{Accounts: []string{"work", "gone", "side"}}, want: "pinned to work · Work, gone and side · Side"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -586,6 +590,23 @@ func TestRouting(t *testing.T) {
 				t.Errorf("Routing() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDestination(t *testing.T) {
+	doc := status.Document{Accounts: []status.Account{{ID: "work", Label: "Work"}, {ID: "side", Label: "Side\x1b[2J"}}}
+	tests := []struct {
+		ids  []string
+		want string
+	}{
+		{ids: []string{"side"}, want: "side · Side [2J"},
+		{ids: []string{"work", "side"}, want: "the best of work · Work and side · Side [2J"},
+		{ids: []string{"gone\x07"}, want: "gone"},
+	}
+	for _, tt := range tests {
+		if got := doc.Destination(tt.ids); got != tt.want {
+			t.Errorf("Destination(%q) = %q, want %q", tt.ids, got, tt.want)
+		}
 	}
 }
 
