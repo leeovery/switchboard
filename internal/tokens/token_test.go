@@ -90,21 +90,20 @@ func TestTokenNeverPrintsItsSecret(t *testing.T) {
 	slog.New(slog.NewTextHandler(&text, nil)).Info("request", "token", token)
 	slog.New(slog.NewJSONHandler(&json, nil)).Info("request", "token", token)
 
-	outputs := []struct {
+	type output struct {
 		name string
 		got  string
-	}{
-		{name: "%v", got: fmt.Sprintf("%v", token)},
-		{name: "%+v", got: fmt.Sprintf("%+v", token)},
-		{name: "%#v", got: fmt.Sprintf("%#v", token)},
-		{name: "%q", got: fmt.Sprintf("%q", token)},
-		{name: "%d", got: fmt.Sprintf("%d", token)},
+	}
+	outputs := []output{
 		{name: "exported field", got: fmt.Sprintf("%+v", struct{ Token tokens.Token }{token})},
 		{name: "unexported field", got: fmt.Sprintf("%+v", struct{ token tokens.Token }{token})},
 		{name: "unexported field, Go syntax", got: fmt.Sprintf("%#v", struct{ token tokens.Token }{token})},
 		{name: "error", got: fmt.Errorf("request failed with %v", token).Error()},
 		{name: "slog text", got: text.String()},
 		{name: "slog JSON", got: json.String()},
+	}
+	for _, verb := range []string{"%v", "%+v", "%#v", "%q", "%d"} {
+		outputs = append(outputs, output{name: verb, got: fmt.Sprintf(verb, token)})
 	}
 	for _, out := range outputs {
 		if strings.Contains(out.got, secret) {
