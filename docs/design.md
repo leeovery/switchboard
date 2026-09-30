@@ -1586,7 +1586,7 @@ leaves it with a line in its file saying why.
 
 | Idea | Status | File |
 |---|---|---|
-| The dashboard's layout: narrow terminals in watch mode, the heading, more dynamic | next | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
+| The dashboard's layout: narrow terminals in watch mode, the heading, more dynamic; and `status`'s text | next | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
 | A ledger of the requests the router routes, with their token counts | new | [request-ledger](../.workflows/.inbox/ideas/2026-09-30--request-ledger.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../.workflows/.inbox/ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../.workflows/.inbox/ideas/2026-09-30--oauth-logins.md) |
@@ -1595,3 +1595,4 @@ leaves it with a line in its file saying why.
 | Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../.workflows/.inbox/ideas/2026-09-30--prompt-cache-keep-warm.md) |
 | An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../.workflows/.inbox/ideas/2026-09-30--artifact-proxy.md) |
 | Intercepting traffic that ignores `ANTHROPIC_BASE_URL` | not planned | [local-ca-interception](../.workflows/.inbox/ideas/2026-09-30--local-ca-interception.md) |
+| An MCP server exposing switchboard to agents, such as to stream them live events | not planned | [mcp-server](../.workflows/.inbox/ideas/2026-09-30--mcp-server.md) |
