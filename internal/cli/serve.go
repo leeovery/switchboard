@@ -30,8 +30,9 @@ sends its requests to it through ANTHROPIC_BASE_URL, and it sends each on to
 the API on the account chosen for it. The service normally runs it.
 
 It takes up a change to a token file as it comes. Run by the service, it
-restarts itself once its config file makes another valid config, or an
-upgrade replaces it; run by hand, it logs that a restart is due.
+restarts itself once its config file makes another valid config, an
+upgrade replaces it, or the Mac's time zone changes; run by hand, it logs
+that a restart is due.
 
 It logs to the router's log, and to the terminal when it runs in one.
 --log-level overrides SWITCHBOARD_LOG_LEVEL.`,
@@ -48,15 +49,16 @@ It logs to the router's log, and to the terminal when it runs in one.
 
 // serve runs the router on the config's accounts until it's interrupted or
 // terminated, or restarts itself, having made the tokens directory private
-// and brought the skill up to date. It finds its config file and its binary
-// as they stand before it reads the config, which the router compares them
-// with while it runs, so a change made as it starts calls for a restart too.
+// and brought the skill up to date. It finds its config file, its binary and
+// the time zone's file as they stand before it reads the config, which the
+// router compares them with while it runs, so a change made as it starts
+// calls for a restart too.
 func (a *app) serve(ctx context.Context) error {
 	path, err := a.configFile()
 	if err != nil {
 		return err
 	}
-	configFile, binary := router.Watch(path), router.Watch(a.binary())
+	configFile, binary, zone := router.Watch(path), router.Watch(a.binary()), router.Watch(zoneFile)
 	cfg, err := a.loadConfigAt(path)
 	if err != nil {
 		return err
@@ -86,6 +88,7 @@ func (a *app) serve(ctx context.Context) error {
 		StateDir:      stateDir,
 		ConfigFile:    configFile,
 		Binary:        binary,
+		Zone:          zone,
 		Supervised:    a.Getenv(launchdJob) == service.Label,
 		WatchEvery:    a.WatchEvery,
 	})
@@ -94,6 +97,10 @@ func (a *app) serve(ctx context.Context) error {
 // launchdJob is the variable launchd sets to the label of the job it runs a
 // program as: the service's, when it runs the router.
 const launchdJob = "XPC_SERVICE_NAME"
+
+// zoneFile is where the system's time zone is read from, unless TZ says
+// otherwise, which it doesn't for the service.
+const zoneFile = "/etc/localtime"
 
 // binary returns this switchboard binary, by the path it was run by, which
 // the router watches for an upgrade, or "" when it can't be found.

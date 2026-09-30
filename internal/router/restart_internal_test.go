@@ -74,7 +74,7 @@ func TestTheConfigFileIsLookedAtForAChange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), true, newInFlight())
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
 
 			tt.change(t, s)
 			r.look()
@@ -121,7 +121,7 @@ func TestTheBinaryIsUpgradedOnceItLeadsToAnotherFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), true, newInFlight())
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
 
 			tt.change(t, s)
 			r.look()
@@ -135,6 +135,48 @@ func TestTheBinaryIsUpgradedOnceItLeadsToAnotherFile(t *testing.T) {
 			upgraded := log.Has("level=INFO", `msg="the binary leads to another file, as after an upgrade"`, "path="+s.binary)
 			if upgraded != tt.wantUpgrade {
 				t.Errorf("log reads\n%s\nwant the upgrade logged: %v", log, tt.wantUpgrade)
+			}
+		})
+	}
+}
+
+func TestTheTimeZoneChangesOnceItsFileLeadsToAnother(t *testing.T) {
+	tests := []struct {
+		name string
+		// change changes where the time zone's file leads.
+		change   func(t *testing.T, s startedFrom)
+		wantDue  string
+		wantNews bool
+	}{
+		{
+			name:   "left alone",
+			change: func(*testing.T, startedFrom) {},
+		},
+		{
+			name:     "leading to another time zone's, as the Mac is taken there",
+			change:   func(t *testing.T, s startedFrom) { relink(t, s.zone, s.zoneInfo("Etc/GMT-9")) },
+			wantDue:  "time zone changed",
+			wantNews: true,
+		},
+		{
+			name:   "leading nowhere for a moment, as it's set",
+			change: func(t *testing.T, s startedFrom) { remove(t, s.zone) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
+
+			tt.change(t, s)
+			r.look()
+			if got := r.due(); got != tt.wantDue {
+				t.Errorf("due() = %q, want %q", got, tt.wantDue)
+			}
+			news := log.Has("level=INFO", `msg="the time zone's file leads to another, as in another time zone"`, "path="+s.zone)
+			if news != tt.wantNews {
+				t.Errorf("log reads\n%s\nwant the change logged: %v", log, tt.wantNews)
 			}
 		})
 	}
@@ -158,14 +200,19 @@ func TestAChangeMadeOnceWhatTheRouterStartsFromWasFoundIsSeen(t *testing.T) {
 			change:  func(t *testing.T, s startedFrom) { relink(t, s.binary, s.version("1.1")) },
 			wantDue: "upgraded",
 		},
+		{
+			name:    "the time zone's file leading to another",
+			change:  func(t *testing.T, s startedFrom) { relink(t, s.zone, s.zoneInfo("Etc/GMT-9")) },
+			wantDue: "time zone changed",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newStartedFrom(t)
-			config, binary := Watch(s.config), Watch(s.binary)
+			config, binary, zone := Watch(s.config), Watch(s.binary), Watch(s.zone)
 
 			tt.change(t, s)
-			r := newRestarts(config, binary, true, newInFlight())
+			r := newRestarts(config, binary, zone, true, newInFlight())
 			r.look()
 			if got := r.due(); got != tt.wantDue {
 				t.Errorf("due() = %q, want %q", got, tt.wantDue)
@@ -177,7 +224,7 @@ func TestAChangeMadeOnceWhatTheRouterStartsFromWasFoundIsSeen(t *testing.T) {
 func TestABinaryThatLedNowhereAsTheRouterStartedIsNeverUpgraded(t *testing.T) {
 	s := newStartedFrom(t)
 	missing := filepath.Join(t.TempDir(), "switchboard")
-	r := newRestarts(Watch(s.config), Watch(missing), true, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(missing), Watch(s.zone), true, newInFlight())
 
 	link(t, s.version("1.1"), missing)
 	r.look()
@@ -188,7 +235,7 @@ func TestABinaryThatLedNowhereAsTheRouterStartedIsNeverUpgraded(t *testing.T) {
 
 func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), true, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
 
 	writeFile(t, s.kept, notAConfig)
 	relink(t, s.binary, s.version("1.1"))
@@ -207,7 +254,7 @@ func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 func TestARestartDueIsSaidOnceByHand(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), false, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), false, newInFlight())
 
 	writeFile(t, s.kept, twoAccounts)
 	r.look()
@@ -230,7 +277,7 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
 	inFlight := newInFlight()
-	r := newRestarts(Watch(s.config), Watch(s.binary), true, inFlight)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight)
 	if r.ready() != nil {
 		t.Fatal("ready() isn't nil, with no restart due")
 	}
@@ -269,7 +316,7 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 
 func TestARestartLooksAgainBeforeItGoes(t *testing.T) {
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), true, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
 
@@ -358,17 +405,20 @@ func TestTheRequestsCountedAreThoseInFlightButForUpgradedConnections(t *testing.
 }
 
 // startedFrom is what a router was started from, in a directory of the
-// test's own: its config file, a link to one kept in a dotfiles directory,
-// and its binary, a link to one of two versions, as Homebrew's is.
+// test's own: its config file, a link to one kept in a dotfiles directory;
+// its binary, a link to one of two versions, as Homebrew's is; and the time
+// zone's file, a link to one of two zones' files, as macOS's is.
 type startedFrom struct {
 	root string
 	// config is the config file's path, and kept where it's kept.
 	config, kept string
 	binary       string
+	zone         string
 }
 
-// newStartedFrom returns what a router was started from: a valid config,
-// and its binary at version 1.0, each last changed an hour ago.
+// newStartedFrom returns what a router was started from: a valid config, its
+// binary at version 1.0, and the time zone Etc/GMT, each last changed an
+// hour ago.
 func newStartedFrom(t *testing.T) startedFrom {
 	t.Helper()
 	root := t.TempDir()
@@ -377,6 +427,7 @@ func newStartedFrom(t *testing.T) startedFrom {
 		config: filepath.Join(root, "config", "config.toml"),
 		kept:   filepath.Join(root, "dotfiles", "config.toml"),
 		binary: filepath.Join(root, "bin", "switchboard"),
+		zone:   filepath.Join(root, "etc", "localtime"),
 	}
 	writeFile(t, s.kept, oneAccount)
 	link(t, s.kept, s.config)
@@ -384,8 +435,12 @@ func newStartedFrom(t *testing.T) startedFrom {
 		writeFile(t, s.version(v), "switchboard "+v)
 	}
 	link(t, filepath.Join("..", "Cellar", "switchboard", "1.0", "bin", "switchboard"), s.binary)
+	for _, name := range []string{"Etc/GMT", "Etc/GMT-9"} {
+		writeFile(t, s.zoneInfo(name), "TZif "+name)
+	}
+	link(t, s.zoneInfo("Etc/GMT"), s.zone)
 	anHourAgo := time.Now().Add(-time.Hour)
-	for _, path := range []string{s.kept, s.version("1.0"), s.version("1.1")} {
+	for _, path := range []string{s.kept, s.version("1.0"), s.version("1.1"), s.zoneInfo("Etc/GMT"), s.zoneInfo("Etc/GMT-9")} {
 		if err := os.Chtimes(path, anHourAgo, anHourAgo); err != nil {
 			t.Fatal(err)
 		}
@@ -396,6 +451,11 @@ func newStartedFrom(t *testing.T) startedFrom {
 // version is where the binary of the version given is.
 func (s startedFrom) version(v string) string {
 	return filepath.Join(s.root, "Cellar", "switchboard", v, "bin", "switchboard")
+}
+
+// zoneInfo is where the file of the time zone named is.
+func (s startedFrom) zoneInfo(name string) string {
+	return filepath.Join(s.root, "zoneinfo", filepath.FromSlash(name))
 }
 
 // writeFile writes content to the file at path, in place of what it held,

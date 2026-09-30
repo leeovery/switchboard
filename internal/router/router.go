@@ -116,13 +116,19 @@ type Config struct {
 	// file than the one running while Run runs, as after an upgrade, the
 	// router restarts. The zero Watched is none.
 	Binary Watched
+	// Zone is the file the system's time zone is read from, /etc/localtime,
+	// as Watch found it as the router started: a program reads the time zone
+	// once, as it starts, so once that leads to another file, as when the Mac
+	// is taken to another time zone, the router restarts, for the priming
+	// schedule to keep to the clock's times of day. The zero Watched is none.
+	Zone Watched
 	// Supervised is set when the router is started again whenever it exits,
 	// as launchd starts the service's: it restarts by stopping as it does
 	// when ctx ends. A router that isn't logs, once, that a restart is due.
 	Supervised bool
 	// WatchEvery is how often, while Run runs, the router reads the token
-	// files again, and looks at the config file and the binary. Zero means
-	// every 3 seconds.
+	// files again, and looks at the config file, the binary and the time
+	// zone's file. Zero means every 3 seconds.
 	WatchEvery time.Duration
 }
 

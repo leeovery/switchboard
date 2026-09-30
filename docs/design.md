@@ -404,7 +404,9 @@ come back one at a time rather than together: once all are spent, the wait for t
   unless the day has ended: the router looks at least once a minute, as a timer's clock stops
   while the Mac sleeps.
 - Every time of the schedule is on the local clock, when an account is next primed included: a day
-  the clocks change on keeps the slots and the day's end at their times of day.
+  the clocks change on keeps the slots and the day's end at their times of day, and a Mac taken to
+  another time zone restarts the router, which keeps them at their times of day in that zone (see
+  The router looking after itself).
 - The router works the schedule out as it starts, and again whenever an account gains a usable token
   or loses it; a change to the accounts or the day is a change to the config, which restarts the
   router (see The router looking after itself). `status` shows the schedule. `status` and the
@@ -741,8 +743,8 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 
 ## The router looking after itself
 
-Every 3 seconds, the router looks at what it was started from: the token files, its config file
-and its binary. It notices the Mac waking from sleep as it looks.
+Every 3 seconds, the router looks at what it was started from: the token files, its config file,
+its binary and the system's time zone. It notices the Mac waking from sleep as it looks.
 
 - **Token files:** it reads each account's token file again, and takes up what it holds in place,
   with no restart, logging each change, but never a token. An account whose file holds another token
@@ -767,6 +769,10 @@ and its binary. It notices the Mac waking from sleep as it looks.
   LaunchAgent runs, leads to a different file from the one running, or to the same file changed
   since, as after `brew upgrade`. A link that leads nowhere, as it may for a moment while an upgrade
   moves it on, isn't one.
+- **Time zones:** Go reads the local time zone once, as a program starts, so a router carried on in
+  the zone it started in would prime, and end the day, by that zone's clock. It restarts itself
+  when `/etc/localtime` leads to another file than it did as the router started, as when the Mac
+  is taken to another time zone, under the same rules as an upgrade.
 - **Waking:** the wall clock runs on while the Mac sleeps, and the monotonic clock stops, so a
   look that finds the wall clock 5 seconds or more further on than the monotonic since the look
   before finds the Mac has slept, and the log notes the wake at `info`. A sleep can leave the
@@ -776,10 +782,10 @@ and its binary. It notices the Mac waking from sleep as it looks.
   HTTP/2 carries every request on one connection, so closing the idle alone wouldn't do: one
   carrying a stream through the sleep would take the next request too. A request that arrived
   before the wake was noticed, and fails, doesn't count against the router's health (see Health).
-- `serve` notes how the config file and the binary stand before it reads the config, and the router
-  compares them with that, so a change or an upgrade made while the router starts calls for a
-  restart too.
-- Either restart waits for a moment with no requests in flight, there being no hurry, and for the
+- `serve` notes how the config file, the binary and `/etc/localtime` stand before it reads the
+  config, and the router compares them with that, so a change or an upgrade made while the router
+  starts calls for a restart too.
+- Any restart waits for a moment with no requests in flight, there being no hurry, and for the
   config file to make a valid config, which the router started again needs: an upgrade while the
   config file is invalid waits for it to be put right. A connection upgraded, such as a
   WebSocket, isn't a request in flight, as it can stay open for as long as its session runs. The

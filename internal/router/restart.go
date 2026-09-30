@@ -11,18 +11,21 @@ import (
 const (
 	restartForConfig  = "config changed"
 	restartForUpgrade = "upgraded"
+	restartForZone    = "time zone changed"
 )
 
 // restarts restarts the router once what it was started from has changed:
-// its config file, into another valid config, or its binary, which leads to
-// another file than the one running, as after an upgrade. A restart waits
-// for a moment with no request in flight, and for the config file to make a
-// valid config, which the router started again needs. Only a supervised
-// router, started again whenever it exits, restarts: any other logs, once,
-// that a restart is due.
+// its config file, into another valid config; its binary, which leads to
+// another file than the one running, as after an upgrade; or the system's
+// time zone, whose file does, as when the Mac is taken to another time zone.
+// A restart waits for a moment with no request in flight, and for the config
+// file to make a valid config, which the router started again needs. Only a
+// supervised router, started again whenever it exits, restarts: any other
+// logs, once, that a restart is due.
 type restarts struct {
 	config     *configFile
-	binary     *binaryFile
+	binary     *ledFile
+	zone       *ledFile
 	supervised bool
 	inFlight   *inFlight
 	// told is set once the log has said a restart is due.
@@ -31,10 +34,11 @@ type restarts struct {
 	restarted chan struct{}
 }
 
-func newRestarts(config, binary Watched, supervised bool, inFlight *inFlight) *restarts {
+func newRestarts(config, binary, zone Watched, supervised bool, inFlight *inFlight) *restarts {
 	return &restarts{
 		config:     &configFile{path: config.path, seen: config.found, valid: true},
-		binary:     &binaryFile{path: binary.path, running: binary.found},
+		binary:     &ledFile{path: binary.path, running: binary.found, news: "the binary leads to another file, as after an upgrade"},
+		zone:       &ledFile{path: zone.path, running: zone.found, news: "the time zone's file leads to another, as in another time zone"},
 		supervised: supervised,
 		inFlight:   inFlight,
 		restarted:  make(chan struct{}),
@@ -42,8 +46,8 @@ func newRestarts(config, binary Watched, supervised bool, inFlight *inFlight) *r
 }
 
 // Watched is a file a router is started from, which it looks after while it
-// runs, as Watch found it: its config file, or its binary. The zero Watched
-// is none.
+// runs, as Watch found it: its config file, its binary, or the system's time
+// zone's. The zero Watched is none.
 type Watched struct {
 	path  string
 	found fileState
@@ -57,11 +61,12 @@ func Watch(path string) Watched {
 	return Watched{path: path, found: statFile(path)}
 }
 
-// look looks at the config file and the binary again, and logs a restart
-// they've made due.
+// look looks at the config file, the binary and the time zone's file again,
+// and logs a restart they've made due.
 func (r *restarts) look() {
 	r.config.look()
 	r.binary.look()
+	r.zone.look()
 	why := r.due()
 	if why == "" || r.told {
 		return
@@ -74,16 +79,18 @@ func (r *restarts) look() {
 	logger.Info("restart due; run switchboard serve again to take it up", "reason", why)
 }
 
-// due says why a restart is due, as the config file and the binary last
-// looked, or is "" while none is.
+// due says why a restart is due, as the config file, the binary and the time
+// zone's file last looked, or is "" while none is.
 func (r *restarts) due() string {
 	switch {
 	case !r.config.valid:
 		return ""
 	case r.config.changed:
 		return restartForConfig
-	case r.binary.upgraded:
+	case r.binary.moved:
 		return restartForUpgrade
+	case r.zone.moved:
+		return restartForZone
 	}
 	return ""
 }
@@ -143,29 +150,33 @@ func (c *configFile) look() {
 	logger.Info("config changed", "path", c.path)
 }
 
-// binaryFile is the switchboard binary the router was started as: the path
-// it was run by, such as the Homebrew link the service runs, and the file
-// that led to as it started, which is the one running.
-type binaryFile struct {
+// ledFile is a file the router was started from by a path that can come to
+// lead to another: its binary, by the path it was run by, such as the
+// Homebrew link the service runs, or the system's time zone, by
+// /etc/localtime, which a program reads once, as it starts. running is the
+// file the path led to as the router started, which it runs on.
+type ledFile struct {
 	path    string
 	running fileState
-	// upgraded is set once the path leads to another file.
-	upgraded bool
+	// news is what the log says once the path leads to another file.
+	news string
+	// moved is set once it does.
+	moved bool
 }
 
-// look looks at where the binary's path leads now: to another file than the
-// one running, it's an upgrade. A path that leads nowhere, as it may for a
-// moment while an upgrade moves it on, isn't one.
-func (b *binaryFile) look() {
-	if b.upgraded || !b.running.there() {
+// look looks at where the path leads now: to another file than the one
+// running, it has moved, as after an upgrade. A path that leads nowhere, as
+// it may for a moment while an upgrade moves it on, hasn't.
+func (f *ledFile) look() {
+	if f.moved || !f.running.there() {
 		return
 	}
-	now := statFile(b.path)
-	if !now.there() || now.same(b.running) {
+	now := statFile(f.path)
+	if !now.there() || now.same(f.running) {
 		return
 	}
-	b.upgraded = true
-	logger.Info("the binary leads to another file, as after an upgrade", "path", b.path)
+	f.moved = true
+	logger.Info(f.news, "path", f.path)
 }
 
 // fileState is how a file stands, its links followed: which file it is, and
