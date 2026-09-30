@@ -46,12 +46,19 @@ var versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+`)
 // updates. When the CLI doesn't answer within five seconds, the version it
 // last gave stands, or a floor version before it has given one.
 func InstalledVersion(getenv func(key string) string, homeDir, executable func() (string, error)) func() string {
+	return installedVersion(getenv, homeDir, executable, versionTimeout)
+}
+
+// installedVersion is InstalledVersion, the CLI given timeout to answer.
+func installedVersion(getenv func(key string) string, homeDir, executable func() (string, error), timeout time.Duration) func() string {
 	installed := &versionCache{
 		ask: func() (string, error) {
 			// Without a home directory, only the install paths outside it are
 			// tried.
 			home, _ := homeDir()
-			return systemCLI(getenv, home, executable).version(context.Background())
+			cli := systemCLI(getenv, home, executable)
+			cli.timeout = timeout
+			return cli.version(context.Background())
 		},
 		now: time.Now,
 	}
@@ -113,6 +120,8 @@ type installedCLI struct {
 	// directories, which go first on PATH.
 	env    []string
 	output func(ctx context.Context, env []string, path string, args ...string) ([]byte, error)
+	// timeout bounds the command, output and all. Zero means versionTimeout.
+	timeout time.Duration
 }
 
 // systemCLI is the claude command installed here, found on the PATH getenv
@@ -165,7 +174,7 @@ func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, versionTimeout-versionWaitDelay)
+	ctx, cancel := context.WithTimeout(ctx, cmp.Or(c.timeout, versionTimeout)-versionWaitDelay)
 	defer cancel()
 	return c.output(ctx, childenv.Beside(c.env, path), path, "--version")
 }

@@ -207,7 +207,9 @@ func TestTheCLIFindsTheInterpreterBesideIt(t *testing.T) {
 				return ""
 			}
 
-			got, err := systemCLI(getenv, home, func() (string, error) { return switchboard, nil }).version(t.Context())
+			cli := systemCLI(getenv, home, func() (string, error) { return switchboard, nil })
+			cli.timeout = standInTimeout
+			got, err := cli.version(t.Context())
 			if err != nil || got != "2.1.303" {
 				t.Errorf("version() = %q, %v; want 2.1.303", got, err)
 			}
@@ -218,9 +220,10 @@ func TestTheCLIFindsTheInterpreterBesideIt(t *testing.T) {
 func TestTheCLIsOutputIsntWaitedForPastWhatItLeavesRunning(t *testing.T) {
 	dir := t.TempDir()
 	// A claude that answers, leaving running a program that holds its output
-	// open for 10 seconds, whose process id it notes.
-	claude, pidFile := filepath.Join(dir, "claude"), filepath.Join(dir, "left.pid")
-	writeScript(t, claude, "#!/bin/sh\n/bin/sleep 10 &\necho $! > '"+pidFile+"'\necho '2.1.303 (Claude Code)'\n")
+	// open for a minute, whose process id it notes, and that makes a file as
+	// it exits.
+	claude, pidFile, exiting := filepath.Join(dir, "claude"), filepath.Join(dir, "left.pid"), filepath.Join(dir, "exiting")
+	writeScript(t, claude, "#!/bin/sh\n/bin/sleep 60 &\necho $! > '"+pidFile+"'\necho '2.1.303 (Claude Code)'\n: > '"+exiting+"'\n")
 	t.Cleanup(func() {
 		if data, err := os.ReadFile(pidFile); err == nil {
 			if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
@@ -228,15 +231,43 @@ func TestTheCLIsOutputIsntWaitedForPastWhatItLeavesRunning(t *testing.T) {
 			}
 		}
 	})
-	began := time.Now()
-
-	out, err := commandOutput(t.Context(), []string{}, claude, "--version")
-	if err != nil || string(out) != "2.1.303 (Claude Code)\n" {
-		t.Errorf("commandOutput() = %q, %v; want the version it printed", out, err)
+	type answer struct {
+		out []byte
+		err error
+		at  time.Time
 	}
-	// versionWaitDelay once the CLI exits, with room for a slow machine.
-	if waited, within := time.Since(began), 2*time.Second; waited >= within {
-		t.Errorf("waited %v for the output, want less than %v", waited, within)
+	answered := make(chan answer, 1)
+	go func() {
+		out, err := commandOutput(t.Context(), []string{}, claude, "--version")
+		answered <- answer{out: out, err: err, at: time.Now()}
+	}()
+
+	exited := made(t, exiting)
+	got := <-answered
+	if got.err != nil || string(got.out) != "2.1.303 (Claude Code)\n" {
+		t.Errorf("commandOutput() = %q, %v; want the version it printed", got.out, got.err)
+	}
+	// Timed from the CLI's exit, so however long it took to start, and with
+	// room for a slow machine, far short of the minute it leaves its output
+	// held open.
+	if waited, within := got.at.Sub(exited), versionWaitDelay+2*time.Second; waited >= within {
+		t.Errorf("waited %v for the output once the CLI exited, want less than %v", waited, within)
+	}
+}
+
+// made returns when a file at path is first found, looking every few
+// milliseconds for standInTimeout at most.
+func made(t *testing.T, path string) time.Time {
+	t.Helper()
+	deadline := time.Now().Add(standInTimeout)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return time.Now()
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no %s after %v", path, standInTimeout)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
