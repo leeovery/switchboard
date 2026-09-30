@@ -26,6 +26,10 @@ const (
 	// saveAfter is how soon after a change the state file is written, so a
 	// burst of changes makes one write.
 	saveAfter = time.Second
+	// saveUsedEvery is how often the state file is written when its only
+	// changes are assignments used again: every request uses its session's,
+	// so saving that as it comes would write the file every second or so.
+	saveUsedEvery = time.Minute
 	// pruneEvery is how often what has gone unused for long enough is
 	// forgotten.
 	pruneEvery = time.Hour
@@ -74,6 +78,12 @@ func (c *changes) note() {
 	case c.noted <- struct{}{}:
 	default:
 	}
+}
+
+// used notes a change for the state file to keep that's only an assignment
+// used again, which waits for the next write.
+func (c *changes) used() {
+	c.unsaved.Store(true)
 }
 
 // savedState is what the state file holds.
@@ -179,11 +189,14 @@ func (f *stateFile) setAside(now time.Time, corruption error) {
 }
 
 // keep writes the state file saveAfter after a change, so a burst of changes
-// makes one write; forgets, every pruneEvery, what has gone unused for long
-// enough; and writes the file once more as ctx ends.
+// makes one write, and every saveUsedEvery while its only changes are
+// assignments used again; forgets, every pruneEvery, what has gone unused for
+// long enough; and writes the file once more as ctx ends.
 func (f *stateFile) keep(ctx context.Context) {
 	prune := time.NewTicker(pruneEvery)
 	defer prune.Stop()
+	used := time.NewTicker(saveUsedEvery)
+	defer used.Stop()
 	for {
 		select {
 		case <-f.changes.noted:
@@ -191,6 +204,8 @@ func (f *stateFile) keep(ctx context.Context) {
 			case <-time.After(saveAfter):
 			case <-ctx.Done():
 			}
+			f.save()
+		case <-used.C:
 			f.save()
 		case <-prune.C:
 			f.prune(f.now())

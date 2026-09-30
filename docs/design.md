@@ -915,7 +915,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   wrote: an older file, without readings, loads as having none, and a pin that names its account
   alone, as pins did before they named several, as a pin to that one. It's rewritten whole
   (written beside it, synced, and renamed over it) a second after a change and on the way out,
-  and drops assignments unused for 7 days, with the pins of the sessions it forgets, and the
+  but once a minute at most while its only change is sessions used again, when they were last
+  seen, as every request uses its session; and drops assignments unused for 7 days, with the pins of the sessions it forgets, and the
   hashes of tokens replaced 7 days before, at start and then hourly. At start it also drops the
   assignments and the sessions' own pins of accounts no longer configured, those accounts from
   the global pin, which goes with the last of them, and their readings and token hashes; those of

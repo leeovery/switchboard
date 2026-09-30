@@ -733,6 +733,55 @@ func TestABurstOfChangesIsSavedOnce(t *testing.T) {
 	})
 }
 
+func TestAnAssignmentUsedAgainIsSavedOnceAMinute(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "state.json")
+		f := newTestFile(time.Now, testAccounts())
+		f.load(path)
+		writes := countWrites(f)
+		stop := keep(f)
+		k := key{session: "one", model: opus}
+		assign(f.sessions, k, "", decision{account: "work", reason: reasonNew}, time.Now())
+		time.Sleep(saveAfter)
+		synctest.Wait()
+		if n := writes.Load(); n != 1 {
+			t.Fatalf("wrote the state file %d times, want once, for the new session", n)
+		}
+		lastSeen := func() time.Time {
+			t.Helper()
+			held := readState(t, path)
+			if len(held.Sessions) != 1 {
+				t.Fatalf("state file holds %+v, want the one session", held.Sessions)
+			}
+			return held.Sessions[0].LastSeen
+		}
+
+		stay := decision{account: "work", reason: reasonSticky, sticky: true}
+		var used time.Time
+		for range 30 {
+			time.Sleep(time.Second)
+			used = time.Now()
+			assign(f.sessions, k, "", stay, used)
+		}
+		synctest.Wait()
+		if n := writes.Load(); n != 1 {
+			t.Errorf("wrote the state file %d times as the session was used again, want no more", n)
+		}
+		time.Sleep(saveUsedEvery - saveAfter - 30*time.Second)
+		synctest.Wait()
+		if n, seen := writes.Load(), lastSeen(); n != 2 || !seen.Equal(used) {
+			t.Errorf("a minute on, wrote the state file %d times, the session last seen %v, want twice, and %v", n, seen, used)
+		}
+
+		used = time.Now()
+		assign(f.sessions, k, "", stay, used)
+		stop()
+		if n, seen := writes.Load(), lastSeen(); n != 3 || !seen.Equal(used) {
+			t.Errorf("stopped, wrote the state file %d times, the session last seen %v, want three times, and %v", n, seen, used)
+		}
+	})
+}
+
 func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "state.json")

@@ -73,7 +73,7 @@ func newTestState(clock *testClock) *state {
 func newTestFile(now func() time.Time, as accounts) *stateFile {
 	changes := newChanges()
 	usage := newState(as, testPolicy, claude.Provider{}.Family, now, changes.note)
-	return newStateFile(now, changes, newSessions(now, changes.note), as, usage)
+	return newStateFile(now, changes, newSessions(now, changes.note, changes.used), as, usage)
 }
 
 // unkept hears of a change for the state file, and keeps nothing of it.

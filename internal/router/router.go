@@ -187,7 +187,7 @@ func New(cfg Config) (*Router, error) {
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)
-	sessions := newSessions(cfg.Now, changes.note)
+	sessions := newSessions(cfg.Now, changes.note, changes.used)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
 	health := newHealth(cfg.Now, emit)
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
