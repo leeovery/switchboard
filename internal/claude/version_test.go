@@ -234,8 +234,9 @@ func TestTheCLIsOutputIsntWaitedForPastWhatItLeavesRunning(t *testing.T) {
 	if err != nil || string(out) != "2.1.303 (Claude Code)\n" {
 		t.Errorf("commandOutput() = %q, %v; want the version it printed", out, err)
 	}
-	if waited := time.Since(began); waited >= versionTimeout {
-		t.Errorf("waited %v for the output, want less than %v", waited, versionTimeout)
+	// versionWaitDelay once the CLI exits, with room for a slow machine.
+	if waited, within := time.Since(began), 2*time.Second; waited >= within {
+		t.Errorf("waited %v for the output, want less than %v", waited, within)
 	}
 }
 

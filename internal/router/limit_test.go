@@ -3,6 +3,7 @@ package router_test
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -134,6 +135,7 @@ func TestAResetMadeByHandIsSeenOnceTheRouterRefreshes(t *testing.T) {
 			// Work's session lapses, and then its week is reset by hand,
 			// well before the limit's own reset.
 			r.clock.advance(5 * time.Hour)
+			checkLapsed(t, r.rt, "work")
 			fresh := quota.Window{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: now.Add(10 * time.Hour), Status: quota.StatusAllowed}
 			r.readsAs(workToken, fresh, tt.week)
 
@@ -205,7 +207,7 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 				t.Fatalf("Refresh() error = %v", err)
 			}
 			if r.prober.probes(workToken) == probes {
-				t.Fatal("work wasn't probed, want it probed, as its limit holds back every request")
+				t.Fatal("work wasn't probed, want it probed: it can take no request, and nothing has been read of it for longer than the refresh asks")
 			}
 			checkLimit(t, r.rt, "work", tt.wantLimit)
 		})
@@ -243,6 +245,7 @@ func TestALimitReachedInNoWindowNamedLiftsOnceARequestSentSinceIsTaken(t *testin
 func TestAProbeAnsweredWithTheLimitKeepsItsBar(t *testing.T) {
 	r, client := limitedOnItsWeek(t)
 	r.clock.advance(5 * time.Hour)
+	checkLapsed(t, r.rt, "work")
 	fresh := quota.Window{Key: "5h", Label: "Session", Utilization: 0, ResetsAt: now.Add(10 * time.Hour), Status: quota.StatusAllowed}
 	r.readsAs(workToken, fresh, spentWeek())
 	probes := r.prober.probes(workToken)
@@ -331,6 +334,15 @@ func rejectedUntil(until time.Time, windows ...quota.Window) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Anthropic-Ratelimit-Unified-Reset", strconv.FormatInt(until.Unix(), 10))
 		limitReached("You've hit your limit", windows...)(w, r)
+	}
+}
+
+// checkLapsed checks the router's status document has the session of the
+// account with the given id lapsed.
+func checkLapsed(t *testing.T, rt *router.Router, id string) {
+	t.Helper()
+	if got, _ := rt.Status().Account(id); !slices.Contains(got.Lapsed, "5h") {
+		t.Fatalf("%s's lapsed windows are %q, want its session among them", id, got.Lapsed)
 	}
 }
 

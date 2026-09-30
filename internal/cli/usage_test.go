@@ -55,11 +55,26 @@ func TestUsage(t *testing.T) {
 }
 
 func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
+	// usage runs switchboard usage with args, set up as goldenDeps sets it
+	// up, and returns how it went and what the API was asked.
+	usage := func(args ...string) (result, []string) {
+		api := newClaudeAPI(t)
+		deps := statusDeps(t, api.URL, nil)
+		writeToken(t, deps, "personal", "test-token-personal")
+		return run(t, deps, append([]string{"usage"}, args...)...), api.questions()
+	}
+	_, probes := usage()
+	if len(probes) == 0 {
+		t.Fatal("switchboard usage asked the API nothing, want every account probed")
+	}
 	for _, flag := range []string{"--refresh", "-r"} {
 		t.Run(flag, func(t *testing.T) {
-			got := run(t, goldenDeps(t, nil), "usage", flag)
+			got, asked := usage(flag)
 			if want := (result{stdout: readGolden(t, "usage.golden")}); got != want {
 				t.Errorf("switchboard usage %s =\n%+v\nwant what usage prints (testdata/usage.golden)\n%+v", flag, got, want)
+			}
+			if !slices.Equal(asked, probes) {
+				t.Errorf("switchboard usage %s asked the API %q, want %q, every account probed as usage probes it", flag, asked, probes)
 			}
 		})
 	}

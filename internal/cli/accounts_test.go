@@ -270,6 +270,25 @@ func TestAccountsAddAnAccountConfiguredAlready(t *testing.T) {
 	checkNoTokenFile(t, deps, "side")
 }
 
+func TestAccountsAddAnAccountConfiguredAlreadyInAnotherCase(t *testing.T) {
+	api := newClaudeAPI(t)
+	deps, path := accountsDeps(t, api.URL, "\n[[account]]\nid = \"work\"\n"+personalAndSide)
+	// Work's token file holds no token, so a token given Work, whose file
+	// is work's where case is ignored, would be written in its place.
+	writeToken(t, deps, "work", "")
+	before, token := readFile(t, path), readFile(t, tokenPath(t, deps, "work"))
+
+	got := runWithInput(t, deps, "test-token-work\n", "accounts", "add", "Work")
+	want := result{stderr: "Error: account ids \"work\" and \"Work\" differ only in case, so they'd share a token file, as macOS ignores case in file names\n", code: 1}
+	if got != want {
+		t.Errorf("switchboard accounts add Work = %+v, want %+v", got, want)
+	}
+	if readFile(t, path) != before || len(api.questions()) > 0 {
+		t.Errorf("the config reads\n%s\nand the API was asked %q, want the config as it was, and the API asked nothing", readFile(t, path), api.questions())
+	}
+	checkTokenFile(t, deps, "work", token)
+}
+
 func TestAccountsAddMakesTheFirstConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "switchboard", "config.toml")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
