@@ -33,6 +33,7 @@ func main() {
 		Exec:          launch.Exec,
 		Launchctl:     service.Launchctl,
 		Hidden:        cli.HiddenInput,
+		Terminal:      cli.IsTerminal,
 		GOOS:          runtime.GOOS,
 		UID:           os.Getuid(),
 		PID:           os.Getpid(),

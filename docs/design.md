@@ -646,8 +646,8 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts token <id>` | Replace an account's token |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router |
-| `usage [--watch [interval]] [--no-notify] [--probe] [--refresh]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `r` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. It reads once, so it takes no `--watch` |
+| `status [--session <id>] [--json] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document, which is what an agent reads (see The skill). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
+| `usage [--watch [interval]] [--no-notify] [--probe] [--refresh]` | The dashboard. Where stdout isn't a terminal, as in a pipe or Claude Code's Bash tool, it prints the status document instead, as `status --json` does, read as its flags say; `--watch` needs a terminal, and refuses without one. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `r` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. It reads once, so it takes no `--watch` |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
 | `pin <id>... [--move] [--force]`, `pin auto [--force]` | Set the global pin to the accounts given, replacing any before, or clear it: see Pinning. It needs the router |
@@ -1027,11 +1027,12 @@ rewrite an installed copy whose version is older than switchboard's, or can't be
 other as it is: switchboard owns the file, and an edit to it stands only until the version moves on,
 which replaces it. The router never creates one `setup` didn't.
 
-It's short: `claude` runs through switchboard; `status --session`; `usage`, and `usage --refresh`,
-or the dashboard's `r`, once a limit is reset by hand; `pin`, to one account or the best of
-several; and `logs`; a move costs one slower turn, and a moved Claude Sonnet 5.5 session carries
-on without its earlier reasoning; artifacts always live on the primary; and `switchboard --help`
-for the rest.
+It's short: `claude` runs through switchboard; `status --session`; `status --json`, and what the
+status document holds, for every account's usage, and `status --json --refresh` once a limit is
+reset by hand; `usage`, the user's dashboard, which Claude points to rather than reads; `pin`, to
+one account or the best of several; and `logs`; a move costs one slower turn, and a moved Claude
+Sonnet 5.5 session carries on without its earlier reasoning; artifacts always live on the primary;
+and `switchboard --help` for the rest.
 
 ## What doesn't go through the router
 
@@ -1585,7 +1586,7 @@ leaves it with a line in its file saying why.
 
 | Idea | Status | File |
 |---|---|---|
-| The dashboard's layout: narrow terminals in watch mode, the heading, more dynamic | next | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
+| The dashboard's layout: narrow terminals in watch mode, the heading, more dynamic; and `status`'s text | next | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
 | A ledger of the requests the router routes, with their token counts | new | [request-ledger](../.workflows/.inbox/ideas/2026-09-30--request-ledger.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../.workflows/.inbox/ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../.workflows/.inbox/ideas/2026-09-30--oauth-logins.md) |
@@ -1594,3 +1595,4 @@ leaves it with a line in its file saying why.
 | Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../.workflows/.inbox/ideas/2026-09-30--prompt-cache-keep-warm.md) |
 | An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../.workflows/.inbox/ideas/2026-09-30--artifact-proxy.md) |
 | Intercepting traffic that ignores `ANTHROPIC_BASE_URL` | not planned | [local-ca-interception](../.workflows/.inbox/ideas/2026-09-30--local-ca-interception.md) |
+| An MCP server exposing switchboard to agents, such as to stream them live events | not planned | [mcp-server](../.workflows/.inbox/ideas/2026-09-30--mcp-server.md) |

@@ -39,10 +39,11 @@ type usageOptions struct {
 	interval time.Duration
 }
 
-// read is what usage asks of the source it reads: with --refresh, the read
-// the dashboard's r asks for, else the document as it stands.
-func (o usageOptions) read() watch.Read {
-	if o.refresh {
+// readOnce is what status and usage ask of the source they read, reading
+// once: with --refresh, the read the dashboard's r asks for, else the
+// document as it stands.
+func readOnce(refresh bool) watch.Read {
+	if refresh {
 		return watch.Fresh()
 	}
 	return watch.Read{Probe: true}
@@ -56,6 +57,10 @@ func newUsageCommand(a *app) *cobra.Command {
 		Long: `Show every account's usage as a dashboard: the router's, while it runs, with
 its sessions and pin, else read by probing each account, as --probe does
 whether the router runs or not.
+
+Where stdout isn't a terminal, as in a pipe or an agent's shell, usage prints
+the status document as JSON in place of the dashboard, as status --json
+prints it, read as its flags say. --watch needs a terminal.
 
 With --refresh, the router first reads every account it may, as the
 dashboard's r has it do: each it hasn't read in the last minute, and each that
@@ -86,10 +91,14 @@ of an account with room again and a window passing the warning, as the
 config's [notifications] asks, unless --no-notify.`,
 		Args: opts.parseArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if opts.watch {
-				return a.watchUsage(cmd.Context(), cmd.OutOrStdout(), opts)
+			switch out := cmd.OutOrStdout(); {
+			case opts.watch:
+				return a.watchUsage(cmd.Context(), out, opts)
+			case !a.Terminal(out):
+				return a.printDocument(cmd.Context(), out, opts)
+			default:
+				return a.printUsage(cmd.Context(), out, opts)
 			}
-			return a.printUsage(cmd.Context(), cmd.OutOrStdout(), opts)
 		},
 	}
 	cmd.Flags().BoolVarP(&opts.watch, "watch", "w", false, "stay on screen, reading usage every interval")
@@ -138,7 +147,7 @@ func parseInterval(s string) (time.Duration, error) {
 // printUsage prints the dashboard once, read as opts say: probing alone with
 // --probe, and having the router refresh first with --refresh.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	doc, err := a.collect(ctx, opts.probe, opts.read())
+	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
@@ -150,6 +159,19 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	logger.Debug("drew the dashboard", "width", width, "colors", colors.Profile.String())
 	_, err = io.WriteString(colors, frame+"\n")
 	return err
+}
+
+// printDocument prints the status document once, read as opts say, as
+// status --json prints it: what usage prints where stdout isn't a terminal,
+// as for an agent or a pipe, which want data rather than a dashboard's boxes
+// and bars.
+func (a *app) printDocument(ctx context.Context, out io.Writer, opts usageOptions) error {
+	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
+	if err != nil {
+		return err
+	}
+	logger.Debug("stdout isn't a terminal: printing the status document")
+	return writeJSON(out, doc)
 }
 
 // watchUsage keeps the dashboard on screen, reading usage as each read falls
@@ -176,6 +198,13 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		return errors.New("--watch needs a terminal, and stdout isn't one")
 	}
 	return err
+}
+
+// IsTerminal reports whether out is a terminal: Deps.Terminal, for the
+// process's own output.
+func IsTerminal(out io.Writer) bool {
+	f, ok := out.(term.File)
+	return ok && term.IsTerminal(f.Fd())
 }
 
 // terminalWidth is how many cells wide out is: its size when it's a terminal,

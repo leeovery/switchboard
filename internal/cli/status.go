@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
-	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -19,6 +18,7 @@ func newStatusCommand(a *app) *cobra.Command {
 	var (
 		asJSON  bool
 		probe   bool
+		refresh bool
 		session string
 	)
 	cmd := &cobra.Command{
@@ -31,6 +31,13 @@ whether the router runs or not. The last line says which, but for a restart
 the router has due, which the line under it says, with how to have it now.
 When the claude a shell runs from PATH isn't switchboard, so the sessions it
 starts don't go through the router, the first line says so.
+
+With --json, print the status document, for an agent or a script to read.
+
+With --refresh, the router first reads every account it may, as usage
+--refresh has it do, and waits for those reads, ten seconds at most, so once
+a limit is reset by hand, the router sees it. Without the router, or with
+--probe, every account is probed anyway, so --refresh changes nothing.
 
 With --session, print the id of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
@@ -45,6 +52,8 @@ switchboard serve).
 				return errors.New("--session takes the id of a session")
 			case session != "" && probe:
 				return errors.New("--session asks the router, so it takes no --probe")
+			case session != "" && refresh:
+				return errors.New("--session asks after one session, not the accounts, so it takes no --refresh")
 			}
 			return cobra.NoArgs(cmd, args)
 		},
@@ -52,7 +61,7 @@ switchboard serve).
 			if session != "" {
 				return a.sessionStatus(cmd.Context(), cmd.OutOrStdout(), session, asJSON)
 			}
-			doc, err := a.collect(cmd.Context(), probe, watch.Read{Probe: true})
+			doc, err := a.collect(cmd.Context(), probe, readOnce(refresh))
 			if err != nil {
 				return err
 			}
@@ -65,6 +74,7 @@ switchboard serve).
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print as JSON")
 	cmd.Flags().BoolVar(&probe, "probe", false, "probe every account, even while the router runs")
+	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "have the router read every account it may first, as usage --refresh does")
 	cmd.Flags().StringVar(&session, "session", "", "print the account the router sends session `ID`'s requests to")
 	return cmd
 }

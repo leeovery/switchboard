@@ -60,6 +60,7 @@ func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
 	usage := func(args ...string) (result, []string) {
 		api := newClaudeAPI(t)
 		deps := statusDeps(t, api.URL, nil)
+		onTerminal(&deps)
 		writeToken(t, deps, "personal", "test-token-personal")
 		return run(t, deps, append([]string{"usage"}, args...)...), api.questions()
 	}
@@ -119,6 +120,33 @@ func TestUsageColor(t *testing.T) {
 			}
 			if stripped, want := ansi.Strip(got.stdout), readGolden(t, "usage.golden"); stripped != want {
 				t.Errorf("switchboard usage printed, stripped of its escapes,\n%s\nwant\n%s", stripped, want)
+			}
+		})
+	}
+}
+
+func TestUsageWithoutATerminalPrintsWhatStatusJSONPrints(t *testing.T) {
+	tests := []struct {
+		name string
+		// args are given to usage and to status --json alike.
+		args []string
+	}{
+		{name: "as the document stands"},
+		{name: "refreshed", args: []string{"--refresh"}},
+		{name: "refreshed, with -r for short", args: []string{"-r"}},
+		{name: "probed as asked", args: []string{"--probe"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+
+			got := run(t, deps, append([]string{"usage"}, tt.args...)...)
+			want := run(t, deps, append([]string{"status", "--json"}, tt.args...)...)
+			if want.code != 0 || !json.Valid([]byte(want.stdout)) {
+				t.Fatalf("switchboard status --json %s = %+v, want exit status 0 and a document", strings.Join(tt.args, " "), want)
+			}
+			if got != want {
+				t.Errorf("switchboard usage %s, without a terminal, =\n%+v\nwant what status --json prints\n%+v", strings.Join(tt.args, " "), got, want)
 			}
 		})
 	}
@@ -336,14 +364,22 @@ func recordWatch(t *testing.T, deps *cli.Deps) *watch.Config {
 	return &cfg
 }
 
-// goldenDeps are statusDeps, with env added to their environment, but for a
-// token for personal, which fakeClaudeAPI refuses: the reason for one missing
-// names the test's own state directory, which no golden file can.
+// goldenDeps are statusDeps on a terminal, so usage draws its dashboard, with
+// env added to their environment, but for a token for personal, which
+// fakeClaudeAPI refuses: the reason for one missing names the test's own
+// state directory, which no golden file can.
 func goldenDeps(t *testing.T, env map[string]string) cli.Deps {
 	t.Helper()
 	deps := statusDeps(t, fakeClaudeAPI(t), env)
+	onTerminal(&deps)
 	writeToken(t, deps, "personal", "test-token-personal")
 	return deps
+}
+
+// onTerminal has commands run with deps take their output for a terminal, so
+// usage draws its dashboard there.
+func onTerminal(deps *cli.Deps) {
+	deps.Terminal = func(io.Writer) bool { return true }
 }
 
 func readGolden(t *testing.T, name string) string {

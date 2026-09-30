@@ -72,6 +72,9 @@ type Deps struct {
 	// HiddenInput does: a token is typed there unseen, and setup asks there
 	// alone.
 	Hidden func(stdin io.Reader) (read func() ([]byte, error), ok bool)
+	// Terminal reports whether out is a terminal, as IsTerminal does: usage
+	// draws its dashboard on one, and prints the status document elsewhere.
+	Terminal func(out io.Writer) bool
 	// GOOS is the operating system, as runtime.GOOS names it, and UID the
 	// user's id: the token files must be theirs.
 	GOOS string
