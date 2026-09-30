@@ -318,20 +318,26 @@ func (s *state) unread(id string, _ time.Time) bool {
 }
 
 // due reports whether an account's usage wants probing at now, before a
-// choice: nothing has been read of it for staleAfter, as olderThan says.
+// choice: nothing has been read of it for staleAfter, and it can be probed,
+// as probeable says.
 func (s *state) due(id string, now time.Time) bool {
-	return s.olderThan(staleAfter)(id, now)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.usage[id]
+	return now.Sub(u.updated) > staleAfter && s.probeable(u, now)
 }
 
-// olderThan returns what reports whether an account's usage wants probing at
-// now: nothing has been read of it for longer than age, and it can be
-// probed, as probeable says.
-func (s *state) olderThan(age time.Duration) func(id string, now time.Time) bool {
+// refreshing returns what reports whether a refresh asking for usage no
+// older than age probes an account at now: nothing has been read of it for
+// longer than age, or it's spent, as spent says, however lately it was read,
+// as the answer that reached its limit reads it, and a limit lifted by hand
+// shows only to a probe; and it can be probed, as probeable says.
+func (s *state) refreshing(age time.Duration) func(id string, now time.Time) bool {
 	return func(id string, now time.Time) bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		u := s.usage[id]
-		return now.Sub(u.updated) > age && s.probeable(u, now)
+		return (now.Sub(u.updated) > age || u.spent(s.policy, now)) && s.probeable(u, now)
 	}
 }
 
@@ -358,30 +364,84 @@ func (s *state) probeable(u *usage, now time.Time) bool {
 }
 
 // nextPrime returns when the account with the given id is next to be primed,
-// at now or after: when schedule says of its windows as last read, but not
-// before reprobeAfter has passed since a probe of it last ended, or
-// reprimeAfter when that one failed as a prime, as primeFailed says. It
-// reports false when the schedule can't say, and while the account's token is
-// refused, or it's spent, as spent says: a prime couldn't start its window.
+// at now or after, as primeAt says. It reports false when the schedule can't
+// say, and while the account's token is refused, or it's spent, as spent
+// says: a prime couldn't start its window.
 func (s *state) nextPrime(id string, schedule prime.Schedule, now time.Time) (time.Time, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	if u.refused.inForce(now) || u.spent(s.policy, now) {
+	if freed, ok := u.freed(s.policy, now); !ok || freed.After(now) {
 		return time.Time{}, false
 	}
-	at, ok := schedule.Next(id, u.latest(), now)
+	return u.primeAt(id, schedule, s.policy, now)
+}
+
+// nextLook returns when the primer is next to look at whether the account
+// with the given id is due a prime: when it's next to be primed, as nextPrime
+// says, or, while its token is refused or it's spent, when it could next be,
+// once neither holds it back, as freed says, so it's primed on time once it
+// can start a window. It reports false when neither can say.
+func (s *state) nextLook(id string, schedule prime.Schedule, now time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.usage[id]
+	freed, ok := u.freed(s.policy, now)
+	if !ok {
+		return time.Time{}, false
+	}
+	return u.primeAt(id, schedule, s.policy, freed.In(now.Location()))
+}
+
+// primeAt returns when the account with the given id is next to be primed, at
+// from or after: when schedule says of its windows as last read, but not
+// before reprobeAfter has passed since a probe of it last ended, or
+// reprimeAfter when that one failed as a prime, as primeFailed says. It
+// reports false when the schedule can't say.
+func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy, from time.Time) (time.Time, bool) {
+	at, ok := schedule.Next(id, u.latest(), from)
 	if !ok {
 		return time.Time{}, false
 	}
 	retry := reprobeAfter
-	if u.primeFailed(s.policy) {
+	if u.primeFailed(policy) {
 		retry = reprimeAfter
 	}
-	if again := u.probed.Add(retry); again.After(at) {
-		at = again
+	return later(at, u.probed.Add(retry)), true
+}
+
+// freed returns when, at now or after, nothing holds back a prime of the
+// account: its token's refusal has ended, and it's spent no longer, as spent
+// says, a limit holding back its every request having ended, and each spent
+// window every model shares having reset. It reports false when one of those
+// windows' reset isn't known.
+func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
+	at := now
+	if u.refused.inForce(now) {
+		at = later(at, u.refused.at.Add(refusedFor))
+	}
+	if u.limited.holds(now, policy.IsShared) {
+		at = later(at, u.limited.until)
+	}
+	windows := u.current(policy, now)
+	for i, w := range windows {
+		switch {
+		case score.Available(windows[i:i+1], 0, policy.IsShared, now):
+		case w.ResetsAt.IsZero():
+			return time.Time{}, false
+		default:
+			at = later(at, w.ResetsAt)
+		}
 	}
 	return at, true
+}
+
+// later returns the later of two times.
+func later(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+	return a
 }
 
 // primeFailed reports whether the last probe of the account with the given id

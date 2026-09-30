@@ -202,6 +202,22 @@ func TestChoicesMadeTogetherShareTheirProbes(t *testing.T) {
 	})
 }
 
+func TestNoProbeStartsOnceTheRouterHasStopped(t *testing.T) {
+	prober := &stubProber{}
+	r := newTestRouter(t, at(start), prober)
+	r.probes.stop()
+	always := func(string, time.Time) bool { return true }
+
+	for _, launch := range []func(accounts, func(string, time.Time) bool) []probing{r.probes.start, r.probes.prime} {
+		if underway := launch(r.accounts.sendable(), always); len(underway) > 0 {
+			t.Errorf("once the router has stopped, %d probes are under way, want none", len(underway))
+		}
+	}
+	if got := prober.counts(); len(got) > 0 {
+		t.Errorf("once the router has stopped, probes = %v, want none", got)
+	}
+}
+
 func TestAChoiceAwaitsOnlyTheProbesOfTheAccountsItWouldProbe(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		prober := &stubProber{gate: make(chan struct{})}

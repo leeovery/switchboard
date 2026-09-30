@@ -30,6 +30,9 @@ const (
 	// refusalShown is how many characters of the upstream's reason for
 	// refusing a token the log shows.
 	refusalShown = 200
+	// toldAtMost bounds what ignoredPins holds: the sessions of an account,
+	// and the accounts.
+	toldAtMost = 1000
 )
 
 // proxy sends each request on to the upstream. A request it routes goes out
@@ -83,6 +86,9 @@ type exchange struct {
 	// newSession is set when a routed request's first choice said its session
 	// was new.
 	newSession bool
+	// spends is set when a routed request spends its account's quota, as the
+	// provider says of its path.
+	spends bool
 }
 
 func (ex *exchange) routed() bool {
@@ -130,7 +136,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		refuseBody(w, r, err)
 		return
 	}
-	ex := &exchange{id: newID(), started: started, arrived: p.now()}
+	ex := &exchange{id: newID(), started: started, arrived: p.now(), spends: p.provider.Spends(r.URL.Path)}
 	ex.req = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
 	ex.newSession = choice.New
@@ -196,7 +202,11 @@ func (p *proxy) pin(r *http.Request, ex *exchange, session string) string {
 
 // ignoredPins holds, by account, the sessions whose pins to it the log has
 // warned are ignored, so it warns once for each, not at every request, until
-// the account can be sent on again. It's safe for concurrent use.
+// the account can be sent on again. Sessions come and go, and an account
+// that isn't configured is never sent on, so it forgets an account's sessions
+// once it holds toldAtMost of them, and every account's once it holds that
+// many accounts, the log warning of each pin once more. It's safe for
+// concurrent use.
 type ignoredPins struct {
 	mu   sync.Mutex
 	told map[string]map[string]bool
@@ -210,10 +220,10 @@ func (p *ignoredPins) first(account, session string) bool {
 	if p.told[account][session] {
 		return false
 	}
-	if p.told == nil {
+	if p.told == nil || len(p.told) >= toldAtMost {
 		p.told = make(map[string]map[string]bool)
 	}
-	if p.told[account] == nil {
+	if p.told[account] == nil || len(p.told[account]) >= toldAtMost {
 		p.told[account] = make(map[string]bool)
 	}
 	p.told[account][session] = true

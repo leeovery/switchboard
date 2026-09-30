@@ -10,10 +10,10 @@ import (
 // unless its config says otherwise.
 const watchEvery = 3 * time.Second
 
-// upkeep keeps the router in step with what it was started from while it
-// runs, looking every so often: the accounts' token files, which it takes up
-// in place, and its config file, its binary and the system's time zone,
-// which it restarts to take up. It notices the Mac waking from sleep as it looks.
+// upkeep keeps the router in step with what it was started from while it runs,
+// looking every so often: the accounts' token files, which it takes up in
+// place, and its config file, its binary and the system's time zone, which it
+// restarts to take up. It notices the Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles

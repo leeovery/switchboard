@@ -30,6 +30,9 @@ type Provider interface {
 	// Routable reports whether a request to path may go out on another
 	// account's token than the one it carries.
 	Routable(path string) bool
+	// Spends reports whether a request to path spends its account's quota:
+	// the success of one that doesn't says nothing of the account's limits.
+	Spends(path string) bool
 	// Session returns the id of the session a request belongs to, or "" when
 	// it doesn't say.
 	Session(h http.Header) string
@@ -194,8 +197,6 @@ func New(cfg Config) (*Router, error) {
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
 	transport := newPool()
-	// After a sleep, requests go upstream on connections of their own, and
-	// those that arrived before, and fail, don't count against the router.
 	awake := &wakes{now: clock, woke: func() {
 		transport.renew()
 		health.wake()

@@ -2,12 +2,15 @@ package router
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 	"unsafe"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -56,6 +59,8 @@ func TestTheRouterStartsItsConnectionsAfreshOnceItNoticesTheMacWake(t *testing.T
 	}{
 		{name: "an hour awake", between: func(c *sleepingClock) { c.pass(time.Hour) }},
 		{name: "the clock set on a moment", between: func(c *sleepingClock) { c.sleep(minSleep - time.Second) }},
+		{name: "the clock set back an hour", between: func(c *sleepingClock) { c.sleep(-time.Hour) }},
+		{name: "asleep as long as a sleep takes to count", between: func(c *sleepingClock) { c.sleep(minSleep) }, wantWake: true},
 		{name: "an hour asleep", between: func(c *sleepingClock) { c.sleep(time.Hour) }, wantWake: true},
 	}
 	for _, tt := range tests {
@@ -106,6 +111,81 @@ func TestFailuresOfRequestsThatArrivedBeforeAWakeWasNoticedDontCount(t *testing.
 	}
 }
 
+func TestRequestsUnderWayAsAWakeIsNoticedFailWithoutCountingAgainstTheRouter(t *testing.T) {
+	tests := []struct {
+		name        string
+		wake        bool
+		wantHealthy bool
+	}{
+		{name: "the wake noticed while they're under way", wake: true, wantHealthy: true},
+		{name: "no wake", wantHealthy: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The upstream takes each request in, and drops its connection
+			// once the test lets it go.
+			var arrived sync.WaitGroup
+			arrived.Add(minFailures)
+			release := make(chan struct{})
+			up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				arrived.Done()
+				<-release
+				conn, _, err := http.NewResponseController(w).Hijack()
+				if err != nil {
+					t.Errorf("hijack the connection: %v", err)
+					return
+				}
+				_ = conn.Close()
+			}))
+			t.Cleanup(up.Close)
+			clock := newSleepingClock(t)
+			r, err := New(Config{Accounts: testConfigured, Token: testTokens.Read, Upstream: up.URL, Provider: claude.Provider{}, Prober: &stubProber{}, Policy: testPolicy, Now: clock.read})
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			proxy := httptest.NewServer(r.Proxy())
+			t.Cleanup(proxy.Close)
+			r.upkeep.wakes.look()
+
+			var answered sync.WaitGroup
+			for i := range minFailures {
+				answered.Go(func() { askFailing(t, proxy.URL, "session-"+strconv.Itoa(i)) })
+			}
+			arrived.Wait()
+			if tt.wake {
+				clock.sleep(time.Hour)
+				r.upkeep.wakes.look()
+			}
+			close(release)
+			answered.Wait()
+			if got := r.health.report(); got.Healthy != tt.wantHealthy {
+				t.Errorf("once %d requests that arrived before the router noticed a wake failed, health = %+v, want healthy %v", minFailures, got, tt.wantHealthy)
+			}
+		})
+	}
+}
+
+// askFailing sends a messages request of session to the proxy at url, which
+// the router is to answer with a failure of its own: 502.
+func askFailing(t *testing.T, url, session string) {
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url+"/v1/messages", strings.NewReader(`{"model":"`+opus+`","max_tokens":1}`))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+workToken)
+	req.Header.Set(claude.SessionHeader, session)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("the router answered %d, want 502, the upstream having dropped the request", resp.StatusCode)
+	}
+}
+
 // sleepingClock is a clock whose readings carry a monotonic reading, as
 // time.Now's do, which a test moves on as the Mac sleeps. It's safe for
 // concurrent use.
@@ -127,7 +207,8 @@ func (c *sleepingClock) read() time.Time {
 }
 
 // sleep has the Mac sleep for d: the wall clock moves on, and the monotonic
-// clock, which stops in sleep, doesn't.
+// clock, which stops in sleep, doesn't. Less than nothing is the wall clock
+// set back.
 func (c *sleepingClock) sleep(d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

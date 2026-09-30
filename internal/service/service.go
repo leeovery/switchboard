@@ -383,12 +383,12 @@ func (s *Service) bootstrap(ctx context.Context) error {
 		if err == nil || try == bootstrapTries {
 			return err
 		}
-		logger.Info("launchd didn't load the service; trying again", "try", try, "error", err)
 		select {
 		case <-ctx.Done():
 			return err
 		case <-time.After(bootstrapPause):
 		}
+		logger.Info("launchd didn't load the service; trying again", "try", try, "error", err)
 	}
 }
 

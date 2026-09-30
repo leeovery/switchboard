@@ -50,7 +50,8 @@ func (s Store) Path(id string) string {
 // Read returns the token in the account's token file, ignoring the whitespace
 // around it. It fails, saying why and what would put it right, when the file
 // is missing, isn't the user's alone, or holds no token or more than one: an
-// error that wraps ErrMissing when the file is missing or holds no token.
+// error that wraps ErrMissing when the file is missing or holds no token, and
+// ErrEmpty too when it holds none.
 func (s Store) Read(id string) (Token, error) {
 	path := s.Path(id)
 	data, err := s.readPrivate(path)
@@ -60,7 +61,7 @@ func (s Store) Read(id string) (Token, error) {
 	token, err := parse(data)
 	switch {
 	case errors.Is(err, ErrMissing):
-		return Token{}, fmt.Errorf("%w: write it to %s, which is empty", ErrMissing, path)
+		return Token{}, fmt.Errorf("%w: write it to %s, which is empty", ErrEmpty, path)
 	case err != nil:
 		return Token{}, fmt.Errorf("the token file %s holds more than a token: write the token alone to it", path)
 	}

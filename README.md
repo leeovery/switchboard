@@ -82,7 +82,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - **Limits and replay.** A 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays; the account sits out of the requests the limit counts, so a limit on Fable's own week leaves its other models' sessions where they are, until the reset the 429 gives, or for five minutes when it gives none, or sooner when a request sent since shows it lifted, as after you reset a limit by hand. A 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing. A 429 without usage headers says nothing of the account, but refuses the request itself, so it reaches Claude Code at once, as it came. A request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. When no account has room, Claude Code gets a 429, as it would from one account at its limit; when every account has refused the request lately, a 502 that tells it not to retry.
 - **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. Every pin yields at a limit rather than failing. See [`pin`](#pin).
 - **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
-- **Looking after itself.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token. It opens fresh connections upstream once your Mac wakes, as a sleep can leave those it kept dead. The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead. See [`serve`](#serve).
+- **Looking after itself.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token. Once your Mac wakes, it sends the requests it routes upstream on fresh connections, as a sleep can leave those it kept dead; probes go out on connections of their own, each given 5 seconds. The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead. See [`serve`](#serve).
 
 ### The primary and its reserve
 
@@ -153,13 +153,13 @@ In watch mode, reading the router, it looks at the router's view every 5 seconds
 
 | Key | Does |
 |---|---|
-| `r` | refresh now: the router probes the accounts it hasn't read in the last minute, but for those whose 5-hour window has lapsed and that can take a request; without it, every account is probed |
+| `r` | refresh now: the router probes the accounts it hasn't read in the last minute, and those that can take no request however lately it read them, but for those whose 5-hour window has lapsed and that can take a request, and none twice in a minute; without it, every account is probed |
 | `1`–`9` | pin the account in that place, as configured, beside any pinned already, so new sessions go to the best of them; or, pinned already, unpin it, routing automatically again once none is left |
 | `a` | route automatically again |
 | `m` | move running sessions to the pinned accounts |
 | `q` | quit |
 
-`1`–`9`, `a` and `m` work while the dashboard reads the router. The footer lists the keys that work, and says what each one did.
+`1`–`9`, `a` and `m` work while the dashboard reads the router and the router answers; pressed while its last view stays on screen, they say it isn't answering. The footer lists the keys that work, and says what each one did.
 
 ```bash
 switchboard usage              # once
@@ -199,7 +199,7 @@ switchboard pin <account>|auto --session <id>
 
 A session's own pin beats the global one. Every pin yields at a limit: a pinned session that hits one moves by the usual rules rather than failing. A pin spends the reserves of the accounts it names, and no other's (see [The primary and its reserve](#the-primary-and-its-reserve)).
 
-Pinning several accounts sets an order to use them up in: with `pin work side`, `work` and `side` take the new sessions, the better of the two first, until both are out, and only then does anything go to the rest. Say two accounts have a weekly reset banked on claude.ai and a third hasn't: pin the two, let them run out, and reset them by hand. The router sees a reset the next time it reads the account: before a choice it makes afresh once its reading is 15 minutes old, or at once with `switchboard usage -r`, or `r` on the dashboard.
+Pinning several accounts sets an order to use them up in: with `pin work side`, `work` and `side` take the new sessions, the better of the two first, until both are out, and only then does anything go to the rest. Say two accounts have a weekly reset banked on claude.ai and a third hasn't: pin the two, let them run out, and reset them by hand. The router sees a reset the next time it reads the account: before a choice it makes afresh once its reading is 15 minutes old, or at once with `switchboard usage -r`, or `r` on the dashboard, which probe an account that can take no request however lately the router read it, unless it probed the account in the last minute.
 
 Name a session by its id, or as much of it as is unique among the sessions routed in the last hour: `switchboard status` lists them, Claude Code's `/status` shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it.
 
@@ -479,7 +479,7 @@ Each account's token is a file of its own, holding the token alone: `<state dir>
 
 `setup`, `accounts add` and `accounts token` write the files, but anything can, such as a secrets manager's file export or a dotfiles step, best by writing a temporary file beside the token file and renaming it into place, as switchboard does. A token file can be a link to one kept elsewhere: switchboard writes a token through it, to where it leads. An account whose token file already holds a usable token is added without asking for one.
 
-The router reads the tokens as it starts, every account's file again every 3 seconds, and an account's file again when the API refuses the token it holds, so a changed token file needs no restart. A file found without a usable token at one look, as while it's being rewritten, keeps its account's token: only two looks in a row, 3 seconds apart, take it away. `claude` too looks again, a moment on, at the primary's file, and a pinned account's, before it counts one as holding none. Sessions started before a token was replaced still carry the old one, which the router routes as its account's for 7 days.
+The router reads the tokens as it starts, every account's file again every 3 seconds, and an account's file again when the API refuses the token it holds, so a changed token file needs no restart. A file found without a usable token at one look, as while it's being rewritten, keeps its account's token: only two looks in a row, 3 seconds apart, take it away. `claude` too looks again, a moment on, at the primary's file, and a pinned account's, when it finds one there but empty, before it counts it as holding none. Sessions started before a token was replaced still carry the old one, which the router routes as its account's for 7 days.
 
 ### Where things live
 

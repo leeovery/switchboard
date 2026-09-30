@@ -32,7 +32,8 @@ func (p *pool) current() *http.Transport {
 // renew has the requests from now on go upstream on a transport of their
 // own, with connections of its own, as after the Mac sleeps, when those kept
 // may be dead. Of the connections before, those idle close, and those with a
-// request under way carry it on, as far as they can, and close once idle.
+// request under way carry it on, as far as they can, and close once idle for
+// the transport's idle timeout, 90 seconds, or sooner when a ping fails.
 // Closing the idle alone wouldn't do: HTTP/2 carries every request on one
 // connection, and one with a stream under way through the sleep would take
 // the next request, and hang it until its pings failed.

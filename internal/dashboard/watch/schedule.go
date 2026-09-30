@@ -57,8 +57,9 @@ func nextFetch(doc status.Document, read time.Time, wait time.Duration) time.Tim
 // rereadAfterReset returns when a window in doc wants reading again for its
 // reset, a grace period after it resets: the first whose grace period runs
 // past since, or zero when there's none. An account with a window that has
-// lapsed is passed over, as the router won't probe it: that would start the
-// window, which reads empty until a request does.
+// lapsed is passed over, as the router probes it only while it can take no
+// request: a probe would start the window, which reads empty until a request
+// does.
 func rereadAfterReset(doc status.Document, since time.Time) time.Time {
 	var first time.Time
 	for _, a := range doc.Accounts {

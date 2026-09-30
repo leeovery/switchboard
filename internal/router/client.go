@@ -126,8 +126,13 @@ func unknownSession(id string) error {
 // accounts, with Move, every running session on another account too, on its
 // next request, and with Force, clear every session's own pin. It returns the
 // status document as pinning leaves it, and fails, saying why, for an account
-// the router can't send requests on.
+// the router can't send requests on. A pin of one account names it as Account
+// too, as a router from before pins named several reads a pin: one still
+// running once an upgrade has replaced it, until it restarts.
 func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error) {
+	if len(p.Accounts) == 1 {
+		p.Account = p.Accounts[0]
+	}
 	var doc status.Document
 	err := c.call(ctx, clientTimeout, http.MethodPost, "/pin", p, &doc)
 	return doc, err
@@ -147,8 +152,8 @@ func (c *Client) Unpin(ctx context.Context, force bool) (status.Document, error)
 }
 
 // Refresh has the router probe the accounts it hasn't read for longer than
-// maxAge, waiting a few seconds at most for those probes, and returns the
-// status document as they leave it.
+// maxAge, and those that can take no request anyway, waiting a few seconds at
+// most for those probes, and returns the status document as they leave it.
 func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Document, error) {
 	var doc status.Document
 	err := c.call(ctx, refreshTimeout, http.MethodPost, "/refresh", refreshRequest{MaxAge: maxAge.String()}, &doc)

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/tokens"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const workToken = "test-token-work"
@@ -28,9 +29,10 @@ func TestRead(t *testing.T) {
 		otherUser bool
 		want      string
 		// wantErr is the error Read fails with, %s standing for the token
-		// file's path, and wantMissing whether it's ErrMissing.
-		wantErr     string
-		wantMissing bool
+		// file's path, wantMissing whether it's ErrMissing, and wantEmpty
+		// whether it's ErrEmpty.
+		wantErr                string
+		wantMissing, wantEmpty bool
 	}{
 		{name: "a token", content: workToken, mode: 0o600, want: workToken},
 		{name: "the whitespace around it ignored", content: "\n " + workToken + "\r\n", mode: 0o600, want: workToken},
@@ -38,8 +40,8 @@ func TestRead(t *testing.T) {
 		{name: "runnable, by its owner alone", content: workToken, mode: 0o700, want: workToken},
 		{name: "as large as a token file can be", content: strings.Repeat("x", 4<<10), mode: 0o600, want: strings.Repeat("x", 4<<10)},
 		{name: "missing", wantErr: "token missing: write it to %s", wantMissing: true},
-		{name: "empty", content: "", mode: 0o600, wantErr: "token missing: write it to %s, which is empty", wantMissing: true},
-		{name: "whitespace alone", content: " \n\t\n", mode: 0o600, wantErr: "token missing: write it to %s, which is empty", wantMissing: true},
+		{name: "empty", content: "", mode: 0o600, wantErr: "token missing: write it to %s, which is empty", wantMissing: true, wantEmpty: true},
+		{name: "whitespace alone", content: " \n\t\n", mode: 0o600, wantErr: "token missing: write it to %s, which is empty", wantMissing: true, wantEmpty: true},
 		{name: "two tokens", content: workToken + " test-token-side", mode: 0o600, wantErr: "the token file %s holds more than a token: write the token alone to it"},
 		{name: "a shell's export of it", content: "export CLAUDE_CODE_OAUTH_TOKEN=" + workToken + "\n", mode: 0o600, wantErr: "the token file %s holds more than a token: write the token alone to it"},
 		{name: "larger than a token file can be", content: strings.Repeat("x", 4<<10+1), mode: 0o600, wantErr: "the token file %s holds more than a token: write the token alone to it"},
@@ -86,6 +88,9 @@ func TestRead(t *testing.T) {
 			if missing := errors.Is(err, tokens.ErrMissing); missing != tt.wantMissing {
 				t.Errorf("Read() error is ErrMissing: %v, want %v", missing, tt.wantMissing)
 			}
+			if empty := errors.Is(err, tokens.ErrEmpty); empty != tt.wantEmpty {
+				t.Errorf("Read() error is ErrEmpty: %v, want %v", empty, tt.wantEmpty)
+			}
 			if err != nil && strings.Contains(err.Error(), workToken) {
 				t.Errorf("Read() error = %q, which shows the token", err)
 			}
@@ -100,6 +105,37 @@ func TestReadIsTheStateDirectorys(t *testing.T) {
 	token, err := tokens.NewStore(state, os.Getuid()).Read("work")
 	if err != nil || token.Reveal() != workToken {
 		t.Errorf("Read() = %q, %v, want the token in <state dir>/tokens/work", token.Reveal(), err)
+	}
+}
+
+func TestTheStandInFailsAsTheStoreDoes(t *testing.T) {
+	tests := []struct {
+		name string
+		// content is what the token file holds; nil leaves no file.
+		content *string
+	}{
+		{name: "missing"},
+		{name: "empty", content: new("")},
+		{name: "whitespace alone", content: new(" \n\t\n")},
+		{name: "two tokens", content: new(workToken + " test-token-side")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			files := tokenstest.Files{}
+			if tt.content != nil {
+				writeFile(t, store.Path("work"), *tt.content, 0o600)
+				files["work"] = *tt.content
+			}
+
+			_, want := store.Read("work")
+			_, got := files.Read("work")
+			for _, kind := range []error{tokens.ErrMissing, tokens.ErrEmpty} {
+				if errors.Is(got, kind) != errors.Is(want, kind) {
+					t.Errorf("tokenstest.Files' Read() error = %v, and the store's %v: want both %v, or neither", got, want, kind)
+				}
+			}
+		})
 	}
 }
 

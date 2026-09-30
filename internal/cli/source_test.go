@@ -3,6 +3,7 @@ package cli_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -166,8 +167,9 @@ func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 
 	for i, args := range [][]string{{"usage"}, {"usage", "--refresh"}, {"usage", "-r"}} {
 		// Two minutes on each time, every account last read over a minute
-		// ago, and last probed.
+		// ago, and last probed, work's session reads as used a point more.
 		later.Store(int64(i+1) * int64(2*time.Minute))
+		api.readSessionAs(fmt.Sprintf("0.%d", 31+i))
 		asked := len(api.questions())
 		got := run(t, srv.deps, args...)
 		if got.code != 0 || got.stderr != "" || !strings.Contains(got.stdout, "\n router  ·  ") {
@@ -177,6 +179,37 @@ func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 		if want := len(args) > 1; refreshed != want {
 			t.Errorf("after switchboard %s, the router probed = %v, want %v", strings.Join(args, " "), refreshed, want)
 		}
+		shown := "23%"
+		if refreshed {
+			shown = fmt.Sprintf("%d%%", 31+i)
+		}
+		if !strings.Contains(got.stdout, "Session") || !strings.Contains(got.stdout, shown) {
+			t.Errorf("switchboard %s printed\n%s\nwant work's session at %s, as the router last read it", strings.Join(args, " "), got.stdout, shown)
+		}
+	}
+}
+
+func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
+	var later atomic.Int64
+	api := newClaudeAPI(t)
+	srv := newServeSetup(t, api.URL, nil)
+	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
+	srv.start(t)
+	srv.waitForProbes(t)
+	api.limitWeek(true)
+	if code := srv.ask(t); code != http.StatusTooManyRequests {
+		t.Fatalf("a request on work, at the limit of its week, was answered %d, want 429", code)
+	}
+	// Work's session lapses, and then its week is reset by hand.
+	later.Store(int64(5 * time.Hour))
+	api.limitWeek(false)
+
+	if got := run(t, srv.deps, "usage"); !strings.Contains(got.stdout, "limit until") {
+		t.Fatalf("switchboard usage printed\n%s\nwant work's limit, which the router hasn't read since", got.stdout)
+	}
+	got := run(t, srv.deps, "usage", "--refresh")
+	if got.code != 0 || !strings.Contains(got.stdout, "\n router  ·  ") || strings.Contains(got.stdout, "limit until") {
+		t.Errorf("switchboard usage --refresh = %+v, want the router's dashboard, work's limit lifted: its probe, though its session has lapsed, read the reset", got)
 	}
 }
 

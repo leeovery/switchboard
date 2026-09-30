@@ -337,7 +337,7 @@ func TestInstalledVersionAsksTheClaudeFindFinds(t *testing.T) {
 				return ""
 			}
 
-			if got := claude.InstalledVersion(getenv, homeDir, executable)(); got != tt.want {
+			if got := claude.InstalledVersionOfStandIn(getenv, homeDir, executable)(); got != tt.want {
 				t.Errorf("InstalledVersion()() = %q, want %q", got, tt.want)
 			}
 		})

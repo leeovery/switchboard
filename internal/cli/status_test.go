@@ -274,6 +274,27 @@ type claudeAPI struct {
 	mu sync.Mutex
 	// asked holds each request's token and model, as "token model".
 	asked []string
+	// session is the share of its session work reads as having used, and
+	// limited is set while work is at the limit of its week.
+	session string
+	limited bool
+}
+
+// readSessionAs has the API read work's session as used as given, such as
+// "0.41", from now on.
+func (a *claudeAPI) readSessionAs(used string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.session = used
+}
+
+// limitWeek has the API answer every request on work's token at the limit of
+// its week from now on, or, given false, take them again, as after the week
+// is reset by hand.
+func (a *claudeAPI) limitWeek(limited bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.limited = limited
 }
 
 // questions returns what the API has been asked, sorted: each request's token
@@ -287,7 +308,7 @@ func (a *claudeAPI) questions() []string {
 // newClaudeAPI starts the API fakeClaudeAPI describes.
 func newClaudeAPI(t *testing.T) *claudeAPI {
 	t.Helper()
-	api := &claudeAPI{}
+	api := &claudeAPI{session: "0.23"}
 	accountWide := map[string]string{
 		"anthropic-ratelimit-unified-5h-utilization": "0.23",
 		"anthropic-ratelimit-unified-5h-reset":       "1790619000", // Mon 28 Sep 2026 18:10 UTC
@@ -316,7 +337,17 @@ func newClaudeAPI(t *testing.T) *claudeAPI {
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		api.mu.Lock()
 		api.asked = append(api.asked, token+" "+req.Model)
+		session, limited := api.session, api.limited
 		api.mu.Unlock()
+		if limited && token == "test-token-work" {
+			w.Header().Set("anthropic-ratelimit-unified-status", "rejected")
+			w.Header().Set("anthropic-ratelimit-unified-7d-utilization", "1")
+			w.Header().Set("anthropic-ratelimit-unified-7d-reset", accountWide["anthropic-ratelimit-unified-7d-reset"])
+			w.Header().Set("anthropic-ratelimit-unified-7d-status", "rejected")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"rate_limit_error","message":"You've hit your weekly limit"}}`)
+			return
+		}
 		headers, ok := usage[req.Model]
 		if !ok || r.Header.Get("Authorization") != "Bearer test-token-work" || r.Header.Get("User-Agent") != "claude-code/"+testClaudeVersion {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -326,6 +357,7 @@ func newClaudeAPI(t *testing.T) *claudeAPI {
 		for name, value := range headers {
 			w.Header().Set(name, value)
 		}
+		w.Header().Set("anthropic-ratelimit-unified-5h-utilization", session)
 		_, _ = io.WriteString(w, `{"type":"message"}`)
 	}))
 	t.Cleanup(srv.Close)

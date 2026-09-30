@@ -35,6 +35,8 @@ func main() {
 		GOOS:          runtime.GOOS,
 		UID:           os.Getuid(),
 		PID:           os.Getpid(),
+		Pause:         time.Sleep,
+		ZoneFile:      "/etc/localtime",
 	})
 	root.SetArgs(cli.Args(os.Args))
 	os.Exit(cli.Execute(root))

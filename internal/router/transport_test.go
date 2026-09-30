@@ -66,12 +66,16 @@ func TestTransportWaitsForAResponseAsLongAsItTakes(t *testing.T) {
 
 func TestARenewedPoolKeepsNoConnectionFromBefore(t *testing.T) {
 	var opened atomic.Int32
+	closed := make(chan struct{}, 2)
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "ok")
 	}))
 	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
-		if state == http.StateNew {
+		switch state {
+		case http.StateNew:
 			opened.Add(1)
+		case http.StateClosed:
+			closed <- struct{}{}
 		}
 	}
 	srv.Start()
@@ -94,6 +98,11 @@ func TestARenewedPoolKeepsNoConnectionFromBefore(t *testing.T) {
 		t.Fatalf("two requests opened %d connections, want one, kept between them", n)
 	}
 	p.renew()
+	select {
+	case <-closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the connection kept from before the pool was renewed is open still, want it closed, as it was idle")
+	}
 	get()
 	if n := opened.Load(); n != 2 {
 		t.Errorf("once the pool is renewed, requests have opened %d connections, want one more", n)

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 )
@@ -191,6 +192,28 @@ func TestInstallTriesBootstrappingAgain(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestInstallGivenUpWhileItWaitsToBootstrapAgainFailsAsTheTryDid(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		s := newSetup(t, nil, upOnceStarted(4242))
+		s.launchctl.exits = map[string]int{"bootstrap": 5}
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		_, err := s.svc.Install(ctx, service.InstallOptions{Executable: s.binary})
+		want := "launchctl bootstrap gui/501 " + s.plist + ": bootstrap failed: 5: Input/output error (exit status 5)"
+		if err == nil || err.Error() != want {
+			t.Errorf("Install() error = %v, want %q", err, want)
+		}
+		if want := [][]string{{"print", target}, {"bootstrap", "gui/501", s.plist}}; !reflect.DeepEqual(s.launchctl.calls, want) {
+			t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
+		}
+		if log.Has("trying again") {
+			t.Errorf("log reads\n%s\nwant no try again noted, the failure being Install's to report", log)
+		}
+	})
 }
 
 func TestInstallRefusesATemporaryBuild(t *testing.T) {

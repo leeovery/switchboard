@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 3 -->
+<!-- switchboard skill version: 4 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -12,8 +12,9 @@ Claude subscriptions, which it calls accounts.
 - To find the account a session is on, run `switchboard status --session <id>`. Your own session's
   id is in `$CLAUDE_CODE_SESSION_ID`, and Claude Code's `/status` shows a session's id.
 - To see every account's usage, run `switchboard usage`. After a limit is reset by hand on
-  claude.ai, `switchboard usage --refresh` has the router read the accounts again first, so it sees
-  the reset at once, as `r` does on the dashboard, `switchboard usage -w`.
+  claude.ai, `switchboard usage --refresh` has the router first probe each account that can take
+  no request, however lately it read it, but never twice in a minute, so it sees the reset, as `r`
+  does on the dashboard, `switchboard usage -w`.
 - To steer sessions, run `switchboard pin <account>`, which sends new sessions to that account, or
   `switchboard pin <account> <account>...`, which sends them to the best of those accounts until
   every one of them is out, and only then to the others. Add `--move` to move running sessions

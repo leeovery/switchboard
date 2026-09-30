@@ -16,22 +16,22 @@ const (
 	freshFor = time.Minute
 )
 
-// plan is when the dashboard next reads its source, and what it asks for.
-// The source's document says how often to read it. The router's costs
-// nothing to read, so the dashboard looks at it every lookEvery, and once an
-// interval has the router refresh the accounts it hasn't read for that long;
-// and a look once a window on screen has reset has the router refresh first
-// the accounts it hasn't read in the last minute, as an idle account's
-// window would read "resets now" until the next full read, unless the
-// account has a window that has lapsed, which the router won't probe. A look
-// never probes when the router doesn't answer, as a router away for a moment,
-// restarting or slow on waking, would have every account probed at once,
-// starting their lapsed windows off the priming schedule: only a full read
-// does, once it's due. A document built by probing is read again once an
-// interval, sooner after a read that failed or once a window on screen
-// resets, and the router is asked after once a minute in between, so the
-// dashboard reads it again soon after it comes back, but never goes back and
-// forth faster than that.
+// plan is when the dashboard next reads its source, and what it asks for. The
+// source's document says how often to read it. The router's costs nothing to
+// read, so the dashboard looks at it every lookEvery, and once an interval has
+// the router refresh the accounts it hasn't read for that long; and a look
+// once a window on screen has reset has the router refresh first the accounts
+// it hasn't read in the last minute, as an idle account's window would read
+// "resets now" until the next full read. The windows of an account with one
+// that has lapsed ask no refresh, as the router probes such an account only
+// while it can take no request. A look never probes when the router doesn't
+// answer, as a router away for a moment, restarting or slow on waking, would
+// have every account probed at once, starting their lapsed windows off the
+// priming schedule: only a full read does, once it's due. A document built by
+// probing is read again once an interval, sooner after a read that failed or
+// once a window on screen resets, and the router is asked after once a minute
+// in between, so the dashboard reads it again soon after it comes back, but
+// never goes back and forth faster than that.
 type plan struct {
 	interval time.Duration
 	// due is when the next full read is due: one that has the router
