@@ -674,7 +674,10 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   on. Its pace marker and its projection measure from its start again, rather than from a whole
   length before its reset, until its next reset, a later reset being a new window; otherwise a
   week reset on its third day would show the marker a third of the way along, and be on pace for
-  0%.
+  0%. Once the router has read a window reset by hand, the answer to a request sent before the
+  one whose answer showed it is from before the reset, and is passed over, where use only rising
+  within a window would have it put back the use the reset took away; the router keeps which
+  request that was in memory alone, as the state file's readings count as read before any.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
   shows empty, as not started, until something uses it or a prime starts it, and, from the
   router, when its account is next primed: `not started · next prime Tue 04:10`.

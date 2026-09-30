@@ -202,6 +202,32 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 	}
 }
 
+func TestAReadingFromBeforeAResetMadeByHandIsStaleAfterIt(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	usedAt := func(u float64) []quota.Window {
+		w := session
+		w.Utilization = u
+		return []quota.Window{w}
+	}
+	s.record("work", usedAt(0.5), s.mark())
+	// One request is sent, then another; the second is answered first,
+	// reading the session reset by hand.
+	before := s.mark()
+	clock.now = start.Add(time.Minute)
+	s.record("work", usedAt(0.02), s.mark())
+
+	s.record("work", usedAt(0.55), before)
+	if got := s.usage["work"].windows["5h"]; got.Utilization != 0.02 || !got.RestartedAt.Equal(clock.now) {
+		t.Errorf("the session reads %v, started again at %v, want 0.02, started again at %v: the late answer is from before the reset",
+			got.Utilization, got.RestartedAt, clock.now)
+	}
+	s.record("work", usedAt(0.05), s.mark())
+	if got := s.usage["work"].windows["5h"]; got.Utilization != 0.05 || !got.RestartedAt.Equal(clock.now) {
+		t.Errorf("the session reads %v, started again at %v, want 0.05, used since the reset", got.Utilization, got.RestartedAt)
+	}
+}
+
 func TestAReadingReadAgainSinceOutweighsALateAnswerToARequestSentBefore(t *testing.T) {
 	s := newTestState(&testClock{now: start})
 	busier := session

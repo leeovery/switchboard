@@ -60,6 +60,11 @@ type usage struct {
 	// trails are how its windows have been read lately, which their paces
 	// are measured over.
 	trails trails
+	// resetBy holds, by key, the moment the request was sent whose answer
+	// showed the window reset by hand: a reading of it off the answer to one
+	// sent before is from before the reset. It's kept in memory alone, as the
+	// state file's readings count as taken before every moment.
+	resetBy map[string]moment
 }
 
 // refusal is the upstream refusing requests on an account, answering with
@@ -209,6 +214,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 			taken:     make(map[string]moment),
 			forbidden: make(map[string]refusals),
 			trails:    make(trails),
+			resetBy:   make(map[string]moment),
 		}
 	}
 	return s
@@ -651,11 +657,14 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 	for _, w := range windows {
 		held := u.windows[w.Key]
 		kept, outcome := mergeLater(held, w, sent > u.taken[w.Key])
-		if outcome == stale {
+		if outcome == stale || u.fromBeforeReset(held, w, sent) {
 			continue
 		}
 		if outcome == counted {
 			kept = startedAgain(held, kept, at)
+			if resetByHand(held, kept) {
+				u.resetBy[w.Key] = sent
+			}
 			u.windows[w.Key], u.taken[w.Key] = kept, taken
 			u.trails.note(held, kept, at)
 		}
@@ -673,6 +682,16 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 		u.limited = limit{}
 	}
 	return changed, true
+}
+
+// fromBeforeReset reports whether w, a reading off the answer to a request sent
+// at sent, is from before the reset made by hand held, the window as it now
+// stands, was read to have had: it has held's reset, and its request was sent
+// before the one whose answer showed the reset. Taken, it would put back the
+// use the reset took away, as use only rises within a window.
+func (u *usage) fromBeforeReset(held, w quota.Window, sent moment) bool {
+	by, ok := u.resetBy[w.Key]
+	return ok && !held.RestartedAt.IsZero() && w.ResetsAt.Equal(held.ResetsAt) && sent < by
 }
 
 // readsOtherwise reports whether kept, the reading a window now stands as,
