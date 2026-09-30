@@ -58,21 +58,22 @@ its sessions and pin, else read by probing each account, as --probe does
 whether the router runs or not.
 
 With --refresh, the router first reads every account it may, as the
-dashboard's r has it do: each it hasn't read in the last minute, and each
-that can take no request anyway, however lately it read it, as while a limit
-holds back its every request, or a window every model shares reads spent. It
-passes over one whose 5-hour window has lapsed, which a probe would start,
-unless it can take no request anyway, and one it probed in the last minute.
-It waits for those reads, ten seconds at most, then shows them, so once a
-limit is reset by hand, the router sees it.
-Without the router, or with --probe, every account is probed anyway, so
---refresh changes nothing. It reads once, so it takes no --watch: in a watch,
-r refreshes.
+dashboard's r has it do: each it hasn't read in the last minute, and each that
+can take no request anyway, however lately it read it, as while a limit holds
+back its every request, or a window every model shares reads spent. It passes
+over one whose 5-hour window has lapsed, which a probe would start, unless it
+can take no request anyway, and one it probed in the last minute. It waits for
+those reads, ten seconds at most, then shows them, so once a limit is reset by
+hand, the router sees it. Without the router, or with --probe, every account
+is probed anyway, so --refresh changes nothing. It reads once, so it takes no
+--watch: in a watch, r refreshes.
 
 With --watch the dashboard stays on screen. It reads the router's usage every
 few seconds, and every interval has the router probe the accounts it hasn't
 read in that time: 30m unless given, and 5m at the least. Give it as a
-duration, such as 15m or 1h, or as a number of minutes. Without the router it
+duration, such as 15m or 1h, or as a number of minutes. Should the router
+stop answering, its last document stays on screen until it answers again, or
+the next full read, or r, probes the accounts instead. Without the router it
 probes every account every interval, sooner for a window that resets or an
 account that couldn't be read, and reads the router again once it's back.
 
