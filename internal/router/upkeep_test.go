@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -208,6 +209,34 @@ func TestTheRouterTakesUpTokenFilesAsTheyChange(t *testing.T) {
 	}
 	waitForLine(t, log, "msg=routed", "session=new", "account=work", `reason="moved: personal has no room"`)
 	checkNoTokenIn(t, log, workToken, renewed, personalToken, sideToken)
+}
+
+func TestTheSessionsOfAnAccountRemovedStayRoutedAsThePrimarys(t *testing.T) {
+	log := logstest.Capture(t)
+	up := newUpstream(t, answerOK)
+	store, files := withTokenFiles(t)
+	s := newSelfWatching(t, false)
+	s.cfg.Upstream = up.URL
+	files(&s.cfg)
+	startRouter(t, s.cfg)
+
+	// Work, the primary, is removed as accounts remove removes it: its table
+	// from the config, which leaves side the primary, then its token file.
+	writeFile(t, s.config, "[[account]]\nid = \"side\"\n\n[[account]]\nid = \"personal\"\n")
+	if _, err := store.Remove("work"); err != nil {
+		t.Fatal(err)
+	}
+	waitForLine(t, log, "level=INFO", `msg="account no longer configured; its tokens count as the primary's for a week"`, "account=work", "primary=side")
+	waitForLine(t, log, "level=INFO", `msg="account has no usable token; nothing will go out on it until it's back"`, "account=work")
+
+	if got := post("http://" + s.cfg.Listen + "/v1/messages"); got != `200 {"type":"message"}` {
+		t.Errorf("a request carrying work's token was answered %q, want 200 and its body", got)
+	}
+	if got := up.bearers(); !slices.Equal(got, []string{sideToken}) {
+		t.Errorf("the request carrying work's token went upstream on %q, want side's alone: it's routed as side's, the primary now", got)
+	}
+	waitForLine(t, log, "msg=routed", "account=side", "status=200")
+	checkNoTokenIn(t, log, workToken, sideToken)
 }
 
 // selfWatching is what a router that looks after itself is started with: a

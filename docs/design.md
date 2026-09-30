@@ -344,7 +344,10 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 ## The primary account
 
 One account is the primary: the one the browser and the Claude apps are signed into.
-`primary = true` marks it; without it, the first account is the primary.
+`primary = true` marks it; without it, the first account is the primary. So removing the primary
+leaves the account marked, else the first, the primary, which `accounts remove` names; the
+sessions running on the removed account's token, as every routed session holds the primary's, stay
+routed, as the new primary's (see Accounts and tokens).
 
 - **Claude Code's own token** is the primary's. `run` gives it to every routed session, whichever
   account the conversation goes to, a session pinned to another account included: the pin moves
@@ -490,6 +493,14 @@ token `accounts add`, `accounts token` or `setup` is given.
   configured account, with a usable token or not: of an account without one as the router starts,
   the hash of the token held last is compared with the token the account later gains, and a
   different one counts as replaced.
+- An account removed from the config leaves its tokens, the one the router held last and those it
+  had before, to the primary, as former tokens of the primary's, for 7 days from when the router
+  found the account gone, or from when they were replaced: a session started with one, as every
+  session holds the primary's, carries on sending it, and stays routed, its client account the
+  primary. The router takes them up at the first look that finds the config without the account,
+  before the restart that takes the config up (see The router looking after itself), and, as it
+  starts, from what `state.json` kept of the account's tokens. While the primary has no usable
+  token, they count no more than its own do.
 - The programs switchboard runs for itself, `claude --version`, `osascript` and `launchctl`, get
   none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
@@ -507,7 +518,9 @@ token `accounts add`, `accounts token` or `setup` is given.
   account the primary.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link
-  alone, saying where it led, as the file there isn't switchboard's.
+  alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
+  account is the primary now, and that the sessions running on the removed account's token stay
+  routed, as the new primary's, for a week.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
@@ -751,7 +764,8 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   a different token; a token replaced while the router was away, which it finds as it starts; a
   token file found holding another token, an account gaining a usable token, and one losing it, with
   why; the tokens directory made private as the router starts, and what bringing the skill up to
-  date did; a config change, and an upgrade; a restart either makes due, once, and the restart as it
+  date did; a config change, and an upgrade; the tokens of an account the config no longer
+  configures counting as the primary's; a restart either makes due, once, and the restart as it
   goes. At `warn`: as the router starts, each account without a usable token, and, when none has
   one, that nothing will be routed until one has; a prime that failed, or didn't start the window;
   and a config change refused, as invalid. At `debug`, a token file found holding no usable token at
@@ -784,15 +798,20 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   whose file holds no usable token at two looks in a row, 3 seconds apart, has nothing to send on
   until it's back, as though it had none as the router started: the sessions on it move, and a
   request carrying its token passes through untouched, as one carrying a token the router doesn't
-  hold does (see Proxy rules). While the primary's is gone, that's every session's request. A single
-  look finding none keeps the token, noted at debug: a writer that empties the file before it writes
-  the token, as a shell's redirect does, leaves it so for a moment. The priming schedule is worked
-  out again whenever an account gains a usable token or loses it.
+  hold does (see Proxy rules), unless the account is gone from the config, when its tokens count as
+  the primary's (see Config changes). While the primary's is gone, that's every session's request.
+  A single look finding none keeps the token, noted at debug: a writer that empties the file before
+  it writes the token, as a shell's redirect does, leaves it so for a moment. The priming schedule
+  is worked out again whenever an account gains a usable token or loses it.
 - **Config changes:** it restarts itself on a change to its config file that parses and
   validates, so `accounts add`, `accounts remove` and an edit by hand all take effect without a
   command. It follows links, so a config kept in a dotfiles repo and linked counts, and a change
   is the file's identity or modification time changing. A change that doesn't parse and validate
-  is logged at `warn`, and the router carries on with the config it has.
+  is logged at `warn`, and the router carries on with the config it has. Until the restart, which
+  can be hours coming (see below), the router routes by the config it started with, but for the
+  tokens of an account the new config is without, which count as the primary's it makes from the
+  look that finds the change, so the sessions running on them stay routed once the account's token
+  file goes, as `accounts remove` deletes it (see Accounts and tokens).
 - **Upgrades:** it restarts itself when the binary it was started as, the Homebrew link its
   LaunchAgent runs, leads to a different file from the one running, or to the same file changed
   since, as after `brew upgrade`. A link that leads nowhere, as it may for a moment while an upgrade
@@ -952,10 +971,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
   hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
   configured, those accounts from the global pin, which goes with the last of them, and their
-  readings and token hashes; those of a configured account whose token file can't be read are kept,
-  as the file may only have been caught while it's rewritten, and choices pass the account over
-  until it has a token. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the
-  router starts without it.
+  readings, and keeps their token hashes as the primary's former tokens (see Accounts and tokens);
+  those of a configured account whose token file can't be read are kept, as the file may only have
+  been caught while it's rewritten, and choices pass the account over until it has a token. A
+  corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -1029,13 +1048,16 @@ fails as it is; one that parses has every problem reported at once:
 
 - A request is routed only when its path is exactly `/v1/messages` or `/v1/messages/count_tokens`
   **and** its bearer token is one of the configured accounts' tokens, which Claude Code's, the
-  primary's, is, or one an account had before the router took up another, for 7 days after (see
-  Accounts and tokens): an account without a usable token has none that counts. Anything else
+  primary's, is, or one an account had before the router took up another, or one of an account
+  removed from the config, which counts as the primary's, for 7 days after (see Accounts and
+  tokens): an account without a usable token has none that counts. Anything else
   passes through untouched: batches, whose ids belong to one account, stay on it, and a local
   process that doesn't already hold a token can't borrow one.
 - A token an account had before is known by its SHA-256 hash, which a request's token is hashed
   and compared with in constant time, as the current tokens are. A request carrying one is the
-  account's, and goes out on the account's current token, as every routed request does.
+  account's, and goes out on the account's current token, as every routed request does. One
+  carrying a token of an account removed is the primary's: the primary is its client account,
+  which it falls back to when no account has room.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
   that session. It is stripped before the request goes upstream. One naming an account that isn't
   configured, or has no token, is ignored, and the log warns of it once for each session and

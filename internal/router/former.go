@@ -8,12 +8,14 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // formerFor is how long a token an account had still counts as the
-// account's once it's replaced: sessions started before it was replaced
-// carry on sending it, and every session holds the primary's.
+// account's once it's replaced, or its account removed, when it counts as
+// the primary's: sessions started before carry on sending it, and every
+// session holds the primary's.
 const formerFor = 7 * 24 * time.Hour
 
 // formerToken is a token an account had before its current one, as the
@@ -83,6 +85,31 @@ func (s *secret) swap(token tokens.Token, now time.Time) bool {
 	return true
 }
 
+// adopt has the tokens of an account removed from the config, as the state
+// file keeps them, count as this account's former tokens: the one the
+// router held last as replaced at now, and those it had before as they were,
+// while they still count, but for any this account has already. It reports
+// whether it adopted any.
+func (s *secret) adopt(removed savedTokens, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	adopted := false
+	for _, f := range append(slices.Clone(removed.Former), formerToken{SHA256: removed.SHA256, ReplacedAt: now.UTC()}) {
+		if f.SHA256 == "" || !f.counts(now) || s.knows(f.SHA256) {
+			continue
+		}
+		s.former = append(s.former, f)
+		adopted = true
+	}
+	return adopted
+}
+
+// knows reports whether sum is the hash of the token the account holds, or
+// of one it had before. s.mu must be held.
+func (s *secret) knows(sum string) bool {
+	return sum == s.held || slices.ContainsFunc(s.former, func(f formerToken) bool { return f.SHA256 == sum })
+}
+
 // was reports whether the token whose hash is sum is one the account had
 // before, which still counts as the account's at now. Each comparison takes as
 // long however much of the hash matches.
@@ -147,15 +174,56 @@ func (as accounts) kept() map[string]savedTokens {
 
 // recall takes in what the state file kept of the accounts' tokens, as the
 // router starts at now, noting in the log each account whose token was
-// replaced while the router was away. It reports whether what's to be kept
-// now differs from what was.
+// replaced while the router was away, and those of accounts no longer
+// configured, which count as the primary's, as adopt says. It reports
+// whether what's to be kept now differs from what was.
 func (as accounts) recall(saved map[string]savedTokens, now time.Time) bool {
 	for _, a := range as {
 		if a.secret.recall(saved[a.ID], now) {
 			logger.Info("token replaced while the router was away; the one before still counts as the account's", "account", a.ID)
 		}
 	}
+	for _, id := range slices.Sorted(maps.Keys(saved)) {
+		if !as.includes(id) {
+			as.adopt(as.configured(), id, saved[id], now)
+		}
+	}
 	return !maps.EqualFunc(as.kept(), saved, savedTokens.equal)
+}
+
+// retire has the tokens of each account that the accounts configured, as the
+// config file now makes them, are without count as the primary's they make,
+// as adopt says, and reports whether any did. The router takes a config up
+// only as it restarts, which can be hours coming, so a session started with
+// a token of an account removed stays routed meanwhile. With none configured,
+// as before the config file has changed, it retires none.
+func (as accounts) retire(configured config.Accounts, now time.Time) bool {
+	ids := configured.IDs()
+	retired := false
+	for _, a := range as {
+		if !slices.Contains(ids, a.ID) {
+			retired = as.adopt(configured, a.ID, a.secret.kept(), now) || retired
+		}
+	}
+	return retired
+}
+
+// adopt has the tokens of the account with the given id, which the accounts
+// configured are without, as the state file keeps them, count as former
+// tokens of the primary they make, at now, for a week: a session started
+// with one carries on sending it, and is routed as the primary's. It logs
+// the account whose tokens the primary adopted, and reports whether it
+// adopted any.
+func (as accounts) adopt(configured config.Accounts, id string, tokens savedTokens, now time.Time) bool {
+	if len(configured) == 0 {
+		return false
+	}
+	primary, ok := as.byID(configured.Primary().ID)
+	if !ok || !primary.secret.adopt(tokens, now) {
+		return false
+	}
+	logger.Info("account no longer configured; its tokens count as the primary's for a week", "account", id, "primary", primary.ID)
+	return true
 }
 
 // forget forgets the accounts' former tokens that no longer count at now, and

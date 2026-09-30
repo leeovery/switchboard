@@ -401,6 +401,19 @@ func TestAccountsRemove(t *testing.T) {
 	}
 }
 
+func TestAccountsRemoveThePrimary(t *testing.T) {
+	deps, _ := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+	writeToken(t, deps, "personal", "test-token-work")
+
+	got := run(t, deps, "accounts", "remove", "personal")
+	want := result{stdout: "removed personal, and its token file\n" +
+		"side is the primary now; the sessions running on personal's token stay routed, as side's, for a week\n"}
+	if got != want {
+		t.Errorf("switchboard accounts remove = %+v, want %+v", got, want)
+	}
+	checkNoTokenFile(t, deps, "personal")
+}
+
 func TestAccountsRemoveATokenFileThatsALink(t *testing.T) {
 	deps, _ := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
 	writeToken(t, deps, "personal", "test-token-work")

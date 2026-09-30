@@ -327,12 +327,47 @@ func TestRemove(t *testing.T) {
 			}
 
 			removed, err := w.registry(&user{}, &fakeAPI{}).Remove("side")
-			if want := (tokens.Removed{File: tt.wantRemoved}); err != nil || removed != want {
+			if want := (accounts.Removed{File: tt.wantRemoved}); err != nil || removed != want {
 				t.Fatalf("Remove() = %+v, %v, want %+v", removed, err, want)
 			}
 			w.checkConfig(t, twoAccounts)
 			w.checkNoToken(t, "side")
 			w.checkToken(t, "work", workToken)
+		})
+	}
+}
+
+func TestRemoveSaysWhichAccountIsThePrimaryOnceTheOneThatWasGoes(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		// id is the account removed, and primary the primary once it's gone.
+		id, primary string
+		// wantPrimary is the primary Remove says of, "" for none.
+		wantPrimary string
+	}{
+		{name: "the first, the primary for want of one marked", config: withSide, id: "work", primary: "personal", wantPrimary: "personal"},
+		{
+			name:        "the one marked, leaving the first the primary",
+			config:      withSide + "primary = true\n",
+			id:          "side",
+			primary:     "work",
+			wantPrimary: "work",
+		},
+		{name: "another than the primary", config: withSide, id: "side", primary: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, tt.config)
+			w.writeToken(t, tt.id, sideToken, 0o600)
+
+			removed, err := w.registry(&user{}, &fakeAPI{}).Remove(tt.id)
+			if want := (accounts.Removed{File: true, Primary: tt.wantPrimary}); err != nil || removed != want {
+				t.Fatalf("Remove() = %+v, %v, want %+v", removed, err, want)
+			}
+			if got := w.load(t).Accounts.Primary().ID; got != tt.primary {
+				t.Errorf("the config's primary is %s, want %s", got, tt.primary)
+			}
 		})
 	}
 }
@@ -353,7 +388,7 @@ func TestRemoveLeavesWhereATokenFilesLinkLeads(t *testing.T) {
 	}
 
 	removed, err := w.registry(&user{}, &fakeAPI{}).Remove("side")
-	if want := (tokens.Removed{File: true, LinkedTo: target}); err != nil || removed != want {
+	if want := (accounts.Removed{File: true, LinkedTo: target}); err != nil || removed != want {
 		t.Fatalf("Remove() = %+v, %v, want %+v", removed, err, want)
 	}
 	w.checkNoToken(t, "side")

@@ -101,6 +101,11 @@ directly above it, and its token file, <state dir>/tokens/<id>. A token file
 that's a link goes, but not the file it leads to, which is left as it is. The
 only account can't be removed, as a config needs one.
 
+Removing the primary makes the account marked primary = true the primary, or
+the first when none is, and says which. The sessions running on the removed
+account's token, as every session holds the primary's, stay routed, as the
+primary's, for a week.
+
 ` + editingTheConfig,
 		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -183,6 +188,9 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 		said += ", and its token file, a link: the file it led to, " + removed.LinkedTo + ", is left as it is"
 	case removed.File:
 		said += ", and its token file"
+	}
+	if removed.Primary != "" {
+		said += "\n" + removed.Primary + " is the primary now; the sessions running on " + id + "'s token stay routed, as " + removed.Primary + "'s, for a week"
 	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), said)
 	return err

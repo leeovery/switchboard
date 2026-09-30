@@ -134,6 +134,13 @@ func (r *restarts) due() string {
 	return ""
 }
 
+// configured returns the accounts the last valid config the config file has
+// made since the router started configures, which the router takes up as it
+// restarts: none while it has made none.
+func (r *restarts) configured() config.Accounts {
+	return r.config.accounts
+}
+
 // ready returns what's closed once a supervised router, with a restart due,
 // has no request in flight, or nil while it's not to restart.
 func (r *restarts) ready() <-chan struct{} {
@@ -167,8 +174,9 @@ type configFile struct {
 	// which a router started again can start from.
 	valid bool
 	// changed is set once the file has made another valid config since the
-	// router started.
-	changed bool
+	// router started, and accounts are those the last it made configures.
+	changed  bool
+	accounts config.Accounts
 }
 
 // look looks at the config file again, and reads it once it has changed:
@@ -180,12 +188,13 @@ func (c *configFile) look() {
 		return
 	}
 	c.seen = now
-	if _, err := config.Load(c.path); err != nil {
+	cfg, err := config.Load(c.path)
+	if err != nil {
 		c.valid = false
 		logger.Warn("config change refused; carrying on with the config as it was", "path", c.path, "error", err)
 		return
 	}
-	c.valid, c.changed = true, true
+	c.valid, c.changed, c.accounts = true, true, cfg.Accounts
 	logger.Info("config changed", "path", c.path)
 }
 

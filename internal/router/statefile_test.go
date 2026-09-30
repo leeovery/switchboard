@@ -476,6 +476,70 @@ func TestAnAccountsTokensOutlastAGapInItsTokenFileAndARestart(t *testing.T) {
 	}
 }
 
+func TestTheTokensOfAnAccountNoLongerConfiguredCountAsThePrimarysForAWeek(t *testing.T) {
+	const goneToken, olderToken = "test-token-gone", "test-token-gone-older"
+	log := logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	older := formerToken{SHA256: hash(olderToken), ReplacedAt: start.Add(-24 * time.Hour)}
+	putState(t, path, savedState{
+		Version: stateVersion,
+		Tokens: map[string]savedTokens{
+			"work": {SHA256: workHash},
+			"side": {SHA256: sideHash},
+			"gone": {SHA256: hash(goneToken), Former: []formerToken{older}},
+		},
+	})
+	f := newTestFile(at(start), testAccounts())
+
+	f.load(path)
+	if !log.Has("level=INFO", `msg="account no longer configured; its tokens count as the primary's for a week"`, "account=gone", "primary=work") {
+		t.Errorf("log reads\n%s\nwant gone's tokens noted as work's, the primary's", log)
+	}
+	if !f.changes.unsaved.Load() {
+		t.Fatal("gone's tokens aren't due to be saved as work's")
+	}
+	f.save()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), goneToken) {
+		t.Errorf("state file holds\n%s\nwant no token in it", data)
+	}
+	want := map[string]savedTokens{
+		"work": {SHA256: workHash, Former: []formerToken{older, {SHA256: hash(goneToken), ReplacedAt: start}}},
+		"side": {SHA256: sideHash},
+	}
+	if held := readState(t, path); !maps.EqualFunc(held.Tokens, want, savedTokens.equal) {
+		t.Errorf("state file holds tokens %+v, want %+v", held.Tokens, want)
+	}
+
+	// Restarted, gone still not configured.
+	tests := []struct {
+		name  string
+		after time.Duration
+		// want are the tokens routed as work's.
+		want []string
+	}{
+		{name: "a moment on", after: time.Minute, want: []string{goneToken, olderToken}},
+		{name: "a week after gone's older token was replaced", after: formerFor - 24*time.Hour, want: []string{goneToken}},
+		{name: "a week on", after: formerFor},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restarted := testAccounts()
+			later := start.Add(tt.after)
+			newTestFile(at(later), restarted).load(path)
+			for _, token := range []string{goneToken, olderToken} {
+				a, ok := restarted.byToken(token, later)
+				if got, want := ok && a.ID == "work", slices.Contains(tt.want, token); got != want {
+					t.Errorf("%s taken for work's %v on: %v, want %v", token, tt.after, got, want)
+				}
+			}
+		})
+	}
+}
+
 func TestLoadingAStateFileThatKnowsTheTokensChangesNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	first := newTestFile(at(start), testAccounts())
