@@ -1434,20 +1434,19 @@ What's built but hasn't been seen against the real thing:
 
 ## Backlog
 
-- **Deferred:** browser (OAuth) logins, and other agents.
-- **Prompt-cache keep-warm (parked):** before a session's hour lapses, replay its last request with
-  `max_tokens` of 1 on its account, renewing its cache for a fraction of a rebuild. Open: how the
-  limits count cache reads; stopping for sessions that have closed (`run`'s pid is Claude Code's,
-  which could tag its requests); and the conflict with re-scoring an idle session. `max_tokens`
-  isn't part of what the thinking check covers.
-- **Artifact proxy:** serve an account's artifacts locally, so one browser sees every account's.
-  It hinges on whether a setup token can read an artifact through the API the artifact tool uses,
-  and claude.ai's live features wouldn't work through it. The primary makes it less needed.
-- **Move notice (deferred):** a `UserPromptSubmit` hook that shows a line in the TUI after a move,
-  and gives Claude the same line as context. Never written into the conversation, which the
-  thinking check rules out.
-- **OAuth logins in place of setup tokens (later, not now):** each account signed in with its
-  claude.ai login, as a browser is, rather than given a setup token, and switchboard keeping every
-  account's refresh token fresh, refreshing each before it lapses, so no login ever does.
-- **Intercepting traffic that ignores `ANTHROPIC_BASE_URL`** (a local-CA mode): not planned. What
-  it would catch is in What doesn't go through the router.
+Ideas live one to a file in `.workflows/.inbox/ideas/`, named for the day each was captured
+(`2026-09-30--request-ledger.md`), the inbox the workflows convention reads; this table is their
+index. An idea taken up leaves the table for its pull request and the design proper; one dropped
+leaves it with a line in its file saying why.
+
+| Idea | Status | File |
+|---|---|---|
+| The dashboard's layout: narrow terminals in watch mode, the heading, more dynamic | next | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
+| A ledger of the requests the router routes, with their token counts | new | [request-ledger](../.workflows/.inbox/ideas/2026-09-30--request-ledger.md) |
+| Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../.workflows/.inbox/ideas/2026-09-30--judgments-with-jev.md) |
+| OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../.workflows/.inbox/ideas/2026-09-30--oauth-logins.md) |
+| A notice when a session moves, through a hook | deferred | [move-notice](../.workflows/.inbox/ideas/2026-09-30--move-notice.md) |
+| Other agents than Claude Code | deferred | [other-agents](../.workflows/.inbox/ideas/2026-09-30--other-agents.md) |
+| Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../.workflows/.inbox/ideas/2026-09-30--prompt-cache-keep-warm.md) |
+| An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../.workflows/.inbox/ideas/2026-09-30--artifact-proxy.md) |
+| Intercepting traffic that ignores `ANTHROPIC_BASE_URL` | not planned | [local-ca-interception](../.workflows/.inbox/ideas/2026-09-30--local-ca-interception.md) |
