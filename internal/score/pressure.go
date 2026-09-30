@@ -32,28 +32,29 @@ type Pace struct {
 	Recent bool
 }
 
-// PaceOf returns how fast w is being used at now: the rise across readings of
-// it taken in the last half hour, over the time they span, when that's 10
-// minutes at least; else its use since it started, once 5% of it has passed,
-// as Project judges it. The readings are of w as it now runs, in the order
-// they were taken. It reports false when neither can say, and once w has
-// reset since it was read.
+// PaceOf returns how fast w is being used at now: at its recent rate, as
+// RecentRate judges it, while it has one; else at its use since it started,
+// once 5% of it has passed, as Project judges it. It reports false when
+// neither can say, and once w has reset since it was read.
 func PaceOf(w quota.Window, readings []Reading, now time.Time) (Pace, bool) {
+	if rate, ok := RecentRate(w, readings, now); ok {
+		return Pace{Rate: rate, Recent: true}, true
+	}
 	if hasReset(w, now) {
 		return Pace{}, false
-	}
-	if rate, ok := recentRate(readings, now); ok {
-		return Pace{Rate: rate, Recent: true}, true
 	}
 	rate, ok := averageRate(w, now)
 	return Pace{Rate: rate}, ok
 }
 
-// recentRate is the rise across the readings taken in the last half hour
-// before now, an hour, reporting false when they span less than 10 minutes.
-func recentRate(readings []Reading, now time.Time) (float64, bool) {
+// RecentRate returns how fast w has been used lately, at now: the rise across
+// the readings of it taken in the last half hour, over the time they span, a
+// share of it an hour. The readings are of w as it now runs, in the order
+// they were taken. It reports false when they span less than 10 minutes, and
+// once w has reset since it was read.
+func RecentRate(w quota.Window, readings []Reading, now time.Time) (float64, bool) {
 	i := slices.IndexFunc(readings, func(r Reading) bool { return !r.At.Before(now.Add(-Recent)) })
-	if i < 0 {
+	if i < 0 || hasReset(w, now) {
 		return 0, false
 	}
 	first, last := readings[i], readings[len(readings)-1]

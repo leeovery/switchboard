@@ -635,11 +635,13 @@ func lapsed() status.Document {
 	return doc
 }
 
-// underPressure is the router's document of three accounts, each session
-// read over the last half hour: work, the primary, keeping a tenth of every
-// window back, at 40% an hour reaches its reserve before its session resets,
-// and personal, at 50% an hour, runs out before its does, so both are under
-// pressure; side, at 5% an hour, isn't, and is the best.
+// underPressure is the router's document of three accounts, each read over
+// the last half hour: work, the primary, keeping a tenth of every window back,
+// at 40% of its session an hour reaches its reserve before its session
+// resets, and personal, at 50% an hour, runs out before its does, so both are
+// under pressure; side, at 5% an hour, isn't, and is the best. Personal's
+// week, at 3% an hour lately, runs out sooner than its use since it started
+// says; work's, at a tenth of a percent, later.
 func underPressure() status.Document {
 	doc := document("3",
 		read("1", "Work", windows(session(0.55, 4*hour), week(0.4, 3*day))),
@@ -650,8 +652,11 @@ func underPressure() status.Document {
 	doc.Router = status.Health{Healthy: true, Requests: 42}
 	doc.Primary, doc.Accounts[0].Primary, doc.Accounts[0].Reserve = "1", true, 0.1
 	doc.Accounts[0].Pressure = status.Pressure{Window: "5h", Rate: 0.4, Recent: true, RunsOut: now.Add(52*time.Minute + 30*time.Second).UTC(), Under: true}
+	doc.Accounts[0].Rates = []status.Rate{{Window: "5h", Rate: 0.4}, {Window: "7d", Rate: 0.001}}
 	doc.Accounts[1].Pressure = status.Pressure{Window: "5h", Rate: 0.5, Recent: true, RunsOut: now.Add(hour + 24*time.Minute).UTC(), Under: true}
+	doc.Accounts[1].Rates = []status.Rate{{Window: "5h", Rate: 0.5}, {Window: "7d", Rate: 0.03}}
 	doc.Accounts[2].Pressure = status.Pressure{Window: "5h", Rate: 0.05, Recent: true, RunsOut: now.Add(18 * hour).UTC()}
+	doc.Accounts[2].Rates = []status.Rate{{Window: "5h", Rate: 0.05}}
 	return doc
 }
 

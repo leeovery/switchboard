@@ -92,6 +92,34 @@ func TestProjectRunsOutAt(t *testing.T) {
 	}
 }
 
+func TestSooner(t *testing.T) {
+	runsOut := func(in time.Duration) score.Projection { return score.Projection{Kind: score.RunsOut, At: now.Add(in)} }
+	onPace := func(atReset float64) score.Projection { return score.Projection{Kind: score.OnPace, AtReset: atReset} }
+	tests := []struct {
+		name string
+		a, b score.Projection
+		want bool
+	}{
+		{name: "running out before", a: runsOut(2 * time.Hour), b: runsOut(time.Hour), want: true},
+		{name: "running out after", a: runsOut(time.Hour), b: runsOut(2 * time.Hour)},
+		{name: "running out together", a: runsOut(time.Hour), b: runsOut(time.Hour)},
+		{name: "running out, against keeping pace", a: onPace(0.9), b: runsOut(time.Hour), want: true},
+		{name: "keeping pace, against running out", a: runsOut(time.Hour), b: onPace(0.9)},
+		{name: "keeping pace for more", a: onPace(0.6), b: onPace(0.9), want: true},
+		{name: "keeping pace for less", a: onPace(0.9), b: onPace(0.6)},
+		{name: "saying anything, against nothing", a: score.Projection{}, b: onPace(0.1), want: true},
+		{name: "saying nothing, against anything", a: onPace(0.1), b: score.Projection{}},
+		{name: "exhausted alike", a: score.Projection{Kind: score.Exhausted, At: now}, b: score.Projection{Kind: score.Exhausted, At: now}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := score.Sooner(tt.a, tt.b); got != tt.want {
+				t.Errorf("Sooner(%+v, %+v) = %v, want %v", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAWindowStartedAgainRunsFromThen(t *testing.T) {
 	// The week began three days ago and resets in four, 4% used.
 	startedAgain := func(ago time.Duration) quota.Window {

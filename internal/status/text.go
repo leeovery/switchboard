@@ -19,6 +19,10 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
+// Lately is the span of the readings a window's recent rate is measured over,
+// as it's said: "last 30 min".
+var Lately = fmt.Sprintf("last %.0f min", score.Recent.Minutes())
+
 // notStarted is what's said of a window that has lapsed: it isn't running,
 // and reads empty, until a request starts it.
 const notStarted = "not started"
@@ -142,7 +146,7 @@ func (d Document) pressureNote(a Account, now time.Time) string {
 	if pressed == "" || !ok {
 		return pressed
 	}
-	over := fmt.Sprintf("over the last %.0f min", score.Recent.Minutes())
+	over := "over the " + Lately
 	if !a.Pressure.Recent {
 		over = "since it started"
 	}
@@ -409,13 +413,18 @@ func windowLine(w quota.Window, labelWidth int, notes []string) string {
 }
 
 // windowNotes say when the account's window w resets and where it's heading at
-// now, as Project says, as far as those are known.
+// now, as Project says, as far as those are known, and when that's at its
+// rate over the last half hour, that it is.
 func (a Account) windowNotes(w quota.Window, now time.Time) []string {
 	var notes []string
 	if !w.ResetsAt.IsZero() {
 		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
 	}
-	if projection := Projection(now, a.Project(w, now)); projection != "" {
+	heading := a.Project(w, now)
+	if projection := Projection(now, heading.Projection); projection != "" {
+		if heading.Recent {
+			projection += " at its rate over the " + Lately
+		}
 		notes = append(notes, projection)
 	}
 	return notes

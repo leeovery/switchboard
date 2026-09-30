@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // now is a Monday, 13:12 an hour east of UTC.
@@ -38,7 +39,7 @@ func TestDetailGivesWayAsWidthShrinks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := detail(tt.window, score.Project(tt.window, now), now, tt.width)
+			got := detail(tt.window, status.Heading{Projection: score.Project(tt.window, now)}, now, tt.width)
 			if got.plain() != tt.want {
 				t.Errorf("detail() at width %d = %q, want %q", tt.width, got.plain(), tt.want)
 			}
@@ -119,7 +120,7 @@ func TestDetailSays(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := detail(tt.window, score.Project(tt.window, now), now, 80)
+			got := detail(tt.window, status.Heading{Projection: score.Project(tt.window, now)}, now, 80)
 			if got.plain() != tt.want {
 				t.Errorf("detail() = %q, want %q", got.plain(), tt.want)
 			}

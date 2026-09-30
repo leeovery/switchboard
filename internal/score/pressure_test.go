@@ -97,6 +97,52 @@ func TestPaceOf(t *testing.T) {
 	}
 }
 
+func TestRecentRate(t *testing.T) {
+	// The week began three days ago, and is 40% used.
+	running := week(0.4, 3*24*time.Hour)
+	tests := []struct {
+		name     string
+		window   quota.Window
+		readings []score.Reading
+		want     float64
+		wantOK   bool
+	}{
+		{
+			name:     "the rise across readings spanning the half hour",
+			window:   running,
+			readings: []score.Reading{readAt(30*time.Minute, 0.37), readAt(0, 0.4)},
+			want:     0.06, wantOK: true,
+		},
+		{
+			name:     "readings spanning under 10 minutes",
+			window:   running,
+			readings: []score.Reading{readAt(9*time.Minute, 0.39), readAt(0, 0.4)},
+		},
+		{
+			name:     "readings older than the half hour alone",
+			window:   running,
+			readings: []score.Reading{readAt(50*time.Minute, 0.35), readAt(31*time.Minute, 0.37)},
+		},
+		{
+			name:   "no readings",
+			window: running,
+		},
+		{
+			name:     "reset since it was read",
+			window:   week(0.4, 8*24*time.Hour),
+			readings: []score.Reading{readAt(30*time.Minute, 0.37), readAt(0, 0.4)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := score.RecentRate(tt.window, tt.readings, now)
+			if math.Abs(got-tt.want) > 1e-9 || ok != tt.wantOK {
+				t.Errorf("RecentRate() = %v, %v, want %v, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestPressureOf(t *testing.T) {
 	// The session is 40% used, and resets in 3 hours.
 	running := []quota.Window{window("5h", 0.4, 3*time.Hour), window("7d", 0.5, 48*time.Hour)}

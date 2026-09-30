@@ -250,11 +250,11 @@ func usage(doc status.Document, a status.Account, now time.Time, cw int) [][]lin
 // and where even use would be, and where it's heading, or, once it has
 // lapsed, that it hasn't started, and when it's primed.
 func windowBlock(doc status.Document, a status.Account, w quota.Window, now time.Time, cw int) []line {
-	p := a.Project(w, now)
+	h := a.Project(w, now)
 	return []line{
-		spread(line{{status.Clean(w.Label), textInk}}, line{use(w, p)}, cw),
-		bar(w.Utilization, cw).mark(reserveCell(a.Reserve, cw), reserveMarker).mark(pace(w, p, now, cw), paceMarker),
-		outlook(doc, a, w, p, now, cw),
+		spread(line{{status.Clean(w.Label), textInk}}, line{use(w, h.Projection)}, cw),
+		bar(w.Utilization, cw).mark(reserveCell(a.Reserve, cw), reserveMarker).mark(pace(w, h.Projection, now, cw), paceMarker),
+		outlook(doc, a, w, h, now, cw),
 	}
 }
 

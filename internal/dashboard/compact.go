@@ -97,7 +97,7 @@ func summarize(doc status.Document, a status.Account, now time.Time) summary {
 // compactWindow shows the account's window w as its key, a short bar marking
 // where the account's reserve starts, and how much of it is used.
 func compactWindow(a status.Account, w quota.Window, now time.Time) line {
-	pct := use(w, a.Project(w, now))
+	pct := use(w, a.Project(w, now).Projection)
 	l := line{{status.Clean(w.Key), dimInk}, spaces(1)}
 	l = append(l, bar(w.Utilization, compactBar).mark(reserveCell(a.Reserve, compactBar), reserveMarker)...)
 	return append(l, spaces(1+useWidth-ansi.StringWidth(pct.text)), pct)

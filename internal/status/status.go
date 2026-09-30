@@ -203,6 +203,10 @@ type Account struct {
 	// used, and where that's heading: zero when it can't say, and in a
 	// document that isn't the router's.
 	Pressure Pressure `json:"pressure,omitzero"`
+	// Rates are how fast the router has seen the account's windows used
+	// lately, in Usage's order: those it has a recent rate of alone, and none
+	// in a document that isn't the router's.
+	Rates []Rate `json:"rates,omitempty"`
 	// Sessions is how many sessions the router has sent to the account in the
 	// last hour: zero in a document that isn't the router's.
 	Sessions int `json:"sessions,omitzero"`
@@ -235,6 +239,15 @@ type Refusal struct {
 // Holds reports whether the refusal still holds at now.
 func (r Refusal) Holds(now time.Time) bool {
 	return r.Until.After(now)
+}
+
+// Rate is how fast the router has seen a window used lately: its rise across
+// its readings of the last half hour, which span 10 minutes at least, as a
+// share of it an hour.
+type Rate struct {
+	// Window is the window's key, such as "7d".
+	Window string  `json:"window"`
+	Rate   float64 `json:"rate"`
 }
 
 // Pressure is how fast the router has seen an account's pressure window
@@ -334,15 +347,42 @@ func (a Account) AsOf(policy score.Policy, now time.Time) Account {
 	return a
 }
 
-// Project says where the account's window w is heading at now: at the rate the
-// router saw it used over the last half hour, when it's the window the router
-// watches for pressure and it has that rate, so it heads where the router
-// judges it to; else at the pace its use since it started sets.
-func (a Account) Project(w quota.Window, now time.Time) score.Projection {
-	if p := a.Pressure; p.Recent && p.Window == w.Key {
-		return score.ProjectAt(w, p.Rate, now)
+// Heading is where a window is heading, and whether it's at the rate the
+// router saw it used over the last half hour.
+type Heading struct {
+	score.Projection
+	// Recent is set when it heads there at that recent rate, rather than at
+	// the pace its use since it started sets.
+	Recent bool
+}
+
+// Project says where the account's window w is heading at now: at the pace
+// its use since it started sets, or at the rate the router saw it used over
+// the last half hour, where it has that rate, when that has it run out
+// sooner, as score.Sooner judges, so a burst of use shows before the average
+// catches up with it. The window the router watches for pressure always goes
+// at that recent rate, so it heads where the router judges it to.
+func (a Account) Project(w quota.Window, now time.Time) Heading {
+	average := Heading{Projection: score.Project(w, now)}
+	rate, ok := a.rate(w.Key)
+	if !ok {
+		return average
 	}
-	return score.Project(w, now)
+	recent := Heading{Projection: score.ProjectAt(w, rate, now), Recent: true}
+	if w.Key == a.Pressure.Window || score.Sooner(average.Projection, recent.Projection) {
+		return recent
+	}
+	return average
+}
+
+// rate returns how fast the router has seen the account's window with the
+// given key used lately, reporting false when it has no recent rate of it.
+func (a Account) rate(key string) (float64, bool) {
+	i := slices.IndexFunc(a.Rates, func(r Rate) bool { return r.Window == key })
+	if i < 0 {
+		return 0, false
+	}
+	return a.Rates[i].Rate, true
 }
 
 // HasLapsed reports whether the account's window w has lapsed, and reads

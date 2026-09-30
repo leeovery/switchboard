@@ -16,18 +16,18 @@ const secondsWithin = 10 * time.Minute
 // outlook says where an account's window in doc is heading and when it
 // resets, as detail does, or, once the window has lapsed, that it hasn't
 // started, and when the router next primes the account.
-func outlook(doc status.Document, a status.Account, w quota.Window, p score.Projection, now time.Time, width int) line {
+func outlook(doc status.Document, a status.Account, w quota.Window, h status.Heading, now time.Time, width int) line {
 	if a.HasLapsed(w) {
 		return line{{doc.NotStarted(a.ID, now), dimInk}}.fit(width)
 	}
-	return detail(w, p, now, width)
+	return detail(w, h, now, width)
 }
 
-// detail says where a window is heading and when it resets, as fully as width
-// cells allow: the reset's clock gives way first, then its countdown, and
-// what's left is cut short. It never wraps.
-func detail(w quota.Window, p score.Projection, now time.Time, width int) line {
-	parts := detailParts(w, p, now)
+// detail says where a window is heading, as h says, and when it resets, as
+// fully as width cells allow: the reset's clock gives way first, then its
+// countdown, and what's left is cut short. It never wraps.
+func detail(w quota.Window, h status.Heading, now time.Time, width int) line {
+	parts := detailParts(w, h, now)
 	for n := len(parts); n > 1; n-- {
 		if l := joined(parts[:n]); l.width() <= width {
 			return l
@@ -36,8 +36,11 @@ func detail(w quota.Window, p score.Projection, now time.Time, width int) line {
 	return joined(parts[:1]).fit(width)
 }
 
-// detailParts are what a window's detail line can say, most telling first.
-func detailParts(w quota.Window, p score.Projection, now time.Time) []span {
+// detailParts are what a window's detail line can say, most telling first:
+// where it's heading, marked when that's at its rate over the last half hour,
+// then when it resets.
+func detailParts(w quota.Window, h status.Heading, now time.Time) []span {
+	p := h.Projection
 	if p.Kind == score.Exhausted {
 		if p.At.IsZero() {
 			return []span{{"exhausted", exhaustedInk}}
@@ -49,6 +52,9 @@ func detailParts(w quota.Window, p score.Projection, now time.Time) []span {
 	}
 	var parts []span
 	if phrase := status.Projection(now, p); phrase != "" {
+		if h.Recent {
+			phrase += " (" + status.Lately + ")"
+		}
 		parts = append(parts, span{phrase, projectionInk(w, p)})
 	}
 	if !w.ResetsAt.IsZero() {

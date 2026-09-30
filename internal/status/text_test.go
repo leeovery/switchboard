@@ -430,7 +430,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 		{
 			name:     "at its rate over the last half hour",
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
-			heading:  "runs out ~Mon 15:32",
+			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
 			notes:    "  under pressure: runs out ~15:32 at Session's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
@@ -443,14 +443,57 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			name:     "reaching its reserve",
 			reserve:  0.1,
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
-			heading:  "runs out ~Mon 15:32",
+			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
 			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
 			name:     "not under pressure",
 			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
-			heading:  "on pace for 90%",
+			heading:  "on pace for 90% at its rate over the last 30 min",
 		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The router gives the session's recent rate where it's the one
+			// its pressure goes by.
+			var rates []status.Rate
+			if tt.pressure.Recent {
+				rates = []status.Rate{{Window: "5h", Rate: tt.pressure.Rate}}
+			}
+			doc := status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{{
+					ID: "work", Label: "Work", Reserve: tt.reserve, TokenSet: true, FetchedAt: now.UTC(),
+					Windows: []quota.Window{session}, Pressure: tt.pressure, Rates: rates,
+				}},
+			}
+			want := "work · Work\n" +
+				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
+				tt.notes + "\n" +
+				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+			if got := doc.Text(now); got != want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	// The week, 99% used, began three days ago: its use since it started
+	// runs it out at 14:55, and 7% an hour at 14:20.
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.99, ResetsAt: time.Date(2026, 10, 2, 13, 12, 0, 0, time.UTC)}
+	tests := []struct {
+		name  string
+		rates []status.Rate
+		// heading is where the week heads, as its line says.
+		heading string
+	}{
+		{name: "at its rate over the last half hour, sooner", rates: []status.Rate{{Window: "7d", Rate: 0.07}}, heading: "runs out ~Mon 14:20 at its rate over the last 30 min"},
+		{name: "at its use since it started, its recent rate slower", rates: []status.Rate{{Window: "7d", Rate: 0.001}}, heading: "runs out ~Mon 14:55"},
+		{name: "without a recent rate", heading: "runs out ~Mon 14:55"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -459,13 +502,12 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
 				Accounts: []status.Account{{
-					ID: "work", Label: "Work", Reserve: tt.reserve, TokenSet: true, FetchedAt: now.UTC(),
-					Windows: []quota.Window{session}, Pressure: tt.pressure,
+					ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
+					Windows: []quota.Window{week}, Pressure: status.Pressure{Window: "5h"}, Rates: tt.rates,
 				}},
 			}
 			want := "work · Work\n" +
-				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
-				tt.notes + "\n" +
+				"  Week  99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.Text(now); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)

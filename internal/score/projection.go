@@ -72,6 +72,38 @@ func ProjectAt(w quota.Window, rate float64, now time.Time) Projection {
 	return heading(w, rate, now)
 }
 
+// Sooner reports whether b, a projection of a window, has it run out sooner
+// than a, another of the same window as it stands: running out before a
+// does, or at all where a doesn't, or ending the window more used; or saying
+// anything, where a says nothing. Two that end alike aren't.
+func Sooner(a, b Projection) bool {
+	switch {
+	case a.Kind != b.Kind:
+		return urgency(b.Kind) > urgency(a.Kind)
+	case a.Kind == RunsOut:
+		return b.At.Before(a.At)
+	case a.Kind == OnPace:
+		return b.AtReset > a.AtReset
+	default:
+		return false
+	}
+}
+
+// urgency ranks a projection's kind by how soon it has its window run out:
+// saying nothing least, then keeping pace, then running out, then exhausted.
+func urgency(k Kind) int {
+	switch k {
+	case Exhausted:
+		return 3
+	case RunsOut:
+		return 2
+	case OnPace:
+		return 1
+	default:
+		return 0
+	}
+}
+
 // settled returns where w is heading at now whatever the pace of its use,
 // reporting false when the pace decides: once it has reset since it was read,
 // its reading says nothing, and with no room left, it's Exhausted.

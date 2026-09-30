@@ -108,46 +108,86 @@ func TestCollectGivesThePrimaryAndTheWindowsAtEachReserve(t *testing.T) {
 
 func TestAnAccountsWindowsProjected(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
-	// The session began two hours ago, 30% used: 15% an hour since it
-	// started, which ends it at 75%; at 30% an hour, it runs out 2h 20m on.
+	// The session began two hours ago, 30% used: its use since it started
+	// ends it at 75%. The week began five days ago, 50% used: its use since
+	// it started ends it at 70%.
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.3, ResetsAt: now.Add(3 * time.Hour)}
 	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: now.Add(2 * 24 * time.Hour)}
-	onPace := score.Projection{Kind: score.OnPace, AtReset: 0.75}
+	watched := status.Pressure{Window: "5h"}
+	sinceStarted := func(atReset float64) status.Heading {
+		return status.Heading{Kind: score.OnPace, AtReset: atReset}
+	}
 	tests := []struct {
 		name     string
 		pressure status.Pressure
+		rates    []status.Rate
 		window   quota.Window
-		want     score.Projection
+		want     status.Heading
 	}{
 		{
-			name:     "the session, at the router's rate over the last half hour",
-			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true},
+			name:     "the session, at its recent rate, running out",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
 			window:   session,
-			want:     score.Projection{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute)},
+			want:     status.Heading{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute), Recent: true},
 		},
 		{
-			name:     "the session, the router's rate being its use since it started",
-			pressure: status.Pressure{Window: "5h", Rate: 0.15},
+			name:     "the session, at its recent rate, though its use since it started has it run out sooner",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.05}},
 			window:   session,
-			want:     onPace,
+			want:     status.Heading{Kind: score.OnPace, AtReset: 0.45, Recent: true},
 		},
 		{
-			name:   "the session, probed, without the router's rate",
+			name:     "the session, without a recent rate, at its use since it started",
+			pressure: watched,
+			window:   session,
+			want:     sinceStarted(0.75),
+		},
+		{
+			name:   "the session, probed, at its use since it started",
 			window: session,
-			want:   onPace,
+			want:   sinceStarted(0.75),
 		},
 		{
-			name:     "another window, at its use since it started",
-			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true},
+			name:     "the week, at its recent rate, which has it run out sooner",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}},
 			window:   week,
-			want:     score.Project(week, now),
+			want:     status.Heading{Kind: score.RunsOut, At: now.Add(16*time.Hour + 40*time.Minute), Recent: true},
+		},
+		{
+			name:     "the week, at its recent rate, which ends it more used",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "7d", Rate: 0.01}},
+			window:   week,
+			want:     status.Heading{Kind: score.OnPace, AtReset: 0.98, Recent: true},
+		},
+		{
+			name:     "the week, at its use since it started, its recent rate slower",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "7d", Rate: 0.001}},
+			window:   week,
+			want:     sinceStarted(0.7),
+		},
+		{
+			name:     "the week, without a recent rate, at its use since it started",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
+			window:   week,
+			want:     sinceStarted(0.7),
+		},
+		{
+			name:   "the week, probed, at its use since it started",
+			window: week,
+			want:   sinceStarted(0.7),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := status.Account{ID: "work", Windows: []quota.Window{session, week}, Pressure: tt.pressure}
+			a := status.Account{ID: "work", Windows: []quota.Window{session, week}, Pressure: tt.pressure, Rates: tt.rates}
 			got := a.Project(tt.window, now)
-			if got.Kind != tt.want.Kind || math.Abs(got.AtReset-tt.want.AtReset) > 1e-9 || !got.At.Equal(tt.want.At) {
+			if got.Kind != tt.want.Kind || math.Abs(got.AtReset-tt.want.AtReset) > 1e-9 || !got.At.Equal(tt.want.At) || got.Recent != tt.want.Recent {
 				t.Errorf("Project() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -642,7 +682,7 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
-			name: "the router's, with each account's pressure",
+			name: "the router's, with each account's pressure and recent rates",
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceRouter,
@@ -651,6 +691,7 @@ func TestDocumentJSON(t *testing.T) {
 					{
 						ID: "work", Label: "Work", TokenSet: true,
 						Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: generated.Add(80 * time.Minute), Under: true},
+						Rates:    []status.Rate{{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}},
 					},
 					{ID: "side", Label: "Side", TokenSet: true, Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: generated.Add(9 * time.Hour)}},
 					{ID: "spare", Label: "Spare", TokenSet: true, Pressure: status.Pressure{Window: "5h"}},
@@ -675,7 +716,17 @@ func TestDocumentJSON(t *testing.T) {
         "recent": true,
         "runs_out": "2026-09-28T14:32:00Z",
         "under": true
-      }
+      },
+      "rates": [
+        {
+          "window": "5h",
+          "rate": 0.3
+        },
+        {
+          "window": "7d",
+          "rate": 0.03
+        }
+      ]
     },
     {
       "id": "side",

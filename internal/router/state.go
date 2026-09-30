@@ -57,9 +57,9 @@ type usage struct {
 	// reserved are the keys of the windows last found to have reached the
 	// account's reserve.
 	reserved []string
-	// trail is how its pressure window has been read lately, which its pace
-	// is measured over.
-	trail trail
+	// trails are how its windows have been read lately, which their paces
+	// are measured over.
+	trails trails
 }
 
 // refusal is the upstream refusing requests on an account, answering with
@@ -203,7 +203,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 			windows:   make(map[string]quota.Window),
 			taken:     make(map[string]moment),
 			forbidden: make(map[string]refusals),
-			trail:     trail{key: policy.Pressure},
+			trails:    make(trails),
 		}
 	}
 	return s
@@ -633,7 +633,7 @@ func (s *state) counting(model string) func(key string) bool {
 // take takes in windows read at a time off the answer to a request sent at
 // sent, and taken in at the moment taken, each merged with the reading of its
 // key before it, as mergeLater merges them, and lifts the account's limit
-// when the windows merged show it lifted. The trail notes each reading
+// when the windows merged show it lifted. The trails note each reading
 // counted. It reports whether it took any: windows that are all stale leave
 // the account as it was.
 func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) bool {
@@ -647,7 +647,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) b
 		if outcome == counted {
 			kept = startedAgain(held, kept, at)
 			u.windows[w.Key], u.taken[w.Key] = kept, taken
-			u.trail.note(held, kept, at)
+			u.trails.note(held, kept, at)
 		}
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
 		merged = append(merged, kept)
@@ -756,8 +756,9 @@ func (s *state) document(pinned ...string) status.Document {
 }
 
 // statuses returns every account's status at now, with how it stands under
-// pressure, those pinned spending their reserves, and, of those, the ones the
-// best can be: all but those barred from the requests of every model.
+// pressure, those pinned spending their reserves, and how fast its windows
+// have been used lately, and, of those, the ones the best can be: all but
+// those barred from the requests of every model.
 func (s *state) statuses(now time.Time, pinned []string) (all, open []status.Account) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -767,6 +768,7 @@ func (s *state) statuses(now time.Time, pinned []string) (all, open []status.Acc
 		all[i] = u.status(a, s.policy, now)
 		if a.hasToken() {
 			all[i].Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
+			all[i].Rates = u.rates(now)
 		}
 		if !u.shut(now, s.policy.IsShared) {
 			open = append(open, all[i])

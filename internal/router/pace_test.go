@@ -170,6 +170,36 @@ func TestTheDocumentGivesEachAccountsPressure(t *testing.T) {
 	}
 }
 
+func TestTheDocumentGivesEachWindowsRecentRate(t *testing.T) {
+	// Over 20 minutes, work's session rises at 30% an hour and its week at
+	// 3%; its Fable week, read once, has no recent rate. Side is read once.
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	resets := start.Add(3 * time.Hour)
+	weekAt := func(u float64) quota.Window {
+		w := week
+		w.Utilization = u
+		return w
+	}
+	s.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.5, ResetsAt: resets}, weekAt(0.4), fableWeek}, s.mark())
+	s.record("side", []quota.Window{session, week}, s.mark())
+	clock.now = start.Add(20 * time.Minute)
+	s.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: resets}, weekAt(0.41)}, s.mark())
+
+	doc := s.document()
+	want := map[string][]status.Rate{"work": {{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}}}
+	for _, a := range doc.Accounts {
+		if !sameRates(a.Rates, want[a.ID]) {
+			t.Errorf("%s's recent rates are %+v, want %+v", a.ID, a.Rates, want[a.ID])
+		}
+	}
+}
+
+// sameRates reports whether two lists of rates match, to within rounding.
+func sameRates(a, b []status.Rate) bool {
+	return slices.EqualFunc(a, b, func(x, y status.Rate) bool { return x.Window == y.Window && math.Abs(x.Rate-y.Rate) < 1e-9 })
+}
+
 func TestTheBestIsWhereANewSessionGoesUnderPressure(t *testing.T) {
 	// Work's quota needs using first, but its session, read over 20 minutes,
 	// runs out at its rate 1h 20m on, before it resets two hours on; side's
