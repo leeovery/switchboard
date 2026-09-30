@@ -60,6 +60,9 @@ type Probe struct {
 	// Models are the models whose responses reported each window, by the
 	// window's key.
 	Models map[string][]string `json:"models,omitempty"`
+	// Admitted is set when a request of the probe was answered with success:
+	// the account took it, whatever limit it had reached before.
+	Admitted bool `json:"admitted,omitempty"`
 }
 
 // Verdict is what a response to a request says of the account it went out on.

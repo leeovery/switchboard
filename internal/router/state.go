@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prime"
@@ -22,10 +23,18 @@ const (
 	limitedFor = 5 * time.Minute
 )
 
+// moment is a point in the order of the requests the router sends and the
+// readings it takes in, as the router counts them: of two, the greater came
+// later, for certain, where a wall clock can be set back between them. Zero
+// comes before them all, as the readings the state file kept do.
+type moment uint64
+
 // usage is what the router knows of one account's usage.
 type usage struct {
-	// windows holds the latest reading of each window, by key.
+	// windows holds the latest reading of each window, by key, and taken the
+	// moment each reading held was taken in.
 	windows map[string]quota.Window
+	taken   map[string]moment
 	// updated is when a reading last came in.
 	updated time.Time
 	// probed is when a probe of the account last ended, whether it read
@@ -69,13 +78,15 @@ func (r refusal) report(family string) status.Refusal {
 }
 
 // limit is a limit an account reached: the windows the upstream named as
-// reached, if any, and when the account is to have room again. It holds back
-// the requests those windows count, or every request when they're none,
-// whatever the account's windows read: a rejection they don't show, or that
-// a reading from before it outweighs, holds as well as one they do.
+// reached, if any, when the account is to have room again, and the moment it
+// was set. It holds back the requests those windows count, or every request
+// when they're none, whatever the account's windows read: a rejection they
+// don't show, or that a reading from before it outweighs, holds as well as
+// one they do.
 type limit struct {
 	windows []string
 	until   time.Time
+	set     moment
 }
 
 // holds reports whether the limit holds back, at now, a request applies says
@@ -90,11 +101,15 @@ func (l limit) inForce(now time.Time) bool {
 	return now.Before(l.until)
 }
 
-// liftedBy reports whether windows, read at a time, show the limit lifted:
-// each window that reached it read again, with room. A limit reached in no
-// window named can't be seen to lift, and lifts only in time.
-func (l limit) liftedBy(windows []quota.Window, at time.Time) bool {
-	if len(l.windows) == 0 {
+// liftedBy reports whether windows, read at a time off the answer to a request
+// sent at sent, show the limit lifted: the request was sent after the limit
+// was set, as the answer to one sent before may show room there was before
+// it, and each window that reached it read again, with room. A limit
+// reached in no window named can't be seen to lift in the windows: it lifts
+// in time, or once a request sent after it is answered with success, as
+// admits says.
+func (l limit) liftedBy(windows []quota.Window, at time.Time, sent moment) bool {
+	if len(l.windows) == 0 || sent <= l.set {
 		return false
 	}
 	for _, key := range l.windows {
@@ -104,6 +119,13 @@ func (l limit) liftedBy(windows []quota.Window, at time.Time) bool {
 		}
 	}
 	return true
+}
+
+// admits reports whether a request sent at sent, answered with success on
+// the account, shows the limit lifted: the limit was reached in no window
+// named, which holds back every request, and set before the request was sent.
+func (l limit) admits(sent moment) bool {
+	return len(l.windows) == 0 && sent > l.set
 }
 
 // state is what the router knows of every account's usage, learnt from the
@@ -116,8 +138,12 @@ type state struct {
 	family func(model string) string
 	now    func() time.Time
 	// changed hears of each change to what the state file keeps of the
-	// accounts' usage, with s.mu held: it mustn't block, nor call s.
-	changed func()
+	// accounts' usage, and readOff of each that's only a reading off the
+	// answer to a request, which it keeps less often, both with s.mu held:
+	// they mustn't block, nor call s.
+	changed, readOff func()
+	// moments counts the moments marked.
+	moments atomic.Uint64
 
 	mu    sync.Mutex
 	usage map[string]*usage
@@ -126,37 +152,53 @@ type state struct {
 	seen map[string]map[string]bool
 }
 
-func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed func()) *state {
+func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, readOff func()) *state {
 	s := &state{
 		accounts: accounts,
 		policy:   policy,
 		family:   family,
 		now:      now,
 		changed:  changed,
+		readOff:  readOff,
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
 	}
 	for _, a := range accounts {
-		s.usage[a.ID] = &usage{windows: make(map[string]quota.Window), forbidden: make(map[string]refusal)}
+		s.usage[a.ID] = &usage{windows: make(map[string]quota.Window), taken: make(map[string]moment), forbidden: make(map[string]refusal)}
 	}
 	return s
 }
 
-// record takes in a reading of an account's windows. Each window is merged
-// with the reading of its key before it, and the account's other windows
-// stand.
-func (s *state) record(id string, windows []quota.Window) {
+// mark returns a new moment, after every moment marked before it: the one a
+// request goes upstream at, which the reading its answer gives is judged by.
+func (s *state) mark() moment {
+	return moment(s.moments.Add(1))
+}
+
+// record takes in a reading of an account's windows, off the answer to a
+// request sent at sent. Each window is merged with the reading of its key
+// before it, and the account's other windows stand.
+func (s *state) record(id string, windows []quota.Window, sent moment) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.usage[id].take(windows, at) {
-		s.changed()
+	if s.usage[id].take(windows, at, sent, s.mark()) {
+		s.readOff()
 	}
 }
 
-// recordProbe takes in what probing an account found: its usage and which
-// models reported each window, or why it read nothing.
-func (s *state) recordProbe(id string, probed quota.Probe, err error) {
+// admitted notes that the upstream answered a request on the account, sent
+// at sent, with success, which lifts the account's limit as admits says.
+func (s *state) admitted(id string, sent moment) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usage[id].admitted(sent)
+}
+
+// recordProbe takes in what probing an account, from sent on, found: its
+// usage and which models reported each window, and whether a request of it
+// was answered with success, or why it read nothing.
+func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -166,8 +208,11 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error) {
 		u.probeErr = err.Error()
 		return
 	}
+	if probed.Admitted {
+		u.admitted(sent)
+	}
 	u.failures = slices.Clone(probed.Failures)
-	news := u.take(probed.Windows, at)
+	news := u.take(probed.Windows, at, sent, s.mark())
 	for key, models := range probed.Models {
 		for _, model := range models {
 			news = s.see(key, model) || news
@@ -247,14 +292,14 @@ func (s *state) forbid(id, family string, status int) {
 // any, until until, or limitedFor from now when that isn't to come, and
 // returns the news of it. Reached while the account's last limit is in force,
 // it's that limit reached again, which now holds as this answer says, the
-// upstream's latest word: one that doesn't say until when extends it. A
-// reading showing it lifted lifts it sooner.
+// upstream's latest word: one that doesn't say until when extends it. The
+// answer to a request sent after it, showing it lifted, lifts it sooner.
 func (s *state) limit(id string, windows []string, until time.Time) LimitReached {
 	now := s.now().UTC()
 	if !until.After(now) {
 		until = now.Add(limitedFor)
 	}
-	reached := limit{windows: slices.Clone(windows), until: until.UTC()}
+	reached := limit{windows: slices.Clone(windows), until: until.UTC(), set: s.mark()}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
@@ -304,24 +349,27 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 // probeable reports whether the account whose usage is u can be probed at
 // now: no probe of it has ended in the last reprobeAfter, so an account whose
 // probes fail isn't probed at every ask, and none of its windows has lapsed,
-// as a probe is a request, and would start it. A limit holding back every
-// request is the exception: an account under one can take no request anyway,
-// so a probe that starts its window costs nothing, and a probe is how a limit
-// lifted before its reset, as by a reset made by hand, is seen. s.mu must be
-// held.
+// as a probe is a request, and would start it. An account that's spent, as
+// spent says, is the exception: it can take no request anyway, so a probe
+// that starts its window costs nothing, and a probe is how a limit lifted
+// before its reset, as by a reset made by hand, is seen. s.mu must be held.
 func (s *state) probeable(u *usage, now time.Time) bool {
-	return now.Sub(u.probed) >= reprobeAfter && (u.limited.holds(now, s.policy.IsShared) || len(s.policy.Lapsed(u.latest(), now)) == 0)
+	return now.Sub(u.probed) >= reprobeAfter && (u.spent(s.policy, now) || len(s.policy.Lapsed(u.latest(), now)) == 0)
 }
 
 // nextPrime returns when the account with the given id is next to be primed,
 // at now or after: when schedule says of its windows as last read, but not
 // before reprobeAfter has passed since a probe of it last ended, or
 // reprimeAfter when that one failed as a prime, as primeFailed says. It
-// reports false when the schedule can't say.
+// reports false when the schedule can't say, and while the account's token is
+// refused, or it's spent, as spent says: a prime couldn't start its window.
 func (s *state) nextPrime(id string, schedule prime.Schedule, now time.Time) (time.Time, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
+	if u.refused.inForce(now) || u.spent(s.policy, now) {
+		return time.Time{}, false
+	}
 	at, ok := schedule.Next(id, u.latest(), now)
 	if !ok {
 		return time.Time{}, false
@@ -436,6 +484,15 @@ func (u *usage) shut(now time.Time, shared func(key string) bool) bool {
 	return u.refused.inForce(now) || u.limited.holds(now, shared)
 }
 
+// spent reports whether the account's quota leaves it no room at now for a
+// request of any model, as policy judges: a limit it reached holds back every
+// request, or a window every model shares is spent, as last read, and hasn't
+// reset since.
+func (u *usage) spent(policy score.Policy, now time.Time) bool {
+	windows := u.current(policy, now)
+	return u.limited.holds(now, policy.IsShared) || len(windows) > 0 && !score.Available(windows, 0, policy.IsShared, now)
+}
+
 // counting returns which windows count a request of model, by key: every
 // window the policy shares between all models, and any other that has been
 // seen on the model's family, or on none yet.
@@ -450,18 +507,21 @@ func (s *state) counting(model string) func(key string) bool {
 	return func(key string) bool { return !others[key] }
 }
 
-// take takes in windows read at a time, each merged with the reading of its
+// take takes in windows read at a time off the answer to a request sent at
+// sent, and taken in at the moment taken, each merged with the reading of its
 // key before it, as mergeLater merges them, and lifts the account's limit
 // when the windows merged show it lifted. It reports whether it took any:
 // windows that are all stale leave the account as it was.
-func (u *usage) take(windows []quota.Window, at time.Time) bool {
+func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) bool {
 	var merged []quota.Window
 	for _, w := range windows {
-		kept, current := mergeLater(u.windows[w.Key], w)
-		if !current {
+		kept, outcome := mergeLater(u.windows[w.Key], w, sent > u.taken[w.Key])
+		if outcome == stale {
 			continue
 		}
-		u.windows[w.Key] = kept
+		if outcome == counted {
+			u.windows[w.Key], u.taken[w.Key] = kept, taken
+		}
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
 		merged = append(merged, kept)
 	}
@@ -469,35 +529,66 @@ func (u *usage) take(windows []quota.Window, at time.Time) bool {
 		return false
 	}
 	u.updated, u.probeErr = at, ""
-	if u.limited.liftedBy(merged, at) {
+	if u.limited.liftedBy(merged, at, sent) {
 		u.limited = limit{}
 	}
 	return true
 }
 
+// admitted lifts the account's limit when a request sent at sent, answered
+// with success, shows it lifted, as admits says.
+func (u *usage) admitted(sent moment) {
+	if u.limited.admits(sent) {
+		u.limited = limit{}
+	}
+}
+
+// fate is what becomes of a reading of a window merged with the one held.
+type fate int
+
+const (
+	// stale is a reading of a window that's gone, which changes nothing.
+	stale fate = iota
+	// outweighed is a reading older than the one held, which stands as it
+	// was.
+	outweighed
+	// counted is a reading the window now stands as, as far as it goes: what
+	// the window is known to be was read no earlier than its request.
+	counted
+)
+
 // mergeLater returns what to keep of a window, given held, as it was read
-// before, and w, a reading of it taken later, and reports whether w is
-// current. Unlike quota.MergeMax, which merges readings taken together, it
-// can't just keep the higher use: the window may have reset in between, so
-// the reset decides. A later reset is a new window, however little used. The
-// same reset is the same window, whose use only rises, so a reading as high
-// stands, and a lower one is from before held: it leaves held's higher use, so
-// a slow response reporting it late can't pull it back, and it can't lift a
-// rejection either reading holds. An earlier reset is a window that's gone,
-// and w is stale. Without a reset to go by, the newest reading stands.
-func mergeLater(held, w quota.Window) (quota.Window, bool) {
+// before, and w, a reading of it taken later, and says what becomes of w.
+// after says whether w's request was sent after held was taken in: then w
+// counts, however it reads, as the upstream reckons use as it takes a request
+// in, which it can only have done after held's, so a reset made by hand,
+// which drops use but may keep the reset, is seen. The answer to a request
+// sent before may have been overtaken, and unlike quota.MergeMax, which
+// merges readings taken together, mergeLater can't just keep the higher use:
+// the window may have reset in between, so the reset decides. A later reset
+// is a new window, however little used. The same reset is the same window,
+// whose use only rises, so a reading as high counts, and a lower one is from
+// before held: it's outweighed, leaving held's higher use, so a slow response
+// reporting it late can't pull it back. Either way, a rejection either
+// reading holds stands, as the later may be the older. An earlier reset is a
+// window that's gone, and w is stale. Without a reset to go by, the newest
+// reading counts.
+func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	switch {
-	case w.ResetsAt.IsZero() || w.ResetsAt.After(held.ResetsAt):
-		return w, true
+	case after || w.ResetsAt.IsZero() || w.ResetsAt.After(held.ResetsAt):
+		return w, counted
 	case w.ResetsAt.Before(held.ResetsAt):
-		return held, false
-	case w.Utilization < held.Utilization:
-		if w.Status == quota.StatusRejected {
-			held.Status = w.Status
+		return held, stale
+	case w.Utilization >= held.Utilization:
+		if held.Status == quota.StatusRejected {
+			w.Status = held.Status
 		}
-		return held, true
+		return w, counted
+	case w.Status == quota.StatusRejected && held.Status != quota.StatusRejected:
+		held.Status = w.Status
+		return held, counted
 	default:
-		return w, true
+		return held, outweighed
 	}
 }
 

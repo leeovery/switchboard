@@ -728,7 +728,7 @@ func newNotifying(t *testing.T, settings config.Notifications) *notifying {
 func newNotifyingOver(t *testing.T, settings config.Notifications, configured []config.Account) *notifying {
 	t.Helper()
 	now := func() time.Time { return time.Now().UTC() }
-	s := newState(resolve(configured, numberedTokens.Read), testPolicy, claude.Provider{}.Family, now, unkept)
+	s := newState(resolve(configured, numberedTokens.Read), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
 	notifier := &noting{}
 	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, now), notifier: notifier, began: now()}
 }
@@ -765,7 +765,7 @@ func (h *notifying) limit(id string, windows []string, lifts time.Duration) {
 
 // read has the router read windows of the account with the given id.
 func (h *notifying) read(id string, windows ...quota.Window) {
-	h.state.record(id, windows)
+	h.state.record(id, windows, h.state.mark())
 }
 
 // after lets d pass, and notifications deal with all it brings.

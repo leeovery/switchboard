@@ -33,15 +33,23 @@ type probes struct {
 	wg     sync.WaitGroup
 
 	mu sync.Mutex
-	// running holds, for each account under probe, what closes when the
-	// probe ends.
-	running map[string]chan struct{}
+	// running holds, for each account under probe, the probe.
+	running map[string]*run
 	stopped bool
 }
 
 func newProbes(prober Prober, state *state, now func() time.Time) *probes {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &probes{prober: prober, state: state, now: now, ctx: ctx, cancel: cancel, running: make(map[string]chan struct{})}
+	return &probes{prober: prober, state: state, now: now, ctx: ctx, cancel: cancel, running: make(map[string]*run)}
+}
+
+// run is a probe of an account under way, as probes keeps it.
+type run struct {
+	// done closes when the probe ends.
+	done chan struct{}
+	// priming is set once a prime starts the probe, or shares it, which is
+	// then logged as a prime.
+	priming bool
 }
 
 // probing is a probe of an account under way.
@@ -59,38 +67,44 @@ type report func(a account, probed quota.Probe, err error, took time.Duration)
 // probe of it is under way already, and returns every probe of them under
 // way.
 func (p *probes) start(as accounts, due func(id string, now time.Time) bool) []probing {
-	return p.launch(as, due, logProbe)
+	return p.launch(as, due, false)
 }
 
 // prime primes each of the accounts that due says wants a prime, as start
 // probes them, and returns every probe of them under way: a prime is a probe,
-// and one of an account already under way serves as its prime.
+// and one of an account already under way serves as its prime, and is logged
+// as one.
 func (p *probes) prime(as accounts, due func(id string, now time.Time) bool) []probing {
-	return p.launch(as, due, p.logPrime)
+	return p.launch(as, due, true)
 }
 
 // launch probes each of the accounts that due says wants it, unless a probe
-// of it is under way already, noting how each goes with told, and returns
-// every probe of them under way.
-func (p *probes) launch(as accounts, due func(id string, now time.Time) bool, told report) []probing {
+// of it is under way already, as a prime when priming says so, and returns
+// the probes of those accounts under way: one under way of an account that
+// doesn't want it isn't waited for.
+func (p *probes) launch(as accounts, due func(id string, now time.Time) bool, priming bool) []probing {
 	now := p.now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var underway []probing
 	for _, a := range as {
-		done, running := p.running[a.ID]
+		if !due(a.ID, now) {
+			continue
+		}
+		r, running := p.running[a.ID]
 		if !running {
-			if p.stopped || !due(a.ID, now) {
+			if p.stopped {
 				continue
 			}
-			done = make(chan struct{})
-			p.running[a.ID] = done
+			r = &run{done: make(chan struct{})}
+			p.running[a.ID] = r
 			p.wg.Go(func() {
-				p.probe(a, told)
+				p.probe(a, r)
 				p.finish(a.ID)
 			})
 		}
-		underway = append(underway, probing{account: a.ID, done: done})
+		r.priming = r.priming || priming
+		underway = append(underway, probing{account: a.ID, done: r.done})
 	}
 	return underway
 }
@@ -98,8 +112,19 @@ func (p *probes) launch(as accounts, due func(id string, now time.Time) bool, to
 func (p *probes) finish(id string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	close(p.running[id])
+	close(p.running[id].done)
 	delete(p.running, id)
+}
+
+// told returns what notes how the probe r went: logPrime once a prime has
+// started it or shared it, else logProbe.
+func (p *probes) told(r *run) report {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if r.priming {
+		return p.logPrime
+	}
+	return logProbe
 }
 
 // await probes the accounts as start does, and waits for those probes to end
@@ -173,17 +198,17 @@ func (p *probes) stop() {
 	p.wg.Wait()
 }
 
-// probe reads an account's usage, and notes how that went with told.
-func (p *probes) probe(a account, told report) {
-	started := time.Now()
+// probe reads an account's usage, as r, and notes how that went.
+func (p *probes) probe(a account, r *run) {
+	started, sent := time.Now(), p.state.mark()
 	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if p.ctx.Err() != nil {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
-	p.state.recordProbe(a.ID, probed, err)
-	told(a, probed, err, took)
+	p.state.recordProbe(a.ID, probed, err, sent)
+	p.told(r)(a, probed, err, took)
 }
 
 // logProbe logs how a probe of an account went.

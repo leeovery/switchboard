@@ -76,9 +76,9 @@ func TestHealthLogsAndAnnouncesEachChangeOnce(t *testing.T) {
 	h := newHealth(clock.read, func(e Event) { heard = append(heard, e) })
 
 	for range 5 {
-		h.record(true)
+		h.record(clock.now, true)
 	}
-	h.record(false)
+	h.record(clock.now, false)
 	if got := h.report(); got.Healthy {
 		t.Fatalf("after five failures of six, report() = %+v, want unhealthy", got)
 	}
@@ -112,11 +112,11 @@ func TestHealthForgetsWhatHasLeftTheWindow(t *testing.T) {
 	clock := &testClock{now: start}
 	h := newHealth(clock.read, func(Event) {})
 	for range 100 {
-		h.record(false)
+		h.record(clock.now, false)
 	}
 
 	clock.now = start.Add(5 * time.Minute)
-	h.record(true)
+	h.record(clock.now, true)
 	if n := len(h.results); n != 1 {
 		t.Errorf("health holds %d requests, want the one still in the window", n)
 	}

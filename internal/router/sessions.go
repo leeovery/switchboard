@@ -60,6 +60,12 @@ func (a assignment) same(b assignment) bool {
 	return a.Account == b.Account && a.AssignedAt.Equal(b.AssignedAt)
 }
 
+// usedAgain reports whether a is b used again, and nothing more: the same
+// assignment, with the same pin and reason.
+func (a assignment) usedAgain(b assignment) bool {
+	return a.same(b) && a.Pin == b.Pin && a.Reason == b.Reason
+}
+
 // inUTC is the assignment with its times in UTC.
 func (a assignment) inUTC() assignment {
 	a.AssignedAt, a.LastSeen = a.AssignedAt.UTC(), a.LastSeen.UTC()
@@ -122,9 +128,10 @@ func (f found) pin(launched string) (string, time.Time) {
 // which the state file keeps. It's safe for concurrent use.
 type sessions struct {
 	now func() time.Time
-	// changed hears of each change, for the state file to keep, with s.mu
-	// held: it mustn't block, nor call s.
-	changed func()
+	// changed hears of each change, for the state file to keep, and usedAgain
+	// of each that's only an assignment used again, which it keeps less
+	// often, both with s.mu held: they mustn't block, nor call s.
+	changed, usedAgain func()
 
 	mu          sync.Mutex
 	assignments map[key]assignment
@@ -133,10 +140,11 @@ type sessions struct {
 	pin status.Pin
 }
 
-func newSessions(now func() time.Time, changed func()) *sessions {
+func newSessions(now func() time.Time, changed, usedAgain func()) *sessions {
 	return &sessions{
 		now:         now,
 		changed:     changed,
+		usedAgain:   usedAgain,
 		assignments: make(map[key]assignment),
 		own:         make(map[string]ownPin),
 	}
@@ -173,7 +181,11 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 	}
 	a.Pin, a.LastSeen, a.by = req.Pin, now, req.ID
 	s.assignments[k] = a.inUTC()
-	s.changed()
+	if a.usedAgain(found) {
+		s.usedAgain()
+	} else {
+		s.changed()
+	}
 	return found, true
 }
 

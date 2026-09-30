@@ -2,9 +2,11 @@ package router
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -59,5 +61,41 @@ func TestTransportWaitsForAResponseAsLongAsItTakes(t *testing.T) {
 	}
 	if want := 10 * time.Second; transport.TLSHandshakeTimeout != want {
 		t.Errorf("TLSHandshakeTimeout = %v, want the default's %v", transport.TLSHandshakeTimeout, want)
+	}
+}
+
+func TestARenewedPoolKeepsNoConnectionFromBefore(t *testing.T) {
+	var opened atomic.Int32
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok")
+	}))
+	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			opened.Add(1)
+		}
+	}
+	srv.Start()
+	t.Cleanup(srv.Close)
+	p := newPool()
+	t.Cleanup(func() { p.current().CloseIdleConnections() })
+	get := func() {
+		t.Helper()
+		resp, err := (&http.Client{Transport: p}).Get(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}
+
+	get()
+	get()
+	if n := opened.Load(); n != 1 {
+		t.Fatalf("two requests opened %d connections, want one, kept between them", n)
+	}
+	p.renew()
+	get()
+	if n := opened.Load(); n != 2 {
+		t.Errorf("once the pool is renewed, requests have opened %d connections, want one more", n)
 	}
 }

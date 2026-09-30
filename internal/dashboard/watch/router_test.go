@@ -30,9 +30,9 @@ func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 		}
 		h.fire(tick)
 	}
-	want := []Read{{Refresh: interval, Probe: true}, {Probe: true}, {Probe: true}, {Probe: true}}
+	want := []Read{{Refresh: interval, Probe: true}, {}, {}, {}}
 	if !slices.Equal(h.source.asked, want) {
-		t.Errorf("asked for %+v, want %+v: a look at the router's document at each tick", h.source.asked, want)
+		t.Errorf("asked for %+v, want %+v: a look at the router's document at each tick, which never probes", h.source.asked, want)
 	}
 	if h.source.reads != 0 {
 		t.Errorf("probed %d times, want never while the router answers", h.source.reads)
@@ -143,9 +143,37 @@ func TestHasTheRouterRefreshAtOnceForAWindowThatResetBeforeTheWatchBegan(t *test
 
 	h.fire(h.lastTick())
 	h.fire(h.lastTick())
-	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor, Probe: true}, {Probe: true}}
+	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor}, {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("asked for %+v, want %+v: the first look has the router refresh what it hasn't read in the last minute, once", h.source.asked, want)
+	}
+}
+
+func TestKeepsTheRoutersDocumentWhileItDoesntAnswerALook(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+
+	h.stopRouter()
+	h.fire(h.lastTick()) // 13:12:05.
+	looks := h.source.looks()
+	h.tickUntil(at(13, 13, 5))
+	if h.source.reads != 0 {
+		t.Fatalf("while the router doesn't answer a look, probed %d times, want never: the router may be away for a moment", h.source.reads)
+	}
+	if got := h.source.looks() - looks; got < 10 || got > 12 {
+		t.Errorf("looked at the router's document %d times in the minute after it stopped answering, want every 5 seconds or so", got)
+	}
+	if !h.model.routed() {
+		t.Error("the document on screen isn't the router's, want its last one kept")
+	}
+	if got, want := h.footer(), "no router since 13:12 · updated 13:12 · "+routerKeys; got != want {
+		t.Errorf("footer = %q, want %q", got, want)
+	}
+
+	h.startRouter(routerDocument(three()...))
+	h.fire(h.lastTick())
+	if got, want := h.footer(), "updated 13:13 · "+routerKeys; got != want {
+		t.Errorf("once the router answers a look again, footer = %q, want %q", got, want)
 	}
 }
 
@@ -154,11 +182,15 @@ func TestFallsBackToProbingWhenTheRouterStops(t *testing.T) {
 	h.start()
 
 	h.stopRouter()
-	h.fire(h.lastTick())
-	if h.source.reads != 1 {
-		t.Fatalf("once the router stopped, probed %d times, want once", h.source.reads)
+	h.tickUntil(at(13, 41, 59))
+	if h.source.reads != 0 {
+		t.Fatalf("before the full read is due, probed %d times, want never", h.source.reads)
 	}
-	if got, want := h.footer(), "no router since 13:12 · updated 13:12 · next 13:42 · r refresh · q quit"; got != want {
+	h.tickUntil(at(13, 42, 10))
+	if h.source.reads != 1 {
+		t.Fatalf("once the full read is due, probed %d times, want once", h.source.reads)
+	}
+	if got, want := h.footer(), "no router since 13:12 · updated 13:42 · next 14:12 · r refresh · q quit"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
 	if !strings.Contains(h.view(), "probing directly (router not running)") {
@@ -174,7 +206,7 @@ func TestReadsTheRouterAgainOnceItAnswers(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 	h.stopRouter()
-	h.fire(h.lastTick()) // Probing from 13:12:05.
+	h.deliver(h.press("r")...) // Probing from 13:12.
 
 	h.tickUntil(at(13, 13, 30))
 	h.startRouter(routerDocument(three()...))
@@ -460,7 +492,7 @@ func TestALookAskedForWhileAReadIsUnderWayComesOnceItLands(t *testing.T) {
 		t.Fatalf("while r's read is under way, asked for %+v, want %+v", got, want)
 	}
 	h.deliver(reading...)
-	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor, Probe: true}, {Probe: true}}
+	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor, Probe: true}, {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("once it lands, asked for %+v, want %+v", h.source.asked, want)
 	}
@@ -572,6 +604,7 @@ func TestLogsTheRouterGoingAndComingBack(t *testing.T) {
 	h.fire(h.lastTick())
 	h.stopRouter()
 	h.fire(h.lastTick())
+	h.deliver(h.press("r")...)
 	h.startRouter(routerDocument(three()...))
 	h.tickUntil(at(13, 13, 30))
 	h.deliver(h.press("1")...)
@@ -580,6 +613,7 @@ func TestLogsTheRouterGoingAndComingBack(t *testing.T) {
 		{"level=INFO", `msg="reading the router" component=watch`},
 		{"level=INFO", `msg="usage read" component=watch`, "source=router", "read=work,personal,side"},
 		{"level=DEBUG", `msg="usage read" component=watch`, "source=router"},
+		{"level=WARN", `msg="the router stopped answering; showing its last document" component=watch`},
 		{"level=WARN", `msg="the router stopped answering; probing directly" component=watch`, `router="not running"`},
 		{"level=INFO", `msg="usage read" component=watch`, "source=probe"},
 		{"level=INFO", "msg=pinned component=watch", "accounts=work", "move=false"},

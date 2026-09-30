@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -111,6 +112,24 @@ func TestPins(t *testing.T) {
 				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantWarning)
 			}
 		})
+	}
+}
+
+func TestAnIgnoredPinIsWarnedOfOnceForEachSession(t *testing.T) {
+	log := logstest.Capture(t)
+	up := newUpstream(t, answerOK)
+	proxy := serveProxy(t, newRouter(t, up.URL))
+
+	for _, session := range []string{"one", "one", "one", "two"} {
+		header := with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", "personal")
+		readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", header, strings.NewReader(messages)))
+	}
+	waitUntil(t, "every request is routed", func() bool { return strings.Count(log.String(), "msg=routed") == 4 })
+	for _, session := range []string{"one", "two"} {
+		warned := strings.Count(log.String(), `level=WARN msg="pin ignored: account has no usable token" component=router`)
+		if !log.Has("level=WARN", `msg="pin ignored: account has no usable token"`, "pin=personal", "session="+session) || warned != 2 {
+			t.Errorf("log reads\n%s\nwant the pin ignored warned of once for session %s, and once for the other", log, session)
+		}
 	}
 }
 

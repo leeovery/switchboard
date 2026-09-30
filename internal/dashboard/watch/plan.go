@@ -23,11 +23,15 @@ const (
 // and a look once a window on screen has reset has the router refresh first
 // the accounts it hasn't read in the last minute, as an idle account's
 // window would read "resets now" until the next full read, unless the
-// account has a window that has lapsed, which the router won't probe. A
-// document built by probing is read again once an interval, sooner after a
-// read that failed or once a window on screen resets, and the router is asked
-// after once a minute in between, so the dashboard reads it again soon after
-// it comes back, but never goes back and forth faster than that.
+// account has a window that has lapsed, which the router won't probe. A look
+// never probes when the router doesn't answer, as a router away for a moment,
+// restarting or slow on waking, would have every account probed at once,
+// starting their lapsed windows off the priming schedule: only a full read
+// does, once it's due. A document built by probing is read again once an
+// interval, sooner after a read that failed or once a window on screen
+// resets, and the router is asked after once a minute in between, so the
+// dashboard reads it again soon after it comes back, but never goes back and
+// forth faster than that.
 type plan struct {
 	interval time.Duration
 	// due is when the next full read is due: one that has the router
@@ -57,9 +61,9 @@ func (p plan) full() Read {
 
 // at returns the read due at now, reading the router when routed, and
 // reports false when none is: a full read once it's due; else, reading the
-// router, a look at its document; else, once a minute, a question after the
-// router, which has it refresh when it answers, and probes nothing when it
-// doesn't.
+// router, a look at its document, which probes nothing when it doesn't
+// answer; else, once a minute, a question after the router, which has it
+// refresh when it answers, and probes nothing when it doesn't.
 func (p plan) at(now time.Time, routed bool) (Read, bool) {
 	switch {
 	case !now.Before(p.due):
@@ -78,9 +82,9 @@ func (p plan) at(now time.Time, routed bool) (Read, bool) {
 // window on screen has reset since it last did.
 func (p plan) look(now time.Time) Read {
 	if !p.reset.IsZero() && !now.Before(p.reset) {
-		return Fresh()
+		return Read{Refresh: freshFor}
 	}
-	return Read{Probe: true}
+	return Read{}
 }
 
 // landed notes a read that asked for r landing at now with doc. After the
@@ -119,8 +123,9 @@ func (p plan) failed(doc status.Document, now time.Time) plan {
 	return p
 }
 
-// missed notes a question after the router, at now, that found it gone.
+// missed notes a question after the router, or a look at its document, at
+// now, that found it gone: the next look is lookEvery on.
 func (p plan) missed(now time.Time) plan {
-	p.asked = now
+	p.asked, p.next = now, now.Add(lookEvery)
 	return p
 }

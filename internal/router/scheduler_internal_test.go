@@ -28,9 +28,9 @@ func TestAChoiceAfreshProbesTheAccountsWhoseUsageIsStale(t *testing.T) {
 	clock := &testClock{now: start.Add(-20 * time.Minute)}
 	prober := &stubProber{}
 	r := newTestRouter(t, clock.read, prober)
-	r.state.record("side", []quota.Window{session, week})
+	r.state.record("side", []quota.Window{session, week}, r.state.mark())
 	clock.now = start.Add(-15 * time.Minute)
-	r.state.record("work", []quota.Window{session, week})
+	r.state.record("work", []quota.Window{session, week}, r.state.mark())
 	clock.now = start
 
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
@@ -47,8 +47,8 @@ func TestAChoiceAfreshProbesNoAccountWhoseSessionHasLapsed(t *testing.T) {
 	// nothing read of it, and side's still runs.
 	lapsing, running := session, session
 	lapsing.ResetsAt, running.ResetsAt = start.Add(-5*time.Minute), start.Add(2*time.Hour)
-	r.state.record("work", []quota.Window{lapsing, week})
-	r.state.record("side", []quota.Window{running, week})
+	r.state.record("work", []quota.Window{lapsing, week}, r.state.mark())
+	r.state.record("side", []quota.Window{running, week}, r.state.mark())
 	clock.now = start
 
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
@@ -67,9 +67,9 @@ func TestAChoiceAfreshProbesAnAccountWhoseSessionHasLapsedUnderALimit(t *testing
 	lapsing, running, spentWeek := session, session, week
 	lapsing.ResetsAt, running.ResetsAt = start.Add(-5*time.Minute), start.Add(2*time.Hour)
 	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
-	r.state.record("work", []quota.Window{lapsing, spentWeek})
+	r.state.record("work", []quota.Window{lapsing, spentWeek}, r.state.mark())
 	r.state.limit("work", []string{"7d"}, start.Add(72*time.Hour))
-	r.state.record("side", []quota.Window{running, week})
+	r.state.record("side", []quota.Window{running, week}, r.state.mark())
 	clock.now = start
 
 	choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
@@ -78,25 +78,50 @@ func TestAChoiceAfreshProbesAnAccountWhoseSessionHasLapsedUnderALimit(t *testing
 	}
 }
 
-func TestWithNoRoomNoAccountWhoseSessionHasLapsedIsProbedAgain(t *testing.T) {
-	clock := &testClock{now: start.Add(-2 * time.Minute)}
-	prober := &stubProber{}
-	r := newTestRouter(t, clock.read, prober)
-	// Read two minutes ago, neither has room: work's week is spent, and its
-	// session has lapsed since, and side's session is spent till later.
-	lapsing, spentSession, spentWeek := session, session, week
-	lapsing.ResetsAt = start.Add(-time.Minute)
+func TestWithNoRoomAnAccountWhoseSessionHasLapsedIsProbedAgainOnlyWhenSpent(t *testing.T) {
+	spentSession, spentWeek, spentFableWeek := session, week, fableWeek
 	spentSession.Utilization, spentSession.Status = 1, quota.StatusRejected
 	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
-	r.state.record("work", []quota.Window{lapsing, spentWeek})
-	r.state.record("side", []quota.Window{spentSession, week})
-	clock.now = start
-
-	if got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"}); !got.NoRoom {
-		t.Fatalf("Choose() = %+v, want no account with room", got)
+	spentFableWeek.Utilization, spentFableWeek.Status = 1, quota.StatusRejected
+	tests := []struct {
+		name string
+		// week and fableWeek are work's, as read.
+		week, fableWeek quota.Window
+		want            map[string]int
+	}{
+		{
+			name:      "not work, its Fable week spent, whose session a probe would start",
+			week:      week,
+			fableWeek: spentFableWeek,
+			want:      map[string]int{sideToken: 1},
+		},
+		{
+			name:      "work, its week spent, which can take no request anyway",
+			week:      spentWeek,
+			fableWeek: fableWeek,
+			want:      map[string]int{workToken: 1, sideToken: 1},
+		},
 	}
-	if got, want := prober.counts(), map[string]int{sideToken: 1}; !maps.Equal(got, want) {
-		t.Errorf("probes = %v, want %v: with no room anywhere, side is probed again, but not work, whose session a probe would start", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start.Add(-2 * time.Minute)}
+			prober := &stubProber{}
+			r := newTestRouter(t, clock.read, prober)
+			// Read two minutes ago, neither has room for a Fable request:
+			// work's session has lapsed since, and side's is spent till later.
+			lapsing := session
+			lapsing.ResetsAt = start.Add(-time.Minute)
+			r.state.record("work", []quota.Window{lapsing, tt.week, tt.fableWeek}, r.state.mark())
+			r.state.record("side", []quota.Window{spentSession, week, fableWeek}, r.state.mark())
+			clock.now = start
+
+			if got := choose(t.Context(), r, Request{Session: "one", Model: fable, Client: "work"}); !got.NoRoom {
+				t.Fatalf("Choose() = %+v, want no account with room", got)
+			}
+			if got := prober.counts(); !maps.Equal(got, tt.want) {
+				t.Errorf("probes = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -136,7 +161,7 @@ func TestASessionStaysWhenFreshUsageFindsRoomOnItsAccount(t *testing.T) {
 		sideToken: probed(nil, session, soonWeek),
 	}}
 	r := newTestRouter(t, clock.read, prober)
-	r.state.record("work", []quota.Window{refused, laterWeek})
+	r.state.record("work", []quota.Window{refused, laterWeek}, r.state.mark())
 	clock.now = start
 	assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 
@@ -173,6 +198,29 @@ func TestChoicesMadeTogetherShareTheirProbes(t *testing.T) {
 			if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
 				t.Errorf("session %d: Choose() = %+v, want %+v", i+1, got, want)
 			}
+		}
+	})
+}
+
+func TestAChoiceAwaitsOnlyTheProbesOfTheAccountsItWouldProbe(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		prober := &stubProber{gate: make(chan struct{})}
+		r := newTestRouter(t, at(start), prober)
+		defer r.probes.stop()
+		// Both accounts were read just now, and a prime of work is under
+		// way, which never ends.
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+		r.probes.prime(r.accounts.only([]string{"work"}), func(string, time.Time) bool { return true })
+		synctest.Wait()
+
+		began := time.Now()
+		got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+		if waited := time.Since(began); waited != 0 {
+			t.Errorf("Choose() waited %v, want no wait: neither account wants probing", waited)
+		}
+		if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
+			t.Errorf("Choose() = %+v, want %+v", got, want)
 		}
 	})
 }
@@ -294,8 +342,8 @@ func TestANewSessionIsRememberedOnceItsAnswered(t *testing.T) {
 				log := logstest.Capture(t)
 				// Work's quota needs using first, so the session goes there.
 				r := newTestRouter(t, at(start), &stubProber{})
-				r.state.record("work", []quota.Window{session, soonWeek})
-				r.state.record("side", []quota.Window{session, laterWeek})
+				r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 				r.proxy.transport = tt.upstream
 
 				if got := routeAlone(clientGoing(t, tt.goneAfter), r, "one"); got != tt.wantStatus {
@@ -344,8 +392,8 @@ func TestASessionKeepsItsAccountWhateverItsRequestsEnd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				r := newTestRouter(t, at(start), &stubProber{})
-				r.state.record("work", []quota.Window{session, soonWeek})
-				r.state.record("side", []quota.Window{session, laterWeek})
+				r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 				k := key{session: "one", model: opus}
 				assign(r.sessions, k, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 				r.proxy.transport = tt.upstream
@@ -362,8 +410,8 @@ func TestASessionKeepsItsAccountWhateverItsRequestsEnd(t *testing.T) {
 func TestForgettingANewSessionLeavesTheAccountAnotherRequestWasChosenSince(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newTestRouter(t, at(start), &stubProber{})
-	r.state.record("work", []quota.Window{session, soonWeek})
-	r.state.record("side", []quota.Window{session, laterWeek})
+	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 	first := Request{ID: "a1b2c3d4", Session: "one", Model: opus, Client: "work"}
 	if got := choose(t.Context(), r, first); !got.New || got.Account != "work" {
 		t.Fatalf("Choose() = %+v, want the new session on work", got)
@@ -416,8 +464,8 @@ func TestAChoiceLeavesTheAssignmentAnotherRequestMadeSinceItLooked(t *testing.T)
 		t.Fatalf("New() error = %v", err)
 	}
 	s := r.proxy.chooser.(*scheduler)
-	r.state.record("work", []quota.Window{session, soonWeek})
-	r.state.record("side", []quota.Window{session, laterWeek})
+	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 	k := key{session: "one", model: opus}
 	assign(r.sessions, k, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 	first := Request{Session: "one", Model: opus, Client: "work"}

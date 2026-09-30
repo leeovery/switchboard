@@ -242,15 +242,16 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	}
 
 	srv.start(t)
-	// Work's session runs till 18:10, and side, whose token the API refuses,
-	// is primed again five minutes after its probe as the router starts.
+	// Work's session runs till 18:10, so it's primed a few seconds after,
+	// and side, whose token the API refuses, is primed again five minutes
+	// after its probe as the router starts.
 	doc := srv.waitForStatus(t, func(doc status.Document) bool {
 		work, _ := doc.Account("work")
 		side, _ := doc.Account("side")
 		return len(work.Windows) == 3 && side.Error != ""
 	})
 	want := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-		{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)},
+		{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 18, 10, 5, 0, time.UTC)},
 		{Account: "side", At: "06:45", Next: testNow.Add(5 * time.Minute)},
 	}}
 	if !reflect.DeepEqual(doc.Prime, want) {

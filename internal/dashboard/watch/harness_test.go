@@ -187,7 +187,7 @@ func (h *harness) refreshesUntil(t time.Time) []time.Time {
 		asked := len(h.source.asked)
 		h.fire(h.lastTick())
 		for _, r := range h.source.asked[asked:] {
-			if r == (Read{Refresh: freshFor, Probe: true}) {
+			if r == (Read{Refresh: freshFor}) {
 				refreshed = append(refreshed, h.clock.now)
 			}
 		}
@@ -320,7 +320,7 @@ func (s *fakeSource) order(what string, pin status.Pin) error {
 // looks counts the reads asked for that looked at the router's document as
 // it stood.
 func (s *fakeSource) looks() int {
-	return countReads(s.asked, Read{Probe: true})
+	return countReads(s.asked, Read{})
 }
 
 // countReads counts the reads in asked that asked for r.

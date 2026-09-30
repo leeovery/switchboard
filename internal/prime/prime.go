@@ -15,8 +15,14 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// fullDay is how long a day runs on the clock.
-const fullDay = 24 * time.Hour
+const (
+	// fullDay is how long a day runs on the clock.
+	fullDay = 24 * time.Hour
+	// afterReset is how long after a window's reset its account is primed:
+	// the upstream's clock may be a little behind this one's, and a prime it
+	// took in before the reset by its own would start nothing.
+	afterReset = 5 * time.Second
+)
 
 // Schedule is when the accounts are primed: each at its slot, before the day
 // starts, so that their first windows reset at even steps through it, the
@@ -85,9 +91,10 @@ func (s Schedule) Slots() []Slot {
 // time zone the day is kept in: when its window a request starts, among its
 // windows as last read, isn't running, from its slot until the day ends. Its
 // window isn't running when it has never been read, or has lapsed, its reset
-// passed with nothing read since. Next reports false when the window can't be
-// judged, as when it was read without a reset, and may be running, and for
-// an account the schedule doesn't have.
+// passed with nothing read since; one read running is primed afterReset after
+// its reset. Next reports false when the window can't be judged, as when it
+// was read without a reset, and may be running, and for an account the
+// schedule doesn't have.
 func (s Schedule) Next(account string, windows []quota.Window, now time.Time) (time.Time, bool) {
 	i := slices.IndexFunc(s.slots, func(slot Slot) bool { return slot.Account == account })
 	if i < 0 {
@@ -101,23 +108,22 @@ func (s Schedule) Next(account string, windows []quota.Window, now time.Time) (t
 }
 
 // idleFrom returns when, at now or after, the window a request starts, among
-// windows as last read, isn't running, in now's time zone: now, when it has
-// never been read or has lapsed; else its reset. It reports false when
-// windows were read but not that one, or it was read without a reset: there's
-// nothing to go by.
+// windows as last read, is to be primed, in now's time zone: now, when it has
+// never been read or has lapsed; else afterReset after its reset. It reports
+// false when windows were read but not that one, or it was read without a
+// reset: there's nothing to go by.
 func (s Schedule) idleFrom(windows []quota.Window, now time.Time) (time.Time, bool) {
 	if len(windows) == 0 {
 		return now, true
 	}
 	i := slices.IndexFunc(windows, func(w quota.Window) bool { return w.Key == s.window })
-	switch {
-	case i < 0 || windows[i].ResetsAt.IsZero():
+	if i < 0 || windows[i].ResetsAt.IsZero() {
 		return time.Time{}, false
-	case windows[i].ResetsAt.After(now):
-		return windows[i].ResetsAt.In(now.Location()), true
-	default:
-		return now, true
 	}
+	if from := windows[i].ResetsAt.Add(afterReset); from.After(now) {
+		return from.In(now.Location()), true
+	}
+	return now, true
 }
 
 // earliest returns the first time, at t or after, that the slot's account is

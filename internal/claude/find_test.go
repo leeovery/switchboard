@@ -248,15 +248,26 @@ func TestThroughSwitchboard(t *testing.T) {
 	if err := os.WriteFile(at("not-runnable", "claude"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// Another build of switchboard, as the test's own program is taken to be
+	// one.
+	thisBuild, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	claudetest.Build(t, at("builds", "claude"))
 	tests := []struct {
 		name string
 		// path lists the directories on PATH.
-		path    []string
+		path []string
+		// self is switchboard's own executable, as os.Executable gives it:
+		// its Homebrew link unless it's given.
+		self    string
 		selfErr error
 		want    bool
 		wantErr string
 	}{
 		{name: "switchboard's claude link first", path: []string{at("links"), at("real")}, want: true},
+		{name: "another build of switchboard first", path: []string{at("builds"), at("real")}, self: thisBuild, want: true},
 		{
 			name: "past what isn't a program, as a shell passes it",
 			path: []string{at("dangling"), at("directory"), at("not-runnable"), at("links"), at("real")},
@@ -276,7 +287,7 @@ func TestThroughSwitchboard(t *testing.T) {
 	t.Chdir(at("links"))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			executable := func() (string, error) { return brewLink, tt.selfErr }
+			executable := func() (string, error) { return cmp.Or(tt.self, brewLink), tt.selfErr }
 
 			got, err := claude.ThroughSwitchboard(strings.Join(tt.path, string(filepath.ListSeparator)), executable)
 			if got != tt.want || errorText(err) != tt.wantErr {

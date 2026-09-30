@@ -18,8 +18,8 @@ func TestPlanAt(t *testing.T) {
 		wantOK bool
 	}{
 		{name: "reading the router, before the next look", now: at(13, 12, 4), routed: true},
-		{name: "reading the router, a look once it's due", now: at(13, 12, 5), routed: true, want: Read{Probe: true}, wantOK: true},
-		{name: "reading the router, a look having it refresh once a window on screen has reset", now: at(13, 21, 0), routed: true, want: Read{Refresh: freshFor, Probe: true}, wantOK: true},
+		{name: "reading the router, a look once it's due, which never probes", now: at(13, 12, 5), routed: true, want: Read{}, wantOK: true},
+		{name: "reading the router, a look having it refresh once a window on screen has reset", now: at(13, 21, 0), routed: true, want: Read{Refresh: freshFor}, wantOK: true},
 		{name: "reading the router, a refresh once it's due", now: at(13, 42, 0), routed: true, want: full, wantOK: true},
 		{name: "probing, in the minute the router was last asked after", now: at(13, 12, 59), routed: false},
 		{name: "probing, a question after the router in the next minute", now: at(13, 13, 0), routed: false, want: Read{Refresh: interval}, wantOK: true},
@@ -49,13 +49,13 @@ func TestPlanLanded(t *testing.T) {
 	}{
 		{
 			name: "a look at the router's document",
-			read: Read{Probe: true},
+			read: Read{},
 			doc:  routerDocument(three()...),
 			want: plan{interval: interval, due: at(13, 42, 0), next: now.Add(lookEvery), reset: threeReset, asked: now, failures: 1},
 		},
 		{
 			name: "a look at the router's document, with a window that has reset",
-			read: Read{Probe: true},
+			read: Read{},
 			doc:  routerDocument(account("work", "Work", session(0.25, -time.Hour), week(0.5))),
 			want: plan{interval: interval, due: at(13, 42, 0), next: now.Add(lookEvery), reset: start.Add(-time.Hour + resetGrace).UTC(), asked: now, failures: 1},
 		},
@@ -101,8 +101,8 @@ func TestPlanFailedAndMissed(t *testing.T) {
 	if got := before.failed(calm(), now); got != want {
 		t.Errorf("failed() = %+v, want %+v", got, want)
 	}
-	want = plan{interval: interval, due: at(13, 42, 0), next: at(13, 12, 5), asked: now}
+	want = plan{interval: interval, due: at(13, 42, 0), next: now.Add(lookEvery), asked: now}
 	if got := before.missed(now); got != want {
-		t.Errorf("missed() = %+v, want %+v: asked after the router, and nothing else", got, want)
+		t.Errorf("missed() = %+v, want %+v: asked after the router, and the next look lookEvery on", got, want)
 	}
 }

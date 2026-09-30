@@ -31,9 +31,9 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "30m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-40 * time.Minute)
-				r.state.record("side", []quota.Window{session, week})
+				r.state.record("side", []quota.Window{session, week}, r.state.mark())
 				clock.now = start.Add(-10 * time.Minute)
-				r.state.record("work", []quota.Window{session, week})
+				r.state.record("work", []quota.Window{session, week}, r.state.mark())
 			},
 			want: map[string]int{sideToken: 1},
 		},
@@ -42,9 +42,9 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "5m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-40 * time.Minute)
-				r.state.record("side", []quota.Window{session, week})
+				r.state.record("side", []quota.Window{session, week}, r.state.mark())
 				clock.now = start.Add(-10 * time.Minute)
-				r.state.record("work", []quota.Window{session, week})
+				r.state.record("work", []quota.Window{session, week}, r.state.mark())
 			},
 			want: map[string]int{workToken: 1, sideToken: 1},
 		},
@@ -61,8 +61,8 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 				clock.now = start.Add(-40 * time.Minute)
 				lapsing := session
 				lapsing.ResetsAt = start.Add(-time.Minute)
-				r.state.record("work", []quota.Window{lapsing, week})
-				r.state.record("side", []quota.Window{session, week})
+				r.state.record("work", []quota.Window{lapsing, week}, r.state.mark())
+				r.state.record("side", []quota.Window{session, week}, r.state.mark())
 			},
 			want: map[string]int{sideToken: 1},
 		},
@@ -71,7 +71,7 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "30m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-30 * time.Second)
-				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"))
+				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), r.state.mark())
 			},
 			want: map[string]int{workToken: 1},
 		},
@@ -80,8 +80,8 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "0s",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-time.Second)
-				r.state.record("work", []quota.Window{session, week})
-				r.state.record("side", []quota.Window{session, week})
+				r.state.record("work", []quota.Window{session, week}, r.state.mark())
+				r.state.record("side", []quota.Window{session, week}, r.state.mark())
 			},
 			want: map[string]int{workToken: 1, sideToken: 1},
 		},
@@ -108,9 +108,11 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 	}
 }
 
-func TestRefreshProbesAnAccountWhoseSessionHasLapsedUnderALimitHoldingBackEveryRequest(t *testing.T) {
+func TestRefreshProbesAnAccountWhoseSessionHasLapsedWhenItCanTakeNoRequest(t *testing.T) {
 	tests := []struct {
 		name string
+		// spent is set when work's week was read spent.
+		spent bool
 		// holdBack holds work back, its session lapsed, at the moment it's
 		// called, a minute before start.
 		holdBack   func(s *state)
@@ -118,12 +120,19 @@ func TestRefreshProbesAnAccountWhoseSessionHasLapsedUnderALimitHoldingBackEveryR
 	}{
 		{
 			name:       "a limit reached in its week",
+			spent:      true,
 			holdBack:   func(s *state) { s.limit("work", []string{"7d"}, start.Add(72*time.Hour)) },
 			wantProbed: true,
 		},
 		{
 			name:       "a limit reached in no window named",
 			holdBack:   func(s *state) { s.limit("work", nil, start.Add(72*time.Hour)) },
+			wantProbed: true,
+		},
+		{
+			name:       "its week read spent, with no limit, as a restart leaves it",
+			spent:      true,
+			holdBack:   func(*state) {},
 			wantProbed: true,
 		},
 		{
@@ -154,13 +163,15 @@ func TestRefreshProbesAnAccountWhoseSessionHasLapsedUnderALimitHoldingBackEveryR
 			r := newTestRouter(t, clock.read, prober)
 			// Read six hours ago, work's session has lapsed since, with
 			// nothing read of it; side was read just now.
-			lapsing, spentWeek := session, week
+			lapsing, workWeek := session, week
 			lapsing.ResetsAt = start.Add(-time.Hour)
-			spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
-			r.state.record("work", []quota.Window{lapsing, spentWeek})
+			if tt.spent {
+				workWeek.Utilization, workWeek.Status = 1, quota.StatusRejected
+			}
+			r.state.record("work", []quota.Window{lapsing, workWeek}, r.state.mark())
 			clock.now = start.Add(-time.Minute)
 			tt.holdBack(r.state)
-			r.state.record("side", []quota.Window{session, week})
+			r.state.record("side", []quota.Window{session, week}, r.state.mark())
 			clock.now = start
 
 			// As the dashboard's r asks: what hasn't been read in a minute.

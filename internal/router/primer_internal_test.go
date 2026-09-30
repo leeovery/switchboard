@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"net/http"
 	"reflect"
 	"slices"
 	"sync"
@@ -31,6 +32,12 @@ func onDay(day, hour, minute int) time.Time {
 	return time.Date(2026, time.September, 27+day, hour, minute, 0, 0, local)
 }
 
+// afterResets is t moved on by the few seconds a prime waits after each of n
+// resets.
+func afterResets(t time.Time, n int) time.Time {
+	return t.Add(time.Duration(n) * 5 * time.Second)
+}
+
 func TestTheRouterPrimesEachAccountThroughTheDay(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		clock := newBubbleClock(onDay(1, 0, 0))
@@ -41,12 +48,14 @@ func TestTheRouterPrimesEachAccountThroughTheDay(t *testing.T) {
 
 		time.Sleep(29 * time.Hour)
 		synctest.Wait()
+		// Each prime goes out a few seconds after the reset before, so the
+		// resets move on by as much.
 		want := map[string][]time.Time{
-			workToken: {onDay(1, 4, 15), onDay(1, 9, 15), onDay(1, 14, 15), onDay(1, 19, 15), onDay(2, 4, 15)},
-			sideToken: {onDay(1, 6, 45), onDay(1, 11, 45), onDay(1, 16, 45), onDay(1, 21, 45)},
+			workToken: {onDay(1, 4, 15), afterResets(onDay(1, 9, 15), 1), afterResets(onDay(1, 14, 15), 2), afterResets(onDay(1, 19, 15), 3), onDay(2, 4, 15)},
+			sideToken: {onDay(1, 6, 45), afterResets(onDay(1, 11, 45), 1), afterResets(onDay(1, 16, 45), 2), afterResets(onDay(1, 21, 45), 3)},
 		}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
-			t.Errorf("primed at\n%v\nwant each at its slot, at once at each reset through the day, and none once it ends till the next day's slot\n%v", got, want)
+			t.Errorf("primed at\n%v\nwant each at its slot, just after each reset through the day, and none once it ends till the next day's slot\n%v", got, want)
 		}
 	})
 }
@@ -57,15 +66,15 @@ func TestAnAccountWhoseWindowRunsAtItsSlotIsPrimedAsItResets(t *testing.T) {
 		upstream := newWindowsUpstream(clock)
 		r := newPrimingRouter(t, clock.read, upstream, daytime)
 		// Work's session runs from a late night till 06:00.
-		r.state.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 6, 0)}, week})
+		r.state.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 6, 0)}, week}, r.state.mark())
 		stop := startPriming(r)
 		defer stop()
 
 		time.Sleep(6 * time.Hour)
 		synctest.Wait()
-		want := map[string][]time.Time{workToken: {onDay(1, 6, 0)}, sideToken: {onDay(1, 6, 45)}}
+		want := map[string][]time.Time{workToken: {afterResets(onDay(1, 6, 0), 1)}, sideToken: {onDay(1, 6, 45)}}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
-			t.Errorf("primed at %v, want %v: work's session was running at its slot, 04:15, so it's primed once that resets", got, want)
+			t.Errorf("primed at %v, want %v: work's session was running at its slot, 04:15, so it's primed just after that resets", got, want)
 		}
 	})
 }
@@ -173,17 +182,78 @@ func TestEachPrimeIsLoggedWithTheResetItRead(t *testing.T) {
 	})
 }
 
+func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
+	far := onDay(4, 0, 0)
+	spentWeek := week
+	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
+	tests := []struct {
+		name string
+		// holdBack holds side back as its slot comes.
+		holdBack func(s *state)
+		wantDue  bool
+	}{
+		{name: "held back by nothing", holdBack: func(*state) {}, wantDue: true},
+		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("side", []string{"7d"}, far) }},
+		{name: "a limit in no window named", holdBack: func(s *state) { s.limit("side", nil, far) }},
+		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{spentWeek}, s.mark()) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized) }},
+		{
+			name:     "a limit on its Fable week alone, which other models' requests go out beside",
+			holdBack: func(s *state) { s.limit("side", []string{"7d_oi"}, far) },
+			wantDue:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: onDay(1, 1, 0)}
+			r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
+			// Side's session ran till 01:00, and has lapsed since.
+			lapsed := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 1, 0)}
+			r.state.record("side", []quota.Window{lapsed, week}, r.state.mark())
+			clock.now = onDay(1, 6, 45)
+			tt.holdBack(r.state)
+
+			if due := r.primer.due("side", clock.now); due != tt.wantDue {
+				t.Errorf("side due a prime at its slot = %v, want %v", due, tt.wantDue)
+			}
+		})
+	}
+}
+
+func TestAPrimeThatSharesAProbeUnderWayIsLoggedAsAPrime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		prober := &stubProber{gate: make(chan struct{}), readings: map[string]quota.Probe{workToken: probed(nil, session, week)}}
+		r := newPrimingRouter(t, at(start), prober, daytime)
+		defer r.probes.stop()
+		always := func(string, time.Time) bool { return true }
+		work := r.accounts.only([]string{"work"})
+
+		// A choice's probe of work is under way as work falls due a prime.
+		r.probes.start(work, always)
+		r.probes.prime(work, always)
+		close(prober.gate)
+		synctest.Wait()
+		if n := prober.counts()[workToken]; n != 1 {
+			t.Errorf("work was probed %d times, want once, the prime sharing the probe", n)
+		}
+		if !log.Has("level=INFO", "msg=primed", "account=work") || log.Has(`msg="probed account"`) {
+			t.Errorf("log reads\n%s\nwant the probe logged as a prime", log)
+		}
+	})
+}
+
 func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *testing.T) {
 	clock := &testClock{now: onDay(1, 5, 0)}
 	r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
 	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: onDay(1, 9, 15)}
-	r.state.record("work", []quota.Window{running, week})
+	r.state.record("work", []quota.Window{running, week}, r.state.mark())
 
 	want := status.Prime{
 		Day:    "08:00-23:00",
 		Window: "5h",
 		Slots: []status.Slot{
-			{Account: "work", At: "04:15", Next: onDay(1, 9, 15).UTC()},
+			{Account: "work", At: "04:15", Next: afterResets(onDay(1, 9, 15), 1).UTC()},
 			{Account: "side", At: "06:45", Next: onDay(1, 6, 45).UTC()},
 		},
 	}

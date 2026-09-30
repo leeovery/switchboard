@@ -144,7 +144,7 @@ type Model struct {
 	// failed says why the last read failed, if it did.
 	failed string
 	// lost is when the router stopped answering, while the dashboard has
-	// probed since.
+	// probed since, or shows its last document.
 	lost time.Time
 
 	// ordering is set while the router carries out an order a key gave.
@@ -264,10 +264,11 @@ func (m Model) fetch(r Read) tea.Cmd {
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none, and plans the next read by it. A question after the router that found
-// it gone changes nothing. Each read starts a new chain of ticks at the pace
-// it calls for, and lets a look at the router's document asked for while it
-// was under way go ahead.
+// none, and plans the next read by it. A question after the router, or a
+// look at its document, that found it gone only notes the router lost, as
+// lose does. Each read starts a new chain of ticks at the pace it calls for,
+// and lets a look at the router's document asked for while it was under way
+// go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.loud = false, false
@@ -275,6 +276,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case errors.Is(msg.err, ErrNoRouter):
 		m.plan = m.plan.missed(now)
+		m = m.lose(now)
 	case msg.err != nil:
 		m.failed = msg.err.Error()
 		m.plan = m.plan.failed(m.doc, now)
@@ -331,16 +333,29 @@ func (m Model) show(doc status.Document, now time.Time) (Model, tea.Cmd) {
 }
 
 // follow notes where doc, read at now, came from, against where the document
-// on screen did: the router lost when it stops answering, and found again.
+// on screen did: the router lost when it stops answering, unless a look lost
+// it first, and found again.
 func (m Model) follow(doc status.Document, now time.Time) Model {
 	switch was, is := m.routed(), routed(doc); {
 	case was && !is:
-		m.lost = now
+		m.lost = cmp.Or(m.lost, now)
 		logger.Warn("the router stopped answering; probing directly", "router", doc.Fallback.Router, "reason", doc.Fallback.Reason)
-	case !was && is:
+	case is && (!was || !m.lost.IsZero()):
 		m.lost = time.Time{}
 		logger.Info("reading the router")
 	}
+	return m
+}
+
+// lose notes a look at the router's document, at now, finding the router
+// gone: its document stays on screen, the footer saying since when there's
+// been no router, until it answers again, or a full read probes.
+func (m Model) lose(now time.Time) Model {
+	if !m.routed() || !m.lost.IsZero() {
+		return m
+	}
+	m.lost = now
+	logger.Warn("the router stopped answering; showing its last document")
 	return m
 }
 
@@ -424,8 +439,9 @@ func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 }
 
 // footer says since when the router hasn't answered, while the dashboard
-// probes for want of it; then what the last key did, while that's news, or
-// else how reading goes; and last what the keys do.
+// probes for want of it, or shows its last document; then what the last key
+// did, while that's news, or else how reading goes; and last what the keys
+// do.
 func (m Model) footer(now time.Time) string {
 	parts := []string{m.state(now), m.keys()}
 	if !m.lost.IsZero() {

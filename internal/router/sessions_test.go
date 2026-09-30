@@ -12,7 +12,7 @@ import (
 )
 
 func TestRememberNotesARequestOnTheAssignmentItsChoiceFoundAlone(t *testing.T) {
-	s := newSessions(at(start), unkept)
+	s := newSessions(at(start), unkept, unkept)
 	req := Request{Session: "one", Model: opus}
 	k := req.key()
 	if _, noted := s.remember(req, assignment{}, decision{account: "work", reason: reasonNew}, start); !noted {
@@ -32,6 +32,36 @@ func TestRememberNotesARequestOnTheAssignmentItsChoiceFoundAlone(t *testing.T) {
 	}
 	if got := s.lookup(k).current; !got.same(onWork) || got.LastSeen != start.Add(2*time.Minute) {
 		t.Errorf("the session is assigned %+v, want work's assignment, last seen when it last stayed", got)
+	}
+}
+
+func TestRememberTellsAnAssignmentUsedAgainFromAChange(t *testing.T) {
+	req := Request{Session: "one", Model: opus}
+	stay := decision{account: "work", reason: reasonSticky, sticky: true}
+	tests := []struct {
+		name string
+		// req goes where d says, a minute after req gave the session work.
+		req                   Request
+		d                     decision
+		wantChanged, wantUsed changeCount
+	}{
+		{name: "used again as it was", req: req, d: stay, wantUsed: 1},
+		{name: "moved", req: req, d: decision{account: "side", reason: "moved: work hit its limit"}, wantChanged: 1},
+		{name: "its pin changed", req: Request{Session: "one", Model: opus, Pin: "work"}, d: stay, wantChanged: 1},
+		{name: "chosen again, for another reason", req: req, d: decision{account: "work", reason: "rescored after 1h"}, wantChanged: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var changed, used changeCount
+			s := newSessions(at(start), changed.hear, used.hear)
+			assignFor(s, req, decision{account: "work", reason: reasonNew}, start)
+			changed, used = 0, 0
+
+			assignFor(s, tt.req, tt.d, start.Add(time.Minute))
+			if changed != tt.wantChanged || used != tt.wantUsed {
+				t.Errorf("told of %d changes and %d uses again, want %d and %d", changed, used, tt.wantChanged, tt.wantUsed)
+			}
+		})
 	}
 }
 
@@ -72,7 +102,7 @@ func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var changes changeCount
-			s := newSessions(at(start), changes.hear)
+			s := newSessions(at(start), changes.hear, unkept)
 			assignFor(s, req, decision{account: "work", reason: reasonNew}, start)
 			tt.since(s)
 			before := changes
@@ -95,7 +125,7 @@ func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.
 }
 
 func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
-	s := newSessions(at(start), unkept)
+	s := newSessions(at(start), unkept, unkept)
 	var wg sync.WaitGroup
 	for i := range 8 {
 		k := key{session: fmt.Sprint(i % 2), model: opus}
@@ -113,7 +143,7 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 }
 
 func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
-	s := newSessions(at(start), unkept)
+	s := newSessions(at(start), unkept, unkept)
 	remember := func(session, model, account string, lastSeen time.Time) {
 		assign(s, key{session: session, model: model}, "", decision{account: account, reason: reasonNew}, lastSeen)
 	}
@@ -134,7 +164,7 @@ func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
 }
 
 func TestSessionReportsItsPinAndItsAssignmentsTheOneUsedLastFirst(t *testing.T) {
-	s := newSessions(at(start), unkept)
+	s := newSessions(at(start), unkept, unkept)
 	assign(s, key{session: "one", model: haiku}, "", decision{account: "side", reason: reasonNew}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 	assign(s, key{session: "two", model: opus}, "", decision{account: "side", reason: reasonNew}, start)
@@ -175,7 +205,7 @@ func TestASessionsOwnPin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newSessions(at(start), unkept)
+			s := newSessions(at(start), unkept, unkept)
 			assign(s, key{session: "one", model: opus}, tt.launched[0], decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 			assign(s, key{session: "one", model: haiku}, tt.launched[1], decision{account: "work", reason: reasonNew}, start)
 			if tt.given != nil && !s.pinSession("one", *tt.given) {
@@ -191,7 +221,7 @@ func TestASessionsOwnPin(t *testing.T) {
 
 func TestASessionNeverSeenIsGivenNoPin(t *testing.T) {
 	var changes changeCount
-	s := newSessions(at(start), changes.hear)
+	s := newSessions(at(start), changes.hear, unkept)
 	if s.pinSession("nope", "side") {
 		t.Error("pinSession() of a session never seen = true, want false")
 	}
@@ -201,7 +231,7 @@ func TestASessionNeverSeenIsGivenNoPin(t *testing.T) {
 }
 
 func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testing.T) {
-	s := newSessions(at(start), unkept)
+	s := newSessions(at(start), unkept, unkept)
 	remember := func(session, model, account string, lastSeen time.Time) {
 		assign(s, key{session: session, model: model}, "", decision{account: account, reason: reasonNew}, lastSeen)
 	}
@@ -228,7 +258,7 @@ func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testin
 	if got[1].Pin != "side" {
 		t.Errorf("running() lists %+v, want its own pin with it", got[1])
 	}
-	if got := newSessions(at(start), unkept).running(start); got == nil || len(got) > 0 {
+	if got := newSessions(at(start), unkept, unkept).running(start); got == nil || len(got) > 0 {
 		t.Errorf("running() with no sessions = %#v, want an empty list", got)
 	}
 }
@@ -267,7 +297,7 @@ func TestForceClearsEverySessionsOwnPin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			var changes changeCount
-			s := newSessions(clock.read, changes.hear)
+			s := newSessions(clock.read, changes.hear, unkept)
 			s.setPin(status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)}, false)
 			assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 			assign(s, key{session: "given", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
@@ -297,7 +327,7 @@ func TestForceClearsEverySessionsOwnPin(t *testing.T) {
 
 func TestUnpinningWithoutAPinOrForceChangesNothing(t *testing.T) {
 	var changes changeCount
-	s := newSessions(at(start), changes.hear)
+	s := newSessions(at(start), changes.hear, unkept)
 	assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 	changes = 0
 
@@ -308,7 +338,7 @@ func TestUnpinningWithoutAPinOrForceChangesNothing(t *testing.T) {
 
 func TestAPinReplacesTheOneBeforeAndUnpinningSaysWhatItWas(t *testing.T) {
 	var changes changeCount
-	s := newSessions(at(start), changes.hear)
+	s := newSessions(at(start), changes.hear, unkept)
 	s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
 
 	pin := status.Pin{Accounts: []string{"side"}, Since: start}

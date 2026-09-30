@@ -44,6 +44,11 @@ func TestASupervisedRouterRestartsItself(t *testing.T) {
 			change:     func(t *testing.T, s *selfWatching) { s.upgrade(t) },
 			wantReason: "reason=upgraded",
 		},
+		{
+			name:       "once the time zone's file leads to another, as in another time zone",
+			change:     func(t *testing.T, s *selfWatching) { s.travel(t) },
+			wantReason: `reason="time zone changed"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -198,13 +203,16 @@ func TestTheRouterTakesUpTokenFilesAsTheyChange(t *testing.T) {
 }
 
 // selfWatching is what a router that looks after itself is started with: a
-// valid config file, and its binary, a link to one version of it.
+// valid config file, its binary, a link to one version of it, and the time
+// zone's file, a link to one zone's.
 type selfWatching struct {
 	cfg router.Config
-	// config is the config file's path, and binary the binary's.
-	config, binary string
-	// next is the binary's next version, which an upgrade leads its link to.
-	next string
+	// config is the config file's path, binary the binary's, and zone the
+	// time zone's file's.
+	config, binary, zone string
+	// next is the binary's next version, which an upgrade leads its link to,
+	// and elsewhere another time zone's file, which travel leads zone's to.
+	next, elsewhere string
 }
 
 // newSelfWatching returns what a router, supervised or not, is started with
@@ -213,22 +221,29 @@ func newSelfWatching(t *testing.T, supervised bool) *selfWatching {
 	t.Helper()
 	dir := t.TempDir()
 	s := &selfWatching{
-		cfg:    runConfig(t, "http://127.0.0.1:1"),
-		config: filepath.Join(dir, "config.toml"),
-		binary: filepath.Join(dir, "bin", "switchboard"),
-		next:   filepath.Join(dir, "1.1", "switchboard"),
+		cfg:       runConfig(t, "http://127.0.0.1:1"),
+		config:    filepath.Join(dir, "config.toml"),
+		binary:    filepath.Join(dir, "bin", "switchboard"),
+		zone:      filepath.Join(dir, "etc", "localtime"),
+		next:      filepath.Join(dir, "1.1", "switchboard"),
+		elsewhere: filepath.Join(dir, "zoneinfo", "Etc", "GMT-9"),
 	}
 	writeFile(t, s.config, oneAccount)
 	current := filepath.Join(dir, "1.0", "switchboard")
 	writeFile(t, current, "switchboard 1.0")
 	writeFile(t, s.next, "switchboard 1.1")
-	if err := os.MkdirAll(filepath.Dir(s.binary), 0o700); err != nil {
-		t.Fatal(err)
+	here := filepath.Join(dir, "zoneinfo", "Etc", "GMT")
+	writeFile(t, here, "TZif Etc/GMT")
+	writeFile(t, s.elsewhere, "TZif Etc/GMT-9")
+	for path, target := range map[string]string{s.binary: current, s.zone: here} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, path); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := os.Symlink(current, s.binary); err != nil {
-		t.Fatal(err)
-	}
-	s.cfg.ConfigFile, s.cfg.Binary = router.Watch(s.config), router.Watch(s.binary)
+	s.cfg.ConfigFile, s.cfg.Binary, s.cfg.Zone = router.Watch(s.config), router.Watch(s.binary), router.Watch(s.zone)
 	s.cfg.Supervised = supervised
 	s.cfg.WatchEvery = watchEvery
 	return s
@@ -238,11 +253,25 @@ func newSelfWatching(t *testing.T, supervised bool) *selfWatching {
 // does.
 func (s *selfWatching) upgrade(t *testing.T) {
 	t.Helper()
-	moved := s.binary + ".new"
-	if err := os.Symlink(s.next, moved); err != nil {
+	relinkAt(t, s.binary, s.next)
+}
+
+// travel has the time zone's link lead to another zone's file, as the Mac
+// taken to another time zone does.
+func (s *selfWatching) travel(t *testing.T) {
+	t.Helper()
+	relinkAt(t, s.zone, s.elsewhere)
+}
+
+// relinkAt has the link at path lead to target from now on, replacing it in
+// one step.
+func relinkAt(t *testing.T, path, target string) {
+	t.Helper()
+	moved := path + ".new"
+	if err := os.Symlink(target, moved); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Rename(moved, s.binary); err != nil {
+	if err := os.Rename(moved, path); err != nil {
 		t.Fatal(err)
 	}
 }

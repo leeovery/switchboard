@@ -51,15 +51,19 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Only a 429
   that refuses the request itself carries none (see Choosing an account, step 6). Switchboard
   reads them off real traffic, so it knows each account's usage without spending requests.
-  Windows are parsed generically, not hard-coded. A window's reset says which of two readings
-  taken apart is current: a later reset is a new window; with the same reset the higher
-  utilization stands, as use only rises within a window, so a slow response can't pull it back,
-  nor lift a rejection either reading holds; an earlier reset is ignored.
+  Windows are parsed generically, not hard-coded. Of two readings of a window taken apart, one off
+  a request sent after the other was taken in is current, whatever it reads: the API reckons use
+  as it takes a request in, so no reordering can make that reading the older, and a reset made by
+  hand on claude.ai, which drops use but may keep the reset, is seen. The answer to a request sent
+  before may have been overtaken, so then the window's reset says which is current: a later reset
+  is a new window; with the same reset the higher utilization stands, as use only rises within a
+  window, so a slow response can't pull it back, nor lift a rejection either reading holds; an
+  earlier reset is ignored.
 - The router probes every account it has no reading for as it starts; its readings outlast a
   restart. After that, an account with no recent traffic is probed only when a decision needs fresh
   numbers, a dashboard asks for them, or it's due a prime, and never once its 5-hour window has
-  lapsed, as the probe would start the window off the schedule (see Priming), but while a limit
-  holds back its every request, when starting the window costs nothing. An account never read, as
+  lapsed, as the probe would start the window off the schedule (see Priming), but while it can take
+  no request anyway, when starting the window costs nothing. An account never read, as
   one whose probe failed as the router started, or one first given a token while the router runs,
   has no window known to have lapsed: it's probed whenever a decision or a dashboard needs it, at
   any hour, which may start its window off the schedule, once. A probe is one request per model
@@ -152,10 +156,12 @@ on a model whose thinking is bound to its account only when its account can't se
    moves there and stays. Claude Code sees a normal, slower response. The account then has no
    room, whatever its windows read, for the requests the windows the 429 rejects count, whether
    or not it gives their utilization (every request when it names none), until the reset the 429
-   gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. A later
-   reading showing those windows with room lifts it sooner, as a probe's does once the limit is
-   reset by hand (see Priming). A limit reached again while it holds is the same limit, and holds
-   as the latest 429 says; a probe that reads it again changes nothing.
+   gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. The
+   answer to a request sent after the limit was set lifts it sooner when it shows those windows
+   with room, as a probe's does once the limit is reset by hand (see Priming), or, for a limit
+   whose 429 named no window, when it's a success, a probe's included. A limit reached again while
+   it holds is the same limit, and holds as the latest 429 says; a probe that reads it again
+   changes nothing.
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
@@ -198,7 +204,7 @@ Each request's account is decided in this order:
 A request without a session id is never remembered: it goes to the launch pin it carries while that
 account can serve it, and is otherwise decided afresh every time. Before deciding afresh, and never
 for a sticky request, switchboard probes every account it hasn't read in 15 minutes, all at once,
-but for one whose 5-hour window has lapsed and that no limit holds back (see Priming), and waits
+but for one whose 5-hour window has lapsed and that can take a request (see Priming), and waits
 for them 8 seconds at most. Choices made together share a probe, and an account whose probe ended,
 read or not, waits a minute for the next.
 
@@ -389,16 +395,22 @@ come back one at a time rather than together: once all are spent, the wait for t
   and its slot shifts for that day. The log notes each prime at `info`, with the reset it read. A
   prime fails when it reads nothing (`prime failed`), or when the 5-hour window still reads as
   lapsed once it's done (`prime didn't start the window`): either is noted at `warn`, and the prime
-  is sent again five minutes on.
-- **Through the day,** when an idle account's window resets, the router primes it at once, so its
-  windows stay back to back. After the day ends, it stops, so the windows lapse overnight and the
+  is sent again five minutes on. An account that can take no request anyway (see No accidental
+  windows), or whose token is refused, isn't primed while it's so, as a prime couldn't start its
+  window; it's still probed where the probe rules allow, which is how a reset made by hand is seen.
+- **Through the day,** whenever an account's window resets, in use or not, the router primes it 5
+  seconds on, so its windows stay back to back: the API's clock may be a little behind the Mac's,
+  and a prime it took in before the reset would start nothing, and go again five minutes later,
+  the window's start with it. After the day ends, it stops, so the windows lapse overnight and the
   next morning's primes start them afresh. An account's day of priming runs from its slot until
   the day ends.
 - A prime missed while the Mac slept, or the router was away, goes out when the router next can,
   unless the day has ended: the router looks at least once a minute, as a timer's clock stops
   while the Mac sleeps.
 - Every time of the schedule is on the local clock, when an account is next primed included: a day
-  the clocks change on keeps the slots and the day's end at their times of day.
+  the clocks change on keeps the slots and the day's end at their times of day, and a Mac taken to
+  another time zone restarts the router, which keeps them at their times of day in that zone (see
+  The router looking after itself).
 - The router works the schedule out as it starts, and again whenever an account gains a usable token
   or loses it; a change to the accounts or the day is a change to the config, which restarts the
   router (see The router looking after itself). `status` shows the schedule. `status` and the
@@ -413,18 +425,19 @@ come back one at a time rather than together: once all are spent, the wait for t
 window. The router never probes an account whose 5-hour window has lapsed, its last reading's reset
 passed with nothing read since, except to prime it: that window reads empty, and the account's
 weekly readings stand. This covers the probes as the router starts, before it decides afresh, when
-no account has room, and for `POST /refresh`. The one exception is an account a limit holds back
-from every request, as when its week is spent: it can take no request anyway, so a probe that
-starts its window costs nothing, and a probe is how a limit lifted before its reset, as by a reset
-made by hand on claude.ai, is seen, the reading showing its windows with room lifting the limit.
-A limit reached in one model's week alone is no exception, as the account takes other models'
-requests, nor is a refused token or model. Readings persist in `state.json`, with the model
-families each window has been seen to count, so a restart needs no probe. An account never read has
-no window known to have lapsed: it's probed as the router starts, and, should that probe fail, or
-the account first gain a token while the router runs, whenever a choice made afresh or `POST
-/refresh` needs it, at any hour, which may start its window off the schedule, once. Probing without
-the router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a token
-`accounts add`, `accounts token` or `setup` is given.
+no account has room, and for `POST /refresh`. The one exception is an account that can take no
+request anyway: a limit holds back its every request, or a window every model shares reads spent, as
+last read, as when its week is spent, the limit or not, as a restart keeps the reading but not the
+limit. A probe that starts its window costs nothing then, and a probe is how a limit lifted before
+its reset, as by a reset made by hand on claude.ai, is seen, the reading showing its windows with
+room lifting the limit. A limit reached in one model's week alone is no exception, as the account
+takes other models' requests, nor is a refused token or model. Readings persist in `state.json`,
+with the model families each window has been seen to count, so a restart needs no probe. An account
+never read has no window known to have lapsed: it's probed as the router starts, and, should that
+probe fail, or the account first gain a token while the router runs, whenever a choice made afresh
+or `POST /refresh` needs it, at any hour, which may start its window off the schedule, once. Probing
+without the router, and with `--probe`, is unchanged: it's asked for; so is the probe that checks a
+token `accounts add`, `accounts token` or `setup` is given.
 
 ## Accounts and tokens
 
@@ -603,15 +616,19 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   A minute after a window on screen resets, the next look has the router refresh first with a
   `max_age` of a minute, once a reset, so an idle account's window doesn't read `resets now`
   until the next interval; but not for an account whose 5-hour window has lapsed, which the
-  router doesn't probe while no limit holds it back (see Priming): that window reads empty
+  router doesn't probe while it can take a request (see Priming): that window reads empty
   instead, and the account's others as read. Probing, it reads every interval, a minute after a
   window on screen resets, and sooner after a failure, backing off from 2 minutes to the
-  interval. When the router stops answering, the next look probes instead, and the footer says
-  since when there's been no router. Probing, it asks after the router at each probe and once a
+  interval. A look never probes: when the router stops answering one, the router's last document
+  stays on screen, the footer saying since when there's been no router, and the looks go on every
+  5 seconds, reading the router again as soon as it answers. A router away for a moment, as when it
+  restarts or is slow on waking, so has no account probed directly, which would start every lapsed
+  5-hour window at once, off the priming schedule. Only the next full read, due an interval after
+  the last, or `r`, probes instead. Probing, it asks after the router at each probe and once a
   minute between, and reads it again as soon as it answers, so it never goes back and forth
   faster than that.
 - **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, but for
-  those whose 5-hour window has lapsed and that no limit holds back, or, without it, every account
+  those whose 5-hour window has lapsed and that can take a request, or, without it, every account
   is probed, as `usage --refresh` does. `q` quit. While it reads the router, `1`–`9` toggle the
   account in that place, as configured, in the global pin: one it doesn't name joins those it
   does, new sessions going to the best of them, and one it names leaves, the last to leave
@@ -635,7 +652,9 @@ its proxy listens; otherwise the session connects directly. The harder case is a
 running but failing requests: sessions already routed through it fail until they restart. The router
 tracks the requests it has routed over the last 5 minutes, and those it failed itself: a 502 for an
 upstream it couldn't reach, or for a refusal with no account left to fail over to. The upstream's
-own 429s and 5xx, passed through, don't count against it. It's unhealthy once it has failed 5 of
+own 429s and 5xx, passed through, don't count against it, and nor does a failure of a request that
+arrived before the router last noticed the Mac wake, which may have gone out on a connection the
+sleep left dead (see The router looking after itself). It's unhealthy once it has failed 5 of
 them at least, and half at least: `GET /health` then answers `ok: false` with a `reason`, the status
 document's `router` object says the same, and the log notes the turn, and the turn back, at warn and
 info. `status` and the dashboard show trouble loudly: they read an unhealthy router's document all
@@ -733,8 +752,8 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 
 ## The router looking after itself
 
-Every 3 seconds, the router looks at what it was started from: the token files, its config file
-and its binary.
+Every 3 seconds, the router looks at what it was started from: the token files, its config file,
+its binary and the system's time zone. It notices the Mac waking from sleep as it looks.
 
 - **Token files:** it reads each account's token file again, and takes up what it holds in place,
   with no restart, logging each change, but never a token. An account whose file holds another token
@@ -759,10 +778,23 @@ and its binary.
   LaunchAgent runs, leads to a different file from the one running, or to the same file changed
   since, as after `brew upgrade`. A link that leads nowhere, as it may for a moment while an upgrade
   moves it on, isn't one.
-- `serve` notes how the config file and the binary stand before it reads the config, and the router
-  compares them with that, so a change or an upgrade made while the router starts calls for a
-  restart too.
-- Either restart waits for a moment with no requests in flight, there being no hurry, and for the
+- **Time zones:** Go reads the local time zone once, as a program starts, so a router carried on in
+  the zone it started in would prime, and end the day, by that zone's clock. It restarts itself
+  when `/etc/localtime` leads to another file than it did as the router started, as when the Mac
+  is taken to another time zone, under the same rules as an upgrade.
+- **Waking:** the wall clock runs on while the Mac sleeps, and the monotonic clock stops, so a
+  look that finds the wall clock 5 seconds or more further on than the monotonic since the look
+  before finds the Mac has slept, and the log notes the wake at `info`. A sleep can leave the
+  upstream connections the router keeps dead, and a request sent on one would hang until its pings
+  failed, some 45 seconds on, and then fail, so from then on requests go upstream on connections
+  of their own; of those before, the idle close at once, and those carrying a request once idle.
+  HTTP/2 carries every request on one connection, so closing the idle alone wouldn't do: one
+  carrying a stream through the sleep would take the next request too. A request that arrived
+  before the wake was noticed, and fails, doesn't count against the router's health (see Health).
+- `serve` notes how the config file, the binary and `/etc/localtime` stand before it reads the
+  config, and the router compares them with that, so a change or an upgrade made while the router
+  starts calls for a restart too.
+- Any restart waits for a moment with no requests in flight, there being no hurry, and for the
   config file to make a valid config, which the router started again needs: an upgrade while the
   config file is invalid waits for it to be put right. A connection upgraded, such as a
   WebSocket, isn't a request in flight, as it can stay open for as long as its session runs. The
@@ -885,15 +917,17 @@ hiding it behind the provider would take a wider interface than it's worth:
   with a usable token or not: see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
   `state.json` is versioned, the version changing only when a router couldn't read what another
   wrote: an older file, without readings, loads as having none, and a pin that names its account
-  alone, as pins did before they named several, as a pin to that one. It's rewritten whole
-  (written beside it, synced, and renamed over it) a second after a change and on the way out,
-  and drops assignments unused for 7 days, with the pins of the sessions it forgets, and the
-  hashes of tokens replaced 7 days before, at start and then hourly. At start it also drops the
-  assignments and the sessions' own pins of accounts no longer configured, those accounts from
-  the global pin, which goes with the last of them, and their readings and token hashes; those of
-  a configured account whose token file can't be read are kept, as the file may only have been
-  caught while it's rewritten, and choices pass the account over until it has a token. A corrupt
-  one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
+  alone, as pins did before they named several, as a pin to that one. It's rewritten whole (written
+  beside it, synced, and renamed over it) a second after a change and on the way out, but once a
+  minute at most while its only changes are those every request makes: its session's assignment used
+  again, and the reading off its answer; and drops assignments unused for 7 days, with the pins of
+  the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
+  hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
+  configured, those accounts from the global pin, which goes with the last of them, and their
+  readings and token hashes; those of a configured account whose token file can't be read are kept,
+  as the file may only have been caught while it's rewritten, and choices pass the account over
+  until it has a token. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the
+  router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -976,7 +1010,8 @@ fails as it is; one that parses has every problem reported at once:
   account's, and goes out on the account's current token, as every routed request does.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
   that session. It is stripped before the request goes upstream. One naming an account that isn't
-  configured, or has no token, is ignored, and the log warns of it.
+  configured, or has no token, is ignored, and the log warns of it once for each session and
+  account, and notes it at debug after, until the account can be sent on again.
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
   header is never remembered, and but for a launch pin it carries, is decided afresh every time,
   as a new session's is.
@@ -999,7 +1034,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
-| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed and that no limit holds back (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.

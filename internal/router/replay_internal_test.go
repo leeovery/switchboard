@@ -88,8 +88,8 @@ func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
 				// The session is on work. Side has room too, and its quota
 				// needs using sooner, but throttling never moves a session.
 				r := newTestRouter(t, at(start), &stubProber{})
-				r.state.record("work", []quota.Window{session, laterWeek})
-				r.state.record("side", []quota.Window{session, soonWeek})
+				r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 				upstream := &scriptedUpstream{answers: map[string][]answer{workToken: tt.answers, sideToken: {served}}}
 				r.proxy.transport = upstream
@@ -131,8 +131,8 @@ func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
 func TestEachAccountARequestMovesToThrottlesItAfresh(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		r := newTestRouter(t, at(start), &stubProber{})
-		r.state.record("work", []quota.Window{session, laterWeek})
-		r.state.record("side", []quota.Window{session, soonWeek})
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
 		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 		upstream := &scriptedUpstream{answers: map[string][]answer{
 			workToken: {throttled("1"), throttled("1"), limitHit},
@@ -160,8 +160,8 @@ func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {
 		// The session is on work. Side has room too, and its quota needs
 		// using sooner.
 		r := newTestRouter(t, at(start), &stubProber{})
-		r.state.record("work", []quota.Window{session, laterWeek})
-		r.state.record("side", []quota.Window{session, soonWeek})
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
 		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 		upstream := scripted(refusedAlone, served)
 		r.proxy.transport = upstream

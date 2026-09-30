@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -53,6 +55,8 @@ type proxy struct {
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger
+	// ignored is what the log has said of the pins the proxy ignores.
+	ignored ignoredPins
 }
 
 // exchange is one request on its way through the proxy, and what's known of
@@ -67,6 +71,8 @@ type exchange struct {
 	// id ties a routed request's log lines together.
 	id      string
 	started time.Time
+	// arrived is when a routed request arrived, by the router's clock.
+	arrived time.Time
 	// attempts counts the times a routed request has gone upstream.
 	attempts int
 	// status is what the client was answered, or zero before it's known.
@@ -85,7 +91,12 @@ func (ex *exchange) routed() bool {
 
 // succeeded reports whether the client was answered with success.
 func (ex *exchange) succeeded() bool {
-	return ex.status >= 200 && ex.status < 300
+	return succeeded(ex.status)
+}
+
+// succeeded reports whether status is success.
+func succeeded(status int) bool {
+	return status >= 200 && status < 300
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +130,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		refuseBody(w, r, err)
 		return
 	}
-	ex := &exchange{id: newID(), started: started}
+	ex := &exchange{id: newID(), started: started, arrived: p.now()}
 	ex.req = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
 	ex.newSession = choice.New
@@ -136,13 +147,13 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 // body, sent by client's token: its session, its model and whether the
 // model's thinking is bound to its account, and its pin.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) Request {
-	model := p.provider.Model(body)
+	model, session := p.provider.Model(body), p.provider.Session(r.Header)
 	return Request{
 		ID:      ex.id,
-		Session: p.provider.Session(r.Header),
+		Session: session,
 		Model:   model,
 		Bound:   p.provider.ThinkingBound(model),
-		Pin:     p.pin(r, ex),
+		Pin:     p.pin(r, ex, session),
 		Client:  client.ID,
 	}
 }
@@ -156,23 +167,65 @@ func (p *proxy) passThrough(w http.ResponseWriter, r *http.Request) {
 	p.forward(w, r, ex)
 }
 
-// pin returns the account a request's pin header names, when it names one the
-// router can send on. It warns of a pin it ignores.
-func (p *proxy) pin(r *http.Request, ex *exchange) string {
+// pin returns the account the pin header of a request of session names, when
+// it names one the router can send on. It warns of a pin it ignores, once for
+// each session and account, as ignoredPins says, and notes it at debug after.
+func (p *proxy) pin(r *http.Request, ex *exchange, session string) string {
 	id := r.Header.Get(PinHeader)
 	if id == "" {
 		return ""
 	}
 	a, ok := p.accounts.byID(id)
+	var why string
 	switch {
 	case !ok:
-		logger.Warn("pin ignored: no such account", "id", ex.id, "pin", id)
+		why = "pin ignored: no such account"
 	case !a.hasToken():
-		logger.Warn("pin ignored: account has no usable token", "id", ex.id, "pin", id)
+		why = "pin ignored: account has no usable token"
 	default:
+		p.ignored.honoured(id)
 		return id
 	}
+	level := slog.LevelDebug
+	if p.ignored.first(id, session) {
+		level = slog.LevelWarn
+	}
+	logger.Log(context.Background(), level, why, "id", ex.id, "pin", id, "session", status.ShortID(session))
 	return ""
+}
+
+// ignoredPins holds, by account, the sessions whose pins to it the log has
+// warned are ignored, so it warns once for each, not at every request, until
+// the account can be sent on again. It's safe for concurrent use.
+type ignoredPins struct {
+	mu   sync.Mutex
+	told map[string]map[string]bool
+}
+
+// first reports whether a pin to account, of a request of session, is the
+// first ignored since the account was last sent on.
+func (p *ignoredPins) first(account, session string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.told[account][session] {
+		return false
+	}
+	if p.told == nil {
+		p.told = make(map[string]map[string]bool)
+	}
+	if p.told[account] == nil {
+		p.told[account] = make(map[string]bool)
+	}
+	p.told[account][session] = true
+	return true
+}
+
+// honoured notes that a pin to account is honoured, as it can be sent on: a
+// pin to it ignored after is warned of afresh.
+func (p *ignoredPins) honoured(account string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.told, account)
 }
 
 // chosen returns the account a request goes out on first, as the chooser
@@ -294,7 +347,7 @@ func (ex *exchange) identity(r *http.Request) []any {
 func (p *proxy) done(r *http.Request, ex *exchange) {
 	p.logRouted(r, ex)
 	if ex.status != 0 {
-		p.health.record(ex.failed)
+		p.health.record(ex.arrived, ex.failed)
 	}
 	if ex.newSession && !ex.succeeded() {
 		p.chooser.Forget(ex.req)

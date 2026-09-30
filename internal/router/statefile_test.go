@@ -117,9 +117,9 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	saved := newTestFile(clock.read, testAccounts())
 	saved.load(path)
 	models := map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}}
-	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil)
+	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil, saved.state.mark())
 	clock.now = start
-	saved.state.record("work", []quota.Window{session, week})
+	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
 	saved.state.learn(opus, []quota.Window{session, week})
 	saved.save()
 
@@ -480,7 +480,7 @@ func TestLoadingAStateFileThatKnowsTheTokensChangesNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	first := newTestFile(at(start), testAccounts())
 	first.load(path)
-	first.state.record("work", []quota.Window{session, week})
+	first.state.record("work", []quota.Window{session, week}, first.state.mark())
 	first.save()
 
 	f := newTestFile(at(start.Add(time.Hour)), testAccounts())
@@ -712,7 +712,7 @@ func TestABurstOfChangesIsSavedOnce(t *testing.T) {
 
 		for i := range 100 {
 			assign(f.sessions, key{session: fmt.Sprint(i), model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
-			f.state.record("work", []quota.Window{session, week})
+			f.state.record("work", []quota.Window{session, week}, f.state.mark())
 		}
 		synctest.Wait()
 		if n := writes.Load(); n != 0 {
@@ -729,6 +729,83 @@ func TestABurstOfChangesIsSavedOnce(t *testing.T) {
 		stop()
 		if n := writes.Load(); n != 1 {
 			t.Errorf("wrote the state file %d times, want once: nothing changed after", n)
+		}
+	})
+}
+
+func TestAnAssignmentUsedAgainIsSavedOnceAMinute(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "state.json")
+		f := newTestFile(time.Now, testAccounts())
+		f.load(path)
+		writes := countWrites(f)
+		stop := keep(f)
+		k := key{session: "one", model: opus}
+		assign(f.sessions, k, "", decision{account: "work", reason: reasonNew}, time.Now())
+		time.Sleep(saveAfter)
+		synctest.Wait()
+		if n := writes.Load(); n != 1 {
+			t.Fatalf("wrote the state file %d times, want once, for the new session", n)
+		}
+		lastSeen := func() time.Time {
+			t.Helper()
+			held := readState(t, path)
+			if len(held.Sessions) != 1 {
+				t.Fatalf("state file holds %+v, want the one session", held.Sessions)
+			}
+			return held.Sessions[0].LastSeen
+		}
+
+		stay := decision{account: "work", reason: reasonSticky, sticky: true}
+		var used time.Time
+		for range 30 {
+			time.Sleep(time.Second)
+			used = time.Now()
+			assign(f.sessions, k, "", stay, used)
+		}
+		synctest.Wait()
+		if n := writes.Load(); n != 1 {
+			t.Errorf("wrote the state file %d times as the session was used again, want no more", n)
+		}
+		time.Sleep(saveRoutineEvery - saveAfter - 30*time.Second)
+		synctest.Wait()
+		if n, seen := writes.Load(), lastSeen(); n != 2 || !seen.Equal(used) {
+			t.Errorf("a minute on, wrote the state file %d times, the session last seen %v, want twice, and %v", n, seen, used)
+		}
+
+		used = time.Now()
+		assign(f.sessions, k, "", stay, used)
+		stop()
+		if n, seen := writes.Load(), lastSeen(); n != 3 || !seen.Equal(used) {
+			t.Errorf("stopped, wrote the state file %d times, the session last seen %v, want three times, and %v", n, seen, used)
+		}
+	})
+}
+
+func TestReadingsOffAnswersAreSavedOnceAMinute(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "state.json")
+		f := newTestFile(time.Now, testAccounts())
+		f.load(path)
+		stop := keep(f)
+		defer stop()
+		// The tokens' hashes, new to the file, are saved first.
+		time.Sleep(saveAfter)
+		synctest.Wait()
+		writes := countWrites(f)
+
+		for range 30 {
+			f.state.record("work", []quota.Window{session, week}, f.state.mark())
+			time.Sleep(time.Second)
+		}
+		synctest.Wait()
+		if n := writes.Load(); n != 0 {
+			t.Errorf("wrote the state file %d times as readings came in, want none yet", n)
+		}
+		time.Sleep(saveRoutineEvery - saveAfter - 30*time.Second)
+		synctest.Wait()
+		if n := writes.Load(); n != 1 || len(readState(t, path).Readings) != 1 {
+			t.Errorf("a minute on, wrote the state file %d times, want once, with work's reading", n)
 		}
 	})
 }

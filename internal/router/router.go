@@ -87,7 +87,8 @@ type Config struct {
 	// Prime says when priming starts the accounts' windows: while Run runs,
 	// the router primes them on its schedule, and its status gives it.
 	Prime config.Prime
-	// Now reads the wall clock.
+	// Now reads the clock as time.Now does: the wall clock, which the router
+	// goes by, and the monotonic, which it tells the Mac's sleeps by.
 	Now func() time.Time
 	// Version is switchboard's, which the control API reports.
 	Version string
@@ -115,13 +116,19 @@ type Config struct {
 	// file than the one running while Run runs, as after an upgrade, the
 	// router restarts. The zero Watched is none.
 	Binary Watched
+	// Zone is the file the system's time zone is read from, /etc/localtime,
+	// as Watch found it as the router started: a program reads the time zone
+	// once, as it starts, so once that leads to another file, as when the Mac
+	// is taken to another time zone, the router restarts, for the priming
+	// schedule to keep to the clock's times of day. The zero Watched is none.
+	Zone Watched
 	// Supervised is set when the router is started again whenever it exits,
 	// as launchd starts the service's: it restarts by stopping as it does
 	// when ctx ends. A router that isn't logs, once, that a restart is due.
 	Supervised bool
 	// WatchEvery is how often, while Run runs, the router reads the token
-	// files again, and looks at the config file and the binary. Zero means
-	// every 3 seconds.
+	// files again, and looks at the config file, the binary and the time
+	// zone's file. Zero means every 3 seconds.
 	WatchEvery time.Duration
 }
 
@@ -164,6 +171,7 @@ type Router struct {
 // usable token is listed, but nothing goes out on it until its token file
 // holds one, even when that's every account.
 func New(cfg Config) (*Router, error) {
+	clock := cfg.Now
 	cfg.Now = wallClock(cfg.Now)
 	accounts := resolve(cfg.Accounts, cfg.Token)
 	upstream, err := url.Parse(cfg.Upstream)
@@ -171,7 +179,7 @@ func New(cfg Config) (*Router, error) {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
 	changes := newChanges()
-	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note)
+	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	listeners := []func(Event){cfg.Events}
 	var notices *notifications
 	if cfg.notifying() {
@@ -179,12 +187,19 @@ func New(cfg Config) (*Router, error) {
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)
-	sessions := newSessions(cfg.Now, changes.note)
+	sessions := newSessions(cfg.Now, changes.note, changes.routine)
 	probes := newProbes(cfg.Prober, state, cfg.Now)
 	health := newHealth(cfg.Now, emit)
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
+	transport := newPool()
+	// After a sleep, requests go upstream on connections of their own, and
+	// those that arrived before, and fail, don't count against the router.
+	awake := &wakes{now: clock, woke: func() {
+		transport.renew()
+		health.wake()
+	}}
 	return &Router{
 		cfg:      cfg,
 		upstream: upstream,
@@ -196,7 +211,7 @@ func New(cfg Config) (*Router, error) {
 		health:   health,
 		proxy: &proxy{
 			upstream:       upstream,
-			transport:      newTransport(),
+			transport:      transport,
 			accounts:       accounts,
 			readToken:      cfg.Token,
 			tokensReplaced: changes.note,
@@ -210,7 +225,7 @@ func New(cfg Config) (*Router, error) {
 		},
 		primer:        primer,
 		inFlight:      inFlight,
-		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight),
+		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake),
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}, nil
