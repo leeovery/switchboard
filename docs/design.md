@@ -859,11 +859,17 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   config change refused, as invalid; a restart that couldn't replace the process, and exits
   instead; and listeners handed over that couldn't be taken up. At `debug`, a token file found
   holding no usable token at one look, which the account's token outlasts. Of the readings
-  history (see Files): at `info`, how many readings the router took up from it as it started, and
-  that it's written again after failing; at `warn`, that it can't be written, once until it can
-  be, that readings were dropped from it for its falling behind, once until it catches up, how
-  many of its lines couldn't be read as it was taken up, and a file of it that couldn't be
-  pruned.
+  history (see Files): at `info`, how many readings the router took up from it as it started
+  (`took up the readings history`), and that it's written again after failing (`writing the
+  readings history again`); at `warn`, that its directory can't be made private (`can't make the
+  readings history private`), that it can't be written, once until it can be (`can't write the
+  readings history`), that readings were dropped from it for its falling behind, once until it
+  catches up (`readings history fell behind`), that a reading can't be put as a line, once
+  (`readings history can't hold a reading`), how many of its lines couldn't be read as a reading
+  as it was taken up (`readings history lines unread`), a file or its directory that can't be
+  read (`can't read the readings history`), a file cut short as it was read (`readings history
+  read short`), and a file, or the directory, that couldn't be pruned (`can't prune the readings
+  history`).
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -1140,8 +1146,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   included (see Choosing an account): the history holds each change of a window's use, so they
   are as they were, and the recent rates outlast the restart. A window quiet since before the
   older of the two has no baseline to take up. It passes over a line that doesn't read as a
-  reading, as one cut short, one of an account no longer configured, and those of a window that
-  has reset since, as `state.json` has it.
+  reading, as one cut short, however long, one of an account no longer configured, and those of a
+  window that has reset since, as `state.json` has it. A reading that can't be put as a line, as
+  one whose use isn't a number, goes unwritten, logged once.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see

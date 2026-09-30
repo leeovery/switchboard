@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -30,6 +31,9 @@ const (
 	historyQueue = 1024
 	// historyDay is the layout of a day's date in its file's name.
 	historyDay = "2006-01-02"
+	// pruneLook is how often the history looks at whether a new day has
+	// come, and its files are to be pruned, with no reading to write.
+	pruneLook = time.Hour
 )
 
 // source is where a reading came from, as the readings history gives it.
@@ -98,6 +102,9 @@ type history struct {
 
 	// Only run's goroutine touches what follows.
 	failing bool
+	// unmarshalled is set once a reading couldn't be put as a line, which is
+	// logged once.
+	unmarshalled bool
 	// pruned is the day the files were last pruned on.
 	pruned string
 }
@@ -131,18 +138,32 @@ func (h *history) note(readings []reading) {
 // starts and on each day after, until ctx ends, when it writes those still
 // queued. It makes the history's directory private as it starts.
 func (h *history) run(ctx context.Context) {
-	if err := os.MkdirAll(h.dir, 0o700); err == nil {
-		_ = os.Chmod(h.dir, 0o700)
-	}
+	h.makePrivate()
 	h.prune()
+	look := time.NewTicker(pruneLook)
+	defer look.Stop()
 	for {
 		select {
 		case readings := <-h.queue:
 			h.write(readings)
+		case <-look.C:
+			h.pruneDaily()
 		case <-ctx.Done():
 			h.drain()
 			return
 		}
+	}
+}
+
+// makePrivate makes the history's directory, when it isn't there, and makes
+// it private, the user's alone, logging why when it can't.
+func (h *history) makePrivate() {
+	err := os.MkdirAll(h.dir, 0o700)
+	if err == nil {
+		err = os.Chmod(h.dir, 0o700)
+	}
+	if err != nil {
+		logger.Warn("can't make the readings history private", "dir", h.dir, "error", err)
 	}
 }
 
@@ -162,9 +183,7 @@ func (h *history) drain() {
 // files haven't been pruned on, and logging a failure once until a write
 // succeeds.
 func (h *history) write(readings []reading) {
-	if h.now().Local().Format(historyDay) != h.pruned {
-		h.prune()
-	}
+	h.pruneDaily()
 	err := h.append(readings)
 	switch {
 	case err != nil && !h.failing:
@@ -184,7 +203,7 @@ func (h *history) append(readings []reading) error {
 	if err := os.MkdirAll(h.dir, 0o700); err != nil {
 		return err
 	}
-	for day, lines := range byDay(readings) {
+	for day, lines := range h.byDay(readings) {
 		if err := appendLines(filepath.Join(h.dir, historyFile(day)), lines); err != nil {
 			return err
 		}
@@ -192,12 +211,18 @@ func (h *history) append(readings []reading) error {
 	return nil
 }
 
-// byDay groups readings, as JSON lines, by the local day each was read on.
-func byDay(readings []reading) map[string][]byte {
+// byDay groups readings, as JSON lines, by the local day each was read on. A
+// reading that can't be put as a line, as one of a use that isn't a number,
+// goes unwritten, logged once.
+func (h *history) byDay(readings []reading) map[string][]byte {
 	days := make(map[string][]byte)
 	for _, r := range readings {
 		line, err := json.Marshal(r)
 		if err != nil {
+			if !h.unmarshalled {
+				logger.Warn("readings history can't hold a reading; it goes unwritten", "account", r.Account, "window", r.Window, "error", err)
+			}
+			h.unmarshalled = true
 			continue
 		}
 		day := r.At.Local().Format(historyDay)
@@ -236,6 +261,13 @@ func dayOf(name string) (time.Time, bool) {
 	return day, err == nil
 }
 
+// pruneDaily prunes the history's files on a day they haven't been pruned on.
+func (h *history) pruneDaily() {
+	if h.now().Local().Format(historyDay) != h.pruned {
+		h.prune()
+	}
+}
+
 // prune removes the history's files whose day ended 14 days or more before
 // now, leaving anything else in the directory alone.
 func (h *history) prune() {
@@ -243,6 +275,9 @@ func (h *history) prune() {
 	h.pruned = now.Local().Format(historyDay)
 	entries, err := os.ReadDir(h.dir)
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			logger.Warn("can't prune the readings history", "dir", h.dir, "error", err)
+		}
 		return
 	}
 	for _, e := range entries {
@@ -287,6 +322,9 @@ func (h *history) readBack(now time.Time) []reading {
 func (h *history) newest(n int) []string {
 	entries, err := os.ReadDir(h.dir)
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			logger.Warn("can't read the readings history", "dir", h.dir, "error", err)
+		}
 		return nil
 	}
 	var names []string
@@ -300,24 +338,33 @@ func (h *history) newest(n int) []string {
 }
 
 // readFile returns the readings the file at path holds, and how many of its
-// lines didn't read as one. A file that isn't there holds none.
+// lines didn't read as one, however long. A file that can't be read holds
+// none, which is logged but for one that isn't there.
 func readFile(path string) (readings []reading, bad int) {
 	f, err := os.Open(path)
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			logger.Warn("can't read the readings history", "file", filepath.Base(path), "error", err)
+		}
 		return nil, 0
 	}
 	defer func() { _ = f.Close() }()
-	lines := bufio.NewScanner(f)
-	for lines.Scan() {
-		var r reading
-		if err := json.Unmarshal(lines.Bytes(), &r); err != nil || !r.valid() {
-			bad++
-			continue
+	lines := bufio.NewReader(f)
+	for {
+		line, err := lines.ReadBytes('\n')
+		if len(line) > 0 {
+			var r reading
+			if json.Unmarshal(line, &r) != nil || !r.valid() {
+				bad++
+			} else {
+				readings = append(readings, r)
+			}
 		}
-		readings = append(readings, r)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				logger.Warn("readings history read short", "file", filepath.Base(path), "error", err)
+			}
+			return readings, bad
+		}
 	}
-	if err := lines.Err(); err != nil {
-		logger.Warn("readings history read short", "file", filepath.Base(path), "error", err)
-	}
-	return readings, bad
 }

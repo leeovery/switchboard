@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -232,6 +233,7 @@ func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 		line(40*time.Minute, "work", "0.1"),
 		line(20*time.Minute, "work", "0.5"),
 		`{"at": "2026-09-28T13:20:00Z", "account": "work", "window": "5h", "utilization":`,
+		`{"at": "` + strings.Repeat("x", 70*1024) + `"}`,
 		line(15*time.Minute, "work", "-0.2"),
 		"",
 		line(10*time.Minute, "gone", "0.9"),
@@ -267,8 +269,8 @@ func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 			if math.Abs(rate-tt.wantRate) > 1e-9 || ok != tt.wantOK {
 				t.Errorf("work's session's recent rate = %v, %v, want %v, %v", rate, ok, tt.wantRate, tt.wantOK)
 			}
-			if !log.Has("level=WARN", `msg="readings history lines unread"`, "lines=4") {
-				t.Errorf("log reads\n%s\nwant the four lines that don't read as readings noted", log)
+			if !log.Has("level=WARN", `msg="readings history lines unread"`, "lines=5") {
+				t.Errorf("log reads\n%s\nwant the five lines that don't read as readings noted, the one over 64 KiB among them", log)
 			}
 		})
 	}
@@ -283,36 +285,81 @@ func TestAHistoryThatCantBeWrittenLeavesRoutingAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.history.open(filepath.Join(blocker, "history"))
-	read := func(u float64) {
-		busier := session
-		busier.Utilization = u
-		r.state.record("work", []quota.Window{busier, soonWeek}, r.state.mark())
-		r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
-	}
-
 	stop := keeping(t, r.history)
-	read(0.3)
-	read(0.4)
+	busier := session
+	busier.Utilization = 0.4
+	r.state.record("work", []quota.Window{busier, soonWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 	if got := choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"}); got.Account != "work" {
 		t.Errorf("a new session went to %q, want work, whatever the history", got.Account)
 	}
 	stop()
-	failures := slices.DeleteFunc(log.Lines(), func(line string) bool { return !strings.Contains(line, "can't write the readings history") })
-	if len(failures) != 1 || !strings.Contains(failures[0], "level=WARN") {
+	if got, _ := r.Status().Account("work"); got.Windows[0].Utilization != 0.4 {
+		t.Errorf("work's session reads %v, want 0.4: the reading taken, whatever the history", got.Windows[0].Utilization)
+	}
+	if failures := linesWith(log, "can't write the readings history"); len(failures) != 1 {
 		t.Errorf("log reads\n%s\nwant the history's failure noted once", log)
 	}
+}
 
-	if err := os.Remove(blocker); err != nil {
+func TestAHistoryThatStallsHoldsNothingUp(t *testing.T) {
+	r := newTestRouter(t, at(start), &stubProber{})
+	// Opened, with nothing writing it, the history's queue fills, and stays
+	// full.
+	r.history.open(t.TempDir())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range historyQueue + 10 {
+			busier := session
+			busier.Utilization = float64(i) / (historyQueue + 10)
+			r.state.record("work", []quota.Window{busier}, r.state.mark())
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("taking readings in waited on the history, want it never to")
+	}
+	if got := choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"}); got.Account == "" {
+		t.Errorf("a new session went nowhere, want an account, whatever the history")
+	}
+}
+
+func TestAHistoryWriteThatFailsIsLoggedOnceUntilOneSucceeds(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	h := newHistory(at(start))
+	h.open(dir)
+	one := readingsOf("work", []quota.Window{session}, start, fromAnswer)
+	// Today's file can't be opened to append while a directory stands at its
+	// path.
+	block := func() {
+		if err := os.Mkdir(historyOf(dir, start), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unblock := func() {
+		if err := os.Remove(historyOf(dir, start)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	block()
+	h.write(one)
+	h.write(one)
+	unblock()
+	h.write(one)
+	if err := os.Remove(historyOf(dir, start)); err != nil {
 		t.Fatal(err)
 	}
-	stop = keeping(t, r.history)
-	read(0.5)
-	stop()
-	if !log.Has("level=INFO", `msg="writing the readings history again"`) {
-		t.Errorf("log reads\n%s\nwant the history noted as written again", log)
+	block()
+	h.write(one)
+	if got := len(linesWith(log, "can't write the readings history")); got != 2 {
+		t.Errorf("log reads\n%s\nwant the failure noted twice, once before the write that succeeded and once after", log)
 	}
-	if _, err := os.Stat(historyOf(filepath.Join(blocker, "history"), start)); err != nil {
-		t.Errorf("the history wasn't written once it could be: %v", err)
+	if got := len(linesWith(log, "writing the readings history again")); got != 1 {
+		t.Errorf("log reads\n%s\nwant the history noted as written again once", log)
 	}
 }
 
@@ -321,13 +368,142 @@ func TestAHistoryFallingBehindDropsReadingsRatherThanWait(t *testing.T) {
 	h := newHistory(at(start))
 	h.open(t.TempDir())
 	one := readingsOf("work", []quota.Window{session}, start, fromAnswer)
-
-	for range historyQueue + 2 {
-		h.note(one)
+	fill := func() {
+		for range historyQueue + 2 {
+			h.note(one)
+		}
 	}
-	if lines := slices.DeleteFunc(log.Lines(), func(line string) bool { return !strings.Contains(line, "fell behind") }); len(lines) != 1 {
+
+	fill()
+	if got := len(linesWith(log, "fell behind")); got != 1 {
 		t.Errorf("log reads\n%s\nwant the readings dropped noted once", log)
 	}
+	h.write(<-h.queue)
+	fill()
+	if got := len(linesWith(log, "fell behind")); got != 2 {
+		t.Errorf("log reads\n%s\nwant the readings dropped noted again, once a write has caught up", log)
+	}
+}
+
+func TestAReadingTheHistoryCantHoldIsLoggedOnce(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	h := newHistory(at(start))
+	h.open(dir)
+	bad := reading{At: start, Account: "work", Window: "5h", Utilization: math.NaN(), Source: fromAnswer}
+	good := readingsOf("work", []quota.Window{session}, start, fromAnswer)
+
+	h.write(append([]reading{bad}, good...))
+	h.write([]reading{bad})
+	if got := len(linesWith(log, "readings history can't hold a reading")); got != 1 {
+		t.Errorf("log reads\n%s\nwant the reading it can't hold noted once", log)
+	}
+	if data, err := os.ReadFile(historyOf(dir, start)); err != nil || strings.Count(string(data), "\n") != 1 {
+		t.Errorf("the history holds %q (%v), want the reading it could hold alone", data, err)
+	}
+}
+
+func TestAHistoryFileThatCantBeReadIsLogged(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(historyOf(dir, start), []byte("{}\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	h := newHistory(at(start))
+	h.open(dir)
+
+	if got := h.readBack(start); len(got) != 0 {
+		t.Errorf("readBack() = %+v, want none", got)
+	}
+	if !log.Has("level=WARN", `msg="can't read the readings history"`) {
+		t.Errorf("log reads\n%s\nwant the file that can't be read noted", log)
+	}
+}
+
+func TestTheHistorysDirectoryIsMadePrivate(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "history")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h := newHistory(at(start))
+	h.open(dir)
+
+	keeping(t, h)()
+	if info, err := os.Stat(dir); err != nil || info.Mode() != fs.ModeDir|0o700 {
+		t.Errorf("the history's directory is %v (%v), want %v", info.Mode(), err, fs.ModeDir|0o700)
+	}
+}
+
+func TestTheHistoryPrunesOnTheFirstWriteOfANewDay(t *testing.T) {
+	dir := t.TempDir()
+	clock := &testClock{now: start}
+	h := newHistory(clock.read)
+	h.open(dir)
+	h.prune()
+	// Its day ended 13 days before start's, so it goes on the day after.
+	old := filepath.Join(dir, historyFile(start.Local().AddDate(0, 0, -14).Format(historyDay)))
+	if err := os.WriteFile(old, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	h.write(readingsOf("work", []quota.Window{session}, clock.now, fromAnswer))
+	if _, err := os.Stat(old); err != nil {
+		t.Fatalf("the file went on the day it's kept: %v", err)
+	}
+	clock.now = start.Add(24 * time.Hour)
+	h.write(readingsOf("work", []quota.Window{session}, clock.now, fromAnswer))
+	if _, err := os.Stat(old); err == nil {
+		t.Error("the file stayed on the day after, want it pruned with that day's first write")
+	}
+}
+
+func TestTheHistoryPrunesOnANewDayWithNothingToWrite(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		dir := t.TempDir()
+		clock := newBubbleClock(start)
+		h := newHistory(clock.read)
+		h.open(dir)
+		old := filepath.Join(dir, historyFile(start.Local().AddDate(0, 0, -14).Format(historyDay)))
+		if err := os.WriteFile(old, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		stop := keeping(t, h)
+		defer stop()
+
+		time.Sleep(25 * time.Hour)
+		synctest.Wait()
+		if _, err := os.Stat(old); err == nil {
+			t.Error("the file stayed a day on, want it pruned though nothing was written")
+		}
+	})
+}
+
+func TestAPrimeIsKeptInTheHistoryAsAPrime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := newBubbleClock(onDay(1, 4, 0))
+		r := newPrimingRouter(t, clock.read, newWindowsUpstream(clock), daytime)
+		dir := t.TempDir()
+		r.history.open(dir)
+		stopKeeping := keeping(t, r.history)
+		stopPriming := startPriming(r)
+
+		time.Sleep(20 * time.Minute)
+		synctest.Wait()
+		stopPriming()
+		stopKeeping()
+		data, err := os.ReadFile(historyOf(dir, onDay(1, 4, 10)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), `"account":"work","window":"5h"`) || !strings.Contains(string(data), `"source":"prime"`) {
+			t.Errorf("the history holds\n%s\nwant work's prime, as a prime", data)
+		}
+	})
+}
+
+// linesWith returns the lines of the log that hold text.
+func linesWith(log *logstest.Log, text string) []string {
+	return slices.DeleteFunc(log.Lines(), func(line string) bool { return !strings.Contains(line, text) })
 }
 
 func TestAHistoryNotYetOpenedTakesNothing(t *testing.T) {
