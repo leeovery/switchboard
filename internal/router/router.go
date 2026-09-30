@@ -146,6 +146,10 @@ type Config struct {
 	// they're at the addresses it listens on, in place of listening afresh.
 	// "" is none.
 	Handed string
+	// ExecRetry is how long the router waits to exec its binary again while
+	// it isn't there, as for a moment while an upgrade moves its link on.
+	// Zero means half a second.
+	ExecRetry time.Duration
 	// WatchEvery is how often, while Run runs, the router reads the token
 	// files again, and looks at the config file, the binary and the time
 	// zone's file. Zero means every 3 seconds.

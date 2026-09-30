@@ -487,7 +487,7 @@ func TestRestart(t *testing.T) {
 	asked := [][]string{{"print", target}}
 	stopped := [][]string{{"print", target}, {"kill", "SIGTERM", target}}
 	startedAfresh := [][]string{{"print", target}, {"kickstart", "-k", target}}
-	restartsInPlace := func() error { return nil }
+	restartsInPlace := tookRestart(healthOf(up(100)), true)
 	tests := []struct {
 		name string
 		// answer answers a health check made since Restart began, when asked
@@ -495,7 +495,7 @@ func TestRestart(t *testing.T) {
 		answer func(since time.Duration, asked int) (router.Health, error)
 		// restart is how the router takes being asked to restart: nil as one
 		// from before routers restarted when asked.
-		restart func() error
+		restart func() (router.Restart, error)
 		// want is the router found answering: none, for the zero Health.
 		want       router.Health
 		wantWaited time.Duration
@@ -515,7 +515,7 @@ func TestRestart(t *testing.T) {
 				return upAgain(100)
 			},
 			restart:   restartsInPlace,
-			want:      mustUp(upAgain(100)),
+			want:      healthOf(upAgain(100)),
 			wantRuns:  asked,
 			wantAsked: true,
 			wantSaid:  []string{"it restarts in place"},
@@ -529,11 +529,43 @@ func TestRestart(t *testing.T) {
 				return upAgain(100)
 			},
 			restart:    restartsInPlace,
-			want:       mustUp(upAgain(100)),
+			want:       healthOf(upAgain(100)),
 			wantWaited: 20 * time.Second,
 			wantRuns:   asked,
 			wantAsked:  true,
 			wantSaid:   []string{"it restarts in place"},
+		},
+		{
+			name: "a router answering that restarted by itself before it was asked: back once the one that took the request has restarted in place",
+			answer: func(since time.Duration, asked int) (router.Health, error) {
+				switch {
+				case asked == 0:
+					return up(100)
+				case since < 20*time.Second:
+					return upAgain(100)
+				}
+				return upSince(100, time.Minute)
+			},
+			restart:    tookRestart(healthOf(upAgain(100)), true),
+			want:       healthOf(upSince(100, time.Minute)),
+			wantWaited: 20 * time.Second,
+			wantRuns:   asked,
+			wantAsked:  true,
+			wantSaid:   []string{"it restarts in place"},
+		},
+		{
+			name: "a router answering that can't replace itself: asked to restart, and back once launchd starts it again",
+			answer: func(_ time.Duration, asked int) (router.Health, error) {
+				if asked == 0 {
+					return up(100)
+				}
+				return up(4242)
+			},
+			restart:   tookRestart(healthOf(up(100)), false),
+			want:      healthOf(up(4242)),
+			wantRuns:  asked,
+			wantAsked: true,
+			wantSaid:  []string{"launchd starts it again"},
 		},
 		{
 			name:       "a router answering: asked to restart, and not back in place by when launchd would have killed it",
@@ -552,7 +584,7 @@ func TestRestart(t *testing.T) {
 				}
 				return up(4242)
 			},
-			want:      mustUp(up(4242)),
+			want:      healthOf(up(4242)),
 			wantRuns:  stopped,
 			wantAsked: true,
 			wantSaid:  []string{"launchd starts it again"},
@@ -568,7 +600,7 @@ func TestRestart(t *testing.T) {
 				}
 				return up(4242)
 			},
-			want:       mustUp(up(4242)),
+			want:       healthOf(up(4242)),
 			wantWaited: 40 * time.Second,
 			wantRuns:   stopped,
 			wantAsked:  true,
@@ -590,7 +622,7 @@ func TestRestart(t *testing.T) {
 		{
 			name:     "none answering: started afresh at once",
 			answer:   func(_ time.Duration, asked int) (router.Health, error) { return upAfter(asked, 1, 4242) },
-			want:     mustUp(up(4242)),
+			want:     healthOf(up(4242)),
 			wantRuns: startedAfresh,
 		},
 		{
@@ -650,7 +682,7 @@ func TestRestartFails(t *testing.T) {
 		// to restart as restart says: nil as one from before routers
 		// restarted when asked.
 		answering bool
-		restart   func() error
+		restart   func() (router.Restart, error)
 		exits     map[string]int
 		want      func(err error) bool
 		wantRuns  [][]string
@@ -664,7 +696,7 @@ func TestRestartFails(t *testing.T) {
 			name:      "when the router refuses to restart, saying why",
 			loaded:    true,
 			answering: true,
-			restart:   func() error { return runByHand },
+			restart:   func() (router.Restart, error) { return router.Restart{}, runByHand },
 			want:      func(err error) bool { return errors.Is(err, runByHand) },
 			wantRuns:  [][]string{{"print", target}},
 		},
@@ -931,14 +963,26 @@ func up(pid int) (router.Health, error) {
 // upAgain is the answer of a healthy router running as pid, once it has
 // restarted in place, keeping its process.
 func upAgain(pid int) (router.Health, error) {
+	return upSince(pid, 0)
+}
+
+// upSince is the answer of a healthy router running as pid, once it has
+// restarted in place, started later than upAgain's by after.
+func upSince(pid int, after time.Duration) (router.Health, error) {
 	h, err := up(pid)
-	h.StartedAt = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	h.StartedAt = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC).Add(after)
 	return h, err
 }
 
-// mustUp is the answer of a router that answers.
-func mustUp(h router.Health, _ error) router.Health {
+// healthOf is the answer of a router that answers.
+func healthOf(h router.Health, _ error) router.Health {
 	return h
+}
+
+// tookRestart has the router take being asked to restart as the router h,
+// meaning to restart in place or not.
+func tookRestart(h router.Health, inPlace bool) func() (router.Restart, error) {
+	return func() (router.Restart, error) { return router.Restart{Health: h, InPlace: inPlace}, nil }
 }
 
 // upAfter answers as a router running as pid, once checks have been asked
@@ -1137,7 +1181,7 @@ type fakeRouter struct {
 	t       *testing.T
 	refuse  bool
 	answer  func(asked int) (router.Health, error)
-	restart func() error
+	restart func() (router.Restart, error)
 	asked   int
 	// restarts is how many times it was asked to restart.
 	restarts int
@@ -1152,14 +1196,14 @@ func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 	return r.answer(r.asked)
 }
 
-func (r *fakeRouter) Restart(context.Context) error {
+func (r *fakeRouter) Restart(context.Context) (router.Restart, error) {
 	if r.refuse {
 		r.t.Error("asked the router to restart, want it left alone")
-		return errNotRunning
+		return router.Restart{}, errNotRunning
 	}
 	r.restarts++
 	if r.restart == nil {
-		return errOldRouter
+		return router.Restart{}, errOldRouter
 	}
 	return r.restart()
 }

@@ -54,6 +54,14 @@ func (h Health) Same(o Health) bool {
 	return h.PID == o.PID && h.StartedAt.Equal(o.StartedAt)
 }
 
+// Restart is what POST /restart answers: the router taking the request, as
+// GET /health gives it, and whether it means to replace itself in place,
+// rather than exit for launchd to start it again.
+type Restart struct {
+	Health
+	InPlace bool `json:"in_place"`
+}
+
 // PinRequest is what POST /pin takes: the accounts every new session goes to
 // the best of; whether every running session on another account moves there
 // too, on its next request; and whether every session's own pin is cleared,
@@ -105,8 +113,9 @@ type problem struct {
 // asks, and those that can take no request anyway, each of the three
 // answering with the status document as it leaves it. POST /restart restarts
 // the router at once, as it restarts itself but for waiting for a moment with
-// no request in flight, answering as GET /health does before it goes; it
-// refuses, saying why, when it can't restart, as run by hand.
+// no request in flight, answering, before it goes, as GET /health does, and
+// whether it means to restart in place; it refuses, saying why, when it
+// can't restart, as run by hand.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -117,7 +126,7 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusConflict, err.Error())
 			return
 		}
-		writeJSON(w, r.healthNow())
+		writeJSON(w, Restart{Health: r.healthNow(), InPlace: r.replaceable()})
 		// The answer goes out before the restart begins: the router can stop
 		// answering at once.
 		_ = http.NewResponseController(w).Flush()

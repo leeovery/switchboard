@@ -103,7 +103,7 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 	})
 	s := newSelfWatching(t, true)
 	s.cfg.Upstream = up.URL
-	execs := replacing(&s.cfg, nil)
+	execs := replacing(&s.cfg)
 	r := startRouter(t, s.cfg)
 	answered := make(chan string, 1)
 	go func() { answered <- post("http://" + s.cfg.Listen + "/v1/messages") }()
@@ -131,7 +131,7 @@ func TestARestartWaitsForTheRequestsInFlight(t *testing.T) {
 func TestARouterRunByHandSaysARestartIsDueOnce(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newSelfWatching(t, false)
-	execs := replacing(&s.cfg, nil)
+	execs := replacing(&s.cfg)
 	r := startRouter(t, s.cfg)
 
 	writeFile(t, s.config, twoAccounts)

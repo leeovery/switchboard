@@ -1,12 +1,15 @@
 package router
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io/fs"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/handover"
 )
@@ -17,15 +20,34 @@ const (
 	controlListener = "control"
 )
 
+const (
+	// execTries is how many times the router tries to exec its binary while
+	// it isn't there, as for a moment while an upgrade moves its link on.
+	execTries = 5
+	// execRetry is how long it waits between tries, unless its config says
+	// otherwise.
+	execRetry = 500 * time.Millisecond
+)
+
+// errStopped is what an exec is answered with once the router has been told
+// to stop, as by a signal: it exits for good rather than replace itself.
+var errStopped = errors.New("told to stop")
+
+// replaceable reports whether the router means to replace itself as it
+// restarts, rather than exit for launchd to start it again: it has
+// something to exec with, and knows its binary.
+func (r *Router) replaceable() bool {
+	return r.cfg.Exec != nil && r.cfg.Binary.path != ""
+}
+
 // hold holds the router's listeners open, to hand over as it replaces
 // itself, or returns nil when it can't replace itself, and so exits instead:
 // it has nothing to exec with, doesn't know its binary, or can't hold them.
 func (r *Router) hold(ls listeners) *handover.Held {
-	if r.cfg.Exec == nil {
-		return nil
-	}
-	if r.cfg.Binary.path == "" {
-		logger.Warn("can't replace itself, not knowing its binary; exiting for launchd to start it again")
+	if !r.replaceable() {
+		if r.cfg.Exec != nil {
+			logger.Warn("can't replace itself, not knowing its binary; exiting for launchd to start it again")
+		}
 		return nil
 	}
 	held, err := handover.Hold(map[string]net.Listener{proxyListener: ls.proxy, controlListener: ls.control})
@@ -36,31 +58,87 @@ func (r *Router) hold(ls listeners) *handover.Held {
 	return held
 }
 
+// drainHandingOver stops the proxy taking requests, giving those in flight
+// DrainTimeout to finish while the control API answers, so a session
+// launched meanwhile sends its requests to the proxy's socket, held open,
+// where they wait for the router this one becomes; then closes the control
+// API, and returns held, to hand over. Told to stop meanwhile, as by a
+// signal, it stops as at one after all: the control API goes, its socket
+// removed, and the sockets held close, so launchers connect directly and no
+// request waits on a socket nothing will take up; it returns nil once the
+// requests in flight have finished.
+func (r *Router) drainHandingOver(ctx context.Context, control, proxy *http.Server, held *handover.Held) *handover.Held {
+	drained := make(chan struct{})
+	go func() {
+		drain(proxy)
+		close(drained)
+	}()
+	select {
+	case <-drained:
+	case <-ctx.Done():
+	}
+	if ctx.Err() != nil {
+		logger.Info("told to stop as it restarted; stopping instead")
+		_ = control.Close()
+		held.Close()
+		r.removeSocket()
+		<-drained
+		return nil
+	}
+	_ = control.Close()
+	return held
+}
+
 // replace replaces this process with the router's binary, by the path it was
 // started as, which an upgrade leads on to the new version, run as it was,
 // handing it the listeners held, for the router it becomes to take up: no
 // connection is refused meanwhile, and the process, keeping its id, isn't
 // started afresh, which macOS can refuse a binary an upgrade replaced. It
 // returns only when that fails, the router then exiting as though it had
-// stopped, for launchd to start it again, or once ctx has ended, as at a
-// signal to stop while the router stopped to restart, when it exits for good.
+// stopped, for launchd to start it again, or once it's told to stop, as by a
+// signal, when it exits for good.
 func (r *Router) replace(ctx context.Context, held *handover.Held) {
 	defer held.Close()
-	if ctx.Err() != nil {
-		logger.Info("told to stop as it restarted; exiting")
-		r.removeSocket()
-		return
-	}
-	path, why := r.cfg.Binary.path, r.upkeep.restartReason()
-	err := held.Exec(func(path string, argv, env []string) error {
+	why := r.upkeep.restartReason()
+	exec := func(path string, argv, env []string) error {
 		logger.Info("replacing itself", "path", path, "reason", why, "listeners", handover.Named(env))
+		// A signal to stop taken from here on is this process's alone, and
+		// never reaches the router exec makes of it, so it's looked for as
+		// late as can be.
+		if ctx.Err() != nil {
+			return errStopped
+		}
 		return r.cfg.Exec(path, argv, env)
-	}, path, r.cfg.Args, r.cfg.Environ)
-	if err == nil {
-		return
 	}
-	logger.Warn("couldn't replace itself; exiting for launchd to start it again", "path", path, "error", err)
+	err := r.execute(ctx, held, exec)
+	switch {
+	case err == nil:
+		return
+	case errors.Is(err, errStopped):
+		logger.Info("told to stop as it restarted; exiting")
+	default:
+		logger.Warn("couldn't replace itself; exiting for launchd to start it again", "path", r.cfg.Binary.path, "error", err)
+	}
 	r.removeSocket()
+}
+
+// execute has held exec the router's binary, trying again while it isn't
+// there, as for a moment while an upgrade moves its link on, execTries times
+// in all, until it's told to stop.
+func (r *Router) execute(ctx context.Context, held *handover.Held, exec func(path string, argv, env []string) error) error {
+	path := r.cfg.Binary.path
+	for try := 1; ; try++ {
+		err := held.Exec(exec, path, r.cfg.Args, r.cfg.Environ)
+		if !errors.Is(err, fs.ErrNotExist) || try == execTries {
+			return err
+		}
+		logger.Info("its binary isn't there; trying again", "path", path, "try", try)
+		select {
+		case <-ctx.Done():
+			return errStopped
+		case <-time.After(cmp.Or(r.cfg.ExecRetry, execRetry)):
+		}
+	}
 }
 
 // removeSocket removes the control socket a listener held, rather than

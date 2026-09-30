@@ -168,7 +168,11 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	stopLooking()
 	looked.Wait()
 	r.probes.stop()
-	shutdown(controlSrv, proxySrv, held != nil)
+	if held != nil {
+		held = r.drainHandingOver(ctx, controlSrv, proxySrv, held)
+	} else {
+		shutdown(controlSrv, proxySrv)
+	}
 	serving.Wait()
 	stopBackground()
 	running.Wait()
@@ -195,19 +199,11 @@ func serveOn(srv *http.Server, ln net.Listener) error {
 	return nil
 }
 
-// shutdown stops the servers taking requests, the proxy's requests in flight
-// getting DrainTimeout to finish. Stopping, the control API goes at once, so
-// a launcher that checks the router's health finds it gone and connects
-// directly, and its listener's closing removes the socket. Handing its
-// listeners over, the router answers until the proxy's requests have
-// finished: a session launched meanwhile sends its requests to the proxy's
-// socket, held open, where they wait for the router this one becomes.
-func shutdown(control, proxy *http.Server, handingOver bool) {
-	if handingOver {
-		drain(proxy)
-		_ = control.Close()
-		return
-	}
+// shutdown stops the servers taking requests. The control API goes at once,
+// so a launcher that checks the router's health finds it gone and connects
+// directly, and its listener's closing removes the socket. The proxy's
+// requests in flight get DrainTimeout to finish.
+func shutdown(control, proxy *http.Server) {
 	_ = control.Close()
 	drain(proxy)
 }

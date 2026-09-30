@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -49,8 +51,9 @@ func TestARestartingRouterReplacesItselfInPlace(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newSelfWatching(t, true)
 			s.cfg.Upstream = newUpstream(t, answerOK).URL
-			execs := replacing(&s.cfg, nil)
+			execs := replacing(&s.cfg)
 			r := startRouter(t, s.cfg)
+			readAll(t, send(t, http.MethodPost, "http://"+s.cfg.Listen+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
 
 			tt.change(t, s)
 			r.waitForExit(t)
@@ -62,8 +65,8 @@ func TestARestartingRouterReplacesItselfInPlace(t *testing.T) {
 			if want := append(slices.Clone(s.cfg.Environ), handover.Variable+"="+handed); handed == "" || !slices.Equal(made.env, want) {
 				t.Errorf("replaced itself in the environment %q, want the one it started in, naming the listeners it handed over", made.env)
 			}
-			if !made.stateSaved {
-				t.Error("replaced itself before it saved its state")
+			if !strings.Contains(made.saved, sessionID) {
+				t.Errorf("as it replaced itself, the state file held\n%s\nwant the session it routed saved in it", made.saved)
 			}
 			for _, want := range [][]string{
 				{"level=INFO", "msg=restarting", tt.wantReason},
@@ -104,16 +107,22 @@ func TestARouterThatCantReplaceItselfExitsForLaunchdToStartItAgain(t *testing.T)
 		name string
 		// unknown has the router not know its binary, and exec is how
 		// replacing the process fails.
-		unknown  bool
-		exec     error
-		wantExec bool
-		wantLog  []string
+		unknown   bool
+		exec      error
+		wantExecs int
+		wantLog   []string
 	}{
 		{
-			name:     "its binary not there to exec",
-			exec:     fs.ErrNotExist,
-			wantExec: true,
-			wantLog:  []string{"level=WARN", `msg="couldn't replace itself; exiting for launchd to start it again"`, `error="file does not exist"`},
+			name:      "its binary not there to exec, try after try",
+			exec:      syscall.ENOENT,
+			wantExecs: 5,
+			wantLog:   []string{"level=WARN", `msg="couldn't replace itself; exiting for launchd to start it again"`, `error="no such file or directory"`},
+		},
+		{
+			name:      "its binary refused",
+			exec:      syscall.EACCES,
+			wantExecs: 1,
+			wantLog:   []string{"level=WARN", `msg="couldn't replace itself; exiting for launchd to start it again"`, `error="permission denied"`},
 		},
 		{
 			name:    "not knowing its binary",
@@ -133,8 +142,8 @@ func TestARouterThatCantReplaceItselfExitsForLaunchdToStartItAgain(t *testing.T)
 
 			writeFile(t, s.config, twoAccounts)
 			r.waitForExit(t)
-			if tried := execs.count() != 0; tried != tt.wantExec {
-				t.Errorf("tried to replace itself: %v, want %v", tried, tt.wantExec)
+			if tried := execs.count(); tried != tt.wantExecs {
+				t.Errorf("tried to replace itself %d times, want %d", tried, tt.wantExecs)
 			}
 			if !log.Has(tt.wantLog...) {
 				t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
@@ -150,42 +159,90 @@ func TestARouterThatCantReplaceItselfExitsForLaunchdToStartItAgain(t *testing.T)
 	}
 }
 
-func TestARouterToldToStopAsItRestartsExitsForGood(t *testing.T) {
+func TestARouterToldToStopAsItFinishesItsRequestsToRestartStopsAtOnce(t *testing.T) {
 	log := logstest.Capture(t)
-	arrived, release := make(chan struct{}), make(chan struct{})
-	up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
-		close(arrived)
-		<-release
-		answerOK(w, r)
-	})
 	s := newSelfWatching(t, true)
-	s.cfg.Upstream = up.URL
-	execs := replacing(&s.cfg, nil)
-	ctx, stop := context.WithCancel(t.Context())
-	finished := make(chan error, 1)
-	go func() { finished <- router.Run(ctx, s.cfg) }()
+	var arrived <-chan struct{}
+	var release func()
+	s.cfg.Upstream, arrived, release = holdingUpstream(t)
+	execs := replacing(&s.cfg)
+	stop, finished := runStoppable(t, s.cfg)
 	client := router.NewClient(router.SocketPath(s.cfg.StateDir))
-	waitUntil(t, "the router answers", func() bool {
-		_, err := client.Health(t.Context())
-		return err == nil
-	})
 	answered := make(chan string, 1)
 	go func() { answered <- post("http://" + s.cfg.Listen + "/v1/messages") }()
 	<-arrived
 
-	if err := client.Restart(t.Context()); err != nil {
+	if _, err := client.Restart(t.Context()); err != nil {
 		t.Fatalf("Restart() error = %v", err)
 	}
 	waitForLine(t, log, "level=INFO", "msg=stopping")
 	stop()
-	close(release)
-	<-answered
+	// With the request still in flight, launchers find the router gone, and
+	// its proxy takes nothing more, as at any signal.
+	waitUntil(t, "the router stops answering", func() bool {
+		_, err := client.Health(t.Context())
+		return errors.Is(err, router.ErrNotRunning)
+	})
+	if conn, err := net.Dial("tcp", s.cfg.Listen); err == nil {
+		_ = conn.Close()
+		t.Error("the proxy's address takes a connection once the router was told to stop, want it refused")
+	}
+	release()
+	if got := <-answered; got != `200 {"type":"message"}` {
+		t.Errorf("the request in flight was answered %q, want 200 and its body", got)
+	}
 	if err := <-finished; err != nil {
 		t.Errorf("Run() = %v, want nil", err)
 	}
 	if made := execs.count(); made != 0 {
 		t.Errorf("replaced itself %d times, want none: it was told to stop", made)
 	}
+	if !log.Has("level=INFO", `msg="told to stop as it restarted; stopping instead"`) {
+		t.Errorf("log reads\n%s\nwant the router stopping", log)
+	}
+}
+
+func TestARouterTriesItsBinaryAgainWhileItIsntThere(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newSelfWatching(t, true)
+	execs := replacing(&s.cfg, syscall.ENOENT, syscall.ENOENT, nil)
+	r := startRouter(t, s.cfg)
+
+	s.upgrade(t)
+	r.waitForExit(t)
+	execs.last(t, 3)
+	for _, try := range []string{"try=1", "try=2"} {
+		if !log.Has("level=INFO", `msg="its binary isn't there; trying again"`, "path="+s.binary, try) {
+			t.Errorf("log reads\n%s\nwant a line saying it tries again, %s", log, try)
+		}
+	}
+	if log.Has(`msg="couldn't replace itself`) {
+		t.Errorf("log reads\n%s\nwant the router replaced once its binary was there", log)
+	}
+	if _, err := os.Stat(router.SocketPath(s.cfg.StateDir)); err != nil {
+		t.Errorf("the control socket once replaced: %v, want it kept for the router it became", err)
+	}
+}
+
+func TestARouterToldToStopAsItWaitsForItsBinaryExitsForGood(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newSelfWatching(t, true)
+	execs := replacing(&s.cfg, syscall.ENOENT)
+	s.cfg.ExecRetry = time.Hour
+	stop, finished := runStoppable(t, s.cfg)
+
+	s.upgrade(t)
+	waitForLine(t, log, "level=INFO", `msg="its binary isn't there; trying again"`)
+	stop()
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Errorf("Run() = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for the router to exit")
+	}
+	execs.only(t)
 	if !log.Has("level=INFO", `msg="told to stop as it restarted; exiting"`) {
 		t.Errorf("log reads\n%s\nwant the router exiting", log)
 	}
@@ -194,24 +251,56 @@ func TestARouterToldToStopAsItRestartsExitsForGood(t *testing.T) {
 	}
 }
 
+func TestARouterSaysWhetherItRestartsInPlace(t *testing.T) {
+	tests := []struct {
+		name string
+		// unknown has the router not know its binary, and noExec gives it
+		// nothing to exec with.
+		unknown, noExec bool
+		want            bool
+	}{
+		{name: "knowing its binary", want: true},
+		{name: "not knowing its binary", unknown: true},
+		{name: "with nothing to exec with", noExec: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSelfWatching(t, true)
+			replacing(&s.cfg)
+			if tt.unknown {
+				s.cfg.Binary = router.Watched{}
+			}
+			if tt.noExec {
+				s.cfg.Exec = nil
+			}
+			r := startRouter(t, s.cfg)
+
+			got, err := router.NewClient(router.SocketPath(s.cfg.StateDir)).Restart(t.Context())
+			if err != nil {
+				t.Fatalf("Restart() error = %v", err)
+			}
+			if got.InPlace != tt.want || got.PID != os.Getpid() || !got.StartedAt.Equal(now) {
+				t.Errorf("Restart() = %+v, want the router taking the request, restarting in place: %v", got, tt.want)
+			}
+			r.waitForExit(t)
+		})
+	}
+}
+
 func TestAskedToRestartARouterFinishesItsRequestsThenReplacesItself(t *testing.T) {
 	log := logstest.Capture(t)
-	arrived, release := make(chan struct{}), make(chan struct{})
-	up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
-		close(arrived)
-		<-release
-		answerOK(w, r)
-	})
 	s := newSelfWatching(t, true)
-	s.cfg.Upstream = up.URL
-	execs := replacing(&s.cfg, nil)
+	var arrived <-chan struct{}
+	var release func()
+	s.cfg.Upstream, arrived, release = holdingUpstream(t)
+	execs := replacing(&s.cfg)
 	r := startRouter(t, s.cfg)
 	client := router.NewClient(router.SocketPath(s.cfg.StateDir))
 	answered := make(chan string, 1)
 	go func() { answered <- post("http://" + s.cfg.Listen + "/v1/messages") }()
 	<-arrived
 
-	if err := client.Restart(t.Context()); err != nil {
+	if _, err := client.Restart(t.Context()); err != nil {
 		t.Fatalf("Restart() error = %v", err)
 	}
 	waitForLine(t, log, "level=INFO", "msg=restarting", `reason="asked to"`)
@@ -223,7 +312,7 @@ func TestAskedToRestartARouterFinishesItsRequestsThenReplacesItself(t *testing.T
 	if made := execs.count(); made != 0 {
 		t.Fatalf("replaced itself %d times with a request still in flight, want none", made)
 	}
-	close(release)
+	release()
 	if got := <-answered; got != `200 {"type":"message"}` {
 		t.Errorf("the request in flight was answered %q, want 200 and its body", got)
 	}
@@ -256,13 +345,13 @@ func TestARouterRefusesToRestartWhenItCant(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSelfWatching(t, tt.supervised)
-			execs := replacing(&s.cfg, nil)
+			execs := replacing(&s.cfg)
 			r := startRouter(t, s.cfg)
 			if tt.change != nil {
 				tt.change(t, s)
 			}
 
-			err := router.NewClient(router.SocketPath(s.cfg.StateDir)).Restart(t.Context())
+			_, err := router.NewClient(router.SocketPath(s.cfg.StateDir)).Restart(t.Context())
 			if err == nil || errors.Is(err, router.ErrNoRestart) || !strings.HasPrefix(err.Error(), tt.want) {
 				t.Errorf("Restart() error = %v, want it refused: %s", err, tt.want)
 			}
@@ -298,7 +387,7 @@ func TestClientRestartOfARouterThatCantBeAsked(t *testing.T) {
 				tt.serve(t, path)
 			}
 
-			if err := router.NewClient(path).Restart(t.Context()); !errors.Is(err, router.ErrNoRestart) {
+			if _, err := router.NewClient(path).Restart(t.Context()); !errors.Is(err, router.ErrNoRestart) {
 				t.Errorf("Restart() error = %v, want ErrNoRestart", err)
 			}
 		})
@@ -367,50 +456,104 @@ func TestARouterListensAfreshForListenersNotHandedOver(t *testing.T) {
 	}
 }
 
-// execCall is an exec a router made as it replaced itself: what it ran, and
-// whether the state file had been saved by then.
-type execCall struct {
-	path       string
-	argv, env  []string
-	stateSaved bool
+// holdingUpstream serves an upstream that holds each request until release
+// is called, or the test ends, and answers it as answerOK does, and returns
+// its URL, with what's closed as the first request arrives.
+func holdingUpstream(t *testing.T) (url string, arrived <-chan struct{}, release func()) {
+	t.Helper()
+	first, released := make(chan struct{}), make(chan struct{})
+	var arriving sync.Once
+	release = sync.OnceFunc(func() { close(released) })
+	up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		arriving.Do(func() { close(first) })
+		<-released
+		answerOK(w, r)
+	})
+	t.Cleanup(release)
+	return up.URL, first, release
 }
 
-// execs stands in for exec, noting each made, and answering err: nil, as an
+// runStoppable runs a router with cfg, returning once its control socket
+// answers, with what stops it, as a signal does, and what Run's answer comes
+// on.
+func runStoppable(t *testing.T, cfg router.Config) (stop context.CancelFunc, finished <-chan error) {
+	t.Helper()
+	ctx, stop := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- router.Run(ctx, cfg) }()
+	t.Cleanup(stop)
+	client := router.NewClient(router.SocketPath(cfg.StateDir))
+	waitUntil(t, "the router answers", func() bool {
+		_, err := client.Health(t.Context())
+		return err == nil
+	})
+	return stop, done
+}
+
+// execCall is an exec a router made as it replaced itself: what it ran, and
+// what the state file held by then.
+type execCall struct {
+	path      string
+	argv, env []string
+	saved     string
+}
+
+// execs stands in for exec, noting each made, and answering each in turn as
+// answers says, and, past its end, as its last does: nil, for none, as an
 // exec that replaced the process does, handing over what it was handed.
 type execs struct {
 	stateFile string
-	err       error
-	made      chan execCall
+	answers   []error
+
+	mu   sync.Mutex
+	made []execCall
 }
 
 // replacing has a router run with cfg replace itself through execs answering
-// err, run with a command line and an environment of the test's.
-func replacing(cfg *router.Config, err error) *execs {
-	e := &execs{stateFile: filepath.Join(cfg.StateDir, "state.json"), err: err, made: make(chan execCall, 1)}
+// as answers says, run with a command line and an environment of the test's,
+// and trying again at once while its binary isn't there.
+func replacing(cfg *router.Config, answers ...error) *execs {
+	e := &execs{stateFile: filepath.Join(cfg.StateDir, "state.json"), answers: answers}
 	cfg.Exec = e.exec
 	cfg.Args = []string{"/test/bin/switchboard", "serve"}
 	cfg.Environ = []string{"HOME=/home/tester", "XPC_SERVICE_NAME=io.github.leeovery.switchboard"}
+	cfg.ExecRetry = time.Millisecond
 	return e
 }
 
 func (e *execs) exec(path string, argv, env []string) error {
-	_, err := os.Stat(e.stateFile)
-	e.made <- execCall{path: path, argv: argv, env: env, stateSaved: err == nil}
-	return e.err
+	saved, _ := os.ReadFile(e.stateFile)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.made = append(e.made, execCall{path: path, argv: argv, env: env, saved: string(saved)})
+	if len(e.answers) == 0 {
+		return nil
+	}
+	return e.answers[min(len(e.made), len(e.answers))-1]
 }
 
 // count is how many execs have been made.
 func (e *execs) count() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	return len(e.made)
 }
 
 // only returns the one exec made.
 func (e *execs) only(t *testing.T) execCall {
 	t.Helper()
-	if n := e.count(); n != 1 {
-		t.Fatalf("replaced itself %d times, want once", n)
+	return e.last(t, 1)
+}
+
+// last returns the last of the n execs made.
+func (e *execs) last(t *testing.T, n int) execCall {
+	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.made) != n {
+		t.Fatalf("tried to replace itself %d times, want %d", len(e.made), n)
 	}
-	return <-e.made
+	return e.made[n-1]
 }
 
 // handOver hands over a listener at each address given, by name, as a router
@@ -441,7 +584,7 @@ func handOver(t *testing.T, addresses map[string]string) string {
 	for _, ln := range listeners {
 		_ = ln.Close()
 	}
-	recorded := &execs{made: make(chan execCall, 1)}
+	recorded := &execs{}
 	if err := held.Exec(recorded.exec, "/test/bin/switchboard", nil, nil); err != nil {
 		t.Fatalf("Exec() error = %v", err)
 	}

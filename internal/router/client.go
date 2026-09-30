@@ -167,18 +167,20 @@ func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Docu
 // Restart has the router restart at once: it finishes its requests in flight,
 // within DrainTimeout, and a router the service runs replaces itself, in the
 // process it runs in, with its binary, reading the config and the tokens
-// afresh. It fails, saying why, when the router refuses, as one run by hand
-// does, and with ErrNoRestart when it can't be asked.
-func (c *Client) Restart(ctx context.Context) error {
-	var h Health
-	err := c.call(ctx, clientTimeout, http.MethodPost, "/restart", nil, &h)
+// afresh, or else exits for launchd to start it again. It returns the router
+// that took the request, and which it means to do. It fails, saying why,
+// when the router refuses, as one run by hand does, and with ErrNoRestart
+// when it can't be asked.
+func (c *Client) Restart(ctx context.Context) (Restart, error) {
+	var restart Restart
+	err := c.call(ctx, clientTimeout, http.MethodPost, "/restart", nil, &restart)
 	if d, ok := errors.AsType[declined](err); ok && d.reason != "" {
-		return d
+		return Restart{}, d
 	}
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrNoRestart, err)
+		return Restart{}, fmt.Errorf("%w: %w", ErrNoRestart, err)
 	}
-	return nil
+	return restart, nil
 }
 
 // call sends the router a request for path, with body as JSON unless it's

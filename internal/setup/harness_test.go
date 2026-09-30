@@ -461,16 +461,22 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 	if f.pid == 0 || unanswered {
 		return router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
 	}
-	startedAt := time.Date(2026, 9, 28, 13, 0, f.restarts, 0, time.UTC)
-	return router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}, nil
+	return f.router(), nil
 }
 
-func (f *fakeLaunchd) Restart(context.Context) error {
+// router is how the running router answers.
+func (f *fakeLaunchd) router() router.Health {
+	startedAt := time.Date(2026, 9, 28, 13, 0, f.restarts, 0, time.UTC)
+	return router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}
+}
+
+func (f *fakeLaunchd) Restart(context.Context) (router.Restart, error) {
 	if f.old {
-		return fmt.Errorf("%w: the router answered POST /restart with 404 Not Found", router.ErrNoRestart)
+		return router.Restart{}, fmt.Errorf("%w: the router answered POST /restart with 404 Not Found", router.ErrNoRestart)
 	}
+	took := f.router()
 	f.restarts++
-	return nil
+	return router.Restart{Health: took, InPlace: true}, nil
 }
 
 // exitStatus is a program's exit with a status other than 0, as

@@ -54,7 +54,7 @@ var (
 // restart: *router.Client is one.
 type Router interface {
 	Health(ctx context.Context) (router.Health, error)
-	Restart(ctx context.Context) error
+	Restart(ctx context.Context) (router.Restart, error)
 }
 
 // Restarting is how the router restarts, once it has finished its requests
@@ -65,8 +65,9 @@ const (
 	// InPlace is the router replacing itself with its binary, in the process
 	// it runs in, as it's asked to.
 	InPlace Restarting = iota
-	// ByLaunchd is the router stopping at a signal, for launchd to start it
-	// again, as one from before routers restarted when asked does.
+	// ByLaunchd is the router stopping, for launchd to start it again: one
+	// that can't replace itself, or one from before routers restarted when
+	// asked, at a signal.
 	ByLaunchd
 )
 
@@ -221,16 +222,16 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 // and returns the answer of the router it becomes, or nil when none answers
 // in time. A router that answers is asked to restart: it finishes the
 // requests in flight, within router.DrainTimeout, then replaces itself with
-// its binary, in the process it runs in. One that can't be asked, as one
-// from before routers restarted when asked can't, is sent SIGTERM, and stops
-// as it does at any signal, finishing the requests in flight within
-// exitTimeout, as launchd would give it; launchd, keeping the service alive,
-// then starts it again. Restart calls draining, saying how the router
-// restarts, as it finishes its requests, before it waits. With none
-// answering, there's nothing to finish, and launchd starts the service
-// afresh at once. It fails with ErrNotLoaded when launchd hasn't loaded the
-// service, and saying why when the router refuses to restart, as one run by
-// hand does.
+// its binary, in the process it runs in, or, as it says when it can't, exits
+// for launchd to start it again. One that can't be asked, as one from before
+// routers restarted when asked can't, is sent SIGTERM, and stops as it does
+// at any signal, finishing the requests in flight within exitTimeout, as
+// launchd would give it; launchd, keeping the service alive, then starts it
+// again. Restart calls draining, saying how the router restarts, as it
+// finishes its requests, before it waits. With none answering, there's
+// nothing to finish, and launchd starts the service afresh at once. It fails
+// with ErrNotLoaded when launchd hasn't loaded the service, and saying why
+// when the router refuses to restart, as one run by hand does.
 func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*router.Health, error) {
 	loaded, err := s.loaded(ctx)
 	switch {
@@ -239,11 +240,11 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 	case !loaded:
 		return nil, ErrNotLoaded
 	}
-	before := s.current(ctx)
-	if before.PID == 0 {
+	answering := s.current(ctx)
+	if answering.PID == 0 {
 		return s.startAfresh(ctx)
 	}
-	how, err := s.restart(ctx, before)
+	how, before, err := s.restart(ctx, answering)
 	if err != nil {
 		return nil, err
 	}
@@ -251,23 +252,27 @@ func (s *Service) Restart(ctx context.Context, draining func(Restarting)) (*rout
 	return s.waitForRouter(ctx, before, exitTimeout+StartWait), nil
 }
 
-// restart has the router answering, before, restart: in place, as it's asked
-// to, or, one that can't be asked, as launchd starts it again once SIGTERM
-// stops it.
-func (s *Service) restart(ctx context.Context, before router.Health) (Restarting, error) {
-	asked := s.cfg.Router.Restart(ctx)
+// restart has the router answering restart, and returns how, with the router
+// whose replacement to wait for: the one that took the request, which may
+// have restarted since it answered as answering, or, one that can't be
+// asked, answering, which launchd starts again once SIGTERM stops it.
+func (s *Service) restart(ctx context.Context, answering router.Health) (Restarting, router.Health, error) {
+	asked, err := s.cfg.Router.Restart(ctx)
 	switch {
-	case asked == nil:
-		logger.Info("restarting the router in place", "pid", before.PID)
-		return InPlace, nil
-	case !errors.Is(asked, router.ErrNoRestart):
-		return InPlace, asked
+	case err == nil && asked.InPlace:
+		logger.Info("restarting the router in place", "pid", asked.PID)
+		return InPlace, asked.Health, nil
+	case err == nil:
+		logger.Info("restarting the router, which can't replace itself, for launchd to start again", "pid", asked.PID)
+		return ByLaunchd, asked.Health, nil
+	case !errors.Is(err, router.ErrNoRestart):
+		return 0, router.Health{}, err
 	}
-	if err := s.launchctl(ctx, "kill", "SIGTERM", s.target()); err != nil {
-		return ByLaunchd, err
+	if killed := s.launchctl(ctx, "kill", "SIGTERM", s.target()); killed != nil {
+		return 0, router.Health{}, killed
 	}
-	logger.Info("stopping the router, for launchd to start again", "pid", before.PID, "error", asked)
-	return ByLaunchd, nil
+	logger.Info("stopping the router, for launchd to start again", "pid", answering.PID, "error", err)
+	return ByLaunchd, answering, nil
 }
 
 // startAfresh has launchd start the service afresh, stopping any process of
