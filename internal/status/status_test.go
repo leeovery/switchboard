@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -102,6 +103,54 @@ func TestCollectGivesThePrimaryAndTheWindowsAtEachReserve(t *testing.T) {
 	}
 	if doc.Best != "side" {
 		t.Errorf("Collect().Best = %q, want side: work's quota would need using first, but its week has reached its reserve", doc.Best)
+	}
+}
+
+func TestAnAccountsWindowsProjected(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	// The session began two hours ago, 30% used: 15% an hour since it
+	// started, which ends it at 75%; at 30% an hour, it runs out 2h 20m on.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.3, ResetsAt: now.Add(3 * time.Hour)}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: now.Add(2 * 24 * time.Hour)}
+	onPace := score.Projection{Kind: score.OnPace, AtReset: 0.75}
+	tests := []struct {
+		name     string
+		pressure status.Pressure
+		window   quota.Window
+		want     score.Projection
+	}{
+		{
+			name:     "the session, at the router's rate over the last half hour",
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true},
+			window:   session,
+			want:     score.Projection{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute)},
+		},
+		{
+			name:     "the session, the router's rate being its use since it started",
+			pressure: status.Pressure{Window: "5h", Rate: 0.15},
+			window:   session,
+			want:     onPace,
+		},
+		{
+			name:   "the session, probed, without the router's rate",
+			window: session,
+			want:   onPace,
+		},
+		{
+			name:     "another window, at its use since it started",
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true},
+			window:   week,
+			want:     score.Project(week, now),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := status.Account{ID: "work", Windows: []quota.Window{session, week}, Pressure: tt.pressure}
+			got := a.Project(tt.window, now)
+			if got.Kind != tt.want.Kind || math.Abs(got.AtReset-tt.want.AtReset) > 1e-9 || !got.At.Equal(tt.want.At) {
+				t.Errorf("Project() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

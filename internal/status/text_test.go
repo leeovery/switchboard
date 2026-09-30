@@ -422,28 +422,34 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 		name     string
 		reserve  float64
 		pressure status.Pressure
+		// heading is where the session heads, as its line says.
+		heading string
 		// notes are the lines status gives the account beside its usage.
 		notes string
 	}{
 		{
 			name:     "at its rate over the last half hour",
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			heading:  "runs out ~Mon 15:32",
 			notes:    "  under pressure: runs out ~15:32 at Session's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
 			name:     "at its rate since it started",
 			pressure: status.Pressure{Window: "5h", Rate: 0.6 / (2*time.Hour + 2*time.Minute).Hours(), RunsOut: time.Date(2026, 9, 28, 14, 33, 20, 0, time.UTC), Under: true},
+			heading:  "runs out ~Mon 15:33",
 			notes:    "  under pressure: runs out ~15:33 at Session's rate since it started, before its reset at 17:10\n",
 		},
 		{
 			name:     "reaching its reserve",
 			reserve:  0.1,
 			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
+			heading:  "runs out ~Mon 15:32",
 			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
 			name:     "not under pressure",
 			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
+			heading:  "on pace for 90%",
 		},
 	}
 	for _, tt := range tests {
@@ -458,7 +464,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 				}},
 			}
 			want := "work · Work\n" +
-				"  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
+				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
 				tt.notes + "\n" +
 				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 			if got := doc.Text(now); got != want {

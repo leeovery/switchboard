@@ -640,7 +640,11 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   per account when the cards don't fit its width, or, in watch mode, its height.
 - Bars with a pace marker (where even use across the window would put you) and a projection
   ("on pace for 92%", "runs out ~Fri 19:40"), and on an account with a reserve, a mark where the
-  reserve starts.
+  reserve starts. A window's projection goes at the pace its use since it started sets, but for
+  the 5-hour window's from the router, which goes at the rate the router judges its pressure by:
+  its rise over the last 30 minutes, once its readings span 10 minutes (see Choosing an account),
+  so the screen shows where the router takes it to be heading. `status` projects as the dashboard
+  does.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
   shows empty, as not started, until something uses it or a prime starts it, and, from the
   router, when its account is next primed: `not started · next prime Tue 04:15`.

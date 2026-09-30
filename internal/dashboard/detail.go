@@ -107,7 +107,7 @@ func inSeconds(now, t time.Time) bool {
 func CountsSeconds(doc status.Document, now time.Time) bool {
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			if p := score.Project(w, now); p.Kind == score.Exhausted && inSeconds(now, p.At) {
+			if p := a.Project(w, now); p.Kind == score.Exhausted && inSeconds(now, p.At) {
 				return true
 			}
 		}

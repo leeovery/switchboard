@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -81,7 +80,7 @@ func summarize(doc status.Document, a status.Account, now time.Time) summary {
 		s.extras = append(s.extras, span{status.SessionCount(a.Sessions), dimInk})
 	}
 	for _, w := range a.Windows {
-		s.parts = append(s.parts, compactWindow(w, a.Reserve, now))
+		s.parts = append(s.parts, compactWindow(a, w, now))
 	}
 	for _, f := range a.Failures {
 		s.parts = append(s.parts, line{{status.Clean(f.Label) + " offline", offlineInk}})
@@ -95,12 +94,12 @@ func summarize(doc status.Document, a status.Account, now time.Time) summary {
 	return s
 }
 
-// compactWindow shows a window as its key, a short bar marking where the
-// account's reserve starts, and how much of it is used.
-func compactWindow(w quota.Window, reserve float64, now time.Time) line {
-	pct := use(w, score.Project(w, now))
+// compactWindow shows the account's window w as its key, a short bar marking
+// where the account's reserve starts, and how much of it is used.
+func compactWindow(a status.Account, w quota.Window, now time.Time) line {
+	pct := use(w, a.Project(w, now))
 	l := line{{status.Clean(w.Key), dimInk}, spaces(1)}
-	l = append(l, bar(w.Utilization, compactBar).mark(reserveCell(reserve, compactBar), reserveMarker)...)
+	l = append(l, bar(w.Utilization, compactBar).mark(reserveCell(a.Reserve, compactBar), reserveMarker)...)
 	return append(l, spaces(1+useWidth-ansi.StringWidth(pct.text)), pct)
 }
 

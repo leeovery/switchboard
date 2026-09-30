@@ -334,6 +334,17 @@ func (a Account) AsOf(policy score.Policy, now time.Time) Account {
 	return a
 }
 
+// Project says where the account's window w is heading at now: at the rate the
+// router saw it used over the last half hour, when it's the window the router
+// watches for pressure and it has that rate, so it heads where the router
+// judges it to; else at the pace its use since it started sets.
+func (a Account) Project(w quota.Window, now time.Time) score.Projection {
+	if p := a.Pressure; p.Recent && p.Window == w.Key {
+		return score.ProjectAt(w, p.Rate, now)
+	}
+	return score.Project(w, now)
+}
+
 // HasLapsed reports whether the account's window w has lapsed, and reads
 // empty until a request starts it.
 func (a Account) HasLapsed(w quota.Window) bool {

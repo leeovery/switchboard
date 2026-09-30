@@ -287,7 +287,7 @@ func (d Document) writeAccount(b *strings.Builder, a Account, width int, now tim
 	}
 	fmt.Fprintf(b, "%s\n", title)
 	for _, w := range a.Windows {
-		notes := windowNotes(w, now)
+		notes := a.windowNotes(w, now)
 		if a.HasLapsed(w) {
 			notes = []string{d.NotStarted(a.ID, now)}
 		}
@@ -408,14 +408,14 @@ func windowLine(w quota.Window, labelWidth int, notes []string) string {
 	return line + "  " + strings.Join(notes, " · ")
 }
 
-// windowNotes say when a window resets and where it's heading at now, as far
-// as those are known.
-func windowNotes(w quota.Window, now time.Time) []string {
+// windowNotes say when the account's window w resets and where it's heading at
+// now, as Project says, as far as those are known.
+func (a Account) windowNotes(w quota.Window, now time.Time) []string {
 	var notes []string
 	if !w.ResetsAt.IsZero() {
 		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
 	}
-	if projection := Projection(now, score.Project(w, now)); projection != "" {
+	if projection := Projection(now, a.Project(w, now)); projection != "" {
 		notes = append(notes, projection)
 	}
 	return notes
