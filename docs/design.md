@@ -318,13 +318,14 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   returns 502, shaped as the API shapes its errors and marked `X-Should-Retry: false`, as the same
   token would only be refused again, its message giving the upstream's reason, cut to 200
   characters, with anything shaped like a token hidden.
-- **A request refused everywhere bars none:** when every account a request went out on refused it,
-  the refusals it met are taken back, as a refusal every account gives says more of the request,
-  such as a beta it carries, than of the accounts. Otherwise one such request would hold its model's
-  family back on every account for 10 minutes, and every session of the family would fall back to
-  the client's account, the primary, and move there. A refusal another request met stands, and so
-  does one met by a request another account served, or whose limit it reached. The client still
-  gets the 502.
+- **A request refused everywhere bars no family:** when every account a request went out on refused
+  it, the refusals of the request itself it met, the 403s, are taken back, as a refusal every
+  account that judged the request gives says more of the request, such as a beta it carries, than
+  of the accounts. Otherwise one such request would hold its model's family back on every account
+  for 10 minutes, and every session of the family would fall back to the client's account, the
+  primary, and move there. A refusal of an account's token, a 401, stands, as it says something of
+  the account; so does a refusal another request met, and one met by a request another account
+  served, or whose limit it reached. The client still gets the 502.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
   be read 400, neither going upstream nor counting towards the router's health. Replay only

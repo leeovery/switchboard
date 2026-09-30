@@ -529,7 +529,7 @@ func TestARequestRefusedOnEveryAccountHoldsNoneBack(t *testing.T) {
 	if got := r.ask(t, "three", opus, ""); got != "side" {
 		t.Errorf("a new Opus session went to %s, want side, whose quota needs using first", got)
 	}
-	waitForLine(t, log, "level=INFO", `msg="refused on every account it went out on; its refusals hold none back"`, "attempts=2")
+	waitForLine(t, log, "level=INFO", `msg="refused on every account it went out on; its refusals of the request hold none back"`, "attempts=2")
 	for _, e := range r.events.heard() {
 		if moved, ok := e.(router.Moved); ok && moved.Session != "one" {
 			t.Errorf("events hold %+v, want no session moved but one, whose request it was", moved)
@@ -562,6 +562,31 @@ func TestARequestRefusedOnEveryAccountItWentOutOnLeavesTheRefusalsOfOthers(t *te
 	}
 	if got := r.ask(t, "three", opus, ""); got != "side" {
 		t.Errorf("a new Opus session went to %s, want side: work refuses Opus", got)
+	}
+}
+
+func TestARequestRefusedOnEveryAccountLeavesTheRefusalOfATokenStanding(t *testing.T) {
+	r := newRouted(t)
+	// Work's quota needs using first, so every new session goes there while
+	// it can.
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, refuseWith(http.StatusUnauthorized, "Invalid bearer token"))
+	r.api.script(sideToken, refuseWith(http.StatusForbidden, "This request can't be served"))
+
+	resp := send(t, http.MethodPost, r.proxy+"/v1/messages", with(claudeCode(workToken), "X-Claude-Code-Session-Id", "one"), strings.NewReader(messages))
+	if body := readAll(t, resp); resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("answered %d %s, want 502: work refused its token, and side the request", resp.StatusCode, body)
+	}
+	doc := r.rt.Status()
+	if work, _ := doc.Account("work"); work.Refused != (status.Refusal{Until: now.Add(10 * time.Minute), Status: http.StatusUnauthorized}) {
+		t.Errorf("the document gives work's refusal as %+v, want its token's, for ten minutes: that says something of work", work.Refused)
+	}
+	if side, _ := doc.Account("side"); side.Refused != (status.Refusal{}) {
+		t.Errorf("the document gives side's refusal as %+v, want none: side, all that judged the request, refused it", side.Refused)
+	}
+	if got := r.ask(t, "two", haiku, ""); got != "side" {
+		t.Errorf("a new Haiku session went to %s, want side: work's token is refused", got)
 	}
 }
 

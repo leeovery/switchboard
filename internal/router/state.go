@@ -323,17 +323,22 @@ func (s *state) forbid(id, family string, status int, by string) {
 	u.forbidden[family] = u.forbidden[family].with(r)
 }
 
-// takeBack takes back the refusals of the request with the given id, on
-// every account: those of other requests stand.
-func (s *state) takeBack(by string) {
+// takeBack takes back, on every account, the refusals of the request with
+// the given id that hold back its model family, and reports whether there
+// were any. The refusals of an account's token stand, as they say something
+// of the account, and so do other requests' refusals.
+func (s *state) takeBack(by string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	took := false
 	for _, u := range s.usage {
-		u.refused = u.refused.without(by)
 		for family, rs := range u.forbidden {
-			u.forbidden[family] = rs.without(by)
+			kept := rs.without(by)
+			took = took || len(kept) < len(rs)
+			u.forbidden[family] = kept
 		}
 	}
+	return took
 }
 
 // limit notes that the account reached its limit, in the windows named, if

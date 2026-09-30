@@ -421,29 +421,38 @@ func TestTheDocumentGivesEachAccountsRefusalWhileItsInForce(t *testing.T) {
 	}
 }
 
-func TestARequestTakesBackItsOwnRefusalsAlone(t *testing.T) {
+func TestARequestTakesBackItsOwnRefusalsOfItsFamilyAlone(t *testing.T) {
 	const first, second = "a1b2c3d4", "e5f6a7b8"
 	clock := &testClock{now: start}
 	s := newTestState(clock)
 	s.forbid("work", "opus", http.StatusForbidden, first)
 	clock.now = start.Add(time.Minute)
 	s.forbid("work", "opus", http.StatusForbidden, second)
-	s.refuse("side", http.StatusUnauthorized, second)
+	s.forbid("side", "opus", http.StatusForbidden, second)
+	s.refuse("personal", http.StatusUnauthorized, second)
 	refused := func(id string) status.Refusal {
 		account, _ := s.document().Account(id)
 		return account.Refused
 	}
 
-	s.takeBack(second)
+	if !s.takeBack(second) {
+		t.Error("takeBack() = false, want the second request's refusals of Opus taken back")
+	}
 	if got, want := refused("work"), (status.Refusal{Until: start.Add(refusedFor), Status: http.StatusForbidden, Family: "opus"}); got != want {
 		t.Errorf("with the second request's refusals taken back, work is refused %+v, want %+v: the first request's refusal stands", got, want)
 	}
 	if got := refused("side"); got != (status.Refusal{}) {
 		t.Errorf("with the second request's refusals taken back, side is refused %+v, want not", got)
 	}
+	if got, want := s.usage["personal"].refused.latest(), (refusal{at: start.Add(time.Minute), status: http.StatusUnauthorized, by: second}); got != want {
+		t.Errorf("with the second request's refusals taken back, personal's token is refused %+v, want %+v: that says something of personal", got, want)
+	}
 	s.takeBack(first)
 	if got := refused("work"); got != (status.Refusal{}) {
 		t.Errorf("with both requests' refusals taken back, work is refused %+v, want not", got)
+	}
+	if s.takeBack(first) {
+		t.Error("takeBack() = true, want false: the first request's refusals are gone already")
 	}
 }
 
