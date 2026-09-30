@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.4] - 2026-09-30
+
+✨ Added
+- In-place router restarts — the router replaces itself with its new binary in the same process and hands over its listening sockets, so requests made during a restart wait a moment instead of being refused.
+- `POST /restart` on the router's control API — asks a running router to restart once its in-flight requests finish, and reports whether it will restart in place.
+
+🔧 Changed
+- `switchboard service restart` now asks the router to restart in place and says which way it will go (`it restarts in place` or `launchd starts it again`) — older routers still stop and are restarted by launchd.
+- Config, upgrade and time-zone changes now trigger an in-place restart rather than an exit, so launchd no longer has to start an upgraded binary afresh, which macOS has been seen to refuse.
+- A router whose binary is briefly missing during `brew upgrade` retries for a couple of seconds before falling back to exiting for launchd.
+
+🐛 Fixed
+- `service restart` now refuses with a reason for a router run by hand or one whose config isn't valid, instead of stopping it with nothing to start it again.
+- A stop signal received while the router is finishing its requests to restart now stops it immediately instead of restarting.
+
 ## [0.0.3] - 2026-09-30
 
 🐛 Fixed
