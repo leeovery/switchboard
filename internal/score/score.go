@@ -180,6 +180,9 @@ type Choice struct {
 	// whose score set the band the choice would have been made in. It's ""
 	// when pressure changed nothing.
 	PassedOver string
+	// Pressure is how PassedOver stands under pressure, as Pick judged it,
+	// at the room the candidate gave it: zero when PassedOver is "".
+	Pressure Pressure
 }
 
 // Pick chooses the account whose quota most needs using: of the candidates
@@ -199,13 +202,14 @@ func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, pref
 	if len(ratings) == 0 {
 		return Choice{}, false
 	}
-	relieved := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return r.pressed })
+	relieved := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return r.pressure.Under })
 	if len(relieved) == 0 {
 		return Choice{ID: best(ratings, preferred)}, true
 	}
 	c := Choice{ID: best(relieved, preferred)}
 	if regardless := best(ratings, preferred); regardless != c.ID {
-		c.PassedOver = passedOver(ratings, regardless)
+		passed := passedOver(ratings, regardless)
+		c.PassedOver, c.Pressure = passed.id, passed.pressure
 	}
 	return c, true
 }
@@ -222,16 +226,16 @@ func best(ratings []rating, preferred string) string {
 	return slices.MinFunc(near, rank).id
 }
 
-// passedOver returns the account under pressure that turned Pick's choice
-// from regardless, the one it makes of every rating: regardless itself, when
-// it's under pressure, else the highest scoring of those under pressure,
-// whose score set the band regardless was chosen in.
-func passedOver(ratings []rating, regardless string) string {
-	pressed := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return !r.pressed })
-	if slices.ContainsFunc(pressed, func(r rating) bool { return r.id == regardless }) {
-		return regardless
+// passedOver returns the rating of the account under pressure that turned
+// Pick's choice from regardless, the one it makes of every rating:
+// regardless's, when it's under pressure, else the highest scoring of those
+// under pressure, whose score set the band regardless was chosen in.
+func passedOver(ratings []rating, regardless string) rating {
+	pressed := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return !r.pressure.Under })
+	if i := slices.IndexFunc(pressed, func(r rating) bool { return r.id == regardless }); i >= 0 {
+		return pressed[i]
 	}
-	return slices.MaxFunc(pressed, byScore).id
+	return slices.MaxFunc(pressed, byScore)
 }
 
 // rating is how a candidate that qualifies ranks.
@@ -244,8 +248,8 @@ type rating struct {
 	// shortest is how much of its shortest window that applies it has used,
 	// which breaks ties.
 	shortest float64
-	// pressed is set when it's under pressure, which sets it aside.
-	pressed bool
+	// pressure is how it stands under pressure: under it, it's set aside.
+	pressure Pressure
 }
 
 // qualifying rates the candidates that are available within their reserves
@@ -262,7 +266,7 @@ func (p Policy) qualifying(candidates []Candidate, applies func(string) bool, no
 			score:         score,
 			untilTiebreak: p.untilTiebreak(c.Windows, applies, now),
 			shortest:      shortestUse(c.Windows, applies, now),
-			pressed:       p.PressureOf(c, now).Under,
+			pressure:      p.PressureOf(c, now),
 		})
 	}
 	return ratings

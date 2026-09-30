@@ -107,6 +107,8 @@ func averageRate(w quota.Window, now time.Time) (float64, bool) {
 // Pressure is whether a window runs out before it resets, used from now on at
 // the rate it's being used.
 type Pressure struct {
+	// Rate is the rate it's judged at, a share of the window an hour.
+	Rate float64
 	// RunsOut is when, at that rate, the window reaches where its room ends:
 	// zero when it never does, at no rate, and when it has already.
 	RunsOut time.Time
@@ -117,8 +119,9 @@ type Pressure struct {
 // PressureOf returns how the candidate's pressure window stands at now, used
 // from now on at the candidate's rate: when it reaches where the candidate's
 // room ends, at 1 − its reserve, and whether that comes before it resets.
-// It's zero when the candidate has no such window, when the window's reset
-// isn't known or has passed since it was read, and when it has no room left.
+// It's zero, its rate included, when the candidate has no such window, when
+// the window's reset isn't known or has passed since it was read, and when it
+// has no room left.
 func (p Policy) PressureOf(c Candidate, now time.Time) Pressure {
 	w, ok := find(c.Windows, p.Pressure)
 	room := 1 - c.Reserve - w.Utilization
@@ -126,7 +129,7 @@ func (p Policy) PressureOf(c Candidate, now time.Time) Pressure {
 		return Pressure{}
 	}
 	at := now.Add(inHours(room / c.Rate))
-	return Pressure{RunsOut: at, Under: at.Before(w.ResetsAt)}
+	return Pressure{Rate: c.Rate, RunsOut: at, Under: at.Before(w.ResetsAt)}
 }
 
 // inHours is a count of hours as a duration, to the nanosecond, and endless

@@ -149,15 +149,6 @@ func (v view) pick(preferred string) (score.Choice, bool) {
 	return v.policy.Pick(v.open(), v.applies, preferred, v.now)
 }
 
-// pressure returns the rate the pressure window of the account with the given
-// id is being used at, and how, at that rate, it stands for the request: when
-// it runs out, at the account's reserve, or at its limit where the request may
-// spend the reserve.
-func (v view) pressure(id string) (float64, score.Pressure) {
-	c, _ := v.candidate(id)
-	return c.Rate, v.policy.PressureOf(c, v.now)
-}
-
 // full returns the ids of the accounts whose windows as last read leave no
 // room for the request, and that aren't barred: a probe could find room on
 // them after all, were a window to have reset unseen.

@@ -1147,7 +1147,14 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}
-			if got := decide(s); got != tt.want {
+			got := decide(s)
+			// How the account passed over stood is the log's to tell, and its
+			// test's; here, that the choice judged it under pressure, at its
+			// rate.
+			if passed := tt.want.passedOver != ""; got.pressure.Under != passed || passed && got.pressure.Rate != tt.rates[tt.want.passedOver] {
+				t.Errorf("decide() judged %s as %+v, want under pressure: %v", tt.want.passedOver, got.pressure, passed)
+			}
+			if got.pressure = (score.Pressure{}); got != tt.want {
 				t.Errorf("decide() = %+v, want %+v", got, tt.want)
 			}
 		})

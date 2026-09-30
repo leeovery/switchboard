@@ -54,8 +54,10 @@ type decision struct {
 	// is, so fresher usage could change it.
 	afresh bool
 	// passedOver is the account under pressure the choice passed over, when
-	// passing over those under pressure changed it: "" when it didn't.
+	// passing over those under pressure changed it: "" when it didn't. pressure
+	// is how it stood, as the choice judged it, at the room the choice gave it.
 	passedOver string
+	pressure   score.Pressure
 	// noRoom is set when no account has room for the request, so account is
 	// only where it falls back to, or none: when reserved is set, or the
 	// request has been tried already.
@@ -123,7 +125,7 @@ func (s situation) choose() decision {
 // unpinned chooses as decide does from step 2 on.
 func (s situation) unpinned() decision {
 	if to, ok := s.moving(); ok {
-		return decision{account: to.ID, reason: reasonMovedByPin, passedOver: to.PassedOver}
+		return decision{account: to.ID, reason: reasonMovedByPin, passedOver: to.PassedOver, pressure: to.Pressure}
 	}
 	if s.keepable() {
 		return s.keep()
@@ -191,9 +193,10 @@ func (s situation) afresh() decision {
 }
 
 // chosen is the decision to send the request to the account chosen afresh,
-// for reason, and the account under pressure the choice passed over, if any.
+// for reason, and the account under pressure the choice passed over, if any,
+// and how it stood.
 func chosen(c score.Choice, reason string) decision {
-	return decision{account: c.ID, reason: reason, afresh: true, passedOver: c.PassedOver}
+	return decision{account: c.ID, reason: reason, afresh: true, passedOver: c.PassedOver, pressure: c.Pressure}
 }
 
 // pinned returns the account of the global pin's the request goes to: of

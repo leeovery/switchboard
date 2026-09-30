@@ -302,6 +302,54 @@ func TestTheBestIsWhereANewSessionGoesUnderPressure(t *testing.T) {
 	}
 }
 
+func TestThePressureLoggedIsAtTheRoomTheChoiceGaveTheAccount(t *testing.T) {
+	// Work keeps a tenth of every window back, and the global pin names it
+	// and side, so a choice spends its reserve: its session runs out at its
+	// limit. Work's quota needs using first; side's session doesn't rise.
+	tests := []struct {
+		name string
+		// from and to are work's session over 20 minutes, which resets two
+		// hours after the last.
+		from, to float64
+		rate     string
+		runsOut  time.Duration
+	}{
+		{name: "short of its reserve", from: 0.6, to: 0.7, rate: "30% an hour", runsOut: time.Hour},
+		{name: "past its reserve", from: 0.8, to: 0.92, rate: "36% an hour", runsOut: 13*time.Minute + 20*time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			configured := slices.Clone(testConfigured)
+			configured[0].Reserve = 0.1
+			clock := &testClock{now: start}
+			r, err := New(Config{
+				Accounts: configured, Token: testTokens.Read, Upstream: "http://127.0.0.1:1",
+				Provider: claude.Provider{}, Prober: &stubProber{}, Policy: testPolicy, Now: clock.read,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			resets := start.Add(2*time.Hour + 20*time.Minute)
+			for i, u := range []float64{tt.from, tt.to} {
+				clock.now = start.Add(time.Duration(i) * 20 * time.Minute)
+				r.state.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: u, ResetsAt: resets}, soonWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: resets}, laterWeek}, r.state.mark())
+			}
+			r.sessions.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start}, false)
+
+			if got := choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"}); got.Reason != "pinned (global), work under pressure" {
+				t.Fatalf("the choice = %+v, want side, passing over work", got)
+			}
+			want := []string{`msg="passed over under pressure"`, "account=work", `rate="` + tt.rate + `"`,
+				"runs_out=" + clock.now.Add(tt.runsOut).Local().Format("2006-01-02T15:04:05.000-07:00")}
+			if !log.Has(want...) {
+				t.Errorf("log reads\n%s\nwant a line with %q: work judged at its limit, as the pin spends its reserve", log, want)
+			}
+		})
+	}
+}
+
 func TestAChoicePassingOverAnAccountUnderPressureIsLogged(t *testing.T) {
 	// Work's quota needs using first, but its session, read over 20 minutes,
 	// rises at 30% an hour, and runs out 1h 20m on, before it resets two

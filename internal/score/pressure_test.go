@@ -204,12 +204,12 @@ func TestPressureOf(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			want := score.Pressure{RunsOut: now.Add(tt.wantOutIn), Under: tt.wantUnder}
+			want := score.Pressure{Rate: tt.rate, RunsOut: now.Add(tt.wantOutIn), Under: tt.wantUnder}
 			if tt.wantSilent {
 				want = score.Pressure{}
 			}
 			c := score.Candidate{ID: "a", Windows: tt.windows, Reserve: tt.reserve, Rate: tt.rate}
-			if got := policy.PressureOf(c, now); !got.RunsOut.Equal(want.RunsOut) || got.Under != want.Under {
+			if got := policy.PressureOf(c, now); got.Rate != want.Rate || !got.RunsOut.Equal(want.RunsOut) || got.Under != want.Under {
 				t.Errorf("PressureOf() = %+v, want %+v", got, want)
 			}
 		})
@@ -292,8 +292,14 @@ func TestPickSetsAsideAccountsUnderPressure(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, ok := policy.Pick(tt.candidates, policy.IsShared, tt.preferred, now); got != tt.want || !ok {
-				t.Errorf("Pick() = %+v, %v, want %+v, true", got, ok, tt.want)
+			// The account passed over stands under pressure as its candidate
+			// does, at the room it gives, its reserve included.
+			want := tt.want
+			if i := slices.IndexFunc(tt.candidates, func(c score.Candidate) bool { return c.ID == want.PassedOver }); i >= 0 {
+				want.Pressure = policy.PressureOf(tt.candidates[i], now)
+			}
+			if got, ok := policy.Pick(tt.candidates, policy.IsShared, tt.preferred, now); got != want || !ok {
+				t.Errorf("Pick() = %+v, %v, want %+v, true", got, ok, want)
 			}
 		})
 	}
