@@ -220,6 +220,57 @@ func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 	}
 }
 
+func TestAnAccountThatCantStartAWindowIsPrimedOnceItCan(t *testing.T) {
+	// Past side's slot, 06:45, it can take no request until half a minute
+	// past 06:50, between the primer's looks a minute apart.
+	freed := onDay(1, 6, 50).Add(30 * time.Second)
+	spent := quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: freed.UTC(), Status: quota.StatusRejected}
+	tests := []struct {
+		name string
+		// holdBack holds side back till freed, from ten minutes before.
+		holdBack func(s *state)
+		want     time.Time
+	}{
+		{
+			name:     "its session spent till its reset",
+			holdBack: func(s *state) { s.record("side", []quota.Window{spent, week}, s.mark()) },
+			want:     afterResets(freed, 1),
+		},
+		{
+			name:     "a limit holding back its every request",
+			holdBack: func(s *state) { s.limit("side", nil, freed) },
+			want:     freed,
+		},
+		{
+			name:     "its token refused",
+			holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized) },
+			want:     freed,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clock := newBubbleClock(onDay(1, 6, 0))
+				upstream := newWindowsUpstream(clock)
+				r := newPrimingRouter(t, clock.read, upstream, daytime)
+				// Side's session ran till 01:00, and has lapsed since.
+				lapsed := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 1, 0).UTC()}
+				r.state.record("side", []quota.Window{lapsed, week}, r.state.mark())
+				stop := startPriming(r)
+				defer stop()
+
+				time.Sleep(freed.Sub(clock.read()) - refusedFor)
+				tt.holdBack(r.state)
+				time.Sleep(90 * time.Minute)
+				synctest.Wait()
+				if got, want := upstream.probes()[sideToken], []time.Time{tt.want}; !reflect.DeepEqual(got, want) {
+					t.Errorf("side was primed at %v, want %v: as soon as it can start a window", got, want)
+				}
+			})
+		})
+	}
+}
+
 func TestAPrimeThatSharesAProbeUnderWayIsLoggedAsAPrime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
@@ -262,6 +313,38 @@ func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *tes
 	}
 	if got := newTestRouter(t, clock.read, &stubProber{}).Status().Prime; !reflect.DeepEqual(got, status.Prime{}) {
 		t.Errorf("without a day, the document's schedule is %+v, want none", got)
+	}
+}
+
+func TestTheRoutersDocumentSaysNothingOfWhenAnAccountThatCantStartAWindowIsNextPrimed(t *testing.T) {
+	far := onDay(4, 0, 0)
+	spentWeek := week
+	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
+	// Side's session ran till 01:00, and has lapsed since.
+	lapsed := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 1, 0).UTC()}
+	tests := []struct {
+		name string
+		// holdBack holds side back.
+		holdBack func(s *state)
+	}{
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized) }},
+		{name: "a limit holding back its every request", holdBack: func(s *state) { s.limit("side", nil, far) }},
+		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{lapsed, spentWeek}, s.mark()) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: onDay(1, 5, 0)}
+			r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
+			tt.holdBack(r.state)
+
+			want := []status.Slot{
+				{Account: "work", At: "04:15", Next: onDay(1, 5, 0).UTC()},
+				{Account: "side", At: "06:45"},
+			}
+			if got := r.Status().Prime.Slots; !reflect.DeepEqual(got, want) {
+				t.Errorf("the document's slots are\n%+v\nwant\n%+v: side's without when it's next primed", got, want)
+			}
+		})
 	}
 }
 

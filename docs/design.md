@@ -397,7 +397,8 @@ come back one at a time rather than together: once all are spent, the wait for t
   lapsed once it's done (`prime didn't start the window`): either is noted at `warn`, and the prime
   is sent again five minutes on. An account that can take no request anyway (see No accidental
   windows), or whose token is refused, isn't primed while it's so, as a prime couldn't start its
-  window; it's still probed where the probe rules allow, which is how a reset made by hand is seen.
+  window, but the moment it could be, once its limit or refusal ends, or its spent window resets;
+  it's still probed where the probe rules allow, which is how a reset made by hand is seen.
 - **Through the day,** whenever an account's window resets, in use or not, the router primes it 5
   seconds on, so its windows stay back to back: the API's clock may be a little behind the Mac's,
   and a prime it took in before the reset would start nothing, and go again five minutes later,

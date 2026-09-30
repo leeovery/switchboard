@@ -104,13 +104,13 @@ func (p *primer) due(id string, now time.Time) bool {
 	return ok && !at.After(now)
 }
 
-// wait is how long from now until the next prime falls due, primeLookEvery
-// at most.
+// wait is how long from now until the next prime could fall due, as
+// nextLook says, primeLookEvery at most.
 func (p *primer) wait(now time.Time) time.Duration {
 	plan := p.current()
 	wait := primeLookEvery
 	for _, a := range plan.accounts {
-		if at, ok := p.state.nextPrime(a.ID, plan.schedule, now); ok {
+		if at, ok := p.state.nextLook(a.ID, plan.schedule, now); ok {
 			wait = min(wait, max(at.Sub(now), 0))
 		}
 	}
