@@ -690,8 +690,8 @@ func TestDocumentJSON(t *testing.T) {
 				Accounts: []status.Account{
 					{
 						ID: "work", Label: "Work", TokenSet: true,
-						Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: generated.Add(80 * time.Minute), Under: true},
-						Rates:    []status.Rate{{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}},
+						Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, Since: generated.Add(-30 * time.Minute), RunsOut: generated.Add(80 * time.Minute), Under: true},
+						Rates:    []status.Rate{{Window: "5h", Rate: 0.3, Since: generated.Add(-30 * time.Minute)}, {Window: "7d", Rate: 0.03, Since: generated.Add(-2 * time.Hour)}},
 					},
 					{ID: "side", Label: "Side", TokenSet: true, Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: generated.Add(9 * time.Hour)}},
 					{ID: "spare", Label: "Spare", TokenSet: true, Pressure: status.Pressure{Window: "5h"}},
@@ -714,17 +714,20 @@ func TestDocumentJSON(t *testing.T) {
         "window": "5h",
         "rate": 0.3,
         "recent": true,
+        "since": "2026-09-28T12:42:00Z",
         "runs_out": "2026-09-28T14:32:00Z",
         "under": true
       },
       "rates": [
         {
           "window": "5h",
-          "rate": 0.3
+          "rate": 0.3,
+          "since": "2026-09-28T12:42:00Z"
         },
         {
           "window": "7d",
-          "rate": 0.03
+          "rate": 0.03,
+          "since": "2026-09-28T11:12:00Z"
         }
       ]
     },

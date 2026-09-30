@@ -19,9 +19,19 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
-// Lately is the span a window's recent rate is measured over, score.Recent,
-// as it's said.
-const Lately = "last 30 min"
+// Over says the span a recent rate is measured over, from since until now:
+// "last 30 min", "last 18 min" for a window without a level that far back,
+// or "last 2h" across a gap in its readings. A rate that doesn't say when
+// it's measured from, as a router from before gave it, is the half hour's.
+func Over(since, now time.Time) string {
+	if since.IsZero() {
+		since = now.Add(-score.Recent)
+	}
+	if d := now.Sub(since); d < time.Hour {
+		return fmt.Sprintf("last %d min", int(d/time.Minute))
+	}
+	return "last " + Countdown(since, now)
+}
 
 // notStarted is what's said of a window that has lapsed: it isn't running,
 // and reads empty, until a request starts it.
@@ -148,7 +158,7 @@ func (d Document) pressureNote(a Account, now time.Time) string {
 	if pressed == "" || !ok {
 		return pressed
 	}
-	over := "over the " + Lately
+	over := "over the " + Over(a.Pressure.Since, now)
 	if !a.Pressure.Recent {
 		over = "since it started"
 	}
@@ -425,7 +435,7 @@ func (a Account) windowNotes(w quota.Window, now time.Time) []string {
 	heading := a.Project(w, now)
 	if projection := Projection(now, heading.Projection); projection != "" {
 		if heading.Recent {
-			projection += " at its rate over the " + Lately
+			projection += " at its rate over the " + Over(heading.Since, now)
 		}
 		notes = append(notes, projection)
 	}

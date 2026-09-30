@@ -95,8 +95,8 @@ func (u *usage) pace(policy score.Policy, now time.Time) (score.Pace, bool) {
 func (u *usage) rates(now time.Time) []status.Rate {
 	var rates []status.Rate
 	for _, w := range u.latest() {
-		if rate, _, ok := score.RecentRate(w, u.trails[w.Key], now); ok {
-			rates = append(rates, status.Rate{Window: w.Key, Rate: rate})
+		if rate, since, ok := score.RecentRate(w, u.trails[w.Key], now); ok {
+			rates = append(rates, status.Rate{Window: w.Key, Rate: rate, Since: since.UTC()})
 		}
 	}
 	return rates
@@ -117,5 +117,5 @@ func (u *usage) pressure(a account, policy score.Policy, spent bool, now time.Ti
 		c.Reserve = 0
 	}
 	p := policy.PressureOf(c, now)
-	return status.Pressure{Window: policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, RunsOut: p.RunsOut, Under: p.Under}
+	return status.Pressure{Window: policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, Since: pace.Since.UTC(), RunsOut: p.RunsOut, Under: p.Under}
 }

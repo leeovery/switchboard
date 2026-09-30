@@ -53,7 +53,7 @@ func detailParts(w quota.Window, h status.Heading, now time.Time) []span {
 	var parts []span
 	if phrase := status.Projection(now, p); phrase != "" {
 		if h.Recent {
-			phrase += " (" + status.Lately + ")"
+			phrase += " (" + status.Over(h.Since, now) + ")"
 		}
 		parts = append(parts, span{phrase, projectionInk(w, p)})
 	}

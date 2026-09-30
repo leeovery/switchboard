@@ -671,10 +671,12 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   the router, at its recent rate, its rise over the last 30 minutes (see Choosing an account),
   where that has it run out sooner, or end more used: so a week at 99%, on pace since it started
   to run out at 17:42 but used at 7% an hour lately, reads as running out at 17:25, never later
-  than its use lately says, and eases back as use slows. It says when it goes at the recent rate:
-  `runs out ~Mon 17:25 (last 30 min)`, and in `status`, `runs out ~Mon 17:25 at its rate over the
-  last 30 min`. The 5-hour window's, whose rate the router judges pressure by, goes at that recent
-  rate whenever there is one, so the screen shows where the router takes it to be heading.
+  than its use lately says, and eases back as use slows. It says when it goes at the recent rate,
+  and the span that's measured over: `runs out ~Mon 17:25 (last 30 min)`, and in `status`, `runs
+  out ~Mon 17:25 at its rate over the last 30 min`; `last 18 min` for a window without a level
+  from before the half hour, or `last 2h` across a gap in its readings, and `status`'s pressure
+  line says the same. The 5-hour window's, whose rate the router judges pressure by, goes at that
+  recent rate whenever there is one, so the screen shows where the router takes it to be heading.
   `status` projects as the dashboard does.
 - A window reset by hand before its reset time, as claude.ai's banked reset does, dropping its use
   but keeping its reset (see Observed), has effectively started again: the router reads it with
@@ -1310,8 +1312,8 @@ Each account:
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
 | `limit` | *router* A limit it reached, while it holds: `{windows, until}`, `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
-| `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets: the account is under pressure (see Choosing an account). Left out when the rate can't be said, as when the window isn't running |
-| `rates` | *router* How fast its windows have been used lately: `[{window, rate}]`, in `windows`' order, `window` a window's key and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The projections go by them (see Dashboard). Left out when no window has one |
+| `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets: the account is under pressure (see Choosing an account). Left out when the rate can't be said, as when the window isn't running |
+| `rates` | *router* How fast its windows have been used lately: `[{window, rate, since}]`, in `windows`' order, `window` a window's key, `since` when the rate is measured from, and `rate` its rise from the level of its use read last before the last 30 minutes to its latest, as a share of it an hour: over those 30 minutes when that level was read again after they began, else over the time since it was last read, a rise across a gap in its readings spread over the gap; or, with no level that far back, from its first, over the time since, 10 minutes at least. Never negative, and 0 for a window read but unused since (see Choosing an account). The projections go by them (see Dashboard). Left out when no window has one |
 | `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
 ### Launching

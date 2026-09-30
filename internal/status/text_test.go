@@ -458,6 +458,15 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			notes:    "  under pressure: runs out ~15:32 at Session's rate over the last 30 min, before its reset at 17:10\n",
 		},
 		{
+			name: "at its rate over the 18 minutes it's measured over",
+			pressure: status.Pressure{
+				Window: "5h", Rate: 0.3, Recent: true, Since: now.Add(-18 * time.Minute).UTC(),
+				RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true,
+			},
+			heading: "runs out ~Mon 15:32 at its rate over the last 18 min",
+			notes:   "  under pressure: runs out ~15:32 at Session's rate over the last 18 min, before its reset at 17:10\n",
+		},
+		{
 			name:     "at its rate since it started",
 			pressure: status.Pressure{Window: "5h", Rate: 0.6 / (2*time.Hour + 2*time.Minute).Hours(), RunsOut: time.Date(2026, 9, 28, 14, 33, 20, 0, time.UTC), Under: true},
 			heading:  "runs out ~Mon 15:33",
@@ -482,7 +491,7 @@ func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
 			// its pressure goes by.
 			var rates []status.Rate
 			if tt.pressure.Recent {
-				rates = []status.Rate{{Window: "5h", Rate: tt.pressure.Rate}}
+				rates = []status.Rate{{Window: "5h", Rate: tt.pressure.Rate, Since: tt.pressure.Since}}
 			}
 			doc := status.Document{
 				GeneratedAt: now.UTC(),
@@ -516,6 +525,11 @@ func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
 		heading string
 	}{
 		{name: "at its rate over the last half hour, sooner", rates: []status.Rate{{Window: "7d", Rate: 0.07}}, heading: "runs out ~Mon 14:20 at its rate over the last 30 min"},
+		{
+			name:    "at its rate over the 18 minutes it's measured over, sooner",
+			rates:   []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-18 * time.Minute)}},
+			heading: "runs out ~Mon 14:20 at its rate over the last 18 min",
+		},
 		{name: "at its use since it started, its recent rate slower", rates: []status.Rate{{Window: "7d", Rate: 0.001}}, heading: "runs out ~Mon 14:55"},
 		{name: "without a recent rate", heading: "runs out ~Mon 14:55"},
 	}
@@ -881,9 +895,25 @@ func TestLimit(t *testing.T) {
 	}
 }
 
-func TestLatelySaysTheSpanTheRecentRateIsMeasuredOver(t *testing.T) {
-	if want := fmt.Sprintf("last %.0f min", score.Recent.Minutes()); status.Lately != want {
-		t.Errorf("Lately = %q, want %q, as score.Recent is", status.Lately, want)
+func TestOver(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		since time.Time
+		want  string
+	}{
+		{name: "the half hour", since: now.Add(-score.Recent), want: fmt.Sprintf("last %.0f min", score.Recent.Minutes())},
+		{name: "less, without a level that far back", since: now.Add(-18 * time.Minute), want: "last 18 min"},
+		{name: "more, across a gap", since: now.Add(-2 * time.Hour), want: "last 2h"},
+		{name: "more, and minutes", since: now.Add(-(time.Hour + 30*time.Minute)), want: "last 1h 30m"},
+		{name: "not said, the half hour", want: "last 30 min"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Over(tt.since, now); got != tt.want {
+				t.Errorf("Over() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

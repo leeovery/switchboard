@@ -248,6 +248,8 @@ type Rate struct {
 	// Window is the window's key, such as "7d".
 	Window string  `json:"window"`
 	Rate   float64 `json:"rate"`
+	// Since is when the rate is measured from.
+	Since time.Time `json:"since,omitzero"`
 }
 
 // Pressure is how fast the router has seen an account's pressure window
@@ -260,9 +262,10 @@ type Pressure struct {
 	// Rate is the share of the window used an hour: its recent rate, as a
 	// Rate is, while it has one, else its use since it started.
 	Rate float64 `json:"rate"`
-	// Recent is set when Rate is its rise across the last half hour's
-	// readings.
-	Recent bool `json:"recent,omitempty"`
+	// Recent is set when Rate is its recent rate, and Since is when that's
+	// measured from.
+	Recent bool      `json:"recent,omitempty"`
+	Since  time.Time `json:"since,omitzero"`
 	// RunsOut is when, at Rate, the window reaches where the account's room
 	// ends: where its reserve starts, or its limit, without one or where the
 	// global pin spends it. Zero when it never does, at no rate, and when it
@@ -351,8 +354,10 @@ func (a Account) AsOf(policy score.Policy, now time.Time) Account {
 type Heading struct {
 	score.Projection
 	// Recent is set when it heads there at that recent rate, rather than at
-	// the pace its use since it started sets.
+	// the pace its use since it started sets, and Since is when that rate is
+	// measured from.
 	Recent bool
+	Since  time.Time
 }
 
 // Project says where the account's window w is heading at now: at the pace
@@ -367,7 +372,7 @@ func (a Account) Project(w quota.Window, now time.Time) Heading {
 	if !ok {
 		return average
 	}
-	recent := Heading{Projection: score.ProjectAt(w, rate, now), Recent: true}
+	recent := Heading{Projection: score.ProjectAt(w, rate.Rate, now), Recent: true, Since: rate.Since}
 	if w.Key == a.Pressure.Window || score.Sooner(average.Projection, recent.Projection) {
 		return recent
 	}
@@ -376,12 +381,12 @@ func (a Account) Project(w quota.Window, now time.Time) Heading {
 
 // rate returns how fast the router has seen the account's window with the
 // given key used lately, reporting false when it has no recent rate of it.
-func (a Account) rate(key string) (float64, bool) {
+func (a Account) rate(key string) (Rate, bool) {
 	i := slices.IndexFunc(a.Rates, func(r Rate) bool { return r.Window == key })
 	if i < 0 {
-		return 0, false
+		return Rate{}, false
 	}
-	return a.Rates[i].Rate, true
+	return a.Rates[i], true
 }
 
 // HasLapsed reports whether the account's window w has lapsed, and reads

@@ -288,6 +288,11 @@ func TestTheDocumentGivesEachWindowsRecentRate(t *testing.T) {
 		if !sameRates(a.Rates, want[a.ID]) {
 			t.Errorf("%s's recent rates are %+v, want %+v", a.ID, a.Rates, want[a.ID])
 		}
+		for _, r := range a.Rates {
+			if !r.Since.Equal(start) {
+				t.Errorf("%s's %s rate is measured from %v, want %v, its first level, with none before the half hour", a.ID, r.Window, r.Since, start)
+			}
+		}
 	}
 }
 
