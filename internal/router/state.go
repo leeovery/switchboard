@@ -45,13 +45,13 @@ type usage struct {
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
-	// refused is the upstream's last refusal of the account's token, which
-	// holds back every request.
-	refused refusal
-	// forbidden holds, by model family, the upstream's last refusal of a
-	// request of the family on the account, its token standing, which holds
-	// back the family's requests alone.
-	forbidden map[string]refusal
+	// refused are the upstream's refusals of the account's token, which hold
+	// back every request.
+	refused refusals
+	// forbidden holds, by model family, the upstream's refusals of requests of
+	// the family on the account, its token standing, which hold back the
+	// family's requests alone.
+	forbidden map[string]refusals
 	// limited is the limit the account last reached.
 	limited limit
 	// reserved are the keys of the windows last found to have reached the
@@ -60,10 +60,12 @@ type usage struct {
 }
 
 // refusal is the upstream refusing requests on an account, answering with
-// status, at a time: the account has no room for them for refusedFor after.
+// status, at a time, as it refused the request with the id by: the account
+// has no room for them for refusedFor after.
 type refusal struct {
 	at     time.Time
 	status int
+	by     string
 }
 
 // inForce reports whether the refusal is in force at now.
@@ -75,6 +77,36 @@ func (r refusal) inForce(now time.Time) bool {
 // requests of family, or every request when that's "".
 func (r refusal) report(family string) status.Refusal {
 	return status.Refusal{Until: r.at.Add(refusedFor), Status: r.status, Family: family}
+}
+
+// refusals are the upstream's refusals that hold back the same requests on an
+// account, each of a request of its own, which can take its own back.
+type refusals []refusal
+
+// latest returns the latest of the refusals, which holds longest, or zero
+// when there's none.
+func (rs refusals) latest() refusal {
+	if len(rs) == 0 {
+		return refusal{}
+	}
+	return slices.MaxFunc(rs, func(a, b refusal) int { return a.at.Compare(b.at) })
+}
+
+// inForce reports whether a refusal is in force at now.
+func (rs refusals) inForce(now time.Time) bool {
+	return rs.latest().inForce(now)
+}
+
+// with returns the refusals with r too, and without those no longer in force
+// as it came.
+func (rs refusals) with(r refusal) refusals {
+	return append(slices.DeleteFunc(slices.Clone(rs), func(old refusal) bool { return !old.inForce(r.at) }), r)
+}
+
+// without returns the refusals without those of the request with the given
+// id.
+func (rs refusals) without(by string) refusals {
+	return slices.DeleteFunc(slices.Clone(rs), func(r refusal) bool { return r.by == by })
 }
 
 // limit is a limit an account reached: the windows the upstream named as
@@ -164,7 +196,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		seen:     make(map[string]map[string]bool),
 	}
 	for _, a := range accounts {
-		s.usage[a.ID] = &usage{windows: make(map[string]quota.Window), taken: make(map[string]moment), forbidden: make(map[string]refusal)}
+		s.usage[a.ID] = &usage{windows: make(map[string]quota.Window), taken: make(map[string]moment), forbidden: make(map[string]refusals)}
 	}
 	return s
 }
@@ -260,32 +292,53 @@ func (s *state) seeFamily(key, family string) bool {
 	return true
 }
 
-// refuse notes that the upstream refused the account's token, answering with
-// status: the account has no room for refusedFor.
-func (s *state) refuse(id string, status int) {
-	r := refusal{at: s.now().UTC(), status: status}
+// refuse notes that the upstream refused the account's token, answering the
+// request with the id by with status: the account has no room for
+// refusedFor.
+func (s *state) refuse(id string, status int, by string) {
+	r := refusal{at: s.now().UTC(), status: status, by: by}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].refused = r
+	u := s.usage[id]
+	u.refused = u.refused.with(r)
 }
 
 // tokenReplaced notes that the account with the given id goes out on another
-// token from now on: the upstream's refusal of the one before no longer holds
+// token from now on: the upstream's refusals of the one before no longer hold
 // it back.
 func (s *state) tokenReplaced(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].refused = refusal{}
+	s.usage[id].refused = nil
 }
 
-// forbid notes that the upstream refused the account a request of a model of
-// family, answering with status, though not its token: the account has no
-// room for the family's requests for refusedFor.
-func (s *state) forbid(id, family string, status int) {
-	r := refusal{at: s.now().UTC(), status: status}
+// forbid notes that the upstream refused the account the request with the id
+// by, of a model of family, answering with status, though not its token: the
+// account has no room for the family's requests for refusedFor.
+func (s *state) forbid(id, family string, status int, by string) {
+	r := refusal{at: s.now().UTC(), status: status, by: by}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].forbidden[family] = r
+	u := s.usage[id]
+	u.forbidden[family] = u.forbidden[family].with(r)
+}
+
+// takeBack takes back, on every account, the refusals of the request with
+// the given id that hold back its model family, and reports whether there
+// were any. The refusals of an account's token stand, as they say something
+// of the account, and so do other requests' refusals.
+func (s *state) takeBack(by string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	took := false
+	for _, u := range s.usage {
+		for family, rs := range u.forbidden {
+			kept := rs.without(by)
+			took = took || len(kept) < len(rs)
+			u.forbidden[family] = kept
+		}
+	}
+	return took
 }
 
 // limit notes that the account reached its limit, in the windows named, if
@@ -418,7 +471,7 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 	at := now
 	if u.refused.inForce(now) {
-		at = later(at, u.refused.at.Add(refusedFor))
+		at = later(at, u.refused.latest().at.Add(refusedFor))
 	}
 	if u.limited.holds(now, policy.IsShared) {
 		at = later(at, u.limited.until)
@@ -653,15 +706,16 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 }
 
 // document reports every account's usage as the router knows it, in the
-// order configured, with the best account to use next, never one with no
-// room for any request, whatever its windows read, and the primary.
-func (s *state) document() status.Document {
+// order configured, with the best account to use next, of the accounts
+// pinned while one has room, as a new session goes, never one with no room
+// for any request, whatever its windows read, and the primary.
+func (s *state) document(pinned ...string) status.Document {
 	now := s.now()
 	accounts, open := s.statuses(now)
 	return status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
-		Best:        status.Best(s.policy, open, now),
+		Best:        status.Best(s.policy, open, pinned, now),
 		Primary:     status.PrimaryOf(accounts),
 		Accounts:    accounts,
 	}
@@ -739,11 +793,11 @@ func (u *usage) status(a account, policy score.Policy, now time.Time) status.Acc
 // else the latest of those holding back a family's requests alone.
 func (u *usage) refusedStatus(now time.Time) status.Refusal {
 	if u.refused.inForce(now) {
-		return u.refused.report("")
+		return u.refused.latest().report("")
 	}
 	var latest status.Refusal
 	for _, family := range slices.Sorted(maps.Keys(u.forbidden)) {
-		if r := u.forbidden[family]; r.inForce(now) && r.at.Add(refusedFor).After(latest.Until) {
+		if r := u.forbidden[family].latest(); r.inForce(now) && r.at.Add(refusedFor).After(latest.Until) {
 			latest = r.report(family)
 		}
 	}

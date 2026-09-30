@@ -107,8 +107,8 @@ func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.
 			tt.since(s)
 			before := changes
 
-			if forgot := s.forget(req); forgot != tt.wantForgot {
-				t.Errorf("forget() = %v, want %v", forgot, tt.wantForgot)
+			if back, forgot := s.forget(req); back != "" || forgot != tt.wantForgot {
+				t.Errorf("forget() = %q, %v, want \"\", %v", back, forgot, tt.wantForgot)
 			}
 			if got := s.lookup(req.key()); got.assigned != (tt.want != "") || got.current.Account != tt.want {
 				t.Errorf("the session is assigned %+v (%v), want %q", got.current, got.assigned, tt.want)
@@ -119,6 +119,68 @@ func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.
 			}
 			if got := changes - before; got != wantChanges {
 				t.Errorf("forget() noted %d changes for the state file, want %d", got, wantChanges)
+			}
+		})
+	}
+}
+
+func TestForgetPutsASessionBackAsItWasBeforeTheRequest(t *testing.T) {
+	req := Request{ID: "a1b2c3d4", Session: "one", Model: opus}
+	other := Request{ID: "e5f6a7b8", Session: "one", Model: opus}
+	toSide := decision{account: "side", reason: "moved: work was refused"}
+	toPersonal := decision{account: "personal", reason: "moved: side was refused"}
+	// onWork is the session's assignment before req, which another request
+	// made an hour before.
+	onWork := assignment{Account: "work", Reason: reasonNew, AssignedAt: start.Add(-time.Hour), LastSeen: start.Add(-time.Minute), by: other.ID}
+	tests := []struct {
+		name string
+		// moves are what befell the session from req on.
+		moves    func(s *sessions)
+		wantBack bool
+		// want is the session's assignment once it's done.
+		want assignment
+	}{
+		{
+			name:     "moved by the request",
+			moves:    func(s *sessions) { assignFor(s, req, toSide, start) },
+			wantBack: true,
+			want:     onWork,
+		},
+		{
+			name: "moved by the request twice, as it was replayed",
+			moves: func(s *sessions) {
+				assignFor(s, req, toSide, start)
+				assignFor(s, req, toPersonal, start.Add(time.Second))
+			},
+			wantBack: true,
+			want:     onWork,
+		},
+		{
+			name: "moved by another request since",
+			moves: func(s *sessions) {
+				assignFor(s, req, toSide, start)
+				assignFor(s, other, toPersonal, start.Add(time.Second))
+			},
+			want: assignment{Account: "personal", Reason: toPersonal.reason, AssignedAt: start.Add(time.Second), LastSeen: start.Add(time.Second), by: other.ID},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var changes changeCount
+			s := newSessions(at(start), changes.hear, unkept)
+			s.assignments[req.key()] = onWork
+			tt.moves(s)
+			before := changes
+
+			back, ok := s.forget(req)
+			if wantBack := map[bool]string{true: "work"}[tt.wantBack]; back != wantBack || ok != tt.wantBack {
+				t.Errorf("forget() = %q, %v, want %q, %v", back, ok, wantBack, tt.wantBack)
+			}
+			if got := s.lookup(req.key()).current; got != tt.want {
+				t.Errorf("the session is assigned %+v, want %+v", got, tt.want)
+			}
+			if got, want := changes-before, map[bool]changeCount{true: 1}[tt.wantBack]; got != want {
+				t.Errorf("forget() noted %d changes for the state file, want %d", got, want)
 			}
 		})
 	}

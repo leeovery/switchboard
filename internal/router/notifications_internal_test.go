@@ -133,7 +133,7 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 				for _, id := range []string{"1", "3"} {
 					h.read(id, h.session(used, time.Hour), h.week(0.5, 3*day))
 					if tt.refused {
-						h.state.refuse(id, http.StatusUnauthorized)
+						h.state.refuse(id, http.StatusUnauthorized, someRequest)
 					}
 				}
 				h.start()
@@ -288,7 +288,7 @@ func TestRoomAgainOnceQuotaIsBackAndARefusalAlongsideHasLifted(t *testing.T) {
 		h.read("2", h.session(1, 2*time.Minute), h.week(0.5, 3*day))
 		h.start()
 
-		h.state.refuse("2", http.StatusUnauthorized)
+		h.state.refuse("2", http.StatusUnauthorized, someRequest)
 		h.hear(Refused{Account: "2", Status: http.StatusUnauthorized})
 		h.after(5 * time.Minute)
 		h.expect()
@@ -304,7 +304,7 @@ func TestARevokedTokenIsNeverRoomAgain(t *testing.T) {
 		h.start()
 
 		for range 5 {
-			h.state.refuse("2", http.StatusUnauthorized)
+			h.state.refuse("2", http.StatusUnauthorized, someRequest)
 			h.hear(Refused{Account: "2", Status: http.StatusUnauthorized})
 			h.after(refusedFor + lookEvery)
 		}
@@ -344,14 +344,14 @@ func TestNoRoomAgainUnlessQuotaRanOut(t *testing.T) {
 			setUp: func(h *notifying) {
 				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
 				h.start()
-				h.state.refuse("2", http.StatusUnauthorized)
+				h.state.refuse("2", http.StatusUnauthorized, someRequest)
 			},
 		},
 		{
 			name: "once a refusal lifts, with nothing read of it",
 			setUp: func(h *notifying) {
 				h.start()
-				h.state.refuse("2", http.StatusUnauthorized)
+				h.state.refuse("2", http.StatusUnauthorized, someRequest)
 			},
 		},
 	}

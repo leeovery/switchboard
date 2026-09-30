@@ -43,15 +43,20 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 		d, on = s.decide(req)
 	}
 	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
-	if req.Session != "" && !d.reserved {
+	if req.Session != "" && d.account != "" {
 		c.New = s.remember(on, d)
 	}
 	return c
 }
 
 func (s *scheduler) Forget(req Request) {
-	if s.sessions.forget(req) {
+	back, ok := s.sessions.forget(req)
+	switch {
+	case !ok:
+	case back == "":
 		logger.Debug("forgot a new session whose request went unanswered", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model)
+	default:
+		logger.Info("session back where it was before its request", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model, "account", back)
 	}
 }
 

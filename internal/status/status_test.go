@@ -307,6 +307,75 @@ func TestCollectBest(t *testing.T) {
 	}
 }
 
+func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: now.Add(3 * time.Hour)}
+	week := func(utilization float64, resetsIn time.Duration) []quota.Window {
+		return []quota.Window{session, {Key: "7d", Label: "Week", Utilization: utilization, ResetsAt: now.Add(resetsIn)}}
+	}
+	account := func(id string, windows []quota.Window) status.Account {
+		return status.Account{ID: id, Label: id, TokenSet: true, Windows: windows}
+	}
+	// Spare's week needs using first, then side's, then work's.
+	accounts := []status.Account{
+		account("work", week(0.5, 5*24*time.Hour)),
+		account("side", week(0.5, 3*24*time.Hour)),
+		account("spare", week(0.5, 24*time.Hour)),
+	}
+	tests := []struct {
+		name   string
+		pinned []string
+		// change changes the accounts before the best is chosen of them.
+		change func(accounts []status.Account)
+		want   string
+	}{
+		{name: "unpinned, the best of every account", want: "spare"},
+		{name: "the one pinned", pinned: []string{"work"}, want: "work"},
+		{name: "the best of those pinned", pinned: []string{"work", "side"}, want: "side"},
+		{
+			name:   "one pinned at its reserve, which the pin spends",
+			pinned: []string{"work"},
+			change: func(accounts []status.Account) {
+				accounts[0].Reserve, accounts[0].Windows = 0.1, week(0.95, 5*24*time.Hour)
+			},
+			want: "work",
+		},
+		{
+			name:   "the best of every account once none pinned has room",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) {
+				accounts[0].Windows, accounts[1].Windows = week(1, 5*24*time.Hour), week(1, 3*24*time.Hour)
+			},
+			want: "spare",
+		},
+		{
+			name:   "the first pinned with room when none pinned can be scored",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) {
+				accounts[0].Windows, accounts[1].Windows = week(1, 5*24*time.Hour), nil
+			},
+			want: "side",
+		},
+		{
+			name:   "none pinned without a usable token",
+			pinned: []string{"work"},
+			change: func(accounts []status.Account) { accounts[0] = status.Account{ID: "work", Label: "work"} },
+			want:   "spare",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accounts := slices.Clone(accounts)
+			if tt.change != nil {
+				tt.change(accounts)
+			}
+			if got := status.Best(policy, accounts, tt.pinned, now); got != tt.want {
+				t.Errorf("Best() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDocumentJSON(t *testing.T) {
 	generated := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	tests := []struct {

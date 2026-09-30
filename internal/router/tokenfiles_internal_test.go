@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -18,6 +19,72 @@ const (
 	// notAToken is what a token file holds that holds more than a token.
 	notAToken = "test-token-one test-token-two"
 )
+
+// withoutWork is testConfigured once work has left it, which leaves side
+// the primary.
+var withoutWork = config.Accounts{{ID: "side", Label: "Side", Primary: true}, {ID: "personal", Label: "Personal"}}
+
+func TestTheTokensOfAnAccountThatLeftTheConfigAreThePrimarysOnce(t *testing.T) {
+	log := logstest.Capture(t)
+	f := newTestTokenFiles(testTokens, testTokens)
+	clock := &testClock{now: start}
+	f.now = clock.read
+	side, _ := f.accounts.byID("side")
+
+	f.retire(withoutWork)
+	if !side.secret.was(workHash, start) || f.kept != 1 {
+		t.Fatalf("work's token counts as side's: %v, and the state file heard %d changes, want true and 1", side.secret.was(workHash, start), f.kept)
+	}
+	if _, kept := f.accounts.kept()["work"]; kept {
+		t.Error("the state file keeps work's tokens as its own, want them kept as side's alone")
+	}
+
+	// A token work's file comes to hold after it left the config isn't side's.
+	f.files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
+	f.look()
+	f.retire(withoutWork)
+	if side.secret.was(renewedHash, start) {
+		t.Error("the token work's file came to hold after it left the config counts as side's, want not")
+	}
+
+	// A week on, work's token is forgotten, and not taken up again.
+	clock.now = start.Add(formerFor)
+	f.accounts.forget(clock.now)
+	f.retire(withoutWork)
+	if side.secret.was(workHash, clock.now) {
+		t.Error("a week on, work's token counts as side's again, want it forgotten")
+	}
+	if n := strings.Count(log.String(), `msg="account no longer configured; its tokens count as the primary's for a week"`); n != 1 {
+		t.Errorf("log reads\n%s\nwant work's tokens taken up by side once, not %d times", log, n)
+	}
+	checkNoToken(t, log)
+}
+
+func TestAnAccountBackInTheConfigHasItsTokensBack(t *testing.T) {
+	log := logstest.Capture(t)
+	f := newTestTokenFiles(testTokens, testTokens)
+	side, _ := f.accounts.byID("side")
+	work, _ := f.accounts.byID("work")
+
+	// A config caught while it's edited leaves work out; then it's back.
+	f.retire(withoutWork)
+	f.retire(config.Accounts(testConfigured))
+	if side.secret.was(workHash, start) {
+		t.Error("work's token still counts as side's, want it work's alone once work is configured again")
+	}
+	if got, want := f.accounts.kept()["work"], (savedTokens{SHA256: workHash}); !got.equal(want) {
+		t.Errorf("the state file keeps work's tokens as %+v, want %+v, its own again", got, want)
+	}
+	if a, ok := f.accounts.byToken(workToken, start); !ok || a.ID != work.ID {
+		t.Errorf("a request carrying work's token is routed as %q (%v), want work's", a.ID, ok)
+	}
+	if f.kept != 2 {
+		t.Errorf("the state file heard %d changes, want 2: work leaving, and work back", f.kept)
+	}
+	if !log.Has("level=INFO", `msg="account configured again; its tokens are its own again"`, "account=work") {
+		t.Errorf("log reads\n%s\nwant work noted as configured again", log)
+	}
+}
 
 func TestTokenFilesAreTakenUpAsTheyChange(t *testing.T) {
 	tests := []struct {
@@ -244,8 +311,8 @@ func TestAnAccountThatGoesOutOnAnotherTokenIsNoLongerHeldBackByTheRefusalOfItsLa
 		t.Run(tt.name, func(t *testing.T) {
 			files := &changingFiles{files: testTokens}
 			r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
-			r.state.refuse("work", http.StatusUnauthorized)
-			r.state.forbid("work", "opus", http.StatusForbidden)
+			r.state.refuse("work", http.StatusUnauthorized, someRequest)
+			r.state.forbid("work", "opus", http.StatusForbidden, someRequest)
 			tt.takeUp(r)
 			if work, _ := r.Status().Account("work"); work.Refused.Status != http.StatusUnauthorized {
 				t.Fatalf("work's refusal is %+v, want its token's still: its file holds the token refused", work.Refused)

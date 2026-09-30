@@ -135,6 +135,10 @@ type sessions struct {
 
 	mu          sync.Mutex
 	assignments map[key]assignment
+	// before holds, by session and model, the assignment as it stood before
+	// the request last noted on it first noted it, which forget puts back:
+	// none for a session that had none.
+	before map[key]assignment
 	// own holds the pins sessions were given while they ran, by session id.
 	own map[string]ownPin
 	pin status.Pin
@@ -146,6 +150,7 @@ func newSessions(now func() time.Time, changed, usedAgain func()) *sessions {
 		changed:     changed,
 		usedAgain:   usedAgain,
 		assignments: make(map[key]assignment),
+		before:      make(map[key]assignment),
 		own:         make(map[string]ownPin),
 	}
 }
@@ -168,9 +173,12 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := req.key()
-	found := s.assignments[k]
+	found, had := s.assignments[k]
 	if !found.same(was) {
 		return found, false
+	}
+	if !had || found.by != req.ID {
+		s.noteBefore(k, found, had)
 	}
 	a := found
 	if a.Account != d.account {
@@ -189,19 +197,38 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 	return found, true
 }
 
-// forget forgets the assignment of req's session and model while req is the
-// last request noted on it, and reports whether it did: one noted since
-// stands, whether it made the assignment, moved it or stayed on it.
-func (s *sessions) forget(req Request) bool {
+// noteBefore notes the assignment of the session and model k name as it
+// stands before a request first notes it, which forget puts back: found,
+// else none, when had is unset. s.mu must be held.
+func (s *sessions) noteBefore(k key, found assignment, had bool) {
+	if had {
+		s.before[k] = found
+		return
+	}
+	delete(s.before, k)
+}
+
+// forget puts the assignment of req's session and model back as it stood
+// before req first noted it, forgetting it when there was none, while req is
+// the last request noted on it: one noted since stands, whether it made the
+// assignment, moved it or stayed on it. It returns the account the session
+// is back on, "" when it's forgotten, and reports whether it put it back.
+func (s *sessions) forget(req Request) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := req.key()
 	if a, ok := s.assignments[k]; !ok || a.by != req.ID {
-		return false
+		return "", false
 	}
-	delete(s.assignments, k)
+	was, had := s.before[k]
+	delete(s.before, k)
+	if had {
+		s.assignments[k] = was
+	} else {
+		delete(s.assignments, k)
+	}
 	s.changed()
-	return true
+	return was.Account, true
 }
 
 // globalPin returns the global pin, zero when there's none.
@@ -315,6 +342,10 @@ func (s *sessions) prune(now time.Time) {
 	defer s.mu.Unlock()
 	held := len(s.assignments)
 	maps.DeleteFunc(s.assignments, func(_ key, a assignment) bool { return a.forgotten(now) })
+	maps.DeleteFunc(s.before, func(k key, _ assignment) bool {
+		_, assigned := s.assignments[k]
+		return !assigned
+	})
 	if forgotten := held - len(s.assignments); forgotten > 0 {
 		logger.Debug("forgot sessions unused for a week", "assignments", forgotten)
 		maps.DeleteFunc(s.own, func(id string, _ ownPin) bool { return !s.seen(id) })

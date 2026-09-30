@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Configs the tests' config file holds: two valid, and one that isn't.
@@ -74,7 +75,7 @@ func TestTheConfigFileIsLookedAtForAChange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
 
 			tt.change(t, s)
 			r.look()
@@ -121,7 +122,7 @@ func TestTheBinaryIsUpgradedOnceItLeadsToAnotherFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
 
 			tt.change(t, s)
 			r.look()
@@ -167,7 +168,7 @@ func TestTheTimeZoneChangesOnceItsFileLeadsToAnother(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
 
 			tt.change(t, s)
 			r.look()
@@ -212,7 +213,7 @@ func TestAChangeMadeOnceWhatTheRouterStartsFromWasFoundIsSeen(t *testing.T) {
 			config, binary, zone := Watch(s.config), Watch(s.binary), Watch(s.zone)
 
 			tt.change(t, s)
-			r := newRestarts(config, binary, zone, true, newInFlight())
+			r := newRestarts(config, binary, zone, true, newInFlight(), at(start))
 			r.look()
 			if got := r.due(); got != tt.wantDue {
 				t.Errorf("due() = %q, want %q", got, tt.wantDue)
@@ -224,7 +225,7 @@ func TestAChangeMadeOnceWhatTheRouterStartsFromWasFoundIsSeen(t *testing.T) {
 func TestABinaryThatLedNowhereAsTheRouterStartedIsNeverUpgraded(t *testing.T) {
 	s := newStartedFrom(t)
 	missing := filepath.Join(t.TempDir(), "switchboard")
-	r := newRestarts(Watch(s.config), Watch(missing), Watch(s.zone), true, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(missing), Watch(s.zone), true, newInFlight(), at(start))
 
 	link(t, s.version("1.1"), missing)
 	r.look()
@@ -235,7 +236,7 @@ func TestABinaryThatLedNowhereAsTheRouterStartedIsNeverUpgraded(t *testing.T) {
 
 func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
 
 	writeFile(t, s.kept, notAConfig)
 	relink(t, s.binary, s.version("1.1"))
@@ -254,7 +255,7 @@ func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 func TestARestartDueIsSaidOnceByHand(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), false, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), false, newInFlight(), at(start))
 
 	writeFile(t, s.kept, twoAccounts)
 	r.look()
@@ -277,7 +278,7 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
 	inFlight := newInFlight()
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start))
 	if r.ready() != nil {
 		t.Fatal("ready() isn't nil, with no restart due")
 	}
@@ -314,9 +315,48 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 	}
 }
 
+func TestARestartDueIsReported(t *testing.T) {
+	tests := []struct {
+		name       string
+		supervised bool
+		want       status.Restart
+	}{
+		{name: "by the service's router", supervised: true, want: status.Restart{Reason: "upgraded", Since: start, InFlight: 2}},
+		{name: "by a router run by hand", want: status.Restart{Reason: "upgraded", Since: start, InFlight: 2, ByHand: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newStartedFrom(t)
+			inFlight := newInFlight()
+			clock := &testClock{now: start}
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), tt.supervised, inFlight, clock.read)
+			r.look()
+			if got := r.report(); got != (status.Restart{}) {
+				t.Fatalf("with nothing changed, report() = %+v, want none due", got)
+			}
+
+			inFlight.begin()
+			inFlight.begin()
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+			clock.now = start.Add(time.Hour)
+			r.look()
+			if got := r.report(); got != tt.want {
+				t.Errorf("upgraded an hour ago, with two requests in flight, report() = %+v, want %+v", got, tt.want)
+			}
+
+			writeFile(t, s.kept, notAConfig)
+			r.look()
+			if got := r.report(); got != (status.Restart{}) {
+				t.Errorf("with the config file invalid, report() = %+v, want none due: a router started again couldn't start", got)
+			}
+		})
+	}
+}
+
 func TestARestartLooksAgainBeforeItGoes(t *testing.T) {
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight())
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
 

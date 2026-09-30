@@ -54,6 +54,7 @@ func layouts() []layout {
 		{name: "router-pinned-to-two-compact", doc: pinnedToTwo(), opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "router-automatic", doc: routedAutomatically(), opts: dashboard.Options{Width: 160}},
 		{name: "router-unhealthy", doc: routerUnhealthy(), opts: dashboard.Options{Width: 160}},
+		{name: "router-restart-due", doc: restartDue(), opts: dashboard.Options{Width: 160}},
 		{name: "router-refused", doc: routedRefused(), opts: dashboard.Options{Width: 160}},
 		{name: "router-compact", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "router-compact-narrow", doc: pinnedElsewhere(), opts: dashboard.Options{Width: 72, Height: 10}},
@@ -654,6 +655,13 @@ func probedPriming() status.Document {
 func routerUnhealthy() status.Document {
 	doc := routed()
 	doc.Router = status.Health{Requests: 9, Failures: 7, Reason: "7 of the 9 requests in the last 5 minutes failed"}
+	return doc
+}
+
+// restartDue is routedAutomatically by a router with a restart due.
+func restartDue() status.Document {
+	doc := routedAutomatically()
+	doc.Restart = status.Restart{Reason: "upgraded", Since: now.Add(-time.Hour), InFlight: 3}
 	return doc
 }
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -237,19 +238,37 @@ func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter 
 // refused bars an account that refused the request for a while, as bar
 // does, and moves on from it when another account can take the request. When
 // none can, the client has the answer of the first account whose limit the
-// request reached, as that's why no account was left, else a refusal.
+// request reached, as that's why no account was left, else a refusal, giving
+// the upstream's reason.
 func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quota.Verdict) (*http.Response, bool, error) {
-	reason := rp.p.provider.ErrorMessage(resp.Body, rp.sent.Reveal())
+	reason := prose.Truncate(rp.p.provider.ErrorMessage(resp.Body, rp.sent.Reveal()), refusalShown)
 	discard(resp)
-	rp.p.emit(rp.bar(verdict, resp.StatusCode, prose.Truncate(reason, refusalShown)))
+	rp.p.emit(rp.bar(verdict, resp.StatusCode, reason))
 	switch {
 	case rp.moveOn(ctx, whyRefused):
 		return nil, true, nil
 	case rp.limit != nil:
 		logger.Info("answering with the limit reached before", "id", rp.ex.id, "account", rp.limit.account)
 		return rp.limit.resp, false, nil
-	default:
-		return nil, false, refusedError{status: resp.StatusCode}
+	}
+	rp.takeBack()
+	return nil, false, refusedError{status: resp.StatusCode, reason: reason}
+}
+
+// takeBack takes back what the request did when every account it went out
+// on refused it, as a refusal of the request every account that judged it
+// gives says more of the request than of the accounts: the moves of its
+// session, which goes back where it was, and the bars it placed on its model
+// family. A bar on an account's token stands, as it says something of the
+// account, and so does a bar another request placed, and a move another
+// request of the session made since.
+func (rp *replay) takeBack() {
+	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused }) {
+		return
+	}
+	rp.p.chooser.Forget(rp.ex.req)
+	if rp.p.state.takeBack(rp.ex.id) {
+		logger.Info("refused on every account it went out on; its refusals of the request hold none back", "id", rp.ex.id, "attempts", rp.ex.attempts)
 	}
 }
 
@@ -261,12 +280,12 @@ func (rp *replay) bar(verdict quota.Verdict, status int, reason string) Refused 
 	ex := rp.ex
 	news := Refused{Account: ex.account.ID, Status: status}
 	if verdict == quota.Refused {
-		rp.p.state.refuse(news.Account, status)
+		rp.p.state.refuse(news.Account, status, ex.id)
 		logger.Warn("upstream refused the account's token", "id", ex.id, "account", news.Account, "status", status, "error", reason)
 		return news
 	}
 	news.Family = rp.p.provider.Family(ex.req.Model)
-	rp.p.state.forbid(news.Account, news.Family, status)
+	rp.p.state.forbid(news.Account, news.Family, status, ex.id)
 	logger.Warn("upstream refused the request on the account", "id", ex.id, "account", news.Account, "status", status, "family", news.Family, "error", reason)
 	return news
 }

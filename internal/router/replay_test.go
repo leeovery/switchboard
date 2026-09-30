@@ -494,6 +494,138 @@ func TestAnAccountThatRefusesARequestIsSkippedForItsModelsFamilyAlone(t *testing
 	}
 }
 
+func TestARequestRefusedOnEveryAccountHoldsNoneBack(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t)
+	// Side's quota needs using first, so every new session goes there while
+	// it can.
+	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 24*time.Hour))
+	if got := r.ask(t, "two", opus, ""); got != "side" {
+		t.Fatalf("session two went to %s, want side", got)
+	}
+	refused := refuseWith(http.StatusForbidden, "This request can't be served")
+	r.api.script(sideToken, refused)
+	r.api.script(workToken, refused)
+
+	resp := send(t, http.MethodPost, r.proxy+"/v1/messages", with(claudeCode(workToken), "X-Claude-Code-Session-Id", "one"), strings.NewReader(messages))
+	body := readAll(t, resp)
+	want := `{"type":"error","error":{"type":"api_error","message":"switchboard: the upstream refused account work (HTTP 403): This request can't be served"}}` + "\n"
+	if resp.StatusCode != http.StatusBadGateway || resp.Header.Get("X-Should-Retry") != "false" || body != want {
+		t.Errorf("answered %d, X-Should-Retry %q, %s\nwant 502, false, %s", resp.StatusCode, resp.Header.Get("X-Should-Retry"), body, want)
+	}
+	if got := r.api.accounts(); !slices.Equal(got, []string{"side", "side", "work"}) {
+		t.Errorf("the requests went out on %q, want side, for session two, then side and work, which both refused one's", got)
+	}
+	doc := r.rt.Status()
+	for _, id := range []string{"work", "side"} {
+		if a, _ := doc.Account(id); a.Refused != (status.Refusal{}) {
+			t.Errorf("the document gives %s's refusal as %+v, want none: every account refused the request", id, a.Refused)
+		}
+	}
+	if got := r.ask(t, "two", opus, ""); got != "side" {
+		t.Errorf("session two's next Opus request went to %s, want side, where it was", got)
+	}
+	if got := r.ask(t, "three", opus, ""); got != "side" {
+		t.Errorf("a new Opus session went to %s, want side, whose quota needs using first", got)
+	}
+	waitForLine(t, log, "level=INFO", `msg="refused on every account it went out on; its refusals of the request hold none back"`, "attempts=2")
+	for _, e := range r.events.heard() {
+		if moved, ok := e.(router.Moved); ok && moved.Session != "one" {
+			t.Errorf("events hold %+v, want no session moved but one, whose request it was", moved)
+		}
+	}
+}
+
+func TestARequestRefusedOnEveryAccountItWentOutOnLeavesTheRefusalsOfOthers(t *testing.T) {
+	r := newRouted(t)
+	// Work's quota needs using first, so every new session goes there while
+	// it can.
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, refuseWith(http.StatusForbidden, "This model isn't on your plan"))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("session one's Opus request went to %s last, want side, work having refused it", got)
+	}
+
+	r.api.script(sideToken, refuseWith(http.StatusForbidden, "This request can't be served"))
+	resp := send(t, http.MethodPost, r.proxy+"/v1/messages", with(claudeCode(workToken), "X-Claude-Code-Session-Id", "two"), strings.NewReader(messages))
+	if body := readAll(t, resp); resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("session two's request was answered %d %s, want 502: side refused it, and work refuses Opus", resp.StatusCode, body)
+	}
+	doc := r.rt.Status()
+	if work, _ := doc.Account("work"); work.Refused != (status.Refusal{Until: now.Add(10 * time.Minute), Status: http.StatusForbidden, Family: "opus"}) {
+		t.Errorf("the document gives work's refusal as %+v, want Opus's, for ten minutes: one's request, served on side, stands by it", work.Refused)
+	}
+	if side, _ := doc.Account("side"); side.Refused != (status.Refusal{}) {
+		t.Errorf("the document gives side's refusal as %+v, want none: side was all two's request went out on", side.Refused)
+	}
+	if got := r.ask(t, "three", opus, ""); got != "side" {
+		t.Errorf("a new Opus session went to %s, want side: work refuses Opus", got)
+	}
+}
+
+func TestARequestRefusedOnEveryAccountLeavesTheRefusalOfATokenStanding(t *testing.T) {
+	r := newRouted(t)
+	// Work's quota needs using first, so every new session goes there while
+	// it can.
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.api.script(workToken, refuseWith(http.StatusUnauthorized, "Invalid bearer token"))
+	r.api.script(sideToken, refuseWith(http.StatusForbidden, "This request can't be served"))
+
+	resp := send(t, http.MethodPost, r.proxy+"/v1/messages", with(claudeCode(workToken), "X-Claude-Code-Session-Id", "one"), strings.NewReader(messages))
+	if body := readAll(t, resp); resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("answered %d %s, want 502: work refused its token, and side the request", resp.StatusCode, body)
+	}
+	doc := r.rt.Status()
+	if work, _ := doc.Account("work"); work.Refused != (status.Refusal{Until: now.Add(10 * time.Minute), Status: http.StatusUnauthorized}) {
+		t.Errorf("the document gives work's refusal as %+v, want its token's, for ten minutes: that says something of work", work.Refused)
+	}
+	if side, _ := doc.Account("side"); side.Refused != (status.Refusal{}) {
+		t.Errorf("the document gives side's refusal as %+v, want none: side, all that judged the request, refused it", side.Refused)
+	}
+	if got := r.ask(t, "two", haiku, ""); got != "side" {
+		t.Errorf("a new Haiku session went to %s, want side: work's token is refused", got)
+	}
+}
+
+func TestASessionWhoseRequestEveryAccountRefusedIsLeftWhereItWas(t *testing.T) {
+	r := newRouted(t, withPersonalToken)
+	// Work, the client's, is at its limit; side's quota needs using before
+	// personal's.
+	r.readsAs(workToken, sessionSpent, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 2*24*time.Hour))
+	r.readsAs(personalToken, session, weekOf(0.5, 5*24*time.Hour))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("session one went to %s, want side", got)
+	}
+	refused := refuseWith(http.StatusForbidden, "This request can't be served")
+	r.api.script(sideToken, refused)
+	r.api.script(personalToken, refused)
+
+	if got := r.ask(t, "one", opus, ""); got != "personal" {
+		t.Errorf("session one's request went out on %s last, want personal, after side", got)
+	}
+	doc := r.rt.Status()
+	for id, want := range map[string]int{"work": 0, "personal": 0, "side": 1} {
+		if a, _ := doc.Account(id); a.Sessions != want {
+			t.Errorf("%s has %d sessions, want %d: session one is back on side, where it was, and no request went out on work", id, a.Sessions, want)
+		}
+	}
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Errorf("session one's next request went to %s, want side, where it was", got)
+	}
+	wantEvents := []router.Event{
+		router.Refused{Account: "side", Status: http.StatusForbidden, Family: "opus"},
+		router.Moved{Session: "one", Model: opus, From: "side", To: "personal", Reason: "moved: side was refused", Forced: true},
+		router.Refused{Account: "personal", Status: http.StatusForbidden, Family: "opus"},
+	}
+	if got := r.events.heard(); !reflect.DeepEqual(got, wantEvents) {
+		t.Errorf("events = %+v, want %+v", got, wantEvents)
+	}
+}
+
 func TestNothingIsReplayedOnceTheClientHasPartOfTheAnswer(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t)

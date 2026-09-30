@@ -53,7 +53,8 @@ type decision struct {
 	// is, so fresher usage could change it.
 	afresh bool
 	// noRoom is set when no account has room for the request, so account is
-	// only where it falls back to, or none, when reserved is set.
+	// only where it falls back to, or none: when reserved is set, or the
+	// request has been tried already.
 	noRoom bool
 	// reserved is set when the request goes out on no account, as every one
 	// it could fall back to is held back by its reserve alone, which the
@@ -82,6 +83,7 @@ type decision struct {
 //  5. When no account has room, the session's account, else the client's,
 //     else any, passing over those that refused the request lately and those
 //     held back by their reserve alone; with none left but the latter, none.
+//     A request tried already goes out on none.
 func decide(s situation) decision {
 	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	pin := s.req.Pin
@@ -221,9 +223,13 @@ func (s situation) unable(id string) string {
 // client's, else any other the view falls back to. With every one refused,
 // it's the client's. With none left but those held back by their reserve
 // alone, it's none, and switchboard answers for the upstream: the router never
-// spends a reserve.
+// spends a reserve. A request tried already goes nowhere else: the upstream
+// has said why on the accounts it was tried on.
 func (s situation) noRoom() decision {
 	d := decision{reason: reasonNoRoom, afresh: true, noRoom: true}
+	if len(s.req.Tried) > 0 {
+		return d
+	}
 	first := []string{s.req.Client}
 	if s.assigned {
 		first = []string{s.current.Account, s.req.Client}

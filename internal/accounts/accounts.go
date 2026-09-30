@@ -109,25 +109,40 @@ func (r Registry) SetToken(ctx context.Context, cfg *config.Config, id string) (
 	return r.take(ctx, id, cfg.Upstream)
 }
 
+// Removed is what removing an account removed of its token file, as
+// tokens.Store's Remove says, and, when it was the primary, the account
+// that's the primary now.
+type Removed struct {
+	tokens.Removed
+	// Primary is the id of the account that's the primary now, when the one
+	// removed was: "" when it wasn't.
+	Primary string
+}
+
 // Remove removes the account with the given id: its [[account]] table from
-// the config file, then its token file, saying what it removed of that, as
-// tokens.Store's Remove does.
-func (r Registry) Remove(id string) (tokens.Removed, error) {
+// the config file, then its token file, saying what it removed of that, and
+// which account is the primary now, when it removed the primary.
+func (r Registry) Remove(id string) (Removed, error) {
 	draft, err := config.Edit(r.ConfigPath)
 	if err != nil {
-		return tokens.Removed{}, err
+		return Removed{}, err
 	}
+	before := draft.Config()
 	if err := draft.RemoveAccount(id); err != nil {
-		return tokens.Removed{}, err
+		return Removed{}, err
 	}
 	if err := draft.Save(); err != nil {
-		return tokens.Removed{}, err
+		return Removed{}, err
 	}
-	removed, err := r.Tokens.Remove(id)
+	file, err := r.Tokens.Remove(id)
 	if err != nil {
-		return tokens.Removed{}, err
+		return Removed{}, err
 	}
-	logger.Info("removed an account", "account", id, "token_file", removed.File, "linked_to", removed.LinkedTo)
+	removed := Removed{Removed: file}
+	if before.Accounts.Primary().ID == id {
+		removed.Primary = draft.Config().Accounts.Primary().ID
+	}
+	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "primary_now", removed.Primary)
 	return removed, nil
 }
 

@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"slices"
@@ -384,11 +385,11 @@ func TestDocument(t *testing.T) {
 func TestTheDocumentGivesEachAccountsRefusalWhileItsInForce(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
-	s.forbid("work", "opus", http.StatusForbidden)
-	s.refuse("work", http.StatusUnauthorized)
-	s.forbid("side", "opus", http.StatusForbidden)
+	s.forbid("work", "opus", http.StatusForbidden, someRequest)
+	s.refuse("work", http.StatusUnauthorized, someRequest)
+	s.forbid("side", "opus", http.StatusForbidden, someRequest)
 	clock.now = start.Add(time.Minute)
-	s.forbid("side", "fable", http.StatusForbidden)
+	s.forbid("side", "fable", http.StatusForbidden, someRequest)
 	refused := func(id string) status.Refusal {
 		account, _ := s.document().Account(id)
 		return account.Refused
@@ -420,6 +421,41 @@ func TestTheDocumentGivesEachAccountsRefusalWhileItsInForce(t *testing.T) {
 	}
 }
 
+func TestARequestTakesBackItsOwnRefusalsOfItsFamilyAlone(t *testing.T) {
+	const first, second = "a1b2c3d4", "e5f6a7b8"
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.forbid("work", "opus", http.StatusForbidden, first)
+	clock.now = start.Add(time.Minute)
+	s.forbid("work", "opus", http.StatusForbidden, second)
+	s.forbid("side", "opus", http.StatusForbidden, second)
+	s.refuse("personal", http.StatusUnauthorized, second)
+	refused := func(id string) status.Refusal {
+		account, _ := s.document().Account(id)
+		return account.Refused
+	}
+
+	if !s.takeBack(second) {
+		t.Error("takeBack() = false, want the second request's refusals of Opus taken back")
+	}
+	if got, want := refused("work"), (status.Refusal{Until: start.Add(refusedFor), Status: http.StatusForbidden, Family: "opus"}); got != want {
+		t.Errorf("with the second request's refusals taken back, work is refused %+v, want %+v: the first request's refusal stands", got, want)
+	}
+	if got := refused("side"); got != (status.Refusal{}) {
+		t.Errorf("with the second request's refusals taken back, side is refused %+v, want not", got)
+	}
+	if got, want := s.usage["personal"].refused.latest(), (refusal{at: start.Add(time.Minute), status: http.StatusUnauthorized, by: second}); got != want {
+		t.Errorf("with the second request's refusals taken back, personal's token is refused %+v, want %+v: that says something of personal", got, want)
+	}
+	s.takeBack(first)
+	if got := refused("work"); got != (status.Refusal{}) {
+		t.Errorf("with both requests' refusals taken back, work is refused %+v, want not", got)
+	}
+	if s.takeBack(first) {
+		t.Error("takeBack() = true, want false: the first request's refusals are gone already")
+	}
+}
+
 func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 	soonerWeek := week
 	soonerWeek.Utilization, soonerWeek.ResetsAt = 0.5, start.Add(24*time.Hour)
@@ -429,10 +465,10 @@ func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 		want string
 	}{
 		{name: "side, whose quota needs using first, when nothing bars it", bar: func(*state) {}, want: "side"},
-		{name: "not side once its token is refused", bar: func(s *state) { s.refuse("side", http.StatusUnauthorized) }, want: "work"},
+		{name: "not side once its token is refused", bar: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }, want: "work"},
 		{
 			name: "side once a request of one family is refused on it, which holds back that family alone",
-			bar:  func(s *state) { s.forbid("side", "opus", http.StatusForbidden) },
+			bar:  func(s *state) { s.forbid("side", "opus", http.StatusForbidden, someRequest) },
 			want: "side",
 		},
 		{
@@ -463,6 +499,33 @@ func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 				t.Errorf("Best = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTheBestIsWhereANewSessionGoes(t *testing.T) {
+	r := newTestRouter(t, at(start), &stubProber{})
+	// Work's quota needs using first.
+	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+	steps := []struct {
+		name string
+		// change changes what the choice is made on.
+		change func()
+		want   string
+	}{
+		{name: "unpinned", change: func() {}, want: "work"},
+		{name: "pinned to side", change: func() { r.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false) }, want: "side"},
+		{name: "pinned to side, whose token is refused", change: func() { r.state.refuse("side", http.StatusUnauthorized, someRequest) }, want: "work"},
+	}
+	for i, step := range steps {
+		step.change()
+		if got := r.Status().Best; got != step.want {
+			t.Errorf("%s, Best = %q, want %q", step.name, got, step.want)
+		}
+		session := fmt.Sprintf("new-%d", i)
+		if got := choose(t.Context(), r, Request{ID: session, Session: session, Model: opus, Client: "work"}); got.Account != step.want {
+			t.Errorf("%s, a new session goes to %s, want %s, the best", step.name, got.Account, step.want)
+		}
 	}
 }
 
@@ -536,7 +599,7 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 		{name: "a probe that failed", change: func(s *state, _ moment) { s.recordProbe("side", quota.Probe{}, overloaded, s.mark()) }},
 		{name: "a window seen on a family anew", change: func(s *state, _ moment) { s.learn(fable, []quota.Window{week}) }, want: 1},
 		{name: "a window seen on its family before", change: func(s *state, _ moment) { s.learn(opus, []quota.Window{week}) }},
-		{name: "a refusal, which isn't kept", change: func(s *state, _ moment) { s.refuse("work", http.StatusUnauthorized) }},
+		{name: "a refusal, which isn't kept", change: func(s *state, _ moment) { s.refuse("work", http.StatusUnauthorized, someRequest) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -600,14 +663,14 @@ func TestStandings(t *testing.T) {
 		},
 		{
 			name: "refused, with its quota unknown when never read",
-			side: func(s *state) { s.refuse("side", http.StatusUnauthorized) },
+			side: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) },
 			want: judged{refused: true},
 		},
 		{
 			name: "refused, whatever its quota",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.refuse("side", http.StatusUnauthorized)
+				s.refuse("side", http.StatusUnauthorized, someRequest)
 			},
 			want: judged{quota: true, known: true, refused: true},
 		},
@@ -615,7 +678,7 @@ func TestStandings(t *testing.T) {
 			name: "no longer refused ten minutes on",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.refuse("side", http.StatusUnauthorized)
+				s.refuse("side", http.StatusUnauthorized, someRequest)
 			},
 			after: refusedFor,
 			want:  judged{quota: true, known: true},
@@ -624,7 +687,7 @@ func TestStandings(t *testing.T) {
 			name: "not refused once a request of one family alone is",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.forbid("side", "opus", http.StatusForbidden)
+				s.forbid("side", "opus", http.StatusForbidden, someRequest)
 			},
 			want: judged{quota: true, known: true},
 		},
@@ -677,8 +740,8 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.dueAgain("side", start) })
 		wg.Go(func() { _ = s.unread("side", start) })
 		wg.Go(func() { _ = s.saved() })
-		wg.Go(func() { s.refuse("side", http.StatusUnauthorized) })
-		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden) })
+		wg.Go(func() { s.refuse("side", http.StatusUnauthorized, someRequest) })
+		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden, someRequest) })
 		wg.Go(func() { _ = s.limit("work", []string{"5h"}, start.Add(time.Hour)) })
 	}
 	wg.Wait()

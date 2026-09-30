@@ -101,6 +101,12 @@ directly above it, and its token file, <state dir>/tokens/<id>. A token file
 that's a link goes, but not the file it leads to, which is left as it is. The
 only account can't be removed, as a config needs one.
 
+Removing the primary makes the account marked primary = true the primary, or
+the first when none is, and says which. The sessions running on the removed
+account's token, as every session holds the primary's, stay routed, as the
+new primary's, for a week from when the router takes the change up, while
+the new primary has a usable token.
+
 ` + editingTheConfig,
 		Args: oneAccount,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -184,8 +190,24 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	case removed.File:
 		said += ", and its token file"
 	}
+	if removed.Primary != "" {
+		said += "\n" + primaryNow(removed.Primary, id, registry.Tokens.Read)
+	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), said)
 	return err
+}
+
+// primaryNow says which account is the primary now the one with the given
+// id, the primary, is removed, and what becomes of the sessions running on
+// the removed one's token: they stay routed, as the new primary's, while it
+// has a usable token, as readToken finds it.
+func primaryNow(primary, removed string, readToken func(id string) (tokens.Token, error)) string {
+	if _, err := readToken(primary); err != nil {
+		return primary + " is the primary now, but has no usable token: the sessions running on " + removed +
+			"'s token aren't routed until it has one (switchboard accounts token " + primary + ")"
+	}
+	return primary + " is the primary now; the sessions running on " + removed + "'s token stay routed, as " +
+		primary + "'s, for a week from when the router takes this up"
 }
 
 // registry returns the accounts as the config file and the token files hold

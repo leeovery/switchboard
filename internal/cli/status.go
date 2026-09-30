@@ -27,9 +27,10 @@ func newStatusCommand(a *app) *cobra.Command {
 		Long: `Show every account's usage and when it resets: the router's, while it runs,
 with the sessions it has routed in the last hour, its pin, the limits it has
 seen and its health; else read by probing each account, as --probe does
-whether the router runs or not. The last line says which. When the claude a
-shell runs from PATH isn't switchboard, so the sessions it starts don't go
-through the router, the first line says so.
+whether the router runs or not. The last line says which, but for a restart
+the router has due, which the line under it says, with how to have it now.
+When the claude a shell runs from PATH isn't switchboard, so the sessions it
+starts don't go through the router, the first line says so.
 
 With --session, print the id of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline

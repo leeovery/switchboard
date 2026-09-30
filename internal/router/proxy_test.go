@@ -386,7 +386,7 @@ func TestRefusalsAreNeverRelayed(t *testing.T) {
 
 			resp := send(t, http.MethodPost, proxy+"/v1/messages", with(claudeCode(workToken), "X-Switchboard-Account", "side"), strings.NewReader(messages))
 			body := readAll(t, resp)
-			want := fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":"switchboard: the upstream refused account work (HTTP %d)"}}`+"\n", tt.refusal)
+			want := fmt.Sprintf(`{"type":"error","error":{"type":"api_error","message":"switchboard: the upstream refused account work (HTTP %d): token [redacted] refused, as was [redacted]"}}`+"\n", tt.refusal)
 			if resp.StatusCode != http.StatusBadGateway || resp.Header.Get("Content-Type") != "application/json" || body != want {
 				t.Errorf("answered %d (%s) %s\nwant 502 (application/json) %s", resp.StatusCode, resp.Header.Get("Content-Type"), body, want)
 			}
@@ -412,15 +412,19 @@ func TestRefusalsAreNeverRelayed(t *testing.T) {
 	}
 }
 
-func TestARefusalsReasonIsLoggedCutShort(t *testing.T) {
+func TestARefusalsReasonIsLoggedAndAnsweredCutShort(t *testing.T) {
 	log := logstest.Capture(t)
 	up := newUpstream(t, refuseWith(http.StatusForbidden, strings.Repeat("x", 300)))
 	proxy := serveProxy(t, newRouter(t, up.URL))
 
-	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	body := readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
 	waitForLine(t, log, "level=WARN", `msg="upstream refused the request on the account"`, "error="+strings.Repeat("x", 200))
 	if strings.Contains(log.String(), strings.Repeat("x", 201)) {
 		t.Errorf("log reads\n%s\nwant the upstream's reason cut to 200 characters", log)
+	}
+	checkAPIError(t, body, "api_error", "switchboard: the upstream refused account work (HTTP 403): "+strings.Repeat("x", 200))
+	if strings.Contains(body, strings.Repeat("x", 201)) {
+		t.Errorf("answered %s, want the upstream's reason cut to 200 characters", body)
 	}
 }
 

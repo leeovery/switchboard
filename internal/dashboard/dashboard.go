@@ -86,15 +86,15 @@ func heading(now time.Time, width, room int) line {
 
 // origin says where the document came from, when that's news: the router,
 // with how many sessions it has and where it sends new ones, unless it's
-// unhealthy, which it says loudly; or that the accounts were probed, as the
-// router wasn't running or wasn't answering as it should. A document probed as
-// asked says nothing.
+// unhealthy, which it says loudly, and a restart it has due; or that the
+// accounts were probed, as the router wasn't running or wasn't answering as
+// it should. A document probed as asked says nothing.
 func origin(doc status.Document) line {
 	switch {
 	case doc.Source == status.SourceRouter && !doc.Router.Healthy:
-		return unhealthy(doc.Router.Reason)
+		return dotted(unhealthy(doc.Router.Reason), restartDue(doc.Restart))
 	case doc.Source == status.SourceRouter:
-		return routing(doc)
+		return dotted(routing(doc), restartDue(doc.Restart))
 	case doc.Fallback.Router == status.RouterNotRunning:
 		return line{{"probing directly (router not running)", dimInk}}
 	case doc.Fallback.Router == status.RouterUnhealthy:
@@ -111,6 +111,15 @@ func routing(doc status.Document) line {
 		return append(l, span{doc.Routing(), dimInk})
 	}
 	return append(l, span{doc.Routing(), pinInk})
+}
+
+// restartDue says the router has a restart due, and why, in the warning
+// colour: nil while none is.
+func restartDue(r status.Restart) line {
+	if !r.Due() {
+		return nil
+	}
+	return line{{"restart due (" + status.Clean(r.Reason) + ")", warningInk}}
 }
 
 // unhealthy says the router is unhealthy, and why, in red.

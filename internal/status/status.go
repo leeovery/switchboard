@@ -48,7 +48,9 @@ type Document struct {
 	// in one probed as asked.
 	Fallback Fallback `json:"fallback,omitzero"`
 	// Best is the account to use next: of those with room in the windows every
-	// model shares, the one whose quota most needs using. Empty when there's none.
+	// model shares, the one whose quota most needs using, or, from the router,
+	// of those the global pin names while one has room. Empty when there's
+	// none.
 	Best string `json:"best,omitempty"`
 	// Primary is the id of the primary account, whose token Claude Code
 	// holds: empty only when no account is marked the primary.
@@ -61,6 +63,9 @@ type Document struct {
 	// Router is the router's health: zero in a document that isn't the
 	// router's.
 	Router Health `json:"router,omitzero"`
+	// Restart is the restart the router has due: zero when none is, and in a
+	// document that isn't the router's.
+	Restart Restart `json:"restart,omitzero"`
 	// Sessions is how many sessions the router has sent anywhere in the last
 	// hour, each counted once however many accounts its models went to: zero
 	// in a document that isn't the router's.
@@ -86,6 +91,27 @@ type Health struct {
 	Failures int  `json:"failures"`
 	// Reason says why the router is unhealthy; empty while it's healthy.
 	Reason string `json:"reason,omitempty"`
+}
+
+// Restart is a restart the router has due, having found what it was started
+// from changed, such as its config file. The service's router restarts
+// itself once no request is in flight; one run by hand, only when it's run
+// again.
+type Restart struct {
+	// Reason says why it's due, such as "config changed".
+	Reason string `json:"reason"`
+	// Since is when the router found it due.
+	Since time.Time `json:"since"`
+	// InFlight is how many requests the router had in flight as it gave the
+	// document.
+	InFlight int `json:"in_flight"`
+	// ByHand is set when the router was run by hand, with serve.
+	ByHand bool `json:"by_hand,omitempty"`
+}
+
+// Due reports whether a restart is due.
+func (r Restart) Due() bool {
+	return r.Reason != ""
 }
 
 // Pin sends every new session to the best of Accounts, and with Move, every
@@ -255,7 +281,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	doc := Document{
 		GeneratedAt: now.UTC(),
 		Source:      SourceProbe,
-		Best:        Best(c.Policy, statuses, now),
+		Best:        Best(c.Policy, statuses, nil, now),
 		Primary:     PrimaryOf(statuses),
 		Accounts:    statuses,
 	}
@@ -315,9 +341,47 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	}
 }
 
-// Best is the account of those given that policy picks for a request of any
+// Best is the account of those given that a new session goes to, as the
+// router chooses one for a request of any model: of those pinned, while one
+// can take the request, as bestPinned says; else of them all, the one policy
+// picks, leaving each one's reserve unused. It's empty when none can take
+// one.
+func Best(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
+	if id, ok := bestPinned(policy, accounts, pinned, now); ok {
+		return id
+	}
+	return pick(policy, accounts, now)
+}
+
+// bestPinned is the account of those given, pinned and with a usable token,
+// that a new session goes to, as the router chooses one: the one policy
+// picks, spending each one's reserve, as a pin spends it, else the first
+// with room, as a pin sends requests to an account whose quota can't be
+// scored, or that nothing has been read of. It reports false when none of
+// them has room.
+func bestPinned(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, bool) {
+	var spending []Account
+	for _, a := range accounts {
+		if a.TokenSet && slices.Contains(pinned, a.ID) {
+			a.Reserve = 0
+			spending = append(spending, a)
+		}
+	}
+	if id := pick(policy, spending, now); id != "" {
+		return id, true
+	}
+	i := slices.IndexFunc(spending, func(a Account) bool {
+		return len(a.Windows) == 0 || score.Available(a.Windows, 0, policy.IsShared, now)
+	})
+	if i < 0 {
+		return "", false
+	}
+	return spending[i].ID, true
+}
+
+// pick is the account of those given that policy picks for a request of any
 // model, leaving each one's reserve unused, or empty when none can take one.
-func Best(policy score.Policy, accounts []Account, now time.Time) string {
+func pick(policy score.Policy, accounts []Account, now time.Time) string {
 	candidates := make([]score.Candidate, len(accounts))
 	for i, account := range accounts {
 		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve}

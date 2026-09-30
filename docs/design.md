@@ -140,7 +140,9 @@ on a model whose thinking is bound to its account only when its account can't se
    the session has been routed since, whose account stands: the quota check `--resume` sends as it
    starts goes under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 6),
    would otherwise be kept, and listed among the sessions, for a week. A session already remembered
-   keeps its account whatever its requests end in.
+   keeps its account whatever its requests end in, but for a request every account it went out on
+   refused, which leaves the session where it was before (see Requests that need special
+   handling).
 4. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
@@ -175,8 +177,9 @@ on a model whose thinking is bound to its account only when its account can't se
 8. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings
    say they have none, each at most once a minute, but for one whose 5-hour window has lapsed (see
    Priming), waiting 5 seconds at most, as a reset may have passed with no traffic to show it;
-   then it decides again. Failing that, a request replayed after a limit gets the last 429, passed
-   through; any other falls back as step 5 of the order below says.
+   then it decides again. Failing that, a request replayed after a limit or a refusal goes out on no
+   other account: it gets the last 429, passed through, or, refused last, the answer Requests that
+   need special handling gives; any other falls back as step 5 of the order below says.
 
 Each request's account is decided in this order:
 
@@ -199,7 +202,9 @@ Each request's account is decided in this order:
    with the usage headers Claude Code reads a limit from: `rejected`, and, when it's known, when the
    first of them is let go, each at the latest reset among the windows its reserve holds. When
    every account has refused the request lately, it goes out on the client's all the same, and,
-   refused again, ends in the 502 of Requests that need special handling.
+   refused again, ends in the 502 of Requests that need special handling. A request replayed goes
+   out on none of these: the upstream has said why on the accounts it was tried on, and the session
+   is remembered on no account the request didn't go out on.
 
 A request without a session id is never remembered: it goes to the launch pin it carries while that
 account can serve it, and is otherwise decided afresh every time. Before deciding afresh, and never
@@ -252,8 +257,9 @@ perishability and the 5-hour tiebreak as Choosing an account scores them, each o
 spent. When none of them can serve the request, the pin yields: the router chooses among every
 account as though nothing were pinned, the reserves of the accounts it doesn't name held as ever.
 So a pin sets an order to spend the accounts in: those it names first, the best of them first,
-then the rest. `--move` moves a running session on an account the pin doesn't name to the best of
-those it does; one on an account it names stays.
+then the rest. The best next that `status` and the dashboard give is where a new session goes, the
+pin's accounts first. `--move` moves a running session on an account the pin doesn't name to the
+best of those it does; one on an account it names stays.
 
 A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
 header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
@@ -312,7 +318,19 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   at a limit. With none left, switchboard answers with the 429 of the first account whose limit the
   request reached, as it came, when one did: that's why there's no account left. Otherwise it
   returns 502, shaped as the API shapes its errors and marked `X-Should-Retry: false`, as the same
-  token would only be refused again.
+  token would only be refused again, its message giving the upstream's reason, cut to 200
+  characters, with anything shaped like a token hidden.
+- **A request refused everywhere bars no family:** when every account a request went out on refused
+  it, the refusals of the request itself it met, the 403s, are taken back, as a refusal every
+  account that judged the request gives says more of the request, such as a beta it carries, than
+  of the accounts. Otherwise one such request would hold its model's family back on every account
+  for 10 minutes, and every session of the family would fall back to the client's account, the
+  primary, and move there. A refusal of an account's token, a 401, stands, as it says something of
+  the account; so does a refusal another request met, and one met by a request another account
+  served, or whose limit it reached. The request's session goes back where it was before the
+  request, as the moves its replays made came to nothing, unless another request of the session
+  has been routed since, whose account stands; the moves stand told, in the log and any
+  notification of them. The client still gets the 502.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
   be read 400, neither going upstream nor counting towards the router's health. Replay only
@@ -333,7 +351,10 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 ## The primary account
 
 One account is the primary: the one the browser and the Claude apps are signed into.
-`primary = true` marks it; without it, the first account is the primary.
+`primary = true` marks it; without it, the first account is the primary. So removing the primary
+leaves the account marked, else the first, the primary, which `accounts remove` names; the
+sessions running on the removed account's token, as every routed session holds the primary's, stay
+routed, as the new primary's, while it has a usable token (see Accounts and tokens).
 
 - **Claude Code's own token** is the primary's. `run` gives it to every routed session, whichever
   account the conversation goes to, a session pinned to another account included: the pin moves
@@ -479,6 +500,18 @@ token `accounts add`, `accounts token` or `setup` is given.
   configured account, with a usable token or not: of an account without one as the router starts,
   the hash of the token held last is compared with the token the account later gains, and a
   different one counts as replaced.
+- An account removed from the config leaves its tokens, the one the router held last and those it
+  had before, to the primary, as former tokens of the primary's: a session started with one, as
+  every session holds the primary's, carries on sending it, and stays routed, its client account
+  the primary. The primary takes them up once, as they stood when the router found the account
+  gone, at the first look that finds the config without it, before the restart that takes the
+  config up (see The router looking after itself), or, when the router was away, as it starts, from
+  what `state.json` kept of the account's tokens. A token the account's file comes to hold after
+  isn't the primary's. They count for 7 days from then, those replaced before from when they were
+  replaced, and aren't taken up again once they're forgotten. `state.json` keeps them as the
+  primary's alone, marked with the account they came from: should the config configure it again,
+  as when an edit by hand is caught half made, it takes them back, an account like any other
+  again. While the primary has no usable token, they count no more than its own do.
 - The programs switchboard runs for itself, `claude --version`, `osascript` and `launchctl`, get
   none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
@@ -496,7 +529,10 @@ token `accounts add`, `accounts token` or `setup` is given.
   account the primary.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
   removes the account from the config, and deletes its token file: of one that's a link, the link
-  alone, saying where it led, as the file there isn't switchboard's.
+  alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
+  account is the primary now, and that the sessions running on the removed account's token stay
+  routed, as the new primary's, for a week from when the router takes the change up, or, when the
+  new primary has no usable token, that they aren't routed until it has one.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
@@ -588,7 +624,9 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   wider than the one within an account's title: the router, how many sessions it has and where
   it sends new ones (`router  ·  3 sessions  ·  pinned to 2 · two  ·  best next: …`,
   `…  ·  pinned to 1 · one and 2 · two  ·  …`, or `…  ·  routing automatically  ·  …`);
-  `router unhealthy — <reason>`, in red; or, dim, `probing directly (router not running)`.
+  `router unhealthy — <reason>`, in red; or, dim, `probing directly (router not running)`. A
+  restart the router has due follows the router's part, in the warning colour:
+  `…  ·  routing automatically  ·  restart due (config changed)  ·  …`.
   Probing as asked says nothing of the router. With no account to use next, `no account has room
   right now` stands in for `best next`, in red, or, while nothing has been read of any account,
   `nothing read yet`, dim. With priming on, a line under it gives the next reset among the
@@ -664,7 +702,7 @@ sleep left dead (see The router looking after itself). It's unhealthy once it ha
 them at least, and half at least: `GET /health` then answers `ok: false` with a `reason`, the status
 document's `router` object says the same, and the log notes the turn, and the turn back, at warn and
 info. `status` and the dashboard show trouble loudly: they read an unhealthy router's document all
-the same, `status`'s last line reading
+the same, `status`'s router line reading
 `from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>` and the dashboard heading its
 cards `router unhealthy — <reason>`, in red.
 
@@ -738,7 +776,8 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   a different token; a token replaced while the router was away, which it finds as it starts; a
   token file found holding another token, an account gaining a usable token, and one losing it, with
   why; the tokens directory made private as the router starts, and what bringing the skill up to
-  date did; a config change, and an upgrade; a restart either makes due, once, and the restart as it
+  date did; a config change, and an upgrade; the tokens of an account the config no longer
+  configures counting as the primary's; a restart either makes due, once, and the restart as it
   goes. At `warn`: as the router starts, each account without a usable token, and, when none has
   one, that nothing will be routed until one has; a prime that failed, or didn't start the window;
   and a config change refused, as invalid. At `debug`, a token file found holding no usable token at
@@ -771,15 +810,21 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   whose file holds no usable token at two looks in a row, 3 seconds apart, has nothing to send on
   until it's back, as though it had none as the router started: the sessions on it move, and a
   request carrying its token passes through untouched, as one carrying a token the router doesn't
-  hold does (see Proxy rules). While the primary's is gone, that's every session's request. A single
-  look finding none keeps the token, noted at debug: a writer that empties the file before it writes
-  the token, as a shell's redirect does, leaves it so for a moment. The priming schedule is worked
-  out again whenever an account gains a usable token or loses it.
+  hold does (see Proxy rules), unless the account is gone from the config, when its tokens count as
+  the primary's (see Config changes). While the primary's is gone, that's every session's request.
+  A single look finding none keeps the token, noted at debug: a writer that empties the file before
+  it writes the token, as a shell's redirect does, leaves it so for a moment. The priming schedule
+  is worked out again whenever an account gains a usable token or loses it.
 - **Config changes:** it restarts itself on a change to its config file that parses and
   validates, so `accounts add`, `accounts remove` and an edit by hand all take effect without a
   command. It follows links, so a config kept in a dotfiles repo and linked counts, and a change
   is the file's identity or modification time changing. A change that doesn't parse and validate
-  is logged at `warn`, and the router carries on with the config it has.
+  is logged at `warn`, and the router carries on with the config it has. Until the restart, which
+  can be hours coming (see below), the router routes by the config it started with, but for the
+  tokens of an account the new config is without, which count as the primary's it makes from the
+  look that finds the change, as they stood then, so the sessions running on them stay routed once
+  the account's token file goes, as `accounts remove` deletes it; a later change that configures
+  the account again gives them back to it (see Accounts and tokens).
 - **Upgrades:** it restarts itself when the binary it was started as, the Homebrew link its
   LaunchAgent runs, leads to a different file from the one running, or to the same file changed
   since, as after `brew upgrade`. A link that leads nowhere, as it may for a moment while an upgrade
@@ -812,6 +857,14 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 - Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
   the job it runs, which the router checks against the service's. Run by hand with `serve`, the
   router logs, once, that a restart is due instead of exiting.
+- **A restart due shows.** With many long sessions, a moment with no request in flight can be
+  hours coming, so the status document gives a restart due, why and since when, and how many
+  requests are in flight (see The status document). `status` says so under its router line:
+  `restart due since Mon 14:02 (config changed), once no request is in flight (3 now): switchboard
+  service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, run
+  by hand, `…: run switchboard serve again to take it up`; and the dashboard's heading, `restart due
+  (config changed)`. `service restart` stops the router as at a signal, giving its requests in
+  flight up to 30 seconds, and launchd starts it again (see Launching).
 - As it starts, the router brings the installed skill up to date (see The skill), and makes the
   tokens directory private when it's there.
 
@@ -931,10 +984,11 @@ hiding it behind the provider would take a wider interface than it's worth:
   the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
   hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
   configured, those accounts from the global pin, which goes with the last of them, and their
-  readings and token hashes; those of a configured account whose token file can't be read are kept,
-  as the file may only have been caught while it's rewritten, and choices pass the account over
-  until it has a token. A corrupt one is set aside as `state.json.corrupt-<unix time>`, and the
-  router starts without it.
+  readings, and keeps their token hashes as the primary's former tokens, which an account
+  configured again takes back (see Accounts and tokens);
+  those of a configured account whose token file can't be read are kept, as the file may only have
+  been caught while it's rewritten, and choices pass the account over until it has a token. A
+  corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -1008,13 +1062,16 @@ fails as it is; one that parses has every problem reported at once:
 
 - A request is routed only when its path is exactly `/v1/messages` or `/v1/messages/count_tokens`
   **and** its bearer token is one of the configured accounts' tokens, which Claude Code's, the
-  primary's, is, or one an account had before the router took up another, for 7 days after (see
-  Accounts and tokens): an account without a usable token has none that counts. Anything else
+  primary's, is, or one an account had before the router took up another, or one of an account
+  removed from the config, which counts as the primary's, for 7 days after (see Accounts and
+  tokens): an account without a usable token has none that counts. Anything else
   passes through untouched: batches, whose ids belong to one account, stay on it, and a local
   process that doesn't already hold a token can't borrow one.
 - A token an account had before is known by its SHA-256 hash, which a request's token is hashed
   and compared with in constant time, as the current tokens are. A request carrying one is the
-  account's, and goes out on the account's current token, as every routed request does.
+  account's, and goes out on the account's current token, as every routed request does. One
+  carrying a token of an account removed is the primary's: the primary is its client account,
+  which it falls back to when no account has room.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
   that session. It is stripped before the request goes upstream. One naming an account that isn't
   configured, or has no token, is ignored, and the log warns of it once for each session and
@@ -1061,11 +1118,12 @@ probing.
 | `generated_at` | When the document was built |
 | `source` | `"router"`, or `"probe"` when built by probing every account |
 | `fallback` | Why a probed document isn't the router's, when the router was asked first: `{router: "not running"}`, or `{router: "unhealthy", reason}`. Left out otherwise, and when probing was asked for |
-| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. Left out when none qualifies, as when none has room, or none has been read yet |
+| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. From the router, with a global pin, it's where a new session goes, as step 4 of the order Choosing an account gives says: the best of the accounts the pin names while one has room, their reserves spent, or the first of them with room when none can be scored; else the best of every account. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
 | `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
 | `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
+| `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again. Left out while none is due (see The router looking after itself) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `accounts` | Every configured account, in the config's order, as below |
 
@@ -1246,6 +1304,12 @@ What's built but hasn't been seen against the real thing:
   kill` sends.
 - The 5-hour window's mechanics, on the first primes: the reset a prime reads should be five hours
   on.
+- That a 5-hour window starts only with the first request after the last one lapsed, which priming
+  rests on. On 30 September 2026, two accounts with no routed traffic overnight had resets stepping
+  exactly five hours apart, at 00:20, 05:20 and 10:20, and a prime at 07:10 landed in the window
+  resetting at 10:20: sessions not routed may have kept those windows going, or the windows run
+  back to back whatever the use, which would leave priming nothing to do. After a quiet night with
+  every session routed, each primed account's reset should sit five hours after its prime.
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
 - `claude doctor` with the link in place.
@@ -1272,5 +1336,8 @@ What's built but hasn't been seen against the real thing:
 - **Move notice (deferred):** a `UserPromptSubmit` hook that shows a line in the TUI after a move,
   and gives Claude the same line as context. Never written into the conversation, which the
   thinking check rules out.
+- **OAuth logins in place of setup tokens (later, not now):** each account signed in with its
+  claude.ai login, as a browser is, rather than given a setup token, and switchboard keeping every
+  account's refresh token fresh, refreshing each before it lapses, so no login ever does.
 - **Intercepting traffic that ignores `ANTHROPIC_BASE_URL`** (a local-CA mode): not planned. What
   it would catch is in What doesn't go through the router.

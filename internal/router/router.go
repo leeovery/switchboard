@@ -246,13 +246,15 @@ func (r *Router) Proxy() http.Handler {
 
 // Status reports every account's usage as the router knows it, with how many
 // sessions each has, and all have, the best account to use next, the priming
-// schedule, with when it next primes each account, the global pin, and the
-// router's own health.
+// schedule, with when it next primes each account, the global pin, the
+// router's own health, and a restart it has due.
 func (r *Router) Status() status.Document {
 	now := r.cfg.Now()
-	doc := r.state.document()
-	doc.Pin = r.sessions.globalPin()
+	pin := r.sessions.globalPin()
+	doc := r.state.document(pin.Accounts...)
+	doc.Pin = pin
 	doc.Router = r.health.report()
+	doc.Restart = r.upkeep.restartDue()
 	if r.primer != nil {
 		doc.Prime = r.primer.report(now)
 	}

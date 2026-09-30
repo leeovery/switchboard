@@ -401,6 +401,44 @@ func TestAccountsRemove(t *testing.T) {
 	}
 }
 
+func TestAccountsRemoveThePrimary(t *testing.T) {
+	tests := []struct {
+		name string
+		// sideToken is set when side, the primary once personal goes, has a
+		// token file.
+		sideToken bool
+		wantOut   string
+	}{
+		{
+			name:      "leaving another with a usable token the primary",
+			sideToken: true,
+			wantOut: "removed personal, and its token file\n" +
+				"side is the primary now; the sessions running on personal's token stay routed, as side's, for a week from when the router takes this up\n",
+		},
+		{
+			name: "leaving another without one the primary",
+			wantOut: "removed personal, and its token file\n" +
+				"side is the primary now, but has no usable token: the sessions running on personal's token aren't routed until it has one " +
+				"(switchboard accounts token side)\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+			writeToken(t, deps, "personal", "test-token-work")
+			if tt.sideToken {
+				writeToken(t, deps, "side", "test-token-side")
+			}
+
+			got := run(t, deps, "accounts", "remove", "personal")
+			if want := (result{stdout: tt.wantOut}); got != want {
+				t.Errorf("switchboard accounts remove = %+v, want %+v", got, want)
+			}
+			checkNoTokenFile(t, deps, "personal")
+		})
+	}
+}
+
 func TestAccountsRemoveATokenFileThatsALink(t *testing.T) {
 	deps, _ := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
 	writeToken(t, deps, "personal", "test-token-work")

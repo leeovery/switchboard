@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // watchEvery is how often the router looks at what it was started from,
@@ -13,7 +15,9 @@ const watchEvery = 3 * time.Second
 // upkeep keeps the router in step with what it was started from while it runs,
 // looking every so often: the accounts' token files, which it takes up in
 // place, and its config file, its binary and the system's time zone, which it
-// restarts to take up. It notices the Mac waking from sleep as it looks.
+// restarts to take up, but for the tokens of accounts the config file no
+// longer configures, which count as the primary's at once. It notices the
+// Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles
@@ -42,7 +46,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			sendable: replan,
 			replaced: state.tokenReplaced,
 		},
-		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight),
+		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now),
 		wakes:    wakes,
 	}
 }
@@ -60,12 +64,18 @@ func (u *upkeep) run(ctx context.Context) {
 			u.wakes.look()
 			u.tokens.look()
 			u.restarts.look()
+			u.tokens.retire(u.restarts.configured())
 		case <-u.restarts.ready():
 			if u.restarts.restart() {
 				return
 			}
 		}
 	}
+}
+
+// restartDue is the restart the router has due, zero while none is.
+func (u *upkeep) restartDue() status.Restart {
+	return u.restarts.report()
 }
 
 // restarted returns what's closed as the router restarts itself.

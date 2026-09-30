@@ -115,12 +115,12 @@ func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
 	}{
 		{
 			name:   "its token refused, for any request",
-			refuse: func(s *state) { s.refuse("work", http.StatusUnauthorized) },
+			refuse: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest) },
 			room:   map[string]bool{opus: false, "claude-opus-4-1-20250805": false, haiku: false},
 		},
 		{
 			name:   "a request refused, for its model's family alone",
-			refuse: func(s *state) { s.forbid("work", "opus", http.StatusForbidden) },
+			refuse: func(s *state) { s.forbid("work", "opus", http.StatusForbidden, someRequest) },
 			room:   map[string]bool{opus: false, "claude-opus-4-1-20250805": false, haiku: true},
 		},
 	}

@@ -3,6 +3,7 @@ package router
 import (
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -46,6 +47,16 @@ func (f *tokenFiles) look() {
 	}
 	if sendable {
 		f.sendable()
+	}
+}
+
+// retire keeps the accounts' tokens in step with those configured, as the
+// config file now makes them, as accounts' retire says: the tokens of one no
+// longer configured count as the primary's it makes, until the router
+// restarts to take the config up, and after.
+func (f *tokenFiles) retire(configured config.Accounts) {
+	if f.accounts.retire(configured, f.now()) {
+		f.kept()
 	}
 }
 

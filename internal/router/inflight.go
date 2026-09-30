@@ -51,6 +51,13 @@ func (f *inFlight) end() {
 	}
 }
 
+// requests counts the requests in flight.
+func (f *inFlight) requests() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.n
+}
+
 // quiet returns what's closed once no request is in flight: at once, while
 // none is.
 func (f *inFlight) quiet() <-chan struct{} {
