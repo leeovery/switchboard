@@ -1529,7 +1529,16 @@ any of it. Times are the Mac's, UTC+1.
   replaced the ad-hoc-signed binary; the router exited for launchd to start the new one, and
   macOS refused it (`Launch Constraint Violation`), launchd starting it ten seconds later and
   macOS posting that switchboard can run in the background (see The router looking after itself).
-  Before that login, the same exit and start after an upgrade took 40 ms.
+  Before that login, the same exit and start after an upgrade took 40 ms. At 18:50 the next
+  upgrade, the last to restart by exiting, was refused the same way, ten seconds before launchd's
+  second start went through.
+- **30 September 2026, 21:34: the first restart in place.** The 0.0.4 router, its restart due
+  since `brew upgrade` two hours before, as requests kept coming, found a moment with none in
+  flight and replaced itself with 0.0.6 under the same pid: `replacing itself` with the proxy's
+  and the control socket's descriptors, then the new version's `start` 27 ms later, both listeners
+  taken up, the skill brought up to date, and the requests after answered. launchd started
+  nothing, and the system log held no `Launch Constraint Violation`, nor a notice that switchboard
+  can run in the background.
 - **29–30 September 2026: no burst limit seen.** Over two thousand requests on one account in a
   night, from a session and up to five subagents at once, drew no 429 but the quota check's.
 
@@ -1551,12 +1560,6 @@ What's built but hasn't been seen against the real thing:
 - `service install`, `service restart` and setup's service step against the real launchd:
   `restart` of a router from before routers restarted when asked relies on launchd's `KeepAlive`
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
-- That macOS lets the router `exec` a newly installed binary in place, where its launch
-  constraints refused launchd's start of one (see The router looking after itself), and that
-  launchd, seeing no exit, leaves the process be. The first upgrade from a release that restarts
-  in place shows it: the log should hold `replacing itself`, then the new version's `start` and
-  its listeners taken up, under the same pid, and the system log no `Launch Constraint Violation`.
-  The upgrade to that release still restarts the old way, by exiting.
 - The 5-hour window's mechanics, on the first primes: the reset a prime reads should be five hours
   after its slot, the ten-minute mark it goes 5 seconds after.
 - That a 5-hour window starts only with the first request after the last one lapsed, which priming
