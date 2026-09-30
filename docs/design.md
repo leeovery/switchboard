@@ -780,11 +780,12 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   configures counting as the primary's; a restart either makes due, once, and the restart as it
   goes: `replacing itself`, with the binary's path, why, and the listeners handed over, as the
   variable names them, and, from the router it becomes, after its `start`, with its version, each
-  listener it takes up. At `warn`: as the router starts, each account without a usable token,
-  and, when none has one, that nothing will be routed until one has; a prime that failed, or didn't
-  start the window; a config change refused, as invalid; a restart that couldn't replace the
-  process, and exits instead; and listeners handed over that couldn't be taken up. At `debug`, a
-  token file found holding no usable token at one look, which the account's token outlasts.
+  listener it takes up; each try again of a binary that isn't there; and a restart a signal stops.
+  At `warn`: as the router starts, each account without a usable token, and, when none has one,
+  that nothing will be routed until one has; a prime that failed, or didn't start the window; a
+  config change refused, as invalid; a restart that couldn't replace the process, and exits
+  instead; and listeners handed over that couldn't be taken up. At `debug`, a token file found
+  holding no usable token at one look, which the account's token outlasts.
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -863,14 +864,20 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   which takes them up in place of listening afresh. A connection made meanwhile waits to be
   accepted, never refused; the control socket's path stays, so there's no stale socket to clear,
   nor another router to look for. A listener is taken up only where the config asks for it, so a
-  config that moves the proxy has the one handed over closed and the new address listened on; a
-  value not in the variable's form, or a descriptor that isn't a listening socket, is passed over
-  and left alone, logged at `warn`, and the router listens afresh. The variable stays in the
-  router's environment, which switchboard never changes, but reaches nothing it runs: those start
-  in no more of it than they need, as `internal/childenv` gives it, and the next `exec` sets it
-  anew. An upgrade has one version set it and the next read it, so its form changes only in ways
-  the next can still read. Sessions keep their accounts (`state.json`), readings persist, and
-  caches, being the API's, stay warm.
+  config that moves the proxy has the one handed over closed and the new address listened on. A
+  descriptor named that isn't a listening socket is left open, as it may be anything, but marked
+  to close on `exec`, so nothing the router runs inherits it, and the router listens afresh for
+  that listener, logged at `warn`. The variable stays in the router's environment, which
+  switchboard never changes, but reaches nothing it runs: those start in no more of it than they
+  need, as `internal/childenv` gives it, and the next `exec` sets it anew. Sessions keep their
+  accounts (`state.json`), readings persist, and caches, being the API's, stay warm.
+- **A variable it can't read.** An upgrade has one version set the variable and the next read it,
+  so its form changes only in ways the next can still read. A value the router can't read names
+  nothing it can trust, so it touches no descriptor: those handed over stay open, never accepted
+  on, and it finds the control socket's path taken by one that doesn't answer, waits 5 seconds for
+  it, and exits, failing to start, for launchd to start it afresh, with nothing inherited. The same
+  befalls an `exec` into a binary from before routers restarted in place, as a rollback would make,
+  which knows nothing of the variable. The connections made meanwhile are cut off as it exits.
 - **Why not exit.** The router used to exit for launchd to start it again. On 30 September 2026,
   after a `brew upgrade` following a login, macOS refused launchd's start of the new binary
   (`xpcproxy exited due to OS_REASON_CODESIGNING | Launch Constraint Violation (Constraint not
@@ -880,11 +887,19 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   sessions' requests failed, and a `claude` started then connected directly. Even a start that
   succeeds leaves a moment with nothing listening. Whether macOS lets the process `exec` the new
   binary is a check owed.
-- **When it can't.** Should the `exec` fail, as for a binary that isn't there, or the router not
-  know its binary, it logs why at `warn`, removes the control socket, and exits for launchd to
-  start it again, as before; one that dies as it `exec`s, as macOS refusing it would, is started
-  again by launchd all the same. Told to stop by a signal while it stops to restart, it exits for
-  good.
+- **When it can't.** A binary that isn't there, as for a moment while `brew upgrade` moves the
+  link on, is tried again half a second on, 5 times in all. Should the `exec` still fail, or the
+  router not know its binary, it logs why at `warn`, removes the control socket, and exits for
+  launchd to start it again, as before; one that dies as it `exec`s, as macOS refusing it would,
+  is started again by launchd all the same.
+- **Told to stop.** A signal while it finishes its requests in flight to restart has the router
+  stop as at one after all, at once: the control socket goes, so launchers connect directly, and
+  the proxy's socket closes, so nothing waits on it for a router that won't come; it exits for
+  good once those requests are done. It looks for a signal again as late as it can, just before
+  the `exec`: one taken after that is this process's alone, and never reaches the router it
+  becomes, so launchd, booting the service out then, waits its 45 seconds and kills it. That
+  moment is the width of the `exec` itself, and of the signal's way to the router's own context,
+  a hand-off between goroutines.
 - Only the LaunchAgent's router restarts itself: launchd sets `XPC_SERVICE_NAME` to the label of
   the job it runs, which the router checks against the service's. Run by hand with `serve`, the
   router logs, once, that a restart is due instead of restarting.
@@ -897,7 +912,8 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   (config changed)`. `service restart` asks the router to restart now (`POST /restart`): it gives
   its requests in flight up to 30 seconds, answering on the control socket meanwhile, so a
   `claude` started then is routed, its requests waiting on the proxy's socket for the router it
-  becomes, then replaces itself in place (see Launching).
+  becomes, then replaces itself in place, or, as it says as it takes the request when it can't,
+  as not knowing its binary, exits for launchd to start it again (see Launching).
 - As it starts, the router brings the installed skill up to date (see The skill), and makes the
   tokens directory private when it's there.
 
@@ -1135,7 +1151,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
-| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, then finish the requests in flight, within 30 seconds, and replace itself in place, as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
+| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.
@@ -1267,23 +1283,26 @@ Each account:
   until then (`5: Input/output error`), so `install` tries bootstrapping 5 times, half a second
   apart, before it fails as the last try did. `uninstall` boots it out when loaded and removes the
   plist. `restart`, with a router answering, asks it to restart (`POST /restart`): it finishes its
-  requests in flight, within 30 seconds, then replaces itself in place, keeping its process (see The
-  router looking after itself). `restart` says so first, `the router is finishing its requests in
-  flight, then it restarts in place`, then waits up to 50 seconds, the 45 launchd would give the
-  router to stop and 5 to start, for a router other than that one to answer: one that restarted in
-  place, keeping its process id, is told from the one before by when it started. A router that
-  refuses, as one run by hand, or whose config file doesn't make a valid config, which it couldn't
-  start again from, fails `restart`, saying why. One that can't be asked, as one from before
-  routers restarted when asked, which answers `POST /restart` 404, or one that doesn't answer it,
-  has launchd send it SIGTERM (`launchctl kill`): it stops as at any signal, finishing its requests
-  in flight, and launchd, keeping the service alive, starts it again, `restart` saying `…, then
-  launchd starts it again`, and waiting as long. With none answering, there's nothing to finish,
-  and `restart` is `launchctl kickstart -k`, waiting up to 5 seconds. Without the service loaded,
-  `restart` is an error saying so. `status` reports the plist, whether launchd has it
-  loaded, and the router's health. When no router answers in time, `install` and `restart` fail, the
-  LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why. Each run of
-  `launchctl` is cut off after 10 seconds, but a bootout, which waits for the router to stop, after
-  55: the 45 and 10 more. Any other failure of `launchctl` is an error that quotes it.
+  requests in flight, within 30 seconds, then replaces itself in place, keeping its process, or,
+  as it says when it can't, exits for launchd to start it again (see The router looking after
+  itself). `restart` says which first, `the router is finishing its requests in flight, then it
+  restarts in place`, or `…, then launchd starts it again`, then waits up to 50 seconds, the 45
+  launchd would give the router to stop and 5 to start, for a router other than the one that took
+  the request, as it answered it, to answer: one that restarted in place, keeping its process id,
+  is told from the one before by when it started, and a router that restarted by itself just
+  before it was asked is the one waited on to restart again, not taken for the one after. A
+  router that refuses, as one run by hand, or whose config file doesn't make a valid config, which
+  it couldn't start again from, fails `restart`, saying why. One that can't be asked, as one from
+  before routers restarted when asked, which answers `POST /restart` 404, or one that doesn't
+  answer it, has launchd send it SIGTERM (`launchctl kill`): it stops as at any signal, finishing
+  its requests in flight, and launchd, keeping the service alive, starts it again, `restart`
+  saying `…, then launchd starts it again`, and waiting as long. With none answering, there's
+  nothing to finish, and `restart` is `launchctl kickstart -k`, waiting up to 5 seconds. Without
+  the service loaded, `restart` is an error saying so. `status` reports the plist, whether launchd
+  has it loaded, and the router's health. When no router answers in time, `install` and `restart`
+  fail, the LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why.
+  Each run of `launchctl` is cut off after 10 seconds, but a bootout, which waits for the router to
+  stop, after 55: the 45 and 10 more. Any other failure of `launchctl` is an error that quotes it.
 
 ## Milestones
 
