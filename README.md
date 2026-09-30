@@ -278,7 +278,7 @@ switchboard accounts remove <id>
 
 - **`add`** registers an account: an `[[account]]` table in the config, making the config if there's none. The id names the account for good, and its token file: letters, digits, `-` and `_`. When the account's token file holds no usable token, `add` takes one, and writes it over whatever the file held. An id, or a `--label`, that holds anything shaped like a token is refused before `add` asks for the token.
 - **`token`** replaces an account's token.
-- **`remove`** removes an account's table from the config, with the comments directly above it, and deletes its token file. The only account can't be removed.
+- **`remove`** removes an account's table from the config, with the comments directly above it, and deletes its token file: of a token file that's a link, the link alone, leaving the file it leads to. The only account can't be removed.
 
 At a terminal, `add` and `token` ask for the token, which doesn't show as it's pasted; otherwise they read it from stdin. Make one with `claude setup-token`, run while signed in to that subscription. The token is checked with the API before it's saved: one the API refuses isn't saved, and one the API doesn't answer for is, with a warning. An interrupt while they wait for it saves nothing.
 
@@ -477,7 +477,7 @@ Which desktop notifications the router posts: see [Notifications](#notifications
 
 Each account's token is a file of its own, holding the token alone: `<state dir>/tokens/<id>`, as in `~/.local/state/switchboard/tokens/work`. The file must be yours, and neither readable nor writable by anyone else (`chmod 600`); otherwise the account counts as having no token, and `accounts` and `status` say why and how to fix it. Whitespace around the token is ignored. Switchboard keeps the `tokens` directory `0700` when it writes there, and the router makes it so as it starts; it reads no token from the environment.
 
-`setup`, `accounts add` and `accounts token` write the files, but anything can, such as a secrets manager's file export or a dotfiles step, best by writing a temporary file beside the token file and renaming it into place, as switchboard does. An account whose token file already holds a usable token is added without asking for one.
+`setup`, `accounts add` and `accounts token` write the files, but anything can, such as a secrets manager's file export or a dotfiles step, best by writing a temporary file beside the token file and renaming it into place, as switchboard does. A token file can be a link to one kept elsewhere: switchboard writes a token through it, to where it leads. An account whose token file already holds a usable token is added without asking for one.
 
 The router reads the tokens as it starts, every account's file again every 3 seconds, and an account's file again when the API refuses the token it holds, so a changed token file needs no restart. A file found without a usable token at one look, as while it's being rewritten, keeps its account's token: only two looks in a row, 3 seconds apart, take it away. Sessions started before a token was replaced still carry the old one, which the router routes as its account's for 7 days.
 

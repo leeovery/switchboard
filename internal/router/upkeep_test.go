@@ -176,7 +176,7 @@ func TestTheRouterTakesUpTokenFilesAsTheyChange(t *testing.T) {
 		t.Errorf("a new session went out on %q, want personal's token: its quota needs using first once it has one", got)
 	}
 
-	if err := store.Remove("personal"); err != nil {
+	if _, err := store.Remove("personal"); err != nil {
 		t.Fatal(err)
 	}
 	waitForLine(t, log, "level=INFO", `msg="account has no usable token; nothing will go out on it until it's back"`, "account=personal")

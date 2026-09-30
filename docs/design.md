@@ -440,7 +440,9 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
   empties the file before it writes the token, as a shell's redirect does, leaves it empty for a
-  moment, which the router can catch (see below).
+  moment, which the router can catch (see below). A token file may be a link to one kept
+  elsewhere, as by a dotfiles step: switchboard reads it, and writes a token, through the link, to
+  where it leads, never in its place.
 - The router reads the tokens as it starts, every account's file again every 3 seconds, and an
   account's file again when a request on it gets a 401 (see Requests that need special
   handling), so a changed token file needs no restart: an account whose file holds another token
@@ -475,7 +477,8 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   reach the API, it saves it with a warning. `--label` sets the label, and `--primary` makes the
   account the primary.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
-  removes the account from the config, and deletes its token file.
+  removes the account from the config, and deletes its token file: of one that's a link, the link
+  alone, saying where it led, as the file there isn't switchboard's.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
@@ -819,7 +822,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
-| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place |
+| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |

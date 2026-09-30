@@ -327,13 +327,38 @@ func TestRemove(t *testing.T) {
 			}
 
 			removed, err := w.registry(&user{}, &fakeAPI{}).Remove("side")
-			if err != nil || removed != tt.wantRemoved {
-				t.Fatalf("Remove() = %v, %v, want %v", removed, err, tt.wantRemoved)
+			if want := (tokens.Removed{File: tt.wantRemoved}); err != nil || removed != want {
+				t.Fatalf("Remove() = %+v, %v, want %+v", removed, err, want)
 			}
 			w.checkConfig(t, twoAccounts)
 			w.checkNoToken(t, "side")
 			w.checkToken(t, "work", workToken)
 		})
+	}
+}
+
+func TestRemoveLeavesWhereATokenFilesLinkLeads(t *testing.T) {
+	w := newWorld(t, withSide)
+	// side's token file, a link to a file kept elsewhere, as by a dotfiles
+	// step.
+	target := filepath.Join(t.TempDir(), "side")
+	if err := os.WriteFile(target, []byte(sideToken+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(w.tokens().Path("side")), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, w.tokens().Path("side")); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := w.registry(&user{}, &fakeAPI{}).Remove("side")
+	if want := (tokens.Removed{File: true, LinkedTo: target}); err != nil || removed != want {
+		t.Fatalf("Remove() = %+v, %v, want %+v", removed, err, want)
+	}
+	w.checkNoToken(t, "side")
+	if data, err := os.ReadFile(target); err != nil || string(data) != sideToken+"\n" {
+		t.Errorf("where the link led holds %q (%v), want the token still", data, err)
 	}
 }
 

@@ -313,7 +313,7 @@ func TestARefusedTokenIsReadAgainFromItsFile(t *testing.T) {
 		{
 			name: "gone, so the request goes to another account",
 			change: func(t *testing.T, store tokens.Store) {
-				if err := store.Remove("work"); err != nil {
+				if _, err := store.Remove("work"); err != nil {
 					t.Fatal(err)
 				}
 			},

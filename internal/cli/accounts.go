@@ -97,8 +97,9 @@ func newAccountsRemoveCommand(a *app) *cobra.Command {
 		Use:   "remove <id>",
 		Short: "Remove an account, and its token file",
 		Long: `Remove an account: its [[account]] table from the config, with the comments
-directly above it, and its token file, <state dir>/tokens/<id>. The only
-account can't be removed, as a config needs one.
+directly above it, and its token file, <state dir>/tokens/<id>. A token file
+that's a link goes, but not the file it leads to, which is left as it is. The
+only account can't be removed, as a config needs one.
 
 ` + editingTheConfig,
 		Args: oneAccount,
@@ -172,12 +173,15 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	if err != nil {
 		return err
 	}
-	tokenRemoved, err := registry.Remove(id)
+	removed, err := registry.Remove(id)
 	if err != nil {
 		return err
 	}
 	said := "removed " + id
-	if tokenRemoved {
+	switch {
+	case removed.LinkedTo != "":
+		said += ", and its token file, a link: the file it led to, " + removed.LinkedTo + ", is left as it is"
+	case removed.File:
 		said += ", and its token file"
 	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), said)

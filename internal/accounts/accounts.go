@@ -110,24 +110,25 @@ func (r Registry) SetToken(ctx context.Context, cfg *config.Config, id string) (
 }
 
 // Remove removes the account with the given id: its [[account]] table from
-// the config file, then its token file, reporting whether it had one.
-func (r Registry) Remove(id string) (bool, error) {
+// the config file, then its token file, saying what it removed of that, as
+// tokens.Store's Remove does.
+func (r Registry) Remove(id string) (tokens.Removed, error) {
 	draft, err := config.Edit(r.ConfigPath)
 	if err != nil {
-		return false, err
+		return tokens.Removed{}, err
 	}
 	if err := draft.RemoveAccount(id); err != nil {
-		return false, err
+		return tokens.Removed{}, err
 	}
 	if err := draft.Save(); err != nil {
-		return false, err
+		return tokens.Removed{}, err
 	}
-	had := r.Tokens.Has(id)
-	if err := r.Tokens.Remove(id); err != nil {
-		return false, err
+	removed, err := r.Tokens.Remove(id)
+	if err != nil {
+		return tokens.Removed{}, err
 	}
-	logger.Info("removed an account", "account", id, "token_file", had)
-	return had, nil
+	logger.Info("removed an account", "account", id, "token_file", removed.File, "linked_to", removed.LinkedTo)
+	return removed, nil
 }
 
 // keepOrTake keeps the account's token when its token file holds a usable

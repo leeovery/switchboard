@@ -13,13 +13,8 @@ import (
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
 
-const (
-	// newFilePerm is a new config file's permissions: it holds no secret.
-	newFilePerm fs.FileMode = 0o644
-	// maxLinks is how many links are followed to where the config file is, as
-	// a loop of them leads nowhere.
-	maxLinks = 40
-)
+// newFilePerm is a new config file's permissions: it holds no secret.
+const newFilePerm fs.FileMode = 0o644
 
 var (
 	// ErrConfigured is what adding an account fails with, wrapped, when an
@@ -242,7 +237,7 @@ func (d *Draft) cantMake(change string) error {
 // its directory, that isn't there. The file keeps its permissions. It fails,
 // leaving the file as it is, when the file has changed since Edit read it.
 func (d *Draft) Save() error {
-	target, err := linkTarget(d.path)
+	target, err := atomicfile.Target(d.path)
 	if err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
@@ -283,37 +278,4 @@ func (d *Draft) expect(data []byte) error {
 		return fmt.Errorf("%s changed while it was being edited, so it's left as it is: try again", d.path)
 	}
 	return nil
-}
-
-// linkTarget returns where writing to path leads: path itself, or where the
-// links it names lead, which needn't be there yet.
-func linkTarget(path string) (string, error) {
-	named := path
-	for range maxLinks {
-		info, err := os.Lstat(path)
-		switch {
-		case errors.Is(err, fs.ErrNotExist):
-			return path, nil
-		case err != nil:
-			return "", err
-		case info.Mode()&fs.ModeSymlink == 0:
-			return path, nil
-		}
-		dest, err := os.Readlink(path)
-		if err != nil {
-			return "", err
-		}
-		if !filepath.IsAbs(dest) {
-			// A relative link leads on from the directory it's in, as the system
-			// finds it, following any link to that directory, where joining the
-			// two as text would take a ".." in the link back through it.
-			dir, err := filepath.EvalSymlinks(filepath.Dir(path))
-			if err != nil {
-				return "", err
-			}
-			dest = filepath.Join(dir, dest)
-		}
-		path = dest
-	}
-	return "", fmt.Errorf("%s: too many links", named)
 }
