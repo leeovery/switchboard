@@ -21,19 +21,19 @@ func TestPaceOf(t *testing.T) {
 		wantOK   bool
 	}{
 		{
-			name:     "the rise across readings spanning the half hour",
+			name:     "the rise across readings from the half hour back",
 			window:   running,
 			readings: []score.Reading{readAt(30*time.Minute, 0.3), readAt(15*time.Minute, 0.35), readAt(0, 0.4)},
 			want:     score.Pace{Rate: 0.2, Recent: true}, wantOK: true,
 		},
 		{
-			name:     "the rise across readings spanning 10 minutes exactly",
+			name:     "the rise across readings from 10 minutes back exactly",
 			window:   running,
 			readings: []score.Reading{readAt(10*time.Minute, 0.38), readAt(0, 0.4)},
 			want:     score.Pace{Rate: 0.12, Recent: true}, wantOK: true,
 		},
 		{
-			name:     "readings flat across the span, used at no rate",
+			name:     "readings flat since the first, used at no rate",
 			window:   running,
 			readings: []score.Reading{readAt(20*time.Minute, 0.4), readAt(0, 0.4)},
 			want:     score.Pace{Recent: true}, wantOK: true,
@@ -45,13 +45,13 @@ func TestPaceOf(t *testing.T) {
 			want:     score.Pace{Rate: 0.3, Recent: true}, wantOK: true,
 		},
 		{
-			name:     "the half hour counted back from now, not from the last reading",
+			name:     "a quiet spell since the last reading, slowing the rate",
 			window:   running,
 			readings: []score.Reading{readAt(35*time.Minute, 0.3), readAt(25*time.Minute, 0.35), readAt(20*time.Minute, 0.4)},
-			want:     score.Pace{Rate: 0.2}, wantOK: true,
+			want:     score.Pace{Rate: 0.12, Recent: true}, wantOK: true,
 		},
 		{
-			name:     "readings spanning under 10 minutes, the use since it started",
+			name:     "readings from under 10 minutes back, the use since it started",
 			window:   running,
 			readings: []score.Reading{readAt(9*time.Minute, 0.38), readAt(0, 0.4)},
 			want:     score.Pace{Rate: 0.2}, wantOK: true,
@@ -68,9 +68,9 @@ func TestPaceOf(t *testing.T) {
 			want:   score.Pace{Rate: 0.2}, wantOK: true,
 		},
 		{
-			name:     "readings spanning 10 minutes, before 5% of the window has passed",
+			name:     "readings from 10 minutes back, before 5% of the window has passed",
 			window:   session(0.03, 12*time.Minute),
-			readings: []score.Reading{readAt(11*time.Minute, 0.01), readAt(time.Minute, 0.03)},
+			readings: []score.Reading{readAt(10*time.Minute, 0.01), readAt(0, 0.03)},
 			want:     score.Pace{Rate: 0.12, Recent: true}, wantOK: true,
 		},
 		{
@@ -108,15 +108,42 @@ func TestRecentRate(t *testing.T) {
 		wantOK   bool
 	}{
 		{
-			name:     "the rise across readings spanning the half hour",
+			name:     "the rise across readings from the half hour back",
 			window:   running,
 			readings: []score.Reading{readAt(30*time.Minute, 0.37), readAt(0, 0.4)},
 			want:     0.06, wantOK: true,
 		},
 		{
-			name:     "readings spanning under 10 minutes",
+			name:     "readings from under 10 minutes back",
 			window:   running,
 			readings: []score.Reading{readAt(9*time.Minute, 0.39), readAt(0, 0.4)},
+		},
+		{
+			name:     "a burst of 10 minutes as it ends",
+			window:   running,
+			readings: []score.Reading{readAt(10*time.Minute, 0.3), readAt(0, 0.4)},
+			want:     0.6, wantOK: true,
+		},
+		{
+			name:     "the same burst, quiet for 20 minutes since",
+			window:   running,
+			readings: []score.Reading{readAt(30*time.Minute, 0.3), readAt(20*time.Minute, 0.4)},
+			want:     0.2, wantOK: true,
+		},
+		{
+			name:   "steady use, read every 5 minutes",
+			window: running,
+			readings: []score.Reading{
+				readAt(30*time.Minute, 0.34), readAt(25*time.Minute, 0.35), readAt(20*time.Minute, 0.36), readAt(15*time.Minute, 0.37),
+				readAt(10*time.Minute, 0.38), readAt(5*time.Minute, 0.39), readAt(0, 0.4),
+			},
+			want: 0.12, wantOK: true,
+		},
+		{
+			name:     "a single reading 10 minutes back, quiet since",
+			window:   running,
+			readings: []score.Reading{readAt(10*time.Minute, 0.4)},
+			want:     0, wantOK: true,
 		},
 		{
 			name:     "readings older than the half hour alone",

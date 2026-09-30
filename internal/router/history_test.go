@@ -136,11 +136,13 @@ func TestTheRecentRatesOutlastARestart(t *testing.T) {
 	if kept := after.state.seed(restarted.recent(now)); kept != 6 {
 		t.Errorf("took up %d readings, want the 6 of the last half hour", kept)
 	}
-	if got, want := after.state.document().Accounts[0].Rates, []status.Rate{{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}}; !sameRates(got, want) {
+	// A minute on from the last reading, the rise is over 21 minutes.
+	since := (21 * time.Minute).Hours()
+	if got, want := after.state.document().Accounts[0].Rates, []status.Rate{{Window: "5h", Rate: 0.1 / since}, {Window: "7d", Rate: 0.01 / since}}; !sameRates(got, want) {
 		t.Errorf("after the restart, work's recent rates are %+v, want %+v, as before it", got, want)
 	}
-	if pace, _ := after.state.usage["work"].pace(testPolicy, now); !pace.Recent || math.Abs(pace.Rate-0.3) > 1e-9 {
-		t.Errorf("after the restart, work's session is used at %+v, want its recent rate, 30%% an hour", pace)
+	if pace, _ := after.state.usage["work"].pace(testPolicy, now); !pace.Recent || math.Abs(pace.Rate-0.1/since) > 1e-9 {
+		t.Errorf("after the restart, work's session is used at %+v, want its recent rate, as before it", pace)
 	}
 }
 

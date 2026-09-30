@@ -12,8 +12,9 @@ const (
 	// Recent is how far back the readings go that a window's recent rate of
 	// use is measured over.
 	Recent = 30 * time.Minute
-	// steady is how long a window's recent readings must span for their rise
-	// to be its rate: over less, a burst or a lull would pass for its pace.
+	// steady is how far back the first of a window's recent readings must
+	// go for their rise to be its rate: over less, a burst or a lull would
+	// pass for its pace.
 	steady = 10 * time.Minute
 )
 
@@ -48,21 +49,24 @@ func PaceOf(w quota.Window, readings []Reading, now time.Time) (Pace, bool) {
 }
 
 // RecentRate returns how fast w has been used lately, at now: the rise across
-// the readings of it taken in the last half hour, over the time they span, a
-// share of it an hour. The readings are of w as it now runs, in the order
-// they were taken. It reports false when they span less than 10 minutes, and
-// once w has reset since it was read.
+// the readings of it taken in the last half hour, over the time from the
+// first of them until now, a share of it an hour. Readings come only as the
+// window is used, so the rate of one gone quiet falls as time passes, rather
+// than holding at its last burst's. The readings are of w as it now runs, in
+// the order they were taken. It reports false when the first of them was
+// taken less than 10 minutes before now, and once w has reset since it was
+// read.
 func RecentRate(w quota.Window, readings []Reading, now time.Time) (float64, bool) {
 	i := slices.IndexFunc(readings, func(r Reading) bool { return !r.At.Before(now.Add(-Recent)) })
 	if i < 0 || hasReset(w, now) {
 		return 0, false
 	}
 	first, last := readings[i], readings[len(readings)-1]
-	spanned := last.At.Sub(first.At)
-	if spanned < steady {
+	since := now.Sub(first.At)
+	if since < steady {
 		return 0, false
 	}
-	return (last.Utilization - first.Utilization) / spanned.Hours(), true
+	return (last.Utilization - first.Utilization) / since.Hours(), true
 }
 
 // averageRate is w's use since it started, an hour, at now: the pace its use

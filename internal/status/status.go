@@ -242,8 +242,8 @@ func (r Refusal) Holds(now time.Time) bool {
 }
 
 // Rate is how fast the router has seen a window used lately: its rise across
-// its readings of the last half hour, which span 10 minutes at least, as a
-// share of it an hour.
+// its readings of the last half hour, the first 10 minutes back at least,
+// over the time since the first, as a share of it an hour.
 type Rate struct {
 	// Window is the window's key, such as "7d".
 	Window string  `json:"window"`
@@ -257,9 +257,8 @@ type Rate struct {
 type Pressure struct {
 	// Window is the window's key, such as "5h".
 	Window string `json:"window"`
-	// Rate is the share of the window used an hour: its rise across its
-	// readings of the last half hour, when they span 10 minutes, else its use
-	// since it started.
+	// Rate is the share of the window used an hour: its recent rate, as a
+	// Rate is, while it has one, else its use since it started.
 	Rate float64 `json:"rate"`
 	// Recent is set when Rate is its rise across the last half hour's
 	// readings.

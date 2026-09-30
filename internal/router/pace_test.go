@@ -54,13 +54,13 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 		wantOK bool
 	}{
 		{
-			name:     "readings spanning 20 minutes",
+			name:     "readings from 20 minutes back",
 			readings: []sessionReading{{0, 0.3, resets, false}, {10 * time.Minute, 0.35, resets, false}, {20 * time.Minute, 0.4, resets, false}},
 			at:       20 * time.Minute,
 			want:     score.Pace{Rate: 0.3, Recent: true}, wantOK: true,
 		},
 		{
-			name:     "readings spanning 5 minutes, the use since the session started",
+			name:     "readings from 5 minutes back, the use since the session started",
 			readings: []sessionReading{{0, 0.3, resets, false}, {5 * time.Minute, 0.325, resets, false}},
 			at:       5 * time.Minute,
 			want:     score.Pace{Rate: 0.325 / (2*time.Hour + 5*time.Minute).Hours()}, wantOK: true,
@@ -82,7 +82,7 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 			want: score.Pace{Rate: 0.18, Recent: true}, wantOK: true,
 		},
 		{
-			name: "a lower reading with the same reset, taken as current, starts the readings afresh",
+			name: "a reading fallen by a tenth with the same reset, taken as current, starts the readings afresh",
 			readings: []sessionReading{
 				{0, 0.3, resets, false}, {10 * time.Minute, 0.4, resets, false}, {15 * time.Minute, 0, resets, false}, {25 * time.Minute, 0.1, resets, false},
 			},
@@ -95,7 +95,13 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 				{0, 0.3, resets, false}, {10 * time.Minute, 0.4, resets, false}, {12 * time.Minute, 0.35, resets, true},
 			},
 			at:   12 * time.Minute,
-			want: score.Pace{Rate: 0.6, Recent: true}, wantOK: true,
+			want: score.Pace{Rate: 0.5, Recent: true}, wantOK: true,
+		},
+		{
+			name:     "a burst of 10 minutes, quiet for 20 since, slowing",
+			readings: []sessionReading{{0, 0.3, resets, false}, {10 * time.Minute, 0.4, resets, false}},
+			at:       30 * time.Minute,
+			want:     score.Pace{Rate: 0.2, Recent: true}, wantOK: true,
 		},
 		{
 			name:     "a session reset since it was read",
@@ -214,7 +220,8 @@ func TestTheDocumentGivesEachAccountsPressure(t *testing.T) {
 
 func TestTheDocumentGivesEachWindowsRecentRate(t *testing.T) {
 	// Over 20 minutes, work's session rises at 30% an hour and its week at
-	// 3%; its Fable week, read once, has no recent rate. Side is read once.
+	// 3%; its Fable week, read as they started, hasn't risen since. Side,
+	// read then too, has been quiet since.
 	clock := &testClock{now: start}
 	s := newTestState(clock)
 	resets := start.Add(3 * time.Hour)
@@ -229,7 +236,10 @@ func TestTheDocumentGivesEachWindowsRecentRate(t *testing.T) {
 	s.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: resets}, weekAt(0.41)}, s.mark())
 
 	doc := s.document()
-	want := map[string][]status.Rate{"work": {{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}}}
+	want := map[string][]status.Rate{
+		"work": {{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}, {Window: "7d_oi", Rate: 0}},
+		"side": {{Window: "5h", Rate: 0}, {Window: "7d", Rate: 0}},
+	}
 	for _, a := range doc.Accounts {
 		if !sameRates(a.Rates, want[a.ID]) {
 			t.Errorf("%s's recent rates are %+v, want %+v", a.ID, a.Rates, want[a.ID])
