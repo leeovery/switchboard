@@ -1027,11 +1027,12 @@ rewrite an installed copy whose version is older than switchboard's, or can't be
 other as it is: switchboard owns the file, and an edit to it stands only until the version moves on,
 which replaces it. The router never creates one `setup` didn't.
 
-It's short: `claude` runs through switchboard; `status --session`; `usage`, and `usage --refresh`,
-or the dashboard's `r`, once a limit is reset by hand; `pin`, to one account or the best of
-several; and `logs`; a move costs one slower turn, and a moved Claude Sonnet 5.5 session carries
-on without its earlier reasoning; artifacts always live on the primary; and `switchboard --help`
-for the rest.
+It's short: `claude` runs through switchboard; `status --session`; `status --json`, and what the
+status document holds, for every account's usage, and `status --json --refresh` once a limit is
+reset by hand; `usage`, the user's dashboard, which Claude points to rather than reads; `pin`, to
+one account or the best of several; and `logs`; a move costs one slower turn, and a moved Claude
+Sonnet 5.5 session carries on without its earlier reasoning; artifacts always live on the primary;
+and `switchboard --help` for the rest.
 
 ## What doesn't go through the router
 
