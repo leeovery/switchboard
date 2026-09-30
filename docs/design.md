@@ -354,7 +354,7 @@ One account is the primary: the one the browser and the Claude apps are signed i
 `primary = true` marks it; without it, the first account is the primary. So removing the primary
 leaves the account marked, else the first, the primary, which `accounts remove` names; the
 sessions running on the removed account's token, as every routed session holds the primary's, stay
-routed, as the new primary's (see Accounts and tokens).
+routed, as the new primary's, while it has a usable token (see Accounts and tokens).
 
 - **Claude Code's own token** is the primary's. `run` gives it to every routed session, whichever
   account the conversation goes to, a session pinned to another account included: the pin moves
@@ -531,7 +531,8 @@ token `accounts add`, `accounts token` or `setup` is given.
   removes the account from the config, and deletes its token file: of one that's a link, the link
   alone, saying where it led, as the file there isn't switchboard's. Of the primary, it says which
   account is the primary now, and that the sessions running on the removed account's token stay
-  routed, as the new primary's, for a week.
+  routed, as the new primary's, for a week from when the router takes the change up, or, when the
+  new primary has no usable token, that they aren't routed until it has one.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
