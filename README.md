@@ -451,7 +451,7 @@ One table per subscription, and at least one.
 
 | Key | Default | Description |
 |---|---|---|
-| `id` | required | the account's name for good, and its token file's: a letter or digit, then letters, digits, `-` and `_`; unique; not `auto`; nothing shaped like a token |
+| `id` | required | the account's name for good, and its token file's: a letter or digit, then letters, digits, `-` and `_`; unique, in any case, as macOS gives `work` and `Work` one token file; not `auto`; nothing shaped like a token |
 | `label` | the id | what it's shown as; nothing shaped like a token |
 | `primary` | the first account | the account the browser and the Claude apps are signed into; one at most |
 | `reserve` | `0.1` on the primary, else `0` | the share of every window the router leaves unused: `0`, or more than `0` and less than `1` |

@@ -949,7 +949,8 @@ fails as it is; one that parses has every problem reported at once:
 - **At least one `[[account]]`.** Each needs an `id`: it starts with a letter or digit, holds only
   letters, digits, `-` and `_`, is unique, and isn't `auto`, in any case, which `pin auto` takes
   to mean routing. The id names the account's token file, which these rules keep safe as a file
-  name. Neither the `id` nor the `label` may hold anything shaped like a token, as both show
+  name; so no two ids differ only in case, as `work` and `Work` do, which macOS, ignoring case in
+  file names, would give one token file. Neither the `id` nor the `label` may hold anything shaped like a token, as both show
   wherever the account does: the error never quotes it, and names an account whose id holds one by
   its place, as `account #2`.
 - **`primary`** is true on one account at most.

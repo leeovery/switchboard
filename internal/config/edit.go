@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 )
@@ -94,13 +95,17 @@ func (d *Draft) Config() *Config {
 // AddAccount adds an [[account]] table for the account: after the last
 // account's, else before the first table, else at the end. As the primary,
 // it takes primary off every other account. It fails, matching ErrConfigured,
-// when an account has its id already.
+// when an account has its id already, and fails too when one has it in
+// another case, as the two would share a token file.
 func (d *Draft) AddAccount(a NewAccount) error {
 	if err := a.check(); err != nil {
 		return err
 	}
 	if d.index(a.ID) >= 0 {
 		return fmt.Errorf("account %q is %w", a.ID, ErrConfigured)
+	}
+	if i := slices.IndexFunc(d.file.Accounts, func(b fileAccount) bool { return strings.EqualFold(b.ID, a.ID) }); i >= 0 {
+		return caseClash(d.file.Accounts[i].ID, a.ID)
 	}
 	change := fmt.Sprintf("add account %q", a.ID)
 	tables, err := d.accountTables(change)

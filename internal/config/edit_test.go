@@ -383,6 +383,12 @@ func TestAddAccountRefuses(t *testing.T) {
 			wantIs:  config.ErrConfigured,
 		},
 		{
+			name:    "an id an account has already, in another case",
+			config:  commented,
+			account: config.NewAccount{ID: "Personal"},
+			wantErr: `account ids "personal" and "Personal" differ only in case, so they'd share a token file, as macOS ignores case in file names`,
+		},
+		{
 			name:    "an id that isn't a plain file name",
 			config:  commented,
 			account: config.NewAccount{ID: "../side"},
