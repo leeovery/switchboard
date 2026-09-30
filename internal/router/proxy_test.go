@@ -23,6 +23,7 @@ import (
 )
 
 func TestRoutedRequestGoesOutOnTheChosenAccount(t *testing.T) {
+	log := logstest.Capture(t)
 	up := newUpstream(t, answerOK)
 	rt := newRouter(t, up.URL)
 	chooser := &fixedChooser{account: "side"}
@@ -38,10 +39,15 @@ func TestRoutedRequestGoesOutOnTheChosenAccount(t *testing.T) {
 		t.Errorf("upstream got %s %s?%s, want POST /v1/messages?beta=true", got.method, got.path, got.query)
 	}
 	checkHeader(t, got, with(claudeCode(workToken), "Authorization", "Bearer "+sideToken))
-	want := []router.Request{{Session: sessionID, Model: opus, Client: "work"}}
-	if asked := chooser.requests(); !reflect.DeepEqual(asked, want) {
+	asked := chooser.requests()
+	if len(asked) != 1 || asked[0].ID == "" {
+		t.Fatalf("chooser was asked %+v, want one request, with its id", asked)
+	}
+	want := []router.Request{{ID: asked[0].ID, Session: sessionID, Model: opus, Client: "work"}}
+	if !reflect.DeepEqual(asked, want) {
 		t.Errorf("chooser was asked %+v, want %+v", asked, want)
 	}
+	waitForLine(t, log, "msg=routed", "id="+asked[0].ID, "account=side")
 }
 
 func TestQueriesGoUpstreamAsSent(t *testing.T) {
@@ -636,6 +642,9 @@ func (c *fixedChooser) Choose(_ context.Context, req router.Request) router.Choi
 	c.asked = append(c.asked, req)
 	return router.Choice{Account: c.account, Reason: "fixed"}
 }
+
+// Forget forgets nothing: the chooser remembers no session.
+func (c *fixedChooser) Forget(router.Request) {}
 
 func (c *fixedChooser) requests() []router.Request {
 	c.mu.Lock()

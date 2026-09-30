@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -92,14 +93,9 @@ func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 				upstream := &scriptedUpstream{answers: map[string][]answer{workToken: tt.answers, sideToken: {served}}}
 				r.proxy.transport = upstream
-				ctx, cancel := context.WithCancel(t.Context())
-				defer cancel()
-				if tt.goneAfter > 0 {
-					time.AfterFunc(tt.goneAfter, cancel)
-				}
 
 				began := time.Now()
-				status := routeAlone(ctx, r, "one")
+				status := routeAlone(clientGoing(t, tt.goneAfter), r, "one")
 				if waited := time.Since(began); waited != tt.wantWait {
 					t.Errorf("the request took %v, want %v", waited, tt.wantWait)
 				}
@@ -154,6 +150,43 @@ func TestEachAccountARequestMovesToThrottlesItAfresh(t *testing.T) {
 		}
 		if got, want := upstream.sent(), []string{"work", "work", "work", "side", "side", "side"}; !slices.Equal(got, want) {
 			t.Errorf("the request went out on %q, want %q", got, want)
+		}
+	})
+}
+
+func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		// The session is on work. Side has room too, and its quota needs
+		// using sooner.
+		r := newTestRouter(t, at(start), &stubProber{})
+		r.state.record("work", []quota.Window{session, laterWeek})
+		r.state.record("side", []quota.Window{session, soonWeek})
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+		upstream := scripted(refusedAlone, served)
+		r.proxy.transport = upstream
+
+		began := time.Now()
+		rec := route(t.Context(), r, "one")
+		if waited := time.Since(began); waited != 0 {
+			t.Errorf("the request took %v, want no pause", waited)
+		}
+		if rec.Code != http.StatusTooManyRequests || rec.Header().Get("X-Should-Retry") != "true" || rec.Body.String() != refusedAloneBody {
+			t.Errorf("answered %d, X-Should-Retry %q, %s, want work's 429 as it came", rec.Code, rec.Header().Get("X-Should-Retry"), rec.Body)
+		}
+		if got := upstream.sent(); !slices.Equal(got, []string{"work"}) {
+			t.Errorf("the request went out on %q, want work alone: the 429 says nothing of work's quota", got)
+		}
+		if work, _ := r.Status().Account("work"); work.Limit.Holds(start) || work.Refused.Status != 0 {
+			t.Errorf("work's limit = %+v, refusal = %+v, want neither: the 429 says nothing against it", work.Limit, work.Refused)
+		}
+		if !log.Has("level=INFO", "msg=routed", "account=work", "status=429") {
+			t.Errorf("log reads\n%s\nwant the request routed on work, answered 429", log)
+		}
+		for _, unwanted := range []string{"msg=throttled", "msg=replaying", "level=WARN", "attempts="} {
+			if log.Has(unwanted) {
+				t.Errorf("log reads\n%s\nwant no %q: the request went out once", log, unwanted)
+			}
 		}
 	})
 }
@@ -220,11 +253,36 @@ func limitHit(r *http.Request) *http.Response {
 	return respond(r, http.StatusTooManyRequests, h, `{"type":"error","error":{"type":"rate_limit_error","message":"You've hit your limit"}}`)
 }
 
-// throttled answers with a 429 that throttles the account, asking for a wait
-// of retryAfter seconds, or none when it's empty.
+// refusedAloneBody is the body of refusedAlone's 429.
+const refusedAloneBody = `{"type":"error","error":{"type":"rate_limit_error","message":"Error"}}`
+
+// refusedAlone answers with a 429 that carries no usage headers, refusing the
+// request itself, as the API refuses some requests whatever the account's
+// quota.
+func refusedAlone(r *http.Request) *http.Response {
+	return respond(r, http.StatusTooManyRequests, http.Header{"X-Should-Retry": {"true"}}, refusedAloneBody)
+}
+
+// forbidden answers with a 403, refusing the request on the account.
+func forbidden(r *http.Request) *http.Response {
+	return respond(r, http.StatusForbidden, http.Header{}, `{"type":"error","error":{"type":"permission_error","message":"This model isn't on your plan"}}`)
+}
+
+// serverError answers with a 500.
+func serverError(r *http.Request) *http.Response {
+	return respond(r, http.StatusInternalServerError, http.Header{}, `{"type":"error","error":{"type":"api_error","message":"Internal server error"}}`)
+}
+
+// unreachable is no answer: the upstream is never reached.
+func unreachable(*http.Request) *http.Response {
+	return nil
+}
+
+// throttled answers with a 429 that throttles the account, its usage allowed,
+// asking for a wait of retryAfter seconds, or none when it's empty.
 func throttled(retryAfter string) answer {
 	return func(r *http.Request) *http.Response {
-		h := http.Header{}
+		h := http.Header{"Anthropic-Ratelimit-Unified-Status": {"allowed"}}
 		if retryAfter != "" {
 			h.Set("Retry-After", retryAfter)
 		}
@@ -249,12 +307,17 @@ func respond(r *http.Request, status int, h http.Header, body string) *http.Resp
 // scriptedUpstream is the upstream as a transport, for tests that can't reach
 // it over a network, as those whose clock is synctest's can't: it answers
 // each request, by the token it carries, with the account's next answer, the
-// last answering every request after, and notes the account each went out
-// on.
+// last answering every request after, failing where the answer is none, and
+// notes the account each went out on.
 type scriptedUpstream struct {
 	mu       sync.Mutex
 	answers  map[string][]answer
 	accounts []string
+}
+
+// scripted is an upstream that answers work's requests and side's as given.
+func scripted(work, side answer) *scriptedUpstream {
+	return &scriptedUpstream{answers: map[string][]answer{workToken: {work}, sideToken: {side}}}
 }
 
 func (u *scriptedUpstream) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -267,7 +330,10 @@ func (u *scriptedUpstream) RoundTrip(r *http.Request) (*http.Response, error) {
 	if len(answers) > 1 {
 		u.answers[token] = answers[1:]
 	}
-	return answers[0](r), nil
+	if resp := answers[0](r); resp != nil {
+		return resp, nil
+	}
+	return nil, errors.New("dial tcp: connection refused")
 }
 
 // sent returns the account each request went out on, in order.
@@ -281,13 +347,31 @@ func (u *scriptedUpstream) sent() []string {
 // work's token, and returns the status it answered with, or zero when it
 // answered nothing, every answer here having a body.
 func routeAlone(ctx context.Context, r *Router, session string) int {
+	rec := route(ctx, r, session)
+	if rec.Body.Len() == 0 {
+		return 0
+	}
+	return rec.Code
+}
+
+// clientGoing returns the context of a client that goes after d, or stays
+// while the test runs where d is zero.
+func clientGoing(t *testing.T, d time.Duration) context.Context {
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	if d > 0 {
+		time.AfterFunc(d, cancel)
+	}
+	return ctx
+}
+
+// route has the router's proxy route a messages request of session on work's
+// token, and returns what it answered.
+func route(ctx context.Context, r *Router, session string) *httptest.ResponseRecorder {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"`+opus+`","max_tokens":1}`))
 	req.Header.Set("Authorization", "Bearer "+workToken)
 	req.Header.Set(claude.SessionHeader, session)
 	rec := httptest.NewRecorder()
 	r.Proxy().ServeHTTP(rec, req)
-	if rec.Body.Len() == 0 {
-		return 0
-	}
-	return rec.Code
+	return rec
 }

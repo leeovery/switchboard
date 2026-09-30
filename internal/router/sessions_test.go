@@ -13,24 +13,84 @@ import (
 
 func TestRememberNotesARequestOnTheAssignmentItsChoiceFoundAlone(t *testing.T) {
 	s := newSessions(at(start), unkept)
-	k := key{session: "one", model: opus}
-	if _, noted := s.remember(k, assignment{}, "", decision{account: "work", reason: reasonNew}, start); !noted {
+	req := Request{Session: "one", Model: opus}
+	k := req.key()
+	if _, noted := s.remember(req, assignment{}, decision{account: "work", reason: reasonNew}, start); !noted {
 		t.Fatal("remember() didn't note a new session's first request")
 	}
 	onWork := s.lookup(k).current
 
-	found, noted := s.remember(k, assignment{}, "", decision{account: "side", reason: reasonNew}, start.Add(time.Second))
+	found, noted := s.remember(req, assignment{}, decision{account: "side", reason: reasonNew}, start.Add(time.Second))
 	if noted || found != onWork {
 		t.Errorf("remember() of another request that found the session new = %+v, noted %v, want work's assignment found, and the request not noted", found, noted)
 	}
 	stay := decision{account: "work", reason: reasonSticky, sticky: true}
 	for _, at := range []time.Time{start.Add(time.Minute), start.Add(2 * time.Minute)} {
-		if _, noted := s.remember(k, onWork, "", stay, at); !noted {
+		if _, noted := s.remember(req, onWork, stay, at); !noted {
 			t.Errorf("remember() of a request that stayed, at %v, didn't note it: staying leaves the assignment it found", at)
 		}
 	}
 	if got := s.lookup(k).current; !got.same(onWork) || got.LastSeen != start.Add(2*time.Minute) {
 		t.Errorf("the session is assigned %+v, want work's assignment, last seen when it last stayed", got)
+	}
+}
+
+func TestForgetForgetsAnAssignmentWhileItsRequestWasTheLastNotedOnIt(t *testing.T) {
+	req := Request{ID: "a1b2c3d4", Session: "one", Model: opus}
+	other := Request{ID: "e5f6a7b8", Session: "one", Model: opus}
+	moved := decision{account: "side", reason: "moved: work hit its limit"}
+	stay := decision{account: "work", reason: reasonSticky, sticky: true}
+	tests := []struct {
+		name string
+		// since is what befell the session after req gave it work.
+		since      func(s *sessions)
+		wantForgot bool
+		// want is the session's account once it's done, "" for none.
+		want string
+	}{
+		{name: "made by the request", since: func(*sessions) {}, wantForgot: true},
+		{
+			name:       "moved on by the request",
+			since:      func(s *sessions) { assignFor(s, req, moved, start.Add(time.Second)) },
+			wantForgot: true,
+		},
+		{
+			name:  "moved by another request since",
+			since: func(s *sessions) { assignFor(s, other, moved, start.Add(time.Second)) },
+			want:  "side",
+		},
+		{
+			name:  "stayed on by another request since",
+			since: func(s *sessions) { assignFor(s, other, stay, start.Add(time.Second)) },
+			want:  "work",
+		},
+		{
+			name:  "forgotten already, unused for a week",
+			since: func(s *sessions) { s.prune(start.Add(forgetAfter)) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var changes changeCount
+			s := newSessions(at(start), changes.hear)
+			assignFor(s, req, decision{account: "work", reason: reasonNew}, start)
+			tt.since(s)
+			before := changes
+
+			if forgot := s.forget(req); forgot != tt.wantForgot {
+				t.Errorf("forget() = %v, want %v", forgot, tt.wantForgot)
+			}
+			if got := s.lookup(req.key()); got.assigned != (tt.want != "") || got.current.Account != tt.want {
+				t.Errorf("the session is assigned %+v (%v), want %q", got.current, got.assigned, tt.want)
+			}
+			var wantChanges changeCount
+			if tt.wantForgot {
+				wantChanges = 1
+			}
+			if got := changes - before; got != wantChanges {
+				t.Errorf("forget() noted %d changes for the state file, want %d", got, wantChanges)
+			}
+		})
 	}
 }
 

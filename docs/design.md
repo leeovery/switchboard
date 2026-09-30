@@ -48,7 +48,8 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   such as publishing an artifact, and what it sends around the router, goes out on the primary,
   whichever account the conversation is on. See The primary account.
 - Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization
-  and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Switchboard
+  and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Only a 429
+  that refuses the request itself carries none (see Choosing an account, step 6). Switchboard
   reads them off real traffic, so it knows each account's usage without spending requests.
   Windows are parsed generically, not hard-coded. A window's reset says which of two readings
   taken apart is current: a later reset is a new window; with the same reset the higher
@@ -121,10 +122,16 @@ on a model whose thinking is bound to its account only when its account can't se
    whose reset isn't known, comes after those whose reset is to come. Between equal resets, or two
    of those, the higher score wins, then the account that has used less of its 5-hour window, then
    the first configured.
-3. **New session:** the best candidate is assigned and remembered, keyed on the session id Claude
-   Code sends (`x-claude-code-session-id`) and the model. Caches are per model anyway, so a
-   session's Haiku calls can sit on a different account from its Opus calls at no cache cost.
-   The id survives `--resume`, so a resumed session finds its account again.
+3. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
+   (`x-claude-code-session-id`) and the model, and remembered once the request is answered with
+   success. Caches are per model anyway, so a session's Haiku calls can sit on a different account
+   from its Opus calls at no cache cost. The id survives `--resume`, so a resumed session finds
+   its account again. A new session's request that ends otherwise, in a 429, a refusal, another
+   error or its client gone, leaves nothing remembered, unless another request of the session has
+   been routed since, whose account stands: the quota check `--resume` sends as it starts goes
+   under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 6), would
+   otherwise be kept, and listed among the sessions, for a week. A session already remembered
+   keeps its account whatever its requests end in.
 4. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
@@ -146,7 +153,11 @@ on a model whose thinking is bound to its account only when its account can't se
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
-   away for nothing.
+   away for nothing. A 429 without the usage headers, neither the overall status nor any window's,
+   isn't throttling: it says nothing of the account's quota, but refuses the request itself, as
+   the API refuses the quota check Claude Code sends as it starts, on Claude Opus 5.5 today. Sent
+   again, the request would fare no better, so the 429 is passed through at once, as it came, with
+   nothing held against the account, for Claude Code to retry if it will.
 7. **No forced return:** after the original account resets, the session isn't moved back; that
    would cost a cache rebuild for nothing. The idle rule brings it back when a move is free.
 8. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings

@@ -14,11 +14,19 @@ type Chooser interface {
 	// account it could fall back to is held back by its reserve alone,
 	// which the router never spends.
 	Choose(ctx context.Context, req Request) Choice
+	// Forget forgets the account chosen for req, whose first choice said its
+	// session was new, as the request was never answered with success: a
+	// session is remembered once it's answered. An account chosen for another
+	// request of the session since stands.
+	Forget(req Request)
 }
 
 // Request is what the router knows of a routed request when it chooses the
 // account to send it on.
 type Request struct {
+	// ID is the request's own, never "", which ties the choices made for it
+	// together, as it does its lines in the log.
+	ID string
 	// Session is the id of the session the request belongs to, or "" when it
 	// doesn't say.
 	Session string
@@ -81,4 +89,8 @@ type Choice struct {
 	// the first of them has room again, zero when that isn't known.
 	Reserved bool
 	Back     time.Time
+	// New is set when the choice gave the request's session its first account
+	// for the request's model: the session is new, and is remembered once the
+	// request is answered, as Chooser's Forget says.
+	New bool
 }

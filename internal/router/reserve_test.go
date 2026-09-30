@@ -150,6 +150,9 @@ func TestWithNoRoomButInTheReservesTheRouterAnswers429Itself(t *testing.T) {
 	if h := r.rt.Status().Router; h.Requests != 1 || h.Failures != 0 {
 		t.Errorf("the router's health counts %d requests and %d failures, want the one answered, not failed", h.Requests, h.Failures)
 	}
+	if n := r.rt.Status().Sessions; n != 0 {
+		t.Errorf("the router has %d sessions, want none: no account answered the session's request", n)
+	}
 
 	if got := r.ask(t, "pinned", opus, "side"); got != "side" {
 		t.Errorf("a session pinned to side went to %s, want side: its pin spends the reserve", got)

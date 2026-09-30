@@ -145,6 +145,11 @@ func TestProviderClassify(t *testing.T) {
 	throttledAfter := func(d time.Duration) quota.Outcome {
 		return quota.Outcome{Verdict: quota.Throttled, RetryAfter: d}
 	}
+	// allowedAfter is the header of a 429 whose overall status is allowed,
+	// asking for a wait of retryAfter.
+	allowedAfter := func(retryAfter string) http.Header {
+		return header("anthropic-ratelimit-unified-status", "allowed", "retry-after", retryAfter)
+	}
 	// limitIn is the limit reached in the windows with the given keys.
 	limitIn := func(rejected ...string) quota.Outcome {
 		return quota.Outcome{Verdict: quota.LimitReached, Rejected: rejected}
@@ -274,16 +279,34 @@ func TestProviderClassify(t *testing.T) {
 			),
 			want: throttledAfter(7 * time.Second),
 		},
-		{name: "a 429 without usage headers", status: http.StatusTooManyRequests, want: throttledAfter(0)},
-		{name: "a 429 asking for a wait", status: http.StatusTooManyRequests, header: header("retry-after", " 12 "), want: throttledAfter(12 * time.Second)},
-		{name: "a 429 asking for no wait", status: http.StatusTooManyRequests, header: header("retry-after", "0"), want: throttledAfter(0)},
-		{name: "a 429 asking for a wait as a date", status: http.StatusTooManyRequests, header: header("retry-after", "Mon, 28 Sep 2026 13:12:30 GMT"), want: throttledAfter(0)},
-		{name: "a 429 asking for a wait in fractions", status: http.StatusTooManyRequests, header: header("retry-after", "1.5"), want: throttledAfter(0)},
-		{name: "a 429 asking for a negative wait", status: http.StatusTooManyRequests, header: header("retry-after", "-5"), want: throttledAfter(0)},
+		{name: "a 429 without headers", status: http.StatusTooManyRequests, want: quota.Outcome{Verdict: quota.Served}},
+		{
+			name:   "a 429 without usage headers, asking for a wait and a retry",
+			status: http.StatusTooManyRequests,
+			header: header("retry-after", "7", "x-should-retry", "true"),
+			want:   quota.Outcome{Verdict: quota.Served},
+		},
+		{
+			name:   "a 429 whose overall status is allowed",
+			status: http.StatusTooManyRequests,
+			header: header("anthropic-ratelimit-unified-status", "allowed", "x-should-retry", "true"),
+			want:   throttledAfter(0),
+		},
+		{
+			name:   "a 429 whose windows alone are allowed",
+			status: http.StatusTooManyRequests,
+			header: header("anthropic-ratelimit-unified-5h-utilization", "0.23", "anthropic-ratelimit-unified-5h-status", "allowed", "retry-after", "3"),
+			want:   throttledAfter(3 * time.Second),
+		},
+		{name: "a 429 asking for a wait", status: http.StatusTooManyRequests, header: allowedAfter(" 12 "), want: throttledAfter(12 * time.Second)},
+		{name: "a 429 asking for no wait", status: http.StatusTooManyRequests, header: allowedAfter("0"), want: throttledAfter(0)},
+		{name: "a 429 asking for a wait as a date", status: http.StatusTooManyRequests, header: allowedAfter("Mon, 28 Sep 2026 13:12:30 GMT"), want: throttledAfter(0)},
+		{name: "a 429 asking for a wait in fractions", status: http.StatusTooManyRequests, header: allowedAfter("1.5"), want: throttledAfter(0)},
+		{name: "a 429 asking for a negative wait", status: http.StatusTooManyRequests, header: allowedAfter("-5"), want: throttledAfter(0)},
 		{
 			name:   "a 429 asking for a wait longer than a duration holds",
 			status: http.StatusTooManyRequests,
-			header: header("retry-after", "99999999999999999"),
+			header: allowedAfter("99999999999999999"),
 			want:   throttledAfter(time.Duration(math.MaxInt64 / int64(time.Second) * int64(time.Second))),
 		},
 	}
