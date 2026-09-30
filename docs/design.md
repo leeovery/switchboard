@@ -1120,8 +1120,10 @@ Each account:
   so it needs nothing else of the user's environment. `install` warns when no account has a usable
   token; the router starts all the same, and routes once one has. Whether launchd has the service
   loaded is `launchctl print`'s to say, which exits 113 for one it hasn't: `install` boots out a
-  loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router other
-  than any running before to answer. `uninstall` boots it out when loaded and removes the plist.
+  loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router
+  other than any running before to answer. launchd finishes booting a service out after `bootout`
+  returns, and refuses to load it until then (`5: Input/output error`), so `install` tries
+  bootstrapping 5 times, half a second apart, before it fails as the last try did. `uninstall` boots it out when loaded and removes the plist.
   `restart`, with a router answering, has launchd send it SIGTERM (`launchctl kill`): it stops as at
   any signal, finishing its requests in flight, and launchd, keeping the service alive, starts it
   again. `restart` says so first, `the router is finishing its requests in flight, then launchd

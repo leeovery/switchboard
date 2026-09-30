@@ -35,6 +35,11 @@ const (
 	StartWait = 5 * time.Second
 	// startPoll is how often it asks.
 	startPoll = 100 * time.Millisecond
+	// bootstrapTries is how many times installing the service has launchd
+	// load it before it gives up, and bootstrapPause how long it waits
+	// between them.
+	bootstrapTries = 5
+	bootstrapPause = 500 * time.Millisecond
 )
 
 var (
@@ -137,7 +142,7 @@ func (s *Service) Install(ctx context.Context, opts InstallOptions) (Installed, 
 	if err := s.unload(ctx); err != nil {
 		return Installed{}, err
 	}
-	if err := s.launchctl(ctx, "bootstrap", s.domain(), s.Plist()); err != nil {
+	if err := s.bootstrap(ctx); err != nil {
 		return Installed{}, err
 	}
 	logger.Info("installed the service", "plist", s.Plist(), "program", strings.Join(a.Program, " "))
@@ -365,6 +370,26 @@ func (s *Service) write(a agent) error {
 		return fmt.Errorf("create the log directory: %w", err)
 	}
 	return nil
+}
+
+// bootstrap has launchd load the service from its plist, trying again,
+// bootstrapPause apart, bootstrapTries times in all, while launchctl
+// fails: launchd finishes booting a service out after launchctl bootout
+// returns, and refuses to load it again until it has, as with "5:
+// Input/output error". It fails as the last try did.
+func (s *Service) bootstrap(ctx context.Context) error {
+	for try := 1; ; try++ {
+		err := s.launchctl(ctx, "bootstrap", s.domain(), s.Plist())
+		if err == nil || try == bootstrapTries {
+			return err
+		}
+		logger.Info("launchd didn't load the service; trying again", "try", try, "error", err)
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(bootstrapPause):
+		}
+	}
 }
 
 // unload has launchd stop the service and forget it, when it has loaded it.
