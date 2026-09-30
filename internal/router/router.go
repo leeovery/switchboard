@@ -197,8 +197,6 @@ func New(cfg Config) (*Router, error) {
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
 	transport := newPool()
-	// After a sleep, requests go upstream on connections of their own, and
-	// those that arrived before, and fail, don't count against the router.
 	awake := &wakes{now: clock, woke: func() {
 		transport.renew()
 		health.wake()
