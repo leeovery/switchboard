@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -14,6 +15,11 @@ var (
 	// ErrMissing is what an account without a token fails with, wrapped: its
 	// token file isn't there, or holds nothing but whitespace.
 	ErrMissing = errors.New("token missing")
+	// ErrEmpty is what an account whose token file is there, but holds
+	// nothing but whitespace, fails with, wrapped, as a writer that empties
+	// the file before it writes the token leaves it for a moment. It reads
+	// as ErrMissing does, and wraps it.
+	ErrEmpty = fmt.Errorf("%w", ErrMissing)
 	// ErrNotAToken is what reading a token from text holding more than a
 	// token fails with.
 	ErrNotAToken = errors.New("more than a token")

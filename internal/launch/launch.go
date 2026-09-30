@@ -27,8 +27,8 @@ var logger = logs.For("launch")
 const AskTimeout = 500 * time.Millisecond
 
 // lookAgain is how long run waits to look at a token file again, when it
-// finds no usable token there at first: a writer that empties the file before
-// it writes the token leaves it so for a moment, which one look can catch.
+// finds it empty at first: a writer that empties the file before it writes
+// the token leaves it so for a moment, which one look can catch.
 const lookAgain = 200 * time.Millisecond
 
 // Router is the router, as run asks it how it is: *router.Client is one.
@@ -331,15 +331,16 @@ func (r Route) pinned() (choice, error) {
 }
 
 // lookTwice reads the account's token, looking at its file again, lookAgain
-// on, when there's no usable token there at first, as the router takes two
-// looks to find a file without one: the token Claude Code starts on is its
-// own for the whole session.
+// on, when it's there but empty at first, as for a moment while it's
+// rewritten: the router takes two looks to find a file without a token, and
+// the token Claude Code starts on is its own for the whole session. A file
+// that's missing, or isn't the user's alone, is looked at once.
 func (r Route) lookTwice(id string) (tokens.Token, error) {
 	token, err := r.Token(id)
-	if err == nil {
-		return token, nil
+	if !errors.Is(err, tokens.ErrEmpty) {
+		return token, err
 	}
-	logger.Debug("token file holds no usable token; looking again", "account", id, "error", err)
+	logger.Debug("token file empty; looking again", "account", id, "error", err)
 	r.Pause(lookAgain)
 	return r.Token(id)
 }

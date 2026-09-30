@@ -466,10 +466,11 @@ token `accounts add`, `accounts token` or `setup` is given.
   account its token (see The router looking after itself). The router starts whether or not any
   account has a usable token, and routes as soon as one has. `run`, `usage` and `status` read the
   files as they need them; `run` looks again, 200 milliseconds on, at the primary's file and a
-  pinned account's when it finds no usable token there, as it can while the file's rewritten,
-  before it starts Claude Code on another's, which would be Claude Code's own token for the whole
-  session. The LaunchAgent needs no token from the user's environment: it carries
-  only what finds the config, the state and the skill, and the log level (see Launching).
+  pinned account's when it finds the file there but empty, as a writer that empties it leaves it
+  for a moment, before it starts Claude Code on another's, which would be Claude Code's own token
+  for the whole session; a file that's missing, or isn't the user's alone, it looks at once. The
+  LaunchAgent needs no token from the user's environment: it carries only what finds the config,
+  the state and the skill, and the log level (see Launching).
 - A token the router replaces stays its account's for 7 days: sessions started before hold it,
   and every session holds the primary's. The router keeps it as its SHA-256 hash, never the
   token, in `state.json`, and routes a request carrying it as the account's (see Proxy rules). A

@@ -75,6 +75,9 @@ type Deps struct {
 	// PID is this process's id, as os.Getpid gives it, which the claude run
 	// starts in its place keeps.
 	PID int
+	// Pause waits as long as it's given, as time.Sleep does: run pauses
+	// before it looks again at a token file it finds empty.
+	Pause func(time.Duration)
 }
 
 // Notifier posts a desktop notification.

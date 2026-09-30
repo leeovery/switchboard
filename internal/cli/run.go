@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -111,5 +110,5 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 	if err != nil {
 		return l.Unaided(args, "couldn't find the router", err)
 	}
-	return l.Run(ctx, launch.Route{Config: cfg, Token: a.readToken, Pause: time.Sleep, Router: client, Account: opts.account}, args)
+	return l.Run(ctx, launch.Route{Config: cfg, Token: a.readToken, Pause: a.Pause, Router: client, Account: opts.account}, args)
 }

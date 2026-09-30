@@ -427,6 +427,7 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		GOOS:   "darwin",
 		UID:    os.Getuid(),
 		PID:    testPID,
+		Pause:  func(time.Duration) {},
 	}
 }
 

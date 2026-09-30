@@ -154,14 +154,20 @@ func TestRunChoosesTheToken(t *testing.T) {
 }
 
 func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
+	empty := func(id string) error {
+		return fmt.Errorf("%w: write it to tokens/%s, which is empty", tokens.ErrEmpty, id)
+	}
+	exposed := func(id string) error {
+		return fmt.Errorf("other users can read the token file (mode 0644): chmod 600 tokens/%s", id)
+	}
 	tests := []struct {
 		name    string
 		router  *fakeRouter
 		account string
-		// rewritten is the account whose token file is caught empty, as while
-		// a writer rewrites it, at the first look, and written whether it
-		// holds the token again after a pause.
+		// rewritten is the account whose token file the first look finds as
+		// caught says, and written whether it holds the token at a second.
 		rewritten string
+		caught    func(id string) error
 		written   bool
 		want      string
 		wantErr   string
@@ -169,13 +175,35 @@ func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
 		wantPaused bool
 	}{
 		{name: "the primary's, at the first look", router: healthy(), want: workToken},
-		{name: "the primary's, written again", router: healthy(), rewritten: "work", written: true, want: workToken, wantPaused: true},
-		{name: "the primary's, empty still, the first with a token's", router: healthy(), rewritten: "work", want: sideToken, wantPaused: true},
+		{name: "the primary's, written again", router: healthy(), rewritten: "work", caught: empty, written: true, want: workToken, wantPaused: true},
+		{name: "the primary's, empty still, the first with a token's", router: healthy(), rewritten: "work", caught: empty, want: sideToken, wantPaused: true},
+		{
+			name:       "the primary's, written again, pinned to another",
+			router:     healthy(),
+			account:    "side",
+			rewritten:  "work",
+			caught:     empty,
+			written:    true,
+			want:       workToken,
+			wantPaused: true,
+		},
+		{
+			name:       "the primary's, empty still, pinned to another, the pinned account's",
+			router:     healthy(),
+			account:    "side",
+			rewritten:  "work",
+			caught:     empty,
+			want:       sideToken,
+			wantPaused: true,
+		},
+		{name: "the primary's missing, looked at once", router: healthy(), rewritten: "work", caught: tokenstest.Missing, written: true, want: sideToken},
+		{name: "the primary's readable by others, looked at once", router: healthy(), rewritten: "work", caught: exposed, written: true, want: sideToken},
 		{
 			name:       "the pinned account's, written again",
 			router:     notRunning(),
 			account:    "side",
 			rewritten:  "side",
+			caught:     empty,
 			written:    true,
 			want:       sideToken,
 			wantPaused: true,
@@ -185,6 +213,7 @@ func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
 			router:     notRunning(),
 			account:    "side",
 			rewritten:  "side",
+			caught:     empty,
 			wantErr:    "account side has no usable token for Claude Code to start on: token missing: write it to tokens/side, which is empty",
 			wantPaused: true,
 		},
@@ -196,7 +225,7 @@ func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
 			var paused []time.Duration
 			r.Token = func(id string) (tokens.Token, error) {
 				if id == tt.rewritten && (len(paused) == 0 || !tt.written) {
-					return tokens.Token{}, fmt.Errorf("%w: write it to tokens/%s, which is empty", tokens.ErrMissing, id)
+					return tokens.Token{}, tt.caught(id)
 				}
 				return testTokens.Read(id)
 			}

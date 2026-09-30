@@ -2,12 +2,12 @@ package cli_test
 
 import (
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/cli"
@@ -105,18 +105,61 @@ func TestRunWithoutTheRouter(t *testing.T) {
 }
 
 func TestRunWithoutThePrimarysToken(t *testing.T) {
-	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-	if err := os.Remove(tokenPath(t, srv.deps, "work")); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		// empty leaves the primary's token file empty, as a writer does for a
+		// moment before it writes the token, where it's otherwise missing;
+		// and written has the file hold the token again once run pauses.
+		empty, written bool
+		wantAccount    string
+		wantToken      string
+		wantPaused     []time.Duration
+	}{
+		{name: "missing, looked at once", wantAccount: "side · Side", wantToken: "test-token-side"},
+		{
+			name:        "caught empty, looked at again once it's written",
+			empty:       true,
+			written:     true,
+			wantAccount: "work · Work",
+			wantToken:   "test-token-work",
+			wantPaused:  []time.Duration{200 * time.Millisecond},
+		},
+		{
+			name:        "empty still at a second look",
+			empty:       true,
+			wantAccount: "side · Side",
+			wantToken:   "test-token-side",
+			wantPaused:  []time.Duration{200 * time.Millisecond},
+		},
 	}
-	handed := recordHandOffs(t, &srv.deps)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+			if tt.empty {
+				writeToken(t, srv.deps, "work", "")
+			} else {
+				removeToken(t, srv.deps, "work")
+			}
+			var paused []time.Duration
+			srv.deps.Pause = func(d time.Duration) {
+				paused = append(paused, d)
+				if tt.written {
+					writeToken(t, srv.deps, "work", "test-token-work")
+				}
+			}
+			handed := recordHandOffs(t, &srv.deps)
 
-	got := run(t, srv.deps, "run")
-	if want := (result{stderr: "switchboard: the router isn't running — connecting directly on side · Side\n"}); got != want {
-		t.Errorf("switchboard run = %+v, want %+v", got, want)
-	}
-	if token := handed.only(t).env["CLAUDE_CODE_OAUTH_TOKEN"]; token != "test-token-side" {
-		t.Errorf("handed over on %q, want side's token, the first with one, the primary's file holding none at a second look", token)
+			got := run(t, srv.deps, "run")
+			if want := (result{stderr: "switchboard: the router isn't running — connecting directly on " + tt.wantAccount + "\n"}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			if token := handed.only(t).env["CLAUDE_CODE_OAUTH_TOKEN"]; token != tt.wantToken {
+				t.Errorf("handed over on %q, want %q", token, tt.wantToken)
+			}
+			if !slices.Equal(paused, tt.wantPaused) {
+				t.Errorf("paused %v, want %v", paused, tt.wantPaused)
+			}
+		})
 	}
 }
 
