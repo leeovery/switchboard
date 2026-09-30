@@ -67,6 +67,8 @@ type exchange struct {
 	// id ties a routed request's log lines together.
 	id      string
 	started time.Time
+	// arrived is when a routed request arrived, by the router's clock.
+	arrived time.Time
 	// attempts counts the times a routed request has gone upstream.
 	attempts int
 	// status is what the client was answered, or zero before it's known.
@@ -124,7 +126,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		refuseBody(w, r, err)
 		return
 	}
-	ex := &exchange{id: newID(), started: started}
+	ex := &exchange{id: newID(), started: started, arrived: p.now()}
 	ex.req = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
 	ex.newSession = choice.New
@@ -299,7 +301,7 @@ func (ex *exchange) identity(r *http.Request) []any {
 func (p *proxy) done(r *http.Request, ex *exchange) {
 	p.logRouted(r, ex)
 	if ex.status != 0 {
-		p.health.record(ex.failed)
+		p.health.record(ex.arrived, ex.failed)
 	}
 	if ex.newSession && !ex.succeeded() {
 		p.chooser.Forget(ex.req)

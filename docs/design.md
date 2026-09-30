@@ -641,7 +641,9 @@ its proxy listens; otherwise the session connects directly. The harder case is a
 running but failing requests: sessions already routed through it fail until they restart. The router
 tracks the requests it has routed over the last 5 minutes, and those it failed itself: a 502 for an
 upstream it couldn't reach, or for a refusal with no account left to fail over to. The upstream's
-own 429s and 5xx, passed through, don't count against it. It's unhealthy once it has failed 5 of
+own 429s and 5xx, passed through, don't count against it, and nor does a failure of a request that
+arrived before the router last noticed the Mac wake, which may have gone out on a connection the
+sleep left dead (see The router looking after itself). It's unhealthy once it has failed 5 of
 them at least, and half at least: `GET /health` then answers `ok: false` with a `reason`, the status
 document's `router` object says the same, and the log notes the turn, and the turn back, at warn and
 info. `status` and the dashboard show trouble loudly: they read an unhealthy router's document all
@@ -740,7 +742,7 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 ## The router looking after itself
 
 Every 3 seconds, the router looks at what it was started from: the token files, its config file
-and its binary.
+and its binary. It notices the Mac waking from sleep as it looks.
 
 - **Token files:** it reads each account's token file again, and takes up what it holds in place,
   with no restart, logging each change, but never a token. An account whose file holds another token
@@ -765,6 +767,15 @@ and its binary.
   LaunchAgent runs, leads to a different file from the one running, or to the same file changed
   since, as after `brew upgrade`. A link that leads nowhere, as it may for a moment while an upgrade
   moves it on, isn't one.
+- **Waking:** the wall clock runs on while the Mac sleeps, and the monotonic clock stops, so a
+  look that finds the wall clock 5 seconds or more further on than the monotonic since the look
+  before finds the Mac has slept, and the log notes the wake at `info`. A sleep can leave the
+  upstream connections the router keeps dead, and a request sent on one would hang until its pings
+  failed, some 45 seconds on, and then fail, so from then on requests go upstream on connections
+  of their own; of those before, the idle close at once, and those carrying a request once idle.
+  HTTP/2 carries every request on one connection, so closing the idle alone wouldn't do: one
+  carrying a stream through the sleep would take the next request too. A request that arrived
+  before the wake was noticed, and fails, doesn't count against the router's health (see Health).
 - `serve` notes how the config file and the binary stand before it reads the config, and the router
   compares them with that, so a change or an upgrade made while the router starts calls for a
   restart too.

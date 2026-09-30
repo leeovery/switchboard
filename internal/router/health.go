@@ -38,20 +38,34 @@ type health struct {
 	results []result
 	// healthy is the router's health as last judged.
 	healthy bool
+	// awoke is when the router last noticed the Mac wake from sleep.
+	awoke time.Time
 }
 
 func newHealth(now func() time.Time, emit func(Event)) *health {
 	return &health{now: now, emit: emit, healthy: true}
 }
 
-// record notes a routed request answered now, and whether the router failed
-// it itself.
-func (h *health) record(failed bool) {
+// record notes a routed request that arrived at arrived, answered now, and
+// whether the router failed it itself. A failure of one that arrived before
+// the router last noticed the Mac wake isn't counted: it may have gone out on
+// a connection the sleep left dead, which is the sleep's doing, not the
+// router's.
+func (h *health) record(arrived time.Time, failed bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	now := h.now()
-	h.results = append(h.results, result{at: now, failed: failed})
+	if !failed || !arrived.Before(h.awoke) {
+		h.results = append(h.results, result{at: now, failed: failed})
+	}
 	h.judge(now)
+}
+
+// wake notes that the router has noticed the Mac wake from sleep, now.
+func (h *health) wake() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.awoke = h.now()
 }
 
 // report is the router's health now.

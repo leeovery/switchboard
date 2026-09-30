@@ -87,7 +87,8 @@ type Config struct {
 	// Prime says when priming starts the accounts' windows: while Run runs,
 	// the router primes them on its schedule, and its status gives it.
 	Prime config.Prime
-	// Now reads the wall clock.
+	// Now reads the clock as time.Now does: the wall clock, which the router
+	// goes by, and the monotonic, which it tells the Mac's sleeps by.
 	Now func() time.Time
 	// Version is switchboard's, which the control API reports.
 	Version string
@@ -164,6 +165,7 @@ type Router struct {
 // usable token is listed, but nothing goes out on it until its token file
 // holds one, even when that's every account.
 func New(cfg Config) (*Router, error) {
+	clock := cfg.Now
 	cfg.Now = wallClock(cfg.Now)
 	accounts := resolve(cfg.Accounts, cfg.Token)
 	upstream, err := url.Parse(cfg.Upstream)
@@ -185,6 +187,13 @@ func New(cfg Config) (*Router, error) {
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
+	transport := newPool()
+	// After a sleep, requests go upstream on connections of their own, and
+	// those that arrived before, and fail, don't count against the router.
+	awake := &wakes{now: clock, woke: func() {
+		transport.renew()
+		health.wake()
+	}}
 	return &Router{
 		cfg:      cfg,
 		upstream: upstream,
@@ -196,7 +205,7 @@ func New(cfg Config) (*Router, error) {
 		health:   health,
 		proxy: &proxy{
 			upstream:       upstream,
-			transport:      newTransport(),
+			transport:      transport,
 			accounts:       accounts,
 			readToken:      cfg.Token,
 			tokensReplaced: changes.note,
@@ -210,7 +219,7 @@ func New(cfg Config) (*Router, error) {
 		},
 		primer:        primer,
 		inFlight:      inFlight,
-		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight),
+		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake),
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}, nil

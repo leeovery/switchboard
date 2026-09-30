@@ -13,20 +13,21 @@ const watchEvery = 3 * time.Second
 // upkeep keeps the router in step with what it was started from while it
 // runs, looking every so often: the accounts' token files, which it takes up
 // in place, and its config file and its binary, which it restarts to take
-// up.
+// up. It notices the Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles
 	restarts *restarts
+	wakes    *wakes
 }
 
 // newUpkeep returns the upkeep of a router built from cfg, with the accounts
 // given, whose refusals state lifts once they go out on another token, noting
 // each change to their tokens for the state file to keep with changes,
 // working out the schedule of primer, if it primes, again whenever the
-// accounts with tokens change, and restarting once inFlight counts no request
-// in flight.
-func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight) *upkeep {
+// accounts with tokens change, restarting once inFlight counts no request in
+// flight, and noticing wakes.
+func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
@@ -42,6 +43,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			replaced: state.tokenReplaced,
 		},
 		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Supervised, inFlight),
+		wakes:    wakes,
 	}
 }
 
@@ -55,6 +57,7 @@ func (u *upkeep) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
+			u.wakes.look()
 			u.tokens.look()
 			u.restarts.look()
 		case <-u.restarts.ready():
