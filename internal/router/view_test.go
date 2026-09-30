@@ -176,7 +176,8 @@ func TestALimitHoldsBackTheRequestsItsWindowsCount(t *testing.T) {
 			s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
 			s.learn(fable, []quota.Window{session, week, fableWeek})
 
-			until := s.limit("work", tt.windows, start.Add(time.Hour)).Until
+			reached, _ := s.limit("work", tt.windows, start.Add(time.Hour), s.mark())
+			until := reached.Until
 			for model, want := range tt.room {
 				if got := s.view(model, start).room("work"); got != want {
 					t.Errorf("under the limit, work has room for %q: %v, want %v", model, got, want)
@@ -212,7 +213,7 @@ func TestALimitLiftsOnAReadingShowingItsWindowsWithRoom(t *testing.T) {
 			clock := &testClock{now: start}
 			s := newTestState(clock)
 			s.record("work", []quota.Window{spent, week}, s.mark())
-			s.limit("work", tt.windows, start.Add(time.Hour))
+			s.limit("work", tt.windows, start.Add(time.Hour), s.mark())
 			clock.now = start.Add(time.Minute)
 
 			s.recordProbe("work", quota.Probe{Windows: tt.reading}, nil, s.mark(), fromProbe)
@@ -226,8 +227,8 @@ func TestALimitLiftsOnAReadingShowingItsWindowsWithRoom(t *testing.T) {
 func TestALimitThatsAlreadyDueHoldsFiveMinutes(t *testing.T) {
 	for _, until := range []time.Time{{}, start.Add(-time.Minute), start} {
 		s := newTestState(&testClock{now: start})
-		if got := s.limit("work", nil, until).Until; got != start.Add(5*time.Minute) {
-			t.Errorf("limit() until %v holds until %v, want five minutes on", until, got)
+		if got, _ := s.limit("work", nil, until, s.mark()); got.Until != start.Add(5*time.Minute) {
+			t.Errorf("limit() until %v holds until %v, want five minutes on", until, got.Until)
 		}
 	}
 }
@@ -272,7 +273,7 @@ func TestALimitReachedAgainWhileItsInForceIsTheSameLimit(t *testing.T) {
 	}
 	for _, step := range steps {
 		clock.now = start.Add(step.after)
-		if got := s.limit("work", step.windows, step.until); !reflect.DeepEqual(got, step.want) {
+		if got, _ := s.limit("work", step.windows, step.until, s.mark()); !reflect.DeepEqual(got, step.want) {
 			t.Errorf("%s: limit() = %+v, want %+v", step.name, got, step.want)
 		}
 	}
@@ -286,9 +287,9 @@ func TestALimitReachedAgainInAnotherWindowHoldsAsItsLatestAnswerSays(t *testing.
 	// A Fable request reaches the Fable week's limit, for three days; then a
 	// Haiku request, which that doesn't hold back, reaches the session's,
 	// which resets in two hours.
-	s.limit("work", []string{"7d_oi"}, start.Add(3*24*time.Hour))
+	s.limit("work", []string{"7d_oi"}, start.Add(3*24*time.Hour), s.mark())
 	clock.now = start.Add(time.Hour)
-	s.limit("work", []string{"5h"}, start.Add(3*time.Hour))
+	s.limit("work", []string{"5h"}, start.Add(3*time.Hour), s.mark())
 
 	if !s.view(haiku, start.Add(3*time.Hour)).room("work") {
 		t.Error("once the session resets, work has no room for Haiku, want room: the Fable week never held Haiku back")
@@ -303,11 +304,11 @@ func TestALimitLiftedEarlyIsReachedAfresh(t *testing.T) {
 	fresh := session
 	fresh.Utilization, fresh.ResetsAt = 0.01, session.ResetsAt.Add(5*time.Hour)
 	s.record("work", []quota.Window{spent, week}, s.mark())
-	s.limit("work", []string{"5h"}, start.Add(24*time.Hour))
+	s.limit("work", []string{"5h"}, start.Add(24*time.Hour), s.mark())
 	clock.now = start.Add(time.Minute)
 	s.record("work", []quota.Window{fresh, week}, s.mark())
 
-	if got := s.limit("work", []string{"7d"}, week.ResetsAt); got.Again {
+	if got, _ := s.limit("work", []string{"7d"}, week.ResetsAt, s.mark()); got.Again {
 		t.Errorf("limit() = %+v, want a limit reached afresh: the last lifted early", got)
 	}
 }

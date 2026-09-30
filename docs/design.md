@@ -202,6 +202,11 @@ on a model whose thinking is bound to its account only when its account can't se
    whose 429 named no window, when it's a success of a request that spends quota, a probe's
    included, and counting a message's tokens spends none. A limit reached again while it holds is
    the same limit, and holds as the latest 429 says; a probe that reads it again changes nothing.
+   A 429 to a request sent before the one whose answer showed a window it rejects reset by hand
+   (see Dashboard) is from before the reset: the limit holds in the windows it rejects that
+   weren't, and when there are none, it's no limit, and the request goes out again on the same
+   account, after the reset. One that rejects no window can't be told from a limit in a window
+   that wasn't reset, and holds.
 7. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
@@ -688,9 +693,10 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   week reset at the end of its third day would show the marker about three-sevenths of the way
   along, and be on pace for 0%. Once the router has read a window reset by hand, the answer to a
   request sent before the one whose answer showed it is from before the reset, and is passed
-  over, where use only rising within a window would have it put back the use the reset took away;
-  the router keeps which request that was in memory alone, as the state file's readings count as
-  read before any.
+  over, where use only rising within a window would have it put back the use the reset took away,
+  and so is the limit a 429 to it reaches in the window (see Choosing an account, step 6); the
+  router keeps which request that was in memory alone, as the state file's readings count as read
+  before any.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
   shows empty, as not started, until something uses it or a prime starts it, and, from the
   router, when its account is next primed: `not started · next prime Tue 04:10`.
@@ -853,10 +859,11 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
 - **The router's own events:** at `info`, each prime, with the reset it read; an account held back
   by its reserve, and let go at its reset; each choice that passes an account over as under
   pressure, with its rate and when it runs out at it (`passed over under pressure`), the routed
-  line's reason naming it too; a token file read again after a 401, and whether it held
-  a different token; a token replaced while the router was away, which it finds as it starts; a
-  token file found holding another token, an account gaining a usable token, and one losing it, with
-  why; the tokens directory made private as the router starts, and what bringing the skill up to
+  line's reason naming it too; a limit a 429 to a request sent before a reset made by hand
+  reaches, passed over as the request goes out again (`limit from before a reset passed over`); a
+  token file read again after a 401, and whether it held a different token; a token replaced
+  while the router was away, which it finds as it starts; a token file found holding another
+  token, an account gaining a usable token, and one losing it, with why; the tokens directory made private as the router starts, and what bringing the skill up to
   date did; a config change, and an upgrade; the tokens of an account the config no longer
   configures counting as the primary's; a restart either makes due, once, and the restart as it
   goes: `replacing itself`, with the binary's path, why, and the listeners handed over, as the

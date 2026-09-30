@@ -68,7 +68,7 @@ func TestAChoiceAfreshProbesAnAccountWhoseSessionHasLapsedUnderALimit(t *testing
 	lapsing.ResetsAt, running.ResetsAt = start.Add(-5*time.Minute), start.Add(2*time.Hour)
 	spentWeek.Utilization, spentWeek.Status = 1, quota.StatusRejected
 	r.state.record("work", []quota.Window{lapsing, spentWeek}, r.state.mark())
-	r.state.limit("work", []string{"7d"}, start.Add(72*time.Hour))
+	r.state.limit("work", []string{"7d"}, start.Add(72*time.Hour), r.state.mark())
 	r.state.record("side", []quota.Window{running, week}, r.state.mark())
 	clock.now = start
 

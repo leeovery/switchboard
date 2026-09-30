@@ -365,24 +365,44 @@ func (s *state) takeBack(by string) bool {
 	return took
 }
 
-// limit notes that the account reached its limit, in the windows named, if
-// any, until until, or limitedFor from now when that isn't to come, and
-// returns the news of it. Reached while the account's last limit is in force,
-// it's that limit reached again, which now holds as this answer says, the
-// upstream's latest word: one that doesn't say until when extends it. The
-// answer to a request sent after it, showing it lifted, lifts it sooner.
-func (s *state) limit(id string, windows []string, until time.Time) LimitReached {
+// limit notes that the account reached its limit, as the answer to a request
+// sent at sent says, in the windows named, if any, until until, or limitedFor
+// from now when that isn't to come, and returns the news of it. Reached while
+// the account's last limit is in force, it's that limit reached again, which
+// now holds as this answer says, the upstream's latest word: one that doesn't
+// say until when extends it. The answer to a request sent after it, showing
+// it lifted, lifts it sooner. It holds in the windows named but those reset by
+// hand since the request was sent, as sinceReset says, and when it named some
+// and none is left, it's no limit: it reports false, and the account is as it
+// was.
+func (s *state) limit(id string, windows []string, until time.Time, sent moment) (LimitReached, bool) {
 	now := s.now().UTC()
 	if !until.After(now) {
 		until = now.Add(limitedFor)
 	}
-	reached := limit{windows: slices.Clone(windows), until: until.UTC(), set: s.mark()}
+	set := s.mark()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
+	kept := u.sinceReset(windows, sent)
+	if len(windows) > 0 && len(kept) == 0 {
+		return LimitReached{Account: id, Windows: slices.Clone(windows)}, false
+	}
 	again := u.limited.inForce(now)
-	u.limited = reached
-	return LimitReached{Account: id, Windows: slices.Clone(windows), Until: reached.until, Again: again}
+	u.limited = limit{windows: kept, until: until.UTC(), set: set}
+	return LimitReached{Account: id, Windows: slices.Clone(kept), Until: u.limited.until, Again: again}, true
+}
+
+// sinceReset returns windows, those a limit reached as the answer to a request
+// sent at sent names, but those read reset by hand, as they now stand, off the
+// answer to a request sent after it, as fromBeforeReset has a reading of them:
+// their use, which the upstream rejected, the reset took away. A limit that
+// names none can't be told from one reached in a window that wasn't reset.
+func (u *usage) sinceReset(windows []string, sent moment) []string {
+	return slices.DeleteFunc(slices.Clone(windows), func(key string) bool {
+		by, ok := u.resetBy[key]
+		return ok && !u.windows[key].RestartedAt.IsZero() && sent < by
+	})
 }
 
 // unread reports whether nothing has been read of an account, which wants

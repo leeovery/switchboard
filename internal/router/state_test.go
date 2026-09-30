@@ -228,6 +228,52 @@ func TestAReadingFromBeforeAResetMadeByHandIsStaleAfterIt(t *testing.T) {
 	}
 }
 
+func TestALimitFromBeforeAResetMadeByHandHoldsInTheWindowsNotReset(t *testing.T) {
+	tests := []struct {
+		name    string
+		windows []string
+		// since is set when the limit's request was sent after the one whose
+		// answer showed the reset.
+		since bool
+		// want are the windows the limit holds in, when it holds.
+		want  []string
+		holds bool
+	}{
+		{name: "reached in the window reset", windows: []string{"5h"}},
+		{name: "reached in it by a request sent since", windows: []string{"5h"}, since: true, want: []string{"5h"}, holds: true},
+		{name: "reached in it and a window not reset", windows: []string{"5h", "7d"}, want: []string{"7d"}, holds: true},
+		{name: "reached in no window named", holds: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newTestState(clock)
+			reset := session
+			reset.Utilization = 0.02
+			s.record("work", []quota.Window{session, week}, s.mark())
+			// One request is sent, then another, answered first, reading the
+			// session reset by hand.
+			sent := s.mark()
+			clock.now = start.Add(time.Minute)
+			s.record("work", []quota.Window{reset}, s.mark())
+			if tt.since {
+				sent = s.mark()
+			}
+
+			reached, holds := s.limit("work", tt.windows, week.ResetsAt, sent)
+			if holds != tt.holds || holds && !slices.Equal(reached.Windows, tt.want) {
+				t.Errorf("limit() = %+v, %t, want it to hold (%t) in %q", reached, holds, tt.holds, tt.want)
+			}
+			if got := s.usage["work"].limited; got.inForce(clock.now) != tt.holds || !slices.Equal(got.windows, tt.want) {
+				t.Errorf("work's limit is %+v, want it in force (%t) in %q", got, tt.holds, tt.want)
+			}
+			if got := s.view(opus, clock.now).room("work"); got == tt.holds {
+				t.Errorf("work has room: %t, want %t", got, !tt.holds)
+			}
+		})
+	}
+}
+
 func TestAReadingReadAgainSinceOutweighsALateAnswerToARequestSentBefore(t *testing.T) {
 	s := newTestState(&testClock{now: start})
 	busier := session
@@ -259,7 +305,7 @@ func TestAReadingFromBeforeALimitNeverLiftsIt(t *testing.T) {
 	// earlier still reads it with room.
 	clock.now = start.Add(time.Second)
 	s.record("work", []quota.Window{sessionAt(0.96, quota.StatusRejected)}, earlier)
-	s.limit("work", []string{"5h"}, session.ResetsAt)
+	s.limit("work", []string{"5h"}, session.ResetsAt, s.mark())
 	clock.now = start.Add(2 * time.Second)
 	s.record("work", []quota.Window{sessionAt(0.965, quota.StatusAllowed)}, earlierStill)
 
@@ -277,7 +323,7 @@ func TestAReadingAsHighArrivingLateLiftsNoLimit(t *testing.T) {
 	spent := session
 	spent.Utilization, spent.Status = 0.97, quota.StatusRejected
 	s.record("work", []quota.Window{spent, week}, s.mark())
-	s.limit("work", []string{"5h"}, session.ResetsAt)
+	s.limit("work", []string{"5h"}, session.ResetsAt, s.mark())
 	// A request sent since the limit was set is answered late, reading the
 	// session as high, with room, after a probe sent later read it rejected.
 	sent := s.mark()
@@ -320,7 +366,7 @@ func TestALimitLiftsOnlyOnTheAnswerToARequestSentSinceItWasSet(t *testing.T) {
 			s := newTestState(&testClock{now: start})
 			s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
 			sent := s.mark()
-			s.limit("work", tt.reached, start.Add(72*time.Hour))
+			s.limit("work", tt.reached, start.Add(72*time.Hour), s.mark())
 			if tt.since {
 				sent = s.mark()
 			}
@@ -540,17 +586,17 @@ func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 		},
 		{
 			name: "not side under a limit reached in a window every model shares",
-			bar:  func(s *state) { s.limit("side", []string{"5h"}, start.Add(time.Hour)) },
+			bar:  func(s *state) { s.limit("side", []string{"5h"}, start.Add(time.Hour), s.mark()) },
 			want: "work",
 		},
 		{
 			name: "not side under a limit reached in no window named",
-			bar:  func(s *state) { s.limit("side", nil, start.Add(time.Hour)) },
+			bar:  func(s *state) { s.limit("side", nil, start.Add(time.Hour), s.mark()) },
 			want: "work",
 		},
 		{
 			name: "side under a limit reached in a model's own window, which holds back that model alone",
-			bar:  func(s *state) { s.limit("side", []string{"7d_oi"}, start.Add(time.Hour)) },
+			bar:  func(s *state) { s.limit("side", []string{"7d_oi"}, start.Add(time.Hour), s.mark()) },
 			want: "side",
 		},
 	}
@@ -716,7 +762,7 @@ func TestStandings(t *testing.T) {
 			name: "no quota under a limit in a shared window, whatever its windows read",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.limit("side", []string{"5h"}, start.Add(time.Hour))
+				s.limit("side", []string{"5h"}, start.Add(time.Hour), s.mark())
 			},
 			want: judged{known: true},
 		},
@@ -724,7 +770,7 @@ func TestStandings(t *testing.T) {
 			name: "quota under a limit a model's own window holds",
 			side: func(s *state) {
 				s.record("side", []quota.Window{session, week, fableWeek}, s.mark())
-				s.limit("side", []string{"7d_oi"}, start.Add(time.Hour))
+				s.limit("side", []string{"7d_oi"}, start.Add(time.Hour), s.mark())
 			},
 			want: judged{quota: true, known: true},
 		},
@@ -811,7 +857,7 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.saved() })
 		wg.Go(func() { s.refuse("side", http.StatusUnauthorized, someRequest) })
 		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden, someRequest) })
-		wg.Go(func() { _ = s.limit("work", []string{"5h"}, start.Add(time.Hour)) })
+		wg.Go(func() { _, _ = s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) })
 	}
 	wg.Wait()
 }

@@ -278,9 +278,9 @@ func TestAnAccountIsUnderPressureOnlyWhileItCanTakeARequestOfSomeModel(t *testin
 	}{
 		{name: "held back by nothing", holdBack: func(*state) {}, want: true},
 		{name: "its token refused", holdBack: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest) }},
-		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("work", nil, far) }},
-		{name: "a limit on its week, which every model shares", holdBack: func(s *state) { s.limit("work", []string{"7d"}, far) }},
-		{name: "a limit on Fable's week alone", holdBack: func(s *state) { s.limit("work", []string{"7d_oi"}, far) }, want: true},
+		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("work", nil, far, s.mark()) }},
+		{name: "a limit on its week, which every model shares", holdBack: func(s *state) { s.limit("work", []string{"7d"}, far, s.mark()) }},
+		{name: "a limit on Fable's week alone", holdBack: func(s *state) { s.limit("work", []string{"7d_oi"}, far, s.mark()) }, want: true},
 		{name: "a refusal of Opus requests alone", holdBack: func(s *state) { s.forbid("work", "opus", http.StatusForbidden, someRequest) }, want: true},
 		{name: "its week at its reserve", holdBack: func(s *state) { s.record("work", []quota.Window{fullWeek}, s.mark()) }},
 		{
