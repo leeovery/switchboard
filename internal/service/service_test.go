@@ -484,35 +484,113 @@ func TestUninstall(t *testing.T) {
 const restartWait = 45*time.Second + service.StartWait
 
 func TestRestart(t *testing.T) {
+	asked := [][]string{{"print", target}}
 	stopped := [][]string{{"print", target}, {"kill", "SIGTERM", target}}
 	startedAfresh := [][]string{{"print", target}, {"kickstart", "-k", target}}
+	restartsInPlace := tookRestart(healthOf(up(100)), true)
 	tests := []struct {
 		name string
 		// answer answers a health check made since Restart began, when asked
 		// checks came before it.
 		answer func(since time.Duration, asked int) (router.Health, error)
-		// wantPID is the answering router's, or 0 for none.
-		wantPID    int
+		// restart is how the router takes being asked to restart: nil as one
+		// from before routers restarted when asked.
+		restart func() (router.Restart, error)
+		// want is the router found answering: none, for the zero Health.
+		want       router.Health
 		wantWaited time.Duration
 		wantRuns   [][]string
-		// wantDraining is set when Restart says, before it waits, that the
-		// router is finishing its requests in flight.
-		wantDraining bool
+		// wantAsked is set when the router is asked to restart, and wantSaid
+		// is what Restart says, before it waits, follows the router's
+		// finishing its requests in flight, if anything.
+		wantAsked bool
+		wantSaid  []string
 	}{
 		{
-			name: "a router answering: stopped as at a signal, and back once launchd starts it again",
+			name: "a router answering: asked to restart, and back once it has replaced itself in place",
+			answer: func(_ time.Duration, asked int) (router.Health, error) {
+				if asked == 0 {
+					return up(100)
+				}
+				return upAgain(100)
+			},
+			restart:   restartsInPlace,
+			want:      healthOf(upAgain(100)),
+			wantRuns:  asked,
+			wantAsked: true,
+			wantSaid:  []string{"it restarts in place"},
+		},
+		{
+			name: "a router answering: asked to restart, and back in place once the requests it had in flight have finished",
+			answer: func(since time.Duration, asked int) (router.Health, error) {
+				if asked == 0 || since < 20*time.Second {
+					return up(100)
+				}
+				return upAgain(100)
+			},
+			restart:    restartsInPlace,
+			want:       healthOf(upAgain(100)),
+			wantWaited: 20 * time.Second,
+			wantRuns:   asked,
+			wantAsked:  true,
+			wantSaid:   []string{"it restarts in place"},
+		},
+		{
+			name: "a router answering that restarted by itself before it was asked: back once the one that took the request has restarted in place",
+			answer: func(since time.Duration, asked int) (router.Health, error) {
+				switch {
+				case asked == 0:
+					return up(100)
+				case since < 20*time.Second:
+					return upAgain(100)
+				}
+				return upSince(100, time.Minute)
+			},
+			restart:    tookRestart(healthOf(upAgain(100)), true),
+			want:       healthOf(upSince(100, time.Minute)),
+			wantWaited: 20 * time.Second,
+			wantRuns:   asked,
+			wantAsked:  true,
+			wantSaid:   []string{"it restarts in place"},
+		},
+		{
+			name: "a router answering that can't replace itself: asked to restart, and back once launchd starts it again",
 			answer: func(_ time.Duration, asked int) (router.Health, error) {
 				if asked == 0 {
 					return up(100)
 				}
 				return up(4242)
 			},
-			wantPID:      4242,
-			wantRuns:     stopped,
-			wantDraining: true,
+			restart:   tookRestart(healthOf(up(100)), false),
+			want:      healthOf(up(4242)),
+			wantRuns:  asked,
+			wantAsked: true,
+			wantSaid:  []string{"launchd starts it again"},
 		},
 		{
-			name: "a router answering: back once the requests it had in flight have finished",
+			name:       "a router answering: asked to restart, and not back in place by when launchd would have killed it",
+			answer:     func(time.Duration, int) (router.Health, error) { return up(100) },
+			restart:    restartsInPlace,
+			wantWaited: restartWait,
+			wantRuns:   asked,
+			wantAsked:  true,
+			wantSaid:   []string{"it restarts in place"},
+		},
+		{
+			name: "a router from before routers restarted when asked: stopped as at a signal, and back once launchd starts it again",
+			answer: func(_ time.Duration, asked int) (router.Health, error) {
+				if asked == 0 {
+					return up(100)
+				}
+				return up(4242)
+			},
+			want:      healthOf(up(4242)),
+			wantRuns:  stopped,
+			wantAsked: true,
+			wantSaid:  []string{"launchd starts it again"},
+		},
+		{
+			name: "a router from before routers restarted when asked: back once the requests it had in flight have finished",
 			answer: func(since time.Duration, asked int) (router.Health, error) {
 				switch {
 				case asked == 0:
@@ -522,27 +600,29 @@ func TestRestart(t *testing.T) {
 				}
 				return up(4242)
 			},
-			wantPID:      4242,
-			wantWaited:   40 * time.Second,
-			wantRuns:     stopped,
-			wantDraining: true,
+			want:       healthOf(up(4242)),
+			wantWaited: 40 * time.Second,
+			wantRuns:   stopped,
+			wantAsked:  true,
+			wantSaid:   []string{"launchd starts it again"},
 		},
 		{
-			name: "a router answering: not back by when launchd would have killed it and started another",
+			name: "a router from before routers restarted when asked: not back by when launchd would have killed it and started another",
 			answer: func(_ time.Duration, asked int) (router.Health, error) {
 				if asked == 0 {
 					return up(100)
 				}
 				return router.Health{}, errNotRunning
 			},
-			wantWaited:   restartWait,
-			wantRuns:     stopped,
-			wantDraining: true,
+			wantWaited: restartWait,
+			wantRuns:   stopped,
+			wantAsked:  true,
+			wantSaid:   []string{"launchd starts it again"},
 		},
 		{
 			name:     "none answering: started afresh at once",
 			answer:   func(_ time.Duration, asked int) (router.Health, error) { return upAfter(asked, 1, 4242) },
-			wantPID:  4242,
+			want:     healthOf(up(4242)),
 			wantRuns: startedAfresh,
 		},
 		{
@@ -558,26 +638,35 @@ func TestRestart(t *testing.T) {
 				began := time.Now()
 				s := newSetup(t, nil, func(asked int) (router.Health, error) { return tt.answer(time.Since(began), asked) })
 				s.launchctl.loaded = true
+				s.router.restart = tt.restart
 
-				var saidAfter []time.Duration
-				h, err := s.svc.Restart(t.Context(), func() { saidAfter = append(saidAfter, time.Since(began)) })
+				var said []string
+				h, err := s.svc.Restart(t.Context(), func(how service.Restarting) {
+					if time.Since(began) != 0 {
+						t.Errorf("said the router is finishing its requests after %v, want it said before any wait", time.Since(began))
+					}
+					said = append(said, how.String())
+				})
 				if err != nil {
 					t.Fatalf("Restart() error = %v", err)
 				}
-				if said := slices.Equal(saidAfter, []time.Duration{0}); said != tt.wantDraining {
-					t.Errorf("said the router is finishing its requests after %v; want it said once, before any wait: %v", saidAfter, tt.wantDraining)
+				if !slices.Equal(said, tt.wantSaid) {
+					t.Errorf("said the router is finishing its requests, then %q, want %q", said, tt.wantSaid)
 				}
 				if waited := time.Since(began); waited != tt.wantWaited {
 					t.Errorf("waited %v for the router, want %v", waited, tt.wantWaited)
 				}
 				switch {
-				case tt.wantPID == 0 && h != nil:
+				case tt.want == (router.Health{}) && h != nil:
 					t.Errorf("Restart() found the router %+v, want none answering", *h)
-				case tt.wantPID != 0 && (h == nil || h.PID != tt.wantPID):
-					t.Errorf("Restart() found the router %v, want pid %d", h, tt.wantPID)
+				case tt.want != (router.Health{}) && (h == nil || *h != tt.want):
+					t.Errorf("Restart() found the router %v, want %+v", h, tt.want)
 				}
 				if !reflect.DeepEqual(s.launchctl.calls, tt.wantRuns) {
 					t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, tt.wantRuns)
+				}
+				if asked := s.router.restarts == 1; asked != tt.wantAsked {
+					t.Errorf("asked the router to restart %d times, want once: %v", s.router.restarts, tt.wantAsked)
 				}
 			})
 		})
@@ -585,11 +674,15 @@ func TestRestart(t *testing.T) {
 }
 
 func TestRestartFails(t *testing.T) {
+	runByHand := errors.New("the router was run by hand, with switchboard serve, so nothing would start it again: stop it, and run it again")
 	tests := []struct {
 		name   string
 		loaded bool
-		// answering has a router answer, at pid 100.
+		// answering has a router answer, at pid 100, which takes being asked
+		// to restart as restart says: nil as one from before routers
+		// restarted when asked.
 		answering bool
+		restart   func() (router.Restart, error)
 		exits     map[string]int
 		want      func(err error) bool
 		wantRuns  [][]string
@@ -598,6 +691,14 @@ func TestRestartFails(t *testing.T) {
 			name:     "when launchd hasn't loaded the service",
 			want:     func(err error) bool { return errors.Is(err, service.ErrNotLoaded) },
 			wantRuns: [][]string{{"print", target}},
+		},
+		{
+			name:      "when the router refuses to restart, saying why",
+			loaded:    true,
+			answering: true,
+			restart:   func() (router.Restart, error) { return router.Restart{}, runByHand },
+			want:      func(err error) bool { return errors.Is(err, runByHand) },
+			wantRuns:  [][]string{{"print", target}},
 		},
 		{
 			name:      "when launchctl can't signal the router",
@@ -630,8 +731,9 @@ func TestRestartFails(t *testing.T) {
 				return router.Health{}, errNotRunning
 			})
 			s.launchctl.loaded, s.launchctl.exits = tt.loaded, tt.exits
+			s.router.restart = tt.restart
 
-			draining := func() {
+			draining := func(service.Restarting) {
 				t.Error("said the router is finishing its requests, want nothing said of a restart that failed")
 			}
 			if h, err := s.svc.Restart(t.Context(), draining); h != nil || !tt.want(err) {
@@ -858,6 +960,31 @@ func up(pid int) (router.Health, error) {
 	return router.Health{OK: true, Version: "1.2.3", PID: pid}, nil
 }
 
+// upAgain is the answer of a healthy router running as pid, once it has
+// restarted in place, keeping its process.
+func upAgain(pid int) (router.Health, error) {
+	return upSince(pid, 0)
+}
+
+// upSince is the answer of a healthy router running as pid, once it has
+// restarted in place, started later than upAgain's by after.
+func upSince(pid int, after time.Duration) (router.Health, error) {
+	h, err := up(pid)
+	h.StartedAt = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC).Add(after)
+	return h, err
+}
+
+// healthOf is the answer of a router that answers.
+func healthOf(h router.Health, _ error) router.Health {
+	return h
+}
+
+// tookRestart has the router take being asked to restart as the router h,
+// meaning to restart in place or not.
+func tookRestart(h router.Health, inPlace bool) func() (router.Restart, error) {
+	return func() (router.Restart, error) { return router.Restart{Health: h, InPlace: inPlace}, nil }
+}
+
 // upAfter answers as a router running as pid, once checks have been asked
 // before, and as no router until then.
 func upAfter(asked, checks, pid int) (router.Health, error) {
@@ -885,6 +1012,7 @@ type setup struct {
 	// binary is the switchboard to install, and plist where its plist goes.
 	binary, plist string
 	launchctl     *fakeLaunchctl
+	router        *fakeRouter
 }
 
 // newSetup sets the service up for the user 501, with env added to its
@@ -896,7 +1024,7 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &setup{root: root, tmp: filepath.Join(root, "tmp"), launchctl: &fakeLaunchctl{t: t}}
+	s := &setup{root: root, tmp: filepath.Join(root, "tmp"), launchctl: &fakeLaunchctl{t: t}, router: &fakeRouter{t: t, answer: answer, refuse: answer == nil}}
 	if err := os.Mkdir(s.tmp, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -910,7 +1038,7 @@ func newSetup(t *testing.T, env map[string]string, answer func(asked int) (route
 		StateDir:  filepath.Join(home, ".local", "state", "switchboard"),
 		Getenv:    func(key string) string { return vars[key] },
 		Launchctl: s.launchctl.run,
-		Router:    &fakeRouter{t: t, answer: answer, refuse: answer == nil},
+		Router:    s.router,
 	}
 	s.svc = newService(t, s.cfg)
 	s.plist = filepath.Join(home, "Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
@@ -1046,12 +1174,17 @@ func (e exitStatus) ExitCode() int {
 }
 
 // fakeRouter answers health checks as answer says, given how many came
-// before, or fails the test when it's asked while refuse is set.
+// before, and being asked to restart, as restart says, or as a router from
+// before routers restarted when asked does, for nil; or fails the test when
+// it's asked while refuse is set.
 type fakeRouter struct {
-	t      *testing.T
-	refuse bool
-	answer func(asked int) (router.Health, error)
-	asked  int
+	t       *testing.T
+	refuse  bool
+	answer  func(asked int) (router.Health, error)
+	restart func() (router.Restart, error)
+	asked   int
+	// restarts is how many times it was asked to restart.
+	restarts int
 }
 
 func (r *fakeRouter) Health(context.Context) (router.Health, error) {
@@ -1062,3 +1195,19 @@ func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 	defer func() { r.asked++ }()
 	return r.answer(r.asked)
 }
+
+func (r *fakeRouter) Restart(context.Context) (router.Restart, error) {
+	if r.refuse {
+		r.t.Error("asked the router to restart, want it left alone")
+		return router.Restart{}, errNotRunning
+	}
+	r.restarts++
+	if r.restart == nil {
+		return router.Restart{}, errOldRouter
+	}
+	return r.restart()
+}
+
+// errOldRouter is what asking a router from before routers restarted when
+// asked to restart fails with.
+var errOldRouter = fmt.Errorf("%w: the router answered POST /restart with 404 Not Found", router.ErrNoRestart)

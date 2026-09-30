@@ -315,6 +315,30 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 	}
 }
 
+func TestARestartAskedForIsTheOneTheRouterMakes(t *testing.T) {
+	log := logstest.Capture(t)
+	s := newStartedFrom(t)
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+
+	r.atOnce()
+	if !r.restart() {
+		t.Error("restart() = false, want true: a restart is due")
+	}
+	select {
+	case <-r.restarted:
+	default:
+		t.Fatal("restarted isn't closed once the router is asked to restart")
+	}
+	if r.reason != "asked to" {
+		t.Errorf("the router restarts because %q, want asked to", r.reason)
+	}
+	if n := strings.Count(log.String(), "msg=restarting"); n != 1 {
+		t.Errorf("log reads\n%s\nwant the restart said once, not %d times", log, n)
+	}
+}
+
 func TestARestartDueIsReported(t *testing.T) {
 	tests := []struct {
 		name       string

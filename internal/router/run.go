@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/logs"
 )
 
@@ -26,11 +27,15 @@ const (
 
 // Run builds a router and serves until ctx ends: the proxy on cfg.Listen, and
 // the control API on a socket in cfg.StateDir, where it keeps its state file
-// too. A supervised router also stops, returning nil, to restart, once its
-// config file or its binary has changed. It fails when another router
-// already answers there, or when it can't listen. On its way out it stops
-// taking requests, gives those in flight up to 30 seconds to finish, saves
-// its state, and removes the socket.
+// too, taking up the listeners cfg.Handed names, where they're at those
+// addresses, in place of listening afresh. A supervised router also restarts
+// once its config file, its binary or the time zone has changed, or it's
+// asked to: it replaces itself with its binary, handing its listeners over,
+// as cfg.Exec says, or else returns nil, for launchd to start it again. It
+// fails when another router already answers there, or when it can't listen.
+// On its way out it stops taking requests, gives those in flight up to 30
+// seconds to finish, saves its state, and removes the socket, but for one it
+// hands over.
 func Run(ctx context.Context, cfg Config) error {
 	r, err := New(cfg)
 	if err != nil {
@@ -44,25 +49,55 @@ func (r *Router) run(ctx context.Context) error {
 	if err := checkSocketPath(socket); err != nil {
 		return err
 	}
-	if err := ensureAlone(ctx, socket); err != nil {
-		return err
-	}
-	// The proxy's address is taken first: of two routers starting at once,
-	// the one that loses it must fail before it touches the other's socket.
-	proxyLn, err := listen(r.cfg.Listen)
+	ls, err := r.listen(ctx, socket)
 	if err != nil {
 		return err
 	}
-	r.proxyAddr = proxyLn.Addr().String()
-	controlLn, err := listenControl(socket)
-	if err != nil {
-		_ = proxyLn.Close()
-		return err
-	}
+	r.proxyAddr = ls.proxy.Addr().String()
 	// Only now is the state directory this router's: another starting
 	// alongside would have failed by here.
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
-	return r.serve(ctx, proxyLn, controlLn)
+	return r.serve(ctx, ls)
+}
+
+// listeners are the proxy's listener and the control API's.
+type listeners struct {
+	proxy, control net.Listener
+}
+
+// close closes the listeners there are.
+func (ls listeners) close() {
+	for _, ln := range []net.Listener{ls.proxy, ls.control} {
+		if ln != nil {
+			_ = ln.Close()
+		}
+	}
+}
+
+// listen takes up the listeners handed over by the router this one replaced,
+// where they're at the addresses this one listens on, and listens afresh for
+// the rest: the proxy on its address, and the control API on the socket at
+// path socket, once no other router answers there. A control socket handed
+// over is this router's already.
+func (r *Router) listen(ctx context.Context, socket string) (listeners, error) {
+	ls := r.inherit(socket)
+	var err error
+	if ls.control == nil {
+		err = ensureAlone(ctx, socket)
+	}
+	// The proxy's address is taken first: of two routers starting at once,
+	// the one that loses it must fail before it touches the other's socket.
+	if err == nil && ls.proxy == nil {
+		ls.proxy, err = listen(r.cfg.Listen)
+	}
+	if err == nil && ls.control == nil {
+		ls.control, err = listenControl(socket)
+	}
+	if err != nil {
+		ls.close()
+		return listeners{}, err
+	}
+	return ls, nil
 }
 
 // ensureAlone fails when a router already answers on the control socket at
@@ -97,14 +132,14 @@ func listen(addr string) (net.Listener, error) {
 // or the router restarts itself, probing each account nothing has been read
 // of in the meantime, priming the accounts on the schedule, looking after
 // itself, keeping the state file and posting notifications, then shuts both
-// down.
-func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) error {
+// down, and restarting, replaces itself, handing their listeners over.
+func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
 	failed := make(chan error, 2)
-	serving.Go(func() { failed <- serveOn(proxySrv, proxyLn) })
-	serving.Go(func() { failed <- serveOn(controlSrv, controlLn) })
-	r.logStart(proxyLn.Addr(), controlLn.Addr())
+	serving.Go(func() { failed <- serveOn(proxySrv, ls.proxy) })
+	serving.Go(func() { failed <- serveOn(controlSrv, ls.control) })
+	r.logStart(ls.proxy.Addr(), ls.control.Addr())
 	r.probes.start(r.accounts.sendable(), r.state.unread)
 	looking, stopLooking := context.WithCancel(ctx)
 	var looked sync.WaitGroup
@@ -122,20 +157,29 @@ func (r *Router) serve(ctx context.Context, proxyLn, controlLn net.Listener) err
 	}
 
 	var err error
+	var held *handover.Held
 	select {
 	case <-ctx.Done():
 	case err = <-failed:
 	case <-r.upkeep.restarted():
+		held = r.hold(ls)
 	}
 	logger.Info("stopping")
 	stopLooking()
 	looked.Wait()
 	r.probes.stop()
-	shutdown(controlSrv, proxySrv)
+	if held != nil {
+		held = r.drainHandingOver(ctx, controlSrv, proxySrv, held)
+	} else {
+		shutdown(controlSrv, proxySrv)
+	}
 	serving.Wait()
 	stopBackground()
 	running.Wait()
 	logger.Info("stopped")
+	if held != nil {
+		r.replace(ctx, held)
+	}
 	return err
 }
 
@@ -161,6 +205,12 @@ func serveOn(srv *http.Server, ln net.Listener) error {
 // requests in flight get DrainTimeout to finish.
 func shutdown(control, proxy *http.Server) {
 	_ = control.Close()
+	drain(proxy)
+}
+
+// drain stops the proxy taking requests, giving those in flight DrainTimeout
+// to finish, and cuts off any still going then.
+func drain(proxy *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), DrainTimeout)
 	defer cancel()
 	if err := proxy.Shutdown(ctx); err != nil {

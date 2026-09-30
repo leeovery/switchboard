@@ -126,9 +126,30 @@ type Config struct {
 	// schedule to keep to the clock's times of day. The zero Watched is none.
 	Zone Watched
 	// Supervised is set when the router is started again whenever it exits,
-	// as launchd starts the service's: it restarts by stopping as it does
-	// when ctx ends. A router that isn't logs, once, that a restart is due.
+	// as launchd starts the service's: it restarts by replacing itself, as
+	// Exec says, or else by stopping as it does when ctx ends. A router that
+	// isn't logs, once, that a restart is due.
 	Supervised bool
+	// Exec replaces this process with the program at path, run as argv with
+	// env, as launch.Exec does: a supervised router restarts by replacing
+	// itself with its binary, by Binary's path, run as Args with Environ,
+	// handing its listeners over to the router it becomes, as Handed names
+	// them there. It returns only when it fails, and the router then stops,
+	// as it does with none, for launchd to start it again.
+	Exec func(path string, argv, env []string) error
+	// Args and Environ are the command line and the environment the router
+	// was started with, as os.Args and os.Environ give them.
+	Args    []string
+	Environ []string
+	// Handed names the listeners handed over by the router this one
+	// replaced, as handover.Variable's value: the router takes them up where
+	// they're at the addresses it listens on, in place of listening afresh.
+	// "" is none.
+	Handed string
+	// ExecRetry is how long the router waits to exec its binary again while
+	// it isn't there, as for a moment while an upgrade moves its link on.
+	// Zero means half a second.
+	ExecRetry time.Duration
 	// WatchEvery is how often, while Run runs, the router reads the token
 	// files again, and looks at the config file, the binary and the time
 	// zone's file. Zero means every 3 seconds.

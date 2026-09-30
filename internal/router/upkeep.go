@@ -82,3 +82,20 @@ func (u *upkeep) restartDue() status.Restart {
 func (u *upkeep) restarted() <-chan struct{} {
 	return u.restarts.restarted
 }
+
+// restartReason says why the router restarts, once restarted is closed.
+func (u *upkeep) restartReason() string {
+	return u.restarts.reason
+}
+
+// restartable fails, saying why, when the router can't restart at once, as
+// it's asked to.
+func (u *upkeep) restartable() error {
+	return u.restarts.restartable()
+}
+
+// restartNow restarts the router at once, whatever is in flight, once
+// restartable has found it can.
+func (u *upkeep) restartNow() {
+	u.restarts.atOnce()
+}

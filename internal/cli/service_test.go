@@ -15,7 +15,9 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/service"
 )
 
 // domain is the user's GUI session, as launchctl names it: that of the user
@@ -222,11 +224,38 @@ func TestServiceRestart(t *testing.T) {
 	}
 }
 
-func TestServiceRestartSaysTheRouterIsFinishingItsRequests(t *testing.T) {
+func TestServiceRestartRestartsTheRouterInPlace(t *testing.T) {
 	s := newServiceSetup(t)
 	s.launchd.loaded = true
-	// A router at pid 100, which launchd, once it's signalled the router to
-	// stop, starts again at pid 4242.
+	s.setenv("XPC_SERVICE_NAME", service.Label)
+	environ := s.srv.deps.Environ
+	s.srv.deps.Environ = func() []string { return append(environ(), "XPC_SERVICE_NAME="+service.Label) }
+	made := s.srv.replaceable(t, s.binary, "serve")
+	s.srv.start(t)
+
+	got := run(t, s.srv.deps, "service", "restart")
+	want := result{stdout: "the router is finishing its requests in flight, then it restarts in place\nrestarted\nthe router is up: healthy, pid " + strconv.Itoa(os.Getpid()) + "\n"}
+	if got != want {
+		t.Errorf("switchboard service restart = %+v, want %+v", got, want)
+	}
+	if want := [][]string{{"print", target}}; !reflect.DeepEqual(s.launchd.calls, want) {
+		t.Errorf("ran launchctl %q, want %q: the router, asked, restarts itself", s.launchd.calls, want)
+	}
+	if replaced := waitForReplacement(t, made); replaced.path != s.binary || environMap(replaced.env)[handover.Variable] == "" {
+		t.Errorf("the router replaced itself with %s in the environment %q, want %s, handed its listeners", replaced.path, replaced.env, s.binary)
+	}
+	h, err := router.NewClient(s.srv.socket()).Health(t.Context())
+	if err != nil || !h.StartedAt.Equal(testNow.Add(time.Minute)) {
+		t.Errorf("the router's health once restarted: %+v, %v, want the router it became answering", h, err)
+	}
+}
+
+func TestServiceRestartOfARouterFromBeforeRoutersRestartedWhenAsked(t *testing.T) {
+	s := newServiceSetup(t)
+	s.launchd.loaded = true
+	// A router from before routers restarted when asked, at pid 100, which
+	// launchd, once it's signalled the router to stop, starts again at pid
+	// 4242.
 	var pid atomic.Int64
 	pid.Store(100)
 	serveHealth(t, s.srv.socket(), &pid)
@@ -328,7 +357,8 @@ func newServiceSetup(t *testing.T) *serviceSetup {
 }
 
 // serveHealth answers health checks on the socket at path until the test
-// ends, as a healthy router does whose process id pid holds.
+// ends, as a healthy router does whose process id pid holds, and one from
+// before routers restarted when asked: it knows nothing else.
 func serveHealth(t *testing.T, path string, pid *atomic.Int64) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -338,12 +368,11 @@ func serveHealth(t *testing.T, path string, pid *atomic.Int64) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_ = json.NewEncoder(w).Encode(router.Health{OK: true, Listen: "127.0.0.1:4747", PID: int(pid.Load())})
-		}),
-		ReadHeaderTimeout: time.Second,
-	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(router.Health{OK: true, Listen: "127.0.0.1:4747", PID: int(pid.Load())})
+	})
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -31,8 +32,9 @@ the API on the account chosen for it. The service normally runs it.
 
 It takes up a change to a token file as it comes. Run by the service, it
 restarts itself once its config file makes another valid config, an
-upgrade replaces it, or the Mac's time zone changes; run by hand, it logs
-that a restart is due.
+upgrade replaces it, or the Mac's time zone changes, replacing itself with
+its binary in place and handing its listeners over, so no request is
+refused; run by hand, it logs that a restart is due.
 
 It logs to the router's log, and to the terminal when it runs in one.
 --log-level overrides SWITCHBOARD_LOG_LEVEL.`,
@@ -90,6 +92,10 @@ func (a *app) serve(ctx context.Context) error {
 		Binary:        binary,
 		Zone:          zone,
 		Supervised:    a.Getenv(launchdJob) == service.Label,
+		Exec:          a.Exec,
+		Args:          a.Args,
+		Environ:       a.Environ(),
+		Handed:        a.Getenv(handover.Variable),
 		WatchEvery:    a.WatchEvery,
 	})
 }
