@@ -110,6 +110,42 @@ func TestStatusJSON(t *testing.T) {
 	}
 }
 
+func TestStatusRefreshWithoutTheRouterProbesAsStatusDoes(t *testing.T) {
+	// runStatus runs switchboard status with args, with a token for personal,
+	// as goldenDeps gives it, and returns how it went and what the API was
+	// asked.
+	runStatus := func(args ...string) (result, []string) {
+		api := newClaudeAPI(t)
+		deps := statusDeps(t, api.URL, nil)
+		writeToken(t, deps, "personal", "test-token-personal")
+		return run(t, deps, append([]string{"status"}, args...)...), api.questions()
+	}
+	for _, form := range [][]string{nil, {"--json"}} {
+		want, probes := runStatus(form...)
+		if want.code != 0 || len(probes) == 0 {
+			t.Fatalf("switchboard status %s = %+v, asking the API %q, want exit status 0 and every account probed", strings.Join(form, " "), want, probes)
+		}
+		for _, flag := range []string{"--refresh", "-r"} {
+			args := append(slices.Clone(form), flag)
+			got, asked := runStatus(args...)
+			if got != want {
+				t.Errorf("switchboard status %s =\n%+v\nwant what status %s prints\n%+v", strings.Join(args, " "), got, strings.Join(form, " "), want)
+			}
+			if !slices.Equal(asked, probes) {
+				t.Errorf("switchboard status %s asked the API %q, want %q, every account probed as status probes it", strings.Join(args, " "), asked, probes)
+			}
+		}
+	}
+}
+
+func TestStatusSessionTakesNoRefresh(t *testing.T) {
+	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--session", "0b5c", "--refresh")
+	const want = "Error: --session asks after one session, not the accounts, so it takes no --refresh\n"
+	if got.code != 1 || !strings.HasPrefix(got.stderr, want) {
+		t.Errorf("switchboard status --session 0b5c --refresh = %+v, want exit status 1 and an error starting %q", got, want)
+	}
+}
+
 func TestStatusListsTheRoutersSessions(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	srv.start(t)

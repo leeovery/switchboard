@@ -136,6 +136,7 @@ probed directly
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	onTerminal(&srv.deps)
 	// A token for personal, as goldenDeps gives it.
 	writeToken(t, srv.deps, "personal", "test-token-personal")
 	routing(t, srv)
@@ -157,11 +158,58 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	}
 }
 
+func TestUsageWithoutATerminalPrintsTheRoutersDocument(t *testing.T) {
+	srv := routingSetup(t)
+
+	for _, args := range [][]string{nil, {"--refresh"}} {
+		got := run(t, srv.deps, append([]string{"usage"}, args...)...)
+		var doc status.Document
+		if got.code != 0 || json.Unmarshal([]byte(got.stdout), &doc) != nil || doc.Source != status.SourceRouter {
+			t.Fatalf("switchboard usage %s, without a terminal, = %+v, want exit status 0 and the router's document", strings.Join(args, " "), got)
+		}
+		if want := run(t, srv.deps, append([]string{"status", "--json"}, args...)...); got != want {
+			t.Errorf("switchboard usage %s, without a terminal, =\n%+v\nwant what status --json prints\n%+v", strings.Join(args, " "), got, want)
+		}
+	}
+}
+
+func TestStatusRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
+	var later atomic.Int64
+	api := newClaudeAPI(t)
+	srv := newServeSetup(t, api.URL, nil)
+	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
+	srv.start(t)
+	srv.waitForProbes(t)
+
+	for i, args := range [][]string{nil, {"--refresh"}, {"-r"}} {
+		// Two minutes on each time, every account last read over a minute
+		// ago, and last probed, work's session reads as used a point more.
+		later.Store(int64(i+1) * int64(2*time.Minute))
+		used := fmt.Sprintf("0.%d", 31+i)
+		api.readSessionAs(used)
+		asked := len(api.questions())
+		doc := statusJSON(t, srv.deps, args...)
+		refreshed := len(api.questions()) > asked
+		if want := len(args) > 0; refreshed != want {
+			t.Errorf("after switchboard status --json %s, the router probed = %v, want %v", strings.Join(args, " "), refreshed, want)
+		}
+		shown := "0.23"
+		if refreshed {
+			shown = used
+		}
+		work, _ := doc.Account("work")
+		if doc.Source != status.SourceRouter || len(work.Windows) == 0 || fmt.Sprint(work.Windows[0].Utilization) != shown {
+			t.Errorf("switchboard status --json %s printed\n%+v\nwant the router's document, work's session at %s, as the router last read it", strings.Join(args, " "), doc, shown)
+		}
+	}
+}
+
 func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 	var later atomic.Int64
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
+	onTerminal(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 
@@ -194,6 +242,7 @@ func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
+	onTerminal(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 	api.limitWeek(true)

@@ -139,7 +139,7 @@ Every command takes `--config <file>`, naming the config file in place of the on
 
 #### `usage`
 
-Every account's usage as a dashboard: a card per account, with a bar for each window, where it's heading and when it resets (see [The Dashboard](#the-dashboard)). It reads the router while it runs, else probes each account.
+Every account's usage as a dashboard: a card per account, with a bar for each window, where it's heading and when it resets (see [The Dashboard](#the-dashboard)). It reads the router while it runs, else probes each account. Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead, as [`status --json`](#status) does, read as its flags say; `-w` needs a terminal.
 
 ```bash
 switchboard usage [-w [interval]] [--no-notify] [--probe] [-r]
@@ -329,19 +329,21 @@ switchboard service status
 Every account's usage as text: each window's utilization, when it resets and where it's heading; what holds an account back, such as a limit it reached or its reserve, and whether it's under pressure, with the rate it goes by (`under pressure: runs out ~18:21 at Session's rate over the last 30 min, before its reset at 20:10`); the sessions routed in the last hour, a line each, with the account each of its models goes to; the priming schedule; the best account to use next; and last, where the usage came from, with the router's health, and under it, a restart the router has due, with how to have it now. It reads the router while it runs, else probes each account. When the `claude` a shell runs from `PATH` isn't switchboard, the first line says so.
 
 ```bash
-switchboard status [--json] [--probe]
+switchboard status [--json] [--probe] [-r]
 switchboard status --session <id> [--json]
 ```
 
 | Flag | Description |
 |---|---|
-| `--json` | print the status document as JSON; with `--session`, the session's every model and why it went where it did |
+| `--json` | print the status document as JSON, what an agent or a script reads; with `--session`, the session's every model and why it went where it did |
 | `--probe` | probe every account, even while the router runs |
-| `--session <id>` | print the id of the account the router sends that session's requests to, the one its last-used model went to, as a statusline asks; it needs the router, and takes no `--probe` |
+| `-r, --refresh` | have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
+| `--session <id>` | print the id of the account the router sends that session's requests to, the one its last-used model went to, as a statusline asks; it needs the router, and takes no `--probe` or `--refresh` |
 
 ```bash
 switchboard status
 switchboard status --json | jq '.accounts[] | {id, windows}'
+switchboard status --json -r   # have the router read every account it may first, as after a reset made by hand
 switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the account it's on, such as work
 ```
 

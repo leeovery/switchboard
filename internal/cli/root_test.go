@@ -85,6 +85,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "a session without an id", args: []string{"status", "--session", ""}, wantUsage: true},
 		{name: "a session's status without the router", args: []string{"status", "--session", "0b5c6f2e"}, wantUsage: false},
 		{name: "a session's status, probing", args: []string{"status", "--session", "0b5c6f2e", "--probe"}, wantUsage: true},
+		{name: "a session's status, refreshing", args: []string{"status", "--session", "0b5c6f2e", "--refresh"}, wantUsage: true},
 		{name: "pin without an account", args: []string{"pin"}, wantUsage: true},
 		{name: "pin two accounts without the router", args: []string{"pin", "work", "side"}, wantUsage: false},
 		{name: "pin auto among accounts", args: []string{"pin", "work", "auto"}, wantUsage: true},
@@ -400,9 +401,11 @@ const testPID = 5150
 // posts a notification. The switchboard binary can't be found, so nor can
 // claude, which is found past it, and starting a program or running launchctl
 // fails, unless a test says otherwise; the system is macOS, for the user the
-// test runs as, who owns the token files it writes. Watch and Hidden are the
-// real ones: a test's output and input are never a terminal, so Watch fails
-// before it would take one over, and Hidden finds none to read.
+// test runs as, who owns the token files it writes. Watch, Hidden and
+// Terminal are the real ones: a test's output and input are never a
+// terminal, so Watch fails before it would take one over, Hidden finds none
+// to read, and usage prints the status document, unless a test says
+// otherwise.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },
@@ -423,11 +426,12 @@ func testDeps(env map[string]string, home string) cli.Deps {
 		Launchctl: func(context.Context, ...string) ([]byte, error) {
 			return nil, errors.New("no test runs launchctl")
 		},
-		Hidden: cli.HiddenInput,
-		GOOS:   "darwin",
-		UID:    os.Getuid(),
-		PID:    testPID,
-		Pause:  func(time.Duration) {},
+		Hidden:   cli.HiddenInput,
+		Terminal: cli.IsTerminal,
+		GOOS:     "darwin",
+		UID:      os.Getuid(),
+		PID:      testPID,
+		Pause:    func(time.Duration) {},
 	}
 }
 
