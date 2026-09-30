@@ -58,7 +58,7 @@ func (a *app) serve(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	configFile, binary, zone := router.Watch(path), router.Watch(a.binary()), router.Watch(zoneFile)
+	configFile, binary, zone := router.Watch(path), router.Watch(a.binary()), router.Watch(a.ZoneFile)
 	cfg, err := a.loadConfigAt(path)
 	if err != nil {
 		return err
@@ -97,10 +97,6 @@ func (a *app) serve(ctx context.Context) error {
 // launchdJob is the variable launchd sets to the label of the job it runs a
 // program as: the service's, when it runs the router.
 const launchdJob = "XPC_SERVICE_NAME"
-
-// zoneFile is where the system's time zone is read from, unless TZ says
-// otherwise, which it doesn't for the service.
-const zoneFile = "/etc/localtime"
 
 // binary returns this switchboard binary, by the path it was run by, which
 // the router watches for an upgrade, or "" when it can't be found.

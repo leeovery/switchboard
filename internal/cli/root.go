@@ -78,6 +78,10 @@ type Deps struct {
 	// Pause waits as long as it's given, as time.Sleep does: run pauses
 	// before it looks again at a token file it finds empty.
 	Pause func(time.Duration)
+	// ZoneFile is where the system's time zone is read from, unless TZ says
+	// otherwise, which it doesn't for the service: /etc/localtime, which the
+	// router serve runs restarts for once it leads to another zone's file.
+	ZoneFile string
 }
 
 // Notifier posts a desktop notification.

@@ -283,6 +283,11 @@ func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
 			change:     func(t *testing.T, srv *serveSetup) { srv.upgrade(t) },
 			wantReason: "reason=upgraded",
 		},
+		{
+			name:       "once the Mac is taken to another time zone",
+			change:     func(t *testing.T, srv *serveSetup) { srv.travel(t) },
+			wantReason: `reason="time zone changed"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -529,17 +534,22 @@ type serveSetup struct {
 	// binary is the switchboard binary serve runs as, once watch has it
 	// watched: a link to one version, which upgrade moves on to next.
 	binary, next string
+	// zone is the time zone's file serve reads, once watch has it watched:
+	// a link to one zone's, which travel moves on to nextZone.
+	zone, nextZone string
 }
 
 // watch has serve run as a binary of the test's, which upgrade moves on to
-// another version, and look at what it was started from every few
-// milliseconds.
+// another version, in a time zone of the test's, which travel moves on to
+// another, and look at what it was started from every few milliseconds.
 func (s *serveSetup) watch(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
 	s.binary, s.next = filepath.Join(dir, "bin", "switchboard"), filepath.Join(dir, "1.1", "switchboard")
-	current := filepath.Join(dir, "1.0", "switchboard")
-	for path, content := range map[string]string{current: "switchboard 1.0", s.next: "switchboard 1.1"} {
+	s.zone, s.nextZone = filepath.Join(dir, "localtime"), filepath.Join(dir, "zoneinfo", "Asia", "Tokyo")
+	current, currentZone := filepath.Join(dir, "1.0", "switchboard"), filepath.Join(dir, "zoneinfo", "Europe", "London")
+	files := map[string]string{current: "switchboard 1.0", s.next: "switchboard 1.1", currentZone: "TZif London", s.nextZone: "TZif Tokyo"}
+	for path, content := range files {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -550,10 +560,13 @@ func (s *serveSetup) watch(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(s.binary), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(current, s.binary); err != nil {
-		t.Fatal(err)
+	for link, target := range map[string]string{s.binary: current, s.zone: currentZone} {
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
 	}
 	s.deps.Executable = func() (string, error) { return s.binary, nil }
+	s.deps.ZoneFile = s.zone
 	s.deps.WatchEvery = 10 * time.Millisecond
 }
 
@@ -568,11 +581,25 @@ func (s *serveSetup) upgrade(t *testing.T) {
 
 // moveOn is upgrade, from any goroutine.
 func (s *serveSetup) moveOn() error {
-	moved := s.binary + ".new"
-	if err := os.Symlink(s.next, moved); err != nil {
+	return relink(s.binary, s.next)
+}
+
+// travel has the time zone's file serve reads lead to another zone's, as
+// taking the Mac to another time zone does.
+func (s *serveSetup) travel(t *testing.T) {
+	t.Helper()
+	if err := relink(s.zone, s.nextZone); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// relink has the link at path lead to target, replacing it whole.
+func relink(path, target string) error {
+	moved := path + ".new"
+	if err := os.Symlink(target, moved); err != nil {
 		return err
 	}
-	return os.Rename(moved, s.binary)
+	return os.Rename(moved, path)
 }
 
 // newServeSetup sets serve up against upstream, with env added to its
