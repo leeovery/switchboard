@@ -45,8 +45,14 @@ type secret struct {
 	// file holds none at the next look either.
 	missed bool
 	// former are the tokens the account had before this one, in the order
-	// they were replaced.
+	// they were replaced, and those it took up from accounts removed from the
+	// config.
 	former []formerToken
+	// retired is set once the config no longer configures the account, and
+	// the primary has taken its tokens up, as they stood then: the state file
+	// keeps them as the primary's, and none of the account's own, until the
+	// config configures it again.
+	retired bool
 }
 
 func (s *secret) get() tokens.Token {

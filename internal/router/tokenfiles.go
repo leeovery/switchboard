@@ -50,9 +50,10 @@ func (f *tokenFiles) look() {
 	}
 }
 
-// retire has the tokens of the accounts no longer among those configured, as
-// the config file now makes them, count as the primary's it makes, until the
-// router restarts to take the config up, and after, as accounts' retire says.
+// retire keeps the accounts' tokens in step with those configured, as the
+// config file now makes them, as accounts' retire says: the tokens of one no
+// longer configured count as the primary's it makes, until the router
+// restarts to take the config up, and after.
 func (f *tokenFiles) retire(configured config.Accounts) {
 	if f.accounts.retire(configured, f.now()) {
 		f.kept()

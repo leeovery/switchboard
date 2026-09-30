@@ -16,6 +16,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -506,8 +507,10 @@ func TestTheTokensOfAnAccountNoLongerConfiguredCountAsThePrimarysForAWeek(t *tes
 	if strings.Contains(string(data), goneToken) {
 		t.Errorf("state file holds\n%s\nwant no token in it", data)
 	}
+	fromGone := older
+	fromGone.From = "gone"
 	want := map[string]savedTokens{
-		"work": {SHA256: workHash, Former: []formerToken{older, {SHA256: hash(goneToken), ReplacedAt: start}}},
+		"work": {SHA256: workHash, Former: []formerToken{fromGone, {SHA256: hash(goneToken), ReplacedAt: start, From: "gone"}}},
 		"side": {SHA256: sideHash},
 	}
 	if held := readState(t, path); !maps.EqualFunc(held.Tokens, want, savedTokens.equal) {
@@ -535,6 +538,49 @@ func TestTheTokensOfAnAccountNoLongerConfiguredCountAsThePrimarysForAWeek(t *tes
 				if got, want := ok && a.ID == "work", slices.Contains(tt.want, token); got != want {
 					t.Errorf("%s taken for work's %v on: %v, want %v", token, tt.after, got, want)
 				}
+			}
+		})
+	}
+}
+
+func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	running := testAccounts()
+	f := newTestFile(at(start), running)
+	f.load(path)
+	if !running.retire(withoutWork, start) {
+		t.Fatal("retire() = false, want work's tokens left to side")
+	}
+	f.changes.note()
+	f.save()
+	held := readState(t, path)
+	if _, kept := held.Tokens["work"]; kept {
+		t.Errorf("state file holds work's tokens as its own, %+v, want them kept as side's alone", held.Tokens["work"])
+	}
+	if want := []formerToken{{SHA256: workHash, ReplacedAt: start, From: "work"}}; !slices.EqualFunc(held.Tokens["side"].Former, want, formerToken.equal) {
+		t.Errorf("state file holds side's former tokens as %+v, want %+v", held.Tokens["side"].Former, want)
+	}
+
+	tests := []struct {
+		name string
+		// configured are the accounts the router is started again with, after.
+		configured config.Accounts
+		after      time.Duration
+		// wantSides is whether work's token counts as side's.
+		wantSides bool
+	}{
+		{name: "work still gone, a moment on", configured: withoutWork, after: time.Minute, wantSides: true},
+		{name: "work still gone, a week on", configured: withoutWork, after: formerFor},
+		{name: "work configured again", configured: testConfigured, after: time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			later := start.Add(tt.after)
+			restarted := resolve(tt.configured, testTokens.Read)
+			newTestFile(at(later), restarted).load(path)
+			side, _ := restarted.byID("side")
+			if got := side.secret.was(workHash, later); got != tt.wantSides {
+				t.Errorf("work's token counts as side's: %v, want %v", got, tt.wantSides)
 			}
 		})
 	}

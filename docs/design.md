@@ -501,13 +501,17 @@ token `accounts add`, `accounts token` or `setup` is given.
   the hash of the token held last is compared with the token the account later gains, and a
   different one counts as replaced.
 - An account removed from the config leaves its tokens, the one the router held last and those it
-  had before, to the primary, as former tokens of the primary's, for 7 days from when the router
-  found the account gone, or from when they were replaced: a session started with one, as every
-  session holds the primary's, carries on sending it, and stays routed, its client account the
-  primary. The router takes them up at the first look that finds the config without the account,
-  before the restart that takes the config up (see The router looking after itself), and, as it
-  starts, from what `state.json` kept of the account's tokens. While the primary has no usable
-  token, they count no more than its own do.
+  had before, to the primary, as former tokens of the primary's: a session started with one, as
+  every session holds the primary's, carries on sending it, and stays routed, its client account
+  the primary. The primary takes them up once, as they stood when the router found the account
+  gone, at the first look that finds the config without it, before the restart that takes the
+  config up (see The router looking after itself), or, when the router was away, as it starts, from
+  what `state.json` kept of the account's tokens. A token the account's file comes to hold after
+  isn't the primary's. They count for 7 days from then, those replaced before from when they were
+  replaced, and aren't taken up again once they're forgotten. `state.json` keeps them as the
+  primary's alone, marked with the account they came from: should the config configure it again,
+  as when an edit by hand is caught half made, it takes them back, an account like any other
+  again. While the primary has no usable token, they count no more than its own do.
 - The programs switchboard runs for itself, `claude --version`, `osascript` and `launchctl`, get
   none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
@@ -817,8 +821,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   is logged at `warn`, and the router carries on with the config it has. Until the restart, which
   can be hours coming (see below), the router routes by the config it started with, but for the
   tokens of an account the new config is without, which count as the primary's it makes from the
-  look that finds the change, so the sessions running on them stay routed once the account's token
-  file goes, as `accounts remove` deletes it (see Accounts and tokens).
+  look that finds the change, as they stood then, so the sessions running on them stay routed once
+  the account's token file goes, as `accounts remove` deletes it; a later change that configures
+  the account again gives them back to it (see Accounts and tokens).
 - **Upgrades:** it restarts itself when the binary it was started as, the Homebrew link its
   LaunchAgent runs, leads to a different file from the one running, or to the same file changed
   since, as after `brew upgrade`. A link that leads nowhere, as it may for a moment while an upgrade
@@ -978,7 +983,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   the sessions it forgets, and the hashes of tokens replaced 7 days before, at start and then
   hourly. At start it also drops the assignments and the sessions' own pins of accounts no longer
   configured, those accounts from the global pin, which goes with the last of them, and their
-  readings, and keeps their token hashes as the primary's former tokens (see Accounts and tokens);
+  readings, and keeps their token hashes as the primary's former tokens, which an account
+  configured again takes back (see Accounts and tokens);
   those of a configured account whose token file can't be read are kept, as the file may only have
   been caught while it's rewritten, and choices pass the account over until it has a token. A
   corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
