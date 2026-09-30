@@ -55,9 +55,10 @@ func (ws watchers) changes() []string {
 // home, and wherever XDG_DATA_HOME puts it; and what's named claude in each
 // directory on PATH. Nothing live writes the config, a LaunchAgent, the skill,
 // a token file or a claude link as it runs, so any change to one is a test's.
-// A live router writes the rest of its state as it runs, its logs and
-// state.json among it, so of that, only a state directory appearing is a
-// test's; and the OS sandbox denies a test any write there anyway.
+// A live router writes the rest of its state as it runs, its logs,
+// state.json and readings history among it, so of that, only a state
+// directory appearing is a test's; and the OS sandbox denies a test any write
+// there anyway.
 func watchReal(home string, getenv func(string) string) watchers {
 	var ws watchers
 	for _, p := range configPlaces(home, getenv) {

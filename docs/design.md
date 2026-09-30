@@ -470,8 +470,8 @@ come back one at a time rather than together: once all are spent, the wait for t
   seconds on, so its windows stay back to back: the API's clock may be a little behind the Mac's,
   and a prime it took in before the reset would start nothing, and go again five minutes later,
   the window's start with it. After the day ends, it stops, so the windows lapse overnight and the
-  next morning's primes start them afresh. An account's day of priming runs from its slot until
-  the day ends.
+  next morning's primes start them afresh. An account's day of priming runs from 5 seconds after
+  its slot until the day ends.
 - A prime missed while the Mac slept, or the router was away, goes out when the router next can,
   unless the day has ended: the router looks at least once a minute, as a timer's clock stops
   while the Mac sleeps.
@@ -487,7 +487,7 @@ come back one at a time rather than together: once all are spent, the wait for t
 - Early starts, late nights and use in the Claude apps can start a window off the schedule, which
   shifts that account's slot for the day.
 - The first primes confirm the window's mechanics: the 5-hour reset a prime reads should be five
-  hours on (see Checks owed).
+  hours after its slot, the ten-minute mark it goes 5 seconds after (see Checks owed).
 
 **No accidental windows.** A probe is a request, so probing an idle account starts its 5-hour
 window. The router never probes an account whose 5-hour window has lapsed, its last reading's reset
@@ -678,11 +678,12 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   just before, is noise: the reading stands, as the upstream's latest word, and the window runs
   on. Its pace marker and its projection measure from its start again, rather than from a whole
   length before its reset, until its next reset, a later reset being a new window; otherwise a
-  week reset on its third day would show the marker a third of the way along, and be on pace for
-  0%. Once the router has read a window reset by hand, the answer to a request sent before the
-  one whose answer showed it is from before the reset, and is passed over, where use only rising
-  within a window would have it put back the use the reset took away; the router keeps which
-  request that was in memory alone, as the state file's readings count as read before any.
+  week reset at the end of its third day would show the marker about three-sevenths of the way
+  along, and be on pace for 0%. Once the router has read a window reset by hand, the answer to a
+  request sent before the one whose answer showed it is from before the reset, and is passed
+  over, where use only rising within a window would have it put back the use the reset took away;
+  the router keeps which request that was in memory alone, as the state file's readings count as
+  read before any.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
   shows empty, as not started, until something uses it or a prime starts it, and, from the
   router, when its account is next primed: `not started · next prime Tue 04:10`.
@@ -1522,6 +1523,10 @@ What's built but hasn't been seen against the real thing:
   Claude Code sends on Claude Opus 5.5 (see Observed).
 - Whether a reset made by hand clears a model's own week, such as Fable's: the one seen cleared
   the shared week and the 5-hour window, but Fable's week read 0% before it.
+- How far below the reading before it a 429, or any answer, can read a window's use with the same
+  reset: a fall of a tenth or more is taken for a reset made by hand, which rests on such dips
+  being a point or so, as the one the limit's tests model, and on a reset made by hand emptying
+  the window, as the two seen did (see Observed).
 - That the API reports usage in the order it takes requests in: a reading off a request sent after
   another was taken in counting, whatever it reads, rests on it.
 - `service install`, `service restart` and setup's service step against the real launchd:
