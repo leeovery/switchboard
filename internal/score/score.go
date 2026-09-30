@@ -27,9 +27,9 @@ const (
 	// band is how far below the highest score another can fall and still be
 	// near enough equal to it that the tiebreak window decides between them.
 	band = 0.2
-	// tolerance is how close two scores, or two shares of a window, must be
+	// Tolerance is how close two scores, or two shares of a window, must be
 	// to count as equal: far below any real difference, far above rounding.
-	tolerance = 1e-9
+	Tolerance = 1e-9
 	// endless is how long until a reset nothing says is coming: longer than
 	// until any that is.
 	endless = time.Duration(math.MaxInt64)
@@ -313,7 +313,7 @@ func byScore(a, b rating) int {
 }
 
 // rank orders ratings best first: the sooner their tiebreak windows reset,
-// then the higher their scores, counting scores within tolerance as equal,
+// then the higher their scores, counting scores within Tolerance as equal,
 // then the less of their shortest windows they've used.
 func rank(a, b rating) int {
 	return cmp.Or(
@@ -324,9 +324,9 @@ func rank(a, b rating) int {
 }
 
 // compareScores compares two scores as cmp.Compare does, counting those
-// within tolerance as equal.
+// within Tolerance as equal.
 func compareScores(a, b float64) int {
-	if math.Abs(a-b) <= tolerance {
+	if math.Abs(a-b) <= Tolerance {
 		return 0
 	}
 	return cmp.Compare(a, b)
@@ -336,11 +336,11 @@ func compareScores(a, b float64) int {
 // the hysteresis margin, allowing for rounding. A score no higher never beats
 // it, however small the two are.
 func worthMoving(score, preferred float64) bool {
-	return score > preferred && score >= preferred*(1+hysteresis)-tolerance
+	return score > preferred && score >= preferred*(1+hysteresis)-Tolerance
 }
 
 // nearEnough reports whether score is within the band below the highest,
 // allowing for rounding.
 func nearEnough(score, highest float64) bool {
-	return score >= highest*(1-band)-tolerance
+	return score >= highest*(1-band)-Tolerance
 }

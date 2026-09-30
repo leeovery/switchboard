@@ -109,9 +109,9 @@ func (s Schedule) Slots() []Slot {
 // windows as last read, isn't running, from afterReset after its slot until
 // the day ends. Its window isn't running when it has never been read, or has
 // lapsed, its reset passed with nothing read since; one read running is
-// primed afterReset after its reset. Next reports false when the window can't be judged, as when it
-// was read without a reset, and may be running, and for an account the
-// schedule doesn't have.
+// primed afterReset after its reset. Next reports false when the window can't
+// be judged, as when it was read without a reset, and may be running, and for
+// an account the schedule doesn't have.
 func (s Schedule) Next(account string, windows []quota.Window, now time.Time) (time.Time, bool) {
 	i := slices.IndexFunc(s.slots, func(slot Slot) bool { return slot.Account == account })
 	if i < 0 {

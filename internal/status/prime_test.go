@@ -68,9 +68,9 @@ func TestComing(t *testing.T) {
 		return quota.Window{Key: "5h", Label: "Session", Utilization: 0.2, ResetsAt: now.Add(resetsIn)}
 	}
 	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: now.Add(time.Hour)}
-	priming := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "04:15"}, {Account: "side", At: "06:45"}}}
+	priming := status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "04:10"}, {Account: "side", At: "06:40"}}}
 	primed := priming
-	primed.Slots = []status.Slot{{Account: "work", At: "04:15", Next: now.Add(3 * time.Hour)}, {Account: "side", At: "06:45", Next: now.Add(2 * time.Hour)}}
+	primed.Slots = []status.Slot{{Account: "work", At: "04:10", Next: now.Add(3 * time.Hour)}, {Account: "side", At: "06:40", Next: now.Add(2 * time.Hour)}}
 	work := status.Account{ID: "work", Label: "Work", TokenSet: true, Windows: []quota.Window{session(3 * time.Hour), week}}
 	side := status.Account{ID: "side", Label: "Side", TokenSet: true, Windows: []quota.Window{session(2 * time.Hour)}}
 	lapsed := status.Account{ID: "side", Label: "Side", TokenSet: true, Windows: []quota.Window{{Key: "5h", Label: "Session"}}, Lapsed: []string{"5h"}}
@@ -117,14 +117,14 @@ func TestComing(t *testing.T) {
 
 func TestNotStarted(t *testing.T) {
 	now := time.Date(2026, 9, 28, 23, 30, 0, 0, time.FixedZone("UTC+1", 60*60))
-	next := time.Date(2026, 9, 29, 3, 15, 0, 0, time.UTC)
+	next := time.Date(2026, 9, 29, 3, 10, 5, 0, time.UTC)
 	tests := []struct {
 		name  string
 		prime status.Prime
 		want  string
 	}{
-		{name: "with when the router next primes the account", prime: status.Prime{Slots: []status.Slot{{Account: "work", At: "04:15", Next: next}}}, want: "not started · next prime Tue 04:15"},
-		{name: "without, from a probed document", prime: status.Prime{Slots: []status.Slot{{Account: "work", At: "04:15"}}}, want: "not started"},
+		{name: "with when the router next primes the account", prime: status.Prime{Slots: []status.Slot{{Account: "work", At: "04:10", Next: next}}}, want: "not started · next prime Tue 04:10"},
+		{name: "without, from a probed document", prime: status.Prime{Slots: []status.Slot{{Account: "work", At: "04:10"}}}, want: "not started"},
 		{name: "without priming", want: "not started"},
 	}
 	for _, tt := range tests {

@@ -127,9 +127,9 @@ func (p *probes) told(r *run) report {
 	return logProbe
 }
 
-// source is where what the probe r reads comes from: a prime, once a prime
+// sourceOf is where what the probe r reads comes from: a prime, once a prime
 // has started it or shared it, else a probe.
-func (p *probes) source(r *run) source {
+func (p *probes) sourceOf(r *run) source {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if r.priming {
@@ -218,7 +218,7 @@ func (p *probes) probe(a account, r *run) {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
-	p.state.recordProbe(a.ID, probed, err, sent, p.source(r))
+	p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
 	p.told(r)(a, probed, err, took)
 }
 

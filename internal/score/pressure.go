@@ -125,7 +125,7 @@ type Pressure struct {
 func (p Policy) PressureOf(c Candidate, now time.Time) Pressure {
 	w, ok := find(c.Windows, p.Pressure)
 	room := 1 - c.Reserve - w.Utilization
-	if !ok || c.Rate <= 0 || room <= tolerance || spent(w) || w.ResetsAt.IsZero() || hasReset(w, now) {
+	if !ok || c.Rate <= 0 || room <= Tolerance || spent(w) || w.ResetsAt.IsZero() || hasReset(w, now) {
 		return Pressure{}
 	}
 	at := now.Add(inHours(room / c.Rate))

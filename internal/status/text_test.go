@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -196,8 +197,8 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				Best:        "work",
 				Router:      status.Health{Healthy: true},
 				Prime: status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-					{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
-					{Account: "side", At: "06:45", Next: time.Date(2026, 9, 28, 13, 17, 0, 0, time.UTC)},
+					{Account: "work", At: "04:10", Next: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+					{Account: "side", At: "06:40", Next: time.Date(2026, 9, 28, 13, 17, 0, 0, time.UTC)},
 				}},
 				Accounts: []status.Account{
 					{
@@ -221,7 +222,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 side · Side
   Session   0%  not started · next prime Mon 14:17
 
-priming 08:00-23:00: work at 04:15 and side at 06:45
+priming 08:00-23:00: work at 04:10 and side at 06:40
 next reset: work · Work, Mon 17:10  ·  next prime: side · Side, Mon 14:17
 best next: work · Work
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -877,6 +878,12 @@ func TestLimit(t *testing.T) {
 	}
 	if (status.Limit{}).Holds(now) {
 		t.Error("no limit holds")
+	}
+}
+
+func TestLatelySaysTheSpanTheRecentRateIsMeasuredOver(t *testing.T) {
+	if want := fmt.Sprintf("last %.0f min", score.Recent.Minutes()); status.Lately != want {
+		t.Errorf("Lately = %q, want %q, as score.Recent is", status.Lately, want)
 	}
 }
 

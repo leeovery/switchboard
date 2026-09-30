@@ -19,9 +19,9 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
-// Lately is the span of the readings a window's recent rate is measured over,
-// as it's said: "last 30 min".
-var Lately = fmt.Sprintf("last %.0f min", score.Recent.Minutes())
+// Lately is the span a window's recent rate is measured over, score.Recent,
+// as it's said.
+const Lately = "last 30 min"
 
 // notStarted is what's said of a window that has lapsed: it isn't running,
 // and reads empty, until a request starts it.

@@ -132,7 +132,7 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 			want:     status.Heading{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute), Recent: true},
 		},
 		{
-			name:     "the session, at its recent rate, though its use since it started has it run out sooner",
+			name:     "the session, at its recent rate, though its use since it started ends it more used",
 			pressure: watched,
 			rates:    []status.Rate{{Window: "5h", Rate: 0.05}},
 			window:   session,
@@ -899,8 +899,8 @@ func TestDocumentJSON(t *testing.T) {
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
 				Prime: status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-					{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 17, 10, 0, 0, time.UTC)},
-					{Account: "side", At: "06:45", Next: time.Date(2026, 9, 29, 5, 45, 0, 0, time.UTC)},
+					{Account: "work", At: "04:10", Next: time.Date(2026, 9, 28, 17, 10, 0, 0, time.UTC)},
+					{Account: "side", At: "06:40", Next: time.Date(2026, 9, 29, 5, 45, 0, 0, time.UTC)},
 				}},
 				Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true}, {ID: "side", Label: "Side", TokenSet: true}},
 			},
@@ -913,12 +913,12 @@ func TestDocumentJSON(t *testing.T) {
     "slots": [
       {
         "account": "work",
-        "at": "04:15",
+        "at": "04:10",
         "next": "2026-09-28T17:10:00Z"
       },
       {
         "account": "side",
-        "at": "06:45",
+        "at": "06:40",
         "next": "2026-09-29T05:45:00Z"
       }
     ]
@@ -947,7 +947,7 @@ func TestDocumentJSON(t *testing.T) {
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceProbe,
-				Prime:       status.Prime{Day: "22:00-06:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "18:15"}}},
+				Prime:       status.Prime{Day: "22:00-06:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "19:30"}}},
 				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
 			},
 			want: `{
@@ -959,7 +959,7 @@ func TestDocumentJSON(t *testing.T) {
     "slots": [
       {
         "account": "work",
-        "at": "18:15"
+        "at": "19:30"
       }
     ]
   },

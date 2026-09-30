@@ -183,8 +183,9 @@ type state struct {
 	// they mustn't block, nor call s.
 	changed, readOff func()
 	// history hears, with s.mu held, of each reading that changes how a window
-	// reads, for the readings history: it mustn't block, nor call s. It hears
-	// nothing until the router has a history to keep.
+	// reads, for the readings history: it mustn't block, nor call s. New has
+	// it the router's history's, which drops what it hears until Run opens
+	// it; newState's hears nothing.
 	history func([]reading)
 	// moments counts the moments marked.
 	moments atomic.Uint64
@@ -758,22 +759,18 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	}
 }
 
-const (
-	// handReset is how far a window's use must fall, its reset kept, for the
-	// reading taken as current to show it started again, as a reset made by
-	// hand starts it, emptying it: a smaller dip, as a 429 reading a point
-	// below the use read just before, is noise, and the window runs on.
-	handReset = 0.10
-	// rounding is how far below handReset a fall can read and still be as
-	// far: 0.3 less 0.2 reads a hair under 0.1.
-	rounding = 1e-9
-)
+// handReset is how far a window's use must fall, its reset kept, for the
+// reading taken as current to show it started again, as a reset made by hand
+// starts it, emptying it: a smaller dip, as a 429 reading a point below the
+// use read just before, is noise, and the window runs on.
+const handReset = 0.10
 
 // resetByHand reports whether kept, the reading a window now stands as, shows
 // it reset by hand since held, the one it stood as before: its reset is the
-// same, and its use has fallen by handReset at least.
+// same, and its use has fallen by handReset at least, allowing for rounding,
+// as 0.3 less 0.2 reads a hair under 0.1.
 func resetByHand(held, kept quota.Window) bool {
-	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-rounding
+	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-score.Tolerance
 }
 
 // startedAgain returns kept, the reading a window now stands as, taken in at

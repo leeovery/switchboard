@@ -353,6 +353,11 @@ func TestPerishability(t *testing.T) {
 		{name: "reset since it was read: all left, a week away", windows: []quota.Window{window("7d", 0.9, -time.Hour)}, want: 1.0 / 168, wantOK: true},
 		{name: "resetting now: all left, a week away", windows: []quota.Window{window("7d", 0.9, 0)}, want: 1.0 / 168, wantOK: true},
 		{
+			name:    "started again by hand two days before its reset, and reset since: all left, a whole week away",
+			windows: []quota.Window{restartedAt(window("7d", 0.9, -time.Hour), now.Add(-49*time.Hour))},
+			want:    1.0 / 168, wantOK: true,
+		},
+		{
 			name:    "measured on the perishable window alone",
 			windows: []quota.Window{window("5h", 0.9, time.Hour), window("7d", 0.5, 24*time.Hour), window("7d_oi", 0.1, 10*time.Hour)},
 			want:    0.50 / 24,
@@ -737,6 +742,12 @@ func session(utilization float64, passed time.Duration) quota.Window {
 // week returns a seven-day window at utilization that began passed ago.
 func week(utilization float64, passed time.Duration) quota.Window {
 	return window("7d", utilization, 7*24*time.Hour-passed)
+}
+
+// restartedAt is w, started again at t, as by a reset made by hand.
+func restartedAt(w quota.Window, t time.Time) quota.Window {
+	w.RestartedAt = t
+	return w
 }
 
 func refused(w quota.Window) quota.Window {

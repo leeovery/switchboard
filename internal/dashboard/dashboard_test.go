@@ -680,8 +680,8 @@ func startedAgain() status.Document {
 func priming() status.Document {
 	doc := lapsed()
 	doc.Prime = status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-		{Account: "1", At: "04:15", Next: now.Add(2 * hour).UTC()},
-		{Account: "2", At: "06:45", Next: now.Add(5 * time.Minute).UTC()},
+		{Account: "1", At: "04:10", Next: now.Add(2 * hour).UTC()},
+		{Account: "2", At: "06:40", Next: now.Add(5 * time.Minute).UTC()},
 	}}
 	return doc
 }
