@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -34,17 +33,18 @@ type summary struct {
 	note span
 	// extras are what the line shows, each whole, where there's room once
 	// everything else is shown: how the account's reserve stands, once a
-	// window has reached it, and how many sessions it has, when it has any.
+	// window has reached it, that it's under pressure, while it is, and how
+	// many sessions it has, when it has any.
 	extras []span
 	marks  badges
 }
 
 // compact lays each account out on a line: its title, then each window's
-// key, a short bar and how much is used, then how its reserve stands and its
-// sessions, and last its marks. Titles line up. When room runs short, titles
-// shrink as far as lets a line show another window, and windows that still
-// don't fit give way from the right, after the reserve and the sessions. It
-// reports how wide the widest line is.
+// key, a short bar and how much is used, then how its reserve stands, whether
+// it's under pressure, and its sessions, and last its marks. Titles line up.
+// When room runs short, titles shrink as far as lets a line show another
+// window, and windows that still don't fit give way from the right, after
+// those notes. It reports how wide the widest line is.
 func compact(doc status.Document, now time.Time, room int) ([]line, int) {
 	summaries := make([]summary, len(doc.Accounts))
 	longest := 0
@@ -71,14 +71,16 @@ func compact(doc status.Document, now time.Time, room int) ([]line, int) {
 // carries.
 func summarize(doc status.Document, a status.Account, now time.Time) summary {
 	s := summary{title: a.Title(), marks: badgesOf(doc, a)}
-	if reserved := doc.Reserved(a); reserved != "" {
-		s.extras = append(s.extras, span{reserved, warningInk})
+	for _, note := range []string{doc.Reserved(a), doc.Pressed(a, now)} {
+		if note != "" {
+			s.extras = append(s.extras, span{note, warningInk})
+		}
 	}
 	if a.Sessions > 0 {
 		s.extras = append(s.extras, span{status.SessionCount(a.Sessions), dimInk})
 	}
 	for _, w := range a.Windows {
-		s.parts = append(s.parts, compactWindow(w, a.Reserve, now))
+		s.parts = append(s.parts, compactWindow(a, w, now))
 	}
 	for _, f := range a.Failures {
 		s.parts = append(s.parts, line{{status.Clean(f.Label) + " offline", offlineInk}})
@@ -92,12 +94,12 @@ func summarize(doc status.Document, a status.Account, now time.Time) summary {
 	return s
 }
 
-// compactWindow shows a window as its key, a short bar marking where the
-// account's reserve starts, and how much of it is used.
-func compactWindow(w quota.Window, reserve float64, now time.Time) line {
-	pct := use(w, score.Project(w, now))
+// compactWindow shows the account's window w as its key, a short bar marking
+// where the account's reserve starts, and how much of it is used.
+func compactWindow(a status.Account, w quota.Window, now time.Time) line {
+	pct := use(w, a.Project(w, now).Projection)
 	l := line{{status.Clean(w.Key), dimInk}, spaces(1)}
-	l = append(l, bar(w.Utilization, compactBar).mark(reserveCell(reserve, compactBar), reserveMarker)...)
+	l = append(l, bar(w.Utilization, compactBar).mark(reserveCell(a.Reserve, compactBar), reserveMarker)...)
 	return append(l, spaces(1+useWidth-ansi.StringWidth(pct.text)), pct)
 }
 

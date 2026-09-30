@@ -142,9 +142,10 @@ func (v view) letGo() (time.Time, bool) {
 }
 
 // pick returns the account whose quota most needs using, of those known to
-// have room for the request, keeping to preferred unless another is well
-// ahead of it. It reports false when none has room.
-func (v view) pick(preferred string) (string, bool) {
+// have room for the request, passing over those under pressure while another
+// isn't, and keeping to preferred unless another is well ahead of it. It
+// reports false when none has room.
+func (v view) pick(preferred string) (score.Choice, bool) {
 	return v.policy.Pick(v.open(), v.applies, preferred, v.now)
 }
 

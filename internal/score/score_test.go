@@ -13,7 +13,7 @@ import (
 // now is the time by the clock in every test: a Monday, 13:12 UTC.
 var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}
 
 func TestAWindowARequestStartsLapsesAtItsReset(t *testing.T) {
 	labelled := func(label string, w quota.Window) quota.Window {
@@ -353,6 +353,11 @@ func TestPerishability(t *testing.T) {
 		{name: "reset since it was read: all left, a week away", windows: []quota.Window{window("7d", 0.9, -time.Hour)}, want: 1.0 / 168, wantOK: true},
 		{name: "resetting now: all left, a week away", windows: []quota.Window{window("7d", 0.9, 0)}, want: 1.0 / 168, wantOK: true},
 		{
+			name:    "started again by hand two days before its reset, and reset since: all left, a whole week away",
+			windows: []quota.Window{restartedAt(window("7d", 0.9, -time.Hour), now.Add(-49*time.Hour))},
+			want:    1.0 / 168, wantOK: true,
+		},
+		{
 			name:    "measured on the perishable window alone",
 			windows: []quota.Window{window("5h", 0.9, time.Hour), window("7d", 0.5, 24*time.Hour), window("7d_oi", 0.1, 10*time.Hour)},
 			want:    0.50 / 24,
@@ -591,8 +596,8 @@ func TestPick(t *testing.T) {
 				applies = policy.IsShared
 			}
 			got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now)
-			if got != tt.want || ok != tt.wantOK {
-				t.Errorf("Pick() = %q, %v, want %q, %v", got, ok, tt.want, tt.wantOK)
+			if got != (score.Choice{ID: tt.want}) || ok != tt.wantOK {
+				t.Errorf("Pick() = %+v, %v, want %q, %v", got, ok, tt.want, tt.wantOK)
 			}
 		})
 	}
@@ -704,8 +709,8 @@ func TestPickBetweenNearEquals(t *testing.T) {
 			if applies == nil {
 				applies = policy.IsShared
 			}
-			if got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now); got != tt.want || !ok {
-				t.Errorf("Pick() = %q, %v, want %q, true", got, ok, tt.want)
+			if got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now); got != (score.Choice{ID: tt.want}) || !ok {
+				t.Errorf("Pick() = %+v, %v, want %q, true", got, ok, tt.want)
 			}
 		})
 	}
@@ -737,6 +742,12 @@ func session(utilization float64, passed time.Duration) quota.Window {
 // week returns a seven-day window at utilization that began passed ago.
 func week(utilization float64, passed time.Duration) quota.Window {
 	return window("7d", utilization, 7*24*time.Hour-passed)
+}
+
+// restartedAt is w, started again at t, as by a reset made by hand.
+func restartedAt(w quota.Window, t time.Time) quota.Window {
+	w.RestartedAt = t
+	return w
 }
 
 func refused(w quota.Window) quota.Window {

@@ -1,7 +1,6 @@
 package score
 
 import (
-	"math"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -53,36 +52,94 @@ func Elapsed(w quota.Window, now time.Time) (float64, bool) {
 // It's Unknown when w's length or reset isn't known, when w has reset since it
 // was read, or before 5% of w has passed.
 func Project(w quota.Window, now time.Time) Projection {
-	switch {
-	case hasReset(w, now):
-		return Projection{}
-	case spent(w):
-		return Projection{Kind: Exhausted, At: w.ResetsAt}
+	if p, ok := settled(w, now); ok {
+		return p
 	}
-	start, length, ok := span(w)
+	rate, ok := averageRate(w, now)
 	if !ok {
 		return Projection{}
 	}
-	passed := now.Sub(start)
-	elapsed := fraction(passed, length)
-	if elapsed < minElapsed {
-		return Projection{}
-	}
-	if atReset := w.Utilization / elapsed; atReset < 1 {
-		return Projection{Kind: OnPace, AtReset: atReset}
-	}
-	untilOut := float64(passed) * (1 - w.Utilization) / w.Utilization
-	return Projection{Kind: RunsOut, At: now.Add(time.Duration(math.Round(untilOut)))}
+	return heading(w, rate, now)
 }
 
-// span returns when w began and how long it lasts, reporting false unless
-// both its length and its reset are known.
+// ProjectAt says where w is heading at now, used from now on at rate, a share
+// of it an hour, as Project says it at the pace its use so far sets. It's
+// Unknown when w's reset isn't known, or w has reset since it was read.
+func ProjectAt(w quota.Window, rate float64, now time.Time) Projection {
+	if p, ok := settled(w, now); ok || w.ResetsAt.IsZero() {
+		return p
+	}
+	return heading(w, rate, now)
+}
+
+// Sooner reports whether b, a projection of a window, has it run out sooner
+// than a, another of the same window as it stands: running out before a
+// does, or at all where a doesn't, or ending the window more used; or saying
+// anything, where a says nothing. Two that end alike aren't.
+func Sooner(a, b Projection) bool {
+	switch {
+	case a.Kind != b.Kind:
+		return urgency(b.Kind) > urgency(a.Kind)
+	case a.Kind == RunsOut:
+		return b.At.Before(a.At)
+	case a.Kind == OnPace:
+		return b.AtReset > a.AtReset
+	default:
+		return false
+	}
+}
+
+// urgency ranks a projection's kind by how soon it has its window run out:
+// saying nothing least, then keeping pace, then running out, then exhausted.
+func urgency(k Kind) int {
+	switch k {
+	case Exhausted:
+		return 3
+	case RunsOut:
+		return 2
+	case OnPace:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// settled returns where w is heading at now whatever the pace of its use,
+// reporting false when the pace decides: once it has reset since it was read,
+// its reading says nothing, and with no room left, it's Exhausted.
+func settled(w quota.Window, now time.Time) (Projection, bool) {
+	switch {
+	case hasReset(w, now):
+		return Projection{}, true
+	case spent(w):
+		return Projection{Kind: Exhausted, At: w.ResetsAt}, true
+	}
+	return Projection{}, false
+}
+
+// heading is where w is heading at now, used from now on at rate, a share of
+// it an hour: OnPace when that ends it below its limit at its reset, else
+// RunsOut when it reaches the limit.
+func heading(w quota.Window, rate float64, now time.Time) Projection {
+	if atReset := w.Utilization + rate*w.ResetsAt.Sub(now).Hours(); atReset < 1 {
+		return Projection{Kind: OnPace, AtReset: atReset}
+	}
+	return Projection{Kind: RunsOut, At: now.Add(inHours((1 - w.Utilization) / rate))}
+}
+
+// span returns when w began and how long it runs until it resets: from a
+// whole length before its reset, or from when it started again, where it did
+// since. It reports false unless both its length and its reset are known.
 func span(w quota.Window) (time.Time, time.Duration, bool) {
 	length, ok := quota.Length(w.Key)
 	if !ok || w.ResetsAt.IsZero() {
 		return time.Time{}, 0, false
 	}
-	return w.ResetsAt.Add(-length), length, true
+	start := w.ResetsAt.Add(-length)
+	if w.RestartedAt.After(start) && w.RestartedAt.Before(w.ResetsAt) {
+		start = w.RestartedAt
+	}
+	return start, w.ResetsAt.Sub(start), true
 }
 
 // fraction is how much of length d makes up, from 0 to 1.
@@ -106,5 +163,5 @@ func spent(w quota.Window) bool {
 // the window left unused, and nothing else holds it back: 1 − reserve of it is
 // used, but it isn't spent. Without a reserve, nothing reaches it.
 func atReserve(w quota.Window, reserve float64) bool {
-	return reserve > 0 && w.Utilization >= 1-reserve-tolerance && !spent(w)
+	return reserve > 0 && w.Utilization >= 1-reserve-Tolerance && !spent(w)
 }

@@ -35,7 +35,7 @@ func TestWindowsCountTheFamiliesTheyveBeenSeenOn(t *testing.T) {
 		},
 		{
 			name:  "a window seen on a probe counts its family's models alone",
-			learn: func(s *state) { s.recordProbe("work", probed(everyFamily, windows...), nil, s.mark()) },
+			learn: func(s *state) { s.recordProbe("work", probed(everyFamily, windows...), nil, s.mark(), fromProbe) },
 			room:  map[string]bool{fable: false, "claude-fable-5": false, haiku: true, opus: true},
 		},
 		{
@@ -48,7 +48,7 @@ func TestWindowsCountTheFamiliesTheyveBeenSeenOn(t *testing.T) {
 		},
 		{
 			name:  "what's seen on one account counts on every account",
-			learn: func(s *state) { s.recordProbe("side", probed(everyFamily, windows...), nil, s.mark()) },
+			learn: func(s *state) { s.recordProbe("side", probed(everyFamily, windows...), nil, s.mark(), fromProbe) },
 			room:  map[string]bool{fable: false, haiku: true},
 		},
 		{
@@ -137,8 +137,8 @@ func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
 					if got := v.room("work"); got != want {
 						t.Errorf("%v after the refusal, room(work) for %q = %v, want %v", after, model, got, want)
 					}
-					if picked, _ := v.pick(""); (picked == "work") != want {
-						t.Errorf("%v after the refusal, pick() for %q = %q, want work: %v", after, model, picked, want)
+					if picked, _ := v.pick(""); (picked.ID == "work") != want {
+						t.Errorf("%v after the refusal, pick() for %q = %q, want work: %v", after, model, picked.ID, want)
 					}
 				}
 			}
@@ -176,7 +176,8 @@ func TestALimitHoldsBackTheRequestsItsWindowsCount(t *testing.T) {
 			s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
 			s.learn(fable, []quota.Window{session, week, fableWeek})
 
-			until := s.limit("work", tt.windows, start.Add(time.Hour)).Until
+			reached, _ := s.limit("work", tt.windows, start.Add(time.Hour), s.mark())
+			until := reached.Until
 			for model, want := range tt.room {
 				if got := s.view(model, start).room("work"); got != want {
 					t.Errorf("under the limit, work has room for %q: %v, want %v", model, got, want)
@@ -212,10 +213,10 @@ func TestALimitLiftsOnAReadingShowingItsWindowsWithRoom(t *testing.T) {
 			clock := &testClock{now: start}
 			s := newTestState(clock)
 			s.record("work", []quota.Window{spent, week}, s.mark())
-			s.limit("work", tt.windows, start.Add(time.Hour))
+			s.limit("work", tt.windows, start.Add(time.Hour), s.mark())
 			clock.now = start.Add(time.Minute)
 
-			s.recordProbe("work", quota.Probe{Windows: tt.reading}, nil, s.mark())
+			s.recordProbe("work", quota.Probe{Windows: tt.reading}, nil, s.mark(), fromProbe)
 			if lifted := s.usage["work"].limited.until.IsZero(); lifted != tt.want {
 				t.Errorf("the limit lifted: %v, want %v", lifted, tt.want)
 			}
@@ -226,8 +227,8 @@ func TestALimitLiftsOnAReadingShowingItsWindowsWithRoom(t *testing.T) {
 func TestALimitThatsAlreadyDueHoldsFiveMinutes(t *testing.T) {
 	for _, until := range []time.Time{{}, start.Add(-time.Minute), start} {
 		s := newTestState(&testClock{now: start})
-		if got := s.limit("work", nil, until).Until; got != start.Add(5*time.Minute) {
-			t.Errorf("limit() until %v holds until %v, want five minutes on", until, got)
+		if got, _ := s.limit("work", nil, until, s.mark()); got.Until != start.Add(5*time.Minute) {
+			t.Errorf("limit() until %v holds until %v, want five minutes on", until, got.Until)
 		}
 	}
 }
@@ -272,7 +273,7 @@ func TestALimitReachedAgainWhileItsInForceIsTheSameLimit(t *testing.T) {
 	}
 	for _, step := range steps {
 		clock.now = start.Add(step.after)
-		if got := s.limit("work", step.windows, step.until); !reflect.DeepEqual(got, step.want) {
+		if got, _ := s.limit("work", step.windows, step.until, s.mark()); !reflect.DeepEqual(got, step.want) {
 			t.Errorf("%s: limit() = %+v, want %+v", step.name, got, step.want)
 		}
 	}
@@ -286,9 +287,9 @@ func TestALimitReachedAgainInAnotherWindowHoldsAsItsLatestAnswerSays(t *testing.
 	// A Fable request reaches the Fable week's limit, for three days; then a
 	// Haiku request, which that doesn't hold back, reaches the session's,
 	// which resets in two hours.
-	s.limit("work", []string{"7d_oi"}, start.Add(3*24*time.Hour))
+	s.limit("work", []string{"7d_oi"}, start.Add(3*24*time.Hour), s.mark())
 	clock.now = start.Add(time.Hour)
-	s.limit("work", []string{"5h"}, start.Add(3*time.Hour))
+	s.limit("work", []string{"5h"}, start.Add(3*time.Hour), s.mark())
 
 	if !s.view(haiku, start.Add(3*time.Hour)).room("work") {
 		t.Error("once the session resets, work has no room for Haiku, want room: the Fable week never held Haiku back")
@@ -303,11 +304,11 @@ func TestALimitLiftedEarlyIsReachedAfresh(t *testing.T) {
 	fresh := session
 	fresh.Utilization, fresh.ResetsAt = 0.01, session.ResetsAt.Add(5*time.Hour)
 	s.record("work", []quota.Window{spent, week}, s.mark())
-	s.limit("work", []string{"5h"}, start.Add(24*time.Hour))
+	s.limit("work", []string{"5h"}, start.Add(24*time.Hour), s.mark())
 	clock.now = start.Add(time.Minute)
 	s.record("work", []quota.Window{fresh, week}, s.mark())
 
-	if got := s.limit("work", []string{"7d"}, week.ResetsAt); got.Again {
+	if got, _ := s.limit("work", []string{"7d"}, week.ResetsAt, s.mark()); got.Again {
 		t.Errorf("limit() = %+v, want a limit reached afresh: the last lifted early", got)
 	}
 }
@@ -327,8 +328,8 @@ func TestAViewWithoutAccounts(t *testing.T) {
 	if without.room("side") || !without.has("side") {
 		t.Error("without side, side has room, or can't be gone out on, want neither")
 	}
-	if id, ok := without.pick(""); ok {
-		t.Errorf("without side, pick() = %q, want none: work has no room", id)
+	if c, ok := without.pick(""); ok {
+		t.Errorf("without side, pick() = %q, want none: work has no room", c.ID)
 	}
 	if got := without.without([]string{"work"}).full(); len(got) > 0 {
 		t.Errorf("without either, full() = %q, want none: a probe finding room on either would be no use", got)
@@ -362,7 +363,7 @@ func TestDueAgain(t *testing.T) {
 			}
 			if tt.probed > 0 {
 				clock.now = start.Add(-tt.probed)
-				s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark())
+				s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), fromProbe)
 			}
 
 			if got := s.dueAgain("work", start); got != tt.want {
@@ -404,7 +405,7 @@ func TestDue(t *testing.T) {
 				if tt.failed {
 					err = errors.New("HTTP 529 · Overloaded")
 				}
-				s.recordProbe("work", quota.Probe{}, err, s.mark())
+				s.recordProbe("work", quota.Probe{}, err, s.mark(), fromProbe)
 			}
 
 			if got := s.due("work", start); got != tt.want {

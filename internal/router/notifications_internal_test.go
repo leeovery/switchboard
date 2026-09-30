@@ -183,7 +183,8 @@ func TestALimitThatDoesntSayWhenItLiftsIsToldOfOnce(t *testing.T) {
 		h.start()
 
 		for range 4 {
-			h.hear(h.state.limit("2", nil, time.Time{}))
+			reached, _ := h.state.limit("2", nil, time.Time{}, h.state.mark())
+			h.hear(reached)
 			h.after(time.Minute)
 		}
 		h.expect("2 · two hit its limit, back at Sat 00:05")
@@ -223,13 +224,13 @@ func TestRoomAgain(t *testing.T) {
 		{
 			name:   "when a limit lifts, with no traffic",
 			before: withRoom,
-			bar:    func(h *notifying) { h.state.limit("2", []string{"5h"}, h.began.Add(time.Minute)) },
+			bar:    func(h *notifying) { h.state.limit("2", []string{"5h"}, h.began.Add(time.Minute), h.state.mark()) },
 			wait:   time.Minute,
 		},
 		{
 			name:   "when a limit reached in no window named lifts",
 			before: withRoom,
-			bar:    func(h *notifying) { h.state.limit("2", nil, h.began.Add(time.Minute)) },
+			bar:    func(h *notifying) { h.state.limit("2", nil, h.began.Add(time.Minute), h.state.mark()) },
 			wait:   time.Minute,
 		},
 		{
@@ -241,7 +242,7 @@ func TestRoomAgain(t *testing.T) {
 		{
 			name:   "when a reading lifts a limit",
 			before: func(h *notifying) { h.read("2", h.session(1, time.Hour), h.week(0.5, 3*day)) },
-			bar:    func(h *notifying) { h.state.limit("2", []string{"5h"}, h.began.Add(2*time.Hour)) },
+			bar:    func(h *notifying) { h.state.limit("2", []string{"5h"}, h.began.Add(2*time.Hour), h.state.mark()) },
 			lift:   func(h *notifying) { h.read("2", h.session(0.01, 6*time.Hour)) },
 			wait:   lookEvery,
 		},
@@ -336,7 +337,7 @@ func TestNoRoomAgainUnlessQuotaRanOut(t *testing.T) {
 			setUp: func(h *notifying) {
 				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
 				h.start()
-				h.state.limit("2", []string{"7d_oi"}, h.began.Add(time.Minute))
+				h.state.limit("2", []string{"7d_oi"}, h.began.Add(time.Minute), h.state.mark())
 			},
 		},
 		{
@@ -684,7 +685,8 @@ func TestStoppingTellsOfALimitStillQueued(t *testing.T) {
 		h := newNotifying(t, config.Notifications{Limits: true})
 		h.read("2", h.session(1, time.Hour), h.week(0.5, 3*day))
 
-		h.n.hear(h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour)))
+		reached, _ := h.state.limit("2", []string{"5h"}, h.began.Add(time.Hour), h.state.mark())
+		h.n.hear(reached)
 		h.n.finish()
 		h.expect("2 · two hit its Session limit, back at Sat 01:00")
 	})
@@ -760,7 +762,8 @@ func (h *notifying) hear(events ...Event) {
 // limit has the account with the given id reach its limit in the windows
 // given, until lifts after the clock began, and tells of it.
 func (h *notifying) limit(id string, windows []string, lifts time.Duration) {
-	h.hear(h.state.limit(id, windows, h.began.Add(lifts)))
+	reached, _ := h.state.limit(id, windows, h.began.Add(lifts), h.state.mark())
+	h.hear(reached)
 }
 
 // read has the router read windows of the account with the given id.

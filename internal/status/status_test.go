@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -22,7 +23,7 @@ import (
 // policy scores the windows as Claude's are: the session and the week apply
 // to every model, the week is perishable, and the session's reset decides
 // between accounts scoring near enough equal.
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}
 
 func TestCollect(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
@@ -102,6 +103,94 @@ func TestCollectGivesThePrimaryAndTheWindowsAtEachReserve(t *testing.T) {
 	}
 	if doc.Best != "side" {
 		t.Errorf("Collect().Best = %q, want side: work's quota would need using first, but its week has reached its reserve", doc.Best)
+	}
+}
+
+func TestAnAccountsWindowsProjected(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	// The session began two hours ago, 30% used: its use since it started
+	// ends it at 75%. The week began five days ago, 50% used: its use since
+	// it started ends it at 70%.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.3, ResetsAt: now.Add(3 * time.Hour)}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: now.Add(2 * 24 * time.Hour)}
+	watched := status.Pressure{Window: "5h"}
+	sinceStarted := func(atReset float64) status.Heading {
+		return status.Heading{Kind: score.OnPace, AtReset: atReset}
+	}
+	tests := []struct {
+		name     string
+		pressure status.Pressure
+		rates    []status.Rate
+		window   quota.Window
+		want     status.Heading
+	}{
+		{
+			name:     "the session, at its recent rate, running out",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
+			window:   session,
+			want:     status.Heading{Kind: score.RunsOut, At: now.Add(2*time.Hour + 20*time.Minute), Recent: true},
+		},
+		{
+			name:     "the session, at its recent rate, though its use since it started ends it more used",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.05}},
+			window:   session,
+			want:     status.Heading{Kind: score.OnPace, AtReset: 0.45, Recent: true},
+		},
+		{
+			name:     "the session, without a recent rate, at its use since it started",
+			pressure: watched,
+			window:   session,
+			want:     sinceStarted(0.75),
+		},
+		{
+			name:   "the session, probed, at its use since it started",
+			window: session,
+			want:   sinceStarted(0.75),
+		},
+		{
+			name:     "the week, at its recent rate, which has it run out sooner",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.3}, {Window: "7d", Rate: 0.03}},
+			window:   week,
+			want:     status.Heading{Kind: score.RunsOut, At: now.Add(16*time.Hour + 40*time.Minute), Recent: true},
+		},
+		{
+			name:     "the week, at its recent rate, which ends it more used",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "7d", Rate: 0.01}},
+			window:   week,
+			want:     status.Heading{Kind: score.OnPace, AtReset: 0.98, Recent: true},
+		},
+		{
+			name:     "the week, at its use since it started, its recent rate slower",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "7d", Rate: 0.001}},
+			window:   week,
+			want:     sinceStarted(0.7),
+		},
+		{
+			name:     "the week, without a recent rate, at its use since it started",
+			pressure: watched,
+			rates:    []status.Rate{{Window: "5h", Rate: 0.3}},
+			window:   week,
+			want:     sinceStarted(0.7),
+		},
+		{
+			name:   "the week, probed, at its use since it started",
+			window: week,
+			want:   sinceStarted(0.7),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := status.Account{ID: "work", Windows: []quota.Window{session, week}, Pressure: tt.pressure, Rates: tt.rates}
+			got := a.Project(tt.window, now)
+			if got.Kind != tt.want.Kind || math.Abs(got.AtReset-tt.want.AtReset) > 1e-9 || !got.At.Equal(tt.want.At) || got.Recent != tt.want.Recent {
+				t.Errorf("Project() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -316,7 +405,11 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 	account := func(id string, windows []quota.Window) status.Account {
 		return status.Account{ID: id, Label: id, TokenSet: true, Windows: windows}
 	}
-	// Spare's week needs using first, then side's, then work's.
+	// Spare's week needs using first, then side's, then work's. Each
+	// session resets in 3 hours: used at pressing an hour, it runs out before
+	// then, and at atReserve, it reaches a reserve of a tenth before then,
+	// but its limit after.
+	const pressing, atReserve = 0.5, 0.28
 	accounts := []status.Account{
 		account("work", week(0.5, 5*24*time.Hour)),
 		account("side", week(0.5, 3*24*time.Hour)),
@@ -361,6 +454,36 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 			pinned: []string{"work"},
 			change: func(accounts []status.Account) { accounts[0] = status.Account{ID: "work", Label: "work"} },
 			want:   "spare",
+		},
+		{
+			name:   "unpinned, passing over the best under pressure",
+			change: func(accounts []status.Account) { accounts[2].Pressure.Rate = pressing },
+			want:   "side",
+		},
+		{
+			name:   "unpinned, passing over the best under pressure at its reserve",
+			change: func(accounts []status.Account) { accounts[2].Reserve, accounts[2].Pressure.Rate = 0.1, atReserve },
+			want:   "side",
+		},
+		{
+			name:   "the best of those pinned, passing over one under pressure for another pinned",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) { accounts[1].Pressure.Rate = pressing },
+			want:   "work",
+		},
+		{
+			name:   "the best of those pinned, every one under pressure",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) {
+				accounts[0].Pressure.Rate, accounts[1].Pressure.Rate = pressing, pressing
+			},
+			want: "side",
+		},
+		{
+			name:   "the best of those pinned, under pressure only at its reserve, which the pin spends",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) { accounts[1].Reserve, accounts[1].Pressure.Rate = 0.1, atReserve },
+			want:   "side",
 		},
 	}
 	for _, tt := range tests {
@@ -517,6 +640,120 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
+			name: "the router's, with a week started again",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{{
+					ID: "work", Label: "Work", TokenSet: true, FetchedAt: generated,
+					Windows: []quota.Window{{
+						Key: "7d", Label: "Week", Utilization: 0.01, ResetsAt: time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC),
+						Status: quota.StatusAllowed, RestartedAt: generated.Add(-time.Hour),
+					}},
+				}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.01,
+          "resets_at": "2026-10-02T21:00:00Z",
+          "status": "allowed",
+          "restarted_at": "2026-09-28T12:12:00Z"
+        }
+      ]
+    }
+  ]
+}`,
+		},
+		{
+			name: "the router's, with each account's pressure and recent rates",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true,
+						Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, Since: generated.Add(-30 * time.Minute), RunsOut: generated.Add(80 * time.Minute), Under: true},
+						Rates:    []status.Rate{{Window: "5h", Rate: 0.3, Since: generated.Add(-30 * time.Minute)}, {Window: "7d", Rate: 0.03, Since: generated.Add(-2 * time.Hour)}},
+					},
+					{ID: "side", Label: "Side", TokenSet: true, Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: generated.Add(9 * time.Hour)}},
+					{ID: "spare", Label: "Spare", TokenSet: true, Pressure: status.Pressure{Window: "5h"}},
+				},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "pressure": {
+        "window": "5h",
+        "rate": 0.3,
+        "recent": true,
+        "since": "2026-09-28T12:42:00Z",
+        "runs_out": "2026-09-28T14:32:00Z",
+        "under": true
+      },
+      "rates": [
+        {
+          "window": "5h",
+          "rate": 0.3,
+          "since": "2026-09-28T12:42:00Z"
+        },
+        {
+          "window": "7d",
+          "rate": 0.03,
+          "since": "2026-09-28T11:12:00Z"
+        }
+      ]
+    },
+    {
+      "id": "side",
+      "label": "Side",
+      "token_set": true,
+      "pressure": {
+        "window": "5h",
+        "rate": 0.1,
+        "runs_out": "2026-09-28T22:12:00Z"
+      }
+    },
+    {
+      "id": "spare",
+      "label": "Spare",
+      "token_set": true,
+      "pressure": {
+        "window": "5h",
+        "rate": 0
+      }
+    }
+  ]
+}`,
+		},
+		{
 			name: "the router's, with its pin, its health and the sessions",
 			doc: status.Document{
 				GeneratedAt: generated,
@@ -665,8 +902,8 @@ func TestDocumentJSON(t *testing.T) {
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
 				Prime: status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-					{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 17, 10, 0, 0, time.UTC)},
-					{Account: "side", At: "06:45", Next: time.Date(2026, 9, 29, 5, 45, 0, 0, time.UTC)},
+					{Account: "work", At: "04:10", Next: time.Date(2026, 9, 28, 17, 10, 0, 0, time.UTC)},
+					{Account: "side", At: "06:40", Next: time.Date(2026, 9, 29, 5, 45, 0, 0, time.UTC)},
 				}},
 				Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true}, {ID: "side", Label: "Side", TokenSet: true}},
 			},
@@ -679,12 +916,12 @@ func TestDocumentJSON(t *testing.T) {
     "slots": [
       {
         "account": "work",
-        "at": "04:15",
+        "at": "04:10",
         "next": "2026-09-28T17:10:00Z"
       },
       {
         "account": "side",
-        "at": "06:45",
+        "at": "06:40",
         "next": "2026-09-29T05:45:00Z"
       }
     ]
@@ -713,7 +950,7 @@ func TestDocumentJSON(t *testing.T) {
 			doc: status.Document{
 				GeneratedAt: generated,
 				Source:      status.SourceProbe,
-				Prime:       status.Prime{Day: "22:00-06:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "18:15"}}},
+				Prime:       status.Prime{Day: "22:00-06:00", Window: "5h", Slots: []status.Slot{{Account: "work", At: "19:30"}}},
 				Accounts:    []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
 			},
 			want: `{
@@ -725,7 +962,7 @@ func TestDocumentJSON(t *testing.T) {
     "slots": [
       {
         "account": "work",
-        "at": "18:15"
+        "at": "19:30"
       }
     ]
   },

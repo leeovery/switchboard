@@ -1,6 +1,7 @@
 package status_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -196,8 +197,8 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				Best:        "work",
 				Router:      status.Health{Healthy: true},
 				Prime: status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-					{Account: "work", At: "04:15", Next: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
-					{Account: "side", At: "06:45", Next: time.Date(2026, 9, 28, 13, 17, 0, 0, time.UTC)},
+					{Account: "work", At: "04:10", Next: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+					{Account: "side", At: "06:40", Next: time.Date(2026, 9, 28, 13, 17, 0, 0, time.UTC)},
 				}},
 				Accounts: []status.Account{
 					{
@@ -221,7 +222,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 side · Side
   Session   0%  not started · next prime Mon 14:17
 
-priming 08:00-23:00: work at 04:15 and side at 06:45
+priming 08:00-23:00: work at 04:10 and side at 06:40
 next reset: work · Work, Mon 17:10  ·  next prime: side · Side, Mon 14:17
 best next: work · Work
 from the router: healthy  ·  no sessions  ·  routing automatically
@@ -381,6 +382,155 @@ func TestReserved(t *testing.T) {
 			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
 			if got := doc.Reserved(tt.account); got != tt.want {
 				t.Errorf("Reserved() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPressed(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	under := status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 21, 0, 0, time.UTC), Under: true}
+	tests := []struct {
+		name    string
+		account status.Account
+		// pin are the accounts the global pin names.
+		pin  []string
+		want string
+	}{
+		{name: "running out", account: status.Account{ID: "work", Pressure: under}, want: "under pressure: runs out ~18:21"},
+		{name: "reaching its reserve", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, want: "under pressure: at its reserve ~18:21"},
+		{name: "running out, its reserve spent by the global pin", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, pin: []string{"work"}, want: "under pressure: runs out ~18:21"},
+		{name: "running out after its reset", account: status.Account{ID: "work", Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: under.RunsOut}}},
+		{name: "its pace unknown", account: status.Account{ID: "work"}},
+		{
+			name:    "held back from one model's requests, under pressure as the router says",
+			account: status.Account{ID: "work", Pressure: under, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}},
+			want:    "under pressure: runs out ~18:21",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
+			if got := doc.Pressed(tt.account, now); got != tt.want {
+				t.Errorf("Pressed() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	// The session, 60% used, resets at 17:10, having started at 12:10: 30% an
+	// hour runs it out at 15:32, a reserve of a tenth reached at 15:12, and
+	// its use since it started runs it out at 15:33.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}
+	tests := []struct {
+		name     string
+		reserve  float64
+		pressure status.Pressure
+		// heading is where the session heads, as its line says.
+		heading string
+		// notes are the lines status gives the account beside its usage.
+		notes string
+	}{
+		{
+			name:     "at its rate over the last half hour",
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
+			notes:    "  under pressure: runs out ~15:32 at Session's rate over the last 30 min, before its reset at 17:10\n",
+		},
+		{
+			name: "at its rate over the 18 minutes it's measured over",
+			pressure: status.Pressure{
+				Window: "5h", Rate: 0.3, Recent: true, Since: now.Add(-18 * time.Minute).UTC(),
+				RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true,
+			},
+			heading: "runs out ~Mon 15:32 at its rate over the last 18 min",
+			notes:   "  under pressure: runs out ~15:32 at Session's rate over the last 18 min, before its reset at 17:10\n",
+		},
+		{
+			name:     "at its rate since it started",
+			pressure: status.Pressure{Window: "5h", Rate: 0.6 / (2*time.Hour + 2*time.Minute).Hours(), RunsOut: time.Date(2026, 9, 28, 14, 33, 20, 0, time.UTC), Under: true},
+			heading:  "runs out ~Mon 15:33",
+			notes:    "  under pressure: runs out ~15:33 at Session's rate since it started, before its reset at 17:10\n",
+		},
+		{
+			name:     "reaching its reserve",
+			reserve:  0.1,
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
+			heading:  "runs out ~Mon 15:32 at its rate over the last 30 min",
+			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
+		},
+		{
+			name:     "not under pressure",
+			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
+			heading:  "on pace for 90% at its rate over the last 30 min",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The router gives the session's recent rate where it's the one
+			// its pressure goes by.
+			var rates []status.Rate
+			if tt.pressure.Recent {
+				rates = []status.Rate{{Window: "5h", Rate: tt.pressure.Rate, Since: tt.pressure.Since}}
+			}
+			doc := status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{{
+					ID: "work", Label: "Work", Reserve: tt.reserve, TokenSet: true, FetchedAt: now.UTC(),
+					Windows: []quota.Window{session}, Pressure: tt.pressure, Rates: rates,
+				}},
+			}
+			want := "work · Work\n" +
+				"  Session  60%  resets in 2h 58m · Mon 17:10 · " + tt.heading + "\n" +
+				tt.notes + "\n" +
+				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+			if got := doc.Text(now); got != want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestTextProjectsAWeekAtWhicheverRateRunsItOutSooner(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	// The week, 99% used, began three days ago: its use since it started
+	// runs it out at 14:55, and 7% an hour at 14:20.
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.99, ResetsAt: time.Date(2026, 10, 2, 13, 12, 0, 0, time.UTC)}
+	tests := []struct {
+		name  string
+		rates []status.Rate
+		// heading is where the week heads, as its line says.
+		heading string
+	}{
+		{name: "at its rate over the last half hour, sooner", rates: []status.Rate{{Window: "7d", Rate: 0.07}}, heading: "runs out ~Mon 14:20 at its rate over the last 30 min"},
+		{
+			name:    "at its rate over the 18 minutes it's measured over, sooner",
+			rates:   []status.Rate{{Window: "7d", Rate: 0.07, Since: now.Add(-18 * time.Minute)}},
+			heading: "runs out ~Mon 14:20 at its rate over the last 18 min",
+		},
+		{name: "at its use since it started, its recent rate slower", rates: []status.Rate{{Window: "7d", Rate: 0.001}}, heading: "runs out ~Mon 14:55"},
+		{name: "without a recent rate", heading: "runs out ~Mon 14:55"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{{
+					ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(),
+					Windows: []quota.Window{week}, Pressure: status.Pressure{Window: "5h"}, Rates: tt.rates,
+				}},
+			}
+			want := "work · Work\n" +
+				"  Week  99%  resets in 4d · Fri 14:12 · " + tt.heading + "\n\n" +
+				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+			if got := doc.Text(now); got != want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
 			}
 		})
 	}
@@ -724,6 +874,28 @@ func TestLimit(t *testing.T) {
 	}
 	if (status.Limit{}).Holds(now) {
 		t.Error("no limit holds")
+	}
+}
+
+func TestOver(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		since time.Time
+		want  string
+	}{
+		{name: "the half hour", since: now.Add(-score.Recent), want: fmt.Sprintf("last %.0f min", score.Recent.Minutes())},
+		{name: "less, without a level that far back", since: now.Add(-18 * time.Minute), want: "last 18 min"},
+		{name: "more, across a gap", since: now.Add(-2 * time.Hour), want: "last 2h"},
+		{name: "more, and minutes", since: now.Add(-(time.Hour + 30*time.Minute)), want: "last 1h 30m"},
+		{name: "not said, the half hour", want: "last 30 min"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Over(tt.since, now); got != tt.want {
+				t.Errorf("Over() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

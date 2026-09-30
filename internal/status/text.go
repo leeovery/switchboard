@@ -19,6 +19,20 @@ import (
 // the title reads as one part.
 const Separator = "  ·  "
 
+// Over says the span a recent rate is measured over, from since until now:
+// "last 30 min", "last 18 min" for a window without a level that far back,
+// or "last 2h" across a gap in its readings. A rate that doesn't say when
+// it's measured from, as a router from before gave it, is the half hour's.
+func Over(since, now time.Time) string {
+	if since.IsZero() {
+		since = now.Add(-score.Recent)
+	}
+	if d := now.Sub(since); d < time.Hour {
+		return fmt.Sprintf("last %d min", int(d/time.Minute))
+	}
+	return "last " + Countdown(since, now)
+}
+
 // notStarted is what's said of a window that has lapsed: it isn't running,
 // and reads empty, until a request starts it.
 const notStarted = "not started"
@@ -26,7 +40,8 @@ const notStarted = "not started"
 // Text renders the document for a terminal: each account, the primary marked,
 // with its windows, when they reset and where they're heading, or that one
 // that has lapsed hasn't started, and when it's primed, whatever couldn't be
-// read, what holds it back, and how many sessions the router has sent it;
+// read, what holds it back, whether it's under pressure, and how many
+// sessions the router has sent it;
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
 // it; then the account to use next; then where the usage came from, and last
@@ -61,7 +76,7 @@ func (d Document) Text(now time.Time, sessions ...Session) string {
 }
 
 // writePriming writes the priming schedule, when priming is on, such as
-// "priming 08:00-23:00: work at 03:50 and side at 06:45", and under it what
+// "priming 08:00-23:00: work at 04:10 and side at 06:40", and under it what
 // comes next of it at now.
 func (d Document) writePriming(b *strings.Builder, now time.Time) {
 	if len(d.Prime.Slots) == 0 {
@@ -82,12 +97,15 @@ func (d Document) writePriming(b *strings.Builder, now time.Time) {
 }
 
 // writeNotes writes what's noted of the account beside its usage: what the
-// router saw hold it back at now, how its reserve stands, and how many
-// sessions the router has sent it.
+// router saw hold it back at now, how its reserve stands, whether it's under
+// pressure, and how many sessions the router has sent it.
 func (d Document) writeNotes(b *strings.Builder, a Account, now time.Time) {
 	notes := a.HeldBy(now)
 	if reserved := d.Reserved(a); reserved != "" {
 		notes = append(notes, reserved)
+	}
+	if pressed := d.pressureNote(a, now); pressed != "" {
+		notes = append(notes, pressed)
 	}
 	if a.Sessions > 0 {
 		notes = append(notes, SessionCount(a.Sessions))
@@ -110,6 +128,50 @@ func (d Document) Reserved(a Account) string {
 	default:
 		return "at its reserve (" + Percent(1-a.Reserve) + ")"
 	}
+}
+
+// Pressed says the account is under pressure, and when, at the rate the
+// router saw its pressure window used, it runs out for the router, in now's
+// time zone: "under pressure: runs out ~18:21", or, with its reserve holding
+// it back there, "under pressure: at its reserve ~18:21". It's "" while it
+// isn't under pressure, which the router says of an account that can take a
+// request of some model alone: of one that can take none, pressure isn't
+// what passes it over.
+func (d Document) Pressed(a Account, now time.Time) string {
+	if !a.Pressure.Under {
+		return ""
+	}
+	out := "runs out"
+	if a.Reserve > 0 && !d.Pin.Has(a.ID) {
+		out = "at its reserve"
+	}
+	return "under pressure: " + out + " ~" + TimeOfDay(now, a.Pressure.RunsOut)
+}
+
+// pressureNote says the account is under pressure, as Pressed does, and why:
+// the rate it goes by, and the reset its window runs out before, as in "under
+// pressure: runs out ~18:21 at Session's rate over the last 30 min, before its
+// reset at 20:10". It's "" while it isn't under pressure.
+func (d Document) pressureNote(a Account, now time.Time) string {
+	pressed := d.Pressed(a, now)
+	w, ok := a.window(a.Pressure.Window)
+	if pressed == "" || !ok {
+		return pressed
+	}
+	over := "over the " + Over(a.Pressure.Since, now)
+	if !a.Pressure.Recent {
+		over = "since it started"
+	}
+	return pressed + " at " + Clean(w.Label) + "'s rate " + over + ", before its reset at " + TimeOfDay(now, w.ResetsAt)
+}
+
+// window returns the account's window with the given key.
+func (a Account) window(key string) (quota.Window, bool) {
+	i := slices.IndexFunc(a.Windows, func(w quota.Window) bool { return w.Key == key })
+	if i < 0 {
+		return quota.Window{}, false
+	}
+	return a.Windows[i], true
 }
 
 // HeldBy says what holds the account back at now, as the router saw it, a
@@ -241,7 +303,7 @@ func (d Document) writeAccount(b *strings.Builder, a Account, width int, now tim
 	}
 	fmt.Fprintf(b, "%s\n", title)
 	for _, w := range a.Windows {
-		notes := windowNotes(w, now)
+		notes := a.windowNotes(w, now)
 		if a.HasLapsed(w) {
 			notes = []string{d.NotStarted(a.ID, now)}
 		}
@@ -362,14 +424,19 @@ func windowLine(w quota.Window, labelWidth int, notes []string) string {
 	return line + "  " + strings.Join(notes, " · ")
 }
 
-// windowNotes say when a window resets and where it's heading at now, as far
-// as those are known.
-func windowNotes(w quota.Window, now time.Time) []string {
+// windowNotes say when the account's window w resets and where it's heading at
+// now, as Project says, as far as those are known, and when that's at its
+// rate over the last half hour, that it is.
+func (a Account) windowNotes(w quota.Window, now time.Time) []string {
 	var notes []string
 	if !w.ResetsAt.IsZero() {
 		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
 	}
-	if projection := Projection(now, score.Project(w, now)); projection != "" {
+	heading := a.Project(w, now)
+	if projection := Projection(now, heading.Projection); projection != "" {
+		if heading.Recent {
+			projection += " at its rate over the " + Over(heading.Since, now)
+		}
 		notes = append(notes, projection)
 	}
 	return notes

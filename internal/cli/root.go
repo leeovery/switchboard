@@ -99,6 +99,7 @@ var policy = score.Policy{
 	Perishable: claude.PerishableWindow,
 	Tiebreak:   claude.TiebreakWindow,
 	Started:    claude.StartedWindow,
+	Pressure:   claude.PressureWindow,
 }
 
 // roleAnnotation is the annotation a command logs its role under, when it

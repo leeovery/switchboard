@@ -174,10 +174,13 @@ type Router struct {
 	state    *state
 	sessions *sessions
 	// file keeps what should outlast the router, once Run has loaded it.
-	file   *stateFile
-	probes *probes
-	health *health
-	proxy  *proxy
+	file *stateFile
+	// history keeps each account's readings as they change, once Run has
+	// opened it.
+	history *history
+	probes  *probes
+	health  *health
+	proxy   *proxy
 	// primer is nil when priming is off.
 	primer *primer
 	// inFlight counts the proxy's requests in flight.
@@ -204,6 +207,8 @@ func New(cfg Config) (*Router, error) {
 	}
 	changes := newChanges()
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
+	history := newHistory(cfg.Now)
+	state.history = history.note
 	listeners := []func(Event){cfg.Events}
 	var notices *notifications
 	if cfg.notifying() {
@@ -229,6 +234,7 @@ func New(cfg Config) (*Router, error) {
 		state:    state,
 		sessions: sessions,
 		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
+		history:  history,
 		probes:   probes,
 		health:   health,
 		proxy: &proxy{

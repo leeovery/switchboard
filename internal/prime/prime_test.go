@@ -38,11 +38,13 @@ func TestSlots(t *testing.T) {
 		want []string
 	}{
 		{name: "three accounts, an hour and forty minutes apart", day: daytime, accounts: []string{"work", "personal", "side"}, want: []string{"work@03:50", "personal@05:30", "side@07:10"}},
-		{name: "two accounts, two and a half hours apart", day: daytime, accounts: []string{"work", "side"}, want: []string{"work@04:15", "side@06:45"}},
+		{name: "two accounts, two and a half hours apart, each taken back to its mark", day: daytime, accounts: []string{"work", "side"}, want: []string{"work@04:10", "side@06:40"}},
+		{name: "four accounts, as near an hour and a quarter apart as the marks allow", day: daytime, accounts: []string{"a", "b", "c", "d"}, want: []string{"a@03:30", "b@04:50", "c@06:00", "d@07:20"}},
 		{name: "one account", day: daytime, accounts: []string{"work"}, want: []string{"work@05:30"}},
-		{name: "a day past midnight", day: night, accounts: []string{"work", "side"}, want: []string{"work@18:15", "side@20:45"}},
+		{name: "a day past midnight", day: night, accounts: []string{"work", "side"}, want: []string{"work@18:10", "side@20:40"}},
 		{name: "a day whose slots fall the evening before", day: early, accounts: []string{"work", "personal", "side"}, want: []string{"work@21:50", "personal@23:30", "side@01:10"}},
-		{name: "seven accounts, to the minute", day: daytime, accounts: []string{"a", "b", "c", "d", "e", "f", "g"}, want: []string{"a@03:21", "b@04:04", "c@04:47", "d@05:30", "e@06:13", "f@06:56", "g@07:39"}},
+		{name: "a day whose slots fall the evening before, taken back to their marks", day: early, accounts: []string{"work", "side"}, want: []string{"work@22:10", "side@00:40"}},
+		{name: "seven accounts, each taken back to its mark", day: daytime, accounts: []string{"a", "b", "c", "d", "e", "f", "g"}, want: []string{"a@03:20", "b@04:00", "c@04:40", "d@05:30", "e@06:10", "f@06:50", "g@07:30"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -55,6 +57,37 @@ func TestSlots(t *testing.T) {
 			}
 			if s.Day() != tt.day || s.Window() != "5h" {
 				t.Errorf("the schedule's day and window are %+v and %q, want %+v and 5h", s.Day(), s.Window(), tt.day)
+			}
+		})
+	}
+}
+
+func TestSlotsFallOnMarksAsEvenlyAsTheyAllowBeforeTheDayStarts(t *testing.T) {
+	for n := 1; n <= 12; n++ {
+		t.Run(fmt.Sprintf("%d accounts", n), func(t *testing.T) {
+			accounts := make([]string, n)
+			for i := range accounts {
+				accounts[i] = fmt.Sprintf("account-%d", i)
+			}
+			s, _ := prime.New(daytime, accounts, policy)
+			slots := s.Slots()
+			for _, slot := range slots {
+				if slot.At%(10*time.Minute) != 0 || slot.At+5*time.Second >= daytime.Start {
+					t.Errorf("%s's slot is %v, want a ten-minute mark whose prime falls before the day starts", slot.Account, slot.At)
+				}
+			}
+			// The steps between the slots, the last's to the first's next
+			// window included, are as even as ten-minute marks allow.
+			var steps []time.Duration
+			for i := range slots {
+				next := slots[0].At + 5*time.Hour
+				if i+1 < len(slots) {
+					next = slots[i+1].At
+				}
+				steps = append(steps, next-slots[i].At)
+			}
+			if spread := slices.Max(steps) - slices.Min(steps); spread > 10*time.Minute {
+				t.Errorf("steps between slots %v, want them within ten minutes of each other", steps)
 			}
 		})
 	}
@@ -83,7 +116,8 @@ func TestNoSchedule(t *testing.T) {
 
 func TestNext(t *testing.T) {
 	s, _ := prime.New(daytime, []string{"work", "side"}, policy)
-	// Work's slot is 04:15, side's 06:45, and the day ends at 23:00.
+	// Work's slot is 04:10, side's 06:40, and the day ends at 23:00. Each is
+	// primed just after its slot, as after a reset.
 	running := func(resetsAt time.Time) []quota.Window {
 		return []quota.Window{
 			{Key: "5h", Label: "Session", Utilization: 0.3, ResetsAt: resetsAt},
@@ -98,16 +132,17 @@ func TestNext(t *testing.T) {
 		want    time.Time
 		wantOK  bool
 	}{
-		{name: "never read, at its slot", account: "work", now: at(1, 0, 0), want: at(1, 4, 15), wantOK: true},
-		{name: "never read, its slot come", account: "work", now: at(1, 4, 15), want: at(1, 4, 15), wantOK: true},
+		{name: "never read, just after its slot", account: "work", now: at(1, 0, 0), want: justAfter(at(1, 4, 10)), wantOK: true},
+		{name: "never read, its slot come, just after it", account: "work", now: at(1, 4, 10), want: justAfter(at(1, 4, 10)), wantOK: true},
+		{name: "never read, just after its slot come", account: "work", now: justAfter(at(1, 4, 10)), want: justAfter(at(1, 4, 10)), wantOK: true},
 		{name: "never read, past its slot, missed, as the day runs", account: "work", now: at(1, 9, 30), want: at(1, 9, 30), wantOK: true},
-		{name: "never read, the day over, at tomorrow's slot", account: "work", now: at(1, 23, 0), want: at(2, 4, 15), wantOK: true},
-		{name: "the other account, at its own slot", account: "side", now: at(1, 5, 0), want: at(1, 6, 45), wantOK: true},
+		{name: "never read, the day over, just after tomorrow's slot", account: "work", now: at(1, 23, 0), want: justAfter(at(2, 4, 10)), wantOK: true},
+		{name: "the other account, just after its own slot", account: "side", now: at(1, 5, 0), want: justAfter(at(1, 6, 40)), wantOK: true},
 		{name: "lapsed as the day runs, at once", account: "work", windows: running(at(1, 13, 0)), now: at(1, 13, 40), want: at(1, 13, 40), wantOK: true},
 		{name: "running as the day runs, just after its reset", account: "work", windows: running(at(1, 14, 15)), now: at(1, 10, 0), want: justAfter(at(1, 14, 15)), wantOK: true},
 		{name: "its reset passed a moment ago, just after it", account: "work", windows: running(at(1, 14, 15)), now: at(1, 14, 15).Add(time.Second), want: justAfter(at(1, 14, 15)), wantOK: true},
-		{name: "running at its slot, from a late night, just after its reset", account: "work", windows: running(at(1, 6, 0)), now: at(1, 4, 15), want: justAfter(at(1, 6, 0)), wantOK: true},
-		{name: "running until after the day ends, at tomorrow's slot", account: "work", windows: running(at(1, 23, 50)), now: at(1, 20, 0), want: at(2, 4, 15), wantOK: true},
+		{name: "running at its slot, from a late night, just after its reset", account: "work", windows: running(at(1, 6, 0)), now: at(1, 4, 10), want: justAfter(at(1, 6, 0)), wantOK: true},
+		{name: "running until after the day ends, just after tomorrow's slot", account: "work", windows: running(at(1, 23, 50)), now: at(1, 20, 0), want: justAfter(at(2, 4, 10)), wantOK: true},
 		{
 			name:    "its reset six seconds before the day ends, just after it",
 			account: "work",
@@ -117,18 +152,18 @@ func TestNext(t *testing.T) {
 			wantOK:  true,
 		},
 		{
-			name:    "its reset five seconds before the day ends, its prime falling as the day ends, at tomorrow's slot",
+			name:    "its reset five seconds before the day ends, its prime falling as the day ends, just after tomorrow's slot",
 			account: "work",
 			windows: running(at(1, 23, 0).Add(-5 * time.Second)),
 			now:     at(1, 20, 0),
-			want:    at(2, 4, 15),
+			want:    justAfter(at(2, 4, 10)),
 			wantOK:  true,
 		},
-		{name: "running until after the day ends, its reset read in UTC, at tomorrow's slot", account: "work", windows: running(at(1, 23, 50).UTC()), now: at(1, 20, 0), want: at(2, 4, 15), wantOK: true},
-		{name: "lapsed overnight, at its slot", account: "work", windows: running(at(1, 23, 50)), now: at(2, 1, 0), want: at(2, 4, 15), wantOK: true},
+		{name: "running until after the day ends, its reset read in UTC, just after tomorrow's slot", account: "work", windows: running(at(1, 23, 50).UTC()), now: at(1, 20, 0), want: justAfter(at(2, 4, 10)), wantOK: true},
+		{name: "lapsed overnight, just after its slot", account: "work", windows: running(at(1, 23, 50)), now: at(2, 1, 0), want: justAfter(at(2, 4, 10)), wantOK: true},
 		{name: "read without the window a request starts", account: "work", windows: running(at(1, 14, 15))[1:], now: at(1, 10, 0)},
 		{name: "read without a reset", account: "work", windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.3}}, now: at(1, 10, 0)},
-		{name: "an account it doesn't have", account: "personal", now: at(1, 4, 15)},
+		{name: "an account it doesn't have", account: "personal", now: at(1, 4, 10)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -140,25 +175,25 @@ func TestNext(t *testing.T) {
 	}
 }
 
-// justAfter is a few seconds after a reset at t, when a prime is sent, so
-// the upstream, its clock a little behind, takes it in after the reset.
+// justAfter is a few seconds after a reset or a slot at t, when a prime is
+// sent, so the upstream, its clock a little behind, takes it in after it.
 func justAfter(t time.Time) time.Time {
 	return t.Add(5 * time.Second)
 }
 
 func TestNextOverADayPastMidnight(t *testing.T) {
 	s, _ := prime.New(night, []string{"work", "side"}, policy)
-	// Work's slot is 18:15, and the day runs from 22:00 to 06:00.
+	// Work's slot is 18:10, and the day runs from 22:00 to 06:00.
 	tests := []struct {
 		name string
 		now  time.Time
 		want time.Time
 	}{
-		{name: "before its slot", now: at(1, 12, 0), want: at(1, 18, 15)},
-		{name: "at its slot", now: at(1, 18, 15), want: at(1, 18, 15)},
+		{name: "before its slot", now: at(1, 12, 0), want: justAfter(at(1, 18, 10))},
+		{name: "at its slot", now: at(1, 18, 10), want: justAfter(at(1, 18, 10))},
 		{name: "before midnight", now: at(1, 23, 30), want: at(1, 23, 30)},
 		{name: "after midnight, the day still running", now: at(2, 5, 59), want: at(2, 5, 59)},
-		{name: "once the day ends, at that evening's slot", now: at(2, 6, 0), want: at(2, 18, 15)},
+		{name: "once the day ends, at that evening's slot", now: at(2, 6, 0), want: justAfter(at(2, 18, 10))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -178,9 +213,9 @@ func TestNextWhenTheSlotFallsTheEveningBefore(t *testing.T) {
 		now  time.Time
 		want time.Time
 	}{
-		{name: "the evening before, at its slot", now: at(1, 21, 0), want: at(1, 21, 50)},
+		{name: "the evening before, at its slot", now: at(1, 21, 0), want: justAfter(at(1, 21, 50))},
 		{name: "after midnight, missed", now: at(2, 1, 0), want: at(2, 1, 0)},
-		{name: "once the day ends, at that evening's slot", now: at(2, 20, 0), want: at(2, 21, 50)},
+		{name: "once the day ends, at that evening's slot", now: at(2, 20, 0), want: justAfter(at(2, 21, 50))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -205,8 +240,16 @@ func TestAnIdleDayResetsAsTheDesignSays(t *testing.T) {
 		},
 		{
 			accounts: []string{"work", "side"},
-			primes:   []string{"04:15", "06:45", "09:15", "11:45", "14:15", "16:45", "19:15", "21:45"},
-			resets:   []string{"09:15", "11:45", "14:15", "16:45", "19:15", "21:45"},
+			primes:   []string{"04:10", "06:40", "09:10", "11:40", "14:10", "16:40", "19:10", "21:40"},
+			resets:   []string{"09:10", "11:40", "14:10", "16:40", "19:10", "21:40"},
+		},
+		{
+			accounts: []string{"a", "b", "c", "d"},
+			primes: []string{
+				"03:30", "04:50", "06:00", "07:20", "08:30", "09:50", "11:00", "12:20",
+				"13:30", "14:50", "16:00", "17:20", "18:30", "19:50", "21:00", "22:20",
+			},
+			resets: []string{"08:30", "09:50", "11:00", "12:20", "13:30", "14:50", "16:00", "17:20", "18:30", "19:50", "21:00", "22:20"},
 		},
 	}
 	for _, tt := range tests {
@@ -226,6 +269,8 @@ func TestAnIdleDayResetsAsTheDesignSays(t *testing.T) {
 // idleDay primes the accounts from from until until, as each falls due, with
 // nothing else using them, and returns when they were primed, and when the
 // windows the primes started reset within the day, each as HH:MM, in order.
+// Each window starts, as the upstream starts it, at the ten-minute mark its
+// prime falls in.
 func idleDay(t *testing.T, s prime.Schedule, accounts []string, from, until time.Time) (primes, resets []string) {
 	t.Helper()
 	windows := make(map[string][]quota.Window)
@@ -235,7 +280,7 @@ func idleDay(t *testing.T, s prime.Schedule, accounts []string, from, until time
 			return primes, resets
 		}
 		now = due
-		reset := now.Add(5 * time.Hour)
+		reset := now.Truncate(10 * time.Minute).Add(5 * time.Hour)
 		windows[account] = []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: reset}}
 		primes = append(primes, now.Format("15:04"))
 		if reset.Before(at(1, 23, 0)) {
@@ -271,27 +316,27 @@ func TestPrimesKeepTheirTimesOfDayOnADayTheClocksChange(t *testing.T) {
 	tests := []struct {
 		name string
 		now  time.Time
-		// want is when work is next due, at 04:15 on the clock, and until is
-		// when it's due until, the day ending at 23:00 on the clock.
+		// want is when work is next due, just after 04:10 on the clock, and
+		// until is when it's due until, the day ending at 23:00 on the clock.
 		want, until time.Time
 	}{
 		{
 			name:  "the clocks going forward at 01:00",
 			now:   on(2026, time.March, 29, 0, 30),
-			want:  time.Date(2026, time.March, 29, 3, 15, 0, 0, time.UTC),
+			want:  justAfter(time.Date(2026, time.March, 29, 3, 10, 0, 0, time.UTC)),
 			until: time.Date(2026, time.March, 29, 22, 0, 0, 0, time.UTC),
 		},
 		{
 			name:  "the clocks going back at 02:00",
 			now:   on(2026, time.October, 25, 0, 30),
-			want:  time.Date(2026, time.October, 25, 4, 15, 0, 0, time.UTC),
+			want:  justAfter(time.Date(2026, time.October, 25, 4, 10, 0, 0, time.UTC)),
 			until: time.Date(2026, time.October, 25, 23, 0, 0, 0, time.UTC),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got, ok := s.Next("work", nil, tt.now); !got.Equal(tt.want) || !ok {
-				t.Errorf("Next() = %v, %v, want %v, at 04:15 on the clock", got.UTC(), ok, tt.want)
+				t.Errorf("Next() = %v, %v, want %v, just after 04:10 on the clock", got.UTC(), ok, tt.want)
 			}
 			until := tt.until.In(london)
 			last := until.Add(-time.Minute)

@@ -127,6 +127,17 @@ func (p *probes) told(r *run) report {
 	return logProbe
 }
 
+// sourceOf is where what the probe r reads comes from: a prime, once a prime
+// has started it or shared it, else a probe.
+func (p *probes) sourceOf(r *run) source {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if r.priming {
+		return fromPrime
+	}
+	return fromProbe
+}
+
 // await probes the accounts as start does, and waits for those probes to end
 // as wait does. It reports whether there were any.
 func (p *probes) await(ctx context.Context, as accounts, due func(id string, now time.Time) bool, limit time.Duration) bool {
@@ -207,7 +218,7 @@ func (p *probes) probe(a account, r *run) {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
-	p.state.recordProbe(a.ID, probed, err, sent)
+	p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
 	p.told(r)(a, probed, err, took)
 }
 

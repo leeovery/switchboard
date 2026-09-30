@@ -21,7 +21,7 @@ import (
 )
 
 // daytime is the day the tests prime over. Work, the first account with a
-// token, is primed at 04:15, and side at 06:45.
+// token, is primed just after 04:10, and side just after 06:40.
 var daytime = config.Prime{Day: config.Day{Start: 8 * time.Hour, End: 23 * time.Hour}}
 
 // local is the tests' local time zone: an hour east of UTC.
@@ -33,7 +33,7 @@ func onDay(day, hour, minute int) time.Time {
 }
 
 // afterResets is t moved on by the few seconds a prime waits after each of n
-// resets.
+// resets, or slots.
 func afterResets(t time.Time, n int) time.Time {
 	return t.Add(time.Duration(n) * 5 * time.Second)
 }
@@ -48,11 +48,12 @@ func TestTheRouterPrimesEachAccountThroughTheDay(t *testing.T) {
 
 		time.Sleep(29 * time.Hour)
 		synctest.Wait()
-		// Each prime goes out a few seconds after the reset before, so the
-		// resets move on by as much.
+		// Each prime goes out a few seconds after its slot or the reset
+		// before, and starts its window at the ten-minute mark it falls in,
+		// as the upstream does, so the resets keep to their marks.
 		want := map[string][]time.Time{
-			workToken: {onDay(1, 4, 15), afterResets(onDay(1, 9, 15), 1), afterResets(onDay(1, 14, 15), 2), afterResets(onDay(1, 19, 15), 3), onDay(2, 4, 15)},
-			sideToken: {onDay(1, 6, 45), afterResets(onDay(1, 11, 45), 1), afterResets(onDay(1, 16, 45), 2), afterResets(onDay(1, 21, 45), 3)},
+			workToken: {afterResets(onDay(1, 4, 10), 1), afterResets(onDay(1, 9, 10), 1), afterResets(onDay(1, 14, 10), 1), afterResets(onDay(1, 19, 10), 1), afterResets(onDay(2, 4, 10), 1)},
+			sideToken: {afterResets(onDay(1, 6, 40), 1), afterResets(onDay(1, 11, 40), 1), afterResets(onDay(1, 16, 40), 1), afterResets(onDay(1, 21, 40), 1)},
 		}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
 			t.Errorf("primed at\n%v\nwant each at its slot, just after each reset through the day, and none once it ends till the next day's slot\n%v", got, want)
@@ -72,9 +73,9 @@ func TestAnAccountWhoseWindowRunsAtItsSlotIsPrimedAsItResets(t *testing.T) {
 
 		time.Sleep(6 * time.Hour)
 		synctest.Wait()
-		want := map[string][]time.Time{workToken: {afterResets(onDay(1, 6, 0), 1)}, sideToken: {onDay(1, 6, 45)}}
+		want := map[string][]time.Time{workToken: {afterResets(onDay(1, 6, 0), 1)}, sideToken: {afterResets(onDay(1, 6, 40), 1)}}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
-			t.Errorf("primed at %v, want %v: work's session was running at its slot, 04:15, so it's primed just after that resets", got, want)
+			t.Errorf("primed at %v, want %v: work's session was running at its slot, 04:10, so it's primed just after that resets", got, want)
 		}
 	})
 }
@@ -130,7 +131,7 @@ func TestAPrimeThatFailsIsSentAgainFiveMinutesOn(t *testing.T) {
 
 		time.Sleep(time.Hour)
 		synctest.Wait()
-		want := []time.Time{onDay(1, 6, 45), onDay(1, 6, 50), onDay(1, 6, 55), onDay(1, 7, 0)}
+		want := []time.Time{afterResets(onDay(1, 6, 40), 1), afterResets(onDay(1, 6, 45), 1), afterResets(onDay(1, 6, 50), 1), afterResets(onDay(1, 6, 55), 1)}
 		if got := upstream.probes()[sideToken]; !reflect.DeepEqual(got, want) {
 			t.Errorf("side, whose token is refused, was primed at %v, want %v: once at its slot, then every five minutes", got, want)
 		}
@@ -152,7 +153,7 @@ func TestAPrimeThatDoesntStartTheWindowIsSentAgainFiveMinutesOn(t *testing.T) {
 
 		time.Sleep(time.Hour)
 		synctest.Wait()
-		want := []time.Time{onDay(1, 6, 45), onDay(1, 6, 50), onDay(1, 6, 55), onDay(1, 7, 0)}
+		want := []time.Time{afterResets(onDay(1, 6, 40), 1), afterResets(onDay(1, 6, 45), 1), afterResets(onDay(1, 6, 50), 1), afterResets(onDay(1, 6, 55), 1)}
 		if got := upstream.probes()[sideToken]; !reflect.DeepEqual(got, want) {
 			t.Errorf("side, whose session a prime doesn't start, was primed at %v, want %v: once at its slot, then every five minutes", got, want)
 		}
@@ -175,7 +176,7 @@ func TestEachPrimeIsLoggedWithTheResetItRead(t *testing.T) {
 
 		time.Sleep(20 * time.Minute)
 		synctest.Wait()
-		resets := onDay(1, 9, 15).Local().Format("2006-01-02T15:04:05.000-07:00")
+		resets := onDay(1, 9, 10).Local().Format("2006-01-02T15:04:05.000-07:00")
 		if !log.Has("level=INFO", "msg=primed", "account=work", "resets="+resets) {
 			t.Errorf("log reads\n%s\nwant work's prime, with its session's reset", log)
 		}
@@ -193,13 +194,13 @@ func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 		wantDue  bool
 	}{
 		{name: "held back by nothing", holdBack: func(*state) {}, wantDue: true},
-		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("side", []string{"7d"}, far) }},
-		{name: "a limit in no window named", holdBack: func(s *state) { s.limit("side", nil, far) }},
+		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("side", []string{"7d"}, far, s.mark()) }},
+		{name: "a limit in no window named", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{spentWeek}, s.mark()) }},
 		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
 		{
 			name:     "a limit on its Fable week alone, which other models' requests go out beside",
-			holdBack: func(s *state) { s.limit("side", []string{"7d_oi"}, far) },
+			holdBack: func(s *state) { s.limit("side", []string{"7d_oi"}, far, s.mark()) },
 			wantDue:  true,
 		},
 	}
@@ -210,7 +211,7 @@ func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 			// Side's session ran till 01:00, and has lapsed since.
 			lapsed := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 1, 0)}
 			r.state.record("side", []quota.Window{lapsed, week}, r.state.mark())
-			clock.now = onDay(1, 6, 45)
+			clock.now = afterResets(onDay(1, 6, 40), 1)
 			tt.holdBack(r.state)
 
 			if due := r.primer.due("side", clock.now); due != tt.wantDue {
@@ -221,9 +222,9 @@ func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 }
 
 func TestAnAccountThatCantStartAWindowIsPrimedOnceItCan(t *testing.T) {
-	// Past side's slot, 06:45, it can take no request until half a minute
-	// past 06:50, between the primer's looks a minute apart.
-	freed := onDay(1, 6, 50).Add(30 * time.Second)
+	// Past side's slot, 06:40, it can take no request until half a minute
+	// past 06:45, between the primer's looks a minute apart.
+	freed := onDay(1, 6, 45).Add(30 * time.Second)
 	spent := quota.Window{Key: "5h", Label: "Session", Utilization: 1, ResetsAt: freed.UTC(), Status: quota.StatusRejected}
 	tests := []struct {
 		name string
@@ -238,7 +239,7 @@ func TestAnAccountThatCantStartAWindowIsPrimedOnceItCan(t *testing.T) {
 		},
 		{
 			name:     "a limit holding back its every request",
-			holdBack: func(s *state) { s.limit("side", nil, freed) },
+			holdBack: func(s *state) { s.limit("side", nil, freed, s.mark()) },
 			want:     freed,
 		},
 		{
@@ -297,15 +298,15 @@ func TestAPrimeThatSharesAProbeUnderWayIsLoggedAsAPrime(t *testing.T) {
 func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *testing.T) {
 	clock := &testClock{now: onDay(1, 5, 0)}
 	r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
-	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: onDay(1, 9, 15)}
+	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: onDay(1, 9, 10)}
 	r.state.record("work", []quota.Window{running, week}, r.state.mark())
 
 	want := status.Prime{
 		Day:    "08:00-23:00",
 		Window: "5h",
 		Slots: []status.Slot{
-			{Account: "work", At: "04:15", Next: afterResets(onDay(1, 9, 15), 1).UTC()},
-			{Account: "side", At: "06:45", Next: onDay(1, 6, 45).UTC()},
+			{Account: "work", At: "04:10", Next: afterResets(onDay(1, 9, 10), 1).UTC()},
+			{Account: "side", At: "06:40", Next: afterResets(onDay(1, 6, 40), 1).UTC()},
 		},
 	}
 	if got := r.Status().Prime; !reflect.DeepEqual(got, want) {
@@ -328,7 +329,7 @@ func TestTheRoutersDocumentSaysNothingOfWhenAnAccountThatCantStartAWindowIsNextP
 		holdBack func(s *state)
 	}{
 		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
-		{name: "a limit holding back its every request", holdBack: func(s *state) { s.limit("side", nil, far) }},
+		{name: "a limit holding back its every request", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{lapsed, spentWeek}, s.mark()) }},
 	}
 	for _, tt := range tests {
@@ -338,8 +339,8 @@ func TestTheRoutersDocumentSaysNothingOfWhenAnAccountThatCantStartAWindowIsNextP
 			tt.holdBack(r.state)
 
 			want := []status.Slot{
-				{Account: "work", At: "04:15", Next: onDay(1, 5, 0).UTC()},
-				{Account: "side", At: "06:45"},
+				{Account: "work", At: "04:10", Next: onDay(1, 5, 0).UTC()},
+				{Account: "side", At: "06:40"},
 			}
 			if got := r.Status().Prime.Slots; !reflect.DeepEqual(got, want) {
 				t.Errorf("the document's slots are\n%+v\nwant\n%+v: side's without when it's next primed", got, want)
@@ -359,7 +360,7 @@ func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T
 		}
 		return slots
 	}
-	if got, want := slots(), []string{"work 04:15", "side 06:45"}; !slices.Equal(got, want) {
+	if got, want := slots(), []string{"work 04:10", "side 06:40"}; !slices.Equal(got, want) {
 		t.Fatalf("as the router starts, the slots are %q, want %q", got, want)
 	}
 
@@ -373,7 +374,7 @@ func TestTheScheduleIsWorkedOutAgainAsAnAccountGainsOrLosesItsToken(t *testing.T
 	files.set(tokenstest.Files{"personal": personalToken, "side": sideToken})
 	r.upkeep.tokens.look()
 	r.upkeep.tokens.look()
-	if got, want := slots(), []string{"personal 04:15", "side 06:45"}; !slices.Equal(got, want) {
+	if got, want := slots(), []string{"personal 04:10", "side 06:40"}; !slices.Equal(got, want) {
 		t.Errorf("without work's token, the slots are %q, want %q", got, want)
 	}
 
@@ -400,9 +401,9 @@ func TestAnAccountThatGainsItsTokenIsPrimedAtItsSlot(t *testing.T) {
 		time.Sleep(6 * time.Hour)
 		synctest.Wait()
 		want := map[string][]time.Time{
-			workToken:     {onDay(1, 3, 50)},
-			personalToken: {onDay(1, 5, 30)},
-			sideToken:     {onDay(1, 7, 10)},
+			workToken:     {afterResets(onDay(1, 3, 50), 1)},
+			personalToken: {afterResets(onDay(1, 5, 30), 1)},
+			sideToken:     {afterResets(onDay(1, 7, 10), 1)},
 		}
 		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
 			t.Errorf("once personal has its token, primed at %v, want each at its slot in the schedule of three %v", got, want)
@@ -480,7 +481,8 @@ func (c *bubbleClock) sleep(d time.Duration) {
 
 // windowsUpstream answers probes as the upstream answers a request on an
 // account, by clock's time: a request starts the account's session when it
-// isn't running, and it resets five hours on. It notes when each token was
+// isn't running, at the ten-minute mark it falls in, and it resets five hours
+// after that mark. It notes when each token was
 // probed, refuses the tokens it's told to, and starts no session on those it's
 // told to leave idle.
 type windowsUpstream struct {
@@ -512,7 +514,7 @@ func (u *windowsUpstream) Probe(_ context.Context, token string) (quota.Probe, e
 		return quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token")
 	}
 	if reset, running := u.sessions[token]; !u.idle[token] && (!running || !reset.After(now)) {
-		u.sessions[token] = now.Add(5 * time.Hour)
+		u.sessions[token] = now.Truncate(10 * time.Minute).Add(5 * time.Hour)
 	}
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: u.sessions[token].UTC(), Status: quota.StatusAllowed}
 	return probed(nil, session, week), nil

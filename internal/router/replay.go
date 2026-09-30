@@ -37,22 +37,26 @@ const (
 	whyRefused   = "was refused"
 	whyThrottled = "was throttled"
 	whyNewToken  = "has a new token"
+	whyReset     = "was reset by hand"
 )
 
 // replay is the transport a routed request goes upstream on. It sends the
 // request on the exchange's account, and again, before the client has any of
 // an answer, while the account can't serve it: on the same account after a
-// pause when the account is throttled, or when it refuses the token its token
-// file no longer holds, as after the token is rotated, and on another when
-// its limit is reached or it refuses the request. It reads the usage off
+// pause when the account is throttled, when it refuses the token its token
+// file no longer holds, as after the token is rotated, or when the limit it
+// answers with was reset by hand since the request was sent, and on another
+// when its limit is reached or it refuses the request. It reads the usage off
 // every answer. What the client gets is the answer to the last attempt,
 // unless that refused the request: then it's the answer of the first account
 // whose limit the request reached, if one did, and a refusal if not.
 type replay struct {
 	p  *proxy
 	ex *exchange
-	// sent is the token the last attempt went out with.
+	// sent is the token the last attempt went out with, and when the moment
+	// it went out, as the state orders what it takes in.
 	sent tokens.Token
+	when moment
 	// throttled counts the times the request was sent again on its account
 	// after being throttled there.
 	throttled int
@@ -105,17 +109,17 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	}
 	rp.sent = ex.account.token()
 	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
-	sent := rp.p.state.mark()
+	rp.when = rp.p.state.mark()
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
 		return nil, err
 	}
 	if windows := rp.p.provider.Usage(resp.Header); len(windows) > 0 {
-		rp.p.state.record(ex.account.ID, windows, sent)
+		rp.p.state.record(ex.account.ID, windows, rp.when)
 		rp.p.state.learn(ex.req.Model, windows)
 	}
 	if ex.spends && succeeded(resp.StatusCode) {
-		rp.p.state.admitted(ex.account.ID, sent)
+		rp.p.state.admitted(ex.account.ID, rp.when)
 	}
 	return resp, nil
 }
@@ -185,9 +189,18 @@ func (rp *replay) renewed() bool {
 // windows rejected, if any, until when the answer says, from the requests
 // those windows count, and moves on from it, when another account can take
 // the request, holding the answer back. When none can, the answer is the
-// client's.
+// client's. A limit reached only in windows reset by hand since the request
+// was sent, as the state's limit says, is no limit: the request goes out
+// again on the account, after the reset, where the answer is the account's
+// as it now stands.
 func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejected []string, until time.Time) (*http.Response, bool, error) {
-	reached := rp.p.state.limit(rp.ex.account.ID, rejected, until)
+	reached, ok := rp.p.state.limit(rp.ex.account.ID, rejected, until, rp.when)
+	if !ok {
+		logger.Info("limit from before a reset passed over", "id", rp.ex.id, "account", reached.Account, "windows", strings.Join(reached.Windows, ","))
+		discard(resp)
+		rp.replaying(reached.Account, whyReset)
+		return nil, true, nil
+	}
 	news := "limit reached"
 	if reached.Again {
 		news = "limit reached again"

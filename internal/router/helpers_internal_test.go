@@ -44,7 +44,7 @@ var (
 // testPolicy scores as Claude's policy does: the session and the week apply
 // to every model, the week is perishable, and the session's reset decides
 // between accounts scoring near enough equal.
-var testPolicy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
+var testPolicy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}
 
 // testConfigured are three accounts: work and side, whose tokens testTokens
 // has, and personal, whose it hasn't.

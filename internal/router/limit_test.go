@@ -179,6 +179,76 @@ func TestAResetMadeByHandJustAfterTheLimitIsSeenOnceTheRouterRefreshes(t *testin
 	}
 }
 
+func TestALimitFromBeforeAResetMadeByHandIsPassedOver(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	// A request goes out on work, and is answered late, rejected in its
+	// session; another, sent after it, is answered first, reading the
+	// session reset by hand in between.
+	arrived, release := make(chan struct{}), make(chan struct{})
+	r.api.script(workToken, func(w http.ResponseWriter, req *http.Request) {
+		close(arrived)
+		select {
+		case <-release:
+		case <-time.After(5 * time.Second):
+			t.Error("the request sent before the reset was never let go")
+		}
+		limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 24*time.Hour))(w, req)
+	})
+	answered := make(chan int, 1)
+	client := &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()}
+	t.Cleanup(client.CloseIdleConnections)
+	go func() {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, r.proxy+"/v1/messages", strings.NewReader(messages))
+		if err != nil {
+			t.Error(err)
+			answered <- 0
+			return
+		}
+		req.Header = claudeCode(workToken)
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Error(err)
+			answered <- 0
+			return
+		}
+		_ = resp.Body.Close()
+		answered <- resp.StatusCode
+	}()
+	<-arrived
+	reset := session
+	reset.Utilization = 0.02
+	r.readsAs(workToken, reset, weekOf(0.5, 24*time.Hour))
+	if got := r.ask(t, "two", opus, ""); got != "work" {
+		t.Errorf("the request sent second went to %s, want work, its quota needing using first", got)
+	}
+	close(release)
+
+	if got := <-answered; got != http.StatusOK {
+		t.Errorf("the request sent first was answered %d, want 200, sent again on work since its reset", got)
+	}
+	if got := r.api.accounts(); !slices.Equal(got, []string{"work", "work", "work"}) {
+		t.Errorf("the requests went out on %q, want work each time", got)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{})
+	if work, _ := r.rt.Status().Account("work"); !slices.ContainsFunc(work.Windows, func(w quota.Window) bool {
+		return w.Key == "5h" && w.Utilization == reset.Utilization && w.Status == quota.StatusAllowed
+	}) {
+		t.Errorf("work reads %+v, want its session as the reset left it: the 429 is from before", work.Windows)
+	}
+	if got := limitsReached(r.events.heard()); got != 0 {
+		t.Errorf("%d limits reached, want none", got)
+	}
+	for _, want := range [][]string{
+		{"level=INFO", `msg="limit from before a reset passed over"`, "account=work", "windows=5h"},
+		{"level=INFO", "msg=replaying", "attempt=2", "from=work", "to=work", `why="was reset by hand"`},
+	} {
+		waitForLine(t, log, want...)
+	}
+}
+
 func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 	tests := []struct {
 		name string

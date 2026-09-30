@@ -64,6 +64,9 @@ func layouts() []layout {
 		{name: "router-reserve-pinned", doc: spendingReserve(), opts: dashboard.Options{Width: 160}},
 		{name: "router-reserve-compact", doc: atReserve(), opts: dashboard.Options{Width: 130, Height: 10}},
 		{name: "router-reserve-compact-narrow", doc: spendingReserve(), opts: dashboard.Options{Width: 100, Height: 10}},
+		{name: "router-pressure", doc: underPressure(), opts: dashboard.Options{Width: 160}},
+		{name: "router-pressure-compact", doc: underPressure(), opts: dashboard.Options{Width: 130, Height: 10}},
+		{name: "router-started-again", doc: startedAgain(), opts: dashboard.Options{Width: 110}},
 		{name: "router-lapsed", doc: lapsed(), opts: dashboard.Options{Width: 110}},
 		{name: "router-lapsed-compact", doc: lapsed(), opts: dashboard.Options{Width: 100, Height: 8}},
 		{name: "router-priming", doc: priming(), opts: dashboard.Options{Width: 110}},
@@ -632,13 +635,53 @@ func lapsed() status.Document {
 	return doc
 }
 
+// underPressure is the router's document of three accounts, each read over
+// the last half hour: work, the primary, keeping a tenth of every window back,
+// at 40% of its session an hour reaches its reserve before its session
+// resets, and personal, at 50% an hour, runs out before its does, so both are
+// under pressure; side, at 5% an hour, isn't, and is the best. Personal's
+// week, at 3% an hour over the 18 minutes it has levels for, runs out sooner
+// than its use since it started says; work's, at a tenth of a percent, later.
+func underPressure() status.Document {
+	doc := document("3",
+		read("1", "Work", windows(session(0.55, 4*hour), week(0.4, 3*day))),
+		read("2", "Personal", windows(session(0.3, 2*hour), week(0.5, 2*day))),
+		read("3", "Side", windows(session(0.1, 4*hour), week(0.3, 5*day))),
+	)
+	doc.Source = status.SourceRouter
+	doc.Router = status.Health{Healthy: true, Requests: 42}
+	doc.Primary, doc.Accounts[0].Primary, doc.Accounts[0].Reserve = "1", true, 0.1
+	doc.Accounts[0].Pressure = status.Pressure{Window: "5h", Rate: 0.4, Recent: true, RunsOut: now.Add(52*time.Minute + 30*time.Second).UTC(), Under: true}
+	doc.Accounts[0].Rates = []status.Rate{{Window: "5h", Rate: 0.4}, {Window: "7d", Rate: 0.001}}
+	doc.Accounts[1].Pressure = status.Pressure{Window: "5h", Rate: 0.5, Recent: true, RunsOut: now.Add(hour + 24*time.Minute).UTC(), Under: true}
+	doc.Accounts[1].Rates = []status.Rate{{Window: "5h", Rate: 0.5}, {Window: "7d", Rate: 0.03, Since: now.Add(-18 * time.Minute).UTC()}}
+	doc.Accounts[2].Pressure = status.Pressure{Window: "5h", Rate: 0.05, Recent: true, RunsOut: now.Add(18 * hour).UTC()}
+	doc.Accounts[2].Rates = []status.Rate{{Window: "5h", Rate: 0.05}}
+	return doc
+}
+
+// startedAgain is the router's document of two accounts whose weeks began
+// three days ago and reset in four, each 4% used: work's was reset by hand
+// six hours ago, keeping its reset, and runs from then; side's runs from a
+// week before its reset.
+func startedAgain() status.Document {
+	doc := document("1",
+		read("1", "Work", windows(session(0.2, 3*hour), week(0.04, 4*day))),
+		read("2", "Side", windows(session(0.2, 3*hour), week(0.04, 4*day))),
+	)
+	doc.Source = status.SourceRouter
+	doc.Router = status.Health{Healthy: true, Requests: 42}
+	doc.Accounts[0].Windows[1].RestartedAt = now.Add(-6 * hour).UTC()
+	return doc
+}
+
 // priming is lapsed, primed on an 08:00-23:00 day: work next as its session
 // resets, and side, whose last prime failed, five minutes on.
 func priming() status.Document {
 	doc := lapsed()
 	doc.Prime = status.Prime{Day: "08:00-23:00", Window: "5h", Slots: []status.Slot{
-		{Account: "1", At: "04:15", Next: now.Add(2 * hour).UTC()},
-		{Account: "2", At: "06:45", Next: now.Add(5 * time.Minute).UTC()},
+		{Account: "1", At: "04:10", Next: now.Add(2 * hour).UTC()},
+		{Account: "2", At: "06:40", Next: now.Add(5 * time.Minute).UTC()},
 	}}
 	return doc
 }

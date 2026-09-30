@@ -49,8 +49,8 @@ type Document struct {
 	Fallback Fallback `json:"fallback,omitzero"`
 	// Best is the account to use next: of those with room in the windows every
 	// model shares, the one whose quota most needs using, or, from the router,
-	// of those the global pin names while one has room. Empty when there's
-	// none.
+	// of those the global pin names while one has room, passing over those
+	// under pressure while another isn't. Empty when there's none.
 	Best string `json:"best,omitempty"`
 	// Primary is the id of the primary account, whose token Claude Code
 	// holds: empty only when no account is marked the primary.
@@ -199,6 +199,14 @@ type Account struct {
 	// saw, while it holds: zero when there's none, and in a document that
 	// isn't the router's.
 	Refused Refusal `json:"refused,omitzero"`
+	// Pressure is how fast the router has seen the account's pressure window
+	// used, and where that's heading: zero when it can't say, and in a
+	// document that isn't the router's.
+	Pressure Pressure `json:"pressure,omitzero"`
+	// Rates are how fast the router has seen the account's windows used
+	// lately, in Usage's order: those it has a recent rate of alone, and none
+	// in a document that isn't the router's.
+	Rates []Rate `json:"rates,omitempty"`
 	// Sessions is how many sessions the router has sent to the account in the
 	// last hour: zero in a document that isn't the router's.
 	Sessions int `json:"sessions,omitzero"`
@@ -231,6 +239,40 @@ type Refusal struct {
 // Holds reports whether the refusal still holds at now.
 func (r Refusal) Holds(now time.Time) bool {
 	return r.Until.After(now)
+}
+
+// Rate is how fast the router has seen a window used lately, as a share of it
+// an hour, never negative: its rise over the last half hour, as
+// score.RecentRate measures it.
+type Rate struct {
+	// Window is the window's key, such as "7d".
+	Window string  `json:"window"`
+	Rate   float64 `json:"rate"`
+	// Since is when the rate is measured from.
+	Since time.Time `json:"since,omitzero"`
+}
+
+// Pressure is how fast the router has seen an account's pressure window
+// used, and where, at that rate, it's heading. While it runs out before it
+// resets, the account is under pressure: a choice made afresh passes it over
+// for an account that isn't.
+type Pressure struct {
+	// Window is the window's key, such as "5h".
+	Window string `json:"window"`
+	// Rate is the share of the window used an hour: its recent rate, as a
+	// Rate is, while it has one, else its use since it started.
+	Rate float64 `json:"rate"`
+	// Recent is set when Rate is its recent rate, and Since is when that's
+	// measured from.
+	Recent bool      `json:"recent,omitempty"`
+	Since  time.Time `json:"since,omitzero"`
+	// RunsOut is when, at Rate, the window reaches where the account's room
+	// ends: where its reserve starts, or its limit, without one or where the
+	// global pin spends it. Zero when it never does, at no rate, and when it
+	// has already.
+	RunsOut time.Time `json:"runs_out,omitzero"`
+	// Under is set when RunsOut comes before the window resets.
+	Under bool `json:"under,omitempty"`
 }
 
 // Prober reads an account's usage with its token.
@@ -307,6 +349,46 @@ func (a Account) AsOf(policy score.Policy, now time.Time) Account {
 	return a
 }
 
+// Heading is where a window is heading, and whether it's at the rate the
+// router saw it used over the last half hour.
+type Heading struct {
+	score.Projection
+	// Recent is set when it heads there at that recent rate, rather than at
+	// the pace its use since it started sets, and Since is when that rate is
+	// measured from.
+	Recent bool
+	Since  time.Time
+}
+
+// Project says where the account's window w is heading at now: at the pace
+// its use since it started sets, or at the rate the router saw it used over
+// the last half hour, where it has that rate, when that has it run out
+// sooner, as score.Sooner judges, so a burst of use shows before the average
+// catches up with it. The window the router watches for pressure always goes
+// at that recent rate, so it heads where the router judges it to.
+func (a Account) Project(w quota.Window, now time.Time) Heading {
+	average := Heading{Projection: score.Project(w, now)}
+	rate, ok := a.rate(w.Key)
+	if !ok {
+		return average
+	}
+	recent := Heading{Projection: score.ProjectAt(w, rate.Rate, now), Recent: true, Since: rate.Since}
+	if w.Key == a.Pressure.Window || score.Sooner(average.Projection, recent.Projection) {
+		return recent
+	}
+	return average
+}
+
+// rate returns how fast the router has seen the account's window with the
+// given key used lately, reporting false when it has no recent rate of it.
+func (a Account) rate(key string) (Rate, bool) {
+	i := slices.IndexFunc(a.Rates, func(r Rate) bool { return r.Window == key })
+	if i < 0 {
+		return Rate{}, false
+	}
+	return a.Rates[i], true
+}
+
 // HasLapsed reports whether the account's window w has lapsed, and reads
 // empty until a request starts it.
 func (a Account) HasLapsed(w quota.Window) bool {
@@ -344,8 +426,8 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 // Best is the account of those given that a new session goes to, as the
 // router chooses one for a request of any model: of those pinned, while one
 // can take the request, as bestPinned says; else of them all, the one policy
-// picks, leaving each one's reserve unused. It's empty when none can take
-// one.
+// picks, leaving each one's reserve unused, and passing over those under
+// pressure, as pick says. It's empty when none can take one.
 func Best(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
 	if id, ok := bestPinned(policy, accounts, pinned, now); ok {
 		return id
@@ -380,12 +462,13 @@ func bestPinned(policy score.Policy, accounts []Account, pinned []string, now ti
 }
 
 // pick is the account of those given that policy picks for a request of any
-// model, leaving each one's reserve unused, or empty when none can take one.
+// model, leaving each one's reserve unused, and passing over those under
+// pressure at the rates the router saw, or empty when none can take one.
 func pick(policy score.Policy, accounts []Account, now time.Time) string {
 	candidates := make([]score.Candidate, len(accounts))
 	for i, account := range accounts {
-		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve}
+		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve, Rate: account.Pressure.Rate}
 	}
-	id, _ := policy.Pick(candidates, policy.IsShared, "", now)
-	return id
+	c, _ := policy.Pick(candidates, policy.IsShared, "", now)
+	return c.ID
 }

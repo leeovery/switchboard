@@ -71,7 +71,7 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "30m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-30 * time.Second)
-				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), r.state.mark())
+				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), r.state.mark(), fromProbe)
 			},
 			want: map[string]int{workToken: 1},
 		},
@@ -121,12 +121,12 @@ func TestRefreshProbesAnAccountWhoseSessionHasLapsedWhenItCanTakeNoRequest(t *te
 		{
 			name:       "a limit reached in its week",
 			spent:      true,
-			holdBack:   func(s *state) { s.limit("work", []string{"7d"}, start.Add(72*time.Hour)) },
+			holdBack:   func(s *state) { s.limit("work", []string{"7d"}, start.Add(72*time.Hour), s.mark()) },
 			wantProbed: true,
 		},
 		{
 			name:       "a limit reached in no window named",
-			holdBack:   func(s *state) { s.limit("work", nil, start.Add(72*time.Hour)) },
+			holdBack:   func(s *state) { s.limit("work", nil, start.Add(72*time.Hour), s.mark()) },
 			wantProbed: true,
 		},
 		{
@@ -137,11 +137,11 @@ func TestRefreshProbesAnAccountWhoseSessionHasLapsedWhenItCanTakeNoRequest(t *te
 		},
 		{
 			name:     "a limit that has lifted",
-			holdBack: func(s *state) { s.limit("work", []string{"7d"}, start.Add(-time.Second)) },
+			holdBack: func(s *state) { s.limit("work", []string{"7d"}, start.Add(-time.Second), s.mark()) },
 		},
 		{
 			name:     "a limit reached in its Fable week, which Opus requests can still go out beside",
-			holdBack: func(s *state) { s.limit("work", []string{"7d_oi"}, start.Add(72*time.Hour)) },
+			holdBack: func(s *state) { s.limit("work", []string{"7d_oi"}, start.Add(72*time.Hour), s.mark()) },
 		},
 		{
 			name:     "its token refused",

@@ -42,6 +42,9 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	if d.noRoom && s.recheck(ctx, req) {
 		d, on = s.decide(req)
 	}
+	if d.passedOver != "" {
+		notePressure(req, d)
+	}
 	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
 	if req.Session != "" && d.account != "" {
 		c.New = s.remember(on, d)
@@ -82,6 +85,15 @@ func (s *scheduler) decide(req Request) (decision, situation) {
 // been tried on has no room for it.
 func (s *scheduler) view(req Request, now time.Time) view {
 	return s.state.view(req.Model, now).without(req.tried())
+}
+
+// notePressure notes in the log the account the choice d passed over as under
+// pressure, and why, as the choice judged it: the rate its pressure window is
+// being used at, and when, at that rate, it runs out, which comes before it
+// resets.
+func notePressure(req Request, d decision) {
+	logger.Info("passed over under pressure", "id", req.ID, "account", d.passedOver, "rate", status.Percent(d.pressure.Rate)+" an hour",
+		"runs_out", d.pressure.RunsOut, "chosen", d.account)
 }
 
 // recheck probes again the accounts whose usage as last read leaves no room

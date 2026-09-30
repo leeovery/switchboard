@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -52,6 +53,11 @@ type decision struct {
 	// afresh is set when the account was chosen afresh, as a new session's
 	// is, so fresher usage could change it.
 	afresh bool
+	// passedOver is the account under pressure the choice passed over, when
+	// passing over those under pressure changed it: "" when it didn't. pressure
+	// is how it stood, as the choice judged it, at the room the choice gave it.
+	passedOver string
+	pressure   score.Pressure
 	// noRoom is set when no account has room for the request, so account is
 	// only where it falls back to, or none: when reserved is set, or the
 	// request has been tried already.
@@ -79,12 +85,26 @@ type decision struct {
 //  4. Afresh: the best of the global pin's accounts while one has room, else
 //     the account whose quota most needs using, of every account; either
 //     way, a session that has idled keeps to its own account unless another
-//     is well ahead.
+//     is well ahead, and those under pressure are passed over while another
+//     isn't.
 //  5. When no account has room, the session's account, else the client's,
 //     else any, passing over those that refused the request lately and those
 //     held back by their reserve alone; with none left but the latter, none.
 //     A request tried already goes out on none.
+//
+// A choice that passing over those under pressure changed says so, naming
+// the account passed over, after why it was made.
 func decide(s situation) decision {
+	d := s.choose()
+	if d.passedOver != "" {
+		d.reason += ", " + d.passedOver + " under pressure"
+	}
+	return d
+}
+
+// choose chooses as decide does, but for saying which account a choice passed
+// over for pressure.
+func (s situation) choose() decision {
 	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	pin := s.req.Pin
 	switch {
@@ -105,7 +125,7 @@ func decide(s situation) decision {
 // unpinned chooses as decide does from step 2 on.
 func (s situation) unpinned() decision {
 	if to, ok := s.moving(); ok {
-		return decision{account: to, reason: reasonMovedByPin}
+		return decision{account: to.ID, reason: reasonMovedByPin, passedOver: to.PassedOver, pressure: to.Pressure}
 	}
 	if s.keepable() {
 		return s.keep()
@@ -127,9 +147,9 @@ func (s situation) yielded() bool {
 // the session was assigned, and the session's account isn't one of them. It
 // reports false when the pin doesn't move the session, or none of its
 // accounts has room.
-func (s situation) moving() (string, bool) {
+func (s situation) moving() (score.Choice, bool) {
 	if !s.assigned || !s.pin.Move || !s.current.AssignedAt.Before(s.pin.Since) || s.pin.Has(s.current.Account) {
-		return "", false
+		return score.Choice{}, false
 	}
 	return s.pinned("")
 }
@@ -163,29 +183,37 @@ func (s situation) keep() decision {
 // while one has room, else among every account.
 func (s situation) afresh() decision {
 	reason, preferred := s.why()
-	if id, ok := s.pinned(preferred); ok {
-		return decision{account: id, reason: reasonGlobalPin, afresh: true}
+	if c, ok := s.pinned(preferred); ok {
+		return chosen(c, reasonGlobalPin)
 	}
-	if id, ok := s.accounts.pick(preferred); ok {
-		return decision{account: id, reason: reason, afresh: true}
+	if c, ok := s.accounts.pick(preferred); ok {
+		return chosen(c, reason)
 	}
 	return s.noRoom()
 }
 
+// chosen is the decision to send the request to the account chosen afresh,
+// for reason, and the account under pressure the choice passed over, if any,
+// and how it stood.
+func chosen(c score.Choice, reason string) decision {
+	return decision{account: c.ID, reason: reason, afresh: true, passedOver: c.PassedOver, pressure: c.Pressure}
+}
+
 // pinned returns the account of the global pin's the request goes to: of
-// those with room, the one whose quota most needs using, keeping to preferred
-// unless another is well ahead, else the first, as a pin sends requests to an
-// account whose quota can't be scored, or that nothing has been read of. It
-// reports false when none has room.
-func (s situation) pinned(preferred string) (string, bool) {
-	if id, ok := s.accounts.within(s.pin.Accounts).pick(preferred); ok {
-		return id, true
+// those with room, the one whose quota most needs using, passing over those
+// under pressure while another isn't, and keeping to preferred unless another
+// is well ahead, else the first, as a pin sends requests to an account whose
+// quota can't be scored, or that nothing has been read of. It reports false
+// when none has room.
+func (s situation) pinned(preferred string) (score.Choice, bool) {
+	if c, ok := s.accounts.within(s.pin.Accounts).pick(preferred); ok {
+		return c, true
 	}
 	i := slices.IndexFunc(s.pin.Accounts, s.accounts.room)
 	if i < 0 {
-		return "", false
+		return score.Choice{}, false
 	}
-	return s.pin.Accounts[i], true
+	return score.Choice{ID: s.pin.Accounts[i]}, true
 }
 
 // why says why the account is being chosen afresh, and which account the
