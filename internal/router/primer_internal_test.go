@@ -173,6 +173,29 @@ func TestEachPrimeIsLoggedWithTheResetItRead(t *testing.T) {
 	})
 }
 
+func TestAPrimeThatSharesAProbeUnderWayIsLoggedAsAPrime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		prober := &stubProber{gate: make(chan struct{}), readings: map[string]quota.Probe{workToken: probed(nil, session, week)}}
+		r := newPrimingRouter(t, at(start), prober, daytime)
+		defer r.probes.stop()
+		always := func(string, time.Time) bool { return true }
+		work := r.accounts.only([]string{"work"})
+
+		// A choice's probe of work is under way as work falls due a prime.
+		r.probes.start(work, always)
+		r.probes.prime(work, always)
+		close(prober.gate)
+		synctest.Wait()
+		if n := prober.counts()[workToken]; n != 1 {
+			t.Errorf("work was probed %d times, want once, the prime sharing the probe", n)
+		}
+		if !log.Has("level=INFO", "msg=primed", "account=work") || log.Has(`msg="probed account"`) {
+			t.Errorf("log reads\n%s\nwant the probe logged as a prime", log)
+		}
+	})
+}
+
 func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *testing.T) {
 	clock := &testClock{now: onDay(1, 5, 0)}
 	r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
