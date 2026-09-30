@@ -554,9 +554,10 @@ const (
 // is a new window, however little used. The same reset is the same window,
 // whose use only rises, so a reading as high counts, and a lower one is from
 // before held: it's outweighed, leaving held's higher use, so a slow response
-// reporting it late can't pull it back, and it can't lift a rejection either
-// reading holds. An earlier reset is a window that's gone, and w is stale.
-// Without a reset to go by, the newest reading counts.
+// reporting it late can't pull it back. Either way, a rejection either
+// reading holds stands, as the later may be the older. An earlier reset is a
+// window that's gone, and w is stale. Without a reset to go by, the newest
+// reading counts.
 func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	switch {
 	case after || w.ResetsAt.IsZero() || w.ResetsAt.After(held.ResetsAt):
@@ -564,6 +565,9 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	case w.ResetsAt.Before(held.ResetsAt):
 		return held, stale
 	case w.Utilization >= held.Utilization:
+		if held.Status == quota.StatusRejected {
+			w.Status = held.Status
+		}
 		return w, counted
 	case w.Status == quota.StatusRejected && held.Status != quota.StatusRejected:
 		held.Status = w.Status

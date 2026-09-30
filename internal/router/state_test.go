@@ -77,6 +77,18 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 			want:     busierRejected,
 		},
 		{
+			name:     "a rejection stands against the same reset read as high before it",
+			held:     busierRejected,
+			incoming: busierWarned,
+			want:     busierRejected,
+		},
+		{
+			name:     "a rejection stands against the same reset read higher before it",
+			held:     rejected,
+			incoming: busierWarned,
+			want:     busierRejected,
+		},
+		{
 			name:     "a rejection gives way to the same reset read as high since",
 			held:     busierRejected,
 			incoming: busierWarned,
@@ -188,6 +200,29 @@ func TestAReadingFromBeforeALimitNeverLiftsIt(t *testing.T) {
 	}
 	if got, want := s.usage["work"].windows["5h"], sessionAt(0.97, quota.StatusRejected); got != want {
 		t.Errorf("work's session reads %+v, want %+v: its highest use, rejected", got, want)
+	}
+}
+
+func TestAReadingAsHighArrivingLateLiftsNoLimit(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	spent := session
+	spent.Utilization, spent.Status = 0.97, quota.StatusRejected
+	s.record("work", []quota.Window{spent, week}, s.mark())
+	s.limit("work", []string{"5h"}, session.ResetsAt)
+	// A request sent since the limit was set is answered late, reading the
+	// session as high, with room, after a probe sent later read it rejected.
+	sent := s.mark()
+	s.record("work", []quota.Window{spent}, s.mark())
+	withRoom := spent
+	withRoom.Status = quota.StatusAllowedWarning
+	s.record("work", []quota.Window{withRoom}, sent)
+
+	if s.view(opus, clock.now).room("work") {
+		t.Error("work has room, want its limit to hold: a reading as high that may be the older can't lift a rejection")
+	}
+	if got := s.usage["work"].windows["5h"]; got != spent {
+		t.Errorf("work's session reads %+v, want %+v, rejected", got, spent)
 	}
 }
 
