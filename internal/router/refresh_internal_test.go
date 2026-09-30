@@ -71,7 +71,7 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "30m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-30 * time.Second)
-				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), r.state.mark())
+				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), r.state.mark(), fromProbe)
 			},
 			want: map[string]int{workToken: 1},
 		},

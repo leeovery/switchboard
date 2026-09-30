@@ -57,7 +57,17 @@ func (r *Router) run(ctx context.Context) error {
 	// Only now is the state directory this router's: another starting
 	// alongside would have failed by here.
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
+	r.openHistory()
 	return r.serve(ctx, ls)
+}
+
+// openHistory keeps the readings history in the state directory from now
+// on, and takes up the readings it holds of the last half hour, so the
+// recent rates outlast the router's restart.
+func (r *Router) openHistory() {
+	r.history.open(filepath.Join(r.cfg.StateDir, historyDirName))
+	kept := r.state.seed(r.history.recent(r.cfg.Now()))
+	logger.Info("took up the readings history", "readings", kept)
 }
 
 // listeners are the proxy's listener and the control API's.
@@ -131,8 +141,9 @@ func listen(addr string) (net.Listener, error) {
 // serve serves the proxy and the control API until ctx ends, either fails,
 // or the router restarts itself, probing each account nothing has been read
 // of in the meantime, priming the accounts on the schedule, looking after
-// itself, keeping the state file and posting notifications, then shuts both
-// down, and restarting, replaces itself, handing their listeners over.
+// itself, keeping the state file and the readings history, and posting
+// notifications, then shuts both down, and restarting, replaces itself,
+// handing their listeners over.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -152,6 +163,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	background, stopBackground := context.WithCancel(context.WithoutCancel(ctx))
 	var running sync.WaitGroup
 	running.Go(func() { r.file.keep(background) })
+	running.Go(func() { r.history.run(background) })
 	if r.notifications != nil {
 		running.Go(func() { r.notifications.run(background) })
 	}

@@ -1,0 +1,305 @@
+package router
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
+	"io/fs"
+	"math"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
+)
+
+const (
+	// historyDirName is the readings history's directory in the state
+	// directory.
+	historyDirName = "history"
+	// historyKeptFor is how long a day's file of the readings history is
+	// kept, from the end of its day.
+	historyKeptFor = 14 * 24 * time.Hour
+	// historyQueue is how many takings in of readings, an answer's or a
+	// probe's each, can wait to be written. Past that, their readings are
+	// dropped from the history rather than hold the router up.
+	historyQueue = 1024
+	// historyDay is the layout of a day's date in its file's name.
+	historyDay = "2006-01-02"
+)
+
+// source is where a reading came from, as the readings history gives it.
+type source string
+
+const (
+	fromAnswer source = "answer"
+	fromProbe  source = "probe"
+	fromPrime  source = "prime"
+)
+
+// reading is a line of the readings history: a window of an account as read
+// when its reading changed, and where the reading came from. It holds the
+// account's id and nothing else of the account: never its token or label.
+// Fields may be added to it, never renamed.
+type reading struct {
+	At          time.Time    `json:"at"`
+	Account     string       `json:"account"`
+	Window      string       `json:"window"`
+	Utilization float64      `json:"utilization"`
+	ResetsAt    time.Time    `json:"resets_at,omitzero"`
+	Status      quota.Status `json:"status,omitempty"`
+	Source      source       `json:"source"`
+}
+
+// readingsOf are windows of the account with the given id, read at a time
+// from a source, as lines of the readings history.
+func readingsOf(id string, windows []quota.Window, at time.Time, from source) []reading {
+	readings := make([]reading, len(windows))
+	for i, w := range windows {
+		readings[i] = reading{At: at, Account: id, Window: w.Key, Utilization: w.Utilization, ResetsAt: w.ResetsAt, Status: w.Status, Source: from}
+	}
+	return readings
+}
+
+// window is the reading as the window it read.
+func (r reading) window() quota.Window {
+	return quota.Window{Key: r.Window, Utilization: r.Utilization, ResetsAt: r.ResetsAt, Status: r.Status}
+}
+
+// valid reports whether the reading, as the history holds it, can be taken
+// up: it names an account and a window, and reads a use that can be.
+func (r reading) valid() bool {
+	return r.Account != "" && r.Window != "" && !r.At.IsZero() &&
+		!math.IsNaN(r.Utilization) && !math.IsInf(r.Utilization, 0) && r.Utilization >= 0
+}
+
+// history is the readings history: each change to an account's windows, as
+// the router takes its readings in, a JSON line in a file a day, by local
+// date, in the state directory, kept for 14 days. It's for looking back at
+// how the accounts were used, and for the recent rates, which the router
+// takes up from it as it starts. Noting a reading never holds the router up:
+// the readings queue for run's goroutine, which writes them. A write that
+// fails is logged, once until one succeeds, and the reading goes unwritten:
+// the history never stands in routing's way.
+type history struct {
+	now func() time.Time
+	// dir is where the files are, set once the router has its state
+	// directory, before run starts.
+	dir    string
+	opened atomic.Bool
+	queue  chan []reading
+	// dropping is set once a reading is dropped for the queue being full,
+	// until one is written.
+	dropping atomic.Bool
+
+	// Only run's goroutine touches what follows.
+	failing bool
+	// pruned is the day the files were last pruned on.
+	pruned string
+}
+
+func newHistory(now func() time.Time) *history {
+	return &history{now: now, queue: make(chan []reading, historyQueue)}
+}
+
+// open has the history kept in dir from now on.
+func (h *history) open(dir string) {
+	h.dir = dir
+	h.opened.Store(true)
+}
+
+// note queues readings for run to write. It never waits: with the history
+// not yet opened, or the queue full, they're dropped.
+func (h *history) note(readings []reading) {
+	if len(readings) == 0 || !h.opened.Load() {
+		return
+	}
+	select {
+	case h.queue <- readings:
+	default:
+		if !h.dropping.Swap(true) {
+			logger.Warn("readings history fell behind; readings dropped from it")
+		}
+	}
+}
+
+// run writes the readings queued, pruning the files past keeping as it
+// starts and on each day after, until ctx ends, when it writes those still
+// queued. It makes the history's directory private as it starts.
+func (h *history) run(ctx context.Context) {
+	if err := os.MkdirAll(h.dir, 0o700); err == nil {
+		_ = os.Chmod(h.dir, 0o700)
+	}
+	h.prune()
+	for {
+		select {
+		case readings := <-h.queue:
+			h.write(readings)
+		case <-ctx.Done():
+			h.drain()
+			return
+		}
+	}
+}
+
+// drain writes the readings still queued.
+func (h *history) drain() {
+	for {
+		select {
+		case readings := <-h.queue:
+			h.write(readings)
+		default:
+			return
+		}
+	}
+}
+
+// write appends readings to their day's file, pruning first on a day the
+// files haven't been pruned on, and logging a failure once until a write
+// succeeds.
+func (h *history) write(readings []reading) {
+	if h.now().Local().Format(historyDay) != h.pruned {
+		h.prune()
+	}
+	err := h.append(readings)
+	switch {
+	case err != nil && !h.failing:
+		logger.Warn("can't write the readings history; readings go unwritten until it can", "dir", h.dir, "error", err)
+	case err == nil && h.failing:
+		logger.Info("writing the readings history again", "dir", h.dir)
+	}
+	h.failing = err != nil
+	if err == nil {
+		h.dropping.Store(false)
+	}
+}
+
+// append appends readings, a line each, to the file of the local day each was
+// read on, making the directory, private, should it have gone.
+func (h *history) append(readings []reading) error {
+	if err := os.MkdirAll(h.dir, 0o700); err != nil {
+		return err
+	}
+	for day, lines := range byDay(readings) {
+		if err := appendLines(filepath.Join(h.dir, historyFile(day)), lines); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// byDay groups readings, as JSON lines, by the local day each was read on.
+func byDay(readings []reading) map[string][]byte {
+	days := make(map[string][]byte)
+	for _, r := range readings {
+		line, err := json.Marshal(r)
+		if err != nil {
+			continue
+		}
+		day := r.At.Local().Format(historyDay)
+		days[day] = append(append(days[day], line...), '\n')
+	}
+	return days
+}
+
+// appendLines appends lines to the file at path, making it, the user's alone,
+// when it isn't there. The file is opened to append, so each write lands
+// whole at its end.
+func appendLines(path string, lines []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(lines)
+	return errors.Join(err, f.Close())
+}
+
+// historyFile is the name of the history's file of the local day given, as
+// historyDay lays it out.
+func historyFile(day string) string {
+	return "readings-" + day + ".jsonl"
+}
+
+// dayOf returns the local day a history file with the given name holds,
+// reporting false for a name that isn't a history file's.
+func dayOf(name string) (time.Time, bool) {
+	date, ok := strings.CutPrefix(name, "readings-")
+	date, dated := strings.CutSuffix(date, ".jsonl")
+	if !ok || !dated {
+		return time.Time{}, false
+	}
+	day, err := time.ParseInLocation(historyDay, date, time.Local)
+	return day, err == nil
+}
+
+// prune removes the history's files whose day ended 14 days or more before
+// now, leaving anything else in the directory alone.
+func (h *history) prune() {
+	now := h.now()
+	h.pruned = now.Local().Format(historyDay)
+	entries, err := os.ReadDir(h.dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		day, ok := dayOf(e.Name())
+		if !ok || now.Sub(day.AddDate(0, 0, 1)) < historyKeptFor {
+			continue
+		}
+		if err := os.Remove(filepath.Join(h.dir, e.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			logger.Warn("can't prune the readings history", "file", e.Name(), "error", err)
+		}
+	}
+}
+
+// recent returns the readings the history holds of the half hour before now,
+// in the order they were read: from today's file and yesterday's, as the half
+// hour may reach past midnight. A line that doesn't read as a reading that
+// can be, or wasn't read within the half hour, is left out.
+func (h *history) recent(now time.Time) []reading {
+	var readings []reading
+	skipped := 0
+	for _, day := range []time.Time{now.AddDate(0, 0, -1), now} {
+		read, bad := readFile(filepath.Join(h.dir, historyFile(day.Local().Format(historyDay))))
+		skipped += bad
+		for _, r := range read {
+			if r.At.Before(now.Add(-score.Recent)) || r.At.After(now) {
+				continue
+			}
+			readings = append(readings, r)
+		}
+	}
+	if skipped > 0 {
+		logger.Warn("readings history lines unread", "lines", skipped)
+	}
+	slices.SortStableFunc(readings, func(a, b reading) int { return a.At.Compare(b.At) })
+	return readings
+}
+
+// readFile returns the readings the file at path holds, and how many of its
+// lines didn't read as one. A file that isn't there holds none.
+func readFile(path string) (readings []reading, bad int) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, 0
+	}
+	defer func() { _ = f.Close() }()
+	lines := bufio.NewScanner(f)
+	for lines.Scan() {
+		var r reading
+		if err := json.Unmarshal(lines.Bytes(), &r); err != nil || !r.valid() {
+			bad++
+			continue
+		}
+		readings = append(readings, r)
+	}
+	if err := lines.Err(); err != nil {
+		logger.Warn("readings history read short", "file", filepath.Base(path), "error", err)
+	}
+	return readings, bad
+}

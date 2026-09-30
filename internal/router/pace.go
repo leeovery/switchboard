@@ -12,9 +12,8 @@ import (
 // trails are how each of an account's windows has been read over the last
 // half hour, as it now runs, by the window's key, each in the order its
 // readings were taken in: the pressure window's pace, and each window's
-// recent rate, are measured over them. They're kept in memory alone: a router
-// started afresh goes by each window's use since it started until its
-// readings span long enough again.
+// recent rate, are measured over them. A router started afresh takes them up
+// from the readings history, as seed says.
 type trails map[string][]score.Reading
 
 // note takes in kept, the reading of a window the account now stands as,
@@ -31,6 +30,36 @@ func (t trails) note(held, kept quota.Window, at time.Time) {
 		i = len(readings)
 	}
 	t[kept.Key] = append(readings[i:], score.Reading{At: at, Utilization: kept.Utilization})
+}
+
+// seed takes up, as the router starts, readings of the last half hour, as the
+// readings history holds them, in the order they were read, into the trails
+// of the accounts configured, as though they'd come in as read then, so each
+// window's recent rate outlasts a restart. A window whose reading, as the
+// state file kept it, has another reset than its readings last read, as when
+// it has reset since, keeps none of them. It returns how many the trails
+// keep.
+func (s *state) seed(readings []reading) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	type trailOf struct{ account, window string }
+	last := make(map[trailOf]quota.Window)
+	for _, r := range readings {
+		if u, configured := s.usage[r.Account]; configured {
+			of, w := trailOf{r.Account, r.Window}, r.window()
+			u.trails.note(last[of], w, r.At)
+			last[of] = w
+		}
+	}
+	kept := 0
+	for of, w := range last {
+		u := s.usage[of.account]
+		if !u.windows[of.window].ResetsAt.Equal(w.ResetsAt) {
+			delete(u.trails, of.window)
+		}
+		kept += len(u.trails[of.window])
+	}
+	return kept
 }
 
 // startsAfresh reports whether kept, the reading a window now stands as, starts

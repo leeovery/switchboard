@@ -177,6 +177,10 @@ type state struct {
 	// answer to a request, which it keeps less often, both with s.mu held:
 	// they mustn't block, nor call s.
 	changed, readOff func()
+	// history hears, with s.mu held, of each reading that changes how a window
+	// reads, for the readings history: it mustn't block, nor call s. It hears
+	// nothing until the router has a history to keep.
+	history func([]reading)
 	// moments counts the moments marked.
 	moments atomic.Uint64
 
@@ -195,6 +199,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		now:      now,
 		changed:  changed,
 		readOff:  readOff,
+		history:  func([]reading) {},
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
 	}
@@ -222,9 +227,11 @@ func (s *state) record(id string, windows []quota.Window, sent moment) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.usage[id].take(windows, at, sent, s.mark()) {
+	changed, took := s.usage[id].take(windows, at, sent, s.mark())
+	if took {
 		s.readOff()
 	}
+	s.history(readingsOf(id, changed, at, fromAnswer))
 }
 
 // admitted notes that the upstream answered a request on the account, sent
@@ -235,10 +242,11 @@ func (s *state) admitted(id string, sent moment) {
 	s.usage[id].admitted(sent)
 }
 
-// recordProbe takes in what probing an account, from sent on, found: its
-// usage and which models reported each window, and whether a request of it
-// was answered with success, or why it read nothing.
-func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment) {
+// recordProbe takes in what probing an account, from sent on, found, as a
+// prime or not, as from says: its usage and which models reported each
+// window, and whether a request of it was answered with success, or why it
+// read nothing.
+func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from source) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -252,7 +260,8 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 		u.admitted(sent)
 	}
 	u.failures = slices.Clone(probed.Failures)
-	news := u.take(probed.Windows, at, sent, s.mark())
+	changed, news := u.take(probed.Windows, at, sent, s.mark())
+	s.history(readingsOf(id, changed, at, from))
 	for key, models := range probed.Models {
 		for _, model := range models {
 			news = s.see(key, model) || news
@@ -634,9 +643,10 @@ func (s *state) counting(model string) func(key string) bool {
 // sent, and taken in at the moment taken, each merged with the reading of its
 // key before it, as mergeLater merges them, and lifts the account's limit
 // when the windows merged show it lifted. The trails note each reading
-// counted. It reports whether it took any: windows that are all stale leave
-// the account as it was.
-func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) bool {
+// counted. It returns the windows it took that read otherwise than before, as
+// they now stand, and reports whether it took any: windows that are all stale
+// leave the account as it was.
+func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (changed []quota.Window, took bool) {
 	var merged []quota.Window
 	for _, w := range windows {
 		held := u.windows[w.Key]
@@ -649,17 +659,27 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) b
 			u.windows[w.Key], u.taken[w.Key] = kept, taken
 			u.trails.note(held, kept, at)
 		}
+		if readsOtherwise(held, kept) {
+			changed = append(changed, kept)
+		}
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
 		merged = append(merged, kept)
 	}
 	if len(merged) == 0 {
-		return false
+		return nil, false
 	}
 	u.updated, u.probeErr = at, ""
 	if u.limited.liftedBy(merged, at, sent) {
 		u.limited = limit{}
 	}
-	return true
+	return changed, true
+}
+
+// readsOtherwise reports whether kept, the reading a window now stands as,
+// reads otherwise than held, the one it stood as before: its use, its reset
+// or its status.
+func readsOtherwise(held, kept quota.Window) bool {
+	return kept.Utilization != held.Utilization || !kept.ResetsAt.Equal(held.ResetsAt) || kept.Status != held.Status
 }
 
 // admitted lifts the account's limit when a request sent at sent, answered

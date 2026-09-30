@@ -150,8 +150,8 @@ on a model whose thinking is bound to its account only when its account can't se
    hour or whose account can't serve the request, and a session the global pin moves; and within
    the global pin's accounts first, so it never sends a request past the pin. A session's own pin
    is never weighed, and a session staying where it is, sticky or bound, never moves for it. The
-   readings are kept in memory alone: a router started afresh goes by the window's use since it
-   started until its readings span 10 minutes again.
+   readings outlast a restart: as it starts, the router takes up those of the last 30 minutes
+   from its readings history (see Files), but for a window that has reset since.
 4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`) and the model, and remembered as it's chosen, then forgotten unless
    the request is answered with success. Caches are per model anyway, so a session's Haiku calls can
@@ -839,7 +839,12 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   that nothing will be routed until one has; a prime that failed, or didn't start the window; a
   config change refused, as invalid; a restart that couldn't replace the process, and exits
   instead; and listeners handed over that couldn't be taken up. At `debug`, a token file found
-  holding no usable token at one look, which the account's token outlasts.
+  holding no usable token at one look, which the account's token outlasts. Of the readings
+  history (see Files): at `info`, how many readings the router took up from it as it started, and
+  that it's written again after failing; at `warn`, that it can't be written, once until it can
+  be, that readings were dropped from it for its falling behind, once until it catches up, how
+  many of its lines couldn't be read as it was taken up, and a file of it that couldn't be
+  pruned.
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -1028,7 +1033,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
 | `internal/dashboard` | Rendering the status document as a frame (Lip Gloss): cards, or a line per account |
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, its keys, easing the bars, and its desktop notifications while it probes without the router |
-| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
+| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the readings history, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
@@ -1079,7 +1084,7 @@ hiding it behind the provider would take a wider interface than it's worth:
   account's last readings, with the model families each window has been seen to count, and when a
   window started again, as its reading's `restarted_at`, so a restart doesn't scatter sessions or
   need a probe, and the hashes of every configured account's tokens, with a usable token or not:
-  see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
+  see Accounts and tokens), `control.sock`, `tokens/`, `logs/` and `history/`.
   `state.json` is versioned, the version changing only when a router couldn't read what another
   wrote: an older file, without readings, loads as having none, one whose readings lack
   `restarted_at` as windows that run a whole length before their resets, which a router from
@@ -1096,6 +1101,24 @@ hiding it behind the provider would take a wider interface than it's worth:
   those of a configured account whose token file can't be read are kept, as the file may only have
   been caught while it's rewritten, and choices pass the account over until it has a token. A
   corrupt one is set aside as `state.json.corrupt-<unix time>`, and the router starts without it.
+- **Readings history:** `<state dir>/history/readings-<local date>.jsonl`, a file a day, 0600 in a
+  0700 directory, for looking back at how the accounts were used. The router appends a line, as
+  the file is opened to append, for each reading that changes how a window of an account reads,
+  its use, its reset or its status, and for nothing else, so a request that moves nothing writes
+  nothing: `{"at": "2026-09-28T13:12:00Z", "account": "work", "window": "5h", "utilization":
+  0.23, "resets_at": "2026-09-28T18:10:00Z", "status": "allowed", "source": "answer"}`, `at` when
+  the router took it in, in UTC, `resets_at` and `status` left out when the reading didn't give
+  them, and `source` where it came from: `answer`, off the answer to a routed request; `probe`;
+  or `prime`. An account appears by its id alone: never a token or a label. Fields may be added
+  to a line, never renamed, and a reader passes over those it doesn't know. The router removes a
+  day's file once its day ended 14 days ago, as it starts and on each day after, and leaves
+  anything else in the directory alone. Writing never holds a request up: the lines queue, those
+  of 1,024 answers or probes at most, dropping any past that, for a goroutine of their own to
+  write; a write that fails is logged once until one succeeds, and the reading goes unwritten, as
+  the history never stands in routing's way. As it starts, the router takes up the lines of the
+  last 30 minutes, today's file and yesterday's, into each window's recent readings (see Choosing
+  an account), passing over a line that doesn't read as a reading, as one cut short, of an
+  account no longer configured, or of a window that has reset since, as `state.json` has it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see

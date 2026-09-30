@@ -118,7 +118,7 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	saved := newTestFile(clock.read, testAccounts())
 	saved.load(path)
 	models := map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}}
-	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil, saved.state.mark())
+	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil, saved.state.mark(), fromProbe)
 	clock.now = start
 	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
 	saved.state.learn(opus, []quota.Window{session, week})

@@ -268,6 +268,53 @@ func TestARestartedRouterProbesOnlyTheAccountsItHasNoReadingOf(t *testing.T) {
 	}
 }
 
+func TestTheRouterKeepsItsReadingsHistoryInItsStateDirectory(t *testing.T) {
+	log := logstest.Capture(t)
+	clock := newFakeClock(now)
+	cfg := runConfig(t, "http://127.0.0.1:1")
+	cfg.Now = clock.read
+	cfg.Prober = readingEvery(session, week)
+	stop := runRouter(t, cfg)
+	socket := router.SocketPath(cfg.StateDir)
+	waitForStatus(t, socket, func(doc status.Document) bool {
+		work, _ := doc.Account("work")
+		side, _ := doc.Account("side")
+		return len(work.Windows) > 0 && len(side.Windows) > 0
+	})
+	if err := stop(); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+
+	dir := filepath.Join(cfg.StateDir, "history")
+	file := filepath.Join(dir, "readings-"+now.Local().Format("2006-01-02")+".jsonl")
+	for path, want := range map[string]fs.FileMode{dir: fs.ModeDir | 0o700, file: 0o600} {
+		if info, err := os.Stat(path); err != nil || info.Mode() != want {
+			t.Fatalf("%s is %v (%v), want %v", path, info.Mode(), err, want)
+		}
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	history := string(data)
+	for _, want := range []string{`"account":"work","window":"5h"`, `"account":"side","window":"7d"`, `"source":"probe"`} {
+		if !strings.Contains(history, want) {
+			t.Errorf("the history holds\n%s\nwant %s", history, want)
+		}
+	}
+	for _, secret := range []string{workToken, sideToken, "Work", "Side"} {
+		if strings.Contains(history, secret) {
+			t.Errorf("the history holds\n%s\nwant nothing of an account but its id", history)
+		}
+	}
+
+	runRouter(t, cfg)
+	waitForStatus(t, socket, func(status.Document) bool { return true })
+	if !log.Has("level=INFO", `msg="took up the readings history"`, "readings=4") {
+		t.Errorf("log reads\n%s\nwant the readings of the router before taken up", log)
+	}
+}
+
 func TestARestartedRouterStillTakesAReplacedTokenForItsAccounts(t *testing.T) {
 	const renewed = "test-token-work-renewed"
 	up := newAccountsAPI(t)

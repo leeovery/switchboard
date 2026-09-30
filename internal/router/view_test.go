@@ -35,7 +35,7 @@ func TestWindowsCountTheFamiliesTheyveBeenSeenOn(t *testing.T) {
 		},
 		{
 			name:  "a window seen on a probe counts its family's models alone",
-			learn: func(s *state) { s.recordProbe("work", probed(everyFamily, windows...), nil, s.mark()) },
+			learn: func(s *state) { s.recordProbe("work", probed(everyFamily, windows...), nil, s.mark(), fromProbe) },
 			room:  map[string]bool{fable: false, "claude-fable-5": false, haiku: true, opus: true},
 		},
 		{
@@ -48,7 +48,7 @@ func TestWindowsCountTheFamiliesTheyveBeenSeenOn(t *testing.T) {
 		},
 		{
 			name:  "what's seen on one account counts on every account",
-			learn: func(s *state) { s.recordProbe("side", probed(everyFamily, windows...), nil, s.mark()) },
+			learn: func(s *state) { s.recordProbe("side", probed(everyFamily, windows...), nil, s.mark(), fromProbe) },
 			room:  map[string]bool{fable: false, haiku: true},
 		},
 		{
@@ -215,7 +215,7 @@ func TestALimitLiftsOnAReadingShowingItsWindowsWithRoom(t *testing.T) {
 			s.limit("work", tt.windows, start.Add(time.Hour))
 			clock.now = start.Add(time.Minute)
 
-			s.recordProbe("work", quota.Probe{Windows: tt.reading}, nil, s.mark())
+			s.recordProbe("work", quota.Probe{Windows: tt.reading}, nil, s.mark(), fromProbe)
 			if lifted := s.usage["work"].limited.until.IsZero(); lifted != tt.want {
 				t.Errorf("the limit lifted: %v, want %v", lifted, tt.want)
 			}
@@ -362,7 +362,7 @@ func TestDueAgain(t *testing.T) {
 			}
 			if tt.probed > 0 {
 				clock.now = start.Add(-tt.probed)
-				s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark())
+				s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), fromProbe)
 			}
 
 			if got := s.dueAgain("work", start); got != tt.want {
@@ -404,7 +404,7 @@ func TestDue(t *testing.T) {
 				if tt.failed {
 					err = errors.New("HTTP 529 · Overloaded")
 				}
-				s.recordProbe("work", quota.Probe{}, err, s.mark())
+				s.recordProbe("work", quota.Probe{}, err, s.mark(), fromProbe)
 			}
 
 			if got := s.due("work", start); got != tt.want {
