@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -100,6 +101,60 @@ func TestClientPin(t *testing.T) {
 			}
 			if _, err := client.Unpin(t.Context(), false); err != nil {
 				t.Errorf("Unpin() without a pin: %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestClientPinNamesOneAccountAsARouterFromBeforePinsNamedSeveralReadsIt(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []string
+		want     map[string]any
+	}{
+		{name: "one account", accounts: []string{"side"}, want: map[string]any{"accounts": []any{"side"}, "account": "side", "move": false, "force": false}},
+		{name: "several", accounts: []string{"work", "side"}, want: map[string]any{"accounts": []any{"work", "side"}, "move": false, "force": false}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bodies := make(chan map[string]any, 1)
+			path := filepath.Join(shortTempDir(t), "control.sock")
+			serveOn(t, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Errorf("decode the pin: %v", err)
+				}
+				bodies <- body
+				_, _ = io.WriteString(w, "{}")
+			}))
+
+			if _, err := router.NewClient(path).Pin(t.Context(), router.PinRequest{Accounts: tt.accounts}); err != nil {
+				t.Fatalf("Pin() error = %v", err)
+			}
+			if got := <-bodies; !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("POST /pin was sent %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPinningTakesAccountBesideAccounts(t *testing.T) {
+	tests := []struct {
+		body string
+		want []string
+	}{
+		{body: `{"accounts": ["work"], "account": "work"}`, want: []string{"work"}},
+		{body: `{"accounts": ["side"], "account": "work"}`, want: []string{"work", "side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.body, func(t *testing.T) {
+			rt := newRouter(t, "http://127.0.0.1:1")
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/pin", strings.NewReader(tt.body))
+			rec := httptest.NewRecorder()
+
+			rt.Control().ServeHTTP(rec, req)
+			if got := rt.Status().Pin.Accounts; rec.Code != http.StatusOK || !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("POST /pin %s answered %d, pinning %q, want 200, pinning %q, each once in the order configured", tt.body, rec.Code, got, tt.want)
 			}
 		})
 	}

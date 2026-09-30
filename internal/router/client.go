@@ -126,8 +126,13 @@ func unknownSession(id string) error {
 // accounts, with Move, every running session on another account too, on its
 // next request, and with Force, clear every session's own pin. It returns the
 // status document as pinning leaves it, and fails, saying why, for an account
-// the router can't send requests on.
+// the router can't send requests on. A pin of one account names it as Account
+// too, as a router from before pins named several reads a pin: one still
+// running once an upgrade has replaced it, until it restarts.
 func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error) {
+	if len(p.Accounts) == 1 {
+		p.Account = p.Accounts[0]
+	}
 	var doc status.Document
 	err := c.call(ctx, clientTimeout, http.MethodPost, "/pin", p, &doc)
 	return doc, err
