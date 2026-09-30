@@ -12,9 +12,8 @@ const (
 	// Recent is how far back the readings go that a window's recent rate of
 	// use is measured over.
 	Recent = 30 * time.Minute
-	// steady is how far back the first of a window's recent readings must
-	// go for their rise to be its rate: over less, a burst or a lull would
-	// pass for its pace.
+	// steady is how far back a window's readings must reach for their rise
+	// to be its rate: over less, a burst or a lull would pass for its pace.
 	steady = 10 * time.Minute
 )
 
@@ -28,8 +27,8 @@ type Reading struct {
 type Pace struct {
 	// Rate is the share of the window used an hour.
 	Rate float64
-	// Recent is set when Rate is the window's rise across its readings of
-	// the last half hour, rather than its use since it started.
+	// Recent is set when Rate is the window's recent rate, as RecentRate
+	// judges it, rather than its use since it started.
 	Recent bool
 }
 
@@ -48,25 +47,46 @@ func PaceOf(w quota.Window, readings []Reading, now time.Time) (Pace, bool) {
 	return Pace{Rate: rate}, ok
 }
 
-// RecentRate returns how fast w has been used lately, at now: the rise across
-// the readings of it taken in the last half hour, over the time from the
-// first of them until now, a share of it an hour. Readings come only as the
-// window is used, so the rate of one gone quiet falls as time passes, rather
-// than holding at its last burst's. The readings are of w as it now runs, in
-// the order they were taken. It reports false when the first of them was
-// taken less than 10 minutes before now, and once w has reset since it was
-// read.
+// Lately returns the readings of a window, of those given in the order they
+// were taken, that its recent rate at now goes by: the last taken half an
+// hour or more before now, its baseline, if there is one, and those taken
+// since. The rest are past use.
+func Lately(readings []Reading, now time.Time) []Reading {
+	since := slices.IndexFunc(readings, func(r Reading) bool { return r.At.After(now.Add(-Recent)) })
+	if since < 0 {
+		since = len(readings)
+	}
+	return readings[max(since-1, 0):]
+}
+
+// RecentRate returns how fast w has been used lately, at now, a share of it
+// an hour, never less than none: its rise over the last half hour, from its
+// baseline, the reading taken last before it, to its reading taken last of
+// all. Readings come only as a window's use changes, or as it's read, so one
+// with a baseline but no reading since has been quiet, and reads 0. Without a
+// baseline, the rise is from its first reading, over the time since it was
+// taken, which must be 10 minutes back at least. The readings are of w as it
+// now runs, in the order they were taken. It reports false when there are
+// none that far back, and once w has reset since it was read.
 func RecentRate(w quota.Window, readings []Reading, now time.Time) (float64, bool) {
-	i := slices.IndexFunc(readings, func(r Reading) bool { return !r.At.Before(now.Add(-Recent)) })
-	if i < 0 || hasReset(w, now) {
+	lately := Lately(readings, now)
+	if len(lately) == 0 || hasReset(w, now) {
 		return 0, false
 	}
-	first, last := readings[i], readings[len(readings)-1]
-	since := now.Sub(first.At)
-	if since < steady {
+	from, last := lately[0], lately[len(lately)-1]
+	over := now.Sub(later(from.At, now.Add(-Recent)))
+	if over < steady {
 		return 0, false
 	}
-	return (last.Utilization - first.Utilization) / since.Hours(), true
+	return max(last.Utilization-from.Utilization, 0) / over.Hours(), true
+}
+
+// later returns the later of two times.
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
 
 // averageRate is w's use since it started, an hour, at now: the pace its use

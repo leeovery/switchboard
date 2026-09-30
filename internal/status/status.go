@@ -241,9 +241,9 @@ func (r Refusal) Holds(now time.Time) bool {
 	return r.Until.After(now)
 }
 
-// Rate is how fast the router has seen a window used lately: its rise across
-// its readings of the last half hour, the first 10 minutes back at least,
-// over the time since the first, as a share of it an hour.
+// Rate is how fast the router has seen a window used lately, as a share of it
+// an hour, never negative: its rise over the last half hour, as
+// score.RecentRate measures it.
 type Rate struct {
 	// Window is the window's key, such as "7d".
 	Window string  `json:"window"`

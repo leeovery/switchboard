@@ -1,7 +1,6 @@
 package router
 
 import (
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -9,33 +8,37 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// trails are how each of an account's windows has been read over the last
-// half hour, as it now runs, by the window's key, each in the order its
-// readings were taken in: the pressure window's pace, and each window's
-// recent rate, are measured over them. A router started afresh takes them up
-// from the readings history, as seed says.
+// trails are how each of an account's windows has been read lately, as it
+// now runs, by the window's key: its baseline, the reading taken last before
+// the half hour, and each reading since that changed its use, in the order
+// taken, which the pressure window's pace, and each window's recent rate, are
+// measured over. A router started afresh takes them up from the readings
+// history, as seed says.
 type trails map[string][]score.Reading
 
 // note takes in kept, the reading of a window the account now stands as,
 // taken in at a time, held being the one it stood as before: a reading that
 // starts the window afresh, as startsAfresh says, leaves none of its readings
-// before it. Readings older than the half hour go.
+// before it, and one that reads its use as the reading before it did adds
+// nothing. What the half hour before at has passed by goes, as score.Lately
+// says.
 func (t trails) note(held, kept quota.Window, at time.Time) {
 	readings := t[kept.Key]
 	if startsAfresh(held, kept) {
 		readings = nil
 	}
-	i := slices.IndexFunc(readings, func(r score.Reading) bool { return !r.At.Before(at.Add(-score.Recent)) })
-	if i < 0 {
-		i = len(readings)
+	readings = score.Lately(readings, at)
+	if n := len(readings); n == 0 || readings[n-1].Utilization != kept.Utilization {
+		readings = append(readings, score.Reading{At: at, Utilization: kept.Utilization})
 	}
-	t[kept.Key] = append(readings[i:], score.Reading{At: at, Utilization: kept.Utilization})
+	t[kept.Key] = readings
 }
 
-// seed takes up, as the router starts, readings of the last half hour, as the
-// readings history holds them, in the order they were read, into the trails
-// of the accounts configured, as though they'd come in as read then, so each
-// window's recent rate outlasts a restart. A window whose reading, as the
+// seed takes up, as the router starts, the readings the readings history
+// holds, in the order they were read, into the trails of the accounts
+// configured, as though they'd come in as read then: the history holds each
+// change of a window's use, so its trail, baseline included, is as it was,
+// and its recent rate outlasts a restart. A window whose reading, as the
 // state file kept it, has another reset than its readings last read, as when
 // it has reset since, keeps none of them. It returns how many the trails
 // keep.

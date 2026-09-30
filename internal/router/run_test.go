@@ -261,7 +261,7 @@ func TestARestartedRouterProbesOnlyTheAccountsItHasNoReadingOf(t *testing.T) {
 	}
 	// What each account read is the question here, not how fast it's used.
 	for i := range doc.Accounts {
-		doc.Accounts[i].Pressure = status.Pressure{}
+		doc.Accounts[i].Pressure, doc.Accounts[i].Rates = status.Pressure{}, nil
 	}
 	if !reflect.DeepEqual(doc.Accounts, want) {
 		t.Errorf("after the restart, the accounts read\n%+v\nwant\n%+v: side's session lapsed, its week as read", doc.Accounts, want)

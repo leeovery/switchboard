@@ -66,7 +66,7 @@ func (r *Router) run(ctx context.Context) error {
 // recent rates outlast the router's restart.
 func (r *Router) openHistory() {
 	r.history.open(filepath.Join(r.cfg.StateDir, historyDirName))
-	kept := r.state.seed(r.history.recent(r.cfg.Now()))
+	kept := r.state.seed(r.history.readBack(r.cfg.Now()))
 	logger.Info("took up the readings history", "readings", kept)
 }
 

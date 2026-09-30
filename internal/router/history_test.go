@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"math"
 	"os"
@@ -133,7 +134,7 @@ func TestTheRecentRatesOutlastARestart(t *testing.T) {
 	after.load(path)
 	restarted := newHistory(at(now))
 	restarted.open(dir)
-	if kept := after.state.seed(restarted.recent(now)); kept != 6 {
+	if kept := after.state.seed(restarted.readBack(now)); kept != 6 {
 		t.Errorf("took up %d readings, want the 6 of the last half hour", kept)
 	}
 	// A minute on from the last reading, the rise is over 21 minutes.
@@ -143,6 +144,80 @@ func TestTheRecentRatesOutlastARestart(t *testing.T) {
 	}
 	if pace, _ := after.state.usage["work"].pace(testPolicy, now); !pace.Recent || math.Abs(pace.Rate-0.1/since) > 1e-9 {
 		t.Errorf("after the restart, work's session is used at %+v, want its recent rate, as before it", pace)
+	}
+}
+
+func TestAQuietAccountStaysQuietAcrossARestart(t *testing.T) {
+	// Work's session was last read two hours before the restart, and hasn't
+	// been used since.
+	now := start.Add(2 * time.Hour)
+	dir := t.TempDir()
+	h := newHistory(at(now))
+	h.open(dir)
+	s := newTestState(&testClock{now: now})
+	s.usage["work"].windows["5h"] = session
+	lines := []reading{{At: start, Account: "work", Window: "5h", Utilization: session.Utilization, ResetsAt: session.ResetsAt, Source: fromAnswer}}
+	h.write(lines)
+
+	s.seed(h.readBack(now))
+	if pace, ok := s.usage["work"].pace(testPolicy, now); !ok || !pace.Recent || pace.Rate != 0 {
+		t.Errorf("after the restart, work's session is used at %+v, %v, want quiet, as before it", pace, ok)
+	}
+}
+
+func TestReadingBackTakesTheTwoNewestFilesByName(t *testing.T) {
+	now := time.Date(2026, 9, 29, 0, 10, 0, 0, time.Local)
+	lineAt := func(at time.Time, u float64) reading {
+		return reading{At: at.UTC(), Account: "work", Window: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: fromAnswer}
+	}
+	tests := []struct {
+		name string
+		// files are the lines each file holds, by the day it's named for.
+		files map[string][]reading
+		want  []reading
+	}{
+		{
+			name: "yesterday's and today's, across midnight",
+			files: map[string][]reading{
+				"2026-09-27": {lineAt(now.Add(-26*time.Hour), 0.1)},
+				"2026-09-28": {lineAt(now.Add(-20*time.Minute), 0.2)},
+				"2026-09-29": {lineAt(now.Add(-5*time.Minute), 0.3)},
+			},
+			want: []reading{lineAt(now.Add(-20*time.Minute), 0.2), lineAt(now.Add(-5*time.Minute), 0.3)},
+		},
+		{
+			name: "named for a day the clock hasn't come to, as after a change of time zone",
+			files: map[string][]reading{
+				"2026-09-28": {lineAt(now.Add(-40*time.Minute), 0.1)},
+				"2026-09-29": {lineAt(now.Add(-20*time.Minute), 0.2)},
+				"2026-09-30": {lineAt(now.Add(-5*time.Minute), 0.3)},
+			},
+			want: []reading{lineAt(now.Add(-20*time.Minute), 0.2), lineAt(now.Add(-5*time.Minute), 0.3)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for day, lines := range tt.files {
+				var data []byte
+				for _, r := range lines {
+					line, err := json.Marshal(r)
+					if err != nil {
+						t.Fatal(err)
+					}
+					data = append(append(data, line...), '\n')
+				}
+				if err := os.WriteFile(filepath.Join(dir, historyFile(day)), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := newHistory(at(now))
+			h.open(dir)
+
+			if got := h.readBack(now); !slices.EqualFunc(got, tt.want, func(a, b reading) bool { return a.At.Equal(b.At) && a.Utilization == b.Utilization }) {
+				t.Errorf("readBack() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -172,7 +247,7 @@ func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 		wantRate float64
 		wantOK   bool
 	}{
-		{name: "the window as it runs", held: quota.Window{Key: "5h", Utilization: 0.6, ResetsAt: session.ResetsAt}, wantRate: 0.3, wantOK: true},
+		{name: "the window as it runs, from its reading before the half hour", held: quota.Window{Key: "5h", Utilization: 0.6, ResetsAt: session.ResetsAt}, wantRate: 1, wantOK: true},
 		{name: "the window reset since", held: quota.Window{Key: "5h", Utilization: 0.02, ResetsAt: session.ResetsAt.Add(5 * time.Hour)}},
 	}
 	for _, tt := range tests {
@@ -187,7 +262,7 @@ func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 			h := newHistory(at(now))
 			h.open(dir)
 
-			s.seed(h.recent(now))
+			s.seed(h.readBack(now))
 			rate, ok := score.RecentRate(tt.held, s.usage["work"].trails["5h"], now)
 			if math.Abs(rate-tt.wantRate) > 1e-9 || ok != tt.wantOK {
 				t.Errorf("work's session's recent rate = %v, %v, want %v, %v", rate, ok, tt.wantRate, tt.wantOK)

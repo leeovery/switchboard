@@ -302,9 +302,12 @@ func TestASessionsPinClearedWhileItRunsPassesOverTheOneItWasLaunchedWith(t *test
 	r := newRouted(t)
 	client := router.NewClient(serveControl(t, r.rt))
 	// Side's quota needs using first, but the session is launched pinned to
-	// work.
+	// work. Nothing is read of side until the session is rescored, when its
+	// session, a little used, is on no pace to run out.
 	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
-	r.readsAs(sideToken, session, weekOf(0.5, 24*time.Hour))
+	light := session
+	light.Utilization = 0.05
+	r.readsAs(sideToken, light, weekOf(0.5, 24*time.Hour))
 	if got := r.ask(t, "one", opus, "work"); got != "work" {
 		t.Fatalf("the session went to %s, want work, its pin", got)
 	}

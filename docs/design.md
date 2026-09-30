@@ -133,19 +133,22 @@ on a model whose thinking is bound to its account only when its account can't se
    configured.
 3. **Pressure:** several busy sessions on one account run its 5-hour window out together, then
    move at once, each rebuilding its cache on another account; scoring by the week alone doesn't
-   see it coming. So the router keeps each account's readings of the last 30 minutes, of each of
-   its windows, the time each came in and the utilization it read, within the window as it now
-   runs: a later reset, a new window, clears them, and so does a reading taken as current that
-   has fallen by a tenth of the window or more, as a reset made by hand leaves it (see Dashboard).
-   A window's recent rate is the rise across those readings over the time from the first of them
-   until now, once the first is 10 minutes back: readings come only as the window is used, so an
-   account gone quiet after a burst reads slower as time passes, rather than burning at the
-   burst's rate until its readings age out. The weekly windows' projections go by it too (see
-   Dashboard). The 5-hour window's rate is its recent rate, or, before its first reading is 10
-   minutes back, its use since it started, once 5% of it has passed, as the dashboard's projection
-   measures it. An account is under pressure when, at that rate, its 5-hour window reaches where
-   the account runs out before it resets: where its reserve starts, or its limit where the
-   request may spend the reserve, as a pin spends its accounts' (see Pinning).
+   see it coming. So the router keeps, of each of each account's windows, its baseline, the
+   reading taken last before the last 30 minutes, and each reading since that changed its use,
+   the time each came in and the utilization it read, within the window as it now runs: a later
+   reset, a new window, clears them, and so does a reading taken as current that has fallen by a
+   tenth of the window or more, as a reset made by hand leaves it (see Dashboard). A window's
+   recent rate is its rise over the last 30 minutes, from its baseline to its latest reading,
+   never less than 0: its use changes only as it's used, so a window with a baseline and no
+   reading since has been quiet, and reads 0, and a burst reads slower as time passes, until it's
+   past. Without a baseline, as for a window started less than 30 minutes ago, the rise is from
+   its first reading, over the time since, which must be 10 minutes back at least. The weekly
+   windows' projections go by it too (see Dashboard). The 5-hour window's rate is its recent rate,
+   or, without a baseline or a reading 10 minutes back, its use since it started, once 5% of it
+   has passed, as the dashboard's projection measures it. An account is under pressure when, at
+   that rate, its 5-hour window reaches where the account runs out before it resets: where its
+   reserve starts, or its limit where the request may spend the reserve, as a pin spends its
+   accounts' (see Pinning).
    A choice made afresh sets the candidates under pressure aside first, then scores the rest as
    step 2 says, keeping an idle session's own account unless another is well ahead; when every
    candidate is under pressure, pressure changes nothing, so it never leaves a request without an
@@ -153,8 +156,9 @@ on a model whose thinking is bound to its account only when its account can't se
    hour or whose account can't serve the request, and a session the global pin moves; and within
    the global pin's accounts first, so it never sends a request past the pin. A session's own pin
    is never weighed, and a session staying where it is, sticky or bound, never moves for it. The
-   readings outlast a restart: as it starts, the router takes up those of the last 30 minutes
-   from its readings history (see Files), but for a window that has reset since.
+   readings outlast a restart: as it starts, the router takes them up, baselines included, from
+   its readings history, which holds each change of a window's use (see Files), but for a window
+   that has reset since.
 4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`) and the model, and remembered as it's chosen, then forgotten unless
    the request is answered with success. Caches are per model anyway, so a session's Haiku calls can
@@ -654,14 +658,14 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
 - Bars with a pace marker (where even use across the window would put you) and a projection
   ("on pace for 92%", "runs out ~Fri 19:40"), and on an account with a reserve, a mark where the
   reserve starts. A window's projection goes at the pace its use since it started sets, or, from
-  the router, at its recent rate, its rise over the last 30 minutes, once the first of those
-  readings is 10 minutes back (see Choosing an account), where that has it run out sooner, or end
-  more used: so a week at 99%, on pace since it started to run out at 17:42 but used at 7% an hour
-  lately, reads as running out at 17:25, never later than its use lately says, and eases back as
-  use slows. It says when it goes at the recent rate: `runs out ~Mon 17:25 (last 30 min)`, and in
-  `status`, `runs out ~Mon 17:25 at its rate over the last 30 min`. The 5-hour window's, whose
-  rate the router judges pressure by, goes at that recent rate whenever there is one, so the
-  screen shows where the router takes it to be heading. `status` projects as the dashboard does.
+  the router, at its recent rate, its rise over the last 30 minutes (see Choosing an account),
+  where that has it run out sooner, or end more used: so a week at 99%, on pace since it started
+  to run out at 17:42 but used at 7% an hour lately, reads as running out at 17:25, never later
+  than its use lately says, and eases back as use slows. It says when it goes at the recent rate:
+  `runs out ~Mon 17:25 (last 30 min)`, and in `status`, `runs out ~Mon 17:25 at its rate over the
+  last 30 min`. The 5-hour window's, whose rate the router judges pressure by, goes at that recent
+  rate whenever there is one, so the screen shows where the router takes it to be heading.
+  `status` projects as the dashboard does.
 - A window reset by hand before its reset time, as claude.ai's banked reset does, dropping its use
   but keeping its reset (see Observed), has effectively started again: the router reads it with
   the same reset, taken as current (see How it works), fallen by a tenth of the window or more,
@@ -1121,10 +1125,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   anything else in the directory alone. Writing never holds a request up: the lines queue, those
   of 1,024 answers or probes at most, dropping any past that, for a goroutine of their own to
   write; a write that fails is logged once until one succeeds, and the reading goes unwritten, as
-  the history never stands in routing's way. As it starts, the router takes up the lines of the
-  last 30 minutes, today's file and yesterday's, into each window's recent readings (see Choosing
-  an account), passing over a line that doesn't read as a reading, as one cut short, of an
-  account no longer configured, or of a window that has reset since, as `state.json` has it.
+  the history never stands in routing's way. As it starts, the router takes up the lines of its
+  two newest files, by the dates they're named for, as a change of time zone can name today's
+  file for another day than the clock's, into each window's recent readings, its baseline
+  included (see Choosing an account): the history holds each change of a window's use, so they
+  are as they were, and the recent rates outlast the restart. A window quiet since before the
+  older of the two has no baseline to take up. It passes over a line that doesn't read as a
+  reading, as one cut short, one of an account no longer configured, and those of a window that
+  has reset since, as `state.json` has it.
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
 - **Logs:** `<state dir>/logs/`: `router.log`, `cli.log` and their rolled-over files (see
@@ -1280,8 +1288,8 @@ Each account:
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
 | `limit` | *router* A limit it reached, while it holds: `{windows, until}`, `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
-| `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, its recent rate, as `rates` gives it, `recent` then set, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets: the account is under pressure (see Choosing an account). Left out when the rate can't be said, as when the window isn't running |
-| `rates` | *router* How fast its windows have been used lately: `[{window, rate}]`, in `windows`' order, `window` a window's key and `rate` its rise across its readings of the last 30 minutes over the time since the first of them, which is 10 minutes back at least, as a share of it an hour, falling as the window goes unused (see Choosing an account). The projections go by them (see Dashboard). Left out when no window has one |
+| `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets: the account is under pressure (see Choosing an account). Left out when the rate can't be said, as when the window isn't running |
+| `rates` | *router* How fast its windows have been used lately: `[{window, rate}]`, in `windows`' order, `window` a window's key and `rate` its rise over the last 30 minutes, from the reading taken last before them to its latest, as a share of it an hour, or, with no reading that far back, from its first, over the time since, 10 minutes at least; never negative, and 0 for a window read but unused since (see Choosing an account). The projections go by them (see Dashboard). Left out when no window has one |
 | `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
 ### Launching

@@ -66,12 +66,12 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 			want:     score.Pace{Rate: 0.325 / (2*time.Hour + 5*time.Minute).Hours()}, wantOK: true,
 		},
 		{
-			name: "readings older than the half hour left behind",
+			name: "from the reading taken last before the half hour, those older left behind",
 			readings: []sessionReading{
 				{0, 0.1, resets, false}, {20 * time.Minute, 0.2, resets, false}, {40 * time.Minute, 0.3, resets, false}, {45 * time.Minute, 0.35, resets, false},
 			},
 			at:   45 * time.Minute,
-			want: score.Pace{Rate: 0.36, Recent: true}, wantOK: true,
+			want: score.Pace{Rate: 0.5, Recent: true}, wantOK: true,
 		},
 		{
 			name: "a later reset, a new window, starts the readings afresh",
@@ -96,6 +96,18 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 			},
 			at:   12 * time.Minute,
 			want: score.Pace{Rate: 0.5, Recent: true}, wantOK: true,
+		},
+		{
+			name:     "read once, quiet since, quiet",
+			readings: []sessionReading{{0, 0.3, resets, false}},
+			at:       45 * time.Minute,
+			want:     score.Pace{Recent: true}, wantOK: true,
+		},
+		{
+			name:     "probed after 45 quiet minutes, quiet at once",
+			readings: []sessionReading{{0, 0.3, resets, false}, {45 * time.Minute, 0.3, resets, false}},
+			at:       45 * time.Minute,
+			want:     score.Pace{Recent: true}, wantOK: true,
 		},
 		{
 			name:     "a burst of 10 minutes, quiet for 20 since, slowing",

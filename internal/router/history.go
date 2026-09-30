@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 )
 
 const (
@@ -257,21 +256,23 @@ func (h *history) prune() {
 	}
 }
 
-// recent returns the readings the history holds of the half hour before now,
-// in the order they were read: from today's file and yesterday's, as the half
-// hour may reach past midnight. A line that doesn't read as a reading that
-// can be, or wasn't read within the half hour, is left out.
-func (h *history) recent(now time.Time) []reading {
+// readBack returns the readings the history's two newest files hold, taken
+// at or before now, in the order they were read: the newest by their names'
+// dates, as a change of time zone can put today's file under another date
+// than the clock's. A window's readings since the half hour before now, and
+// its baseline before that, are among them unless it has been quiet since
+// before yesterday's file, and then it has no recent rate to go by. A line
+// that doesn't read as a reading that can be is left out.
+func (h *history) readBack(now time.Time) []reading {
 	var readings []reading
 	skipped := 0
-	for _, day := range []time.Time{now.AddDate(0, 0, -1), now} {
-		read, bad := readFile(filepath.Join(h.dir, historyFile(day.Local().Format(historyDay))))
+	for _, name := range h.newest(2) {
+		read, bad := readFile(filepath.Join(h.dir, name))
 		skipped += bad
 		for _, r := range read {
-			if r.At.Before(now.Add(-score.Recent)) || r.At.After(now) {
-				continue
+			if !r.At.After(now) {
+				readings = append(readings, r)
 			}
-			readings = append(readings, r)
 		}
 	}
 	if skipped > 0 {
@@ -279,6 +280,23 @@ func (h *history) recent(now time.Time) []reading {
 	}
 	slices.SortStableFunc(readings, func(a, b reading) int { return a.At.Compare(b.At) })
 	return readings
+}
+
+// newest returns the names of the history's n newest files, by the dates
+// their names give, oldest first.
+func (h *history) newest(n int) []string {
+	entries, err := os.ReadDir(h.dir)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, e := range entries {
+		if _, ok := dayOf(e.Name()); ok {
+			names = append(names, e.Name())
+		}
+	}
+	slices.Sort(names)
+	return names[max(len(names)-n, 0):]
 }
 
 // readFile returns the readings the file at path holds, and how many of its
