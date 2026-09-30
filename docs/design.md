@@ -1010,7 +1010,8 @@ fails as it is; one that parses has every problem reported at once:
   account's, and goes out on the account's current token, as every routed request does.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
   that session. It is stripped before the request goes upstream. One naming an account that isn't
-  configured, or has no token, is ignored, and the log warns of it.
+  configured, or has no token, is ignored, and the log warns of it once for each session and
+  account, and notes it at debug after, until the account can be sent on again.
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
   header is never remembered, and but for a launch pin it carries, is decided afresh every time,
   as a new session's is.
