@@ -401,6 +401,29 @@ func TestPressed(t *testing.T) {
 		{name: "running out, its reserve spent by the global pin", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, pin: []string{"work"}, want: "under pressure: runs out ~18:21"},
 		{name: "running out after its reset", account: status.Account{ID: "work", Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: under.RunsOut}}},
 		{name: "its pace unknown", account: status.Account{ID: "work"}},
+		{
+			name:    "held back by a limit already",
+			account: status.Account{ID: "work", Pressure: under, Limit: status.Limit{Until: now.Add(time.Hour)}},
+		},
+		{
+			name:    "its limit lifted",
+			account: status.Account{ID: "work", Pressure: under, Limit: status.Limit{Until: now.Add(-time.Minute)}},
+			want:    "under pressure: runs out ~18:21",
+		},
+		{
+			name:    "held back by a refusal already",
+			account: status.Account{ID: "work", Pressure: under, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 401}},
+		},
+		{
+			name:    "held back by its reserve already",
+			account: status.Account{ID: "work", Reserve: 0.1, AtReserve: []string{"7d"}, Pressure: under},
+		},
+		{
+			name:    "spending its reserve, as the global pin names it",
+			account: status.Account{ID: "work", Reserve: 0.1, AtReserve: []string{"7d"}, Pressure: under},
+			pin:     []string{"work"},
+			want:    "under pressure: runs out ~18:21",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

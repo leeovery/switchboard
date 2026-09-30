@@ -152,10 +152,15 @@ on a model whose thinking is bound to its account only when its account can't se
    A choice made afresh sets the candidates under pressure aside first, then scores the rest as
    step 2 says, keeping an idle session's own account unless another is well ahead; when every
    candidate is under pressure, pressure changes nothing, so it never leaves a request without an
-   account. It weighs only choices made afresh: a new session's, a session's idle past its cache's
-   hour or whose account can't serve the request, and a session the global pin moves; and within
-   the global pin's accounts first, so it never sends a request past the pin. A session's own pin
-   is never weighed, and a session staying where it is, sticky or bound, never moves for it. The
+   account. It weighs only choices made afresh: a new session's, a request's without a session, a
+   session's idle past its cache's hour, or whose account can't serve the request, or whose own
+   pin yields, and a session the global pin moves; and within the global pin's accounts first, so
+   it never sends a request past the pin. A session's own pin is never weighed, and a session
+   staying where it is, sticky or bound, never moves for it. An account the scoring can't rate, as
+   one whose week's reset isn't known, is no relief from pressure: with the global pin naming it
+   and one under pressure, requests go to the one under pressure, as though every candidate were,
+   rather than to the one whose quota can't be judged, as they would once none of the pin's
+   accounts can be scored at all (step 4 of the order below). The
    readings outlast a restart: as it starts, the router takes them up, baselines included, from
    its readings history, which holds each change of a window's use (see Files), but for a window
    that has reset since.
@@ -700,11 +705,12 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   while it holds: a limit it reached, `limit until Mon 21:00`, and under it a refusal,
   `refused (403, opus) until 21:40`. An account held back by its reserve says so there, in the
   warning colour: `at its reserve (90%)`, or, with the global pin naming it, `spending its reserve
-  (pinned)`. An account under pressure says so under that, in the warning colour, with when it
-  runs out at its rate: `under pressure: runs out ~18:21`, or, where its reserve would hold it
-  back, `under pressure: at its reserve ~18:21`; `status` adds the rate it goes by and the reset
-  it runs out before: `under pressure: runs out ~18:21 at Session's rate over the last 30 min,
-  before its reset at 20:10`. The account's sessions, `2 sessions`, show at its foot.
+  (pinned)`. An account under pressure, with nothing else holding it back, says so under that,
+  in the warning colour, with when it runs out at its rate: `under pressure: runs out ~18:21`, or,
+  where its reserve would hold it back, `under pressure: at its reserve ~18:21`; `status` adds
+  the rate it goes by and the reset it runs out before: `under pressure: runs out ~18:21 at
+  Session's rate over the last 30 min, before its reset at 20:10`. The account's sessions, `2
+  sessions`, show at its foot.
   A line per account carries the primary's, the pin's and the best's marks, `◆`, `●` and `▲`,
   and, where there's room, how its reserve stands, its pressure and its sessions.
 - **Where it reads:** `usage` and `status` read the router's status document whenever the router
