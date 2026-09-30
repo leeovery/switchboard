@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2026-09-30
+
+✨ Added
+- Pressure awareness for the 5-hour window — the router watches each account's recent rate of use and, when one would run out before its window resets, sends new sessions to the best of the others; running sessions and pinned sessions stay put.
+- Readings history — each change to an account's window readings is appended to a daily file under `history/` in the state directory, kept for 14 days, so you can look back at how your accounts were used.
+- Recent rates survive router restarts — on startup the router reloads the last readings from the history.
+- `status` and `usage` show when an account is under pressure, with when it runs out and the rate it goes by (`under pressure: runs out ~18:21`).
+- Projections use the last 30 minutes' rate when that has a window running out sooner, labelled `(last 30 min)` — a burst of use shows at once.
+
+🔧 Changed
+- Prime slots fall on ten-minute marks, matching where the API actually starts windows, so the schedule shows real resets (two accounts now prime at 04:10 and 06:40, not 04:15 and 06:45).
+- Primes now go 5 seconds after their slot, so they land within the slot's ten minutes even when the Mac's clock runs slightly ahead.
+- "Best next" and the router's choice of account both pass over accounts under pressure while another isn't.
+- The log notes when a choice passed over an account for pressure, and the choice's reason says so.
+
+🐛 Fixed
+- A window you reset by hand on claude.ai is now recognised — its marker and projection measure from the reset rather than the window's start.
+- A limit reached before a hand reset no longer sticks — the request is sent again on the same account instead of moving the session away.
+- Stale readings from requests sent before a hand reset no longer put the dropped use back.
+
 ## [0.0.4] - 2026-09-30
 
 ✨ Added
