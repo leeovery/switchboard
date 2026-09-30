@@ -43,7 +43,7 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 		d, on = s.decide(req)
 	}
 	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
-	if req.Session != "" && !d.reserved {
+	if req.Session != "" && d.account != "" {
 		c.New = s.remember(on, d)
 	}
 	return c

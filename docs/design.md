@@ -175,8 +175,9 @@ on a model whose thinking is bound to its account only when its account can't se
 8. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings
    say they have none, each at most once a minute, but for one whose 5-hour window has lapsed (see
    Priming), waiting 5 seconds at most, as a reset may have passed with no traffic to show it;
-   then it decides again. Failing that, a request replayed after a limit gets the last 429, passed
-   through; any other falls back as step 5 of the order below says.
+   then it decides again. Failing that, a request replayed after a limit or a refusal goes out on no
+   other account: it gets the last 429, passed through, or, refused last, the answer Requests that
+   need special handling gives; any other falls back as step 5 of the order below says.
 
 Each request's account is decided in this order:
 
@@ -199,7 +200,9 @@ Each request's account is decided in this order:
    with the usage headers Claude Code reads a limit from: `rejected`, and, when it's known, when the
    first of them is let go, each at the latest reset among the windows its reserve holds. When
    every account has refused the request lately, it goes out on the client's all the same, and,
-   refused again, ends in the 502 of Requests that need special handling.
+   refused again, ends in the 502 of Requests that need special handling. A request replayed goes
+   out on none of these: the upstream has said why on the accounts it was tried on, and the session
+   is remembered on no account the request didn't go out on.
 
 A request without a session id is never remembered: it goes to the launch pin it carries while that
 account can serve it, and is otherwise decided afresh every time. Before deciding afresh, and never
@@ -312,7 +315,15 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   at a limit. With none left, switchboard answers with the 429 of the first account whose limit the
   request reached, as it came, when one did: that's why there's no account left. Otherwise it
   returns 502, shaped as the API shapes its errors and marked `X-Should-Retry: false`, as the same
-  token would only be refused again.
+  token would only be refused again, its message giving the upstream's reason, cut to 200
+  characters, with anything shaped like a token hidden.
+- **A request refused everywhere bars none:** when every account a request went out on refused it,
+  the refusals it met are taken back, as a refusal every account gives says more of the request,
+  such as a beta it carries, than of the accounts. Otherwise one such request would hold its model's
+  family back on every account for 10 minutes, and every session of the family would fall back to
+  the client's account, the primary, and move there. A refusal another request met stands, and so
+  does one met by a request another account served, or whose limit it reached. The client still
+  gets the 502.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
   be read 400, neither going upstream nor counting towards the router's health. Replay only

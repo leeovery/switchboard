@@ -18,6 +18,9 @@ import (
 const (
 	workToken = "test-token-work"
 	sideToken = "test-token-side"
+	// someRequest is the id of the request a test's refusal is of, where
+	// which request doesn't matter.
+	someRequest = "a1b2c3d4"
 )
 
 // The models requests ask for in tests, one of each family that matters.

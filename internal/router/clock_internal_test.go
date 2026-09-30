@@ -30,7 +30,7 @@ func TestTheRoutersClockKeepsTheWallsTimeThroughASleep(t *testing.T) {
 	for range minFailures {
 		r.health.record(awake, true)
 	}
-	r.state.refuse("side", http.StatusUnauthorized)
+	r.state.refuse("side", http.StatusUnauthorized, someRequest)
 	r.state.limit("work", nil, time.Time{})
 
 	clock.sleep(2 * time.Hour)

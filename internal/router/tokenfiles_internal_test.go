@@ -244,8 +244,8 @@ func TestAnAccountThatGoesOutOnAnotherTokenIsNoLongerHeldBackByTheRefusalOfItsLa
 		t.Run(tt.name, func(t *testing.T) {
 			files := &changingFiles{files: testTokens}
 			r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
-			r.state.refuse("work", http.StatusUnauthorized)
-			r.state.forbid("work", "opus", http.StatusForbidden)
+			r.state.refuse("work", http.StatusUnauthorized, someRequest)
+			r.state.forbid("work", "opus", http.StatusForbidden, someRequest)
 			tt.takeUp(r)
 			if work, _ := r.Status().Account("work"); work.Refused.Status != http.StatusUnauthorized {
 				t.Fatalf("work's refusal is %+v, want its token's still: its file holds the token refused", work.Refused)

@@ -384,11 +384,11 @@ func TestDocument(t *testing.T) {
 func TestTheDocumentGivesEachAccountsRefusalWhileItsInForce(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
-	s.forbid("work", "opus", http.StatusForbidden)
-	s.refuse("work", http.StatusUnauthorized)
-	s.forbid("side", "opus", http.StatusForbidden)
+	s.forbid("work", "opus", http.StatusForbidden, someRequest)
+	s.refuse("work", http.StatusUnauthorized, someRequest)
+	s.forbid("side", "opus", http.StatusForbidden, someRequest)
 	clock.now = start.Add(time.Minute)
-	s.forbid("side", "fable", http.StatusForbidden)
+	s.forbid("side", "fable", http.StatusForbidden, someRequest)
 	refused := func(id string) status.Refusal {
 		account, _ := s.document().Account(id)
 		return account.Refused
@@ -420,6 +420,32 @@ func TestTheDocumentGivesEachAccountsRefusalWhileItsInForce(t *testing.T) {
 	}
 }
 
+func TestARequestTakesBackItsOwnRefusalsAlone(t *testing.T) {
+	const first, second = "a1b2c3d4", "e5f6a7b8"
+	clock := &testClock{now: start}
+	s := newTestState(clock)
+	s.forbid("work", "opus", http.StatusForbidden, first)
+	clock.now = start.Add(time.Minute)
+	s.forbid("work", "opus", http.StatusForbidden, second)
+	s.refuse("side", http.StatusUnauthorized, second)
+	refused := func(id string) status.Refusal {
+		account, _ := s.document().Account(id)
+		return account.Refused
+	}
+
+	s.takeBack(second)
+	if got, want := refused("work"), (status.Refusal{Until: start.Add(refusedFor), Status: http.StatusForbidden, Family: "opus"}); got != want {
+		t.Errorf("with the second request's refusals taken back, work is refused %+v, want %+v: the first request's refusal stands", got, want)
+	}
+	if got := refused("side"); got != (status.Refusal{}) {
+		t.Errorf("with the second request's refusals taken back, side is refused %+v, want not", got)
+	}
+	s.takeBack(first)
+	if got := refused("work"); got != (status.Refusal{}) {
+		t.Errorf("with both requests' refusals taken back, work is refused %+v, want not", got)
+	}
+}
+
 func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 	soonerWeek := week
 	soonerWeek.Utilization, soonerWeek.ResetsAt = 0.5, start.Add(24*time.Hour)
@@ -429,10 +455,10 @@ func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 		want string
 	}{
 		{name: "side, whose quota needs using first, when nothing bars it", bar: func(*state) {}, want: "side"},
-		{name: "not side once its token is refused", bar: func(s *state) { s.refuse("side", http.StatusUnauthorized) }, want: "work"},
+		{name: "not side once its token is refused", bar: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }, want: "work"},
 		{
 			name: "side once a request of one family is refused on it, which holds back that family alone",
-			bar:  func(s *state) { s.forbid("side", "opus", http.StatusForbidden) },
+			bar:  func(s *state) { s.forbid("side", "opus", http.StatusForbidden, someRequest) },
 			want: "side",
 		},
 		{
@@ -536,7 +562,7 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 		{name: "a probe that failed", change: func(s *state, _ moment) { s.recordProbe("side", quota.Probe{}, overloaded, s.mark()) }},
 		{name: "a window seen on a family anew", change: func(s *state, _ moment) { s.learn(fable, []quota.Window{week}) }, want: 1},
 		{name: "a window seen on its family before", change: func(s *state, _ moment) { s.learn(opus, []quota.Window{week}) }},
-		{name: "a refusal, which isn't kept", change: func(s *state, _ moment) { s.refuse("work", http.StatusUnauthorized) }},
+		{name: "a refusal, which isn't kept", change: func(s *state, _ moment) { s.refuse("work", http.StatusUnauthorized, someRequest) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -600,14 +626,14 @@ func TestStandings(t *testing.T) {
 		},
 		{
 			name: "refused, with its quota unknown when never read",
-			side: func(s *state) { s.refuse("side", http.StatusUnauthorized) },
+			side: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) },
 			want: judged{refused: true},
 		},
 		{
 			name: "refused, whatever its quota",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.refuse("side", http.StatusUnauthorized)
+				s.refuse("side", http.StatusUnauthorized, someRequest)
 			},
 			want: judged{quota: true, known: true, refused: true},
 		},
@@ -615,7 +641,7 @@ func TestStandings(t *testing.T) {
 			name: "no longer refused ten minutes on",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.refuse("side", http.StatusUnauthorized)
+				s.refuse("side", http.StatusUnauthorized, someRequest)
 			},
 			after: refusedFor,
 			want:  judged{quota: true, known: true},
@@ -624,7 +650,7 @@ func TestStandings(t *testing.T) {
 			name: "not refused once a request of one family alone is",
 			side: func(s *state) {
 				readWithRoom(s)
-				s.forbid("side", "opus", http.StatusForbidden)
+				s.forbid("side", "opus", http.StatusForbidden, someRequest)
 			},
 			want: judged{quota: true, known: true},
 		},
@@ -677,8 +703,8 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { _ = s.dueAgain("side", start) })
 		wg.Go(func() { _ = s.unread("side", start) })
 		wg.Go(func() { _ = s.saved() })
-		wg.Go(func() { s.refuse("side", http.StatusUnauthorized) })
-		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden) })
+		wg.Go(func() { s.refuse("side", http.StatusUnauthorized, someRequest) })
+		wg.Go(func() { s.forbid("work", "opus", http.StatusForbidden, someRequest) })
 		wg.Go(func() { _ = s.limit("work", []string{"5h"}, start.Add(time.Hour)) })
 	}
 	wg.Wait()

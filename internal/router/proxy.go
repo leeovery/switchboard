@@ -28,7 +28,8 @@ const (
 	// maxBody caps the body of a routed request, which is held in memory.
 	maxBody = 64 << 20
 	// refusalShown is how many characters of the upstream's reason for
-	// refusing a token the log shows.
+	// refusing a request the log shows, and the client, when no account is
+	// left to try.
 	refusalShown = 200
 	// toldAtMost bounds what ignoredPins holds: the sessions of an account,
 	// and the accounts.
@@ -310,16 +311,29 @@ func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 }
 
 // refusedError is the upstream refusing a routed request on the account it
-// went out on last, answering with status, when there was no other account to
-// send it on. Claude Code takes a 401 or 403 as its own login failing, and
-// drops it on a 403, but a routed request's token needn't be its own: so
-// neither is relayed.
+// went out on last, answering with status, for reason, when there was no
+// other account to send it on. Claude Code takes a 401 or 403 as its own login
+// failing, and drops it on a 403, but a routed request's token needn't be its
+// own: so neither is relayed.
 type refusedError struct {
 	status int
+	// reason is the upstream's, cut short, with anything shaped like a token
+	// hidden: "" when it gave none.
+	reason string
 }
 
 func (e refusedError) Error() string {
 	return fmt.Sprintf("upstream answered HTTP %d", e.status)
+}
+
+// message is what the client is told of the refusal on the account with the
+// given id.
+func (e refusedError) message(account string) string {
+	message := fmt.Sprintf("switchboard: the upstream refused account %s (HTTP %d)", account, e.status)
+	if e.reason != "" {
+		message += ": " + e.reason
+	}
+	return message
 }
 
 // fail answers a request the upstream didn't answer, or answered with a
@@ -334,7 +348,7 @@ func (p *proxy) fail(w http.ResponseWriter, r *http.Request, ex *exchange, err e
 		// The API's clients retry a 5xx unless told not to, and the same
 		// token would only be refused again.
 		w.Header().Set("X-Should-Retry", "false")
-		writeError(w, ex.status, "api_error", fmt.Sprintf("switchboard: the upstream refused account %s (HTTP %d)", ex.account.ID, refused.status))
+		writeError(w, ex.status, "api_error", refused.message(ex.account.ID))
 		return
 	}
 	logger.Error("upstream request failed", append(ex.identity(r), "error", err)...)

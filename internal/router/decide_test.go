@@ -332,11 +332,18 @@ func TestDecide(t *testing.T) {
 			want: decision{account: "work", reason: "pin yields: side hit its limit", afresh: true},
 		},
 		{
-			name:    "a session tried on every account with room finds none, and stays",
+			name:    "a session tried on every account with room goes out on no other",
 			current: on("work", 0),
 			tried:   hitLimit("work"),
 			work:    soon, side: spent,
-			want: decision{account: "work", reason: "no account has room", afresh: true, noRoom: true},
+			want: decision{reason: "no account has room", afresh: true, noRoom: true},
+		},
+		{
+			name:    "a session refused on every account with room goes out on none, the client's included",
+			current: on("side", 0),
+			tried:   []Attempt{{Account: "side", Why: "was refused"}},
+			work:    spent, side: soon,
+			want: decision{reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
 			name:    "a session whose thinking is bound stays while its cache is warm",

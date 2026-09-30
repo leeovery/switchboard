@@ -12,7 +12,9 @@ type Chooser interface {
 	// request, it picks one for the upstream to refuse it on, and the choice
 	// says no account has room; or it picks none, and says so, when every
 	// account it could fall back to is held back by its reserve alone,
-	// which the router never spends.
+	// which the router never spends, or the request has been tried already.
+	// A session is remembered on the account picked, and on none when none
+	// is.
 	Choose(ctx context.Context, req Request) Choice
 	// Forget forgets the account chosen for req, whose first choice said its
 	// session was new, as the request was never answered with success: a
@@ -81,8 +83,8 @@ type Choice struct {
 	Account string
 	Reason  string
 	// NoRoom is set when no account has room for the request: Account is only
-	// where it falls back to, for the upstream to answer, or none when
-	// Reserved is set.
+	// where it falls back to, for the upstream to answer, or none, when
+	// Reserved is set, or the request has been tried already.
 	NoRoom bool
 	// Reserved is set when the request goes out on no account, as every one
 	// it could fall back to is held back by its reserve alone. Back is when
