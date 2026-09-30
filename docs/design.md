@@ -66,7 +66,10 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   family, each capped at one output token: Haiku, for the windows every model shares, and Fable, for
   its own week, falling back to the previous Fable when the newest reads nothing. Where both report
   a window, the higher reading stands, as the two are taken together. A probe claims the version of
-  the Claude Code installed here, and follows no redirect, which would carry its token along.
+  the Claude Code installed here, as `claude --version` gives it, asked at most once an hour and
+  given 5 seconds, output and all, so a CLI that hangs, or leaves a program running that holds its
+  output open, holds the probes up no longer. A probe follows no redirect, which would carry its
+  token along.
 
 ## Cache and thinking facts the design rests on
 

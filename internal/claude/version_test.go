@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -98,8 +100,10 @@ func TestInstalledCLIVersion(t *testing.T) {
 					if !slices.Equal(args, []string{"--version"}) {
 						t.Errorf("ran %s with %q, want --version", path, args)
 					}
-					if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > versionTimeout {
-						t.Errorf("ran %s without a deadline within %v", path, versionTimeout)
+					// Its output is waited for up to versionWaitDelay past the
+					// deadline, all of it within versionTimeout.
+					if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > versionTimeout-versionWaitDelay {
+						t.Errorf("ran %s without a deadline within %v, less %v for its output", path, versionTimeout, versionWaitDelay)
 					}
 					return []byte(tt.output), tt.outputErr
 				},
@@ -208,6 +212,30 @@ func TestTheCLIFindsTheInterpreterBesideIt(t *testing.T) {
 				t.Errorf("version() = %q, %v; want 2.1.303", got, err)
 			}
 		})
+	}
+}
+
+func TestTheCLIsOutputIsntWaitedForPastWhatItLeavesRunning(t *testing.T) {
+	dir := t.TempDir()
+	// A claude that answers, leaving running a program that holds its output
+	// open for 10 seconds, whose process id it notes.
+	claude, pidFile := filepath.Join(dir, "claude"), filepath.Join(dir, "left.pid")
+	writeScript(t, claude, "#!/bin/sh\n/bin/sleep 10 &\necho $! > '"+pidFile+"'\necho '2.1.303 (Claude Code)'\n")
+	t.Cleanup(func() {
+		if data, err := os.ReadFile(pidFile); err == nil {
+			if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				_ = syscall.Kill(pid, syscall.SIGKILL)
+			}
+		}
+	})
+	began := time.Now()
+
+	out, err := commandOutput(t.Context(), []string{}, claude, "--version")
+	if err != nil || string(out) != "2.1.303 (Claude Code)\n" {
+		t.Errorf("commandOutput() = %q, %v; want the version it printed", out, err)
+	}
+	if waited := time.Since(began); waited >= versionTimeout {
+		t.Errorf("waited %v for the output, want less than %v", waited, versionTimeout)
 	}
 }
 
