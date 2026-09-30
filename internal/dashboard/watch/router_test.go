@@ -166,8 +166,8 @@ func TestKeepsTheRoutersDocumentWhileItDoesntAnswerALook(t *testing.T) {
 	if !h.model.routed() {
 		t.Error("the document on screen isn't the router's, want its last one kept")
 	}
-	if got, want := h.footer(), "no router since 13:12 · updated 13:12 · "+routerKeys; got != want {
-		t.Errorf("footer = %q, want %q", got, want)
+	if got, want := h.footer(), "no router since 13:12 · updated 13:12 · r refresh · q quit"; got != want {
+		t.Errorf("footer = %q, want %q: the keys that give the router orders don't work", got, want)
 	}
 
 	h.startRouter(routerDocument(three()...))
@@ -470,6 +470,27 @@ func TestPinKeysDoNothingWhileProbing(t *testing.T) {
 	}
 	if got, want := h.footer(), "updated 13:12 · next 13:42 · r refresh · q quit"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
+	}
+}
+
+func TestPinKeysSaySoWhileTheRouterDoesntAnswer(t *testing.T) {
+	for _, key := range []string{"1", "a", "m"} {
+		t.Run(key, func(t *testing.T) {
+			doc := routerDocument(three()...)
+			doc.Pin = status.Pin{Accounts: []string{"work"}, Since: start.UTC()}
+			h := routedHarness(t, doc)
+			h.start()
+			h.stopRouter()
+			h.fire(h.lastTick()) // 13:12:05.
+
+			h.deliver(h.press(key)...)
+			if len(h.source.orders) > 0 {
+				t.Errorf("orders = %q, want none", h.source.orders)
+			}
+			if got, want := h.footer(), "no router since 13:12 · the router isn't answering · r refresh · q quit"; got != want {
+				t.Errorf("footer = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

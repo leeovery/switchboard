@@ -632,17 +632,18 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   that can take no request anyway, however lately it read them, as a reset made by hand shows only
   to a probe, but for those whose 5-hour window has lapsed and that can take a request, and those it
   probed in the last minute; or, without it, every account is probed, as `usage --refresh` does. `q`
-  quit. While it reads the router, `1`–`9` toggle the account in that place, as configured, in the
-  global pin: one it doesn't name joins those it does, new sessions going to the best of them, and
-  one it names leaves, the last to leave routing automatically again; `a` routes automatically
-  again; `m` moves running sessions to the pinned accounts, or says nothing's pinned. What a digit
-  or `m` sends leaves out an account the pin names that has no usable token, as the document shows,
-  having lost it since, as the router refuses a pin naming one. A digit sets a pin that doesn't move
-  running sessions, as `pin` without `--move` does. Each says in the footer what it did, or why it
-  couldn't, for a few seconds, and the router's document is read again at once. The footer lists
-  only the keys that work:
-  `r refresh · 1–3 toggle pin · a auto · m move · q quit` reading the router, and
-  `r refresh · q quit` probing.
+  quit. While it reads the router, and the router answers, `1`–`9` toggle the account in that place,
+  as configured, in the global pin: one it doesn't name joins those it does, new sessions going to
+  the best of them, and one it names leaves, the last to leave routing automatically again; `a`
+  routes automatically again; `m` moves running sessions to the pinned accounts, or says nothing's
+  pinned. What a digit or `m` sends leaves out an account the pin names that has no usable token, as
+  the document shows, having lost it since, as the router refuses a pin naming one. A digit sets a
+  pin that doesn't move running sessions, as `pin` without `--move` does. Each says in the footer
+  what it did, or why it couldn't, for a few seconds, and the router's document is read again at
+  once. Pressed while the router's last document stays on screen, the router not answering, each
+  says so instead. The footer lists only the keys that work:
+  `r refresh · 1–3 toggle pin · a auto · m move · q quit` reading the router while it answers, and
+  `r refresh · q quit` probing, or once it stops answering.
 - Desktop notifications: see Notifications.
 - Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
   as spaces, here and in `status` alike, so none can move the cursor or restyle what follows, a

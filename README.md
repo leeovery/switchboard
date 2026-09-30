@@ -159,7 +159,7 @@ In watch mode, reading the router, it looks at the router's view every 5 seconds
 | `m` | move running sessions to the pinned accounts |
 | `q` | quit |
 
-`1`–`9`, `a` and `m` work while the dashboard reads the router. The footer lists the keys that work, and says what each one did.
+`1`–`9`, `a` and `m` work while the dashboard reads the router and the router answers; pressed while its last view stays on screen, they say it isn't answering. The footer lists the keys that work, and says what each one did.
 
 ```bash
 switchboard usage              # once

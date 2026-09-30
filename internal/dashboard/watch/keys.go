@@ -59,12 +59,12 @@ func (o order) log(err error) {
 	}
 }
 
-// pressed acts on a key: r reads now, having the router refresh what it
-// hasn't read in the last minute, and what can take no request, or probing
-// when it doesn't answer; q or ctrl+c quits. While the dashboard reads the router, 1–9 pin new sessions to
-// the account in that place, as configured, beside those pinned already, or
-// unpin it; a routes every session on its merits again; and m moves running
-// sessions to the accounts pinned.
+// pressed acts on a key: r reads now, having the router refresh what it hasn't
+// read in the last minute, and what can take no request, or probing when it
+// doesn't answer; q or ctrl+c quits. While the router answers, 1–9 pin new
+// sessions to the account in that place, as configured, beside those pinned
+// already, or unpin it; a routes every session on its merits again; and m
+// moves running sessions to the accounts pinned.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); k {
 	case "r", "R":
@@ -146,8 +146,8 @@ func stays(doc status.Document, a status.Account) bool {
 // a usable token, or says there's none to move them to.
 func (m Model) move() (Model, tea.Cmd) {
 	switch pinned := staying(m.doc); {
-	case !m.routed():
-		return m, nil
+	case !m.answering():
+		return m.unanswered()
 	case m.doc.Pin.IsZero():
 		return m.noting("nothing's pinned to move sessions to: pin an account with " + places(len(m.doc.Accounts)))
 	case len(pinned) == 0:
@@ -157,12 +157,14 @@ func (m Model) move() (Model, tea.Cmd) {
 	}
 }
 
-// command has the router carry out an order, while the dashboard reads the
-// router and it isn't still carrying out the last. Once it has, the footer
-// says what the order did, or why it couldn't, and the router's document is
-// read again.
+// command has the router carry out an order, while the router answers and
+// isn't still carrying out the last. Once it has, the footer says what the
+// order did, or why it couldn't, and the router's document is read again.
 func (m Model) command(o order) (Model, tea.Cmd) {
-	if !m.routed() || m.ordering {
+	switch {
+	case !m.answering():
+		return m.unanswered()
+	case m.ordering:
 		return m, nil
 	}
 	m.ordering = true
@@ -211,10 +213,28 @@ func (m Model) reread() (Model, tea.Cmd) {
 	}
 }
 
-// keys says what the keys do: while the dashboard reads the router, the ones
-// that tell it where to send sessions too.
-func (m Model) keys() string {
+// answering reports whether the dashboard reads the router, and the router
+// answered the last look at its document: the keys that give it orders work
+// only then.
+func (m Model) answering() bool {
+	return m.routed() && m.lost.IsZero()
+}
+
+// unanswered is what a key that gives the router an order does while the
+// router can't take it: it says the router isn't answering while the
+// router's last document is on screen, and does nothing while the dashboard
+// probes.
+func (m Model) unanswered() (Model, tea.Cmd) {
 	if !m.routed() {
+		return m, nil
+	}
+	return m.noting(ErrNoRouter.Error())
+}
+
+// keys says what the keys do: while the router answers, the ones that tell it
+// where to send sessions too.
+func (m Model) keys() string {
+	if !m.answering() {
 		return "r refresh · q quit"
 	}
 	keys := []string{"r refresh"}
