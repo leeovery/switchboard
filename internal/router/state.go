@@ -739,18 +739,35 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	}
 }
 
+const (
+	// handReset is how far a window's use must fall, its reset kept, for the
+	// reading taken as current to show it started again, as a reset made by
+	// hand starts it, emptying it: a smaller dip, as a 429 reading a point
+	// below the use read just before, is noise, and the window runs on.
+	handReset = 0.10
+	// rounding is how far below handReset a fall can read and still be as
+	// far: 0.3 less 0.2 reads a hair under 0.1.
+	rounding = 1e-9
+)
+
+// resetByHand reports whether kept, the reading a window now stands as, shows
+// it reset by hand since held, the one it stood as before: its reset is the
+// same, and its use has fallen by handReset at least.
+func resetByHand(held, kept quota.Window) bool {
+	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-rounding
+}
+
 // startedAgain returns kept, the reading a window now stands as, taken in at
 // a time, held being the one it stood as before, with when the window started
-// again, as far as that's known: at, when kept reads less than held with the
-// same reset, which only a window started again reads, as a reset made by
-// hand leaves it, dropping its use but keeping its reset; held's, while kept
-// goes on from held; and none for a new window, which runs a whole length
-// before its reset.
+// again, as far as that's known: at, when kept shows it reset by hand since
+// held, as resetByHand says; held's, while kept goes on from held, a smaller
+// dip included; and none for a new window, which runs a whole length before
+// its reset.
 func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 	switch {
 	case kept.ResetsAt.IsZero() || !kept.ResetsAt.Equal(held.ResetsAt):
 		kept.RestartedAt = time.Time{}
-	case kept.Utilization < held.Utilization:
+	case resetByHand(held, kept):
 		kept.RestartedAt = at
 	default:
 		kept.RestartedAt = held.RestartedAt

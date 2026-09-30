@@ -121,6 +121,48 @@ func TestThePaceIsTheRiseAcrossTheLastHalfHoursReadings(t *testing.T) {
 	}
 }
 
+func TestOnlyAFallOfATenthShowsAWindowResetByHand(t *testing.T) {
+	// Work's session, read over 20 minutes, rises to 30%; a minute on, a
+	// request sent since reads it lower, its reset the same.
+	resets := start.Add(3 * time.Hour)
+	tests := []struct {
+		name        string
+		utilization float64
+		wantReset   bool
+	}{
+		{name: "a point lower, as a 429's reading, is noise", utilization: 0.29},
+		{name: "nine points lower is noise", utilization: 0.21},
+		{name: "ten points lower is a reset made by hand", utilization: 0.2, wantReset: true},
+		{name: "emptied is a reset made by hand", utilization: 0.01, wantReset: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newTestState(clock)
+			readSessions(s, clock, "work", []sessionReading{
+				{0, 0.2, resets, false}, {10 * time.Minute, 0.25, resets, false}, {20 * time.Minute, 0.3, resets, false},
+				{21 * time.Minute, tt.utilization, resets, false},
+			})
+
+			u := s.usage["work"]
+			if got := u.windows["5h"]; got.Utilization != tt.utilization {
+				t.Errorf("the session reads %v, want %v: the reading since is the upstream's latest word", got.Utilization, tt.utilization)
+			}
+			var wantRestart time.Time
+			wantReadings := 4
+			if tt.wantReset {
+				wantRestart, wantReadings = clock.now, 1
+			}
+			if got := u.windows["5h"].RestartedAt; !got.Equal(wantRestart) {
+				t.Errorf("the session started again at %v, want %v", got, wantRestart)
+			}
+			if got := len(u.trails["5h"]); got != wantReadings {
+				t.Errorf("the session's trail holds %d readings, want %d", got, wantReadings)
+			}
+		})
+	}
+}
+
 func TestTheDocumentGivesEachAccountsPressure(t *testing.T) {
 	// Work keeps a tenth of every window back. Its session, read over 20
 	// minutes, rises at 30% an hour, and resets 2h 40m on: at 60%, it reaches

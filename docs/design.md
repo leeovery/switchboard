@@ -135,14 +135,15 @@ on a model whose thinking is bound to its account only when its account can't se
    move at once, each rebuilding its cache on another account; scoring by the week alone doesn't
    see it coming. So the router keeps each account's readings of the last 30 minutes, of each of
    its windows, the time each came in and the utilization it read, within the window as it now
-   runs: a later reset, a new window, clears them, and so does a lower reading taken as current,
-   as a reset made by hand leaves it. A window's recent rate is the rise across those readings
-   over the time they span, once they span 10 minutes; the weekly windows' projections go by it too
-   (see Dashboard). The 5-hour window's rate is its recent rate, or, before its readings span 10
-   minutes, its use since it started, once 5% of it has passed, as the dashboard's projection
-   measures it. An account is under pressure when, at that rate, its 5-hour window reaches where
-   the account runs out before it resets: where its reserve starts, or its limit where the
-   request may spend the reserve, as a pin spends its accounts' (see Pinning).
+   runs: a later reset, a new window, clears them, and so does a reading taken as current that
+   has fallen by a tenth of the window or more, as a reset made by hand leaves it (see Dashboard).
+   A window's recent rate is the rise across those readings over the time they span, once they
+   span 10 minutes; the weekly windows' projections go by it too (see Dashboard). The 5-hour
+   window's rate is its recent rate, or, before its readings span 10 minutes, its use since it
+   started, once 5% of it has passed, as the dashboard's projection measures it. An account is
+   under pressure when, at that rate, its 5-hour window reaches where the account runs out before
+   it resets: where its reserve starts, or its limit where the request may spend the reserve, as a
+   pin spends its accounts' (see Pinning).
    A choice made afresh sets the candidates under pressure aside first, then scores the rest as
    step 2 says, keeping an idle session's own account unless another is well ahead; when every
    candidate is under pressure, pressure changes nothing, so it never leaves a request without an
@@ -660,11 +661,14 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   router judges pressure by, goes at that recent rate whenever there is one, so the screen shows
   where the router takes it to be heading. `status` projects as the dashboard does.
 - A window reset by hand before its reset time, as claude.ai's banked reset does, dropping its use
-  but keeping its reset (see Observed), has effectively started again: the router reads it lower
-  with the same reset, taken as current (see How it works), and notes when as the window's start.
-  Its pace marker and its projection measure from then, rather than from a whole length before its
-  reset, until its next reset, a later reset being a new window; otherwise a week reset on its
-  third day would show the marker a third of the way along, and be on pace for 0%.
+  but keeping its reset (see Observed), has effectively started again: the router reads it with
+  the same reset, taken as current (see How it works), fallen by a tenth of the window or more,
+  and notes when as the window's start. A smaller dip, as a 429 reading a point below the use read
+  just before, is noise: the reading stands, as the upstream's latest word, and the window runs
+  on. Its pace marker and its projection measure from its start again, rather than from a whole
+  length before its reset, until its next reset, a later reset being a new window; otherwise a
+  week reset on its third day would show the marker a third of the way along, and be on pace for
+  0%.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
   shows empty, as not started, until something uses it or a prime starts it, and, from the
   router, when its account is next primed: `not started · next prime Tue 04:10`.
