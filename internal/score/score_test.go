@@ -13,7 +13,7 @@ import (
 // now is the time by the clock in every test: a Monday, 13:12 UTC.
 var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}
 
 func TestAWindowARequestStartsLapsesAtItsReset(t *testing.T) {
 	labelled := func(label string, w quota.Window) quota.Window {
@@ -591,8 +591,8 @@ func TestPick(t *testing.T) {
 				applies = policy.IsShared
 			}
 			got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now)
-			if got != tt.want || ok != tt.wantOK {
-				t.Errorf("Pick() = %q, %v, want %q, %v", got, ok, tt.want, tt.wantOK)
+			if got != (score.Choice{ID: tt.want}) || ok != tt.wantOK {
+				t.Errorf("Pick() = %+v, %v, want %q, %v", got, ok, tt.want, tt.wantOK)
 			}
 		})
 	}
@@ -704,8 +704,8 @@ func TestPickBetweenNearEquals(t *testing.T) {
 			if applies == nil {
 				applies = policy.IsShared
 			}
-			if got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now); got != tt.want || !ok {
-				t.Errorf("Pick() = %q, %v, want %q, true", got, ok, tt.want)
+			if got, ok := policy.Pick(tt.candidates, applies, tt.preferred, now); got != (score.Choice{ID: tt.want}) || !ok {
+				t.Errorf("Pick() = %+v, %v, want %q, true", got, ok, tt.want)
 			}
 		})
 	}

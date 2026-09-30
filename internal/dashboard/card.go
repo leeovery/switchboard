@@ -209,15 +209,18 @@ func content(doc status.Document, a status.Account, now time.Time, cw int) []lin
 // heldBy is what holds an account in doc back at now, a line each: the limit
 // it reached, then the upstream's refusal, in red, while each holds; then its
 // reserve, in the warning colour, once a window has reached it, whether it
-// holds the account back or the global pin spends it. It's nil when nothing
-// does.
+// holds the account back or the global pin spends it; then, in the warning
+// colour too, that it's under pressure, which passes it over for new
+// sessions. It's nil when nothing does.
 func heldBy(doc status.Document, a status.Account, now time.Time, cw int) []line {
 	var lines []line
 	for _, held := range a.HeldBy(now) {
 		lines = append(lines, line{{truncate(held, cw), exhaustedInk}})
 	}
-	if reserved := doc.Reserved(a); reserved != "" {
-		lines = append(lines, line{{truncate(reserved, cw), warningInk}})
+	for _, note := range []string{doc.Reserved(a), doc.Pressed(a, now)} {
+		if note != "" {
+			lines = append(lines, line{{truncate(note, cw), warningInk}})
+		}
 	}
 	return lines
 }

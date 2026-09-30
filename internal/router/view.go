@@ -142,10 +142,20 @@ func (v view) letGo() (time.Time, bool) {
 }
 
 // pick returns the account whose quota most needs using, of those known to
-// have room for the request, keeping to preferred unless another is well
-// ahead of it. It reports false when none has room.
-func (v view) pick(preferred string) (string, bool) {
+// have room for the request, passing over those under pressure while another
+// isn't, and keeping to preferred unless another is well ahead of it. It
+// reports false when none has room.
+func (v view) pick(preferred string) (score.Choice, bool) {
 	return v.policy.Pick(v.open(), v.applies, preferred, v.now)
+}
+
+// pressure returns the rate the pressure window of the account with the given
+// id is being used at, and how, at that rate, it stands for the request: when
+// it runs out, at the account's reserve, or at its limit where the request may
+// spend the reserve.
+func (v view) pressure(id string) (float64, score.Pressure) {
+	c, _ := v.candidate(id)
+	return c.Rate, v.policy.PressureOf(c, v.now)
 }
 
 // full returns the ids of the accounts whose windows as last read leave no

@@ -66,6 +66,7 @@ func testConfig(upstream string) router.Config {
 			Perishable: claude.PerishableWindow,
 			Tiebreak:   claude.TiebreakWindow,
 			Started:    claude.StartedWindow,
+			Pressure:   claude.PressureWindow,
 		},
 		Now:     func() time.Time { return now },
 		Version: "1.2.3",

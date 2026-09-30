@@ -57,6 +57,9 @@ type usage struct {
 	// reserved are the keys of the windows last found to have reached the
 	// account's reserve.
 	reserved []string
+	// trail is how its pressure window has been read lately, which its pace
+	// is measured over.
+	trail trail
 }
 
 // refusal is the upstream refusing requests on an account, answering with
@@ -196,7 +199,12 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		seen:     make(map[string]map[string]bool),
 	}
 	for _, a := range accounts {
-		s.usage[a.ID] = &usage{windows: make(map[string]quota.Window), taken: make(map[string]moment), forbidden: make(map[string]refusals)}
+		s.usage[a.ID] = &usage{
+			windows:   make(map[string]quota.Window),
+			taken:     make(map[string]moment),
+			forbidden: make(map[string]refusals),
+			trail:     trail{key: policy.Pressure},
+		}
 	}
 	return s
 }
@@ -514,10 +522,11 @@ func (u *usage) primeFailed(policy score.Policy) bool {
 }
 
 // view returns what a choice of account for a request of model knows at now:
-// every account with a token, as it stands, with its reserve, which windows
-// count the request, which accounts have no room for it whatever their windows
-// read, and which of those refused it lately. It notes in the log how the
-// accounts' reserves hold them back, as noteReserves says.
+// every account with a token, as it stands, with its reserve and the pace its
+// pressure window is being used at, which windows count the request, which
+// accounts have no room for it whatever their windows read, and which of
+// those refused it lately. It notes in the log how the accounts' reserves hold
+// them back, as noteReserves says.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -532,7 +541,8 @@ func (s *state) view(model string, now time.Time) view {
 			continue
 		}
 		u := s.usage[a.ID]
-		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve})
+		pace, _ := u.pace(s.policy, now)
+		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve, Rate: pace.Rate})
 		if u.barred(now, family, applies) {
 			barred = append(barred, a.ID)
 		}
@@ -623,17 +633,20 @@ func (s *state) counting(model string) func(key string) bool {
 // take takes in windows read at a time off the answer to a request sent at
 // sent, and taken in at the moment taken, each merged with the reading of its
 // key before it, as mergeLater merges them, and lifts the account's limit
-// when the windows merged show it lifted. It reports whether it took any:
-// windows that are all stale leave the account as it was.
+// when the windows merged show it lifted. The trail notes each reading
+// counted. It reports whether it took any: windows that are all stale leave
+// the account as it was.
 func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) bool {
 	var merged []quota.Window
 	for _, w := range windows {
-		kept, outcome := mergeLater(u.windows[w.Key], w, sent > u.taken[w.Key])
+		held := u.windows[w.Key]
+		kept, outcome := mergeLater(held, w, sent > u.taken[w.Key])
 		if outcome == stale {
 			continue
 		}
 		if outcome == counted {
 			u.windows[w.Key], u.taken[w.Key] = kept, taken
+			u.trail.note(held, kept, at)
 		}
 		u.failures = slices.DeleteFunc(u.failures, func(f quota.Failure) bool { return f.Window == w.Key })
 		merged = append(merged, kept)
@@ -706,12 +719,13 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 }
 
 // document reports every account's usage as the router knows it, in the
-// order configured, with the best account to use next, of the accounts
+// order configured, with how each stands under pressure, the accounts pinned
+// spending their reserves, and the best account to use next, of the accounts
 // pinned while one has room, as a new session goes, never one with no room
 // for any request, whatever its windows read, and the primary.
 func (s *state) document(pinned ...string) status.Document {
 	now := s.now()
-	accounts, open := s.statuses(now)
+	accounts, open := s.statuses(now, pinned)
 	return status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
@@ -721,15 +735,19 @@ func (s *state) document(pinned ...string) status.Document {
 	}
 }
 
-// statuses returns every account's status at now, and, of those, the ones
-// the best can be: all but those barred from the requests of every model.
-func (s *state) statuses(now time.Time) (all, open []status.Account) {
+// statuses returns every account's status at now, with how it stands under
+// pressure, those pinned spending their reserves, and, of those, the ones the
+// best can be: all but those barred from the requests of every model.
+func (s *state) statuses(now time.Time, pinned []string) (all, open []status.Account) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	all = make([]status.Account, len(s.accounts))
 	for i, a := range s.accounts {
 		u := s.usage[a.ID]
 		all[i] = u.status(a, s.policy, now)
+		if a.hasToken() {
+			all[i].Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
+		}
 		if !u.shut(now, s.policy.IsShared) {
 			open = append(open, all[i])
 		}

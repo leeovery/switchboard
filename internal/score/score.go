@@ -1,7 +1,8 @@
 // Package score judges accounts by their usage windows: which have lapsed,
-// how far through each window they are and where its use is heading, whether
-// an account can take a request, within its limits or within its reserve, how
-// urgently its quota needs using, and which account to use next. Every
+// how far through each window they are, how fast it's being used and where
+// its use is heading, whether an account can take a request, within its
+// limits or within its reserve, whether it's under pressure, how urgently its
+// quota needs using, and which account to use next. Every
 // function is pure and is handed the clock. None knows a provider's windows
 // by name: a Policy names the ones that matter.
 package score
@@ -47,6 +48,10 @@ type Policy struct {
 	// reset, as last read, has passed with nothing read since, it has lapsed,
 	// and it isn't running until a request starts it again.
 	Started string
+	// Pressure is the window whose pace of use is watched: an account that,
+	// at the rate it's being used, runs it out before it resets is under
+	// pressure, and Pick passes it over while it can pick another.
+	Pressure string
 }
 
 // IsShared reports whether the window named key applies to every model.
@@ -93,6 +98,9 @@ type Candidate struct {
 	// Reserve is the share of every window Pick leaves unused on the
 	// account: a window's room ends at 1 − Reserve.
 	Reserve float64
+	// Rate is how fast the account's pressure window is being used, as a
+	// share of it an hour: zero when that isn't known.
+	Rate float64
 }
 
 // Available reports whether an account with these windows can take a
@@ -163,29 +171,67 @@ func (p Policy) Perishability(windows []quota.Window, reserve float64, now time.
 	return min(max(remaining, 0), room) / max(until, minUntilReset).Hours(), true
 }
 
+// Choice is the account Pick chooses, and the one under pressure it passed
+// over, when passing over those under pressure changed its choice.
+type Choice struct {
+	ID string
+	// PassedOver is the account under pressure that Pick would have chosen,
+	// or, when that one isn't, the highest scoring of those under pressure,
+	// whose score set the band the choice would have been made in. It's ""
+	// when pressure changed nothing.
+	PassedOver string
+}
+
 // Pick chooses the account whose quota most needs using: of the candidates
 // that are available within their reserves, as applies judges which windows
-// count, the one with the highest perishability. Scores within 20% of the
-// highest, at least 0.8 of it, are near enough equal that the tiebreak window
-// decides between them: the account whose tiebreak window resets soonest
-// wins, as what's left of it then is lost, ahead of any whose reset isn't
-// known or has passed, which rank alike. Equal resets go to the higher score,
-// then to the account using less of its shortest window that applies, then
-// to the first given. While preferred qualifies, Pick keeps it unless another
-// account scores at least 20% higher. It reports false when no candidate
-// qualifies.
-func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, preferred string, now time.Time) (string, bool) {
+// count, and that aren't under pressure, as PressureOf judges them, unless
+// every one is, the one with the highest perishability. Scores within 20% of
+// the highest, at least 0.8 of it, are near enough equal that the tiebreak
+// window decides between them: the account whose tiebreak window resets
+// soonest wins, as what's left of it then is lost, ahead of any whose reset
+// isn't known or has passed, which rank alike. Equal resets go to the higher
+// score, then to the account using less of its shortest window that applies,
+// then to the first given. While preferred qualifies, Pick keeps it unless
+// another account scores at least 20% higher. It reports false when no
+// candidate qualifies.
+func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, preferred string, now time.Time) (Choice, bool) {
 	ratings := p.qualifying(candidates, applies, now)
 	if len(ratings) == 0 {
-		return "", false
+		return Choice{}, false
 	}
-	highest := slices.MaxFunc(ratings, func(a, b rating) int { return cmp.Compare(a.score, b.score) }).score
+	relieved := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return r.pressed })
+	if len(relieved) == 0 {
+		return Choice{ID: best(ratings, preferred)}, true
+	}
+	c := Choice{ID: best(relieved, preferred)}
+	if regardless := best(ratings, preferred); regardless != c.ID {
+		c.PassedOver = passedOver(ratings, regardless)
+	}
+	return c, true
+}
+
+// best is the account of those rated whose quota most needs using, keeping to
+// preferred unless another scores at least 20% higher, as Pick says.
+func best(ratings []rating, preferred string) string {
+	highest := slices.MaxFunc(ratings, byScore).score
 	if i := slices.IndexFunc(ratings, func(r rating) bool { return r.id == preferred }); i >= 0 && !worthMoving(highest, ratings[i].score) {
-		return preferred, true
+		return preferred
 	}
-	near := slices.DeleteFunc(ratings, func(r rating) bool { return !nearEnough(r.score, highest) })
+	near := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return !nearEnough(r.score, highest) })
 	// MinFunc returns the first of equals, which settles a full tie by order.
-	return slices.MinFunc(near, rank).id, true
+	return slices.MinFunc(near, rank).id
+}
+
+// passedOver returns the account under pressure that turned Pick's choice
+// from regardless, the one it makes of every rating: regardless itself, when
+// it's under pressure, else the highest scoring of those under pressure,
+// whose score set the band regardless was chosen in.
+func passedOver(ratings []rating, regardless string) string {
+	pressed := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return !r.pressed })
+	if slices.ContainsFunc(pressed, func(r rating) bool { return r.id == regardless }) {
+		return regardless
+	}
+	return slices.MaxFunc(pressed, byScore).id
 }
 
 // rating is how a candidate that qualifies ranks.
@@ -198,6 +244,8 @@ type rating struct {
 	// shortest is how much of its shortest window that applies it has used,
 	// which breaks ties.
 	shortest float64
+	// pressed is set when it's under pressure, which sets it aside.
+	pressed bool
 }
 
 // qualifying rates the candidates that are available within their reserves
@@ -214,6 +262,7 @@ func (p Policy) qualifying(candidates []Candidate, applies func(string) bool, no
 			score:         score,
 			untilTiebreak: p.untilTiebreak(c.Windows, applies, now),
 			shortest:      shortestUse(c.Windows, applies, now),
+			pressed:       p.PressureOf(c, now).Under,
 		})
 	}
 	return ratings
@@ -252,6 +301,11 @@ func find(windows []quota.Window, key string) (quota.Window, bool) {
 		return quota.Window{}, false
 	}
 	return windows[i], true
+}
+
+// byScore orders ratings by their scores, lowest first.
+func byScore(a, b rating) int {
+	return cmp.Compare(a.score, b.score)
 }
 
 // rank orders ratings best first: the sooner their tiebreak windows reset,

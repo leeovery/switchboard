@@ -49,7 +49,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   whichever account the conversation is on. See The primary account.
 - Every response, success or 429, carries `anthropic-ratelimit-unified-*` headers: utilization
   and reset time for each window (`5h`, `7d`, and per-model weeklies such as `7d_oi`). Only a 429
-  that refuses the request itself carries none (see Choosing an account, step 6). Switchboard
+  that refuses the request itself carries none (see Choosing an account, step 7). Switchboard
   reads them off real traffic, so it knows each account's usage without spending requests.
   Windows are parsed generically, not hard-coded. Of two readings of a window taken apart, one off
   a request sent after the other was taken in is current, whatever it reads: the API reckons use
@@ -131,19 +131,38 @@ on a model whose thinking is bound to its account only when its account can't se
    comes after those whose reset is to come. Between equal resets, or two of those, the higher
    score wins, then the account that has used less of its 5-hour window, then the first
    configured.
-3. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
+3. **Pressure:** several busy sessions on one account run its 5-hour window out together, then
+   move at once, each rebuilding its cache on another account; scoring by the week alone doesn't
+   see it coming. So the router keeps each account's 5-hour readings of the last 30 minutes, the
+   time each came in and the utilization it read, within the window as it now runs: a later
+   reset, a new window, clears them, and so does a lower reading taken as current, as a reset made
+   by hand leaves it. The window's rate is the rise across those readings over the time they span,
+   or, when they span less than 10 minutes, its use since it started, once 5% of it has passed, as
+   the dashboard's projection measures it. An account is under pressure when, at that rate, the
+   window reaches where the account runs out before it resets: where its reserve starts, or its
+   limit where the request may spend the reserve, as a pin spends its accounts' (see Pinning).
+   A choice made afresh sets the candidates under pressure aside first, then scores the rest as
+   step 2 says, keeping an idle session's own account unless another is well ahead; when every
+   candidate is under pressure, pressure changes nothing, so it never leaves a request without an
+   account. It weighs only choices made afresh: a new session's, a session's idle past its cache's
+   hour or whose account can't serve the request, and a session the global pin moves; and within
+   the global pin's accounts first, so it never sends a request past the pin. A session's own pin
+   is never weighed, and a session staying where it is, sticky or bound, never moves for it. The
+   readings are kept in memory alone: a router started afresh goes by the window's use since it
+   started until its readings span 10 minutes again.
+4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`) and the model, and remembered as it's chosen, then forgotten unless
    the request is answered with success. Caches are per model anyway, so a session's Haiku calls can
    sit on a different account from its Opus calls at no cache cost. The id survives `--resume`, so a
    resumed session finds its account again. A new session's request that ends otherwise, in a 429, a
    refusal, another error or its client gone, leaves nothing remembered, unless another request of
    the session has been routed since, whose account stands: the quota check `--resume` sends as it
-   starts goes under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 6),
+   starts goes under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 7),
    would otherwise be kept, and listed among the sessions, for a week. A session already remembered
    keeps its account whatever its requests end in, but for a request every account it went out on
    refused, which leaves the session where it was before (see Requests that need special
    handling).
-4. **Sticky:** the session stays on that account. It is only re-scored when:
+5. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
      account, which another must beat by 20%, so near-equal accounts don't trade places; once one
@@ -152,7 +171,7 @@ on a model whose thinking is bound to its account only when its account can't se
      for idling, as a move would lose its reasoning; or
    - its account can't serve the request. An account nothing has been read of counts as able, so
      neither a session nor a pin moves on no evidence.
-5. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
+6. **Limit hit:** a 429 whose overall status or any window's status reads `rejected` means real
    exhaustion. Switchboard replays the buffered request on the next candidate, among the accounts
    the request hasn't been tried on, before any response reaches Claude Code, and the session
    moves there and stays. Claude Code sees a normal, slower response. The account then has no
@@ -164,7 +183,7 @@ on a model whose thinking is bound to its account only when its account can't se
    whose 429 named no window, when it's a success of a request that spends quota, a probe's
    included, and counting a message's tokens spends none. A limit reached again while it holds is
    the same limit, and holds as the latest 429 says; a probe that reads it again changes nothing.
-6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
+7. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
    away for nothing. A 429 without the usage headers, neither the overall status nor any window's,
@@ -172,9 +191,9 @@ on a model whose thinking is bound to its account only when its account can't se
    the API refuses the quota check Claude Code sends as it starts, on Claude Opus 5.5 today. Sent
    again, the request would fare no better, so the 429 is passed through at once, as it came, with
    nothing held against the account, for Claude Code to retry if it will.
-7. **No forced return:** after the original account resets, the session isn't moved back; that
+8. **No forced return:** after the original account resets, the session isn't moved back; that
    would cost a cache rebuild for nothing. The idle rule brings it back when a move is free.
-8. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings
+9. **Pool exhausted:** when no account has room, switchboard first re-probes those whose readings
    say they have none, each at most once a minute, but for one whose 5-hour window has lapsed (see
    Priming), waiting 5 seconds at most, as a reset may have passed with no traffic to show it;
    then it decides again. Failing that, a request replayed after a limit or a refusal goes out on no
@@ -194,7 +213,9 @@ Each request's account is decided in this order:
    and the account can serve it.
 4. Afresh: the best candidate among the global pin's accounts, their reserves spent, while one can
    serve the request, else the best candidate among every account, as though nothing were pinned.
-   When none of the pin's accounts that can serve the request has a score, the first of them does.
+   Either way, those under pressure are set aside while another candidate isn't (see step 3 of
+   Choosing an account). When none of the pin's accounts that can serve the request has a score,
+   the first of them does.
 5. With no candidate, the session's account, else the client's, else any other, for the upstream to
    say why, passing over those that refused the request lately, and those held back only by their
    reserve, which would serve it and spend the reserve. When that leaves none and an account is held
@@ -232,6 +253,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
 | `client` | The scheduler named an account nothing can go out on, so the request kept the client's own token: a bug, which the log reports as an error |
+| `…, <id> under pressure` | Any reason of a choice made afresh, or of a move by pin, when setting the accounts under pressure aside changed it (step 3 of Choosing an account): `<id>` is the account it would have chosen, or, when that one isn't under pressure, the highest scoring of those that are, whose score kept the account chosen out of reach. The log's `passed over under pressure` line, one a choice, gives `<id>`'s rate and when it runs out at it |
 
 ## Pinning
 
@@ -254,12 +276,13 @@ account.
 The global pin names one account or several, replacing any pin before it, and the router keeps
 them in the config's order, each once. A request it decides afresh goes to the best of them, by
 perishability and the 5-hour tiebreak as Choosing an account scores them, each one's reserve
-spent. When none of them can serve the request, the pin yields: the router chooses among every
-account as though nothing were pinned, the reserves of the accounts it doesn't name held as ever.
-So a pin sets an order to spend the accounts in: those it names first, the best of them first,
-then the rest. The best next that `status` and the dashboard give is where a new session goes, the
-pin's accounts first. `--move` moves a running session on an account the pin doesn't name to the
-best of those it does; one on an account it names stays.
+spent, passing over those under pressure, judged at their limits, while another of them isn't:
+pressure never sends it past them. When none of them can serve the request, the pin yields: the
+router chooses among every account as though nothing were pinned, the reserves of the accounts it
+doesn't name held as ever. So a pin sets an order to spend the accounts in: those it names first,
+the best of them first, then the rest. The best next that `status` and the dashboard give is where
+a new session goes, the pin's accounts first. `--move` moves a running session on an account the
+pin doesn't name to the best of those it does; one on an account it names stays.
 
 A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
 header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
@@ -341,7 +364,7 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   conversation request turn out to refer to one by id, which the artifact check will show (see
   Checks owed), such a request is to go to the primary, the only account that can read the file.
   Nothing does so yet: the rule waits on that check.
-- **Storm control:** decided against, as the pause and retry on a throttled account (step 6
+- **Storm control:** decided against, as the pause and retry on a throttled account (step 7
   above) already absorbs the burst limit many sessions moving onto one account at once can trip,
   where pacing them would slow every request.
 - **Bypass traffic:** some requests (fast mode, WebFetch) ignore `ANTHROPIC_BASE_URL`, so the Claude
@@ -591,7 +614,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts token <id>` | Replace an account's token |
 | `accounts remove <id>` | Remove an account, and its token file |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router |
+| `status [--session <id>] [--json] [--probe]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router |
 | `usage [--watch [interval]] [--no-notify] [--probe] [--refresh]` | The dashboard. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `r` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. It reads once, so it takes no `--watch` |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
@@ -640,9 +663,13 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   while it holds: a limit it reached, `limit until Mon 21:00`, and under it a refusal,
   `refused (403, opus) until 21:40`. An account held back by its reserve says so there, in the
   warning colour: `at its reserve (90%)`, or, with the global pin naming it, `spending its reserve
-  (pinned)`. The account's sessions, `2 sessions`, show at its foot.
+  (pinned)`. An account under pressure says so under that, in the warning colour, with when it
+  runs out at its rate: `under pressure: runs out ~18:21`, or, where its reserve would hold it
+  back, `under pressure: at its reserve ~18:21`; `status` adds the rate it goes by and the reset
+  it runs out before: `under pressure: runs out ~18:21 at Session's rate over the last 30 min,
+  before its reset at 20:10`. The account's sessions, `2 sessions`, show at its foot.
   A line per account carries the primary's, the pin's and the best's marks, `◆`, `●` and `▲`,
-  and, where there's room, how its reserve stands and its sessions.
+  and, where there's room, how its reserve stands, its pressure and its sessions.
 - **Where it reads:** `usage` and `status` read the router's status document whenever the router
   answers its health check within the half second `run` gives it, healthy or not: an unhealthy
   router's trouble is for them to show, and it still posts the notifications. Otherwise they
@@ -773,7 +800,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   commands, so a statusline running `status` every few seconds doesn't flood `cli.log`. `run`
   becomes `claude`, by `exec`, before it would log its exit: its last record is the launch.
 - **The router's own events:** at `info`, each prime, with the reset it read; an account held back
-  by its reserve, and let go at its reset; a token file read again after a 401, and whether it held
+  by its reserve, and let go at its reset; each choice that passes an account over as under
+  pressure, with its rate and when it runs out at it (`passed over under pressure`), the routed
+  line's reason naming it too; a token file read again after a 401, and whether it held
   a different token; a token replaced while the router was away, which it finds as it starts; a
   token file found holding another token, an account gaining a usable token, and one losing it, with
   why; the tokens directory made private as the router starts, and what bringing the skill up to
@@ -970,7 +999,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
-| `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
+| `internal/score` | Pace, projection, a window's rate of use, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
 | `internal/dashboard` | Rendering the status document as a frame (Lip Gloss): cards, or a line per account |
@@ -1170,7 +1199,7 @@ probing.
 | `generated_at` | When the document was built |
 | `source` | `"router"`, or `"probe"` when built by probing every account |
 | `fallback` | Why a probed document isn't the router's, when the router was asked first: `{router: "not running"}`, or `{router: "unhealthy", reason}`. Left out otherwise, and when probing was asked for |
-| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. From the router, with a global pin, it's where a new session goes, as step 4 of the order Choosing an account gives says: the best of the accounts the pin names while one has room, their reserves spent, or the first of them with room when none can be scored; else the best of every account. Left out when none qualifies, as when none has room, or none has been read yet |
+| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, passing over those under pressure while another isn't, as Choosing an account says. From the router, with a global pin, it's where a new session goes, as step 4 of the order Choosing an account gives says: the best of the accounts the pin names while one has room, their reserves spent, or the first of them with room when none can be scored; else the best of every account. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
 | `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
 | `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
@@ -1195,6 +1224,7 @@ Each account:
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
 | `limit` | *router* A limit it reached, while it holds: `{windows, until}`, `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
+| `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, the rise across its readings of the last 30 minutes when they span 10 minutes, `recent` then set, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets: the account is under pressure (see Choosing an account). Left out when the rate can't be said, as when the window isn't running |
 | `sessions` | *router* How many sessions have been routed to it in the last hour; left out at 0 |
 
 ### Launching
@@ -1360,8 +1390,8 @@ any of it. Times are the Mac's, UTC+1.
   header, only `x-should-retry: true` and a `rate_limit_error` whose message is `Error`, sent
   directly as through the router, on every account; on Claude Haiku 4.5 it's answered 200, with
   every usage header. Claude Code ignores the failure. `--resume` sends it under a session id
-  never used again. Hence step 6 of Choosing an account, and a session remembered only once
-  answered (step 3).
+  never used again. Hence step 7 of Choosing an account, and a session remembered only once
+  answered (step 4).
 - **30 September 2026, 15:37: a weekly limit.** An account's shared week reached 100% under
   traffic. The 429 carried the usage headers: the week `rejected`, and its reset, Monday 10:00,
   as the overall reset. The router held the account back until then, replayed the request on the

@@ -22,7 +22,7 @@ import (
 // policy scores the windows as Claude's are: the session and the week apply
 // to every model, the week is perishable, and the session's reset decides
 // between accounts scoring near enough equal.
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h"}
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}
 
 func TestCollect(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
@@ -316,7 +316,11 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 	account := func(id string, windows []quota.Window) status.Account {
 		return status.Account{ID: id, Label: id, TokenSet: true, Windows: windows}
 	}
-	// Spare's week needs using first, then side's, then work's.
+	// Spare's week needs using first, then side's, then work's. Each
+	// session resets in 3 hours: used at pressing an hour, it runs out before
+	// then, and at atReserve, it reaches a reserve of a tenth before then,
+	// but its limit after.
+	const pressing, atReserve = 0.5, 0.28
 	accounts := []status.Account{
 		account("work", week(0.5, 5*24*time.Hour)),
 		account("side", week(0.5, 3*24*time.Hour)),
@@ -361,6 +365,36 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 			pinned: []string{"work"},
 			change: func(accounts []status.Account) { accounts[0] = status.Account{ID: "work", Label: "work"} },
 			want:   "spare",
+		},
+		{
+			name:   "unpinned, passing over the best under pressure",
+			change: func(accounts []status.Account) { accounts[2].Pressure.Rate = pressing },
+			want:   "side",
+		},
+		{
+			name:   "unpinned, passing over the best under pressure at its reserve",
+			change: func(accounts []status.Account) { accounts[2].Reserve, accounts[2].Pressure.Rate = 0.1, atReserve },
+			want:   "side",
+		},
+		{
+			name:   "the best of those pinned, passing over one under pressure for another pinned",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) { accounts[1].Pressure.Rate = pressing },
+			want:   "work",
+		},
+		{
+			name:   "the best of those pinned, every one under pressure",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) {
+				accounts[0].Pressure.Rate, accounts[1].Pressure.Rate = pressing, pressing
+			},
+			want: "side",
+		},
+		{
+			name:   "the best of those pinned, under pressure only at its reserve, which the pin spends",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) { accounts[1].Reserve, accounts[1].Pressure.Rate = 0.1, atReserve },
+			want:   "side",
 		},
 	}
 	for _, tt := range tests {
@@ -512,6 +546,64 @@ func TestDocumentJSON(t *testing.T) {
       "id": "work",
       "label": "Work",
       "token_set": true
+    }
+  ]
+}`,
+		},
+		{
+			name: "the router's, with each account's pressure",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{
+					{
+						ID: "work", Label: "Work", TokenSet: true,
+						Pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: generated.Add(80 * time.Minute), Under: true},
+					},
+					{ID: "side", Label: "Side", TokenSet: true, Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: generated.Add(9 * time.Hour)}},
+					{ID: "spare", Label: "Spare", TokenSet: true, Pressure: status.Pressure{Window: "5h"}},
+				},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "pressure": {
+        "window": "5h",
+        "rate": 0.3,
+        "recent": true,
+        "runs_out": "2026-09-28T14:32:00Z",
+        "under": true
+      }
+    },
+    {
+      "id": "side",
+      "label": "Side",
+      "token_set": true,
+      "pressure": {
+        "window": "5h",
+        "rate": 0.1,
+        "runs_out": "2026-09-28T22:12:00Z"
+      }
+    },
+    {
+      "id": "spare",
+      "label": "Spare",
+      "token_set": true,
+      "pressure": {
+        "window": "5h",
+        "rate": 0
+      }
     }
   ]
 }`,

@@ -49,8 +49,8 @@ type Document struct {
 	Fallback Fallback `json:"fallback,omitzero"`
 	// Best is the account to use next: of those with room in the windows every
 	// model shares, the one whose quota most needs using, or, from the router,
-	// of those the global pin names while one has room. Empty when there's
-	// none.
+	// of those the global pin names while one has room, passing over those
+	// under pressure while another isn't. Empty when there's none.
 	Best string `json:"best,omitempty"`
 	// Primary is the id of the primary account, whose token Claude Code
 	// holds: empty only when no account is marked the primary.
@@ -199,6 +199,10 @@ type Account struct {
 	// saw, while it holds: zero when there's none, and in a document that
 	// isn't the router's.
 	Refused Refusal `json:"refused,omitzero"`
+	// Pressure is how fast the router has seen the account's pressure window
+	// used, and where that's heading: zero when it can't say, and in a
+	// document that isn't the router's.
+	Pressure Pressure `json:"pressure,omitzero"`
 	// Sessions is how many sessions the router has sent to the account in the
 	// last hour: zero in a document that isn't the router's.
 	Sessions int `json:"sessions,omitzero"`
@@ -231,6 +235,29 @@ type Refusal struct {
 // Holds reports whether the refusal still holds at now.
 func (r Refusal) Holds(now time.Time) bool {
 	return r.Until.After(now)
+}
+
+// Pressure is how fast the router has seen an account's pressure window
+// used, and where, at that rate, it's heading. While it runs out before it
+// resets, the account is under pressure: a choice made afresh passes it over
+// for an account that isn't.
+type Pressure struct {
+	// Window is the window's key, such as "5h".
+	Window string `json:"window"`
+	// Rate is the share of the window used an hour: its rise across its
+	// readings of the last half hour, when they span 10 minutes, else its use
+	// since it started.
+	Rate float64 `json:"rate"`
+	// Recent is set when Rate is its rise across the last half hour's
+	// readings.
+	Recent bool `json:"recent,omitempty"`
+	// RunsOut is when, at Rate, the window reaches where the account's room
+	// ends: where its reserve starts, or its limit, without one or where the
+	// global pin spends it. Zero when it never does, at no rate, and when it
+	// has already.
+	RunsOut time.Time `json:"runs_out,omitzero"`
+	// Under is set when RunsOut comes before the window resets.
+	Under bool `json:"under,omitempty"`
 }
 
 // Prober reads an account's usage with its token.
@@ -344,8 +371,8 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 // Best is the account of those given that a new session goes to, as the
 // router chooses one for a request of any model: of those pinned, while one
 // can take the request, as bestPinned says; else of them all, the one policy
-// picks, leaving each one's reserve unused. It's empty when none can take
-// one.
+// picks, leaving each one's reserve unused, and passing over those under
+// pressure, as pick says. It's empty when none can take one.
 func Best(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
 	if id, ok := bestPinned(policy, accounts, pinned, now); ok {
 		return id
@@ -380,12 +407,13 @@ func bestPinned(policy score.Policy, accounts []Account, pinned []string, now ti
 }
 
 // pick is the account of those given that policy picks for a request of any
-// model, leaving each one's reserve unused, or empty when none can take one.
+// model, leaving each one's reserve unused, and passing over those under
+// pressure at the rates the router saw, or empty when none can take one.
 func pick(policy score.Policy, accounts []Account, now time.Time) string {
 	candidates := make([]score.Candidate, len(accounts))
 	for i, account := range accounts {
-		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve}
+		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve, Rate: account.Pressure.Rate}
 	}
-	id, _ := policy.Pick(candidates, policy.IsShared, "", now)
-	return id
+	c, _ := policy.Pick(candidates, policy.IsShared, "", now)
+	return c.ID
 }

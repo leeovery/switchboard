@@ -22,3 +22,8 @@ const TiebreakWindow = "5h"
 // last one ended, and resets five hours later. A probe is a request, so
 // probing an account whose session has lapsed starts it.
 const StartedWindow = "5h"
+
+// PressureWindow is the window whose pace of use is watched: the five-hour
+// session, which several busy sessions on one account run out together, each
+// then rebuilding its cache on another account at once.
+const PressureWindow = "5h"

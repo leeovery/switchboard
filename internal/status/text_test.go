@@ -386,6 +386,88 @@ func TestReserved(t *testing.T) {
 	}
 }
 
+func TestPressed(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	under := status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 21, 0, 0, time.UTC), Under: true}
+	tests := []struct {
+		name    string
+		account status.Account
+		// pin are the accounts the global pin names.
+		pin  []string
+		want string
+	}{
+		{name: "running out", account: status.Account{ID: "work", Pressure: under}, want: "under pressure: runs out ~18:21"},
+		{name: "reaching its reserve", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, want: "under pressure: at its reserve ~18:21"},
+		{name: "running out, its reserve spent by the global pin", account: status.Account{ID: "work", Reserve: 0.1, Pressure: under}, pin: []string{"work"}, want: "under pressure: runs out ~18:21"},
+		{name: "running out after its reset", account: status.Account{ID: "work", Pressure: status.Pressure{Window: "5h", Rate: 0.1, RunsOut: under.RunsOut}}},
+		{name: "its pace unknown", account: status.Account{ID: "work"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
+			if got := doc.Pressed(tt.account, now); got != tt.want {
+				t.Errorf("Pressed() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTextSaysWhenAnAccountIsUnderPressure(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	// The session, 60% used, resets at 17:10, having started at 12:10: 30% an
+	// hour runs it out at 15:32, a reserve of a tenth reached at 15:12, and
+	// its use since it started runs it out at 15:33.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)}
+	tests := []struct {
+		name     string
+		reserve  float64
+		pressure status.Pressure
+		// notes are the lines status gives the account beside its usage.
+		notes string
+	}{
+		{
+			name:     "at its rate over the last half hour",
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 32, 0, 0, time.UTC), Under: true},
+			notes:    "  under pressure: runs out ~15:32 at Session's rate over the last 30 min, before its reset at 17:10\n",
+		},
+		{
+			name:     "at its rate since it started",
+			pressure: status.Pressure{Window: "5h", Rate: 0.6 / (2*time.Hour + 2*time.Minute).Hours(), RunsOut: time.Date(2026, 9, 28, 14, 33, 20, 0, time.UTC), Under: true},
+			notes:    "  under pressure: runs out ~15:33 at Session's rate since it started, before its reset at 17:10\n",
+		},
+		{
+			name:     "reaching its reserve",
+			reserve:  0.1,
+			pressure: status.Pressure{Window: "5h", Rate: 0.3, Recent: true, RunsOut: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC), Under: true},
+			notes:    "  under pressure: at its reserve ~15:12 at Session's rate over the last 30 min, before its reset at 17:10\n",
+		},
+		{
+			name:     "not under pressure",
+			pressure: status.Pressure{Window: "5h", Rate: 0.1, Recent: true, RunsOut: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{{
+					ID: "work", Label: "Work", Reserve: tt.reserve, TokenSet: true, FetchedAt: now.UTC(),
+					Windows: []quota.Window{session}, Pressure: tt.pressure,
+				}},
+			}
+			want := "work · Work\n" +
+				"  Session  60%  resets in 2h 58m · Mon 17:10 · runs out ~Mon 15:33\n" +
+				tt.notes + "\n" +
+				"from the router: healthy  ·  no sessions  ·  routing automatically\n"
+			if got := doc.Text(now); got != want {
+				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
+			}
+		})
+	}
+}
+
 func TestTextListsTheRoutersSessionsGiven(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 	doc := status.Document{

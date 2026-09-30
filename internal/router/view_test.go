@@ -137,8 +137,8 @@ func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
 					if got := v.room("work"); got != want {
 						t.Errorf("%v after the refusal, room(work) for %q = %v, want %v", after, model, got, want)
 					}
-					if picked, _ := v.pick(""); (picked == "work") != want {
-						t.Errorf("%v after the refusal, pick() for %q = %q, want work: %v", after, model, picked, want)
+					if picked, _ := v.pick(""); (picked.ID == "work") != want {
+						t.Errorf("%v after the refusal, pick() for %q = %q, want work: %v", after, model, picked.ID, want)
 					}
 				}
 			}
@@ -327,8 +327,8 @@ func TestAViewWithoutAccounts(t *testing.T) {
 	if without.room("side") || !without.has("side") {
 		t.Error("without side, side has room, or can't be gone out on, want neither")
 	}
-	if id, ok := without.pick(""); ok {
-		t.Errorf("without side, pick() = %q, want none: work has no room", id)
+	if c, ok := without.pick(""); ok {
+		t.Errorf("without side, pick() = %q, want none: work has no room", c.ID)
 	}
 	if got := without.without([]string{"work"}).full(); len(got) > 0 {
 		t.Errorf("without either, full() = %q, want none: a probe finding room on either would be no use", got)

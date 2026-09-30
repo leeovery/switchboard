@@ -1006,6 +1006,154 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 	}
 }
 
+func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
+	// Each account's session is a tenth used and resets in 3 hours: at half
+	// of it an hour, it runs out before then. Work's week resets tomorrow,
+	// side's in two days and spare's in five, so work's quota needs using
+	// first, then side's.
+	windows := map[string][]quota.Window{
+		"work":  weekAt(0.5, 24*time.Hour),
+		"side":  weekAt(0.5, 48*time.Hour),
+		"spare": weekAt(0.5, 5*24*time.Hour),
+	}
+	const pressing = 0.5
+	// atReserve runs a session out at a reserve of a tenth before it resets,
+	// but at its limit after.
+	const atReserve = 0.28
+	spent := []quota.Window{
+		{Key: "5h", Utilization: 1, ResetsAt: start.Add(2 * time.Hour), Status: quota.StatusRejected},
+		{Key: "7d", Utilization: 0.5, ResetsAt: start.Add(72 * time.Hour)},
+	}
+	workAndSpare := status.Pin{Accounts: []string{"work", "spare"}, Since: start.Add(-time.Hour)}
+	tests := []struct {
+		name string
+		// unsessioned leaves the request without a session.
+		unsessioned bool
+		// pin is the session's own, launched with it.
+		pin string
+		// current is the session's assignment, nil for a new session.
+		current *assignment
+		global  status.Pin
+		// rates are how fast each account's session is being used, an hour.
+		rates map[string]float64
+		// spent is the account whose session is used up, if any.
+		spent string
+		// reserving is the account keeping a tenth of every window back, if
+		// any.
+		reserving string
+		want      decision
+	}{
+		{
+			name:  "a new session passes over the best under pressure",
+			rates: map[string]float64{"work": pressing},
+			want:  decision{account: "side", reason: "new, work under pressure", afresh: true, passedOver: "work"},
+		},
+		{
+			name:  "a new session goes to the best while another is under pressure",
+			rates: map[string]float64{"side": pressing},
+			want:  decision{account: "work", reason: "new", afresh: true},
+		},
+		{
+			name:  "a new session goes to the best while every account is under pressure",
+			rates: map[string]float64{"work": pressing, "side": pressing, "spare": pressing},
+			want:  decision{account: "work", reason: "new", afresh: true},
+		},
+		{
+			name:        "a request without a session passes over the best under pressure",
+			unsessioned: true,
+			rates:       map[string]float64{"work": pressing},
+			want:        decision{account: "side", reason: "unsessioned, work under pressure", afresh: true, passedOver: "work"},
+		},
+		{
+			name:    "a session idle past the hour passes over its own account under pressure",
+			current: on("work", 2*time.Hour),
+			rates:   map[string]float64{"work": pressing},
+			want:    decision{account: "side", reason: "rescored after 2h idle, work under pressure", afresh: true, passedOver: "work"},
+		},
+		{
+			name:    "a session whose account has no room passes over the next under pressure",
+			current: on("work", 5*time.Minute),
+			spent:   "work",
+			rates:   map[string]float64{"side": pressing},
+			want:    decision{account: "spare", reason: "moved: work has no room, side under pressure", afresh: true, passedOver: "side"},
+		},
+		{
+			name:    "a session stays on its account under pressure while its cache is warm",
+			current: on("work", 5*time.Minute),
+			rates:   map[string]float64{"work": pressing},
+			want:    decision{account: "work", reason: "sticky", sticky: true},
+		},
+		{
+			name:  "a session's own pin holds on its account under pressure",
+			pin:   "work",
+			rates: map[string]float64{"work": pressing},
+			want:  decision{account: "work", reason: "pinned"},
+		},
+		{
+			name:  "a session's pin that yields passes over the best under pressure",
+			pin:   "side",
+			spent: "side",
+			rates: map[string]float64{"work": pressing},
+			want:  decision{account: "spare", reason: "pin yields: side has no room, work under pressure", afresh: true, passedOver: "work"},
+		},
+		{
+			name:   "the global pin's best under pressure passes to the pin's next, not beyond the pin",
+			global: workAndSpare,
+			rates:  map[string]float64{"work": pressing},
+			want:   decision{account: "spare", reason: "pinned (global), work under pressure", afresh: true, passedOver: "work"},
+		},
+		{
+			name:   "the global pin's accounts every one under pressure keep to the pin",
+			global: workAndSpare,
+			rates:  map[string]float64{"work": pressing, "spare": pressing},
+			want:   decision{account: "work", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:      "an account runs out at its reserve under pressure",
+			reserving: "work",
+			rates:     map[string]float64{"work": atReserve},
+			want:      decision{account: "side", reason: "new, work under pressure", afresh: true, passedOver: "work"},
+		},
+		{
+			name:      "an account the global pin names runs out at its limit, its reserve spent",
+			global:    workAndSpare,
+			reserving: "work",
+			rates:     map[string]float64{"work": atReserve},
+			want:      decision{account: "work", reason: "pinned (global)", afresh: true},
+		},
+		{
+			name:    "a session the global pin moves passes over the pin's best under pressure",
+			current: on("side", 5*time.Minute),
+			global:  status.Pin{Accounts: []string{"work", "spare"}, Since: start.Add(-time.Hour), Move: true},
+			rates:   map[string]float64{"work": pressing},
+			want:    decision{account: "spare", reason: "moved by pin, work under pressure", passedOver: "work"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := Request{Session: "0b5c6f2e", Model: opus, Pin: tt.pin, Client: "work"}
+			if tt.unsessioned {
+				req.Session = ""
+			}
+			accounts := view{policy: testPolicy, now: start, applies: testPolicy.IsShared}
+			for _, id := range []string{"work", "side", "spare"} {
+				c := score.Candidate{ID: id, Windows: windows[id], Rate: tt.rates[id]}
+				if id == tt.spent {
+					c.Windows = spent
+				}
+				accounts.candidates = append(accounts.candidates, c)
+			}
+			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(accounts, tt.reserving, 0.1)}
+			if tt.current != nil {
+				s.current, s.assigned = *tt.current, true
+			}
+			if got := decide(s); got != tt.want {
+				t.Errorf("decide() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 // known is what a choice knows of work and side, whose windows are as given,
 // at start: personal, without a token, can't be sent on.
 func known(work, side []quota.Window) view {
