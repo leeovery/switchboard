@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.3] - 2026-09-30
+
+🐛 Fixed
+- Removing an account no longer strands running sessions — sessions holding a removed account's token stay routed as the primary's for a week.
+- A request refused by every account it went out on no longer bars accounts or moves its session — the refusal says more about the request than the accounts.
+- Sessions whose request was refused now return to the account they were on before it.
+- Once every account has refused a request, it isn't tried again elsewhere, and Claude Code gets a 502 giving the API's actual reason.
+- Per-request refusal tracking means one request taking back its refusals no longer erases those placed by other requests.
+- `best next` now respects the global pin — it shows where a new session would actually go.
+
+✨ Added
+- `switchboard status` and the dashboard report a pending router restart — with the reason, since when, and requests in flight — e.g. `restart due (config changed)`.
+- `switchboard service restart` is now the pointed-to way to apply a pending restart immediately instead of waiting for a quiet moment.
+- `switchboard accounts remove` reports which account becomes primary when the primary is removed, and warns if the new primary has no usable token.
+
+🔧 Changed
+- Removed-account tokens are kept only as SHA-256 hashes, and are restored to the account if it's configured again.
+- A router started by hand with `serve` now tells `status` to run `serve` again to take up the restart.
+
 ## [0.0.2] - 2026-09-30
 
 ✨ Added
