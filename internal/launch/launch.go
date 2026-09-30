@@ -51,6 +51,9 @@ type Launcher struct {
 	// PID is this process's id, as os.Getpid gives it, which the claude
 	// started in its place keeps.
 	PID int
+	// Now reads the wall clock, which says how old a mark is (see
+	// startedEnv).
+	Now func() time.Time
 	// Exec replaces this process with the program at path, as Exec does.
 	Exec func(path string, argv, env []string) error
 	// Stderr hears why, when Claude Code starts without the router, or
@@ -208,7 +211,7 @@ func firstLine(err error) string {
 // this process, in this process's place. Its arguments are never logged: they
 // can hold a prompt.
 func (l Launcher) exec(path string, args []string, env environ) error {
-	if err := l.Exec(path, append([]string{claude.Command}, args...), env.startingAt(l.PID, path)); err != nil {
+	if err := l.Exec(path, append([]string{claude.Command}, args...), env.startingAt(l.PID, l.Now(), path)); err != nil {
 		return fmt.Errorf("start claude at %s: %w", path, err)
 	}
 	return nil
@@ -219,7 +222,7 @@ func (l Launcher) exec(path string, args []string, env environ) error {
 // started again in that one's place.
 func (l Launcher) find() (string, error) {
 	env := environ(l.Environ)
-	after := env.startedAt(l.PID)
+	after := env.startedAt(l.PID, l.Now())
 	if after != "" {
 		logger.Info("started again in place of the claude it started; looking past it", "claude", after)
 	}

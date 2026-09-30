@@ -1139,10 +1139,14 @@ Each account:
   the Go build info it holds says. It replaces itself with the `claude` it finds (`exec`), so
   signals and the terminal behave as usual, and the `claude` keeps its process id. Every `claude`
   it starts, as if switchboard weren't there or not, starts with `SWITCHBOARD_STARTED` set to that
-  id and where the `claude` is. A switchboard started with it naming its own id was started again
-  in that `claude`'s place, as by a wrapper named `claude` that `exec`s switchboard, and looks past
-  that `claude`, failing when there's none rather than start it again, and again. Any other, such
-  as a `claude` started within a Claude Code session, has an id of its own, and looks everywhere.
+  id, the time and where the `claude` is. A switchboard started with it naming its own id, within
+  30 seconds, was started again in that `claude`'s place, as by a wrapper named `claude` that
+  `exec`s switchboard, which takes milliseconds, and looks past that `claude`, failing when there's
+  none rather than start it again, and again. Any other, such as a `claude` started within a
+  Claude Code session, has an id of its own, and looks everywhere, as does one whose id a mark
+  older than that names: a later process that took the id of a `claude` long gone, the mark living
+  on in something started within its session, such as a tmux server, or one running `claude` again
+  in its own place much later.
   Probes claim the version of the `claude` found the same way, so the router, whose `PATH` is
   launchd's, finds it where its installers put it. Claude Code's arguments go after `--`,
   untouched and never logged; the log notes the decision: routed or direct, the router's state,

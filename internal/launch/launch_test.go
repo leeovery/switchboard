@@ -37,6 +37,15 @@ const (
 	unhealthy = "5 of the 8 requests in the last 5 minutes failed"
 )
 
+// launched is when, by the wall clock, the launcher starts claude.
+var launched = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+
+// mark is the mark of a claude the switchboard whose process id is id
+// started at, at path.
+func mark(id int, at time.Time, path string) string {
+	return strconv.Itoa(id) + ":" + strconv.FormatInt(at.Unix(), 10) + ":" + path
+}
+
 // accounts are the configured accounts: work and side have tokens, personal
 // doesn't.
 var accounts = []config.Account{
@@ -683,7 +692,7 @@ func TestNothingPastAClaudeThatLeadsBackToSwitchboard(t *testing.T) {
 	wrapper := claudetest.Program(t, filepath.Join(t.TempDir(), "claude"))
 	missing := filepath.Join(t.TempDir(), "claude")
 	h.launcher.InstallPaths = []string{missing}
-	h.launcher.Environ = []string{"PATH=" + filepath.Dir(wrapper), markEnv + "=" + strconv.Itoa(pid) + ":" + wrapper}
+	h.launcher.Environ = []string{"PATH=" + filepath.Dir(wrapper), markEnv + "=" + mark(pid, launched, wrapper)}
 
 	err := h.launcher.Run(t.Context(), route(healthy(), ""), nil)
 	want := "can't find claude past " + wrapper + ", which leads back to switchboard: it isn't on PATH, nor at " + missing
@@ -698,7 +707,7 @@ func TestEveryLaunchMarksTheClaudeItStarts(t *testing.T) {
 			h := newHarness(t)
 			// Started within a Claude Code session another switchboard started,
 			// whose mark it inherits.
-			h.launcher.Environ = []string{"PATH=" + filepath.Dir(h.claude), markEnv + "=" + strconv.Itoa(sessionPID) + ":" + h.claude}
+			h.launcher.Environ = []string{"PATH=" + filepath.Dir(h.claude), markEnv + "=" + mark(sessionPID, launched, h.claude)}
 
 			if err := tt.launch(t.Context(), h.launcher); err != nil {
 				t.Fatalf("launch error = %v", err)
@@ -707,8 +716,8 @@ func TestEveryLaunchMarksTheClaudeItStarts(t *testing.T) {
 			if got.path != h.claude {
 				t.Errorf("started %s, want %s, the session's mark being another process's", got.path, h.claude)
 			}
-			if want := []string{strconv.Itoa(pid) + ":" + h.claude}; !slices.Equal(got.marks, want) {
-				t.Errorf("started claude marked %q, want %q alone: this process's id, and where the claude is", got.marks, want)
+			if want := []string{mark(pid, launched, h.claude)}; !slices.Equal(got.marks, want) {
+				t.Errorf("started claude marked %q, want %q alone: this process's id, when, and where the claude is", got.marks, want)
 			}
 		})
 	}
@@ -725,10 +734,14 @@ func TestOnlyThisProcesssMarkLooksPastAClaude(t *testing.T) {
 		want string
 	}{
 		{name: "none", want: wrapper},
-		{name: "this process's, at the wrapper", mark: strconv.Itoa(pid) + ":" + wrapper, want: h.claude},
-		{name: "another process's, at the wrapper", mark: strconv.Itoa(sessionPID) + ":" + wrapper, want: wrapper},
-		{name: "this process's, at a claude nowhere to look", mark: strconv.Itoa(pid) + ":" + filepath.Join(t.TempDir(), "claude"), want: wrapper},
-		{name: "this process's, at no claude", mark: strconv.Itoa(pid), want: wrapper},
+		{name: "this process's, at the wrapper", mark: mark(pid, launched, wrapper), want: h.claude},
+		{name: "this process's, at the wrapper, as long ago as a mark counts", mark: mark(pid, launched.Add(-30*time.Second), wrapper), want: h.claude},
+		{name: "this process's, at the wrapper, longer ago than a mark counts", mark: mark(pid, launched.Add(-31*time.Second), wrapper), want: wrapper},
+		{name: "this process's, at the wrapper, from after now, the clock set back", mark: mark(pid, launched.Add(time.Hour), wrapper), want: wrapper},
+		{name: "this process's, at the wrapper, without when", mark: strconv.Itoa(pid) + ":" + wrapper, want: wrapper},
+		{name: "another process's, at the wrapper", mark: mark(sessionPID, launched, wrapper), want: wrapper},
+		{name: "this process's, at a claude nowhere to look", mark: mark(pid, launched, filepath.Join(t.TempDir(), "claude")), want: wrapper},
+		{name: "this process's, at no claude", mark: strconv.Itoa(pid) + ":" + strconv.FormatInt(launched.Unix(), 10), want: wrapper},
 		{name: "unreadable", mark: "work", want: wrapper},
 	}
 	for _, tt := range tests {
@@ -746,6 +759,21 @@ func TestOnlyThisProcesssMarkLooksPastAClaude(t *testing.T) {
 				t.Errorf("started %s, want %s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAMarkReadsAClaudeWhosePathHoldsAColon(t *testing.T) {
+	h := newHarness(t)
+	// Where an installer put a wrapper named claude, ahead of Claude Code.
+	wrapper := claudetest.Program(t, filepath.Join(t.TempDir(), "a:b", "claude"))
+	h.launcher.InstallPaths = []string{wrapper, h.claude}
+	h.launcher.Environ = []string{markEnv + "=" + mark(pid, launched, wrapper)}
+
+	if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got := h.only(t).path; got != h.claude {
+		t.Errorf("started %s, want %s, Claude Code past the wrapper", got, h.claude)
 	}
 }
 
@@ -937,6 +965,7 @@ func newHarness(t *testing.T, environ ...string) *harness {
 		InstallPaths: []string{h.claude},
 		Executable:   func() (string, error) { return h.switchboard, nil },
 		PID:          pid,
+		Now:          func() time.Time { return launched },
 		Exec: func(path string, argv, env []string) error {
 			env, marks := unmarked(env)
 			h.starts = append(h.starts, started{path: path, argv: argv, env: env, marks: marks})

@@ -65,8 +65,8 @@ func TestRun(t *testing.T) {
 			if env := got.only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_CUSTOM_HEADERS"); !maps.Equal(env, want) {
 				t.Errorf("handed over with\n%q\nwant\n%q", env, want)
 			}
-			if want := strconv.Itoa(testPID) + ":" + handed.claude; got.mark != want {
-				t.Errorf("handed over marked %q, want %q: this process's id, and where the claude is", got.mark, want)
+			if want := strconv.Itoa(testPID) + ":" + strconv.FormatInt(testNow.Unix(), 10) + ":" + handed.claude; got.mark != want {
+				t.Errorf("handed over marked %q, want %q: this process's id, when, and where the claude is", got.mark, want)
 			}
 		})
 	}
