@@ -116,11 +116,12 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 			},
 		},
 		{
-			name:  "bootstrapping the service",
+			name:  "bootstrapping the service, each of the 5 times it tries",
 			exits: map[string]int{"bootstrap": 5},
 			want: func(plist string) (string, [][]string) {
+				bootstrap := []string{"bootstrap", "gui/501", plist}
 				return "launchctl bootstrap gui/501 " + plist + ": bootstrap failed: 5: Input/output error (exit status 5)",
-					[][]string{{"print", target}, {"bootstrap", "gui/501", plist}}
+					[][]string{{"print", target}, bootstrap, bootstrap, bootstrap, bootstrap, bootstrap}
 			},
 		},
 		{
@@ -133,17 +134,61 @@ func TestInstallFailsWhenLaunchctlDoes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newSetup(t, nil, upOnceStarted(4242))
-			s.launchctl.loaded, s.launchctl.exits, s.launchctl.cantRun = tt.loaded, tt.exits, tt.cantRun
+			synctest.Test(t, func(t *testing.T) {
+				s := newSetup(t, nil, upOnceStarted(4242))
+				s.launchctl.loaded, s.launchctl.exits, s.launchctl.cantRun = tt.loaded, tt.exits, tt.cantRun
 
-			_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
-			wantErr, wantCalls := tt.want(s.plist)
-			if err == nil || err.Error() != wantErr {
-				t.Errorf("Install() error = %v, want %q", err, wantErr)
-			}
-			if !reflect.DeepEqual(s.launchctl.calls, wantCalls) {
-				t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, wantCalls)
-			}
+				_, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				wantErr, wantCalls := tt.want(s.plist)
+				if err == nil || err.Error() != wantErr {
+					t.Errorf("Install() error = %v, want %q", err, wantErr)
+				}
+				if !reflect.DeepEqual(s.launchctl.calls, wantCalls) {
+					t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, wantCalls)
+				}
+			})
+		})
+	}
+}
+
+func TestInstallTriesBootstrappingAgain(t *testing.T) {
+	tests := []struct {
+		name string
+		// fails is how many times bootstrapping fails, as launchd refuses to
+		// load the service while it's still booting it out.
+		fails int
+		// wantTries is how many times Install bootstraps the service, half a
+		// second apart.
+		wantTries int
+	}{
+		{name: "loaded at once", fails: 0, wantTries: 1},
+		{name: "loaded at the second try", fails: 1, wantTries: 2},
+		{name: "loaded at the last try", fails: 4, wantTries: 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newSetup(t, nil, upOnceStarted(4242))
+				s.launchctl.loaded = true
+				s.launchctl.exits = map[string]int{"bootstrap": 5}
+				s.launchctl.fails = map[string]int{"bootstrap": tt.fails}
+				began := time.Now()
+
+				installed, err := s.svc.Install(t.Context(), service.InstallOptions{Executable: s.binary})
+				if err != nil || installed.Router == nil {
+					t.Fatalf("Install() = %+v, %v; want it installed, the router answering", installed, err)
+				}
+				want := [][]string{{"print", target}, {"bootout", target}}
+				for range tt.wantTries {
+					want = append(want, []string{"bootstrap", "gui/501", s.plist})
+				}
+				if !reflect.DeepEqual(s.launchctl.calls, want) {
+					t.Errorf("ran launchctl %q, want %q", s.launchctl.calls, want)
+				}
+				if waited, want := time.Since(began), time.Duration(tt.wantTries-1)*500*time.Millisecond; waited != want {
+					t.Errorf("took %v, want %v, half a second between tries", waited, want)
+				}
+			})
 		})
 	}
 }
@@ -904,7 +949,8 @@ func writeBinary(t *testing.T, path string) string {
 // it isn't, as launchctl does; bootstrapping loads it, and booting it out
 // unloads it. A subcommand takes as long as takes gives it, killed as
 // exec.CommandContext kills it when its context ends first, and exits with
-// the status exits gives it, saying why as launchctl does. cantRun fails
+// the status exits gives it, saying why as launchctl does: its first runs
+// alone, as many as fails gives, when fails gives it any. cantRun fails
 // every run, as when there's no launchctl to run, and refuse fails the test
 // on any.
 type fakeLaunchctl struct {
@@ -913,8 +959,25 @@ type fakeLaunchctl struct {
 	loaded  bool
 	takes   map[string]time.Duration
 	exits   map[string]int
+	fails   map[string]int
 	cantRun error
 	calls   [][]string
+}
+
+// exit is the status this run of subcommand exits with, as exits and fails
+// give it.
+func (f *fakeLaunchctl) exit(subcommand string) int {
+	fails, some := f.fails[subcommand]
+	runs := 0
+	for _, call := range f.calls {
+		if call[0] == subcommand {
+			runs++
+		}
+	}
+	if some && runs > fails {
+		return 0
+	}
+	return f.exits[subcommand]
 }
 
 func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error) {
@@ -931,7 +994,7 @@ func (f *fakeLaunchctl) run(ctx context.Context, args ...string) ([]byte, error)
 	case <-ctx.Done():
 		return nil, errors.New("signal: killed")
 	}
-	if status := f.exits[args[0]]; status != 0 {
+	if status := f.exit(args[0]); status != 0 {
 		return fmt.Appendf(nil, "%s failed: %d: Input/output error\n", args[0], status), exitStatus(status)
 	}
 	switch args[0] {

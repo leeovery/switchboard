@@ -21,8 +21,13 @@ const fallbackVersion = "2.1.283"
 
 const (
 	// versionTimeout bounds `claude --version`, which normally answers in
-	// milliseconds.
+	// milliseconds, output and all: a CLI that hangs holds up the probes
+	// waiting for its version no longer.
 	versionTimeout = 5 * time.Second
+	// versionWaitDelay is how long, of versionTimeout, the CLI's output is
+	// waited for once it has exited or been killed: a program it leaves
+	// running can hold its output open for as long as it runs.
+	versionWaitDelay = 500 * time.Millisecond
 	// versionLifetime is how long a version the CLI gave stands before the
 	// CLI is asked again.
 	versionLifetime = time.Hour
@@ -67,7 +72,8 @@ type versionCache struct {
 }
 
 // get returns the version, asking the CLI first when it hasn't been asked in
-// the last hour. An ask that fails counts as one.
+// the last hour. An ask that fails counts as one. A call while the CLI is
+// asked waits for its answer, which versionTimeout bounds.
 func (c *versionCache) get() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -103,7 +109,8 @@ type installedCLI struct {
 	pathList   string
 	paths      []string
 	executable func() (string, error)
-	// env is the environment the command runs in.
+	// env is the environment the command runs in, but for its own
+	// directories, which go first on PATH.
 	env    []string
 	output func(ctx context.Context, env []string, path string, args ...string) ([]byte, error)
 }
@@ -112,7 +119,8 @@ type installedCLI struct {
 // gives, else where its installers put it for the home directory home,
 // passing over switchboard's own executable, as executable gives it. It runs
 // in no more of the environment getenv gives than it needs, which can hold a
-// token, as a Claude Code session's does.
+// token, as a Claude Code session's does, its own directories first on PATH,
+// as childenv.Beside puts them.
 func systemCLI(getenv func(key string) string, home string, executable func() (string, error)) installedCLI {
 	return installedCLI{
 		pathList:   getenv("PATH"),
@@ -123,10 +131,19 @@ func systemCLI(getenv func(key string) string, home string, executable func() (s
 	}
 }
 
+// commandOutput runs the program at path with args and env, and returns what
+// it printed, waiting versionWaitDelay at most for the output once it has
+// exited or ctx has killed it. A program that exited as it should has
+// answered, though what it left running held its output open.
 func commandOutput(ctx context.Context, env []string, path string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env = env
-	return cmd.Output()
+	cmd.WaitDelay = versionWaitDelay
+	out, err := cmd.Output()
+	if errors.Is(err, exec.ErrWaitDelay) {
+		return out, nil
+	}
+	return out, err
 }
 
 // version returns the first "x.y.z" that `claude --version` prints. It fails
@@ -148,7 +165,7 @@ func (c installedCLI) versionOutput(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
+	ctx, cancel := context.WithTimeout(ctx, versionTimeout-versionWaitDelay)
 	defer cancel()
-	return c.output(ctx, c.env, path, "--version")
+	return c.output(ctx, childenv.Beside(c.env, path), path, "--version")
 }

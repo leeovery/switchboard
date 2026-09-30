@@ -7,6 +7,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -17,12 +18,18 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 const (
 	workToken = "test-token-work"
 	sideToken = "test-token-side"
+	// pid is the launcher's process id, and sessionPID that of a switchboard
+	// that started a Claude Code session, which a claude started within it
+	// inherits the mark of.
+	pid        = 5150
+	sessionPID = 4141
 	// proxyAddr is where a healthy router says its proxy listens, which isn't
 	// where the config says: the router's word is the one that counts.
 	proxyAddr = "127.0.0.1:4848"
@@ -45,6 +52,7 @@ func route(r launch.Router, account string) launch.Route {
 	return launch.Route{
 		Config:  &config.Config{Listen: "127.0.0.1:4747", Accounts: accounts},
 		Token:   testTokens.Read,
+		Pause:   func(time.Duration) {},
 		Router:  r,
 		Account: account,
 	}
@@ -131,6 +139,74 @@ func TestRunChoosesTheToken(t *testing.T) {
 			}
 			if got := h.environment(t)["CLAUDE_CODE_OAUTH_TOKEN"]; got != tt.want {
 				t.Errorf("started on %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunLooksAgainAtATokenFileCaughtEmpty(t *testing.T) {
+	tests := []struct {
+		name    string
+		router  *fakeRouter
+		account string
+		// rewritten is the account whose token file is caught empty, as while
+		// a writer rewrites it, at the first look, and written whether it
+		// holds the token again after a pause.
+		rewritten string
+		written   bool
+		want      string
+		wantErr   string
+		// wantPaused is whether the launch paused, 200ms, to look again.
+		wantPaused bool
+	}{
+		{name: "the primary's, at the first look", router: healthy(), want: workToken},
+		{name: "the primary's, written again", router: healthy(), rewritten: "work", written: true, want: workToken, wantPaused: true},
+		{name: "the primary's, empty still, the first with a token's", router: healthy(), rewritten: "work", want: sideToken, wantPaused: true},
+		{
+			name:       "the pinned account's, written again",
+			router:     notRunning(),
+			account:    "side",
+			rewritten:  "side",
+			written:    true,
+			want:       sideToken,
+			wantPaused: true,
+		},
+		{
+			name:       "the pinned account's, empty still",
+			router:     notRunning(),
+			account:    "side",
+			rewritten:  "side",
+			wantErr:    "account side has no usable token for Claude Code to start on: token missing: write it to tokens/side, which is empty",
+			wantPaused: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			r := route(tt.router, tt.account)
+			var paused []time.Duration
+			r.Token = func(id string) (tokens.Token, error) {
+				if id == tt.rewritten && (len(paused) == 0 || !tt.written) {
+					return tokens.Token{}, fmt.Errorf("%w: write it to tokens/%s, which is empty", tokens.ErrMissing, id)
+				}
+				return testTokens.Read(id)
+			}
+			r.Pause = func(d time.Duration) { paused = append(paused, d) }
+
+			err := h.launcher.Run(t.Context(), r, nil)
+			if tt.wantErr != "" {
+				if err == nil || err.Error() != tt.wantErr || len(h.starts) > 0 {
+					t.Errorf("Run() error = %v, starting %q; want %q, starting nothing", err, h.starts, tt.wantErr)
+				}
+			} else if got := h.environment(t)["CLAUDE_CODE_OAUTH_TOKEN"]; err != nil || got != tt.want {
+				t.Errorf("Run() error = %v, starting on %q; want %q", err, got, tt.want)
+			}
+			var want []time.Duration
+			if tt.wantPaused {
+				want = []time.Duration{200 * time.Millisecond}
+			}
+			if !slices.Equal(paused, want) {
+				t.Errorf("paused %v, want %v", paused, want)
 			}
 		})
 	}
@@ -532,24 +608,26 @@ func TestFindsClaude(t *testing.T) {
 	}
 }
 
-func TestNoLaunchStartsSwitchboardsClaudeLink(t *testing.T) {
-	tests := []struct {
-		name   string
-		launch func(ctx context.Context, l launch.Launcher) error
-	}{
-		{name: "through the router", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(healthy(), ""), nil) }},
-		{name: "directly", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notRunning(), ""), nil) }},
-		{name: "on its own login", launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil) }},
-		{
-			name: "without switchboard",
-			launch: func(_ context.Context, l launch.Launcher) error {
-				return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
-			},
+// everyLaunch starts claude each way a launcher can.
+var everyLaunch = []struct {
+	name   string
+	launch func(ctx context.Context, l launch.Launcher) error
+}{
+	{name: "through the router", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(healthy(), ""), nil) }},
+	{name: "directly", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notRunning(), ""), nil) }},
+	{name: "on its own login", launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil) }},
+	{
+		name: "without switchboard",
+		launch: func(_ context.Context, l launch.Launcher) error {
+			return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 		},
-		{name: "a local subcommand", launch: func(_ context.Context, l launch.Launcher) error { return l.Local([]string{"doctor"}) }},
-		{name: "stepping aside for a key", launch: func(_ context.Context, l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
-	}
-	for _, tt := range tests {
+	},
+	{name: "a local subcommand", launch: func(_ context.Context, l launch.Launcher) error { return l.Local([]string{"doctor"}) }},
+	{name: "stepping aside for a key", launch: func(_ context.Context, l launch.Launcher) error { return l.StepAside(nil, "ANTHROPIC_API_KEY") }},
+}
+
+func TestNoLaunchStartsSwitchboardsClaudeLink(t *testing.T) {
+	for _, tt := range everyLaunch {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
 			// switchboard's claude link, ahead of Claude Code on PATH.
@@ -561,6 +639,111 @@ func TestNoLaunchStartsSwitchboardsClaudeLink(t *testing.T) {
 			}
 			if got := h.only(t).path; got != h.claude {
 				t.Errorf("started %s, want %s, Claude Code past switchboard's claude link", got, h.claude)
+			}
+		})
+	}
+}
+
+func TestAClaudeThatLeadsBackToSwitchboardStartsOnce(t *testing.T) {
+	for _, tt := range everyLaunch {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			h := newHarness(t)
+			// A wrapper named claude, ahead of Claude Code on PATH, that starts
+			// switchboard in its own place, as exec does, keeping the process's
+			// id and environment.
+			wrapper := claudetest.Program(t, filepath.Join(t.TempDir(), "claude"))
+			h.launcher.Environ = []string{"PATH=" + filepath.Dir(wrapper) + string(filepath.ListSeparator) + filepath.Dir(h.claude)}
+			if err := tt.launch(t.Context(), h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			first := h.only(t)
+			if first.path != wrapper || len(first.marks) != 1 {
+				t.Fatalf("started %s marked %q, want %s, marked once", first.path, first.marks, wrapper)
+			}
+			h.starts = nil
+			again := h.launcher
+			again.Environ = append(first.env, markEnv+"="+first.marks[0])
+
+			if err := tt.launch(t.Context(), again); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			if got := h.only(t).path; got != h.claude {
+				t.Errorf("started %s, want %s, Claude Code past the wrapper, rather than the wrapper again", got, h.claude)
+			}
+			if want := []string{"level=INFO", `msg="started again in place of the claude it started; looking past it"`, "claude=" + wrapper}; !log.Has(want...) {
+				t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+			}
+		})
+	}
+}
+
+func TestNothingPastAClaudeThatLeadsBackToSwitchboard(t *testing.T) {
+	h := newHarness(t)
+	wrapper := claudetest.Program(t, filepath.Join(t.TempDir(), "claude"))
+	missing := filepath.Join(t.TempDir(), "claude")
+	h.launcher.InstallPaths = []string{missing}
+	h.launcher.Environ = []string{"PATH=" + filepath.Dir(wrapper), markEnv + "=" + strconv.Itoa(pid) + ":" + wrapper}
+
+	err := h.launcher.Run(t.Context(), route(healthy(), ""), nil)
+	want := "can't find claude past " + wrapper + ", which leads back to switchboard: it isn't on PATH, nor at " + missing
+	if err == nil || err.Error() != want || len(h.starts) > 0 {
+		t.Errorf("Run() error = %v, starting %q; want %q, starting nothing", err, h.starts, want)
+	}
+}
+
+func TestEveryLaunchMarksTheClaudeItStarts(t *testing.T) {
+	for _, tt := range everyLaunch {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			// Started within a Claude Code session another switchboard started,
+			// whose mark it inherits.
+			h.launcher.Environ = []string{"PATH=" + filepath.Dir(h.claude), markEnv + "=" + strconv.Itoa(sessionPID) + ":" + h.claude}
+
+			if err := tt.launch(t.Context(), h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			got := h.only(t)
+			if got.path != h.claude {
+				t.Errorf("started %s, want %s, the session's mark being another process's", got.path, h.claude)
+			}
+			if want := []string{strconv.Itoa(pid) + ":" + h.claude}; !slices.Equal(got.marks, want) {
+				t.Errorf("started claude marked %q, want %q alone: this process's id, and where the claude is", got.marks, want)
+			}
+		})
+	}
+}
+
+func TestOnlyThisProcesssMarkLooksPastAClaude(t *testing.T) {
+	h := newHarness(t)
+	wrapper := claudetest.Program(t, filepath.Join(t.TempDir(), "claude"))
+	path := "PATH=" + filepath.Dir(wrapper) + string(filepath.ListSeparator) + filepath.Dir(h.claude)
+	tests := []struct {
+		name string
+		// mark is the mark the launch inherits, "" for none.
+		mark string
+		want string
+	}{
+		{name: "none", want: wrapper},
+		{name: "this process's, at the wrapper", mark: strconv.Itoa(pid) + ":" + wrapper, want: h.claude},
+		{name: "another process's, at the wrapper", mark: strconv.Itoa(sessionPID) + ":" + wrapper, want: wrapper},
+		{name: "this process's, at a claude nowhere to look", mark: strconv.Itoa(pid) + ":" + filepath.Join(t.TempDir(), "claude"), want: wrapper},
+		{name: "this process's, at no claude", mark: strconv.Itoa(pid), want: wrapper},
+		{name: "unreadable", mark: "work", want: wrapper},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h.starts = nil
+			h.launcher.Environ = []string{path}
+			if tt.mark != "" {
+				h.launcher.Environ = append(h.launcher.Environ, markEnv+"="+tt.mark)
+			}
+
+			if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if got := h.only(t).path; got != tt.want {
+				t.Errorf("started %s, want %s", got, tt.want)
 			}
 		})
 	}
@@ -708,7 +891,25 @@ func notRunning() *fakeRouter {
 type started struct {
 	path string
 	argv []string
-	env  []string
+	// env is the environment it was to start in, but for switchboard's mark
+	// of the claude it starts, which marks gives every value of.
+	env   []string
+	marks []string
+}
+
+// markEnv is the variable switchboard marks the claude it starts with.
+const markEnv = "SWITCHBOARD_STARTED"
+
+// unmarked splits env into the values of switchboard's mark, and the rest.
+func unmarked(env []string) (rest, marks []string) {
+	for _, variable := range env {
+		if mark, ok := strings.CutPrefix(variable, markEnv+"="); ok {
+			marks = append(marks, mark)
+		} else {
+			rest = append(rest, variable)
+		}
+	}
+	return rest, marks
 }
 
 // harness is a launcher whose claude, a stand-in, is where its installer put
@@ -735,8 +936,10 @@ func newHarness(t *testing.T, environ ...string) *harness {
 		Environ:      environ,
 		InstallPaths: []string{h.claude},
 		Executable:   func() (string, error) { return h.switchboard, nil },
+		PID:          pid,
 		Exec: func(path string, argv, env []string) error {
-			h.starts = append(h.starts, started{path: path, argv: argv, env: env})
+			env, marks := unmarked(env)
+			h.starts = append(h.starts, started{path: path, argv: argv, env: env, marks: marks})
 			return nil
 		},
 		Stderr: &h.stderr,

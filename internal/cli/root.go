@@ -72,6 +72,9 @@ type Deps struct {
 	// user's id: the token files must be theirs.
 	GOOS string
 	UID  int
+	// PID is this process's id, as os.Getpid gives it, which the claude run
+	// starts in its place keeps.
+	PID int
 }
 
 // Notifier posts a desktop notification.

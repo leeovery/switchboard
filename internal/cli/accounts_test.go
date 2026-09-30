@@ -382,6 +382,29 @@ func TestAccountsRemove(t *testing.T) {
 	}
 }
 
+func TestAccountsRemoveATokenFileThatsALink(t *testing.T) {
+	deps, _ := accountsDeps(t, newClaudeAPI(t).URL, personalAndSide)
+	writeToken(t, deps, "personal", "test-token-work")
+	// side's token file, a link to a file kept elsewhere, as by a dotfiles
+	// step.
+	target := filepath.Join(t.TempDir(), "side")
+	if err := os.WriteFile(target, []byte("test-token-side\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, tokenPath(t, deps, "side")); err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, deps, "accounts", "remove", "side")
+	if want := (result{stdout: "removed side, and its token file, a link: the file it led to, " + target + ", is left as it is\n"}); got != want {
+		t.Errorf("switchboard accounts remove = %+v, want %+v", got, want)
+	}
+	checkNoTokenFile(t, deps, "side")
+	if data, err := os.ReadFile(target); err != nil || string(data) != "test-token-side\n" {
+		t.Errorf("where the link led holds %q (%v), want the token still", data, err)
+	}
+}
+
 func TestAccountsRemoveRefuses(t *testing.T) {
 	tests := []struct {
 		name    string

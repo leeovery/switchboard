@@ -66,7 +66,10 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   family, each capped at one output token: Haiku, for the windows every model shares, and Fable, for
   its own week, falling back to the previous Fable when the newest reads nothing. Where both report
   a window, the higher reading stands, as the two are taken together. A probe claims the version of
-  the Claude Code installed here, and follows no redirect, which would carry its token along.
+  the Claude Code installed here, as `claude --version` gives it, asked at most once an hour and
+  given 5 seconds, output and all, so a CLI that hangs, or leaves a program running that holds its
+  output open, holds the probes up no longer. A probe follows no redirect, which would carry its
+  token along.
 
 ## Cache and thinking facts the design rests on
 
@@ -437,7 +440,9 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   `accounts add` and `accounts token` write them for everyone else. A writer does best to write a
   temporary file beside the token file and rename it into place, as switchboard does: one that
   empties the file before it writes the token, as a shell's redirect does, leaves it empty for a
-  moment, which the router can catch (see below).
+  moment, which the router can catch (see below). A token file may be a link to one kept
+  elsewhere, as by a dotfiles step: switchboard reads it, and writes a token, through the link, to
+  where it leads, never in its place.
 - The router reads the tokens as it starts, every account's file again every 3 seconds, and an
   account's file again when a request on it gets a 401 (see Requests that need special
   handling), so a changed token file needs no restart: an account whose file holds another token
@@ -446,7 +451,10 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   on until it's back. A single look finding none, as a file caught while it's rewritten, keeps the
   account its token (see The router looking after itself). The router starts whether or not any
   account has a usable token, and routes as soon as one has. `run`, `usage` and `status` read the
-  files as they need them. The LaunchAgent needs no token from the user's environment: it carries
+  files as they need them; `run` looks again, 200 milliseconds on, at the primary's file and a
+  pinned account's when it finds no usable token there, as it can while the file's rewritten,
+  before it starts Claude Code on another's, which would be Claude Code's own token for the whole
+  session. The LaunchAgent needs no token from the user's environment: it carries
   only what finds the config, the state and the skill, and the log level (see Launching).
 - A token the router replaces stays its account's for 7 days: sessions started before hold it,
   and every session holds the primary's. The router keeps it as its SHA-256 hash, never the
@@ -457,7 +465,10 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   the hash of the token held last is compared with the token the account later gains, and a
   different one counts as replaced.
 - The programs switchboard runs for itself, `claude --version`, `osascript` and `launchctl`, get
-  none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`.
+  none of its environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the
+  `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
+  npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
+  which holds the system's directories alone.
 - `accounts add <id>` registers an account. It refuses an id, or a `--label`, holding anything
   shaped like a token before it asks for the token, saving nothing, and shows the id as
   `[redacted]`. When the account's token file holds no usable token, it asks for the token, hidden,
@@ -469,7 +480,8 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   reach the API, it saves it with a warning. `--label` sets the label, and `--primary` makes the
   account the primary.
 - `accounts token <id>` replaces an account's token, under the same rules. `accounts remove <id>`
-  removes the account from the config, and deletes its token file.
+  removes the account from the config, and deletes its token file: of one that's a link, the link
+  alone, saying where it led, as the file there isn't switchboard's.
 - The config is edited as text, keeping its comments and layout, and read back to check it. A
   config file that's a link is written through, never replaced. The router picks the change up
   itself (see The router looking after itself).
@@ -545,7 +557,7 @@ rather than failing, reads `switchboard: …`.
 
 No command quotes a token given where an id goes: `accounts token`, `accounts remove`, `pin`, to an
 account or with `--session`, `status --session` and `run --account` show an id shaped like a token
-as `[redacted]`, as `accounts add` does as it refuses one.
+as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's name.
 
 ## Dashboard
 
@@ -813,9 +825,9 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
-| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place |
+| `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
-| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary and `claude` link, for tests |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
@@ -937,7 +949,8 @@ fails as it is; one that parses has every problem reported at once:
 - **At least one `[[account]]`.** Each needs an `id`: it starts with a letter or digit, holds only
   letters, digits, `-` and `_`, is unique, and isn't `auto`, in any case, which `pin auto` takes
   to mean routing. The id names the account's token file, which these rules keep safe as a file
-  name. Neither the `id` nor the `label` may hold anything shaped like a token, as both show
+  name; so no two ids differ only in case, as `work` and `Work` do, which macOS, ignoring case in
+  file names, would give one token file. Neither the `id` nor the `label` may hold anything shaped like a token, as both show
   wherever the account does: the error never quotes it, and names an account whose id holds one by
   its place, as `account #2`.
 - **`primary`** is true on one account at most.
@@ -1081,8 +1094,15 @@ Each account:
   `internal/claude` keeps the list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
-  be run, passing over any `claude` that leads, links followed, to switchboard's own executable,
-  and replaces itself with it (`exec`), so signals and the terminal behave as usual.
+  be run, passing over any `claude` that's switchboard, which would start it again: one that
+  leads, links followed, to switchboard's own executable, and another build of switchboard, as
+  the Go build info it holds says. It replaces itself with the `claude` it finds (`exec`), so
+  signals and the terminal behave as usual, and the `claude` keeps its process id. Every `claude`
+  it starts, as if switchboard weren't there or not, starts with `SWITCHBOARD_STARTED` set to that
+  id and where the `claude` is. A switchboard started with it naming its own id was started again
+  in that `claude`'s place, as by a wrapper named `claude` that `exec`s switchboard, and looks past
+  that `claude`, failing when there's none rather than start it again, and again. Any other, such
+  as a `claude` started within a Claude Code session, has an id of its own, and looks everywhere.
   Probes claim the version of the `claude` found the same way, so the router, whose `PATH` is
   launchd's, finds it where its installers put it. Claude Code's arguments go after `--`,
   untouched and never logged; the log notes the decision: routed or direct, the router's state,
@@ -1100,8 +1120,10 @@ Each account:
   so it needs nothing else of the user's environment. `install` warns when no account has a usable
   token; the router starts all the same, and routes once one has. Whether launchd has the service
   loaded is `launchctl print`'s to say, which exits 113 for one it hasn't: `install` boots out a
-  loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router other
-  than any running before to answer. `uninstall` boots it out when loaded and removes the plist.
+  loaded copy, bootstraps the new one into `gui/<uid>`, and waits up to 5 seconds for a router
+  other than any running before to answer. launchd finishes booting a service out after `bootout`
+  returns, and refuses to load it until then (`5: Input/output error`), so `install` tries
+  bootstrapping 5 times, half a second apart, before it fails as the last try did. `uninstall` boots it out when loaded and removes the plist.
   `restart`, with a router answering, has launchd send it SIGTERM (`launchctl kill`): it stops as at
   any signal, finishing its requests in flight, and launchd, keeping the service alive, starts it
   again. `restart` says so first, `the router is finishing its requests in flight, then launchd

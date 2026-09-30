@@ -2,8 +2,10 @@ package cli_test
 
 import (
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -63,6 +65,9 @@ func TestRun(t *testing.T) {
 			if env := got.only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_CUSTOM_HEADERS"); !maps.Equal(env, want) {
 				t.Errorf("handed over with\n%q\nwant\n%q", env, want)
 			}
+			if want := strconv.Itoa(testPID) + ":" + handed.claude; got.mark != want {
+				t.Errorf("handed over marked %q, want %q: this process's id, and where the claude is", got.mark, want)
+			}
 		})
 	}
 }
@@ -96,6 +101,22 @@ func TestRunWithoutTheRouter(t *testing.T) {
 	env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN")
 	if want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}; !maps.Equal(env, want) {
 		t.Errorf("handed over with\n%q\nwant\n%q", env, want)
+	}
+}
+
+func TestRunWithoutThePrimarysToken(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	if err := os.Remove(tokenPath(t, srv.deps, "work")); err != nil {
+		t.Fatal(err)
+	}
+	handed := recordHandOffs(t, &srv.deps)
+
+	got := run(t, srv.deps, "run")
+	if want := (result{stderr: "switchboard: the router isn't running — connecting directly on side · Side\n"}); got != want {
+		t.Errorf("switchboard run = %+v, want %+v", got, want)
+	}
+	if token := handed.only(t).env["CLAUDE_CODE_OAUTH_TOKEN"]; token != "test-token-side" {
+		t.Errorf("handed over on %q, want side's token, the first with one, the primary's file holding none at a second look", token)
 	}
 }
 
@@ -400,11 +421,13 @@ func TestRunNeverLogsClaudesArguments(t *testing.T) {
 }
 
 // handOff is a hand-over run made: the program, and the arguments and
-// environment it was to start with.
+// environment it was to start with, but for switchboard's mark of the claude
+// it starts, which is mark.
 type handOff struct {
 	path string
 	argv []string
 	env  map[string]string
+	mark string
 }
 
 // only returns the variables named that the program was to start with.
@@ -413,6 +436,9 @@ func (h handOff) only(names ...string) map[string]string {
 	maps.DeleteFunc(env, func(name, _ string) bool { return !slices.Contains(names, name) })
 	return env
 }
+
+// markEnv is the variable switchboard marks the claude it starts with.
+const markEnv = "SWITCHBOARD_STARTED"
 
 // handOffs are the hand-overs run makes, and claude, the stand-in it finds.
 type handOffs struct {
@@ -442,7 +468,10 @@ func recordHandOffs(t *testing.T, deps *cli.Deps) *handOffs {
 	switchboard := claudetest.Program(t, filepath.Join(t.TempDir(), "switchboard"))
 	deps.Executable = func() (string, error) { return switchboard, nil }
 	deps.Exec = func(path string, argv, env []string) error {
-		h.made = append(h.made, handOff{path: path, argv: argv, env: environMap(env)})
+		vars := environMap(env)
+		mark := vars[markEnv]
+		delete(vars, markEnv)
+		h.made = append(h.made, handOff{path: path, argv: argv, env: vars, mark: mark})
 		return nil
 	}
 	return h

@@ -26,6 +26,11 @@ var logger = logs.For("launch")
 // router answers gives it as long.
 const AskTimeout = 500 * time.Millisecond
 
+// lookAgain is how long run waits to look at a token file again, when it
+// finds no usable token there at first: a writer that empties the file before
+// it writes the token leaves it so for a moment, which one look can catch.
+const lookAgain = 200 * time.Millisecond
+
 // Router is the router, as run asks it how it is: *router.Client is one.
 type Router interface {
 	Health(ctx context.Context) (router.Health, error)
@@ -43,6 +48,9 @@ type Launcher struct {
 	// os.Executable does: a claude that leads to it is switchboard's link,
 	// never Claude Code.
 	Executable func() (string, error)
+	// PID is this process's id, as os.Getpid gives it, which the claude
+	// started in its place keeps.
+	PID int
 	// Exec replaces this process with the program at path, as Exec does.
 	Exec func(path string, argv, env []string) error
 	// Stderr hears why, when Claude Code starts without the router, or
@@ -54,7 +62,10 @@ type Launcher struct {
 type Route struct {
 	Config *config.Config
 	// Token reads an account's token, by the account's id, from its file.
-	Token  func(id string) (tokens.Token, error)
+	Token func(id string) (tokens.Token, error)
+	// Pause waits as long as it's given, as time.Sleep does, before a token
+	// file is looked at again.
+	Pause  func(time.Duration)
 	Router Router
 	// Account is the id of the account to pin the session to, or "" to leave
 	// it to the router.
@@ -190,19 +201,26 @@ func firstLine(err error) string {
 	return strings.TrimSuffix(strings.TrimSpace(line), ":")
 }
 
-// exec starts Claude Code, at path, with args and env, in this process's
-// place. Its arguments are never logged: they can hold a prompt.
+// exec starts Claude Code, at path, with args and env, marked as started by
+// this process, in this process's place. Its arguments are never logged: they
+// can hold a prompt.
 func (l Launcher) exec(path string, args []string, env environ) error {
-	if err := l.Exec(path, append([]string{claude.Command}, args...), env); err != nil {
+	if err := l.Exec(path, append([]string{claude.Command}, args...), env.startingAt(l.PID, path)); err != nil {
 		return fmt.Errorf("start claude at %s: %w", path, err)
 	}
 	return nil
 }
 
 // find returns where Claude Code is, as claude.Find finds it on the PATH it
-// starts with.
+// starts with: past the claude this process started, when it has been
+// started again in that one's place.
 func (l Launcher) find() (string, error) {
-	return claude.Find(environ(l.Environ).get("PATH"), l.InstallPaths, l.Executable)
+	env := environ(l.Environ)
+	after := env.startedAt(l.PID)
+	if after != "" {
+		logger.Info("started again in place of the claude it started; looking past it", "claude", after)
+	}
+	return claude.FindAfter(after, env.get("PATH"), l.InstallPaths, l.Executable)
 }
 
 // How the router can answer its health check, as the log names it.
@@ -299,11 +317,25 @@ func (r Route) pinned() (choice, error) {
 		return choice{}, router.UnknownAccount(r.Account, r.usable())
 	}
 	a := r.Config.Accounts[i]
-	token, err := r.Token(a.ID)
+	token, err := r.lookTwice(a.ID)
 	if err != nil {
 		return choice{}, fmt.Errorf("account %s has no usable token for Claude Code to start on: %w", a.ID, err)
 	}
 	return choice{account: a, token: token, why: "pinned"}, nil
+}
+
+// lookTwice reads the account's token, looking at its file again, lookAgain
+// on, when there's no usable token there at first, as the router takes two
+// looks to find a file without one: the token Claude Code starts on is its
+// own for the whole session.
+func (r Route) lookTwice(id string) (tokens.Token, error) {
+	token, err := r.Token(id)
+	if err == nil {
+		return token, nil
+	}
+	logger.Debug("token file holds no usable token; looking again", "account", id, "error", err)
+	r.Pause(lookAgain)
+	return r.Token(id)
 }
 
 // usable lists the ids of the accounts with a usable token, in the config's
@@ -321,7 +353,7 @@ func (r Route) usable() []string {
 // primary is the primary account, when its token is usable.
 func (r Route) primary() (choice, bool) {
 	a := r.Config.Accounts.Primary()
-	token, err := r.Token(a.ID)
+	token, err := r.lookTwice(a.ID)
 	if err != nil {
 		return choice{}, false
 	}

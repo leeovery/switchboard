@@ -493,6 +493,20 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{`duplicate account id "work"`},
 		},
 		{
+			name:   "ids that differ only in case, which would share a token file",
+			config: work + accountTOML("Work"),
+			want:   []string{`account ids "work" and "Work" differ only in case, so they'd share a token file, as macOS ignores case in file names`},
+		},
+		{
+			name:   "ids that differ only in case, once for each however often it repeats",
+			config: work + accountTOML("Work") + accountTOML("WORK") + accountTOML("Work"),
+			want: []string{
+				`account ids "work" and "Work" differ only in case, so they'd share a token file, as macOS ignores case in file names`,
+				`account ids "work" and "WORK" differ only in case, so they'd share a token file, as macOS ignores case in file names`,
+				`duplicate account id "Work"`,
+			},
+		},
+		{
 			name:   "an id that looks like a token, named by its place",
 			config: work + accountTOML(tokenShaped),
 			want:   []string{"account #2: id looks like a token, which an id mustn't, as it shows wherever the account does"},

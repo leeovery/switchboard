@@ -34,6 +34,7 @@ func main() {
 		Hidden:        cli.HiddenInput,
 		GOOS:          runtime.GOOS,
 		UID:           os.Getuid(),
+		PID:           os.Getpid(),
 	})
 	root.SetArgs(cli.Args(os.Args))
 	os.Exit(cli.Execute(root))

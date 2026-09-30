@@ -94,6 +94,7 @@ func TestLogsArguments(t *testing.T) {
 		wantErr string
 	}{
 		{name: "an unknown log", args: []string{"logs", "proxy"}, wantErr: `unknown log "proxy": give router or cli`},
+		{name: "a token given as the log, never quoted", args: []string{"logs", tokenShaped}, wantErr: `unknown log "[redacted]": give router or cli`},
 		{name: "two logs", args: []string{"logs", "router", "cli"}, wantErr: "give one log, router or cli, not 2"},
 		{name: "fewer than no lines", args: []string{"logs", "-n", "-1"}, wantErr: "invalid -n -1: give a number of lines, 0 or more"},
 	}

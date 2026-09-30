@@ -135,13 +135,18 @@ func parse(data []byte) (Token, error) {
 
 // Write replaces the account's token file with one holding token, which only
 // the user can read or write, having made the tokens directory, or made it
-// theirs alone. The file is written whole or not at all, and synced, as a
-// token lost to a crash takes a new setup token to replace.
+// theirs alone: through a link, where it leads, rather than in its place. The
+// file is written whole or not at all, and synced, as a token lost to a crash
+// takes a new setup token to replace.
 func (s Store) Write(id string, token Token) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
 	}
-	if err := atomicfile.Write(s.Path(id), []byte(token.Reveal()+"\n"), 0o600); err != nil {
+	target, err := atomicfile.Target(s.Path(id))
+	if err != nil {
+		return fmt.Errorf("write the token file: %w", err)
+	}
+	if err := atomicfile.Write(target, []byte(token.Reveal()+"\n"), 0o600); err != nil {
 		return fmt.Errorf("write the token file: %w", err)
 	}
 	return nil
@@ -187,16 +192,43 @@ func (s Store) Tighten() (was fs.FileMode, tightened bool, err error) {
 	return was, true, nil
 }
 
-// Has reports whether the account has a token file, usable or not.
-func (s Store) Has(id string) bool {
-	_, err := os.Lstat(s.Path(id))
-	return err == nil
+// Removed is what removing an account's token file removed.
+type Removed struct {
+	// File is set when there was a token file, usable or not.
+	File bool
+	// LinkedTo is where the token file led, when it was a link: "" when it
+	// wasn't.
+	LinkedTo string
 }
 
-// Remove deletes the account's token file, if it has one.
-func (s Store) Remove(id string) error {
-	if err := os.Remove(s.Path(id)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("remove the token file: %w", err)
+// Remove deletes the account's token file, if it has one, and says what it
+// removed. A link in its place goes, but not the file it leads to, which is
+// kept elsewhere, as by a dotfiles step, and isn't switchboard's to delete.
+func (s Store) Remove(id string) (Removed, error) {
+	path := s.Path(id)
+	info, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return Removed{}, nil
+	case err != nil:
+		return Removed{}, fmt.Errorf("remove the token file: %w", err)
 	}
-	return nil
+	removed := Removed{File: true}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		removed.LinkedTo = linkedTo(path)
+	}
+	if err := os.Remove(path); err != nil {
+		return Removed{}, fmt.Errorf("remove the token file: %w", err)
+	}
+	return removed, nil
+}
+
+// linkedTo is where the link at path leads, as atomicfile.Target finds it,
+// else as the link itself says, as of a loop of links.
+func linkedTo(path string) string {
+	if target, err := atomicfile.Target(path); err == nil {
+		return target
+	}
+	target, _ := os.Readlink(path)
+	return target
 }

@@ -1,6 +1,7 @@
 package tokens_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -172,20 +173,89 @@ func TestWriteLeavesNothingBehindWhenItFails(t *testing.T) {
 	}
 }
 
-func TestRemove(t *testing.T) {
-	store := tokens.NewStore(t.TempDir(), os.Getuid())
-	if err := store.Write("work", parse(t, workToken)); err != nil {
-		t.Fatal(err)
+func TestWriteThroughALink(t *testing.T) {
+	tests := []struct {
+		name string
+		// before is what the file the link leads to holds, when it's there.
+		before *string
+	}{
+		{name: "to a file holding another token", before: new("test-token-stale\n")},
+		{name: "to a file that isn't there yet"},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			// The token file, a link to a file kept elsewhere, as by a dotfiles
+			// step.
+			target := filepath.Join(t.TempDir(), "secrets", "work")
+			mkdirPrivate(t, filepath.Dir(target))
+			if tt.before != nil {
+				writeFile(t, target, *tt.before, 0o600)
+			}
+			mkdirPrivate(t, filepath.Dir(store.Path("work")))
+			if err := os.Symlink(target, store.Path("work")); err != nil {
+				t.Fatal(err)
+			}
 
-	if err := store.Remove("work"); err != nil {
-		t.Fatalf("Remove() error = %v", err)
+			if err := store.Write("work", parse(t, workToken)); err != nil {
+				t.Fatalf("Write() error = %v", err)
+			}
+			if _, err := os.Readlink(store.Path("work")); err != nil {
+				t.Errorf("the token file isn't a link still: %v", err)
+			}
+			checkMode(t, target, 0o600)
+			if data, err := os.ReadFile(target); err != nil || string(data) != workToken+"\n" {
+				t.Errorf("where the link leads holds %q (%v), want the token and a newline", data, err)
+			}
+			for _, dir := range []string{filepath.Dir(target), filepath.Dir(store.Path("work"))} {
+				if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
+					t.Errorf("%s holds %v (%v), want the one file alone", dir, entries, err)
+				}
+			}
+		})
 	}
-	if _, err := store.Read("work"); !errors.Is(err, tokens.ErrMissing) {
-		t.Errorf("once removed, Read() error = %v, want %v", err, tokens.ErrMissing)
+}
+
+func TestRemove(t *testing.T) {
+	tests := []struct {
+		name string
+		// put puts what's at the token file's path, when it's given.
+		put func(t *testing.T, path string)
+		// wantFile is whether there's a token file to remove.
+		wantFile bool
+	}{
+		{name: "no token file"},
+		{name: "a token file", put: tokenFile(0o600), wantFile: true},
+		{name: "a token file it can't use", put: tokenFile(0o644), wantFile: true},
+		{name: "a link to one, the link alone", put: linkTo(0o600), wantFile: true},
+		{name: "a link leading nowhere", put: linkToNothing, wantFile: true},
 	}
-	if err := store.Remove("work"); err != nil {
-		t.Errorf("Remove() of a token file that's gone: %v, want nothing to do", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := tokens.NewStore(t.TempDir(), os.Getuid())
+			path := store.Path("work")
+			mkdirPrivate(t, filepath.Dir(path))
+			if tt.put != nil {
+				tt.put(t, path)
+			}
+			// Where the token file leads, and what it holds there, when it's a
+			// link.
+			target, _ := os.Readlink(path)
+			held, heldErr := os.ReadFile(target)
+
+			removed, err := store.Remove("work")
+			if want := (tokens.Removed{File: tt.wantFile, LinkedTo: target}); err != nil || removed != want {
+				t.Errorf("Remove() = %+v, %v; want %+v", removed, err, want)
+			}
+			if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("once removed, the token file: %v, want it gone", err)
+			}
+			if heldErr == nil {
+				if data, err := os.ReadFile(target); err != nil || !bytes.Equal(data, held) {
+					t.Errorf("where the link led holds %q (%v), want it as it was, %q", data, err, held)
+				}
+			}
+		})
 	}
 }
 
@@ -194,36 +264,9 @@ func TestRemoveFails(t *testing.T) {
 	// A directory, with something in it, where the token file goes.
 	writeFile(t, filepath.Join(store.Path("work"), "kept"), "kept", 0o600)
 
-	err := store.Remove("work")
-	if err == nil || !strings.HasPrefix(err.Error(), "remove the token file: ") {
-		t.Errorf("Remove() error = %v, want it to fail removing the token file", err)
-	}
-}
-
-func TestHas(t *testing.T) {
-	tests := []struct {
-		name string
-		// put puts what's at the token file's path, when it's given.
-		put  func(t *testing.T, path string)
-		want bool
-	}{
-		{name: "no token file"},
-		{name: "a token file", put: func(t *testing.T, path string) { writeFile(t, path, workToken, 0o600) }, want: true},
-		{name: "a token file it can't use", put: func(t *testing.T, path string) { writeFile(t, path, workToken, 0o644) }, want: true},
-		{name: "a link to one", put: linkTo(0o600), want: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			store := tokens.NewStore(t.TempDir(), os.Getuid())
-			if tt.put != nil {
-				mkdirPrivate(t, filepath.Dir(store.Path("work")))
-				tt.put(t, store.Path("work"))
-			}
-
-			if got := store.Has("work"); got != tt.want {
-				t.Errorf("Has() = %v, want %v", got, tt.want)
-			}
-		})
+	removed, err := store.Remove("work")
+	if err == nil || !strings.HasPrefix(err.Error(), "remove the token file: ") || removed != (tokens.Removed{}) {
+		t.Errorf("Remove() = %+v, %v; want it to fail removing the token file", removed, err)
 	}
 }
 
@@ -327,6 +370,22 @@ func linkTo(mode fs.FileMode) func(t *testing.T, path string) {
 		if err := os.Symlink(target, path); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// tokenFile puts a token file at path, holding the token, with mode.
+func tokenFile(mode fs.FileMode) func(t *testing.T, path string) {
+	return func(t *testing.T, path string) {
+		t.Helper()
+		writeFile(t, path, workToken, mode)
+	}
+}
+
+// linkToNothing puts a link at path leading to a file that isn't there.
+func linkToNothing(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Symlink(filepath.Join(t.TempDir(), "gone"), path); err != nil {
+		t.Fatal(err)
 	}
 }
 

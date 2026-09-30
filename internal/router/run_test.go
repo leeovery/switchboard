@@ -98,7 +98,7 @@ func TestARouterStartsWithoutAUsableTokenAndTakesOneUpAsItComes(t *testing.T) {
 	files(&cfg)
 	cfg.WatchEvery = watchEvery
 	for _, id := range []string{"work", "side"} {
-		if err := store.Remove(id); err != nil {
+		if _, err := store.Remove(id); err != nil {
 			t.Fatal(err)
 		}
 	}

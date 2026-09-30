@@ -1,5 +1,6 @@
 // Package claudetest makes stand-ins, for tests, of what switchboard finds
-// claude among: Claude Code, and switchboard's own binary and claude link.
+// claude among: Claude Code, switchboard's own binary and claude link, and
+// other builds of it.
 package claudetest
 
 import (
@@ -14,6 +15,27 @@ func Program(t testing.TB, path string) string {
 	t.Helper()
 	makeDir(t, path)
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// Build copies the test's own program, which Go built, to path, making its
+// directory, and returns path: another build of the program os.Executable
+// gives, as the Go build info each holds says, just as another build of
+// switchboard is of switchboard. It's never run.
+func Build(t testing.TB, path string) string {
+	t.Helper()
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := os.ReadFile(self)
+	if err != nil {
+		t.Fatal(err)
+	}
+	makeDir(t, path)
+	if err := os.WriteFile(path, program, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	return path

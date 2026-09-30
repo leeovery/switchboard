@@ -130,15 +130,34 @@ func checkAccounts(accounts []fileAccount) error {
 	}
 	var errs []error
 	uses := make(map[string]int, len(accounts))
+	// firsts is the first id named in each case, by the id in lower case.
+	firsts := make(map[string]string, len(accounts))
 	for i, a := range accounts {
 		errs = append(errs, a.check(i))
 		uses[a.ID]++
-		if a.named() && uses[a.ID] == 2 {
+		if !a.named() || uses[a.ID] > 2 {
+			continue
+		}
+		folded := strings.ToLower(a.ID)
+		first, seen := firsts[folded]
+		switch {
+		case uses[a.ID] == 2:
 			errs = append(errs, fmt.Errorf("duplicate account id %q", a.ID))
+		case seen:
+			errs = append(errs, caseClash(first, a.ID))
+		default:
+			firsts[folded] = a.ID
 		}
 	}
 	errs = append(errs, checkPrimaries(accounts))
 	return errors.Join(errs...)
+}
+
+// caseClash is the error of an account id, id, that differs from another's,
+// first, only in case: macOS ignores case in file names, so the two would
+// share a token file.
+func caseClash(first, id string) error {
+	return fmt.Errorf("account ids %q and %q differ only in case, so they'd share a token file, as macOS ignores case in file names", first, id)
 }
 
 // check reports what's wrong with the account at index i of the file.
