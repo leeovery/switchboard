@@ -71,16 +71,20 @@ func (p *probes) prime(as accounts, due func(id string, now time.Time) bool) []p
 
 // launch probes each of the accounts that due says wants it, unless a probe
 // of it is under way already, noting how each goes with told, and returns
-// every probe of them under way.
+// the probes of those accounts under way: one under way of an account that
+// doesn't want it isn't waited for.
 func (p *probes) launch(as accounts, due func(id string, now time.Time) bool, told report) []probing {
 	now := p.now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var underway []probing
 	for _, a := range as {
+		if !due(a.ID, now) {
+			continue
+		}
 		done, running := p.running[a.ID]
 		if !running {
-			if p.stopped || !due(a.ID, now) {
+			if p.stopped {
 				continue
 			}
 			done = make(chan struct{})

@@ -177,6 +177,29 @@ func TestChoicesMadeTogetherShareTheirProbes(t *testing.T) {
 	})
 }
 
+func TestAChoiceAwaitsOnlyTheProbesOfTheAccountsItWouldProbe(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		prober := &stubProber{gate: make(chan struct{})}
+		r := newTestRouter(t, at(start), prober)
+		defer r.probes.stop()
+		// Both accounts were read just now, and a prime of work is under
+		// way, which never ends.
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+		r.probes.prime(r.accounts.only([]string{"work"}), func(string, time.Time) bool { return true })
+		synctest.Wait()
+
+		began := time.Now()
+		got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+		if waited := time.Since(began); waited != 0 {
+			t.Errorf("Choose() waited %v, want no wait: neither account wants probing", waited)
+		}
+		if want := (Choice{Account: "side", Reason: "new", New: true}); got != want {
+			t.Errorf("Choose() = %+v, want %+v", got, want)
+		}
+	})
+}
+
 func TestAChoiceWaitsForProbesEightSecondsAtMost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
