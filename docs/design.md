@@ -1290,6 +1290,12 @@ What's built but hasn't been seen against the real thing:
   kill` sends.
 - The 5-hour window's mechanics, on the first primes: the reset a prime reads should be five hours
   on.
+- That a 5-hour window starts only with the first request after the last one lapsed, which priming
+  rests on. On 30 September 2026, two accounts with no routed traffic overnight had resets stepping
+  exactly five hours apart, at 00:20, 05:20 and 10:20, and a prime at 07:10 landed in the window
+  resetting at 10:20: sessions not routed may have kept those windows going, or the windows run
+  back to back whatever the use, which would leave priming nothing to do. After a quiet night with
+  every session routed, each primed account's reset should sit five hours after its prime.
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
 - `claude doctor` with the link in place.
