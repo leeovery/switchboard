@@ -72,11 +72,13 @@ func newServiceRestartCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the router, which reads the config and the tokens afresh",
-		Long: `Restart the router, which reads the config and the tokens afresh. It stops as
-it does at a signal, giving the requests in flight up to 30 seconds to finish,
-and launchd starts it again; restart waits for the new one to answer. With no
-router answering, there's nothing to finish, and launchd starts the service
-afresh at once.`,
+		Long: `Restart the router, which reads the config and the tokens afresh. It gives the
+requests in flight up to 30 seconds to finish, then replaces itself with its
+binary, in place, handing its listeners over, so no request is refused;
+restart waits for the new one to answer. A router from before routers
+restarted when asked stops as it does at a signal, and launchd starts it
+again. With no router answering, there's nothing to finish, and launchd
+starts the service afresh at once.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.restartService(cmd.Context(), cmd.OutOrStdout())
@@ -164,16 +166,15 @@ func (a *app) uninstallService(ctx context.Context, out io.Writer) error {
 	return err
 }
 
-// restartService has launchd restart the router, saying so while a router
-// finishes its requests in flight first, and says how the one launchd starts
-// answers.
+// restartService restarts the router, saying how while a router finishes its
+// requests in flight first, and says how the one it becomes answers.
 func (a *app) restartService(ctx context.Context, out io.Writer) error {
 	svc, err := a.service()
 	if err != nil {
 		return err
 	}
-	h, err := svc.Restart(ctx, func() {
-		_, _ = fmt.Fprintln(out, "the router is finishing its requests in flight, then launchd starts it again")
+	h, err := svc.Restart(ctx, func(how service.Restarting) {
+		_, _ = fmt.Fprintln(out, "the router is finishing its requests in flight, then "+how.String())
 	})
 	if errors.Is(err, service.ErrNotLoaded) {
 		return fmt.Errorf("%w: run switchboard service install", err)

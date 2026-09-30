@@ -88,8 +88,18 @@ func TestTheServiceStep(t *testing.T) {
 			wantRan: restarted,
 		},
 		{
-			name:    "installed, its router answering only once setup restarts it: restarted as it finishes its requests",
+			name:    "installed, its router answering only once setup restarts it: restarted in place as it finishes its requests",
 			lay:     func(_ *testing.T, w *world) { w.launchd.unanswered = 1 },
+			answers: []string{""},
+			want: "The router is finishing its requests in flight, then it restarts in place.\n" +
+				"Restarted the router, as it didn't answer.\nThe router is up: healthy, pid 4242.\n",
+			wantRan: []string{"print", "print"},
+		},
+		{
+			name: "installed, a router from before routers restarted when asked answering only once setup restarts it: restarted by launchd",
+			lay: func(_ *testing.T, w *world) {
+				w.launchd.unanswered, w.launchd.old = 1, true
+			},
 			answers: []string{""},
 			want: "The router is finishing its requests in flight, then launchd starts it again.\n" +
 				"Restarted the router, as it didn't answer.\nThe router is up: healthy, pid 4243.\n",

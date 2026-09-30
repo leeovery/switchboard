@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
@@ -405,12 +406,17 @@ func (u *user) typeUnseen() ([]byte, error) {
 // 113 while it isn't loaded, as launchctl does. Each router started answers
 // with a pid of its own, from 4242 on, unless dead is set, when none starts;
 // the next unanswered health checks go unanswered all the same, as while a
-// router starts.
+// router starts. Asked to restart, the router restarts in place, keeping its
+// pid, unless old is set, when it can't be asked, as one from before routers
+// restarted when asked can't.
 type fakeLaunchd struct {
 	loaded bool
 	dead   bool
-	// pid is the running router's, 0 when none is.
+	old    bool
+	// pid is the running router's, 0 when none is, and restarts how many
+	// times it has restarted in place.
 	pid        int
+	restarts   int
 	started    int
 	unanswered int
 	calls      [][]string
@@ -455,7 +461,16 @@ func (f *fakeLaunchd) Health(context.Context) (router.Health, error) {
 	if f.pid == 0 || unanswered {
 		return router.Health{}, fmt.Errorf("%w: dial unix control.sock: connect: no such file or directory", router.ErrNotRunning)
 	}
-	return router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747"}, nil
+	startedAt := time.Date(2026, 9, 28, 13, 0, f.restarts, 0, time.UTC)
+	return router.Health{OK: true, PID: f.pid, Listen: "127.0.0.1:4747", StartedAt: startedAt}, nil
+}
+
+func (f *fakeLaunchd) Restart(context.Context) error {
+	if f.old {
+		return fmt.Errorf("%w: the router answered POST /restart with 404 Not Found", router.ErrNoRestart)
+	}
+	f.restarts++
+	return nil
 }
 
 // exitStatus is a program's exit with a status other than 0, as
