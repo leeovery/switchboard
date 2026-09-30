@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 // defaultLines is how many lines logs shows unless told otherwise.
@@ -65,7 +66,7 @@ func (o *logsOptions) parseArgs(_ *cobra.Command, args []string) error {
 	case len(args) > 1:
 		return fmt.Errorf("give one log, router or cli, not %d", len(args))
 	case len(args) == 1 && !isRole(args[0]):
-		return fmt.Errorf("unknown log %q: give router or cli", args[0])
+		return fmt.Errorf("unknown log %q: give router or cli", redact.Text(args[0]))
 	}
 	return nil
 }

@@ -557,7 +557,7 @@ rather than failing, reads `switchboard: …`.
 
 No command quotes a token given where an id goes: `accounts token`, `accounts remove`, `pin`, to an
 account or with `--session`, `status --session` and `run --account` show an id shaped like a token
-as `[redacted]`, as `accounts add` does as it refuses one.
+as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's name.
 
 ## Dashboard
 
