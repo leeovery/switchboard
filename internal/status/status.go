@@ -48,7 +48,9 @@ type Document struct {
 	// in one probed as asked.
 	Fallback Fallback `json:"fallback,omitzero"`
 	// Best is the account to use next: of those with room in the windows every
-	// model shares, the one whose quota most needs using. Empty when there's none.
+	// model shares, the one whose quota most needs using, or, from the router,
+	// of those the global pin names while one has room. Empty when there's
+	// none.
 	Best string `json:"best,omitempty"`
 	// Primary is the id of the primary account, whose token Claude Code
 	// holds: empty only when no account is marked the primary.
@@ -279,7 +281,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	doc := Document{
 		GeneratedAt: now.UTC(),
 		Source:      SourceProbe,
-		Best:        Best(c.Policy, statuses, now),
+		Best:        Best(c.Policy, statuses, nil, now),
 		Primary:     PrimaryOf(statuses),
 		Accounts:    statuses,
 	}
@@ -339,9 +341,47 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	}
 }
 
-// Best is the account of those given that policy picks for a request of any
+// Best is the account of those given that a new session goes to, as the
+// router chooses one for a request of any model: of those pinned, while one
+// can take the request, as bestPinned says; else of them all, the one policy
+// picks, leaving each one's reserve unused. It's empty when none can take
+// one.
+func Best(policy score.Policy, accounts []Account, pinned []string, now time.Time) string {
+	if id, ok := bestPinned(policy, accounts, pinned, now); ok {
+		return id
+	}
+	return pick(policy, accounts, now)
+}
+
+// bestPinned is the account of those given, pinned and with a usable token,
+// that a new session goes to, as the router chooses one: the one policy
+// picks, spending each one's reserve, as a pin spends it, else the first
+// with room, as a pin sends requests to an account whose quota can't be
+// scored, or that nothing has been read of. It reports false when none of
+// them has room.
+func bestPinned(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, bool) {
+	var spending []Account
+	for _, a := range accounts {
+		if a.TokenSet && slices.Contains(pinned, a.ID) {
+			a.Reserve = 0
+			spending = append(spending, a)
+		}
+	}
+	if id := pick(policy, spending, now); id != "" {
+		return id, true
+	}
+	i := slices.IndexFunc(spending, func(a Account) bool {
+		return len(a.Windows) == 0 || score.Available(a.Windows, 0, policy.IsShared, now)
+	})
+	if i < 0 {
+		return "", false
+	}
+	return spending[i].ID, true
+}
+
+// pick is the account of those given that policy picks for a request of any
 // model, leaving each one's reserve unused, or empty when none can take one.
-func Best(policy score.Policy, accounts []Account, now time.Time) string {
+func pick(policy score.Policy, accounts []Account, now time.Time) string {
 	candidates := make([]score.Candidate, len(accounts))
 	for i, account := range accounts {
 		candidates[i] = score.Candidate{ID: account.ID, Windows: account.Windows, Reserve: account.Reserve}

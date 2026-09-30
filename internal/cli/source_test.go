@@ -50,7 +50,7 @@ func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 sessions
   0b5c6f2e  haiku on work  ·  seen just now
 
-best next: work · Work
+best next: side · Side
 from the router: healthy  ·  1 session  ·  pinned to side · Side
 `}
 	if got != want {

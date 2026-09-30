@@ -2,6 +2,7 @@ package router
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
 	"slices"
@@ -489,6 +490,33 @@ func TestTheBestIsNeverAnAccountBarredFromEveryRequest(t *testing.T) {
 				t.Errorf("Best = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTheBestIsWhereANewSessionGoes(t *testing.T) {
+	r := newTestRouter(t, at(start), &stubProber{})
+	// Work's quota needs using first.
+	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+	steps := []struct {
+		name string
+		// change changes what the choice is made on.
+		change func()
+		want   string
+	}{
+		{name: "unpinned", change: func() {}, want: "work"},
+		{name: "pinned to side", change: func() { r.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false) }, want: "side"},
+		{name: "pinned to side, whose token is refused", change: func() { r.state.refuse("side", http.StatusUnauthorized, someRequest) }, want: "work"},
+	}
+	for i, step := range steps {
+		step.change()
+		if got := r.Status().Best; got != step.want {
+			t.Errorf("%s, Best = %q, want %q", step.name, got, step.want)
+		}
+		session := fmt.Sprintf("new-%d", i)
+		if got := choose(t.Context(), r, Request{ID: session, Session: session, Model: opus, Client: "work"}); got.Account != step.want {
+			t.Errorf("%s, a new session goes to %s, want %s, the best", step.name, got.Account, step.want)
+		}
 	}
 }
 

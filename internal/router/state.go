@@ -701,15 +701,16 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 }
 
 // document reports every account's usage as the router knows it, in the
-// order configured, with the best account to use next, never one with no
-// room for any request, whatever its windows read, and the primary.
-func (s *state) document() status.Document {
+// order configured, with the best account to use next, of the accounts
+// pinned while one has room, as a new session goes, never one with no room
+// for any request, whatever its windows read, and the primary.
+func (s *state) document(pinned ...string) status.Document {
 	now := s.now()
 	accounts, open := s.statuses(now)
 	return status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
-		Best:        status.Best(s.policy, open, now),
+		Best:        status.Best(s.policy, open, pinned, now),
 		Primary:     status.PrimaryOf(accounts),
 		Accounts:    accounts,
 	}

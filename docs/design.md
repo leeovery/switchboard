@@ -255,8 +255,9 @@ perishability and the 5-hour tiebreak as Choosing an account scores them, each o
 spent. When none of them can serve the request, the pin yields: the router chooses among every
 account as though nothing were pinned, the reserves of the accounts it doesn't name held as ever.
 So a pin sets an order to spend the accounts in: those it names first, the best of them first,
-then the rest. `--move` moves a running session on an account the pin doesn't name to the best of
-those it does; one on an account it names stays.
+then the rest. The best next that `status` and the dashboard give is where a new session goes, the
+pin's accounts first. `--move` moves a running session on an account the pin doesn't name to the
+best of those it does; one on an account it names stays.
 
 A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
 header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
@@ -1104,7 +1105,7 @@ probing.
 | `generated_at` | When the document was built |
 | `source` | `"router"`, or `"probe"` when built by probing every account |
 | `fallback` | Why a probed document isn't the router's, when the router was asked first: `{router: "not running"}`, or `{router: "unhealthy", reason}`. Left out otherwise, and when probing was asked for |
-| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. Left out when none qualifies, as when none has room, or none has been read yet |
+| `best` | The id of the account to use next: of those with room in every window all models share, the one whose quota most needs using, judged by a week whose reset is known, and between near equals by the 5-hour window's reset, as Choosing an account says. From the router, with a global pin, it's where a new session goes, as step 4 of the order Choosing an account gives says: the best of the accounts the pin names while one has room, their reserves spent, or the first of them with room when none can be scored; else the best of every account. Left out when none qualifies, as when none has room, or none has been read yet |
 | `primary` | The primary account's id |
 | `prime` | The priming schedule, when the config sets a day and an account has a usable token: `{day, window, slots}`, `window` the key of the window a prime starts, such as `5h`, and `slots` giving each account with a usable token its daily prime, `{account, at, next}`, `at` a local `HH:MM`, in the order they fall. `next` is *router*: when it next primes the account, as its windows stand, left out when they can't say, as for a window read without a reset, and while the account's token is refused or it can take no request (see Priming). Left out otherwise |
 | `pin` | *router* The global pin, `{accounts, account, since, move}`: `accounts` the ids of the accounts it names, in the config's order, and `account` the first of them, as a pin named its one account before pins named several; left out when there's none |
