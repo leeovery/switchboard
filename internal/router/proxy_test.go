@@ -116,20 +116,34 @@ func TestPins(t *testing.T) {
 }
 
 func TestAnIgnoredPinIsWarnedOfOnceForEachSession(t *testing.T) {
-	log := logstest.Capture(t)
-	up := newUpstream(t, answerOK)
-	proxy := serveProxy(t, newRouter(t, up.URL))
-
-	for _, session := range []string{"one", "one", "one", "two"} {
-		header := with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", "personal")
-		readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", header, strings.NewReader(messages)))
+	tests := []struct {
+		pin, why string
+	}{
+		{pin: "personal", why: "pin ignored: account has no usable token"},
+		{pin: "gone", why: "pin ignored: no such account"},
 	}
-	waitUntil(t, "every request is routed", func() bool { return strings.Count(log.String(), "msg=routed") == 4 })
-	for _, session := range []string{"one", "two"} {
-		warned := strings.Count(log.String(), `level=WARN msg="pin ignored: account has no usable token" component=router`)
-		if !log.Has("level=WARN", `msg="pin ignored: account has no usable token"`, "pin=personal", "session="+session) || warned != 2 {
-			t.Errorf("log reads\n%s\nwant the pin ignored warned of once for session %s, and once for the other", log, session)
-		}
+	for _, tt := range tests {
+		t.Run(tt.pin, func(t *testing.T) {
+			log := logstest.Capture(t)
+			up := newUpstream(t, answerOK)
+			proxy := serveProxy(t, newRouter(t, up.URL))
+
+			for _, session := range []string{"one", "one", "one", "two"} {
+				header := with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", tt.pin)
+				readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", header, strings.NewReader(messages)))
+			}
+			waitUntil(t, "every request is routed", func() bool { return strings.Count(log.String(), "msg=routed") == 4 })
+			for level, want := range map[string]int{"WARN": 2, "DEBUG": 2} {
+				if got := strings.Count(log.String(), "level="+level+` msg="`+tt.why+`" component=router`); got != want {
+					t.Errorf("log reads\n%s\nwant the pin ignored noted at %s %d times, not %d: warned of once for each session, at debug after", log, level, want, got)
+				}
+			}
+			for _, session := range []string{"one", "two"} {
+				if !log.Has("level=WARN", `msg="`+tt.why+`"`, "pin="+tt.pin, "session="+session) {
+					t.Errorf("log reads\n%s\nwant the pin ignored warned of for session %s", log, session)
+				}
+			}
+		})
 	}
 }
 

@@ -1017,7 +1017,9 @@ fails as it is; one that parses has every problem reported at once:
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
   that session. It is stripped before the request goes upstream. One naming an account that isn't
   configured, or has no token, is ignored, and the log warns of it once for each session and
-  account, and notes it at debug after, until the account can be sent on again.
+  account, and notes it at debug after, until the account can be sent on again. The router keeps
+  a thousand sessions of an account, and a thousand accounts, told of at most, forgetting them past
+  that, and the log warns of each once more.
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
   header is never remembered, and but for a launch pin it carries, is decided afresh every time,
   as a new session's is.
