@@ -19,3 +19,5 @@ func listening(int) error {
 }
 
 func closeFD(int) {}
+
+func keepFromExec(int) {}

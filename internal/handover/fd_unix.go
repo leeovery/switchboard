@@ -44,3 +44,8 @@ func listening(fd int) error {
 func closeFD(fd int) {
 	_ = syscall.Close(fd)
 }
+
+// keepFromExec marks the descriptor fd to close on exec, leaving it open.
+func keepFromExec(fd int) {
+	syscall.CloseOnExec(fd)
+}

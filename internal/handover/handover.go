@@ -125,7 +125,8 @@ func Named(env []string) string {
 // listener removing its path as it closes, as one listened on afresh does.
 // It fails, taking up none, for a value not in Variable's form; and says of
 // each descriptor it passes over why, one that isn't a listening socket,
-// leaving it alone, as it may be anything.
+// which it leaves open, as it may be anything, but marks to close on exec,
+// so no program this one starts inherits it.
 func Take(value string) (map[string]net.Listener, error) {
 	named, err := parse(value)
 	if err != nil {
@@ -148,6 +149,7 @@ func Take(value string) (map[string]net.Listener, error) {
 // one.
 func take(fd int) (net.Listener, error) {
 	if err := listening(fd); err != nil {
+		keepFromExec(fd)
 		return nil, err
 	}
 	f := os.NewFile(uintptr(fd), "listener")

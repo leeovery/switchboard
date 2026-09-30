@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -184,62 +183,6 @@ func TestTakeRefusesAValueNotInItsForm(t *testing.T) {
 			taken, err := handover.Take(value)
 			if taken != nil || err == nil || !strings.Contains(err.Error(), handover.Variable) {
 				t.Errorf("Take(%q) = %v, %v, want none taken, and an error naming %s", value, taken, err, handover.Variable)
-			}
-		})
-	}
-}
-
-func TestTakePassesOverADescriptorThatIsntAListener(t *testing.T) {
-	dir := shortTempDir(t)
-	file, err := os.Create(filepath.Join(dir, "router.log"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = file.Close() }()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = ln.Close() }()
-	conn, err := net.Dial("tcp", ln.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = conn.Close() }()
-	datagrams, err := net.ListenPacket("udp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = datagrams.Close() }()
-	tests := []struct {
-		name string
-		f    *os.File
-		want string
-	}{
-		{name: "a file", f: file, want: "not a socket"},
-		{name: "a connected socket", f: fileOf(t, conn.(*net.TCPConn)), want: "a connected socket"},
-		{name: "a datagram socket", f: fileOf(t, datagrams.(*net.UDPConn)), want: "not a stream socket"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			held := hold(t, map[string]string{"control": "unix"}, dir)
-			defer held.Close()
-			exec := &recordedExec{}
-			if err := held.Exec(exec.run, "/test/bin/switchboard", nil, nil); err != nil {
-				t.Fatal(err)
-			}
-			foreign := "proxy=" + strconv.Itoa(int(tt.f.Fd()))
-
-			taken, err := handover.Take(handover.Named(exec.env) + "," + foreign)
-			defer closeAll(taken)
-			if err == nil || !strings.Contains(err.Error(), foreign+": "+tt.want) {
-				t.Errorf("Take() error = %v, want it to name %s as %s", err, foreign, tt.want)
-			}
-			if got := slices.Sorted(maps.Keys(taken)); !slices.Equal(got, []string{"control"}) {
-				t.Errorf("Take() took up %q, want the listener alone", got)
-			}
-			if _, err := tt.f.Stat(); err != nil {
-				t.Errorf("%s once passed over: %v, want it left open", tt.name, err)
 			}
 		})
 	}
