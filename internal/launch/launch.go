@@ -124,7 +124,8 @@ func (l Launcher) Direct(args []string) error {
 // Local starts Claude Code with args, which run one of its local
 // subcommands, as claude.IsLocal says, in this process's place as if
 // switchboard weren't there: switchboard has no part in them. Its environment
-// goes as it is, a pin inherited from a session included, and Stderr hears
+// goes as it is, a pin inherited from a session included, but for the mark
+// every claude switchboard starts carries (see startedEnv), and Stderr hears
 // nothing. It returns only when Claude Code couldn't start.
 func (l Launcher) Local(args []string) error {
 	path, err := l.find()
@@ -143,7 +144,8 @@ func (l Launcher) KeyEnv() string {
 }
 
 // StepAside starts Claude Code with args in this process's place as if
-// switchboard weren't there, its environment as it is, for when that
+// switchboard weren't there, its environment as it is but for the mark every
+// claude switchboard starts carries (see startedEnv), for when that
 // environment sets key, a variable holding a key Claude Code may use in
 // place of an account's token: its requests would go unrouted, and be billed
 // to the key. Stderr hears why. It returns only when Claude Code couldn't
@@ -159,7 +161,8 @@ func (l Launcher) StepAside(args []string, key string) error {
 }
 
 // Unaided starts Claude Code with args in this process's place as if
-// switchboard weren't there, its environment as it is, for when switchboard
+// switchboard weren't there, its environment as it is but for the mark every
+// claude switchboard starts carries (see startedEnv), for when switchboard
 // can't take part: switchboard mustn't stand between the user and claude.
 // Stderr hears what switchboard couldn't do, and why, as err's first line
 // says. It returns only when Claude Code couldn't start.
