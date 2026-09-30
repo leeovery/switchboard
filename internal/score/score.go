@@ -159,8 +159,8 @@ func (p Policy) Perishability(windows []quota.Window, reserve float64, now time.
 	if !ok {
 		return 0, false
 	}
-	_, length, ok := span(w)
-	if !ok {
+	length, ok := quota.Length(w.Key)
+	if !ok || w.ResetsAt.IsZero() {
 		return 0, false
 	}
 	room := 1 - reserve

@@ -66,6 +66,7 @@ func layouts() []layout {
 		{name: "router-reserve-compact-narrow", doc: spendingReserve(), opts: dashboard.Options{Width: 100, Height: 10}},
 		{name: "router-pressure", doc: underPressure(), opts: dashboard.Options{Width: 160}},
 		{name: "router-pressure-compact", doc: underPressure(), opts: dashboard.Options{Width: 130, Height: 10}},
+		{name: "router-started-again", doc: startedAgain(), opts: dashboard.Options{Width: 110}},
 		{name: "router-lapsed", doc: lapsed(), opts: dashboard.Options{Width: 110}},
 		{name: "router-lapsed-compact", doc: lapsed(), opts: dashboard.Options{Width: 100, Height: 8}},
 		{name: "router-priming", doc: priming(), opts: dashboard.Options{Width: 110}},
@@ -651,6 +652,21 @@ func underPressure() status.Document {
 	doc.Accounts[0].Pressure = status.Pressure{Window: "5h", Rate: 0.4, Recent: true, RunsOut: now.Add(52*time.Minute + 30*time.Second).UTC(), Under: true}
 	doc.Accounts[1].Pressure = status.Pressure{Window: "5h", Rate: 0.5, Recent: true, RunsOut: now.Add(hour + 24*time.Minute).UTC(), Under: true}
 	doc.Accounts[2].Pressure = status.Pressure{Window: "5h", Rate: 0.05, Recent: true, RunsOut: now.Add(18 * hour).UTC()}
+	return doc
+}
+
+// startedAgain is the router's document of two accounts whose weeks began
+// three days ago and reset in four, each 4% used: work's was reset by hand
+// six hours ago, keeping its reset, and runs from then; side's runs from a
+// week before its reset.
+func startedAgain() status.Document {
+	doc := document("1",
+		read("1", "Work", windows(session(0.2, 3*hour), week(0.04, 4*day))),
+		read("2", "Side", windows(session(0.2, 3*hour), week(0.04, 4*day))),
+	)
+	doc.Source = status.SourceRouter
+	doc.Router = status.Health{Healthy: true, Requests: 42}
+	doc.Accounts[0].Windows[1].RestartedAt = now.Add(-6 * hour).UTC()
 	return doc
 }
 

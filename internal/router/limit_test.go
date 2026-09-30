@@ -59,6 +59,8 @@ func TestARejectionReadBelowTheUseLastReadBarsItsAccount(t *testing.T) {
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 	}
+	// Read lower with the same reset, the session counts as started again.
+	rejected.RestartedAt = r.clock.read()
 	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(work.Windows[0], rejected) {
 		t.Fatalf("work's session reads %+v, want %+v: the 429's reading", work.Windows[0], rejected)
 	}

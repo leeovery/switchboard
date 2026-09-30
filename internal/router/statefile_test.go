@@ -222,6 +222,64 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	}
 }
 
+func TestWhenAWindowStartedAgainOutlastsARestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	clock := &testClock{now: start}
+	saved := newTestFile(clock.read, testAccounts())
+	saved.load(path)
+	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
+	// A reset made by hand drops the week's use, keeping its reset.
+	clock.now = start.Add(time.Minute)
+	emptied := week
+	emptied.Utilization, emptied.Status = 0, quota.StatusAllowed
+	saved.state.record("work", []quota.Window{session, emptied}, saved.state.mark())
+	saved.save()
+
+	loaded := newTestFile(at(clock.now), testAccounts())
+	loaded.load(path)
+	want := emptied
+	want.RestartedAt = clock.now
+	if got := loaded.state.usage["work"].windows["7d"]; got != want {
+		t.Errorf("the week loaded as %+v, want %+v: started again as the reset made by hand was read", got, want)
+	}
+	if got := loaded.state.usage["work"].windows["5h"]; got != session {
+		t.Errorf("the session loaded as %+v, want %+v: it never started again", got, session)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"restarted_at": "2026-09-28T13:13:00Z"`) {
+		t.Errorf("state file holds\n%s\nwant the week's restart kept with its reading", data)
+	}
+}
+
+func TestAStateFileFromBeforeWindowsStartedAgainLoadsTheirReadingsAsRunningWhole(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	before := `{
+  "version": 1,
+  "sessions": [],
+  "readings": {
+    "work": {
+      "read_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {"key": "7d", "label": "Week", "utilization": 0.93, "resets_at": "2026-10-02T21:00:00Z", "status": "allowed_warning"}
+      ]
+    }
+  }
+}
+`
+	if err := os.WriteFile(path, []byte(before), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := newTestFile(at(start), testAccounts())
+
+	f.load(path)
+	if got := f.state.usage["work"].windows["7d"]; got != week {
+		t.Errorf("the week loaded as %+v, want %+v, running a whole week before its reset", got, week)
+	}
+}
+
 func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
 	log := logstest.Capture(t)
 	path := filepath.Join(t.TempDir(), "state.json")

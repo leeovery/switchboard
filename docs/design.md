@@ -645,6 +645,12 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   its rise over the last 30 minutes, once its readings span 10 minutes (see Choosing an account),
   so the screen shows where the router takes it to be heading. `status` projects as the dashboard
   does.
+- A window reset by hand before its reset time, as claude.ai's banked reset does, dropping its use
+  but keeping its reset (see Observed), has effectively started again: the router reads it lower
+  with the same reset, taken as current (see How it works), and notes when as the window's start.
+  Its pace marker and its projection measure from then, rather than from a whole length before its
+  reset, until its next reset, a later reset being a new window; otherwise a week reset on its
+  third day would show the marker a third of the way along, and be on pace for 0%.
 - For an exhausted account, a live countdown until it's back. A 5-hour window that has lapsed
   shows empty, as not started, until something uses it or a prime starts it, and, from the
   router, when its account is next primed: `not started · next prime Tue 04:15`.
@@ -1056,11 +1062,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   `XDG_DATA_HOME` is ignored, as the XDG spec says.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
   (the global pin, session assignments and the pins sessions were given while they ran, and each
-  account's last readings, with the model families each window has been seen to count, so a restart
-  doesn't scatter sessions or need a probe, and the hashes of every configured account's tokens,
-  with a usable token or not: see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
+  account's last readings, with the model families each window has been seen to count, and when a
+  window started again, as its reading's `restarted_at`, so a restart doesn't scatter sessions or
+  need a probe, and the hashes of every configured account's tokens, with a usable token or not:
+  see Accounts and tokens), `control.sock`, `tokens/` and `logs/`.
   `state.json` is versioned, the version changing only when a router couldn't read what another
-  wrote: an older file, without readings, loads as having none, and a pin that names its account
+  wrote: an older file, without readings, loads as having none, one whose readings lack
+  `restarted_at` as windows that run a whole length before their resets, which a router from
+  before, ignoring the field, takes them all for, and a pin that names its account
   alone, as pins did before they named several, as a pin to that one. It's rewritten whole (written
   beside it, synced, and renamed over it) a second after a change and on the way out, but once a
   minute at most while its only changes are those every request makes: its session's assignment used
@@ -1221,7 +1230,7 @@ Each account:
 | `reserve` | Its reserve; left out at 0 |
 | `token_set` | Whether its token file is present and usable |
 | `fetched_at` | When its usage was last read; left out when it never was |
-| `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. Left out when none has been read |
+| `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status, restarted_at}`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. `restarted_at` is *router*: when the window started again, as a reset made by hand that keeps its reset starts it, which its pace and projection measure from until its next reset (see Dashboard); left out otherwise, when it runs a whole length before its reset. Left out when none has been read |
 | `lapsed` | The keys of its windows that have lapsed: the 5-hour window, once its reset has passed with nothing read since, which isn't running, and reads empty, until a request starts it (see Priming). Left out when none has |
 | `at_reserve` | The keys of the windows at or past its reserve but short of their limit, that haven't reset since they were read; left out otherwise. The router's own choices pass the account over, for the requests those windows count, while there are any; a pin spends the reserve |
 | `failures` | Windows a probe expected but couldn't read: `{label, window, error}`, `label` naming what should have read it, such as `Fable`. Left out when none |
@@ -1415,7 +1424,7 @@ any of it. Times are the Mac's, UTC+1.
   with the same reset, which the router takes as current only as it came off a request sent after
   the one before was taken in (see How it works). It cleared the 5-hour window too; the probe
   started the next, off the priming schedule, its reset at 21:40, a ten-minute mark, for a probe
-  at 16:46.
+  at 16:46. Hence a window read so runs from then, for its pace and projection (see Dashboard).
 - **30 September 2026: resets on ten-minute marks.** Every 5-hour reset seen falls on one: 00:20,
   05:20, 10:10, 10:20, 20:10, 20:20, 21:40.
 - **30 September 2026, 11:15: macOS refused an upgraded binary.** After a login, `brew upgrade`

@@ -92,6 +92,62 @@ func TestProjectRunsOutAt(t *testing.T) {
 	}
 }
 
+func TestAWindowStartedAgainRunsFromThen(t *testing.T) {
+	// The week began three days ago and resets in four, 4% used.
+	startedAgain := func(ago time.Duration) quota.Window {
+		w := week(0.04, 3*24*time.Hour)
+		w.RestartedAt = now.Add(-ago)
+		return w
+	}
+	tests := []struct {
+		name        string
+		window      quota.Window
+		wantElapsed float64
+		want        score.Projection
+		wantPace    float64
+	}{
+		{
+			name:        "started again six hours ago, of the 102 it runs until its reset",
+			window:      startedAgain(6 * time.Hour),
+			wantElapsed: 6.0 / 102,
+			want:        score.Projection{Kind: score.OnPace, AtReset: 0.68},
+			wantPace:    0.04 / 6,
+		},
+		{
+			name:        "started again an hour ago, before 5% of it has passed",
+			window:      startedAgain(time.Hour),
+			wantElapsed: 1.0 / 97,
+		},
+		{
+			name:        "never started again, from a week before its reset",
+			window:      week(0.04, 3*24*time.Hour),
+			wantElapsed: 3.0 / 7,
+			want:        score.Projection{Kind: score.OnPace, AtReset: 0.04 * 7 / 3},
+			wantPace:    0.04 / 72,
+		},
+		{
+			name:        "started again before the week began, from a week before its reset",
+			window:      startedAgain(8 * 24 * time.Hour),
+			wantElapsed: 3.0 / 7,
+			want:        score.Projection{Kind: score.OnPace, AtReset: 0.04 * 7 / 3},
+			wantPace:    0.04 / 72,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, ok := score.Elapsed(tt.window, now); math.Abs(got-tt.wantElapsed) > 1e-9 || !ok {
+				t.Errorf("Elapsed() = %v, %v, want %v, true", got, ok, tt.wantElapsed)
+			}
+			if got := score.Project(tt.window, now); !sameProjection(got, tt.want) {
+				t.Errorf("Project() = %+v, want %+v", got, tt.want)
+			}
+			if got, _ := score.PaceOf(tt.window, nil, now); math.Abs(got.Rate-tt.wantPace) > 1e-9 {
+				t.Errorf("PaceOf() = %+v, want a rate of %v", got, tt.wantPace)
+			}
+		})
+	}
+}
+
 // sameProjection reports whether two projections match, their utilizations
 // to within rounding.
 func sameProjection(a, b score.Projection) bool {

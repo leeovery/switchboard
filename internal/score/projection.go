@@ -95,14 +95,19 @@ func heading(w quota.Window, rate float64, now time.Time) Projection {
 	return Projection{Kind: RunsOut, At: now.Add(inHours((1 - w.Utilization) / rate))}
 }
 
-// span returns when w began and how long it lasts, reporting false unless
-// both its length and its reset are known.
+// span returns when w began and how long it runs until it resets: from a
+// whole length before its reset, or from when it started again, where it did
+// since. It reports false unless both its length and its reset are known.
 func span(w quota.Window) (time.Time, time.Duration, bool) {
 	length, ok := quota.Length(w.Key)
 	if !ok || w.ResetsAt.IsZero() {
 		return time.Time{}, 0, false
 	}
-	return w.ResetsAt.Add(-length), length, true
+	start := w.ResetsAt.Add(-length)
+	if w.RestartedAt.After(start) && w.RestartedAt.Before(w.ResetsAt) {
+		start = w.RestartedAt
+	}
+	return start, w.ResetsAt.Sub(start), true
 }
 
 // fraction is how much of length d makes up, from 0 to 1.

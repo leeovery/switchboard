@@ -34,6 +34,11 @@ type Window struct {
 	// ResetsAt is zero when the provider didn't say.
 	ResetsAt time.Time `json:"resets_at,omitzero"`
 	Status   Status    `json:"status,omitempty"`
+	// RestartedAt is when the window started again before its reset, as a
+	// reset made by hand starts it, dropping its use but keeping its reset:
+	// it runs from then until its reset. Zero when it runs a whole length
+	// before its reset, as a window does, and a provider never says.
+	RestartedAt time.Time `json:"restarted_at,omitzero"`
 }
 
 // Failure is a window the provider expected to read but couldn't. Reporting it

@@ -645,6 +645,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) b
 			continue
 		}
 		if outcome == counted {
+			kept = startedAgain(held, kept, at)
 			u.windows[w.Key], u.taken[w.Key] = kept, taken
 			u.trail.note(held, kept, at)
 		}
@@ -716,6 +717,25 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	default:
 		return held, outweighed
 	}
+}
+
+// startedAgain returns kept, the reading a window now stands as, taken in at
+// a time, held being the one it stood as before, with when the window started
+// again, as far as that's known: at, when kept reads less than held with the
+// same reset, which only a window started again reads, as a reset made by
+// hand leaves it, dropping its use but keeping its reset; held's, while kept
+// goes on from held; and none for a new window, which runs a whole length
+// before its reset.
+func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
+	switch {
+	case kept.ResetsAt.IsZero() || !kept.ResetsAt.Equal(held.ResetsAt):
+		kept.RestartedAt = time.Time{}
+	case kept.Utilization < held.Utilization:
+		kept.RestartedAt = at
+	default:
+		kept.RestartedAt = held.RestartedAt
+	}
+	return kept
 }
 
 // document reports every account's usage as the router knows it, in the

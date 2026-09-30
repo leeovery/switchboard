@@ -32,6 +32,12 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 	nextFive := sessionAt(0.01, session.ResetsAt.Add(5*time.Hour))
 	lastFive := sessionAt(0.9, session.ResetsAt.Add(-5*time.Hour))
 	unsure, unsureLower := sessionAt(0.5, time.Time{}), sessionAt(0.2, time.Time{})
+	// startedAgain is w, started again at t, as by a reset made by hand.
+	startedAgain := func(w quota.Window, t time.Time) quota.Window {
+		w.RestartedAt = t
+		return w
+	}
+	earlier := start.Add(-time.Hour)
 	tests := []struct {
 		name     string
 		held     quota.Window
@@ -97,18 +103,43 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 			want:     busierWarned,
 		},
 		{
-			name:     "a rejection gives way to the same reset read with room since",
+			name:     "a rejection gives way to the same reset read with room since, started again then",
 			held:     busierRejected,
 			incoming: session,
 			since:    true,
-			want:     session,
+			want:     startedAgain(session, later),
 		},
 		{
-			name:     "the same reset read lower since stands, as after a reset made by hand",
+			name:     "the same reset read lower since stands, started again then, as after a reset made by hand",
 			held:     busierWarned,
 			incoming: session,
 			since:    true,
-			want:     session,
+			want:     startedAgain(session, later),
+		},
+		{
+			name:     "the same reset read as high since keeps when it started again",
+			held:     startedAgain(session, earlier),
+			incoming: busier,
+			since:    true,
+			want:     startedAgain(busier, earlier),
+		},
+		{
+			name:     "the same reset read lower, arriving late, keeps when it started again",
+			held:     startedAgain(busier, earlier),
+			incoming: session,
+			want:     startedAgain(busier, earlier),
+		},
+		{
+			name:     "a rejection standing against a reading from before keeps when it started again",
+			held:     startedAgain(busier, earlier),
+			incoming: rejected,
+			want:     startedAgain(busierRejected, earlier),
+		},
+		{
+			name:     "a later reset, a new window, runs a whole length before it",
+			held:     startedAgain(session, earlier),
+			incoming: nextFive,
+			want:     nextFive,
 		},
 		{
 			name:     "an earlier reset is a window that's gone, and ignored",
@@ -148,6 +179,9 @@ func TestRecordMergesEachWindowByItsReset(t *testing.T) {
 			s := newTestState(clock)
 			sent := s.mark()
 			s.record("work", []quota.Window{tt.held}, s.mark())
+			// Held stands as given, when it started again included, as a
+			// reading the state file kept does.
+			s.usage["work"].windows["5h"] = tt.held
 			clock.now = later
 			if tt.since {
 				sent = s.mark()

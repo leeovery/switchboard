@@ -600,6 +600,48 @@ func TestDocumentJSON(t *testing.T) {
 }`,
 		},
 		{
+			name: "the router's, with a week started again",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Accounts: []status.Account{{
+					ID: "work", Label: "Work", TokenSet: true, FetchedAt: generated,
+					Windows: []quota.Window{{
+						Key: "7d", Label: "Week", Utilization: 0.01, ResetsAt: time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC),
+						Status: quota.StatusAllowed, RestartedAt: generated.Add(-time.Hour),
+					}},
+				}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.01,
+          "resets_at": "2026-10-02T21:00:00Z",
+          "status": "allowed",
+          "restarted_at": "2026-09-28T12:12:00Z"
+        }
+      ]
+    }
+  ]
+}`,
+		},
+		{
 			name: "the router's, with each account's pressure",
 			doc: status.Document{
 				GeneratedAt: generated,
