@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -100,6 +101,22 @@ func TestRunWithoutTheRouter(t *testing.T) {
 	env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN")
 	if want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}; !maps.Equal(env, want) {
 		t.Errorf("handed over with\n%q\nwant\n%q", env, want)
+	}
+}
+
+func TestRunWithoutThePrimarysToken(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	if err := os.Remove(tokenPath(t, srv.deps, "work")); err != nil {
+		t.Fatal(err)
+	}
+	handed := recordHandOffs(t, &srv.deps)
+
+	got := run(t, srv.deps, "run")
+	if want := (result{stderr: "switchboard: the router isn't running — connecting directly on side · Side\n"}); got != want {
+		t.Errorf("switchboard run = %+v, want %+v", got, want)
+	}
+	if token := handed.only(t).env["CLAUDE_CODE_OAUTH_TOKEN"]; token != "test-token-side" {
+		t.Errorf("handed over on %q, want side's token, the first with one, the primary's file holding none at a second look", token)
 	}
 }
 

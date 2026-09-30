@@ -451,7 +451,10 @@ the router, and with `--probe`, is unchanged: it's asked for; so is the probe th
   on until it's back. A single look finding none, as a file caught while it's rewritten, keeps the
   account its token (see The router looking after itself). The router starts whether or not any
   account has a usable token, and routes as soon as one has. `run`, `usage` and `status` read the
-  files as they need them. The LaunchAgent needs no token from the user's environment: it carries
+  files as they need them; `run` looks again, 200 milliseconds on, at the primary's file and a
+  pinned account's when it finds no usable token there, as it can while the file's rewritten,
+  before it starts Claude Code on another's, which would be Claude Code's own token for the whole
+  session. The LaunchAgent needs no token from the user's environment: it carries
   only what finds the config, the state and the skill, and the log level (see Launching).
 - A token the router replaces stays its account's for 7 days: sessions started before hold it,
   and every session holds the primary's. The router keeps it as its SHA-256 hash, never the
