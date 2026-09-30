@@ -147,8 +147,8 @@ func (c *Client) Unpin(ctx context.Context, force bool) (status.Document, error)
 }
 
 // Refresh has the router probe the accounts it hasn't read for longer than
-// maxAge, waiting a few seconds at most for those probes, and returns the
-// status document as they leave it.
+// maxAge, and those that can take no request anyway, waiting a few seconds at
+// most for those probes, and returns the status document as they leave it.
 func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Document, error) {
 	var doc status.Document
 	err := c.call(ctx, refreshTimeout, http.MethodPost, "/refresh", refreshRequest{MaxAge: maxAge.String()}, &doc)

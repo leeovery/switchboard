@@ -150,6 +150,32 @@ func TestAResetMadeByHandIsSeenOnceTheRouterRefreshes(t *testing.T) {
 	}
 }
 
+func TestAResetMadeByHandJustAfterTheLimitIsSeenOnceTheRouterRefreshes(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	if got := r.ask(t, "one", opus, ""); got != "work" {
+		t.Fatalf("the request went to %s, want work, its quota needing using first", got)
+	}
+	// Minutes on, work reaches the limit of its week, whose answer is the
+	// latest reading of it when its week is reset by hand half a minute on.
+	r.clock.advance(5 * time.Minute)
+	r.api.script(workToken, limitReached("You've hit your weekly limit", session, spentWeek()))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
+	}
+	r.clock.advance(30 * time.Second)
+	r.readsAs(workToken, session, weekOf(0.01, 7*24*time.Hour))
+
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{})
+	if got := r.ask(t, "two", opus, ""); got != "work" {
+		t.Errorf("a new session went to %s, want work, its week reset", got)
+	}
+}
+
 func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 	tests := []struct {
 		name string

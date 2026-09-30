@@ -628,9 +628,11 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
   the last, or `r`, probes instead. Probing, it asks after the router at each probe and once a
   minute between, and reads it again as soon as it answers, so it never goes back and forth
   faster than that.
-- **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, but for
-  those whose 5-hour window has lapsed and that can take a request, or, without it, every account
-  is probed, as `usage --refresh` does. `q` quit. While it reads the router, `1`–`9` toggle the
+- **Keys:** `r` refresh: the router probes the accounts it hasn't read in the last minute, and
+  those that can take no request anyway, however lately it read them, as a reset made by hand
+  shows only to a probe, but for those whose 5-hour window has lapsed and that can take a request,
+  and those it probed in the last minute; or, without it, every account is probed, as `usage
+  --refresh` does. `q` quit. While it reads the router, `1`–`9` toggle the
   account in that place, as configured, in the global pin: one it doesn't name joins those it
   does, new sessions going to the best of them, and one it names leaves, the last to leave
   routing automatically again; `a` routes automatically again; `m` moves running sessions to the
@@ -1035,7 +1037,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
-| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.

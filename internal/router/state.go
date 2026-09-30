@@ -318,20 +318,26 @@ func (s *state) unread(id string, _ time.Time) bool {
 }
 
 // due reports whether an account's usage wants probing at now, before a
-// choice: nothing has been read of it for staleAfter, as olderThan says.
+// choice: nothing has been read of it for staleAfter, and it can be probed,
+// as probeable says.
 func (s *state) due(id string, now time.Time) bool {
-	return s.olderThan(staleAfter)(id, now)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u := s.usage[id]
+	return now.Sub(u.updated) > staleAfter && s.probeable(u, now)
 }
 
-// olderThan returns what reports whether an account's usage wants probing at
-// now: nothing has been read of it for longer than age, and it can be
-// probed, as probeable says.
-func (s *state) olderThan(age time.Duration) func(id string, now time.Time) bool {
+// refreshing returns what reports whether a refresh asking for usage no
+// older than age probes an account at now: nothing has been read of it for
+// longer than age, or it's spent, as spent says, however lately it was read,
+// as the answer that reached its limit reads it, and a limit lifted by hand
+// shows only to a probe; and it can be probed, as probeable says.
+func (s *state) refreshing(age time.Duration) func(id string, now time.Time) bool {
 	return func(id string, now time.Time) bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		u := s.usage[id]
-		return now.Sub(u.updated) > age && s.probeable(u, now)
+		return (now.Sub(u.updated) > age || u.spent(s.policy, now)) && s.probeable(u, now)
 	}
 }
 

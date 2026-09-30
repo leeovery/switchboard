@@ -95,7 +95,8 @@ type problem struct {
 // /sessions/{id}/pin change as they set and clear its own pin, answering with
 // the session as they leave it. POST and DELETE /pin set and clear the global
 // pin, and POST /refresh probes the accounts whose usage is older than it
-// asks, each of the three answering with the status document as it leaves it.
+// asks, and those that can take no request anyway, each of the three
+// answering with the status document as it leaves it.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -177,11 +178,11 @@ func maxAge(w http.ResponseWriter, req *http.Request) (time.Duration, error) {
 }
 
 // refresh probes the accounts nothing has been read of for longer than age,
-// sharing any probe of them already under way, and waits for those probes:
-// for refreshWait at most, or until ctx ends, after which they go on without
-// it.
+// and those that can take no request anyway, as refreshing says, sharing any
+// probe of them already under way, and waits for those probes: for
+// refreshWait at most, or until ctx ends, after which they go on without it.
 func (r *Router) refresh(ctx context.Context, age time.Duration) {
-	underway := r.probes.start(r.accounts.sendable(), r.state.olderThan(age))
+	underway := r.probes.start(r.accounts.sendable(), r.state.refreshing(age))
 	if len(underway) == 0 {
 		return
 	}

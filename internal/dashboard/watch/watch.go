@@ -65,8 +65,8 @@ type Read struct {
 
 // Fresh is the read r asks for, which usage --refresh asks for too: the
 // router first refreshes every account it hasn't read in the last minute, the
-// least it waits between probes of one, or, without the router, every account
-// is probed.
+// least it waits between probes of one, and every one that can take no
+// request anyway, or, without the router, every account is probed.
 func Fresh() Read {
 	return Read{Refresh: freshFor, Probe: true}
 }

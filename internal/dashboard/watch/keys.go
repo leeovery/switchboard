@@ -60,8 +60,8 @@ func (o order) log(err error) {
 }
 
 // pressed acts on a key: r reads now, having the router refresh what it
-// hasn't read in the last minute, or probing when it doesn't answer; q or
-// ctrl+c quits. While the dashboard reads the router, 1–9 pin new sessions to
+// hasn't read in the last minute, and what can take no request, or probing
+// when it doesn't answer; q or ctrl+c quits. While the dashboard reads the router, 1–9 pin new sessions to
 // the account in that place, as configured, beside those pinned already, or
 // unpin it; a routes every session on its merits again; and m moves running
 // sessions to the accounts pinned.

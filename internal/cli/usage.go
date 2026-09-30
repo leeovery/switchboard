@@ -58,10 +58,13 @@ its sessions and pin, else read by probing each account, as --probe does
 whether the router runs or not.
 
 With --refresh, the router first reads every account it may, as the
-dashboard's r has it do: each it hasn't read in the last minute, but for one
-whose 5-hour window has lapsed, which a probe would start, unless a limit
-holds back its every request. It waits for those reads, ten seconds at most,
-then shows them, so once a limit is reset by hand, the router sees it.
+dashboard's r has it do: each it hasn't read in the last minute, and each
+that can take no request anyway, however lately it read it, as while a limit
+holds back its every request, or a window every model shares reads spent. It
+passes over one whose 5-hour window has lapsed, which a probe would start,
+unless it can take no request anyway, and one it probed in the last minute.
+It waits for those reads, ten seconds at most, then shows them, so once a
+limit is reset by hand, the router sees it.
 Without the router, or with --probe, every account is probed anyway, so
 --refresh changes nothing. It reads once, so it takes no --watch: in a watch,
 r refreshes.
