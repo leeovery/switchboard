@@ -15,11 +15,14 @@ import (
 // --resume.
 const SessionHeader = "X-Claude-Code-Session-Id"
 
+// messagesPath is the request that sends a message.
+const messagesPath = "/v1/messages"
+
 // routablePaths are the requests that may go out on another account's token:
 // sending a message and counting its tokens, which leave nothing behind on
 // the account. The rest of the messages API, such as batches, names things
 // that belong to the account that made them.
-var routablePaths = []string{"/v1/messages", "/v1/messages/count_tokens"}
+var routablePaths = []string{messagesPath, messagesPath + "/count_tokens"}
 
 // Provider is Claude's side of the router: which requests may go out on
 // another account's token, and what the requests and their responses say.
@@ -31,6 +34,13 @@ type Provider struct{}
 // identity-bound ones, such as /v1/code/…, file uploads and batches, must.
 func (Provider) Routable(path string) bool {
 	return slices.Contains(routablePaths, path)
+}
+
+// Spends reports whether a request to path spends its account's quota:
+// sending a message does, and counting its tokens doesn't, so its success
+// says nothing of the account's limits.
+func (Provider) Spends(path string) bool {
+	return path == messagesPath
 }
 
 // Session returns the id of the Claude Code session a request belongs to, or

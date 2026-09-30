@@ -43,6 +43,14 @@ func TestProviderRoutable(t *testing.T) {
 	}
 }
 
+func TestProviderSpends(t *testing.T) {
+	for path, want := range map[string]bool{"/v1/messages": true, "/v1/messages/count_tokens": false} {
+		if got := (claude.Provider{}).Spends(path); got != want {
+			t.Errorf("Spends(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
 func TestProviderSession(t *testing.T) {
 	h := http.Header{}
 	if got := (claude.Provider{}).Session(h); got != "" {

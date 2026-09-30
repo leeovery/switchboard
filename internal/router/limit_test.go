@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -223,8 +224,15 @@ func TestALimitReachedInNoWindowNamedLiftsOnceARequestSentSinceIsTaken(t *testin
 	checkLimit(t, r.rt, "work", status.Limit{Until: until})
 	checkLimit(t, r.rt, "side", status.Limit{Until: until})
 
-	// With no account left, the next request goes out on its client's, work,
-	// which takes it.
+	// With no account left, the next requests go out on their client's, work,
+	// which takes them. Counting a message's tokens spends no quota, so says
+	// nothing of the limit.
+	body := `{"model":"` + opus + `","messages":[{"role":"user","content":"hello"}]}`
+	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages/count_tokens", claudeCode(workToken), strings.NewReader(body)))
+	if got := r.api.lastAccount(); got != "work" {
+		t.Fatalf("counting tokens went to %s, want work, its client's", got)
+	}
+	checkLimit(t, r.rt, "work", status.Limit{Until: until})
 	if got := r.ask(t, "two", opus, ""); got != "work" {
 		t.Fatalf("the request went to %s, want work, its client's", got)
 	}

@@ -83,6 +83,9 @@ type exchange struct {
 	// newSession is set when a routed request's first choice said its session
 	// was new.
 	newSession bool
+	// spends is set when a routed request spends its account's quota, as the
+	// provider says of its path.
+	spends bool
 }
 
 func (ex *exchange) routed() bool {
@@ -130,7 +133,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		refuseBody(w, r, err)
 		return
 	}
-	ex := &exchange{id: newID(), started: started, arrived: p.now()}
+	ex := &exchange{id: newID(), started: started, arrived: p.now(), spends: p.provider.Spends(r.URL.Path)}
 	ex.req = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
 	ex.newSession = choice.New

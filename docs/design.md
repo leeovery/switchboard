@@ -159,9 +159,9 @@ on a model whose thinking is bound to its account only when its account can't se
    gives: the overall reset, else the latest of the rejected windows', else 5 minutes on. The
    answer to a request sent after the limit was set lifts it sooner when it shows those windows
    with room, as a probe's does once the limit is reset by hand (see Priming), or, for a limit
-   whose 429 named no window, when it's a success, a probe's included. A limit reached again while
-   it holds is the same limit, and holds as the latest 429 says; a probe that reads it again
-   changes nothing.
+   whose 429 named no window, when it's a success of a request that spends quota, a probe's
+   included, and counting a message's tokens spends none. A limit reached again while it holds is
+   the same limit, and holds as the latest 429 says; a probe that reads it again changes nothing.
 6. **Throttling:** a burst 429 without exhaustion gets a pause, as long as its `retry-after` asks
    (2 seconds when it doesn't say, 10 at most), and a retry on the same account, twice at most;
    then the 429 is passed through. It never triggers a move, because moving would throw the cache
@@ -862,7 +862,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
-| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
+| `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, eligibility against the reserve, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks and titles the dashboard shares |
