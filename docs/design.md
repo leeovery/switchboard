@@ -1592,6 +1592,7 @@ leaves it with a line in its file saying why.
 | Idea | Status | File |
 |---|---|---|
 | The dashboard's layout: narrow terminals in watch mode, the heading, more dynamic; and `status`'s text | next | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
+| Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../.workflows/.inbox/ideas/2026-10-01--developer-id-signing.md) |
 | A ledger of the requests the router routes, with their token counts | new | [request-ledger](../.workflows/.inbox/ideas/2026-09-30--request-ledger.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../.workflows/.inbox/ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../.workflows/.inbox/ideas/2026-09-30--oauth-logins.md) |
