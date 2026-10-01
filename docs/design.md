@@ -496,8 +496,8 @@ come back one at a time rather than together: once all are spent, the wait for t
   lapsed window says when its account is next primed (see Dashboard).
 - Early starts, late nights and use in the Claude apps can start a window off the schedule, which
   shifts that account's slot for the day.
-- The first primes confirm the window's mechanics: the 5-hour reset a prime reads should be five
-  hours after its slot, the ten-minute mark it goes 5 seconds after (see Checks owed).
+- The first primes confirmed the window's mechanics: each reset a prime read fell five hours after
+  its slot, the ten-minute mark it goes 5 seconds after (see Observed).
 
 **No accidental windows.** A probe is a request, so probing an idle account starts its 5-hour
 window. The router never probes an account whose 5-hour window has lapsed, its last reading's reset
@@ -1539,6 +1539,16 @@ any of it. Times are the Mac's, UTC+1.
   taken up, the skill brought up to date, and the requests after answered. launchd started
   nothing, and the system log held no `Launch Constraint Violation`, nor a notice that switchboard
   can run in the background.
+- **1 October 2026: the first primes, after a quiet night.** With every session routed, and none
+  from 22:44 until 09:34, each account was primed at its slot, 5 seconds on, and its 5-hour window
+  started then, resetting five hours after the slot: primed at 03:50, 05:30 and 07:10, they read
+  resets at 08:50, 10:30 and 12:10, and the first, primed again at its reset, read 13:50. A window
+  starts with the first request after the last lapsed, not back to back whatever the use, so
+  priming staggers the resets as designed.
+- **1 October 2026, 10:00: pressure passed an account over.** A session idle for twelve hours was
+  chosen for afresh; the primary had used 17% of its 5-hour window since 09:34, at 34% an hour,
+  which would reach its reserve at 12:09, before its reset at 13:50, so the session went to the
+  account with room instead (`rescored after 12h 14m idle, 1 under pressure`).
 - **29–30 September 2026: no burst limit seen.** Over two thousand requests on one account in a
   night, from a session and up to five subagents at once, drew no 429 but the quota check's.
 
@@ -1560,14 +1570,6 @@ What's built but hasn't been seen against the real thing:
 - `service install`, `service restart` and setup's service step against the real launchd:
   `restart` of a router from before routers restarted when asked relies on launchd's `KeepAlive`
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
-- The 5-hour window's mechanics, on the first primes: the reset a prime reads should be five hours
-  after its slot, the ten-minute mark it goes 5 seconds after.
-- That a 5-hour window starts only with the first request after the last one lapsed, which priming
-  rests on. On 30 September 2026, two accounts with no routed traffic overnight had resets stepping
-  exactly five hours apart, at 00:20, 05:20 and 10:20, and a prime at 07:10 landed in the window
-  resetting at 10:20: sessions not routed may have kept those windows going, or the windows run
-  back to back whatever the use, which would leave priming nothing to do. After a quiet night with
-  every session routed, each primed account's reset should sit five hours after its slot.
 - An artifact published from a session the router has moved opening in a browser signed into the
   primary, and whether a conversation request ever refers to an uploaded file by id.
 - `claude doctor` with the link in place.
