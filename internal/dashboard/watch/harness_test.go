@@ -242,9 +242,10 @@ func (h *harness) view() string {
 	return ansi.Strip(h.model.View().Content)
 }
 
-// footer is the screen's last line, without its margin.
+// footer is the screen's last line, without its margin, but for the blank
+// lines that fill the screen out in colour.
 func (h *harness) footer() string {
-	lines := strings.Split(h.view(), "\n")
+	lines := strings.Split(strings.TrimRight(h.view(), " \n"), "\n")
 	return strings.TrimSpace(lines[len(lines)-1])
 }
 

@@ -11,8 +11,9 @@ import (
 )
 
 // switchboard's directories in a home, the directory its LaunchAgent goes in,
-// and Claude Code's config directory; the directory switchboard's token files
-// go in, in its state directory; and the directory switchboard's skill goes
+// and Claude Code's config directory; the directory its themes go in, in its
+// config directory; the directory its token files go in, and its
+// preferences file, in its state directory; and the directory its skill goes
 // in, in Claude Code's config directory.
 var (
 	configDir       = filepath.Join(".config", "switchboard")
@@ -20,7 +21,9 @@ var (
 	binDir          = filepath.Join(".local", "share", "switchboard", "bin")
 	launchAgentsDir = filepath.Join("Library", "LaunchAgents")
 	claudeDir       = ".claude"
+	themesDir       = "themes"
 	tokensDir       = "tokens"
+	prefsFile       = "prefs.json"
 	skillDir        = filepath.Join("skills", "switchboard")
 )
 
@@ -38,30 +41,37 @@ type watcher interface {
 // watchers are what testguard watches of the real system.
 type watchers []watcher
 
+// changes are how the tests changed what's watched, a line each, and once:
+// the themes directory is the config directory's too, unless it's a link.
 func (ws watchers) changes() []string {
 	var lines []string
 	for _, w := range ws {
-		lines = append(lines, w.changes()...)
+		for _, line := range w.changes() {
+			if !slices.Contains(lines, line) {
+				lines = append(lines, line)
+			}
+		}
 	}
 	return lines
 }
 
 // watchReal notes, before the tests begin, what the real system holds of
-// switchboard's: its config and its state, by default in home, and wherever
-// SWITCHBOARD_CONFIG, XDG_CONFIG_HOME and XDG_STATE_HOME put them, as getenv
-// reads them; its files among the LaunchAgents in home; its skill in Claude
-// Code's config directory, by default in home, and wherever CLAUDE_CONFIG_DIR
-// puts it; its bin directory, which holds its claude link, by default in
-// home, and wherever XDG_DATA_HOME puts it; and what's named claude in each
-// directory on PATH. Nothing live writes the config, a LaunchAgent, the skill,
-// a token file or a claude link as it runs, so any change to one is a test's.
-// A live router writes the rest of its state as it runs, its logs,
-// state.json and readings history among it, so of that, only a state
-// directory appearing is a test's; and the OS sandbox denies a test any write
-// there anyway.
+// switchboard's: its config, its themes and its state, by default in home,
+// and wherever SWITCHBOARD_CONFIG, SWITCHBOARD_THEMES_DIR, XDG_CONFIG_HOME
+// and XDG_STATE_HOME put them, as getenv reads them; its files among the
+// LaunchAgents in home; its skill in Claude Code's config directory, by
+// default in home, and wherever CLAUDE_CONFIG_DIR puts it; its bin
+// directory, which holds its claude link, by default in home, and wherever
+// XDG_DATA_HOME puts it; and what's named claude in each directory on PATH.
+// Nothing live writes the config, a theme, a LaunchAgent, the skill, a token
+// file or a claude link as it runs, nor the preferences file, but as a
+// dashboard's user picks a theme, so any change to one is a test's. A live
+// router writes the rest of its state as it runs, its logs, state.json and
+// readings history among it, so of that, only a state directory appearing is
+// a test's; and the OS sandbox denies a test any write there anyway.
 func watchReal(home string, getenv func(string) string) watchers {
 	var ws watchers
-	for _, p := range configPlaces(home, getenv) {
+	for _, p := range slices.Concat(configPlaces(home, getenv), themesPlaces(home, getenv)) {
 		ws = append(ws, watchContents(p, nil, followed))
 	}
 	for _, p := range statePlaces(home, getenv) {
@@ -69,7 +79,7 @@ func watchReal(home string, getenv func(string) string) watchers {
 			ws = append(ws, absence{p})
 			continue
 		}
-		ws = append(ws, watchContents(p.in(tokensDir), nil, followed))
+		ws = append(ws, watchContents(p.in(tokensDir), nil, followed), watchContents(p.in(prefsFile), nil, followed))
 	}
 	if home != "" {
 		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard, followed))
@@ -97,6 +107,24 @@ func configPlaces(home string, getenv func(string) string) []place {
 	}
 	if dir := getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
 		places = append(places, named(filepath.Join(dir, "switchboard")))
+	}
+	return places
+}
+
+// themesPlaces are where the dashboard's themes are: by default in home's
+// config directory, and where SWITCHBOARD_THEMES_DIR and XDG_CONFIG_HOME say.
+// A relative SWITCHBOARD_THEMES_DIR names none testguard can know, as it's
+// relative to wherever the dashboard runs.
+func themesPlaces(home string, getenv func(string) string) []place {
+	var places []place
+	if home != "" {
+		places = append(places, inHome(home, filepath.Join(configDir, themesDir)))
+	}
+	if dir := getenv("SWITCHBOARD_THEMES_DIR"); filepath.IsAbs(dir) {
+		places = append(places, named(dir))
+	}
+	if dir := getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
+		places = append(places, named(filepath.Join(dir, "switchboard", themesDir)))
 	}
 	return places
 }

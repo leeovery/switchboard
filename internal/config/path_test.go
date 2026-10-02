@@ -68,6 +68,58 @@ func TestPathWithoutHomeDirectory(t *testing.T) {
 	}
 }
 
+func TestThemesDir(t *testing.T) {
+	home := func() (string, error) { return "/home/tester", nil }
+	tests := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{
+			name: "SWITCHBOARD_THEMES_DIR wins",
+			env:  map[string]string{"SWITCHBOARD_THEMES_DIR": "/dotfiles/themes", "XDG_CONFIG_HOME": "/xdg"},
+			want: "/dotfiles/themes",
+		},
+		{name: "XDG_CONFIG_HOME", env: map[string]string{"XDG_CONFIG_HOME": "/xdg"}, want: "/xdg/switchboard/themes"},
+		{name: "home directory", want: "/home/tester/.config/switchboard/themes"},
+		{
+			name: "empty variables count as unset",
+			env:  map[string]string{"SWITCHBOARD_THEMES_DIR": "", "XDG_CONFIG_HOME": ""},
+			want: "/home/tester/.config/switchboard/themes",
+		},
+		{
+			name: "relative XDG_CONFIG_HOME is ignored",
+			env:  map[string]string{"XDG_CONFIG_HOME": "relative/config"},
+			want: "/home/tester/.config/switchboard/themes",
+		},
+		{
+			name: "the config file named elsewhere doesn't move it",
+			env:  map[string]string{"SWITCHBOARD_CONFIG": "/etc/switchboard.toml"},
+			want: "/home/tester/.config/switchboard/themes",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.ThemesDir(envFrom(tt.env), home)
+			if err != nil || got != tt.want {
+				t.Errorf("ThemesDir() = %q, %v; want %q", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestThemesDirWithoutHomeDirectory(t *testing.T) {
+	errNoHome := errors.New("no home directory")
+	noHome := func() (string, error) { return "", errNoHome }
+
+	if _, err := config.ThemesDir(envFrom(map[string]string{"SWITCHBOARD_THEMES_DIR": "/dotfiles/themes"}), noHome); err != nil {
+		t.Errorf("ThemesDir() with SWITCHBOARD_THEMES_DIR set: error = %v, want none", err)
+	}
+	if _, err := config.ThemesDir(envFrom(nil), noHome); !errors.Is(err, errNoHome) {
+		t.Errorf("ThemesDir() with nothing set: error = %v, want %v", err, errNoHome)
+	}
+}
+
 func TestStateDir(t *testing.T) {
 	home := func() (string, error) { return "/home/tester", nil }
 	tests := []struct {

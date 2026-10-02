@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -74,6 +75,10 @@ type Deps struct {
 	// Terminal reports whether out is a terminal, as IsTerminal does: usage
 	// draws its dashboard on one, and prints the status document elsewhere.
 	Terminal func(out io.Writer) bool
+	// Background asks the terminal out is what its background is, as
+	// TerminalBackground does: nil where it doesn't say. usage prints the
+	// dashboard in the theme for it.
+	Background func(out io.Writer) color.Color
 	// GOOS is the operating system, as runtime.GOOS names it, and UID the
 	// user's id: the token files must be theirs.
 	GOOS string

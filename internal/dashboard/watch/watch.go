@@ -26,6 +26,7 @@ import (
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // logger notes what a watch does: a full-screen view leaves nowhere else to
@@ -106,6 +107,14 @@ type Config struct {
 	// Size is what to draw at until the terminal gives its size, and in place
 	// of a width or height it gives as zero, which means it doesn't know.
 	Size Size
+	// Choice is the theme, or the pair of themes, the user chose, and Pair
+	// the themes it draws in: what the dashboard is drawn in from the start.
+	Choice theme.Choice
+	Pair   theme.Pair
+	// Themes are where the theme picker finds the themes to pick from, and
+	// keeps the user's pick: nil draws the dashboard without colour, as
+	// NO_COLOR asks, and leaves t doing nothing.
+	Themes Themes
 }
 
 // Size is a terminal's size in cells.
@@ -164,6 +173,15 @@ type Model struct {
 	ease     easing
 	framing  bool
 	readings readings
+
+	// choice is the theme or pair the user chose, and pair the themes it
+	// draws in; showing is the theme the screen is drawn in, the one in
+	// force or the one the picker's cursor is on.
+	choice   theme.Choice
+	pair     theme.Pair
+	showing  theme.Theme
+	backdrop backdrop
+	picker   picker
 }
 
 // fetchedMsg is what a read that asked for read found.
@@ -184,7 +202,10 @@ type frameMsg struct{}
 // New returns a model that reads cfg's source at once, and whenever a read
 // falls due after, under ctx.
 func New(ctx context.Context, cfg Config) Model {
-	m := Model{ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true}
+	m := Model{
+		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true,
+		choice: cfg.Choice, pair: cfg.Pair,
+	}
 	if m.after == nil {
 		m.after = after
 	}
@@ -196,20 +217,30 @@ func after(d time.Duration, msg tea.Msg) tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 }
 
-// Init starts the first read, a full one, and the ticks.
+// Init starts the first read, a full one, and the ticks, and in colour, asks
+// the terminal what its background is (OSC 11), giving it answerWithin to
+// say.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.fetch(m.plan.full()), m.armTick(m.now()))
+	cmds := []tea.Cmd{m.fetch(m.plan.full()), m.armTick(m.now())}
+	if m.coloured() {
+		cmds = append(cmds, tea.RequestBackgroundColor, m.after(answerWithin, unansweredMsg{}))
+	}
+	return tea.Batch(cmds...)
 }
 
-// Update takes in a message: a key, a resize, a read, the router carrying
-// out an order, a tick or a frame. The view is drawn again after each, which
-// is all a note's lapsing asks.
+// Update takes in a message: a key, a resize, the terminal's background, a
+// read, the router carrying out an order, a tick or a frame. The view is
+// drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.resized(msg)
 	case tea.KeyPressMsg:
 		return m.pressed(msg)
+	case tea.BackgroundColorMsg:
+		return m.answered(msg.Color), nil
+	case unansweredMsg:
+		return m.answered(nil), nil
 	case fetchedMsg:
 		return m.fetched(msg)
 	case orderedMsg:
@@ -223,33 +254,68 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View draws the dashboard full screen, as the document stands at the clock's
-// time, over a footer saying when it was read and will be next.
+// time, over a footer saying when it was read and will be next, with the
+// theme picker over its right while it's open. In colour, it's drawn once
+// the terminal has said what its background is, or had its time to, so it
+// never shows one theme then another: in the theme shown, its canvas painted
+// on every cell, and set as the terminal's background too.
 func (m Model) View() tea.View {
-	now := m.now()
+	v := tea.NewView("")
+	v.AltScreen = true
+	if m.coloured() && !m.backdrop.settled {
+		return v
+	}
+	now, look := m.now(), m.look()
 	frame := dashboard.Render(m.shown(now), now, dashboard.Options{
 		Width:  m.size.Width,
 		Height: max(m.size.Height-topMargin, 0),
-		Color:  true,
+		Look:   look,
 		Footer: m.footer(now),
 	})
-	v := tea.NewView(strings.Repeat("\n", topMargin) + frame)
-	v.AltScreen = true
+	lines := m.screen(frame, look)
+	if m.picker.open {
+		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, look)
+	}
+	v.SetContent(strings.Join(lines, "\n"))
+	v.BackgroundColor = look.Canvas()
 	return v
 }
 
+// screen is the frame's lines as the terminal shows them, under the top
+// margin, and in colour, the screen's every line, no more, those around the
+// frame of the canvas.
+func (m Model) screen(frame string, look dashboard.Look) []string {
+	lines := append(make([]string, topMargin), strings.Split(frame, "\n")...)
+	if !m.coloured() {
+		return lines
+	}
+	for i := range topMargin {
+		lines[i] = look.Blank(m.size.Width)
+	}
+	if m.size.Height > 0 {
+		lines = lines[:min(len(lines), m.size.Height)]
+	}
+	for len(lines) < m.size.Height {
+		lines = append(lines, look.Blank(m.size.Width))
+	}
+	return lines
+}
+
 // resized takes in the size the terminal gives, keeping the size drawn at for
-// a width or height it gives as zero.
+// a width or height it gives as zero, and closes the theme picker should it
+// no longer fit.
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
 	m.size = given.or(m.size)
+	m, closed := m.fitPicker()
 	if m.size == given {
-		return m, nil
+		return m, closed
 	}
 	// Bubble Tea cuts every frame to the size in the last size message it
 	// passed on, so the model passes on the size it draws at. Proven under a
 	// pseudo-terminal giving 0×0: without this, the screen stayed blank.
 	size := tea.WindowSizeMsg{Width: m.size.Width, Height: m.size.Height}
-	return m, func() tea.Msg { return size }
+	return m, tea.Batch(closed, func() tea.Msg { return size })
 }
 
 // read reads the source as r asks, unless a read is under way.

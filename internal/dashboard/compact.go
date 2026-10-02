@@ -83,7 +83,7 @@ func summarize(doc status.Document, a status.Account, now time.Time) summary {
 		s.parts = append(s.parts, compactWindow(a, w, now))
 	}
 	for _, f := range a.Failures {
-		s.parts = append(s.parts, line{{status.Clean(f.Label) + " offline", offlineInk}})
+		s.parts = append(s.parts, line{{status.Clean(f.Label) + " offline", warningInk}})
 	}
 	switch {
 	case a.Error != "":

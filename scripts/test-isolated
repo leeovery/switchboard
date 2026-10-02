@@ -3,9 +3,10 @@
 # Runs every test, race detector on, inside the macOS sandbox in
 # scripts/isolation.sb: no network beyond this machine, no unix socket outside
 # the temporary directory, nothing on the router's port, no writes into the
-# home directory but Go's caches, nor into switchboard's real config, state
-# and bin directory, or Claude Code's config directory, wherever they are, or
-# the directories on PATH, and none of the real programs tests must never run.
+# home directory but Go's caches, nor into switchboard's real config, themes,
+# state, preferences and bin directory, or Claude Code's config directory,
+# wherever they are, or the directories on PATH, and none of the real
+# programs tests must never run.
 # Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
 #
 # The variables that can hold real tokens, or lead to the real tmux server or
@@ -58,8 +59,8 @@ resolved() {
 }
 
 # absolute prints path when it's absolute, else fallback: switchboard ignores
-# a relative XDG directory, and a relative config file, or Claude Code config
-# directory, leads wherever the program reading it runs.
+# a relative XDG directory, and a relative config file, themes directory, or
+# Claude Code config directory, leads wherever the program reading it runs.
 absolute() {
 	case $1 in
 	/*) printf '%s\n' "$1" ;;
@@ -67,13 +68,16 @@ absolute() {
 	esac
 }
 
-# switchboard's real config, state and bin directory, where it finds them,
-# and Claude Code's config directory, where it reads switchboard's skill: read
-# before scrub unsets SWITCHBOARD_CONFIG and CLAUDE_CONFIG_DIR.
+# switchboard's real config, themes, state, preferences and bin directory,
+# where it finds them, and Claude Code's config directory, where it reads
+# switchboard's skill: read before scrub unsets SWITCHBOARD_CONFIG,
+# SWITCHBOARD_THEMES_DIR and CLAUDE_CONFIG_DIR.
 config_dir=$(resolved "$(absolute "${XDG_CONFIG_HOME-}" "$HOME/.config")/switchboard")
 state_dir=$(resolved "$(absolute "${XDG_STATE_HOME-}" "$HOME/.local/state")/switchboard")
 bin_dir=$(resolved "$(absolute "${XDG_DATA_HOME-}" "$HOME/.local/share")/switchboard/bin")
 config=$(resolved "$(absolute "${SWITCHBOARD_CONFIG-}" "$config_dir/config.toml")")
+themes_dir=$(resolved "$(absolute "${SWITCHBOARD_THEMES_DIR-}" "$config_dir/themes")")
+prefs=$(resolved "$state_dir/prefs.json")
 claude_dir=$(resolved "$(absolute "${CLAUDE_CONFIG_DIR-}" "$HOME/.claude")")
 
 scrub
@@ -128,7 +132,8 @@ path_dirs=$(outside_home_on_path)
 sandboxed() {
 	"$sandbox_exec" -f "$repo/scripts/isolation.sb" \
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
-		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D STATE_DIR="$state_dir" -D BIN_DIR="$bin_dir" \
+		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D THEMES_DIR="$themes_dir" \
+		-D STATE_DIR="$state_dir" -D PREFS="$prefs" -D BIN_DIR="$bin_dir" \
 		-D CLAUDE_DIR="$claude_dir" -D PATH_DIRS="$path_dirs" "$@"
 }
 
@@ -185,16 +190,16 @@ denies_writing_on_path() {
 	return "$status"
 }
 
-# denies_writing_to proves the sandbox denies opening the real config file,
-# file, for writing, when there is one: tee would write it nothing, so it'd
-# be left as it was.
+# denies_writing_to proves the sandbox denies opening the real file, what it
+# is, for writing, when there is one: tee would write it nothing, so it'd be
+# left as it was.
 denies_writing_to() {
-	local file=$1
+	local what=$1 file=$2
 	if [ ! -f "$file" ]; then
-		echo "test-isolated: no real config file at $file, so no write to it to deny"
+		echo "test-isolated: no $what at $file, so no write to it to deny"
 		return 0
 	fi
-	denied "a write to the real config file, $file" "$file: Operation not permitted" /usr/bin/tee -a "$file"
+	denied "a write to the $what, $file" "$file: Operation not permitted" /usr/bin/tee -a "$file"
 }
 
 # denies_foreign_socket proves the sandbox denies a connect to a unix socket
@@ -324,11 +329,13 @@ self_check() {
 		/usr/bin/curl -q -sS --max-time 2 --local-port 4747 http://127.0.0.1:9/ || status=1
 	denies_writing_in "home directory" "$home" || status=1
 	denies_writing_in "real config directory" "$config_dir" || status=1
+	denies_writing_in "real themes directory" "$themes_dir" || status=1
 	denies_writing_in "real state directory" "$state_dir" || status=1
 	denies_writing_in "real bin directory" "$bin_dir" || status=1
 	denies_writing_in "real Claude Code config directory" "$claude_dir" || status=1
 	denies_writing_on_path || status=1
-	denies_writing_to "$config" || status=1
+	denies_writing_to "real config file" "$config" || status=1
+	denies_writing_to "real preferences file" "$prefs" || status=1
 	denies_running claude "$(real_claude)" --version || status=1
 	denies_running osascript "$(type -P osascript)" -e 'return 1' || status=1
 	denies_running launchctl "$(type -P launchctl)" version || status=1

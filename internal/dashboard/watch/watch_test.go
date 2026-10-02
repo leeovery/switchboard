@@ -391,7 +391,7 @@ func TestDrawsAtTheTerminalsSize(t *testing.T) {
 		want := "\n" + dashboard.Render(calm(), h.clock.now, dashboard.Options{
 			Width:  size.Width,
 			Height: size.Height - 1,
-			Color:  true,
+			Look:   dashboard.NoColour(),
 			Footer: "updated 13:12 · next 13:42 · r refresh · q quit",
 		})
 		if view.Content != want {
@@ -455,7 +455,7 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 			want := "\n" + dashboard.Render(calm(), h.clock.now, dashboard.Options{
 				Width:  tt.want.Width,
 				Height: tt.want.Height - 1,
-				Color:  true,
+				Look:   dashboard.NoColour(),
 				Footer: "updated 13:12 · next 13:42 · r refresh · q quit",
 			})
 			if got := h.model.View().Content; got != want {

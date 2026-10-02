@@ -160,6 +160,7 @@ In watch mode, reading the router, it looks at the router's view every 5 seconds
 | `1`–`9` | pin the account in that place, as configured, beside any pinned already, so new sessions go to the best of them; or, pinned already, unpin it, routing automatically again once none is left |
 | `a` | route automatically again |
 | `m` | move running sessions to the pinned accounts |
+| `t` | the theme picker: see [Themes](#themes) |
 | `q` | quit |
 
 `1`–`9`, `a` and `m` work while the dashboard reads the router and the router answers; pressed while its last view stays on screen, they say it isn't answering. The footer lists the keys that work, and says what each one did.
@@ -502,7 +503,8 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 | What | Where |
 |---|---|
 | The config | `$SWITCHBOARD_CONFIG`, else `$XDG_CONFIG_HOME/switchboard/config.toml`, else `~/.config/switchboard/config.toml` |
-| The state directory: `state.json`, `control.sock`, `tokens/`, `logs/` and `history/` | `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/` |
+| The dashboard's themes | `$SWITCHBOARD_THEMES_DIR`, else `$XDG_CONFIG_HOME/switchboard/themes/`, else `~/.config/switchboard/themes/` |
+| The state directory: `state.json`, `control.sock`, `prefs.json`, `tokens/`, `logs/` and `history/` | `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/` |
 | The `claude` link | `$XDG_DATA_HOME/switchboard/bin/claude`, else `~/.local/share/switchboard/bin/claude` |
 | The LaunchAgent | `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist` |
 | The skill | `skills/switchboard/SKILL.md` in `$CLAUDE_CONFIG_DIR`, else in `~/.claude` |
@@ -516,6 +518,27 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 - **The heading** says where the usage came from, then the best account next: the router, with its sessions and where it sends new ones (`router  ·  3 sessions  ·  routing automatically  ·  best next: side · Side`); `router unhealthy — <reason>`, in red; or `probing directly (router not running)`; probing as asked, with `--probe`, it says nothing of where. A restart the router has due follows the router's part: `restart due (config changed)`. With no account to use next, `no account has room right now` stands in for `best next`, or `nothing read yet` while nothing has been read of any account. With priming on, a line under it gives the next reset and, from the router, the next prime: `next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Tue 06:40`. `status` shows the daily schedule.
 
 With `-w` it stays on screen, reading as [`usage`](#usage) says, and takes its keys.
+
+### Themes
+
+The dashboard is drawn in a theme. Themes name colours by what they mean and how prominent they are, never by hue, in the vocabulary of [Portal](https://github.com/leeovery/portal)'s, whose theme files load here as they are.
+
+- **Built in:** `nord`, the dashboard's palette from the start; `tokyo-night`, and `tokyo-night-day` for a light terminal; `amber`, an amber CRT; `exchange`, a telephone exchange's brass and walnut; and `terminal`, for a terminal with a transparent or image background, which paints no background and draws in the terminal's own sixteen colours.
+- **One, or a pair:** choose one theme for every terminal, or a pair: one for a light background and one for a dark. The dashboard asks the terminal what its background is as it starts, and takes a terminal that doesn't say for a dark one. Choosing nothing gives the pair of `tokyo-night-day` and `nord`.
+- **The picker:** in `usage -w`, `t` opens a panel at the right, over the dashboard, listing every theme. `↑` and `↓` move through them, the dashboard redrawn in each as it's reached; `enter` sets the one theme; `d` and `l` set the dark and the light half of the pair, asking first, with `y` or `n`, to clear a single theme; and `esc` closes it, putting back the theme in force. A badge says what each theme fills: `●` the one theme, `● light`, `● dark`, or `● both`. A theme file that doesn't load is listed with why, such as `bad colour` or `missing tokens`, and the log has the detail.
+- **Your own:** a theme is a file named `<slug>.theme`, its slug lower-case letters, digits and hyphens, in the themes directory (see [Where things live](#where-things-live)), its top level alone; links are followed, and it's read again each time the picker opens. Each line is `key = #RRGGBB`, a line starting `#` a comment, and every key once:
+
+  ```
+  # Lake: a dark theme.
+  text.primary = #ECEFF4
+  canvas = #102030
+  ...
+  ```
+
+  It gives all of Portal's 19 tokens, `text.primary`, `text.secondary`, `text.tertiary`, `text.muted`, `text.subtle`, `text.faint`, `text.on-selection`, `accent.primary`, `accent.key`, `accent.mode`, `accent.attention`, `state.positive`, `state.destructive`, `canvas`, `bg.selection`, `bg.attention`, `bg.subtle`, `border` and `text.on-attention`, or it doesn't load. The charts' own, `viz.ramp.1` to `viz.ramp.4` (a bar's fill, first cell to last), `viz.track`, `viz.pace`, `viz.reserve` and `viz.series.1` to `viz.series.6` (the accounts' colours), are each worked out from those where a file leaves them out. A key switchboard doesn't know is passed over. A file can't take a built-in's slug.
+- **Kept:** the choice is kept in `prefs.json` in the state directory, which the dashboard writes and you never need to; one that can't be read is set aside as `prefs.json.corrupt-<unix time>`, and the defaults stand.
+- **The background:** with `-w`, the dashboard paints the theme's background on every cell, and sets the terminal's own to it, putting it back as it was when the dashboard stops: on `q`, an interrupt or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is reset to its profile's own instead. Printed once, without `-w`, the dashboard paints no background.
+- **Fewer colours, and none:** the colours are brought down to what the terminal shows. With `NO_COLOR` set to anything, the dashboard has no colour, nor background: what colour would say, its glyphs and bold say, and `t` does nothing.
 
 ## Notifications
 

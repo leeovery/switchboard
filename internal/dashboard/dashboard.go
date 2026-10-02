@@ -21,8 +21,9 @@ type Options struct {
 	// Height is the terminal's height in lines, or zero when it's unknown.
 	// Cards that would make the frame taller give way to a line per account.
 	Height int
-	// Color styles the frame. Without it the frame has no escape codes.
-	Color bool
+	// Look is how the frame is drawn: in a theme, or without colour. The zero
+	// Look draws it as text alone, without escape codes.
+	Look Look
 	// Footer is a last line to show under the accounts, if any.
 	Footer string
 }
@@ -43,11 +44,11 @@ func Render(doc status.Document, now time.Time, opts Options) string {
 	if body, width, ok := grid(doc, now, room); ok {
 		lines := frame(doc, now, body, width, room, opts.Footer)
 		if opts.Height <= 0 || len(lines) <= opts.Height {
-			return draw(lines, room, opts.Color)
+			return draw(lines, room, opts.Look)
 		}
 	}
 	body, width := compact(doc, now, room)
-	return draw(frame(doc, now, body, width, room, opts.Footer), room, opts.Color)
+	return draw(frame(doc, now, body, width, room, opts.Footer), room, opts.Look)
 }
 
 // frame puts the header over body, which is width cells wide, and the footer
@@ -122,7 +123,7 @@ func restartDue(r status.Restart) line {
 	return line{{"restart due (" + status.Clean(r.Reason) + ")", warningInk}}
 }
 
-// unhealthy says the router is unhealthy, and why, in red.
+// unhealthy says the router is unhealthy, and why, destructive.
 func unhealthy(reason string) line {
 	text := "router unhealthy"
 	if reason = status.Clean(reason); reason != "" {
@@ -180,17 +181,21 @@ func dotted(parts ...line) line {
 	return l
 }
 
-// draw writes the lines out, each after the margin and cut to room cells, in
-// their inks when color is set.
-func draw(lines []line, room int, color bool) string {
+// draw writes the lines out, each after the margin and cut to room cells, as
+// look draws their inks: where it paints its canvas, every line across the
+// whole width, the blank ones too.
+func draw(lines []line, room int, look Look) string {
 	var b strings.Builder
 	for i, l := range lines {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		if l = l.fit(room); l.width() > 0 {
-			b.WriteString(strings.Repeat(" ", margin))
-			l.draw(&b, color)
+		l = l.fit(room)
+		if look.paints {
+			l = slices.Concat(l, line{spaces(room - l.width())})
+		}
+		if l.width() > 0 {
+			slices.Concat(line{spaces(margin)}, l).draw(&b, look)
 		}
 	}
 	return b.String()

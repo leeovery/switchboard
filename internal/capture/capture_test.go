@@ -7,8 +7,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
@@ -113,6 +115,47 @@ func TestAFixturesKeysArePressedOnceItsDocumentIsRead(t *testing.T) {
 
 	if frame, want := f.Frame(f.Size), "new sessions go to personal · personal"; !strings.Contains(frame, want) {
 		t.Errorf("having pressed 2, the frame\n%s\nhas no %q", frame, want)
+	}
+}
+
+func TestAFixtureIsDrawnInItsTheme(t *testing.T) {
+	amber, _ := theme.Builtin("amber")
+	f := fixture(t, "accounts-3")
+	tests := []struct {
+		name    string
+		fixture Fixture
+		// want is the canvas the frame is painted on, "" for none.
+		want string
+	}{
+		{name: "nord, the frames', unless given", fixture: f, want: "48;2;46;52;64"},
+		{name: "the theme given", fixture: f.InTheme(amber), want: "48;2;14;11;6"},
+		{name: "without colour", fixture: f.WithoutColour()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			frame := tt.fixture.Frame(tt.fixture.Size)
+			if tt.want == "" {
+				if strings.Contains(frame, "38;") || strings.Contains(frame, "48;") {
+					t.Errorf("the frame is in colour: %q", frame)
+				}
+				return
+			}
+			for i, line := range strings.Split(strings.TrimSuffix(frame, "\n"), "\n") {
+				if !strings.Contains(line, tt.want) {
+					t.Fatalf("line %d is off the canvas %s: %q", i+1, tt.want, line)
+				}
+			}
+		})
+	}
+}
+
+func TestTheThemesFixtureHasThePickerOpenOnTheThemeBeforeTheFrames(t *testing.T) {
+	frame := ansi.Strip(fixture(t, "accounts-3-themes").Frame(wide(34)))
+
+	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "router  ·  5 sessions"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the frame\n%s\nhas no %q", frame, want)
+		}
 	}
 }
 

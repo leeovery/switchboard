@@ -159,7 +159,7 @@ func sessionAndWeek(sessionUsed, weekUsed float64) status.Document {
 // checkScreen checks that the screen draws want.
 func checkScreen(t *testing.T, h *harness, want status.Document) {
 	t.Helper()
-	frame := "\n" + dashboard.Render(want, h.clock.now, dashboard.Options{Width: 150, Height: 49, Color: true, Footer: h.model.footer(h.clock.now)})
+	frame := "\n" + dashboard.Render(want, h.clock.now, dashboard.Options{Width: 150, Height: 49, Look: dashboard.NoColour(), Footer: h.model.footer(h.clock.now)})
 	if got := h.model.View().Content; got != frame {
 		t.Errorf("at %s the screen is\n%s\nwant\n%s", h.clock.now.Format(time.StampMilli), got, frame)
 	}

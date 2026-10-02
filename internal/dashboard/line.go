@@ -30,14 +30,10 @@ func (l line) width() int {
 	return n
 }
 
-// draw writes the line to b, in its inks when color is set.
-func (l line) draw(b *strings.Builder, color bool) {
+// draw writes the line to b, its inks drawn as look draws them.
+func (l line) draw(b *strings.Builder, look Look) {
 	for _, s := range l {
-		if color {
-			b.WriteString(s.ink.render(s.text))
-		} else {
-			b.WriteString(s.text)
-		}
+		b.WriteString(look.render(s.text, s.ink))
 	}
 }
 

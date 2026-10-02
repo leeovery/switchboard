@@ -126,6 +126,187 @@ func TestChangesToTheRealConfigThroughLinks(t *testing.T) {
 	}
 }
 
+func TestChangesToTheRealThemes(t *testing.T) {
+	theme := filepath.Join(configDir, themesDir, "lake.theme")
+	const themes = "the real ~/.config/switchboard/themes"
+	tests := []struct {
+		name string
+		// files are what the home holds before, by path from it.
+		files []string
+		// change changes the home at home.
+		change func(t *testing.T, home string)
+		want   []string
+	}{
+		{
+			name:   "nothing",
+			files:  []string{theme},
+			change: func(*testing.T, string) {},
+		},
+		{
+			name: "written where there was none",
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, theme), "canvas = #2E3440\n")
+			},
+			want: []string{"the real ~/.config/switchboard was modified", themes + " was created", themes + "/lake.theme was created"},
+		},
+		{
+			name:  "rewritten",
+			files: []string{theme},
+			change: func(t *testing.T, home string) {
+				write(t, filepath.Join(home, theme), "canvas = #102030\nborder = #4C566A\n")
+			},
+			want: []string{themes + "/lake.theme was modified"},
+		},
+		{
+			name:  "removed",
+			files: []string{theme},
+			change: func(t *testing.T, home string) {
+				if err := os.Remove(filepath.Join(home, theme)); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: []string{themes + " was modified", themes + "/lake.theme was removed"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			write(t, filepath.Join(home, configDir, "config.toml"), "listen = \"127.0.0.1:4747\"\n")
+			for _, file := range tt.files {
+				write(t, filepath.Join(home, file), "canvas = #2E3440\n")
+			}
+			backdate(t, home)
+			watched := watchReal(home, noEnv)
+
+			tt.change(t, home)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChangesToTheRealThemesThroughLinks(t *testing.T) {
+	tests := []struct {
+		name string
+		// link links the themes, kept in dotfiles, into home.
+		link func(t *testing.T, home, dotfiles string)
+	}{
+		{
+			name: "the themes directory linked in",
+			link: func(t *testing.T, home, dotfiles string) {
+				symlink(t, filepath.Join(dotfiles, "themes"), filepath.Join(home, configDir, themesDir))
+			},
+		},
+		{
+			name: "a theme linked in",
+			link: func(t *testing.T, home, dotfiles string) {
+				symlink(t, filepath.Join(dotfiles, "themes", "lake.theme"), filepath.Join(home, configDir, themesDir, "lake.theme"))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home, dotfiles := t.TempDir(), t.TempDir()
+			theme := filepath.Join(dotfiles, "themes", "lake.theme")
+			write(t, theme, "canvas = #2E3440\n")
+			tt.link(t, home, dotfiles)
+			backdate(t, dotfiles)
+			watched := watchReal(home, noEnv)
+
+			write(t, theme, "canvas = #102030\nborder = #4C566A\n")
+
+			want := []string{"the real ~/.config/switchboard/themes/lake.theme was modified"}
+			if got := watched.changes(); !slices.Equal(got, want) {
+				t.Errorf("changes() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestChangesToTheRealPreferencesFile(t *testing.T) {
+	const prefs = "the real ~/.local/state/switchboard/prefs.json"
+	tests := []struct {
+		name string
+		// before lays out the state directory, at state, before the tests
+		// begin.
+		before func(t *testing.T, state string)
+		// during changes it as the tests run.
+		during func(t *testing.T, state string)
+		want   []string
+	}{
+		{
+			name:   "nothing",
+			before: writePrefs,
+			during: func(*testing.T, string) {},
+		},
+		{
+			name:   "written where there was none",
+			before: writeState,
+			during: writePrefs,
+			want:   []string{prefs + " was created"},
+		},
+		{
+			name:   "rewritten",
+			before: writePrefs,
+			during: func(t *testing.T, state string) {
+				write(t, filepath.Join(state, prefsFile), "{\n  \"theme_dark\": \"amber\"\n}\n")
+			},
+			want: []string{prefs + " was modified"},
+		},
+		{
+			name:   "removed",
+			before: writePrefs,
+			during: func(t *testing.T, state string) {
+				if err := os.Remove(filepath.Join(state, prefsFile)); err != nil {
+					t.Fatal(err)
+				}
+			},
+			want: []string{prefs + " was removed"},
+		},
+		{
+			name:   "a live router writing the rest of its state",
+			before: writePrefs,
+			during: func(t *testing.T, state string) {
+				write(t, filepath.Join(state, "state.json"), "{\"version\": 1, \"sessions\": [], \"pin\": {}}\n")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			state := filepath.Join(home, stateDir)
+			tt.before(t, state)
+			backdate(t, home)
+			watched := watchReal(home, noEnv)
+
+			tt.during(t, state)
+
+			if got := watched.changes(); !slices.Equal(got, tt.want) {
+				t.Errorf("changes() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestChangesToARealPreferencesFileThroughALink(t *testing.T) {
+	home, dotfiles := t.TempDir(), t.TempDir()
+	kept := filepath.Join(dotfiles, prefsFile)
+	write(t, kept, "{\n  \"theme\": \"nord\"\n}\n")
+	writeState(t, filepath.Join(home, stateDir))
+	symlink(t, kept, filepath.Join(home, stateDir, prefsFile))
+	backdate(t, dotfiles)
+	watched := watchReal(home, noEnv)
+
+	write(t, kept, "{\n  \"theme\": \"amber\"\n}\n")
+
+	want := []string{"the real ~/.local/state/switchboard/prefs.json was modified"}
+	if got := watched.changes(); !slices.Equal(got, want) {
+		t.Errorf("changes() = %q, want %q", got, want)
+	}
+}
+
 func TestChangesToTheRealLaunchAgents(t *testing.T) {
 	agent := filepath.Join(launchAgentsDir, "io.github.leeovery.switchboard.plist")
 	other := filepath.Join(launchAgentsDir, "com.example.other.plist")
@@ -733,6 +914,35 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 			want: []string{"the real %[1]s/state/switchboard/tokens was created", "the real %[1]s/state/switchboard/tokens/work was created"},
 		},
 		{
+			name: "a theme written where SWITCHBOARD_THEMES_DIR puts them",
+			before: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "themes", "nord.theme"), "before\n")
+			},
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "themes", "lake.theme"), "after\n")
+			},
+			want: []string{"the real %[1]s/themes was modified", "the real %[1]s/themes/lake.theme was created"},
+		},
+		{
+			name: "a theme written where XDG_CONFIG_HOME puts them",
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "config", "switchboard", "themes", "lake.theme"), "after\n")
+			},
+			want: []string{
+				"the real %[1]s/config/switchboard was created",
+				"the real %[1]s/config/switchboard/themes was created",
+				"the real %[1]s/config/switchboard/themes/lake.theme was created",
+			},
+		},
+		{
+			name:   "the preferences file written in the state there all along",
+			before: func(t *testing.T, elsewhere string) { writeState(t, filepath.Join(elsewhere, "state", "switchboard")) },
+			during: func(t *testing.T, elsewhere string) {
+				write(t, filepath.Join(elsewhere, "state", "switchboard", prefsFile), "{\"theme\": \"amber\"}\n")
+			},
+			want: []string{"the real %[1]s/state/switchboard/prefs.json was created"},
+		},
+		{
 			name: "the skill installed where CLAUDE_CONFIG_DIR puts it",
 			during: func(t *testing.T, elsewhere string) {
 				write(t, filepath.Join(elsewhere, "claude", skillDir, "SKILL.md"), "---\nname: switchboard\n---\n")
@@ -765,11 +975,12 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 			}
 			backdate(t, elsewhere)
 			env := map[string]string{
-				"SWITCHBOARD_CONFIG": filepath.Join(elsewhere, "work.toml"),
-				"XDG_CONFIG_HOME":    filepath.Join(elsewhere, "config"),
-				"XDG_STATE_HOME":     filepath.Join(elsewhere, "state"),
-				"XDG_DATA_HOME":      filepath.Join(elsewhere, "data"),
-				"CLAUDE_CONFIG_DIR":  filepath.Join(elsewhere, "claude"),
+				"SWITCHBOARD_CONFIG":     filepath.Join(elsewhere, "work.toml"),
+				"SWITCHBOARD_THEMES_DIR": filepath.Join(elsewhere, "themes"),
+				"XDG_CONFIG_HOME":        filepath.Join(elsewhere, "config"),
+				"XDG_STATE_HOME":         filepath.Join(elsewhere, "state"),
+				"XDG_DATA_HOME":          filepath.Join(elsewhere, "data"),
+				"CLAUDE_CONFIG_DIR":      filepath.Join(elsewhere, "claude"),
 			}
 			watched := watchReal(t.TempDir(), func(key string) string { return env[key] })
 
@@ -794,7 +1005,9 @@ func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
 		variable, file string
 	}{
 		{name: "the config", variable: "SWITCHBOARD_CONFIG"},
+		{name: "a theme", variable: "SWITCHBOARD_THEMES_DIR", file: "lake.theme"},
 		{name: "a token file", variable: "XDG_STATE_HOME", file: filepath.Join("switchboard", tokensDir, "work")},
+		{name: "the preferences file", variable: "XDG_STATE_HOME", file: filepath.Join("switchboard", prefsFile)},
 		{name: "the skill", variable: "CLAUDE_CONFIG_DIR", file: filepath.Join(skillDir, "SKILL.md")},
 		{name: "claude on PATH", variable: "PATH", file: "claude"},
 		{name: "switchboard's bin directory", variable: "XDG_DATA_HOME", file: filepath.Join("switchboard", "bin", "claude")},
@@ -825,12 +1038,13 @@ func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
 
 func TestRelativePlacesAreNoneTestguardCanKnow(t *testing.T) {
 	env := map[string]string{
-		"SWITCHBOARD_CONFIG": "work.toml",
-		"XDG_CONFIG_HOME":    "config",
-		"XDG_STATE_HOME":     "state",
-		"XDG_DATA_HOME":      "data",
-		"CLAUDE_CONFIG_DIR":  "claude",
-		"PATH":               strings.Join([]string{"bin", "", "."}, string(os.PathListSeparator)),
+		"SWITCHBOARD_CONFIG":     "work.toml",
+		"SWITCHBOARD_THEMES_DIR": "themes",
+		"XDG_CONFIG_HOME":        "config",
+		"XDG_STATE_HOME":         "state",
+		"XDG_DATA_HOME":          "data",
+		"CLAUDE_CONFIG_DIR":      "claude",
+		"PATH":                   strings.Join([]string{"bin", "", "."}, string(os.PathListSeparator)),
 	}
 	if got := watchReal("", func(key string) string { return env[key] }); len(got) > 0 {
 		t.Errorf("watchReal() watches %d places, want none: a relative one leads wherever the program reading it runs", len(got))
@@ -845,6 +1059,14 @@ func writeState(t *testing.T, state string) {
 	t.Helper()
 	write(t, filepath.Join(state, "state.json"), "{\"version\": 1, \"sessions\": []}\n")
 	write(t, filepath.Join(state, "logs", "router.log"), "level=INFO msg=routed\n")
+}
+
+// writePrefs lays out a state directory at state as writeState does, with
+// the dashboard's preferences file in it.
+func writePrefs(t *testing.T, state string) {
+	t.Helper()
+	writeState(t, state)
+	write(t, filepath.Join(state, prefsFile), "{\n  \"theme\": \"nord\"\n}\n")
 }
 
 // writeTokens lays out a state directory at state as writeState does, with

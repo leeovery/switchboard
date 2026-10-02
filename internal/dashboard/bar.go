@@ -13,9 +13,9 @@ const (
 
 var (
 	// paceMarker marks where even use across a window would put it.
-	paceMarker = span{"┃", markerInk}
+	paceMarker = span{"┃", paceInk}
 	// reserveMarker marks where an account's reserve starts.
-	reserveMarker = span{"╎", warningInk}
+	reserveMarker = span{"╎", reserveInk}
 )
 
 // bar draws fraction as a bar width cells long, a span a cell: filled in
@@ -26,7 +26,7 @@ func bar(fraction float64, width int) line {
 	l := make(line, width)
 	for i := range l {
 		if eighths := filled - 8*i; eighths > 0 {
-			l[i] = span{blocks[min(eighths, 8)], ink{color: rampAt(along(i, width))}}
+			l[i] = span{blocks[min(eighths, 8)], ink{ramp: true, at: along(i, width)}}
 		} else {
 			l[i] = span{trackCell, trackInk}
 		}

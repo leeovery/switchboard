@@ -1,9 +1,9 @@
 ;; The macOS sandbox scripts/test-isolated runs the tests in: nothing beyond
 ;; this machine, no unix socket outside the temporary directory and nothing on
 ;; the router's port, no writes into the home directory but Go's caches, nor
-;; into switchboard's real config, state and bin directory, or Claude Code's
-;; config directory, wherever they are, or the directories on PATH, and none
-;; of the real programs tests must never run.
+;; into switchboard's real config, themes, state, preferences and bin
+;; directory, or Claude Code's config directory, wherever they are, or the
+;; directories on PATH, and none of the real programs tests must never run.
 ;;
 ;; Parameters, each a path with its symlinks resolved, as the sandbox matches
 ;; resolved paths:
@@ -13,7 +13,9 @@
 ;;   GOMODCACHE  go env GOMODCACHE
 ;;   CONFIG      the config file switchboard reads
 ;;   CONFIG_DIR  its config directory
+;;   THEMES_DIR  its themes directory
 ;;   STATE_DIR   its state directory
+;;   PREFS       its preferences file, the dashboard's, in the state directory
 ;;   BIN_DIR     its bin directory, which holds the claude link
 ;;   CLAUDE_DIR  Claude Code's config directory, where switchboard's skill goes
 ;;   PATH_DIRS   the directories on PATH outside the home, where a program
@@ -46,12 +48,15 @@
 
 (deny file-write* (subpath (param "HOME")))
 (allow file-write* (subpath (param "GOCACHE")) (subpath (param "GOMODCACHE")))
-;; The real config, state and bin directory, and Claude Code's config
-;; directory, where the environment puts them, home or not.
+;; The real config, themes, state, preferences and bin directory, and Claude
+;; Code's config directory, where the environment puts them, home or not, and
+;; where a link to one leads.
 (deny file-write*
   (literal (param "CONFIG"))
   (subpath (param "CONFIG_DIR"))
+  (subpath (param "THEMES_DIR"))
   (subpath (param "STATE_DIR"))
+  (literal (param "PREFS"))
   (subpath (param "BIN_DIR"))
   (subpath (param "CLAUDE_DIR")))
 

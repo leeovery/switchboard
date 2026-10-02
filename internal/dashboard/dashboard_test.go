@@ -123,7 +123,7 @@ func TestRenderInColor(t *testing.T) {
 		t.Run(l.name, func(t *testing.T) {
 			plain := dashboard.Render(l.doc, now, l.opts)
 			colored := l.opts
-			colored.Color = true
+			colored.Look = dashboard.Print(builtin(t, "nord"), nil)
 			got := dashboard.Render(l.doc, now, colored)
 			if !strings.Contains(got, "\x1b[38;2;") {
 				t.Error("Render() with color has no color escapes")
@@ -298,14 +298,14 @@ func TestRenderShowsAReserveOnceAWindowReachesIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, opts := range []dashboard.Options{{Width: 160}, {Width: 130, Height: 10}} {
-				opts.Color = true
+				opts.Look = dashboard.Print(builtin(t, "nord"), nil)
 				frame := dashboard.Render(tt.doc, now, opts)
 				shown := strings.Contains(ansi.Strip(frame), "reserve")
 				if shown != (tt.want != "") {
 					t.Errorf("at width %d, the reserve shown: %v, want %v", opts.Width, shown, tt.want != "")
 				}
-				if tt.want != "" && !strings.Contains(frame, lipgloss.NewStyle().Foreground(lipgloss.Color("#D08770")).Render(tt.want)) {
-					t.Errorf("at width %d, the frame doesn't say %q in the warning colour:\n%s", opts.Width, tt.want, frame)
+				if tt.want != "" && !strings.Contains(frame, lipgloss.NewStyle().Foreground(lipgloss.Color("#EBCB8B")).Render(tt.want)) {
+					t.Errorf("at width %d, the frame doesn't say %q in accent.attention:\n%s", opts.Width, tt.want, frame)
 				}
 			}
 		})
@@ -319,12 +319,12 @@ func TestRenderSaysWhyNoAccountIsTheOneToUseNext(t *testing.T) {
 		// want is what the heading says, in the colour wantColor.
 		want, wantColor string
 	}{
-		{name: "none has room", doc: noBest(), want: "no account has room right now", wantColor: "#BF616A"},
-		{name: "nothing has been read of any", doc: nothingRead(), want: "nothing read yet", wantColor: "#616E88"},
+		{name: "none has room, destructive", doc: noBest(), want: "no account has room right now", wantColor: "#DD8188"},
+		{name: "nothing has been read of any, dim", doc: nothingRead(), want: "nothing read yet", wantColor: "#73819B"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			frame := dashboard.Render(tt.doc, now, dashboard.Options{Width: 110, Color: true})
+			frame := dashboard.Render(tt.doc, now, dashboard.Options{Width: 110, Look: dashboard.Print(builtin(t, "nord"), nil)})
 			if !strings.Contains(frame, lipgloss.NewStyle().Foreground(lipgloss.Color(tt.wantColor)).Render(tt.want)) {
 				t.Errorf("the frame doesn't say %q in %s:\n%s", tt.want, tt.wantColor, frame)
 			}

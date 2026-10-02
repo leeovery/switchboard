@@ -1,0 +1,45 @@
+# Exchange: a telephone exchange's brass and walnut, dark.
+#
+# Its text on a selection is its brightest cream, as its selection is dark.
+# Its own cords' colours, as a patch bay's are: amber, blue, green, cream,
+# copper and brass, never the red a limit or a refusal is drawn in. Its
+# reserve is the blue of its cords, where the brass of its keys would sink
+# into the bars.
+
+# Text, bright to faint.
+text.primary = #F4EEDF
+text.secondary = #EDE3CC
+text.tertiary = #D9CDB2
+text.muted = #A89C86
+text.subtle = #7E7262
+text.faint = #3A322A
+text.on-selection = #F4EEDF
+
+# Accents and states.
+accent.primary = #C9A44C
+accent.key = #C9A44C
+accent.mode = #E2C36B
+accent.attention = #EDAE49
+state.positive = #7FB069
+state.destructive = #D1495B
+
+# Surfaces, and the text drawn on the attention surface.
+canvas = #1B1714
+bg.selection = #3A3024
+bg.attention = #2E2418
+bg.subtle = #241E19
+border = #5A4D3E
+text.on-attention = #F4EEDF
+
+# The charts.
+viz.ramp.1 = #7FB069
+viz.ramp.2 = #EDAE49
+viz.ramp.3 = #E07A3F
+viz.ramp.4 = #D1495B
+viz.reserve = #4F86C6
+viz.series.1 = #EDAE49
+viz.series.2 = #4F86C6
+viz.series.3 = #7FB069
+viz.series.4 = #F4EEDF
+viz.series.5 = #C97B4A
+viz.series.6 = #C9A44C
