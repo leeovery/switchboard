@@ -272,12 +272,16 @@ func TestServeKeepsTheHistoryAsLongAsTheConfigSays(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	dayFile := func(back int) string {
+	// plainFile is the plain file of the day back days before today's, which
+	// the router compresses, adding .gz to its name, two days after it ends.
+	plainFile := func(back int) string {
 		return filepath.Join(dir, "readings-"+testNow.Local().AddDate(0, 0, -back).Format(time.DateOnly)+".jsonl")
 	}
-	files := map[string]bool{dayFile(8): true, dayFile(9): false}
-	for path := range files {
-		if err := os.WriteFile(path, nil, 0o600); err != nil {
+	kept := map[int]bool{8: true, 9: false}
+	for back := range kept {
+		read := testNow.AddDate(0, 0, -back).Format(time.RFC3339)
+		line := `{"at":"` + read + `","account":"work","window":"5h","utilization":0.2,"source":"answer"}` + "\n"
+		if err := os.WriteFile(plainFile(back), []byte(line), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -285,9 +289,11 @@ func TestServeKeepsTheHistoryAsLongAsTheConfigSays(t *testing.T) {
 	if got := srv.start(t)(); got.code != 0 {
 		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
 	}
-	for path, kept := range files {
-		if _, err := os.Stat(path); (err == nil) != kept {
-			t.Errorf("%s kept = %v, want %v: a day's file goes 8 days after its day ends", filepath.Base(path), err == nil, kept)
+	for back, keep := range kept {
+		_, plain := os.Stat(plainFile(back))
+		_, compressed := os.Stat(plainFile(back) + ".gz")
+		if held := plain == nil || compressed == nil; held != keep {
+			t.Errorf("the day %d days back is kept = %v, want %v: a day's files go 8 days after it ends", back, held, keep)
 		}
 	}
 }

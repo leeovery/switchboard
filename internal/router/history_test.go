@@ -1,8 +1,12 @@
 package router
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -37,10 +41,92 @@ func keeping(t *testing.T, h *history) (stop func()) {
 	}
 }
 
-// historyOf is the readings history's file of the local day t falls on, in
-// dir.
+// historyOf is the readings history's plain file of the local day t falls on,
+// in dir.
 func historyOf(dir string, t time.Time) string {
-	return filepath.Join(dir, historyFile(t.Local().Format(historyDay)))
+	return filepath.Join(dir, plainFile(t.Local().Format(historyDay)).name())
+}
+
+// workRead is work's session as an answer read it at at, at u of its use.
+func workRead(at time.Time, u float64) reading {
+	return reading{At: at.UTC(), Account: "work", Window: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: fromAnswer}
+}
+
+// linesOf returns readings as the history's lines.
+func linesOf(t *testing.T, readings ...reading) string {
+	t.Helper()
+	var lines strings.Builder
+	for _, r := range readings {
+		line, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines.Write(line)
+		lines.WriteByte('\n')
+	}
+	return lines.String()
+}
+
+// gzipOf returns texts compressed, a gzip member each, one after another.
+func gzipOf(t *testing.T, texts ...string) []byte {
+	t.Helper()
+	var data bytes.Buffer
+	for _, text := range texts {
+		w := gzip.NewWriter(&data)
+		if _, err := w.Write([]byte(text)); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return data.Bytes()
+}
+
+// writeDay writes the history's file f in dir, holding lines: compressed, as
+// a gzip member of their own, when f is.
+func writeDay(t *testing.T, dir string, f dayFile, lines string) {
+	t.Helper()
+	data := []byte(lines)
+	if f.compressed {
+		data = gzipOf(t, lines)
+	}
+	if err := os.WriteFile(filepath.Join(dir, f.name()), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// heldIn returns the lines the history's file f in dir holds: a compressed
+// file's, its members' one after another.
+func heldIn(t *testing.T, dir string, f dayFile) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, f.name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f.compressed {
+		return string(data)
+	}
+	members, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines, err := io.ReadAll(members)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(lines)
+}
+
+// holdsDay reports whether the history in dir holds a file of the local day
+// with the given date, plain or compressed.
+func holdsDay(dir, date string) bool {
+	for _, f := range []dayFile{plainFile(date), compressedFile(date)} {
+		if _, err := os.Stat(filepath.Join(dir, f.name())); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func TestTheHistoryHoldsEachReadingThatChangesAWindow(t *testing.T) {
@@ -76,18 +162,22 @@ func TestTheHistoryHoldsEachReadingThatChangesAWindow(t *testing.T) {
 		t.Errorf("the history holds\n%s\nwant a line for each reading that changed a window, where it came from, and nothing else\n%s", data, want)
 	}
 	for path, mode := range map[string]fs.FileMode{dir: fs.ModeDir | 0o700, historyOf(dir, start): 0o600} {
-		if info, err := os.Stat(path); err != nil || info.Mode() != mode {
-			t.Errorf("%s is %v (%v), want %v", filepath.Base(path), info.Mode(), err, mode)
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode() != mode {
+			t.Errorf("%s is %v, want %v", filepath.Base(path), info.Mode(), mode)
 		}
 	}
 }
 
-func TestTheHistoryKeepsAFileADayAsLongAsTheConfigSays(t *testing.T) {
+func TestTheHistoryKeepsADaysFilesAsLongAsTheConfigSays(t *testing.T) {
 	const day = 24 * time.Hour
 	tests := []struct {
 		name string
 		keep time.Duration
-		// days is how many days a day's file is kept once its day has ended.
+		// days is how many days a day's files are kept once it has ended.
 		days int
 	}{
 		{name: "two weeks where it doesn't say", days: 14},
@@ -95,20 +185,24 @@ func TestTheHistoryKeepsAFileADayAsLongAsTheConfigSays(t *testing.T) {
 		{name: "400 days", keep: 400 * day, days: 400},
 	}
 	today := start.Local()
-	dayFile := func(back int) string { return historyFile(today.AddDate(0, 0, -back).Format(historyDay)) }
+	dateOf := func(back int) string { return today.AddDate(0, 0, -back).Format(historyDay) }
+	lines := linesOf(t, workRead(start, 0.2))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			files := map[string]bool{
-				dayFile(0):            true,
-				dayFile(tt.days):      true,
-				dayFile(tt.days + 1):  false,
-				dayFile(tt.days + 30): false,
-				// Anything but the history's own is left alone.
-				"notes.txt":           true,
-				"readings-soon.jsonl": true,
+			// kept says whether a day's files are kept, by how many days before
+			// today it is. Those past keeping are compressed as well as plain.
+			kept := map[int]bool{0: true, tt.days: true, tt.days + 1: false, tt.days + 30: false}
+			for back, stays := range kept {
+				writeDay(t, dir, plainFile(dateOf(back)), lines)
+				if !stays {
+					writeDay(t, dir, compressedFile(dateOf(back)), lines)
+				}
 			}
-			for name := range files {
+			// Anything but the history's own is left alone, as a compressed file
+			// left half written.
+			others := []string{"notes.txt", "readings-soon.jsonl", "." + compressedFile(dateOf(tt.days+1)).name() + ".2961577413"}
+			for _, name := range others {
 				if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
 					t.Fatal(err)
 				}
@@ -117,12 +211,149 @@ func TestTheHistoryKeepsAFileADayAsLongAsTheConfigSays(t *testing.T) {
 			h.open(dir)
 
 			keeping(t, h)()
-			for name, kept := range files {
-				if _, err := os.Stat(filepath.Join(dir, name)); (err == nil) != kept {
-					t.Errorf("%s kept = %v, want %v: a day's file goes %d days after its day ends", name, err == nil, kept, tt.days)
+			for back, stays := range kept {
+				if held := holdsDay(dir, dateOf(back)); held != stays {
+					t.Errorf("the day %d days back is kept = %v, want %v: a day's files go %d days after it ends", back, held, stays, tt.days)
+				}
+			}
+			for _, name := range others {
+				if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+					t.Errorf("%s went (%v), want anything but the history's own files left alone", name, err)
 				}
 			}
 		})
+	}
+}
+
+func TestADaysFilesAreNamedForItsDate(t *testing.T) {
+	tests := []struct {
+		name string
+		// want is the history's file it names, the zero dayFile when none.
+		want dayFile
+	}{
+		{name: "readings-2026-09-28.jsonl", want: plainFile("2026-09-28")},
+		{name: "readings-2026-09-28.jsonl.gz", want: compressedFile("2026-09-28")},
+		{name: ".readings-2026-09-28.jsonl.gz.2961577413"},
+		{name: "readings-2026-09-28.jsonl.gz.gz"},
+		{name: "readings-2026-09-28.gz"},
+		{name: "readings-2026-9-28.jsonl"},
+		{name: "readings-soon.jsonl"},
+		{name: "notes.txt"},
+	}
+	for _, tt := range tests {
+		f, day, ok := dayFileNamed(tt.name)
+		if f != tt.want || ok != (tt.want != dayFile{}) {
+			t.Errorf("dayFileNamed(%q) = %+v, %v; want %+v", tt.name, f, ok, tt.want)
+		}
+		if ok && (f.name() != tt.name || !day.Equal(time.Date(2026, 9, 28, 0, 0, 0, 0, time.Local))) {
+			t.Errorf("dayFileNamed(%q) names %q, of %v; want it named as it is, of 28 September", tt.name, f.name(), day)
+		}
+	}
+}
+
+func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
+	day := time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local)
+	date := day.Format(historyDay)
+	lines := linesOf(t, workRead(day.Add(9*time.Hour), 0.2), workRead(day.Add(10*time.Hour), 0.3))
+	tests := []struct {
+		name string
+		// ended is how long before now the day ended.
+		ended time.Duration
+		// in is the day's file that holds its lines once the history is
+		// pruned, and gone the one that isn't there.
+		in, gone dayFile
+	}{
+		{name: "plain, a minute short of two days on", ended: 48*time.Hour - time.Minute, in: plainFile(date), gone: compressedFile(date)},
+		{name: "compressed, two days on", ended: 48 * time.Hour, in: compressedFile(date), gone: plainFile(date)},
+		{name: "compressed, a minute past two days on", ended: 48*time.Hour + time.Minute, in: compressedFile(date), gone: plainFile(date)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeDay(t, dir, plainFile(date), lines)
+			h := newHistory(config.History{}, at(day.AddDate(0, 0, 1).Add(tt.ended)))
+			h.open(dir)
+
+			h.prune()
+			if got := heldIn(t, dir, tt.in); got != lines {
+				t.Errorf("%s holds\n%s\nwant the day's lines\n%s", tt.in.name(), got, lines)
+			}
+			info, err := os.Stat(filepath.Join(dir, tt.in.name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode() != 0o600 {
+				t.Errorf("%s is %v, want %v", tt.in.name(), info.Mode(), fs.FileMode(0o600))
+			}
+			if _, err := os.Stat(filepath.Join(dir, tt.gone.name())); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("%s is there (%v), want it not", tt.gone.name(), err)
+			}
+		})
+	}
+}
+
+func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
+	day := time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local)
+	date := day.Format(historyDay)
+	older, newer := linesOf(t, workRead(day.Add(9*time.Hour), 0.2)), linesOf(t, workRead(day.Add(10*time.Hour), 0.3))
+	tests := []struct {
+		name string
+		// members are those the day's compressed file holds already.
+		members []string
+	}{
+		{name: "after its lines, as when the clock was set back to the day", members: []string{older}},
+		{name: "not again when it ends with them, as when the router stopped before the plain file went", members: []string{older, newer}},
+		{name: "not again when the last of its lines are them", members: []string{older + newer}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, compressedFile(date).name()), gzipOf(t, tt.members...), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			writeDay(t, dir, plainFile(date), newer)
+			h := newHistory(config.History{}, at(day.AddDate(0, 0, 3)))
+			h.open(dir)
+
+			h.prune()
+			if got := heldIn(t, dir, compressedFile(date)); got != older+newer {
+				t.Errorf("the day's compressed file holds\n%s\nwant its lines, older first, each once\n%s", got, older+newer)
+			}
+			if _, err := os.Stat(filepath.Join(dir, plainFile(date).name())); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the day's plain file is there (%v), want it gone", err)
+			}
+		})
+	}
+}
+
+func TestACompressionThatFailsLeavesThePlainFileToCompressAgain(t *testing.T) {
+	log := logstest.Capture(t)
+	day := time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local)
+	date := day.Format(historyDay)
+	lines := linesOf(t, workRead(day.Add(9*time.Hour), 0.2))
+	dir := t.TempDir()
+	writeDay(t, dir, plainFile(date), lines)
+	// The day's compressed file isn't gzip, so its lines can't be added to.
+	damaged := filepath.Join(dir, compressedFile(date).name())
+	if err := os.WriteFile(damaged, []byte(lines), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := newHistory(config.History{}, at(day.AddDate(0, 0, 3)))
+	h.open(dir)
+
+	h.prune()
+	if got := heldIn(t, dir, plainFile(date)); got != lines {
+		t.Errorf("the day's plain file holds\n%s\nwant it as it was\n%s", got, lines)
+	}
+	if !log.Has("level=WARN", `msg="can't compress the readings history"`, "file="+plainFile(date).name()) {
+		t.Errorf("log reads\n%s\nwant the compression that failed noted", log)
+	}
+	if err := os.Remove(damaged); err != nil {
+		t.Fatal(err)
+	}
+	h.prune()
+	if got := heldIn(t, dir, compressedFile(date)); got != lines {
+		t.Errorf("at the next prune, the day's compressed file holds\n%s\nwant its lines\n%s", got, lines)
 	}
 }
 
@@ -205,51 +436,71 @@ func TestARiseAcrossAGapInTheHistoryIsSpreadOverItAfterARestart(t *testing.T) {
 	}
 }
 
-func TestReadingBackTakesTheTwoNewestFilesByName(t *testing.T) {
+func TestReadingBackTakesTheTwoNewestDays(t *testing.T) {
 	now := time.Date(2026, 9, 29, 0, 10, 0, 0, time.Local)
-	lineAt := func(at time.Time, u float64) reading {
-		return reading{At: at.UTC(), Account: "work", Window: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: fromAnswer}
-	}
+	// The router stopped while it compressed a day ten days back, once it had
+	// written the day's compressed file, before it removed its plain one, which
+	// holds the last two of these. Read twice, they'd fall back from 0.45 to
+	// 0.3, as a reset by hand does.
+	stopped := []reading{workRead(now.Add(-240*time.Hour), 0.2), workRead(now.Add(-239*time.Hour), 0.3), workRead(now.Add(-238*time.Hour), 0.45)}
 	tests := []struct {
 		name string
-		// files are the lines each file holds, by the day it's named for.
-		files map[string][]reading
+		// files are the readings each of the history's files holds.
+		files map[dayFile][]reading
 		want  []reading
 	}{
 		{
 			name: "yesterday's and today's, across midnight",
-			files: map[string][]reading{
-				"2026-09-27": {lineAt(now.Add(-26*time.Hour), 0.1)},
-				"2026-09-28": {lineAt(now.Add(-20*time.Minute), 0.2)},
-				"2026-09-29": {lineAt(now.Add(-5*time.Minute), 0.3)},
+			files: map[dayFile][]reading{
+				plainFile("2026-09-27"): {workRead(now.Add(-26*time.Hour), 0.1)},
+				plainFile("2026-09-28"): {workRead(now.Add(-20*time.Minute), 0.2)},
+				plainFile("2026-09-29"): {workRead(now.Add(-5*time.Minute), 0.3)},
 			},
-			want: []reading{lineAt(now.Add(-20*time.Minute), 0.2), lineAt(now.Add(-5*time.Minute), 0.3)},
+			want: []reading{workRead(now.Add(-20*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
 		},
 		{
 			name: "named for a day the clock hasn't come to, as after a change of time zone",
-			files: map[string][]reading{
-				"2026-09-28": {lineAt(now.Add(-40*time.Minute), 0.1)},
-				"2026-09-29": {lineAt(now.Add(-20*time.Minute), 0.2)},
-				"2026-09-30": {lineAt(now.Add(-5*time.Minute), 0.3)},
+			files: map[dayFile][]reading{
+				plainFile("2026-09-28"): {workRead(now.Add(-40*time.Minute), 0.1)},
+				plainFile("2026-09-29"): {workRead(now.Add(-20*time.Minute), 0.2)},
+				plainFile("2026-09-30"): {workRead(now.Add(-5*time.Minute), 0.3)},
 			},
-			want: []reading{lineAt(now.Add(-20*time.Minute), 0.2), lineAt(now.Add(-5*time.Minute), 0.3)},
+			want: []reading{workRead(now.Add(-20*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
+		},
+		{
+			name: "compressed, as when the router restarts days after the last reading it wrote",
+			files: map[dayFile][]reading{
+				compressedFile("2026-09-17"): {workRead(now.Add(-12*24*time.Hour), 0.1)},
+				compressedFile("2026-09-18"): {workRead(now.Add(-11*24*time.Hour), 0.2)},
+				compressedFile("2026-09-19"): {workRead(now.Add(-10*24*time.Hour), 0.3)},
+			},
+			want: []reading{workRead(now.Add(-11*24*time.Hour), 0.2), workRead(now.Add(-10*24*time.Hour), 0.3)},
+		},
+		{
+			name: "a day's compressed lines before its plain file's, as when the clock was set back to it",
+			files: map[dayFile][]reading{
+				plainFile("2026-09-27"):      {workRead(now.Add(-26*time.Hour), 0.05)},
+				plainFile("2026-09-28"):      {workRead(now.Add(-20*time.Minute), 0.1)},
+				compressedFile("2026-09-29"): {workRead(now.Add(-8*time.Minute), 0.2)},
+				plainFile("2026-09-29"):      {workRead(now.Add(-5*time.Minute), 0.3)},
+			},
+			want: []reading{workRead(now.Add(-20*time.Minute), 0.1), workRead(now.Add(-8*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
+		},
+		{
+			name: "a day's lines once, when its compressed file ends with its plain file's, as after the router stopped compressing it",
+			files: map[dayFile][]reading{
+				plainFile("2026-09-18"):      {workRead(now.Add(-264*time.Hour), 0.1)},
+				compressedFile("2026-09-19"): stopped,
+				plainFile("2026-09-19"):      stopped[1:],
+			},
+			want: append([]reading{workRead(now.Add(-264*time.Hour), 0.1)}, stopped...),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			for day, lines := range tt.files {
-				var data []byte
-				for _, r := range lines {
-					line, err := json.Marshal(r)
-					if err != nil {
-						t.Fatal(err)
-					}
-					data = append(append(data, line...), '\n')
-				}
-				if err := os.WriteFile(filepath.Join(dir, historyFile(day)), data, 0o600); err != nil {
-					t.Fatal(err)
-				}
+			for f, readings := range tt.files {
+				writeDay(t, dir, f, linesOf(t, readings...))
 			}
 			h := newHistory(config.History{}, at(now))
 			h.open(dir)
@@ -261,40 +512,85 @@ func TestReadingBackTakesTheTwoNewestFilesByName(t *testing.T) {
 	}
 }
 
+func TestADamagedCompressedFileGivesTheLinesBeforeTheDamage(t *testing.T) {
+	now := time.Date(2026, 9, 29, 0, 10, 0, 0, time.Local)
+	yesterday := compressedFile("2026-09-28")
+	first, second := linesOf(t, workRead(now.Add(-30*time.Minute), 0.1)), linesOf(t, workRead(now.Add(-25*time.Minute), 0.2))
+	tests := []struct {
+		name string
+		// data is what yesterday's compressed file holds.
+		data []byte
+		// want are the uses read back, today's 0.3 last.
+		want []float64
+		log  []string
+	}{
+		{
+			name: "cut short in its second member",
+			data: append(gzipOf(t, first), gzipOf(t, second)[:5]...),
+			want: []float64{0.1, 0.3},
+			log:  []string{"level=WARN", `msg="readings history read short"`, "file=" + yesterday.name(), `error="unexpected EOF"`},
+		},
+		{
+			name: "not gzip at all",
+			data: []byte(first),
+			want: []float64{0.3},
+			log:  []string{"level=WARN", `msg="can't read the readings history"`, "file=" + yesterday.name(), `error="gzip: invalid header"`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, yesterday.name()), tt.data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			writeDay(t, dir, plainFile("2026-09-29"), linesOf(t, workRead(now.Add(-5*time.Minute), 0.3)))
+			h := newHistory(config.History{}, at(now))
+			h.open(dir)
+
+			var got []float64
+			for r := range h.readBack(now) {
+				got = append(got, r.Utilization)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("read back the uses %v, want %v: the lines before the damage, and today's", got, tt.want)
+			}
+			if !log.Has(tt.log...) {
+				t.Errorf("log reads\n%s\nwant the damage noted, a line with %q", log, tt.log)
+			}
+		})
+	}
+}
+
 func TestFilesOfADayAfterTomorrowAreNeitherTakenUpNorKept(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.Local)
 	dir := t.TempDir()
-	day := func(offset int) string { return historyFile(now.AddDate(0, 0, offset).Format(historyDay)) }
-	lineAt := func(at time.Time, u float64) []byte {
-		line, err := json.Marshal(reading{At: at.UTC(), Account: "work", Window: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: fromAnswer})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return append(line, '\n')
+	dateOf := func(offset int) string { return now.AddDate(0, 0, offset).Format(historyDay) }
+	// A clock once set days ahead named files for days to come, and compressed
+	// one as more days went by.
+	files := map[dayFile]reading{
+		plainFile(dateOf(-1)):     workRead(now.Add(-20*time.Hour), 0.1),
+		plainFile(dateOf(0)):      workRead(now.Add(-time.Hour), 0.2),
+		plainFile(dateOf(5)):      workRead(now.Add(-time.Minute), 0.9),
+		compressedFile(dateOf(6)): workRead(now.Add(-time.Minute), 0.95),
 	}
-	// A clock once set days ahead named a file for a day to come.
-	files := map[string][]byte{
-		day(-1): lineAt(now.Add(-20*time.Hour), 0.1),
-		day(0):  lineAt(now.Add(-time.Hour), 0.2),
-		day(5):  lineAt(now.Add(-time.Minute), 0.9),
-	}
-	for name, data := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
+	for f, r := range files {
+		writeDay(t, dir, f, linesOf(t, r))
 	}
 	h := newHistory(config.History{}, at(now))
 	h.open(dir)
 
 	got := slices.Collect(h.readBack(now))
 	if len(got) != 2 || got[0].Utilization != 0.1 || got[1].Utilization != 0.2 {
-		t.Errorf("readBack() = %+v, want yesterday's and today's, not the one of a day to come", got)
+		t.Errorf("readBack() = %+v, want yesterday's and today's, not those of days to come", got)
 	}
 	h.prune()
-	if _, err := os.Stat(filepath.Join(dir, day(5))); err == nil {
-		t.Error("the file of a day to come stayed, want it pruned")
+	for _, offset := range []int{5, 6} {
+		if holdsDay(dir, dateOf(offset)) {
+			t.Errorf("the file of the day %d days on stayed, want it pruned", offset)
+		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, day(0))); err != nil {
+	if _, err := os.Stat(historyOf(dir, now)); err != nil {
 		t.Errorf("today's file went: %v", err)
 	}
 }
@@ -554,8 +850,12 @@ func TestTheHistorysDirectoryIsMadePrivate(t *testing.T) {
 	h.open(dir)
 
 	keeping(t, h)()
-	if info, err := os.Stat(dir); err != nil || info.Mode() != fs.ModeDir|0o700 {
-		t.Errorf("the history's directory is %v (%v), want %v", info.Mode(), err, fs.ModeDir|0o700)
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode() != fs.ModeDir|0o700 {
+		t.Errorf("the history's directory is %v, want %v", info.Mode(), fs.ModeDir|0o700)
 	}
 }
 
@@ -566,19 +866,17 @@ func TestTheHistoryPrunesOnTheFirstWriteOfANewDay(t *testing.T) {
 	h.open(dir)
 	h.prune()
 	// Its day ended 13 days before start's, so it goes on the day after.
-	old := filepath.Join(dir, historyFile(start.Local().AddDate(0, 0, -14).Format(historyDay)))
-	if err := os.WriteFile(old, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	old := start.Local().AddDate(0, 0, -14)
+	writeDay(t, dir, plainFile(old.Format(historyDay)), linesOf(t, workRead(old, 0.2)))
 
 	h.write(readingsOf("work", []quota.Window{session}, clock.now, fromAnswer))
-	if _, err := os.Stat(old); err != nil {
-		t.Fatalf("the file went on the day it's kept: %v", err)
+	if !holdsDay(dir, old.Format(historyDay)) {
+		t.Fatal("the day's file went on a day it's kept")
 	}
 	clock.now = start.Add(24 * time.Hour)
 	h.write(readingsOf("work", []quota.Window{session}, clock.now, fromAnswer))
-	if _, err := os.Stat(old); err == nil {
-		t.Error("the file stayed on the day after, want it pruned with that day's first write")
+	if holdsDay(dir, old.Format(historyDay)) {
+		t.Error("the day's file stayed on the day after, want it pruned with that day's first write")
 	}
 }
 
@@ -588,17 +886,21 @@ func TestTheHistoryPrunesOnANewDayWithNothingToWrite(t *testing.T) {
 		clock := newBubbleClock(start)
 		h := newHistory(config.History{}, clock.read)
 		h.open(dir)
-		old := filepath.Join(dir, historyFile(start.Local().AddDate(0, 0, -14).Format(historyDay)))
-		if err := os.WriteFile(old, nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
+		// Its day ended 13 days before start's, so it's compressed as the
+		// history starts, and goes on the day after.
+		old := start.Local().AddDate(0, 0, -14)
+		writeDay(t, dir, plainFile(old.Format(historyDay)), linesOf(t, workRead(old, 0.2)))
 		stop := keeping(t, h)
 		defer stop()
 
+		synctest.Wait()
+		if !holdsDay(dir, old.Format(historyDay)) {
+			t.Fatal("the day's file went as the history started, a day it's kept")
+		}
 		time.Sleep(25 * time.Hour)
 		synctest.Wait()
-		if _, err := os.Stat(old); err == nil {
-			t.Error("the file stayed a day on, want it pruned though nothing was written")
+		if holdsDay(dir, old.Format(historyDay)) {
+			t.Error("the day's file stayed a day on, want it pruned though nothing was written")
 		}
 	})
 }
