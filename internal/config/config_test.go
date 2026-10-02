@@ -39,6 +39,9 @@ limits  = false
 room    = true
 warning = 0.75
 moves   = true
+
+[history]
+keep = "30d"
 `)
 	want := &config.Config{
 		Listen:   "[::1]:9000",
@@ -49,6 +52,7 @@ moves   = true
 		},
 		Prime:         config.Prime{Day: config.Day{Start: 7*time.Hour + 30*time.Minute, End: 22*time.Hour + 45*time.Minute}},
 		Notifications: config.Notifications{Room: true, Warning: 0.75, Moves: true},
+		History:       config.History{Keep: 30 * 24 * time.Hour},
 	}
 
 	got, err := config.Load(path)
@@ -77,6 +81,7 @@ label = "Personal"
 			{ID: "personal", Label: "Personal"},
 		},
 		Notifications: config.Notifications{Limits: true, Room: true, Warning: 0.9},
+		History:       config.History{Keep: 14 * 24 * time.Hour},
 	}
 
 	got, err := config.Load(path)
@@ -267,6 +272,32 @@ func TestLoadNotifications(t *testing.T) {
 	}
 }
 
+func TestLoadHowLongTheHistoryIsKept(t *testing.T) {
+	const day = 24 * time.Hour
+	tests := []struct {
+		name   string
+		config string
+		want   time.Duration
+	}{
+		{name: "two weeks without the table", want: 14 * day},
+		{name: "two weeks with the table empty", config: "[history]\n", want: 14 * day},
+		{name: "a week and a day, the least", config: "[history]\nkeep = \"8d\"\n", want: 8 * day},
+		{name: "400 days, the most", config: "[history]\nkeep = \"400d\"\n", want: 400 * day},
+		{name: "as an inline table", config: "history = { keep = \"30d\" }\n", want: 30 * day},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.History.Keep != tt.want {
+				t.Errorf("Load() keeps the history %v, want %v", cfg.History.Keep, tt.want)
+			}
+		})
+	}
+}
+
 func TestExampleIsValid(t *testing.T) {
 	cfg, err := config.Load(writeConfig(t, config.Example))
 	if err != nil {
@@ -299,6 +330,7 @@ func TestLoadUndecodableFile(t *testing.T) {
 		{name: "a reserve in words", config: "account = [{ id = \"work\", reserve = \"some\" }]\n"},
 		{name: "the primary in words", config: "account = [{ id = \"work\", primary = \"yes\" }]\n"},
 		{name: "a day as a number", config: "prime = { day = 8 }\n"},
+		{name: "a keep as a number", config: "history = { keep = 14 }\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -328,6 +360,9 @@ func TestLoadReportsProblems(t *testing.T) {
 	}
 	day := func(given string) string {
 		return fmt.Sprintf("prime.day %q: must be two times of day, HH:MM, joined by -, such as 08:00-23:00", given)
+	}
+	keep := func(given string) string {
+		return fmt.Sprintf("history.keep %q: must be a whole number of days from 8d, a week and a day, to 400d, such as 14d", given)
 	}
 	const tokenEnv = `unknown key "account.token_env": tokens now live in files, at <state dir>/tokens/<id>, ` +
 		"the state dir being $XDG_STATE_HOME/switchboard, else ~/.local/state/switchboard"
@@ -360,6 +395,11 @@ func TestLoadReportsProblems(t *testing.T) {
 			name:   "unknown prime key",
 			config: "[prime]\nstart = \"08:00\"\n" + work,
 			want:   []string{`unknown key "prime.start"`},
+		},
+		{
+			name:   "unknown history key",
+			config: "[history]\nkeep = \"14d\"\ndays = 14\n" + work,
+			want:   []string{`unknown key "history.days"`},
 		},
 		{
 			name:   "the token variable of a config from before token files, once however many accounts give one",
@@ -442,6 +482,17 @@ func TestLoadReportsProblems(t *testing.T) {
 			config: "[prime]\nday = \"08:00-08:00\"\n" + work,
 			want:   []string{`prime.day "08:00-08:00": must end at another time than it starts; an end before the start is past midnight`},
 		},
+		{name: "a keep short of a week and a day", config: "[history]\nkeep = \"7d\"\n" + work, want: []string{keep("7d")}},
+		{name: "a keep past 400 days", config: "[history]\nkeep = \"401d\"\n" + work, want: []string{keep("401d")}},
+		{name: "a keep without its unit", config: "[history]\nkeep = \"14\"\n" + work, want: []string{keep("14")}},
+		{name: "a keep in weeks", config: "[history]\nkeep = \"2w\"\n" + work, want: []string{keep("2w")}},
+		{name: "a keep without a number", config: "[history]\nkeep = \"d\"\n" + work, want: []string{keep("d")}},
+		{name: "a keep below none", config: "[history]\nkeep = \"-1d\"\n" + work, want: []string{keep("-1d")}},
+		{name: "a keep with a sign", config: "[history]\nkeep = \"+9d\"\n" + work, want: []string{keep("+9d")}},
+		{name: "a keep with its unit in capitals", config: "[history]\nkeep = \"14D\"\n" + work, want: []string{keep("14D")}},
+		{name: "a keep with a space", config: "[history]\nkeep = \" 14d\"\n" + work, want: []string{keep(" 14d")}},
+		{name: "a keep too great to be a number", config: "[history]\nkeep = \"99999999999999999999d\"\n" + work, want: []string{keep("99999999999999999999d")}},
+		{name: "a keep given empty", config: "[history]\nkeep = \"\"\n" + work, want: []string{keep("")}},
 		{
 			name:   "no accounts",
 			config: "listen = \"127.0.0.1:4747\"\n",
@@ -613,7 +664,8 @@ func TestLoadReportsProblems(t *testing.T) {
 				"\n[[account]]\nreserve = 2.0\n" +
 				accountTOML("work") + "primary = true\n" +
 				"\n[prime]\nday = \"23:00-23:00\"\n" +
-				"\n[notifications]\nwarning = 1\n",
+				"\n[notifications]\nwarning = 1\n" +
+				"\n[history]\nkeep = \"7d\"\n",
 			want: []string{
 				`unknown key "verbose"`,
 				tokenEnv,
@@ -625,6 +677,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				`primary is set on account "work" and account "work": only one account can be the primary, the one the browser and the Claude apps use`,
 				`prime.day "23:00-23:00": must end at another time than it starts; an end before the start is past midnight`,
 				"notifications.warning 1: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none",
+				keep("7d"),
 			},
 		},
 	}
@@ -659,7 +712,8 @@ func TestLoadNeverQuotesATokenGivenAsAnIDOrALabel(t *testing.T) {
 
 func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 	path := writeConfig(t, "listen = \""+tokenShaped+"\"\nupstream = \""+tokenShaped+"\"\n"+tokenShaped+" = 1\n"+
-		accountTOML("work")+"\n[prime]\nday = \""+tokenShaped+"\"\n")
+		accountTOML("work")+"\n[prime]\nday = \""+tokenShaped+"\"\n"+
+		"\n[history]\nkeep = \""+tokenShaped+"\"\n")
 
 	_, err := config.Load(path)
 	want := []string{
@@ -667,6 +721,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		`listen "[redacted]": must be host:port, such as 127.0.0.1:4747 or [::1]:4747`,
 		`upstream "[redacted]": must be an absolute http or https URL, such as https://api.anthropic.com`,
 		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
+		`history.keep "[redacted]": must be a whole number of days from 8d, a week and a day, to 400d, such as 14d`,
 	}
 	if got := problems(t, path, err); !slices.Equal(got, want) {
 		t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

@@ -14,6 +14,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -46,7 +47,7 @@ func TestTheHistoryHoldsEachReadingThatChangesAWindow(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
 	dir := filepath.Join(t.TempDir(), "history")
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(dir)
 	s.history = h.note
 	stop := keeping(t, h)
@@ -81,32 +82,47 @@ func TestTheHistoryHoldsEachReadingThatChangesAWindow(t *testing.T) {
 	}
 }
 
-func TestTheHistoryKeepsAFileADayForTwoWeeks(t *testing.T) {
-	dir := t.TempDir()
+func TestTheHistoryKeepsAFileADayAsLongAsTheConfigSays(t *testing.T) {
+	const day = 24 * time.Hour
+	tests := []struct {
+		name string
+		keep time.Duration
+		// days is how many days a day's file is kept once its day has ended.
+		days int
+	}{
+		{name: "two weeks where it doesn't say", days: 14},
+		{name: "a week and a day", keep: 8 * day, days: 8},
+		{name: "400 days", keep: 400 * day, days: 400},
+	}
 	today := start.Local()
 	dayFile := func(back int) string { return historyFile(today.AddDate(0, 0, -back).Format(historyDay)) }
-	files := map[string]bool{
-		dayFile(0):  true,
-		dayFile(14): true,
-		dayFile(15): false,
-		dayFile(30): false,
-		// Anything but the history's own is left alone.
-		"notes.txt":           true,
-		"readings-soon.jsonl": true,
-	}
-	for name := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	h := newHistory(at(start))
-	h.open(dir)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			files := map[string]bool{
+				dayFile(0):            true,
+				dayFile(tt.days):      true,
+				dayFile(tt.days + 1):  false,
+				dayFile(tt.days + 30): false,
+				// Anything but the history's own is left alone.
+				"notes.txt":           true,
+				"readings-soon.jsonl": true,
+			}
+			for name := range files {
+				if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := newHistory(config.History{Keep: tt.keep}, at(start))
+			h.open(dir)
 
-	keeping(t, h)()
-	for name, kept := range files {
-		if _, err := os.Stat(filepath.Join(dir, name)); (err == nil) != kept {
-			t.Errorf("%s kept = %v, want %v: a day's file goes 14 days after its day ends", name, err == nil, kept)
-		}
+			keeping(t, h)()
+			for name, kept := range files {
+				if _, err := os.Stat(filepath.Join(dir, name)); (err == nil) != kept {
+					t.Errorf("%s kept = %v, want %v: a day's file goes %d days after its day ends", name, err == nil, kept, tt.days)
+				}
+			}
+		})
 	}
 }
 
@@ -118,7 +134,7 @@ func TestTheRecentRatesOutlastARestart(t *testing.T) {
 	clock := &testClock{now: start}
 	before := newTestFile(clock.read, testAccounts())
 	before.load(path)
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(dir)
 	before.state.history = h.note
 	stop := keeping(t, h)
@@ -134,7 +150,7 @@ func TestTheRecentRatesOutlastARestart(t *testing.T) {
 
 	after := newTestFile(at(now), testAccounts())
 	after.load(path)
-	restarted := newHistory(at(now))
+	restarted := newHistory(config.History{}, at(now))
 	restarted.open(dir)
 	if kept := after.state.seed(restarted.readBack(now)); kept != 6 {
 		t.Errorf("took up %d readings, want the 6 of the last half hour", kept)
@@ -154,7 +170,7 @@ func TestAQuietAccountStaysQuietAcrossARestart(t *testing.T) {
 	// been used since.
 	now := start.Add(2 * time.Hour)
 	dir := t.TempDir()
-	h := newHistory(at(now))
+	h := newHistory(config.History{}, at(now))
 	h.open(dir)
 	s := newTestState(&testClock{now: now})
 	s.usage["work"].windows["5h"] = session
@@ -172,7 +188,7 @@ func TestARiseAcrossAGapInTheHistoryIsSpreadOverItAfterARestart(t *testing.T) {
 	// probe read the use outside the router it came to since, just before.
 	now := start.Add(2 * time.Hour)
 	dir := t.TempDir()
-	h := newHistory(at(now))
+	h := newHistory(config.History{}, at(now))
 	h.open(dir)
 	s := newTestState(&testClock{now: now})
 	busier := session
@@ -235,7 +251,7 @@ func TestReadingBackTakesTheTwoNewestFilesByName(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			h := newHistory(at(now))
+			h := newHistory(config.History{}, at(now))
 			h.open(dir)
 
 			if got := slices.Collect(h.readBack(now)); !slices.EqualFunc(got, tt.want, func(a, b reading) bool { return a.At.Equal(b.At) && a.Utilization == b.Utilization }) {
@@ -267,7 +283,7 @@ func TestFilesOfADayAfterTomorrowAreNeitherTakenUpNorKept(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	h := newHistory(at(now))
+	h := newHistory(config.History{}, at(now))
 	h.open(dir)
 
 	got := slices.Collect(h.readBack(now))
@@ -295,7 +311,7 @@ func TestReadingBackSkipsALineTooLongToHoldAlone(t *testing.T) {
 	if err := os.WriteFile(historyOf(dir, start), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(dir)
 
 	got := slices.Collect(h.readBack(start))
@@ -310,7 +326,7 @@ func TestReadingBackSkipsALineTooLongToHoldAlone(t *testing.T) {
 func TestTakingUpADaysHistoryKeepsWhatTheTrailsNeedAlone(t *testing.T) {
 	now := start.Add(24 * time.Hour)
 	dir := t.TempDir()
-	h := newHistory(at(now))
+	h := newHistory(config.History{}, at(now))
 	h.open(dir)
 	// Work's session, read every half minute for the day before, rising a
 	// little each time, in a window that resets after now.
@@ -370,7 +386,7 @@ func TestTakingUpTheHistoryLeavesOutWhatCantBeTakenUp(t *testing.T) {
 			}
 			s := newTestState(&testClock{now: now})
 			s.usage["work"].windows["5h"] = tt.held
-			h := newHistory(at(now))
+			h := newHistory(config.History{}, at(now))
 			h.open(dir)
 
 			s.seed(h.readBack(now))
@@ -438,7 +454,7 @@ func TestAHistoryThatStallsHoldsNothingUp(t *testing.T) {
 func TestAHistoryWriteThatFailsIsLoggedOnceUntilOneSucceeds(t *testing.T) {
 	log := logstest.Capture(t)
 	dir := t.TempDir()
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(dir)
 	one := readingsOf("work", []quota.Window{session}, start, fromAnswer)
 	// Today's file can't be opened to append while a directory stands at its
@@ -474,7 +490,7 @@ func TestAHistoryWriteThatFailsIsLoggedOnceUntilOneSucceeds(t *testing.T) {
 
 func TestAHistoryFallingBehindDropsReadingsRatherThanWait(t *testing.T) {
 	log := logstest.Capture(t)
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(t.TempDir())
 	one := readingsOf("work", []quota.Window{session}, start, fromAnswer)
 	fill := func() {
@@ -497,7 +513,7 @@ func TestAHistoryFallingBehindDropsReadingsRatherThanWait(t *testing.T) {
 func TestAReadingTheHistoryCantHoldIsLoggedOnce(t *testing.T) {
 	log := logstest.Capture(t)
 	dir := t.TempDir()
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(dir)
 	bad := reading{At: start, Account: "work", Window: "5h", Utilization: math.NaN(), Source: fromAnswer}
 	good := readingsOf("work", []quota.Window{session}, start, fromAnswer)
@@ -518,7 +534,7 @@ func TestAHistoryFileThatCantBeReadIsLogged(t *testing.T) {
 	if err := os.WriteFile(historyOf(dir, start), []byte("{}\n"), 0o000); err != nil {
 		t.Fatal(err)
 	}
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(dir)
 
 	if got := slices.Collect(h.readBack(start)); len(got) != 0 {
@@ -534,7 +550,7 @@ func TestTheHistorysDirectoryIsMadePrivate(t *testing.T) {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 	h.open(dir)
 
 	keeping(t, h)()
@@ -546,7 +562,7 @@ func TestTheHistorysDirectoryIsMadePrivate(t *testing.T) {
 func TestTheHistoryPrunesOnTheFirstWriteOfANewDay(t *testing.T) {
 	dir := t.TempDir()
 	clock := &testClock{now: start}
-	h := newHistory(clock.read)
+	h := newHistory(config.History{}, clock.read)
 	h.open(dir)
 	h.prune()
 	// Its day ended 13 days before start's, so it goes on the day after.
@@ -570,7 +586,7 @@ func TestTheHistoryPrunesOnANewDayWithNothingToWrite(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		dir := t.TempDir()
 		clock := newBubbleClock(start)
-		h := newHistory(clock.read)
+		h := newHistory(config.History{}, clock.read)
 		h.open(dir)
 		old := filepath.Join(dir, historyFile(start.Local().AddDate(0, 0, -14).Format(historyDay)))
 		if err := os.WriteFile(old, nil, 0o600); err != nil {
@@ -616,7 +632,7 @@ func linesWith(log *logstest.Log, text string) []string {
 }
 
 func TestAHistoryNotYetOpenedTakesNothing(t *testing.T) {
-	h := newHistory(at(start))
+	h := newHistory(config.History{}, at(start))
 
 	h.note(readingsOf("work", []quota.Window{session}, start, fromAnswer))
 	if n := len(h.queue); n != 0 {

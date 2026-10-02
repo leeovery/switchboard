@@ -264,6 +264,34 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	}
 }
 
+func TestServeKeepsTheHistoryAsLongAsTheConfigSays(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.extra = "\n[history]\nkeep = \"8d\"\n"
+	srv.writeConfig(t)
+	dir := filepath.Join(srv.state, "history")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dayFile := func(back int) string {
+		return filepath.Join(dir, "readings-"+testNow.Local().AddDate(0, 0, -back).Format(time.DateOnly)+".jsonl")
+	}
+	files := map[string]bool{dayFile(8): true, dayFile(9): false}
+	for path := range files {
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if got := srv.start(t)(); got.code != 0 {
+		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
+	}
+	for path, kept := range files {
+		if _, err := os.Stat(path); (err == nil) != kept {
+			t.Errorf("%s kept = %v, want %v: a day's file goes 8 days after its day ends", filepath.Base(path), err == nil, kept)
+		}
+	}
+}
+
 func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
 	tests := []struct {
 		name string

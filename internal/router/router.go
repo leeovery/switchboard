@@ -104,6 +104,9 @@ type Config struct {
 	// Run runs. Nil posts none.
 	Notifier      Notifier
 	Notifications config.Notifications
+	// History says how long the readings history is kept: a zero Keep keeps
+	// it for config.DefaultKeep.
+	History config.History
 	// Listen is the proxy's address, and StateDir the directory its control
 	// socket and state file go in: only Run uses them.
 	Listen   string
@@ -207,7 +210,7 @@ func New(cfg Config) (*Router, error) {
 	}
 	changes := newChanges()
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
-	history := newHistory(cfg.Now)
+	history := newHistory(cfg.History, cfg.Now)
 	state.history = history.note
 	listeners := []func(Event){cfg.Events}
 	var notices *notifications

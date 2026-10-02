@@ -348,6 +348,7 @@ func TestAddingAndRemovingAnAccountLeavesTheConfigAsItWas(t *testing.T) {
 		commented,
 		config.Example,
 		"listen = \"127.0.0.1:4747\"\n\n[[account]]\nid = \"work\"\n\n[notifications]\nmoves = true\n",
+		"[[account]]\nid = \"work\"\n\n[history]\nkeep = \"30d\"\n",
 	} {
 		path := writeConfig(t, before)
 		for _, change := range []func(*config.Draft) error{

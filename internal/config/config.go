@@ -22,6 +22,10 @@ const (
 	primaryReserve = 0.1
 )
 
+// DefaultKeep is how long the readings history is kept where the config
+// doesn't say: two weeks.
+const DefaultKeep = 14 * 24 * time.Hour
+
 // Example is a small valid config, for showing someone who doesn't have one yet.
 const Example = `# One [[account]] per Claude subscription. Each account's token, made with
 # claude setup-token, goes in a file of its own: <state dir>/tokens/<id>, as in
@@ -51,6 +55,7 @@ type Config struct {
 	// Prime says when priming starts the accounts' 5-hour windows.
 	Prime         Prime
 	Notifications Notifications
+	History       History
 }
 
 // Account is one Claude subscription.
@@ -141,6 +146,13 @@ type Notifications struct {
 // defaultNotifications are those posted where the config doesn't say.
 var defaultNotifications = Notifications{Limits: true, Room: true, Warning: 0.9}
 
+// History says how long the readings history is kept.
+type History struct {
+	// Keep is how long a day's file of the history is kept once its day has
+	// ended: a whole number of days.
+	Keep time.Duration
+}
+
 // file is the config file as it's written, before its defaults are filled in.
 type file struct {
 	Listen        string        `toml:"listen"`
@@ -148,6 +160,7 @@ type file struct {
 	Accounts      []fileAccount `toml:"account"`
 	Prime         filePrime     `toml:"prime"`
 	Notifications Notifications `toml:"notifications"`
+	History       fileHistory   `toml:"history"`
 }
 
 // fileAccount is an [[account]] table as it's written.
@@ -162,6 +175,12 @@ type fileAccount struct {
 // filePrime is the [prime] table as it's written.
 type filePrime struct {
 	Day string `toml:"day"`
+}
+
+// fileHistory is the [history] table as it's written.
+type fileHistory struct {
+	// Keep is nil when the table doesn't give one.
+	Keep *string `toml:"keep"`
 }
 
 // Load reads the config file at path, validates it and fills in its defaults.
@@ -216,6 +235,7 @@ func (f file) check(path string, meta toml.MetaData) (*Config, error) {
 // them.
 func (f file) config(undecoded []toml.Key) (*Config, error) {
 	day, dayErr := ParseDay(f.Prime.Day)
+	keep, keepErr := parseKeep(f.History.Keep)
 	err := errors.Join(
 		checkKeys(undecoded),
 		checkListen(f.Listen),
@@ -223,6 +243,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		checkAccounts(f.Accounts),
 		dayErr,
 		checkWarning(f.Notifications.Warning),
+		keepErr,
 	)
 	if err != nil {
 		return nil, err
@@ -233,6 +254,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		Accounts:      resolve(f.Accounts),
 		Prime:         Prime{Day: day},
 		Notifications: f.Notifications,
+		History:       History{Keep: keep},
 	}, nil
 }
 

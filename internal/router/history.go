@@ -2,6 +2,7 @@ package router
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
@@ -23,9 +25,6 @@ const (
 	// historyDirName is the readings history's directory in the state
 	// directory.
 	historyDirName = "history"
-	// historyKeptFor is how long a day's file of the readings history is
-	// kept, from the end of its day.
-	historyKeptFor = 14 * 24 * time.Hour
 	// historyQueue is how many takings in of readings, an answer's or a
 	// probe's each, can wait to be written. Past that, their readings are
 	// dropped from the history rather than hold the router up.
@@ -88,14 +87,16 @@ func (r reading) valid() bool {
 
 // history is the readings history: each change to an account's windows, as
 // the router takes its readings in, a JSON line in a file a day, by local
-// date, in the state directory, kept for 14 days. It's for looking back at
-// how the accounts were used, and for the recent rates, which the router
-// takes up from it as it starts. Noting a reading never holds the router up:
-// the readings queue for run's goroutine, which writes them. A write that
-// fails is logged, once until one succeeds, and the reading goes unwritten:
-// the history never stands in routing's way.
+// date, in the state directory, kept as long as the config says. It's for
+// looking back at how the accounts were used, and for the recent rates,
+// which the router takes up from it as it starts. Noting a reading never
+// holds the router up: the readings queue for run's goroutine, which writes
+// them. A write that fails is logged, once until one succeeds, and the
+// reading goes unwritten: the history never stands in routing's way.
 type history struct {
 	now func() time.Time
+	// keep is how long a day's file is kept, from the end of its day.
+	keep time.Duration
 	// dir is where the files are, set once the router has its state
 	// directory, before run starts.
 	dir    string
@@ -114,8 +115,10 @@ type history struct {
 	pruned string
 }
 
-func newHistory(now func() time.Time) *history {
-	return &history{now: now, queue: make(chan []reading, historyQueue)}
+// newHistory returns a history kept as settings say, by now's clock: a zero
+// Keep keeps a day's file for config.DefaultKeep.
+func newHistory(settings config.History, now func() time.Time) *history {
+	return &history{now: now, keep: cmp.Or(settings.Keep, config.DefaultKeep), queue: make(chan []reading, historyQueue)}
 }
 
 // open has the history kept in dir from now on.
@@ -273,10 +276,10 @@ func (h *history) pruneDaily() {
 	}
 }
 
-// prune removes the history's files whose day ended 14 days or more before
-// now, and those of a day after tomorrow, as a clock once set ahead named
-// them, which would crowd out the real ones, leaving anything else in the
-// directory alone.
+// prune removes the history's files whose day ended keep or more before now,
+// and those of a day after tomorrow, as a clock once set ahead named them,
+// which would crowd out the real ones, leaving anything else in the directory
+// alone.
 func (h *history) prune() {
 	now := h.now()
 	h.pruned = now.Local().Format(historyDay)
@@ -289,7 +292,7 @@ func (h *history) prune() {
 	}
 	for _, e := range entries {
 		day, ok := dayOf(e.Name())
-		if !ok || now.Sub(day.AddDate(0, 0, 1)) < historyKeptFor && !afterTomorrow(day, now) {
+		if !ok || now.Sub(day.AddDate(0, 0, 1)) < h.keep && !afterTomorrow(day, now) {
 			continue
 		}
 		if err := os.Remove(filepath.Join(h.dir, e.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {
