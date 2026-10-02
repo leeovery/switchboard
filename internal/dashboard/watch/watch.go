@@ -93,6 +93,10 @@ type Config struct {
 	Notifications config.Notifications
 	// Now reads the wall clock.
 	Now func() time.Time
+	// After delivers msg once d has passed on the clock, for the ticks that
+	// redraw as it moves and the frames that ease the bars: nil takes a real
+	// timer.
+	After func(d time.Duration, msg tea.Msg) tea.Cmd
 	// Interval is the longest the dashboard goes between full reads: ones
 	// that probe, or have the router refresh what it hasn't read lately.
 	Interval time.Duration
@@ -122,8 +126,7 @@ const topMargin = 1
 type Model struct {
 	ctx context.Context
 	cfg Config
-	// after delivers msg once d has passed. Tests replace it, to hold each
-	// timer until they fire it.
+	// after delivers msg once d has passed: Config.After, else a real timer.
 	after func(d time.Duration, msg tea.Msg) tea.Cmd
 
 	// size is what the frame is drawn at: the terminal's, as far as it's
@@ -181,10 +184,14 @@ type frameMsg struct{}
 // New returns a model that reads cfg's source at once, and whenever a read
 // falls due after, under ctx.
 func New(ctx context.Context, cfg Config) Model {
-	return Model{ctx: ctx, cfg: cfg, after: after, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true}
+	m := Model{ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true}
+	if m.after == nil {
+		m.after = after
+	}
+	return m
 }
 
-// after delivers msg once d has passed.
+// after delivers msg once d has passed, on a real timer.
 func after(d time.Duration, msg tea.Msg) tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg { return msg })
 }

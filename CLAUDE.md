@@ -106,3 +106,15 @@ notifications. Ever.
   macOS, testguard alone guards them.
 - **Never loosen a guard to make a test pass.** A test that needs what a guard blocks is a finding:
   inject it instead.
+
+## Visual capture harness
+
+The dashboard is checked by eye against its design, which a test can't do. `cmd/capturetool`, a
+program of its own and never a switchboard command, draws a named fixture of the real dashboard,
+built through `watch.New` with every seam faked (`internal/capture`): it never dials the router,
+probes, or reads or writes the real config, state, prefs or tokens, and an import guard keeps
+`internal/capture` out of the switchboard binary. `vhs` tapes in `testdata/vhs/` screenshot it.
+`testdata/vhs/reference/` holds the signed-off design, exported from Paper, as PNGs, and as the
+text and ANSI of the generator that drew it: a change to what the dashboard draws is checked
+against them. The fixtures and the harness are permanent; tapes and captures are scaffolding,
+cleared once milestone 5 is signed off. `testdata/vhs/README.md` says how.

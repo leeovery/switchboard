@@ -1,0 +1,27 @@
+  SWITCHBOARD    Accounts   Sessions   Runway   tab ⇥                                                                                       Thu 1 Oct  14:42:07
+
+ ROUTER   ● healthy  ·  3 sessions  ·  priming 08:00–22:00                                                                        ROOM LEFT   5h 42%   week 66%
+
+ ╭─ 1 work ───────────────────────────────────────────────────────────────────────────────── ◆ primary ─╮     COMING UP
+ │                                                                                                      │     16:05  work runs out at its pace
+ │  ● under pressure · runs out ~16:05 at this pace                                                     │     17:10  work's session resets
+ │                                                                                                      │     03:50  work is primed
+ │  █▀▀ █▀█ ▀ █     SESSION  5-hour window                                                              │
+ │  ▀▀█ █▀█ ▄▀      → runs out ~16:05 at its last-30-min rate                                           │
+ │  ▀▀▀ ▀▀▀ ▀ ▀     resets 17:10 · in 2h 28m                                                            │
+ │                                                                                                      │     RECENT
+ │  ████▇▅▄▃▁                                         │                                                 │     14:38  ● work
+ │  ██████████▆▆▆▆▆▆▆▅▅▅▄▄▃▂▁                         │                                                 │               came under pressure: its session runs …
+ │  ███████████████████████████▇▇▇▆▆▆▅▄▄▂▁            │                                                 │     13:02  ◇ work
+ │  ███████████████████████████████████████████▇▇▇▆▆▅▄⠄⠄⠄⡀⡀⡀                                            │               primed at 12:10, resetting 17:10
+ │  ██████████████████████████████████████████████████│     ⠁⠁⠁⠂⠂⠂⠄⠄⡀⡀⡀                                 │
+ │  ██████████████████████████████████████████████████│                ⠁⠁⠁⠂⠂⠂⠄⠄⡀✕                       │
+ │  12:10                                           now                                          17:10  │
+ │                                                                                                      │
+ │  Week     ███████▏┃█████████╎░░  34% → 87%          Fable wk ██▌███▌░┃░░░░░░░░░╎░░  12% → 31%        │
+ │                                                                                                      │
+ ╰─ ● ○ ● ───────────────────────────────────────────────────────────────────────────────── 3 sessions ─╯
+
+ KEY      ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve   │   ████ used   ██ heading   ┃ even pace   ╎ reserve
+
+ tab views   w window: auto   ←→ focus   space flip   g chart   ? keys   q quit                                                      read 4s ago · next look 1s

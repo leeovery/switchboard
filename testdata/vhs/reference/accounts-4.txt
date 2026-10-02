@@ -1,0 +1,40 @@
+  SWITCHBOARD    Accounts   Sessions   Runway   tab ⇥                                                                                       Thu 1 Oct  14:42:07
+
+ ROUTER                   NEW SESSIONS GO TO              ROOM LEFT, IN ACCOUNTS                               COMING UP
+ ● healthy                ▲ 3 side                        5h    ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆  2.0 of 4  15:54  personal back from its limit    in 1h 12m
+ 6 sessions · auto        2 of 4 open                     week  ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆  1.7 of 4  16:05  work runs out at its pace       in 1h 23m
+                                                                1        2        3        4                   16:40  client's session resets         in 1h 58m
+
+ ╭─ 1 work ─────────────────────────── ◆ primary ─╮    ╭─ 2 personal ───────────────────────────────────╮    ╭─ 3 side ────────────────────────────── ▲ next ─╮
+ │  ● under pressure · new sessions go elsewhere  │    │  ■ limit reached · back 15:54, in 1h 12m       │    │  ● open · new sessions come here               │
+ │                                                │    │                                                │    │                                                │
+ │  Session  58%  → out ~16:05      resets 17:10  │    │  Session  100%  back 15:54       resets 15:54  │    │  Week     33%  → 72%         resets Mon 10:00  │
+ │  ██▅▂                   │                      │    │  ▇▆▅▄▃▁                            │           │    │  ▇▅▃▂▂▂▂▁             │                        │
+ │  ████▇▆▆▅▅▄▂            │                      │    │  ██████▆▃▁                         │           │    │  ████████▇▇▇▇▆▄▃▂▂▂▂▁ │                        │
+ │  ████████████▇▆▆▄▂      │                      │    │  ███████████▇▇▅▃                   │           │    │  █████████████████████⠁⠁⠂⠂⠄⠄⠄⡀⡀⡀               │
+ │  ███████████████████▇▇▅▄⠄⡀                     │    │  ███████████████▇▄▃▂▂▂             │           │    │  █████████████████████│         ⠁⠁⠂⠂⠂⠄⠄⠄⡀⡀     │
+ │  ███████████████████████│ ⠁⠂⠂⠄⡀                │    │  █████████████████████▇▃           │           │    │  █████████████████████│                   ⠁⠁⠁  │
+ │  ███████████████████████│      ⠁⠂⠂⠄✕           │    │  ███████████████████████▇▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁  │    │  █████████████████████│                        │
+ │  12:10                now               17:10  │    │  10:54                           now    15:54  │    │      ╵Tue  ╵Wed  ╵Thu  ╵Fri  ╵Sat  ╵Sun  ╵Mon  │
+ │  Week     ██████▏┃███████▋╎░  34% → 87%        │    │  Week     ███████████┃██████  89% → out Fri    │    │  Session  ██▏┃█████▊░░░░░░░░  12% → 54%        │
+ ╰─ ● ○ ● ─────────────────────────── 3 sessions ─╯    ╰────────────────────────────────── no sessions ─╯    ╰─ ● ● ○ ─────────────────────────── 3 sessions ─╯
+
+ ╭─ 4 client ─────────────────────────────────────╮
+ │  ● open · its week nears its reserve           │     RECENT
+ │                                                │     14:41  ▲ c61b started on side, the best
+ │  Week     78%  → 97%         resets Tue 09:00  │     14:38  ● work came under pressure: its session r…
+ │  ▅              │                              │     14:12  ■ personal reached its session limit; 3 s…
+ │  █▆             │                              │     13:50  ◇ side primed: its 5-hour window started,…
+ │  ███▆▆▆▅▁       │                              │
+ │  ████████▆▄▃▃▃  │                              │
+ │  █████████████▅▃⠄⠄⠄⡀⡀⡀⡀⡀⡀⡀                     │
+ │  ███████████████│         ⠁⠁⠁⠁⠁⠁⠁⠂⠂⠂⠂⠂⠂⠂⠄⠄⠄⠄⠄  │
+ │      ╵Wed  ╵Thu  ╵Fri  ╵Sat  ╵Sun   ╵Mon       │
+ │  Session  █████▋██▋░┃░░░░░░░  31% → 48%        │
+ ╰─ ● ──────────────────────────────── 1 session ─╯
+
+
+
+ KEY      ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve   │   ████ used   ██ heading   ┃ even pace   ╎ reserve
+                                                                                                                       Fable wk hidden: unused on every account
+ tab views   w window: auto   ←→ focus   space flip   g chart   1-4 pin   a auto   m move   ? keys   q quit                                         read 4s ago

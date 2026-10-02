@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/notify"
@@ -191,7 +192,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Notifications: cfg.Notifications,
 		Now:           a.Now,
 		Interval:      opts.interval,
-		Policy:        policy,
+		Policy:        claude.Policy,
 		Size:          a.environSize(),
 	}, out, a.Environ())
 	if errors.Is(err, watch.ErrNotTerminal) {

@@ -1,0 +1,40 @@
+  SWITCHBOARD    Accounts   Sessions   Runway   tab ⇥                                                                                       Thu 1 Oct  14:42:07
+
+ ROUTER                   NEW SESSIONS GO TO              ROOM LEFT, IN ACCOUNTS                                   COMING UP
+ ● healthy                ▲ 3 side                        5h    ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆  5.5 of 8  15:54  personal back from its l…   in 1h 12m
+ 8 sessions · auto        6 of 8 open                     week  ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆ ▆▆▆▆  4.9 of 8  16:05  work runs out at its pace   in 1h 23m
+                                                                1    2    3    4    5    6    7    8               16:20  spare is primed             in 1h 38m
+
+ ╭─ 1 work ─────────────────────────── ◆ primary ─╮    ╭─ 2 personal ───────────────────────────────────╮    ╭─ 3 side ────────────────────────────── ▲ next ─╮
+ │  ● under pressure · new sessions go elsewhere  │    │  ■ limit reached · back 15:54, in 1h 12m       │    │  ● open · new sessions come here               │
+ │  Session  58%  → out ~16:05      resets 17:10  │    │  Session  100%  back 15:54       resets 15:54  │    │  Week     33%  → 72%         resets Mon 10:00  │
+ │  ██▇▅▃▃▃▃▂▂▁            │                      │    │  █▇▆▆▅▄▃▂                          │           │    │  ▇▆▅▅▅▅▅▄▄▃▃▃▃▂▁▁▁▁▁  │                        │
+ │  █████████████▇▇▆▅▄▄▄▃▃▂⡀⡀                     │    │  ████████████▇▆▅▄▂▂▁▁▁             │           │    │  █████████████████████⠁⠁⠁⠁⠂⠂⠂⠂⠂⠂⠄⠄⠄⠄⠄⡀⡀⡀⡀⡀⡀    │
+ │  ███████████████████████│ ⠁⠁⠁⠂⠂⠂⠄⠄⡀✕           │    │  █████████████████████▇▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁  │    │  █████████████████████│                    ⠁⠁  │
+ │  Week     ██████▏┃███████▋╎░  34% → 87%        │    │  Week     ███████████┃██████  89% → out Fri    │    │  Session  ██▏┃█████▊░░░░░░░░  12% → 54%        │
+ ╰─ ● ○ ● ─────────────────────────── 3 sessions ─╯    ╰────────────────────────────────── no sessions ─╯    ╰─ ● ● ○ ─────────────────────────── 3 sessions ─╯
+
+ ╭─ 4 client ─────────────────────────────────────╮    ╭─ 5 spare ──────────────────────────────────────╮    ╭─ 6 lab ────────────────────────────────────────╮
+ │  ● open · its week nears its reserve           │    │  ○ idle · window starts at its prime, 16:20    │    │  ● open                                        │
+ │  Week     78%  → 97%         resets Tue 09:00  │    │  Week     5%  → 12%          resets Wed 14:00  │    │  Week     52%  → 75%         resets Sat 18:00  │
+ │  ▆▃             │                              │    │  █▇▇▇▇▇▇⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂  │    │  ████▇▇▇▇▇▇▆▅▄▃▃▃▃▂▂▁▁▁▁        │              │
+ │  ███▇▇▇▆▄▃▂▂▂▁  │                              │    │  ███████│                                      │    │  ████████████████████████▇▆▆▆▆▅▄⠄⠄⠄⠄⡀⡀⡀⡀⡀      │
+ │  █████████████▇▅⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⡀⡀  │    │  ███████│                                      │    │  ███████████████████████████████│        ⠁⠁⠁⠁  │
+ │  Session  █████▋██▋░┃░░░░░░░  31% → 48%        │    │  Session  ░░░░░░░░░░░░░░░░░░   0% not started  │    │  Session  ███████┃████▊░░░░░  44% → 71%        │
+ ╰─ ● ──────────────────────────────── 1 session ─╯    ╰────────────────────────────────── no sessions ─╯    ╰─ ● ──────────────────────────────── 1 session ─╯
+
+ ╭─ 7 team ───────────────────────────────────────╮    ╭─ 8 extra ──────────────────────────────────────╮
+ │  ● open                                        │    │  ○ idle · window starts at its prime, 17:40    │     RECENT
+ │  Week     21%  → 28%         resets Sat 08:00  │    │  Week     2%  → 5%           resets Tue 22:00  │     14:41  ▲ c61b started on side, the best
+ │  ███████▇▇▇▇▇▇▇▆▆▆▆▆▆▅▅▄▄▄▄▄▄▄▄▄▄▃⠄⠄⠄⡀⡀⡀⡀⡀⡀⡀⡀  │    │  ███████████⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠁⠂⠂⠂⠂⠂  │     14:38  ● work came under pressure: its session r…
+ │  █████████████████████████████████│            │    │  ███████████│                                  │     14:12  ■ personal reached its session limit; 3 s…
+ │  █████████████████████████████████│            │    │  ███████████│                                  │     13:50  ◇ side primed: its 5-hour window started,…
+ │  Session  █▌┃▋░░░░░░░░░░░░░░   8% → 20%        │    │  Session  ░░░░░░░░░░░░░░░░░░   0% not started  │
+ ╰─ ○ ──────────────────────────────── 1 session ─╯    ╰────────────────────────────────── no sessions ─╯
+
+
+
+
+ KEY      ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve   │   ████ used   ██ heading   ┃ even pace   ╎ reserve
+                                                                                                                       Fable wk hidden: unused on every account
+ tab views   w window: auto   ←→ focus   space flip   g chart   1-8 pin   a auto   m move   ? keys   q quit                                         read 4s ago

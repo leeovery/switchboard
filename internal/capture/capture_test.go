@@ -1,0 +1,154 @@
+package capture
+
+import (
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
+)
+
+func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
+	names := Names()
+	if len(names) == 0 {
+		t.Fatal("there are no fixtures")
+	}
+	if !slices.IsSorted(names) {
+		t.Errorf("Names() = %v, want them sorted", names)
+	}
+	if compacted := slices.Compact(slices.Clone(names)); len(compacted) != len(names) {
+		t.Errorf("Names() = %v names a fixture twice", names)
+	}
+	for _, name := range names {
+		f, err := ByName(name)
+		if err != nil {
+			t.Errorf("ByName(%q): %v", name, err)
+			continue
+		}
+		if f.Name != name {
+			t.Errorf("ByName(%q) gave the fixture named %q", name, f.Name)
+		}
+	}
+}
+
+func TestAnEmptyOrUnknownNameListsTheFixtures(t *testing.T) {
+	available := "(available: " + strings.Join(Names(), ", ") + ")"
+	tests := []struct {
+		name, want string
+	}{
+		{name: "", want: "name a fixture " + available},
+		{name: "accounts-2", want: `unknown fixture "accounts-2" ` + available},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := ByName(tt.name)
+			if err == nil || err.Error() != tt.want {
+				t.Errorf("ByName(%q) error = %v, want %s", tt.name, err, tt.want)
+			}
+			if f.Name != "" {
+				t.Errorf("ByName(%q) gave the fixture named %q, want none", tt.name, f.Name)
+			}
+		})
+	}
+}
+
+func TestFramesAreDeterministic(t *testing.T) {
+	for _, name := range Names() {
+		t.Run(name, func(t *testing.T) {
+			first, second := frameOf(t, name, time.Local), frameOf(t, name, time.Local)
+			if first != second {
+				t.Errorf("two frames of %s differ:\n%s\nthen\n%s", name, first, second)
+			}
+		})
+	}
+}
+
+func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
+	for _, name := range Names() {
+		t.Run(name, func(t *testing.T) {
+			utc, east := frameOf(t, name, time.UTC), frameOf(t, name, time.FixedZone("UTC+10", 10*60*60))
+			if utc != east {
+				t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn ten hours east\n%s", name, utc, east)
+			}
+		})
+	}
+}
+
+func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
+	frame := frameOf(t, "accounts-3", time.Local)
+
+	for _, want := range []string{
+		// The clock the frames read.
+		"Thu 1 Oct · 14:42",
+		// The document, read readAgo before, rather than still being read.
+		"updated 14:42 ·",
+		// work's session at its reading, its bar eased all the way there.
+		"58%",
+	} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the frame\n%s\nhas no %q", frame, want)
+		}
+	}
+}
+
+func TestAFrameFillsATerminalOfTheSizeGiven(t *testing.T) {
+	f := fixture(t, "accounts-3")
+	for _, size := range []watch.Size{f.Size, {Width: 160, Height: 10}, {Width: 200, Height: 80}} {
+		frame := f.Frame(size)
+		if !strings.HasSuffix(frame, "\n") {
+			t.Errorf("at %d×%d, the frame doesn't end its last line", size.Width, size.Height)
+		}
+		if lines := strings.Count(frame, "\n"); lines != size.Height {
+			t.Errorf("at %d×%d, the frame is %d lines, want %d", size.Width, size.Height, lines, size.Height)
+		}
+	}
+}
+
+func TestAFixturesKeysArePressedOnceItsDocumentIsRead(t *testing.T) {
+	f := fixture(t, "accounts-3")
+	f.keys = []tea.KeyPressMsg{{Code: '2', Text: "2"}}
+
+	if frame, want := f.Frame(f.Size), "new sessions go to personal · personal"; !strings.Contains(frame, want) {
+		t.Errorf("having pressed 2, the frame\n%s\nhas no %q", frame, want)
+	}
+}
+
+func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
+	f := fixture(t, "accounts-3")
+	m := f.Model()
+
+	if cmd := m.Init(); cmd != nil {
+		t.Errorf("starting the model returned a command, sending %#v, want none: its first read is taken", cmd())
+	}
+	if got, want := m.View().Content, f.settle(f.Size).View().Content; got != want {
+		t.Errorf("the model starts on\n%s\nwant the fixture's frame\n%s", got, want)
+	}
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	if _, ok := next.(settled); !ok {
+		t.Errorf("after a message, the model is a %T, want it settled still", next)
+	}
+}
+
+// fixture is the fixture with the given name, drawn in the local time zone.
+func fixture(t *testing.T, name string) Fixture {
+	t.Helper()
+	f, err := ByName(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// frameOf is the frame of the fixture with the given name, drawn in the time
+// zone given, at its own size.
+func frameOf(t *testing.T, name string, loc *time.Location) string {
+	t.Helper()
+	f, err := named(name, loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f.Frame(f.Size)
+}

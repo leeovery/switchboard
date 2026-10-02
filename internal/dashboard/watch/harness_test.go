@@ -66,9 +66,8 @@ func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
-		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, Interval: interval, Policy: policy, Size: size,
+		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Interval: interval, Policy: policy, Size: size,
 	})
-	h.model.after = h.arm
 	return h
 }
 
