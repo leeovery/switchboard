@@ -21,3 +21,8 @@ analysis. The token counts are new, and reading them means code in the path of e
 stream, which is why this wants its own design and review rather than riding along with another
 change. Keep it separate from the readings history, with the same promises: a file a day, kept for
 a set time, fields added and never renamed, nothing personal, never a token.
+
+Milestone 5's dashboard needs half of this: its request stream, `GET /stream` (see the design's
+Control API), reads each answer's closing token counts as it passes, to show them live on the
+Sessions view and the cards' backs. A ledger would write the same events down, a line a request, so
+the reading lands with milestone 5 and the ledger is what's left.
