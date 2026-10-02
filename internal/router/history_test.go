@@ -841,6 +841,44 @@ func TestAHistoryFileThatCantBeReadIsLogged(t *testing.T) {
 	}
 }
 
+func TestADamagedHistoryFileIsWarnedOfOnceARun(t *testing.T) {
+	yesterday := compressedFile(start.Local().AddDate(0, 0, -1).Format(historyDay))
+	lines := linesOf(t, workRead(start.Add(-24*time.Hour), 0.1))
+	tests := []struct {
+		name string
+		// data is what yesterday's compressed file holds, and warning what
+		// it's warned of.
+		data    []byte
+		warning string
+	}{
+		{name: "one that can't be read", data: []byte(lines), warning: `msg="can't read the readings history"`},
+		{name: "one cut short", data: append(gzipOf(t, lines), gzipOf(t, lines)[:5]...), warning: `msg="readings history read short"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, yesterday.name()), tt.data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			h := newHistory(config.History{}, at(start))
+			h.open(dir)
+
+			// Read back as the router starts, then read twice as GET /history
+			// reads it.
+			for range h.readBack(start) {
+			}
+			for range 2 {
+				h.windowReadings("5h", []string{"work"}, start.Add(-time.Hour), start)
+			}
+			warned := linesWith(log, "file="+yesterday.name())
+			if len(warned) != 1 || !strings.Contains(warned[0], "level=WARN") || !strings.Contains(warned[0], tt.warning) {
+				t.Errorf("log reads\n%s\nwant the file warned of once, as the router started, a line with %s", log, tt.warning)
+			}
+		})
+	}
+}
+
 func TestTheHistorysDirectoryIsMadePrivate(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "history")
 	if err := os.Mkdir(dir, 0o755); err != nil {

@@ -541,6 +541,14 @@ func later(a, b time.Time) time.Time {
 	return a
 }
 
+// earlier returns the earlier of two times.
+func earlier(a, b time.Time) time.Time {
+	if b.Before(a) {
+		return b
+	}
+	return a
+}
+
 // primeFailed reports whether the last probe of the account with the given id
 // failed as a prime, as its usage's primeFailed says.
 func (s *state) primeFailed(id string) bool {

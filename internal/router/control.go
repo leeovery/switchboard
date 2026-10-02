@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -52,6 +53,39 @@ type Health struct {
 // its process, but starts again.
 func (h Health) Same(o Health) bool {
 	return h.PID == o.PID && h.StartedAt.Equal(o.StartedAt)
+}
+
+// History is what GET /history answers: every account's use of a window over
+// its current length, from the readings history and the readings since, a
+// point each step from when the window started, which the dashboard's charts
+// draw.
+type History struct {
+	// Window is the key of the window asked for, and Step the step between
+	// points, as asked.
+	Window string `json:"window"`
+	Step   string `json:"step"`
+	// Accounts are every configured account's, in the config's order.
+	Accounts []AccountHistory `json:"accounts"`
+}
+
+// AccountHistory is an account's use of a window over its current length, as
+// GET /history gives it.
+type AccountHistory struct {
+	ID string `json:"id"`
+	// Start is when the account's window, as it runs now, started: zero when
+	// it can't be placed as running now, as when it hasn't been read, has
+	// lapsed, or has reset since it was read, and then it has no points.
+	Start time.Time `json:"start,omitzero"`
+	// Points are the window's use a step apart from Start until now, but for
+	// those before it was first read.
+	Points []HistoryPoint `json:"points,omitempty"`
+}
+
+// HistoryPoint is a window's use at a time: as it was last read at or before
+// it.
+type HistoryPoint struct {
+	At          time.Time `json:"at"`
+	Utilization float64   `json:"utilization"`
 }
 
 // Restart is what POST /restart answers: the router taking the request, as
@@ -111,11 +145,13 @@ type problem struct {
 // the session as they leave it. POST and DELETE /pin set and clear the global
 // pin, and POST /refresh probes the accounts whose usage is older than it
 // asks, and those that can take no request anyway, each of the three
-// answering with the status document as it leaves it. POST /restart restarts
-// the router at once, as it restarts itself but for waiting for a moment with
-// no request in flight, answering, before it goes, as GET /health does, and
-// whether it means to restart in place; it refuses, saying why, when it
-// can't restart, as run by hand.
+// answering with the status document as it leaves it. GET /history gives
+// every account's use of a window over its current length, a point each step
+// asked, from the readings history and the readings since. POST /restart
+// restarts the router at once, as it restarts itself but for waiting for a
+// moment with no request in flight, answering, before it goes, as GET /health
+// does, and whether it means to restart in place; it refuses, saying why, when
+// it can't restart, as run by hand.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -184,6 +220,14 @@ func (r *Router) Control() http.Handler {
 		r.refresh(req.Context(), age)
 		writeJSON(w, r.Status())
 	})
+	mux.HandleFunc("GET /history", func(w http.ResponseWriter, req *http.Request) {
+		asked, err := historyAsked(req)
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, r.windowHistory(asked))
+	})
 	return mux
 }
 
@@ -210,6 +254,35 @@ func maxAge(w http.ResponseWriter, req *http.Request) (time.Duration, error) {
 		return 0, fmt.Errorf("max_age %s is less than nothing", refresh.MaxAge)
 	}
 	return age, nil
+}
+
+// historyAsked reads what GET /history asks for from its query: a window
+// whose length can be read, and a step more than 0 that covers the window's
+// whole length in maxPoints steps at most. It fails, saying what to give,
+// otherwise, hiding anything that looks like a token in what it quotes.
+func historyAsked(req *http.Request) (historyAsk, error) {
+	query := req.URL.Query()
+	window, asked := query.Get("window"), query.Get("step")
+	length, ok := quota.Length(window)
+	switch {
+	case window == "":
+		return historyAsk{}, errors.New("give the window, such as window=5h")
+	case !ok:
+		return historyAsk{}, fmt.Errorf("window %q has no length to read: give one such as 5h or 7d", redact.Text(window))
+	}
+	step, err := time.ParseDuration(asked)
+	switch {
+	case asked == "":
+		return historyAsk{}, errors.New("give the step between points, such as step=5m")
+	case err != nil:
+		return historyAsk{}, fmt.Errorf("step %q isn't a duration, such as 5m", redact.Text(asked))
+	case step <= 0:
+		return historyAsk{}, fmt.Errorf("step %s isn't more than 0", asked)
+	case step < leastStep(length):
+		return historyAsk{}, fmt.Errorf("step %s is too short for window %s: its whole length would take more than %d steps, so give %v or more",
+			asked, redact.Text(window), maxPoints, leastStep(length))
+	}
+	return historyAsk{window: window, step: step, asked: asked}, nil
 }
 
 // refresh probes the accounts nothing has been read of for longer than age,

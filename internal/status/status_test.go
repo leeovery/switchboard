@@ -256,6 +256,26 @@ func TestAnAccountAsItStands(t *testing.T) {
 	}
 }
 
+func TestAnAccountsWindowByItsKey(t *testing.T) {
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.23}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.93}
+	a := status.Account{ID: "work", Windows: []quota.Window{session, week}}
+	tests := []struct {
+		key    string
+		want   quota.Window
+		wantOK bool
+	}{
+		{key: "5h", want: session, wantOK: true},
+		{key: "7d", want: week, wantOK: true},
+		{key: "7d_oi"},
+	}
+	for _, tt := range tests {
+		if got, ok := a.Window(tt.key); got != tt.want || ok != tt.wantOK {
+			t.Errorf("Window(%q) = %+v, %v; want %+v, %v", tt.key, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
 func TestCollectLogsEachAccount(t *testing.T) {
 	log := logstest.Capture(t)
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -114,6 +115,15 @@ type history struct {
 	// dropping is set once a reading is dropped for the queue being full,
 	// until one is written.
 	dropping atomic.Bool
+	// files is held to write while the files are pruned and compressed, and to
+	// read while they're read, as GET /history reads them on goroutines of its
+	// own. Appending holds neither: it's on run's goroutine, as pruning is, and
+	// a reader of a file appended to meanwhile finds at worst its last line
+	// cut short, which it skips.
+	files sync.RWMutex
+	// warned holds the files a read has warned of, as files that can't be
+	// read or read short, so each is warned of once a run.
+	warned filesWarned
 
 	// Only run's goroutine touches what follows.
 	failing bool
@@ -320,6 +330,8 @@ func (h *history) pruneDaily() {
 // prune removes the history's files past keeping, and compresses those of the
 // days done with, as tend says, leaving anything else in the directory alone.
 func (h *history) prune() {
+	h.files.Lock()
+	defer h.files.Unlock()
 	now := h.now()
 	h.pruned = now.Local().Format(historyDay)
 	entries, err := os.ReadDir(h.dir)
@@ -448,26 +460,43 @@ func gzipped(data []byte) ([]byte, error) {
 // reading that can be is left out.
 func (h *history) readBack(now time.Time) iter.Seq[reading] {
 	return func(yield func(reading) bool) {
-		skipped := 0
-		for _, f := range h.newest(now, 2) {
-			bad, more := h.readFile(f, func(r reading) bool {
-				return r.At.After(now) || yield(r)
-			})
-			skipped += bad
-			if !more {
-				break
-			}
-		}
+		h.files.RLock()
+		defer h.files.RUnlock()
+		skipped := h.readDays(h.newest(now, 2), func(r reading) bool {
+			return r.At.After(now) || yield(r)
+		})
 		if skipped > 0 {
 			logger.Warn("readings history lines unread", "lines", skipped)
 		}
 	}
 }
 
-// newest returns the files to read of the history's n newest days at now, by
-// the dates their names give, but for those of a day after tomorrow: the
-// older day's first, each day's as dayFiles gives them.
-func (h *history) newest(now time.Time, n int) []dayFile {
+// windowReadings returns the readings the history holds of the window with
+// the given key, of the accounts with the given ids, by account, in the order
+// they came: those of the local days from the day before from's to the day
+// after to's, as a change of time zone can put a reading under a date beside
+// its own. It holds the files from pruning and compressing while it reads
+// them, and reads none for no account, or before the history is opened.
+func (h *history) windowReadings(key string, ids []string, from, to time.Time) map[string][]reading {
+	if len(ids) == 0 || !h.opened.Load() {
+		return nil
+	}
+	h.files.RLock()
+	defer h.files.RUnlock()
+	readings := make(map[string][]reading)
+	h.readDays(datesFrom(startOfDay(from).AddDate(0, 0, -1), to.Local().AddDate(0, 0, 1)), func(r reading) bool {
+		if r.Window == key && slices.Contains(ids, r.Account) {
+			readings[r.Account] = append(readings[r.Account], r)
+		}
+		return true
+	})
+	return readings
+}
+
+// newest returns the dates of the history's n newest days at now, oldest
+// first, by the dates its files' names give, but for those of a day after
+// tomorrow.
+func (h *history) newest(now time.Time, n int) []string {
 	entries, err := os.ReadDir(h.dir)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -483,11 +512,40 @@ func (h *history) newest(now time.Time, n int) []dayFile {
 	}
 	slices.Sort(dates)
 	dates = slices.Compact(dates)
-	var files []dayFile
-	for _, date := range dates[max(len(dates)-n, 0):] {
-		files = append(files, h.dayFiles(date)...)
+	return dates[max(len(dates)-n, 0):]
+}
+
+// readDays hands take each reading the history holds of the local days with
+// the given dates, in the order they came, each day's after the day's before,
+// from the files dayFiles gives, until take reports false, and returns how
+// many of the lines didn't read as a reading. The files must be held to read.
+func (h *history) readDays(dates []string, take func(reading) bool) (bad int) {
+	for _, date := range dates {
+		for _, f := range h.dayFiles(date) {
+			skipped, more := h.readFile(f, take)
+			bad += skipped
+			if !more {
+				return bad
+			}
+		}
 	}
-	return files
+	return bad
+}
+
+// datesFrom returns the dates, as historyDay lays them out, of the local days
+// from first's to last's.
+func datesFrom(first, last time.Time) []string {
+	var dates []string
+	for day := startOfDay(first); !day.After(last); day = day.AddDate(0, 0, 1) {
+		dates = append(dates, day.Format(historyDay))
+	}
+	return dates
+}
+
+// startOfDay returns when the local day t falls on starts.
+func startOfDay(t time.Time) time.Time {
+	y, m, d := t.Local().Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
 }
 
 // dayFiles returns those of the history's files of the local day with the
@@ -530,14 +588,14 @@ func afterTomorrow(day, now time.Time) bool {
 // of its lines, until take reports false, and returns how many of its lines
 // didn't read as a reading, and whether take wanted more. A line longer than
 // historyLineMax is skipped without being held. A file that can't be read
-// holds none, which is logged but for one that isn't there, and one damaged,
-// as a compressed file cut short, the lines before the damage, which is
-// logged too.
+// holds none, which is warned of but for one that isn't there, and one
+// damaged, as a compressed file cut short, the lines before the damage, which
+// is warned of too: each once a run, as warn says.
 func (h *history) readFile(f dayFile, take func(reading) bool) (bad int, more bool) {
 	src, err := h.openFile(f)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			logger.Warn("can't read the readings history", "file", f.name(), "error", err)
+			h.warn("can't read the readings history", f, err)
 		}
 		return 0, true
 	}
@@ -563,7 +621,7 @@ func (h *history) readFile(f dayFile, take func(reading) bool) (bad int, more bo
 		}
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				logger.Warn("readings history read short", "file", f.name(), "error", err)
+				h.warn("readings history read short", f, err)
 			}
 			return bad, true
 		}
@@ -592,6 +650,38 @@ func (h *history) openFile(f dayFile) (io.ReadCloser, error) {
 type readCloser struct {
 	io.Reader
 	io.Closer
+}
+
+// warn logs msg of the history's file f, saying why, the first time a read of
+// it fails this run.
+func (h *history) warn(msg string, f dayFile, err error) {
+	if h.warned.first(f.name()) {
+		logger.Warn(msg, "file", f.name(), "error", err)
+	}
+}
+
+// filesWarned holds, by name, the history's files a read has warned of, so
+// each is warned of once a run, not at every GET /history: a file that can't
+// be read, or is damaged, doesn't mend itself. It's safe for concurrent use,
+// as reads of the history are.
+type filesWarned struct {
+	mu   sync.Mutex
+	told map[string]bool
+}
+
+// first reports whether the file with the given name is warned of for the
+// first time.
+func (w *filesWarned) first(name string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.told[name] {
+		return false
+	}
+	if w.told == nil {
+		w.told = make(map[string]bool)
+	}
+	w.told[name] = true
+	return true
 }
 
 // skipLine reads past the rest of a line too long to hold, reporting why it
