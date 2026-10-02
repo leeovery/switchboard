@@ -1,19 +1,22 @@
 // Package watch keeps the dashboard on screen. While the router answers, it
-// reads the router's status document every few seconds, and takes keys that
-// tell the router where to send sessions, leaving desktop notifications to the
-// router. While it doesn't, it probes every account as each read falls due,
-// and posts its own notifications, as the config asks, when an account has
-// room again or a window passes the warning. Probing as asked while the
-// router answers, it leaves them to the router all the same. It redraws as
-// the clock moves, and eases each bar to its new reading. Beyond its log, the
-// model does no I/O of its own: it's handed its source, its clock and its
-// notifier, so tests drive it as a terminal would.
+// reads the router's status document every few seconds, and its history with
+// each full read, picks out the events each look finds new, and takes keys
+// that tell the router where to send sessions, leaving desktop notifications
+// to the router. While it doesn't, it probes every account as each read falls
+// due, keeps the readings it sees for the charts, and posts its own
+// notifications, as the config asks, when an account has room again or a
+// window passes the warning. Probing as asked while the router answers, it
+// leaves them to the router all the same. It redraws as the clock moves, every
+// second, and eases each bar to its new reading. Beyond its log, the model
+// does no I/O of its own: it's handed its source, its clock, its notifier and
+// where it keeps its preferences, so tests drive it as a terminal would.
 package watch
 
 import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -24,6 +27,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -39,10 +43,11 @@ var ErrNoRouter = errors.New("the router isn't answering")
 
 // Source is where the dashboard reads the status document: the router, while
 // it answers, else probing every account. It also tells the router where to
-// send sessions.
+// send sessions, and gives its history.
 type Source interface {
-	// Read reads the document as r asks.
-	Read(ctx context.Context, r Read) (status.Document, error)
+	// Read reads the document as r asks, and says which router gave it, as
+	// its health check answered: zero for a document built by probing.
+	Read(ctx context.Context, r Read) (status.Document, router.Health, error)
 	// Pin has the router send every new session to the best of the accounts
 	// with the given ids, and with move, every running session on another
 	// account too.
@@ -52,6 +57,11 @@ type Source interface {
 	// RouterAnswers reports whether the router answers: while it does, it
 	// posts the desktop notifications, even as the source probes as asked.
 	RouterAnswers(ctx context.Context) bool
+	// History gives every account's use of the window with the given key
+	// over its current length, a point each step, as the router's GET
+	// /history does, failing with router.ErrNoHistory, wrapped, where the
+	// router is from before it.
+	History(ctx context.Context, window string, step time.Duration) (router.History, error)
 }
 
 // A Read is what a read of the source asks for.
@@ -115,6 +125,11 @@ type Config struct {
 	// keeps the user's pick: nil draws the dashboard without colour, as
 	// NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
+	// View is the view the preferences kept, which the watch opens on where
+	// it's one there is, and Prefs keeps the view shown as it changes: nil
+	// keeps nothing.
+	View  dashboard.View
+	Prefs Prefs
 }
 
 // Size is a terminal's size in cells.
@@ -127,9 +142,6 @@ type Size struct {
 func (s Size) or(known Size) Size {
 	return Size{Width: cmp.Or(s.Width, known.Width), Height: cmp.Or(s.Height, known.Height)}
 }
-
-// topMargin is the blank lines above the frame.
-const topMargin = 1
 
 // Model is a watch's state, as Bubble Tea runs it. Build one with New.
 type Model struct {
@@ -182,13 +194,25 @@ type Model struct {
 	showing  theme.Theme
 	backdrop backdrop
 	picker   picker
+
+	// views are the views there are, in tab's order, and view the one shown.
+	views []dashboard.View
+	view  dashboard.View
+	// news is what the looks have seen of the router's events.
+	news news
+	// history is how the accounts' windows have been used, and trails the
+	// charts' share of it, of the document on screen.
+	history history
+	trails  dashboard.History
 }
 
-// fetchedMsg is what a read that asked for read found.
+// fetchedMsg is what a read that asked for read found, and which router gave
+// it.
 type fetchedMsg struct {
-	read Read
-	doc  status.Document
-	err  error
+	read   Read
+	doc    status.Document
+	router router.Health
+	err    error
 }
 
 // tickMsg wakes the model to redraw, and to read again once that's due.
@@ -202,9 +226,10 @@ type frameMsg struct{}
 // New returns a model that reads cfg's source at once, and whenever a read
 // falls due after, under ctx.
 func New(ctx context.Context, cfg Config) Model {
+	views := dashboard.Views()
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true,
-		choice: cfg.Choice, pair: cfg.Pair,
+		choice: cfg.Choice, pair: cfg.Pair, views: views, view: opening(cfg.View, views),
 	}
 	if m.after == nil {
 		m.after = after
@@ -229,8 +254,9 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message: a key, a resize, the terminal's background, a
-// read, the router carrying out an order, a tick or a frame. The view is
-// drawn again after each, which is all a note's lapsing asks.
+// read, the router's history, the router carrying out an order, a tick or a
+// frame. The view is drawn again after each, which is all a note's lapsing
+// asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -243,6 +269,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.answered(nil), nil
 	case fetchedMsg:
 		return m.fetched(msg)
+	case historyMsg:
+		m.history = m.history.answered(msg)
+		m.trails = m.history.drawn(m.doc)
+		return m, nil
 	case orderedMsg:
 		return m.ordered(msg)
 	case tickMsg:
@@ -254,11 +284,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View draws the dashboard full screen, as the document stands at the clock's
-// time, over a footer saying when it was read and will be next, with the
-// theme picker over its right while it's open. In colour, it's drawn once
-// the terminal has said what its background is, or had its time to, so it
-// never shows one theme then another: in the theme shown, its canvas painted
-// on every cell, and set as the terminal's background too.
+// time, the theme picker over its right while it's open. In colour, it's
+// drawn once the terminal has said what its background is, or had its time
+// to, so it never shows one theme then another: in the theme shown, its
+// canvas painted on every cell, and set as the terminal's background too.
 func (m Model) View() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
@@ -266,39 +295,19 @@ func (m Model) View() tea.View {
 		return v
 	}
 	now, look := m.now(), m.look()
-	frame := dashboard.Render(m.shown(now), now, dashboard.Options{
-		Width:  m.size.Width,
-		Height: max(m.size.Height-topMargin, 0),
-		Look:   look,
-		Footer: m.footer(now),
-	})
-	lines := m.screen(frame, look)
+	lines := dashboard.Frame{
+		Width: m.size.Width, Height: m.size.Height, Look: look,
+		Views: m.views, View: m.view,
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
+		Keys: m.keys(), Note: m.noted(now), Status: m.status(now),
+		Policy: m.cfg.Policy,
+	}.Draw(m.shown(now), now)
 	if m.picker.open {
 		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, look)
 	}
 	v.SetContent(strings.Join(lines, "\n"))
 	v.BackgroundColor = look.Canvas()
 	return v
-}
-
-// screen is the frame's lines as the terminal shows them, under the top
-// margin, and in colour, the screen's every line, no more, those around the
-// frame of the canvas.
-func (m Model) screen(frame string, look dashboard.Look) []string {
-	lines := append(make([]string, topMargin), strings.Split(frame, "\n")...)
-	if !m.coloured() {
-		return lines
-	}
-	for i := range topMargin {
-		lines[i] = look.Blank(m.size.Width)
-	}
-	if m.size.Height > 0 {
-		lines = lines[:min(len(lines), m.size.Height)]
-	}
-	for len(lines) < m.size.Height {
-		lines = append(lines, look.Blank(m.size.Width))
-	}
-	return lines
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
@@ -331,8 +340,8 @@ func (m Model) read(r Read) (Model, tea.Cmd) {
 func (m Model) fetch(r Read) tea.Cmd {
 	ctx, source := m.ctx, m.cfg.Source
 	return func() tea.Msg {
-		doc, err := source.Read(ctx, r)
-		return fetchedMsg{read: r, doc: doc, err: err}
+		doc, from, err := source.Read(ctx, r)
+		return fetchedMsg{read: r, doc: doc, router: from, err: err}
 	}
 }
 
@@ -356,7 +365,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 	default:
 		m.plan = m.plan.landed(msg.read, msg.doc, now)
-		m, shown = m.show(msg.doc, now)
+		m, shown = m.show(msg, now)
 		logRead(msg, m.plan.due)
 	}
 	m.chain++
@@ -388,21 +397,32 @@ func logRead(msg fetchedMsg, next time.Time) {
 		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
-// show puts doc, read at now, on screen: it posts what the change calls for,
-// unless the router is there to post its own, as nothing is to be told twice;
-// follows the router as it goes and comes back; and eases the bars to doc
-// from where they stand.
-func (m Model) show(doc status.Document, now time.Time) (Model, tea.Cmd) {
-	var post tea.Cmd
+// show puts the document a read found at now on screen: it posts what the
+// change calls for, unless the router is there to post its own, as nothing is
+// to be told twice; follows the router as it goes and comes back; notes the
+// events new to it, and the readings it gives; asks the router for its
+// history with a full read, and as the router answers again, or another
+// router does, as one restarted; and eases the bars to it from where they
+// stand.
+func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
+	doc := msg.doc
+	var post, asked tea.Cmd
 	if !routed(doc) {
 		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
 	}
+	ask := routed(doc) && (msg.read.full() || !m.answering() || m.news.another(msg.router))
 	m.readings = m.readings.with(doc, now)
 	m = m.follow(doc, now)
+	m.news = m.news.looked(doc, msg.router, now)
+	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
-	m, frames := m.startFrames()
-	return m, tea.Batch(post, frames)
+	m.trails = m.history.drawn(doc)
+	if ask {
+		m, asked = m.askHistory(doc)
+	}
+	m, frames := m.startFrames(now)
+	return m, tea.Batch(post, asked, frames)
 }
 
 // follow notes where doc, read at now, came from, against where the document
@@ -452,37 +472,43 @@ func (m Model) ticked(msg tickMsg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(read, m.armTick(now))
 }
 
-// armTick arms the live chain's next tick: just past the next second while a
-// countdown shows seconds, else just past the next minute, or, reading the
-// router, just past the next look at its document when that comes sooner.
+// armTick arms the live chain's next tick: just past the next second, or,
+// reading the router, just past the next look at its document when that
+// comes sooner.
 // Ticks never come as one long timer to the next read: a timer's clock stops
 // while a Mac sleeps, so one set for half an hour before the lid closes would
 // fire half an hour after it opens. Each tick reads the wall clock instead.
 func (m Model) armTick(now time.Time) tea.Cmd {
-	delay := tickDelay(m.doc, now)
+	delay := tickDelay(now)
 	if until := m.plan.next.Sub(now); m.routed() && until > 0 {
 		delay = min(delay, until+tickSlack)
 	}
 	return m.after(delay, tickMsg{chain: m.chain})
 }
 
-// startFrames starts drawing frames while the bars ease, unless none moves or
-// frames are already running, which carry on through the new easing.
-func (m Model) startFrames() (Model, tea.Cmd) {
-	if m.framing || !m.ease.moves(m.doc) {
+// startFrames starts drawing frames while anything on screen moves at now,
+// unless they're running already, and carry on through what moves now.
+func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
+	if m.framing || !m.moving(now) {
 		return m, nil
 	}
 	m.framing = true
 	return m, m.after(frameEvery, frameMsg{})
 }
 
-// framed arms the next frame, until the easing is done.
+// framed arms the next frame, while anything on screen moves.
 func (m Model) framed() (tea.Model, tea.Cmd) {
-	if m.ease.done(m.now()) {
+	if !m.moving(m.now()) {
 		m.framing = false
 		return m, nil
 	}
 	return m, m.after(frameEvery, frameMsg{})
+}
+
+// moving reports whether anything on screen moves at now: a bar easing to
+// its reading, or the highlight on an event fading back.
+func (m Model) moving(now time.Time) bool {
+	return (m.ease.moves(m.doc) && !m.ease.done(now)) || m.news.faded(now) != nil
 }
 
 // post posts the alerts in turn, noting each in the log. Of a document probed
@@ -511,36 +537,43 @@ func (m Model) post(alerts []notify.Notice, asked bool) tea.Cmd {
 	}
 }
 
-// footer says since when the router hasn't answered, while the dashboard
-// probes for want of it, or shows its last document; then what the last key
-// did, while that's news, or else how reading goes; and last what the keys
-// do.
-func (m Model) footer(now time.Time) string {
-	parts := []string{m.state(now), m.keys()}
-	if !m.lost.IsZero() {
-		parts = append([]string{"no router since " + status.TimeOfDay(now, m.lost)}, parts...)
-	}
-	return strings.Join(parts, " · ")
-}
-
-// state says what the last key did, while that's news; else that a read is
-// under way, why the last one failed, or when the document was read, and,
-// while it's probed, when it will be next.
-func (m Model) state(now time.Time) string {
+// status says how reading goes, at the footer's right: that the first read,
+// or a full read, is under way; why the last read failed, and when the next
+// is due; since when there's been no router, while its last document stays
+// on screen; or how long ago the document was read, and, while it's probed,
+// when it will be next.
+func (m Model) status(now time.Time) string {
 	switch {
-	case now.Before(m.noteUntil):
-		return m.note
 	case m.fetching && m.updated.IsZero():
 		return "reading usage…"
 	case m.fetching && m.loud:
 		return "refreshing…"
 	case m.failed != "":
 		return "couldn't read usage: " + m.failed + " · next " + status.TimeOfDay(now, m.plan.due)
+	case m.routed() && !m.lost.IsZero():
+		return "no router since " + status.TimeOfDay(now, m.lost)
 	case m.routed():
-		return "updated " + status.TimeOfDay(now, m.updated)
+		return "read " + ago(now, m.updated)
 	default:
-		return "updated " + status.TimeOfDay(now, m.updated) + " · next " + status.TimeOfDay(now, m.plan.due)
+		return "read " + ago(now, m.updated) + " · next " + status.TimeOfDay(now, m.plan.due)
 	}
+}
+
+// ago says how long before now t was: in seconds, such as "4s ago", within a
+// minute, and from then as status.Countdown counts, such as "2m ago".
+func ago(now, t time.Time) string {
+	if d := now.Sub(t); d < time.Minute {
+		return fmt.Sprintf("%ds ago", max(int(d/time.Second), 0))
+	}
+	return status.Countdown(t, now) + " ago"
+}
+
+// noted is what the last key did, while that's news at now: "" once it isn't.
+func (m Model) noted(now time.Time) string {
+	if now.Before(m.noteUntil) {
+		return m.note
+	}
+	return ""
 }
 
 // routed reports whether the document on screen is the router's.

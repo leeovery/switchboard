@@ -223,7 +223,7 @@ func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
 	cfg := recordWatch(t, &deps)
 	run(t, deps, "usage", "--watch")
 
-	doc, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true})
+	doc, _, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true})
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -291,7 +291,7 @@ func TestUsageWatchClaimsTheVersionInstalledAtEachRead(t *testing.T) {
 		mu.Lock()
 		agents = nil
 		mu.Unlock()
-		if _, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true}); err != nil {
+		if _, _, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true}); err != nil {
 			t.Fatalf("Read() error = %v", err)
 		}
 		mu.Lock()

@@ -14,21 +14,26 @@ import (
 )
 
 // source is the router as a fixture has it, at the moment the fixture draws:
-// its status document; the sessions it has routed lately, as GET /sessions
-// lists them; and its accounts' use of their windows over time, which GET
-// /history answers from. It's the watch's Source, every read giving the
-// document, and an order a key gives changing nothing.
+// its status document, and its health check's answer, which says which
+// router it is; the sessions it has routed lately, as GET /sessions lists
+// them; and its accounts' use of their windows over time, which GET /history
+// answers from. It's the watch's Source, every read giving the document, and
+// an order a key gives changing nothing.
 type source struct {
 	doc      status.Document
+	health   router.Health
 	sessions []status.Session
 	trails   []trail
 	now      time.Time
 }
 
-// newSource is the router at now, having read the samples readAgo before:
-// healthy, routing every session on its merits, new sessions going to best,
-// and telling of events, the newest first; the sessions on the samples; and
-// the history of their windows.
+// routerPID is the process the fixtures' router runs as.
+const routerPID = 41207
+
+// newSource is the router at now, started at noon, having read the samples
+// readAgo before: healthy, routing every session on its merits, new sessions
+// going to best, and telling of events, the newest first; the sessions on the
+// samples; and the history of their windows.
 func newSource(now time.Time, samples []sample, best string, events ...status.Event) source {
 	sessions := sessionsOn(samples)
 	doc := status.Document{
@@ -44,12 +49,13 @@ func newSource(now time.Time, samples []sample, best string, events ...status.Ev
 		doc.Accounts = append(doc.Accounts, s.account(now))
 	}
 	doc.Primary = status.PrimaryOf(doc.Accounts)
-	return source{doc: doc, sessions: sessions, trails: trailsOf(samples, now), now: now}
+	health := router.Health{OK: true, PID: routerPID, StartedAt: on(now, 1, 12, 0)}
+	return source{doc: doc, health: health, sessions: sessions, trails: trailsOf(samples, now), now: now}
 }
 
 // Read reads the router's document, whatever the read asks.
-func (s source) Read(context.Context, watch.Read) (status.Document, error) {
-	return s.doc, nil
+func (s source) Read(context.Context, watch.Read) (status.Document, router.Health, error) {
+	return s.doc, s.health, nil
 }
 
 // Pin takes the order, and changes nothing.

@@ -107,17 +107,3 @@ func inSeconds(now, t time.Time) bool {
 	left := t.Sub(now)
 	return left > 0 && left < secondsWithin
 }
-
-// CountsSeconds reports whether a frame of doc drawn at now counts down in
-// seconds, as it does to an exhausted window that's back in under ten
-// minutes. A live view redraws every second while it does.
-func CountsSeconds(doc status.Document, now time.Time) bool {
-	for _, a := range doc.Accounts {
-		for _, w := range a.Windows {
-			if p := a.Project(w, now); p.Kind == score.Exhausted && inSeconds(now, p.At) {
-				return true
-			}
-		}
-	}
-	return false
-}

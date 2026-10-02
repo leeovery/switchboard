@@ -84,9 +84,10 @@ probes every account every interval, sooner for a window that resets or an
 account that couldn't be read, and reads the router again once it's back.
 
 Keys: r refresh, t the theme picker, q quit. While it reads the router, and
-the router answers, 1-9 pin new sessions to the account in that place, beside
-those pinned already, or unpin it, a routes every session automatically again,
-and m moves running sessions to the pinned accounts. While the router runs, it
+the router answers, of more than one account, 1-9 pin new sessions to the
+account in that place, beside those pinned already, or unpin it, a routes
+every session automatically again, and m moves running sessions to the
+pinned accounts. While the router runs, it
 posts the desktop notifications, --probe or not; without it, the dashboard
 posts its own of an account with room again and a window passing the warning,
 as the config's [notifications] asks, unless --no-notify.
@@ -192,6 +193,8 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if opts.noNotify {
 		notifier = notify.Off{}
 	}
+	t := a.themes()
+	kept := t.kept()
 	wc := watch.Config{
 		Source:        a.source(cfg, opts.probe),
 		Notifier:      notifier,
@@ -200,10 +203,13 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
 		Size:          a.environSize(),
+		View:          dashboard.View(kept.View),
+	}
+	if t.prefs != nil {
+		wc.Prefs = t.prefs
 	}
 	if !a.noColour() {
-		t := a.themes()
-		wc.Choice = t.chosen()
+		wc.Choice = kept.Choice
 		wc.Pair = t.library.Pair(wc.Choice)
 		wc.Themes = t
 	}

@@ -212,7 +212,7 @@ func TestFailedNotificationsGoOnlyToTheLog(t *testing.T) {
 	if want := []string{"work · Work: Week at 91%"}; !slices.Equal(h.notifier.posted, want) {
 		t.Errorf("posted %q, want %q", h.notifier.posted, want)
 	}
-	if got, want := h.footer(), "updated 13:20 · next 13:50 · r refresh · q quit"; got != want {
+	if got, want := h.footer(), probingKeys+" · read 0s ago · next 13:50"; got != want {
 		t.Errorf("footer = %q, want %q: a failed notification changes nothing on screen", got, want)
 	}
 	want := []string{"level=WARN", `msg="notification failed" component=watch`, "account=work", `news="Week at 91%"`, `error="post notification: exit status 1"`}

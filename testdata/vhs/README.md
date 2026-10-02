@@ -48,6 +48,10 @@ known:
   sheets' other five, and a sixth of their own.
 - **The sample session ids** differ: the frames have `d28c`, `c61b`, `db8a` and so on, the doc's
   examples `5b19`, `3e7a`, `9e21`. The fixtures use the frames'.
+- **The footer's keys** are the doc's, in its order, `? keys` and `q quit` always listed: where
+  the frames say `? explain` or `? help`, it's `? keys`. The phone's frame lists `r refresh`,
+  which the doc leaves to `?`, and drops `q quit` and when the document was read, both of which a
+  phone's footer keeps.
 
 The fixtures, the harness and the tool are permanent: only the tapes and captures are scaffolding.
 
@@ -259,7 +263,7 @@ cmd/capturetool/       the tool: --fixture, --theme, --print, --size, --ansi, an
 internal/capture/      imported by the tool alone
   capture.go           the Fixture, and the registry: Names, ByName, and every fixture's name, size, router and theme
   samples.go           the frames' sample accounts and sessions, and the sets of them the frames draw
-  source.go            the fake router: its status document, GET /sessions and GET /history
+  source.go            the fake router: its status document and health, GET /sessions and GET /history
   history.go           the accounts' windows' use over time, as the frames' charts draw it
   harness.go           builds the watch model, its themes faked, settles it at the fixture's moment, and draws it
 ```
@@ -273,8 +277,15 @@ events the frames' RECENT has. Its sessions answer as `GET /sessions` would, and
 of each week, shaped as the frames' charts are. The dashboard draws its own numbers from these, by
 its own rules, so a few read otherwise than the generator drew them:
 
-- **Work's pressure** reaches its 90% reserve at 15:45, at its last half hour's rate: the frames say
-  its session runs out at 16:05, which is when it reaches its limit.
+- **Work runs out** where its 90% reserve starts, as its reserve holds it back, and at its last
+  half hour's rate its session reaches it at 15:45: the frames say it runs out at 16:05, which is
+  when it reaches its limit. So COMING UP says `15:45 work reaches its reserve`, not `16:05 work
+  runs out at its pace`, and RECENT, telling of it coming under pressure, says `its session
+  reaches its reserve ~15:45 at its last-30-min rate`, not `its session runs out ~16:05 at its
+  last-30-min rate`.
+- **ROOM LEFT's sums** round the rooms' sum as it is: the six accounts' sessions have 3.55
+  accounts' worth left, which reads 3.6, where the generator's sum came to a hair under, and read
+  3.5.
 - **Projections** the generator gave without its numbers giving them: client's week, 78% used a
   third of the way through, runs out on Friday rather than heading for 97%; at their pace, spare's
   week heads for 34% and extra's for 8%, not 12% and 5%, and with Fable's week used, client's heads

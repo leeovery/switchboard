@@ -100,23 +100,18 @@ func TestNextFetch(t *testing.T) {
 }
 
 func TestTickDelay(t *testing.T) {
-	backSoon := document(account("work", "Work", refused(session(1, 5*time.Minute)), week(0.5)))
 	tests := []struct {
 		name string
-		doc  status.Document
 		now  time.Time
 		want time.Duration
 	}{
-		{name: "on the minute", doc: calm(), now: at(13, 12, 0), want: time.Minute + tickSlack},
-		{name: "part way through a minute", doc: calm(), now: at(13, 12, 30).Add(500 * time.Millisecond), want: 29*time.Second + 500*time.Millisecond + tickSlack},
-		{name: "just past the minute", doc: calm(), now: at(13, 12, 0).Add(tickSlack), want: time.Minute},
-		{name: "counting seconds, on the second", doc: backSoon, now: at(13, 12, 0), want: time.Second + tickSlack},
-		{name: "counting seconds, part way through one", doc: backSoon, now: at(13, 12, 0).Add(300 * time.Millisecond), want: 700*time.Millisecond + tickSlack},
-		{name: "before anything is read", doc: status.Document{}, now: at(13, 12, 0), want: time.Minute + tickSlack},
+		{name: "on the second", now: at(13, 12, 0), want: time.Second + tickSlack},
+		{name: "part way through a second", now: at(13, 12, 30).Add(300 * time.Millisecond), want: 700*time.Millisecond + tickSlack},
+		{name: "just past the second", now: at(13, 12, 0).Add(tickSlack), want: time.Second},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tickDelay(tt.doc, tt.now); got != tt.want {
+			if got := tickDelay(tt.now); got != tt.want {
 				t.Errorf("tickDelay() = %v, want %v", got, tt.want)
 			}
 		})

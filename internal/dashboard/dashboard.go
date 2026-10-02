@@ -1,7 +1,9 @@
-// Package dashboard draws the status document as a terminal dashboard: a card
-// per account showing each window's use, pace and reset, in as many columns as
-// the terminal takes. Drawing is pure, so a one-off print and a live view draw
-// the same frame from the same document and clock.
+// Package dashboard draws the status document as a terminal dashboard. Full
+// screen, as a watch keeps it, a Frame is its title row, its heading, the view
+// shown and its footer, drawn glyph by glyph on a grid of cells; printed once,
+// Render draws a card per account showing each window's use, pace and reset,
+// in as many columns as the terminal takes. Drawing is pure: a frame is drawn
+// from the document and the clock, and what the watch knows besides.
 package dashboard
 
 import (

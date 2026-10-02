@@ -142,16 +142,13 @@ func TestNoColour(t *testing.T) {
 	if h.model.picker.open {
 		t.Error("without colour, t opened the theme picker, want it to do nothing")
 	}
-	if strings.Contains(h.footer(), "t themes") {
-		t.Errorf("without colour, the footer reads %q, want no t", h.footer())
-	}
 }
 
 func TestTOpensThePickerOverTheView(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
 
-	if !strings.Contains(h.footer(), "t themes") {
-		t.Errorf("the footer reads %q, want it to say t opens the themes", h.footer())
+	if strings.Contains(h.footer(), "t themes") {
+		t.Errorf("the footer reads %q, want t left for the help to list", h.footer())
 	}
 	h.press("t")
 

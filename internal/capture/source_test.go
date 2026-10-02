@@ -17,9 +17,12 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	want := s.doc
 
 	for _, r := range []watch.Read{{}, {Probe: true}, watch.Fresh()} {
-		doc, err := s.Read(t.Context(), r)
+		doc, health, err := s.Read(t.Context(), r)
 		if err != nil || !reflect.DeepEqual(doc, want) {
 			t.Errorf("Read(%+v) = %+v, %v, want the router's document", r, doc, err)
+		}
+		if !health.OK || health.PID != routerPID || !health.StartedAt.Equal(on(s.now, 1, 12, 0)) {
+			t.Errorf("Read(%+v) says the router is %+v, want the one the fixtures have, healthy, started at noon", r, health)
 		}
 	}
 	if err := s.Pin(t.Context(), []string{"work"}, true); err != nil {
@@ -28,7 +31,7 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	if err := s.Unpin(t.Context()); err != nil {
 		t.Errorf("Unpin() error = %v, want the order taken", err)
 	}
-	if doc, _ := s.Read(t.Context(), watch.Read{}); !reflect.DeepEqual(doc, want) {
+	if doc, _, _ := s.Read(t.Context(), watch.Read{}); !reflect.DeepEqual(doc, want) {
 		t.Errorf("after orders, Read() = %+v, want the document as it was", doc)
 	}
 	if !s.RouterAnswers(t.Context()) {

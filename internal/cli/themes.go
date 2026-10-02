@@ -20,7 +20,7 @@ var errNowhereToKeep = errors.New("there's no state directory to keep it in")
 
 // themes are the dashboard's themes, as the theme picker takes them: the
 // built-ins and the themes directory's, and the preferences file the user's
-// choice is kept in.
+// choice is kept in, beside the view shown.
 type themes struct {
 	library *theme.Library
 	// prefs is the preferences file: nil where the state directory can't be
@@ -50,10 +50,16 @@ func (a *app) themes() themes {
 // chosen is the theme, or the pair, the user chose: the default pair where
 // there's no preferences file to say.
 func (t themes) chosen() theme.Choice {
+	return t.kept().Choice
+}
+
+// kept are the preferences the dashboard kept: the defaults where there's no
+// preferences file to say.
+func (t themes) kept() theme.Prefs {
 	if t.prefs == nil {
-		return theme.Choice{}
+		return theme.Prefs{}
 	}
-	return t.prefs.Read().Choice
+	return t.prefs.Read()
 }
 
 // List lists every theme there is to pick from.

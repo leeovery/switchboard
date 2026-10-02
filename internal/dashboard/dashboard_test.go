@@ -332,31 +332,6 @@ func TestRenderSaysWhyNoAccountIsTheOneToUseNext(t *testing.T) {
 	}
 }
 
-func TestCountsSeconds(t *testing.T) {
-	tests := []struct {
-		name string
-		doc  status.Document
-		want bool
-	}{
-		{name: "an exhausted window back within ten minutes", doc: backInSeconds(), want: true},
-		{name: "one back in ten minutes", doc: document("", read("1", "Work", windows(refused(session(1, 10*time.Minute))))), want: false},
-		{name: "one back in hours", doc: exhausted(), want: false},
-		{name: "one refused below its limit", doc: document("", read("1", "Work", windows(refused(session(0.8, 5*time.Minute))))), want: true},
-		{name: "one used up but not refused", doc: document("", read("1", "Work", windows(session(1.02, 5*time.Minute)))), want: true},
-		{name: "one that has reset since it was read", doc: document("", read("1", "Work", windows(refused(session(1, -time.Minute))))), want: false},
-		{name: "a window with room that resets within ten minutes", doc: document("1", read("1", "Work", windows(session(0.4, 5*time.Minute)))), want: false},
-		{name: "an account that couldn't be read", doc: mixedAccounts(), want: false},
-		{name: "no accounts", doc: document(""), want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := dashboard.CountsSeconds(tt.doc, now); got != tt.want {
-				t.Errorf("CountsSeconds() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // checkCards checks that each row's cards start and end on the same lines,
 // so they're the same height, and that their borders line up.
 func checkCards(t *testing.T, width int, frame string) {

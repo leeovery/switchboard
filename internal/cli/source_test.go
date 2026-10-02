@@ -19,6 +19,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -270,9 +271,12 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	run(t, srv.deps, "usage", "--watch")
 
 	for _, r := range []watch.Read{{Refresh: 30 * time.Minute, Probe: true}, {Probe: true}, {Refresh: 30 * time.Minute}} {
-		doc, err := cfg.Source.Read(t.Context(), r)
+		doc, health, err := cfg.Source.Read(t.Context(), r)
 		if err != nil || doc.Source != status.SourceRouter {
 			t.Errorf("Read(%+v) = %+v, %v, want the router's document", r, doc, err)
+		}
+		if health.PID != os.Getpid() || health.StartedAt.IsZero() {
+			t.Errorf("Read(%+v) says the router is %+v, want the one running: its health check's answer", r, health)
 		}
 	}
 	if err := cfg.Source.Pin(t.Context(), []string{"side", "work"}, true); err != nil {
@@ -287,14 +291,24 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	if got := srv.status(t).Pin; !got.IsZero() {
 		t.Errorf("once unpinned, the router's pin = %+v, want none", got)
 	}
+	history, err := cfg.Source.History(t.Context(), "7d", 30*time.Minute)
+	if err != nil || history.Window != "7d" || history.Step != "30m0s" || len(history.Accounts) != 3 {
+		t.Errorf("History() = %+v, %v, want the router's history of every account's week", history, err)
+	}
 
 	stop()
-	if _, err := cfg.Source.Read(t.Context(), watch.Read{Refresh: 30 * time.Minute}); !errors.Is(err, watch.ErrNoRouter) {
+	if _, err := cfg.Source.History(t.Context(), "7d", 30*time.Minute); !errors.Is(err, router.ErrNotRunning) {
+		t.Errorf("once the router stopped, History() error = %v, want it not running", err)
+	}
+	if _, _, err := cfg.Source.Read(t.Context(), watch.Read{Refresh: 30 * time.Minute}); !errors.Is(err, watch.ErrNoRouter) {
 		t.Errorf("once the router stopped, a question after it failed with %v, want ErrNoRouter", err)
 	}
-	doc, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true})
+	doc, health, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true})
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{Router: status.RouterNotRunning}) {
 		t.Errorf("once the router stopped, a read that may probe = %+v, %v, want one probed, as the router isn't running", doc, err)
+	}
+	if health != (router.Health{}) {
+		t.Errorf("once the router stopped, a read that probed says the router is %+v, want none", health)
 	}
 	if err := cfg.Source.Pin(t.Context(), []string{"side"}, false); err == nil || err.Error() != "the router isn't running: start it with switchboard service install (or switchboard serve)" {
 		t.Errorf("once the router stopped, Pin() error = %v, want it to say so", err)
@@ -306,11 +320,11 @@ func TestUsageWatchProbesAsAsked(t *testing.T) {
 	cfg := recordWatch(t, &srv.deps)
 	run(t, srv.deps, "usage", "--watch", "--probe")
 
-	doc, err := cfg.Source.Read(t.Context(), watch.Read{Refresh: 30 * time.Minute, Probe: true})
+	doc, _, err := cfg.Source.Read(t.Context(), watch.Read{Refresh: 30 * time.Minute, Probe: true})
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{}) {
 		t.Errorf("Read() = %+v, %v, want one probed, as asked, while the router runs", doc, err)
 	}
-	if _, err := cfg.Source.Read(t.Context(), watch.Read{Refresh: 30 * time.Minute}); !errors.Is(err, watch.ErrNoRouter) {
+	if _, _, err := cfg.Source.Read(t.Context(), watch.Read{Refresh: 30 * time.Minute}); !errors.Is(err, watch.ErrNoRouter) {
 		t.Errorf("a question after the router failed with %v, want ErrNoRouter: it's not to be read", err)
 	}
 }

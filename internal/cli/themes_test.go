@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -64,6 +65,29 @@ func TestUsageWatchIsDrawnInTheThemesChosen(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
 	if err != nil || !strings.Contains(string(data), `"theme": "exchange"`) {
 		t.Errorf("prefs.json holds %s, %v; want the choice kept", data, err)
+	}
+}
+
+func TestUsageWatchOpensOnTheViewKept(t *testing.T) {
+	for _, env := range []map[string]string{nil, {"NO_COLOR": "1"}} {
+		deps := statusDeps(t, fakeClaudeAPI(t), env)
+		writePrefs(t, deps, `{"theme": "amber", "view": "accounts"}`)
+		cfg := recordWatch(t, &deps)
+		run(t, deps, "usage", "--watch")
+
+		if cfg.View != dashboard.Accounts {
+			t.Errorf("with %v, the watch opens on %q, want the view prefs.json keeps", env, cfg.View)
+		}
+		if cfg.Prefs == nil {
+			t.Fatalf("with %v, the watch has nowhere to keep the view shown", env)
+		}
+		if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.View = "sessions" }); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
+		if err != nil || !strings.Contains(string(data), `"view": "sessions"`) || !strings.Contains(string(data), `"theme": "amber"`) {
+			t.Errorf("with %v, prefs.json holds %s, %v; want the view kept beside the theme", env, data, err)
+		}
 	}
 }
 

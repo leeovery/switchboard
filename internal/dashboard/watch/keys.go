@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -60,13 +61,15 @@ func (o order) log(err error) {
 }
 
 // pressed acts on a key: q or ctrl+c quits, whatever's open; while the theme
-// picker is open, it takes every other key. Otherwise, r reads now, having
-// the router refresh what it hasn't read in the last minute, and what can
-// take no request, or probing when it doesn't answer; and t opens the theme
-// picker. While the router answers, 1–9 pin new sessions to the account in
-// that place, as configured, beside those pinned already, or unpin it; a
-// routes every session on its merits again; and m moves running sessions to
-// the accounts pinned.
+// picker is open, it takes every other key. Otherwise, tab and shift-tab
+// show the next view and the one before, r reads now, having the router
+// refresh what it hasn't read in the last minute, and what can take no
+// request, or probing when it doesn't answer; and t opens the theme picker.
+// While the router answers, of more than one account, 1–9 pin new sessions
+// to the account in that place, as configured, beside those pinned already,
+// or unpin it; a routes every session on its merits again; and m moves
+// running sessions to the accounts pinned. With one account, there's no
+// other to send them to, and they do nothing.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); {
 	case k == "q" || k == "Q" || k == "ctrl+c":
@@ -75,21 +78,37 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.pickerKey(k)
 	}
 	switch k := key.String(); k {
+	case "tab":
+		return m.turn(1)
+	case "shift+tab":
+		return m.turn(-1)
 	case "r", "R":
 		logger.Debug("refresh key pressed", "already_reading", m.fetching)
 		return m.read(Fresh())
 	case "t", "T":
 		return m.openPicker()
 	case "a", "A":
+		if m.single() {
+			return m, nil
+		}
 		return m.command(routing)
 	case "m", "M":
+		if m.single() {
+			return m, nil
+		}
 		return m.move()
 	default:
-		if n, ok := place(k); ok {
+		if n, ok := place(k); ok && !m.single() {
 			return m.toggle(n)
 		}
 	}
 	return m, nil
+}
+
+// single reports whether the document on screen is of one account, so
+// there's none other to send sessions to.
+func (m Model) single() bool {
+	return len(m.doc.Accounts) == 1
 }
 
 // place is the place a digit key names, from 1 to pinnable.
@@ -239,28 +258,56 @@ func (m Model) unanswered() (Model, tea.Cmd) {
 	return m.noting(ErrNoRouter.Error())
 }
 
-// keys says what the keys do: while the router answers, the ones that tell it
-// where to send sessions too, and in colour, the theme picker's.
-func (m Model) keys() string {
-	keys := []string{"r refresh"}
-	if m.answering() {
-		if len(m.doc.Accounts) > 0 {
-			keys = append(keys, places(len(m.doc.Accounts))+" toggle pin")
+// footerKey is a key the footer lists, as m stands, and whether it works
+// there, and so is listed.
+type footerKey func(m Model) (dashboard.Key, bool)
+
+// footerKeys are the keys the footer lists, in the design's order, so the
+// footer comes out as the design has it once every key works. r and t aren't
+// among them, left for the help to list.
+var footerKeys = []footerKey{
+	func(m Model) (dashboard.Key, bool) {
+		return dashboard.Key{Key: "tab", Does: "views"}, len(m.views) > 1
+	},
+	func(m Model) (dashboard.Key, bool) {
+		return dashboard.Key{Key: places(len(m.doc.Accounts)), Does: "pin"}, m.orders()
+	},
+	func(m Model) (dashboard.Key, bool) {
+		return dashboard.Key{Key: "a", Does: "auto"}, m.orders()
+	},
+	func(m Model) (dashboard.Key, bool) {
+		return dashboard.Key{Key: "m", Does: "move"}, m.orders()
+	},
+	func(Model) (dashboard.Key, bool) {
+		return dashboard.Key{Key: "q", Does: "quit", Always: true}, true
+	},
+}
+
+// keys are the keys the footer lists, as footerKeys has them: tab, while
+// there's another view to move to; while the router answers, of more than
+// one account, the digits of their places, a and m; and q, always.
+func (m Model) keys() []dashboard.Key {
+	var keys []dashboard.Key
+	for _, listed := range footerKeys {
+		if k, ok := listed(m); ok {
+			keys = append(keys, k)
 		}
-		keys = append(keys, "a auto", "m move")
 	}
-	if m.coloured() {
-		keys = append(keys, "t themes")
-	}
-	return strings.Join(append(keys, "q quit"), " · ")
+	return keys
+}
+
+// orders reports whether the keys that give the router orders work: while the
+// router answers, of more than one account.
+func (m Model) orders() bool {
+	return m.answering() && !m.single()
 }
 
 // places names the keys of the first n accounts' places, of the first nine:
-// "1", or "1–3".
+// "1", or "1-3".
 func places(n int) string {
 	n = min(n, pinnable)
 	if n == 1 {
 		return "1"
 	}
-	return "1–" + strconv.Itoa(n)
+	return "1-" + strconv.Itoa(n)
 }

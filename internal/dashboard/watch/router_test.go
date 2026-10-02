@@ -12,9 +12,12 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// routerKeys is what the footer says the keys do while the dashboard reads
-// the router of three accounts.
-const routerKeys = "r refresh · 1–3 toggle pin · a auto · m move · q quit"
+// routerKeys are the keys the footer lists while the dashboard reads the
+// router of three accounts, and probingKeys those it lists while it probes.
+const (
+	routerKeys  = "1-3 pin · a auto · m move · q quit"
+	probingKeys = "q quit"
+)
 
 func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
@@ -24,20 +27,19 @@ func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 		t.Fatalf("starting asked for %+v, want %+v: the router refreshing what it hasn't read in an interval", got, want)
 	}
 	for i := range 3 {
-		tick := h.lastTick()
-		if tick.delay != lookEvery+tickSlack {
-			t.Errorf("look %d: the tick came %v after the last read, want %v", i+1, tick.delay, lookEvery+tickSlack)
+		want := start.Add(time.Duration(i+1)*lookEvery + tickSlack)
+		if got := h.tickUntilAsked(); !got.Equal(want) {
+			t.Errorf("look %d at %s, want %s", i+1, got.Format(time.StampMilli), want.Format(time.StampMilli))
 		}
-		h.fire(tick)
 	}
 	want := []Read{{Refresh: interval, Probe: true}, {}, {}, {}}
 	if !slices.Equal(h.source.asked, want) {
-		t.Errorf("asked for %+v, want %+v: a look at the router's document at each tick, which never probes", h.source.asked, want)
+		t.Errorf("asked for %+v, want %+v: a look at the router's document every five seconds, which never probes", h.source.asked, want)
 	}
 	if h.source.reads != 0 {
 		t.Errorf("probed %d times, want never while the router answers", h.source.reads)
 	}
-	if got, want := h.footer(), "updated 13:12 · "+routerKeys; got != want {
+	if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
 }
@@ -141,8 +143,8 @@ func TestHasTheRouterRefreshAtOnceForAWindowThatResetBeforeTheWatchBegan(t *test
 	h := routedHarness(t, routerDocument(account("work", "Work", session(0.25, 3*time.Hour), window("7d", "Week", 0.5, -12*time.Minute))))
 	h.start()
 
-	h.fire(h.lastTick())
-	h.fire(h.lastTick())
+	h.tickUntilAsked()
+	h.tickUntilAsked()
 	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor}, {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("asked for %+v, want %+v: the first look has the router refresh what it hasn't read in the last minute, once", h.source.asked, want)
@@ -154,9 +156,9 @@ func TestKeepsTheRoutersDocumentWhileItDoesntAnswerALook(t *testing.T) {
 	h.start()
 
 	h.stopRouter()
-	h.fire(h.lastTick()) // 13:12:05.
+	h.tickUntilAsked() // 13:12:05.
 	looks := h.source.looks()
-	h.tickUntil(at(13, 13, 5))
+	h.tickUntil(at(13, 13, 5).Add(tickSlack))
 	if h.source.reads != 0 {
 		t.Fatalf("while the router doesn't answer a look, probed %d times, want never: the router may be away for a moment", h.source.reads)
 	}
@@ -166,14 +168,20 @@ func TestKeepsTheRoutersDocumentWhileItDoesntAnswerALook(t *testing.T) {
 	if !h.model.routed() {
 		t.Error("the document on screen isn't the router's, want its last one kept")
 	}
-	if got, want := h.footer(), "no router since 13:12 · updated 13:12 · r refresh · q quit"; got != want {
-		t.Errorf("footer = %q, want %q: the keys that give the router orders don't work", got, want)
+	if got, want := h.footer(), probingKeys+" · no router since 13:12"; got != want {
+		t.Errorf("footer = %q, want %q: the keys that give the router orders not working, and since when there's been no router", got, want)
+	}
+	if !strings.Contains(h.view(), "○ no router since 13:12") {
+		t.Errorf("the screen is\n%s\nwant ROUTER to say there's been no router since it stopped answering", h.view())
 	}
 
 	h.startRouter(routerDocument(three()...))
-	h.fire(h.lastTick())
-	if got, want := h.footer(), "updated 13:13 · "+routerKeys; got != want {
+	h.tickUntilAsked()
+	if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 		t.Errorf("once the router answers a look again, footer = %q, want %q", got, want)
+	}
+	if strings.Contains(h.view(), "no router") {
+		t.Errorf("the screen is\n%s\nwant ROUTER to say no more of there being no router", h.view())
 	}
 }
 
@@ -186,15 +194,15 @@ func TestFallsBackToProbingWhenTheRouterStops(t *testing.T) {
 	if h.source.reads != 0 {
 		t.Fatalf("before the full read is due, probed %d times, want never", h.source.reads)
 	}
-	h.tickUntil(at(13, 42, 10))
+	h.tickUntil(at(13, 42, 0).Add(tickSlack))
 	if h.source.reads != 1 {
 		t.Fatalf("once the full read is due, probed %d times, want once", h.source.reads)
 	}
-	if got, want := h.footer(), "no router since 13:12 · updated 13:42 · next 14:12 · r refresh · q quit"; got != want {
+	if got, want := h.footer(), probingKeys+" · read 0s ago · next 14:12"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
-	if !strings.Contains(h.view(), "probing directly (router not running)") {
-		t.Errorf("the screen is\n%s\nwant it to say the accounts are probed, as the router isn't running", h.view())
+	if view := h.view(); !strings.Contains(view, "○ probing") || !strings.Contains(view, "router not running") {
+		t.Errorf("the screen is\n%s\nwant it to say the accounts are probed, as the router isn't running", view)
 	}
 	h.deliver(h.press("1")...)
 	if len(h.source.orders) > 0 {
@@ -210,8 +218,8 @@ func TestReadsTheRouterAgainOnceItAnswers(t *testing.T) {
 
 	h.tickUntil(at(13, 13, 30))
 	h.startRouter(routerDocument(three()...))
-	h.fire(h.lastTick()) // 13:14.
-	if got, want := h.footer(), "updated 13:14 · "+routerKeys; got != want {
+	h.tickUntilAsked() // 13:14.
+	if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 		t.Errorf("once the router answers again, footer = %q, want %q", got, want)
 	}
 	if got, want := h.source.asked[len(h.source.asked)-1], (Read{Refresh: interval}); got != want {
@@ -241,9 +249,9 @@ func TestAsksAfterTheRouterWhenAProbeIsDue(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	h.tickUntil(at(13, 41, 30))
+	h.tickUntil(at(13, 41, 59).Add(tickSlack))
 	h.startRouter(routerDocument(three()...))
-	h.fire(h.lastTick()) // 13:42, when the probe is due.
+	h.tickUntilAsked() // 13:42, when the probe is due.
 	if got, want := h.source.asked[len(h.source.asked)-1], (Read{Refresh: interval, Probe: true}); got != want {
 		t.Errorf("the read due at 13:42 asked for %+v, want %+v", got, want)
 	}
@@ -256,13 +264,14 @@ func TestALookIsQuiet(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 
+	h.tickUntil(at(13, 12, 4).Add(tickSlack))
 	tick := h.lastTick()
 	h.clock.now, tick.fired = tick.due, true
 	looking := h.update(tick.msg)
 	if len(looking) == 0 {
 		t.Fatal("the tick didn't look at the router's document")
 	}
-	if got, want := h.footer(), "updated 13:12 · "+routerKeys; got != want {
+	if got, want := h.footer(), routerKeys+" · read 5s ago"; got != want {
 		t.Errorf("while looking at the router's document, footer = %q, want %q", got, want)
 	}
 	h.deliver(looking...)
@@ -276,12 +285,12 @@ func TestRefreshKeyReadingTheRouter(t *testing.T) {
 	if got, want := h.source.asked[len(h.source.asked)-1], (Read{Refresh: freshFor, Probe: true}); got != want {
 		t.Errorf("r asked for %+v, want %+v: the router refreshing what it hasn't read in the last minute", got, want)
 	}
-	if got, want := h.footer(), "refreshing… · "+routerKeys; got != want {
+	if got, want := h.footer(), routerKeys+" · refreshing…"; got != want {
 		t.Errorf("while refreshing, footer = %q, want %q", got, want)
 	}
 	h.clock.now = at(13, 20, 0)
 	h.deliver(pending...)
-	if got, want := h.footer(), "updated 13:20 · "+routerKeys; got != want {
+	if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 		t.Errorf("after refreshing, footer = %q, want %q", got, want)
 	}
 }
@@ -399,7 +408,7 @@ func TestKeysTellTheRouterWhereToSendSessions(t *testing.T) {
 			if !slices.Equal(h.source.orders, tt.wantOrders) {
 				t.Errorf("orders = %q, want %q", h.source.orders, tt.wantOrders)
 			}
-			if got, want := h.footer(), tt.wantNote+" · "+routerKeys; got != want {
+			if got, want := h.footer(), tt.wantNote+" · read 0s ago"; got != want {
 				t.Errorf("footer = %q, want %q", got, want)
 			}
 			if got := h.source.looks(); got != looks+1 {
@@ -421,8 +430,8 @@ func TestMoveWithoutAnAccountPinnedToMoveToSaysSo(t *testing.T) {
 		doc      status.Document
 		wantNote string
 	}{
-		{name: "nothing pinned", doc: routerDocument(three()...), wantNote: "nothing's pinned to move sessions to: pin an account with 1–3"},
-		{name: "the one pinned without a token", doc: lost, wantNote: "no account pinned has a usable token to move sessions to: pin another with 1–3"},
+		{name: "nothing pinned", doc: routerDocument(three()...), wantNote: "nothing's pinned to move sessions to: pin an account with 1-3"},
+		{name: "the one pinned without a token", doc: lost, wantNote: "no account pinned has a usable token to move sessions to: pin another with 1-3"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -434,7 +443,7 @@ func TestMoveWithoutAnAccountPinnedToMoveToSaysSo(t *testing.T) {
 			if len(h.source.orders) > 0 || len(h.source.asked) > asked {
 				t.Errorf("orders = %q, and read %d times, want neither", h.source.orders, len(h.source.asked)-asked)
 			}
-			if got, want := h.footer(), tt.wantNote+" · "+routerKeys; got != want {
+			if got, want := h.footer(), tt.wantNote+" · read 0s ago"; got != want {
 				t.Errorf("footer = %q, want %q", got, want)
 			}
 		})
@@ -451,7 +460,7 @@ func TestKeysWithoutAnAccountInTheirPlaceDoNothing(t *testing.T) {
 			if len(h.source.orders) > 0 {
 				t.Errorf("orders = %q, want none", h.source.orders)
 			}
-			if got, want := h.footer(), "updated 13:12 · "+routerKeys; got != want {
+			if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 				t.Errorf("footer = %q, want %q", got, want)
 			}
 		})
@@ -468,7 +477,7 @@ func TestPinKeysDoNothingWhileProbing(t *testing.T) {
 	if len(h.source.orders) > 0 {
 		t.Errorf("orders = %q, want none", h.source.orders)
 	}
-	if got, want := h.footer(), "updated 13:12 · next 13:42 · r refresh · q quit"; got != want {
+	if got, want := h.footer(), probingKeys+" · read 0s ago · next 13:42"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
 }
@@ -481,13 +490,13 @@ func TestPinKeysSaySoWhileTheRouterDoesntAnswer(t *testing.T) {
 			h := routedHarness(t, doc)
 			h.start()
 			h.stopRouter()
-			h.fire(h.lastTick()) // 13:12:05.
+			h.tickUntilAsked() // 13:12:05.
 
 			h.deliver(h.press(key)...)
 			if len(h.source.orders) > 0 {
 				t.Errorf("orders = %q, want none", h.source.orders)
 			}
-			if got, want := h.footer(), "no router since 13:12 · the router isn't answering · r refresh · q quit"; got != want {
+			if got, want := h.footer(), "the router isn't answering · no router since 13:12"; got != want {
 				t.Errorf("footer = %q, want %q", got, want)
 			}
 		})
@@ -507,11 +516,11 @@ func TestAKeysNoteLapses(t *testing.T) {
 		t.Errorf("the note lapses after %v, want %v", lapse.delay, noteFor)
 	}
 	h.clock.now = lapse.due.Add(-time.Millisecond)
-	if got, want := h.footer(), "new sessions go to personal · Personal · "+routerKeys; got != want {
+	if got, want := h.footer(), "new sessions go to personal · Personal · read 3s ago"; got != want {
 		t.Errorf("just before it lapses, footer = %q, want %q", got, want)
 	}
 	h.fire(lapse)
-	if got, want := h.footer(), "updated 13:12 · "+routerKeys; got != want {
+	if got, want := h.footer(), routerKeys+" · read 4s ago"; got != want {
 		t.Errorf("once it lapses, footer = %q, want %q", got, want)
 	}
 }
@@ -523,7 +532,7 @@ func TestAnOrderTheRouterRefusesSaysWhy(t *testing.T) {
 	h.start()
 
 	h.deliver(h.press("2")...)
-	if got, want := h.footer(), h.source.refuse.Error()+" · "+routerKeys; got != want {
+	if got, want := h.footer(), h.source.refuse.Error()+" · read 0s ago"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
 	want := []string{"level=WARN", `msg="the router didn't take an order"`, "accounts=personal", "move=false", "error="}
@@ -587,9 +596,9 @@ func TestFooterKeysByWhatTheDashboardReads(t *testing.T) {
 		want string
 	}{
 		{name: "the router of three accounts", doc: routerDocument(three()...), want: routerKeys},
-		{name: "the router of one", doc: routerDocument(three()[0]), want: "r refresh · 1 toggle pin · a auto · m move · q quit"},
-		{name: "the router of twelve", doc: routerDocument(many...), want: "r refresh · 1–9 toggle pin · a auto · m move · q quit"},
-		{name: "a probe", doc: probedWithoutTheRouter(), want: "r refresh · q quit"},
+		{name: "the router of one, which has none other to pin", doc: routerDocument(three()[0]), want: probingKeys},
+		{name: "the router of twelve", doc: routerDocument(many...), want: "1-9 pin · a auto · m move · q quit"},
+		{name: "a probe", doc: probedWithoutTheRouter(), want: probingKeys},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -599,8 +608,8 @@ func TestFooterKeysByWhatTheDashboardReads(t *testing.T) {
 			}
 			h.start()
 
-			if got := h.footer(); !strings.HasSuffix(got, " · "+tt.want) {
-				t.Errorf("footer = %q, want it to end %q", got, tt.want)
+			if got := h.footer(); !strings.HasPrefix(got, tt.want+" · read ") {
+				t.Errorf("footer = %q, want it to list %q", got, tt.want)
 			}
 		})
 	}
@@ -613,7 +622,7 @@ func TestPostsNothingWhileReadingTheRouter(t *testing.T) {
 	h.start()
 
 	h.startRouter(room)
-	h.fire(h.lastTick())
+	h.tickUntilAsked()
 	if len(h.notifier.posted) > 0 {
 		t.Errorf("reading the router, posted %q, want nothing: the router posts its own", h.notifier.posted)
 	}
@@ -663,9 +672,9 @@ func TestLogsTheRouterGoingAndComingBack(t *testing.T) {
 	log := logstest.Capture(t)
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
-	h.fire(h.lastTick())
+	h.tickUntilAsked()
 	h.stopRouter()
-	h.fire(h.lastTick())
+	h.tickUntilAsked()
 	h.deliver(h.press("r")...)
 	h.startRouter(routerDocument(three()...))
 	h.tickUntil(at(13, 13, 30))

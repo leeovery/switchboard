@@ -142,7 +142,7 @@ func (d Document) Pressed(a Account, now time.Time) string {
 		return ""
 	}
 	out := "runs out"
-	if a.Reserve > 0 && !d.Pin.Has(a.ID) {
+	if d.ReserveHolds(a) {
 		out = "at its reserve"
 	}
 	return "under pressure: " + out + " ~" + TimeOfDay(now, a.Pressure.RunsOut)

@@ -80,19 +80,25 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 }
 
 func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
-	frame := frameOf(t, "accounts-3", time.Local)
+	frame := ansi.Strip(frameOf(t, "accounts-3", time.Local))
 
 	for _, want := range []string{
 		// The clock the frames read.
-		"Thu 1 Oct · 14:42",
+		"Thu 1 Oct  14:42:07",
 		// The document, read readAgo before, rather than still being read.
-		"updated 14:42 ·",
+		"read 4s ago",
 		// work's session at its reading, its bar eased all the way there.
 		"58%",
+		// What the router tells of lately, none picked out as new, the first
+		// look having seen them all.
+		"14:41  ▲ c61b started on side, the best",
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame\n%s\nhas no %q", frame, want)
 		}
+	}
+	if strings.Contains(frame, "restart the router") {
+		t.Errorf("the frame\n%s\nasks for the router to be restarted, want its history read", frame)
 	}
 }
 
@@ -152,7 +158,7 @@ func TestAFixtureIsDrawnInItsTheme(t *testing.T) {
 func TestTheThemesFixtureHasThePickerOpenOnTheThemeBeforeTheFrames(t *testing.T) {
 	frame := ansi.Strip(fixture(t, "accounts-3-themes").Frame(wide(34)))
 
-	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "router  ·  5 sessions"} {
+	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "5 sessions · auto"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame\n%s\nhas no %q", frame, want)
 		}

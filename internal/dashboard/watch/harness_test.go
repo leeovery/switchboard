@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -11,7 +12,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -20,8 +23,8 @@ import (
 var start = time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
 
 // policy judges room as Claude's windows are judged: the session and the week
-// apply to every model.
-var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d"}
+// apply to every model, the session a request starts, and the week perishes.
+var policy = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Started: "5h", Pressure: "5h"}
 
 // interval is how often the tests' model reads when nothing brings a read on.
 const interval = 30 * time.Minute
@@ -227,7 +230,7 @@ func (h *harness) settle() {
 func (h *harness) tickUntilRead() time.Time {
 	h.t.Helper()
 	reads := h.source.reads
-	for range 1000 {
+	for range 100_000 {
 		h.fire(h.lastTick())
 		if h.source.reads > reads {
 			return h.clock.now
@@ -237,16 +240,48 @@ func (h *harness) tickUntilRead() time.Time {
 	return time.Time{}
 }
 
+// tickUntilAsked fires the live chain's ticks until one asks the source for a
+// read, as a look at the router's document does, and returns the time it
+// did.
+func (h *harness) tickUntilAsked() time.Time {
+	h.t.Helper()
+	asked := len(h.source.asked)
+	for range 10_000 {
+		h.fire(h.lastTick())
+		if len(h.source.asked) > asked {
+			return h.clock.now
+		}
+	}
+	h.t.Fatal("no tick asked the source for a read")
+	return time.Time{}
+}
+
 // view is the screen as drawn, without its escapes.
 func (h *harness) view() string {
 	return ansi.Strip(h.model.View().Content)
 }
 
-// footer is the screen's last line, without its margin, but for the blank
-// lines that fill the screen out in colour.
+// footer is the screen's last line, without its margins, its keys and what's
+// at its right set apart by a dot each, as in "a auto · q quit · read 0s
+// ago".
 func (h *harness) footer() string {
-	lines := strings.Split(strings.TrimRight(h.view(), " \n"), "\n")
-	return strings.TrimSpace(lines[len(lines)-1])
+	lines := strings.Split(h.view(), "\n")
+	return strings.Join(gaps.Split(strings.TrimSpace(lines[len(lines)-1]), -1), " · ")
+}
+
+// gaps are the blanks between the parts of the footer.
+var gaps = regexp.MustCompile(` {2,}`)
+
+// screenOf is the screen as the model draws doc in place of its own document,
+// as everything else stands, and the clock: the model's own screen, when it
+// draws doc.
+func (h *harness) screenOf(doc status.Document) string {
+	m, now := h.model, h.model.now()
+	return strings.Join(dashboard.Frame{
+		Width: m.size.Width, Height: m.size.Height, Look: m.look(), Views: m.views, View: m.view,
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
+		Keys: m.keys(), Note: m.noted(now), Status: m.status(now), Policy: m.cfg.Policy,
+	}.Draw(doc, now), "\n")
 }
 
 // fakeClock tells the time the test sets.
@@ -259,14 +294,25 @@ func (c *fakeClock) Now() time.Time {
 }
 
 // fakeSource reads as a source does: the router's document while the router
-// answers, unless it probes as asked, and, for a read that probes, doc, or
-// err when that's set. Orders change the router's pin, or fail with refuse
-// when that's set. It notes every read asked of it, and every order.
+// answers, with its health, unless it probes as asked, and, for a read that
+// probes, doc, or err when that's set. Orders change the router's pin, or
+// fail with refuse when that's set. It gives the router's history, by
+// window, or fails to with historyErr when that's set. It notes every read
+// asked of it, every order, and every window's history asked of it.
 type fakeSource struct {
 	doc status.Document
 	err error
-	// router is the router's document, while the router answers.
+	// router is the router's document, while the router answers, and health
+	// its health check's answer, which says which router it is.
 	router *status.Document
+	health router.Health
+	// history is the router's history, by window, and historyErr what asking
+	// for it fails with.
+	history    map[string]router.History
+	historyErr error
+	// histories lists the windows whose history was asked for, in turn, each
+	// as "<key> <step>".
+	histories []string
 	// probing is set when the source probes as asked, as with --probe, even
 	// while the router answers.
 	probing bool
@@ -280,16 +326,24 @@ type fakeSource struct {
 	orders []string
 }
 
-func (s *fakeSource) Read(_ context.Context, r Read) (status.Document, error) {
+func (s *fakeSource) Read(_ context.Context, r Read) (status.Document, router.Health, error) {
 	s.asked = append(s.asked, r)
 	switch {
 	case s.router != nil && !s.probing:
-		return *s.router, nil
+		return *s.router, s.health, nil
 	case !r.Probe:
-		return status.Document{}, ErrNoRouter
+		return status.Document{}, router.Health{}, ErrNoRouter
 	}
 	s.reads++
-	return s.doc, s.err
+	return s.doc, router.Health{}, s.err
+}
+
+func (s *fakeSource) History(_ context.Context, window string, step time.Duration) (router.History, error) {
+	s.histories = append(s.histories, window+" "+step.String())
+	if s.historyErr != nil {
+		return router.History{}, s.historyErr
+	}
+	return s.history[window], nil
 }
 
 func (s *fakeSource) RouterAnswers(context.Context) bool {

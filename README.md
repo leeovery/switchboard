@@ -163,7 +163,7 @@ In watch mode, reading the router, it looks at the router's view every 5 seconds
 | `t` | the theme picker: see [Themes](#themes) |
 | `q` | quit |
 
-`1`–`9`, `a` and `m` work while the dashboard reads the router and the router answers; pressed while its last view stays on screen, they say it isn't answering. The footer lists the keys that work, and says what each one did.
+`1`–`9`, `a` and `m` work while the dashboard reads the router and the router answers, of more than one account; pressed while its last view stays on screen, they say it isn't answering. The footer lists the keys that work but `r` and `t`, as many as fit, `q` always, and says what each one did; at its right, how long ago what's on screen was read, or, while the router's last view stays on screen, since when there's been no router.
 
 ```bash
 switchboard usage              # once

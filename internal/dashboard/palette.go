@@ -3,7 +3,6 @@ package dashboard
 import (
 	"image/color"
 	"math"
-	"strings"
 
 	"charm.land/lipgloss/v2"
 
@@ -59,15 +58,6 @@ func (l Look) Canvas() color.Color {
 	return l.theme.Colour(theme.Canvas)
 }
 
-// Blank is a blank line width cells wide, of the canvas where the look
-// paints it: "" where it doesn't.
-func (l Look) Blank(width int) string {
-	if !l.paints {
-		return ""
-	}
-	return l.render(strings.Repeat(" ", max(width, 0)), ink{})
-}
-
 // Blend blends c by amount into the colour beneath it, from 0, all c, to 1,
 // all beneath, and reports whether it could: a look without colour, or in the
 // terminal's own, which the dashboard can't know, blends nothing, and draws
@@ -104,9 +94,15 @@ func (l Look) ramp(t float64) color.Color {
 // is, but for the canvas it's painted on.
 type ink struct {
 	token theme.Token
+	// fade blends the colour so far into the colour beneath, from 0, all the
+	// colour, to 1, all beneath, where the look can blend: a mark drawn
+	// faint, as a short bar's empty cells are.
+	fade float64
 	// on is the surface it's drawn on, such as a selected row's: the zero
-	// Token for the canvas.
-	on theme.Token
+	// Token for the canvas. onFade blends it so far into the colour beneath,
+	// as a highlight fading back is.
+	on     theme.Token
+	onFade float64
 	// ramp marks a bar's filled cell, coloured by where it sits along the
 	// bar, at, from 0 at its first cell to 1 at its last, rather than by a
 	// token.
@@ -133,6 +129,15 @@ var (
 	warningInk    = ink{token: theme.AccentAttention}
 	errorInk      = ink{token: theme.StateDestructive}
 	exhaustedInk  = ink{token: theme.StateDestructive, bold: true}
+	labelInk      = ink{token: theme.TextSubtle, bold: true}
+	mutedInk      = ink{token: theme.TextMuted}
+	secondaryInk  = ink{token: theme.TextSecondary}
+	strongInk     = ink{token: theme.TextSecondary, bold: true}
+	faintInk      = ink{token: theme.TextFaint}
+	positiveInk   = ink{token: theme.StatePositive}
+	primedInk     = ink{token: theme.AccentPrimary}
+	keyInk        = ink{token: theme.AccentKey, bold: true}
+	noteInk       = ink{token: theme.TextSecondary}
 )
 
 // render draws text in the ink, as the look draws it.
@@ -151,25 +156,37 @@ func (l Look) render(text string, k ink) string {
 	return style.Render(text)
 }
 
-// colour is the ink's colour in the look: nil without colour.
+// colour is the ink's colour in the look, faded as the ink says: nil without
+// colour.
 func (l Look) colour(k ink) color.Color {
 	switch {
 	case !l.coloured:
 		return nil
 	case k.ramp:
-		return l.ramp(k.at)
+		return l.faded(l.ramp(k.at), k.fade)
 	default:
-		return l.theme.Colour(k.token)
+		return l.faded(l.theme.Colour(k.token), k.fade)
 	}
 }
 
-// surface is the colour the ink is drawn on in the look: its own surface's,
-// else the canvas, where the look paints it.
-func (l Look) surface(k ink) color.Color {
-	if k.on != 0 && l.coloured {
-		return l.theme.Colour(k.on)
+// faded is c blended amount into the colour beneath it, or, in a look that
+// blends nothing, c as it is.
+func (l Look) faded(c color.Color, amount float64) color.Color {
+	if blended, ok := l.Blend(c, amount); ok && amount > 0 {
+		return blended
 	}
-	return l.Canvas()
+	return c
+}
+
+// surface is the colour the ink is drawn on in the look: its own surface's,
+// faded as the ink says, else the canvas, where the look paints it. In a
+// look that blends nothing, a surface shows until it's faded halfway.
+func (l Look) surface(k ink) color.Color {
+	on := l.theme.Colour(k.on)
+	if !l.coloured || on == nil || (k.onFade >= 0.5 && !l.blends()) {
+		return l.Canvas()
+	}
+	return l.faded(on, k.onFade)
 }
 
 // A window's tone turns to attention, then to destructive, at these

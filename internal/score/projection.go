@@ -1,6 +1,7 @@
 package score
 
 import (
+	"math"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -70,6 +71,30 @@ func ProjectAt(w quota.Window, rate float64, now time.Time) Projection {
 		return p
 	}
 	return heading(w, rate, now)
+}
+
+// Reaches returns when w's use, heading as p projects it from now, reaches
+// floor, a share of w at or short of its limit, such as where a reserve
+// starts; at the limit, 1, that's when p has it run out. It reports false
+// where w resets first, as where p keeps its use short of floor or says
+// nothing, and where its use has reached floor already.
+func Reaches(w quota.Window, p Projection, floor float64, now time.Time) (time.Time, bool) {
+	used := w.Utilization
+	switch {
+	case used >= floor-Tolerance:
+		return time.Time{}, false
+	case p.Kind == RunsOut:
+		return now.Add(scaled(p.At.Sub(now), (floor-used)/(1-used))), true
+	case p.Kind == OnPace && p.AtReset > floor:
+		return now.Add(scaled(w.ResetsAt.Sub(now), (floor-used)/(p.AtReset-used))), true
+	default:
+		return time.Time{}, false
+	}
+}
+
+// scaled is d times by.
+func scaled(d time.Duration, by float64) time.Duration {
+	return time.Duration(math.Round(float64(d) * by))
 }
 
 // Sooner reports whether b, a projection of a window, has it run out sooner

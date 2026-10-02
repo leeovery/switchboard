@@ -194,6 +194,49 @@ func TestAnAccountsWindowsProjected(t *testing.T) {
 	}
 }
 
+func TestWhereAnAccountsWindowRunsOut(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	// The session, 58% used, at 30% an hour lately, reaches its limit in 1h
+	// 24m and a 10% reserve in 1h 4m, before it resets in three.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.58, ResetsAt: now.Add(3 * time.Hour)}
+	pressed := status.Pressure{Window: "5h", Rate: 0.3, Recent: true}
+	rates := []status.Rate{{Window: "5h", Rate: 0.3, Since: now.Add(-30 * time.Minute)}}
+	tests := []struct {
+		name        string
+		reserve     float64
+		pin         []string
+		window      quota.Window
+		want        time.Time
+		wantReserve bool
+		wantOK      bool
+	}{
+		{name: "at its limit, without a reserve", window: session, want: now.Add(84 * time.Minute), wantOK: true},
+		{name: "where its reserve starts, which holds it back", reserve: 0.1, window: session, want: now.Add(64 * time.Minute), wantReserve: true, wantOK: true},
+		{name: "at its limit, the pin spending its reserve", reserve: 0.1, pin: []string{"work"}, window: session, want: now.Add(84 * time.Minute), wantOK: true},
+		{name: "not before it resets", reserve: 0.1, window: quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: now.Add(time.Hour)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := status.Account{ID: "work", Reserve: tt.reserve, Windows: []quota.Window{tt.window}, Pressure: pressed, Rates: rates}
+			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{a}}
+			got, ok := doc.RunsOut(a, tt.window, now)
+			if ok != tt.wantOK || !got.At.Round(time.Second).Equal(tt.want) || (ok && got.Reserve != tt.wantReserve) {
+				t.Errorf("RunsOut() = %+v, %v, want at %s, at the reserve %v, %v", got, ok, tt.want, tt.wantReserve, tt.wantOK)
+			}
+			if ok && (!got.Recent || !got.Since.Equal(now.Add(-30*time.Minute))) {
+				t.Errorf("RunsOut() goes by %+v, want the recent rate the words say", got.Heading)
+			}
+			c := score.Candidate{ID: a.ID, Windows: a.Windows, Reserve: tt.reserve, Rate: pressed.Rate}
+			if doc.Pin.Has(a.ID) {
+				c.Reserve = 0
+			}
+			if p := (score.Policy{Pressure: "5h"}).PressureOf(c, now); ok && !got.At.Round(time.Second).Equal(p.RunsOut.Round(time.Second)) {
+				t.Errorf("RunsOut() is at %s, want %s, where the router's pressure has it run out", got.At, p.RunsOut)
+			}
+		})
+	}
+}
+
 func TestAnAccountAsItStands(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: now.Add(time.Hour), Status: quota.StatusAllowedWarning}
@@ -1079,6 +1122,7 @@ func TestDocumentJSON(t *testing.T) {
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
 				Events: []status.Event{
+					{ID: 5, At: generated, Kind: status.EventMoved, Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 3},
 					{ID: 4, At: generated, Kind: status.EventPressure, Account: "side", Windows: []string{"5h"}, Until: generated.Add(2 * time.Hour), Since: generated.Add(-30 * time.Minute)},
 					{ID: 3, At: generated.Add(-time.Minute), Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: generated.Add(time.Hour), Count: 2},
 					{ID: 2, At: generated.Add(-2 * time.Minute), Kind: status.EventRefused, Account: "work", Until: generated.Add(8 * time.Minute), Status: 403, Family: "opus"},
@@ -1095,6 +1139,17 @@ func TestDocumentJSON(t *testing.T) {
     "failures": 0
   },
   "events": [
+    {
+      "id": 5,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "moved",
+      "session": "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e",
+      "model": "claude-opus-5-5",
+      "from": "work",
+      "to": "side",
+      "reason": "moved: work hit its limit",
+      "limit": 3
+    },
     {
       "id": 4,
       "at": "2026-09-28T13:12:00Z",

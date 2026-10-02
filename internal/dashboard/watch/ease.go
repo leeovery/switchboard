@@ -77,6 +77,11 @@ func easeOutCubic(t float64) float64 {
 	return 1 - left*left*left
 }
 
+// easeInCubic eases t, from 0 to 1: slow at first, quickening to the end.
+func easeInCubic(t float64) float64 {
+	return t * t * t
+}
+
 // progress is how far elapsed has come through length, from 0 to 1.
 func progress(elapsed, length time.Duration) float64 {
 	return min(max(float64(elapsed)/float64(length), 0), 1)
