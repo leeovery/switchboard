@@ -1072,6 +1072,80 @@ func TestDocumentJSON(t *testing.T) {
   ]
 }`,
 		},
+		{
+			name: "the router's, with what has happened lately",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Router:      status.Health{Healthy: true},
+				Events: []status.Event{
+					{ID: 4, At: generated, Kind: status.EventPressure, Account: "side", Windows: []string{"5h"}, Until: generated.Add(2 * time.Hour), Since: generated.Add(-30 * time.Minute)},
+					{ID: 3, At: generated.Add(-time.Minute), Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: generated.Add(time.Hour), Count: 2},
+					{ID: 2, At: generated.Add(-2 * time.Minute), Kind: status.EventRefused, Account: "work", Until: generated.Add(8 * time.Minute), Status: 403, Family: "opus"},
+					{ID: 1, At: generated.Add(-3 * time.Minute), Kind: status.EventStarted, Account: "work", Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", Reason: "new"},
+				},
+				Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "router": {
+    "healthy": true,
+    "requests": 0,
+    "failures": 0
+  },
+  "events": [
+    {
+      "id": 4,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "pressure",
+      "account": "side",
+      "windows": [
+        "5h"
+      ],
+      "until": "2026-09-28T15:12:00Z",
+      "since": "2026-09-28T12:42:00Z"
+    },
+    {
+      "id": 3,
+      "at": "2026-09-28T13:11:00Z",
+      "kind": "limit",
+      "account": "work",
+      "to": "side",
+      "windows": [
+        "5h"
+      ],
+      "until": "2026-09-28T14:12:00Z",
+      "count": 2
+    },
+    {
+      "id": 2,
+      "at": "2026-09-28T13:10:00Z",
+      "kind": "refused",
+      "account": "work",
+      "until": "2026-09-28T13:20:00Z",
+      "status": 403,
+      "family": "opus"
+    },
+    {
+      "id": 1,
+      "at": "2026-09-28T13:09:00Z",
+      "kind": "started",
+      "account": "work",
+      "session": "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e",
+      "model": "claude-opus-5-5",
+      "reason": "new"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true
+    }
+  ]
+}`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1125,6 +1199,15 @@ func TestAPinThatNamesItsAccountAloneReadsAsAPinToThatOne(t *testing.T) {
 	want := status.Pin{Accounts: []string{"side"}, Since: time.Date(2026, 9, 28, 12, 12, 0, 0, time.UTC), Move: true}
 	if err != nil || !reflect.DeepEqual(read, want) {
 		t.Errorf("Unmarshal() = %+v, %v, want %+v", read, err, want)
+	}
+}
+
+func TestADocumentWithoutEventsSaysNothingOfThem(t *testing.T) {
+	for _, events := range [][]status.Event{nil, {}} {
+		got, err := json.Marshal(status.Document{Source: status.SourceRouter, Events: events})
+		if err != nil || strings.Contains(string(got), `"events"`) {
+			t.Errorf("Marshal() with events %#v = %s, %v, want no events", events, got, err)
+		}
 	}
 }
 

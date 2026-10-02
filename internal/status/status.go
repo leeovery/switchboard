@@ -69,8 +69,77 @@ type Document struct {
 	// Sessions is how many sessions the router has sent anywhere in the last
 	// hour, each counted once however many accounts its models went to: zero
 	// in a document that isn't the router's.
-	Sessions int       `json:"sessions,omitzero"`
+	Sessions int `json:"sessions,omitzero"`
+	// Events are what has happened lately, as the router tells of it, the
+	// newest first: none in a document that isn't the router's.
+	Events   []Event   `json:"events,omitempty"`
 	Accounts []Account `json:"accounts"`
+}
+
+// The kinds of event the router tells of, as an Event's Kind says.
+const (
+	// EventStarted is a session first remembered on an account, for its
+	// requests of a model, once its first is answered with success.
+	EventStarted = "started"
+	// EventPressure is an account coming under pressure.
+	EventPressure = "pressure"
+	// EventLimit is an account reaching its limit, with the sessions the
+	// limit moved.
+	EventLimit = "limit"
+	// EventMoved is a session's requests of a model moving to another
+	// account.
+	EventMoved = "moved"
+	// EventRefused is the upstream refusing requests on an account.
+	EventRefused = "refused"
+	// EventPrimed is a prime starting an account's window.
+	EventPrimed = "primed"
+	// EventRoom is an account whose quota ran out having room again.
+	EventRoom = "room"
+	// EventRestart is a restart falling due.
+	EventRestart = "restart"
+	// EventHealth is the router turning unhealthy, or healthy again.
+	EventHealth = "health"
+)
+
+// Event is something that happened lately, as the router tells of it: what
+// kind of thing, and the rest as each kind needs, left out where it doesn't.
+type Event struct {
+	// ID rises by one an event, from 1 as the router starts, so a reader
+	// tells which are new.
+	ID int       `json:"id"`
+	At time.Time `json:"at"`
+	// Kind says what happened, such as EventLimit.
+	Kind string `json:"kind"`
+	// Account is the account it befell: the one a session started on, or that
+	// came under pressure, reached its limit, was refused, was primed or has
+	// room again.
+	Account string `json:"account,omitempty"`
+	// Session and Model are the session that started or moved, and the model
+	// whose requests did.
+	Session string `json:"session,omitempty"`
+	Model   string `json:"model,omitempty"`
+	// From and To are the accounts a session moved from and to. To is where
+	// the sessions a limit moved went, too, when they all went to one.
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
+	// Reason says why: why a session went to its account, as the router's log
+	// has it, why a restart is due, or why the router turned unhealthy.
+	Reason string `json:"reason,omitempty"`
+	// Windows are the keys of the windows it's of: those a limit was reached
+	// in, the one a prime started, or the one under pressure.
+	Windows []string `json:"windows,omitempty"`
+	// Until is when a limit lifts, a refusal ends, a window a prime started
+	// resets, or a window under pressure runs out.
+	Until time.Time `json:"until,omitzero"`
+	// Since is when the rate an account came under pressure at is measured
+	// from, when it's its recent rate.
+	Since time.Time `json:"since,omitzero"`
+	// Count is how many sessions a limit moved.
+	Count int `json:"count,omitzero"`
+	// Status is the upstream's answer refusing requests, and Family, for a
+	// request refused alone, the model family the refusal holds back.
+	Status int    `json:"status,omitzero"`
+	Family string `json:"family,omitempty"`
 }
 
 // Fallback is why a document was built by probing though the router was

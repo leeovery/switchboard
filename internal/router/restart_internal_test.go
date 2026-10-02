@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -75,7 +76,7 @@ func TestTheConfigFileIsLookedAtForAChange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 
 			tt.change(t, s)
 			r.look()
@@ -122,7 +123,7 @@ func TestTheBinaryIsUpgradedOnceItLeadsToAnotherFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 
 			tt.change(t, s)
 			r.look()
@@ -168,7 +169,7 @@ func TestTheTimeZoneChangesOnceItsFileLeadsToAnother(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			s := newStartedFrom(t)
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 
 			tt.change(t, s)
 			r.look()
@@ -213,7 +214,7 @@ func TestAChangeMadeOnceWhatTheRouterStartsFromWasFoundIsSeen(t *testing.T) {
 			config, binary, zone := Watch(s.config), Watch(s.binary), Watch(s.zone)
 
 			tt.change(t, s)
-			r := newRestarts(config, binary, zone, true, newInFlight(), at(start))
+			r := newRestarts(config, binary, zone, true, newInFlight(), at(start), unheeded)
 			r.look()
 			if got := r.due(); got != tt.wantDue {
 				t.Errorf("due() = %q, want %q", got, tt.wantDue)
@@ -225,7 +226,7 @@ func TestAChangeMadeOnceWhatTheRouterStartsFromWasFoundIsSeen(t *testing.T) {
 func TestABinaryThatLedNowhereAsTheRouterStartedIsNeverUpgraded(t *testing.T) {
 	s := newStartedFrom(t)
 	missing := filepath.Join(t.TempDir(), "switchboard")
-	r := newRestarts(Watch(s.config), Watch(missing), Watch(s.zone), true, newInFlight(), at(start))
+	r := newRestarts(Watch(s.config), Watch(missing), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 
 	link(t, s.version("1.1"), missing)
 	r.look()
@@ -236,7 +237,7 @@ func TestABinaryThatLedNowhereAsTheRouterStartedIsNeverUpgraded(t *testing.T) {
 
 func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 
 	writeFile(t, s.kept, notAConfig)
 	relink(t, s.binary, s.version("1.1"))
@@ -255,7 +256,7 @@ func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 func TestARestartDueIsSaidOnceByHand(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), false, newInFlight(), at(start))
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), false, newInFlight(), at(start), unheeded)
 
 	writeFile(t, s.kept, twoAccounts)
 	r.look()
@@ -278,7 +279,7 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
 	inFlight := newInFlight()
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start))
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, inFlight, at(start), unheeded)
 	if r.ready() != nil {
 		t.Fatal("ready() isn't nil, with no restart due")
 	}
@@ -318,7 +319,7 @@ func TestASupervisedRouterRestartsOnceNoRequestIsInFlight(t *testing.T) {
 func TestARestartAskedForIsTheOneTheRouterMakes(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
 
@@ -353,7 +354,7 @@ func TestARestartDueIsReported(t *testing.T) {
 			s := newStartedFrom(t)
 			inFlight := newInFlight()
 			clock := &testClock{now: start}
-			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), tt.supervised, inFlight, clock.read)
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), tt.supervised, inFlight, clock.read, unheeded)
 			r.look()
 			if got := r.report(); got != (status.Restart{}) {
 				t.Fatalf("with nothing changed, report() = %+v, want none due", got)
@@ -378,9 +379,32 @@ func TestARestartDueIsReported(t *testing.T) {
 	}
 }
 
+func TestARestartIsToldOfAsItFallsDue(t *testing.T) {
+	s := newStartedFrom(t)
+	var heard []Event
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
+
+	r.look()
+	relink(t, s.binary, s.version("1.1"))
+	r.look()
+	r.look()
+	// Its reason changes while it stays due, then it's due no longer while
+	// the config file is invalid, then falls due again once it's put right.
+	writeFile(t, s.kept, twoAccounts)
+	r.look()
+	writeFile(t, s.kept, notAConfig)
+	r.look()
+	writeFile(t, s.kept, oneAccount)
+	r.look()
+	want := []Event{RestartDue{Reason: "upgraded"}, RestartDue{Reason: "config changed"}}
+	if !reflect.DeepEqual(heard, want) {
+		t.Errorf("heard %+v, want %+v: each time it fell due", heard, want)
+	}
+}
+
 func TestARestartLooksAgainBeforeItGoes(t *testing.T) {
 	s := newStartedFrom(t)
-	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start))
+	r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
 

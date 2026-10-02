@@ -2,8 +2,10 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
 	"sync"
@@ -179,6 +181,30 @@ func TestEachPrimeIsLoggedWithTheResetItRead(t *testing.T) {
 		resets := onDay(1, 9, 10).Local().Format("2006-01-02T15:04:05.000-07:00")
 		if !log.Has("level=INFO", "msg=primed", "account=work", "resets="+resets) {
 			t.Errorf("log reads\n%s\nwant work's prime, with its session's reset", log)
+		}
+	})
+}
+
+func TestAPrimeThatStartsItsWindowIsAnEventInTheStatus(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := newBubbleClock(onDay(1, 4, 0))
+		upstream := newWindowsUpstream(clock)
+		upstream.leaveIdle(sideToken, onDay(1, 1, 0))
+		r := newPrimingRouter(t, clock.read, upstream, daytime)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(3 * time.Hour)
+		synctest.Wait()
+		rec := httptest.NewRecorder()
+		r.Control().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/status", nil))
+		var doc status.Document
+		if err := json.NewDecoder(rec.Body).Decode(&doc); err != nil {
+			t.Fatalf("GET /status answered %d, %v", rec.Code, err)
+		}
+		want := []status.Event{{ID: 1, At: afterResets(onDay(1, 4, 10), 1).UTC(), Kind: status.EventPrimed, Account: "work", Windows: []string{"5h"}, Until: onDay(1, 9, 10).UTC()}}
+		if !reflect.DeepEqual(doc.Events, want) {
+			t.Errorf("GET /status gives the events %+v, want %+v: work's prime alone, as side's primes didn't start its session", doc.Events, want)
 		}
 	})
 }

@@ -365,16 +365,20 @@ func (ex *exchange) identity(r *http.Request) []any {
 }
 
 // done notes a routed request once it's done: in the log, and, once it was
-// answered, in the router's health. A new session's request that wasn't
-// answered with success has the chooser forget the session: it's remembered
-// once it's answered.
+// answered, in the router's health. A new session is remembered once its
+// request is answered with success, and told of as started; one whose request
+// wasn't, the chooser forgets.
 func (p *proxy) done(r *http.Request, ex *exchange) {
 	p.logRouted(r, ex)
+	switch {
+	case !ex.newSession:
+	case ex.succeeded():
+		p.emit(SessionStarted{Session: ex.req.Session, Model: ex.req.Model, Account: ex.account.ID, Reason: ex.reason})
+	default:
+		p.chooser.Forget(ex.req)
+	}
 	if ex.status != 0 {
 		p.health.record(ex.arrived, ex.failed)
-	}
-	if ex.newSession && !ex.succeeded() {
-		p.chooser.Forget(ex.req)
 	}
 }
 

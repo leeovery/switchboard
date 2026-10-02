@@ -263,6 +263,23 @@ func TestTheDocumentGivesEachAccountsPressure(t *testing.T) {
 	}
 }
 
+func TestTheDocumentGivesWhenAnAccountRunsOutInUTC(t *testing.T) {
+	// The router's clock reads local time, as time.Now does. Work's session,
+	// read over 20 minutes, rises at 30% an hour, and runs out before it
+	// resets.
+	clock := &testClock{now: start.In(local)}
+	s := newTestState(clock)
+	resets := start.Add(3 * time.Hour)
+	s.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.5, ResetsAt: resets}, week}, s.mark())
+	clock.now = start.Add(20 * time.Minute).In(local)
+	s.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.6, ResetsAt: resets}}, s.mark())
+
+	work, _ := s.document().Account("work")
+	if got := work.Pressure.RunsOut; got.IsZero() || got.Location() != time.UTC {
+		t.Errorf("work runs out at %v, want a time in UTC, as the document gives each", got)
+	}
+}
+
 func TestAnAccountIsUnderPressureOnlyWhileItCanTakeARequestOfSomeModel(t *testing.T) {
 	// Work keeps a tenth of every window back. Its session, read over 20
 	// minutes, rises at 30% an hour, from 40%: it runs out before it resets.

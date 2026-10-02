@@ -50,6 +50,7 @@ func TestClientStatus(t *testing.T) {
 		Best:        "work",
 		Router:      status.Health{Healthy: true, Requests: 1},
 		Sessions:    1,
+		Events:      []status.Event{{ID: 1, At: now, Kind: status.EventStarted, Account: "work", Session: sessionID, Model: opus, Reason: "no account has room"}},
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 			{ID: "personal", Label: "Personal", Error: personalMissing},

@@ -167,15 +167,17 @@ func (c Config) notifying() bool {
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
-// the router's own health, the control API that reports on it all, the
-// desktop notifications of what befalls the accounts, and its upkeep, which
-// keeps it in step with what it was started from.
+// the router's own health, what has happened lately, the control API that
+// reports on it all, the desktop notifications of what befalls the accounts,
+// and its upkeep, which keeps it in step with what it was started from.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
 	accounts accounts
 	state    *state
 	sessions *sessions
+	// recent keeps the router's newest events.
+	recent *recent
 	// file keeps what should outlast the router, once Run has loaded it.
 	file *stateFile
 	// history keeps each account's readings as they change, once Run has
@@ -212,15 +214,16 @@ func New(cfg Config) (*Router, error) {
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	history := newHistory(cfg.History, cfg.Now)
 	state.history = history.note
-	listeners := []func(Event){cfg.Events}
+	sessions := newSessions(cfg.Now, changes.note, changes.routine)
+	recent := newRecent(state, sessions, cfg.Now)
+	listeners := []func(Event){cfg.Events, recent.hear}
 	var notices *notifications
 	if cfg.notifying() {
 		notices = newNotifications(cfg.Notifications, cfg.Notifier, state, cfg.Now)
 		listeners = append(listeners, notices.hear)
 	}
 	emit := hearing(listeners...)
-	sessions := newSessions(cfg.Now, changes.note, changes.routine)
-	probes := newProbes(cfg.Prober, state, cfg.Now)
+	probes := newProbes(cfg.Prober, state, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
@@ -236,6 +239,7 @@ func New(cfg Config) (*Router, error) {
 		accounts: accounts,
 		state:    state,
 		sessions: sessions,
+		recent:   recent,
 		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
 		history:  history,
 		probes:   probes,
@@ -256,7 +260,7 @@ func New(cfg Config) (*Router, error) {
 		},
 		primer:        primer,
 		inFlight:      inFlight,
-		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake),
+		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, emit),
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}, nil
@@ -277,7 +281,7 @@ func (r *Router) Proxy() http.Handler {
 // Status reports every account's usage as the router knows it, with how many
 // sessions each has, and all have, the best account to use next, the priming
 // schedule, with when it next primes each account, the global pin, the
-// router's own health, and a restart it has due.
+// router's own health, a restart it has due, and what has happened lately.
 func (r *Router) Status() status.Document {
 	now := r.cfg.Now()
 	pin := r.sessions.globalPin()
@@ -285,6 +289,7 @@ func (r *Router) Status() status.Document {
 	doc.Pin = pin
 	doc.Router = r.health.report()
 	doc.Restart = r.upkeep.restartDue()
+	doc.Events = r.recent.events()
 	if r.primer != nil {
 		doc.Prime = r.primer.report(now)
 	}
