@@ -162,11 +162,13 @@ func TestRECENTSaysWhatEachKindOfEventTellsOf(t *testing.T) {
 	}
 }
 
-func TestRECENTsPressureGoesByTheReserveAsTheAccountStands(t *testing.T) {
+func TestRECENTsPressureGoesByTheReserveAsItHeldWhenItCame(t *testing.T) {
 	reserved := pressedAccount("work")
 	reserved.Reserve = 0.1
 	pinned := routerDoc("work", 0, reserved)
-	pinned.Pin = status.Pin{Accounts: []string{"work"}}
+	pinned.Pin = status.Pin{Accounts: []string{"work"}, Since: now.Add(-time.Hour).UTC()}
+	pinnedSince := routerDoc("work", 0, reserved)
+	pinnedSince.Pin = status.Pin{Accounts: []string{"work"}, Since: now.Add(time.Minute).UTC()}
 	e := status.Event{At: now.UTC(), Kind: status.EventPressure, Account: "work", Windows: []string{"5h"}, Until: now.Add(time.Hour).UTC()}
 	tests := []struct {
 		name string
@@ -174,7 +176,8 @@ func TestRECENTsPressureGoesByTheReserveAsTheAccountStands(t *testing.T) {
 		want string
 	}{
 		{name: "its reserve holding it back", doc: routerDoc("side", 0, reserved), want: "work came under pressure: its session reaches its reserve ~14:12 at its pace"},
-		{name: "a pin naming it", doc: pinned, want: "work came under pressure: its session runs out ~14:12 at its pace"},
+		{name: "a pin naming it from before", doc: pinned, want: "work came under pressure: its session runs out ~14:12 at its pace"},
+		{name: "a pin naming it set since, its reserve holding it back then", doc: pinnedSince, want: "work came under pressure: its session reaches its reserve ~14:12 at its pace"},
 		{name: "without a reserve", doc: threeRouted(), want: "work came under pressure: its session runs out ~14:12 at its pace"},
 		{name: "no longer configured", doc: routerDoc("side", 0), want: "work came under pressure: its 5h runs out ~14:12 at its pace"},
 	}
@@ -208,6 +211,65 @@ func TestRECENTDoesntTellOfAKindItDoesntKnow(t *testing.T) {
 	}
 	if got := recent(doc, now, 4); len(got) != 1 || got[0].ID != 1 {
 		t.Errorf("recent() = %+v, want the event of the kind it knows", got)
+	}
+}
+
+func TestRECENTShowsAMoveALimitForcedWhereTheLimitsLineDoesnt(t *testing.T) {
+	doc := threeRouted()
+	room := func(id int) status.Event {
+		return status.Event{ID: id, At: now.UTC(), Kind: status.EventRoom, Account: "side"}
+	}
+	doc.Events = []status.Event{
+		room(9), room(8),
+		{ID: 7, At: now.UTC(), Kind: status.EventMoved, Session: "41e0b6c2", From: "personal", To: "side", Reason: "moved: personal hit its limit", Limit: 2},
+		room(6), room(5),
+		{ID: 2, At: now.UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 1, To: "side"},
+	}
+	var got []int
+	for _, e := range recent(doc, now, 3) {
+		got = append(got, e.ID)
+	}
+	if want := []int{9, 8, 7}; !slices.Equal(got, want) {
+		t.Errorf("RECENT lists the events %v, want %v: the move, its limit's line out of reach", got, want)
+	}
+	doc.Events = doc.Events[2:3]
+	if got := recent(doc, now, 4); len(got) != 1 {
+		t.Errorf("RECENT lists %+v, want the move whose limit's event is no longer kept", got)
+	}
+}
+
+func TestRECENTsTimesAreDatedAsTheCardsAre(t *testing.T) {
+	doc := threeRouted()
+	doc.Events = []status.Event{
+		{ID: 2, At: now.Add(-time.Hour).UTC(), Kind: status.EventRoom, Account: "work"},
+		{ID: 1, At: now.Add(-20 * time.Hour).UTC(), Kind: status.EventRoom, Account: "side"},
+	}
+	tellings := frameOf(160, 40).tellings(doc, now, 4)
+	for i, want := range []string{"12:12      ● ", "Sun 17:12  ● "} {
+		if got := tellings[i].lead.plain(); got != want {
+			t.Errorf("event %d is led by %q, want %q: yesterday's with its weekday", i+1, got, want)
+		}
+	}
+}
+
+func TestRECENTNamesTheAccountsItsReasonsName(t *testing.T) {
+	doc := threeRouted()
+	for i, label := range []string{"Work", "Personal", "Side"} {
+		doc.Accounts[i].Label = label
+	}
+	tests := []struct {
+		reason, want string
+	}{
+		{reason: "moved: work is at its reserve", want: ": Work is at its reserve"},
+		{reason: "pin yields: personal has no room", want: ": pin yields: Personal has no room"},
+		{reason: "new, work under pressure", want: ", the best, passing over Work under pressure"},
+		{reason: "moved: client hit its limit", want: ": client hit its limit"},
+		{reason: "sticky", want: ": sticky"},
+	}
+	for _, tt := range tests {
+		if got := why(doc, tt.reason).plain(); got != tt.want {
+			t.Errorf("why(%q) = %q, want %q", tt.reason, got, tt.want)
+		}
 	}
 }
 

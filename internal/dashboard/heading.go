@@ -16,13 +16,13 @@ import (
 // Where the heading's slots sit in a row, as the frames place them: ROUTER,
 // NEW SESSIONS GO TO and ROOM LEFT start at these columns, and COMING UP
 // comingAfter cells after ROOM LEFT's start, or comingGap cells after its
-// bars, whichever is further.
+// rooms summed, whichever is further.
 const (
 	routerAt    = 1
 	sessionsAt  = 26
 	roomAt      = 58
 	comingAfter = 48
-	comingGap   = 12
+	comingGap   = 2
 )
 
 const (
@@ -80,20 +80,26 @@ func (f Frame) heading(c *canvas, doc status.Document, now time.Time, y int) int
 
 // inRow draws the four slots side by side.
 func (f Frame) inRow(c *canvas, doc status.Document, now time.Time, y int) int {
-	bars := barsEnd(roomAt, len(doc.Accounts))
 	router := sessionsAt - routerAt - 1
 	f.routerSlot(c, doc, now, routerAt, y, []int{router, router, roomAt - routerAt - 2})
 	f.sessionsSlot(c, doc, now, sessionsAt, y, roomAt-sessionsAt-2)
 	f.roomSlot(c, doc, now, roomAt, y)
-	f.comingSlot(c, doc, now, max(roomAt+comingAfter, bars+comingGap), y)
+	f.comingSlot(c, doc, now, comingAt(roomAt, len(doc.Accounts)), y)
 	return y + 1 + slotLines
+}
+
+// comingAt is the column COMING UP starts at, of n accounts' ROOM LEFT at x:
+// comingAfter cells after ROOM LEFT's start, or comingGap cells after its
+// rooms summed, whichever is further.
+func comingAt(x, n int) int {
+	return max(x+comingAfter, summedEnd(x, n)+comingGap)
 }
 
 // twoRows draws ROUTER beside NEW SESSIONS GO TO, and under them, ROOM LEFT
 // beside COMING UP, the slots on the right in a column. ROUTER's last line
 // runs on under NEW SESSIONS GO TO's, which has none.
 func (f Frame) twoRows(c *canvas, doc status.Document, now time.Time, y int) int {
-	right := max(routerAt+comingAfter, barsEnd(routerAt, len(doc.Accounts))+comingGap)
+	right := comingAt(routerAt, len(doc.Accounts))
 	router := right - routerAt - 2
 	f.routerSlot(c, doc, now, routerAt, y, []int{router, router, f.edge() - routerAt})
 	f.sessionsSlot(c, doc, now, right, y, f.edge()-right)
@@ -132,21 +138,24 @@ func (f Frame) oneLine(c *canvas, doc status.Document, now time.Time, y int) int
 	return y + 1
 }
 
-// routerSlot draws ROUTER at x from row y, its lines as wide as given.
+// routerSlot draws ROUTER at x from row y, its lines as wide as given, as
+// routerLines lays them out.
 func (f Frame) routerSlot(c *canvas, doc status.Document, now time.Time, x, y int, widths []int) {
 	c.line(x, y, line{{"ROUTER", labelInk}})
-	for i, l := range flow(routerSays(doc, f.Lost, now), widths, " · ") {
+	for i, l := range routerLines(doc, f.Lost, now, widths) {
 		c.line(x, y+1+i, l)
 	}
 }
 
 // sessionsSlot draws NEW SESSIONS GO TO at x from row y, its lines width
-// cells wide: the account new sessions go to, and how many could take one.
+// cells wide: the account new sessions go to, and how many could take one,
+// as the router chooses among them, as status.Choosable has them.
 func (f Frame) sessionsSlot(c *canvas, doc status.Document, now time.Time, x, y, width int) {
 	c.line(x, y, line{{"NEW SESSIONS GO TO", labelInk}})
 	c.line(x, y+1, newSessionsGo(doc, true).fit(width))
 	if _, ok := doc.Account(doc.Best); ok {
-		open := fmt.Sprintf("%d of %d open", f.open(doc, now), len(doc.Accounts))
+		among := status.Choosable(f.Policy, doc.Accounts, doc.Pin.Accounts, now)
+		open := fmt.Sprintf("%d of %d open", len(among), len(doc.Accounts))
 		c.line(x, y+2, line{{open, mutedInk}}.fit(width))
 	}
 }
@@ -169,7 +178,7 @@ func (f Frame) roomSlot(c *canvas, doc status.Document, now time.Time, x, y int)
 	for i, row := range rows {
 		bar := line{{row.label, mutedInk}, spaces(roomLabel - len(row.label))}
 		for _, a := range doc.Accounts {
-			bar = append(append(bar, f.roomBar(row.room(a, now), cells)...), spaces(1))
+			bar = append(append(bar, f.roomBar(row.room(f.easing(a), now), cells)...), spaces(1))
 		}
 		sum := line{spaces(1), {f.roomSum(doc, now, row.room), titleInk}, {" of " + strconv.Itoa(n), mutedInk}}
 		c.line(x, y+1+i, slices.Concat(bar, sum))
@@ -190,7 +199,8 @@ func (f Frame) comingSlot(c *canvas, doc status.Document, now time.Time, x, y in
 }
 
 // comingLines draws up to n of the things coming up from row y, their words
-// from x, and their countdowns ending at the frame's right.
+// from x, each after its time, in a column, timeGap after it, and their
+// countdowns ending at the frame's right.
 func (f Frame) comingLines(c *canvas, items []happening, now time.Time, x, y, n int) {
 	items = items[:min(n, len(items))]
 	column := 0
@@ -199,7 +209,7 @@ func (f Frame) comingLines(c *canvas, items []happening, now time.Time, x, y, n 
 	}
 	for i, h := range items {
 		c.right(f.edge(), y+i, line{{status.Until(now, h.at), h.ink}})
-		at := fmt.Sprintf("%-*s  ", column, status.When(now, h.at))
+		at := fmt.Sprintf("%-*s", column, status.When(now, h.at)) + f.timeGap()
 		words := line{{at, secondaryInk}, {h.name, strongInk}, {h.what, h.ink}}
 		c.line(x, y+i, words.fit(f.edge()-comingTail-x))
 	}
@@ -229,15 +239,16 @@ func read(a status.Account) bool {
 	return !a.FetchedAt.IsZero()
 }
 
-// routerSays is what ROUTER says, a part each: how the router is; its
-// sessions, and how it routes, or with one account, how it primes; then, on
-// lines of their own where there are lines, why it's unhealthy and a restart
-// it has due. Probing, it says so, and why the router wasn't read. It's nil
-// while nothing has been read.
+// routerSays is what ROUTER says, a part each, as a line has it: how the
+// router is; its sessions, and how it routes, or with one account, how it
+// primes; then why it's unhealthy and a restart it has due, each starting
+// where there are lines of their own. Probing, it says so, and why the router
+// wasn't read. It's nil while nothing has been read.
 func routerSays(doc status.Document, lost, now time.Time) []chunk {
 	switch {
 	case doc.Source == status.SourceRouter:
-		return fromRouter(doc, lost, now)
+		p := fromRouter(doc, lost, now)
+		return []chunk{fresh(p.health), fresh(p.sessions), {text: p.routing}, fresh(p.reason), fresh(p.restart)}
 	case doc.Source != status.SourceProbe:
 		return nil
 	case doc.Fallback.Router == status.RouterNotRunning:
@@ -249,31 +260,83 @@ func routerSays(doc status.Document, lost, now time.Time) []chunk {
 	}
 }
 
+// said is what ROUTER says of a router: how it is, its sessions and how it
+// routes, why it's unhealthy, and a restart it has due, each nil where it
+// says nothing.
+type said struct {
+	health, sessions, routing, reason, restart line
+}
+
 // fromRouter is what ROUTER says of the router whose document doc is, as
 // routerSays has it: while its document stays on screen, the router not
 // answering since lost, that there's been no router since then, and the rest
-// as its document had it.
-func fromRouter(doc status.Document, lost, now time.Time) []chunk {
-	var health line
+// as its document had it, why it was unhealthy included.
+func fromRouter(doc status.Document, lost, now time.Time) said {
+	p := said{sessions: line{{status.SessionCount(doc.Sessions), mutedInk}}}
 	switch {
 	case !lost.IsZero():
-		health = line{{"○ no router since " + status.TimeOfDay(now, lost), dimInk}}
+		p.health = line{{"○ no router since " + status.TimeOfDay(now, lost), dimInk}}
 	case doc.Router.Healthy:
-		health = line{{"● ", positiveInk}, {"healthy", titleInk}}
+		p.health = line{{"● ", positiveInk}, {"healthy", titleInk}}
 	default:
-		health = line{{"● ", errorInk}, {"unhealthy", unhealthyInk}}
+		p.health = line{{"● ", errorInk}, {"unhealthy", unhealthyInk}}
 	}
-	says := []chunk{fresh(health), fresh(line{{status.SessionCount(doc.Sessions), mutedInk}})}
 	if routes := routes(doc); routes != "" {
-		says = append(says, chunk{text: line{{routes, mutedInk}}})
+		p.routing = line{{routes, mutedInk}}
 	}
-	if reason := status.Clean(doc.Router.Reason); lost.IsZero() && !doc.Router.Healthy && reason != "" {
-		says = append(says, fresh(line{{reason, errorInk}}))
+	if reason := status.Clean(doc.Router.Reason); !doc.Router.Healthy && reason != "" {
+		p.reason = line{{reason, errorInk}}
 	}
 	if doc.Restart.Due() {
-		says = append(says, fresh(line{{"restart due (" + status.Clean(doc.Restart.Reason) + ")", warningInk}}))
+		p.restart = line{{"restart due (" + status.Clean(doc.Restart.Reason) + ")", warningInk}}
 	}
-	return says
+	return p
+}
+
+// routerLines lays out what ROUTER says of the router whose document doc is
+// on lines as wide as widths says, a line for each width at most: how the
+// router is; under it, its sessions and how it routes, the routing following
+// on their line where it fits, else on the last where that's free, else cut
+// short there; and on the last line, a restart it has due, which always
+// shows, else why it's unhealthy. With a restart due, why it's unhealthy
+// follows how it is instead, wrapping onto the lines under it where it must,
+// as wrapped wraps it, its sessions and routing following where there's room
+// left. Probing, it's what routerSays says, flowed onto the lines.
+func routerLines(doc status.Document, lost, now time.Time, widths []int) []line {
+	if doc.Source != status.SourceRouter || len(widths) < 3 {
+		return flow(routerSays(doc, lost, now), widths, " · ")
+	}
+	p := fromRouter(doc, lost, now)
+	last := len(widths) - 1
+	ending := p.restart
+	if ending == nil {
+		ending = p.reason
+	}
+	routed := []chunk{fresh(p.sessions), {text: p.routing}}
+	switch {
+	case ending == nil:
+		return flow(slices.Concat([]chunk{fresh(p.health)}, routed), widths, " · ")
+	case p.restart != nil && p.reason != nil:
+		lines := wrapped(p.health, " · ", p.reason[0], widths[0], last)
+		n, rest := len(lines), together(routed, " · ")
+		if follow := slices.Concat(lines[n-1], line{{" · ", mutedInk}}, rest); follow.width() <= widths[n-1] {
+			lines[n-1] = follow
+		} else if n < last {
+			lines = append(lines, rest.fit(widths[n]))
+		}
+		return append(filled(lines, last), ending.fit(widths[last]))
+	default:
+		lines := slices.Concat([]line{p.health.fit(widths[0])}, flow(routed, widths[1:last], " · "))
+		return append(filled(lines, last), ending.fit(widths[last]))
+	}
+}
+
+// filled is lines with blank lines after them, n lines at least.
+func filled(lines []line, n int) []line {
+	for len(lines) < n {
+		lines = append(lines, nil)
+	}
+	return lines
 }
 
 // routes says how the router routes new sessions: "auto", or to the accounts
@@ -301,44 +364,18 @@ func because(what, why string) string {
 	return what + ": " + why
 }
 
-// open counts the accounts of doc new sessions could go to at now, as the
-// router chooses among them: those that can take a request of every model,
-// within their reserves but where the global pin spends them; of those, the
-// ones not under pressure, unless every one is.
-func (f Frame) open(doc status.Document, now time.Time) int {
-	var room, relieved int
-	for _, a := range doc.Accounts {
-		reserve := a.Reserve
-		if doc.Pin.Has(a.ID) {
-			reserve = 0
-		}
-		if !f.takes(a, reserve, now) {
-			continue
-		}
-		room++
-		if !a.Pressure.Under {
-			relieved++
-		}
-	}
-	if relieved > 0 {
-		return relieved
-	}
-	return room
-}
-
 // takes reports whether the account can take a request of every model at
-// now, leaving reserve of each window unused: it has a usable token, and
-// room in every window every model shares, and no limit or refused token
-// holds it back.
-func (f Frame) takes(a status.Account, reserve float64, now time.Time) bool {
+// now: it has a usable token, and room in every window every model shares,
+// and no limit or refused token holds it back.
+func (f Frame) takes(a status.Account, now time.Time) bool {
 	refused := a.Refused.Holds(now) && a.Refused.Family == ""
-	return a.TokenSet && !limited(a, now, f.Policy) && !refused && score.Available(a.Windows, reserve, f.Policy.IsShared, now)
+	return a.TokenSet && !limited(a, now, f.Policy) && !refused && score.Available(a.Windows, 0, f.Policy.IsShared, now)
 }
 
 // sessionRoom is the share of its 5-hour window the account has left at now,
 // or none while it can take no request.
 func (f Frame) sessionRoom(a status.Account, now time.Time) float64 {
-	if !f.takes(a, 0, now) {
+	if !f.takes(a, now) {
 		return 0
 	}
 	return roomOf(a, f.Policy.Started, now)
@@ -395,4 +432,25 @@ func barCells(n int) int {
 // at x, a cell before the rooms summed.
 func barsEnd(x, n int) int {
 	return x + roomLabel + n*(barCells(n)+1) - 1
+}
+
+// summedEnd is the column after n accounts' ROOM LEFT at x, its rooms summed
+// at their widest, as in " 12.0 of 12".
+func summedEnd(x, n int) int {
+	most := strconv.Itoa(n)
+	return barsEnd(x, n) + 1 + len(" "+most+".0 of "+most)
+}
+
+// easing is the account a as its bars are drawn: each window's use as far
+// as the bars have eased to it, as eased has it.
+func (f Frame) easing(a status.Account) status.Account {
+	if f.Eased == nil {
+		return a
+	}
+	windows := slices.Clone(a.Windows)
+	for i, w := range windows {
+		windows[i].Utilization = f.eased(a.ID, w)
+	}
+	a.Windows = windows
+	return a
 }

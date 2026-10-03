@@ -235,9 +235,11 @@ type Model struct {
 	trails  dashboard.History
 	// sessions are the sessions the router listed with the document on
 	// screen, for the cards' dots and Sessions' calls: nil where it listed
-	// none. order is the order Sessions' calls ran in as they were listed,
-	// which they keep from look to look.
+	// none. listedBy is the router that listed them, as its health check
+	// said; and order is the order Sessions' calls ran in as they were
+	// listed, which they keep from look to look.
 	sessions []status.Session
+	listedBy router.Health
 	order    dashboard.Order
 	// stream is the watch's hold on the router's request stream, and traffic
 	// what the stream has told of the routed requests.
@@ -371,13 +373,13 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View draws the dashboard full screen, as the document stands at the clock's
-// time, the help over its middle and the theme picker over its right while
-// they're open. In colour, it's drawn once the terminal has said what its
-// background is, or had its time to, so it never shows one theme then
-// another: in the theme shown, its canvas painted on every cell, and set as
-// the terminal's background too, as background says. While the cards scroll,
-// it asks for the wheel, which takes the terminal's own selecting with the
-// mouse, so it asks for it then alone.
+// time, its bars easing to its readings, the help over its middle and the
+// theme picker over its right while they're open. In colour, it's drawn once
+// the terminal has said what its background is, or had its time to, so it
+// never shows one theme then another: in the theme shown, its canvas painted
+// on every cell, and set as the terminal's background too, as background
+// says. While the cards scroll, it asks for the wheel, which takes the
+// terminal's own selecting with the mouse, so it asks for it then alone.
 func (m Model) View() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
@@ -385,18 +387,18 @@ func (m Model) View() tea.View {
 		return v
 	}
 	now := m.now()
-	doc, f := m.shown(now), m.frame(now)
+	f := m.frame(now)
 	f.Keys = m.keys()
 	if m.helping {
 		f.Help = m.helpKeys()
 	}
-	lines := f.Draw(doc, now)
+	lines := f.Draw(m.doc, now)
 	if m.picker.open {
 		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, f.Look)
 	}
 	v.SetContent(strings.Join(lines, "\n"))
 	v.BackgroundColor = m.background(f.Look)
-	if f.Scrolling(doc, now).Most > 0 {
+	if f.Scrolling(m.doc, now).Most > 0 {
 		v.MouseMode = tea.MouseModeCellMotion
 	}
 	return v
@@ -415,7 +417,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		Views: m.views, View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails,
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails, Eased: m.eased(now),
 		Featured: m.featured, Chart: m.chart, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus: m.focus, Flipped: m.flipped, Selected: m.selected, Patch: m.patch(),
@@ -531,14 +533,15 @@ func logRead(msg fetchedMsg, next time.Time) {
 // show puts the document a read found at now on screen, with the sessions
 // the router listed, Sessions' calls keeping the order they ran in, each
 // move they show done no longer re-patching them; or where it couldn't list
-// them, those it listed last; and none while probing. It posts what the
-// change calls for, unless the router is there to post its own, as nothing
-// is to be told twice; follows the router as it goes and comes back; notes
-// the events new to it, and the readings it gives; asks the router for its
-// history with a full read, and as the router answers again, or another
-// router does, as one restarted; keeps the focus, the cards flipped and the
-// selection where they still are; and eases the bars to it from where they
-// stand.
+// them, those it listed last, while the router that listed them answers, as
+// a router restarted or replaced lists its own; and none while probing. It
+// posts what the change calls for, unless the router is there to post its
+// own, as nothing is to be told twice; follows the router as it goes and
+// comes back; notes the events new to it, and the readings it gives; asks
+// the router for its history with a full read, and as the router answers
+// again, or another router does, as one restarted; keeps the focus, the
+// cards flipped and the selection where they still are; and eases the bars
+// to it from where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
@@ -556,10 +559,13 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
-	if msg.listed || !routed(doc) {
+	switch {
+	case msg.listed || !routed(doc):
 		m.order = m.frame(now).OrderOf(doc)
-		m.sessions = msg.sessions
+		m.sessions, m.listedBy = msg.sessions, msg.router
 		m.traffic = m.traffic.listedAs(msg.sessions)
+	case !msg.router.Same(m.listedBy):
+		m.sessions = nil
 	}
 	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
@@ -596,10 +602,26 @@ func (m Model) lose(now time.Time) Model {
 	return m
 }
 
-// shown is the document as it's drawn at now, its bars part way along their
+// shown is the document as its bars stand at now, part way along their
 // easing.
 func (m Model) shown(now time.Time) status.Document {
 	return m.ease.apply(m.doc, now)
+}
+
+// eased are how much of each window the bars fill at now, by its account
+// and key, while they ease to the document's readings: nil once they're
+// there.
+func (m Model) eased(now time.Time) map[dashboard.Ref]float64 {
+	if m.ease.done(now) || !m.ease.moves(m.doc) {
+		return nil
+	}
+	eased := make(map[dashboard.Ref]float64)
+	for _, a := range m.shown(now).Accounts {
+		for _, w := range a.Windows {
+			eased[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
+		}
+	}
+	return eased
 }
 
 // ticked reads again once a read is due. Every tick redraws, as every message
@@ -610,6 +632,7 @@ func (m Model) ticked(msg tickMsg) (tea.Model, tea.Cmd) {
 	}
 	now := m.now()
 	m.traffic = m.traffic.tidied(now)
+	m.changes = m.changes.ticked(m.doc, now, m.cfg.Policy)
 	var read tea.Cmd
 	if r, ok := m.plan.at(now, m.routed()); ok {
 		m, read = m.read(r)

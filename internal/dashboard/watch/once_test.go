@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -69,6 +70,22 @@ func TestOnceSaysWhenTheRouterIsFromBeforeItsHistory(t *testing.T) {
 	}
 	if len(source.histories) != 1 {
 		t.Errorf("Once() asked for the history of %q, want one window asked, the router having none", source.histories)
+	}
+}
+
+func TestOnceDrawsAWindowWhoseHistoryTheRouterCouldntGiveWithoutHistory(t *testing.T) {
+	doc := routerDocument(account("work", "Work", session(0.25, 3*time.Hour), week(0.5)))
+	source := &fakeSource{router: &doc, historyErr: errors.New("timed out")}
+
+	snap, err := Once(context.Background(), source, Read{Probe: true})
+	if err != nil || snap.Outdated || len(snap.History) > 0 {
+		t.Errorf("Once() = %+v, %v; want the router's document, no window with a history, none having been given", snap, err)
+	}
+	source.historyErr = nil
+	source.history = map[string]router.History{"5h": historyOf("work", start.Add(-2*time.Hour), 0.1, 0.2)}
+	snap, _ = Once(context.Background(), source, Read{Probe: true})
+	if _, ok := snap.History[dashboard.Ref{Account: "work", Window: "5h"}]; !ok || len(snap.History) != 1 {
+		t.Errorf("Once() gives the history of %v, want work's session's alone, the one the router gave", slices.Collect(maps.Keys(snap.History)))
 	}
 }
 

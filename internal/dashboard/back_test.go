@@ -288,8 +288,34 @@ func TestTheBacksShowTheStreamsMoves(t *testing.T) {
 	if !strings.Contains(side, "● d28c  opus    streaming  ↓ ~1.2k") || !strings.Contains(side, "╰ here since 13:11") || !strings.Contains(side, "4 sessions  ·  3 busy") {
 		t.Errorf("side's back is\n%s\nwant d28c on it, streaming, here since it moved", side)
 	}
-	if got := f.Seats("side"); !slices.Contains(got, d28c) || slices.Contains(f.Seats("work"), d28c) {
-		t.Errorf("side's seats are %+v, and work's %+v, want d28c among side's alone", got, f.Seats("work"))
+	if got := f.Seats("side", now); !slices.Contains(got, d28c) || slices.Contains(f.Seats("work", now), d28c) {
+		t.Errorf("side's seats are %+v, and work's %+v, want d28c among side's alone", got, f.Seats("work", now))
+	}
+}
+
+func TestTheBacksCountTheSessionsTheStreamSawLately(t *testing.T) {
+	brought := Seat{Session: "e5f61a2b-7c3d-4e8f-9a0b-1c2d3e4f5a6b", Model: opus}
+	cold := Seat{Session: id7F3A, Model: haiku}
+	f := flipped(t)
+	for i, s := range f.Sessions {
+		if s.ID == id7F3A {
+			f.Sessions[i].Assignments[0].LastSeen = now.Add(-2 * time.Hour).UTC()
+		}
+	}
+	f.Traffic = Traffic{
+		Live:  true,
+		Moves: []Move{{Seat: brought, From: "work", To: "side", At: now.Add(-time.Second), Reason: "moved: work hit its limit"}},
+		Seen:  map[Plug]time.Time{{Account: "work", Seat: cold}: now.Add(-5 * time.Second)},
+	}
+	if got := f.Seats("side", now); !slices.Contains(got, brought) {
+		t.Errorf("side's seats are %+v, want e5f6's among them: a move the stream told of brought it, before the router listed it", got)
+	}
+	if got := f.Seats("work", now); !slices.Contains(got, cold) {
+		t.Errorf("work's seats are %+v, want 7f3a's among them: the stream saw it there lately, though the router last listed it seen two hours ago", got)
+	}
+	side := strings.Join(cardOf(t, f, flipping(), "side", 50, densities[0]), "\n")
+	if !strings.Contains(side, "e5f6") || !strings.Contains(side, "4 sessions") {
+		t.Errorf("side's back is\n%s\nwant e5f6 on it, counted among its sessions", side)
 	}
 }
 
@@ -306,11 +332,11 @@ func TestTheSessionPickedOutIsOnTheSelectionsSurface(t *testing.T) {
 	}
 	for x := range 50 {
 		want := hue{}
-		if x >= 2 && x <= 47 {
+		if x >= 1 && x <= 48 {
 			want = hue{token: theme.BgSelection}
 		}
 		if got := c.at(x, row).ink.on; got != want {
-			t.Errorf("cell %d of the row picked out is on %+v, want %+v: bg.selection a cell in from each side", x, got, want)
+			t.Errorf("cell %d of the row picked out is on %+v, want %+v: bg.selection from side to side, as LATELY's highlight", x, got, want)
 		}
 	}
 	if got := c.at(3, row+2).ink.on; got != (hue{}) {
@@ -508,7 +534,7 @@ func TestSeatsAreTheSessionsOnAnAccountInTheRoutersOrder(t *testing.T) {
 		{account: "personal"},
 	}
 	for _, tt := range tests {
-		if got := (Frame{Sessions: flippingSessions()}).Seats(tt.account); !slices.Equal(got, tt.want) {
+		if got := (Frame{Sessions: flippingSessions()}).Seats(tt.account, now); !slices.Equal(got, tt.want) {
 			t.Errorf("Seats(%s) = %+v, want %+v", tt.account, got, tt.want)
 		}
 	}

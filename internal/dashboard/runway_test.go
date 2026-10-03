@@ -322,6 +322,52 @@ func TestAWeekResettingBeyondTheWeekShownHasRoomAllWeek(t *testing.T) {
 	}
 }
 
+func TestALaneDrainingAllDaySaysWhenItRunsOut(t *testing.T) {
+	doc := routerDoc("", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(2*day, 3*day)))
+	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), doc)
+
+	if got, want := strings.TrimSpace(rows[l.top+1]), "room all day  ·  week runs out ~Wed 13:12"; got != want {
+		t.Errorf("work's words read %q, want %q", got, want)
+	}
+}
+
+func TestOnAPhoneTheLanesLabelsGiveWayToTheTimeline(t *testing.T) {
+	long := readAccount("a-long-account-named-so", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day))
+	doc := routerDoc("a-long-account-named-so", 1, long, readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
+	rows, l := drawnRunway(runwayFrame(t, Day, 52, 26), doc)
+
+	if l.x > 26 || l.timeline.columns < 24 {
+		t.Errorf("the lanes start at %d, %d columns across, want halfway at most, leaving the timeline room", l.x, l.timeline.columns)
+	}
+	if got, want := rows[l.top], " 1 a-long-account-nam… ▲  "; !strings.HasPrefix(got, want) {
+		t.Errorf("its lane starts %q, want %q: the name cut, and its badge brief", got, want)
+	}
+}
+
+func TestTheWeeksAxisTicksTheQuartersOfItsFirstDayToo(t *testing.T) {
+	tl := timelineOf(Week, now, 136)
+	c := newCanvas(140, 2)
+	weekdays(c, tl, 0, 0)
+	evening := time.Date(tl.start.Year(), tl.start.Month(), tl.start.Day(), 18, 0, 0, 0, tl.start.Location())
+	if got := c.at(tl.column(evening), 1).glyph; got != "╵" {
+		t.Errorf("the first day's 18:00, in column %d, is ticked %q, want ╵", tl.column(evening), got)
+	}
+}
+
+func TestTheStripsFewWithRoomFillItsLowestEighth(t *testing.T) {
+	cells := make([][]room, 40)
+	for i := range cells {
+		cells[i] = []room{roomNone}
+	}
+	cells[0] = []room{roomOpen}
+	l := runwayLayout{x: 22, timeline: timeline{start: now, step: 10 * time.Minute, columns: 1, now: now}, cells: cells}
+	c := newCanvas(30, 2)
+	Frame{Width: 30, Height: 2}.roomStrip(c, l, 0)
+	if got := c.at(22, 1); got.glyph != levels[1] || got.ink != (ink{ramp: true, at: stripTone(1, 40)}) {
+		t.Errorf("one of 40 with room draws %q in %+v, want its lowest eighth in the tone of a few with room", got.glyph, got.ink)
+	}
+}
+
 func TestALanesBadge(t *testing.T) {
 	held := runwayThree()
 	held.Accounts[2].Windows[1].Utilization, held.Accounts[2].Windows[1].Status = 1, quota.StatusRejected

@@ -23,15 +23,24 @@ const Auto Feature = ""
 
 // settings are the settings w moves through, as doc stands at now: auto,
 // then the window a request starts, then the week, then any other window in
-// use.
+// use; each of them where an account has read it.
 func settings(doc status.Document, now time.Time, policy score.Policy) []Feature {
 	cycle := []Feature{Auto}
 	for _, key := range slices.Concat([]string{policy.Started, policy.Perishable}, shownWindows(doc, now, policy)) {
-		if key != "" && !slices.Contains(cycle, Feature(key)) {
+		if key != "" && !slices.Contains(cycle, Feature(key)) && anyRead(doc, key) {
 			cycle = append(cycle, Feature(key))
 		}
 	}
 	return cycle
+}
+
+// anyRead reports whether any of doc's accounts has read its window with the
+// given key.
+func anyRead(doc status.Document, key string) bool {
+	return slices.ContainsFunc(doc.Accounts, func(a status.Account) bool {
+		_, ok := a.Window(key)
+		return ok
+	})
 }
 
 // Next is the setting w moves on to from f, as doc stands at now, through
@@ -71,9 +80,9 @@ func labelOf(doc status.Document, key string) string {
 
 // shownWindows are the keys of the windows every card shows, of doc at now,
 // in quota's order: those every model shares, always, and any other an
-// account has used this period, or is heading to, as Project says. A model's
-// own window that no account has used, nor is heading to use, hides from
-// every card.
+// account has used this period, or is heading to, as Project says, or a
+// probe expected but couldn't read. A model's own window that no account has
+// used, nor is heading to use, hides from every card.
 func shownWindows(doc status.Document, now time.Time, policy score.Policy) []string {
 	shown, _ := windowsOf(doc, now, policy)
 	return shown
@@ -93,7 +102,10 @@ func windowsOf(doc status.Document, now time.Time, policy score.Policy) (shown, 
 	used := make(map[string]bool)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			used[w.Key] = used[w.Key] || policy.IsShared(w.Key) || inUse(a, w, now)
+			used[w.Key] = used[w.Key] || policy.IsShared(w.Key) || inUse(doc, a, w, now)
+		}
+		for _, f := range a.Failures {
+			used[f.Window] = true
 		}
 	}
 	for key, inUse := range used {
@@ -108,14 +120,14 @@ func windowsOf(doc status.Document, now time.Time, policy score.Policy) (shown, 
 	return shown, hidden
 }
 
-// inUse reports whether account a has used its window w this period at now,
-// or is heading to: some of it is used, or its projection has some used by
-// its reset.
-func inUse(a status.Account, w quota.Window, now time.Time) bool {
+// inUse reports whether doc's account a has used its window w this period
+// at now, or is heading to: some of it is used, or its projection, as doc's
+// Project says, has some used by its reset.
+func inUse(doc status.Document, a status.Account, w quota.Window, now time.Time) bool {
 	if w.Utilization > 0 {
 		return true
 	}
-	switch p := a.Project(w, now).Projection; p.Kind {
+	switch p := doc.Project(a, w, now).Projection; p.Kind {
 	case score.RunsOut, score.Exhausted:
 		return true
 	case score.OnPace:
@@ -152,7 +164,7 @@ func featured(doc status.Document, a status.Account, now time.Time, policy score
 	if w, ok := withKey(windows, string(setting)); ok && setting != Auto {
 		return w, true
 	}
-	if w, ok := holding(a, windows, now, policy); ok {
+	if w, ok := holding(doc, a, windows, now, policy); ok {
 		return w, true
 	}
 	if w, ok := soonestOut(doc, a, windows, now); ok {
@@ -171,11 +183,12 @@ func withKey(windows []quota.Window, key string) (quota.Window, bool) {
 	return windows[i], true
 }
 
-// holding is the window of account a's windows holding it back at now, as
-// policy says which every model shares: one at its limit, the window a
-// request starts first where a limit names none, as it holds every window;
-// else one at its reserve; reporting false where none is.
-func holding(a status.Account, windows []quota.Window, now time.Time, policy score.Policy) (quota.Window, bool) {
+// holding is the window of doc's account a's windows holding it back at
+// now, as policy says which every model shares: one at its limit, the window
+// a request starts first where a limit names none, as it holds every window;
+// else one at its reserve, where that holds it back, as it doesn't the
+// global pin's; reporting false where none is.
+func holding(doc status.Document, a status.Account, windows []quota.Window, now time.Time, policy score.Policy) (quota.Window, bool) {
 	var keys []string
 	if held, ok := a.Held(now, policy); ok {
 		keys = held.Windows
@@ -183,7 +196,10 @@ func holding(a status.Account, windows []quota.Window, now time.Time, policy sco
 			keys = []string{policy.Started}
 		}
 	}
-	for _, key := range slices.Concat(keys, a.AtReserve) {
+	if doc.ReserveHolds(a) {
+		keys = slices.Concat(keys, a.AtReserve)
+	}
+	for _, key := range keys {
 		if w, ok := withKey(windows, key); ok {
 			return w, true
 		}

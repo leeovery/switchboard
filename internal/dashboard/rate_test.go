@@ -86,8 +86,8 @@ func TestABurnRateWithoutHistorySpreadsItsUseSinceItStartedEvenly(t *testing.T) 
 }
 
 func TestABurnRateHeldAtItsLimitRunsAlongTheFloorFromWhenItWasReached(t *testing.T) {
-	session := sessionOf(1, time.Hour)
-	session.Status = quota.StatusRejected
+	// Its session reads short of spent, so the limit alone holds it back.
+	session := sessionOf(0.97, time.Hour)
 	a := readAccount("personal", session, weekOf(0.3, 4*day))
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(30 * time.Minute).UTC()}
 	doc := routerDoc("", 0, a)

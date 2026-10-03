@@ -1094,8 +1094,17 @@ func TestWhenShowsTheDayOnlyBeyondADay(t *testing.T) {
 			}
 		})
 	}
-	if got, want := status.Until(now, now.Add(71*time.Minute+53*time.Second)), "in 1h 11m"; got != want {
-		t.Errorf("Until() = %q, want %q", got, want)
+	for _, tt := range []struct {
+		t    time.Time
+		want string
+	}{
+		{t: now.Add(71*time.Minute + 53*time.Second), want: "in 1h 11m"},
+		{t: now, want: "now"},
+		{t: now.Add(-3 * time.Minute), want: "now"},
+	} {
+		if got := status.Until(now, tt.t); got != tt.want {
+			t.Errorf("Until(%s) = %q, want %q", tt.t.Sub(now), got, tt.want)
+		}
 	}
 }
 

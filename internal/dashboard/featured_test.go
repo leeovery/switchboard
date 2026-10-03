@@ -96,10 +96,13 @@ func TestAutoFeaturesWhatWillStopTheAccountFirst(t *testing.T) {
 		name    string
 		account status.Account
 		setting Feature
-		want    string
+		// pinned is set where the global pin names the account.
+		pinned bool
+		want   string
 	}{
 		{name: "the window at its limit, whatever runs out", account: with(limitedAccount("work"), func(a *status.Account) { a.Windows[1] = runningWeek }), want: "5h"},
 		{name: "the window at its reserve", account: atReserve, want: "7d"},
+		{name: "a window at a reserve the pin spends: the one that runs out soonest", account: with(atReserve, func(a *status.Account) { a.Windows[0] = sessionOf(0.8, 3*time.Hour) }), pinned: true, want: "5h"},
 		{name: "the window running out soonest: the session", account: pressedAccount("work"), want: "5h"},
 		{name: "the window running out soonest: the week", account: readAccount("work", sessionOf(0.3, 3*time.Hour), runningWeek), want: "7d"},
 		{name: "else the most used: the week", account: readAccount("work", sessionOf(0.25, 3*time.Hour), weekOf(0.5, 4*day)), want: "7d"},
@@ -112,6 +115,9 @@ func TestAutoFeaturesWhatWillStopTheAccountFirst(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := routerDoc("", 0, tt.account)
+			if tt.pinned {
+				doc.Pin = status.Pin{Accounts: []string{tt.account.ID}}
+			}
 			got, ok := featured(doc, tt.account, now, claudeLike, tt.setting, shownWindows(doc, now, claudeLike))
 			if !ok || got.Key != tt.want {
 				t.Errorf("featured() = %q, %v, want %q", got.Key, ok, tt.want)
@@ -163,6 +169,7 @@ func TestTheFeaturedWindowsNames(t *testing.T) {
 		{name: "a model's own, by its label, short", doc: doc, setting: "7d_oi", want: "Fable wk"},
 		{name: "one no longer in use, as auto, which the cards show", doc: unused, setting: "7d_oi", want: "auto"},
 		{name: "one no account has, as auto", doc: doc, setting: "7d_x", want: "auto"},
+		{name: "a kept window before anything is read, as auto", doc: status.Document{}, setting: "7d", want: "auto"},
 	}
 	for _, tt := range tests {
 		if got := tt.setting.Name(tt.doc, now, claudeLike); got != tt.want {

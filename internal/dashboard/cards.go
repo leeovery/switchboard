@@ -114,13 +114,39 @@ func barRowsFor(shown, width int) int {
 
 // labelWidth is how many cells the bar lines' labels take, with the gap
 // after them, as the windows shown name them: labelColumn at the least, so
-// they line up as the frames have them, and more for a longer label.
+// they line up as the frames have them, and more for a longer label, but
+// never so many a bar has fewer than leastBar cells on the narrowest card,
+// a longer label cut to fit.
 func labelWidth(doc status.Document, shown []string) int {
 	width := labelColumn
 	for _, key := range shown {
 		width = max(width, ansi.StringWidth(status.Short(labelOf(doc, key)))+1)
 	}
-	return width
+	return min(width, barLine-useColumn-whitherColumn-leastBar)
+}
+
+// leastBar is the fewest cells a window's bar takes on a card: half the
+// frames'.
+const leastBar = 9
+
+// stateMost is the most rows a card's state takes, wrapping into the rows
+// under it that draw nothing.
+const stateMost = 3
+
+// stateRows is how many rows a card of the density d, whose windows' bars
+// take bars rows, gives its state, the card's parts after its state those
+// given: its own row, and those of the parts under it that draw nothing on
+// it, its gaps and, where it features no window, its featured window's,
+// stateMost at most.
+func (fc face) stateRows(d density, after []part, bars int) int {
+	rows := 1
+	for _, p := range after {
+		if p == barRows || p != gap && fc.hasFeatured {
+			break
+		}
+		rows += d.height(p, bars)
+	}
+	return min(rows, stateMost)
 }
 
 // card draws an account's card, fc, width cells wide from x along row y, at
@@ -137,10 +163,14 @@ func (f Frame) card(c *canvas, doc status.Document, fc face, now time.Time, x, y
 	if fc.flipped {
 		f.back(c, doc, fc, now, x+padding+1, y+1, inside, rows)
 	} else {
-		row := y + 1
-		for _, p := range d.parts() {
+		row, parts := y+1, d.parts()
+		for i, p := range parts {
 			height := d.height(p, bars)
-			f.part(c, fc, now, p, x+padding+1, row, inside, height, labelled)
+			drawn := height
+			if p == stateRow {
+				drawn = fc.stateRows(d, parts[i+1:], bars)
+			}
+			f.part(c, fc, now, p, x+padding+1, row, inside, drawn, labelled)
 			row += height
 		}
 	}
@@ -162,15 +192,18 @@ func edgingOf(fc face) edging {
 }
 
 // part draws a card's part p, width cells wide and rows tall from x along
-// row y: its state, its row picked out from side to side while a look saw it
-// change, fading back; its featured window's readout, header, chart or axis,
-// where it has one; or its other windows' bars.
+// row y: its state, on as many of its rows as it needs, as stateLines lays
+// it out, picked out from side to side while a look saw it change, fading
+// back; its featured window's readout, header, chart or axis, where it has
+// one; or its other windows' bars.
 func (f Frame) part(c *canvas, fc face, now time.Time, p part, x, y, width, rows, labelled int) {
 	switch {
 	case p == stateRow:
-		c.line(x, y, fc.stateLine().fit(width))
-		if fade, ok := f.Changed[fc.account.ID]; ok {
-			c.surface(x-padding, y, width+2*padding, hue{token: theme.BgAttention, fade: fade})
+		for i, l := range fc.stateLines(now, width, rows) {
+			c.line(x, y+i, l)
+			if fade, ok := f.Changed[fc.account.ID]; ok {
+				c.surface(x-padding, y+i, width+2*padding, hue{token: theme.BgAttention, fade: fade})
+			}
 		}
 	case p == barRows:
 		f.bars(c, fc, now, x, y, width, rows, labelled)
@@ -188,7 +221,8 @@ func (f Frame) part(c *canvas, fc face, now time.Time, p part, x, y, width, rows
 
 // bars draws the bar lines of a card's windows but the one it features, in
 // the order shown, as many to a row as fit, barLinesGap apart, rows rows of
-// them, width cells wide from x along row y. A window the account hasn't
+// them, width cells wide from x along row y. A window a probe expected but
+// couldn't read says so, as unreadLine has it; and one the account hasn't
 // read leaves its place blank, so the rows line up across the grid.
 func (f Frame) bars(c *canvas, fc face, now time.Time, x, y, width, rows, labelled int) {
 	perRow := barsPerRow(width)
@@ -202,9 +236,21 @@ func (f Frame) bars(c *canvas, fc face, now time.Time, x, y, width, rows, labell
 		if row >= rows {
 			return
 		}
-		if s, ok := fc.bars[key]; ok {
-			f.meter(c, s, fc.account.Reserve, now, x+col*(each+barLinesGap), y+row, each, labelled)
+		at := x + col*(each+barLinesGap)
+		if unread, ok := fc.unread[key]; ok {
+			c.line(at, y+row, unreadLine(unread.Label, unread.Error, labelled).fit(each))
+		} else if s, ok := fc.bars[key]; ok {
+			f.meter(c, s, fc.account.Reserve, now, at, y+row, each, labelled)
 		}
 		i++
 	}
+}
+
+// unreadLine is the bar line of a window a probe expected but couldn't read,
+// its label labelled cells wide, as in "Fable wk can't read · timed out
+// after 5s": its label, short, as a bar line has it; then that it can't read
+// it, and why, in state.destructive.
+func unreadLine(label, why string, labelled int) line {
+	label = truncate(status.Short(label), labelled-1)
+	return line{{label, textInk}, spaces(labelled - ansi.StringWidth(label)), {"can't read", exhaustedInk}, {" · " + status.Clean(why), errorInk}}
 }

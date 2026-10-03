@@ -17,6 +17,9 @@ import (
 const (
 	routerKeys  = "tab views · w window: auto · ←→ focus · space flip · g chart · 1-3 pin · a auto · m move · ? keys · q quit"
 	probingKeys = "tab views · w window: auto · ←→ focus · space flip · g chart · ? keys · q quit"
+	// unreadKeys are those listed before anything is read, w doing nothing
+	// till there are cards.
+	unreadKeys = "tab views · ←→ focus · space flip · g chart · ? keys · q quit"
 )
 
 func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {

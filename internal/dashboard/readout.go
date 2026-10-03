@@ -35,63 +35,108 @@ func (f Frame) readout(c *canvas, fc face, now time.Time, x, y, end int) {
 	room := end - beside
 	name := line{{strings.ToUpper(status.Clean(s.window.Label)), labelInk}, {"  " + spanOf(s.window.Key), faintInk}}
 	c.line(beside, y, name.fit(room))
-	c.line(beside, y+1, fc.whereHeading(now).fitHead(room))
-	c.line(beside, y+2, fc.whenResets(now).fit(room))
+	c.line(beside, y+1, briefest(room, line.fitHead, fc.whereHeading(now)...))
+	c.line(beside, y+2, briefest(room, line.fitWhole, fc.whenResets(now)...))
+}
+
+// briefest is the first of forms, the fullest first, whose first span, which
+// holds its time, fits width cells, fitted to them by fit, which cuts what
+// follows it; or where none's does, the last, cut short.
+func briefest(width int, fit func(line, int) line, forms ...line) line {
+	for _, l := range forms {
+		if len(l) > 0 && l[:1].width() <= width {
+			return fit(l, width)
+		}
+	}
+	if len(forms) == 0 {
+		return nil
+	}
+	return forms[len(forms)-1].fit(width)
 }
 
 // whereHeading says where a card's featured window is heading at now, as its
-// readout does: at its limit, and when it was reached, as the router told of
-// it; that it hasn't started; that it runs out, or reaches its account's
-// reserve, where it does before it resets, as RunsOut has it, as in "→ runs
-// out ~16:05", and at what rate, where that's its recent rate, measured over
-// the span to when the document was read, as the router measures it, as in
-// "at its last-30-min rate"; else the share it's heading for by its reset,
-// as in "→ 72% by its reset". It's nil where nothing says.
-func (fc face) whereHeading(now time.Time) line {
+// readout does, in forms from the fullest to the briefest, so its time shows
+// whole where the fullest doesn't fit: at its limit, and when it was
+// reached, as the router told of it, as in "limit reached at Sun 07:00", then
+// "limit reached Sun 07:00"; that it hasn't started; that it runs out, or
+// reaches its account's reserve, where it does before it resets, as RunsOut
+// has it, as in "→ reaches its reserve ~Wed 04:06", and at what rate, where
+// that's its recent rate, measured over the span to when the document was
+// read, as the router measures it, as in "at its last-30-min rate", then
+// "→ out ~Wed 04:06"; else the share it's heading for by its reset, as in
+// "→ 72% by its reset". The briefest of each form gives its time as When
+// does. It's nil where nothing says.
+func (fc face) whereHeading(now time.Time) []line {
 	s := fc.featured
 	switch {
 	case s.held && !s.since.IsZero():
-		return line{{"limit reached at " + status.Dated(now, s.since), exhaustedInk}}
+		return dated(now, s.since, exhaustedInk, "limit reached at ", "limit reached ")
 	case s.held:
-		return line{{"limit reached", exhaustedInk}}
+		return []line{{{"limit reached", exhaustedInk}}}
 	case s.lapsed:
-		return line{{"not started", ink{token: theme.TextTertiary, bold: true}}}
+		return []line{{{"not started", ink{token: theme.TextTertiary, bold: true}}}}
 	case s.runsOut:
 		verb := "→ runs out ~"
 		if s.out.Reserve {
 			verb = "→ reaches its reserve ~"
 		}
-		l := line{{verb + status.Dated(now, s.out.At), alertInk}}
+		forms := dated(now, s.out.At, alertInk, verb, "→ out ~")
 		if s.out.Recent {
-			l = append(l, span{" at its " + lately(s.out.Since, fc.read) + " rate", mutedInk})
+			forms[0] = append(forms[0], span{" at its " + lately(s.out.Since, fc.read) + " rate", mutedInk})
 		}
-		return l
+		return forms
 	}
 	if share, ok := s.projected(); ok {
-		return line{{"→ " + status.Percent(share) + " by its reset", secondaryInk}}
+		return []line{{{"→ " + status.Percent(share) + " by its reset", secondaryInk}}}
 	}
 	return nil
 }
 
+// dated are the forms of words that end with the time t at now, in the ink
+// given: after the fullest of the words given, its time as Dated shows it;
+// then after the briefest, as Dated, then as When shows it.
+func dated(now, t time.Time, k ink, full, brief string) []line {
+	return []line{
+		{{full + status.Dated(now, t), k}},
+		{{brief + status.Dated(now, t), k}},
+		{{brief + status.When(now, t), k}},
+	}
+}
+
 // whenResets says when a card's featured window resets, as its readout
-// does: when, and how long until it, as in "resets 17:10 · in 2h 27m"; at
-// its limit, that its window resets then; and once it has lapsed, when it's
-// next primed, where the router says, as in "next prime 16:20 · in 1h 37m",
-// else that it starts with its next request. It's nil where its reset isn't
-// known.
-func (fc face) whenResets(now time.Time) line {
+// does, in forms from the fullest to the briefest, so its time shows whole
+// where the fullest doesn't fit: when, and how long until it, as in "resets
+// 17:10 · in 2h 27m", the countdown left off before the time is cut; at its
+// limit, that its window resets then, and nothing where that isn't known, as
+// of a window that has lapsed; once it has lapsed, when it's next primed,
+// where the router says, as in "next prime 16:20 · in 1h 37m", else that it
+// starts with its next request; and where its reset isn't known, so.
+func (fc face) whenResets(now time.Time) []line {
 	reset := fc.featured.window.ResetsAt
 	switch {
 	case fc.featured.lapsed && !fc.primed.IsZero():
-		return line{{"next prime " + status.Dated(now, fc.primed) + " · " + status.Until(now, fc.primed), mutedInk}}
+		return countingDown(now, fc.primed, "next prime ")
 	case fc.featured.lapsed:
-		return line{{"starts with its next request", mutedInk}}
-	case reset.IsZero():
+		return []line{{{"starts with its next request", mutedInk}}}
+	case fc.featured.held && reset.IsZero():
 		return nil
+	case reset.IsZero():
+		return []line{{{"reset time unknown", mutedInk}}}
 	case fc.featured.held:
-		return line{{"its window resets " + status.Dated(now, reset), mutedInk}}
+		return dated(now, reset, mutedInk, "its window resets ", "resets ")
 	default:
-		return line{{"resets " + status.Dated(now, reset) + " · " + status.Until(now, reset), mutedInk}}
+		return countingDown(now, reset, "resets ")
+	}
+}
+
+// countingDown are the forms of the words given, then the time t at now,
+// then a countdown from now to it, as in "resets Fri 04:06 · in 13h 24m":
+// with its time as Dated shows it, then as When does.
+func countingDown(now, t time.Time, words string) []line {
+	countdown := span{" · " + status.Until(now, t), mutedInk}
+	return []line{
+		{{words + status.Dated(now, t), mutedInk}, countdown},
+		{{words + status.When(now, t), mutedInk}, countdown},
 	}
 }
 

@@ -296,7 +296,7 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 		})
 	}
 	frame := strings.Join(frames()["wide"].Draw(doc, now), "\n")
-	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "7 of [31m the 9 failed"} {
+	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "7 of [31m", "the 9 failed"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("drew\n%s\nwant it to say %q, its control characters as spaces", frame, want)
 		}

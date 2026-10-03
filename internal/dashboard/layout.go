@@ -143,14 +143,15 @@ func (f Frame) layOut(doc status.Document, now time.Time, shown, top int) layout
 
 // hidden counts the accounts of a layout that scrolls whose cards are out of
 // view, wholly or partly, as the view shows its content from the row
-// offset: those above, and those below.
+// offset, each once: those whose tops are out of view above, and of the
+// rest, those whose feet are out of view below.
 func (l layout) hidden(n, offset int) (above, below int) {
 	for i := range n {
 		_, y := l.at(i, l.density)
-		if y < offset {
+		switch {
+		case y < offset:
 			above++
-		}
-		if y+l.density.rows(l.bars) > offset+l.view {
+		case y+l.density.rows(l.bars) > offset+l.view:
 			below++
 		}
 	}
@@ -165,13 +166,14 @@ type Scrolling struct {
 
 // Scrolling is how far the frame's view of doc scrolls at now: the Accounts
 // view, where not even its sparest cards fit; Sessions, where its calls and
-// lines, or its plain list, don't; and Runway, where its lanes don't. A
-// frame printed once never scrolls.
+// lines, or its plain list, don't; and Runway, where its lanes don't, as
+// runwayRows counts them. A frame printed once never scrolls, nor one too
+// short for any card, as short says.
 func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	if l, ok := f.cardsOf(doc, now); ok {
 		return Scrolling{Most: l.content - l.view, Page: l.view}
 	}
-	if f.printed() || len(doc.Accounts) == 0 {
+	if f.printed() || len(doc.Accounts) == 0 || f.short(doc, now) {
 		return Scrolling{}
 	}
 	top := f.above(newCanvas(f.Width, f.Height), doc, now)
@@ -180,8 +182,8 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 		content, view := f.sessionsRows(doc, now, top)
 		return Scrolling{Most: max(content-view, 0), Page: view}
 	case Runway:
-		l := f.layOutRunway(doc, now, top)
-		return Scrolling{Most: l.content - l.view, Page: l.view}
+		content, view := f.runwayRows(len(doc.Accounts), top)
+		return Scrolling{Most: content - view, Page: view}
 	default:
 		return Scrolling{}
 	}
@@ -189,10 +191,10 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 
 // cardsOf is the Accounts view of doc at now as the frame lays it out full
 // screen, under its title and heading, reporting false for a frame that
-// shows no cards that move, scroll or take the focus: one printed once, or
-// of another view.
+// shows no cards that move, scroll or take the focus: one printed once, of
+// another view, or too short for any card, as short says.
 func (f Frame) cardsOf(doc status.Document, now time.Time) (layout, bool) {
-	if f.View != Accounts || f.printed() {
+	if f.View != Accounts || f.printed() || f.short(doc, now) {
 		return layout{}, false
 	}
 	top := f.above(newCanvas(f.Width, f.Height), doc, now)
@@ -205,16 +207,38 @@ func (f Frame) scrolled(l layout) int {
 	return min(max(f.Scroll, 0), l.content-l.view)
 }
 
-// Neighbour is the account whose card is beside, above or below the card of
-// doc's account with the given id, as the Accounts view lays them out at
-// now: across cards along its row, a card to the left where less than zero,
-// or down rows of cards, a row up where less than zero, in its column, or
-// the last of a row too short to reach it. It reports false where there's
-// no card there.
-func (f Frame) Neighbour(doc status.Document, now time.Time, id string, across, down int) (string, bool) {
+// Cards are a document's cards as the Accounts view lays them out at a
+// moment, full screen, as a frame scrolled as it is shows them, for the keys
+// that move the focus between them and scroll to it, laid out once for all
+// a key asks of them: no cards where the frame shows none that move, scroll
+// or take the focus, as cardsOf says.
+type Cards struct {
+	layout layout
+	shown  bool
+	// ids are the accounts' ids, in the document's order; scroll is how far
+	// the frame has the view scrolled, and scrolled as far as it goes.
+	ids              []string
+	scroll, scrolled int
+}
+
+// Cards lays the frame's Accounts view of doc out at now, as cardsOf does.
+func (f Frame) Cards(doc status.Document, now time.Time) Cards {
 	l, ok := f.cardsOf(doc, now)
-	i := place(doc, id) - 1
-	if !ok || i < 0 {
+	ids := make([]string, len(doc.Accounts))
+	for i, a := range doc.Accounts {
+		ids[i] = a.ID
+	}
+	return Cards{layout: l, shown: ok, ids: ids, scroll: f.Scroll, scrolled: f.scrolled(l)}
+}
+
+// Neighbour is the account whose card is beside, above or below the card of
+// the account with the given id: across cards along its row, a card to the
+// left where less than zero, or down rows of cards, a row up where less than
+// zero, in its column, or the last of a row too short to reach it. It
+// reports false where there's no card there.
+func (c Cards) Neighbour(id string, across, down int) (string, bool) {
+	l, i := c.layout, slices.Index(c.ids, id)
+	if !c.shown || i < 0 {
 		return "", false
 	}
 	row, col := i/l.across+down, i%l.across+across
@@ -222,57 +246,56 @@ func (f Frame) Neighbour(doc status.Document, now time.Time, id string, across, 
 		return "", false
 	}
 	j := row*l.across + col
-	if j >= len(doc.Accounts) {
+	if j >= len(c.ids) {
 		if across != 0 {
 			return "", false
 		}
-		j = len(doc.Accounts) - 1
+		j = len(c.ids) - 1
 	}
-	return doc.Accounts[j].ID, true
+	return c.ids[j], true
 }
 
-// Reveal is how far the frame's view of doc is scrolled at now once it shows
-// the card of the account with the given id: no further than it must go
-// for the card to show whole, so a card in view leaves it where it is, or
-// to the card's top, where the card is taller than the view.
-func (f Frame) Reveal(doc status.Document, now time.Time, id string) int {
-	l, ok := f.cardsOf(doc, now)
-	i := place(doc, id) - 1
-	if !ok || i < 0 {
-		return f.Scroll
+// Reveal is how far the view is scrolled once it shows the card of the
+// account with the given id: no further than it must go for the card to
+// show whole, so a card in view leaves it where it is, or to the card's top,
+// where the card is taller than the view.
+func (c Cards) Reveal(id string) int {
+	l, i := c.layout, slices.Index(c.ids, id)
+	if !c.shown || i < 0 {
+		return c.scroll
 	}
 	_, top := l.at(i, l.density)
-	bottom, scroll := top+l.density.rows(l.bars), f.scrolled(l)
+	bottom := top + l.density.rows(l.bars)
 	switch {
-	case top < scroll:
+	case top < c.scrolled:
 		return top
-	case bottom > scroll+l.view:
+	case bottom > c.scrolled+l.view:
 		return min(top, bottom-l.view)
 	default:
-		return scroll
+		return c.scrolled
 	}
 }
 
-// InView is the account whose card is the first of doc's at now that the
-// frame's view shows whole, scrolled as it is, or, where it shows none
-// whole, the first it shows: "" where there are no cards.
-func (f Frame) InView(doc status.Document, now time.Time) string {
-	if len(doc.Accounts) == 0 {
+// InView is the account whose card is the first the view shows whole,
+// scrolled as it is, or, where it shows none whole, the first it shows: ""
+// where there are no accounts.
+func (c Cards) InView() string {
+	if len(c.ids) == 0 {
 		return ""
 	}
-	l, ok := f.cardsOf(doc, now)
-	if !ok {
-		return doc.Accounts[0].ID
+	if !c.shown {
+		return c.ids[0]
 	}
-	scroll, rows, partly := f.scrolled(l), l.density.rows(l.bars), ""
-	for i, a := range doc.Accounts {
+	l, partly := c.layout, ""
+	rows := l.density.rows(l.bars)
+	for i, id := range c.ids {
 		_, top := l.at(i, l.density)
 		switch {
-		case top >= scroll && top+rows <= scroll+l.view:
-			return a.ID
-		case partly == "" && top < scroll+l.view && top+rows > scroll:
-			partly = a.ID
+		case top >= c.scrolled && top+rows <= c.scrolled+l.view:
+			return id
+		case partly == "" && top < c.scrolled+l.view && top+rows > c.scrolled:
+			partly = id
 		}
 	}
-	return cmp.Or(partly, doc.Accounts[0].ID)
+	return cmp.Or(partly, c.ids[0])
 }

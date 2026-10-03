@@ -303,6 +303,50 @@ func TestTheCardsScrollOnceTwoRowChartsDontFit(t *testing.T) {
 	}
 }
 
+func TestTheLineOverTheFooterCountsACardTallerThanTheViewOnce(t *testing.T) {
+	l := layout{across: 1, down: 3, width: 50, gap: 1, bars: 1, density: density{compactCard, 2}, content: 23, view: 4}
+	if above, below := l.hidden(3, 2); above != 1 || below != 2 {
+		t.Errorf("hidden() = %d above, %d below, want 1 and 2: the card cut at both ends counted once", above, below)
+	}
+}
+
+func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
+	doc := threeRouted()
+	f := frameOf(160, 12)
+	rows := f.Draw(doc, now)
+	want := []string{
+		" 1 work  ● under pressure · new sessions go elsewhere",
+		" 2 personal  ■ limit reached · back 14:12, in 1h",
+		" 3 side  ● open · new sessions come here",
+	}
+	if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || !slices.Equal(rows[1:4], want) {
+		t.Errorf("drew\n%s\nwant the title row, then a line an account", strings.Join(rows, "\n"))
+	}
+	for i, row := range rows[4:11] {
+		if row != "" {
+			t.Errorf("row %d = %q, want nothing between the accounts and the footer", i+5, row)
+		}
+	}
+	if !strings.HasPrefix(rows[11], " a auto   q quit") {
+		t.Errorf("the last row = %q, want the footer", rows[11])
+	}
+	if got := f.Scrolling(doc, now); got != (Scrolling{}) {
+		t.Errorf("Scrolling() = %+v, want none", got)
+	}
+	if _, ok := f.Cards(doc, now).Neighbour("work", 1, 0); ok {
+		t.Error("a card's beside work's, want none: there are no cards to move between")
+	}
+	for _, height := range []int{1, 2} {
+		rows := frameOf(160, height).Draw(doc, now)
+		if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || height == 2 && rows[1] != "" {
+			t.Errorf("at %d rows, drew\n%s\nwant the title row alone", height, strings.Join(rows, "\n"))
+		}
+	}
+	if rows := frameOf(160, 3).Draw(doc, now); rows[1] != want[0] || !strings.HasPrefix(rows[2], " a auto") {
+		t.Errorf("at 3 rows, drew\n%s\nwant the title row, an account's line and the footer", strings.Join(rows, "\n"))
+	}
+}
+
 func TestCardsThatFitDontScroll(t *testing.T) {
 	f := frameOf(160, 40)
 	doc := accountsOf(8, false)
@@ -429,13 +473,13 @@ func TestNeighbourIsTheCardBesideAboveOrBelow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := frameOf(160, 40).Neighbour(doc, now, tt.from, tt.across, tt.down)
+			got, ok := frameOf(160, 40).Cards(doc, now).Neighbour(tt.from, tt.across, tt.down)
 			if got != tt.want || ok != (tt.want != "") {
 				t.Errorf("Neighbour(%s, %d, %d) = %q, %v, want %q", tt.from, tt.across, tt.down, got, ok, tt.want)
 			}
 		})
 	}
-	if _, ok := (Frame{Width: 160, View: Accounts, Policy: claudeLike}).Neighbour(doc, now, "a", 1, 0); ok {
+	if _, ok := (Frame{Width: 160, View: Accounts, Policy: claudeLike}).Cards(doc, now).Neighbour("a", 1, 0); ok {
 		t.Error("a frame printed once has a card beside a's, want none: its cards take no focus")
 	}
 }
@@ -462,7 +506,7 @@ func TestRevealScrollsNoFurtherThanItMustToShowACardWhole(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f.Scroll = tt.scroll
-			if got := f.Reveal(doc, now, tt.id); got != tt.want {
+			if got := f.Cards(doc, now).Reveal(tt.id); got != tt.want {
 				t.Errorf("Reveal(%s) from %d = %d, want %d", tt.id, tt.scroll, got, tt.want)
 			}
 		})
@@ -479,18 +523,18 @@ func TestInViewIsTheFirstCardTheViewShowsWhole(t *testing.T) {
 	}{
 		{name: "the first, unscrolled", height: 28, want: "a"},
 		{name: "the first of the row under one cut short", height: 28, scroll: 1, want: "d"},
-		{name: "where none shows whole, the first shown", height: 14, scroll: 9, want: "d"},
+		{name: "where none shows whole, the first shown", height: 18, scroll: 9, want: "d"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(160, tt.height)
 			f.Scroll = tt.scroll
-			if got := f.InView(doc, now); got != tt.want {
+			if got := f.Cards(doc, now).InView(); got != tt.want {
 				t.Errorf("InView() = %q, want %q", got, tt.want)
 			}
 		})
 	}
-	if got := frameOf(160, 28).InView(status.Document{}, now); got != "" {
+	if got := frameOf(160, 28).Cards(status.Document{}, now).InView(); got != "" {
 		t.Errorf("InView() of no accounts = %q, want none", got)
 	}
 }

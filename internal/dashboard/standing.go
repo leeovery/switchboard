@@ -14,19 +14,21 @@ import (
 // it: where it's heading, where it runs out, and whether it's at its limit or
 // has lapsed.
 type standing struct {
-	window quota.Window
-	// heading is where it's heading, as Project says; and out where it runs
-	// out before it resets, as RunsOut says, runsOut set where it does.
+	// account is the id of the account whose window it is.
+	account string
+	window  quota.Window
+	// heading is where it's heading, as doc's Project says; and out where it
+	// runs out before it resets, as RunsOut says, runsOut set where it does.
 	heading status.Heading
 	out     status.RunOut
 	runsOut bool
 	// held is set while it's at its limit, its account held back, until
 	// back, zero where that's unknown; and since when, where the router told
-	// of its account reaching the limit that holds it, zero otherwise.
+	// of its reaching the limit that holds it, zero otherwise.
 	held        bool
 	back, since time.Time
-	// lapsed is set once it has lapsed: it isn't running, and reads empty,
-	// until a request starts it.
+	// lapsed is set once it has lapsed, while it isn't held: it isn't
+	// running, and reads empty, until a request starts it.
 	lapsed bool
 	// floor is the share of it used where its account runs out: where its
 	// reserve starts, where that holds the account back, else its limit.
@@ -34,32 +36,52 @@ type standing struct {
 }
 
 // standingOf is how doc's account a's window w stands at now, as policy says
-// which windows every model shares.
+// which windows every model shares. Held at its limit, it's held until the
+// hold lifts off it, as Lifts says, and not lapsed, as no request can start
+// it then.
 func standingOf(doc status.Document, a status.Account, w quota.Window, now time.Time, policy score.Policy) standing {
-	s := standing{window: w, heading: a.Project(w, now), lapsed: a.HasLapsed(w), floor: 1}
+	s := standing{account: a.ID, window: w, heading: doc.Project(a, w, now), floor: 1}
 	s.out, s.runsOut = doc.RunsOut(a, w, now)
 	if doc.ReserveHolds(a) {
 		s.floor = 1 - a.Reserve
 	}
 	if held, ok := a.Held(now, policy); ok && held.Holds(w.Key) {
-		s.held, s.back, s.since = true, held.Until, limitedSince(doc, a, now)
-	} else if s.heading.Kind == score.Exhausted {
-		s.held, s.back = true, w.ResetsAt
+		s.held, s.back, s.since = true, held.Lifts(w.Key), limitedSince(doc, a, w, now)
 	}
+	s.lapsed = !s.held && a.HasLapsed(w)
 	return s
 }
 
-// limitedSince is when doc's account a reached the limit the router saw it
-// reach, as limitEvent tells of it: zero where it tells of none.
-func limitedSince(doc status.Document, a status.Account, now time.Time) time.Time {
-	e, _ := limitEvent(doc, a, now)
+// limitedSince is when doc's account a reached the limit in its window w,
+// as reachedIn tells of it: zero where it tells of none.
+func limitedSince(doc status.Document, a status.Account, w quota.Window, now time.Time) time.Time {
+	e, _ := reachedIn(doc, a, w, now)
 	return e.At
+}
+
+// reachedIn is the router's newest event at now of doc's account a reaching
+// its limit in its window w, reporting false where none tells of it: one
+// naming w, or naming no window, as a limit naming none holds every window,
+// that came while w runs as it does now, since it last started, as an older
+// limit's event, or a joined one's, says nothing of when w reached it.
+func reachedIn(doc status.Document, a status.Account, w quota.Window, now time.Time) (status.Event, bool) {
+	start, _, spanned := w.Span()
+	if !spanned {
+		return status.Event{}, false
+	}
+	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
+		named := len(e.Windows) == 0 || slices.Contains(e.Windows, w.Key)
+		return e.Kind == status.EventLimit && e.Account == a.ID && named && !e.At.Before(start) && !e.At.After(now)
+	})
+	if i < 0 {
+		return status.Event{}, false
+	}
+	return doc.Events[i], true
 }
 
 // limitEvent is the router's event of doc's account a reaching the limit the
 // router saw it reach, while that limit holds at now, reporting false where
-// it doesn't, as of a window read spent while probing, which an old limit's
-// event says nothing of, or where no event tells of it.
+// it doesn't, or where no event tells of it.
 func limitEvent(doc status.Document, a status.Account, now time.Time) (status.Event, bool) {
 	if !a.Limit.Holds(now) {
 		return status.Event{}, false

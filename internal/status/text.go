@@ -310,7 +310,7 @@ func (d Document) writeAccount(b *strings.Builder, a Account, width int, now tim
 	}
 	fmt.Fprintf(b, "%s\n", title)
 	for _, w := range a.Windows {
-		notes := a.windowNotes(w, now)
+		notes := d.windowNotes(a, w, now)
 		if a.HasLapsed(w) {
 			notes = []string{d.NotStarted(a.ID, now)}
 		}
@@ -385,8 +385,11 @@ func Dated(now, t time.Time) string {
 	return Clock(now, t)
 }
 
-// Until counts down from now to t, as "in 1h 12m".
+// Until counts down from now to t, as "in 1h 12m": "now" once t has come.
 func Until(now, t time.Time) string {
+	if !t.After(now) {
+		return "now"
+	}
 	return "in " + Countdown(now, t)
 }
 
@@ -480,15 +483,15 @@ func windowLine(w quota.Window, labelWidth int, notes []string) string {
 	return line + "  " + strings.Join(notes, " · ")
 }
 
-// windowNotes say when the account's window w resets and where it's heading at
-// now, as Project says, as far as those are known, and when that's at its
-// rate over the last half hour, that it is.
-func (a Account) windowNotes(w quota.Window, now time.Time) []string {
+// windowNotes say when doc's account a's window w resets and where it's
+// heading at now, as doc's Project says, as far as those are known, and when
+// that's at its rate over the last half hour, that it is.
+func (d Document) windowNotes(a Account, w quota.Window, now time.Time) []string {
 	var notes []string
 	if !w.ResetsAt.IsZero() {
 		notes = append(notes, Resets(now, w.ResetsAt)+" · "+Clock(now, w.ResetsAt))
 	}
-	heading := a.Project(w, now)
+	heading := d.Project(a, w, now)
 	if projection := Projection(now, heading.Projection); projection != "" {
 		if heading.Recent {
 			projection += " at its rate over the " + Over(heading.Since, now)

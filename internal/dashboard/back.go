@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,11 +49,12 @@ func (s Seat) Shown() string {
 }
 
 // Seats are the seats of the sessions listed on the account with the given
-// id, the request stream's moves among them, a row each of its card's back,
-// in the order the router lists them, the session seen last first, and of
-// each session, the model used last first.
-func (f Frame) Seats(id string) []Seat {
-	on := seatedOn(f.listing(), id)
+// id, the request stream's moves among them, active there at now, as
+// activeOn says, a row each of its card's back, in the order the router
+// lists them, the session seen last first, and of each session, the model
+// used last first.
+func (f Frame) Seats(id string, now time.Time) []Seat {
+	on := f.activeOn(id, now)
 	seats := make([]Seat, len(on))
 	for i, s := range on {
 		seats[i] = s.seat()
@@ -77,6 +79,14 @@ func (s seated) plug() Plug {
 	return Plug{Account: s.assignment.Account, Seat: s.seat()}
 }
 
+// activeOn are the seats of the sessions on the account with the given id,
+// of those the router listed, the request stream's moves among them, that
+// count among its sessions at now, as active says, in the order Seats
+// gives.
+func (f Frame) activeOn(id string, now time.Time) []seated {
+	return slices.DeleteFunc(seatedOn(f.listing(), id), func(s seated) bool { return !f.active(s, now) })
+}
+
 // seatedOn are the sessions listed on the account with the given id, a seat
 // each of their models there, in the order Seats gives.
 func seatedOn(sessions []status.Session, id string) []seated {
@@ -94,14 +104,14 @@ func seatedOn(sessions []status.Session, id string) []seated {
 // back draws the back of the card fc, inside its edges, width cells wide and
 // rows tall from x along row y: how many sessions its account has, and how
 // many of them are busy; a blank row, but where its sessions' rows would
-// all fit without it alone; a row for each of its sessions' models, or why
-// it has none; then, where there's room, LATELY, what has befallen it
-// lately; and at its foot, the keys.
+// all fit without it alone; a row for each of its sessions' models active
+// there, or why it has none; then, where there's room, LATELY, what has
+// befallen it lately; and at its foot, the keys.
 func (f Frame) back(c *canvas, doc status.Document, fc face, now time.Time, x, y, width, rows int) {
 	if rows < 1 {
 		return
 	}
-	seats := seatedOn(f.listing(), fc.account.ID)
+	seats := f.activeOn(fc.account.ID, now)
 	c.line(x, y, tally(fc).fit(width))
 	if rows < 2 {
 		return
@@ -115,7 +125,7 @@ func (f Frame) back(c *canvas, doc status.Document, fc face, now time.Time, x, y
 	if drawn := f.backBody(c, doc, fc, seats, now, x, body, width, foot-body); drawn > 0 {
 		under = body + drawn
 	}
-	f.lately(c, doc, fc.account.ID, now, x, under, width, foot)
+	f.lately(c, fc, now, x, under, width, foot)
 }
 
 // tally says how many sessions are on the card fc's account and, where the
@@ -174,7 +184,7 @@ func (f Frame) backBody(c *canvas, doc status.Document, fc face, seats []seated,
 		chosen := picked(s)
 		c.line(x, row, f.seatLine(s, column, chosen, now).fit(width))
 		if chosen {
-			c.surface(x-1, row, width+2, hue{token: theme.BgSelection})
+			c.surface(x-padding, row, width+2*padding, hue{token: theme.BgSelection})
 		}
 		row++
 		if noted {
@@ -291,13 +301,14 @@ func lapsed(since, now time.Time) string {
 }
 
 // note is what's noted under a seat's row on the back of the card of the
-// account with the given id, times in now's time zone. Where its session's
-// own pin names another account: that the pin yielded here at a limit,
-// where it did, as the router's reason for the seat says, else that the
-// session goes there from its next request. Else where its other models go,
-// to other accounts, as in "its opus is on side"; that its own pin keeps it
-// here, and since when, where the pin moved it here; where it moved here
-// from, and when, as the router told of it; else since when it's been here.
+// account with the given id, times in now's time zone, as Dated shows them.
+// Where its session's own pin names another account: that the pin yielded
+// here at a limit, where it did, as the router's reason for the seat says,
+// else that the session goes there from its next request. Else where its
+// other models go, to other accounts, as in "its opus is on side"; that its
+// own pin keeps it here, and since when, where the pin moved it here; where
+// it moved here from, and when, as the router told of it; else since when
+// it's been here.
 func note(doc status.Document, id string, s seated, now time.Time) string {
 	pin := s.session.Pin
 	switch {
@@ -313,13 +324,13 @@ func note(doc status.Document, id string, s seated, now time.Time) string {
 	pinned := s.assignment.Pinned || pin == id
 	switch {
 	case pinned && moved && move.Reason == reasonOwnPin:
-		return "pinned here at " + status.When(now, move.At)
+		return "pinned here at " + status.Dated(now, move.At)
 	case pinned:
 		return "pinned here"
 	case moved:
-		return "moved from " + named(doc, move.From) + " at " + status.When(now, move.At)
+		return "moved from " + named(doc, move.From) + " at " + status.Dated(now, move.At)
 	default:
-		return "here since " + status.When(now, s.assignment.AssignedAt)
+		return "here since " + status.Dated(now, s.assignment.AssignedAt)
 	}
 }
 
@@ -385,31 +396,29 @@ func (f Frame) unseated(c *canvas, doc status.Document, fc face, now time.Time, 
 }
 
 // unseatedBy says why the account with the given id has no sessions, times
-// in now's time zone: probing, why there's no router to list them, as RECENT
-// says; else, of the router's events, the newest that took sessions off it,
-// a limit it reached, as in "3 moved to side at 14:12, when personal reached
-// its limit", or a session moving, as in "d28c moved to side at 14:39 (pin)".
-// It's nothing where none did, or where a session has come to it since.
+// in now's time zone, as Dated shows them: probing, why there's no router to
+// list them, as RECENT says; else, of the router's events, the newest that
+// took sessions off it, a limit it reached, as in "3 moved to side at 14:12,
+// when personal reached its limit", or a session moving, as in "d28c moved
+// to side at 14:39 (pin)". It's nothing where none did, or where a session
+// has come to it since.
 func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk {
 	if doc.Source != status.SourceRouter {
 		return []chunk{{text: f.quiet(doc)}}
 	}
 	for _, e := range doc.Events {
-		at := " at " + status.When(now, e.At)
+		at := " at " + status.Dated(now, e.At)
 		switch {
 		case arrives(e, id):
 			return nil
 		case e.Kind == status.EventLimit && e.Account == id && e.Count > 0:
-			to := "to other accounts"
-			if e.To != "" {
-				to = "to " + named(doc, e.To)
-			}
+			to := cmp.Or(movedTo(doc, e), " to other accounts")
 			return []chunk{
-				{text: line{{strconv.Itoa(e.Count) + " moved " + to + at + ",", mutedInk}}},
+				{text: line{{strconv.Itoa(e.Count) + " moved" + to + at + ",", mutedInk}}},
 				{text: line{{"when " + named(doc, id) + " reached its limit", mutedInk}}},
 			}
 		case e.Kind == status.EventMoved && !counted(e) && e.From == id:
-			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + named(doc, e.To) + at, mutedInk}}, why(e.Reason))}}
+			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + named(doc, e.To) + at, mutedInk}}, why(doc, e.Reason))}}
 		}
 	}
 	return nil

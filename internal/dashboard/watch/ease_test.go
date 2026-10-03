@@ -1,9 +1,11 @@
 package watch
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -76,7 +78,10 @@ func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h.clock.now = start.Add(tt.after)
-			checkScreen(t, h, sessionAndWeek(tt.session, tt.week))
+			checkScreen(t, h, tt.session, tt.week)
+			if view := h.view(); !strings.Contains(view, "5h 50%   week 75%") {
+				t.Errorf("the screen is\n%s\nwant the room left as read, the bars alone easing", view)
+			}
 		})
 	}
 }
@@ -88,15 +93,15 @@ func TestBarsEaseFromWhereTheyStand(t *testing.T) {
 
 	h.clock.now = at(13, 20, 0)
 	h.read(sessionAndWeek(0.75, 0.25))
-	checkScreen(t, h, sessionAndWeek(0.5, 0.25))
+	checkScreen(t, h, 0.5, 0.25)
 	h.clock.now = at(13, 20, 0).Add(300 * time.Millisecond)
-	checkScreen(t, h, sessionAndWeek(0.71875, 0.25))
+	checkScreen(t, h, 0.71875, 0.25)
 
 	// A read arriving mid-way sets off again from the bars as drawn.
 	h.read(sessionAndWeek(0.25, 0.25))
-	checkScreen(t, h, sessionAndWeek(0.71875, 0.25))
+	checkScreen(t, h, 0.71875, 0.25)
 	h.clock.now = h.clock.now.Add(easeFor)
-	checkScreen(t, h, sessionAndWeek(0.25, 0.25))
+	checkScreen(t, h, 0.25, 0.25)
 }
 
 func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
@@ -154,7 +159,7 @@ func TestFramesRunOnWhereTheClockReadsALittleBehindTheirTimers(t *testing.T) {
 	if h.clock.now.Before(start.Add(easeFor)) {
 		t.Errorf("frames stopped at %s, before the bars had eased, at %s", h.clock.now.Format(time.StampMicro), start.Add(easeFor).Format(time.StampMicro))
 	}
-	checkScreen(t, h, sessionAndWeek(0.5, 0.25))
+	checkScreen(t, h, 0.5, 0.25)
 }
 
 func TestEasingLeavesTheDocumentAlone(t *testing.T) {
@@ -176,10 +181,15 @@ func sessionAndWeek(sessionUsed, weekUsed float64) status.Document {
 	return document(account("work", "Work", session(sessionUsed, 3*time.Hour), week(weekUsed)))
 }
 
-// checkScreen checks that the screen draws want.
-func checkScreen(t *testing.T, h *harness, want status.Document) {
+// checkScreen checks that the screen draws the document read, its bars alone
+// eased, filled to session of its session, and week of its week.
+func checkScreen(t *testing.T, h *harness, session, week float64) {
 	t.Helper()
-	if got, frame := h.model.View().Content, h.screenOf(want); got != frame {
+	now := h.model.now()
+	f := h.model.frame(now)
+	f.Keys = h.model.keys()
+	f.Eased = map[dashboard.Ref]float64{{Account: "work", Window: "5h"}: session, {Account: "work", Window: "7d"}: week}
+	if got, frame := h.model.View().Content, strings.Join(f.Draw(h.model.doc, now), "\n"); got != frame {
 		t.Errorf("at %s the screen is\n%s\nwant\n%s", h.clock.now.Format(time.StampMilli), got, frame)
 	}
 }

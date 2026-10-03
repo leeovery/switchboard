@@ -110,7 +110,7 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 	both := pressedAccount("work")
 	both.Windows[1] = weekRunningOut(2*time.Hour, 3*day)
 	everyWindow, reachedEvery := limitedAt("personal", clockAt(12, 50))
-	everyWindow.Limit.Windows = nil
+	everyWindow.Limit.Windows, reachedEvery.Windows = nil, nil
 
 	type moment struct {
 		in   time.Duration

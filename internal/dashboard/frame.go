@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -42,6 +44,10 @@ type Frame struct {
 	Changed map[string]float64
 	// History is how the accounts' windows have been used, for the charts.
 	History History
+	// Eased are how much of each window the bars fill, by its account and
+	// key, while they ease to the document's readings after a read: nil once
+	// they're there. Everything else is drawn from the document's own.
+	Eased map[Ref]float64
 	// Featured is which window every card features, as w sets it in
 	// Accounts, and Chart the style every card draws it in, as g sets it;
 	// and Span how far ahead Runway looks, as w switches it there.
@@ -93,14 +99,29 @@ type Frame struct {
 }
 
 // Draw draws the frame of doc at now: a string for each of its rows, each,
-// where the look paints its canvas, the terminal's whole width. Countdowns
-// run from now, and times show in now's time zone.
+// where the look paints its canvas, the terminal's whole width; on a
+// terminal too short for it, as short says, as a list, as list draws it.
+// Countdowns run from now, and times show in now's time zone.
 func (f Frame) Draw(doc status.Document, now time.Time) []string {
 	c := newCanvas(f.Width, f.Height)
-	if f.printed() {
+	switch {
+	case f.printed():
 		c = growing(f.Width)
+		f.view(c, doc, now, f.above(c, doc, now))
+	case f.short(doc, now):
+		f.list(c, doc, now)
+	default:
+		f.view(c, doc, now, f.above(c, doc, now))
+		f.footer(c, doc, f.Height-1)
 	}
-	top := f.above(c, doc, now)
+	if f.Help != nil {
+		f.help(c)
+	}
+	return c.rows(f.Look)
+}
+
+// view draws the view shown of doc at now from row top.
+func (f Frame) view(c *canvas, doc status.Document, now time.Time, top int) {
 	switch f.View {
 	case Accounts:
 		f.accounts(c, doc, now, top)
@@ -109,14 +130,44 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 	case Runway:
 		f.runway(c, doc, now, top)
 	}
-	if !f.printed() {
-		f.footer(c, doc, f.Height-1)
-	}
-	if f.Help != nil {
-		f.help(c)
-	}
-	return c.rows(f.Look)
 }
+
+// short reports whether the frame of doc at now, full screen, showing the
+// Accounts view, is too short for its title row, its heading, a row of
+// cards at their sparest, and the line over its footer and its footer.
+// Sessions and Runway keep to the rows they have.
+func (f Frame) short(doc status.Document, now time.Time) bool {
+	if f.printed() || f.View != Accounts {
+		return false
+	}
+	top := f.above(newCanvas(f.Width, f.Height), doc, now)
+	g := f.gridOf(len(doc.Accounts), len(shownWindows(doc, now, f.Policy)))
+	return f.Height-2-top < densities[len(densities)-1].rows(g.bars)
+}
+
+// list draws the frame of doc at now as a terminal too short for its cards
+// has it, each on a row of its own: its title row; a line for each account,
+// as many as fit over the footer, its place, its name and its state in
+// words, cut to fit; and its footer. Under listRows rows, it's the title row
+// alone.
+func (f Frame) list(c *canvas, doc status.Document, now time.Time) {
+	title := newCanvas(f.Width, 1)
+	f.title(title, now)
+	c.paste(title, 0, 0, 1)
+	if f.Height < listRows {
+		return
+	}
+	for i, a := range doc.Accounts[:min(len(doc.Accounts), f.Height-2)] {
+		state := face{state: doc.StateOf(a, now, f.Policy)}.stateLine()
+		said := slices.Concat(line{{strconv.Itoa(i+1) + " ", dimInk}, {name(a), titleInk}, spaces(2)}, state)
+		c.line(margin, 1+i, said.fit(f.edge()-margin))
+	}
+	f.footer(c, doc, f.Height-1)
+}
+
+// listRows is the fewest rows a terminal too short for its view shows more
+// than its title row in: the title row, an account's line and the footer.
+const listRows = 3
 
 // above draws what's above the view, the title row and the heading, a blank
 // row after each, and returns the row the view starts at.
