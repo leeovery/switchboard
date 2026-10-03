@@ -164,13 +164,18 @@ type Scrolling struct {
 }
 
 // Scrolling is how far the frame's view of doc scrolls at now: the Accounts
-// view, where not even its sparest cards fit. A frame printed once never
-// scrolls, and nor does a view not built yet.
+// view, where not even its sparest cards fit, and Runway, where its lanes
+// don't. A frame printed once never scrolls, and nor does a view not built
+// yet.
 func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
-	l, ok := f.cardsOf(doc, now)
-	if !ok {
+	if l, ok := f.cardsOf(doc, now); ok {
+		return Scrolling{Most: l.content - l.view, Page: l.view}
+	}
+	if f.View != Runway || f.printed() {
 		return Scrolling{}
 	}
+	top := f.above(newCanvas(f.Width, f.Height), doc, now)
+	l := f.layOutRunway(doc, now, top)
 	return Scrolling{Most: l.content - l.view, Page: l.view}
 }
 

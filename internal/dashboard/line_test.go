@@ -51,6 +51,28 @@ func TestFit(t *testing.T) {
 	}
 }
 
+func TestFitWholeLeavesOffWholeSpans(t *testing.T) {
+	says := line{{"runs out ~16:05", exhaustedInk}, {"  ·  back 17:10", mutedInk}, {", as it resets", mutedInk}}
+	tests := []struct {
+		name  string
+		width int
+		want  line
+	}{
+		{name: "fits", width: 44, want: says},
+		{name: "its last left off", width: 43, want: says[:2]},
+		{name: "all but its first left off", width: 20, want: says[:1]},
+		{name: "its first cut short, where alone it doesn't fit", width: 9, want: line{{"runs out…", exhaustedInk}}},
+		{name: "no room", width: 0, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := says.fitWhole(tt.width); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("fitWhole(%d) = %q, want %q", tt.width, got.plain(), tt.want.plain())
+			}
+		})
+	}
+}
+
 func TestSpread(t *testing.T) {
 	tests := []struct {
 		name        string

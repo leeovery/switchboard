@@ -17,7 +17,8 @@ type Kind int
 const (
 	// Unknown says nothing: the window's reading can't honestly be projected.
 	Unknown Kind = iota
-	// OnPace ends the window below its limit, having used AtReset.
+	// OnPace ends the window having used AtReset: short of its limit, or at
+	// it just as it resets.
 	OnPace
 	// RunsOut reaches the window's limit At a time before it resets.
 	RunsOut
@@ -30,7 +31,7 @@ const (
 type Projection struct {
 	Kind Kind
 	// AtReset is the utilization an OnPace window will have reached when it
-	// resets, below 1.
+	// resets, 1 at the most.
 	AtReset float64
 	// At is when a RunsOut window runs out, or when an Exhausted one is back.
 	At time.Time
@@ -48,10 +49,10 @@ func Elapsed(w quota.Window, now time.Time) (float64, bool) {
 }
 
 // Project says where w is heading at now. A window with no room left is
-// Exhausted. Otherwise its use so far sets the pace: OnPace when that pace
-// ends the window below its limit, RunsOut when it reaches the limit first.
-// It's Unknown when w's length or reset isn't known, when w has reset since it
-// was read, or before 5% of w has passed.
+// Exhausted. Otherwise its use so far sets the pace: RunsOut when that pace
+// reaches its limit before it resets, else OnPace, as heading says. It's
+// Unknown when w's length or reset isn't known, when w has reset since it was
+// read, or before 5% of w has passed.
 func Project(w quota.Window, now time.Time) Projection {
 	if p, ok := settled(w, now); ok {
 		return p
@@ -76,20 +77,30 @@ func ProjectAt(w quota.Window, rate float64, now time.Time) Projection {
 // Reaches returns when w's use, heading as p projects it from now, reaches
 // floor, a share of w at or short of its limit, such as where a reserve
 // starts; at the limit, 1, that's when p has it run out. It reports false
-// where w resets first, as where p keeps its use short of floor or says
-// nothing, and where its use has reached floor already.
+// where that isn't before w resets: where p keeps its use short of floor,
+// brings it there just as w resets, or says nothing; and where its use has
+// reached floor already.
 func Reaches(w quota.Window, p Projection, floor float64, now time.Time) (time.Time, bool) {
 	used := w.Utilization
+	var at time.Time
 	switch {
 	case used >= floor-Tolerance:
 		return time.Time{}, false
 	case p.Kind == RunsOut:
-		return now.Add(scaled(p.At.Sub(now), (floor-used)/(1-used))), true
+		at = now.Add(scaled(p.At.Sub(now), (floor-used)/(1-used)))
 	case p.Kind == OnPace && p.AtReset > floor:
-		return now.Add(scaled(w.ResetsAt.Sub(now), (floor-used)/(p.AtReset-used))), true
+		at = now.Add(scaled(w.ResetsAt.Sub(now), (floor-used)/(p.AtReset-used)))
 	default:
 		return time.Time{}, false
 	}
+	// The reset is checked on the time, not the share: AtReset can land a few
+	// ulps over a floor the window reaches just as it resets, and the time
+	// rounds to the reset itself, as an experiment found of 1% used, resetting
+	// in 22 minutes, at the rate that ends it at 90% then.
+	if !at.Before(w.ResetsAt) {
+		return time.Time{}, false
+	}
+	return at, true
 }
 
 // scaled is d times by.
@@ -143,13 +154,14 @@ func settled(w quota.Window, now time.Time) (Projection, bool) {
 }
 
 // heading is where w is heading at now, used from now on at rate, a share of
-// it an hour: OnPace when that ends it below its limit at its reset, else
-// RunsOut when it reaches the limit.
+// it an hour: RunsOut where that reaches its limit before it resets, as
+// PressureOf judges a window running out; else OnPace, at its limit at the
+// most, as it reaches it no sooner than it resets, or at no rate, never.
 func heading(w quota.Window, rate float64, now time.Time) Projection {
-	if atReset := w.Utilization + rate*w.ResetsAt.Sub(now).Hours(); atReset < 1 {
-		return Projection{Kind: OnPace, AtReset: atReset}
+	if out := now.Add(inHours((1 - w.Utilization) / rate)); rate > 0 && out.Before(w.ResetsAt) {
+		return Projection{Kind: RunsOut, At: out}
 	}
-	return Projection{Kind: RunsOut, At: now.Add(inHours((1 - w.Utilization) / rate))}
+	return Projection{Kind: OnPace, AtReset: min(w.Utilization+rate*w.ResetsAt.Sub(now).Hours(), 1)}
 }
 
 // fraction is how much of length d makes up, from 0 to 1.
