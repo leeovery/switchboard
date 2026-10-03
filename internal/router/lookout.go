@@ -22,9 +22,7 @@ type lookout struct {
 	// warning is the share of a window's limit whose passing is told of, or 0
 	// for none.
 	warning float64
-	// short holds, by id, the accounts whose quota ran out and that haven't
-	// had room since.
-	short map[string]bool
+	short   ranOut
 	// levels holds each window's utilization as last shown.
 	levels map[windowOf]float64
 	// warned holds when the window each warning was last due in resets.
@@ -35,7 +33,7 @@ func newLookout(room bool, warning float64) *lookout {
 	return &lookout{
 		room:    room,
 		warning: warning,
-		short:   make(map[string]bool),
+		short:   make(ranOut),
 		levels:  make(map[windowOf]float64),
 		warned:  make(map[windowOf]time.Time),
 	}
@@ -46,7 +44,7 @@ func newLookout(room bool, warning float64) *lookout {
 func (l *lookout) look(accounts standings) []notify.Notice {
 	var due []notify.Notice
 	for _, s := range accounts {
-		if l.roomAgain(s) {
+		if l.short.roomAgain(s) && l.room {
 			due = append(due, notify.RoomAgain(s.Account))
 		}
 		for _, w := range l.passed(s) {
@@ -56,23 +54,27 @@ func (l *lookout) look(accounts standings) []notify.Notice {
 	return due
 }
 
+// ranOut holds, by id, the accounts whose quota ran out and that haven't had
+// room since.
+type ranOut map[string]bool
+
 // roomAgain reports whether the account's quota ran out since it last had
-// room, and it has room now, when room again is told of: its quota is back,
-// and its token isn't refused. A refusal isn't the quota running out, so one
-// lifting says nothing of its own, which a revoked token would otherwise say
-// each time the router tried it again.
-func (l *lookout) roomAgain(s standing) bool {
+// room, and it has room now: its quota is back, and its token isn't refused.
+// A refusal isn't the quota running out, so one lifting says nothing of its
+// own, which a revoked token would otherwise say each time the router tried
+// it again.
+func (r ranOut) roomAgain(s standing) bool {
 	switch {
 	case !s.known:
 		return false
 	case !s.quota:
-		l.short[s.ID] = true
+		r[s.ID] = true
 		return false
-	case s.refused || !l.short[s.ID]:
+	case s.refused || !r[s.ID]:
 		return false
 	}
-	delete(l.short, s.ID)
-	return l.room
+	delete(r, s.ID)
+	return true
 }
 
 // passed returns the account's windows that have passed the warning since

@@ -44,6 +44,33 @@ func TestLength(t *testing.T) {
 	}
 }
 
+func TestWindowSpan(t *testing.T) {
+	resets := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
+	tests := []struct {
+		name       string
+		w          quota.Window
+		wantStart  time.Time
+		wantLength time.Duration
+		wantOK     bool
+	}{
+		{name: "a whole length before its reset", w: quota.Window{Key: "5h", ResetsAt: resets}, wantStart: resets.Add(-5 * time.Hour), wantLength: 5 * time.Hour, wantOK: true},
+		{name: "a week", w: quota.Window{Key: "7d_oi", ResetsAt: resets}, wantStart: resets.Add(-7 * 24 * time.Hour), wantLength: 7 * 24 * time.Hour, wantOK: true},
+		{name: "from when it started again", w: quota.Window{Key: "5h", ResetsAt: resets, RestartedAt: resets.Add(-2 * time.Hour)}, wantStart: resets.Add(-2 * time.Hour), wantLength: 2 * time.Hour, wantOK: true},
+		{name: "a whole length, started again before it began", w: quota.Window{Key: "5h", ResetsAt: resets, RestartedAt: resets.Add(-6 * time.Hour)}, wantStart: resets.Add(-5 * time.Hour), wantLength: 5 * time.Hour, wantOK: true},
+		{name: "a whole length, started again at its reset", w: quota.Window{Key: "5h", ResetsAt: resets, RestartedAt: resets}, wantStart: resets.Add(-5 * time.Hour), wantLength: 5 * time.Hour, wantOK: true},
+		{name: "none without a reset", w: quota.Window{Key: "5h"}},
+		{name: "none without a length", w: quota.Window{Key: "overage", ResetsAt: resets}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start, length, ok := tt.w.Span()
+			if !start.Equal(tt.wantStart) || length != tt.wantLength || ok != tt.wantOK {
+				t.Errorf("Span() = %v, %v, %v; want %v, %v, %v", start, length, ok, tt.wantStart, tt.wantLength, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestSort(t *testing.T) {
 	windows := windowsWithKeys("zeta", "7d_oi", "7d", "alpha", "1d", "5h", "12h", "7d_opus")
 

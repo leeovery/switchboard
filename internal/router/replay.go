@@ -293,12 +293,12 @@ func (rp *replay) bar(verdict quota.Verdict, status int, reason string) Refused 
 	ex := rp.ex
 	news := Refused{Account: ex.account.ID, Status: status}
 	if verdict == quota.Refused {
-		rp.p.state.refuse(news.Account, status, ex.id)
+		news.Until = rp.p.state.refuse(news.Account, status, ex.id)
 		logger.Warn("upstream refused the account's token", "id", ex.id, "account", news.Account, "status", status, "error", reason)
 		return news
 	}
 	news.Family = rp.p.provider.Family(ex.req.Model)
-	rp.p.state.forbid(news.Account, news.Family, status, ex.id)
+	news.Until = rp.p.state.forbid(news.Account, news.Family, status, ex.id)
 	logger.Warn("upstream refused the request on the account", "id", ex.id, "account", news.Account, "status", status, "family", news.Family, "error", reason)
 	return news
 }

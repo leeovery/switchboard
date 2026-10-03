@@ -27,9 +27,9 @@ const (
 // A restart waits for a moment with no request in flight, and for the config
 // file to make a valid config, which the router started again needs. Only a
 // supervised router, started again whenever it exits, restarts: any other
-// logs, once, that a restart is due. Either reports a restart due, which the
-// status document gives. A supervised router also restarts at once when
-// asked to, as service restart asks.
+// logs, once, that a restart is due. Either tells of a restart as it falls
+// due, and reports one due, which the status document gives. A supervised
+// router also restarts at once when asked to, as service restart asks.
 type restarts struct {
 	config     *configFile
 	binary     *ledFile
@@ -37,6 +37,8 @@ type restarts struct {
 	supervised bool
 	inFlight   *inFlight
 	now        func() time.Time
+	// emit hears of each restart as it falls due.
+	emit func(Event)
 	// told is set once the log has said a restart is due.
 	told bool
 	// restarted closes as the router restarts, reason then saying why.
@@ -50,7 +52,7 @@ type restarts struct {
 	pending status.Restart
 }
 
-func newRestarts(config, binary, zone Watched, supervised bool, inFlight *inFlight, now func() time.Time) *restarts {
+func newRestarts(config, binary, zone Watched, supervised bool, inFlight *inFlight, now func() time.Time, emit func(Event)) *restarts {
 	return &restarts{
 		config:     &configFile{path: config.path, seen: config.found, valid: true},
 		binary:     &ledFile{path: binary.path, running: binary.found, news: "the binary leads to another file, as after an upgrade"},
@@ -58,6 +60,7 @@ func newRestarts(config, binary, zone Watched, supervised bool, inFlight *inFlig
 		supervised: supervised,
 		inFlight:   inFlight,
 		now:        now,
+		emit:       emit,
 		restarted:  make(chan struct{}),
 	}
 }
@@ -79,13 +82,15 @@ func Watch(path string) Watched {
 }
 
 // look looks at the config file, the binary and the time zone's file again,
-// and logs a restart they've made due.
+// tells of a restart they've made due as it falls due, and logs it.
 func (r *restarts) look() {
 	r.config.look()
 	r.binary.look()
 	r.zone.look()
 	why := r.due()
-	r.note(why)
+	if r.note(why) {
+		r.emit(RestartDue{Reason: why})
+	}
 	if why == "" || r.told {
 		return
 	}
@@ -98,8 +103,9 @@ func (r *restarts) look() {
 }
 
 // note notes why a restart is due, "" for none, for report to give: since it
-// was first found due, while it has been due since.
-func (r *restarts) note(why string) {
+// was first found due, while it has been due since. It reports whether the
+// restart has fallen due just now.
+func (r *restarts) note(why string) (fell bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	switch {
@@ -107,9 +113,11 @@ func (r *restarts) note(why string) {
 		r.pending = status.Restart{}
 	case !r.pending.Due():
 		r.pending = status.Restart{Reason: why, Since: r.now().UTC(), ByHand: !r.supervised}
+		return true
 	default:
 		r.pending.Reason = why
 	}
+	return false
 }
 
 // report is the restart due as what the router was started from last looked,

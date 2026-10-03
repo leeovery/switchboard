@@ -39,7 +39,7 @@ type Projection struct {
 // use across the window would have put its utilization, which is what a pace
 // marker shows. It reports false unless w's length and reset are known.
 func Elapsed(w quota.Window, now time.Time) (float64, bool) {
-	start, length, ok := span(w)
+	start, length, ok := w.Span()
 	if !ok {
 		return 0, false
 	}
@@ -125,21 +125,6 @@ func heading(w quota.Window, rate float64, now time.Time) Projection {
 		return Projection{Kind: OnPace, AtReset: atReset}
 	}
 	return Projection{Kind: RunsOut, At: now.Add(inHours((1 - w.Utilization) / rate))}
-}
-
-// span returns when w began and how long it runs until it resets: from a
-// whole length before its reset, or from when it started again, where it did
-// since. It reports false unless both its length and its reset are known.
-func span(w quota.Window) (time.Time, time.Duration, bool) {
-	length, ok := quota.Length(w.Key)
-	if !ok || w.ResetsAt.IsZero() {
-		return time.Time{}, 0, false
-	}
-	start := w.ResetsAt.Add(-length)
-	if w.RestartedAt.After(start) && w.RestartedAt.Before(w.ResetsAt) {
-		start = w.RestartedAt
-	}
-	return start, w.ResetsAt.Sub(start), true
 }
 
 // fraction is how much of length d makes up, from 0 to 1.

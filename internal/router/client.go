@@ -27,6 +27,10 @@ var (
 	// be asked to restart: it doesn't answer, or doesn't know how, as one from
 	// before routers restarted when asked doesn't.
 	ErrNoRestart = errors.New("the router can't be asked to restart")
+	// ErrNoHistory is what History fails with, wrapped, when the router can't
+	// be asked for a window's history: one from before GET /history doesn't
+	// know the path.
+	ErrNoHistory = errors.New("the router can't be asked for a window's history")
 )
 
 const (
@@ -181,6 +185,24 @@ func (c *Client) Restart(ctx context.Context) (Restart, error) {
 		return Restart{}, fmt.Errorf("%w: %w", ErrNoRestart, err)
 	}
 	return restart, nil
+}
+
+// History asks for every account's use of the window with the given key over
+// its current length, a point each step, from the readings history and the
+// readings since. It fails, saying why, when the router refuses what's asked,
+// and with ErrNoHistory when it can't be asked, as a router from before GET
+// /history can't.
+func (c *Client) History(ctx context.Context, window string, step time.Duration) (History, error) {
+	var h History
+	query := url.Values{"window": {window}, "step": {step.String()}}
+	err := c.call(ctx, clientTimeout, http.MethodGet, "/history?"+query.Encode(), nil, &h)
+	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason == "" {
+		return History{}, fmt.Errorf("%w: %w", ErrNoHistory, err)
+	}
+	if err != nil {
+		return History{}, err
+	}
+	return h, nil
 }
 
 // call sends the router a request for path, with body as JSON unless it's

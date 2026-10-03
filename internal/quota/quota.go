@@ -41,6 +41,22 @@ type Window struct {
 	RestartedAt time.Time `json:"restarted_at,omitzero"`
 }
 
+// Span returns when the window began and how long it runs until it resets:
+// from a whole length before its reset, or from when it started again, where
+// it did since. It reports false unless both its length and its reset are
+// known.
+func (w Window) Span() (time.Time, time.Duration, bool) {
+	length, ok := Length(w.Key)
+	if !ok || w.ResetsAt.IsZero() {
+		return time.Time{}, 0, false
+	}
+	start := w.ResetsAt.Add(-length)
+	if w.RestartedAt.After(start) && w.RestartedAt.Before(w.ResetsAt) {
+		start = w.RestartedAt
+	}
+	return start, w.ResetsAt.Sub(start), true
+}
+
 // Failure is a window the provider expected to read but couldn't. Reporting it
 // keeps a broken read distinct from an account that has no such window.
 type Failure struct {

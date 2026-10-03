@@ -121,7 +121,7 @@ func (u *usage) pressure(a account, policy score.Policy, spent bool, now time.Ti
 	p := policy.PressureOf(c, now)
 	return status.Pressure{
 		Window: policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, Since: pace.Since.UTC(),
-		RunsOut: p.RunsOut, Under: p.Under && u.takesAny(policy, c.Reserve, now),
+		RunsOut: p.RunsOut.UTC(), Under: p.Under && u.takesAny(policy, c.Reserve, now),
 	}
 }
 

@@ -120,7 +120,7 @@ func earlier(a, b time.Time) time.Time {
 // so far sets. It reports false when w's length or reset isn't known, or
 // before 5% of it has passed, when a little use extrapolates wildly.
 func averageRate(w quota.Window, now time.Time) (float64, bool) {
-	start, length, ok := span(w)
+	start, length, ok := w.Span()
 	if !ok {
 		return 0, false
 	}

@@ -83,7 +83,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - **Limits and replay.** A 429 that says a limit is reached is replayed on the next candidate before any of the answer reaches Claude Code, and the session moves there and stays; the account sits out of the requests the limit counts, so a limit on Fable's own week leaves its other models' sessions where they are, until the reset the 429 gives, or for five minutes when it gives none, or sooner when a request sent since shows it lifted, as after you reset a limit by hand. A 429 that's only throttling waits and retries on the same account, twice at most, as moving would throw the cache away for nothing. A 429 without usage headers says nothing of the account, but refuses the request itself, so it reaches Claude Code at once, as it came. A request the API refuses is replayed elsewhere too, and the refusal never relayed, as Claude Code drops its login on a 403. An account whose token the API refuses sits out every request for ten minutes, and one that refuses the request itself sits out that model's requests as long, unless every account the request went out on refused it, which says more of the request than of the accounts, so none sits out for it, and its session stays where it was. When no account has room, Claude Code gets a 429, as it would from one account at its limit; when every account has refused the request, a 502 that gives the API's reason and tells it not to retry.
 - **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. Every pin yields at a limit rather than failing. See [`pin`](#pin).
 - **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
-- **A readings history.** The router appends each reading that changes how a window of an account reads, and nothing when nothing moved, to a file a day in the state directory's `history/`, kept for 14 days: a JSON line each, `{"at", "account", "window", "utilization", "resets_at", "status", "source"}`, `source` saying whether it came off an answer, a probe or a prime, and the account by its id alone. It's there for you to look back at how the accounts were used; fields may be added to a line, never renamed. As it starts, the router takes up the readings its two newest files hold, so the recent rates outlast a restart. It never stands in routing's way: a line it can't write goes unwritten, logged once.
+- **A readings history.** The router appends each reading that changes how a window of an account reads, and nothing when nothing moved, to a file a day in the state directory's `history/`, kept for 14 days, or as long as [`[history]`](#history-keys) says: a JSON line each, `{"at", "account", "window", "utilization", "resets_at", "status", "source"}`, `source` saying whether it came off an answer, a probe or a prime, and the account by its id alone. It's there for you to look back at how the accounts were used; fields may be added to a line, never renamed. A day's file, `readings-<date>.jsonl`, is compressed to `readings-<date>.jsonl.gz`, which `gzip -dc` reads, once its day ended two days ago. As it starts, the router takes up the readings of its two newest days, so the recent rates outlast a restart. It never stands in routing's way: a line it can't write goes unwritten, logged once.
 - **Looking after itself.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token. Once your Mac wakes, it sends the requests it routes upstream on fresh connections, as a sleep can leave those it kept dead; probes go out on connections of their own, each given 5 seconds. The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead. It restarts in place, running its new binary in the same process and handing it the sockets it listens on, so a request made meanwhile waits a moment rather than being refused, and launchd isn't asked to start an upgraded binary afresh, which macOS has been seen to refuse, where it lets the router run it in place, as the first such upgrade showed. With many long sessions, a moment with no request in flight can be hours coming: `switchboard status` and the dashboard say while a restart is due, and `switchboard service restart` has it now. See [`serve`](#serve).
 
 ### The primary and its reserve
@@ -439,6 +439,9 @@ limits  = true
 room    = true
 warning = 0.9
 moves   = false
+
+[history]               # optional: this is the default
+keep = "14d"
 ```
 
 The accounts keep their file order, which is their order everywhere they're shown, and the order priming gives them their slots in. Unknown keys are errors, and a file that parses has every problem reported at once. No error quotes a token pasted into the config, not even where a file that doesn't parse fails: it shows as `[redacted]`, or not at all.
@@ -477,6 +480,14 @@ Which desktop notifications the router posts: see [Notifications](#notifications
 | `room` | `true` | an account has room again |
 | `warning` | `0.9` | a window passing this share of its limit; `0` turns it off |
 | `moves` | `false` | every other session move, such as after an idle hour or by pin |
+
+### `[history]` keys
+
+How long the router keeps the readings history: see [How It Works](#how-it-works).
+
+| Key | Default | Description |
+|---|---|---|
+| `keep` | `14d` | how long a day's file is kept once its day has ended: a whole number of days, `<n>d`, from `8d`, a week and a day, to `400d`, a year with room to spare |
 
 ### Tokens
 

@@ -27,6 +27,8 @@ type probes struct {
 	prober Prober
 	state  *state
 	now    func() time.Time
+	// emit hears of each prime that starts its window.
+	emit func(Event)
 	// ctx ends when the router stops, cutting short the probes under way.
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -38,9 +40,9 @@ type probes struct {
 	stopped bool
 }
 
-func newProbes(prober Prober, state *state, now func() time.Time) *probes {
+func newProbes(prober Prober, state *state, now func() time.Time, emit func(Event)) *probes {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &probes{prober: prober, state: state, now: now, ctx: ctx, cancel: cancel, running: make(map[string]*run)}
+	return &probes{prober: prober, state: state, now: now, emit: emit, ctx: ctx, cancel: cancel, running: make(map[string]*run)}
 }
 
 // run is a probe of an account under way, as probes keeps it.
@@ -234,21 +236,23 @@ func logProbe(a account, probed quota.Probe, err error, took time.Duration) {
 
 // logPrime logs how a prime of an account went: at info, with the reset it
 // read of the window it primed, or at warn when it failed, or didn't start
-// that window.
+// that window. A prime that started it is told of too.
 func (p *probes) logPrime(a account, probed quota.Probe, err error, took time.Duration) {
 	if err != nil {
 		logger.Warn("prime failed", "account", a.ID, "duration", took, "error", err)
 		return
 	}
 	attrs := []any{"account", a.ID, "duration", took}
-	key := p.state.policy.Started
-	if i := slices.IndexFunc(probed.Windows, func(w quota.Window) bool { return w.Key == key }); i >= 0 {
-		attrs = append(attrs, "resets", probed.Windows[i].ResetsAt)
+	primed := Primed{Account: a.ID, Window: p.state.policy.Started}
+	if i := slices.IndexFunc(probed.Windows, func(w quota.Window) bool { return w.Key == primed.Window }); i >= 0 {
+		primed.ResetsAt = probed.Windows[i].ResetsAt
+		attrs = append(attrs, "resets", primed.ResetsAt)
 	}
 	if p.state.primeFailed(a.ID) {
-		logger.Warn("prime didn't start the window", append(attrs, "window", key)...)
+		logger.Warn("prime didn't start the window", append(attrs, "window", primed.Window)...)
 	} else {
 		logger.Info("primed", attrs...)
+		p.emit(primed)
 	}
 	logUnread(a, probed)
 }

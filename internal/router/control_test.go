@@ -50,6 +50,7 @@ func TestClientStatus(t *testing.T) {
 		Best:        "work",
 		Router:      status.Health{Healthy: true, Requests: 1},
 		Sessions:    1,
+		Events:      []status.Event{{ID: 1, At: now, Kind: status.EventStarted, Account: "work", Session: sessionID, Model: opus, Reason: "no account has room"}},
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 			{ID: "personal", Label: "Personal", Error: personalMissing},
@@ -528,6 +529,49 @@ func TestClientPinSessionRefuses(t *testing.T) {
 	}
 }
 
+func TestClientHistory(t *testing.T) {
+	up := newUpstream(t, answerWith(http.StatusOK, session, week))
+	rt := newRouter(t, up.URL)
+	client := router.NewClient(serveControl(t, rt))
+	readAll(t, send(t, http.MethodPost, serveProxy(t, rt)+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)))
+	waitUntil(t, "the request is done", func() bool { return rt.Status().Router.Requests == 1 })
+
+	got, err := client.History(t.Context(), "5h", time.Minute)
+	if err != nil {
+		t.Fatalf("History() error = %v", err)
+	}
+	// Built without Run, the router keeps no history's files, and gives work's
+	// session as it read it now, two minutes into its window.
+	want := router.History{Window: "5h", Step: "1m0s", Accounts: []router.AccountHistory{
+		{ID: "work", Start: session.ResetsAt.Add(-5 * time.Hour), Points: []router.HistoryPoint{{At: now, Utilization: session.Utilization}}},
+		{ID: "personal"},
+		{ID: "side"},
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("History() =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+func TestClientHistoryRefused(t *testing.T) {
+	client := router.NewClient(serveControl(t, newRouter(t, "http://127.0.0.1:1")))
+
+	_, err := client.History(t.Context(), "week", 5*time.Minute)
+	if want := `window "week" has no length to read: give one such as 5h or 7d`; err == nil || err.Error() != want || errors.Is(err, router.ErrNoHistory) {
+		t.Errorf("History() error = %v, want the router's reason, %q", err, want)
+	}
+}
+
+func TestClientHistoryOfARouterFromBeforeItGaveOne(t *testing.T) {
+	path := filepath.Join(shortTempDir(t), "control.sock")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, `{"ok": true}`) })
+	serveOn(t, path, mux)
+
+	if _, err := router.NewClient(path).History(t.Context(), "5h", 5*time.Minute); !errors.Is(err, router.ErrNoHistory) {
+		t.Errorf("History() error = %v, want ErrNoHistory", err)
+	}
+}
+
 func TestClientWithoutARouter(t *testing.T) {
 	dir := shortTempDir(t)
 	stale := filepath.Join(dir, "stale.sock")
@@ -573,6 +617,9 @@ func TestClientWithoutARouter(t *testing.T) {
 			}
 			if _, err := client.Refresh(t.Context(), time.Minute); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Refresh() error = %v, want ErrNotRunning", err)
+			}
+			if _, err := client.History(t.Context(), "5h", 5*time.Minute); !errors.Is(err, router.ErrNotRunning) || errors.Is(err, router.ErrNoHistory) {
+				t.Errorf("History() error = %v, want ErrNotRunning, and not ErrNoHistory", err)
 			}
 		})
 	}

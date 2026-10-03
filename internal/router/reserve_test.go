@@ -51,7 +51,7 @@ func TestASessionMovesOffAnAccountAtItsReserve(t *testing.T) {
 	waitForLine(t, log, "level=INFO", "msg=moved", "session=one", "from=work", "to=side", `reason="moved: work is at its reserve"`)
 	waitForLine(t, log, "msg=routed", "session=one", "account=side", `reason="moved: work is at its reserve"`)
 	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work is at its reserve", Forced: true}}
-	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v", got, want)
 	}
 	doc := r.rt.Status()

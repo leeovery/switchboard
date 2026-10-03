@@ -3,6 +3,7 @@ package router_test
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -84,7 +85,7 @@ func TestASessionIdlePastTheHourIsRescored(t *testing.T) {
 	waitForLine(t, log, "level=INFO", "msg=moved", "session=one", "from=work", "to=side", `reason="rescored after 1h 1m idle"`)
 	waitForLine(t, log, "msg=routed", "session=one", "account=side", `reason="rescored after 1h 1m idle"`)
 	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "rescored after 1h 1m idle"}}
-	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v: work could still take the request", got, want)
 	}
 }
@@ -124,7 +125,7 @@ func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing
 		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt},
 		router.Moved{Session: "one", Model: sonnet, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true},
 	}
-	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v", got, want)
 	}
 }
@@ -149,7 +150,7 @@ func TestTheSessionPinHeader(t *testing.T) {
 	}
 	waitForLine(t, log, "msg=routed", "session=one", "account=work", `reason="pin yields: side has no room"`)
 	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "pin yields: side has no room", Forced: true}}
-	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v", got, want)
 	}
 }
@@ -186,7 +187,7 @@ func TestTheGlobalPin(t *testing.T) {
 	}
 	waitForLine(t, log, "level=INFO", "msg=moved", "session=running", "from=work", "to=side", `reason="moved by pin"`)
 	want := []router.Event{router.Moved{Session: "running", Model: opus, From: "work", To: "side", Reason: "moved by pin"}}
-	if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v: work could still take the request", got, want)
 	}
 	if got := r.ask(t, "running", opus, ""); got != "side" {
@@ -290,7 +291,7 @@ func TestAPinGivenWhileASessionRunsMovesItOnItsNextRequest(t *testing.T) {
 			waitForLine(t, log, "level=INFO", `msg="pinned session"`, "session=one", "account=side")
 			waitForLine(t, log, "msg=routed", "session=one", "account=side", "reason=pinned")
 			want := []router.Event{router.Moved{Session: "one", Model: tt.model, From: "work", To: "side", Reason: "pinned"}}
-			if got := r.events.heard(); !reflect.DeepEqual(got, want) {
+			if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 				t.Errorf("events = %+v, want %+v", got, want)
 			}
 		})

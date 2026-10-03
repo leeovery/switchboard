@@ -154,7 +154,7 @@ func (d Document) Pressed(a Account, now time.Time) string {
 // reset at 20:10". It's "" while it isn't under pressure.
 func (d Document) pressureNote(a Account, now time.Time) string {
 	pressed := d.Pressed(a, now)
-	w, ok := a.window(a.Pressure.Window)
+	w, ok := a.Window(a.Pressure.Window)
 	if pressed == "" || !ok {
 		return pressed
 	}
@@ -165,8 +165,9 @@ func (d Document) pressureNote(a Account, now time.Time) string {
 	return pressed + " at " + Clean(w.Label) + "'s rate " + over + ", before its reset at " + TimeOfDay(now, w.ResetsAt)
 }
 
-// window returns the account's window with the given key.
-func (a Account) window(key string) (quota.Window, bool) {
+// Window returns the account's window with the given key, reporting false
+// when it has none.
+func (a Account) Window(key string) (quota.Window, bool) {
 	i := slices.IndexFunc(a.Windows, func(w quota.Window) bool { return w.Key == key })
 	if i < 0 {
 		return quota.Window{}, false

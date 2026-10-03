@@ -264,6 +264,40 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	}
 }
 
+func TestServeKeepsTheHistoryAsLongAsTheConfigSays(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.extra = "\n[history]\nkeep = \"8d\"\n"
+	srv.writeConfig(t)
+	dir := filepath.Join(srv.state, "history")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// plainFile is the plain file of the day back days before today's, which
+	// the router compresses, adding .gz to its name, two days after it ends.
+	plainFile := func(back int) string {
+		return filepath.Join(dir, "readings-"+testNow.Local().AddDate(0, 0, -back).Format(time.DateOnly)+".jsonl")
+	}
+	kept := map[int]bool{8: true, 9: false}
+	for back := range kept {
+		read := testNow.AddDate(0, 0, -back).Format(time.RFC3339)
+		line := `{"at":"` + read + `","account":"work","window":"5h","utilization":0.2,"source":"answer"}` + "\n"
+		if err := os.WriteFile(plainFile(back), []byte(line), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if got := srv.start(t)(); got.code != 0 {
+		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
+	}
+	for back, keep := range kept {
+		_, plain := os.Stat(plainFile(back))
+		_, compressed := os.Stat(plainFile(back) + ".gz")
+		if held := plain == nil || compressed == nil; held != keep {
+			t.Errorf("the day %d days back is kept = %v, want %v: a day's files go 8 days after it ends", back, held, keep)
+		}
+	}
+}
+
 func TestServeRestartsItselfWhenTheServiceRunsIt(t *testing.T) {
 	tests := []struct {
 		name string

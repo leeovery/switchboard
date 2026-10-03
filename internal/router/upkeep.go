@@ -29,9 +29,9 @@ type upkeep struct {
 // given, whose refusals state lifts once they go out on another token, noting
 // each change to their tokens for the state file to keep with changes,
 // working out the schedule of primer, if it primes, again whenever the
-// accounts with tokens change, restarting once inFlight counts no request in
-// flight, and noticing wakes.
-func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes) *upkeep {
+// accounts with tokens change, telling emit of a restart as it falls due,
+// restarting once inFlight counts no request in flight, and noticing wakes.
+func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
 		replan = primer.replan
@@ -46,7 +46,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			sendable: replan,
 			replaced: state.tokenReplaced,
 		},
-		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now),
+		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit),
 		wakes:    wakes,
 	}
 }

@@ -82,6 +82,9 @@ func newTestFile(now func() time.Time, as accounts) *stateFile {
 // unkept hears of a change for the state file, and keeps nothing of it.
 func unkept() {}
 
+// unheeded hears an event of the router's, and does nothing with it.
+func unheeded(Event) {}
+
 // changeCount counts the changes it hears of, for the state file to keep.
 type changeCount int
 

@@ -525,6 +525,14 @@ func (l *eventLog) heard() []router.Event {
 	return slices.Clone(l.events)
 }
 
+// isStart reports whether an event is a session started, which every new
+// session's first answer brings as its request ends, after the client has
+// it: so a test of the router's other events looks past them.
+func isStart(e router.Event) bool {
+	_, started := e.(router.SessionStarted)
+	return started
+}
+
 // shortTempDir returns a directory of the test's own with a path short enough
 // to hold a unix socket: t.TempDir's can be too long on macOS.
 func shortTempDir(t *testing.T) string {

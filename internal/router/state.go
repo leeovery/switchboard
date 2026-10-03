@@ -81,10 +81,15 @@ func (r refusal) inForce(now time.Time) bool {
 	return !r.at.IsZero() && now.Sub(r.at) < refusedFor
 }
 
+// until is when the refusal ends.
+func (r refusal) until() time.Time {
+	return r.at.Add(refusedFor)
+}
+
 // report is the refusal as the status document gives it, holding back the
 // requests of family, or every request when that's "".
 func (r refusal) report(family string) status.Refusal {
-	return status.Refusal{Until: r.at.Add(refusedFor), Status: r.status, Family: family}
+	return status.Refusal{Until: r.until(), Status: r.status, Family: family}
 }
 
 // refusals are the upstream's refusals that hold back the same requests on an
@@ -318,13 +323,14 @@ func (s *state) seeFamily(key, family string) bool {
 
 // refuse notes that the upstream refused the account's token, answering the
 // request with the id by with status: the account has no room for
-// refusedFor.
-func (s *state) refuse(id string, status int, by string) {
+// refusedFor, until the time it returns.
+func (s *state) refuse(id string, status int, by string) time.Time {
 	r := refusal{at: s.now().UTC(), status: status, by: by}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
 	u.refused = u.refused.with(r)
+	return r.until()
 }
 
 // tokenReplaced notes that the account with the given id goes out on another
@@ -338,13 +344,15 @@ func (s *state) tokenReplaced(id string) {
 
 // forbid notes that the upstream refused the account the request with the id
 // by, of a model of family, answering with status, though not its token: the
-// account has no room for the family's requests for refusedFor.
-func (s *state) forbid(id, family string, status int, by string) {
+// account has no room for the family's requests for refusedFor, until the
+// time it returns.
+func (s *state) forbid(id, family string, status int, by string) time.Time {
 	r := refusal{at: s.now().UTC(), status: status, by: by}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
 	u.forbidden[family] = u.forbidden[family].with(r)
+	return r.until()
 }
 
 // takeBack takes back, on every account, the refusals of the request with
@@ -515,7 +523,7 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 	at := now
 	if u.refused.inForce(now) {
-		at = later(at, u.refused.latest().at.Add(refusedFor))
+		at = later(at, u.refused.latest().until())
 	}
 	if u.limited.holds(now, policy.IsShared) {
 		at = later(at, u.limited.until)
@@ -536,6 +544,14 @@ func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 // later returns the later of two times.
 func later(a, b time.Time) time.Time {
 	if b.After(a) {
+		return b
+	}
+	return a
+}
+
+// earlier returns the earlier of two times.
+func earlier(a, b time.Time) time.Time {
+	if b.Before(a) {
 		return b
 	}
 	return a
@@ -910,7 +926,7 @@ func (u *usage) refusedStatus(now time.Time) status.Refusal {
 	}
 	var latest status.Refusal
 	for _, family := range slices.Sorted(maps.Keys(u.forbidden)) {
-		if r := u.forbidden[family].latest(); r.inForce(now) && r.at.Add(refusedFor).After(latest.Until) {
+		if r := u.forbidden[family].latest(); r.inForce(now) && r.until().After(latest.Until) {
 			latest = r.report(family)
 		}
 	}

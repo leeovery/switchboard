@@ -141,9 +141,9 @@ func listen(addr string) (net.Listener, error) {
 // serve serves the proxy and the control API until ctx ends, either fails,
 // or the router restarts itself, probing each account nothing has been read
 // of in the meantime, priming the accounts on the schedule, looking after
-// itself, keeping the state file and the readings history, and posting
-// notifications, then shuts both down, and restarting, replaces itself,
-// handing their listeners over.
+// itself, keeping the state file, the readings history and what has happened
+// lately, and posting notifications, then shuts both down, and restarting,
+// replaces itself, handing their listeners over.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -164,6 +164,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	var running sync.WaitGroup
 	running.Go(func() { r.file.keep(background) })
 	running.Go(func() { r.history.run(background) })
+	running.Go(func() { r.recent.run(background) })
 	if r.notifications != nil {
 		running.Go(func() { r.notifications.run(background) })
 	}

@@ -89,12 +89,9 @@ func newLimitNotices() *limitNotices {
 // gathering is a limit an account reached, and the sessions it has moved so
 // far.
 type gathering struct {
-	LimitReached
+	*limitMoves
 	// due is when its notification goes out.
 	due time.Time
-	// sessions are those the limit moved, and to the accounts they went to,
-	// each once, in the order they came.
-	sessions, to []string
 }
 
 // reached takes in a limit an account reached at now: one reached while the
@@ -109,9 +106,7 @@ func (l *limitNotices) reached(e LimitReached, now time.Time) {
 	if e.Again {
 		return
 	}
-	g := &gathering{LimitReached: e, due: now.Add(gatherFor)}
-	g.Windows = slices.Clone(e.Windows)
-	l.gathering[e.Account] = g
+	l.gathering[e.Account] = &gathering{limitMoves: newLimitMoves(e), due: now.Add(gatherFor)}
 }
 
 // moved takes in a move, and reports whether it's news of a limit gathering:
@@ -162,27 +157,6 @@ func (l *limitNotices) remove(which func(g *gathering) bool) []*gathering {
 		return cmp.Or(a.due.Compare(b.due), cmp.Compare(a.Account, b.Account))
 	})
 	return removed
-}
-
-// join takes in the account reaching its limit again while this gathers: in
-// other windows, perhaps, and until later.
-func (g *gathering) join(e LimitReached) {
-	for _, key := range e.Windows {
-		if !slices.Contains(g.Windows, key) {
-			g.Windows = append(g.Windows, key)
-		}
-	}
-	g.Until = e.Until
-}
-
-// add takes in a session the limit moved.
-func (g *gathering) add(e Moved) {
-	if !slices.Contains(g.sessions, e.Session) {
-		g.sessions = append(g.sessions, e.Session)
-	}
-	if !slices.Contains(g.to, e.To) {
-		g.to = append(g.to, e.To)
-	}
 }
 
 // notice is the limit's notification, as the accounts stand at now: the
