@@ -2,10 +2,10 @@
 
 # 🎛️ Switchboard
 
-**Your Claude usage, tracked, and routed across your subscriptions**
+**Watch your Claude usage. Spread it across your subscriptions.**
 
-A local router for Claude Code that tracks and analyses your Claude usage and history,
-<br>and with several subscriptions spreads your sessions across them, moving one the moment an account runs out.
+See where each of your Claude limits stands and where it's heading, let Claude see it too,
+<br>and with several subscriptions, keep working when one runs out.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8.svg)](https://go.dev)
@@ -21,38 +21,22 @@ A local router for Claude Code that tracks and analyses your Claude usage and hi
 
 ---
 
-Switchboard sits between Claude Code and the Claude API. Every `claude` you start goes through it, and every answer tells it how much of each of its account's windows is used. `switchboard usage -w` keeps that on screen: how much of each window is left, where it's heading at its pace, when it runs out, when it resets, and when you'll have room again, charted from the history switchboard keeps. With one subscription, that's most of what it does.
+Every Claude subscription has usage limits, per 5 hours and per week. Hit one mid-task and Claude Code stops until it resets. `/usage` says where you stand when you think to ask, but not where you're heading, when you'll run out, or when you'll have room again, and Claude can't see any of it.
 
-With several, switchboard also decides which subscription each request goes out on, swaps in that account's token, and forwards the request otherwise untouched. When an account hits its 5-hour or weekly limit mid-session, the request is replayed on another account and the session carries on: no exiting, no resuming.
-
-One account is the primary, the one your browser and the Claude apps are signed into. Claude Code's own token is the primary's, so artifacts and uploads land there whichever account a conversation is on. With a day set, switchboard starts each account's first 5-hour window before your day begins, and each next as the last resets, so its windows run back to back through the day, and several accounts' resets come one at a time rather than together.
-
-Switchboard is built for its author's setup: macOS, Claude Code, and a Claude subscription or several. It's public because it can be, and general only where that costs nothing.
+Run several subscriptions and there's a routine on top: watch the limits, notice one has run out, exit Claude Code, switch accounts, resume, and rebuild the prompt cache from cold. Meanwhile the weekly quota you didn't get round to before its reset is lost.
 
 ## Why Switchboard?
 
-Claude's limits are windows on clocks of their own: a 5-hour window and a week. Claude Code's `/usage` says where they stand when you ask. Switchboard keeps them on screen, and looks ahead.
-
-With one subscription, that means:
-
-- **Usage for free.** Every API response carries its account's usage headers, so switchboard reads usage off real traffic, and probes only an account it hasn't heard from lately.
-- **Where it's heading.** The dashboard shows how much of each window is left, where it's heading at its pace, when it runs out and when it resets, and, over the day or the week, when you'll have room.
-- **A history to look back on.** The router keeps each reading that changes, for 14 days or as long as you say, for the dashboard's charts and for you.
+- **Your usage, always in view.** `switchboard usage -w` keeps every window on screen: how much is left, when it runs out at your pace, when it resets, and when you'll have room again, over the day or the week, charted from a history it keeps. It reads usage off the answers your sessions already get, so watching costs next to nothing.
 - **Told in time.** Desktop notifications when a window passes a share you choose, when an account hits a limit, and when it has room again.
-
-Run more than one and you know the routine: watch the limits, notice one has run out, exit Claude Code, switch accounts, resume. Meanwhile the weekly quota you didn't get round to before its reset is lost.
-
-Switchboard automates the routine without paying for it in prompt cache:
-
-- **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees any of the answer. You get one slower turn while the cache rebuilds there, then the session carries on.
+- **Claude knows too.** A skill tells Claude Code about switchboard, so Claude reads every account's usage itself (`switchboard status --json`), and can plan around a limit, or pin and move sessions when you ask.
+- **Limits stop interrupting you.** With several subscriptions, a request that hits a limit is replayed on another account before Claude Code sees any of the answer. You get one slower turn while the cache rebuilds there, then the session carries on: no exiting, no resuming.
 - **Sessions stay put.** Prompt caches are per account, and the first turn after a move costs around 40× a warm one. A session stays on its account while its cache is warm, and moves only when it must, or once it has idled long enough that its cache is cold anyway.
 - **No quota goes to waste.** New sessions go to the account whose weekly quota would be lost soonest unused: the share left, divided by the time until it resets. Between near equals, the one whose 5-hour window resets soonest goes first, as what's left in a window at its reset is lost too.
 - **Resets come one at a time.** Priming starts the accounts' 5-hour windows at staggered times, so once all are spent, the next is back within 5 hours ÷ the number of accounts, rather than at the one reset they'd share.
-
-Either way:
-
-- **A share kept back, if you want one.** Set a reserve on an account, such as the primary, to keep some of it for the Claude apps: the router leaves that share of every window unused, and never spends it itself, so with one subscription, or once the others are spent, Claude Code stops there. None is kept unless you set one. See [Reserves](#reserves).
 - **Never in the way.** When the router isn't running, `claude` connects directly; when switchboard can't take part at all, `claude` starts as it would without it.
+
+Switchboard is built for its author's setup: macOS, Claude Code, and a Claude subscription or several. It's public because it can be, and general only where that costs nothing.
 
 ## Install
 
