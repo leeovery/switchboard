@@ -4,13 +4,15 @@
 
 # Tracked churn that isn't user-facing release content, kept out of the AI
 # release-notes and commit diffs so they describe the CLI: agent config and
-# contributor rules, the design doc, the test-isolation tooling, CI plumbing,
-# lockfile noise, and test scaffolding. Tests and their golden fixtures are the
-# bulk of any change's diff, enough to crowd the behaviour out of the notes.
+# contributor rules, the design doc and its ideas, the test-isolation tooling,
+# CI plumbing, lockfile noise, and test scaffolding. Tests and their golden
+# fixtures are the bulk of any change's diff, enough to crowd the behaviour out
+# of the notes.
 diff_exclude = [
     '.claude/**',
     'CLAUDE.md',
     'docs/**',
+    'ideas/**',
     'scripts/**',
     '.github/**',
     'go.sum',
