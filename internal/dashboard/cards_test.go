@@ -35,7 +35,7 @@ func cardOf(t *testing.T, f Frame, doc status.Document, id string, width int, d 
 	}
 	bars := barRowsFor(len(shown), width-2*(padding+1))
 	c := newCanvas(width, d.rows(bars))
-	f.card(c, faces[i], now, 0, 0, width, d, bars, labelWidth(doc, shown))
+	f.card(c, doc, faces[i], now, 0, 0, width, d, bars, labelWidth(doc, shown))
 	return c.rows(Look{})
 }
 
@@ -173,16 +173,45 @@ func TestACardsTopEdge(t *testing.T) {
 			want: "╭─ 2 personal-… ─────────────────────────────────╮",
 		},
 		{name: "on a narrow card, the name given the room the badges shown leave", fc: face{account: a, place: 2}, width: 30, want: "╭─ 2 personal ───────────────╮"},
+		{name: "flipped, its sessions' badge first", fc: face{account: primary, place: 2, flipped: true}, width: 50, want: "╭─ 2 personal ──────────── sessions · ◆ primary ─╮"},
+		{
+			name: "flipped, with every badge, those that don't fit left off, the last first", fc: face{account: primary, place: 2, pinned: true, next: true, flipped: true}, width: 50,
+			want: "╭─ 2 personal ─ sessions · ◆ primary · ● pinned ─╮",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(tt.width, 1)
-			topEdge(c, tt.fc, 0, 0, tt.width, borderInk)
+			topEdge(c, tt.fc, 0, 0, tt.width, lightEdges.in(borderInk))
 			if got := c.rows(Look{})[0]; got != tt.want {
 				t.Errorf("drew\n%q\nwant\n%q", got, tt.want)
 			}
 		})
 	}
+}
+
+func TestTheCardWithTheFocusIsEdgedHeavyInAccentKey(t *testing.T) {
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Focus: "side"}
+	doc := pressedWork()
+	faces, shown := f.faces(doc, now)
+	c := drawnCard(t, f, doc, faces[1], len(shown))
+	for _, at := range []struct {
+		x, y  int
+		glyph string
+	}{{0, 0, "┏"}, {49, 0, "┓"}, {10, 0, "━"}, {0, 5, "┃"}, {49, 5, "┃"}, {0, 17, "┗"}, {49, 17, "┛"}} {
+		if got := c.at(at.x, at.y); got.glyph != at.glyph || got.ink != focusInk {
+			t.Errorf("cell %d of row %d is %q in %+v, want %q in accent.key: the focus over the next account's accent.mode", at.x, at.y, got.glyph, got.ink, at.glyph)
+		}
+	}
+}
+
+// drawnCard draws the card fc of doc on a canvas of its own, at its fullest,
+// shown windows of it showing.
+func drawnCard(t *testing.T, f Frame, doc status.Document, fc face, shown int) *canvas {
+	t.Helper()
+	c := newCanvas(50, densities[0].rows(barRowsFor(shown, 44)))
+	f.card(c, doc, fc, now, 0, 0, 50, densities[0], barRowsFor(shown, 44), labelColumn)
+	return c
 }
 
 func TestTheCardNewSessionsGoToIsEdgedInAccentMode(t *testing.T) {
@@ -191,7 +220,7 @@ func TestTheCardNewSessionsGoToIsEdgedInAccentMode(t *testing.T) {
 	faces, shown := f.faces(doc, now)
 	for i, want := range []ink{borderInk, bestBorderInk} {
 		c := newCanvas(50, 20)
-		f.card(c, faces[i], now, 0, 0, 50, densities[0], barRowsFor(len(shown), 44), labelColumn)
+		f.card(c, doc, faces[i], now, 0, 0, 50, densities[0], barRowsFor(len(shown), 44), labelColumn)
 		if got := c.at(0, 0).ink; got != want {
 			t.Errorf("%s's card is edged in %+v, want %+v", faces[i].account.ID, got, want)
 		}
@@ -218,14 +247,14 @@ func TestACardsBottomEdge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(50, 1)
-			bottomEdge(c, tt.fc, 0, 0, 50, borderInk)
+			bottomEdge(c, tt.fc, 0, 0, 50, lightEdges.in(borderInk))
 			if got := c.rows(Look{})[0]; got != tt.want {
 				t.Errorf("drew\n%q\nwant\n%q", got, tt.want)
 			}
 		})
 	}
 	c := newCanvas(50, 1)
-	bottomEdge(c, face{busy: []bool{true, false}, sessions: 2}, 0, 0, 50, borderInk)
+	bottomEdge(c, face{busy: []bool{true, false}, sessions: 2}, 0, 0, 50, lightEdges.in(borderInk))
 	if lit, idle := c.at(3, 0).ink, c.at(5, 0).ink; lit != positiveInk || idle != dimInk {
 		t.Errorf("the dots are in %+v and %+v, want the busy one lit positive, the idle one dim", lit, idle)
 	}

@@ -13,9 +13,10 @@ import (
 // the request stream, a session is busy when it was seen in the last minute.
 const busyWithin = time.Minute
 
-// face is the front of an account's card, as the document has it at a
-// moment: the account and its place, its state, the window it features and
-// its other windows, its badges, and its sessions.
+// face is an account's card, as the document has it at a moment: the
+// account and its place, its state, the window its front features and its
+// other windows, its badges, and its sessions; and as the watch has it,
+// whether it has the focus, and whether it's flipped to show its back.
 type face struct {
 	account status.Account
 	place   int
@@ -42,10 +43,13 @@ type face struct {
 	// read is when the document was read, which a recent rate is measured
 	// to.
 	read time.Time
+	// focused is set on the card with the focus, and flipped on a card
+	// turned over to show its sessions.
+	focused, flipped bool
 }
 
-// faces are the fronts of doc's accounts' cards at now, and the keys of the
-// windows every card shows.
+// faces are doc's accounts' cards at now, and the keys of the windows every
+// card's front shows.
 func (f Frame) faces(doc status.Document, now time.Time) ([]face, []string) {
 	shown := shownWindows(doc, now, f.Policy)
 	faces := make([]face, len(doc.Accounts))
@@ -55,16 +59,17 @@ func (f Frame) faces(doc status.Document, now time.Time) ([]face, []string) {
 	return faces, shown
 }
 
-// face is the front of doc's account a's card at now, of the windows shown:
-// the window it features, as f.Featured says, its other windows, and its
-// sessions, as the router listed them, else as many as doc says it has.
+// face is doc's account a's card at now, of the windows shown: the window
+// its front features, as f.Featured says, its other windows, and its
+// sessions, as the router listed them, else as many as doc says it has; and
+// whether it has the focus, and is flipped, as f says.
 func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown []string) face {
 	fc := face{
 		account: a, place: place(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
 		windows: shown, bars: make(map[string]standing),
 		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID),
 		sessions: a.Sessions, limitAt: limitReached(doc, a.ID, now), primed: primedNext(doc, a.ID),
-		read: cmp.Or(doc.GeneratedAt, now),
+		read: cmp.Or(doc.GeneratedAt, now), focused: f.Focus == a.ID, flipped: f.Flipped[a.ID],
 	}
 	w, ok := featured(doc, a, now, f.Policy, f.Featured, shown)
 	if ok {

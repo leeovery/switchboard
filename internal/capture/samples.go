@@ -282,13 +282,21 @@ func eightAccounts(now time.Time) source {
 // lately is what the router tells of lately, the newest first, as the frames
 // of three or more accounts have it: c61b starting on side, work coming under
 // pressure, personal reaching its limit, moving its three sessions to side,
-// and side's prime.
+// and side's prime, which RECENT tells of; and, older, or counted in the
+// limit, what the cards' backs tell of besides: db8a's opus and 41e0 among
+// the sessions the limit moved, d28c starting on work, and work's and
+// personal's primes.
 func lately(now time.Time) []status.Event {
 	return []status.Event{
 		{At: on(now, 1, 14, 41), Kind: status.EventStarted, Account: "side", Session: idC61B, Model: opus, Reason: reasonNew},
 		pressured(now, on(now, 1, 14, 38), work(now)),
+		{At: on(now, 1, 14, 12), Kind: status.EventMoved, Session: id41E0, Model: sonnet, From: "personal", To: "side", Reason: reasonLimit, Limit: forced},
+		{At: on(now, 1, 14, 12), Kind: status.EventMoved, Session: idDB8A, Model: opus, From: "personal", To: "side", Reason: reasonLimit, Limit: forced},
 		{At: on(now, 1, 14, 12), Kind: status.EventLimit, Account: "personal", Windows: []string{fiveHourKey}, Until: on(now, 1, 15, 54), Count: 3, To: "side"},
 		primed(on(now, 1, 13, 50), side(now)),
+		{At: on(now, 1, 13, 20), Kind: status.EventStarted, Account: "work", Session: idD28C, Model: opus, Reason: reasonNew},
+		primed(on(now, 1, 12, 10), work(now)),
+		primed(on(now, 1, 10, 54), personal(now)),
 	}
 }
 

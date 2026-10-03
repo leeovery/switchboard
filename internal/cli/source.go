@@ -155,6 +155,27 @@ func (s usageSource) Unpin(ctx context.Context) error {
 	return fromRouter(err)
 }
 
+// PinSession has the router send every request of the session with the
+// given id to the account with the given id from its next request on, as
+// pin --session does.
+func (s usageSource) PinSession(ctx context.Context, session, account string) error {
+	if s.router == nil {
+		return errRouterDown
+	}
+	_, err := s.router.PinSession(ctx, session, account)
+	return fromRouter(err)
+}
+
+// UnpinSession has the router clear the session's own pin, routing it on its
+// merits from its next request on, as pin auto --session does.
+func (s usageSource) UnpinSession(ctx context.Context, session string) error {
+	if s.router == nil {
+		return errRouterDown
+	}
+	_, err := s.router.UnpinSession(ctx, session)
+	return fromRouter(err)
+}
+
 // probeSource reads the status document by probing accounts.
 type probeSource struct {
 	deps Deps

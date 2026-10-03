@@ -51,6 +51,18 @@ type Frame struct {
 	// Scroll is how many rows the view's cards are scrolled down by, where
 	// they don't fit: no further than Scrolling says they go.
 	Scroll int
+	// Focus is the account whose card has the focus, which the arrow keys
+	// move and space flips, its edges heavy: "" while no card has it.
+	Focus string
+	// Flipped are the accounts whose cards are flipped to show their
+	// sessions, by id.
+	Flipped map[string]bool
+	// Selected is the session picked out on the back of the card with the
+	// focus, to be moved: zero while none is.
+	Selected Seat
+	// Patch are the keys that work on the sessions on a card's back, as the
+	// back lists them where it has any, before the key that flips it back.
+	Patch []Key
 	// Keys are the keys that work, the most used first: the footer lists as
 	// many as fit.
 	Keys []Key
@@ -81,7 +93,7 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 		f.accounts(c, doc, now, top)
 	}
 	if !f.printed() {
-		f.footer(c, f.Height-1)
+		f.footer(c, doc, f.Height-1)
 	}
 	if f.Help != nil {
 		f.help(c)

@@ -75,7 +75,7 @@ func (s Session) where() string {
 		if _, ok := models[a.Account]; !ok {
 			accounts = append(accounts, a.Account)
 		}
-		if name := a.name(); !slices.Contains(models[a.Account], name) {
+		if name := a.Name(); !slices.Contains(models[a.Account], name) {
 			models[a.Account] = append(models[a.Account], name)
 		}
 	}
@@ -86,9 +86,9 @@ func (s Session) where() string {
 	return strings.Join(on, ", ")
 }
 
-// name names the assignment's model as briefly as tells it apart: by its
-// family, else by its id.
-func (a Assignment) name() string {
+// Name names the assignment's model as briefly as tells it apart, cleaned: by
+// its family, such as opus, else by its id.
+func (a Assignment) Name() string {
 	return cmp.Or(Clean(a.Family), Clean(a.Model), "unknown model")
 }
 

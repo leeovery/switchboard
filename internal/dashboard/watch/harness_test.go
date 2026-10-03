@@ -324,7 +324,8 @@ type fakeSource struct {
 	// asked lists every read asked for, in turn.
 	asked []Read
 	// orders lists the orders given, in turn, as "pin work", "pin work,side",
-	// "move work" or "unpin".
+	// "move work" or "unpin", or of one session, as "pin d28c5e17 to side"
+	// or "unpin d28c5e17".
 	orders []string
 }
 
@@ -370,6 +371,29 @@ func (s *fakeSource) Pin(_ context.Context, accounts []string, move bool) error 
 
 func (s *fakeSource) Unpin(context.Context) error {
 	return s.order("unpin", status.Pin{})
+}
+
+func (s *fakeSource) PinSession(_ context.Context, session, account string) error {
+	return s.sessionOrder("pin "+session+" to "+account, session, account)
+}
+
+func (s *fakeSource) UnpinSession(_ context.Context, session string) error {
+	return s.sessionOrder("unpin "+session, session, "")
+}
+
+// sessionOrder notes an order of one session, and has the router give it
+// its own pin to account, or clear it, unless it refuses.
+func (s *fakeSource) sessionOrder(what, session, account string) error {
+	s.orders = append(s.orders, what)
+	if s.refuse != nil {
+		return s.refuse
+	}
+	for i := range s.sessions {
+		if s.sessions[i].ID == session {
+			s.sessions[i].Pin = account
+		}
+	}
+	return nil
 }
 
 // order notes an order, and has the router take pin, unless it refuses.

@@ -3,6 +3,7 @@ package dashboard
 import (
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -44,7 +45,7 @@ func TestTheFooterListsAsManyKeysAsFitWhole(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: tt.width, Height: 1, Keys: tt.keys, Status: tt.status, Note: tt.note}
 			c := newCanvas(f.Width, f.Height)
-			f.footer(c, 0)
+			f.footer(c, status.Document{}, 0)
 			if got := c.rows(Look{})[0]; got != tt.want {
 				t.Errorf("the footer reads\n%q\nwant\n%q", got, tt.want)
 			}
@@ -55,7 +56,7 @@ func TestTheFooterListsAsManyKeysAsFitWhole(t *testing.T) {
 func TestTheFootersInks(t *testing.T) {
 	f := Frame{Width: 60, Height: 1, Keys: keys[:1], Status: "read 4s ago"}
 	c := newCanvas(f.Width, f.Height)
-	f.footer(c, 0)
+	f.footer(c, status.Document{}, 0)
 
 	for _, tt := range []struct {
 		x    int
@@ -71,6 +72,31 @@ func TestTheFootersInks(t *testing.T) {
 	}
 	if keyInk.token != theme.AccentKey || !keyInk.bold {
 		t.Errorf("a key is in %+v, want accent.key, bold", keyInk)
+	}
+}
+
+func TestTheFooterSaysWhichSessionIsPickedOutInPlaceOfHowReadingGoes(t *testing.T) {
+	f := Frame{
+		Width: 120, Height: 1, Status: "read 4s ago", Focus: "work", Selected: Seat{Session: idD28C, Model: opus},
+		Keys: []Key{{Key: "↑↓", Does: "select"}, {Key: "esc", Does: "done"}},
+	}
+	c := newCanvas(f.Width, f.Height)
+	f.footer(c, threeRouted(), 0)
+
+	if got, want := c.rows(Look{})[0], " ↑↓ select   esc done"+blanks(77)+"d28c selected on work"; got != want {
+		t.Errorf("the footer reads\n%q\nwant\n%q", got, want)
+	}
+	for _, tt := range []struct {
+		x    int
+		want ink
+	}{
+		{x: 98, want: titleInk},
+		{x: 103, want: mutedInk},
+		{x: 115, want: strongInk},
+	} {
+		if got := c.at(tt.x, 0).ink; got != tt.want {
+			t.Errorf("column %d is in %+v, want %+v", tt.x, got, tt.want)
+		}
 	}
 }
 

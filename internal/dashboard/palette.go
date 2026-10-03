@@ -129,6 +129,7 @@ var (
 	accentInk     = ink{token: theme.AccentMode}
 	borderInk     = ink{token: theme.Border}
 	bestBorderInk = ink{token: theme.AccentMode}
+	focusInk      = ink{token: theme.AccentKey}
 	titleInk      = ink{token: theme.TextPrimary, bold: true}
 	badgeInk      = ink{token: theme.AccentMode, bold: true}
 	pinBadgeInk   = ink{token: theme.AccentPrimary, bold: true}

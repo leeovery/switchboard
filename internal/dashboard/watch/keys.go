@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -27,11 +28,15 @@ type orderedMsg struct {
 }
 
 // order is what a key tells the router: send new sessions to the best of
-// accounts, and with move, running ones on another account too; or, with no
-// accounts, route every session on its merits again.
+// accounts, and with move, running ones on another account too; with no
+// accounts, route every session on its merits again; or, of one session
+// alone, send it to the first of accounts, or with none, clear its own pin.
 type order struct {
 	accounts []string
 	move     bool
+	// session is the id of the session the order is of alone: "" for an
+	// order of every session.
+	session string
 	// done says what the order did, for the footer.
 	done string
 }
@@ -41,18 +46,30 @@ var routing = order{done: "routing automatically"}
 
 // give has the source carry the order out.
 func (o order) give(ctx context.Context, s Source) error {
-	if len(o.accounts) == 0 {
+	switch {
+	case o.session != "" && len(o.accounts) > 0:
+		return s.PinSession(ctx, o.session, o.accounts[0])
+	case o.session != "":
+		return s.UnpinSession(ctx, o.session)
+	case len(o.accounts) == 0:
 		return s.Unpin(ctx)
+	default:
+		return s.Pin(ctx, o.accounts, o.move)
 	}
-	return s.Pin(ctx, o.accounts, o.move)
 }
 
 // log notes how the order went, naming the accounts by their ids alone.
 func (o order) log(err error) {
 	accounts := strings.Join(o.accounts, ",")
 	switch {
+	case err != nil && o.session != "":
+		logger.Warn("the router didn't take an order", "session", o.session, "accounts", accounts, "error", err)
 	case err != nil:
 		logger.Warn("the router didn't take an order", "accounts", accounts, "move", o.move, "error", err)
+	case o.session != "" && len(o.accounts) > 0:
+		logger.Info("pinned a session", "session", o.session, "account", accounts)
+	case o.session != "":
+		logger.Info("unpinned a session", "session", o.session)
 	case len(o.accounts) == 0:
 		logger.Info("unpinned")
 	default:
@@ -62,16 +79,19 @@ func (o order) log(err error) {
 
 // pressed acts on a key: q or ctrl+c quits, whatever's open; while the theme
 // picker or the help is open, it takes every other key. Otherwise, j, k,
-// PgDn and PgUp scroll the cards where they don't fit; ? opens the help;
-// tab and shift-tab show the next view and the one before, r reads now,
-// having the router refresh what it hasn't read in the last minute, and what
-// can take no request, or probing when it doesn't answer; t opens the theme
-// picker; and w has the cards feature the next window.
+// PgDn and PgUp scroll the cards where they don't fit; the arrows, space, s
+// and esc act on the cards, as cardKey says; ? opens the help; tab and
+// shift-tab show the next view and the one before, r reads now, having the
+// router refresh what it hasn't read in the last minute, and what can take
+// no request, or probing when it doesn't answer; t opens the theme picker;
+// and w has the cards feature the next window.
 // While the router answers, of more than one account, 1–9 pin new sessions
 // to the account in that place, as configured, beside those pinned already,
 // or unpin it; a routes every session on its merits again; and m moves
-// running sessions to the accounts pinned. With one account, there's no
-// other to send them to, and they do nothing.
+// running sessions to the accounts pinned. With a session picked out on a
+// card's back, a digit pins it to the account in that place, and a clears
+// its own pin. With one account, there's no other to send them to, and they
+// do nothing.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); {
 	case k == "q" || k == "Q" || k == "ctrl+c":
@@ -83,6 +103,9 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if rows, ok := m.scrollKey(key.String()); ok {
 		return m.scrollBy(rows), nil
+	}
+	if next, ok := m.cardKey(key.String()); ok {
+		return next, nil
 	}
 	switch k := key.String(); k {
 	case "?":
@@ -100,8 +123,11 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "w", "W":
 		return m.feature()
 	case "a", "A":
-		if m.single() {
+		switch {
+		case m.single():
 			return m, nil
+		case m.selecting():
+			return m.unpinSession()
 		}
 		return m.command(routing)
 	case "m", "M":
@@ -110,7 +136,11 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m.move()
 	default:
-		if n, ok := place(k); ok && !m.single() {
+		switch n, ok := place(k); {
+		case !ok || m.single():
+		case m.selecting():
+			return m.pinSession(n)
+		default:
 			return m.toggle(n)
 		}
 	}
@@ -144,6 +174,27 @@ func (m Model) toggle(n int) (Model, tea.Cmd) {
 		return m.command(routing)
 	}
 	return m.command(order{accounts: pinned, done: "new sessions go to " + m.doc.Destination(pinned)})
+}
+
+// pinSession has the router send every request of the session picked out to
+// the account in place n, counting from 1 in the order they're configured,
+// from its next request on, as pin --session does.
+func (m Model) pinSession(n int) (Model, tea.Cmd) {
+	if n > len(m.doc.Accounts) {
+		return m, nil
+	}
+	to := m.doc.Accounts[n-1].ID
+	return m.command(order{
+		session: m.selected.Session, accounts: []string{to},
+		done: m.selected.Shown() + " goes to " + m.doc.Names([]string{to}) + " from its next request",
+	})
+}
+
+// unpinSession has the router clear the own pin of the session picked out,
+// routing it on its merits from its next request on, as pin auto --session
+// does.
+func (m Model) unpinSession() (Model, tea.Cmd) {
+	return m.command(order{session: m.selected.Session, done: m.selected.Shown() + " is routed automatically from its next request"})
 }
 
 // toggled returns the ids of the accounts doc's pin names that stay pinned,
@@ -282,16 +333,21 @@ type keyListing struct {
 
 // listings are every key there is, as m stands, in the design's order, so
 // the footer comes out as the design has it once every key works: tab,
-// while there's another view to move to; w, in the Accounts view, saying
-// which window the cards feature; j and k, where the cards scroll; while the
-// router answers, of more than one account, the digits of their places, a
-// and m; r; t, in colour; and ? and q, always. The footer leaves j and k, r
-// and t behind ?.
+// while there's another view to move to; in the Accounts view, w, saying
+// which window the cards feature, the arrows and space, and s; j and k,
+// where the cards scroll; while the router answers, of more than one
+// account, the digits of their places, a and m; r; t, in colour; and ? and
+// q, always. The footer leaves s, j and k, r and t behind ?. With a session
+// picked out, the keys are as picking says.
 func (m Model) listings() []keyListing {
 	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
-	return []keyListing{
+	cards := m.view == dashboard.Accounts
+	listed := []keyListing{
 		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},
-		{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: m.view == dashboard.Accounts},
+		{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: cards},
+		{key: "←→", footer: "focus", help: "move the focus; ↑↓ between rows, over a flipped card's sessions first", works: cards},
+		{key: "space", footer: "flip", help: "flip the card with the focus to its sessions, or back", works: cards},
+		{key: "s", help: "flip every card, or back", works: cards},
 		{key: "j k", help: "scroll the cards; PgUp and PgDn a page, or the wheel", works: m.scrolling().Most > 0},
 		{key: places(len(m.doc.Accounts)), footer: "pin", help: "toggle the account in that place in the pin", works: m.orders()},
 		{key: "a", footer: "auto", help: "route automatically again", works: m.orders()},
@@ -301,6 +357,47 @@ func (m Model) listings() []keyListing {
 		{key: "?", footer: "keys", help: "these keys, and the key to the glyphs", always: true, works: true},
 		{key: "q", footer: "quit", help: "quit", always: true, works: true},
 	}
+	if m.selecting() {
+		return m.picking(listed)
+	}
+	return listed
+}
+
+// picking are the keys there are with a session picked out: first those that
+// act on it, which the footer lists alone, as the design has them, ↑↓ to
+// pick out another, the digits to move it and a to clear its own pin while
+// they work, space to flip its card back and esc to end the selection; then
+// the rest of listed, each left behind ?.
+func (m Model) picking(listed []keyListing) []keyListing {
+	id := m.selected.Shown()
+	keys := []keyListing{
+		{key: "↑↓", footer: "select", help: "pick out the session above or below, then the card past them", works: true},
+		{key: places(len(m.doc.Accounts)), footer: "move " + id + " to that account", help: "pin " + id + " to the account in that place, every model of it", works: m.orders()},
+		{key: "a", help: "clear " + id + "'s own pin, routing it automatically again", works: m.orders()},
+		{key: "space", footer: "flip back", help: "flip the card back", works: true},
+		{key: "esc", footer: "done", help: "end the selection", works: true},
+	}
+	for _, l := range listed {
+		if !slices.ContainsFunc(keys, func(k keyListing) bool { return k.key == l.key }) {
+			l.footer, l.always = "", false
+			keys = append(keys, l)
+		}
+	}
+	return keys
+}
+
+// patch are the keys that work on the sessions on a flipped card's back, as
+// the back lists them: where there's another account to move one to, ↑↓ to
+// pick one out, and while the router answers, the digits to move it.
+func (m Model) patch() []dashboard.Key {
+	if m.single() {
+		return nil
+	}
+	keys := []dashboard.Key{{Key: "↑↓", Does: "select"}}
+	if m.orders() {
+		keys = append(keys, dashboard.Key{Key: places(len(m.doc.Accounts)), Does: "move it"})
+	}
+	return keys
 }
 
 // keys are the keys the footer lists, as listings has them: those that work

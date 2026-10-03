@@ -63,14 +63,14 @@ func TestTheHelpListsEveryKeyThatWorksAndTheFooterTheMostUsed(t *testing.T) {
 		{
 			name:       "the router of three",
 			h:          func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
-			wantHelp:   []string{"w", "1-3", "a", "m", "r", "?", "q"},
-			wantFooter: []string{"w", "1-3", "a", "m", "?", "q"},
+			wantHelp:   []string{"w", "←→", "space", "s", "1-3", "a", "m", "r", "?", "q"},
+			wantFooter: []string{"w", "←→", "space", "1-3", "a", "m", "?", "q"},
 		},
 		{
 			name:       "probing twelve, which scroll",
 			h:          func(t *testing.T) *harness { return newHarness(t, twelve()) },
-			wantHelp:   []string{"w", "j k", "r", "?", "q"},
-			wantFooter: []string{"w", "?", "q"},
+			wantHelp:   []string{"w", "←→", "space", "s", "j k", "r", "?", "q"},
+			wantFooter: []string{"w", "←→", "space", "?", "q"},
 		},
 	}
 	for _, tt := range tests {
@@ -101,15 +101,18 @@ func TestTheHelpSaysWhatEachKeyDoes(t *testing.T) {
 	h.start()
 	h.press("?")
 	for _, want := range []string{
-		"w      cycle the window every card features, now auto",
-		"1-3    toggle the account in that place in the pin",
-		"a      route automatically again",
-		"m      move running sessions to the pinned accounts",
-		"r      refresh",
-		"?      these keys, and the key to the glyphs",
-		"q      quit",
-		"▆▆     room left",
-		"●      session, lit while busy",
+		"w       cycle the window every card features, now auto",
+		"←→      move the focus; ↑↓ between rows, over a flipped card's sessions first",
+		"space   flip the card with the focus to its sessions, or back",
+		"s       flip every card, or back",
+		"1-3     toggle the account in that place in the pin",
+		"a       route automatically again",
+		"m       move running sessions to the pinned accounts",
+		"r       refresh",
+		"?       these keys, and the key to the glyphs",
+		"q       quit",
+		"▆▆      room left",
+		"●       session, lit while busy",
 	} {
 		if !strings.Contains(h.view(), want) {
 			t.Errorf("the screen is\n%s\nwant the help to say %q", h.view(), want)

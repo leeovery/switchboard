@@ -406,6 +406,95 @@ func TestEveryRowOfCardsLinesUpAtEveryWidth(t *testing.T) {
 	}
 }
 
+func TestNeighbourIsTheCardBesideAboveOrBelow(t *testing.T) {
+	// Four accounts at 160 columns: a, b and c in a row, and d under a.
+	doc := accountsOf(4, false)
+	tests := []struct {
+		name         string
+		from         string
+		across, down int
+		want         string
+	}{
+		{name: "along the row", from: "a", across: 1, want: "b"},
+		{name: "back along it", from: "c", across: -1, want: "b"},
+		{name: "past the row's end", from: "c", across: 1},
+		{name: "before its start", from: "a", across: -1},
+		{name: "past the end of a row too short to go on", from: "d", across: 1},
+		{name: "down its column", from: "a", down: 1, want: "d"},
+		{name: "down to a row too short to reach it: its last", from: "c", down: 1, want: "d"},
+		{name: "up its column", from: "d", down: -1, want: "a"},
+		{name: "above the first row", from: "b", down: -1},
+		{name: "below the last", from: "d", down: 1},
+		{name: "from an account the document lacks", from: "z", across: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := frameOf(160, 40).Neighbour(doc, now, tt.from, tt.across, tt.down)
+			if got != tt.want || ok != (tt.want != "") {
+				t.Errorf("Neighbour(%s, %d, %d) = %q, %v, want %q", tt.from, tt.across, tt.down, got, ok, tt.want)
+			}
+		})
+	}
+	if _, ok := (Frame{Width: 160, View: Accounts, Policy: claudeLike}).Neighbour(doc, now, "a", 1, 0); ok {
+		t.Error("a frame printed once has a card beside a's, want none: its cards take no focus")
+	}
+}
+
+func TestRevealScrollsNoFurtherThanItMustToShowACardWhole(t *testing.T) {
+	doc := accountsOf(8, false)
+	f := frameOf(160, 28)
+	l := laidOut(f, doc)
+	if !l.scrolls() {
+		t.Fatal("eight accounts in 28 rows don't scroll")
+	}
+	_, last := l.at(7, l.density)
+	tests := []struct {
+		name   string
+		scroll int
+		id     string
+		want   int
+	}{
+		{name: "a card in view: left where it is", scroll: 2, id: "d", want: 2},
+		{name: "a card below: down till it shows whole", id: "h", want: last + l.density.rows(l.bars) - l.view},
+		{name: "a card above: up to its top", scroll: l.content - l.view, id: "a", want: 0},
+		{name: "an account the document lacks: left where it is", scroll: 2, id: "z", want: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.Scroll = tt.scroll
+			if got := f.Reveal(doc, now, tt.id); got != tt.want {
+				t.Errorf("Reveal(%s) from %d = %d, want %d", tt.id, tt.scroll, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInViewIsTheFirstCardTheViewShowsWhole(t *testing.T) {
+	doc := accountsOf(8, false)
+	tests := []struct {
+		name   string
+		height int
+		scroll int
+		want   string
+	}{
+		{name: "the first, unscrolled", height: 28, want: "a"},
+		{name: "the first of the row under one cut short", height: 28, scroll: 1, want: "d"},
+		{name: "where none shows whole, the first shown", height: 14, scroll: 9, want: "d"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(160, tt.height)
+			f.Scroll = tt.scroll
+			if got := f.InView(doc, now); got != tt.want {
+				t.Errorf("InView() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+	if got := frameOf(160, 28).InView(status.Document{}, now); got != "" {
+		t.Errorf("InView() of no accounts = %q, want none", got)
+	}
+}
+
 // misaligned says how a frame's rows of cards don't line up, or "" where
 // each row's cards start and end on the same rows, their sides in line.
 func misaligned(rows []string) string {

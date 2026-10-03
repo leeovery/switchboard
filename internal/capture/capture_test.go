@@ -165,6 +165,31 @@ func TestTheThemesFixtureHasThePickerOpenOnTheThemeBeforeTheFrames(t *testing.T)
 	}
 }
 
+func TestTheFlippedFixturesTurnTheCardsOverWithTheirKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		want []string
+	}{
+		{name: "accounts-flipped-all", want: []string{
+			"┏━ 1 work ━", "sessions · ◆ primary ━┓", "─ sessions ─╮", "sessions · ▲ next ─╮",
+			"3 moved to side at 14:12,", "when personal reached its limit",
+		}},
+		{name: "accounts-flipped-selected", want: []string{
+			"┏━ 1 work ━", "┃  ▸ ● d28c  opus", "↑↓ select   1-3 move d28c to that account   space flip back   esc done", "d28c selected on work",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			for _, want := range tt.want {
+				if !strings.Contains(frame, want) {
+					t.Errorf("the frame\n%s\nhas no %q", frame, want)
+				}
+			}
+		})
+	}
+}
+
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
 	f := fixture(t, "accounts-3")
 	m := f.Model()

@@ -26,15 +26,15 @@ func opening(kept dashboard.View, views []dashboard.View) dashboard.View {
 }
 
 // turn shows the view by places on from the one shown, round, as tab and
-// shift-tab move, and keeps it, for the next watch to open on. With one
-// view, there's nothing to move to.
+// shift-tab move, ending the selection on a card's back, and keeps it, for
+// the next watch to open on. With one view, there's nothing to move to.
 func (m Model) turn(by int) (tea.Model, tea.Cmd) {
 	i := slices.Index(m.views, m.view) + by
 	next := m.views[(i%len(m.views)+len(m.views))%len(m.views)]
 	if next == m.view {
 		return m, nil
 	}
-	m.view = next
+	m.view, m.selected = next, dashboard.Seat{}
 	m.keepView()
 	return m, nil
 }

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -166,10 +167,99 @@ type Scrolling struct {
 // view, where not even its sparest cards fit. A frame printed once never
 // scrolls, and nor does a view not built yet.
 func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
-	if f.View != Accounts || f.printed() {
+	l, ok := f.cardsOf(doc, now)
+	if !ok {
 		return Scrolling{}
 	}
-	top := f.above(newCanvas(f.Width, f.Height), doc, now)
-	l := f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), top)
 	return Scrolling{Most: l.content - l.view, Page: l.view}
+}
+
+// cardsOf is the Accounts view of doc at now as the frame lays it out full
+// screen, under its title and heading, reporting false for a frame that
+// shows no cards that move, scroll or take the focus: one printed once, or
+// of another view.
+func (f Frame) cardsOf(doc status.Document, now time.Time) (layout, bool) {
+	if f.View != Accounts || f.printed() {
+		return layout{}, false
+	}
+	top := f.above(newCanvas(f.Width, f.Height), doc, now)
+	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), top), true
+}
+
+// scrolled is how far the layout's cards are scrolled as the frame has them:
+// no further than they go either way.
+func (f Frame) scrolled(l layout) int {
+	return min(max(f.Scroll, 0), l.content-l.view)
+}
+
+// Neighbour is the account whose card is beside, above or below the card of
+// doc's account with the given id, as the Accounts view lays them out at
+// now: across cards along its row, a card to the left where less than zero,
+// or down rows of cards, a row up where less than zero, in its column, or
+// the last of a row too short to reach it. It reports false where there's
+// no card there.
+func (f Frame) Neighbour(doc status.Document, now time.Time, id string, across, down int) (string, bool) {
+	l, ok := f.cardsOf(doc, now)
+	i := place(doc, id) - 1
+	if !ok || i < 0 {
+		return "", false
+	}
+	row, col := i/l.across+down, i%l.across+across
+	if row < 0 || row >= l.down || col < 0 || col >= l.across {
+		return "", false
+	}
+	j := row*l.across + col
+	if j >= len(doc.Accounts) {
+		if across != 0 {
+			return "", false
+		}
+		j = len(doc.Accounts) - 1
+	}
+	return doc.Accounts[j].ID, true
+}
+
+// Reveal is how far the frame's view of doc is scrolled at now once it shows
+// the card of the account with the given id: no further than it must go
+// for the card to show whole, so a card in view leaves it where it is, or
+// to the card's top, where the card is taller than the view.
+func (f Frame) Reveal(doc status.Document, now time.Time, id string) int {
+	l, ok := f.cardsOf(doc, now)
+	i := place(doc, id) - 1
+	if !ok || i < 0 {
+		return f.Scroll
+	}
+	_, top := l.at(i, l.density)
+	bottom, scroll := top+l.density.rows(l.bars), f.scrolled(l)
+	switch {
+	case top < scroll:
+		return top
+	case bottom > scroll+l.view:
+		return min(top, bottom-l.view)
+	default:
+		return scroll
+	}
+}
+
+// InView is the account whose card is the first of doc's at now that the
+// frame's view shows whole, scrolled as it is, or, where it shows none
+// whole, the first it shows: "" where there are no cards.
+func (f Frame) InView(doc status.Document, now time.Time) string {
+	if len(doc.Accounts) == 0 {
+		return ""
+	}
+	l, ok := f.cardsOf(doc, now)
+	if !ok {
+		return doc.Accounts[0].ID
+	}
+	scroll, rows, partly := f.scrolled(l), l.density.rows(l.bars), ""
+	for i, a := range doc.Accounts {
+		_, top := l.at(i, l.density)
+		switch {
+		case top >= scroll && top+rows <= scroll+l.view:
+			return a.ID
+		case partly == "" && top < scroll+l.view && top+rows > scroll:
+			partly = a.ID
+		}
+	}
+	return cmp.Or(partly, doc.Accounts[0].ID)
 }

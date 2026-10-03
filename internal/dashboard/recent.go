@@ -73,7 +73,8 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 		moved := line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {named(doc, e.From), strongInk}, {" → ", mutedInk}, {named(doc, e.To), strongInk}}
 		return span{"▸", dimInk}, slices.Concat(moved, why(e.Reason)), true
 	case status.EventRefused:
-		return refusal(e, account)
+		mark, words, until := refusal(e)
+		return mark, line{account, {" " + words + until, mutedInk}}, true
 	case status.EventPrimed:
 		return span{"◇", primedInk}, line{account, {" primed: its " + spanOf(first(e.Windows)) + " started" + resetting(e), mutedInk}}, true
 	case status.EventRoom:
@@ -167,19 +168,22 @@ func moves(e status.Event, doc status.Document) line {
 	return l
 }
 
-// refusal is what RECENT says of the upstream refusing requests on an
-// account, as told says: its token, which holds back every request, or a
-// model family's requests alone, which hold back less, and until when.
-func refusal(e status.Event, account span) (span, line, bool) {
+// refusal is what's said of the upstream refusing requests on an account,
+// after its name: its mark, a refusal of its token, which holds back every
+// request, in state.destructive, or of a model family's requests alone,
+// which hold back less, in accent.attention; what was refused, as in "was
+// refused (403, opus)"; and until when, as in " until 21:40", where the event
+// says.
+func refusal(e status.Event) (mark span, words, until string) {
 	mark, answer := span{"■", errorInk}, strconv.Itoa(e.Status)
 	if e.Family != "" {
 		mark, answer = span{"■", warningInk}, answer+", "+status.Clean(e.Family)
 	}
-	words := " was refused (" + answer + ")"
 	if !e.Until.IsZero() {
-		words += " until " + status.When(e.At, e.Until)
+		until = " until " + status.When(e.At, e.Until)
 	}
-	return mark, line{account, {words, mutedInk}}, true
+	words = "was refused (" + answer + ")"
+	return mark, words, until
 }
 
 // resetting says when the window a prime started resets, as in ",

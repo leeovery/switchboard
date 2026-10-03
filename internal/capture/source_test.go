@@ -31,6 +31,12 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	if err := s.Unpin(t.Context()); err != nil {
 		t.Errorf("Unpin() error = %v, want the order taken", err)
 	}
+	if err := s.PinSession(t.Context(), idD28C, "side"); err != nil {
+		t.Errorf("PinSession() error = %v, want the order taken", err)
+	}
+	if err := s.UnpinSession(t.Context(), idD28C); err != nil {
+		t.Errorf("UnpinSession() error = %v, want the order taken", err)
+	}
 	if doc, _, _ := s.Read(t.Context(), watch.Read{}); !reflect.DeepEqual(doc, want) {
 		t.Errorf("after orders, Read() = %+v, want the document as it was", doc)
 	}
@@ -173,6 +179,24 @@ func TestEventsAreNumberedTheNewestFirst(t *testing.T) {
 				t.Errorf("%s: event %+v follows %+v, want each older than the last, numbered one less", f.Name, events[i], events[i-1])
 			}
 		}
+	}
+}
+
+func TestAMoveALimitForcedIsCountedInIt(t *testing.T) {
+	events := threeAccounts(moment(time.UTC)).doc.Events
+	limit := slices.IndexFunc(events, func(e status.Event) bool { return e.Kind == status.EventLimit })
+	var counted []string
+	for _, e := range events {
+		if e.Kind == status.EventMoved && e.Limit == events[limit].ID {
+			counted = append(counted, e.Session[:4])
+		}
+	}
+	if want := []string{"41e0", "db8a"}; !slices.Equal(counted, want) {
+		t.Errorf("the limit's event counts the moves of %q, want %q", counted, want)
+	}
+	moved := numbered([]status.Event{{Kind: status.EventMoved, From: "work", Limit: forced}})
+	if moved[0].Limit != 0 {
+		t.Errorf("a move forced by no limit told of is counted in event %d, want none", moved[0].Limit)
 	}
 }
 

@@ -103,7 +103,7 @@ func (f Frame) grid(c *canvas, doc status.Document, now time.Time, faces []face,
 	height := l.density.rows(l.bars)
 	for i, fc := range faces {
 		x, y := l.at(i, l.density)
-		f.card(c, fc, now, x, y, l.width, l.density, l.bars, labelled)
+		f.card(c, doc, fc, now, x, y, l.width, l.density, l.bars, labelled)
 	}
 	switch {
 	case l.beside:

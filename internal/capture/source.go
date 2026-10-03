@@ -68,6 +68,16 @@ func (s source) Unpin(context.Context) error {
 	return nil
 }
 
+// PinSession takes the order, and changes nothing.
+func (s source) PinSession(context.Context, string, string) error {
+	return nil
+}
+
+// UnpinSession takes the order, and changes nothing.
+func (s source) UnpinSession(context.Context, string) error {
+	return nil
+}
+
 // RouterAnswers reports whether the document is the router's.
 func (s source) RouterAnswers(context.Context) bool {
 	return s.doc.Source == status.SourceRouter
@@ -97,12 +107,27 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 	return h, nil
 }
 
+// forced marks a move among the events a source is given as one a limit
+// forced, which numbered counts in that limit.
+const forced = -1
+
 // numbered is events, the newest first, each with its id, as the router
-// numbers them: rising by one an event.
+// numbers them: rising by one an event. A move forced is counted in the
+// newest limit, no newer than it, of the account it left, as the router
+// counts it, naming that limit's event.
 func numbered(events []status.Event) []status.Event {
 	events = slices.Clone(events)
 	for i := range events {
 		events[i].ID = len(events) - i
+	}
+	for i, e := range events {
+		if e.Limit != forced {
+			continue
+		}
+		events[i].Limit = 0
+		if j := slices.IndexFunc(events[i:], func(l status.Event) bool { return l.Kind == status.EventLimit && l.Account == e.From }); j >= 0 {
+			events[i].Limit = events[i+j].ID
+		}
 	}
 	return events
 }

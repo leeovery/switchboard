@@ -324,6 +324,42 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	}
 }
 
+func TestUsageWatchPinsOneSessionAsPinSessionDoes(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	stop := srv.start(t)
+	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
+	cfg := recordWatch(t, &srv.deps)
+	run(t, srv.deps, "usage", "--watch")
+
+	if err := cfg.Source.PinSession(t.Context(), sessionOne, "side"); err != nil {
+		t.Fatalf("PinSession() error = %v", err)
+	}
+	if got := srv.session(t, sessionOne).Pin; got != "side" {
+		t.Errorf("once pinned, the session's own pin = %q, want side", got)
+	}
+	if err := cfg.Source.PinSession(t.Context(), sessionOne, "personal"); err == nil || !strings.Contains(err.Error(), "personal") {
+		t.Errorf("PinSession() to an account without a usable token error = %v, want the router to say why", err)
+	}
+	if err := cfg.Source.UnpinSession(t.Context(), sessionOne); err != nil {
+		t.Fatalf("UnpinSession() error = %v", err)
+	}
+	if got := srv.session(t, sessionOne).Pin; got != "" {
+		t.Errorf("once unpinned, the session's own pin = %q, want none", got)
+	}
+	if !srv.status(t).Pin.IsZero() {
+		t.Errorf("the router's pin = %+v, want none: a session's pin is its own", srv.status(t).Pin)
+	}
+
+	stop()
+	notRunning := "the router isn't running: start it with switchboard service install (or switchboard serve)"
+	if err := cfg.Source.PinSession(t.Context(), sessionOne, "side"); err == nil || err.Error() != notRunning {
+		t.Errorf("once the router stopped, PinSession() error = %v, want it to say so", err)
+	}
+	if err := cfg.Source.UnpinSession(t.Context(), sessionOne); err == nil || err.Error() != notRunning {
+		t.Errorf("once the router stopped, UnpinSession() error = %v, want it to say so", err)
+	}
+}
+
 func TestUsageWatchProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 	cfg := recordWatch(t, &srv.deps)

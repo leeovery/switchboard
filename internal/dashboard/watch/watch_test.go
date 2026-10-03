@@ -461,7 +461,10 @@ func calmScreen(size Size, now time.Time, trails dashboard.History) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
 		Views: dashboard.Views(), View: dashboard.Accounts, History: trails,
-		Keys:   []dashboard.Key{{Key: "w", Does: "window: auto"}, {Key: "?", Does: "keys", Always: true}, {Key: "q", Does: "quit", Always: true}},
+		Keys: []dashboard.Key{
+			{Key: "w", Does: "window: auto"}, {Key: "←→", Does: "focus"}, {Key: "space", Does: "flip"},
+			{Key: "?", Does: "keys", Always: true}, {Key: "q", Does: "quit", Always: true},
+		},
 		Status: "read 0s ago · next 13:42",
 		Policy: policy,
 	}.Draw(calm(), now), "\n")
