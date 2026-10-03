@@ -2,10 +2,10 @@
 
 # 🎛️ Switchboard
 
-**Watch your Claude usage. Spread it across your subscriptions.**
+**Your Claude usage, tracked, and routed across your subscriptions**
 
-See where each of your Claude limits stands and where it's heading, let Claude see it too,
-<br>and with several subscriptions, keep working when one runs out.
+A local router for Claude Code that tracks, routes and analyses
+<br>your Claude usage across one or more accounts.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8.svg)](https://go.dev)
