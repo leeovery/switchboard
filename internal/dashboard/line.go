@@ -89,6 +89,12 @@ func spaces(n int) span {
 	return span{text: strings.Repeat(" ", max(n, 0))}
 }
 
+// padded is text with blanks after it to fill cells cells, as a column has
+// it: as it is where it fills them already.
+func padded(text string, cells int) string {
+	return text + strings.Repeat(" ", max(cells-ansi.StringWidth(text), 0))
+}
+
 // rule is a horizontal border n cells long.
 func rule(n int) string {
 	return strings.Repeat("─", max(n, 0))

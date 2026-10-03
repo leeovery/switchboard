@@ -54,6 +54,13 @@ type Source interface {
 	Pin(ctx context.Context, accounts []string, move bool) error
 	// Unpin has the router route every session on its merits again.
 	Unpin(ctx context.Context) error
+	// PinSession has the router send every request of the session with the
+	// given id to the account with the given id from its next request on,
+	// as pin --session does.
+	PinSession(ctx context.Context, session, account string) error
+	// UnpinSession has the router clear the session's own pin, routing it on
+	// its merits from its next request on, as pin auto --session does.
+	UnpinSession(ctx context.Context, session string) error
 	// RouterAnswers reports whether the router answers: while it does, it
 	// posts the desktop notifications, even as the source probes as asked.
 	RouterAnswers(ctx context.Context) bool
@@ -218,17 +225,25 @@ type Model struct {
 	// scroll is how many rows the cards are scrolled down by, where they
 	// don't fit.
 	scroll int
+	// focus is the account whose card has the focus, "" while none has it;
+	// flipped are the accounts whose cards are flipped, by id, a set no
+	// model changes once it's made; and selected is the session picked out
+	// on the back of the card with the focus, zero while none is.
+	focus    string
+	flipped  map[string]bool
+	selected dashboard.Seat
 	// helping is set while the help is open over the view.
 	helping bool
 }
 
 // fetchedMsg is what a read that asked for read found, and which router gave
-// it, with the sessions it listed: none where it listed none.
+// it, with the sessions it listed, where listed says it listed them.
 type fetchedMsg struct {
 	read     Read
 	doc      status.Document
 	router   router.Health
 	sessions []status.Session
+	listed   bool
 	err      error
 }
 
@@ -335,16 +350,19 @@ func (m Model) View() tea.View {
 }
 
 // frame is the dashboard's frame as the model stands at now, but for the
-// keys it lists: at the size drawn at, in the look, showing the view shown,
-// with what the watch knows of the router, its events and its history, the
-// window the cards feature, the sessions listed, how far the cards are
-// scrolled, the note a key left, and how reading goes.
+// keys its footer lists: at the size drawn at, in the look, showing the view
+// shown, with what the watch knows of the router, its events and its
+// history, the window the cards feature, the sessions listed, how far the
+// cards are scrolled, the card with the focus, the cards flipped and the
+// session picked out, the keys that work on a card's sessions, the note a
+// key left, and how reading goes.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		Views: m.views, View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails,
 		Featured: m.featured, Sessions: m.sessions, Scroll: m.scroll,
+		Focus: m.focus, Flipped: m.flipped, Selected: m.selected, Patch: m.patch(),
 		Note: m.noted(now), Status: m.status(now),
 		Policy: m.cfg.Policy,
 	}
@@ -397,7 +415,7 @@ func fetchFrom(ctx context.Context, source Source, r Read) fetchedMsg {
 		logger.Debug("couldn't list the router's sessions", "error", err)
 		return msg
 	}
-	msg.sessions = sessions
+	msg.sessions, msg.listed = sessions, true
 	return msg
 }
 
@@ -454,12 +472,14 @@ func logRead(msg fetchedMsg, next time.Time) {
 }
 
 // show puts the document a read found at now on screen, with the sessions
-// the router listed: it posts what the change calls for, unless the router is
-// there to post its own, as nothing is to be told twice; follows the router
-// as it goes and comes back; notes the events new to it, and the readings it
-// gives; asks the router for its history with a full read, and as the router
-// answers again, or another router does, as one restarted; and eases the
-// bars to it from where they stand.
+// the router listed, or where it couldn't list them, those it listed last,
+// and none while probing: it posts what the change calls for, unless the
+// router is there to post its own, as nothing is to be told twice; follows
+// the router as it goes and comes back; notes the events new to it, and the
+// readings it gives; asks the router for its history with a full read, and
+// as the router answers again, or another router does, as one restarted;
+// keeps the focus and the selection where they still are; and eases the bars
+// to it from where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
@@ -473,7 +493,11 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
-	m.doc, m.updated, m.failed, m.sessions = doc, now, "", msg.sessions
+	m.doc, m.updated, m.failed = doc, now, ""
+	if msg.listed || !routed(doc) {
+		m.sessions = msg.sessions
+	}
+	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
 	if ask {
 		m, asked = m.askHistory(doc)

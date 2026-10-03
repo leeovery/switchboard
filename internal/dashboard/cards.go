@@ -123,26 +123,42 @@ func labelWidth(doc status.Document, shown []string) int {
 	return width
 }
 
-// card draws an account's card, its front fc, width cells wide from x along
-// row y, at the density d, its windows' bars taking bars rows, their labels
-// labelled cells wide: its edges, in the border's colour, or on the account
-// new sessions go to, accent.mode's, and its parts between.
-func (f Frame) card(c *canvas, fc face, now time.Time, x, y, width int, d density, bars, labelled int) {
-	border := borderInk
-	if fc.next {
-		border = bestBorderInk
+// card draws an account's card, fc, width cells wide from x along row y, at
+// the density d, its windows' bars taking bars rows, their labels labelled
+// cells wide: its edges, as edgingOf says, and between them its parts, or,
+// where it's flipped, its back, which takes the same rows.
+func (f Frame) card(c *canvas, doc status.Document, fc face, now time.Time, x, y, width int, d density, bars, labelled int) {
+	e := edgingOf(fc)
+	inside, rows := width-2*(padding+1), d.rows(bars)-2
+	topEdge(c, fc, x, y, width, e)
+	for i := range rows {
+		sides(c, x, y+1+i, width, e)
 	}
-	topEdge(c, fc, x, y, width, border)
-	row := y + 1
-	for _, p := range d.parts() {
-		height := d.height(p, bars)
-		for i := range height {
-			sides(c, x, row+i, width, border)
+	if fc.flipped {
+		f.back(c, doc, fc, now, x+padding+1, y+1, inside, rows)
+	} else {
+		row := y + 1
+		for _, p := range d.parts() {
+			height := d.height(p, bars)
+			f.part(c, fc, now, p, x+padding+1, row, inside, height, labelled)
+			row += height
 		}
-		f.part(c, fc, now, p, x+padding+1, row, width-2*(padding+1), height, labelled)
-		row += height
 	}
-	bottomEdge(c, fc, x, row, width, border)
+	bottomEdge(c, fc, x, y+1+rows, width, e)
+}
+
+// edgingOf is how a card's edges are drawn: heavy, in accent.key, on the
+// card with the focus; else light, in accent.mode on the card of the account
+// new sessions go to, and in the border's colour on the rest.
+func edgingOf(fc face) edging {
+	switch {
+	case fc.focused:
+		return heavyEdges.in(focusInk)
+	case fc.next:
+		return lightEdges.in(bestBorderInk)
+	default:
+		return lightEdges.in(borderInk)
+	}
 }
 
 // part draws a card's part p, width cells wide and rows tall from x along

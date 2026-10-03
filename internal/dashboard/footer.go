@@ -1,6 +1,10 @@
 package dashboard
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/leeovery/switchboard/internal/status"
+)
 
 // Key is a key the footer lists, and what it does, as "m" and "move". One
 // Always listed is listed wherever there's room for it, as q is, the rest
@@ -21,17 +25,18 @@ const (
 	phoneKeysGap = 2
 )
 
-// footer draws the footer on row y: at its right, how reading goes; and at
-// its left, what the last key did while that's news, else the keys that
+// footer draws the footer of doc's frame on row y: at its right, the
+// session picked out and the account it's on, or else how reading goes; and
+// at its left, what the last key did while that's news, else the keys that
 // work, in their order, as many as fit, as fitted says.
-func (f Frame) footer(c *canvas, y int) {
+func (f Frame) footer(c *canvas, doc status.Document, y int) {
 	gap := keysGap
 	if f.phone() {
 		gap = phoneKeysGap
 	}
 	limit := f.edge()
-	if f.Status != "" {
-		limit = c.right(f.edge(), y, line{{f.Status, dimInk}}.fit(f.edge()-margin)) - gap
+	if right := f.footing(doc); len(right) > 0 {
+		limit = c.right(f.edge(), y, right.fit(f.edge()-margin)) - gap
 	}
 	if f.Note != "" {
 		c.line(margin, y, line{{f.Note, noteInk}}.fit(limit-margin))
@@ -43,6 +48,20 @@ func (f Frame) footer(c *canvas, y int) {
 			x += gap
 		}
 		x = c.line(x, y, k.words())
+	}
+}
+
+// footing is what the footer of doc's frame says at its right: the session
+// picked out, and the account it's on, as in "d28c selected on work", while
+// one is; else how reading goes.
+func (f Frame) footing(doc status.Document) line {
+	switch {
+	case !f.Selected.IsZero():
+		return line{{f.Selected.Shown(), titleInk}, {" selected on ", mutedInk}, {named(doc, f.Focus), strongInk}}
+	case f.Status != "":
+		return line{{f.Status, dimInk}}
+	default:
+		return nil
 	}
 }
 

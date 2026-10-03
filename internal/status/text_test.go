@@ -2,6 +2,7 @@ package status_test
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -636,6 +637,34 @@ func TestSessionLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.session.Line(now); got != tt.want {
 				t.Errorf("Line() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestASessionsModelsByAccount(t *testing.T) {
+	on := func(family, model, account string) status.Assignment {
+		return status.Assignment{Model: model, Family: family, Account: account}
+	}
+	tests := []struct {
+		name    string
+		session status.Session
+		want    []status.Models
+	}{
+		{name: "none", session: status.Session{}},
+		{
+			name: "the account used last first, and of each, the model used last first, a family once",
+			session: status.Session{Assignments: []status.Assignment{
+				on("haiku", "claude-haiku-4-5", "side"), on("opus", "claude-opus-5-5", "work"),
+				on("fable", "claude-fable-5-1", "side"), on("haiku", "claude-haiku-3-5", "side"),
+			}},
+			want: []status.Models{{Account: "side", Names: []string{"haiku", "fable"}}, {Account: "work", Names: []string{"opus"}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.session.ByAccount(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ByAccount() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

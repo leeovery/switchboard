@@ -93,12 +93,15 @@ func moment(loc *time.Location) time.Time {
 // of accounts the frames draw, at the size of the frame it mirrors, or for
 // five accounts, which the final page draws only in Sessions and Runway, at
 // Sessions'. A frame of another view, or reached by a key, is a fixture with
-// its own size and keys over one of these sets, as the theme picker, open,
-// its cursor moved up a theme from the frames' to show the one before; and
-// the help, which the frames don't draw.
+// its own size and keys over one of these sets: as every card flipped with
+// s; work's card flipped with space, and d28c, its second session as the
+// router lists them, picked out with ↓ twice; the theme picker, open, its
+// cursor moved up a theme from the frames' to show the one before; and the
+// help, which the frames don't draw.
 func fixtures(now time.Time) []Fixture {
 	nord, _ := theme.Builtin(theme.DefaultDark)
 	w := tea.KeyPressMsg{Code: 'w', Text: "w"}
+	space, down := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: tea.KeyDown}
 	all := []Fixture{
 		{Name: "accounts-1", Size: wide(27), now: now, router: oneAccount(now)},
 		{Name: "accounts-3", Size: wide(34), now: now, router: threeAccounts(now)},
@@ -111,6 +114,8 @@ func fixtures(now time.Time) []Fixture {
 		{Name: "accounts-6", Size: wide(40), now: now, router: sixAccounts(now)},
 		{Name: "accounts-8", Size: wide(40), now: now, router: eightAccounts(now)},
 		{Name: "accounts-8-scrolling", Size: wide(28), now: now, router: eightAccounts(now)},
+		{Name: "accounts-flipped-all", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{{Code: 's', Text: "s"}}},
+		{Name: "accounts-flipped-selected", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{space, down, down}},
 		{Name: "accounts-phone", Size: watch.Size{Width: 52, Height: 36}, now: now, router: threeAccounts(now)},
 	}
 	for i := range all {

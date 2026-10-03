@@ -16,6 +16,20 @@ import (
 // an account under pressure, as in "new, work under pressure".
 const passedOver = " under pressure"
 
+// The reasons the router gives for where a session went that the dashboard
+// reads: chosen afresh, as a new session; sent by its own pin; sent by the
+// global pin as it started, or moved by it; moved off an account that
+// couldn't take it, which and why following; and its own pin yielding at a
+// limit, the account the pin names following, then why.
+const (
+	reasonNew       = "new"
+	reasonOwnPin    = "pinned"
+	reasonGlobalPin = "pinned (global)"
+	reasonPinMove   = "moved by pin"
+	reasonMovedOff  = "moved: "
+	reasonPinYields = "pin yields: "
+)
+
 // recent are the events RECENT lists at now, newest first, n at most: those
 // of the kinds it tells of, but for the moves a limit counts.
 func recent(doc status.Document, now time.Time, n int) []status.Event {
@@ -73,7 +87,8 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 		moved := line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {named(doc, e.From), strongInk}, {" → ", mutedInk}, {named(doc, e.To), strongInk}}
 		return span{"▸", dimInk}, slices.Concat(moved, why(e.Reason)), true
 	case status.EventRefused:
-		return refusal(e, account)
+		mark, words, until := refusal(e)
+		return mark, line{account, {" " + words + until, mutedInk}}, true
 	case status.EventPrimed:
 		return span{"◇", primedInk}, line{account, {" primed: its " + spanOf(first(e.Windows)) + " started" + resetting(e), mutedInk}}, true
 	case status.EventRoom:
@@ -102,12 +117,12 @@ func why(reason string) line {
 	var l line
 	switch reason {
 	case "":
-	case "new":
+	case reasonNew:
 		l = line{{", the best", mutedInk}}
-	case "pinned", "pinned (global)", "moved by pin":
+	case reasonOwnPin, reasonGlobalPin, reasonPinMove:
 		l = line{{" (pin)", mutedInk}}
 	default:
-		l = line{{": " + strings.TrimPrefix(reason, "moved: "), mutedInk}}
+		l = line{{": " + strings.TrimPrefix(reason, reasonMovedOff), mutedInk}}
 	}
 	if passed != "" {
 		l = append(l, span{", passing over " + passed, mutedInk})
@@ -167,19 +182,22 @@ func moves(e status.Event, doc status.Document) line {
 	return l
 }
 
-// refusal is what RECENT says of the upstream refusing requests on an
-// account, as told says: its token, which holds back every request, or a
-// model family's requests alone, which hold back less, and until when.
-func refusal(e status.Event, account span) (span, line, bool) {
+// refusal is what's said of the upstream refusing requests on an account,
+// after its name: its mark, a refusal of its token, which holds back every
+// request, in state.destructive, or of a model family's requests alone,
+// which hold back less, in accent.attention; what was refused, as in "was
+// refused (403, opus)"; and until when, as in " until 21:40", where the event
+// says.
+func refusal(e status.Event) (mark span, words, until string) {
 	mark, answer := span{"■", errorInk}, strconv.Itoa(e.Status)
 	if e.Family != "" {
 		mark, answer = span{"■", warningInk}, answer+", "+status.Clean(e.Family)
 	}
-	words := " was refused (" + answer + ")"
 	if !e.Until.IsZero() {
-		words += " until " + status.When(e.At, e.Until)
+		until = " until " + status.When(e.At, e.Until)
 	}
-	return mark, line{account, {words, mutedInk}}, true
+	words = "was refused (" + answer + ")"
+	return mark, words, until
 }
 
 // resetting says when the window a prime started resets, as in ",

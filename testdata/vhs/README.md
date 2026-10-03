@@ -74,6 +74,20 @@ known:
   always does, where the frame gives none.
 - **The phone's line over the footer** says `? for the key`, as any frame does where the key line
   has no room, where the frame leaves it blank.
+- **A card's back, without the request stream,** which comes with Sessions, says a session's row
+  is `seen now` or `idle 9m`, as the doc says it does without it, `seen` in `text.secondary`,
+  where the frames say `streaming  ↓ 1.2k` in `accent.mode` and `waiting  38s` in
+  `accent.attention`.
+- **A session's note** says the doc's words: c61b's is `here since 14:41`, where the frames have
+  `new at 14:41: side was the best`; and every row has one where there's room for every one's,
+  7f3a's `here since 12:40` too, where the frames give it none.
+- **LATELY** tells of an account's events as RECENT does, in the doc's words, but from its side,
+  its name left out, and what follows the gist only where it fits whole: work `came under
+  pressure`, where the frames add `new sessions go elsewhere`; `d28c started here, the best`;
+  `primed: its 5-hour window started`, where the frames have `its window`; side's `c61b started
+  here, the best`, where the frames have `side was the best`; and personal's limit, with the
+  sessions it moved, `3 sessions moved to side`, as RECENT counts them, where the frames name
+  `c61b, db8a and 41e0`.
 
 The fixtures, the harness and the tool are permanent: only the tapes and captures are scaffolding.
 
@@ -115,6 +129,8 @@ October 2026 at 14:42:07, so nothing moves of itself.
 | `accounts-6` | and `lab` | 160 × 40 | `accounts-6` |
 | `accounts-8` | and `team` and `extra` | 160 × 40 | `accounts-8` |
 | `accounts-8-scrolling` | the same eight, too many for 28 rows, so they scroll | 160 × 28 | `accounts-8-scrolling` |
+| `accounts-flipped-all` | `work`, `personal`, `side`, `s` pressed: every card flipped, the focus on work's | 160 × 34 | `accounts-flipped-all` |
+| `accounts-flipped-selected` | `work`, `personal`, `side`, `space` and `↓` twice pressed: work's card flipped, d28c picked out | 160 × 34 | `accounts-flipped-selected` |
 | `accounts-phone` | `work`, `personal`, `side` | 52 × 36 | `accounts-phone` |
 
 The four, six and eight accounts have nothing used of Fable's week, as their frames do.
@@ -325,7 +341,15 @@ its own rules, so a few read otherwise than the generator drew them:
   is back in 1h 11m, not 1h 12m, and its big digits read `1:11`. They're `status`'s countdowns,
   so side's session resets `in 4h 7m`, not `in 4h 08m`.
 - **A card's dots** come in the order the router lists its sessions, the one seen last first, so
-  the busy ones lead: work's read `● ● ○`, where the frames have `● ○ ●`.
+  the busy ones lead: work's read `● ● ○`, where the frames have `● ○ ●`. Its back lists them in
+  that order too, work's db8a, d28c and 7f3a, where the frames have d28c, 7f3a and db8a, so the
+  flipped-selected fixture picks out d28c, the frames' session, with `↓` twice, on work's second
+  row rather than its first.
+- **A card's back** draws its notes and LATELY from the router's events among the 50: the
+  fixtures' tell, older than RECENT's four or counted in personal's limit, of db8a's opus and 41e0
+  moving to side as personal reached its limit, d28c starting on work, and work's and personal's
+  primes, which RECENT leaves out. Personal's limit counts three sessions moved, two of them told
+  of, as the frames' RECENT and samples have it.
 - **A chart's columns** each take the last reading before their middles, from the history at its
   steps, so a level steps an eighth of a cell apart from the frames' here and there; and its line
   for now stands just past the column now falls in, one column from the frames' on team's week.
