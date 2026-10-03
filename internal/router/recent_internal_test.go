@@ -137,16 +137,19 @@ func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 		moves     []Moved
 		wantCount int
 		wantTo    string
+		// counted is set where the limit counts each move, which then names
+		// the limit's event.
+		counted bool
 	}{
 		{
 			name:      "each session once, whatever its models",
 			moves:     []Moved{forced("one", "work", "side"), forcedModel("one", haiku, "work", "side"), forced("two", "work", "side")},
-			wantCount: 2, wantTo: "side",
+			wantCount: 2, wantTo: "side", counted: true,
 		},
 		{
 			name:      "to several accounts, naming none",
 			moves:     []Moved{forced("one", "work", "side"), forced("two", "work", "personal")},
-			wantCount: 2,
+			wantCount: 2, counted: true,
 		},
 		{
 			name:  "but a move by choice",
@@ -182,6 +185,9 @@ func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 			}
 			for i, m := range tt.moves {
 				want := status.Event{ID: 2 + i, At: clock.now, Kind: status.EventMoved, Session: m.Session, Model: m.Model, From: m.From, To: m.To, Reason: m.Reason}
+				if tt.counted {
+					want.Limit = 1
+				}
 				if moved := got[len(got)-2-i]; !reflect.DeepEqual(moved, want) {
 					t.Errorf("move %d's event = %+v, want %+v", i+1, moved, want)
 				}
@@ -202,7 +208,7 @@ func TestALimitReachedAgainJoinsItsEventInPlace(t *testing.T) {
 	r.hear(forced("one", "work", "side"))
 
 	want := []status.Event{
-		{ID: 3, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit"},
+		{ID: 3, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
 		{ID: 2, At: start, Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour)},
 		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"}, Until: start.Add(2 * 24 * time.Hour), Count: 1},
 	}
@@ -229,6 +235,9 @@ func TestANewLimitIsAnEventOfItsOwn(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got[1:], want) {
 		t.Errorf("the limits' events = %+v, want %+v: the move counted by the latest", got[1:], want)
+	}
+	if got[0].Limit != 2 {
+		t.Errorf("the move names the limit event %d, want 2, the latest's", got[0].Limit)
 	}
 }
 

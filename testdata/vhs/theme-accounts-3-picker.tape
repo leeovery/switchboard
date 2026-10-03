@@ -21,7 +21,7 @@ Set WaitTimeout 2m
 Hide
 Type "go run ./cmd/capturetool --fixture accounts-3-themes"
 Enter
-Wait+Screen /14:42/
+Wait+Screen /set as dark/
 Show
 Sleep 500ms
 Screenshot "testdata/vhs/theme-accounts-3-picker.png"

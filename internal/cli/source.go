@@ -30,55 +30,57 @@ type usageSource struct {
 
 // Read reads the router's document, having the router refresh first when r
 // asks, when the router answers its health check in time, as run gives it,
-// healthy or not. Otherwise, when r allows, it builds one by probing every
+// healthy or not, and says which router it was, as its health check
+// answered. Otherwise, when r allows, it builds one by probing every
 // account, saying why the router's wasn't read when the router was asked.
-func (s usageSource) Read(ctx context.Context, r watch.Read) (status.Document, error) {
-	doc, fallback, ok := s.fromRouter(ctx, r.Refresh)
+func (s usageSource) Read(ctx context.Context, r watch.Read) (status.Document, router.Health, error) {
+	doc, health, fallback, ok := s.fromRouter(ctx, r.Refresh)
 	switch {
 	case ok:
-		return doc, nil
+		return doc, health, nil
 	case !r.Probe:
-		return status.Document{}, watch.ErrNoRouter
+		return status.Document{}, router.Health{}, watch.ErrNoRouter
 	}
 	logger.Debug("probing directly", "router", fallback.Router, "reason", fallback.Reason)
 	doc, err := s.probe.Fetch(ctx)
 	doc.Fallback = fallback
-	return doc, err
+	return doc, router.Health{}, err
 }
 
 // fromRouter reads the router's document, having the router probe the
-// accounts it hasn't read for refresh first, when that's more than zero. It
-// reports false, and why when the router was asked, when the router isn't to
-// be asked, doesn't answer its health check in time, or doesn't give its
-// document.
-func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (status.Document, status.Fallback, bool) {
+// accounts it hasn't read for refresh first, when that's more than zero, and
+// its health check's answer. It reports false, and why when the router was
+// asked, when the router isn't to be asked, doesn't answer its health check
+// in time, or doesn't give its document.
+func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (status.Document, router.Health, status.Fallback, bool) {
 	switch {
 	case !s.ask:
-		return status.Document{}, status.Fallback{}, false
+		return status.Document{}, router.Health{}, status.Fallback{}, false
 	case s.router == nil:
-		return status.Document{}, status.Fallback{Router: status.RouterNotRunning}, false
+		return status.Document{}, router.Health{}, status.Fallback{Router: status.RouterNotRunning}, false
 	}
-	if fallback, ok := s.answers(ctx); !ok {
-		return status.Document{}, fallback, false
+	health, fallback, ok := s.answers(ctx)
+	if !ok {
+		return status.Document{}, router.Health{}, fallback, false
 	}
 	doc, err := s.document(ctx, refresh)
 	if err != nil {
-		return status.Document{}, fallbackFrom(err), false
+		return status.Document{}, router.Health{}, fallbackFrom(err), false
 	}
 	logger.Debug("read the router", "refresh", refresh, "healthy", doc.Router.Healthy)
-	return doc, status.Fallback{}, true
+	return doc, health, status.Fallback{}, true
 }
 
-// answers reports whether the router answers its health check within
-// launch.AskTimeout, as run gives it, and why not when it doesn't.
-func (s usageSource) answers(ctx context.Context) (status.Fallback, bool) {
+// answers asks the router's health check, giving it launch.AskTimeout, as
+// run does, and reports whether it answered, with its answer, or why not.
+func (s usageSource) answers(ctx context.Context) (router.Health, status.Fallback, bool) {
 	ctx, cancel := context.WithTimeout(ctx, launch.AskTimeout)
 	defer cancel()
-	_, err := s.router.Health(ctx)
+	health, err := s.router.Health(ctx)
 	if errors.Is(err, context.DeadlineExceeded) {
-		return status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within " + launch.AskTimeout.String()}, false
+		return router.Health{}, status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within " + launch.AskTimeout.String()}, false
 	}
-	return fallbackFrom(err), err == nil
+	return health, fallbackFrom(err), err == nil
 }
 
 // RouterAnswers reports whether the router answers its health check within
@@ -88,8 +90,27 @@ func (s usageSource) RouterAnswers(ctx context.Context) bool {
 	if s.router == nil {
 		return false
 	}
-	_, ok := s.answers(ctx)
+	_, _, ok := s.answers(ctx)
 	return ok
+}
+
+// History asks the router for every account's use of the window with the
+// given key over its current length, a point each step: it fails with
+// router.ErrNoHistory, wrapped, from a router from before GET /history.
+func (s usageSource) History(ctx context.Context, window string, step time.Duration) (router.History, error) {
+	if s.router == nil {
+		return router.History{}, errRouterDown
+	}
+	return s.router.History(ctx, window, step)
+}
+
+// Sessions lists the sessions the router has routed in the last hour, the
+// one seen last first.
+func (s usageSource) Sessions(ctx context.Context) ([]status.Session, error) {
+	if s.router == nil {
+		return nil, errRouterDown
+	}
+	return s.router.Sessions(ctx)
 }
 
 // document is the router's status document, once it has probed the accounts

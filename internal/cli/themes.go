@@ -20,7 +20,7 @@ var errNowhereToKeep = errors.New("there's no state directory to keep it in")
 
 // themes are the dashboard's themes, as the theme picker takes them: the
 // built-ins and the themes directory's, and the preferences file the user's
-// choice is kept in.
+// choice is kept in, beside the view shown.
 type themes struct {
 	library *theme.Library
 	// prefs is the preferences file: nil where the state directory can't be
@@ -47,13 +47,13 @@ func (a *app) themes() themes {
 	return t
 }
 
-// chosen is the theme, or the pair, the user chose: the default pair where
-// there's no preferences file to say.
-func (t themes) chosen() theme.Choice {
+// kept are the preferences the dashboard kept: the defaults where there's no
+// preferences file to say.
+func (t themes) kept() theme.Prefs {
 	if t.prefs == nil {
-		return theme.Choice{}
+		return theme.Prefs{}
 	}
-	return t.prefs.Read().Choice
+	return t.prefs.Read()
 }
 
 // List lists every theme there is to pick from.
@@ -76,16 +76,15 @@ func (a *app) noColour() bool {
 }
 
 // printLook is how usage prints the dashboard into the scrollback: under
-// NO_COLOR, without colour; else in the theme the user chose for the
+// NO_COLOR, without colour; else, of the themes, in the one chosen for the
 // terminal's background, as the terminal says it is when asked, its blends
 // worked out against it, and no canvas painted.
-func (a *app) printLook(out io.Writer) dashboard.Look {
+func (a *app) printLook(out io.Writer, t themes, chosen theme.Choice) dashboard.Look {
 	if a.noColour() {
 		return dashboard.NoColour()
 	}
-	t := a.themes()
 	background := a.Background(out)
-	return dashboard.Print(t.library.Pair(t.chosen()).For(theme.Dark(background)), background)
+	return dashboard.Print(t.library.Pair(chosen).For(theme.Dark(background)), background)
 }
 
 // TerminalBackground asks the terminal what its background is (OSC 11), as

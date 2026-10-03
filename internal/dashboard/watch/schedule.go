@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -86,11 +85,8 @@ func incomplete(doc status.Document) bool {
 }
 
 // tickDelay is how long from now until the next tick: just past the next
-// second while a frame of doc counts seconds, else just past the next minute.
-func tickDelay(doc status.Document, now time.Time) time.Duration {
-	step := time.Minute
-	if dashboard.CountsSeconds(doc, now) {
-		step = time.Second
-	}
-	return now.Truncate(step).Add(step).Sub(now) + tickSlack
+// second, as the clock on screen shows it, and how long ago the document was
+// read.
+func tickDelay(now time.Time) time.Duration {
+	return now.Truncate(time.Second).Add(time.Second).Sub(now) + tickSlack
 }

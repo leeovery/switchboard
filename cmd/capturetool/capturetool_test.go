@@ -20,7 +20,7 @@ func TestPrintsAFixturesFrameAsTextAtItsSize(t *testing.T) {
 	if len(lines) != 34 {
 		t.Errorf("printed %d lines, want the fixture's 34", len(lines))
 	}
-	if !strings.Contains(out, "Switchboard") {
+	if !strings.Contains(out, "SWITCHBOARD") {
 		t.Errorf("printed\n%s\nwant the dashboard", out)
 	}
 	if strings.ContainsRune(out, ansi.ESC) {
@@ -186,7 +186,7 @@ func TestDrawsWithoutColourUnderNoColour(t *testing.T) {
 func TestDrawsThePickerOverTheView(t *testing.T) {
 	out := capturing(t, "--fixture", "accounts-3-themes", "--print")
 
-	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "Switchboard"} {
+	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "SWITCHBOARD"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("printed\n%s\nwant %q", out, want)
 		}

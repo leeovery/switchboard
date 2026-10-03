@@ -48,6 +48,32 @@ known:
   sheets' other five, and a sixth of their own.
 - **The sample session ids** differ: the frames have `d28c`, `c61b`, `db8a` and so on, the doc's
   examples `5b19`, `3e7a`, `9e21`. The fixtures use the frames'.
+- **The footer's keys** are the doc's, in its order, `? keys` and `q quit` always listed: where
+  the frames say `? explain` or `? help`, it's `? keys`. The phone's frame lists `r refresh`,
+  which the doc leaves to `?`, and drops `q quit` and when the document was read, both of which a
+  phone's footer keeps.
+- **A card's featured window** takes the colour of its account's state, digits and chart alike,
+  whichever window it is: an open account's in `state.positive`, an idle one's dim, and a week
+  featured on an account under pressure in `accent.attention`. The frames draw an open account's
+  digits in `text.primary`, and colour a chart, or a week's digits, by its window's own use.
+- **The blends** are halfway, as the doc says: a chart's past level is its state's colour faded
+  halfway into the canvas, and a bar's projection the ramp's, where the frames take 55% and 38%
+  of the colour. A limit's line along a chart's floor is `state.destructive` itself, where the
+  frames fade it.
+- **The reserve** is the floor a chart runs out at where it holds an account back, a faint dotted
+  line with `✕` on it, and `╎` marks where it starts on every bar of an account that keeps one, its
+  session's too. The frames draw neither on the charts, and no mark on a session's bar.
+- **A bar at its limit** fills along `viz.ramp` as every bar does, where the frames fill it solid
+  `state.destructive`.
+- **The key line** says the doc's words: the chart's dotted line is `heading`, where the frames say
+  `where it's heading`, and `● session, lit while busy` follows the bars' glyphs, where the frames
+  stop at `╎ reserve`.
+- **The line over the footer, as the cards scroll,** says the doc's `▼ 2 more accounts below · j/k
+  or wheel to scroll`, centred, where the frames add `header and footer stay put`.
+- **COMING UP beside one account's card** gives each thing's countdown at the right, as COMING UP
+  always does, where the frame gives none.
+- **The phone's line over the footer** says `? for the key`, as any frame does where the key line
+  has no room, where the frame leaves it blank.
 
 The fixtures, the harness and the tool are permanent: only the tapes and captures are scaffolding.
 
@@ -80,11 +106,15 @@ October 2026 at 14:42:07, so nothing moves of itself.
 |---|---|---|---|
 | `accounts-1` | `work` | 160 × 27 | `accounts-1` |
 | `accounts-3` | `work`, `personal`, `side` | 160 × 34 | `accounts-3-auto` |
+| `accounts-3-5h` | `work`, `personal`, `side`, `w` pressed: every card featuring its 5-hour window | 160 × 34 | `accounts-3-5h` |
+| `accounts-3-week` | `work`, `personal`, `side`, `w` pressed twice: every card featuring its week | 160 × 34 | `accounts-3-week` |
+| `accounts-3-keys` | `work`, `personal`, `side`, `?` pressed: the help open over them | 160 × 34 | none: the frames don't draw the help |
 | `accounts-3-themes` | `work`, `personal`, `side`, the theme picker open, the cursor up a theme | 160 × 34 | none: Portal draws the picker |
 | `accounts-4` | and `client` | 160 × 40 | `accounts-4` |
 | `accounts-5` | and `spare` | 160 × 40 | none: Sessions' and Runway's are 5 accounts |
 | `accounts-6` | and `lab` | 160 × 40 | `accounts-6` |
 | `accounts-8` | and `team` and `extra` | 160 × 40 | `accounts-8` |
+| `accounts-8-scrolling` | the same eight, too many for 28 rows, so they scroll | 160 × 28 | `accounts-8-scrolling` |
 | `accounts-phone` | `work`, `personal`, `side` | 52 × 36 | `accounts-phone` |
 
 The four, six and eight accounts have nothing used of Fable's week, as their frames do.
@@ -259,7 +289,7 @@ cmd/capturetool/       the tool: --fixture, --theme, --print, --size, --ansi, an
 internal/capture/      imported by the tool alone
   capture.go           the Fixture, and the registry: Names, ByName, and every fixture's name, size, router and theme
   samples.go           the frames' sample accounts and sessions, and the sets of them the frames draw
-  source.go            the fake router: its status document, GET /sessions and GET /history
+  source.go            the fake router: its status document and health, GET /sessions and GET /history
   history.go           the accounts' windows' use over time, as the frames' charts draw it
   harness.go           builds the watch model, its themes faked, settles it at the fixture's moment, and draws it
 ```
@@ -273,14 +303,32 @@ events the frames' RECENT has. Its sessions answer as `GET /sessions` would, and
 of each week, shaped as the frames' charts are. The dashboard draws its own numbers from these, by
 its own rules, so a few read otherwise than the generator drew them:
 
-- **Work's pressure** reaches its 90% reserve at 15:45, at its last half hour's rate: the frames say
-  its session runs out at 16:05, which is when it reaches its limit.
+- **Work runs out** where its 90% reserve starts, as its reserve holds it back, and at its last
+  half hour's rate its session reaches it at 15:45: the frames say it runs out at 16:05, which is
+  when it reaches its limit. So COMING UP says `15:45 work reaches its reserve`, not `16:05 work
+  runs out at its pace`, and RECENT, telling of it coming under pressure, says `its session
+  reaches its reserve ~15:45 at its last-30-min rate`, not `its session runs out ~16:05 at its
+  last-30-min rate`. Its card says `→ reaches its reserve ~15:45`, or in brief `→ out ~15:45`, and
+  its chart's `✕` is there, on its reserve.
+- **ROOM LEFT's sums** round the rooms' sum as it is: the six accounts' sessions have 3.55
+  accounts' worth left, which reads 3.6, where the generator's sum came to a hair under, and read
+  3.5.
 - **Projections** the generator gave without its numbers giving them: client's week, 78% used a
-  third of the way through, runs out on Friday rather than heading for 97%; at their pace, spare's
-  week heads for 34% and extra's for 8%, not 12% and 5%, and with Fable's week used, client's heads
-  for 63%, not 36%.
+  third of the way through, reaches its 80% reserve at 16:04, which holds it back, rather than
+  heading for 97%, so its card says `→ out ~16:04` and its chart's `✕` is just past now, and
+  COMING UP, with four accounts or more, says `16:04  client's week reaches its reserve` as its
+  third thing, where the frames have `16:40  client's session resets` or `16:20  spare is
+  primed`; at their pace, spare's week heads for 34% and extra's for 8%, not 12% and 5%, and with
+  Fable's week used, client's heads for 63%, not 36%; and work's Fable week heads for 30.7%,
+  which reads 31% but fills its bar an eighth of a cell short of the frames' 31%.
 - **Countdowns** run from 14:42:07, the frames' from 14:42: as the dashboard counts now, personal
-  is back in 1h 11m, not 1h 12m.
+  is back in 1h 11m, not 1h 12m, and its big digits read `1:11`. They're `status`'s countdowns,
+  so side's session resets `in 4h 7m`, not `in 4h 08m`.
+- **A card's dots** come in the order the router lists its sessions, the one seen last first, so
+  the busy ones lead: work's read `● ● ○`, where the frames have `● ○ ●`.
+- **A chart's columns** each take the last reading before their middles, from the history at its
+  steps, so a level steps an eighth of a cell apart from the frames' here and there; and its line
+  for now stands just past the column now falls in, one column from the frames' on team's week.
 - **Work's prime**, in the one account's RECENT, is told of at 12:10, when it started work's
   session: the frame has it at 13:02, saying it primed at 12:10.
 

@@ -94,17 +94,23 @@ func moment(loc *time.Location) time.Time {
 // five accounts, which the final page draws only in Sessions and Runway, at
 // Sessions'. A frame of another view, or reached by a key, is a fixture with
 // its own size and keys over one of these sets, as the theme picker, open,
-// its cursor moved up a theme from the frames' to show the one before.
+// its cursor moved up a theme from the frames' to show the one before; and
+// the help, which the frames don't draw.
 func fixtures(now time.Time) []Fixture {
 	nord, _ := theme.Builtin(theme.DefaultDark)
+	w := tea.KeyPressMsg{Code: 'w', Text: "w"}
 	all := []Fixture{
 		{Name: "accounts-1", Size: wide(27), now: now, router: oneAccount(now)},
 		{Name: "accounts-3", Size: wide(34), now: now, router: threeAccounts(now)},
+		{Name: "accounts-3-5h", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{w}},
+		{Name: "accounts-3-keys", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{{Code: '?', Text: "?"}}},
 		{Name: "accounts-3-themes", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{{Code: 't', Text: "t"}, {Code: tea.KeyUp}}},
+		{Name: "accounts-3-week", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{w, w}},
 		{Name: "accounts-4", Size: wide(40), now: now, router: fourAccounts(now)},
 		{Name: "accounts-5", Size: wide(40), now: now, router: fiveAccounts(now)},
 		{Name: "accounts-6", Size: wide(40), now: now, router: sixAccounts(now)},
 		{Name: "accounts-8", Size: wide(40), now: now, router: eightAccounts(now)},
+		{Name: "accounts-8-scrolling", Size: wide(28), now: now, router: eightAccounts(now)},
 		{Name: "accounts-phone", Size: watch.Size{Width: 52, Height: 36}, now: now, router: threeAccounts(now)},
 	}
 	for i := range all {

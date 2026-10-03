@@ -136,6 +136,10 @@ type Event struct {
 	Since time.Time `json:"since,omitzero"`
 	// Count is how many sessions a limit moved.
 	Count int `json:"count,omitzero"`
+	// Limit is the id of the limit's event a move is counted in, as one of
+	// the sessions that limit moved: zero for a move it doesn't count, and an
+	// event of any other kind.
+	Limit int `json:"limit,omitzero"`
 	// Status is the upstream's answer refusing requests, and Family, for a
 	// request refused alone, the model family the refusal holds back.
 	Status int    `json:"status,omitzero"`
@@ -446,6 +450,38 @@ func (a Account) Project(w quota.Window, now time.Time) Heading {
 		return recent
 	}
 	return average
+}
+
+// RunOut is where an account's window runs out at the pace it's heading at:
+// when, and whether it's where the account's reserve starts, which holds it
+// back there, rather than at its limit; and the heading it goes by.
+type RunOut struct {
+	At      time.Time
+	Reserve bool
+	Heading
+}
+
+// RunsOut says where the account a's window w runs out at now, as the
+// router's pressure judges it and the dashboard shows it, reporting false
+// where it doesn't before it resets: where its use, heading as Project says,
+// reaches its floor, which is its reserve, where that would hold the account
+// back, as ReserveHolds says, else its limit.
+func (d Document) RunsOut(a Account, w quota.Window, now time.Time) (RunOut, bool) {
+	out := RunOut{Heading: a.Project(w, now)}
+	floor := 1.0
+	if out.Reserve = d.ReserveHolds(a); out.Reserve {
+		floor = 1 - a.Reserve
+	}
+	var ok bool
+	out.At, ok = score.Reaches(w, out.Projection, floor, now)
+	return out, ok
+}
+
+// ReserveHolds reports whether the account's reserve holds it back once its
+// use reaches it: it has one, and the global pin doesn't name it, as a pin
+// spends it.
+func (d Document) ReserveHolds(a Account) bool {
+	return a.Reserve > 0 && !d.Pin.Has(a.ID)
 }
 
 // rate returns how fast the router has seen the account's window with the

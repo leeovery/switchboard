@@ -3,33 +3,47 @@ package dashboard
 import (
 	"image/color"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-func TestBarCells(t *testing.T) {
+// now is the clock frames are drawn at: a Monday, 13:12 an hour east of UTC.
+var now = time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+
+// barOf is a bar ten cells long, as fill draws it, used to the share given
+// and heading nowhere further, its reserve's mark and even pace's at the
+// cells given, noMarker for neither.
+func barOf(t *testing.T, used float64, reserve, pace int) string {
+	t.Helper()
+	c := newCanvas(10, 1)
+	Frame{Look: Screen(builtin(t, "nord"))}.fill(c, 0, 0, 10, used, used, reserve, pace)
+	return c.rows(Look{})[0]
+}
+
+func TestABarFillsInEighthsOfACell(t *testing.T) {
 	tests := []struct {
-		name     string
-		fraction float64
-		want     string
+		name string
+		used float64
+		want string
 	}{
-		{name: "empty", fraction: 0, want: "░░░░░░░░░░"},
-		{name: "below zero", fraction: -0.2, want: "░░░░░░░░░░"},
-		{name: "too little for an eighth", fraction: 0.006, want: "░░░░░░░░░░"},
-		{name: "rounds up to an eighth", fraction: 0.007, want: "▏░░░░░░░░░"},
-		{name: "an eighth", fraction: 0.0125, want: "▏░░░░░░░░░"},
-		{name: "half a cell", fraction: 0.05, want: "▌░░░░░░░░░"},
-		{name: "seven eighths", fraction: 0.0875, want: "▉░░░░░░░░░"},
-		{name: "a cell", fraction: 0.1, want: "█░░░░░░░░░"},
-		{name: "cells and three eighths", fraction: 0.3375, want: "███▍░░░░░░"},
-		{name: "one eighth short of full", fraction: 0.9875, want: "█████████▉"},
-		{name: "full", fraction: 1, want: "██████████"},
-		{name: "over the limit", fraction: 1.3, want: "██████████"},
+		{name: "empty", used: 0, want: "░░░░░░░░░░"},
+		{name: "below zero", used: -0.2, want: "░░░░░░░░░░"},
+		{name: "too little for an eighth", used: 0.006, want: "░░░░░░░░░░"},
+		{name: "rounds up to an eighth", used: 0.007, want: "▏░░░░░░░░░"},
+		{name: "an eighth", used: 0.0125, want: "▏░░░░░░░░░"},
+		{name: "half a cell", used: 0.05, want: "▌░░░░░░░░░"},
+		{name: "seven eighths", used: 0.0875, want: "▉░░░░░░░░░"},
+		{name: "a cell", used: 0.1, want: "█░░░░░░░░░"},
+		{name: "cells and three eighths", used: 0.3375, want: "███▍░░░░░░"},
+		{name: "one eighth short of full", used: 0.9875, want: "█████████▉"},
+		{name: "full", used: 1, want: "██████████"},
+		{name: "over the limit", used: 1.3, want: "██████████"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := bar(tt.fraction, 10).plain(); got != tt.want {
-				t.Errorf("bar(%v) = %q, want %q", tt.fraction, got, tt.want)
+			if got := barOf(t, tt.used, noMarker, noMarker); got != tt.want {
+				t.Errorf("a bar used %v = %q, want %q", tt.used, got, tt.want)
 			}
 		})
 	}
@@ -78,70 +92,66 @@ func TestReserveCell(t *testing.T) {
 	}
 }
 
-func TestBarMarker(t *testing.T) {
+func TestEvenPaceIsMarkedOverABar(t *testing.T) {
 	tests := []struct {
-		name     string
-		fraction float64
-		elapsed  float64
-		want     string
+		name          string
+		used, elapsed float64
+		want          string
 	}{
-		{name: "at the start of an empty bar", fraction: 0, elapsed: 0, want: "┃░░░░░░░░░"},
-		{name: "ahead of the fill", fraction: 0.3, elapsed: 0.5, want: "███░░┃░░░░"},
-		{name: "just past the fill, keeping pace", fraction: 0.5, elapsed: 0.5, want: "█████┃░░░░"},
-		{name: "over the fill's edge", fraction: 0.55, elapsed: 0.5, want: "█████┃░░░░"},
-		{name: "behind the fill", fraction: 0.8, elapsed: 0.5, want: "█████┃██░░"},
-		{name: "at the end of a full bar", fraction: 1, elapsed: 1, want: "█████████┃"},
+		{name: "at the start of an empty bar", used: 0, elapsed: 0, want: "┃░░░░░░░░░"},
+		{name: "ahead of the fill", used: 0.3, elapsed: 0.5, want: "███░░┃░░░░"},
+		{name: "just past the fill, keeping pace", used: 0.5, elapsed: 0.5, want: "█████┃░░░░"},
+		{name: "over the fill's edge", used: 0.55, elapsed: 0.5, want: "█████┃░░░░"},
+		{name: "behind the fill", used: 0.8, elapsed: 0.5, want: "█████┃██░░"},
+		{name: "at the end of a full bar", used: 1, elapsed: 1, want: "█████████┃"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := bar(tt.fraction, 10).mark(cellAt(tt.elapsed, 10), paceMarker).plain(); got != tt.want {
-				t.Errorf("bar(%v) with the marker at %v = %q, want %q", tt.fraction, tt.elapsed, got, tt.want)
+			if got := barOf(t, tt.used, noMarker, cellAt(tt.elapsed, 10)); got != tt.want {
+				t.Errorf("a bar used %v, marked at %v, = %q, want %q", tt.used, tt.elapsed, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestBarMarksWhereTheReserveStarts(t *testing.T) {
+func TestABarMarksWhereTheReserveStarts(t *testing.T) {
 	tests := []struct {
-		name     string
-		fraction float64
-		// pace is the cell the pace marker takes, or noMarker for none.
+		name string
+		used float64
+		// pace is the cell even pace's mark takes, or noMarker for none.
 		pace int
 		want string
 	}{
-		{name: "short of it", fraction: 0.5, pace: noMarker, want: "█████░░░░╎"},
-		{name: "past it", fraction: 0.95, pace: noMarker, want: "█████████╎"},
-		{name: "beside the pace marker", fraction: 0.3, pace: 5, want: "███░░┃░░░╎"},
-		{name: "under the pace marker, which shows", fraction: 0.8, pace: 9, want: "████████░┃"},
+		{name: "short of it", used: 0.5, pace: noMarker, want: "█████░░░░╎"},
+		{name: "past it", used: 0.95, pace: noMarker, want: "█████████╎"},
+		{name: "beside even pace", used: 0.3, pace: 5, want: "███░░┃░░░╎"},
+		{name: "under even pace, which shows", used: 0.8, pace: 9, want: "████████░┃"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := bar(tt.fraction, 10).mark(reserveCell(0.1, 10), reserveMarker).mark(tt.pace, paceMarker)
-			if got.plain() != tt.want {
-				t.Errorf("bar(%v) with a reserve of a tenth = %q, want %q", tt.fraction, got.plain(), tt.want)
+			if got := barOf(t, tt.used, reserveCell(0.1, 10), tt.pace); got != tt.want {
+				t.Errorf("a bar used %v, keeping a tenth back, = %q, want %q", tt.used, got, tt.want)
 			}
 		})
 	}
-	if got := bar(0.5, 10).mark(reserveCell(0.1, 10), reserveMarker)[9].ink; got != reserveInk {
-		t.Errorf("the reserve's mark is drawn in %+v, want viz.reserve's ink, %+v", got, reserveInk)
-	}
 }
 
-func TestBarColors(t *testing.T) {
+func TestABarsCellsAreColouredByWhereTheySitAlongIt(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
-	cells := bar(1, 10)
-	if got := look.colour(cells[0].ink); !sameColor(got, rgb(0xA3BE8C)) {
-		t.Errorf("first cell's color = %v, want the ramp's first stop, #A3BE8C", got)
+	full, short := newCanvas(10, 1), newCanvas(10, 1)
+	Frame{Look: look}.fill(full, 0, 0, 10, 1, 1, noMarker, noMarker)
+	Frame{Look: look}.fill(short, 0, 0, 10, 0.2, 0.2, noMarker, noMarker)
+	if got := look.colour(full.at(0, 0).ink); !sameColor(got, rgb(0xA3BE8C)) {
+		t.Errorf("a full bar's first cell is %v, want the ramp's first stop, #A3BE8C", got)
 	}
-	if got := look.colour(cells[9].ink); !sameColor(got, rgb(0xBF616A)) {
-		t.Errorf("last cell's color = %v, want the ramp's last stop, #BF616A", got)
+	if got := look.colour(full.at(9, 0).ink); !sameColor(got, rgb(0xBF616A)) {
+		t.Errorf("a full bar's last cell is %v, want the ramp's last stop, #BF616A", got)
 	}
-	short := bar(0.2, 10)
-	if got, want := look.colour(short[1].ink), look.ramp(1.0/9); !sameColor(got, want) {
-		t.Errorf("second cell of a short bar's color = %v, want the ramp's %v, as on a full bar", got, want)
+	if got, want := look.colour(short.at(1, 0).ink), look.colour(full.at(1, 0).ink); !sameColor(got, want) {
+		t.Errorf("a short bar's second cell is %v, want %v, as on a full bar", got, want)
 	}
-	if got := short[2].ink; got != trackInk {
-		t.Errorf("track drawn in %+v, want viz.track's ink, %+v", got, trackInk)
+	if got := short.at(2, 0).ink; got != trackInk {
+		t.Errorf("the track is drawn in %+v, want viz.track's ink, %+v", got, trackInk)
 	}
 }
 

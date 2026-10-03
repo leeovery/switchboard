@@ -117,21 +117,21 @@ func (p Picker) lines(width, height int) []line {
 	top := min(max(p.Cursor-shown+1, 0), max(len(p.Rows)-shown, 0))
 	lines := make([]line, 0, height)
 	for _, l := range pickerHead {
-		lines = append(lines, framed(l, inner, 0))
+		lines = append(lines, framed(l, inner, hue{}))
 	}
 	for i := top; i < top+shown; i++ {
-		var on theme.Token
+		var on hue
 		var content line
 		if i < len(p.Rows) {
 			if i == p.Cursor {
-				on = theme.BgSelection
+				on = hue{token: theme.BgSelection}
 			}
 			content = p.Rows[i].line(inner, on)
 		}
 		lines = append(lines, framed(content, inner, on))
 	}
 	for _, l := range foot {
-		lines = append(lines, framed(l, inner, 0))
+		lines = append(lines, framed(l, inner, hue{}))
 	}
 	return lines[:min(len(lines), height)]
 }
@@ -159,14 +159,14 @@ func (p Picker) foot(inner int) []line {
 	return foot
 }
 
-// line is a theme's row, inner cells wide, on the surface on, the zero
-// Token for the canvas: the cursor's bar where the cursor is, the theme's
+// line is a theme's row, inner cells wide, on the surface on, the zero hue
+// for the canvas: the cursor's bar where the cursor is, the theme's
 // name, and at the right, its badge, and that it doesn't load, with why
 // where that fits beside no badge.
-func (r PickerRow) line(inner int, on theme.Token) line {
+func (r PickerRow) line(inner int, on hue) line {
 	bar, name := span{strings.Repeat(" ", cursorColumn), ink{on: on}}, ink{token: theme.TextPrimary, on: on}
 	switch {
-	case on != 0:
+	case on != hue{}:
 		bar, name = span{"▌ ", ink{token: theme.AccentPrimary, on: on}}, ink{token: theme.TextOnSelection, on: on, bold: true}
 	case r.Problem != "":
 		name = ink{token: theme.TextSubtle, on: on}
@@ -181,7 +181,7 @@ func (r PickerRow) line(inner int, on theme.Token) line {
 // tail is the end of a theme's row, inner cells wide, on the surface on: a
 // warning that it doesn't load, saying why where that fits beside the whole
 // of its name and there's no badge, then its badge.
-func (r PickerRow) tail(inner int, on theme.Token) line {
+func (r PickerRow) tail(inner int, on hue) line {
 	var tail line
 	if r.Problem != "" {
 		warning := "⚠"
@@ -199,7 +199,7 @@ func (r PickerRow) tail(inner int, on theme.Token) line {
 
 // framed is a row of the picker: its border, then a gap and content, cut or
 // padded to inner cells, on the surface on.
-func framed(content line, inner int, on theme.Token) line {
+func framed(content line, inner int, on hue) line {
 	content = content.fit(inner)
 	l := append(line{{"│", borderInk}, {" ", ink{on: on}}}, content...)
 	return append(l, span{strings.Repeat(" ", max(inner-content.width(), 0)), ink{on: on}})

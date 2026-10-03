@@ -315,7 +315,8 @@ func (a *app) collect(ctx context.Context, probe bool, r watch.Read) (status.Doc
 	if err != nil {
 		return status.Document{}, err
 	}
-	return a.source(cfg, probe).Read(ctx, r)
+	doc, _, err := a.source(cfg, probe).Read(ctx, r)
+	return doc, err
 }
 
 // source returns where the status document is read for the config given: the

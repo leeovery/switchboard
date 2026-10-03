@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -60,36 +61,66 @@ func (o order) log(err error) {
 }
 
 // pressed acts on a key: q or ctrl+c quits, whatever's open; while the theme
-// picker is open, it takes every other key. Otherwise, r reads now, having
-// the router refresh what it hasn't read in the last minute, and what can
-// take no request, or probing when it doesn't answer; and t opens the theme
-// picker. While the router answers, 1–9 pin new sessions to the account in
-// that place, as configured, beside those pinned already, or unpin it; a
-// routes every session on its merits again; and m moves running sessions to
-// the accounts pinned.
+// picker or the help is open, it takes every other key. Otherwise, j, k,
+// PgDn and PgUp scroll the cards where they don't fit; ? opens the help;
+// tab and shift-tab show the next view and the one before, r reads now,
+// having the router refresh what it hasn't read in the last minute, and what
+// can take no request, or probing when it doesn't answer; t opens the theme
+// picker; and w has the cards feature the next window.
+// While the router answers, of more than one account, 1–9 pin new sessions
+// to the account in that place, as configured, beside those pinned already,
+// or unpin it; a routes every session on its merits again; and m moves
+// running sessions to the accounts pinned. With one account, there's no
+// other to send them to, and they do nothing.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); {
 	case k == "q" || k == "Q" || k == "ctrl+c":
 		return m, tea.Quit
 	case m.picker.open:
 		return m.pickerKey(k)
+	case m.helping:
+		return m.helpKey(k), nil
+	}
+	if rows, ok := m.scrollKey(key.String()); ok {
+		return m.scrollBy(rows), nil
 	}
 	switch k := key.String(); k {
+	case "?":
+		m.helping = true
+		return m, nil
+	case "tab":
+		return m.turn(1)
+	case "shift+tab":
+		return m.turn(-1)
 	case "r", "R":
 		logger.Debug("refresh key pressed", "already_reading", m.fetching)
 		return m.read(Fresh())
 	case "t", "T":
 		return m.openPicker()
+	case "w", "W":
+		return m.feature()
 	case "a", "A":
+		if m.single() {
+			return m, nil
+		}
 		return m.command(routing)
 	case "m", "M":
+		if m.single() {
+			return m, nil
+		}
 		return m.move()
 	default:
-		if n, ok := place(k); ok {
+		if n, ok := place(k); ok && !m.single() {
 			return m.toggle(n)
 		}
 	}
 	return m, nil
+}
+
+// single reports whether the document on screen is of one account, so
+// there's none other to send sessions to.
+func (m Model) single() bool {
+	return len(m.doc.Accounts) == 1
 }
 
 // place is the place a digit key names, from 1 to pinnable.
@@ -239,28 +270,84 @@ func (m Model) unanswered() (Model, tea.Cmd) {
 	return m.noting(ErrNoRouter.Error())
 }
 
-// keys says what the keys do: while the router answers, the ones that tell it
-// where to send sessions too, and in colour, the theme picker's.
-func (m Model) keys() string {
-	keys := []string{"r refresh"}
-	if m.answering() {
-		if len(m.doc.Accounts) > 0 {
-			keys = append(keys, places(len(m.doc.Accounts))+" toggle pin")
+// keyListing is a key as the model stands, as the footer and the help list it:
+// what the footer says it does, in a word or two, "" for a key it leaves
+// behind ?, and what the help says, at more length; whether the footer
+// lists it wherever there's room; and whether it works there, and so is
+// listed at all.
+type keyListing struct {
+	key, footer, help string
+	always, works     bool
+}
+
+// listings are every key there is, as m stands, in the design's order, so
+// the footer comes out as the design has it once every key works: tab,
+// while there's another view to move to; w, in the Accounts view, saying
+// which window the cards feature; j and k, where the cards scroll; while the
+// router answers, of more than one account, the digits of their places, a
+// and m; r; t, in colour; and ? and q, always. The footer leaves j and k, r
+// and t behind ?.
+func (m Model) listings() []keyListing {
+	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
+	return []keyListing{
+		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},
+		{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: m.view == dashboard.Accounts},
+		{key: "j k", help: "scroll the cards; PgUp and PgDn a page, or the wheel", works: m.scrolling().Most > 0},
+		{key: places(len(m.doc.Accounts)), footer: "pin", help: "toggle the account in that place in the pin", works: m.orders()},
+		{key: "a", footer: "auto", help: "route automatically again", works: m.orders()},
+		{key: "m", footer: "move", help: "move running sessions to the pinned accounts", works: m.orders()},
+		{key: "r", help: "refresh", works: true},
+		{key: "t", help: "the theme picker", works: m.coloured()},
+		{key: "?", footer: "keys", help: "these keys, and the key to the glyphs", always: true, works: true},
+		{key: "q", footer: "quit", help: "quit", always: true, works: true},
+	}
+}
+
+// keys are the keys the footer lists, as listings has them: those that work
+// where they are, but those it leaves behind ?.
+func (m Model) keys() []dashboard.Key {
+	var keys []dashboard.Key
+	for _, l := range m.listings() {
+		if l.works && l.footer != "" {
+			keys = append(keys, dashboard.Key{Key: l.key, Does: l.footer, Always: l.always})
 		}
-		keys = append(keys, "a auto", "m move")
 	}
-	if m.coloured() {
-		keys = append(keys, "t themes")
+	return keys
+}
+
+// helpKeys are the keys the help lists, as listings has them: every key that
+// works where it is, and what it does, at more length than the footer says.
+func (m Model) helpKeys() []dashboard.Key {
+	var keys []dashboard.Key
+	for _, l := range m.listings() {
+		if l.works {
+			keys = append(keys, dashboard.Key{Key: l.key, Does: l.help})
+		}
 	}
-	return strings.Join(append(keys, "q quit"), " · ")
+	return keys
+}
+
+// helpKey acts on a key while the help is open, which takes every key but
+// those that quit: ? and esc close it, and the rest do nothing.
+func (m Model) helpKey(key string) Model {
+	if key == "?" || key == "esc" {
+		m.helping = false
+	}
+	return m
+}
+
+// orders reports whether the keys that give the router orders work: while the
+// router answers, of more than one account.
+func (m Model) orders() bool {
+	return m.answering() && !m.single()
 }
 
 // places names the keys of the first n accounts' places, of the first nine:
-// "1", or "1–3".
+// "1", or "1-3".
 func places(n int) string {
 	n = min(n, pinnable)
 	if n == 1 {
 		return "1"
 	}
-	return "1–" + strconv.Itoa(n)
+	return "1-" + strconv.Itoa(n)
 }

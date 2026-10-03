@@ -34,7 +34,7 @@ func TestTheScreenWaitsForTheTerminalToSayWhatItsBackgroundIs(t *testing.T) {
 		t.Fatalf("no wait armed for the terminal to say its background in %v", answerWithin)
 	}
 	h.deliver(tea.BackgroundColorMsg{Color: darkBackground})
-	if got := h.view(); !strings.Contains(got, "work · Work") {
+	if got := h.view(); !strings.Contains(got, "╭─ 1 Work ") {
 		t.Errorf("once the terminal says its background, the screen is\n%s\nwant the dashboard", got)
 	}
 }
@@ -142,16 +142,13 @@ func TestNoColour(t *testing.T) {
 	if h.model.picker.open {
 		t.Error("without colour, t opened the theme picker, want it to do nothing")
 	}
-	if strings.Contains(h.footer(), "t themes") {
-		t.Errorf("without colour, the footer reads %q, want no t", h.footer())
-	}
 }
 
 func TestTOpensThePickerOverTheView(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
 
-	if !strings.Contains(h.footer(), "t themes") {
-		t.Errorf("the footer reads %q, want it to say t opens the themes", h.footer())
+	if strings.Contains(h.footer(), "t themes") {
+		t.Errorf("the footer reads %q, want t left for the help to list", h.footer())
 	}
 	h.press("t")
 
@@ -161,7 +158,7 @@ func TestTOpensThePickerOverTheView(t *testing.T) {
 			t.Errorf("with the picker open, the screen reads\n%s\nwant %q", view, want)
 		}
 	}
-	if !strings.Contains(view, "work · Work") {
+	if !strings.Contains(view, "╭─ 1 Work ") {
 		t.Errorf("with the picker open, the screen reads\n%s\nwant the view beside it", view)
 	}
 	h.press("esc")

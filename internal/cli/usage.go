@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/colorprofile"
@@ -83,10 +84,14 @@ the next full read, or r, probes the accounts instead. Without the router it
 probes every account every interval, sooner for a window that resets or an
 account that couldn't be read, and reads the router again once it's back.
 
-Keys: r refresh, t the theme picker, q quit. While it reads the router, and
-the router answers, 1-9 pin new sessions to the account in that place, beside
-those pinned already, or unpin it, a routes every session automatically again,
-and m moves running sessions to the pinned accounts. While the router runs, it
+Keys: r refresh, t the theme picker, w the window every card features (auto,
+for each its own, then the 5-hour window, the week, and any other in use),
+j, k, PgDn, PgUp and the wheel scroll the cards where they don't all fit,
+? every key and what the glyphs mean, q quit. While it reads the router, and
+the router answers, of more than one account, 1-9 pin new sessions to the
+account in that place, beside those pinned already, or unpin it, a routes
+every session automatically again, and m moves running sessions to the
+pinned accounts. While the router runs, it
 posts the desktop notifications, --probe or not; without it, the dashboard
 posts its own of an account with room again and a window passing the warning,
 as the config's [notifications] asks, unless --no-notify.
@@ -152,19 +157,31 @@ func parseInterval(s string) (time.Duration, error) {
 }
 
 // printUsage prints the dashboard once, read as opts say: probing alone with
-// --probe, and having the router refresh first with --refresh.
+// --probe, and having the router refresh first with --refresh; from the
+// router, with its sessions and its history. It's the Accounts view, as wide
+// as the terminal, every card at its fullest, in the theme the preferences
+// keep, featuring the window they keep.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
+	cfg, err := a.loadConfig()
 	if err != nil {
 		return err
 	}
-	width := a.terminalWidth(out)
-	frame := dashboard.Render(doc, a.Now(), dashboard.Options{Width: width, Look: a.printLook(out)})
+	snap, err := watch.Once(ctx, a.source(cfg, opts.probe), readOnce(opts.refresh))
+	if err != nil {
+		return err
+	}
+	t := a.themes()
+	kept, width := t.kept(), a.terminalWidth(out)
+	rows := dashboard.Frame{
+		Width: width, Look: a.printLook(out, t, kept.Choice), View: dashboard.Accounts,
+		Outdated: snap.Outdated, History: snap.History, Featured: dashboard.Feature(kept.Featured), Sessions: snap.Sessions,
+		Policy: claude.Policy,
+	}.Draw(snap.Doc, a.Now())
 	// The frame is drawn in full colour; the writer brings it down to what
 	// the terminal shows, which is none when it isn't one.
 	colors := colorprofile.NewWriter(out, a.Environ())
 	logger.Debug("drew the dashboard", "width", width, "colors", colors.Profile.String())
-	_, err = io.WriteString(colors, frame+"\n")
+	_, err = io.WriteString(colors, strings.Join(rows, "\n")+"\n")
 	return err
 }
 
@@ -192,6 +209,8 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if opts.noNotify {
 		notifier = notify.Off{}
 	}
+	t := a.themes()
+	kept := t.kept()
 	wc := watch.Config{
 		Source:        a.source(cfg, opts.probe),
 		Notifier:      notifier,
@@ -200,10 +219,14 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
 		Size:          a.environSize(),
+		View:          dashboard.View(kept.View),
+		Featured:      dashboard.Feature(kept.Featured),
+	}
+	if t.prefs != nil {
+		wc.Prefs = t.prefs
 	}
 	if !a.noColour() {
-		t := a.themes()
-		wc.Choice = t.chosen()
+		wc.Choice = kept.Choice
 		wc.Pair = t.library.Pair(wc.Choice)
 		wc.Themes = t
 	}

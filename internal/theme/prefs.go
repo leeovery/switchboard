@@ -16,11 +16,17 @@ import (
 const prefsName = "prefs.json"
 
 // Prefs are the dashboard's preferences, which it keeps as they change, and
-// the user never needs to write: the themes it's drawn in. The view it shows,
-// its featured window and its chart style join them as the dashboard gains
-// them.
+// the user never needs to write: the themes it's drawn in, the view it
+// shows, and the window its cards feature. Its chart style joins them as the
+// dashboard gains it.
 type Prefs struct {
 	Choice
+	// View names the view shown, such as "accounts", for a watch to open on:
+	// "" for the default.
+	View string `json:"view,omitempty"`
+	// Featured is the key of the window every card features, such as "7d":
+	// "" for each card's own, as auto chooses it.
+	Featured string `json:"featured,omitempty"`
 }
 
 // PrefsFile is the preferences file, prefs.json in the state directory,

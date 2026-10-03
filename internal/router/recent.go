@@ -121,30 +121,33 @@ func (r *recent) reached(e LimitReached, now time.Time) {
 		r.keep(happening{Kind: status.EventLimit, limit: newLimitMoves(e)}, now)
 		return
 	}
-	if limit := r.latestLimit(e.Account); limit != nil {
-		limit.join(e)
+	if h, ok := r.latestLimit(e.Account); ok {
+		h.limit.join(e)
 	}
 }
 
 // moved keeps a session's move at now, counting it among the sessions the
 // latest limit of the account it left moved when the session had to leave,
-// and that limit hadn't lifted by now.
+// and that limit hadn't lifted by now; a move it counts names that limit's
+// event.
 func (r *recent) moved(e Moved, now time.Time) {
-	if limit := r.latestLimit(e.From); e.Forced && limit != nil && now.Before(limit.Until) {
-		limit.add(e)
+	move := status.Event{Kind: status.EventMoved, Session: e.Session, Model: e.Model, From: e.From, To: e.To, Reason: e.Reason}
+	if h, ok := r.latestLimit(e.From); e.Forced && ok && now.Before(h.limit.Until) {
+		h.limit.add(e)
+		move.Limit = h.ID
 	}
-	r.add(status.Event{Kind: status.EventMoved, Session: e.Session, Model: e.Model, From: e.From, To: e.To, Reason: e.Reason}, now)
+	r.add(move, now)
 }
 
-// latestLimit returns the limit the latest limit event kept of the account
-// with the given id tells of, or nil when none is kept. r.mu must be held.
-func (r *recent) latestLimit(id string) *limitMoves {
+// latestLimit returns the latest limit event kept of the account with the
+// given id, reporting false when none is kept. r.mu must be held.
+func (r *recent) latestLimit(id string) (happening, bool) {
 	for _, h := range slices.Backward(r.kept) {
 		if h.limit != nil && h.limit.Account == id {
-			return h.limit
+			return h, true
 		}
 	}
-	return nil
+	return happening{}, false
 }
 
 // add keeps an event that happened at now, as keep does.

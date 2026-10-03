@@ -9,8 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -67,6 +70,40 @@ func TestUsageWatchIsDrawnInTheThemesChosen(t *testing.T) {
 	}
 }
 
+func TestUsageWatchOpensOnTheViewKept(t *testing.T) {
+	for _, env := range []map[string]string{nil, {"NO_COLOR": "1"}} {
+		deps := statusDeps(t, fakeClaudeAPI(t), env)
+		writePrefs(t, deps, `{"theme": "amber", "view": "accounts"}`)
+		cfg := recordWatch(t, &deps)
+		run(t, deps, "usage", "--watch")
+
+		if cfg.View != dashboard.Accounts {
+			t.Errorf("with %v, the watch opens on %q, want the view prefs.json keeps", env, cfg.View)
+		}
+		if cfg.Prefs == nil {
+			t.Fatalf("with %v, the watch has nowhere to keep the view shown", env)
+		}
+		if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.View = "sessions" }); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
+		if err != nil || !strings.Contains(string(data), `"view": "sessions"`) || !strings.Contains(string(data), `"theme": "amber"`) {
+			t.Errorf("with %v, prefs.json holds %s, %v; want the view kept beside the theme", env, data, err)
+		}
+	}
+}
+
+func TestUsageWatchFeaturesTheWindowKept(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"view": "accounts", "featured": "7d"}`)
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "usage", "--watch")
+
+	if cfg.Featured != "7d" {
+		t.Errorf("the watch's cards feature %q, want the week prefs.json keeps", cfg.Featured)
+	}
+}
+
 func TestUsageWatchFindsThemesWhereSwitchboardThemesDirSays(t *testing.T) {
 	dotfiles := t.TempDir()
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_THEMES_DIR": dotfiles})
@@ -111,13 +148,14 @@ func TestUsageIsPrintedInTheThemeForTheTerminalsBackground(t *testing.T) {
 		// prefs is what prefs.json holds, "" for none.
 		prefs      string
 		background color.Color
-		// want is the theme's text.primary, as a foreground's SGR.
-		want string
+		// want is the theme's text.primary, as a foreground's SGR, and
+		// canvas its canvas, as a background's.
+		want, canvas string
 	}{
-		{name: "a dark terminal: the dark default, nord", background: color.Black, want: "38;2;236;239;244"},
-		{name: "a terminal that doesn't say: nord", want: "38;2;236;239;244"},
-		{name: "a light terminal: the light default, tokyo-night-day", background: color.White, want: "38;2;46;60;100"},
-		{name: "one theme chosen, whatever the background", prefs: `{"theme": "amber"}`, background: color.White, want: "38;2;255;210;122"},
+		{name: "a dark terminal: the dark default, nord", background: color.Black, want: "38;2;236;239;244", canvas: "48;2;46;52;64"},
+		{name: "a terminal that doesn't say: nord", want: "38;2;236;239;244", canvas: "48;2;46;52;64"},
+		{name: "a light terminal: the light default, tokyo-night-day", background: color.White, want: "38;2;46;60;100", canvas: "48;2;225;226;231"},
+		{name: "one theme chosen, whatever the background", prefs: `{"theme": "amber"}`, background: color.White, want: "38;2;255;210;122", canvas: "48;2;14;11;6"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -132,8 +170,13 @@ func TestUsageIsPrintedInTheThemeForTheTerminalsBackground(t *testing.T) {
 			if got.code != 0 || !strings.Contains(got.stdout, tt.want) {
 				t.Errorf("switchboard usage = %+v, want it in the colour %q", got, tt.want)
 			}
-			if strings.Contains(got.stdout, "48;2;") {
-				t.Errorf("switchboard usage paints a background, want it printed on the terminal's own")
+			if strings.Contains(got.stdout, tt.canvas) {
+				t.Errorf("switchboard usage paints the theme's canvas, want it printed on the terminal's own background")
+			}
+			for i, row := range strings.Split(ansi.Strip(got.stdout), "\n") {
+				if strings.TrimRight(row, " ") != row {
+					t.Errorf("switchboard usage printed row %d as %q, want it to end at its last glyph", i+1, row)
+				}
 			}
 		})
 	}

@@ -92,6 +92,33 @@ func TestProjectRunsOutAt(t *testing.T) {
 	}
 }
 
+func TestReaches(t *testing.T) {
+	tests := []struct {
+		name   string
+		window quota.Window
+		floor  float64
+		want   time.Time
+		wantOK bool
+	}{
+		{name: "running out, its limit as it runs out", window: session(0.4, time.Hour), floor: 1, want: now.Add(90 * time.Minute), wantOK: true},
+		{name: "running out, a reserve before it", window: session(0.4, time.Hour), floor: 0.9, want: now.Add(75 * time.Minute), wantOK: true},
+		{name: "on pace past a reserve", window: session(0.3, 2*time.Hour), floor: 0.6, want: now.Add(2 * time.Hour), wantOK: true},
+		{name: "on pace short of a reserve", window: session(0.46, 150*time.Minute), floor: 0.95},
+		{name: "on pace, ending at the reserve as it resets", window: session(0.45, 150*time.Minute), floor: 0.9},
+		{name: "at its reserve already", window: session(0.92, 4*time.Hour), floor: 0.9},
+		{name: "used up", window: session(1, 2*time.Hour), floor: 0.9},
+		{name: "saying nothing", window: session(0.5, 6*time.Hour), floor: 0.9},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := score.Reaches(tt.window, score.Project(tt.window, now), tt.floor, now)
+			if !got.Equal(tt.want) || ok != tt.wantOK {
+				t.Errorf("Reaches() = %v, %v, want %v, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestSooner(t *testing.T) {
 	runsOut := func(in time.Duration) score.Projection { return score.Projection{Kind: score.RunsOut, At: now.Add(in)} }
 	onPace := func(atReset float64) score.Projection { return score.Projection{Kind: score.OnPace, AtReset: atReset} }
