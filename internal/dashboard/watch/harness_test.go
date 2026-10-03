@@ -262,6 +262,28 @@ func (h *harness) pendingFrame() (*timer, bool) {
 	return nil, false
 }
 
+// pendingFrames are the frames armed and not yet fired, the soonest due
+// first.
+func (h *harness) pendingFrames() []*timer {
+	var frames []*timer
+	for _, tm := range h.timers {
+		if _, ok := tm.msg.(frameMsg); ok && !tm.fired {
+			frames = append(frames, tm)
+		}
+	}
+	slices.SortStableFunc(frames, func(a, b *timer) int { return a.due.Compare(b.due) })
+	return frames
+}
+
+// framesUntil fires the frames armed, the soonest due first, as timers fire,
+// until none is due by t.
+func (h *harness) framesUntil(t time.Time) {
+	h.t.Helper()
+	for frames := h.pendingFrames(); len(frames) > 0 && !frames[0].due.After(t); frames = h.pendingFrames() {
+		h.fire(frames[0])
+	}
+}
+
 // settle fires frames until the bars have eased to their readings.
 func (h *harness) settle() {
 	h.t.Helper()

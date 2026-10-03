@@ -43,8 +43,10 @@ type Frame struct {
 	// History is how the accounts' windows have been used, for the charts.
 	History History
 	// Featured is which window every card features, as w sets it in
-	// Accounts, and Span how far ahead Runway looks, as w switches it there.
+	// Accounts, and Chart the style every card draws it in, as g sets it;
+	// and Span how far ahead Runway looks, as w switches it there.
 	Featured Feature
+	Chart    Chart
 	Span     Span
 	// Sessions are the sessions the router listed, the one seen last first,
 	// for the cards' dots and Sessions' calls: nil where it listed none, as

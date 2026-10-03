@@ -74,6 +74,30 @@ func (m Model) feature() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// nextChart has every card draw its chart in the next style g moves to, and
+// keeps it, for the next watch to open with. It works in the Accounts view
+// alone.
+func (m Model) nextChart() Model {
+	if m.view != dashboard.Accounts {
+		return m
+	}
+	m.chart = m.chart.Next()
+	m.keepChart()
+	return m
+}
+
+// keepChart keeps the style every card draws its chart in, in the
+// preferences, where there are preferences to keep it in. One that can't be
+// kept is drawn all the same.
+func (m Model) keepChart() {
+	if m.cfg.Prefs == nil {
+		return
+	}
+	if err := m.cfg.Prefs.Update(func(p *theme.Prefs) { p.Chart = string(m.chart) }); err != nil {
+		logger.Warn("couldn't keep the chart style", "chart", m.chart.Name(), "error", err)
+	}
+}
+
 // keepFeatured keeps the window every card features in the preferences,
 // where there are preferences to keep it in. One that can't be kept is
 // featured all the same.

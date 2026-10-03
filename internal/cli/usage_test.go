@@ -195,6 +195,27 @@ func TestUsageFeaturesTheWindowKept(t *testing.T) {
 	}
 }
 
+func TestUsageDrawsTheChartKept(t *testing.T) {
+	tests := []struct {
+		name, prefs, want string
+	}{
+		{name: "none kept: a burn-down, on the floor at its limit", want: "│  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁"},
+		{name: "a burn rate: its use since it started, then along the floor till its limit lifts", prefs: `{"chart": "burn-rate"}`, want: "│  ████████████████│▁▁▁▁"},
+		{name: "an hourglass, its top emptied at its limit", prefs: `{"chart": "hourglass"}`, want: "│             ▜████████▛ "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := goldenDeps(t, nil)
+			if tt.prefs != "" {
+				writePrefs(t, deps, tt.prefs)
+			}
+			if got := run(t, deps, "usage"); !strings.Contains(got.stdout, tt.want) {
+				t.Errorf("switchboard usage printed\n%s\nwant work's chart drawn as prefs.json keeps it, %q", got.stdout, tt.want)
+			}
+		})
+	}
+}
+
 func TestUsageDrawsTheRoutersHistory(t *testing.T) {
 	var later atomic.Int64
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)

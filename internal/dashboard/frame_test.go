@@ -115,21 +115,25 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 		"nothing yet": {},
 	}
 	for name, doc := range docs {
-		t.Run(name, func(t *testing.T) {
-			for width := 1; width <= 200; width++ {
-				for _, height := range []int{1, 3, 8, 40} {
-					rows := frameOf(width, height).Draw(doc, now)
-					if len(rows) != height {
-						t.Errorf("at %d×%d, drew %d rows", width, height, len(rows))
-					}
-					for i, row := range rows {
-						if got := ansi.StringWidth(row); got > width {
-							t.Errorf("at %d×%d, row %d is %d cells wide:\n%s", width, height, i+1, got, row)
+		for _, style := range charts {
+			t.Run(name+", "+style.Name(), func(t *testing.T) {
+				for width := 1; width <= 200; width++ {
+					for _, height := range []int{1, 3, 8, 40} {
+						f := frameOf(width, height)
+						f.Chart = style
+						rows := f.Draw(doc, now)
+						if len(rows) != height {
+							t.Errorf("at %d×%d, drew %d rows", width, height, len(rows))
+						}
+						for i, row := range rows {
+							if got := ansi.StringWidth(row); got > width {
+								t.Errorf("at %d×%d, row %d is %d cells wide:\n%s", width, height, i+1, got, row)
+							}
 						}
 					}
 				}
-			}
-		})
+			})
+		}
 	}
 }
 

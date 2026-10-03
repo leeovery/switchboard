@@ -38,12 +38,11 @@ type glyph struct {
 
 // glyphs are the glyphs the key explains of the view shown. Of Runway, its
 // legend's. Of Sessions, its switchboard's and its requests', as
-// switchboardGlyphs has them. Of the cards, two groups: a chart's, its room
-// left, the dotted line where it's heading, ✕ where it runs out, and its
-// reserve; then a bar's, its use, where it's heading, even pace and the
-// reserve, and a session's dot on a card's edge. Each is drawn as the look
-// draws it on a card: a bar's projection, where the look can't fade it, in
-// shade.
+// switchboardGlyphs has them. Of the cards, two groups: a chart's, in the
+// style they draw, as chartGlyphs has them; then a bar's, its use, where
+// it's heading, even pace and the reserve, and a session's dot on a card's
+// edge. Each is drawn as the look draws it on a card: a bar's projection,
+// where the look can't fade it, in shade.
 func (f Frame) glyphs() [][]glyph {
 	switch f.View {
 	case Runway:
@@ -60,12 +59,7 @@ func (f Frame) glyphs() [][]glyph {
 		used = append(used, span{blocks[8], ink{ramp: true, at: along(i, rampCells)}})
 	}
 	return [][]glyph{
-		{
-			{drawn: line{{"▆▆", ink{token: theme.StatePositive, fade: projectionFade}}}, means: "room left"},
-			{drawn: line{{"⠂⠄⡀", ink{token: theme.StatePositive}}}, means: "heading"},
-			{drawn: line{{outMark, outInk}}, means: "runs out"},
-			{drawn: line{{"⠠ ⠠", ink{token: theme.VizReserve, fade: reserveFade}}}, means: "reserve"},
-		},
+		chartGlyphs(f.Chart),
 		{
 			{drawn: used, means: "used"},
 			{drawn: heading, means: "heading"},
@@ -73,6 +67,38 @@ func (f Frame) glyphs() [][]glyph {
 			{drawn: line{reserveMarker}, means: "reserve"},
 			{drawn: line{sessionDot(true)}, means: "session, lit while busy"},
 		},
+	}
+}
+
+// chartGlyphs are the glyphs of a card's chart in the style given, drawn in
+// an open account's colour. A burn-down's: its room left, the dotted line
+// where it's heading, ✕ where it runs out, and its reserve. A burn rate's:
+// its use per 10 minutes, a bar used too fast to last, and the dotted line
+// at the fastest that lasts. An hourglass's: its sand above, the room left,
+// and below, what's used; and its stream, as thick as its recent rate,
+// falling while its account is busy.
+func chartGlyphs(style Chart) []glyph {
+	open := ink{token: theme.StatePositive, fade: projectionFade}
+	switch style {
+	case BurnRate:
+		return []glyph{
+			{drawn: line{{"▃▅", open}}, means: "use per 10 min"},
+			{drawn: line{{"▆▆", fastInk}}, means: "too fast to last"},
+			{drawn: line{{"⠂⠂⠂", lastingInk}}, means: "fastest that lasts"},
+		}
+	case Hourglass:
+		return []glyph{
+			{drawn: line{{"▀▀", open}}, means: "room left"},
+			{drawn: line{{"▄▄", open}}, means: "used"},
+			{drawn: line{{"▐▌", ink{token: theme.StatePositive}}}, means: "its recent rate, falling while busy"},
+		}
+	default:
+		return []glyph{
+			{drawn: line{{"▆▆", open}}, means: "room left"},
+			{drawn: line{{"⠂⠄⡀", ink{token: theme.StatePositive}}}, means: "heading"},
+			{drawn: line{{outMark, outInk}}, means: "runs out"},
+			{drawn: line{{"⠠ ⠠", ink{token: theme.VizReserve, fade: reserveFade}}}, means: "reserve"},
+		}
 	}
 }
 

@@ -86,6 +86,7 @@ account that couldn't be read, and reads the router again once it's back.
 
 Keys: r refresh, t the theme picker, w the window every card features (auto,
 for each its own, then the 5-hour window, the week, and any other in use),
+g the chart every card draws of it (burn-down, burn rate, hourglass),
 j, k, PgDn, PgUp and the wheel scroll the cards where they don't all fit,
 ? every key and what the glyphs mean, q quit. While it reads the router, and
 the router answers, of more than one account, 1-9 pin new sessions to the
@@ -160,7 +161,7 @@ func parseInterval(s string) (time.Duration, error) {
 // --probe, and having the router refresh first with --refresh; from the
 // router, with its sessions and its history. It's the Accounts view, as wide
 // as the terminal, every card at its fullest, in the theme the preferences
-// keep, featuring the window they keep.
+// keep, featuring the window they keep, its chart in the style they keep.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
 	cfg, err := a.loadConfig()
 	if err != nil {
@@ -174,8 +175,8 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	kept, width := t.kept(), a.terminalWidth(out)
 	rows := dashboard.Frame{
 		Width: width, Look: a.printLook(out, t, kept.Choice), View: dashboard.Accounts,
-		Outdated: snap.Outdated, History: snap.History, Featured: dashboard.Feature(kept.Featured), Sessions: snap.Sessions,
-		Policy: claude.Policy,
+		Outdated: snap.Outdated, History: snap.History, Featured: dashboard.Feature(kept.Featured), Chart: dashboard.Chart(kept.Chart),
+		Sessions: snap.Sessions, Policy: claude.Policy,
 	}.Draw(snap.Doc, a.Now())
 	// The frame is drawn in full colour; the writer brings it down to what
 	// the terminal shows, which is none when it isn't one.
@@ -221,6 +222,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Size:          a.environSize(),
 		View:          dashboard.View(kept.View),
 		Featured:      dashboard.Feature(kept.Featured),
+		Chart:         dashboard.Chart(kept.Chart),
 	}
 	if t.prefs != nil {
 		wc.Prefs = t.prefs

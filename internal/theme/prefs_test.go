@@ -109,6 +109,31 @@ func TestTheFeaturedWindowIsKeptBesideTheView(t *testing.T) {
 	}
 }
 
+func TestTheChartStyleIsKeptBesideTheFeaturedWindow(t *testing.T) {
+	state := t.TempDir()
+	prefs := theme.NewPrefsFile(state, clock)
+	if err := prefs.Update(func(p *theme.Prefs) { p.Featured = "7d" }); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Chart = "hourglass" }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Featured: "7d", Chart: "hourglass"}); got != want {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
+	if err != nil || !strings.Contains(string(data), `"chart": "hourglass"`) {
+		t.Errorf("prefs.json holds %s, %v; want the chart style kept", data, err)
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Chart = "" }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(state, "prefs.json")); err != nil || strings.Contains(string(data), "chart") {
+		t.Errorf("prefs.json holds %s, %v; want burn-down, the default, left out", data, err)
+	}
+}
+
 func TestACorruptPreferencesFileIsSetAsideAndTheDefaultsStand(t *testing.T) {
 	tests := []struct {
 		name, content string

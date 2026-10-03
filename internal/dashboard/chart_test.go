@@ -25,22 +25,88 @@ func halfway() (status.Account, Trail) {
 	return readAccount("work", session, weekOf(0.3, 4*day)), trail
 }
 
-// chartOf draws the chart of doc's account a's window with the given key, of
-// the history given, width cells wide and rows tall, in attention's colour,
-// as an account under pressure has it, and returns the canvas it's drawn on.
+// chartOf draws the burn-down of doc's account a's window with the given
+// key, of the history given, width cells wide and rows tall, in attention's
+// colour, as an account under pressure has it, and returns the canvas it's
+// drawn on.
 func chartOf(t *testing.T, doc status.Document, a status.Account, key string, history History, width, rows int) *canvas {
 	t.Helper()
-	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, History: history}
-	w, ok := a.Window(key)
-	if !ok {
-		t.Fatalf("no window %s", key)
+	return charting{doc: doc, account: a, key: key, history: history, condition: status.Pressed, width: width, rows: rows}.draw(t)
+}
+
+// charting is a chart drawn for a test: in its style, of doc's account's
+// window with the given key, of the history given, its account in the
+// condition given, and busy or not; at its moment, now where it's zero,
+// width cells wide and rows tall, in nord, or in the look given, its axis
+// under it.
+type charting struct {
+	style       Chart
+	doc         status.Document
+	account     status.Account
+	key         string
+	history     History
+	condition   status.Condition
+	busy        bool
+	at          time.Time
+	width, rows int
+	look        *Look
+}
+
+// draw draws the chart, and returns the canvas it's drawn on.
+func (ch charting) draw(t *testing.T) *canvas {
+	t.Helper()
+	at := ch.at
+	if at.IsZero() {
+		at = now
 	}
-	c := newCanvas(width, rows+1)
-	fc := face{account: a, state: status.State{Condition: status.Pressed}, featured: standingOf(doc, a, w, now, claudeLike)}
-	b := f.burndownOf(doc, fc, now)
-	f.chart(c, b, 0, 0, width, rows)
-	f.axis(c, b, 0, rows, width)
+	look := Screen(builtin(t, "nord"))
+	if ch.look != nil {
+		look = *ch.look
+	}
+	f := Frame{Look: look, Policy: claudeLike, History: ch.history, Chart: ch.style}
+	w, ok := ch.account.Window(ch.key)
+	if !ok {
+		t.Fatalf("no window %s", ch.key)
+	}
+	c := newCanvas(ch.width, ch.rows+1)
+	fc := face{account: ch.account, state: status.State{Condition: ch.condition}, featured: standingOf(ch.doc, ch.account, w, at, claudeLike), busy: []bool{ch.busy}}
+	p := f.plotOf(ch.doc, fc, at)
+	f.chart(c, p, 0, 0, ch.width, ch.rows)
+	f.axis(c, p, 0, ch.rows, ch.width)
 	return c
+}
+
+func TestGCyclesTheChartStyleRound(t *testing.T) {
+	tests := []struct {
+		from Chart
+		name string
+		next Chart
+	}{
+		{from: Burndown, name: "burn-down", next: BurnRate},
+		{from: BurnRate, name: "burn rate", next: Hourglass},
+		{from: Hourglass, name: "hourglass", next: Burndown},
+		{from: "heartbeat", name: "burn-down", next: BurnRate},
+	}
+	for _, tt := range tests {
+		if got := tt.from.Next(); got != tt.next {
+			t.Errorf("g moves on from %q to %q, want %q", tt.from, got, tt.next)
+		}
+		if got := tt.from.Name(); got != tt.name {
+			t.Errorf("%q is called %q, want %q", tt.from, got, tt.name)
+		}
+	}
+}
+
+func TestAChartStyleGDoesntReachIsDrawnAsBurnDown(t *testing.T) {
+	a, trail := halfway()
+	history := History{{Account: "work", Window: "5h"}: trail}
+	drawn := func(style Chart) []string {
+		return charting{style: style, doc: routerDoc("", 0, a), account: a, key: "5h", history: history, condition: status.Pressed, width: 30, rows: 3}.draw(t).rows(Look{})
+	}
+
+	if got, want := drawn("heartbeat"), drawn(Burndown); !slices.Equal(got, want) {
+		t.Errorf("a style kept by a later switchboard drew\n%s\nwant burn-down's\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
 }
 
 func TestAChartsLevelIsTheRoomItsReadingsLeftAndWhereItsHeading(t *testing.T) {
