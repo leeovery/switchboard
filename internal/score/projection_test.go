@@ -44,7 +44,7 @@ func TestProject(t *testing.T) {
 		{name: "on pace", window: session(0.46, 150*time.Minute), want: score.Projection{Kind: score.OnPace, AtReset: 0.92}},
 		{name: "on pace, having used nothing", window: session(0, 150*time.Minute), want: score.Projection{Kind: score.OnPace}},
 		{name: "runs out", window: session(0.4, time.Hour), want: score.Projection{Kind: score.RunsOut, At: now.Add(90 * time.Minute)}},
-		{name: "on pace for its limit runs out at the reset", window: session(0.2, time.Hour), want: score.Projection{Kind: score.RunsOut, At: now.Add(4 * time.Hour)}},
+		{name: "on pace for its limit, reaching it just as it resets: no run-out", window: session(0.2, time.Hour), want: score.Projection{Kind: score.OnPace, AtReset: 1}},
 		{name: "exactly 5% passed", window: session(0.01, 15*time.Minute), want: score.Projection{Kind: score.OnPace, AtReset: 0.2}},
 		{name: "just under 5% passed", window: session(0.01, 15*time.Minute-time.Second), want: score.Projection{}},
 		{name: "used up exactly", window: session(1, 2*time.Hour), want: score.Projection{Kind: score.Exhausted, At: now.Add(3 * time.Hour)}},
@@ -78,7 +78,6 @@ func TestProjectRunsOutAt(t *testing.T) {
 		{name: "40% in an hour leaves 60% for 1h 30m", window: session(0.4, time.Hour), want: time.Date(2026, 9, 28, 14, 42, 0, 0, time.UTC)},
 		{name: "75% in 3h leaves 25% for an hour", window: session(0.75, 3*time.Hour), want: time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)},
 		{name: "90% in 30m leaves 10% for 3m 20s", window: session(0.9, 30*time.Minute), want: time.Date(2026, 9, 28, 13, 15, 20, 0, time.UTC)},
-		{name: "20% in an hour leaves 80% for the 4h to the reset", window: session(0.2, time.Hour), want: time.Date(2026, 9, 28, 17, 12, 0, 0, time.UTC)},
 		{name: "50% in two days of a week leaves 50% for two more", window: week(0.5, 48*time.Hour), want: time.Date(2026, 9, 30, 13, 12, 0, 0, time.UTC)},
 		{name: "25% in a day of a week leaves 75% for three more", window: week(0.25, 24*time.Hour), want: time.Date(2026, 10, 1, 13, 12, 0, 0, time.UTC)},
 	}
@@ -116,6 +115,53 @@ func TestReaches(t *testing.T) {
 				t.Errorf("Reaches() = %v, %v, want %v, %v", got, ok, tt.want, tt.wantOK)
 			}
 		})
+	}
+}
+
+func TestARunOutCountsOnlyBeforeTheReset(t *testing.T) {
+	// Half used, at a quarter of the window an hour from now on: its limit in
+	// two hours, and three quarters of it, a reserve's floor, in one.
+	const rate = 0.25
+	tests := []struct {
+		name     string
+		resetsIn time.Duration
+		floor    float64
+		want     score.Projection
+		// wantAt is when it reaches the floor, as Reaches has it.
+		wantAt time.Time
+		wantOK bool
+	}{
+		{name: "its limit a minute before the reset", resetsIn: 121 * time.Minute, floor: 1, want: score.Projection{Kind: score.RunsOut, At: now.Add(2 * time.Hour)}, wantAt: now.Add(2 * time.Hour), wantOK: true},
+		{name: "its limit just as it resets", resetsIn: 2 * time.Hour, floor: 1, want: score.Projection{Kind: score.OnPace, AtReset: 1}},
+		{name: "its limit a minute after the reset", resetsIn: 119 * time.Minute, floor: 1, want: score.Projection{Kind: score.OnPace, AtReset: 0.5 + rate*119/60}},
+		{name: "a reserve a minute before the reset", resetsIn: 61 * time.Minute, floor: 0.75, want: score.Projection{Kind: score.OnPace, AtReset: 0.5 + rate*61/60}, wantAt: now.Add(time.Hour), wantOK: true},
+		{name: "a reserve just as it resets", resetsIn: time.Hour, floor: 0.75, want: score.Projection{Kind: score.OnPace, AtReset: 0.75}},
+		{name: "a reserve a minute after the reset", resetsIn: 59 * time.Minute, floor: 0.75, want: score.Projection{Kind: score.OnPace, AtReset: 0.5 + rate*59/60}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := window("5h", 0.5, tt.resetsIn)
+			p := score.ProjectAt(w, rate, now)
+			if !sameProjection(p, tt.want) {
+				t.Errorf("ProjectAt() = %+v, want %+v", p, tt.want)
+			}
+			if got, ok := score.Reaches(w, p, tt.floor, now); !got.Equal(tt.wantAt) || ok != tt.wantOK {
+				t.Errorf("Reaches() = %v, %v, want %v, %v", got, ok, tt.wantAt, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestAFloorReachedJustAsTheWindowResetsIsntReachedThoughItsShareRoundsPast(t *testing.T) {
+	// At the rate that ends it at 90% as it resets in 22 minutes, 1% used
+	// heads a few ulps past 90%, as an experiment found.
+	w := window("5h", 0.01, 22*time.Minute)
+	p := score.ProjectAt(w, (0.9-0.01)/(22*time.Minute).Hours(), now)
+	if p.Kind != score.OnPace || p.AtReset <= 0.9 {
+		t.Fatalf("ProjectAt() = %+v, want OnPace a hair past 0.9, the case this is of", p)
+	}
+	if got, ok := score.Reaches(w, p, 0.9, now); ok {
+		t.Errorf("Reaches() = %v, true, want false: it reaches 0.9 as it resets, at %v", got, w.ResetsAt)
 	}
 }
 

@@ -190,6 +190,33 @@ func TestTheFlippedFixturesTurnTheCardsOverWithTheirKeys(t *testing.T) {
 	}
 }
 
+func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		want []string
+	}{
+		{name: "runway-day-3", want: []string{
+			" Runway ", "accounts with room", "w window: day",
+			"reaches its reserve ~15:45  ·  back 17:10, as it resets", "limit reached 14:12  ·  back 15:54", "room all day",
+		}},
+		{name: "runway-day-5", want: []string{"accounts with room", " 5 spare", "week reaches its reserve ~16:04  ·  back Tue 09:00, as it resets"}},
+		{name: "runway-week-3", want: []string{
+			"weeks with room", "w window: week", "resets Mon 21:00  ·  87% used by then",
+			"runs out ~Fri 04:06  ·  back Sun 02:00, as it resets", "one column ≈ 75 min · yesterday dimmed",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			for _, want := range tt.want {
+				if !strings.Contains(frame, want) {
+					t.Errorf("the frame\n%s\nhas no %q", frame, want)
+				}
+			}
+		})
+	}
+}
+
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
 	f := fixture(t, "accounts-3")
 	m := f.Model()

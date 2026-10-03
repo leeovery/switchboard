@@ -220,10 +220,12 @@ type Model struct {
 	// sessions are the sessions the router listed with the document on
 	// screen, for the cards' dots: nil where it listed none.
 	sessions []status.Session
-	// featured is which window every card features.
+	// featured is which window every card features, and span how far ahead
+	// Runway looks.
 	featured dashboard.Feature
-	// scroll is how many rows the cards are scrolled down by, where they
-	// don't fit.
+	span     dashboard.Span
+	// scroll is how many rows the view shown is scrolled down by, where its
+	// cards, or its lanes, don't fit.
 	scroll int
 	// focus is the account whose card has the focus, "" while none has it;
 	// flipped are the accounts whose cards are flipped, by id, a set no
@@ -352,16 +354,16 @@ func (m Model) View() tea.View {
 // frame is the dashboard's frame as the model stands at now, but for the
 // keys its footer lists: at the size drawn at, in the look, showing the view
 // shown, with what the watch knows of the router, its events and its
-// history, the window the cards feature, the sessions listed, how far the
-// cards are scrolled, the card with the focus, the cards flipped and the
-// session picked out, the keys that work on a card's sessions, the note a
-// key left, and how reading goes.
+// history, the window the cards feature, how far ahead Runway looks, the
+// sessions listed, how far the view is scrolled, the card with the focus,
+// the cards flipped and the session picked out, the keys that work on a
+// card's sessions, the note a key left, and how reading goes.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		Views: m.views, View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails,
-		Featured: m.featured, Sessions: m.sessions, Scroll: m.scroll,
+		Featured: m.featured, Span: m.span, Sessions: m.sessions, Scroll: m.scroll,
 		Focus: m.focus, Flipped: m.flipped, Selected: m.selected, Patch: m.patch(),
 		Note: m.noted(now), Status: m.status(now),
 		Policy: m.cfg.Policy,

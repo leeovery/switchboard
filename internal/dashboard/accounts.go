@@ -92,7 +92,7 @@ func (f Frame) unseen(doc status.Document, now time.Time, key bool) line {
 	if key || f.printed() {
 		return note
 	}
-	return together([]chunk{{text: note}, {text: line{{"?", keyInk}, {" for the key", dimInk}}}}, "   ·   ")
+	return together([]chunk{{text: note}, {text: forTheKey}}, "   ·   ")
 }
 
 // grid draws the faces' cards on c, laid out as l has them, from its top:

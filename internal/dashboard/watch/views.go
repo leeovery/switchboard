@@ -26,15 +26,16 @@ func opening(kept dashboard.View, views []dashboard.View) dashboard.View {
 }
 
 // turn shows the view by places on from the one shown, round, as tab and
-// shift-tab move, ending the selection on a card's back, and keeps it, for
-// the next watch to open on. With one view, there's nothing to move to.
+// shift-tab move, from its top, ending the selection on a card's back, and
+// keeps it, for the next watch to open on. With one view, there's nothing
+// to move to.
 func (m Model) turn(by int) (tea.Model, tea.Cmd) {
 	i := slices.Index(m.views, m.view) + by
 	next := m.views[(i%len(m.views)+len(m.views))%len(m.views)]
 	if next == m.view {
 		return m, nil
 	}
-	m.view, m.selected = next, dashboard.Seat{}
+	m.view, m.selected, m.scroll = next, dashboard.Seat{}, 0
 	m.keepView()
 	return m, nil
 }
@@ -48,6 +49,17 @@ func (m Model) keepView() {
 	if err := m.cfg.Prefs.Update(func(p *theme.Prefs) { p.View = string(m.view) }); err != nil {
 		logger.Warn("couldn't keep the view shown", "view", m.view, "error", err)
 	}
+}
+
+// nextWindow moves on the window w moves through, as the view shown has
+// it: in Runway, from the day to the week, and back; elsewhere, the window
+// the cards feature, as feature says.
+func (m Model) nextWindow() (tea.Model, tea.Cmd) {
+	if m.view == dashboard.Runway {
+		m.span = m.span.Next()
+		return m, nil
+	}
+	return m.feature()
 }
 
 // feature has every card feature the next window w moves to, as the

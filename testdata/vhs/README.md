@@ -51,7 +51,18 @@ known:
 - **The footer's keys** are the doc's, in its order, `? keys` and `q quit` always listed: where
   the frames say `? explain` or `? help`, it's `? keys`. The phone's frame lists `r refresh`,
   which the doc leaves to `?`, and drops `q quit` and when the document was read, both of which a
-  phone's footer keeps.
+  phone's footer keeps. Runway's day frames list the generator's own `r refresh`, `d day`, `w
+  week` and `t theme`, and its week's frame leaves out `m move`: the doc's `w` switches between
+  the day and the week, the footer saying which shows, `w window: day`, as the week's frame says
+  `w window: week`. Runway's frames say `read 4s ago · next look 1s`, where the dashboard,
+  reading the router, says `read 4s ago`, as the cards' frames do.
+- **Runway's lanes** go by the doc: a lane is in `accent.attention` wherever its account has room
+  but is heading to run out before its reset, whichever window that is, so personal's, back from
+  its limit at 15:54, is till its week runs out on Friday at 04:06, as the week's frame draws it,
+  where the day's draws it in `state.positive`. And each stretch without room starts, its words
+  with it, where the document says it does: personal's when the router told of it reaching its
+  limit, at 14:12, so its lane has room the past hour till then, where the frames draw none all
+  that hour, its words at the hour's start.
 - **A card's featured window** takes the colour of its account's state, digits and chart alike,
   whichever window it is: an open account's in `state.positive`, an idle one's dim, and a week
   featured on an account under pressure in `accent.attention`. The frames draw an open account's
@@ -132,6 +143,9 @@ October 2026 at 14:42:07, so nothing moves of itself.
 | `accounts-flipped-all` | `work`, `personal`, `side`, `s` pressed: every card flipped, the focus on work's | 160 × 34 | `accounts-flipped-all` |
 | `accounts-flipped-selected` | `work`, `personal`, `side`, `space` and `↓` twice pressed: work's card flipped, d28c picked out | 160 × 34 | `accounts-flipped-selected` |
 | `accounts-phone` | `work`, `personal`, `side` | 52 × 36 | `accounts-phone` |
+| `runway-day-3` | `work`, `personal`, `side`, `tab` pressed: Runway, over the day | 160 × 26 | `runway-day-3` |
+| `runway-day-5` | and `client` and `spare`, `tab` pressed | 160 × 32 | `runway-day-5` |
+| `runway-week-3` | `work`, `personal`, `side`, `tab` then `w` pressed: Runway, over the week | 160 × 26 | `runway-week-3` |
 
 The four, six and eight accounts have nothing used of Fable's week, as their frames do.
 
@@ -325,7 +339,9 @@ its own rules, so a few read otherwise than the generator drew them:
   runs out at its pace`, and RECENT, telling of it coming under pressure, says `its session
   reaches its reserve ~15:45 at its last-30-min rate`, not `its session runs out ~16:05 at its
   last-30-min rate`. Its card says `→ reaches its reserve ~15:45`, or in brief `→ out ~15:45`, and
-  its chart's `✕` is there, on its reserve.
+  its chart's `✕` is there, on its reserve. Its lane in Runway has no room from 15:45, saying
+  `reaches its reserve ~15:45 · back 17:10, as it resets`, so the strip doesn't rise to every
+  account with room between personal's return at 15:54 and 16:05, as the frames' does.
 - **ROOM LEFT's sums** round the rooms' sum as it is: the six accounts' sessions have 3.55
   accounts' worth left, which reads 3.6, where the generator's sum came to a hair under, and read
   3.5.
@@ -334,9 +350,12 @@ its own rules, so a few read otherwise than the generator drew them:
   heading for 97%, so its card says `→ out ~16:04` and its chart's `✕` is just past now, and
   COMING UP, with four accounts or more, says `16:04  client's week reaches its reserve` as its
   third thing, where the frames have `16:40  client's session resets` or `16:20  spare is
-  primed`; at their pace, spare's week heads for 34% and extra's for 8%, not 12% and 5%, and with
-  Fable's week used, client's heads for 63%, not 36%; and work's Fable week heads for 30.7%,
-  which reads 31% but fills its bar an eighth of a cell short of the frames' 31%.
+  primed`; and its lane in Runway, over the day, has no room from 16:04, saying `week reaches
+  its reserve ~16:04 · back Tue 09:00, as it resets`, where the frame has `room all day`, the
+  strip counting an account fewer from then. At their pace, spare's week heads for 34% and
+  extra's for 8%, not 12% and 5%, and with Fable's week used, client's heads for 63%, not 36%;
+  and work's Fable week heads for 30.7%, which reads 31% but fills its bar an eighth of a cell
+  short of the frames' 31%.
 - **Countdowns** run from 14:42:07, the frames' from 14:42: as the dashboard counts now, personal
   is back in 1h 11m, not 1h 12m, and its big digits read `1:11`. They're `status`'s countdowns,
   so side's session resets `in 4h 7m`, not `in 4h 08m`.

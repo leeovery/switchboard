@@ -95,12 +95,13 @@ func (o order) logSession(err error) {
 
 // pressed acts on a key: q or ctrl+c quits, whatever's open; while the theme
 // picker or the help is open, it takes every other key. Otherwise, j, k,
-// PgDn and PgUp scroll the cards where they don't fit; the arrows, space, s
+// PgDn and PgUp scroll the view where it doesn't fit; the arrows, space, s
 // and esc act on the cards, as cardKey says; ? opens the help; tab and
 // shift-tab show the next view and the one before, r reads now, having the
 // router refresh what it hasn't read in the last minute, and what can take
 // no request, or probing when it doesn't answer; t opens the theme picker;
-// and w has the cards feature the next window.
+// and w has the cards feature the next window, or in Runway, switches
+// between the day and the week.
 // While the router answers, of more than one account, 1–9 pin new sessions
 // to the account in that place, as configured, beside those pinned already,
 // or unpin it; a routes every session on its merits again; and m moves
@@ -137,7 +138,7 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "t", "T":
 		return m.openPicker()
 	case "w", "W":
-		return m.feature()
+		return m.nextWindow()
 	case "a", "A":
 		switch {
 		case m.single():
@@ -349,22 +350,25 @@ type keyListing struct {
 
 // listings are every key there is, as m stands, in the design's order, so
 // the footer comes out as the design has it once every key works: tab,
-// while there's another view to move to; in the Accounts view, w, saying
-// which window the cards feature, the arrows and space, and s; j and k,
-// where the cards scroll; while the router answers, of more than one
-// account, the digits of their places, a and m; r; t, in colour; and ? and
-// q, always. The footer leaves s, j and k, r and t behind ?. With a session
-// picked out, the keys are as picking says.
+// while there's another view to move to; w, as wKey says; in the Accounts
+// view, the arrows and space, and s; j and k, where the view scrolls; while
+// the router answers, of more than one account, the digits of their places,
+// a and m; r; t, in colour; and ? and q, always. The footer leaves s, j and
+// k, r and t behind ?. With a session picked out, the keys are as picking
+// says.
 func (m Model) listings() []keyListing {
-	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
 	cards := m.view == dashboard.Accounts
+	scrolled := "the cards"
+	if m.view == dashboard.Runway {
+		scrolled = "the lanes"
+	}
 	listed := []keyListing{
 		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},
-		{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: cards},
+		m.wKey(),
 		{key: "←→", footer: "focus", help: "move the focus; ↑↓ between rows, over a flipped card's sessions first", works: cards},
 		{key: "space", footer: "flip", help: "flip the card with the focus to its sessions, or back", works: cards},
 		{key: "s", help: "flip every card, or back", works: cards},
-		{key: "j k", help: "scroll the cards; PgUp and PgDn a page, or the wheel", works: m.scrolling().Most > 0},
+		{key: "j k", help: "scroll " + scrolled + "; PgUp and PgDn a page, or the wheel", works: m.scrolling().Most > 0},
 		{key: places(len(m.doc.Accounts)), footer: "pin", help: "toggle the account in that place in the pin", works: m.orders()},
 		{key: "a", footer: "auto", help: "route automatically again", works: m.orders()},
 		{key: "m", footer: "move", help: "move running sessions to the pinned accounts", works: m.orders()},
@@ -377,6 +381,19 @@ func (m Model) listings() []keyListing {
 		return m.picking(listed)
 	}
 	return listed
+}
+
+// wKey is w as the view shown has it: in Runway, switching between the day
+// and the week, the footer saying which it shows; in Accounts, cycling the
+// window every card features, the footer saying which; and elsewhere,
+// nothing.
+func (m Model) wKey() keyListing {
+	if m.view == dashboard.Runway {
+		span := m.span.Name()
+		return keyListing{key: "w", footer: "window: " + span, help: "switch between the day and the week, now the " + span, works: true}
+	}
+	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
+	return keyListing{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: m.view == dashboard.Accounts}
 }
 
 // picking are the keys there are with a session picked out: first those that

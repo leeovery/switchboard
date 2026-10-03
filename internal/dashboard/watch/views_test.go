@@ -2,6 +2,7 @@ package watch
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,9 +18,9 @@ func TestOpensOnTheViewKept(t *testing.T) {
 		kept dashboard.View
 		want dashboard.View
 	}{
-		{name: "the view kept", kept: dashboard.Accounts, want: dashboard.Accounts},
+		{name: "the view kept", kept: dashboard.Runway, want: dashboard.Runway},
 		{name: "none kept: the first", kept: "", want: dashboard.Accounts},
-		{name: "one there isn't, as from a later switchboard: the first", kept: "runway", want: dashboard.Accounts},
+		{name: "one there isn't, as from a later switchboard: the first", kept: "sessions", want: dashboard.Accounts},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -35,7 +36,7 @@ func TestTabShowsTheNextViewAndKeepsIt(t *testing.T) {
 	h := newHarness(t, calm())
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
-	h.model.views = []dashboard.View{dashboard.Accounts, "sessions", "runway"}
+	h.model.views = []dashboard.View{dashboard.Accounts, "sessions", dashboard.Runway}
 	h.start()
 
 	if !strings.HasPrefix(h.footer(), "tab views · ") {
@@ -46,17 +47,102 @@ func TestTabShowsTheNextViewAndKeepsIt(t *testing.T) {
 		want dashboard.View
 	}{
 		{key: "tab", want: "sessions"},
-		{key: "tab", want: "runway"},
+		{key: "tab", want: dashboard.Runway},
 		{key: "tab", want: dashboard.Accounts},
-		{key: "shift+tab", want: "runway"},
+		{key: "shift+tab", want: dashboard.Runway},
 	} {
 		h.press(step.key)
 		if h.model.view != step.want || prefs.kept.View != string(step.want) {
 			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.View, step.want)
 		}
 	}
-	if !strings.Contains(h.view(), " runway ") {
-		t.Errorf("the screen is\n%s\nwant runway's tab", h.view())
+	if !strings.Contains(h.view(), " Runway ") {
+		t.Errorf("the screen is\n%s\nwant Runway's tab", h.view())
+	}
+}
+
+func TestTabTurnsRoundTheViewsBuilt(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+
+	if got, want := h.model.views, []dashboard.View{dashboard.Accounts, dashboard.Runway}; !slices.Equal(got, want) {
+		t.Fatalf("the views are %q, want %q", got, want)
+	}
+	for _, step := range []struct {
+		key  string
+		want dashboard.View
+		// wantShows is what the screen shows of the view.
+		wantShows string
+	}{
+		{key: "tab", want: dashboard.Runway, wantShows: "accounts with room"},
+		{key: "tab", want: dashboard.Accounts, wantShows: "╭─ 1 Work"},
+		{key: "shift+tab", want: dashboard.Runway, wantShows: "accounts with room"},
+		{key: "shift+tab", want: dashboard.Accounts, wantShows: "╭─ 1 Work"},
+	} {
+		h.press(step.key)
+		if h.model.view != step.want || !strings.Contains(h.view(), step.wantShows) {
+			t.Errorf("%s showed %q, the screen\n%s\nwant %q, showing %q", step.key, h.model.view, h.view(), step.want, step.wantShows)
+		}
+	}
+	if !strings.Contains(h.view(), " Accounts   Runway   tab ⇥") {
+		t.Errorf("the screen is\n%s\nwant the views built as tabs, and tab's hint", h.view())
+	}
+}
+
+func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
+	h := newHarness(t, twelve())
+	h.start()
+	h.press("j")
+	h.press("j")
+
+	h.press("tab")
+	if h.model.scroll != 0 || !strings.Contains(h.view(), " 1 Account A") {
+		t.Errorf("turned to Runway, scrolled %d, the screen\n%s\nwant it from its first lane", h.model.scroll, h.view())
+	}
+	if h.press("j"); h.model.scroll != 1 || strings.Contains(h.view(), " 1 Account A") {
+		t.Errorf("j scrolled Runway to %d, the screen\n%s\nwant its lanes a row down", h.model.scroll, h.view())
+	}
+	if help := h.model.helpKeys(); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll the lanes; PgUp and PgDn a page, or the wheel"}) {
+		t.Errorf("the help lists %+v, want j and k scrolling the lanes", help)
+	}
+}
+
+func TestWSwitchesRunwayBetweenTheDayAndTheWeek(t *testing.T) {
+	h := newHarness(t, calm())
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+	h.press("tab")
+	prefs.updates = 0
+
+	for _, step := range []struct {
+		want       dashboard.Span
+		footer     string
+		help       string
+		wantShows  string
+		wantHidden string
+	}{
+		{want: dashboard.Day, footer: "tab views · w window: day · ", help: "switch between the day and the week, now the day", wantShows: "accounts with room", wantHidden: "weeks with room"},
+		{want: dashboard.Week, footer: "tab views · w window: week · ", help: "switch between the day and the week, now the week", wantShows: "weeks with room", wantHidden: "accounts with room"},
+		{want: dashboard.Day, footer: "tab views · w window: day · ", help: "switch between the day and the week, now the day", wantShows: "accounts with room", wantHidden: "weeks with room"},
+	} {
+		if h.model.span != step.want || !strings.HasPrefix(h.footer(), step.footer) {
+			t.Errorf("Runway shows the %s, the footer reading %q, want the %s, it starting %q", h.model.span.Name(), h.footer(), step.want.Name(), step.footer)
+		}
+		if help := h.model.helpKeys(); !slices.Contains(help, dashboard.Key{Key: "w", Does: step.help}) {
+			t.Errorf("the help lists %+v, want w to %q", help, step.help)
+		}
+		if !strings.Contains(h.view(), step.wantShows) || strings.Contains(h.view(), step.wantHidden) {
+			t.Errorf("the screen is\n%s\nwant %q, and no %q", h.view(), step.wantShows, step.wantHidden)
+		}
+		h.press("w")
+	}
+	if h.model.featured != dashboard.Auto || prefs.updates > 0 {
+		t.Errorf("w in Runway featured %q, keeping the preferences %d times, want the cards' window left as it was, and nothing kept", h.model.featured, prefs.updates)
+	}
+	h.press("tab")
+	if h.press("w"); h.model.featured != "5h" || h.model.span != dashboard.Week {
+		t.Errorf("w in Accounts featured %q, Runway showing the %s, want the cards featuring the 5-hour window, and Runway left on the week", h.model.featured, h.model.span.Name())
 	}
 }
 
@@ -64,6 +150,7 @@ func TestWithOneViewTabMovesNowhere(t *testing.T) {
 	h := newHarness(t, calm())
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
+	h.model.views = []dashboard.View{dashboard.Accounts}
 	h.start()
 
 	h.press("tab")
@@ -117,17 +204,17 @@ func TestWCyclesTheWindowEveryCardFeaturesAndKeepsIt(t *testing.T) {
 	h.model.cfg.Prefs = prefs
 	h.start()
 
-	if !strings.HasPrefix(h.footer(), "w window: auto · ") {
+	if !strings.HasPrefix(h.footer(), "tab views · w window: auto · ") {
 		t.Errorf("the footer reads %q, want w saying the cards feature each its own, as auto has it", h.footer())
 	}
 	for _, step := range []struct {
 		want   dashboard.Feature
 		footer string
 	}{
-		{want: "5h", footer: "w window: 5h · "},
-		{want: "7d", footer: "w window: week · "},
-		{want: "7d_oi", footer: "w window: Fable wk · "},
-		{want: dashboard.Auto, footer: "w window: auto · "},
+		{want: "5h", footer: "tab views · w window: 5h · "},
+		{want: "7d", footer: "tab views · w window: week · "},
+		{want: "7d_oi", footer: "tab views · w window: Fable wk · "},
+		{want: dashboard.Auto, footer: "tab views · w window: auto · "},
 	} {
 		h.press("w")
 		if h.model.featured != step.want || prefs.kept.Featured != string(step.want) {
@@ -155,11 +242,11 @@ func TestAWindowKeptButNoLongerInUseIsNamedAsTheCardsShowItAuto(t *testing.T) {
 	h.model.featured = "7d_oi"
 	h.start()
 
-	if !strings.HasPrefix(h.footer(), "w window: auto · ") {
+	if !strings.HasPrefix(h.footer(), "tab views · w window: auto · ") {
 		t.Errorf("the footer reads %q, want auto, as the cards show Fable's week, unused", h.footer())
 	}
-	if help := h.model.helpKeys(); help[0].Does != "cycle the window every card features, now auto" {
-		t.Errorf("the help says w does %q, want it to say auto", help[0].Does)
+	if help := h.model.helpKeys(); help[1].Key != "w" || help[1].Does != "cycle the window every card features, now auto" {
+		t.Errorf("the help says %s does %q, want w to say auto", help[1].Key, help[1].Does)
 	}
 	if h.press("w"); h.model.featured != "5h" {
 		t.Errorf("w featured %q, want 5h, moving on from auto", h.model.featured)
@@ -174,7 +261,7 @@ func TestOpensFeaturingTheWindowKept(t *testing.T) {
 	})
 	h.start()
 
-	if !strings.HasPrefix(h.footer(), "w window: week · ") {
+	if !strings.HasPrefix(h.footer(), "tab views · w window: week · ") {
 		t.Errorf("the footer reads %q, want the week the preferences kept", h.footer())
 	}
 	if !strings.Contains(h.view(), "WEEK  7-day window") {

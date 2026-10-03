@@ -55,8 +55,8 @@ func threeAccounts() status.Document {
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, and printed once, as usage prints it, without the
-// tabs, at a width each.
+// screen, at a size each, Runway over the day and the week among them, and
+// printed once, as usage prints it, without the tabs, at a width each.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -64,11 +64,17 @@ func frames() map[string]dashboard.Frame {
 			Keys: []dashboard.Key{{Key: "q", Does: "quit", Always: true}}, Status: "read 4s ago",
 		}
 	}
+	runway := func(span dashboard.Span) dashboard.Frame {
+		f := frame(160, 26)
+		f.View, f.Span = dashboard.Runway, span
+		return f
+	}
 	printed := func(width int) dashboard.Frame {
 		return dashboard.Frame{Width: width, View: dashboard.Accounts, Policy: claude}
 	}
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
+		"runway, the day": runway(dashboard.Day), "runway, the week": runway(dashboard.Week),
 		"printed": printed(160), "printed narrow": printed(80),
 	}
 }

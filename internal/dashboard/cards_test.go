@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -346,6 +347,31 @@ func TestACardWhoseStateChangedHasItsStateLinePickedOutFadingBack(t *testing.T) 
 		if got := c.at(x, state).ink.on; got != (hue{}) {
 			t.Errorf("cell %d of the state row is on %+v, want the canvas: work's sides, and another card", x, got)
 		}
+	}
+}
+
+func TestALiftedLimitsEventSaysNothingOfAWindowReadSpent(t *testing.T) {
+	session := sessionOf(1, 150*time.Minute)
+	session.Status = quota.StatusRejected
+	a := readAccount("work", session, weekOf(0.3, 4*day))
+	doc := routerDoc("", 0, a)
+	doc.Events = []status.Event{{ID: 1, At: now.Add(-4 * time.Hour).UTC(), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}}}
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+
+	faces, _ := f.faces(doc, now)
+	if fc := faces[0]; !fc.featured.held || !fc.featured.since.IsZero() {
+		t.Fatalf("its session held %v since %v, want it held, since no time the router told of", fc.featured.held, fc.featured.since)
+	}
+	c := newCanvas(44, bigRows)
+	f.readout(c, faces[0], now, 0, 0, 44)
+	if got := c.rows(Look{})[1]; !strings.HasSuffix(got, "    limit reached") {
+		t.Errorf("its readout reads %q, want it to end \"limit reached\", the limit the event told of having lifted", got)
+	}
+	start := session.ResetsAt.Add(-5 * time.Hour)
+	trail := Trail{Start: start, Readings: []score.Reading{{At: start, Utilization: 0.5}, {At: start.Add(time.Hour), Utilization: 1}}}
+	chart := chartOf(t, doc, a, "5h", History{{Account: "work", Window: "5h"}: trail}, 20, 2)
+	if got, want := chart.rows(Look{})[1], "████▁▁▁▁▁▁▁"; !strings.HasPrefix(got, want) {
+		t.Errorf("its chart's foot reads %q, want it to start %q: its readings, not the floor from the old limit", got, want)
 	}
 }
 

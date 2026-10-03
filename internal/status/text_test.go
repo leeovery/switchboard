@@ -362,6 +362,26 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 	}
 }
 
+func TestTextKeepsItsWordsForAModelsOwnWindowAtItsReserve(t *testing.T) {
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	work := status.Account{
+		ID: "work", Label: "Work", Reserve: 0.1, TokenSet: true, FetchedAt: now.UTC(),
+		Windows: []quota.Window{
+			{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 16, 10, 0, 0, time.UTC)},
+			{Key: "7d_oi", Label: "Fable week", Utilization: 0.92, ResetsAt: time.Date(2026, 10, 4, 1, 10, 0, 0, time.UTC)},
+		},
+		AtReserve: []string{"7d_oi"},
+	}
+	doc := status.Document{GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{work}}
+
+	if got := doc.Text(now); !strings.Contains(got, "\n  at its reserve (90%)\n") || strings.Contains(got, "other models") {
+		t.Errorf("Text() =\n%s\nwant it to say \"at its reserve (90%%)\" as it always has, as the card alone names the window", got)
+	}
+	if got := doc.StateOf(work, now, policy); got.Says != "Fable wk at its reserve (90%)" {
+		t.Errorf("StateOf() says %q, want the card to name the window", got.Says)
+	}
+}
+
 func TestReserved(t *testing.T) {
 	atReserve := status.Account{ID: "work", Label: "Work", Reserve: 0.15, AtReserve: []string{"5h"}}
 	tests := []struct {

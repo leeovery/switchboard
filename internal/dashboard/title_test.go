@@ -9,7 +9,7 @@ import (
 )
 
 func TestTheTitleRow(t *testing.T) {
-	three := []View{Accounts, "sessions", "runway"}
+	three := []View{Accounts, "sessions", Runway}
 	tests := []struct {
 		name  string
 		width int
@@ -20,7 +20,7 @@ func TestTheTitleRow(t *testing.T) {
 		wantNext int
 	}{
 		{name: "the views as tabs, and the hint to move between them", width: 160, views: three, shown: Accounts, want: []string{
-			"  SWITCHBOARD    Accounts   sessions   runway   tab ⇥" + blanks(86) + "Mon 28 Sep  13:12:00",
+			"  SWITCHBOARD    Accounts   sessions   Runway   tab ⇥" + blanks(86) + "Mon 28 Sep  13:12:00",
 		}, wantNext: 1},
 		{name: "one view, with nothing to move to", width: 160, views: []View{Accounts}, shown: Accounts, want: []string{
 			"  SWITCHBOARD    Accounts" + blanks(114) + "Mon 28 Sep  13:12:00",
@@ -28,7 +28,7 @@ func TestTheTitleRow(t *testing.T) {
 		{name: "on a phone, the tabs on a row of their own", width: 52, views: three, shown: "sessions", want: []string{
 			"  SWITCHBOARD" + blanks(33) + "13:12",
 			"",
-			"  Accounts  sessions  runway" + blanks(18) + "tab ⇥",
+			"  Accounts  sessions  Runway" + blanks(18) + "tab ⇥",
 		}, wantNext: 3},
 		{name: "no views, as printed once, no tabs", width: 160, want: []string{
 			"  SWITCHBOARD" + blanks(126) + "Mon 28 Sep  13:12:00",
@@ -49,7 +49,7 @@ func TestTheTitleRow(t *testing.T) {
 }
 
 func TestTheTitleRowFallsBackToTheTimeAlone(t *testing.T) {
-	f := Frame{Width: 100, Height: 1, Views: []View{Accounts, "sessions", "runway", "a-view-with-a-long-name"}, View: Accounts}
+	f := Frame{Width: 100, Height: 1, Views: []View{Accounts, "sessions", Runway, "a-view-with-a-long-name"}, View: Accounts}
 	c := newCanvas(f.Width, f.Height)
 	f.title(c, now)
 

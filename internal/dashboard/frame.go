@@ -42,14 +42,16 @@ type Frame struct {
 	Changed map[string]float64
 	// History is how the accounts' windows have been used, for the charts.
 	History History
-	// Featured is which window every card features, as w sets it.
+	// Featured is which window every card features, as w sets it in
+	// Accounts, and Span how far ahead Runway looks, as w switches it there.
 	Featured Feature
+	Span     Span
 	// Sessions are the sessions the router listed, the one seen last first,
 	// for the cards' dots: nil where it listed none, as while probing, and
 	// each card counts its account's sessions as the document does.
 	Sessions []status.Session
-	// Scroll is how many rows the view's cards are scrolled down by, where
-	// they don't fit: no further than Scrolling says they go.
+	// Scroll is how many rows the view's cards, or its lanes, are scrolled
+	// down by, where they don't fit: no further than Scrolling says they go.
 	Scroll int
 	// Focus is the account whose card has the focus, which the arrow keys
 	// move and space flips, its edges heavy: "" while no card has it.
@@ -89,8 +91,11 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 		c = growing(f.Width)
 	}
 	top := f.above(c, doc, now)
-	if f.View == Accounts {
+	switch f.View {
+	case Accounts:
 		f.accounts(c, doc, now, top)
+	case Runway:
+		f.runway(c, doc, now, top)
 	}
 	if !f.printed() {
 		f.footer(c, doc, f.Height-1)

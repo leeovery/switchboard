@@ -50,10 +50,7 @@ type burndown struct {
 	// starts says when a lapsed window starts again, as in "window starts at
 	// its prime, 16:20".
 	starts string
-	// heldFrom is when the window was held at its limit from, where the
-	// router told of it: zero otherwise.
-	heldFrom time.Time
-	now      time.Time
+	now    time.Time
 }
 
 // elapsed is how much of the window has passed at now, from 0 to 1.
@@ -152,7 +149,7 @@ func untraced(c *canvas, x, y, width, rows, ahead int) {
 // the room it has now; and none from when it was held at its limit, where
 // that's known.
 func (b burndown) roomAt(t time.Time) (float64, bool) {
-	if b.held && !b.heldFrom.IsZero() && !t.Before(b.heldFrom) {
+	if b.held && !b.since.IsZero() && !t.Before(b.since) {
 		return 0, true
 	}
 	used, ok := b.usedAt(t)

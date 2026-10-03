@@ -63,14 +63,14 @@ func TestTheHelpListsEveryKeyThatWorksAndTheFooterTheMostUsed(t *testing.T) {
 		{
 			name:       "the router of three",
 			h:          func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
-			wantHelp:   []string{"w", "←→", "space", "s", "1-3", "a", "m", "r", "?", "q"},
-			wantFooter: []string{"w", "←→", "space", "1-3", "a", "m", "?", "q"},
+			wantHelp:   []string{"tab", "w", "←→", "space", "s", "1-3", "a", "m", "r", "?", "q"},
+			wantFooter: []string{"tab", "w", "←→", "space", "1-3", "a", "m", "?", "q"},
 		},
 		{
 			name:       "probing twelve, which scroll",
 			h:          func(t *testing.T) *harness { return newHarness(t, twelve()) },
-			wantHelp:   []string{"w", "←→", "space", "s", "j k", "r", "?", "q"},
-			wantFooter: []string{"w", "←→", "space", "?", "q"},
+			wantHelp:   []string{"tab", "w", "←→", "space", "s", "j k", "r", "?", "q"},
+			wantFooter: []string{"tab", "w", "←→", "space", "?", "q"},
 		},
 	}
 	for _, tt := range tests {

@@ -25,6 +25,10 @@ const (
 	helpGap   = 3
 )
 
+// forTheKey says the key to the glyphs is behind ?, where the view has no
+// room to show it.
+var forTheKey = line{{"?", keyInk}, {" for the key", dimInk}}
+
 // glyph is a glyph of the view, drawn as the view draws it, and what it
 // means.
 type glyph struct {
@@ -32,13 +36,16 @@ type glyph struct {
 	means string
 }
 
-// glyphs are the glyphs the key explains, in two groups: a chart's, its room
-// left, the dotted line where it's heading, ✕ where it runs out, and its
-// reserve; then a bar's, its use, where it's heading, even pace and the
-// reserve, and a session's dot on a card's edge. Each is drawn as the look
-// draws it on a card: a bar's projection, where the look can't fade it, in
-// shade.
+// glyphs are the glyphs the key explains of the view shown. Of Runway, its
+// legend's. Of the cards, two groups: a chart's, its room left, the dotted
+// line where it's heading, ✕ where it runs out, and its reserve; then a
+// bar's, its use, where it's heading, even pace and the reserve, and a
+// session's dot on a card's edge. Each is drawn as the look draws it on a
+// card: a bar's projection, where the look can't fade it, in shade.
 func (f Frame) glyphs() [][]glyph {
+	if f.View == Runway {
+		return [][]glyph{f.legendGlyphs()}
+	}
 	heading := line{{"██", ink{ramp: true, at: 1.0 / 3, fade: projectionFade}}}
 	if !f.Look.blends() {
 		heading = line{{strings.Repeat(shadeCell, 2), ink{ramp: true, at: 1.0 / 3}}}

@@ -78,6 +78,18 @@ func (l line) fitHead(width int) line {
 // leastShown is the fewest cells of a line's tail fitHead shows, cut short.
 const leastShown = 5
 
+// fitWhole cuts the line to width cells by leaving off its last spans, each
+// whole, as many as don't fit; where even its first doesn't fit alone, that
+// alone, cut short as fit cuts it.
+func (l line) fitWhole(width int) line {
+	for n := len(l); n > 0; n-- {
+		if l[:n].width() <= width {
+			return l[:n]
+		}
+	}
+	return l[:min(len(l), 1)].fit(width)
+}
+
 // spread puts left and right at either end of width cells, cutting left to
 // keep a space between them.
 func spread(left, right line, width int) line {

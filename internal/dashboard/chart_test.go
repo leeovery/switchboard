@@ -36,7 +36,7 @@ func chartOf(t *testing.T, doc status.Document, a status.Account, key string, hi
 		t.Fatalf("no window %s", key)
 	}
 	c := newCanvas(width, rows+1)
-	fc := face{account: a, state: status.State{Condition: status.Pressed}, featured: standingOf(doc, a, w, now, claudeLike), limitAt: limitReached(doc, a.ID, now)}
+	fc := face{account: a, state: status.State{Condition: status.Pressed}, featured: standingOf(doc, a, w, now, claudeLike)}
 	b := f.burndownOf(doc, fc, now)
 	f.chart(c, b, 0, 0, width, rows)
 	f.axis(c, b, 0, rows, width)
