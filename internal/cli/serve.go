@@ -80,7 +80,7 @@ func (a *app) serve(ctx context.Context) error {
 		Upstream:      cfg.Upstream,
 		Provider:      claude.Provider{},
 		Prober:        installedProber{upstream: cfg.Upstream, version: a.ClaudeVersion},
-		Policy:        policy,
+		Policy:        claude.Policy,
 		Prime:         cfg.Prime,
 		Now:           a.Now,
 		Version:       a.Version,

@@ -1,0 +1,28 @@
+  SWITCHBOARD    Accounts   Sessions   Runway   tab ⇥                                                                                       Thu 1 Oct  14:42:07
+
+ ROUTER                   NEW SESSIONS GO TO              ROOM LEFT, IN ACCOUNTS                          COMING UP
+ ● healthy                ▲ 3 side                        5h    ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆  1.3 of 3      15:54  personal back from its limit         in 1h 12m
+ 5 sessions · auto        1 of 3 open                     week  ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆ ▆▆▆▆▆▆▆▆  1.4 of 3      16:05  work runs out at its pace            in 1h 23m
+                                                                1        2        3                       17:10  work's session resets                in 2h 28m
+
+  CALLS  sessions, by the line they are on                                                      LINES  accounts
+                                                                                                ┌─ 1 · WORK ─ ● under pressure ──────────────────── ◆ primary ─┐
+  d28c  opus    1m           ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Session  ████████████┃▉██████████  58%  → out ~16:05        │
+  7f3a  haiku   9m           ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Week     ████████▏┃██████████▉░░░  34%  → 87%               │
+  db8a  sonnet  now          ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◉  Fable wk ██▉████▌░┃░░░░░░░░░░░░░░  12%  → 31%               │
+                                                                                                └─ resets  session 17:10  ·  weeks Mon 21:00 ──────────────────┘
+  c61b  opus    now          ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  db8a  opus    now          ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓    ┃           ┌─ 2 · PERSONAL ─ ■ limit reached ─────────────────────────────┐
+  41e0  sonnet  4m           ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓    ┃    ┃    ╌╌╌╌╌╌╌○  Session  ████████████████████████ 100%  back 15:54          │
+                                                                          ┃    ┃    ┃     ╌╌╌╌╌╌○  Week     ███████████████┃█████▍██  89%  → out ~Fri 04:06    │
+                                                                          ┃    ┃    ┃      ╌╌╌╌╌○  Fable wk ░░░░░░░░░░░░░░░┃░░░░░░░░   0%  → 0%                │
+                                                                          ┃    ┃    ┃           └─ resets  session 15:54  ·  weeks Sun 02:00 ──────────────────┘
+                                                                          ┃    ┃    ┃
+                                                                          ┃    ┃    ┃           ┌─ 3 · SIDE ─ ● open ───────────────────────────────── ▲ next ─┐
+                                                                          ┃    ┃    ┗━━━━━━━━━━━◉  Session  ██▉█┃████████░░░░░░░░░░░  12%  → 54%               │
+                                                                          ┃    ┗━━━━━━━━━━━━━━━━◉  Week     ███████▉███┃█████▎░░░░░░  33%  → 72%               │
+                                                                          ┗━━━━━━━━━━━━━━━━━━━━━◉  Fable wk ██▏░░░░░░░░┃░░░░░░░░░░░░   4%  → 9%                │
+                                                                                                └─ resets  session 18:50  ·  weeks Mon 10:00 ──────────────────┘
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ tab views   r refresh   1-3 pin   a auto   m move   t theme   ? explain   q quit                                                    read 4s ago · next look 1s

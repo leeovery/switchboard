@@ -151,7 +151,7 @@ func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
 	version := s.deps.ClaudeVersion()
 	collector := status.Collector{
 		Prober: &claude.Prober{Upstream: s.upstream, Version: version},
-		Policy: policy,
+		Policy: claude.Policy,
 		Prime:  s.prime,
 		Token:  s.readToken,
 		Now:    s.deps.Now,

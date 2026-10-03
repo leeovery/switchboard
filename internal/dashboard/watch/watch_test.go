@@ -33,6 +33,14 @@ func TestStartsByReading(t *testing.T) {
 	}
 }
 
+func TestTimersAreRealWhenTheConfigGivesNone(t *testing.T) {
+	m := New(t.Context(), Config{})
+
+	if got := m.after(time.Millisecond, frameMsg{})(); got != (frameMsg{}) {
+		t.Errorf("a timer of a model given no After delivered %#v, want the message it was armed with", got)
+	}
+}
+
 func TestReadsAgainWhenDue(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -22,7 +22,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/router"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -94,15 +93,6 @@ type Deps struct {
 // Notifier posts a desktop notification.
 type Notifier interface {
 	Notify(message string) error
-}
-
-// policy is Claude's say in scoring accounts.
-var policy = score.Policy{
-	Shared:     claude.SharedWindows,
-	Perishable: claude.PerishableWindow,
-	Tiebreak:   claude.TiebreakWindow,
-	Started:    claude.StartedWindow,
-	Pressure:   claude.PressureWindow,
 }
 
 // roleAnnotation is the annotation a command logs its role under, when it

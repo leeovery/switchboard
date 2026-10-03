@@ -1,5 +1,17 @@
 package claude
 
+import "github.com/leeovery/switchboard/internal/score"
+
+// Policy is Claude's say in scoring accounts: its windows, each named for the
+// part it plays.
+var Policy = score.Policy{
+	Shared:     SharedWindows,
+	Perishable: PerishableWindow,
+	Tiebreak:   TiebreakWindow,
+	Started:    StartedWindow,
+	Pressure:   PressureWindow,
+}
+
 // SharedWindows are the windows that apply to every model: an account's
 // five-hour session and its week count every request it makes, and every
 // response reports them. Any other window, such as Fable's weekly cap, counts

@@ -1,0 +1,19 @@
+  SWITCHBOARD   theme  amber      colour only: no LED bars or capitals, which belong to no theme
+
+ ╭─ 1 work ─────────────────────────── ◆ primary ─╮
+ │                                                │    text    ████  ████  ████  ████  ████  ████
+ │  ● under pressure · new sessions go elsewhere  │
+ │                                                │    accent  ████  ████  ████  ████
+ │  █▀▀ █▀█ ▀ █     SESSION  5-hour window        │
+ │  ▀▀█ █▀█ ▄▀      → runs out ~16:05 at its la…  │    state   ████  ████
+ │  ▀▀▀ ▀▀▀ ▀ ▀     resets 17:10 · in 2h 28m      │
+ │                                                │    surface ████  ████  ████  ████
+ │  ██▇▅▃▃▃▃▂▂▁            │                      │
+ │  █████████████▇▇▆▅▄▄▄▃▃▂⡀⡀                     │    viz     ████  ████  ████  ████  ████  ████  ████
+ │  ███████████████████████│ ⠁⠁⠁⠂⠂⠂⠄⠄⡀✕           │
+ │  12:10                now               17:10  │    series  ████  ████  ████  ████  ████  ████
+ │                                                │
+ │  Week     ██████▏┃███████▋╎░  34% → 87%        │    Aa primary  muted  subtle  key
+ │  Fable wk ██▏██▋░┃░░░░░░░░╎░  12% → 31%        │     selected tab    attention
+ │                                                │
+ ╰─ ● ○ ● ─────────────────────────── 3 sessions ─╯
