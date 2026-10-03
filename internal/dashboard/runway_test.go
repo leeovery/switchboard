@@ -19,7 +19,7 @@ import (
 // it, until 14:12, its week running out at 01:12 on Tuesday, before it
 // resets on Thursday; and side, where new sessions go, with room all along.
 func runwayThree() status.Document {
-	personal, reached := limitedSince("personal", clockAt(12, 50))
+	personal, reached := limitedAt("personal", clockAt(12, 50))
 	side := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day))
 	return withEvents(routerDoc("side", 5, pressedAccount("work"), personal, side), reached)
 }
@@ -215,31 +215,50 @@ func TestTheDaysHoursFallFurtherApartAsItNarrows(t *testing.T) {
 	}
 }
 
-func TestTheStripCountsTheAccountsWithRoom(t *testing.T) {
-	l := runwayLayout{
-		timeline: timeline{start: now, step: 10 * time.Minute, columns: 5, now: now},
-		cells: [][]room{
-			{roomOpen, roomOpen, roomDraining, roomNone, roomOpen},
-			{roomOpen, roomDraining, roomNone, roomNone, roomNone},
-			{roomDraining, roomNone, roomNone, roomNone, roomUnknown},
+func TestTheStripCountsTheAccountsKnownToHaveRoom(t *testing.T) {
+	unread := []room{roomUnknown, roomUnknown, roomUnknown, roomUnknown}
+	tests := []struct {
+		name  string
+		cells [][]room
+		// wantTop and wantFoot are the strip's rows, and wantTones where
+		// along the ramp each of its columns is coloured.
+		wantTop, wantFoot string
+		wantTones         []float64
+	}{
+		{
+			name: "of the accounts known, one not read yet left uncounted",
+			cells: [][]room{
+				{roomOpen, roomOpen, roomDraining, roomNone},
+				{roomOpen, roomDraining, roomNone, roomNone},
+				{roomDraining, roomNone, roomNone, roomNone},
+				unread,
+			},
+			wantTop: " ROOM                 █▃", wantFoot: " accounts with room   ██▅▁",
+			wantTones: []float64{0, 1.0 / 3, 2.0 / 3, 1},
+		},
+		{
+			name:    "nothing known of any, as before anything is read: nothing drawn",
+			cells:   [][]room{unread, unread},
+			wantTop: " ROOM", wantFoot: " accounts with room",
 		},
 	}
-	l.x = 22
-	f := Frame{Width: 30, Height: 2}
-	c := newCanvas(f.Width, f.Height)
-	f.roomStrip(c, l, 0)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := runwayLayout{x: 22, timeline: timeline{start: now, step: 10 * time.Minute, columns: 4, now: now}, cells: tt.cells}
+			f := Frame{Width: 30, Height: 2}
+			c := newCanvas(f.Width, f.Height)
+			f.roomStrip(c, l, 0)
 
-	rows := c.rows(Look{})
-	if got, want := rows[0], " ROOM                 █▃"; got != want {
-		t.Errorf("the strip's top reads %q, want %q", got, want)
-	}
-	if got, want := rows[1], " accounts with room   ██▅▁▅"; got != want {
-		t.Errorf("the strip's foot reads %q, want %q", got, want)
-	}
-	for col, want := range []float64{0, 1.0 / 3, 2.0 / 3, 1, 2.0 / 3} {
-		if got := c.at(l.x+col, 1).ink; got != (ink{ramp: true, at: want}) {
-			t.Errorf("column %d is in %+v, want the ramp at %v", col, got, want)
-		}
+			rows := c.rows(Look{})
+			if rows[0] != tt.wantTop || rows[1] != tt.wantFoot {
+				t.Errorf("the strip reads\n%q\n%q\nwant\n%q\n%q", rows[0], rows[1], tt.wantTop, tt.wantFoot)
+			}
+			for col, want := range tt.wantTones {
+				if got := c.at(l.x+col, 1).ink; got != (ink{ramp: true, at: want}) {
+					t.Errorf("column %d is in %+v, want the ramp at %v", col, got, want)
+				}
+			}
+		})
 	}
 }
 
@@ -331,6 +350,20 @@ func TestALanesBadge(t *testing.T) {
 	}
 }
 
+func TestEachCauseOfAStretchIsToldWhereItStarts(t *testing.T) {
+	both := pressedAccount("work")
+	both.Windows[1] = weekRunningOut(2*time.Hour, 3*day)
+	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), routerDoc("", 1, both))
+
+	if got, want := rows[l.top], " 1 work               "+repeated("▆", 15, "─", 121); got != want {
+		t.Errorf("work's lane reads\n%q\nwant\n%q: room till 14:42, then one stretch without it, to the end", got, want)
+	}
+	want := textsAt(160, map[int]string{22 + 15: "runs out ~14:42", 22 + 32: "week runs out ~15:12  ·  back Thu 13:12, as it resets"})
+	if got := rows[l.top+1]; got != want {
+		t.Errorf("work's words read\n%q\nwant\n%q: its session's where it runs out, then its week's, clear of them, back once, from the week", got, want)
+	}
+}
+
 func TestTheWordsUnderALaneLeaveOffWhatDoesntFitWhole(t *testing.T) {
 	rows, l := drawnRunway(runwayFrame(t, Day, 120, 40), runwayThree())
 
@@ -376,6 +409,26 @@ func TestTheLegend(t *testing.T) {
 	} {
 		if inks[means] != want {
 			t.Errorf("%q is drawn in %+v, want %+v", means, inks[means], want)
+		}
+	}
+}
+
+func TestALegendThatDoesntFitWholeLeavesTheKeyBehindQuestionMark(t *testing.T) {
+	doc := routerDoc("work", 1, readAccount("work", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
+	for _, tt := range []struct {
+		width      int
+		wantLegend bool
+	}{
+		{width: 52, wantLegend: true},
+		{width: 51, wantLegend: false},
+	} {
+		rows := textOf(runwayFrame(t, Day, tt.width, 40).Draw(doc, now))
+		screen := strings.Join(rows, "\n")
+		if shown := strings.Contains(screen, "─ no room"); shown != tt.wantLegend || strings.Contains(rows[37], "…") {
+			t.Errorf("at %d columns, the screen is\n%s\nwant the legend shown whole: %v, and never cut short", tt.width, screen, tt.wantLegend)
+		}
+		if behind := strings.HasSuffix(rows[38], "? for the key"); behind == tt.wantLegend {
+			t.Errorf("at %d columns, the line over the footer reads %q, want the key behind ?: %v", tt.width, rows[38], !tt.wantLegend)
 		}
 	}
 }

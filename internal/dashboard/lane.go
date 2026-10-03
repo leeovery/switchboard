@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -93,48 +92,101 @@ func (tl timeline) moment(col int) time.Time {
 	return tl.start.Add(time.Duration(col)*tl.step + tl.step/2)
 }
 
-// stretch is a stretch of time an account can't take a session: from when,
-// zero for since before anything Runway shows; until when it's back, zero
-// where that isn't known; what starts it, in words, as in "runs out ~16:05";
-// and the reset of the window whose running out starts it, which it's back
-// at as that resets, zero for a stretch a hold starts. One that stands for
-// the account's state, as without a token, says what that means, then, in
-// place of when it's back.
-type stretch struct {
+// interval is a stretch of time: from when, zero for since before anything
+// Runway shows; until when, zero where that isn't known.
+type interval struct {
 	from, until time.Time
-	cause       string
-	resets      time.Time
-	then        string
 }
 
-// holds reports whether the stretch holds the account back at t.
-func (s stretch) holds(t time.Time) bool {
-	return (s.from.IsZero() || !t.Before(s.from)) && (s.until.IsZero() || t.Before(s.until))
+// holds reports whether the interval holds the moment t.
+func (i interval) holds(t time.Time) bool {
+	return (i.from.IsZero() || !t.Before(i.from)) && (i.until.IsZero() || t.Before(i.until))
 }
 
-// says is what's said where the stretch starts: what starts it, bold in
-// destructive; then what that means, where it stands for the account's
-// state; else when it's back, where that's known, and that that's as it
-// resets, where it is, as in "runs out ~16:05 · back 17:10, as it resets".
-func (s stretch) says(now time.Time) line {
-	l := line{{s.cause, exhaustedInk}}
-	switch {
-	case s.then != "":
-		l = append(l, span{status.Separator + s.then, mutedInk})
-	case !s.until.IsZero():
-		l = append(l, span{status.Separator + "back " + status.Dated(now, s.until), mutedInk})
-		if s.until.Equal(s.resets) {
-			l = append(l, span{", as it resets", mutedInk})
+// column is the column of the timeline the interval shows from, reporting
+// false where it shows in none: the first whose moment it holds; or, too
+// short to hold any, the column it starts in, so none goes unseen.
+func (i interval) column(tl timeline) (int, bool) {
+	first, last := 0, tl.columns-1
+	if !i.from.IsZero() {
+		first = max(tl.column(i.from), 0)
+	}
+	if !i.until.IsZero() {
+		last = min(last, tl.column(i.until))
+	}
+	for col := first; col <= last; col++ {
+		if i.holds(tl.moment(col)) {
+			return col, true
 		}
 	}
-	return l
+	col := tl.column(i.from)
+	return col, !i.from.IsZero() && col >= 0 && col < tl.columns
+}
+
+// cause is what holds an account back over its interval: in words, as in
+// "runs out ~16:05"; and the reset of the window whose running out it is,
+// which the account's back at as that resets, zero for a hold. One that
+// stands for the account's state, as without a token, says what that means,
+// then, in place of when the account's back.
+type cause struct {
+	interval
+	says   string
+	resets time.Time
+	then   string
+}
+
+// same reports whether the cause tells the same as other: the same words over
+// the same interval, as a limit holding several windows tells of each.
+func (c cause) same(other cause) bool {
+	return c.says == other.says && c.from.Equal(other.from) && c.until.Equal(other.until)
+}
+
+// stretch is a stretch of time an account can't take a session, from the
+// start of the first of its causes until the last of their ends, and its
+// causes, in the order they start.
+type stretch struct {
+	interval
+	causes []cause
+}
+
+// told is what's said of the stretch, a line for each of its causes, to be
+// said where it starts: what it is, bold in destructive; and of the cause the
+// stretch is back from, as backFrom says, when it's back, where that's known,
+// and that that's as its window resets, where it is, as in "week runs out
+// ~16:30 · back Thu 13:12, as it resets". One standing for the account's
+// state says what that means instead.
+func (s stretch) told(now time.Time) []line {
+	back := s.backFrom()
+	told := make([]line, len(s.causes))
+	for i, c := range s.causes {
+		told[i] = line{{c.says, exhaustedInk}}
+		switch {
+		case c.then != "":
+			told[i] = append(told[i], span{status.Separator + c.then, mutedInk})
+		case i == back && !s.until.IsZero():
+			told[i] = append(told[i], span{status.Separator + "back " + status.Dated(now, s.until), mutedInk})
+			if s.until.Equal(c.resets) {
+				told[i] = append(told[i], span{", as it resets", mutedInk})
+			}
+		}
+	}
+	return told
+}
+
+// backFrom is the cause the stretch is back from, by its place: the last of
+// those that end as it does, where room really returns.
+func (s stretch) backFrom() int {
+	i := len(s.causes) - 1
+	for i > 0 && !s.causes[i].until.Equal(s.until) {
+		i--
+	}
+	return i
 }
 
 // lane is an account's room over the time Runway shows, as the document has
 // it at a moment: the account, and its place; whether anything is known of
-// it; the stretches it can't take a session, in order, those that meet run
-// together; and until when, from now, it's heading to run out, zero where it
-// isn't.
+// it; the stretches it can't take a session, in order; and until when, from
+// now, it's heading to run out, zero where it isn't.
 type lane struct {
 	account   status.Account
 	place     int
@@ -147,20 +199,20 @@ type lane struct {
 // span counts, as counts says: without a usable token, or with its usage
 // unreadable, it has none all along, as its state says, and nothing is known
 // of one not read yet. Read, it has none while a window counted holds it
-// back, as stretchesOf says, nor, over the day, while the upstream refuses its
+// back, as causesOf says, nor, over the day, while the upstream refuses its
 // every request; and from now, it's heading to run out until the last of
 // those windows that run out before they reset does.
 func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
 	l := lane{account: a, place: place(doc, a.ID), known: true}
 	switch state := doc.StateOf(a, now, f.Policy); state.Condition {
 	case status.Tokenless, status.Unreadable:
-		l.stretches = []stretch{{cause: state.Says, then: state.Then}}
+		l.stretches = merged([]cause{{says: state.Says, then: state.Then}})
 		return l
 	case status.Unread:
 		l.known = false
 		return l
 	}
-	var held []stretch
+	var causes []cause
 	for _, w := range a.Windows {
 		if !f.counts(w) {
 			continue
@@ -169,12 +221,12 @@ func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane
 		if s.runsOut && s.out.At.After(l.drains) {
 			l.drains = s.out.At
 		}
-		held = append(held, f.stretchesOf(doc, a, s, now)...)
+		causes = append(causes, f.causesOf(doc, a, s, now)...)
 	}
 	if f.Span == Day && a.Refused.Holds(now) && a.Refused.Family == "" {
-		held = append(held, stretch{until: a.Refused.Until, cause: a.Refused.Answer()})
+		causes = append(causes, cause{until: a.Refused.Until, says: a.Refused.Answer()})
 	}
-	l.stretches = merged(held)
+	l.stretches = merged(causes)
 	return l
 }
 
@@ -192,41 +244,40 @@ func (f Frame) counts(w quota.Window) bool {
 	}
 }
 
-// stretchesOf are the stretches doc's account a can't take a session for, at
-// now, for its window standing as s: while it's held at its limit, from when
-// it reached it, where the router told of that, until it's back; or while
-// it's at its reserve, where that holds the account back, until the window
-// resets; and once it runs out before it resets, as RunsOut has it, until it
-// resets, as a window a limit naming none holds can, once that lifts. Over
-// the day, a window other than the one a request starts is named, as in
-// "week runs out ~Fri 04:06".
-func (f Frame) stretchesOf(doc status.Document, a status.Account, s standing, now time.Time) []stretch {
-	var out []stretch
+// causesOf are what holds doc's account a back, at now, of its window
+// standing as s: while it's held at its limit, from when it reached it, as
+// its standing says, until it's back; or while it's at its reserve, where
+// that holds the account back, until the window resets; and once it runs
+// out before it resets, as RunsOut has it, until it resets, as a window a
+// limit naming none holds can, once that lifts. Over the day, a window other
+// than the one a request starts is named, as in "week runs out ~Fri 04:06".
+func (f Frame) causesOf(doc status.Document, a status.Account, s standing, now time.Time) []cause {
+	var causes []cause
 	w := s.window
 	switch {
 	case s.held:
-		since := heldSince(doc, a, w.Key, now, f.Policy)
-		cause := "limit reached"
-		if !since.IsZero() {
-			cause += " " + status.Dated(now, since)
+		says := "limit reached"
+		if !s.since.IsZero() {
+			says += " " + status.Dated(now, s.since)
 		}
-		out = append(out, stretch{from: since, until: s.back, cause: cause})
+		causes = append(causes, cause{from: s.since, until: s.back, says: says})
 	case doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key):
-		out = append(out, stretch{until: w.ResetsAt, resets: w.ResetsAt, cause: f.naming(w) + "at its reserve"})
+		causes = append(causes, cause{until: w.ResetsAt, says: f.naming(w) + "at its reserve", resets: w.ResetsAt})
 	}
 	if s.runsOut {
 		verb := "runs out ~"
 		if s.out.Reserve {
 			verb = "reaches its reserve ~"
 		}
-		out = append(out, stretch{from: s.out.At, until: w.ResetsAt, resets: w.ResetsAt, cause: f.naming(w) + verb + status.Dated(now, s.out.At)})
+		says := f.naming(w) + verb + status.Dated(now, s.out.At)
+		causes = append(causes, cause{from: s.out.At, until: w.ResetsAt, says: says, resets: w.ResetsAt})
 	}
-	return out
+	return causes
 }
 
-// naming is how the words of a stretch the window w starts lead: over the
-// day, with the window's name, but for the window a request starts, as in
-// "week "; over the week, without it, as it's the weeks' alone.
+// naming is how the words of what the window w holds an account back for
+// lead: over the day, with the window's name, but for the window a request
+// starts, as in "week "; over the week, without it, as it's the weeks' alone.
 func (f Frame) naming(w quota.Window) string {
 	if f.Span == Week || w.Key == f.Policy.Started {
 		return ""
@@ -234,35 +285,29 @@ func (f Frame) naming(w quota.Window) string {
 	return status.InProse(w.Label) + " "
 }
 
-// heldSince is when doc's account a reached the limit that holds its window
-// with the given key back at now, as the router told of it: zero where it
-// didn't, as while probing, or where no limit it reached holds that window.
-func heldSince(doc status.Document, a status.Account, key string, now time.Time, policy score.Policy) time.Time {
-	held, ok := a.Held(now, policy)
-	if !ok || !held.Holds(key) || !a.Limit.Holds(now) {
-		return time.Time{}
-	}
-	return limitReached(doc, a.ID, now)
-}
-
-// merged are the stretches in order, the earliest first, those that meet or
-// overlap run together: from the first's start until the last of their
-// ends, said as the first is, and back as its window resets only where
-// that's when they end.
-func merged(stretches []stretch) []stretch {
-	slices.SortStableFunc(stretches, func(x, y stretch) int { return x.from.Compare(y.from) })
-	var out []stretch
-	for _, s := range stretches {
-		n := len(out)
-		if n == 0 || !out[n-1].until.IsZero() && s.from.After(out[n-1].until) {
-			out = append(out, s)
+// merged are the stretches the causes hold an account back for, in order,
+// the earliest first: those that meet or overlap run together, from the
+// first's start until the last of their ends, each cause kept, in the order
+// they start, but one telling the same as another, kept once.
+func merged(causes []cause) []stretch {
+	slices.SortStableFunc(causes, func(x, y cause) int { return x.from.Compare(y.from) })
+	var stretches []stretch
+	for _, c := range causes {
+		n := len(stretches)
+		if n == 0 || !stretches[n-1].until.IsZero() && c.from.After(stretches[n-1].until) {
+			stretches = append(stretches, stretch{interval: c.interval, causes: []cause{c}})
 			continue
 		}
-		if last := &out[n-1]; !last.until.IsZero() && (s.until.IsZero() || s.until.After(last.until)) {
-			last.until = s.until
+		last := &stretches[n-1]
+		if slices.ContainsFunc(last.causes, c.same) {
+			continue
+		}
+		last.causes = append(last.causes, c)
+		if !last.until.IsZero() && (c.until.IsZero() || c.until.After(last.until)) {
+			last.until = c.until
 		}
 	}
-	return out
+	return stretches
 }
 
 // at is how the lane's account stands at t: unknown where nothing is known
@@ -295,24 +340,4 @@ func (l lane) cells(tl timeline) []room {
 		}
 	}
 	return cells
-}
-
-// column is the column of the timeline the stretch shows from, reporting
-// false where it shows in none: the first whose moment it holds; or, too
-// short to hold any, the column it starts in, so none goes unseen.
-func (s stretch) column(tl timeline) (int, bool) {
-	first, last := 0, tl.columns-1
-	if !s.from.IsZero() {
-		first = max(tl.column(s.from), 0)
-	}
-	if !s.until.IsZero() {
-		last = min(last, tl.column(s.until))
-	}
-	for col := first; col <= last; col++ {
-		if s.holds(tl.moment(col)) {
-			return col, true
-		}
-	}
-	col := tl.column(s.from)
-	return col, !s.from.IsZero() && col >= 0 && col < tl.columns
 }

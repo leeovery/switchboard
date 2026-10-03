@@ -81,10 +81,9 @@ type runwayLayout struct {
 // layOutRunway lays Runway of doc at now out under the heading, which ends
 // at row top. The lanes start after the labels, as lanesAt says, and run to
 // a cell short of the frame's edge, clear of a scrollbar. They get the rows
-// first; then the legend, where a blank and its line are left over; where
-// not even the lanes fit, they scroll between the strip and the line over
-// the footer. Printed, with no height to fit, every lane shows, and the
-// legend under them.
+// first; then the legend, where a blank and its line are left over, and it
+// fits the width whole; where not even the lanes fit, they scroll between
+// the strip and the line over the footer.
 func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayLayout {
 	l := runwayLayout{top: top + lanesFrom}
 	for _, a := range doc.Accounts {
@@ -96,13 +95,9 @@ func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayL
 		l.cells = append(l.cells, ln.cells(l.timeline))
 	}
 	l.content = max(len(l.lanes)*(laneRows+laneGap)-laneGap, 0)
-	if f.printed() {
-		l.view, l.legend = l.content, true
-		return l
-	}
 	room := f.Height - 2 - l.top
 	l.view = min(l.content, max(room, 0))
-	l.legend = l.content+2 <= room
+	l.legend = l.content+2 <= room && f.legendFits(l.timeline)
 	return l
 }
 
@@ -169,13 +164,10 @@ func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
 		}
 	}
 	legend, over := f.Height-3, f.Height-2
-	if f.printed() {
-		legend = l.top + l.content + 1
-	}
 	if l.legend {
-		c.line(margin, legend, f.legend(l.timeline).fit(f.edge()-margin))
+		c.line(margin, legend, f.legend(l.timeline))
 	}
-	if f.printed() || over < l.top {
+	if over < l.top {
 		return
 	}
 	switch {
@@ -281,9 +273,10 @@ func weekdays(c *canvas, tl timeline, x, y int) {
 
 // roomStrip draws the strip over the lanes of l from row y: its heading and
 // label at the left; then in each column of the timeline, how many of the
-// lanes' accounts have room, as a level two rows tall, filled to the share
-// of them that do, coloured along the ramp as stripTone says, the past
-// dimmed, and where none does, a line along its floor.
+// lanes' accounts known there have room, as a level two rows tall, filled to
+// the share of them that do, coloured along the ramp as stripTone says, the
+// past dimmed, and where none does, a line along its floor. Where nothing is
+// known of any, as before anything is read, nothing is drawn.
 func (f Frame) roomStrip(c *canvas, l runwayLayout, y int) {
 	label := dayStripLabel
 	if f.Span == Week {
@@ -291,19 +284,24 @@ func (f Frame) roomStrip(c *canvas, l runwayLayout, y int) {
 	}
 	c.line(margin, y, line{{stripHead, labelInk}})
 	c.line(margin, y+1, line{{label, mutedInk}})
-	n := len(l.cells)
 	for col := range l.timeline.columns {
-		with := 0
+		known, with := 0, 0
 		for _, cells := range l.cells {
-			if cells[col].has() {
-				with++
+			if r := cells[col]; r != roomUnknown {
+				known++
+				if r.has() {
+					with++
+				}
 			}
 		}
-		k := ink{ramp: true, at: stripTone(with, n)}
+		if known == 0 {
+			continue
+		}
+		k := ink{ramp: true, at: stripTone(with, known)}
 		if col < l.timeline.nowColumn() {
 			k.fade = pastFade
 		}
-		filled := int(math.Round(float64(8*stripRows*with) / float64(n)))
+		filled := int(math.Round(float64(8*stripRows*with) / float64(known)))
 		if filled == 0 {
 			c.text(l.x+col, y+1, floorLine, k)
 			continue
@@ -415,19 +413,17 @@ type placed struct {
 
 // laneWords draws the words under lane ln, of layout l, along row y, each at
 // the column it's of, left to right, saysGap clear of those before, and
-// those after them left off where they don't fit whole: where each stretch
-// without room starts, from the column it shows from, as stretch.says has
-// it; over the week, at each week's reset in view that no stretch is back
-// at, ending under it, when it resets and how much it will have used by
-// then; and where neither is, from just after now, that it has room all
-// along, or that nothing has been read of it.
+// those after them left off where they don't fit whole: what holds it back
+// over each stretch without room, as placedTold places it; over the week, at
+// each week's reset in view that no stretch is back at, ending under it,
+// when it resets and how much it will have used by then; and where neither
+// is, from just after now, that it has room all along, or that nothing has
+// been read of it.
 func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout, now time.Time, y int) {
 	tl := l.timeline
 	var words []placed
 	for _, s := range ln.stretches {
-		if col, ok := s.column(tl); ok {
-			words = append(words, placed{col: col, words: s.says(now)})
-		}
+		words = append(words, placedTold(s, tl, now)...)
 	}
 	for _, w := range f.weeks(ln) {
 		col := tl.column(w.ResetsAt)
@@ -451,6 +447,30 @@ func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout
 		}
 		end = c.line(x, y, fitted)
 	}
+}
+
+// placedTold places what's told of the stretch s, as stretch.told has it, on
+// the timeline: its first cause's words from the column the stretch shows
+// from, and each other's from the column it shows from, none before the
+// first's; a cause that shows in none, as one starting after the timeline,
+// left untold.
+func placedTold(s stretch, tl timeline, now time.Time) []placed {
+	first, ok := s.column(tl)
+	if !ok {
+		return nil
+	}
+	var told []placed
+	for i, says := range s.told(now) {
+		col := first
+		if i > 0 {
+			if col, ok = s.causes[i].column(tl); !ok {
+				continue
+			}
+			col = max(col, first)
+		}
+		told = append(told, placed{col: col, words: says})
+	}
+	return told
 }
 
 // resetSays is what's said where a week standing as s resets: when, and
@@ -497,6 +517,12 @@ func (f Frame) legendGlyphs() []glyph {
 		glyphs = append(glyphs, glyph{drawn: line{{resetGlyph, titleInk}}, means: "week resets"})
 	}
 	return glyphs
+}
+
+// legendFits reports whether the legend, for the timeline tl, fits the
+// frame's width whole: where it doesn't, the key's behind ?.
+func (f Frame) legendFits(tl timeline) bool {
+	return margin+f.legend(tl).width() <= f.edge()
 }
 
 // legend is Runway's key to its glyphs, the line over the footer, for the

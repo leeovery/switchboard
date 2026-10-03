@@ -37,9 +37,8 @@ type face struct {
 	// as the router listed them; sessions is how many it has.
 	busy     []bool
 	sessions int
-	// limitAt is when it reached its limit, as the router told of it, and
-	// primed when the router next primes it: zero where unknown.
-	limitAt, primed time.Time
+	// primed is when the router next primes it: zero where unknown.
+	primed time.Time
 	// read is when the document was read, which a recent rate is measured
 	// to.
 	read time.Time
@@ -68,7 +67,7 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 		account: a, place: place(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
 		windows: shown, bars: make(map[string]standing),
 		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID),
-		sessions: a.Sessions, limitAt: limitReached(doc, a.ID, now), primed: primedNext(doc, a.ID),
+		sessions: a.Sessions, primed: primedNext(doc, a.ID),
 		read: cmp.Or(doc.GeneratedAt, now), focused: f.Focus == a.ID, flipped: f.Flipped[a.ID],
 	}
 	w, ok := featured(doc, a, now, f.Policy, f.Featured, shown)
@@ -90,28 +89,14 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 
 // burndownOf is the chart of the window the card of doc's account fc
 // features, as it stands at now, in the tone of its state, from its history,
-// and while it's held at its limit, on the floor from when that was reached.
+// and while it's held at its limit, on the floor from when that was reached,
+// as its standing says.
 func (f Frame) burndownOf(doc status.Document, fc face, now time.Time) burndown {
 	b := burndown{standing: fc.featured, tone: fc.tone(), now: now, starts: doc.StartsAt(fc.account.ID, now)}
 	b.start, b.length, b.spanned = b.window.Span()
 	b.trail = f.History[Ref{Account: fc.account.ID, Window: b.window.Key}]
 	b.traced = len(b.trail.Readings) > 0
-	if b.held {
-		b.heldFrom = fc.limitAt
-	}
 	return b
-}
-
-// limitReached is when the account with the given id last reached its limit
-// at or before now, as doc's events tell of it: zero where none does.
-func limitReached(doc status.Document, id string, now time.Time) time.Time {
-	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
-		return e.Kind == status.EventLimit && e.Account == id && !e.At.After(now)
-	})
-	if i < 0 {
-		return time.Time{}
-	}
-	return doc.Events[i].At
 }
 
 // primedNext is when the router next primes the account with the given id,

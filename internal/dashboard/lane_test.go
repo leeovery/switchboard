@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -21,10 +22,10 @@ func weekRunningOut(out, resets time.Duration) quota.Window {
 	return weekOf(passed.Hours()/(passed+out).Hours(), resets)
 }
 
-// limitedSince is an account whose session reached its limit at reached, as
+// limitedAt is an account whose session reached its limit at reached, as
 // the router told of it, which holds until it resets in an hour, and whose
 // week, resetting in three days, runs out in twelve hours.
-func limitedSince(id string, reached time.Time) (status.Account, status.Event) {
+func limitedAt(id string, reached time.Time) (status.Account, status.Event) {
 	session := sessionOf(1, time.Hour)
 	session.Status = quota.StatusRejected
 	a := readAccount(id, session, weekRunningOut(12*time.Hour, 3*day))
@@ -90,8 +91,8 @@ func TestATimelinesColumnsStandForTheirMiddlesButNowsForNow(t *testing.T) {
 }
 
 func TestALanesRoomFromEachCause(t *testing.T) {
-	limited, reached := limitedSince("personal", clockAt(12, 50))
-	probedLimit, _ := limitedSince("personal", clockAt(12, 50))
+	limited, reached := limitedAt("personal", clockAt(12, 50))
+	probedLimit, _ := limitedAt("personal", clockAt(12, 50))
 	noneNamed := probedLimit
 	noneNamed.Limit.Windows = nil
 	atReserve := reserving(readAccount("work", sessionOf(0.9, 3*time.Hour), weekOf(0.34, 4*day)), 0.1)
@@ -106,6 +107,10 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 	tokenless := status.Account{ID: "work", Label: "work", Error: "no token file"}
 	unread := status.Account{ID: "work", Label: "work", TokenSet: true}
 	weekly := readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(5*time.Hour, 3*day))
+	both := pressedAccount("work")
+	both.Windows[1] = weekRunningOut(2*time.Hour, 3*day)
+	everyWindow, reachedEvery := limitedAt("personal", clockAt(12, 50))
+	everyWindow.Limit.Windows = nil
 
 	type moment struct {
 		in   time.Duration
@@ -116,13 +121,19 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 		span    Span
 		doc     status.Document
 		moments []moment
-		// wantSays is what's said where each stretch without room starts.
+		// wantSays is what's said where each of its causes holding it back
+		// starts.
 		wantSays []string
 	}{
 		{
 			name: "its 5-hour window running out at its pace: back as it resets", doc: routerDoc("", 1, pressedAccount("work")),
 			moments:  []moment{{-30 * time.Minute, roomOpen}, {10 * time.Minute, roomDraining}, {89 * time.Minute, roomDraining}, {91 * time.Minute, roomNone}, {179 * time.Minute, roomNone}, {181 * time.Minute, roomOpen}},
 			wantSays: []string{"runs out ~14:42  ·  back 16:12, as it resets"},
+		},
+		{
+			name: "its session running out, then its week before the session's back: one stretch, back once, from the week", doc: routerDoc("", 1, both),
+			moments:  []moment{{48 * time.Minute, roomDraining}, {108 * time.Minute, roomNone}, {200 * time.Minute, roomNone}, {3*day + time.Hour, roomOpen}},
+			wantSays: []string{"runs out ~14:42", "week runs out ~15:12  ·  back Thu 13:12, as it resets"},
 		},
 		{
 			name: "its 5-hour window reaching its limit just as it resets: room all along", doc: routerDoc("", 1, readAccount("work", sessionOf(0.2, 4*time.Hour), weekOf(0.1, 5*day))),
@@ -136,6 +147,11 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 		{
 			name: "a limit, from when it was reached, as the router told of it; then its week running out", doc: withEvents(routerDoc("", 1, limited), reached),
 			moments:  []moment{{-40 * time.Minute, roomOpen}, {-10 * time.Minute, roomNone}, {30 * time.Minute, roomNone}, {61 * time.Minute, roomDraining}, {11 * time.Hour, roomDraining}, {13 * time.Hour, roomNone}},
+			wantSays: []string{"limit reached 12:50  ·  back 14:12", "week runs out ~Tue 01:12  ·  back Thu 13:12, as it resets"},
+		},
+		{
+			name: "a limit naming no window, holding its session and its week alike, told once", doc: withEvents(routerDoc("", 1, everyWindow), reachedEvery),
+			moments:  []moment{{-10 * time.Minute, roomNone}, {61 * time.Minute, roomDraining}, {13 * time.Hour, roomNone}},
 			wantSays: []string{"limit reached 12:50  ·  back 14:12", "week runs out ~Tue 01:12  ·  back Thu 13:12, as it resets"},
 		},
 		{
@@ -211,7 +227,9 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 			}
 			var says []string
 			for _, s := range l.stretches {
-				says = append(says, s.says(now).plain())
+				for _, told := range s.told(now) {
+					says = append(says, told.plain())
+				}
 			}
 			if !slices.Equal(says, tt.wantSays) {
 				t.Errorf("the lane says %q, want %q", says, tt.wantSays)
@@ -234,54 +252,113 @@ func TestTheRoomRunwayGoesByIsTheProjectionTheCardsDo(t *testing.T) {
 	}
 }
 
-func TestStretchesThatMeetRunTogether(t *testing.T) {
-	at := func(minutes int) time.Time { return now.Add(time.Duration(minutes) * time.Minute) }
+// held is a cause holding an account back from minutes from now until
+// minutes, saying says, back as its window resets at the minute resets,
+// none for none.
+func held(from, until, resets int, says string) cause {
+	at := func(minutes int) time.Time {
+		if minutes < 0 {
+			return time.Time{}
+		}
+		return now.Add(time.Duration(minutes) * time.Minute)
+	}
+	return cause{from: at(from), until: at(until), says: says, resets: at(resets)}
+}
+
+func TestCausesThatMeetRunTogether(t *testing.T) {
+	a, b := held(10, 30, -1, "a"), held(30, 50, -1, "b")
 	tests := []struct {
 		name string
-		in   []stretch
+		in   []cause
 		want []stretch
 	}{
 		{
 			name: "apart, in order",
-			in:   []stretch{{from: at(60), until: at(90), cause: "b"}, {from: at(10), until: at(20), cause: "a"}},
-			want: []stretch{{from: at(10), until: at(20), cause: "a"}, {from: at(60), until: at(90), cause: "b"}},
+			in:   []cause{held(60, 90, -1, "b"), held(10, 20, -1, "a")},
+			want: []stretch{{interval: held(10, 20, -1, "").interval, causes: []cause{held(10, 20, -1, "a")}}, {interval: held(60, 90, -1, "").interval, causes: []cause{held(60, 90, -1, "b")}}},
 		},
 		{
-			name: "overlapping, until the later end, said as the first, back as it resets no longer",
-			in:   []stretch{{from: at(10), until: at(40), resets: at(40), cause: "a"}, {from: at(30), until: at(90), cause: "b"}},
-			want: []stretch{{from: at(10), until: at(90), resets: at(40), cause: "a"}},
+			name: "overlapping, until the later end, each cause kept",
+			in:   []cause{held(30, 90, -1, "b"), held(10, 40, 40, "a")},
+			want: []stretch{{interval: held(10, 90, -1, "").interval, causes: []cause{held(10, 40, 40, "a"), held(30, 90, -1, "b")}}},
 		},
 		{
 			name: "meeting end to start",
-			in:   []stretch{{from: at(10), until: at(30), cause: "a"}, {from: at(30), until: at(50), cause: "b"}},
-			want: []stretch{{from: at(10), until: at(50), cause: "a"}},
+			in:   []cause{a, b},
+			want: []stretch{{interval: held(10, 50, -1, "").interval, causes: []cause{a, b}}},
 		},
 		{
 			name: "one within another",
-			in:   []stretch{{from: at(10), until: at(90), cause: "a"}, {from: at(30), until: at(50), cause: "b"}},
-			want: []stretch{{from: at(10), until: at(90), cause: "a"}},
+			in:   []cause{held(10, 90, -1, "a"), b},
+			want: []stretch{{interval: held(10, 90, -1, "").interval, causes: []cause{held(10, 90, -1, "a"), b}}},
 		},
 		{
 			name: "one with no end known taking in what follows",
-			in:   []stretch{{cause: "a"}, {from: at(30), until: at(50), cause: "b"}},
-			want: []stretch{{cause: "a"}},
+			in:   []cause{held(-1, -1, -1, "a"), b},
+			want: []stretch{{causes: []cause{held(-1, -1, -1, "a"), b}}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := merged(tt.in); !slices.Equal(got, tt.want) {
+			if got := merged(tt.in); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("merged() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
-	if s := (stretch{from: at(10), until: at(90), resets: at(40), cause: "runs out ~13:22"}); s.says(now).plain() != "runs out ~13:22  ·  back 14:42" {
-		t.Errorf("run together, it says %q, want it back when they end, as no window resets then", s.says(now).plain())
+}
+
+func TestEachCauseIsToldWhereItStartsAndWhenItsBackOnce(t *testing.T) {
+	tests := []struct {
+		name   string
+		causes []cause
+		want   []string
+	}{
+		{
+			name:   "one cause, back as its window resets",
+			causes: []cause{held(90, 180, 180, "runs out ~14:42")},
+			want:   []string{"runs out ~14:42  ·  back 16:12, as it resets"},
+		},
+		{
+			name:   "a later one ending later: back once, at its words, where room returns",
+			causes: []cause{held(153, 238, 238, "reaches its reserve ~15:45"), held(198, 4320, 4320, "week runs out ~16:30")},
+			want:   []string{"reaches its reserve ~15:45", "week runs out ~16:30  ·  back Thu 13:12, as it resets"},
+		},
+		{
+			name:   "a later one within it: back at the first's, which ends it",
+			causes: []cause{held(48, 4320, 4320, "week runs out ~14:00"), held(108, 180, 180, "runs out ~15:00")},
+			want:   []string{"week runs out ~14:00  ·  back Thu 13:12, as it resets", "runs out ~15:00"},
+		},
+		{
+			name:   "back from a hold, not as a window resets",
+			causes: []cause{held(-1, 60, -1, "limit reached 12:50")},
+			want:   []string{"limit reached 12:50  ·  back 14:12"},
+		},
+		{
+			name:   "back at a time not known: not said",
+			causes: []cause{held(-1, -1, -1, "limit reached"), held(30, 90, 90, "runs out ~13:42")},
+			want:   []string{"limit reached", "runs out ~13:42"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stretches := merged(tt.causes)
+			if len(stretches) != 1 {
+				t.Fatalf("merged() = %+v, want one stretch", stretches)
+			}
+			var told []string
+			for _, l := range stretches[0].told(now) {
+				told = append(told, l.plain())
+			}
+			if !slices.Equal(told, tt.want) {
+				t.Errorf("told() = %q, want %q", told, tt.want)
+			}
+		})
 	}
 }
 
 func TestAStretchTooShortForAnyColumnsMomentShowsInTheColumnItStartsIn(t *testing.T) {
 	tl := timelineOf(Day, now, 136)
-	short := lane{known: true, stretches: []stretch{{from: clockAt(14, 46), until: clockAt(14, 52), cause: "runs out ~14:46"}}}
+	short := lane{known: true, stretches: merged([]cause{{from: clockAt(14, 46), until: clockAt(14, 52), says: "runs out ~14:46"}})}
 
 	cells := short.cells(tl)
 	if col, ok := short.stretches[0].column(tl); !ok || col != 15 {

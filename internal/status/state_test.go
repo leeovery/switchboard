@@ -143,6 +143,22 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			want:    status.State{Condition: status.Reserved, Says: "spending its reserve (pinned)"},
 		},
 		{
+			name:    "a model's own window at its reserve, other models still coming here",
+			account: with(readNow(0.2, 0.3, 0.92), func(a *status.Account) { a.Reserve, a.AtReserve = 0.1, []string{"7d_oi"} }),
+			want:    status.State{Condition: status.Reserved, Says: "Fable wk at its reserve (90%)", Then: "other models still come here"},
+		},
+		{
+			name:    "a shared window and a model's own at the reserve: held back from every request",
+			account: with(readNow(0.2, 0.92, 0.95), func(a *status.Account) { a.Reserve, a.AtReserve = 0.1, []string{"7d", "7d_oi"} }),
+			want:    status.State{Condition: status.Reserved, Says: "at its reserve (90%)"},
+		},
+		{
+			name:    "a model's own window at its reserve, pinned",
+			account: with(readNow(0.2, 0.3, 0.92), func(a *status.Account) { a.Reserve, a.AtReserve = 0.1, []string{"7d_oi"} }),
+			pin:     []string{"work"},
+			want:    status.State{Condition: status.Reserved, Says: "spending its reserve (pinned)"},
+		},
+		{
 			name:    "under pressure, new sessions going to another",
 			account: with(readNow(0.58, 0.34, 0.12), pressing),
 			best:    "side",

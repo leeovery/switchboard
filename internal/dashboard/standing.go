@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -20,9 +21,10 @@ type standing struct {
 	out     status.RunOut
 	runsOut bool
 	// held is set while it's at its limit, its account held back, until
-	// back, zero where that's unknown.
-	held bool
-	back time.Time
+	// back, zero where that's unknown; and since when, where the router told
+	// of its account reaching the limit that holds it, zero otherwise.
+	held        bool
+	back, since time.Time
 	// lapsed is set once it has lapsed: it isn't running, and reads empty,
 	// until a request starts it.
 	lapsed bool
@@ -40,11 +42,28 @@ func standingOf(doc status.Document, a status.Account, w quota.Window, now time.
 		s.floor = 1 - a.Reserve
 	}
 	if held, ok := a.Held(now, policy); ok && held.Holds(w.Key) {
-		s.held, s.back = true, held.Until
+		s.held, s.back, s.since = true, held.Until, limitedSince(doc, a, now)
 	} else if s.heading.Kind == score.Exhausted {
 		s.held, s.back = true, w.ResetsAt
 	}
 	return s
+}
+
+// limitedSince is when doc's account a reached the limit the router saw it
+// reach, as the router told of it, while that limit holds at now: zero where
+// it doesn't, as of a window read spent while probing, which an old limit's
+// event says nothing of, or where no event tells of it.
+func limitedSince(doc status.Document, a status.Account, now time.Time) time.Time {
+	if !a.Limit.Holds(now) {
+		return time.Time{}
+	}
+	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
+		return e.Kind == status.EventLimit && e.Account == a.ID && !e.At.After(now)
+	})
+	if i < 0 {
+		return time.Time{}
+	}
+	return doc.Events[i].At
 }
 
 // projected is the share of the window it's heading for by its reset, as a

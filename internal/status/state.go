@@ -69,12 +69,12 @@ func dotted(parts ...string) string {
 // Condition's order of precedence: without a usable token, how to give it
 // one; why its usage couldn't be read; that nothing has been; a limit, or a
 // refusal, holding it back, and until when, from every request, then from
-// some models' alone, which says other models still come here; its reserve;
-// that it's under pressure, and whether new sessions go elsewhere, else when
-// it runs out, as RunsOut has it; its lapsed window, and when a prime starts
-// it, where the router says; and last that it's open, its week nearing its
-// reserve, or new sessions coming here. Words from elsewhere show cleaned,
-// and times as Dated shows them.
+// some models' alone, which says other models still come here; its reserve,
+// as reservedState says; that it's under pressure, and whether new sessions
+// go elsewhere, else when it runs out, as RunsOut has it; its lapsed window,
+// and when a prime starts it, where the router says; and last that it's open,
+// its week nearing its reserve, or new sessions coming here. Words from
+// elsewhere show cleaned, and times as Dated shows them.
 func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	switch {
 	case !a.TokenSet:
@@ -88,7 +88,7 @@ func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 		return held
 	}
 	if reserved := d.Reserved(a); reserved != "" {
-		return State{Condition: Reserved, Says: reserved}
+		return d.reservedState(a, reserved, policy)
 	}
 	if a.Pressure.Under {
 		return d.pressed(a, now)
@@ -127,6 +127,21 @@ func heldBack(a Account, now time.Time, policy score.Policy) (State, bool) {
 // stillComes is what's said of an account held back from some models'
 // requests alone.
 const stillComes = "other models still come here"
+
+// reservedState is the state of account a at its reserve, as Reserved says
+// it: held back from every request where a window every model shares has
+// reached it, or spending it, the global pin naming the account; else from
+// some models' requests alone, their own window naming them, which says
+// other models still come here, as in "Fable wk at its reserve (90%) ·
+// other models still come here".
+func (d Document) reservedState(a Account, reserved string, policy score.Policy) State {
+	s := State{Condition: Reserved, Says: reserved}
+	if d.Pin.Has(a.ID) || slices.ContainsFunc(a.AtReserve, policy.IsShared) {
+		return s
+	}
+	s.Says, s.Then = Short(a.label(a.AtReserve[0]))+" "+reserved, stillComes
+	return s
+}
 
 // back says when an account held back at now has room again, at t, as in
 // "back 15:54": "" where that's unknown.

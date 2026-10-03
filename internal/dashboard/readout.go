@@ -50,8 +50,8 @@ func (f Frame) readout(c *canvas, fc face, now time.Time, x, y, end int) {
 func (fc face) whereHeading(now time.Time) line {
 	s := fc.featured
 	switch {
-	case s.held && !fc.limitAt.IsZero():
-		return line{{"limit reached at " + status.Dated(now, fc.limitAt), exhaustedInk}}
+	case s.held && !s.since.IsZero():
+		return line{{"limit reached at " + status.Dated(now, s.since), exhaustedInk}}
 	case s.held:
 		return line{{"limit reached", exhaustedInk}}
 	case s.lapsed:

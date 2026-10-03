@@ -171,7 +171,7 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	if l, ok := f.cardsOf(doc, now); ok {
 		return Scrolling{Most: l.content - l.view, Page: l.view}
 	}
-	if f.View != Runway || f.printed() {
+	if f.View != Runway {
 		return Scrolling{}
 	}
 	top := f.above(newCanvas(f.Width, f.Height), doc, now)
