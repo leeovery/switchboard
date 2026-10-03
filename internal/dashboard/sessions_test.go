@@ -487,10 +487,12 @@ func TestAPanelsUseIsTonedAsItRises(t *testing.T) {
 func TestStubsHangFromALinesFreeJacksWhileItsLimitHolds(t *testing.T) {
 	limit := func(count int, until time.Duration) status.Document {
 		doc := threeRouted()
-		doc.Accounts[1].Limit.Until = now.Add(until).UTC()
-		doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Hour).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: now.Add(until).UTC(), Count: count, To: "side"}}
+		doc.Accounts[1].Limit.ID, doc.Accounts[1].Limit.Until = 1, now.Add(until).UTC()
+		doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Hour).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: now.Add(until).UTC(), Count: count, To: "side", Limit: 1}}
 		return doc
 	}
+	another := limit(2, time.Hour)
+	another.Events = slices.Concat([]status.Event{{ID: 2, At: now.Add(-30 * time.Minute).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi"}, Until: now.Add(48 * time.Hour).UTC(), Count: 1, To: "side", Limit: 2}}, another.Events)
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -499,6 +501,7 @@ func TestStubsHangFromALinesFreeJacksWhileItsLimitHolds(t *testing.T) {
 	}{
 		{name: "a stub each, each a cell shorter", doc: limit(2, time.Hour), want: []string{"╌╌╌╌╌╌╌○", "╌╌╌╌╌╌○"}},
 		{name: "as many as there are free jacks", doc: limit(5, time.Hour), want: []string{"╌╌╌╌╌╌╌○", "╌╌╌╌╌╌○"}},
+		{name: "the holding limit's, by its identity, though another's event is newer", doc: another, want: []string{"╌╌╌╌╌╌╌○", "╌╌╌╌╌╌○"}},
 		{name: "none once the limit has lifted", doc: limit(2, -time.Minute), want: []string{"○", "○"}},
 	}
 	for _, tt := range tests {

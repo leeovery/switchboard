@@ -436,10 +436,20 @@ func TestASeatsNote(t *testing.T) {
 		seatOf(sonnet, "work", "new", time.Hour, time.Minute), seatOf(opus, "side", "new", time.Hour, time.Minute),
 		seatOf(haiku, "side", "new", time.Hour, time.Minute), seatOf("claude-fable-1", "personal", "new", time.Hour, time.Minute),
 	}}
-	yielded := status.Session{ID: idD28C, Pin: "side", Assignments: []status.Assignment{seatOf(opus, "work", "pin yields: side has no room", time.Hour, time.Minute)}}
+	yielding := func(reason string, yielded bool) status.Session {
+		s := status.Session{ID: idD28C, Pin: "side", Assignments: []status.Assignment{seatOf(opus, "work", reason, time.Hour, time.Minute)}}
+		s.Assignments[0].Yielded = yielded
+		return s
+	}
 	pinnedSince := status.Session{ID: idD28C, Pin: "client", Assignments: []status.Assignment{seatOf(opus, "work", "pin yields: side has no room", time.Hour, time.Minute)}}
-	movedByPin := status.Session{ID: idC61B, Assignments: []status.Assignment{seatOf(opus, "work", "pinned", 10*time.Minute, time.Minute)}}
-	movedByPin.Assignments[0].Pinned = true
+	pinnedAt := func(at time.Duration) status.Session {
+		s := status.Session{ID: idC61B, Assignments: []status.Assignment{seatOf(opus, "work", "pinned", 10*time.Minute, time.Minute)}}
+		s.Assignments[0].Pinned = true
+		if at > 0 {
+			s.Assignments[0].PinnedAt = now.Add(-at).UTC()
+		}
+		return s
+	}
 	moved := func(reason string) []status.Event {
 		return slices.Concat([]status.Event{
 			{ID: 9, At: now.Add(-10 * time.Minute).UTC(), Kind: status.EventMoved, Session: idC61B, Model: opus, From: "side", To: "work", Reason: reason},
@@ -453,12 +463,16 @@ func TestASeatsNote(t *testing.T) {
 		want    string
 	}{
 		{name: "its own pin sending it to another account", account: "work", session: pinnedAway, want: "goes to side from its next request"},
-		{name: "its own pin having yielded here at a limit", account: "work", session: yielded, want: "its pin to side yielded here"},
+		{name: "its own pin having yielded here at a limit", account: "work", session: yielding("pin yields: side has no room", true), want: "its pin to side yielded here"},
+		{name: "its own pin having yielded, the session staying where it was", account: "work", session: yielding("new", true), want: "its pin to side yielded here"},
+		{name: "its own pin no longer yielding, whatever the reason it came here", account: "work", session: yielding("pin yields: side has no room", false), want: "goes to side from its next request"},
 		{name: "its own pin to another account since it yielded", account: "work", session: pinnedSince, want: "goes to client from its next request"},
 		{name: "its other models' accounts", account: "work", session: split, want: "its opus and haiku are on side, its fable on personal"},
 		{name: "its own pin keeping it here", account: "work", session: pinnedHere, want: "pinned here"},
-		{name: "its own pin moving it here", account: "work", session: movedByPin, events: moved("pinned"), want: "pinned here at 13:02"},
-		{name: "its own pin keeping it where it moved for another reason", account: "work", session: movedByPin, events: moved("moved: side has no room"), want: "pinned here"},
+		{name: "its own pin moving it here", account: "work", session: pinnedAt(10 * time.Minute), events: moved("pinned"), want: "pinned here at 13:02"},
+		{name: "its own pin given as it ran here", account: "work", session: pinnedAt(7 * time.Minute), want: "pinned here at 13:05"},
+		{name: "its own pin it was launched with, where a move by pin says otherwise", account: "work", session: pinnedAt(0), events: moved("pinned"), want: "pinned here"},
+		{name: "its own pin keeping it where it moved for another reason", account: "work", session: pinnedAt(0), events: moved("moved: side has no room"), want: "pinned here"},
 		{name: "moved here", account: "side", session: flippingSessions()[3], want: "moved from personal at 12:22"},
 		{name: "here since it came", account: "work", session: flippingSessions()[2], want: "here since 11:12"},
 	}
@@ -487,6 +501,15 @@ func TestABackWithNoSessionsSaysWhy(t *testing.T) {
 		doc.Events = slices.Concat([]status.Event{e}, doc.Events)
 		return doc
 	}
+	// held has personal held by the limit whose event moved its sessions, by
+	// its identity, though a limit reached since in Fable's week alone has
+	// moved one more; and heldSince, a session starting on it since.
+	held := flipping()
+	held.Accounts[1].Limit.ID = 4
+	held.Events[4].Limit = 4
+	held.Events = slices.Concat([]status.Event{{ID: 8, At: now.Add(-20 * time.Minute).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi"}, Count: 1, To: "side", Limit: 5}}, held.Events)
+	heldSince := held
+	heldSince.Events = slices.Concat([]status.Event{{ID: 9, At: now.Add(-30 * time.Second).UTC(), Kind: status.EventStarted, Account: "personal", Session: idC61B, Model: opus}}, held.Events)
 	tests := []struct {
 		name     string
 		doc      status.Document
@@ -495,6 +518,8 @@ func TestABackWithNoSessionsSaysWhy(t *testing.T) {
 	}{
 		{name: "the limit that moved them", doc: flipping(), sessions: flippingSessions(), want: []string{"3 moved to side at 12:22,", "when personal reached its limit"}},
 		{name: "a limit that moved them to several", doc: lost, sessions: flippingSessions(), want: []string{"2 moved to other accounts at 12:22,", "when personal reached its limit"}},
+		{name: "the limit holding it, by its identity", doc: held, sessions: flippingSessions(), want: []string{"3 moved to side at 12:22,", "when personal reached its limit"}},
+		{name: "the limit holding it, but a session starting on it since: nothing to say", doc: heldSince, sessions: flippingSessions()},
 		{name: "the last session moving off it", doc: away, sessions: flippingSessions(), want: []string{"d28c moved to side at 13:09 (pin)"}},
 		{name: "a session starting on it since: nothing to say", doc: since(status.Event{Kind: status.EventStarted, Account: "personal", Session: idC61B, Model: opus}), sessions: flippingSessions()},
 		{name: "a session moving to it since", doc: since(status.Event{Kind: status.EventMoved, Session: idC61B, Model: opus, From: "side", To: "personal"}), sessions: flippingSessions()},

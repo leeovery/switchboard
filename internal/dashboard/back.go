@@ -303,16 +303,16 @@ func lapsed(since, now time.Time) string {
 // note is what's noted under a seat's row on the back of the card of the
 // account with the given id, times in now's time zone, as Dated shows them.
 // Where its session's own pin names another account: that the pin yielded
-// here at a limit, where it did, as the router's reason for the seat says,
-// else that the session goes there from its next request. Else where its
-// other models go, to other accounts, as in "its opus is on side"; that its
-// own pin keeps it here, and since when, where the pin moved it here; where
-// it moved here from, and when, as the router told of it; else since when
-// it's been here.
+// here, as the router says it has, the account it names having had no room,
+// whether the session moved here then or stayed; else that the session goes
+// there from its next request. Else where its other models go, to other
+// accounts, as in "its opus is on side"; that its own pin keeps it here, and
+// since when, where it was given the pin as it ran; where it moved here
+// from, and when, as the router told of it; else since when it's been here.
 func note(doc status.Document, id string, s seated, now time.Time) string {
 	pin := s.session.Pin
 	switch {
-	case pin != "" && pin != id && yieldedFrom(s.assignment.Reason) == pin:
+	case pin != "" && pin != id && s.assignment.Yielded:
 		return "its pin to " + named(doc, pin) + " yielded here"
 	case pin != "" && pin != id:
 		return "goes to " + named(doc, pin) + " from its next request"
@@ -323,8 +323,8 @@ func note(doc status.Document, id string, s seated, now time.Time) string {
 	move, moved := movedHere(doc, s, id)
 	pinned := s.assignment.Pinned || pin == id
 	switch {
-	case pinned && moved && move.Reason == reasonOwnPin:
-		return "pinned here at " + status.Dated(now, move.At)
+	case pinned && !s.assignment.PinnedAt.IsZero():
+		return "pinned here at " + status.Dated(now, s.assignment.PinnedAt)
 	case pinned:
 		return "pinned here"
 	case moved:
@@ -332,18 +332,6 @@ func note(doc status.Document, id string, s seated, now time.Time) string {
 	default:
 		return "here since " + status.Dated(now, s.assignment.AssignedAt)
 	}
-}
-
-// yieldedFrom is the account a session's own pin named as it yielded at a
-// limit, as the reason the router gives for where the session went says, as
-// in "pin yields: side has no room": "" where the pin didn't yield.
-func yieldedFrom(reason string) string {
-	rest, ok := strings.CutPrefix(reason, reasonPinYields)
-	if !ok {
-		return ""
-	}
-	account, _, _ := strings.Cut(rest, " ")
-	return account
 }
 
 // elsewhere says where the session's models go that go to other accounts
@@ -397,31 +385,58 @@ func (f Frame) unseated(c *canvas, doc status.Document, fc face, now time.Time, 
 
 // unseatedBy says why the account with the given id has no sessions, times
 // in now's time zone, as Dated shows them: probing, why there's no router to
-// list them, as RECENT says; else, of the router's events, the newest that
-// took sessions off it, a limit it reached, as in "3 moved to side at 14:12,
-// when personal reached its limit", or a session moving, as in "d28c moved
-// to side at 14:39 (pin)". It's nothing where none did, or where a session
-// has come to it since.
+// list them, as RECENT says; while a limit holds it, the sessions that limit
+// moved off it, as its event, which limitOf finds, tells, where none has
+// come to it since; else, of the router's events, the newest that took
+// sessions off it, a limit it reached, or a session moving, as in "d28c
+// moved to side at 14:39 (pin)". It's nothing where none did, or where a
+// session has come to it since.
 func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk {
 	if doc.Source != status.SourceRouter {
 		return []chunk{{text: f.quiet(doc)}}
 	}
+	if a, ok := doc.Account(id); ok {
+		if e, ok := limitOf(doc, a, now); ok && e.Count > 0 && !arrivedSince(doc, e, id) {
+			return limitMoved(doc, e, id, now)
+		}
+	}
 	for _, e := range doc.Events {
-		at := " at " + status.Dated(now, e.At)
 		switch {
 		case arrives(e, id):
 			return nil
 		case e.Kind == status.EventLimit && e.Account == id && e.Count > 0:
-			to := cmp.Or(movedTo(doc, e), " to other accounts")
-			return []chunk{
-				{text: line{{strconv.Itoa(e.Count) + " moved" + to + at + ",", mutedInk}}},
-				{text: line{{"when " + named(doc, id) + " reached its limit", mutedInk}}},
-			}
+			return limitMoved(doc, e, id, now)
 		case e.Kind == status.EventMoved && !counted(e) && e.From == id:
-			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + named(doc, e.To) + at, mutedInk}}, why(doc, e.Reason))}}
+			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + named(doc, e.To) + " at " + status.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
 		}
 	}
 	return nil
+}
+
+// limitMoved says what the limit's event e moved off the account with the
+// given id, its time in now's time zone, as Dated shows it, as in "3 moved to
+// side at 14:12, when personal reached its limit".
+func limitMoved(doc status.Document, e status.Event, id string, now time.Time) []chunk {
+	to := cmp.Or(movedTo(doc, e), " to other accounts")
+	return []chunk{
+		{text: line{{strconv.Itoa(e.Count) + " moved" + to + " at " + status.Dated(now, e.At) + ",", mutedInk}}},
+		{text: line{{"when " + named(doc, id) + " reached its limit", mutedInk}}},
+	}
+}
+
+// arrivedSince reports whether a session has come to the account with the
+// given id since the event e, as arrives says of the router's events after
+// it.
+func arrivedSince(doc status.Document, e status.Event, id string) bool {
+	for _, later := range doc.Events {
+		if later.ID == e.ID {
+			return false
+		}
+		if arrives(later, id) {
+			return true
+		}
+	}
+	return false
 }
 
 // arrives reports whether the event put a session on the account with the

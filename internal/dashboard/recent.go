@@ -16,20 +16,6 @@ import (
 // an account under pressure, as in "new, work under pressure".
 const passedOver = " under pressure"
 
-// The reasons the router gives for where a session went that the dashboard
-// reads: chosen afresh, as a new session; sent by its own pin; sent by the
-// global pin as it started, or moved by it; moved off an account that
-// couldn't take it, which and why following; and its own pin yielding at a
-// limit, the account the pin names following, then why.
-const (
-	reasonNew       = "new"
-	reasonOwnPin    = "pinned"
-	reasonGlobalPin = "pinned (global)"
-	reasonPinMove   = "moved by pin"
-	reasonMovedOff  = "moved: "
-	reasonPinYields = "pin yields: "
-)
-
 // recent are the events RECENT lists at now, newest first, n at most: those
 // of the kinds it tells of, but a move a limit counts while that limit's
 // line is among them, as newest has them.
@@ -157,9 +143,9 @@ func why(doc status.Document, reason string) line {
 	var l line
 	switch said {
 	case "":
-	case reasonNew:
+	case status.ReasonNew:
 		l = line{{", the best", mutedInk}}
-	case reasonOwnPin, reasonGlobalPin, reasonPinMove:
+	case status.ReasonPinned, status.ReasonGlobalPin, status.ReasonMovedByPin:
 		l = line{{" (pin)", mutedInk}}
 	default:
 		l = line{{": " + namedIn(doc, said), mutedInk}}
@@ -172,11 +158,11 @@ func why(doc status.Document, reason string) line {
 // "moved: "; or one a session's own pin yielded at, as in "pin yields: work
 // has no room". Any other reason is as it is.
 func namedIn(doc status.Document, said string) string {
-	if rest, ok := strings.CutPrefix(said, reasonMovedOff); ok {
+	if rest, ok := strings.CutPrefix(said, status.ReasonMovedOff); ok {
 		return namedFirst(doc, rest)
 	}
-	if rest, ok := strings.CutPrefix(said, reasonPinYields); ok {
-		return reasonPinYields + namedFirst(doc, rest)
+	if rest, ok := strings.CutPrefix(said, status.ReasonPinYields); ok {
+		return status.ReasonPinYields + namedFirst(doc, rest)
 	}
 	return said
 }

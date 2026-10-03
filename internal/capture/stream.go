@@ -71,8 +71,8 @@ func storyboard(now time.Time, limited bool) source {
 	events := lately(now)
 	if limited {
 		reached := on(now, 1, 14, 43)
-		w.session = fiveHours{used: 1, resets: w.session.resets, limited: reached}
-		events = slices.Insert(events, 0, status.Event{At: reached, Kind: status.EventLimit, Account: w.id, Windows: []string{fiveHourKey}, Until: w.session.resets})
+		w.session = fiveHours{used: 1, resets: w.session.resets, limited: reached, limit: workLimit}
+		events = slices.Insert(events, 0, status.Event{At: reached, Kind: status.EventLimit, Account: w.id, Windows: []string{fiveHourKey}, Until: w.session.resets, Limit: workLimit})
 	}
 	return newSource(now, []sample{w, personal(now), s}, "side", events...)
 }

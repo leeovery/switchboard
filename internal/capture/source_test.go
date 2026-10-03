@@ -86,6 +86,9 @@ func TestAPinnedSampleSessionHasItsOwnPin(t *testing.T) {
 	if got := sessions[i]; got.Pin != "client" || !got.Assignments[0].Pinned {
 		t.Errorf("session 9e21 is %+v, want it pinned to client by its own pin", got)
 	}
+	if got, want := sessions[i].Assignments[0].PinnedAt, on(moment(time.UTC), 1, 14, 39); !got.Equal(want) {
+		t.Errorf("session 9e21 was given its pin at %v, want %v, as it ran, as the pin's move tells", got, want)
+	}
 }
 
 func TestHistoryGivesAPointEachStepFromEachWindowsStart(t *testing.T) {

@@ -353,6 +353,51 @@ func TestAReadoutTellsWhenALimitWasReachedInItsWindowAlone(t *testing.T) {
 	}
 }
 
+func TestTheLimitHoldingAWindowIsTheOneItsIdentityNames(t *testing.T) {
+	session := sessionOf(1, time.Hour)
+	session.Status = quota.StatusRejected
+	limit := func(id int, at time.Duration) status.Event {
+		return status.Event{ID: id, At: now.Add(at).UTC(), Kind: status.EventLimit, Account: "work", Limit: id}
+	}
+	tests := []struct {
+		name   string
+		limit  status.Limit
+		events []status.Event
+		// want is what the readout says, and says what Runway says of the
+		// stretch the limit holds the account back over, from since.
+		want, says string
+		since      time.Time
+	}{
+		{
+			name:  "its event, from before its window last started",
+			limit: status.Limit{ID: 4, Until: now.Add(48 * time.Hour).UTC()}, events: []status.Event{limit(4, -5*time.Hour-30*time.Minute)},
+			want: "limit reached at 07:42", says: "limit reached 07:42", since: now.Add(-5*time.Hour - 30*time.Minute),
+		},
+		{
+			name:  "none where its event isn't kept, another limit's in its window's span telling nothing",
+			limit: status.Limit{ID: 6, Windows: []string{"5h"}, Until: session.ResetsAt}, events: []status.Event{limit(3, -30*time.Minute)},
+			want: "limit reached", says: "limit reached",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := readAccount("work", session, weekOf(0.3, 4*day))
+			a.Limit = tt.limit
+			doc := routerDoc("", 0, a)
+			doc.Events = tt.events
+			f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+			faces, _ := f.faces(doc, now)
+			if got := text(faces[0].whereHeading(now)[0]); got != tt.want {
+				t.Errorf("its readout says %q, want %q", got, tt.want)
+			}
+			causes := f.causesOf(doc, a, standingOf(doc, a, session, now, f.Policy), now)
+			if len(causes) == 0 || causes[0].says != tt.says || !causes[0].from.Equal(tt.since) {
+				t.Errorf("Runway's causes are %+v, want the first to say %q from %v", causes, tt.says, tt.since)
+			}
+		})
+	}
+}
+
 func TestAReadoutsWordsKeepTheirTimeWhole(t *testing.T) {
 	reserving := readAccount("work", sessionOf(0.2, 3*time.Hour), weekOf(0.7, 4*day))
 	reserving.Reserve = 0.1

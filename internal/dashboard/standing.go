@@ -52,19 +52,26 @@ func standingOf(doc status.Document, a status.Account, w quota.Window, now time.
 	return s
 }
 
-// limitedSince is when doc's account a reached the limit in its window w,
-// as reachedIn tells of it: zero where it tells of none.
+// limitedSince is when doc's account a reached the limit that holds its
+// window w at now, as reachedIn tells of it: zero where it tells of none.
 func limitedSince(doc status.Document, a status.Account, w quota.Window, now time.Time) time.Time {
 	e, _ := reachedIn(doc, a, w, now)
 	return e.At
 }
 
-// reachedIn is the router's newest event at now of doc's account a reaching
-// its limit in its window w, reporting false where none tells of it: one
-// naming w, or naming no window, as a limit naming none holds every window,
-// that came while w runs as it does now, since it last started, as an older
-// limit's event, or a joined one's, says nothing of when w reached it.
+// reachedIn is the router's event of doc's account a reaching the limit that
+// holds its window w at now, reporting false where none tells of it. Where
+// the account's limit holds w, it's that limit's event, as limitOf finds it.
+// Where the account has no such limit, as a probed document has none, or one
+// without an identity, as a router from before limits had them gives, it's
+// the newest event of the account reaching a limit naming w, or naming no
+// window, as a limit naming none holds every window, that came while w runs
+// as it does now, since it last started: an older limit's event says nothing
+// of when w reached it.
 func reachedIn(doc status.Document, a status.Account, w quota.Window, now time.Time) (status.Event, bool) {
+	if l := a.Limit; l.ID != 0 && l.Holds(now) && (len(l.Windows) == 0 || slices.Contains(l.Windows, w.Key)) {
+		return limitOf(doc, a, now)
+	}
 	start, _, spanned := w.Span()
 	if !spanned {
 		return status.Event{}, false
@@ -79,15 +86,17 @@ func reachedIn(doc status.Document, a status.Account, w quota.Window, now time.T
 	return doc.Events[i], true
 }
 
-// limitEvent is the router's event of doc's account a reaching the limit the
-// router saw it reach, while that limit holds at now, reporting false where
-// it doesn't, or where no event tells of it.
-func limitEvent(doc status.Document, a status.Account, now time.Time) (status.Event, bool) {
-	if !a.Limit.Holds(now) {
+// limitOf is the router's event of the limit holding doc's account a at now:
+// the one whose identity is its limit's. It reports false where no router
+// limit holds the account, as none holds one probed, where its limit has no
+// identity, as a router from before limits had them gives none, or where no
+// event tells of it.
+func limitOf(doc status.Document, a status.Account, now time.Time) (status.Event, bool) {
+	if a.Limit.ID == 0 || !a.Limit.Holds(now) {
 		return status.Event{}, false
 	}
 	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
-		return e.Kind == status.EventLimit && e.Account == a.ID && !e.At.After(now)
+		return e.Kind == status.EventLimit && e.Account == a.ID && e.Limit == a.Limit.ID
 	})
 	if i < 0 {
 		return status.Event{}, false

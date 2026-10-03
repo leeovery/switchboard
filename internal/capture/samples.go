@@ -37,13 +37,9 @@ const (
 	fableKey    = "7d_oi"
 )
 
-// The router's reasons for where a sample session went, as its log has them.
-const (
-	reasonNew    = "new"
-	reasonPinned = "pinned"
-	// reasonLimit is a session moved off personal as it reached its limit.
-	reasonLimit = "moved: personal has no room"
-)
+// reasonLimit is the router's reason for a sample session moved off personal
+// as it reached its limit, as its log has it.
+const reasonLimit = status.ReasonMovedOff + "personal has no room"
 
 // readAgo is how long before the moment drawn the router's document was read,
 // as the frames' footers have it: "read 4s ago".
@@ -80,9 +76,19 @@ type fiveHours struct {
 	heading float64
 	out     time.Time
 	// limited is when the account reached its limit in it: zero when it
-	// hasn't.
+	// hasn't. limit is that limit's identity, as the router gives it, its
+	// event and the account's limit alike.
 	limited time.Time
+	limit   int
 }
+
+// The identities of the samples' limits, as the router numbers its limits
+// from 1 as it starts: personal's, reached first, and work's, reached in
+// the storyboard's last frames.
+const (
+	personalLimit = 1
+	workLimit     = 2
+)
 
 // weekly is a sample's week, or Fable's, used at the pace its use since it
 // started sets.
@@ -93,12 +99,14 @@ type weekly struct {
 
 // seat is a session's model on a sample account: the session, the model, when
 // the router assigned it there and why, whether the session's own pin put it
-// there, and when it was last seen.
+// there, and when it was given that pin as it ran, zero for one it was
+// launched with; and when it was last seen.
 type seat struct {
 	session, model string
 	reason         string
 	assigned, seen time.Time
 	pinned         bool
+	pinnedAt       time.Time
 }
 
 // on is a time of day on a day of the frames' month, in now's time zone.
@@ -136,7 +144,7 @@ func work(now time.Time) sample {
 func personal(now time.Time) sample {
 	return sample{
 		id: "personal", seed: 2,
-		session: fiveHours{used: 1, resets: on(now, 1, 15, 54), limited: on(now, 1, 14, 12)},
+		session: fiveHours{used: 1, resets: on(now, 1, 15, 54), limited: on(now, 1, 14, 12), limit: personalLimit},
 		week:    weekly{used: 0.8902, resets: on(now, 4, 2, 0)},
 		fable:   weekly{resets: on(now, 4, 2, 0)},
 		prime:   on(now, 2, 5, 30),
@@ -170,7 +178,7 @@ func client(now time.Time) sample {
 		fable:   weekly{used: 0.2, resets: on(now, 6, 9, 0)},
 		prime:   on(now, 2, 8, 40),
 		seats: []seat{
-			{session: id9E21, model: sonnet, reason: reasonPinned, pinned: true, assigned: on(now, 1, 14, 39), seen: ago(now, 5*time.Second)},
+			{session: id9E21, model: sonnet, reason: status.ReasonPinned, pinned: true, pinnedAt: on(now, 1, 14, 39), assigned: on(now, 1, 14, 39), seen: ago(now, 5*time.Second)},
 		},
 	}
 }
@@ -261,7 +269,7 @@ func fourAccounts(now time.Time) source {
 func fiveAccounts(now time.Time) source {
 	moved := status.Event{
 		At: on(now, 1, 14, 39), Kind: status.EventMoved, Session: id9E21, Model: sonnet,
-		From: "side", To: "client", Reason: reasonPinned,
+		From: "side", To: "client", Reason: status.ReasonPinned,
 	}
 	events := slices.Insert(lately(now), 1, moved)
 	return newSource(now, []sample{work(now), personal(now), side(now), client(now), spare(now)}, "side", events...)
@@ -288,13 +296,13 @@ func eightAccounts(now time.Time) source {
 // personal's primes.
 func lately(now time.Time) []status.Event {
 	return []status.Event{
-		{At: on(now, 1, 14, 41), Kind: status.EventStarted, Account: "side", Session: idC61B, Model: opus, Reason: reasonNew},
+		{At: on(now, 1, 14, 41), Kind: status.EventStarted, Account: "side", Session: idC61B, Model: opus, Reason: status.ReasonNew},
 		pressured(now, on(now, 1, 14, 38), work(now)),
 		{At: on(now, 1, 14, 12), Kind: status.EventMoved, Session: id41E0, Model: sonnet, From: "personal", To: "side", Reason: reasonLimit, Limit: forced},
 		{At: on(now, 1, 14, 12), Kind: status.EventMoved, Session: idDB8A, Model: opus, From: "personal", To: "side", Reason: reasonLimit, Limit: forced},
-		{At: on(now, 1, 14, 12), Kind: status.EventLimit, Account: "personal", Windows: []string{fiveHourKey}, Until: on(now, 1, 15, 54), Count: 3, To: "side"},
+		{At: on(now, 1, 14, 12), Kind: status.EventLimit, Account: "personal", Windows: []string{fiveHourKey}, Until: on(now, 1, 15, 54), Count: 3, To: "side", Limit: personalLimit},
 		primed(on(now, 1, 13, 50), side(now)),
-		{At: on(now, 1, 13, 20), Kind: status.EventStarted, Account: "work", Session: idD28C, Model: opus, Reason: reasonNew},
+		{At: on(now, 1, 13, 20), Kind: status.EventStarted, Account: "work", Session: idD28C, Model: opus, Reason: status.ReasonNew},
 		primed(on(now, 1, 12, 10), work(now)),
 		primed(on(now, 1, 10, 54), personal(now)),
 	}
@@ -329,7 +337,7 @@ func (s sample) account(now time.Time) status.Account {
 		Windows: s.windows(), Sessions: len(s.seats),
 	}
 	if !s.session.limited.IsZero() {
-		a.Limit = status.Limit{Windows: []string{fiveHourKey}, Until: s.session.resets}
+		a.Limit = status.Limit{ID: s.session.limit, Windows: []string{fiveHourKey}, Until: s.session.resets}
 	}
 	if rate := s.session.rate(now); rate > 0 {
 		since := ago(now, score.Recent)

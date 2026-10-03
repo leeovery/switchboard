@@ -695,7 +695,7 @@ func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	if m.helping {
 		f.Help = m.helpKeys()
 	}
-	moving := f.Motion(m.shown(now), now)
+	moving := f.Motion(m.doc, now)
 	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.faded(now) != nil {
 		return frameEvery, true
 	}
