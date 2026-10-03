@@ -8,13 +8,8 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// Until the Accounts view's layout rules come, its cards are laid out as many
-// across as fit at least leastCard cells wide, cardGutter cells apart,
-// sharing the spare width.
-const (
-	leastCard  = 50
-	cardGutter = 4
-)
+// padding is the blank cells either side of a card's content.
+const padding = 2
 
 // fullness is how full a card is drawn: in full, its featured window as a
 // readout of big digits, a blank row between its parts; mid, as a one-line
@@ -89,6 +84,20 @@ func (d density) rows(bars int) int {
 	return rows
 }
 
+// offset is how many rows under its top edge a card of the density, whose
+// windows' bars take bars rows, has its part p: under its last part, for
+// one it doesn't have.
+func (d density) offset(p part, bars int) int {
+	rows := 1
+	for _, q := range d.parts() {
+		if q == p {
+			return rows
+		}
+		rows += d.height(q, bars)
+	}
+	return rows
+}
+
 // barsPerRow is how many of a card's bar lines sit side by side inside a
 // card width cells wide: one, but on a card wide enough for more.
 func barsPerRow(width int) int {
@@ -111,41 +120,6 @@ func labelWidth(doc status.Document, shown []string) int {
 		width = max(width, ansi.StringWidth(status.Short(labelOf(doc, key)))+1)
 	}
 	return width
-}
-
-// cards draws doc's accounts' cards at now from row top, in rows rows at
-// most: as many across as fit at least leastCard cells wide, never more than
-// there are accounts, sharing the spare width; in rows of cards a blank row
-// apart, every card the same size, at the richest density whose rows of
-// cards fit, or where none does, the sparest, as many rows of cards as fit.
-// It returns the row after the last card drawn.
-func (f Frame) cards(c *canvas, doc status.Document, now time.Time, top, rows int) int {
-	faces, shown := f.faces(doc, now)
-	if len(faces) == 0 {
-		return top
-	}
-	room := f.Width - 2*margin
-	across := min(len(faces), max(1, (room+cardGutter)/(leastCard+cardGutter)))
-	width := (room - cardGutter*(across-1)) / across
-	bars := barRowsFor(len(shown), width-2*(padding+1))
-	down := (len(faces) + across - 1) / across
-	d := densities[len(densities)-1]
-	for _, try := range densities {
-		if down*(try.rows(bars)+1)-1 <= rows {
-			d = try
-			break
-		}
-	}
-	height, labelled, end := d.rows(bars), labelWidth(doc, shown), top
-	for i, fc := range faces {
-		y := top + i/across*(height+1)
-		if y+height > top+rows {
-			break
-		}
-		f.card(c, fc, now, margin+i%across*(width+cardGutter), y, width, d, bars, labelled)
-		end = y + height
-	}
-	return end
 }
 
 // card draws an account's card, its front fc, width cells wide from x along

@@ -15,8 +15,8 @@ import (
 // routerKeys are the keys the footer lists while the dashboard reads the
 // router of three accounts, and probingKeys those it lists while it probes.
 const (
-	routerKeys  = "w window: auto · 1-3 pin · a auto · m move · q quit"
-	probingKeys = "w window: auto · q quit"
+	routerKeys  = "w window: auto · 1-3 pin · a auto · m move · ? keys · q quit"
+	probingKeys = "w window: auto · ? keys · q quit"
 )
 
 func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
@@ -642,7 +642,7 @@ func TestFooterKeysByWhatTheDashboardReads(t *testing.T) {
 	}{
 		{name: "the router of three accounts", doc: routerDocument(three()...), want: routerKeys},
 		{name: "the router of one, which has none other to pin", doc: routerDocument(three()[0]), want: probingKeys},
-		{name: "the router of twelve", doc: routerDocument(many...), want: "w window: auto · 1-9 pin · a auto · m move · q quit"},
+		{name: "the router of twelve", doc: routerDocument(many...), want: "w window: auto · 1-9 pin · a auto · m move · ? keys · q quit"},
 		{name: "a probe", doc: probedWithoutTheRouter(), want: probingKeys},
 	}
 	for _, tt := range tests {

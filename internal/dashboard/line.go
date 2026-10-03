@@ -112,38 +112,3 @@ func truncate(text string, width int) string {
 func ellipsize(text string, width int) string {
 	return strings.TrimRight(ansi.Truncate(text, width-ansi.StringWidth(ellipsis), ""), " ") + ellipsis
 }
-
-// wrap breaks text into lines of at most width cells, between words where it
-// can, and keeps at most maxLines of them: the last ends in an ellipsis when
-// the text runs on past it.
-func wrap(text string, width, maxLines int) []string {
-	var lines []string
-	for word := range strings.FieldsSeq(text) {
-		if last := len(lines) - 1; last >= 0 && ansi.StringWidth(lines[last])+1+ansi.StringWidth(word) <= width {
-			lines[last] += " " + word
-			continue
-		}
-		lines = append(lines, breakWord(word, width)...)
-	}
-	if len(lines) > maxLines {
-		rest := strings.Join(lines[maxLines-1:], " ")
-		lines = append(lines[:maxLines-1], truncate(rest, width))
-	}
-	return lines
-}
-
-// breakWord splits a word into pieces of at most width cells.
-func breakWord(word string, width int) []string {
-	var pieces []string
-	for ansi.StringWidth(word) > width {
-		piece := ansi.Truncate(word, width, "")
-		if piece == "" {
-			// A character wider than the whole width; truncating the line
-			// is all that can be done with it.
-			break
-		}
-		pieces = append(pieces, piece)
-		word = word[len(piece):]
-	}
-	return append(pieces, word)
-}

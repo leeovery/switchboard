@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
@@ -276,13 +275,10 @@ var gaps = regexp.MustCompile(` {2,}`)
 // as everything else stands, and the clock: the model's own screen, when it
 // draws doc.
 func (h *harness) screenOf(doc status.Document) string {
-	m, now := h.model, h.model.now()
-	return strings.Join(dashboard.Frame{
-		Width: m.size.Width, Height: m.size.Height, Look: m.look(), Views: m.views, View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
-		Featured: m.featured, Sessions: m.sessions,
-		Keys: m.keys(), Note: m.noted(now), Status: m.status(now), Policy: m.cfg.Policy,
-	}.Draw(doc, now), "\n")
+	now := h.model.now()
+	f := h.model.frame(now)
+	f.Keys = h.model.keys()
+	return strings.Join(f.Draw(doc, now), "\n")
 }
 
 // fakeClock tells the time the test sets.

@@ -9,10 +9,13 @@ import (
 // canvas is a frame of the dashboard as a grid of cells, each a glyph in its
 // ink, which the views draw into at the cells they choose, as the frames
 // signed off for it were drawn, and which draws itself in a look a row at a
-// time. What's drawn past its edges isn't drawn.
+// time. What's drawn past its edges isn't drawn, but for one that grows,
+// which takes in the rows drawn past its foot, as a frame printed once has no
+// height to fit.
 type canvas struct {
-	width, height int
-	cells         []cell
+	width int
+	cells [][]cell
+	grows bool
 }
 
 // cell is a glyph and the ink it's drawn in. A glyph two cells wide covers
@@ -27,20 +30,44 @@ var blank = cell{glyph: " "}
 
 // newCanvas is a canvas width cells wide and height tall, every cell blank.
 func newCanvas(width, height int) *canvas {
-	width, height = max(width, 0), max(height, 0)
-	c := &canvas{width: width, height: height, cells: make([]cell, width*height)}
-	for i := range c.cells {
-		c.cells[i] = blank
-	}
+	c := &canvas{width: max(width, 0)}
+	c.grow(height)
 	return c
 }
 
-// at is the cell at x along row y, or nil off the canvas.
+// growing is a canvas width cells wide that grows down as it's drawn on.
+func growing(width int) *canvas {
+	c := newCanvas(width, 0)
+	c.grows = true
+	return c
+}
+
+// height is how many rows the canvas has.
+func (c *canvas) height() int {
+	return len(c.cells)
+}
+
+// grow adds blank rows to the canvas until it's height rows tall.
+func (c *canvas) grow(height int) {
+	for len(c.cells) < height {
+		row := make([]cell, c.width)
+		for i := range row {
+			row[i] = blank
+		}
+		c.cells = append(c.cells, row)
+	}
+}
+
+// at is the cell at x along row y, or nil off the canvas. A canvas that
+// grows takes in the row first, where it's past its foot.
 func (c *canvas) at(x, y int) *cell {
-	if x < 0 || x >= c.width || y < 0 || y >= c.height {
+	if c.grows && x >= 0 && x < c.width {
+		c.grow(y + 1)
+	}
+	if x < 0 || x >= c.width || y < 0 || y >= len(c.cells) {
 		return nil
 	}
-	return &c.cells[y*c.width+x]
+	return &c.cells[y][x]
 }
 
 // text draws text in the ink k from x along row y, a grapheme a cell, or two
@@ -117,11 +144,26 @@ func (c *canvas) surface(x, y, width int, on hue) {
 	}
 }
 
+// paste draws rows rows of from, from its row first, onto the canvas from row
+// y, as they are: a scrolled part of a view, cut to the rows it shows.
+func (c *canvas) paste(from *canvas, first, y, rows int) {
+	for i := range rows {
+		if first+i < 0 || first+i >= from.height() {
+			continue
+		}
+		for x, here := range from.cells[first+i] {
+			if there := c.at(x, y+i); there != nil {
+				*there = here
+			}
+		}
+	}
+}
+
 // rows draws the canvas as look draws it, a string a row. Where the look
 // paints its canvas, every row is the canvas's whole width; where it
 // doesn't, a row ends at its last glyph or surface.
 func (c *canvas) rows(look Look) []string {
-	rows := make([]string, c.height)
+	rows := make([]string, len(c.cells))
 	for y := range rows {
 		rows[y] = c.row(y, look)
 	}
@@ -132,7 +174,7 @@ func (c *canvas) rows(look Look) []string {
 // blank, of which nothing shows but its surface, running on in the ink
 // before it on the same surface.
 func (c *canvas) row(y int, look Look) string {
-	cells := c.cells[y*c.width : (y+1)*c.width]
+	cells := c.cells[y]
 	end := len(cells)
 	for !look.paints && end > 0 && cells[end-1].glyph == " " && cells[end-1].ink.on == (hue{}) {
 		end--

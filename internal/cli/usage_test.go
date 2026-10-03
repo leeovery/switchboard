@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -87,23 +88,30 @@ func TestUsageColor(t *testing.T) {
 		env      map[string]string
 		want     string
 		wantNone string
+		// golden is what it prints, stripped of its escapes: under NO_COLOR,
+		// in the glyphs that stand in for colour, as a bar's projection's
+		// shade.
+		golden string
 	}{
 		{
 			name:     "brought down to what the terminal shows",
 			env:      map[string]string{"CLICOLOR_FORCE": "1", "TERM": "xterm-256color"},
 			want:     "\x1b[38;5;",
 			wantNone: "\x1b[38;2;",
+			golden:   "usage.golden",
 		},
 		{
-			name: "in full where the terminal shows it",
-			env:  map[string]string{"CLICOLOR_FORCE": "1", "TERM": "xterm-256color", "COLORTERM": "truecolor"},
-			want: "\x1b[38;2;",
+			name:   "in full where the terminal shows it",
+			env:    map[string]string{"CLICOLOR_FORCE": "1", "TERM": "xterm-256color", "COLORTERM": "truecolor"},
+			want:   "\x1b[38;2;",
+			golden: "usage.golden",
 		},
 		{
 			name:     "none under NO_COLOR, but still bold",
 			env:      map[string]string{"TTY_FORCE": "1", "TERM": "xterm-256color", "NO_COLOR": "1"},
 			want:     "\x1b[1m",
 			wantNone: "\x1b[38;",
+			golden:   "usage-no-colour.golden",
 		},
 	}
 	for _, tt := range tests {
@@ -118,8 +126,12 @@ func TestUsageColor(t *testing.T) {
 			if tt.wantNone != "" && strings.Contains(got.stdout, tt.wantNone) {
 				t.Errorf("switchboard usage printed %q, want no %q", got.stdout, tt.wantNone)
 			}
-			if stripped, want := ansi.Strip(got.stdout), readGolden(t, "usage.golden"); stripped != want {
-				t.Errorf("switchboard usage printed, stripped of its escapes,\n%s\nwant\n%s", stripped, want)
+			stripped := ansi.Strip(got.stdout)
+			if *update && tt.golden != "usage.golden" {
+				writeGolden(t, tt.golden, stripped)
+			}
+			if want := readGolden(t, tt.golden); stripped != want {
+				t.Errorf("switchboard usage printed, stripped of its escapes,\n%s\nwant (testdata/%s)\n%s", stripped, tt.golden, want)
 			}
 		})
 	}
@@ -149,6 +161,57 @@ func TestUsageWithoutATerminalPrintsWhatStatusJSONPrints(t *testing.T) {
 				t.Errorf("switchboard usage %s, without a terminal, =\n%+v\nwant what status --json prints\n%+v", strings.Join(tt.args, " "), got, want)
 			}
 		})
+	}
+}
+
+func TestUsagePrintsEveryCardInFullHoweverShortTheTerminal(t *testing.T) {
+	got := run(t, goldenDeps(t, map[string]string{"LINES": "12"}), "usage")
+	if want := readGolden(t, "usage.golden"); got.stdout != want {
+		t.Errorf("switchboard usage in 12 rows printed\n%s\nwant every card in full, as in any number (testdata/usage.golden)\n%s", got.stdout, want)
+	}
+}
+
+func TestUsageFeaturesTheWindowKept(t *testing.T) {
+	tests := []struct {
+		name string
+		// prefs is what prefs.json holds, "" for none.
+		prefs string
+		want  string
+	}{
+		{name: "none kept: what stops work first, its Fable week at its limit", want: "FABLE WEEK  7-day window"},
+		{name: "the week", prefs: `{"featured": "7d"}`, want: "WEEK  7-day window"},
+		{name: "the session", prefs: `{"featured": "5h"}`, want: "SESSION  5-hour window"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := goldenDeps(t, nil)
+			if tt.prefs != "" {
+				writePrefs(t, deps, tt.prefs)
+			}
+			if got := run(t, deps, "usage"); !strings.Contains(got.stdout, "    "+tt.want) {
+				t.Errorf("switchboard usage printed\n%s\nwant work's card to feature %q", got.stdout, tt.want)
+			}
+		})
+	}
+}
+
+func TestUsageDrawsTheRoutersHistory(t *testing.T) {
+	var later atomic.Int64
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
+	onTerminal(&srv.deps)
+	srv.start(t)
+	srv.waitForProbes(t)
+	writePrefs(t, srv.deps, `{"featured": "5h"}`)
+	// Work's session started two minutes before the router read it: twenty
+	// on, its history has points.
+	later.Store(int64(20 * time.Minute))
+
+	if got := run(t, srv.deps, "usage"); got.code != 0 || !strings.Contains(got.stdout, "SESSION  5-hour window") || strings.Contains(got.stdout, "no history yet") {
+		t.Errorf("switchboard usage printed\n%s\nwant work's session charted from the router's history", got.stdout)
+	}
+	if got := run(t, srv.deps, "usage", "--probe"); !strings.Contains(got.stdout, "no history yet") {
+		t.Errorf("switchboard usage --probe printed\n%s\nwant work's session charted without history, probing", got.stdout)
 	}
 }
 

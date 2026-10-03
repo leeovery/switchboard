@@ -6,8 +6,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -133,7 +131,6 @@ var (
 	bestBorderInk = ink{token: theme.AccentMode}
 	titleInk      = ink{token: theme.TextPrimary, bold: true}
 	badgeInk      = ink{token: theme.AccentMode, bold: true}
-	pinInk        = ink{token: theme.AccentPrimary}
 	pinBadgeInk   = ink{token: theme.AccentPrimary, bold: true}
 	primaryInk    = ink{token: theme.TextTertiary}
 	trackInk      = ink{token: theme.VizTrack}
@@ -210,24 +207,4 @@ func (l Look) surface(k ink) color.Color {
 		return l.Canvas()
 	}
 	return l.faded(on, k.on.fade)
-}
-
-// A window's tone turns to attention, then to destructive, at these
-// fractions used.
-const (
-	attentionFrom   = 0.7
-	destructiveFrom = 0.9
-)
-
-// tone is a window's colour by how much of it is used: positive, then from
-// 70% attention, and from 90% or once it's exhausted, destructive.
-func tone(w quota.Window, p score.Projection) theme.Token {
-	switch {
-	case p.Kind == score.Exhausted || w.Utilization >= destructiveFrom:
-		return theme.StateDestructive
-	case w.Utilization >= attentionFrom:
-		return theme.AccentAttention
-	default:
-		return theme.StatePositive
-	}
 }

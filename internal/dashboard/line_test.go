@@ -2,36 +2,9 @@ package dashboard
 
 import (
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 )
-
-func TestWrap(t *testing.T) {
-	tests := []struct {
-		name     string
-		text     string
-		width    int
-		maxLines int
-		want     []string
-	}{
-		{name: "on one line", text: "HTTP 529 · Overloaded", width: 30, maxLines: 2, want: []string{"HTTP 529 · Overloaded"}},
-		{name: "between words", text: "token missing: write it to tokens/personal", width: 22, maxLines: 3, want: []string{"token missing: write", "it to tokens/personal"}},
-		{name: "a word too long for a line", text: "abcdefghijklmnopqrstuvwxyz", width: 10, maxLines: 3, want: []string{"abcdefghij", "klmnopqrst", "uvwxyz"}},
-		{name: "after a broken word", text: "abcdefghijkl mn", width: 10, maxLines: 3, want: []string{"abcdefghij", "kl mn"}},
-		{name: "wide characters", text: "東京都 大阪府", width: 5, maxLines: 4, want: []string{"東京", "都", "大阪", "府"}},
-		{name: "cut short on its last line", text: "one two three four five six", width: 9, maxLines: 2, want: []string{"one two", "three fo…"}},
-		{name: "a broken word cut short", text: "abcdefghijklmnopqrstuvwxyz", width: 10, maxLines: 2, want: []string{"abcdefghij", "klmnopqrs…"}},
-		{name: "nothing", text: "", width: 10, maxLines: 2, want: nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := wrap(tt.text, tt.width, tt.maxLines); !slices.Equal(got, tt.want) {
-				t.Errorf("wrap(%q, %d, %d) = %q, want %q", tt.text, tt.width, tt.maxLines, got, tt.want)
-			}
-		})
-	}
-}
 
 func TestTruncate(t *testing.T) {
 	tests := []struct {

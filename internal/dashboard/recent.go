@@ -210,20 +210,20 @@ func first(keys []string) string {
 	return keys[0]
 }
 
-// recentStrip draws RECENT's lines from row y, from x until the column end,
-// n of them at most, and returns how many it drew: its events, newest first,
-// each with its time, its mark and its words, picked out while it's fresh;
-// or why there are none. On a phone, a time is followed by a single blank
-// rather than two.
-func (f Frame) recentStrip(c *canvas, doc status.Document, now time.Time, x, y, end, n int) int {
+// telling is an event as RECENT tells of it: its id, what leads its line,
+// its time and its mark, and its words.
+type telling struct {
+	id    int
+	lead  line
+	words line
+}
+
+// tellings are the events RECENT tells of at now, newest first, n at most:
+// each led by its time, the newest's standing out, in a column as wide as
+// the widest, then its mark. On a phone, a time is followed by a single
+// blank rather than two.
+func (f Frame) tellings(doc status.Document, now time.Time, n int) []telling {
 	events := recent(doc, now, n)
-	if len(events) == 0 {
-		if quiet := f.quiet(doc); quiet != nil {
-			c.line(x, y, quiet.fit(end-x))
-			return 1
-		}
-		return 0
-	}
 	gap, column := "  ", 0
 	if f.phone() {
 		gap = " "
@@ -231,18 +231,84 @@ func (f Frame) recentStrip(c *canvas, doc status.Document, now time.Time, x, y, 
 	for _, e := range events {
 		column = max(column, len(status.When(now, e.At)))
 	}
+	tellings := make([]telling, len(events))
 	for i, e := range events {
 		mark, words, _ := told(e, doc, now)
 		at := span{fmt.Sprintf("%-*s", column, status.When(now, e.At)) + gap, dimInk}
 		if i == 0 {
 			at.ink = secondaryInk
 		}
-		c.line(x, y+i, slices.Concat(line{at, mark, spaces(1)}, words).fit(end-x))
-		if fade, ok := f.Fresh[e.ID]; ok {
-			c.surface(x, y+i, end-x, hue{token: theme.BgAttention, fade: fade})
-		}
+		tellings[i] = telling{id: e.ID, lead: line{at, mark, spaces(1)}, words: words}
 	}
-	return len(events)
+	return tellings
+}
+
+// recentStrip draws RECENT's lines from row y, from x until the column end,
+// n of them at most, and returns how many it drew: its events, newest first,
+// each with its time, its mark and its words, picked out while it's fresh;
+// or why there are none.
+func (f Frame) recentStrip(c *canvas, doc status.Document, now time.Time, x, y, end, n int) int {
+	tellings := f.tellings(doc, now, n)
+	if len(tellings) == 0 {
+		return f.quietly(c, doc, x, y, end)
+	}
+	for i, t := range tellings {
+		c.line(x, y+i, slices.Concat(t.lead, t.words).fit(end-x))
+		f.freshen(c, t.id, x, y+i, end)
+	}
+	return len(tellings)
+}
+
+// recentColumn draws RECENT's lines in a column, from row y until row last,
+// from x to the frame's edge: as many of its events as fit, recentLines at
+// most, newest first, each on a line with its time, its mark and its
+// subject, the account or session it befell, and under it, from its
+// subject's column, the rest of its words, which open with a blank; or why
+// there are none.
+func (f Frame) recentColumn(c *canvas, doc status.Document, now time.Time, x, y, last int) {
+	end := f.edge()
+	tellings := f.tellings(doc, now, recentLines)
+	if len(tellings) == 0 && y < last {
+		f.quietly(c, doc, x, y, end)
+	}
+	for _, t := range tellings {
+		subject, rest := t.words[:min(1, len(t.words))], t.words[min(1, len(t.words)):]
+		rows := 1
+		if len(rest) > 0 {
+			rows = 2
+		}
+		if y+rows > last {
+			return
+		}
+		c.line(x, y, slices.Concat(t.lead, subject).fit(end-x))
+		if rows == 2 {
+			under := x + t.lead.width()
+			c.line(under, y+1, rest.fit(end-under))
+		}
+		for i := range rows {
+			f.freshen(c, t.id, x, y+i, end)
+		}
+		y += rows
+	}
+}
+
+// quietly draws why RECENT lists no events, from x along row y until the
+// column end, where it says, and returns the lines it drew.
+func (f Frame) quietly(c *canvas, doc status.Document, x, y, end int) int {
+	quiet := f.quiet(doc)
+	if quiet == nil {
+		return 0
+	}
+	c.line(x, y, quiet.fit(end-x))
+	return 1
+}
+
+// freshen picks out the row of the event with the given id, from x along
+// row y until the column end, while it's fresh: its highlight fading back.
+func (f Frame) freshen(c *canvas, id, x, y, end int) {
+	if fade, ok := f.Fresh[id]; ok {
+		c.surface(x, y, end-x, hue{token: theme.BgAttention, fade: fade})
+	}
 }
 
 // recentCount is how many lines RECENT takes at now, n at most.

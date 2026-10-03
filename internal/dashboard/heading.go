@@ -224,6 +224,11 @@ func newSessionsGo(doc status.Document, numbered bool) line {
 	}
 }
 
+// read reports whether the account's usage has been read.
+func read(a status.Account) bool {
+	return !a.FetchedAt.IsZero()
+}
+
 // routerSays is what ROUTER says, a part each: how the router is; its
 // sessions, and how it routes, or with one account, how it primes; then, on
 // lines of their own where there are lines, why it's unhealthy and a restart

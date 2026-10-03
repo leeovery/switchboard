@@ -73,6 +73,17 @@ func halves(upper, lower bool) string {
 	}
 }
 
+// secondsWithin is how near a countdown's end has to be for it to show
+// seconds.
+const secondsWithin = 10 * time.Minute
+
+// inSeconds reports whether a countdown from now to t shows seconds: t is
+// less than ten minutes away.
+func inSeconds(now, t time.Time) bool {
+	left := t.Sub(now)
+	return left > 0 && left < secondsWithin
+}
+
 // timer counts down from now to t as big digits read it: in hours and
 // minutes, such as "1:12"; within its last ten minutes, in minutes and
 // seconds, such as "07:42"; and "0:00" once t has come.

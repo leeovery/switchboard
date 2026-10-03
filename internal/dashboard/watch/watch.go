@@ -213,6 +213,11 @@ type Model struct {
 	sessions []status.Session
 	// featured is which window every card features.
 	featured dashboard.Feature
+	// scroll is how many rows the cards are scrolled down by, where they
+	// don't fit.
+	scroll int
+	// helping is set while the help is open over the view.
+	helping bool
 }
 
 // fetchedMsg is what a read that asked for read found, and which router gave
@@ -263,16 +268,18 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Update takes in a message: a key, a resize, the terminal's background, a
-// read, the router's history, the router carrying out an order, a tick or a
-// frame. The view is drawn again after each, which is all a note's lapsing
-// asks.
+// Update takes in a message: a key, the wheel, a resize, the terminal's
+// background, a read, the router's history, the router carrying out an
+// order, a tick or a frame. The view is drawn again after each, which is all
+// a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.resized(msg)
 	case tea.KeyPressMsg:
 		return m.pressed(msg)
+	case tea.MouseWheelMsg:
+		return m.wheeled(msg), nil
 	case tea.BackgroundColorMsg:
 		return m.answered(msg.Color), nil
 	case unansweredMsg:
@@ -294,31 +301,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View draws the dashboard full screen, as the document stands at the clock's
-// time, the theme picker over its right while it's open. In colour, it's
-// drawn once the terminal has said what its background is, or had its time
-// to, so it never shows one theme then another: in the theme shown, its
-// canvas painted on every cell, and set as the terminal's background too.
+// time, the help over its middle and the theme picker over its right while
+// they're open. In colour, it's drawn once the terminal has said what its
+// background is, or had its time to, so it never shows one theme then
+// another: in the theme shown, its canvas painted on every cell, and set as
+// the terminal's background too. While the cards scroll, it asks for the
+// wheel, which takes the terminal's own selecting with the mouse, so it asks
+// for it then alone.
 func (m Model) View() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
 	if m.coloured() && !m.backdrop.settled {
 		return v
 	}
-	now, look := m.now(), m.look()
-	lines := dashboard.Frame{
-		Width: m.size.Width, Height: m.size.Height, Look: look,
-		Views: m.views, View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
-		Featured: m.featured, Sessions: m.sessions,
-		Keys: m.keys(), Note: m.noted(now), Status: m.status(now),
-		Policy: m.cfg.Policy,
-	}.Draw(m.shown(now), now)
+	now := m.now()
+	doc, f := m.shown(now), m.frame(now)
+	f.Keys = m.keys()
+	if m.helping {
+		f.Help = m.helpKeys()
+	}
+	lines := f.Draw(doc, now)
 	if m.picker.open {
-		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, look)
+		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, f.Look)
 	}
 	v.SetContent(strings.Join(lines, "\n"))
-	v.BackgroundColor = look.Canvas()
+	v.BackgroundColor = f.Look.Canvas()
+	if f.Scrolling(doc, now).Most > 0 {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	return v
+}
+
+// frame is the dashboard's frame as the model stands at now, but for the
+// keys it lists: at the size drawn at, in the look, showing the view shown,
+// with what the watch knows of the router, its events and its history, the
+// window the cards feature, the sessions listed, how far the cards are
+// scrolled, the note a key left, and how reading goes.
+func (m Model) frame(now time.Time) dashboard.Frame {
+	return dashboard.Frame{
+		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
+		Views: m.views, View: m.view,
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
+		Featured: m.featured, Sessions: m.sessions, Scroll: m.scroll,
+		Note: m.noted(now), Status: m.status(now),
+		Policy: m.cfg.Policy,
+	}
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
@@ -347,24 +374,29 @@ func (m Model) read(r Read) (Model, tea.Cmd) {
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks, and from a router, the sessions it
-// lists, for the cards' dots: a router that can't list them leaves them out.
+// fetch reads the source as r asks, as fetchFrom reads it.
 func (m Model) fetch(r Read) tea.Cmd {
 	ctx, source := m.ctx, m.cfg.Source
 	return func() tea.Msg {
-		doc, from, err := source.Read(ctx, r)
-		msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
-		if err != nil || !routed(doc) {
-			return msg
-		}
-		sessions, err := source.Sessions(ctx)
-		if err != nil {
-			logger.Debug("couldn't list the router's sessions", "error", err)
-			return msg
-		}
-		msg.sessions = sessions
+		return fetchFrom(ctx, source, r)
+	}
+}
+
+// fetchFrom reads the source as r asks, and from a router, the sessions it
+// lists, for the cards' dots: a router that can't list them leaves them out.
+func fetchFrom(ctx context.Context, source Source, r Read) fetchedMsg {
+	doc, from, err := source.Read(ctx, r)
+	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
+	if err != nil || !routed(doc) {
 		return msg
 	}
+	sessions, err := source.Sessions(ctx)
+	if err != nil {
+		logger.Debug("couldn't list the router's sessions", "error", err)
+		return msg
+	}
+	msg.sessions = sessions
+	return msg
 }
 
 // fetched takes in a read: the document to show from now on, or why there's

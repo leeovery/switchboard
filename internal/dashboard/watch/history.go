@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"context"
 	"errors"
 	"maps"
 	"slices"
@@ -87,28 +88,34 @@ func keysOf(doc status.Document) []string {
 	return keys
 }
 
-// askHistory asks the router for the history of doc's windows, each at its
-// step, as the next asking: a router from before GET /history stops it,
-// there being nothing more to ask of it.
+// askHistory asks the router for the history of doc's windows, as the next
+// asking, as histories asks it.
 func (m Model) askHistory(doc status.Document) (Model, tea.Cmd) {
 	m.history.asked++
-	asked, keys, ctx, source := m.history.asked, keysOf(doc), m.ctx, m.cfg.Source
+	asked, ctx, source := m.history.asked, m.ctx, m.cfg.Source
 	return m, func() tea.Msg {
-		msg := historyMsg{asked: asked, got: make(map[string]router.History)}
-		for _, key := range keys {
-			step, _ := stepFor(key)
-			got, err := source.History(ctx, key, step)
-			if err != nil {
-				msg.err = err
-				if errors.Is(err, router.ErrNoHistory) {
-					return msg
-				}
-				continue
-			}
-			msg.got[key] = got
-		}
-		return msg
+		return histories(ctx, source, doc, asked)
 	}
+}
+
+// histories asks the source for the history of doc's windows, each at its
+// step, as the asking given: a router from before GET /history stops it,
+// there being nothing more to ask of it.
+func histories(ctx context.Context, source Source, doc status.Document, asked int) historyMsg {
+	msg := historyMsg{asked: asked, got: make(map[string]router.History)}
+	for _, key := range keysOf(doc) {
+		step, _ := stepFor(key)
+		got, err := source.History(ctx, key, step)
+		if err != nil {
+			msg.err = err
+			if errors.Is(err, router.ErrNoHistory) {
+				return msg
+			}
+			continue
+		}
+		msg.got[key] = got
+	}
+	return msg
 }
 
 // answered takes in what asking the router found, unless a later asking

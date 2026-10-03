@@ -9,8 +9,14 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// nextBadge marks the card of the account new sessions go to.
-const nextBadge = bestMark + " next"
+// The badges on a card's top edge: the primary account's, the pin's on
+// each account the global pin names, and the next's on the account new
+// sessions go to.
+const (
+	primaryBadge = "◆ primary"
+	pinBadge     = "● pinned"
+	nextBadge    = "▲ next"
+)
 
 // The corners of a card's edges, with the rule and the gap beside them.
 const (

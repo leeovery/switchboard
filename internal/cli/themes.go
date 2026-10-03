@@ -47,12 +47,6 @@ func (a *app) themes() themes {
 	return t
 }
 
-// chosen is the theme, or the pair, the user chose: the default pair where
-// there's no preferences file to say.
-func (t themes) chosen() theme.Choice {
-	return t.kept().Choice
-}
-
 // kept are the preferences the dashboard kept: the defaults where there's no
 // preferences file to say.
 func (t themes) kept() theme.Prefs {
@@ -82,16 +76,15 @@ func (a *app) noColour() bool {
 }
 
 // printLook is how usage prints the dashboard into the scrollback: under
-// NO_COLOR, without colour; else in the theme the user chose for the
+// NO_COLOR, without colour; else, of the themes, in the one chosen for the
 // terminal's background, as the terminal says it is when asked, its blends
 // worked out against it, and no canvas painted.
-func (a *app) printLook(out io.Writer) dashboard.Look {
+func (a *app) printLook(out io.Writer, t themes, chosen theme.Choice) dashboard.Look {
 	if a.noColour() {
 		return dashboard.NoColour()
 	}
-	t := a.themes()
 	background := a.Background(out)
-	return dashboard.Print(t.library.Pair(t.chosen()).For(theme.Dark(background)), background)
+	return dashboard.Print(t.library.Pair(chosen).For(theme.Dark(background)), background)
 }
 
 // TerminalBackground asks the terminal what its background is (OSC 11), as

@@ -65,6 +65,15 @@ known:
   session's too. The frames draw neither on the charts, and no mark on a session's bar.
 - **A bar at its limit** fills along `viz.ramp` as every bar does, where the frames fill it solid
   `state.destructive`.
+- **The key line** says the doc's words: the chart's dotted line is `heading`, where the frames say
+  `where it's heading`, and `● session, lit while busy` follows the bars' glyphs, where the frames
+  stop at `╎ reserve`.
+- **The line over the footer, as the cards scroll,** says the doc's `▼ 2 more accounts below · j/k
+  or wheel to scroll`, centred, where the frames add `header and footer stay put`.
+- **COMING UP beside one account's card** gives each thing's countdown at the right, as COMING UP
+  always does, where the frame gives none.
+- **The phone's line over the footer** says `? for the key`, as any frame does where the key line
+  has no room, where the frame leaves it blank.
 
 The fixtures, the harness and the tool are permanent: only the tapes and captures are scaffolding.
 
@@ -99,11 +108,13 @@ October 2026 at 14:42:07, so nothing moves of itself.
 | `accounts-3` | `work`, `personal`, `side` | 160 × 34 | `accounts-3-auto` |
 | `accounts-3-5h` | `work`, `personal`, `side`, `w` pressed: every card featuring its 5-hour window | 160 × 34 | `accounts-3-5h` |
 | `accounts-3-week` | `work`, `personal`, `side`, `w` pressed twice: every card featuring its week | 160 × 34 | `accounts-3-week` |
+| `accounts-3-keys` | `work`, `personal`, `side`, `?` pressed: the help open over them | 160 × 34 | none: the frames don't draw the help |
 | `accounts-3-themes` | `work`, `personal`, `side`, the theme picker open, the cursor up a theme | 160 × 34 | none: Portal draws the picker |
 | `accounts-4` | and `client` | 160 × 40 | `accounts-4` |
 | `accounts-5` | and `spare` | 160 × 40 | none: Sessions' and Runway's are 5 accounts |
 | `accounts-6` | and `lab` | 160 × 40 | `accounts-6` |
 | `accounts-8` | and `team` and `extra` | 160 × 40 | `accounts-8` |
+| `accounts-8-scrolling` | the same eight, too many for 28 rows, so they scroll | 160 × 28 | `accounts-8-scrolling` |
 | `accounts-phone` | `work`, `personal`, `side` | 52 × 36 | `accounts-phone` |
 
 The four, six and eight accounts have nothing used of Fable's week, as their frames do.

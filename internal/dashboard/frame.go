@@ -15,11 +15,14 @@ const (
 	phoneUnder     = 100
 )
 
-// Frame is the dashboard full screen, as a watch draws it: the title row,
-// the heading, the view shown and the footer, drawn from the document, the
-// clock, and what the watch knows besides.
+// Frame is the dashboard drawn from the document, the clock, and what the
+// watch knows besides: full screen, as a watch draws it, its title row, its
+// heading, the view shown and its footer; or printed once, as usage prints
+// it, without its footer.
 type Frame struct {
-	// Width and Height are the terminal's, in cells.
+	// Width and Height are the terminal's, in cells. A frame printed once
+	// has no height to fit, zero: it's as tall as it needs, its cards at
+	// their richest, and never scrolls.
 	Width, Height int
 	Look          Look
 	// Views are the views there are, in the order tab moves through them,
@@ -43,9 +46,15 @@ type Frame struct {
 	// for the cards' dots: nil where it listed none, as while probing, and
 	// each card counts its account's sessions as the document does.
 	Sessions []status.Session
+	// Scroll is how many rows the view's cards are scrolled down by, where
+	// they don't fit: no further than Scrolling says they go.
+	Scroll int
 	// Keys are the keys that work, the most used first: the footer lists as
 	// many as fit.
 	Keys []Key
+	// Help are every key there is, as the help lists them while it's open
+	// over the view, with the key to the glyphs: nil while it's closed.
+	Help []Key
 	// Note says what the last key did, or why it couldn't, while that's news:
 	// the footer says it in place of the keys.
 	Note string
@@ -57,19 +66,37 @@ type Frame struct {
 	Policy score.Policy
 }
 
-// Draw draws the frame of doc at now: a string for each of the terminal's
-// rows, each, where the look paints its canvas, the terminal's whole width.
-// Countdowns run from now, and times show in now's time zone.
+// Draw draws the frame of doc at now: a string for each of its rows, each,
+// where the look paints its canvas, the terminal's whole width. Countdowns
+// run from now, and times show in now's time zone.
 func (f Frame) Draw(doc status.Document, now time.Time) []string {
 	c := newCanvas(f.Width, f.Height)
-	top := f.title(c, now) + 1
-	top = f.heading(c, doc, now, top) + 1
-	footer := f.Height - 1
-	if f.View == Accounts {
-		f.accounts(c, doc, now, top, footer-1)
+	if f.printed() {
+		c = growing(f.Width)
 	}
-	f.footer(c, footer)
+	top := f.above(c, doc, now)
+	if f.View == Accounts {
+		f.accounts(c, doc, now, top)
+	}
+	if !f.printed() {
+		f.footer(c, f.Height-1)
+	}
+	if f.Help != nil {
+		f.help(c)
+	}
 	return c.rows(f.Look)
+}
+
+// above draws what's above the view, the title row and the heading, a blank
+// row after each, and returns the row the view starts at.
+func (f Frame) above(c *canvas, doc status.Document, now time.Time) int {
+	top := f.title(c, now) + 1
+	return f.heading(c, doc, now, top) + 1
+}
+
+// printed reports whether the frame is printed once, with no height to fit.
+func (f Frame) printed() bool {
+	return f.Height == 0
 }
 
 // phone reports whether the frame is a phone's: under phoneUnder columns.

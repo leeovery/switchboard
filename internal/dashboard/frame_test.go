@@ -151,10 +151,10 @@ func TestAFrameDrawsTheTitleTheHeadingTheViewAndTheFooter(t *testing.T) {
 	}
 }
 
-func TestOneAccountHasCOMINGUPUnderItsCardBeforeRECENT(t *testing.T) {
+func TestOneAccountUnder150ColumnsHasCOMINGUPUnderItsCardBeforeRECENT(t *testing.T) {
 	doc := routerDoc("work", 3, pressedAccount("work"))
 	doc.Events = []status.Event{{ID: 1, At: now.Add(-4 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"}}
-	rows := frameOf(160, 30).Draw(doc, now)
+	rows := frameOf(149, 40).Draw(doc, now)
 
 	coming := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " COMING UP") })
 	recent := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " RECENT") })

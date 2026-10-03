@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -146,13 +148,14 @@ func TestUsageIsPrintedInTheThemeForTheTerminalsBackground(t *testing.T) {
 		// prefs is what prefs.json holds, "" for none.
 		prefs      string
 		background color.Color
-		// want is the theme's text.primary, as a foreground's SGR.
-		want string
+		// want is the theme's text.primary, as a foreground's SGR, and
+		// canvas its canvas, as a background's.
+		want, canvas string
 	}{
-		{name: "a dark terminal: the dark default, nord", background: color.Black, want: "38;2;236;239;244"},
-		{name: "a terminal that doesn't say: nord", want: "38;2;236;239;244"},
-		{name: "a light terminal: the light default, tokyo-night-day", background: color.White, want: "38;2;46;60;100"},
-		{name: "one theme chosen, whatever the background", prefs: `{"theme": "amber"}`, background: color.White, want: "38;2;255;210;122"},
+		{name: "a dark terminal: the dark default, nord", background: color.Black, want: "38;2;236;239;244", canvas: "48;2;46;52;64"},
+		{name: "a terminal that doesn't say: nord", want: "38;2;236;239;244", canvas: "48;2;46;52;64"},
+		{name: "a light terminal: the light default, tokyo-night-day", background: color.White, want: "38;2;46;60;100", canvas: "48;2;225;226;231"},
+		{name: "one theme chosen, whatever the background", prefs: `{"theme": "amber"}`, background: color.White, want: "38;2;255;210;122", canvas: "48;2;14;11;6"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -167,8 +170,13 @@ func TestUsageIsPrintedInTheThemeForTheTerminalsBackground(t *testing.T) {
 			if got.code != 0 || !strings.Contains(got.stdout, tt.want) {
 				t.Errorf("switchboard usage = %+v, want it in the colour %q", got, tt.want)
 			}
-			if strings.Contains(got.stdout, "48;2;") {
-				t.Errorf("switchboard usage paints a background, want it printed on the terminal's own")
+			if strings.Contains(got.stdout, tt.canvas) {
+				t.Errorf("switchboard usage paints the theme's canvas, want it printed on the terminal's own background")
+			}
+			for i, row := range strings.Split(ansi.Strip(got.stdout), "\n") {
+				if strings.TrimRight(row, " ") != row {
+					t.Errorf("switchboard usage printed row %d as %q, want it to end at its last glyph", i+1, row)
+				}
 			}
 		})
 	}
