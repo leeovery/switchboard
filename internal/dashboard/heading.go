@@ -195,11 +195,11 @@ func (f Frame) comingLines(c *canvas, items []happening, now time.Time, x, y, n 
 	items = items[:min(n, len(items))]
 	column := 0
 	for _, h := range items {
-		column = max(column, len(when(now, h.at)))
+		column = max(column, len(status.When(now, h.at)))
 	}
 	for i, h := range items {
-		c.right(f.edge(), y+i, line{{until(now, h.at), h.ink}})
-		at := fmt.Sprintf("%-*s  ", column, when(now, h.at))
+		c.right(f.edge(), y+i, line{{status.Until(now, h.at), h.ink}})
+		at := fmt.Sprintf("%-*s  ", column, status.When(now, h.at))
 		words := line{{at, secondaryInk}, {h.name, strongInk}, {h.what, h.ink}}
 		c.line(x, y+i, words.fit(f.edge()-comingTail-x))
 	}

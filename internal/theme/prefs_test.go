@@ -84,6 +84,31 @@ func TestTheViewShownIsKeptBesideTheThemes(t *testing.T) {
 	}
 }
 
+func TestTheFeaturedWindowIsKeptBesideTheView(t *testing.T) {
+	state := t.TempDir()
+	prefs := theme.NewPrefsFile(state, clock)
+	if err := prefs.Update(func(p *theme.Prefs) { p.View = "accounts" }); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.Featured = "7d" }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{View: "accounts", Featured: "7d"}); got != want {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
+	if err != nil || !strings.Contains(string(data), `"featured": "7d"`) {
+		t.Errorf("prefs.json holds %s, %v; want the featured window kept", data, err)
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Featured = "" }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(state, "prefs.json")); err != nil || strings.Contains(string(data), "featured") {
+		t.Errorf("prefs.json holds %s, %v; want auto, the default, left out", data, err)
+	}
+}
+
 func TestACorruptPreferencesFileIsSetAsideAndTheDefaultsStand(t *testing.T) {
 	tests := []struct {
 		name, content string

@@ -64,7 +64,8 @@ func (o order) log(err error) {
 // picker is open, it takes every other key. Otherwise, tab and shift-tab
 // show the next view and the one before, r reads now, having the router
 // refresh what it hasn't read in the last minute, and what can take no
-// request, or probing when it doesn't answer; and t opens the theme picker.
+// request, or probing when it doesn't answer; t opens the theme picker; and
+// w has the cards feature the next window.
 // While the router answers, of more than one account, 1–9 pin new sessions
 // to the account in that place, as configured, beside those pinned already,
 // or unpin it; a routes every session on its merits again; and m moves
@@ -87,6 +88,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.read(Fresh())
 	case "t", "T":
 		return m.openPicker()
+	case "w", "W":
+		return m.feature()
 	case "a", "A":
 		if m.single() {
 			return m, nil
@@ -270,6 +273,9 @@ var footerKeys = []footerKey{
 		return dashboard.Key{Key: "tab", Does: "views"}, len(m.views) > 1
 	},
 	func(m Model) (dashboard.Key, bool) {
+		return dashboard.Key{Key: "w", Does: "window: " + m.featured.Name(m.doc, m.cfg.Policy)}, m.view == dashboard.Accounts
+	},
+	func(m Model) (dashboard.Key, bool) {
 		return dashboard.Key{Key: places(len(m.doc.Accounts)), Does: "pin"}, m.orders()
 	},
 	func(m Model) (dashboard.Key, bool) {
@@ -284,8 +290,9 @@ var footerKeys = []footerKey{
 }
 
 // keys are the keys the footer lists, as footerKeys has them: tab, while
-// there's another view to move to; while the router answers, of more than
-// one account, the digits of their places, a and m; and q, always.
+// there's another view to move to; w, in the Accounts view, saying which
+// window the cards feature; while the router answers, of more than one
+// account, the digits of their places, a and m; and q, always.
 func (m Model) keys() []dashboard.Key {
 	var keys []dashboard.Key
 	for _, listed := range footerKeys {

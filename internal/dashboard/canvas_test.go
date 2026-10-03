@@ -146,7 +146,7 @@ func TestASurfaceKeepsTheGlyphsOnIt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newCanvas(12, 1)
 			c.line(1, 0, line{{"14:41", secondaryInk}})
-			c.surface(1, 0, 10, theme.BgAttention, tt.fade)
+			c.surface(1, 0, 10, hue{token: theme.BgAttention, fade: tt.fade})
 
 			row := c.rows(look)[0]
 			if got := ansi.Strip(row); got != " 14:41      " {
@@ -167,7 +167,7 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 	}{{fade: 0.4, want: true}, {fade: 0.5, want: false}} {
 		c := newCanvas(4, 1)
 		c.text(0, 0, "ab", ink{})
-		c.surface(0, 0, 2, theme.BgSelection, tt.fade)
+		c.surface(0, 0, 2, hue{token: theme.BgSelection, fade: tt.fade})
 		if got := strings.Contains(c.rows(look)[0], "\x1b[100"); got != tt.want {
 			t.Errorf("faded %v, the surface shows: %v, want %v: %q", tt.fade, got, tt.want, c.rows(look)[0])
 		}

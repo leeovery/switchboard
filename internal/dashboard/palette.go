@@ -98,17 +98,30 @@ type ink struct {
 	// colour, to 1, all beneath, where the look can blend: a mark drawn
 	// faint, as a short bar's empty cells are.
 	fade float64
-	// on is the surface it's drawn on, such as a selected row's: the zero
-	// Token for the canvas. onFade blends it so far into the colour beneath,
-	// as a highlight fading back is.
-	on     theme.Token
-	onFade float64
 	// ramp marks a bar's filled cell, coloured by where it sits along the
 	// bar, at, from 0 at its first cell to 1 at its last, rather than by a
 	// token.
 	ramp bool
 	at   float64
+	// on is the surface it's drawn on, such as a selected row's, or a bar's
+	// projection under the cell its fill ends in: the zero hue for the
+	// canvas.
+	on   hue
 	bold bool
+}
+
+// hue is a colour as an ink has one: a token's, or a bar's ramp's at a place
+// along it, faded so far into the colour beneath. The zero hue is no colour.
+type hue struct {
+	token theme.Token
+	ramp  bool
+	at    float64
+	fade  float64
+}
+
+// hue is the ink's own colour, as a hue.
+func (k ink) hue() hue {
+	return hue{token: k.token, ramp: k.ramp, at: k.at, fade: k.fade}
 }
 
 var (
@@ -127,6 +140,7 @@ var (
 	paceInk       = ink{token: theme.VizPace}
 	reserveInk    = ink{token: theme.VizReserve}
 	warningInk    = ink{token: theme.AccentAttention}
+	alertInk      = ink{token: theme.AccentAttention, bold: true}
 	errorInk      = ink{token: theme.StateDestructive}
 	exhaustedInk  = ink{token: theme.StateDestructive, bold: true}
 	labelInk      = ink{token: theme.TextSubtle, bold: true}
@@ -159,14 +173,20 @@ func (l Look) render(text string, k ink) string {
 // colour is the ink's colour in the look, faded as the ink says: nil without
 // colour.
 func (l Look) colour(k ink) color.Color {
-	switch {
-	case !l.coloured:
+	if !l.coloured {
 		return nil
-	case k.ramp:
-		return l.faded(l.ramp(k.at), k.fade)
-	default:
-		return l.faded(l.theme.Colour(k.token), k.fade)
 	}
+	h := k.hue()
+	return l.faded(l.unfaded(h), h.fade)
+}
+
+// unfaded is the hue's colour in the look before it's faded: its token's, or
+// its ramp's where it sits.
+func (l Look) unfaded(h hue) color.Color {
+	if h.ramp {
+		return l.ramp(h.at)
+	}
+	return l.theme.Colour(h.token)
 }
 
 // faded is c blended amount into the colour beneath it, or, in a look that
@@ -182,11 +202,14 @@ func (l Look) faded(c color.Color, amount float64) color.Color {
 // faded as the ink says, else the canvas, where the look paints it. In a
 // look that blends nothing, a surface shows until it's faded halfway.
 func (l Look) surface(k ink) color.Color {
-	on := l.theme.Colour(k.on)
-	if !l.coloured || on == nil || (k.onFade >= 0.5 && !l.blends()) {
+	if !l.coloured {
 		return l.Canvas()
 	}
-	return l.faded(on, k.onFade)
+	on := l.unfaded(k.on)
+	if on == nil || (k.on.fade >= 0.5 && !l.blends()) {
+		return l.Canvas()
+	}
+	return l.faded(on, k.on.fade)
 }
 
 // A window's tone turns to attention, then to destructive, at these

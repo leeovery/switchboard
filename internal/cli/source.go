@@ -104,6 +104,15 @@ func (s usageSource) History(ctx context.Context, window string, step time.Durat
 	return s.router.History(ctx, window, step)
 }
 
+// Sessions lists the sessions the router has routed in the last hour, the
+// one seen last first.
+func (s usageSource) Sessions(ctx context.Context) ([]status.Session, error) {
+	if s.router == nil {
+		return nil, errRouterDown
+	}
+	return s.router.Sessions(ctx)
+}
+
 // document is the router's status document, once it has probed the accounts
 // it hasn't read for refresh, when that's more than zero.
 func (s usageSource) document(ctx context.Context, refresh time.Duration) (status.Document, error) {

@@ -15,14 +15,14 @@ const (
 
 var (
 	// pill is the dashboard's name, set on its own surface.
-	pill = line{{" SWITCHBOARD ", ink{token: theme.Canvas, on: theme.AccentPrimary, bold: true}}}
+	pill = line{{" SWITCHBOARD ", ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}}}
 	// hint says what moves between the views.
 	hint = line{{"tab ⇥", faintInk}}
 )
 
 var (
 	tabInk      = ink{token: theme.TextSubtle}
-	shownTabInk = ink{token: theme.TextPrimary, on: theme.BgSelection, bold: true}
+	shownTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSelection}, bold: true}
 )
 
 // title draws the title row, and returns the row under it: the dashboard's

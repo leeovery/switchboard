@@ -57,6 +57,27 @@ func (l line) fit(width int) line {
 	return kept
 }
 
+// fitHead cuts the line to width cells as fit does, but keeps its first span
+// whole where that fits by itself: what follows is cut short, or left off
+// where fewer than leastShown cells of it would show.
+func (l line) fitHead(width int) line {
+	if l.width() <= width || len(l) == 0 {
+		return l
+	}
+	left := width - l[:1].width()
+	switch {
+	case left < 0:
+		return l.fit(width)
+	case left < leastShown:
+		return l[:1]
+	default:
+		return slices.Concat(l[:1], l[1:].fit(left))
+	}
+}
+
+// leastShown is the fewest cells of a line's tail fitHead shows, cut short.
+const leastShown = 5
+
 // spread puts left and right at either end of width cells, cutting left to
 // keep a space between them.
 func spread(left, right line, width int) line {

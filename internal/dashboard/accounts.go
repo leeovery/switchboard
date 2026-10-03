@@ -24,18 +24,15 @@ type strip struct {
 }
 
 // accounts draws the Accounts view from row top until row bottom: the
-// accounts' cards, as the dashboard drew them before milestone 5, and under
-// them, strips: COMING UP, with one account, whose heading has no room for
-// it, and RECENT, each after a blank row, its label at its left, but on a
-// phone. The cards take the rows the strips' first lines leave, and the
-// strips what the cards leave.
+// accounts' cards, and under them, strips: COMING UP, with one account,
+// whose heading has no room for it, and RECENT, each after a blank row, its
+// label at its left, but on a phone. The cards take the rows the strips'
+// first lines leave, and the strips what the cards leave. On row bottom, at
+// the right, it says which windows hide from every card.
 func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top, bottom int) {
+	c.right(f.edge(), bottom, hiddenNote(doc, hiddenWindows(doc, now, f.Policy)).fit(f.edge()-margin))
 	strips := f.strips(doc, now)
-	y := top
-	for _, l := range f.cards(doc, now, bottom-top-2*len(strips)) {
-		c.line(margin, y, l)
-		y++
-	}
+	y := f.cards(c, doc, now, top, bottom-top-2*len(strips))
 	x := margin
 	for _, s := range strips {
 		if !f.phone() {
@@ -72,16 +69,4 @@ func (f Frame) strips(doc status.Document, now time.Time) []strip {
 		strips = append(strips, strip{label: "RECENT", lines: n, draw: draw})
 	}
 	return strips
-}
-
-// cards are the accounts' cards, as the dashboard drew them before milestone
-// 5, rows lines at most: as many to a row as fit the width, or where they
-// don't fit the rows, a line each.
-func (f Frame) cards(doc status.Document, now time.Time, rows int) []line {
-	room := f.Width - margin
-	if body, _, ok := grid(doc, now, room); ok && len(body) <= rows {
-		return body
-	}
-	body, _ := compact(doc, now, room)
-	return body[:min(len(body), max(rows, 0))]
 }

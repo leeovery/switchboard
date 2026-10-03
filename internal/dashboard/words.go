@@ -6,8 +6,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -48,35 +46,18 @@ func place(doc status.Document, id string) int {
 	return slices.IndexFunc(doc.Accounts, func(a status.Account) bool { return a.ID == id }) + 1
 }
 
-// when shows t in now's time zone: its time of day, such as 15:54, within a
-// day of now, before or after, as what's coming up or happened lately is;
-// else its weekday too, such as Mon 21:00.
-func when(now, t time.Time) string {
-	if d := t.Sub(now); -day < d && d < day {
-		return status.TimeOfDay(now, t)
+// brief shows t in now's time zone as briefly as a bar line has room for:
+// its time of day, such as 15:54, on now's day; else its weekday alone, such
+// as Fri.
+func brief(now, t time.Time) string {
+	if t = t.In(now.Location()); t.Format(time.DateOnly) == now.Format(time.DateOnly) {
+		return t.Format("15:04")
 	}
-	return status.Clock(now, t)
+	return t.Format("Mon")
 }
 
-// day is a day's length, as when has it.
+// day is a day's length.
 const day = 24 * time.Hour
-
-// until counts down from now to t, as "in 1h 12m".
-func until(now, t time.Time) string {
-	return "in " + status.Countdown(now, t)
-}
-
-// prosed is a window's label as a sentence has it: one word, as Session or
-// Week, is a common noun, so lower-cased; more, as Fable week, leads with a
-// model's name, which keeps its capital.
-func prosed(label string) string {
-	label = status.Clean(label)
-	if label == "" || strings.Contains(label, " ") {
-		return label
-	}
-	first, size := utf8.DecodeRuneInString(label)
-	return string(unicode.ToLower(first)) + label[size:]
-}
 
 // spanOf names a window by its length, as in "5-hour window" or "7-day
 // window", or by its key, cleaned, where that doesn't give its length.

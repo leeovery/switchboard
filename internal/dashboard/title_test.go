@@ -67,7 +67,7 @@ func TestTheShownTabIsPickedOut(t *testing.T) {
 		x    int
 		want ink
 	}{
-		{x: 1, want: ink{token: theme.Canvas, on: theme.AccentPrimary, bold: true}},
+		{x: 1, want: ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}},
 		{x: 17, want: tabInk},
 		{x: 28, want: shownTabInk},
 		{x: 39, want: faintInk},
@@ -77,7 +77,7 @@ func TestTheShownTabIsPickedOut(t *testing.T) {
 			t.Errorf("column %d is in %+v, want %+v", tt.x, got, tt.want)
 		}
 	}
-	if shownTabInk.on != theme.BgSelection {
+	if shownTabInk.on != (hue{token: theme.BgSelection}) {
 		t.Errorf("the tab shown is on %v, want bg.selection", shownTabInk.on)
 	}
 }

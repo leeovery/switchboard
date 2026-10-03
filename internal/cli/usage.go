@@ -83,7 +83,9 @@ the next full read, or r, probes the accounts instead. Without the router it
 probes every account every interval, sooner for a window that resets or an
 account that couldn't be read, and reads the router again once it's back.
 
-Keys: r refresh, t the theme picker, q quit. While it reads the router, and
+Keys: r refresh, t the theme picker, w the window every card features (auto,
+for each its own, then the 5-hour window, the week, and any other in use),
+q quit. While it reads the router, and
 the router answers, of more than one account, 1-9 pin new sessions to the
 account in that place, beside those pinned already, or unpin it, a routes
 every session automatically again, and m moves running sessions to the
@@ -204,6 +206,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Policy:        claude.Policy,
 		Size:          a.environSize(),
 		View:          dashboard.View(kept.View),
+		Featured:      dashboard.Feature(kept.Featured),
 	}
 	if t.prefs != nil {
 		wc.Prefs = t.prefs

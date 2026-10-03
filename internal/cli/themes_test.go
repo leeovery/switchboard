@@ -91,6 +91,17 @@ func TestUsageWatchOpensOnTheViewKept(t *testing.T) {
 	}
 }
 
+func TestUsageWatchFeaturesTheWindowKept(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"view": "accounts", "featured": "7d"}`)
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "usage", "--watch")
+
+	if cfg.Featured != "7d" {
+		t.Errorf("the watch's cards feature %q, want the week prefs.json keeps", cfg.Featured)
+	}
+}
+
 func TestUsageWatchFindsThemesWhereSwitchboardThemesDirSays(t *testing.T) {
 	dotfiles := t.TempDir()
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_THEMES_DIR": dotfiles})

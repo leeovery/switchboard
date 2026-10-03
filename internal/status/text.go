@@ -288,11 +288,17 @@ func (r Restart) Text(now time.Time) string {
 // Text says how the upstream refused, and until when the refusal holds, such
 // as "refused (403, opus) until 21:40", in now's time zone.
 func (r Refusal) Text(now time.Time) string {
+	return r.Answer() + " until " + TimeOfDay(now, r.Until)
+}
+
+// Answer says how the upstream refused, such as "refused (401)", or, refusing
+// a family's requests alone, "refused (403, opus)".
+func (r Refusal) Answer() string {
 	answer := strconv.Itoa(r.Status)
 	if r.Family != "" {
 		answer += ", " + Clean(r.Family)
 	}
-	return "refused (" + answer + ") until " + TimeOfDay(now, r.Until)
+	return "refused (" + answer + ")"
 }
 
 // writeAccount writes the account's title, marking the primary, its windows
@@ -355,6 +361,55 @@ func Clock(now, t time.Time) string {
 // TimeOfDay shows t as its 24-hour time in now's time zone, such as "13:51".
 func TimeOfDay(now, t time.Time) string {
 	return t.In(now.Location()).Format("15:04")
+}
+
+// day is a day's length, as When has it.
+const day = 24 * time.Hour
+
+// When shows t in now's time zone: its time of day, such as "15:54", within
+// a day of now, before or after, as what's coming up or happened lately is;
+// else its weekday too, such as "Mon 21:00".
+func When(now, t time.Time) string {
+	if d := t.Sub(now); -day < d && d < day {
+		return TimeOfDay(now, t)
+	}
+	return Clock(now, t)
+}
+
+// Dated shows t in now's time zone as a card does: its time of day, such as
+// "16:05", on now's day; on any other, its weekday too, such as "Fri 04:06".
+func Dated(now, t time.Time) string {
+	if t.In(now.Location()).Format(time.DateOnly) == now.Format(time.DateOnly) {
+		return TimeOfDay(now, t)
+	}
+	return Clock(now, t)
+}
+
+// Until counts down from now to t, as "in 1h 12m".
+func Until(now, t time.Time) string {
+	return "in " + Countdown(now, t)
+}
+
+// InProse is a window's label as a sentence has it, cleaned: one word, as
+// Session or Week, is a common noun, so lower-cased; more, as Fable week,
+// leads with a model's name, which keeps its capital.
+func InProse(label string) string {
+	label = Clean(label)
+	if label == "" || strings.Contains(label, " ") {
+		return label
+	}
+	first, size := utf8.DecodeRuneInString(label)
+	return string(unicode.ToLower(first)) + label[size:]
+}
+
+// Short is a window's label as a narrow column has it, cleaned: a model's own
+// week, as Fable week, is its wk, and any other label as it is.
+func Short(label string) string {
+	label = Clean(label)
+	if before, ok := strings.CutSuffix(label, " week"); ok && before != "" {
+		return before + " wk"
+	}
+	return label
 }
 
 // Resets counts down from now to a window's reset at t: "resets in 4h 57m",

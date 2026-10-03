@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -97,8 +96,7 @@ func backIn(now, t time.Time) string {
 	if !inSeconds(now, t) {
 		return status.Countdown(now, t)
 	}
-	left := t.Sub(now)
-	return fmt.Sprintf("%02d:%02d", int(left/time.Minute), int(left%time.Minute/time.Second))
+	return timer(now, t)
 }
 
 // inSeconds reports whether a countdown from now to t shows seconds: t is

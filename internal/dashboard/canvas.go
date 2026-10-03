@@ -4,8 +4,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // canvas is a frame of the dashboard as a grid of cells, each a glyph in its
@@ -110,12 +108,11 @@ func (c *canvas) right(end, y int, l line) int {
 }
 
 // surface lays a surface under the width cells from x along row y, as a
-// highlighted row has, their glyphs and colours as they were: on is the
-// surface's token, faded so far into the canvas.
-func (c *canvas) surface(x, y, width int, on theme.Token, fade float64) {
+// highlighted row has, their glyphs and colours as they were.
+func (c *canvas) surface(x, y, width int, on hue) {
 	for i := range width {
 		if here := c.at(x+i, y); here != nil {
-			here.ink.on, here.ink.onFade = on, fade
+			here.ink.on = on
 		}
 	}
 }
@@ -137,7 +134,7 @@ func (c *canvas) rows(look Look) []string {
 func (c *canvas) row(y int, look Look) string {
 	cells := c.cells[y*c.width : (y+1)*c.width]
 	end := len(cells)
-	for !look.paints && end > 0 && cells[end-1].glyph == " " && cells[end-1].ink.on == 0 {
+	for !look.paints && end > 0 && cells[end-1].glyph == " " && cells[end-1].ink.on == (hue{}) {
 		end--
 	}
 	var b, run strings.Builder
@@ -147,10 +144,10 @@ func (c *canvas) row(y int, look Look) string {
 		switch {
 		case here.glyph == "":
 			continue
-		case here.glyph == " " && k.on == pen.on && k.onFade == pen.onFade:
+		case here.glyph == " " && k.on == pen.on:
 			k = pen
 		case here.glyph == " ":
-			k = ink{on: k.on, onFade: k.onFade}
+			k = ink{on: k.on}
 		}
 		if k != pen {
 			b.WriteString(look.render(run.String(), pen))

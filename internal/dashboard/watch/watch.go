@@ -62,6 +62,9 @@ type Source interface {
 	// /history does, failing with router.ErrNoHistory, wrapped, where the
 	// router is from before it.
 	History(ctx context.Context, window string, step time.Duration) (router.History, error)
+	// Sessions lists the sessions the router has routed in the last hour,
+	// the one seen last first, as its GET /sessions does.
+	Sessions(ctx context.Context) ([]status.Session, error)
 }
 
 // A Read is what a read of the source asks for.
@@ -126,10 +129,11 @@ type Config struct {
 	// NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
 	// View is the view the preferences kept, which the watch opens on where
-	// it's one there is, and Prefs keeps the view shown as it changes: nil
-	// keeps nothing.
-	View  dashboard.View
-	Prefs Prefs
+	// it's one there is, and Featured the window they keep the cards
+	// featuring; Prefs keeps both as they change: nil keeps nothing.
+	View     dashboard.View
+	Featured dashboard.Feature
+	Prefs    Prefs
 }
 
 // Size is a terminal's size in cells.
@@ -204,15 +208,21 @@ type Model struct {
 	// charts' share of it, of the document on screen.
 	history history
 	trails  dashboard.History
+	// sessions are the sessions the router listed with the document on
+	// screen, for the cards' dots: nil where it listed none.
+	sessions []status.Session
+	// featured is which window every card features.
+	featured dashboard.Feature
 }
 
 // fetchedMsg is what a read that asked for read found, and which router gave
-// it.
+// it, with the sessions it listed: none where it listed none.
 type fetchedMsg struct {
-	read   Read
-	doc    status.Document
-	router router.Health
-	err    error
+	read     Read
+	doc      status.Document
+	router   router.Health
+	sessions []status.Session
+	err      error
 }
 
 // tickMsg wakes the model to redraw, and to read again once that's due.
@@ -229,7 +239,7 @@ func New(ctx context.Context, cfg Config) Model {
 	views := dashboard.Views()
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true,
-		choice: cfg.Choice, pair: cfg.Pair, views: views, view: opening(cfg.View, views),
+		choice: cfg.Choice, pair: cfg.Pair, views: views, view: opening(cfg.View, views), featured: cfg.Featured,
 	}
 	if m.after == nil {
 		m.after = after
@@ -299,6 +309,7 @@ func (m Model) View() tea.View {
 		Width: m.size.Width, Height: m.size.Height, Look: look,
 		Views: m.views, View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
+		Featured: m.featured, Sessions: m.sessions,
 		Keys: m.keys(), Note: m.noted(now), Status: m.status(now),
 		Policy: m.cfg.Policy,
 	}.Draw(m.shown(now), now)
@@ -336,12 +347,23 @@ func (m Model) read(r Read) (Model, tea.Cmd) {
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks.
+// fetch reads the source as r asks, and from a router, the sessions it
+// lists, for the cards' dots: a router that can't list them leaves them out.
 func (m Model) fetch(r Read) tea.Cmd {
 	ctx, source := m.ctx, m.cfg.Source
 	return func() tea.Msg {
 		doc, from, err := source.Read(ctx, r)
-		return fetchedMsg{read: r, doc: doc, router: from, err: err}
+		msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
+		if err != nil || !routed(doc) {
+			return msg
+		}
+		sessions, err := source.Sessions(ctx)
+		if err != nil {
+			logger.Debug("couldn't list the router's sessions", "error", err)
+			return msg
+		}
+		msg.sessions = sessions
+		return msg
 	}
 }
 
@@ -397,13 +419,13 @@ func logRead(msg fetchedMsg, next time.Time) {
 		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
-// show puts the document a read found at now on screen: it posts what the
-// change calls for, unless the router is there to post its own, as nothing is
-// to be told twice; follows the router as it goes and comes back; notes the
-// events new to it, and the readings it gives; asks the router for its
-// history with a full read, and as the router answers again, or another
-// router does, as one restarted; and eases the bars to it from where they
-// stand.
+// show puts the document a read found at now on screen, with the sessions
+// the router listed: it posts what the change calls for, unless the router is
+// there to post its own, as nothing is to be told twice; follows the router
+// as it goes and comes back; notes the events new to it, and the readings it
+// gives; asks the router for its history with a full read, and as the router
+// answers again, or another router does, as one restarted; and eases the
+// bars to it from where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
@@ -416,7 +438,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.news = m.news.looked(doc, msg.router, now)
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
-	m.doc, m.updated, m.failed = doc, now, ""
+	m.doc, m.updated, m.failed, m.sessions = doc, now, "", msg.sessions
 	m.trails = m.history.drawn(doc)
 	if ask {
 		m, asked = m.askHistory(doc)

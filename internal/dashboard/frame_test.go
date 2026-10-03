@@ -169,6 +169,24 @@ func TestOneAccountHasCOMINGUPUnderItsCardBeforeRECENT(t *testing.T) {
 	}
 }
 
+func TestTheLineOverTheFooterSaysWhichWindowsHideFromEveryCard(t *testing.T) {
+	doc := threeRouted()
+	for i := range doc.Accounts {
+		doc.Accounts[i].Windows = append(doc.Accounts[i].Windows, windowOf("7d_oi", "Fable week", 0, 4*day))
+	}
+	rows := frameOf(160, 40).Draw(doc, now)
+
+	if got, want := rows[38], "Fable wk hidden: unused on every account"; !strings.HasSuffix(got, want) {
+		t.Errorf("row 39 = %q, want it to end %q", got, want)
+	}
+	if strings.Contains(strings.Join(rows[:38], "\n"), "Fable wk ") {
+		t.Errorf("rows are\n%s\nwant Fable's week on no card", strings.Join(rows, "\n"))
+	}
+	if rows := frameOf(160, 40).Draw(threeRouted(), now); strings.TrimSpace(rows[38]) != "" {
+		t.Errorf("without a window hidden, row 39 = %q, want it blank", rows[38])
+	}
+}
+
 func TestTheViewIsDrawnOnlyForAccounts(t *testing.T) {
 	f := frameOf(160, 40)
 	f.View = "sessions"

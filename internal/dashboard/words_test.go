@@ -7,28 +7,6 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-func TestWhenShowsTheDayOnlyBeyondADay(t *testing.T) {
-	tests := []struct {
-		name string
-		t    time.Time
-		want string
-	}{
-		{name: "later today", t: now.Add(2 * time.Hour), want: "15:12"},
-		{name: "tomorrow, within a day", t: now.Add(14 * time.Hour), want: "03:12"},
-		{name: "earlier, within a day", t: now.Add(-20 * time.Hour), want: "17:12"},
-		{name: "a day on", t: now.Add(day), want: "Tue 13:12"},
-		{name: "days ago", t: now.Add(-3 * day), want: "Fri 13:12"},
-		{name: "in UTC, shown in now's time zone", t: now.Add(time.Hour).UTC(), want: "14:12"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := when(now, tt.t); got != tt.want {
-				t.Errorf("when() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestAccountsAreCalledByTheirNames(t *testing.T) {
 	doc := status.Document{Accounts: []status.Account{{ID: "work", Label: "Work\x1b[2J"}, {ID: "side"}}}
 	tests := []struct {
@@ -53,11 +31,6 @@ func TestAccountsAreCalledByTheirNames(t *testing.T) {
 }
 
 func TestWindowsInWords(t *testing.T) {
-	for label, want := range map[string]string{"Session": "session", "Week": "week", "Fable week": "Fable week", "": ""} {
-		if got := prosed(label); got != want {
-			t.Errorf("prosed(%q) = %q, want %q", label, got, want)
-		}
-	}
 	for key, want := range map[string]string{"5h": "5-hour window", "7d": "7-day window", "7d_oi": "7-day window", "overage": "overage"} {
 		if got := spanOf(key); got != want {
 			t.Errorf("spanOf(%q) = %q, want %q", key, got, want)
@@ -73,8 +46,5 @@ func TestSpansAndSessionsInWords(t *testing.T) {
 	}
 	if got := sessionID("c61b2f8d-04a7-4e93"); got != "c61b" {
 		t.Errorf("sessionID() = %q, want its first four characters", got)
-	}
-	if got, want := until(now, now.Add(71*time.Minute+53*time.Second)), "in 1h 11m"; got != want {
-		t.Errorf("until() = %q, want %q", got, want)
 	}
 }

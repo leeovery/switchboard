@@ -76,7 +76,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			tt.doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
 			var got []string
 			for _, h := range upcoming(tt.doc, now, claudeLike) {
-				got = append(got, when(now, h.at)+" "+h.name+h.what)
+				got = append(got, status.When(now, h.at)+" "+h.name+h.what)
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("upcoming() = %q, want %q", got, tt.want)

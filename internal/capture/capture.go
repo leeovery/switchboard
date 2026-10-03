@@ -97,10 +97,13 @@ func moment(loc *time.Location) time.Time {
 // its cursor moved up a theme from the frames' to show the one before.
 func fixtures(now time.Time) []Fixture {
 	nord, _ := theme.Builtin(theme.DefaultDark)
+	w := tea.KeyPressMsg{Code: 'w', Text: "w"}
 	all := []Fixture{
 		{Name: "accounts-1", Size: wide(27), now: now, router: oneAccount(now)},
 		{Name: "accounts-3", Size: wide(34), now: now, router: threeAccounts(now)},
+		{Name: "accounts-3-5h", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{w}},
 		{Name: "accounts-3-themes", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{{Code: 't', Text: "t"}, {Code: tea.KeyUp}}},
+		{Name: "accounts-3-week", Size: wide(34), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{w, w}},
 		{Name: "accounts-4", Size: wide(40), now: now, router: fourAccounts(now)},
 		{Name: "accounts-5", Size: wide(40), now: now, router: fiveAccounts(now)},
 		{Name: "accounts-6", Size: wide(40), now: now, router: sixAccounts(now)},

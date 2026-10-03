@@ -61,7 +61,7 @@ func coming(doc status.Document, a status.Account, now time.Time, policy score.P
 		}
 		things = append(things, happening{at: out.At, name: name(a), what: what, ink: warningInk})
 	}
-	return append(things, happening{at: w.ResetsAt, name: name(a), what: "'s " + prosed(w.Label) + " resets", ink: mutedInk})
+	return append(things, happening{at: w.ResetsAt, name: name(a), what: "'s " + status.InProse(w.Label) + " resets", ink: mutedInk})
 }
 
 // limited reports whether a limit holds the account back from every request

@@ -329,17 +329,16 @@ func TestRECENTPicksOutFreshEventsFadingBack(t *testing.T) {
 	f.recentStrip(c, doc, now, 10, 0, 60, recentLines)
 
 	tests := []struct {
-		row  int
-		on   theme.Token
-		fade float64
-	}{{row: 0, on: theme.BgAttention, fade: 0}, {row: 1, on: theme.BgAttention, fade: 0.75}, {row: 2}}
+		row int
+		on  hue
+	}{{row: 0, on: hue{token: theme.BgAttention}}, {row: 1, on: hue{token: theme.BgAttention, fade: 0.75}}, {row: 2}}
 	for _, tt := range tests {
 		for _, x := range []int{10, 40, 59} {
-			if got := c.at(x, tt.row).ink; got.on != tt.on || got.onFade != tt.fade {
-				t.Errorf("row %d, column %d, is on %v faded %v, want on %v faded %v", tt.row+1, x, got.on, got.onFade, tt.on, tt.fade)
+			if got := c.at(x, tt.row).ink.on; got != tt.on {
+				t.Errorf("row %d, column %d, is on %+v, want on %+v", tt.row+1, x, got, tt.on)
 			}
 		}
-		if got := c.at(9, tt.row).ink.on; got != 0 {
+		if got := c.at(9, tt.row).ink.on; got != (hue{}) {
 			t.Errorf("row %d is picked out before its strip, at column 9, want from where its lines start", tt.row+1)
 		}
 	}

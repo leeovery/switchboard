@@ -49,3 +49,27 @@ func (m Model) keepView() {
 		logger.Warn("couldn't keep the view shown", "view", m.view, "error", err)
 	}
 }
+
+// feature has every card feature the next window w moves to, as the
+// document on screen stands, and keeps it, for the next watch to open with.
+// It works in the Accounts view alone, while there's a document to show.
+func (m Model) feature() (tea.Model, tea.Cmd) {
+	if m.view != dashboard.Accounts || m.updated.IsZero() {
+		return m, nil
+	}
+	m.featured = m.featured.Next(m.doc, m.now(), m.cfg.Policy)
+	m.keepFeatured()
+	return m, nil
+}
+
+// keepFeatured keeps the window every card features in the preferences,
+// where there are preferences to keep it in. One that can't be kept is
+// featured all the same.
+func (m Model) keepFeatured() {
+	if m.cfg.Prefs == nil {
+		return
+	}
+	if err := m.cfg.Prefs.Update(func(p *theme.Prefs) { p.Featured = string(m.featured) }); err != nil {
+		logger.Warn("couldn't keep the window the cards feature", "window", m.featured, "error", err)
+	}
+}

@@ -15,8 +15,8 @@ import (
 // routerKeys are the keys the footer lists while the dashboard reads the
 // router of three accounts, and probingKeys those it lists while it probes.
 const (
-	routerKeys  = "1-3 pin · a auto · m move · q quit"
-	probingKeys = "q quit"
+	routerKeys  = "w window: auto · 1-3 pin · a auto · m move · q quit"
+	probingKeys = "w window: auto · q quit"
 )
 
 func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
@@ -41,6 +41,51 @@ func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 	}
 	if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
+	}
+}
+
+func TestEveryReadOfTheRouterListsItsSessionsForTheCards(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{
+		{ID: "d28c5e17", Assignments: []status.Assignment{{Model: "claude-opus-5-5", Account: "work", LastSeen: start.Add(-50 * time.Second).UTC()}}},
+		{ID: "7f3a0c94", Assignments: []status.Assignment{{Model: "claude-haiku-4-5", Account: "work", LastSeen: start.Add(-9 * time.Minute).UTC()}}},
+	}
+	h.start()
+
+	if h.source.listed != 1 || len(h.model.sessions) != 2 {
+		t.Fatalf("listed the sessions %d times, holding %d, want once with the first read, holding both", h.source.listed, len(h.model.sessions))
+	}
+	h.tickUntilAsked()
+	if h.source.listed != 2 {
+		t.Errorf("listed the sessions %d times, want again with a look at the router's document", h.source.listed)
+	}
+	if !strings.Contains(h.view(), "╰─ ● ○ ─") {
+		t.Errorf("the screen is\n%s\nwant work's card with a dot for each session, the one seen in the last minute lit", h.view())
+	}
+}
+
+func TestProbingListsNoSessions(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+
+	if h.source.listed != 0 || h.model.sessions != nil {
+		t.Errorf("listed the sessions %d times, holding %v, want never while probing", h.source.listed, h.model.sessions)
+	}
+}
+
+func TestSessionsTheRouterDoesntListLeaveTheCardsWithoutDots(t *testing.T) {
+	work := account("work", "Work", session(0.25, 3*time.Hour), week(0.5))
+	work.Sessions = 2
+	h := routedHarness(t, routerDocument(work, three()[1]))
+	h.source.sessions = []status.Session{{ID: "d28c5e17", Assignments: []status.Assignment{{Account: "work", LastSeen: start.UTC()}}}}
+	h.source.sessionsErr = errors.New("connection reset")
+	h.start()
+
+	if h.model.sessions != nil {
+		t.Errorf("holding the sessions %v, want none listed", h.model.sessions)
+	}
+	if view := h.view(); strings.Contains(view, "╰─ ●") || !strings.Contains(view, " 2 sessions ─╯") {
+		t.Errorf("the screen is\n%s\nwant work's card without dots, counting its sessions as the document does", view)
 	}
 }
 
@@ -597,7 +642,7 @@ func TestFooterKeysByWhatTheDashboardReads(t *testing.T) {
 	}{
 		{name: "the router of three accounts", doc: routerDocument(three()...), want: routerKeys},
 		{name: "the router of one, which has none other to pin", doc: routerDocument(three()[0]), want: probingKeys},
-		{name: "the router of twelve", doc: routerDocument(many...), want: "1-9 pin · a auto · m move · q quit"},
+		{name: "the router of twelve", doc: routerDocument(many...), want: "w window: auto · 1-9 pin · a auto · m move · q quit"},
 		{name: "a probe", doc: probedWithoutTheRouter(), want: probingKeys},
 	}
 	for _, tt := range tests {

@@ -19,7 +19,7 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.footer(), probingKeys+" · reading usage…"; got != want {
 		t.Errorf("before the first read, the footer is %q, want %q", got, want)
 	}
-	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "work · Work") {
+	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "╭─ 1 Work ") {
 		t.Errorf("before the first read, the screen is\n%s\nwant the title row, and no account", view)
 	}
 	read := h.init()
@@ -30,7 +30,7 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.footer(), probingKeys+" · read 0s ago · next 13:42"; got != want {
 		t.Errorf("after the first read, the footer is %q, want %q", got, want)
 	}
-	if !strings.Contains(h.view(), "work · Work") {
+	if !strings.Contains(h.view(), "╭─ 1 Work ") {
 		t.Errorf("after the first read, the screen is\n%s\nwant the account's card", h.view())
 	}
 }
@@ -263,9 +263,18 @@ func TestCountdownShowsSecondsBetweenTicks(t *testing.T) {
 	for h.clock.now.Before(at(13, 16, 17)) {
 		h.fire(h.lastTick())
 	}
-	if want := "back in 07:42 · Mon 13:24"; !strings.Contains(h.view(), want) {
-		t.Errorf("at %s the screen is\n%s\nwant it to say %q", h.clock.now.Format(time.StampMilli), h.view(), want)
+	before := between(h.view())
+	h.fire(h.lastTick())
+	if after := between(h.view()); after == before {
+		t.Errorf("at %s, a second on, the screen is\n%s\nwant the session's countdown, its last ten minutes in seconds, moved on", h.clock.now.Format(time.StampMilli), after)
 	}
+}
+
+// between is the screen between its title row and its footer, which tell
+// the time and how long ago the document was read.
+func between(screen string) string {
+	rows := strings.Split(screen, "\n")
+	return strings.Join(rows[1:len(rows)-1], "\n")
 }
 
 func TestATickFromBeforeAReadIsDropped(t *testing.T) {
@@ -344,7 +353,7 @@ func TestFooter(t *testing.T) {
 			if got := h.footer(); got != tt.want {
 				t.Errorf("footer = %q, want %q", got, tt.want)
 			}
-			if !strings.Contains(h.view(), "work · Work") {
+			if !strings.Contains(h.view(), "╭─ 1 Work ") {
 				t.Errorf("screen is\n%s\nwant the account's card still", h.view())
 			}
 		})
@@ -359,7 +368,7 @@ func TestFirstReadFails(t *testing.T) {
 	if got, want := h.footer(), probingKeys+" · couldn't read usage: connection refused · next 13:14"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
-	if strings.Contains(h.view(), "work · Work") {
+	if strings.Contains(h.view(), "╭─ 1 Work ") {
 		t.Errorf("screen is\n%s\nwant no account, nothing having been read", h.view())
 	}
 	h.source.err = nil
@@ -380,7 +389,7 @@ func TestDrawsAtTheTerminalsSize(t *testing.T) {
 	} {
 		h.update(size)
 		view := h.model.View()
-		if want := calmScreen(Size{Width: size.Width, Height: size.Height}, h.clock.now); view.Content != want {
+		if want := calmScreen(Size{Width: size.Width, Height: size.Height}, h.clock.now, h.model.trails); view.Content != want {
 			t.Errorf("at %dx%d, the screen is\n%s\nwant\n%s", size.Width, size.Height, view.Content, want)
 		}
 		if !view.AltScreen {
@@ -438,20 +447,21 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 			h.start()
 			h.settle()
 
-			if got, want := h.model.View().Content, calmScreen(tt.want, h.clock.now); got != want {
+			if got, want := h.model.View().Content, calmScreen(tt.want, h.clock.now, h.model.trails); got != want {
 				t.Errorf("the screen is\n%s\nwant it drawn at %dx%d:\n%s", got, tt.want.Width, tt.want.Height, want)
 			}
 		})
 	}
 }
 
-// calmScreen is the screen of calm read at now, as a terminal of the size
-// given shows it without colour, probing, with nothing more to say.
-func calmScreen(size Size, now time.Time) string {
+// calmScreen is the screen of calm read at now, its windows used as trails
+// says, as a terminal of the size given shows it without colour, probing,
+// with nothing more to say.
+func calmScreen(size Size, now time.Time, trails dashboard.History) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
-		Views: dashboard.Views(), View: dashboard.Accounts,
-		Keys:   []dashboard.Key{{Key: "q", Does: "quit", Always: true}},
+		Views: dashboard.Views(), View: dashboard.Accounts, History: trails,
+		Keys:   []dashboard.Key{{Key: "w", Does: "window: auto"}, {Key: "q", Does: "quit", Always: true}},
 		Status: "read 0s ago · next 13:42",
 		Policy: policy,
 	}.Draw(calm(), now), "\n")

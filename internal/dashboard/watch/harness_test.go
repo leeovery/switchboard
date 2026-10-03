@@ -280,6 +280,7 @@ func (h *harness) screenOf(doc status.Document) string {
 	return strings.Join(dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(), Views: m.views, View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
+		Featured: m.featured, Sessions: m.sessions,
 		Keys: m.keys(), Note: m.noted(now), Status: m.status(now), Policy: m.cfg.Policy,
 	}.Draw(doc, now), "\n")
 }
@@ -313,6 +314,11 @@ type fakeSource struct {
 	// histories lists the windows whose history was asked for, in turn, each
 	// as "<key> <step>".
 	histories []string
+	// sessions are the sessions the router lists, and sessionsErr what
+	// listing them fails with; listed counts the times they were asked for.
+	sessions    []status.Session
+	sessionsErr error
+	listed      int
 	// probing is set when the source probes as asked, as with --probe, even
 	// while the router answers.
 	probing bool
@@ -348,6 +354,14 @@ func (s *fakeSource) History(_ context.Context, window string, step time.Duratio
 
 func (s *fakeSource) RouterAnswers(context.Context) bool {
 	return s.router != nil
+}
+
+func (s *fakeSource) Sessions(context.Context) ([]status.Session, error) {
+	s.listed++
+	if s.sessionsErr != nil {
+		return nil, s.sessionsErr
+	}
+	return slices.Clone(s.sessions), nil
 }
 
 func (s *fakeSource) Pin(_ context.Context, accounts []string, move bool) error {

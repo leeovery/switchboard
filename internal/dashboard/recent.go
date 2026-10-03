@@ -133,7 +133,7 @@ func runsOut(e status.Event, doc status.Document) line {
 		out = " reaches its reserve ~"
 	}
 	window := windowName(doc, e.Account, first(e.Windows))
-	return line{{": its " + window + out + when(e.At, e.Until) + " " + rate, mutedInk}}
+	return line{{": its " + window + out + status.When(e.At, e.Until) + " " + rate, mutedInk}}
 }
 
 // limits names the limits an event says were reached, as in "session limit"
@@ -177,7 +177,7 @@ func refusal(e status.Event, account span) (span, line, bool) {
 	}
 	words := " was refused (" + answer + ")"
 	if !e.Until.IsZero() {
-		words += " until " + when(e.At, e.Until)
+		words += " until " + status.When(e.At, e.Until)
 	}
 	return mark, line{account, {words, mutedInk}}, true
 }
@@ -188,7 +188,7 @@ func resetting(e status.Event) string {
 	if e.Until.IsZero() {
 		return ""
 	}
-	return ", resetting " + when(e.At, e.Until)
+	return ", resetting " + status.When(e.At, e.Until)
 }
 
 // windowName names an account's window in a sentence, as prosed has its
@@ -196,7 +196,7 @@ func resetting(e status.Event) string {
 func windowName(doc status.Document, account, key string) string {
 	if a, ok := doc.Account(account); ok {
 		if w, ok := a.Window(key); ok {
-			return prosed(w.Label)
+			return status.InProse(w.Label)
 		}
 	}
 	return status.Clean(key)
@@ -229,17 +229,17 @@ func (f Frame) recentStrip(c *canvas, doc status.Document, now time.Time, x, y, 
 		gap = " "
 	}
 	for _, e := range events {
-		column = max(column, len(when(now, e.At)))
+		column = max(column, len(status.When(now, e.At)))
 	}
 	for i, e := range events {
 		mark, words, _ := told(e, doc, now)
-		at := span{fmt.Sprintf("%-*s", column, when(now, e.At)) + gap, dimInk}
+		at := span{fmt.Sprintf("%-*s", column, status.When(now, e.At)) + gap, dimInk}
 		if i == 0 {
 			at.ink = secondaryInk
 		}
 		c.line(x, y+i, slices.Concat(line{at, mark, spaces(1)}, words).fit(end-x))
 		if fade, ok := f.Fresh[e.ID]; ok {
-			c.surface(x, y+i, end-x, theme.BgAttention, fade)
+			c.surface(x, y+i, end-x, hue{token: theme.BgAttention, fade: fade})
 		}
 	}
 	return len(events)

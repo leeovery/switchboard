@@ -37,6 +37,12 @@ type Frame struct {
 	Fresh map[int]float64
 	// History is how the accounts' windows have been used, for the charts.
 	History History
+	// Featured is which window every card features, as w sets it.
+	Featured Feature
+	// Sessions are the sessions the router listed, the one seen last first,
+	// for the cards' dots: nil where it listed none, as while probing, and
+	// each card counts its account's sessions as the document does.
+	Sessions []status.Session
 	// Keys are the keys that work, the most used first: the footer lists as
 	// many as fit.
 	Keys []Key

@@ -87,8 +87,8 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		"Thu 1 Oct  14:42:07",
 		// The document, read readAgo before, rather than still being read.
 		"read 4s ago",
-		// work's session at its reading, its bar eased all the way there.
-		"58%",
+		// side's session at its reading, its bar eased all the way there.
+		"Session  ██▏┃█████▊░░░░░░░░  12% → 54%",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
 		"14:41  ▲ c61b started on side, the best",

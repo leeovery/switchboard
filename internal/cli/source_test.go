@@ -295,10 +295,16 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	if err != nil || history.Window != "7d" || history.Step != "30m0s" || len(history.Accounts) != 3 {
 		t.Errorf("History() = %+v, %v, want the router's history of every account's week", history, err)
 	}
+	if sessions, err := cfg.Source.Sessions(t.Context()); err != nil || sessions == nil {
+		t.Errorf("Sessions() = %+v, %v, want the router's list of its sessions", sessions, err)
+	}
 
 	stop()
 	if _, err := cfg.Source.History(t.Context(), "7d", 30*time.Minute); !errors.Is(err, router.ErrNotRunning) {
 		t.Errorf("once the router stopped, History() error = %v, want it not running", err)
+	}
+	if _, err := cfg.Source.Sessions(t.Context()); !errors.Is(err, router.ErrNotRunning) {
+		t.Errorf("once the router stopped, Sessions() error = %v, want it not running", err)
 	}
 	if _, _, err := cfg.Source.Read(t.Context(), watch.Read{Refresh: 30 * time.Minute}); !errors.Is(err, watch.ErrNoRouter) {
 		t.Errorf("once the router stopped, a question after it failed with %v, want ErrNoRouter", err)
