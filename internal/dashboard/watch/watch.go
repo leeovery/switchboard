@@ -202,8 +202,10 @@ type Model struct {
 	// views are the views there are, in tab's order, and view the one shown.
 	views []dashboard.View
 	view  dashboard.View
-	// news is what the looks have seen of the router's events.
-	news news
+	// news is what the looks have seen of the router's events, and changes
+	// of the cards' states.
+	news    news
+	changes changes
 	// history is how the accounts' windows have been used, and trails the
 	// charts' share of it, of the document on screen.
 	history history
@@ -341,7 +343,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		Views: m.views, View: m.view,
-		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), History: m.trails,
+		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails,
 		Featured: m.featured, Sessions: m.sessions, Scroll: m.scroll,
 		Note: m.noted(now), Status: m.status(now),
 		Policy: m.cfg.Policy,
@@ -468,6 +470,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.readings = m.readings.with(doc, now)
 	m = m.follow(doc, now)
 	m.news = m.news.looked(doc, msg.router, now)
+	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed, m.sessions = doc, now, "", msg.sessions
@@ -560,9 +563,10 @@ func (m Model) framed() (tea.Model, tea.Cmd) {
 }
 
 // moving reports whether anything on screen moves at now: a bar easing to
-// its reading, or the highlight on an event fading back.
+// its reading, or the highlight on an event, or on a card's state, fading
+// back.
 func (m Model) moving(now time.Time) bool {
-	return (m.ease.moves(m.doc) && !m.ease.done(now)) || m.news.faded(now) != nil
+	return (m.ease.moves(m.doc) && !m.ease.done(now)) || m.news.faded(now) != nil || m.changes.faded(now) != nil
 }
 
 // post posts the alerts in turn, noting each in the log. Of a document probed

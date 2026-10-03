@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -18,15 +19,13 @@ type happening struct {
 }
 
 // upcoming are the things coming up after now, soonest first, those at one
-// time in the order of doc's accounts: for each account, its limit lifting,
-// while one holds; but for one that holds back its every request, its
-// session running out, where it does before it resets, as RunsOut has it,
-// and its session resetting; and, from the router, each account's next
-// prime.
+// time in the order of doc's accounts, as coming has them for each account,
+// and, from the router, each account's next prime.
 func upcoming(doc status.Document, now time.Time, policy score.Policy) []happening {
+	shown := shownWindows(doc, now, policy)
 	var all []happening
 	for _, a := range doc.Accounts {
-		all = append(all, coming(doc, a, now, policy)...)
+		all = append(all, coming(doc, a, now, policy, shown)...)
 	}
 	for _, s := range doc.Prime.Slots {
 		all = append(all, happening{at: s.Next, name: named(doc, s.Account), what: " is primed", ink: primedInk})
@@ -36,37 +35,60 @@ func upcoming(doc status.Document, now time.Time, policy score.Policy) []happeni
 	return all
 }
 
-// coming are the things coming up of doc's account a at now, as upcoming
-// says, but for its prime. A limit of some models alone, reached in their
-// own window, is named by that window, as in "back from its Fable week
-// limit"; and a session running out where its reserve holds the account
-// back reaches its reserve, rather than running out at its pace.
-func coming(doc status.Document, a status.Account, now time.Time, policy score.Policy) []happening {
+// coming are the things coming up of doc's account a at now, of the windows
+// shown, as upcoming says, but for its prime: its limit lifting, while one
+// holds it back, as Held says, a limit of some models alone named by its
+// window, as in "back from its Fable week limit"; then, unless that holds it
+// back from every request, each of its windows running out, where it does
+// before it resets, as RunsOut has it, but one the limit holds, and its
+// session resetting.
+func coming(doc status.Document, a status.Account, now time.Time, policy score.Policy, shown []string) []happening {
 	var things []happening
-	if a.Limit.Holds(now) {
+	held, isHeld := a.Held(now, policy)
+	if isHeld {
 		what := " back from its limit"
-		if !limited(a, now, policy) {
-			what = " back from its " + limits(status.Event{Account: a.ID, Windows: a.Limit.Windows}, doc)
+		if !held.Every {
+			what = " back from its " + limits(status.Event{Account: a.ID, Windows: held.Windows}, doc)
 		}
-		things = append(things, happening{at: a.Limit.Until, name: name(a), what: what, ink: mutedInk})
-	}
-	w, ok := a.Window(policy.Started)
-	if !ok || a.HasLapsed(w) || limited(a, now, policy) {
-		return things
-	}
-	if out, ok := doc.RunsOut(a, w, now); ok {
-		what := " runs out at its pace"
-		if out.Reserve {
-			what = " reaches its reserve"
+		things = append(things, happening{at: held.Until, name: name(a), what: what, ink: mutedInk})
+		if held.Every {
+			return things
 		}
-		things = append(things, happening{at: out.At, name: name(a), what: what, ink: warningInk})
 	}
-	return append(things, happening{at: w.ResetsAt, name: name(a), what: "'s " + status.InProse(w.Label) + " resets", ink: mutedInk})
+	for _, key := range shown {
+		w, ok := a.Window(key)
+		if !ok || a.HasLapsed(w) || (isHeld && held.Holds(key)) {
+			continue
+		}
+		if out, ok := doc.RunsOut(a, w, now); ok {
+			things = append(things, happening{at: out.At, name: name(a), what: runningOut(w, out, policy), ink: warningInk})
+		}
+	}
+	if w, ok := a.Window(policy.Started); ok && !a.HasLapsed(w) {
+		things = append(things, happening{at: w.ResetsAt, name: name(a), what: "'s " + status.InProse(w.Label) + " resets", ink: mutedInk})
+	}
+	return things
+}
+
+// runningOut says what befalls an account as its window w runs out, as out
+// says: it runs out at its pace, or reaches its reserve where that holds it
+// back; as the window a request starts does, unnamed, as in "work runs out
+// at its pace", or as any other, named, as in "client's week reaches its
+// reserve".
+func runningOut(w quota.Window, out status.RunOut, policy score.Policy) string {
+	what := " runs out at its pace"
+	if out.Reserve {
+		what = " reaches its reserve"
+	}
+	if w.Key == policy.Started {
+		return what
+	}
+	return "'s " + status.InProse(w.Label) + what
 }
 
 // limited reports whether a limit holds the account back from every request
-// at now: one reached in a window every model shares, as policy says, or in
-// no window named.
+// at now, as Held says.
 func limited(a status.Account, now time.Time, policy score.Policy) bool {
-	return a.Limit.Holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
+	held, ok := a.Held(now, policy)
+	return ok && held.Every
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // padding is the blank cells either side of a card's content.
@@ -145,12 +146,16 @@ func (f Frame) card(c *canvas, fc face, now time.Time, x, y, width int, d densit
 }
 
 // part draws a card's part p, width cells wide and rows tall from x along
-// row y: its state; its featured window's readout, header, chart or axis,
+// row y: its state, its row picked out from side to side while a look saw it
+// change, fading back; its featured window's readout, header, chart or axis,
 // where it has one; or its other windows' bars.
 func (f Frame) part(c *canvas, fc face, now time.Time, p part, x, y, width, rows, labelled int) {
 	switch {
 	case p == stateRow:
 		c.line(x, y, fc.stateLine().fit(width))
+		if fade, ok := f.Changed[fc.account.ID]; ok {
+			c.surface(x-padding, y, width+2*padding, hue{token: theme.BgAttention, fade: fade})
+		}
 	case p == barRows:
 		f.bars(c, fc, now, x, y, width, rows, labelled)
 	case !fc.hasFeatured:

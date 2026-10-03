@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -40,7 +39,7 @@ func standingOf(doc status.Document, a status.Account, w quota.Window, now time.
 	if doc.ReserveHolds(a) {
 		s.floor = 1 - a.Reserve
 	}
-	if held, ok := a.Held(now, policy); ok && slices.Contains(held.Windows, w.Key) {
+	if held, ok := a.Held(now, policy); ok && held.Holds(w.Key) {
 		s.held, s.back = true, held.Until
 	} else if s.heading.Kind == score.Exhausted {
 		s.held, s.back = true, w.ResetsAt

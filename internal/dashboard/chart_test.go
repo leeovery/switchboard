@@ -26,8 +26,8 @@ func halfway() (status.Account, Trail) {
 }
 
 // chartOf draws the chart of doc's account a's window with the given key, of
-// the history given, width cells wide and rows tall, and returns the canvas
-// it's drawn on.
+// the history given, width cells wide and rows tall, in attention's colour,
+// as an account under pressure has it, and returns the canvas it's drawn on.
 func chartOf(t *testing.T, doc status.Document, a status.Account, key string, history History, width, rows int) *canvas {
 	t.Helper()
 	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, History: history}
@@ -36,7 +36,8 @@ func chartOf(t *testing.T, doc status.Document, a status.Account, key string, hi
 		t.Fatalf("no window %s", key)
 	}
 	c := newCanvas(width, rows+1)
-	b := f.burndownOf(doc, a, standingOf(doc, a, w, now, claudeLike), theme.AccentAttention, now)
+	fc := face{account: a, state: status.State{Condition: status.Pressed}, featured: standingOf(doc, a, w, now, claudeLike), limitAt: limitReached(doc, a.ID, now)}
+	b := f.burndownOf(doc, fc, now)
 	f.chart(c, b, 0, 0, width, rows)
 	f.axis(c, b, 0, rows, width)
 	return c
@@ -107,14 +108,53 @@ func TestAChartAtItsLimitRunsAlongTheFloorTillTheLimitLifts(t *testing.T) {
 
 func TestAChartWithoutHistoryIsTheRoomNowFromItsStart(t *testing.T) {
 	a, _ := halfway()
-	c := chartOf(t, routerDoc("", 0, a), a, "5h", nil, 30, 3)
-
-	rows := c.rows(Look{})
-	if got, want := rows[1], "▂▂▂▂▂▂▂ no history yet"; got != want || !strings.HasPrefix(rows[2], strings.Repeat("█", 16)+"│") {
-		t.Errorf("drew\n%s\nwant row 2 %q: the room now, flat from its start, marked", strings.Join(rows, "\n"), want)
+	tests := []struct {
+		name  string
+		width int
+		want  []string
+	}{
+		{
+			name: "marked across its level, clear of its marks", width: 40,
+			want: []string{
+				"                     │",
+				"▂▂ no history yet ▂▂▂⡀⡀",
+				"█████████████████████│ ⠁⠁⠁⠂⠂⠂⠄⠄⠄⡀✕",
+				"10:42              now             15:42",
+			},
+		},
+		{
+			name: "its level too short for the words, marked across it all, its marks over them", width: 14,
+			want: []string{
+				"        │",
+				" no hist│ry…",
+				"████████⠁⠂⠄✕",
+				"10:42    15:42",
+			},
+		},
 	}
-	if got := c.at(0, 2).ink; got != faintLevelInk {
-		t.Errorf("the level is in %+v, want dim", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := chartOf(t, routerDoc("", 0, a), a, "5h", nil, tt.width, 3)
+			if got := c.rows(Look{}); !slices.Equal(got, tt.want) {
+				t.Errorf("drew\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+			if got := c.at(0, 2).ink; got != faintLevelInk {
+				t.Errorf("the level is in %+v, want dim", got)
+			}
+		})
+	}
+}
+
+func TestALimitNamingNoWindowHoldsTheChartOnTheFloorFromWhenItWasReached(t *testing.T) {
+	a, trail := halfway()
+	reached := now.Add(-time.Hour)
+	a.Limit = status.Limit{Until: now.Add(time.Hour)}
+	doc := routerDoc("", 0, a)
+	doc.Events = []status.Event{{ID: 1, At: reached.UTC(), Kind: status.EventLimit, Account: "work"}}
+	c := chartOf(t, doc, a, "5h", History{{Account: "work", Window: "5h"}: trail}, 20, 2)
+
+	if got, want := c.rows(Look{}), []string{"████▂▂     │", "██████▁▁▁▁▁▁▁▁", "10:42    now   15:42"}; !slices.Equal(got, want) {
+		t.Errorf("drew\n%s\nwant\n%s\n: the level on the floor from the limit, and a line along it till the limit lifts", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

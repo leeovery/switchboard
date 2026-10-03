@@ -21,26 +21,35 @@ type Feature string
 // used.
 const Auto Feature = ""
 
-// Next is the setting w moves on to from f, as doc stands at now: auto, then
-// the window a request starts, then the week, then any other window in use,
-// and round to auto. A setting w doesn't reach, as one a later document has
-// no use for, moves on as auto does.
-func (f Feature) Next(doc status.Document, now time.Time, policy score.Policy) Feature {
+// settings are the settings w moves through, as doc stands at now: auto,
+// then the window a request starts, then the week, then any other window in
+// use.
+func settings(doc status.Document, now time.Time, policy score.Policy) []Feature {
 	cycle := []Feature{Auto}
 	for _, key := range slices.Concat([]string{policy.Started, policy.Perishable}, shownWindows(doc, now, policy)) {
 		if key != "" && !slices.Contains(cycle, Feature(key)) {
 			cycle = append(cycle, Feature(key))
 		}
 	}
+	return cycle
+}
+
+// Next is the setting w moves on to from f, as doc stands at now, through
+// its settings and round to auto. A setting w doesn't reach, as one no
+// longer in use, the cards feature as auto does, and moves on as auto does.
+func (f Feature) Next(doc status.Document, now time.Time, policy score.Policy) Feature {
+	cycle := settings(doc, now, policy)
 	return cycle[(max(slices.Index(cycle, f), 0)+1)%len(cycle)]
 }
 
-// Name is what the footer calls the setting: "auto"; the window a request
-// starts by its key, as ROOM LEFT calls it, "5h"; and any other by its label
-// as a narrow column has it, in a sentence, as "week" and "Fable wk".
-func (f Feature) Name(doc status.Document, policy score.Policy) string {
+// Name is what the footer and the help call the setting as doc stands at
+// now, as the cards show it: "auto", which a setting w doesn't reach, as one
+// no longer in use, shows as; the window a request starts by its key, as
+// ROOM LEFT calls it, "5h"; and any other by its label as a narrow column
+// has it, in a sentence, as "week" and "Fable wk".
+func (f Feature) Name(doc status.Document, now time.Time, policy score.Policy) string {
 	switch key := string(f); {
-	case f == Auto:
+	case f == Auto || !slices.Contains(settings(doc, now, policy), f):
 		return "auto"
 	case key == policy.Started:
 		return status.Clean(key)
@@ -163,12 +172,16 @@ func withKey(windows []quota.Window, key string) (quota.Window, bool) {
 }
 
 // holding is the window of account a's windows holding it back at now, as
-// policy says which every model shares: one at its limit, else one at its
-// reserve; reporting false where none is.
+// policy says which every model shares: one at its limit, the window a
+// request starts first where a limit names none, as it holds every window;
+// else one at its reserve; reporting false where none is.
 func holding(a status.Account, windows []quota.Window, now time.Time, policy score.Policy) (quota.Window, bool) {
 	var keys []string
 	if held, ok := a.Held(now, policy); ok {
 		keys = held.Windows
+		if len(keys) == 0 {
+			keys = []string{policy.Started}
+		}
 	}
 	for _, key := range slices.Concat(keys, a.AtReserve) {
 		if w, ok := withKey(windows, key); ok {

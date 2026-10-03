@@ -150,6 +150,22 @@ func TestWPassesOverAWindowNoAccountUses(t *testing.T) {
 	}
 }
 
+func TestAWindowKeptButNoLongerInUseIsNamedAsTheCardsShowItAuto(t *testing.T) {
+	h := newHarness(t, document(account("work", "Work", session(0.25, 3*time.Hour), week(0.5), fableWeek(0))))
+	h.model.featured = "7d_oi"
+	h.start()
+
+	if !strings.HasPrefix(h.footer(), "w window: auto · ") {
+		t.Errorf("the footer reads %q, want auto, as the cards show Fable's week, unused", h.footer())
+	}
+	if help := h.model.helpKeys(); help[0].Does != "cycle the window every card features, now auto" {
+		t.Errorf("the help says w does %q, want it to say auto", help[0].Does)
+	}
+	if h.press("w"); h.model.featured != "5h" {
+		t.Errorf("w featured %q, want 5h, moving on from auto", h.model.featured)
+	}
+}
+
 func TestOpensFeaturingTheWindowKept(t *testing.T) {
 	h := unsizedHarness(t, calm(), Size{Width: 160, Height: 40})
 	h.model = New(t.Context(), Config{

@@ -15,8 +15,10 @@ import (
 func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 	lapsed := readAccount("spare", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.05, 6*day))
 	lapsed.Lapsed = []string{"5h"}
-	pastLimit := limitedAccount("over")
-	pastLimit.Limit.Until = now.Add(-time.Minute)
+	pastLimit := readAccount("over", sessionOf(0.3, time.Hour), weekOf(0.2, 3*day))
+	pastLimit.Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(-time.Minute)}
+	spent := readAccount("spent", sessionOf(0.2, 3*time.Hour), weekOf(0.3, 3*day), windowOf("7d_oi", "Fable week", 1, 2*day))
+	running := readAccount("client", sessionOf(0.1, 3*time.Hour), weekOf(0.7, 3*day))
 	fable := readAccount("fable", sessionOf(0.1, 2*time.Hour), weekOf(0.2, 3*day), windowOf("7d_oi", "Fable week", 1, 4*day))
 	fable.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: now.Add(4 * day)}
 	reserved := pressedAccount("work")
@@ -30,13 +32,14 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 		want  []string
 	}{
 		{
-			name: "the frames': a limit lifting, a session running out, and resetting",
+			name: "the frames': a limit lifting, a session running out, and resetting, and a week running out",
 			doc:  threeRouted(),
 			want: []string{
 				"14:12 personal back from its limit",
 				"14:42 work runs out at its pace",
 				"16:12 work's session resets",
 				"17:12 side's session resets",
+				"Fri 14:39 side's week runs out at its pace",
 			},
 		},
 		{
@@ -70,6 +73,16 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			doc:  pinned,
 			want: []string{"14:42 work runs out at its pace", "16:12 work's session resets"},
 		},
+		{
+			name: "a window other than the session running out, named",
+			doc:  routerDoc("client", 0, running),
+			want: []string{"16:12 client's session resets", "Wed 06:20 client's week runs out at its pace"},
+		},
+		{
+			name: "a window read spent, without the router, back as it resets",
+			doc:  probed(spent, limitedAccount("held")),
+			want: []string{"14:12 held back from its limit", "16:12 spent's session resets", "Wed 13:12 spent back from its Fable week limit"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,13 +103,14 @@ func TestCOMINGUPsInks(t *testing.T) {
 	doc.Prime = status.Prime{Slots: []status.Slot{{Account: "side", Next: now.Add(time.Minute)}}}
 	reserved := pressedAccount("client")
 	reserved.Reserve = 0.1
-	doc.Accounts = append(doc.Accounts, reserved)
+	doc.Accounts = append(doc.Accounts, reserved, readAccount("lab", sessionOf(0.1, 3*time.Hour), weekOf(0.7, 3*day)))
 	want := map[string]theme.Token{
-		" is primed":            theme.AccentPrimary,
-		" back from its limit":  theme.TextMuted,
-		" runs out at its pace": theme.AccentAttention,
-		" reaches its reserve":  theme.AccentAttention,
-		"'s session resets":     theme.TextMuted,
+		" is primed":                   theme.AccentPrimary,
+		" back from its limit":         theme.TextMuted,
+		" runs out at its pace":        theme.AccentAttention,
+		" reaches its reserve":         theme.AccentAttention,
+		"'s week runs out at its pace": theme.AccentAttention,
+		"'s session resets":            theme.TextMuted,
 	}
 	seen := map[string]bool{}
 	for _, h := range upcoming(doc, now, claudeLike) {

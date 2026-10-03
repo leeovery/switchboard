@@ -313,8 +313,20 @@ func TestCardsThatFitDontScroll(t *testing.T) {
 	if rows := f.Draw(doc, now); !strings.HasPrefix(rows[7], " ╭─ 1 a ") || strings.HasSuffix(rows[7], "┃") {
 		t.Errorf("scrolled 3 rows, cards that fit start %q, want them unscrolled, without a scrollbar", rows[7])
 	}
-	if got := frameOf(160, 40).Scrolling(doc, now); got.Most != 0 {
+}
+
+func TestAFramePrintedOnceNeverScrolls(t *testing.T) {
+	f := Frame{Width: 160, View: Accounts, Policy: claudeLike, Scroll: 5}
+	doc := accountsOf(8, false)
+	if got := f.Scrolling(doc, now); got != (Scrolling{}) {
 		t.Errorf("a printed frame's Scrolling() = %+v, want none", got)
+	}
+	rows := f.Draw(doc, now)
+	if !strings.HasPrefix(rows[7], " ╭─ 1 a ") || strings.HasSuffix(rows[7], "┃") {
+		t.Errorf("scrolled 5 rows, a printed frame's cards start %q, want them unscrolled, without a scrollbar", rows[7])
+	}
+	if got := strings.Count(strings.Join(rows, "\n"), "╭─ "); got != 8 {
+		t.Errorf("printed %d cards, want every one of the 8", got)
 	}
 }
 

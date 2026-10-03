@@ -315,10 +315,12 @@ its own rules, so a few read otherwise than the generator drew them:
   3.5.
 - **Projections** the generator gave without its numbers giving them: client's week, 78% used a
   third of the way through, reaches its 80% reserve at 16:04, which holds it back, rather than
-  heading for 97%, so its card says `→ out ~16:04` and its chart's `✕` is just past now; at their
-  pace, spare's week heads for 34% and extra's for 8%, not 12% and 5%, and with Fable's week used,
-  client's heads for 63%, not 36%; and work's Fable week heads for 30.7%, which reads 31% but fills
-  its bar an eighth of a cell short of the frames' 31%.
+  heading for 97%, so its card says `→ out ~16:04` and its chart's `✕` is just past now, and
+  COMING UP, with four accounts or more, says `16:04  client's week reaches its reserve` as its
+  third thing, where the frames have `16:40  client's session resets` or `16:20  spare is
+  primed`; at their pace, spare's week heads for 34% and extra's for 8%, not 12% and 5%, and with
+  Fable's week used, client's heads for 63%, not 36%; and work's Fable week heads for 30.7%,
+  which reads 31% but fills its bar an eighth of a cell short of the frames' 31%.
 - **Countdowns** run from 14:42:07, the frames' from 14:42: as the dashboard counts now, personal
   is back in 1h 11m, not 1h 12m, and its big digits read `1:11`. They're `status`'s countdowns,
   so side's session resets `in 4h 7m`, not `in 4h 08m`.

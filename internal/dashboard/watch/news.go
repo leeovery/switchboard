@@ -65,16 +65,23 @@ func (n news) another(from router.Health) bool {
 }
 
 // faded is how far the highlight of each event picked out at now has faded,
-// by id: from 0, just seen, to 1, gone, quickening as it goes. It's nil when
-// none is picked out.
+// by id, as fading says.
 func (n news) faded(now time.Time) map[int]float64 {
-	var faded map[int]float64
-	for id, at := range n.since {
+	return fading(n.since, now)
+}
+
+// fading is how far the highlight of each thing picked out at the time
+// since gives has faded at now, by its key: from 0, just seen, to 1, gone,
+// quickening as it goes, highlightFor after it was seen. It's nil when none
+// is picked out still.
+func fading[K comparable](since map[K]time.Time, now time.Time) map[K]float64 {
+	var faded map[K]float64
+	for key, at := range since {
 		if p := progress(now.Sub(at), highlightFor); p < 1 {
 			if faded == nil {
-				faded = make(map[int]float64)
+				faded = make(map[K]float64)
 			}
-			faded[id] = easeInCubic(p)
+			faded[key] = easeInCubic(p)
 		}
 	}
 	return faded

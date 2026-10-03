@@ -43,9 +43,10 @@ func (f Frame) readout(c *canvas, fc face, now time.Time, x, y, end int) {
 // readout does: at its limit, and when it was reached, as the router told of
 // it; that it hasn't started; that it runs out, or reaches its account's
 // reserve, where it does before it resets, as RunsOut has it, as in "→ runs
-// out ~16:05", and at what rate, where that's its recent rate, as in "at its
-// last-30-min rate"; else the share it's heading for by its reset, as in "→
-// 72% by its reset". It's nil where nothing says.
+// out ~16:05", and at what rate, where that's its recent rate, measured over
+// the span to when the document was read, as the router measures it, as in
+// "at its last-30-min rate"; else the share it's heading for by its reset,
+// as in "→ 72% by its reset". It's nil where nothing says.
 func (fc face) whereHeading(now time.Time) line {
 	s := fc.featured
 	switch {
@@ -62,7 +63,7 @@ func (fc face) whereHeading(now time.Time) line {
 		}
 		l := line{{verb + status.Dated(now, s.out.At), alertInk}}
 		if s.out.Recent {
-			l = append(l, span{" at its " + lately(s.out.Since, now) + " rate", mutedInk})
+			l = append(l, span{" at its " + lately(s.out.Since, fc.read) + " rate", mutedInk})
 		}
 		return l
 	}

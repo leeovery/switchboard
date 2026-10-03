@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -38,6 +39,9 @@ type face struct {
 	// limitAt is when it reached its limit, as the router told of it, and
 	// primed when the router next primes it: zero where unknown.
 	limitAt, primed time.Time
+	// read is when the document was read, which a recent rate is measured
+	// to.
+	read time.Time
 }
 
 // faces are the fronts of doc's accounts' cards at now, and the keys of the
@@ -60,11 +64,12 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 		windows: shown, bars: make(map[string]standing),
 		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID),
 		sessions: a.Sessions, limitAt: limitReached(doc, a.ID, now), primed: primedNext(doc, a.ID),
+		read: cmp.Or(doc.GeneratedAt, now),
 	}
 	w, ok := featured(doc, a, now, f.Policy, f.Featured, shown)
 	if ok {
 		fc.featured, fc.hasFeatured = standingOf(doc, a, w, now, f.Policy), true
-		fc.chart = f.burndownOf(doc, a, fc.featured, fc.tone(), now)
+		fc.chart = f.burndownOf(doc, fc, now)
 	}
 	for _, key := range shown {
 		if bar, has := a.Window(key); has && (!ok || key != w.Key) {
@@ -78,13 +83,17 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 	return fc
 }
 
-// burndownOf is the chart of doc's account a's window as it stands, s, at
-// now, in the tone of its state, from its history.
-func (f Frame) burndownOf(doc status.Document, a status.Account, s standing, tone theme.Token, now time.Time) burndown {
-	b := burndown{standing: s, tone: tone, now: now, starts: doc.StartsAt(a.ID, now)}
-	b.start, b.length, b.spanned = s.window.Span()
-	b.trail = f.History[Ref{Account: a.ID, Window: s.window.Key}]
+// burndownOf is the chart of the window the card of doc's account fc
+// features, as it stands at now, in the tone of its state, from its history,
+// and while it's held at its limit, on the floor from when that was reached.
+func (f Frame) burndownOf(doc status.Document, fc face, now time.Time) burndown {
+	b := burndown{standing: fc.featured, tone: fc.tone(), now: now, starts: doc.StartsAt(fc.account.ID, now)}
+	b.start, b.length, b.spanned = b.window.Span()
+	b.trail = f.History[Ref{Account: fc.account.ID, Window: b.window.Key}]
 	b.traced = len(b.trail.Readings) > 0
+	if b.held {
+		b.heldFrom = fc.limitAt
+	}
 	return b
 }
 

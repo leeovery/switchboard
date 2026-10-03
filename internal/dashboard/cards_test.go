@@ -78,7 +78,7 @@ func TestACardAtEachDensity(t *testing.T) {
 			"│                                                │",
 			"│                    │                           │",
 			"│                    │                           │",
-			"│  ▅▅▅▅▅▅▅▅▅▅▅▅▅▅ no history yet                 │",
+			"│  ▅ no history yet ▅⠂⠂⠄⠄⡀⡀                      │",
 			"│  ██████████████████│ ⠠ ⠠ ⠡⠁⠢✕⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠   │",
 			"│  11:12           now                    16:12  │",
 			"│                                                │",
@@ -95,7 +95,7 @@ func TestACardAtEachDensity(t *testing.T) {
 			"│                    │                           │",
 			"│                    │                           │",
 			"│                    │                           │",
-			"│  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄ no history yet                 │",
+			"│  ▄ no history yet ▄⠄⡀⡀                         │",
 			"│  ██████████████████│  ⠁⠂⠂⠄⡀                    │",
 			"│  ██████████████████│ ⠐ ⠐ ⠐ ⠑✕⠐ ⠐ ⠐ ⠐ ⠐ ⠐ ⠐ ⠐   │",
 			"│  11:12           now                    16:12  │",
@@ -108,7 +108,7 @@ func TestACardAtEachDensity(t *testing.T) {
 			"│  ● under pressure · new sessions go elsewhere  │",
 			"│  Session  58%  → out ~14:20      resets 16:12  │",
 			"│                    │                           │",
-			"│  ▇▇▇▇▇▇▇▇▇▇▇▇▇▇ no history yet ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠   │",
+			"│  ▇ no history yet ▇⠁⠁⠢⠂⠢⠂⠤⠄⠤✕⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠   │",
 			"│  Week     ██████▏┃██████▎░╎░  34% → 79%        │",
 			"│  Fable wk ██▏██░░┃░░░░░░░░╎░  12% → 28%        │",
 			"╰─ ● ○ ───────────────────────────── 2 sessions ─╯",
@@ -291,6 +291,49 @@ func TestAReadoutsDigitsTakeTheColourOfItsAccountsState(t *testing.T) {
 	}
 }
 
+func TestACardWhoseStateChangedHasItsStateLinePickedOutFadingBack(t *testing.T) {
+	f := frameOf(160, 40)
+	f.Changed = map[string]float64{"work": 0.25}
+	c := newCanvas(f.Width, f.Height)
+	top := f.above(c, threeRouted(), now)
+	f.accounts(c, threeRouted(), now, top)
+
+	want := hue{token: theme.BgAttention, fade: 0.25}
+	state := top + 2
+	for x := 2; x < 50; x++ {
+		if got := c.at(x, state).ink.on; got != want {
+			t.Fatalf("work's state row, cell %d, is on %+v, want %+v, side to side", x, got, want)
+		}
+	}
+	for _, x := range []int{1, 50, 60} {
+		if got := c.at(x, state).ink.on; got != (hue{}) {
+			t.Errorf("cell %d of the state row is on %+v, want the canvas: work's sides, and another card", x, got)
+		}
+	}
+}
+
+func TestALimitNamingNoWindowHoldsEveryWindowOfTheCard(t *testing.T) {
+	work := pressedAccount("work")
+	work.Limit = status.Limit{Until: now.Add(72 * time.Minute).UTC()}
+	doc := routerDoc("", 0, work)
+	doc.Events = []status.Event{{ID: 1, At: now.Add(-30 * time.Minute).UTC(), Kind: status.EventLimit, Account: "work"}}
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+	faces, _ := f.faces(doc, now)
+	fc := faces[0]
+	if fc.featured.window.Key != "5h" || !fc.featured.held || !fc.bars["7d"].held {
+		t.Fatalf("featuring %s, held %v, its week held %v; want the 5-hour window featured, and every window held", fc.featured.window.Key, fc.featured.held, fc.bars["7d"].held)
+	}
+	c := newCanvas(44, bigRows)
+	f.readout(c, fc, now, 0, 0, 44)
+	want := []string{"▄█  ▄ ▄█  ▀▀█    SESSION  5-hour window", " █  ▄  █  █▀▀    limit reached at 12:42", "▀▀▀   ▀▀▀ ▀▀▀    its window resets 16:12"}
+	if got := c.rows(Look{}); !slices.Equal(got, want) {
+		t.Errorf("work's readout reads\n%s\nwant\n%s: the timer till the limit lifts, and its words", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if got := c.at(0, 2).ink; got != errorInk {
+		t.Errorf("work's timer is in %+v, want destructive", got)
+	}
+}
+
 func TestAReadoutKeepsWhenItRunsOutWholeOverTheRateItGoesBy(t *testing.T) {
 	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
 	for _, tt := range []struct {
@@ -307,6 +350,17 @@ func TestAReadoutKeepsWhenItRunsOutWholeOverTheRateItGoesBy(t *testing.T) {
 		f.readout(c, faces[0], now, 0, 0, 44)
 		if got := strings.TrimSpace(strings.TrimPrefix(c.rows(Look{})[1], "▀▀█ █▀█ ▄▀")); got != tt.want {
 			t.Errorf("with a reserve of %v, it reads %q, want %q", tt.reserve, got, tt.want)
+		}
+	}
+}
+
+func TestAReadoutsRateIsMeasuredToWhenTheDocumentWasRead(t *testing.T) {
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+	doc := pressedWork()
+	for _, later := range []time.Duration{0, 15 * time.Minute} {
+		faces, _ := f.faces(doc, now.Add(later))
+		if got := text(faces[0].whereHeading(now.Add(later))); !strings.HasSuffix(got, " at its last-30-min rate") {
+			t.Errorf("%s after the document was read, it reads %q, want the last-30-min rate, the span the router measured over", later, got)
 		}
 	}
 }

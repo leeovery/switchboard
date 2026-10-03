@@ -288,7 +288,7 @@ type keyListing struct {
 // and m; r; t, in colour; and ? and q, always. The footer leaves j and k, r
 // and t behind ?.
 func (m Model) listings() []keyListing {
-	window := m.featured.Name(m.doc, m.cfg.Policy)
+	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
 	return []keyListing{
 		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},
 		{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: m.view == dashboard.Accounts},

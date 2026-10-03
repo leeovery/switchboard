@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -35,8 +36,14 @@ func TestOnceReadsTheRoutersDocumentSessionsAndHistory(t *testing.T) {
 	if want := []string{"5h 5m0s", "7d 30m0s"}; !slices.Equal(source.histories, want) {
 		t.Errorf("Once() asked for the history of %q, want %q: every window, once, at its step", source.histories, want)
 	}
-	if got := snap.History[dashboard.Ref{Account: "work", Window: "5h"}].Readings; len(got) != 2 {
-		t.Errorf("work's session has the readings %+v, want the router's two", got)
+	got := snap.History[dashboard.Ref{Account: "work", Window: "5h"}].Readings
+	want := []score.Reading{
+		{At: sessionStart.UTC(), Utilization: 0.1},
+		{At: sessionStart.Add(5 * time.Minute).UTC(), Utilization: 0.2},
+		{At: start.UTC(), Utilization: 0.25},
+	}
+	if !slices.EqualFunc(got, want, sameReading) {
+		t.Errorf("work's session has the readings %+v, want the router's two, carried on by the document's own, %+v", got, want)
 	}
 }
 

@@ -50,7 +50,10 @@ type burndown struct {
 	// starts says when a lapsed window starts again, as in "window starts at
 	// its prime, 16:20".
 	starts string
-	now    time.Time
+	// heldFrom is when the window was held at its limit from, where the
+	// router told of it: zero otherwise.
+	heldFrom time.Time
+	now      time.Time
 }
 
 // elapsed is how much of the window has passed at now, from 0 to 1.
@@ -83,17 +86,18 @@ func (b burndown) usedAt(t time.Time) (float64, bool) {
 
 // chart draws the burn-down width cells wide and rows tall from x along row
 // y. The past is a level in eighths of a cell, a column for each stretch of
-// the window up to now, filled to the room its last reading before the
-// middle of that stretch left, in the state's colour faded halfway: without
+// the window up to now, filled to the room left at the middle of that
+// stretch, as roomAt has it, in the state's colour faded halfway: without
 // history, the room now, dim, marked "no history yet". Where nothing was
 // left, a line runs along the floor in destructive, and on until the limit
 // lifts while the window's held at it. Now is a thin line in the border's
 // colour; where the window's heading, a dotted line from the level now, to
 // ✕ on the floor where it runs out, else to the room it has left at its
 // reset. The floor is where the account's reserve starts, where that holds
-// it back, drawn as a faint dotted line, else its limit. A lapsed window is
-// a full level, dim, saying when it starts; and one whose reset isn't known
-// has no length to draw it over.
+// it back, drawn as a faint dotted line, else its limit. The marks, now's
+// line and what's ahead, are drawn last, over what's under them. A lapsed
+// window is a full level, dim, saying when it starts; and one whose reset
+// isn't known has no length to draw it over.
 func (f Frame) chart(c *canvas, b burndown, x, y, width, rows int) {
 	switch {
 	case width < 1 || rows < 1:
@@ -114,19 +118,45 @@ func (f Frame) chart(c *canvas, b burndown, x, y, width, rows int) {
 	ahead := b.nowColumn(width)
 	for col := range ahead {
 		stretch := (float64(col) + 0.5) / float64(width)
-		if used, ok := b.usedAt(earliest(b.at(stretch), b.now)); ok {
-			level(c, x+col, y, rows, 1-used, past)
-		}
-	}
-	f.ahead(c, b, x, y, width, rows, ahead)
-	for row := range rows {
-		if here := c.at(x+ahead, y+row); here != nil && ahead < width && here.glyph == " " {
-			c.text(x+ahead, y+row, nowLine, borderInk)
+		if room, ok := b.roomAt(earliest(b.at(stretch), b.now)); ok {
+			level(c, x+col, y, rows, room, past)
 		}
 	}
 	if !b.traced {
-		across(c, x, y+rows/2, width, "no history yet")
+		untraced(c, x, y, width, rows, ahead)
 	}
+	if ahead < width {
+		for row := range rows {
+			c.text(x+ahead, y+row, nowLine, borderInk)
+		}
+	}
+	f.ahead(c, b, x, y, width, rows, ahead)
+}
+
+// untracedLabel marks a chart drawn without history.
+const untracedLabel = "no history yet"
+
+// untraced marks a chart width cells wide and rows tall from x along row y,
+// drawn without history, its column for now ahead: across its level, from
+// its left to now, where the words fit there clear of its marks, else
+// across the whole of it, under the marks drawn after.
+func untraced(c *canvas, x, y, width, rows, ahead int) {
+	if ahead < ansi.StringWidth(untracedLabel)+2 {
+		ahead = width
+	}
+	across(c, x, y+rows/2, ahead, untracedLabel)
+}
+
+// roomAt is the room the window had left at t, as its last reading at or
+// before t left it, reporting false where it has none, or, without history,
+// the room it has now; and none from when it was held at its limit, where
+// that's known.
+func (b burndown) roomAt(t time.Time) (float64, bool) {
+	if b.held && !b.heldFrom.IsZero() && !t.Before(b.heldFrom) {
+		return 0, true
+	}
+	used, ok := b.usedAt(t)
+	return 1 - used, ok
 }
 
 // at is the time a share of the way through the window.

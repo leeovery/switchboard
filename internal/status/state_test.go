@@ -296,3 +296,21 @@ func TestWhatHoldsAnAccountBackAtItsLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestAHoldHoldsTheWindowsItNamesOrEveryWindowNamingNone(t *testing.T) {
+	tests := []struct {
+		name string
+		hold status.Hold
+		want map[string]bool
+	}{
+		{name: "naming some", hold: status.Hold{Windows: []string{"5h", "7d_oi"}, Every: true}, want: map[string]bool{"5h": true, "7d": false, "7d_oi": true}},
+		{name: "naming none, as a limit only the overall verdict said", hold: status.Hold{Every: true}, want: map[string]bool{"5h": true, "7d": true, "7d_oi": true}},
+	}
+	for _, tt := range tests {
+		for key, want := range tt.want {
+			if got := tt.hold.Holds(key); got != want {
+				t.Errorf("%s: Holds(%q) = %v, want %v", tt.name, key, got, want)
+			}
+		}
+	}
+}

@@ -35,9 +35,11 @@ type Frame struct {
 	// Outdated is set when the router is from before it told of events and
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool
-	// Fresh are the events looks saw newly, by id, each as far as the
+	// Fresh are the events looks saw newly, by id, and Changed the accounts
+	// whose cards' states looks saw change, by id, each as far as the
 	// highlight on its row has faded, from 0, just seen, to 1, gone.
-	Fresh map[int]float64
+	Fresh   map[int]float64
+	Changed map[string]float64
 	// History is how the accounts' windows have been used, for the charts.
 	History History
 	// Featured is which window every card features, as w sets it.

@@ -149,6 +149,12 @@ type Hold struct {
 	Every bool
 }
 
+// Holds reports whether the hold holds the window with the given key: one it
+// names, or any, for a limit naming none, which holds every window.
+func (h Hold) Holds(key string) bool {
+	return len(h.Windows) == 0 || slices.Contains(h.Windows, key)
+}
+
 // Held returns what holds the account back at its limit at now, as policy
 // says which windows every model shares, reporting false where nothing does:
 // the limit the router saw it reach, while it holds; else the windows read

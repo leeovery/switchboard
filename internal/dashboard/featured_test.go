@@ -150,9 +150,23 @@ func TestWCyclesTheWindowsInUse(t *testing.T) {
 
 func TestTheFeaturedWindowsNames(t *testing.T) {
 	doc := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0.1, 4*day)))
-	for setting, want := range map[Feature]string{Auto: "auto", "5h": "5h", "7d": "week", "7d_oi": "Fable wk", "7d_x": "7d_x"} {
-		if got := setting.Name(doc, claudeLike); got != want {
-			t.Errorf("Name() of %q = %q, want %q", setting, got, want)
+	unused := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)))
+	tests := []struct {
+		name    string
+		doc     status.Document
+		setting Feature
+		want    string
+	}{
+		{name: "auto", doc: doc, setting: Auto, want: "auto"},
+		{name: "the window a request starts, by its key", doc: doc, setting: "5h", want: "5h"},
+		{name: "the week, by its label", doc: doc, setting: "7d", want: "week"},
+		{name: "a model's own, by its label, short", doc: doc, setting: "7d_oi", want: "Fable wk"},
+		{name: "one no longer in use, as auto, which the cards show", doc: unused, setting: "7d_oi", want: "auto"},
+		{name: "one no account has, as auto", doc: doc, setting: "7d_x", want: "auto"},
+	}
+	for _, tt := range tests {
+		if got := tt.setting.Name(tt.doc, now, claudeLike); got != tt.want {
+			t.Errorf("%s: Name() of %q = %q, want %q", tt.name, tt.setting, got, tt.want)
 		}
 	}
 }
