@@ -49,16 +49,46 @@ func (Provider) Session(h http.Header) string {
 	return h.Get(SessionHeader)
 }
 
-// Model returns the model a messages request's body asks for, or "" when the
-// body doesn't say.
-func (Provider) Model(body []byte) string {
+// quotaCheck is what Claude Code's quota check asks, in its one message.
+const quotaCheck = "quota"
+
+// Asks reads a messages request's body for the model it asks for, or "" when
+// the body doesn't say, and whether it's Claude Code's quota check: one
+// message, quota, answered with a token at most, which Claude Code sends as it
+// starts. The body is read whole once, as it can run to megabytes; only one
+// asking for a token at most is read again, for its message.
+func (Provider) Asks(body []byte) (model string, check bool) {
 	var req struct {
-		Model string `json:"model"`
+		Model     string          `json:"model"`
+		MaxTokens json.RawMessage `json:"max_tokens"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
-		return ""
+		return "", false
 	}
-	return req.Model
+	return req.Model, string(req.MaxTokens) == "1" && asksOnly(body, quotaCheck)
+}
+
+// asksOnly reports whether a messages request's body has one message, asking
+// text: as a string, or a block of text.
+func asksOnly(body []byte, text string) bool {
+	var req struct {
+		Messages []struct {
+			Content json.RawMessage `json:"content"`
+		} `json:"messages"`
+	}
+	if json.Unmarshal(body, &req) != nil || len(req.Messages) != 1 {
+		return false
+	}
+	content := req.Messages[0].Content
+	var asked string
+	if json.Unmarshal(content, &asked) == nil {
+		return asked == text
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	return json.Unmarshal(content, &blocks) == nil && len(blocks) == 1 && blocks[0].Type == "text" && blocks[0].Text == text
 }
 
 // modelFamilies are the families Claude's models come in. A model's id names

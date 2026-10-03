@@ -110,6 +110,7 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	rp.sent = ex.account.token()
 	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
 	rp.when = rp.p.state.mark()
+	rp.p.stream.publish(ex.event(StreamSent))
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
 		return nil, err
@@ -130,6 +131,7 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 // have is closed.
 func (rp *replay) settle(ctx context.Context, resp *http.Response) (*http.Response, bool, error) {
 	outcome := rp.p.provider.Classify(resp.StatusCode, resp.Header)
+	rp.tell(outcome.Verdict, resp.StatusCode)
 	switch outcome.Verdict {
 	case quota.LimitReached:
 		return rp.limitReached(ctx, resp, outcome.Rejected, outcome.LimitedUntil)
@@ -142,6 +144,30 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response) (*http.Respon
 	default:
 		return resp, false, nil
 	}
+}
+
+// tell tells the request stream of an answer, with status, whose verdict says
+// something against the account the request went out on: its limit reached,
+// its throttling, or a refusal. An answer that says nothing against it is
+// told of as the client has it.
+func (rp *replay) tell(verdict quota.Verdict, status int) {
+	kind, ok := againstAccount[verdict]
+	if !ok {
+		return
+	}
+	e := rp.ex.event(kind)
+	e.Status = status
+	rp.p.stream.publish(e)
+}
+
+// againstAccount are the kinds of event the request stream tells of the
+// answers whose verdict says something against the account a request went out
+// on.
+var againstAccount = map[quota.Verdict]string{
+	quota.LimitReached: StreamLimited,
+	quota.Throttled:    StreamThrottled,
+	quota.Refused:      StreamRefused,
+	quota.Forbidden:    StreamRefused,
 }
 
 // tokenRefused has the request go out again on its account when the
@@ -310,14 +336,15 @@ func (rp *replay) moveOn(ctx context.Context, why string) bool {
 	ex := rp.ex
 	from := ex.account.ID
 	ex.req.Tried = append(ex.req.Tried, Attempt{Account: from, Why: why})
-	to, reason, ok := rp.p.next(ctx, ex.req)
+	to, choice, ok := rp.p.next(ctx, ex.req)
 	if !ok {
 		logger.Warn("no account left to try", "id", ex.id, "attempts", ex.attempts)
 		return false
 	}
-	ex.account, ex.reason = to, reason
+	ex.account, ex.reason = to, choice.Reason
 	rp.throttled, rp.reread = 0, false
 	rp.replaying(from, why)
+	rp.p.moved(ex, choice.From)
 	return true
 }
 

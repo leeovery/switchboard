@@ -97,4 +97,8 @@ type Choice struct {
 	// for the request's model: the session is new, and is remembered once the
 	// request is answered, as Chooser's Forget says.
 	New bool
+	// From is the account the choice moved the request's session from, for
+	// its requests of the request's model, as Moved tells of it: "" when it
+	// didn't move it.
+	From string
 }

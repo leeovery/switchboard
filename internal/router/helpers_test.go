@@ -462,7 +462,8 @@ func modelOf(t *testing.T, r *http.Request) string {
 	if err != nil {
 		t.Errorf("upstream: read request body: %v", err)
 	}
-	return (claude.Provider{}).Model(body)
+	model, _ := (claude.Provider{}).Asks(body)
+	return model
 }
 
 // set has the API report windows for the account whose token is token.
