@@ -127,8 +127,8 @@ func TestCOMINGUPStartsClearOfTheRoomsSummed(t *testing.T) {
 	for _, width := range []int{160, 120} {
 		f := frameOf(width, 40)
 		c := newCanvas(f.Width, f.Height)
-		end := f.heading(c, doc, now, 2)
-		for _, row := range c.rows(Look{})[2:end] {
+		f.heading(c, doc, now, 2)
+		for _, row := range c.rows(Look{})[2 : 2+f.headingRows(len(doc.Accounts))] {
 			if !strings.Contains(row, roomGlyph) {
 				continue
 			}
@@ -386,8 +386,8 @@ func TestTheHeadingIsArrangedByWidth(t *testing.T) {
 			if f.phone() {
 				top = 4
 			}
-			end := f.heading(c, tt.doc, now, top)
-			rows := c.rows(Look{})[top:end]
+			f.heading(c, tt.doc, now, top)
+			rows := c.rows(Look{})[top : top+f.headingRows(len(tt.doc.Accounts))]
 			if !slices.Equal(rows, tt.want) {
 				t.Errorf("the heading is\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
 			}
@@ -398,8 +398,9 @@ func TestTheHeadingIsArrangedByWidth(t *testing.T) {
 func TestTheHeadingIsLabelsAloneBeforeAnythingIsRead(t *testing.T) {
 	f := frameOf(160, 40)
 	c := newCanvas(f.Width, f.Height)
-	if end := f.heading(c, status.Document{}, now, 2); end != 6 {
-		t.Errorf("heading() = %d, want 6: its rows kept", end)
+	f.heading(c, status.Document{}, now, 2)
+	if rows := f.headingRows(0); rows != 4 {
+		t.Errorf("headingRows() = %d, want 4: its rows kept", rows)
 	}
 	rows := c.rows(Look{})
 	if want := " ROUTER                   NEW SESSIONS GO TO              ROOM LEFT, IN ACCOUNTS                          COMING UP"; rows[2] != want {

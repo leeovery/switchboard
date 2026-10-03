@@ -28,7 +28,7 @@ type Reading struct {
 
 // lastRead is when the reading's use was last read so.
 func (r Reading) lastRead() time.Time {
-	return later(r.At, r.Last)
+	return Later(r.At, r.Last)
 }
 
 // Pace is how fast a window is being used.
@@ -91,7 +91,7 @@ func RecentRate(w quota.Window, readings []Reading, now time.Time) (rate float64
 	from, last := lately[0], lately[len(lately)-1]
 	since = from.At
 	if cutoff := now.Add(-Recent); !from.At.After(cutoff) {
-		since = earlier(from.lastRead(), cutoff)
+		since = Earlier(from.lastRead(), cutoff)
 	}
 	over := now.Sub(since)
 	if over < steady {
@@ -100,16 +100,16 @@ func RecentRate(w quota.Window, readings []Reading, now time.Time) (rate float64
 	return max(last.Utilization-from.Utilization, 0) / over.Hours(), since, true
 }
 
-// later returns the later of two times.
-func later(a, b time.Time) time.Time {
+// Later returns the later of two times.
+func Later(a, b time.Time) time.Time {
 	if a.After(b) {
 		return a
 	}
 	return b
 }
 
-// earlier returns the earlier of two times.
-func earlier(a, b time.Time) time.Time {
+// Earlier returns the earlier of two times.
+func Earlier(a, b time.Time) time.Time {
 	if a.Before(b) {
 		return a
 	}

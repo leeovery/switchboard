@@ -89,6 +89,24 @@ func TestACountdownMovingOnIsNoChange(t *testing.T) {
 	}
 }
 
+func TestAReadFailingWhileALimitHoldsPicksOutNoCard(t *testing.T) {
+	h := routedHarness(t, limitedWork())
+	h.start()
+
+	failing := limitedWork()
+	failing.Accounts[0].Error = "timed out"
+	h.startRouter(failing)
+	h.tickUntilAsked()
+	if got := h.changed(); len(got) > 0 {
+		t.Errorf("as work's read failed, picked out %v, want none: it's still at its limit", got)
+	}
+	h.startRouter(limitedWork())
+	h.tickUntilAsked()
+	if got := h.changed(); len(got) > 0 {
+		t.Errorf("as work was read again, picked out %v, want none: it's still at its limit", got)
+	}
+}
+
 func TestStatesReadElsewhereStartAfresh(t *testing.T) {
 	started := start.Add(-time.Hour).UTC()
 	tests := []struct {

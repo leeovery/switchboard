@@ -382,10 +382,10 @@ func countable(h http.Header) {
 
 // answered notes that a routed request's answer has come, with its status:
 // one of success tells the chooser, which tells of the request's session as
-// started, the first time.
+// started, the first time, on the account that answered.
 func (p *proxy) answered(ex *exchange) {
 	if ex.succeeded() {
-		p.chooser.Answered(ex.req)
+		p.chooser.Answered(ex.req, ex.account.ID, ex.reason)
 	}
 }
 

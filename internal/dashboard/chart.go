@@ -191,7 +191,7 @@ func (f Frame) burndown(c *canvas, p plot, x, y, width, rows int) {
 // middleOf is the time at the middle of column col of a chart width cells
 // wide, or now, for the column now falls in, where that's sooner.
 func (p plot) middleOf(col, width int) time.Time {
-	return earliest(p.at((float64(col)+0.5)/float64(width)), p.now)
+	return score.Earlier(p.at((float64(col)+0.5)/float64(width)), p.now)
 }
 
 // nowRule draws the line for now down a chart width cells wide and rows
@@ -344,14 +344,6 @@ func column(c *canvas, x, y, rows, eighths int, k ink) {
 func across(c *canvas, x, y, width int, text string) {
 	text = " " + truncate(text, width-2) + " "
 	c.text(x+(width-ansi.StringWidth(text))/2, y, text, dimInk)
-}
-
-// earliest is the earlier of two times.
-func earliest(a, b time.Time) time.Time {
-	if a.Before(b) {
-		return a
-	}
-	return b
 }
 
 // axis draws a chart's axis width cells wide from x along row y: for a

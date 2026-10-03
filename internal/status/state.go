@@ -18,16 +18,16 @@ type Condition int
 const (
 	// Tokenless is an account without a usable token.
 	Tokenless Condition = iota + 1
-	// Unreadable is an account whose usage couldn't be read.
-	Unreadable
-	// Unread is an account nothing has been read of yet.
-	Unread
 	// Limited is an account held back from every request: at a limit in a
 	// window every model shares, or with its token refused.
 	Limited
 	// PartlyLimited is an account held back from some models' requests
 	// alone: at a limit in a model's own window, or refused that model's.
 	PartlyLimited
+	// Unreadable is an account whose usage couldn't be read.
+	Unreadable
+	// Unread is an account nothing has been read of yet.
+	Unread
 	// Reserved is an account a window has brought to its reserve, which holds
 	// it back, or the global pin spends.
 	Reserved
@@ -67,25 +67,23 @@ func dotted(parts ...string) string {
 
 // StateOf is the state of doc's account a at now, as its card says it, in
 // Condition's order of precedence: without a usable token, how to give it
-// one; why its usage couldn't be read, whatever was read of it before; that
-// nothing has been; a limit, or a refusal, holding it back, and until when,
-// as heldBack says; its reserve, as reservedState says; that it's under
-// pressure, and whether new sessions go elsewhere, else when it runs out, as
-// RunsOut has it; its lapsed window, and when a prime starts it, where the
-// router says; and last that it's open, its week nearing its reserve, or new
-// sessions coming here. Words from elsewhere show cleaned, and times as Dated
-// shows them.
+// one; a limit, or a refusal, holding it back, and until when, as heldBack
+// says, even where its last read failed; that its usage couldn't be read, or
+// hasn't been, as Unread says; its reserve, as reservedState says; that it's
+// under pressure, and whether new sessions go elsewhere, else when it runs
+// out, as RunsOut has it; its lapsed window, and when a prime starts it,
+// where the router says; and last that it's open, its week nearing its
+// reserve, or new sessions coming here. Words from elsewhere show cleaned,
+// and times as Dated shows them.
 func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
-	switch {
-	case !a.TokenSet:
+	if !a.TokenSet {
 		return State{Condition: Tokenless, Says: "no token", Then: "switchboard accounts token " + Clean(a.ID)}
-	case a.Error != "":
-		return State{Condition: Unreadable, Says: "can't read it", Then: Clean(a.Error)}
-	case a.FetchedAt.IsZero():
-		return State{Condition: Unread, Says: "not read yet"}
 	}
 	if held, ok := d.heldBack(a, now, policy); ok {
 		return held
+	}
+	if unread, ok := a.Unread(); ok {
+		return unread
 	}
 	if reserved := d.Reserved(a); reserved != "" {
 		return d.reservedState(a, reserved, policy)
@@ -97,6 +95,19 @@ func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 		return State{Condition: Idle, Says: "idle", Then: d.StartsAt(a.ID, now)}
 	}
 	return d.open(a)
+}
+
+// Unread is the state of account a while its usage isn't read, reporting
+// false once it is: why its last read failed, whatever was read of it
+// before; else that nothing has been read of it yet.
+func (a Account) Unread() (State, bool) {
+	switch {
+	case a.Error != "":
+		return State{Condition: Unreadable, Says: "can't read it", Then: Clean(a.Error)}, true
+	case a.FetchedAt.IsZero():
+		return State{Condition: Unread, Says: "not read yet"}, true
+	}
+	return State{}, false
 }
 
 // heldBack is the state of doc's account a, held back at now by a limit or
@@ -192,7 +203,7 @@ func (h Hold) Lifts(key string) time.Time {
 	case spent && reset.IsZero():
 		return time.Time{}
 	case limited:
-		return later(h.limit, reset)
+		return score.Later(h.limit, reset)
 	default:
 		return reset
 	}
@@ -245,17 +256,9 @@ func (h Hold) back(policy score.Policy) time.Time {
 		if reset.IsZero() {
 			return time.Time{}
 		}
-		last = later(last, reset)
+		last = score.Later(last, reset)
 	}
 	return last
-}
-
-// later is the later of two times.
-func later(a, b time.Time) time.Time {
-	if b.After(a) {
-		return b
-	}
-	return a
 }
 
 // sharedFirst orders the windows with keys x and y as Held lists them: one

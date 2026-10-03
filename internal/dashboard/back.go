@@ -54,7 +54,7 @@ func (s Seat) Shown() string {
 // lists them, the session seen last first, and of each session, the model
 // used last first.
 func (f Frame) Seats(id string, now time.Time) []Seat {
-	on := f.activeOn(id, now)
+	on := f.activeOn(f.listing(), id, now)
 	seats := make([]Seat, len(on))
 	for i, s := range on {
 		seats[i] = s.seat()
@@ -80,11 +80,10 @@ func (s seated) plug() Plug {
 }
 
 // activeOn are the seats of the sessions on the account with the given id,
-// of those the router listed, the request stream's moves among them, that
-// count among its sessions at now, as active says, in the order Seats
-// gives.
-func (f Frame) activeOn(id string, now time.Time) []seated {
-	return slices.DeleteFunc(seatedOn(f.listing(), id), func(s seated) bool { return !f.active(s, now) })
+// of those listed, as listing has them, that count among its sessions at
+// now, as active says, in the order Seats gives.
+func (f Frame) activeOn(listing []status.Session, id string, now time.Time) []seated {
+	return slices.DeleteFunc(seatedOn(listing, id), func(s seated) bool { return !f.active(s, now) })
 }
 
 // seatedOn are the sessions listed on the account with the given id, a seat
@@ -111,7 +110,7 @@ func (f Frame) back(c *canvas, doc status.Document, fc face, now time.Time, x, y
 	if rows < 1 {
 		return
 	}
-	seats := f.activeOn(fc.account.ID, now)
+	seats := fc.seats
 	c.line(x, y, tally(fc).fit(width))
 	if rows < 2 {
 		return

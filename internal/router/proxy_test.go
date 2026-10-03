@@ -682,7 +682,7 @@ func (c *fixedChooser) Choose(_ context.Context, req router.Request) router.Choi
 
 // Answered starts nothing, and Forget forgets nothing: the chooser
 // remembers no session.
-func (c *fixedChooser) Answered(router.Request) {}
+func (c *fixedChooser) Answered(router.Request, string, string) {}
 
 func (c *fixedChooser) Forget(router.Request) string { return "" }
 

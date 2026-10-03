@@ -176,7 +176,7 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	if f.printed() || len(doc.Accounts) == 0 || f.short(doc, now) {
 		return Scrolling{}
 	}
-	top := f.above(newCanvas(f.Width, f.Height), doc, now)
+	top := f.top(doc)
 	switch f.View {
 	case Sessions:
 		content, view := f.sessionsRows(doc, now, top)
@@ -197,8 +197,7 @@ func (f Frame) cardsOf(doc status.Document, now time.Time) (layout, bool) {
 	if f.View != Accounts || f.printed() || f.short(doc, now) {
 		return layout{}, false
 	}
-	top := f.above(newCanvas(f.Width, f.Height), doc, now)
-	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), top), true
+	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top(doc)), true
 }
 
 // scrolled is how far the layout's cards are scrolled as the frame has them:

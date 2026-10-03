@@ -601,7 +601,7 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 	if u.primeFailed(policy) {
 		retry = reprimeAfter
 	}
-	return later(at, u.probed.Add(retry)), true
+	return score.Later(at, u.probed.Add(retry)), true
 }
 
 // freed returns when, at now or after, nothing holds back a prime of the
@@ -612,10 +612,10 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 	at := now
 	if u.refused.inForce(now) {
-		at = later(at, u.refused.latest().until())
+		at = score.Later(at, u.refused.latest().until())
 	}
 	if u.limited.holds(now, policy.IsShared) {
-		at = later(at, u.limited.until)
+		at = score.Later(at, u.limited.until)
 	}
 	windows := u.current(policy, now)
 	for i, w := range windows {
@@ -624,26 +624,10 @@ func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 		case w.ResetsAt.IsZero():
 			return time.Time{}, false
 		default:
-			at = later(at, w.ResetsAt)
+			at = score.Later(at, w.ResetsAt)
 		}
 	}
 	return at, true
-}
-
-// later returns the later of two times.
-func later(a, b time.Time) time.Time {
-	if b.After(a) {
-		return b
-	}
-	return a
-}
-
-// earlier returns the earlier of two times.
-func earlier(a, b time.Time) time.Time {
-	if b.Before(a) {
-		return b
-	}
-	return a
 }
 
 // primeFailed reports whether the last probe of the account with the given id

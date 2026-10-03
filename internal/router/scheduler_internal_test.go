@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Readings of an account whose quota needs using soon, and one whose can
@@ -316,6 +317,26 @@ func TestChoosingRemembersTheSession(t *testing.T) {
 	moved := assignment{Account: "side", Pin: "side", Reason: "pinned", AssignedAt: clock.now, LastSeen: clock.now}
 	if got := r.sessions.lookup(k).current; got != moved {
 		t.Errorf("after a request pinned elsewhere, the session is assigned %+v, want %+v", got, moved)
+	}
+}
+
+func TestASessionStartedByARequestThatStuckIsToldOfAsItsAssignmentSays(t *testing.T) {
+	r := newTestRouter(t, at(start), &stubProber{readings: map[string]quota.Probe{
+		workToken: probed(nil, session, soonWeek),
+		sideToken: probed(nil, session, laterWeek),
+	}})
+	choose(t.Context(), r, Request{ID: "first", Session: "one", Model: opus, Client: "work"})
+	// The session's next request, chosen while its first is out, stays where
+	// the first went, and is answered first.
+	next := Request{ID: "next", Session: "one", Model: opus, Client: "work"}
+	c := choose(t.Context(), r, next)
+	if c.Account != "work" || c.Reason != reasonSticky {
+		t.Fatalf("the next request went to %s (%s), want work, sticking with the first", c.Account, c.Reason)
+	}
+	r.proxy.chooser.Answered(next, c.Account, c.Reason)
+
+	if got := r.recent.events(); len(got) != 1 || got[0].Kind != status.EventStarted || got[0].Account != "work" || got[0].Reason != reasonNew {
+		t.Errorf("events() = %+v, want one started on work, as new: why its assignment went there", got)
 	}
 }
 

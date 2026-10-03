@@ -660,8 +660,13 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 const stepSlack = time.Millisecond
 
 // startFrames arms the next frame, while anything on screen moves at now,
-// as nextFrame has it, unless the one armed already comes as soon.
+// as nextFrame has it, unless the one armed already comes as soon. One armed
+// to come within frameEvery stands without asking nextFrame, which lays a
+// whole frame out.
 func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
+	if m.framing && !m.frameDue.After(now.Add(frameEvery)) {
+		return m, nil
+	}
 	next, moving := m.nextFrame(now)
 	if !moving || m.framing && !m.frameDue.After(now.Add(next)) {
 		return m, nil

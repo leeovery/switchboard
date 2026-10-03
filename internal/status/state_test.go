@@ -83,14 +83,29 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			want:    status.State{Condition: status.Unreadable, Says: "can't read it", Then: "HTTP 529 · Overloaded"},
 		},
 		{
-			name:    "its last probe failing while a limit holds it back",
-			account: with(with(readNow(1, 0.3, 0), limited("5h")), func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }),
-			want:    status.State{Condition: status.Unreadable, Says: "can't read it", Then: "HTTP 529 · Overloaded"},
+			name:    "its last probe failing while a limit holds it back: the limit",
+			account: with(with(readNow(1, 0.3, 0), limited("5h")), func(a *status.Account) { a.Error = "timed out" }),
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
+		},
+		{
+			name:    "its last probe failing while a model's limit holds it back: the limit",
+			account: with(with(readNow(0.2, 0.3, 0.5), limited("7d_oi")), func(a *status.Account) { a.Error = "timed out" }),
+			want:    status.State{Condition: status.PartlyLimited, Says: "Fable wk limit", Then: "back 15:54 · other models still come here"},
+		},
+		{
+			name:    "its last probe failing while its token is refused: the refusal",
+			account: with(with(readNow(0.2, 0.3, 0), refusing(401, "")), func(a *status.Account) { a.Error = "HTTP 401 · Invalid bearer token" }),
+			want:    status.State{Condition: status.Limited, Says: "refused (401)", Then: "until 21:40"},
 		},
 		{
 			name:    "nothing read yet",
 			account: status.Account{ID: "work", TokenSet: true},
 			want:    status.State{Condition: status.Unread, Says: "not read yet"},
+		},
+		{
+			name:    "nothing read yet, but the limit the router saw it reach",
+			account: with(status.Account{ID: "work", TokenSet: true}, limited("5h")),
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
 		},
 		{
 			name:    "at its session's limit",

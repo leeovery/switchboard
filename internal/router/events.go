@@ -3,6 +3,8 @@ package router
 import (
 	"slices"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // Event is news from the router that something outside it may want to act
@@ -143,7 +145,7 @@ func (m *limitMoves) join(e LimitReached) {
 			m.Windows = append(m.Windows, key)
 		}
 	}
-	m.Until = later(m.Until, e.Until)
+	m.Until = score.Later(m.Until, e.Until)
 }
 
 // add takes in a session the limit moved to the account with the id to.

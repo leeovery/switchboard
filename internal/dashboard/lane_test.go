@@ -106,6 +106,10 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 	fable.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: now.Add(5 * day).UTC()}
 	tokenless := status.Account{ID: "work", Label: "work", Error: "no token file"}
 	unread := status.Account{ID: "work", Label: "work", TokenSet: true}
+	unreadLimited := unread
+	unreadLimited.Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(time.Hour).UTC()}
+	unreadable, reachedUnreadable := limitedAt("personal", clockAt(12, 50))
+	unreadable.Error = "timed out"
 	weekly := readAccount("work", sessionOf(0.1, 4*time.Hour), weekRunningOut(5*time.Hour, 3*day))
 	both := pressedAccount("work")
 	both.Windows[1] = weekRunningOut(2*time.Hour, 3*day)
@@ -214,6 +218,15 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 		{
 			name: "nothing read of it, nothing known", doc: probed(unread),
 			moments: []moment{{-50 * time.Minute, roomUnknown}, {time.Hour, roomUnknown}},
+		},
+		{
+			name: "nothing read of it, nothing known, though a limit holds it back", doc: routerDoc("", 1, unreadLimited),
+			moments: []moment{{-50 * time.Minute, roomUnknown}, {2 * time.Hour, roomUnknown}},
+		},
+		{
+			name: "its usage unreadable, none all along, though a limit holds it back", doc: withEvents(routerDoc("", 1, unreadable), reachedUnreadable),
+			moments:  []moment{{-50 * time.Minute, roomNone}, {20 * time.Hour, roomNone}},
+			wantSays: []string{"can't read it  ·  timed out"},
 		},
 	}
 	for _, tt := range tests {

@@ -108,7 +108,7 @@ func (p plot) rateAt(col, width int) (float64, bool) {
 	stretch := max(rateSpan, p.length/time.Duration(width))
 	middle := p.middleOf(col, width)
 	from := p.start.Add(middle.Sub(p.start) / stretch * stretch)
-	to := earliest(from.Add(stretch), p.now)
+	to := score.Earlier(from.Add(stretch), p.now)
 	before, ok := p.usedFrom(from, to)
 	after, read := p.usedAt(to)
 	if !ok || !read {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -115,7 +116,7 @@ func (t *traffic) hear(e router.StreamEvent, held func(account string) bool) {
 		return
 	}
 	plug := dashboard.Plug{Account: e.Account, Seat: seatTold(e)}
-	t.seen[plug] = latest(t.seen[plug], e.At)
+	t.seen[plug] = score.Later(t.seen[plug], e.At)
 	switch e.Kind {
 	case router.StreamInFlight:
 		t.inFlight(e)
@@ -167,7 +168,7 @@ func (t *traffic) sent(e router.StreamEvent) {
 	before := t.calls[k]
 	c := call{seat: seatTold(e), doing: dashboard.Asking, at: e.At, since: e.At, brought: before.brought, shows: before.shows}
 	if c.brought {
-		c.at = latest(e.At, c.shows)
+		c.at = score.Later(e.At, c.shows)
 	}
 	t.calls[k] = c
 }
@@ -216,7 +217,7 @@ func (c *call) first(e router.StreamEvent) {
 // cord.
 func (c call) done(at time.Time) time.Time {
 	if c.doing == dashboard.Refused {
-		return latest(at, c.at.Add(pulseFor))
+		return score.Later(at, c.at.Add(pulseFor))
 	}
 	return at
 }
@@ -419,12 +420,4 @@ func shownDone(moves []move, placed map[dashboard.Seat]string) []move {
 // and where its last listing put each seat.
 func (t traffic) afresh() traffic {
 	return traffic{seen: t.seen, moves: t.moves, placed: t.placed}
-}
-
-// latest is the later of two times.
-func latest(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
 }

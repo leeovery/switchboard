@@ -4,6 +4,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"syscall"
 	"unsafe"
@@ -22,7 +23,7 @@ type tty struct {
 func openConsole() (console, func(), error) {
 	fd, err := syscall.Open("/dev/tty", syscall.O_RDWR|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("open the terminal: %w", err)
 	}
 	return tty{fd: fd}, func() { _ = syscall.Close(fd) }, nil
 }
@@ -42,13 +43,17 @@ func (t tty) Foreground() bool {
 func (t tty) Raw() (func(), error) {
 	state, err := term.MakeRaw(uintptr(t.fd))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("put the terminal in raw mode: %w", err)
 	}
 	return func() { _ = term.Restore(uintptr(t.fd), state) }, nil
 }
 
 func (t tty) Write(p []byte) (int, error) {
-	return syscall.Write(t.fd, p)
+	n, err := syscall.Write(t.fd, p)
+	if err != nil {
+		return 0, fmt.Errorf("write to the terminal: %w", err)
+	}
+	return n, nil
 }
 
 // ReadNow reads what the terminal has sent, without waiting for it.
@@ -58,7 +63,7 @@ func (t tty) ReadNow(p []byte) (int, error) {
 	case errors.Is(err, syscall.EAGAIN), errors.Is(err, syscall.EINTR):
 		return 0, nil
 	case err != nil:
-		return 0, err
+		return 0, fmt.Errorf("read the terminal: %w", err)
 	case n == 0:
 		return 0, io.EOF
 	}

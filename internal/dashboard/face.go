@@ -51,6 +51,9 @@ type face struct {
 	// as the router listed them; sessions is how many it has.
 	busy     []bool
 	sessions int
+	// seats are its sessions' seats, as activeOn has them, a row each of its
+	// back, where it's flipped.
+	seats []seated
 	// lately are what its back's LATELY tells of, the newest first, where
 	// it's flipped.
 	lately []lateLine
@@ -65,19 +68,20 @@ type face struct {
 }
 
 // faces are doc's accounts' cards at now, and the keys of the windows every
-// card's front shows; and what each flipped card's LATELY tells of, as
-// latelies has it, of the events taken in once for every card.
+// card's front shows; and what each flipped card's back shows, its seats and
+// what its LATELY tells of, as latelies has it, of the sessions listed and
+// the events, each taken in once for every card.
 func (f Frame) faces(doc status.Document, now time.Time) ([]face, []string) {
-	shown := shownWindows(doc, now, f.Policy)
+	shown, listing := shownWindows(doc, now, f.Policy), f.listing()
 	var lately map[string][]lateLine
 	if len(f.Flipped) > 0 {
 		lately = latelies(doc, now)
 	}
 	faces := make([]face, len(doc.Accounts))
 	for i, a := range doc.Accounts {
-		faces[i] = f.face(doc, a, now, shown)
+		faces[i] = f.face(doc, a, now, shown, listing)
 		if faces[i].flipped {
-			faces[i].lately = lately[a.ID]
+			faces[i].seats, faces[i].lately = f.activeOn(listing, a.ID, now), lately[a.ID]
 		}
 	}
 	return faces, shown
@@ -85,9 +89,9 @@ func (f Frame) faces(doc status.Document, now time.Time) ([]face, []string) {
 
 // face is doc's account a's card at now, of the windows shown: the window
 // its front features, as f.Featured says, its other windows, and its
-// sessions, as the router listed them, else as many as doc says it has; and
-// whether it has the focus, and is flipped, as f says.
-func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown []string) face {
+// sessions, of those listed, as the router listed them, else as many as doc
+// says it has; and whether it has the focus, and is flipped, as f says.
+func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown []string, listing []status.Session) face {
 	fc := face{
 		account: a, place: place(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
 		windows: shown, bars: make(map[string]standing),
@@ -96,7 +100,7 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 		read: cmp.Or(doc.GeneratedAt, now), focused: f.Focus == a.ID, flipped: f.Flipped[a.ID],
 	}
 	if f.Sessions != nil {
-		fc.busy = f.busy(a.ID, now)
+		fc.busy = f.busy(listing, a.ID, now)
 		fc.sessions = len(fc.busy)
 	}
 	w, ok := featured(doc, a, now, f.Policy, f.Featured, shown)
@@ -160,12 +164,12 @@ func primedNext(doc status.Document, id string) time.Time {
 }
 
 // busy are the sessions active on the account with the given id at now, as
-// active says, of those the router listed, the request stream's moves among
-// them, in their order, the one seen last first: each lit while any of its
-// models is busy there, as lit says.
-func (f Frame) busy(id string, now time.Time) []bool {
+// active says, of those listed, as listing has them, in their order, the one
+// seen last first: each lit while any of its models is busy there, as lit
+// says.
+func (f Frame) busy(listing []status.Session, id string, now time.Time) []bool {
 	var busy []bool
-	for _, s := range f.listing() {
+	for _, s := range listing {
 		on, lit := false, false
 		for _, a := range s.Assignments {
 			seat := seated{session: s, assignment: a}
@@ -184,7 +188,7 @@ func (f Frame) busy(id string, now time.Time) []bool {
 // now, as the router counts them: seen there within activeWithin, as
 // lastSeen has it, or put there since, as a move the stream told of puts it.
 func (f Frame) active(s seated, now time.Time) bool {
-	return now.Sub(latest(f.lastSeen(s), s.assignment.AssignedAt)) <= activeWithin
+	return now.Sub(score.Later(f.lastSeen(s), s.assignment.AssignedAt)) <= activeWithin
 }
 
 // lit reports whether the seat s is busy at now: a request of its in flight,
@@ -199,15 +203,7 @@ func (f Frame) lit(s seated, now time.Time) bool {
 // lastSeen is when the seat s was last seen at work: as the router listed
 // it, or later, as the request stream told of it.
 func (f Frame) lastSeen(s seated) time.Time {
-	return latest(s.assignment.LastSeen, f.Traffic.Seen[s.plug()])
-}
-
-// latest is the later of two times.
-func latest(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
+	return score.Later(s.assignment.LastSeen, f.Traffic.Seen[s.plug()])
 }
 
 // tone is the colour of the account's state, which its featured window's

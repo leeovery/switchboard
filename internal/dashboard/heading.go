@@ -58,34 +58,48 @@ const (
 	emptyGlyph = "░"
 )
 
-// heading draws the heading from row y, as wide as the frame, and returns the
-// row after it: a single line with one account; else its four slots, in a
-// row from slotsInRowFrom columns, in two rows of two from phoneUnder, and
-// under it, in a phone's two lines. Before anything is read, the slots are
-// their labels alone, and the phone's lines blank.
-func (f Frame) heading(c *canvas, doc status.Document, now time.Time, y int) int {
+// heading draws the heading from row y, as wide as the frame, on the rows
+// headingRows says it takes: a single line with one account; else its four
+// slots, in a row from slotsInRowFrom columns, in two rows of two from
+// phoneUnder, and under it, in a phone's two lines. Before anything is read,
+// the slots are their labels alone, and the phone's lines blank.
+func (f Frame) heading(c *canvas, doc status.Document, now time.Time, y int) {
 	switch {
 	case len(doc.Accounts) == 1:
-		return f.oneLine(c, doc, now, y)
-	case f.phone() && len(doc.Accounts) == 0:
-		return y + 2
+		f.oneLine(c, doc, now, y)
 	case f.phone():
-		return f.twoLines(c, doc, now, y)
+		if len(doc.Accounts) > 0 {
+			f.twoLines(c, doc, now, y)
+		}
 	case f.Width < slotsInRowFrom:
-		return f.twoRows(c, doc, now, y)
+		f.twoRows(c, doc, now, y)
 	default:
-		return f.inRow(c, doc, now, y)
+		f.inRow(c, doc, now, y)
+	}
+}
+
+// headingRows is how many rows the heading of n accounts takes, as heading
+// draws it.
+func (f Frame) headingRows(n int) int {
+	switch {
+	case n == 1:
+		return 1
+	case f.phone():
+		return 2
+	case f.Width < slotsInRowFrom:
+		return 2 * (1 + slotLines)
+	default:
+		return 1 + slotLines
 	}
 }
 
 // inRow draws the four slots side by side.
-func (f Frame) inRow(c *canvas, doc status.Document, now time.Time, y int) int {
+func (f Frame) inRow(c *canvas, doc status.Document, now time.Time, y int) {
 	router := sessionsAt - routerAt - 1
 	f.routerSlot(c, doc, now, routerAt, y, []int{router, router, roomAt - routerAt - 2})
 	f.sessionsSlot(c, doc, now, sessionsAt, y, roomAt-sessionsAt-2)
 	f.roomSlot(c, doc, now, roomAt, y)
 	f.comingSlot(c, doc, now, comingAt(roomAt, len(doc.Accounts)), y)
-	return y + 1 + slotLines
 }
 
 // comingAt is the column COMING UP starts at, of n accounts' ROOM LEFT at x:
@@ -98,7 +112,7 @@ func comingAt(x, n int) int {
 // twoRows draws ROUTER beside NEW SESSIONS GO TO, and under them, ROOM LEFT
 // beside COMING UP, the slots on the right in a column. ROUTER's last line
 // runs on under NEW SESSIONS GO TO's, which has none.
-func (f Frame) twoRows(c *canvas, doc status.Document, now time.Time, y int) int {
+func (f Frame) twoRows(c *canvas, doc status.Document, now time.Time, y int) {
 	right := comingAt(routerAt, len(doc.Accounts))
 	router := right - routerAt - 2
 	f.routerSlot(c, doc, now, routerAt, y, []int{router, router, f.edge() - routerAt})
@@ -106,24 +120,22 @@ func (f Frame) twoRows(c *canvas, doc status.Document, now time.Time, y int) int
 	y += 1 + slotLines
 	f.roomSlot(c, doc, now, routerAt, y)
 	f.comingSlot(c, doc, now, right, y)
-	return y + 1 + slotLines
 }
 
 // twoLines draws the heading as a phone has it: how the router is, its
 // sessions and its routing; and where new sessions go, with the rooms summed
 // at its right.
-func (f Frame) twoLines(c *canvas, doc status.Document, now time.Time, y int) int {
+func (f Frame) twoLines(c *canvas, doc status.Document, now time.Time, y int) {
 	c.line(margin, y, together(routerSays(doc, f.Lost, now), " · ").fit(f.edge()-margin))
 	room := line{{"room ", dimInk}, {"5h ", mutedInk}, {f.roomSum(doc, now, f.sessionRoom), titleInk}, {"  wk ", mutedInk}, {f.roomSum(doc, now, f.weekRoom), titleInk}}
 	start := c.right(f.edge(), y+1, room)
 	c.line(margin, y+1, slices.Concat(line{{"new → ", mutedInk}}, newSessionsGo(doc, false)).fit(start-margin-2))
-	return y + 2
 }
 
 // oneLine draws the heading of one account, which has none to choose
 // between: how the router is, its sessions and its priming, and at the
 // right, the room the account has left.
-func (f Frame) oneLine(c *canvas, doc status.Document, now time.Time, y int) int {
+func (f Frame) oneLine(c *canvas, doc status.Document, now time.Time, y int) {
 	a := doc.Accounts[0]
 	session, week := status.Percent(f.sessionRoom(a, now)), status.Percent(f.weekRoom(a, now))
 	room := line{{"ROOM LEFT   ", labelInk}, {"5h ", mutedInk}, {session, titleInk}, {"   week ", mutedInk}, {week, titleInk}}
@@ -135,7 +147,6 @@ func (f Frame) oneLine(c *canvas, doc status.Document, now time.Time, y int) int
 	start := c.right(f.edge(), y, room)
 	says := slices.Concat(label, together(routerSays(doc, f.Lost, now), sep))
 	c.line(margin, y, says.fit(start-margin-2))
-	return y + 1
 }
 
 // routerSlot draws ROUTER at x from row y, its lines as wide as given, as

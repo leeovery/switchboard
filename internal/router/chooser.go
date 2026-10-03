@@ -18,10 +18,13 @@ type Chooser interface {
 	// for.
 	Choose(ctx context.Context, req Request) Choice
 	// Answered notes that req was answered with success, as its answer
-	// comes: its session's assignment for the request's model, made by req
-	// or another, is told of as started once, as the first is answered. The
-	// client's quota check starts none.
-	Answered(req Request)
+	// comes, by the account with the id given, where it went for reason: its
+	// session's assignment for the request's model, made by req or another,
+	// is told of as started once, as the first is answered, on that account,
+	// as the assignment says while the session is still there, else as req
+	// went there, another request having moved it since. The client's quota
+	// check starts none.
+	Answered(req Request, account, reason string)
 	// Forget takes back the accounts chosen for req, as they came to nothing:
 	// its session's assignment for the request's model goes back to what it
 	// was before req, none for a session req's first choice said was new,

@@ -140,9 +140,8 @@ func (f Frame) short(doc status.Document, now time.Time) bool {
 	if f.printed() || f.View != Accounts {
 		return false
 	}
-	top := f.above(newCanvas(f.Width, f.Height), doc, now)
 	g := f.gridOf(len(doc.Accounts), len(shownWindows(doc, now, f.Policy)))
-	return f.Height-2-top < densities[len(densities)-1].rows(g.bars)
+	return f.Height-2-f.top(doc) < densities[len(densities)-1].rows(g.bars)
 }
 
 // list draws the frame of doc at now as a terminal too short for its cards
@@ -170,10 +169,17 @@ func (f Frame) list(c *canvas, doc status.Document, now time.Time) {
 const listRows = 3
 
 // above draws what's above the view, the title row and the heading, a blank
-// row after each, and returns the row the view starts at.
+// row after each, and returns the row the view starts at, as top has it.
 func (f Frame) above(c *canvas, doc status.Document, now time.Time) int {
-	top := f.title(c, now) + 1
-	return f.heading(c, doc, now, top) + 1
+	f.title(c, now)
+	f.heading(c, doc, now, f.titleRows()+1)
+	return f.top(doc)
+}
+
+// top is the row the view of doc starts at, under what above draws, worked
+// out without drawing it.
+func (f Frame) top(doc status.Document) int {
+	return f.titleRows() + 1 + f.headingRows(len(doc.Accounts)) + 1
 }
 
 // printed reports whether the frame is printed once, with no height to fit.

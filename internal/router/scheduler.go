@@ -52,13 +52,18 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	return c
 }
 
-func (s *scheduler) Answered(req Request) {
+func (s *scheduler) Answered(req Request, account, reason string) {
 	if req.Check {
 		return
 	}
-	if a, ok := s.sessions.started(req.key()); ok {
-		s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason})
+	a, ok := s.sessions.started(req.key())
+	if !ok {
+		return
 	}
+	if a.Account != account {
+		a.Account, a.Reason = account, reason
+	}
+	s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason})
 }
 
 func (s *scheduler) Forget(req Request) string {

@@ -53,6 +53,37 @@ func TestTheTerminalIsAskedItsBackground(t *testing.T) {
 	}
 }
 
+func TestATerminalAnsweringLateHasItsAnswersReadBeforeItsPutBack(t *testing.T) {
+	const background, da1 = "\x1b]11;rgb:fafa/fafa/fafa\x07", "\x1b[?62;22c"
+	tests := []struct {
+		name    string
+		replies []string
+		// attributes is set where the replies end with the terminal's device
+		// attributes, which it sends last.
+		attributes bool
+	}{
+		{name: "its background, then its device attributes", replies: []string{background, da1}, attributes: true},
+		{name: "its background alone", replies: []string{background}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &fakeConsole{replies: tt.replies, late: 80 * time.Millisecond}
+
+			got := cli.AskBackground(c, 10*time.Millisecond)
+
+			if got != nil {
+				t.Errorf("AskBackground() = %s, want none: an answer after the wait is too late to take", hexOf(got))
+			}
+			if !c.restored || c.unsent > 0 {
+				t.Errorf("put back: %v, with %d replies yet to come; want every one read first: once it's put back, they'd show in the shell", c.restored, c.unsent)
+			}
+			if tt.attributes && c.after > 0 {
+				t.Errorf("read %d times once its device attributes came, want none: nothing comes after them", c.after)
+			}
+		})
+	}
+}
+
 func TestAProcessInTheBackgroundAsksTheTerminalNothing(t *testing.T) {
 	c := &fakeConsole{background: true, replies: []string{"\x1b]11;rgb:fafa/fafa/fafa\x07\x1b[?62c"}}
 
@@ -65,13 +96,18 @@ func TestAProcessInTheBackgroundAsksTheTerminalNothing(t *testing.T) {
 }
 
 // fakeConsole is a terminal that, once asked, sends back what replies holds,
-// a read each, or with background, one whose foreground the process isn't
-// in. It notes what it's asked, and its raw mode.
+// a read each, from late after it's asked, or with background, one whose
+// foreground the process isn't in. It notes what it's asked, its raw mode,
+// how many replies it had yet to send as it was put back, and how many
+// times it was read after it had sent them all.
 type fakeConsole struct {
 	background    bool
+	late          time.Duration
 	replies       []string
 	asked         string
+	askedAt       time.Time
 	raw, restored bool
+	unsent, after int
 }
 
 func (c *fakeConsole) Foreground() bool {
@@ -80,16 +116,21 @@ func (c *fakeConsole) Foreground() bool {
 
 func (c *fakeConsole) Raw() (func(), error) {
 	c.raw = true
-	return func() { c.restored = true }, nil
+	return func() { c.restored, c.unsent = true, len(c.replies) }, nil
 }
 
 func (c *fakeConsole) Write(p []byte) (int, error) {
 	c.asked += string(p)
+	c.askedAt = time.Now()
 	return len(p), nil
 }
 
 func (c *fakeConsole) ReadNow(p []byte) (int, error) {
-	if c.asked == "" || len(c.replies) == 0 {
+	switch {
+	case c.asked == "" || time.Since(c.askedAt) < c.late:
+		return 0, nil
+	case len(c.replies) == 0:
+		c.after++
 		return 0, nil
 	}
 	n := copy(p, c.replies[0])

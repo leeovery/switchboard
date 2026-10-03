@@ -256,7 +256,7 @@ func (f Frame) falling(doc status.Document, now time.Time) bool {
 		return false
 	}
 	faces, shown := f.faces(doc, now)
-	top := f.above(newCanvas(f.Width, f.Height), doc, now)
+	top := f.top(doc)
 	l := f.layOut(doc, now, len(shown), top)
 	s := sight{top: top, offset: f.scrolled(l), rows: l.view, help: f.helpCovers()}
 	inside, rows := l.width-2*(padding+1), l.density.chart

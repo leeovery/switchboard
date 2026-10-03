@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -94,6 +95,63 @@ func TestAQuotaCheckSentAlongsideASessionsFirstRequestLeavesItToldOfAsStarted(t 
 	}
 	if sessions, err := router.NewClient(control).Sessions(t.Context()); err != nil || len(sessions) != 1 || sessions[0].ID != "one" {
 		t.Errorf("GET /sessions gives %+v (%v), want session one", sessions, err)
+	}
+}
+
+func TestASessionIsToldOfAsStartedWhereTheAnswerThatStartedItCameFrom(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	// Each account holds a request of one back until it's let go.
+	held := func(arrived, release chan struct{}, windows ...quota.Window) http.HandlerFunc {
+		return func(w http.ResponseWriter, req *http.Request) {
+			close(arrived)
+			select {
+			case <-release:
+			case <-time.After(5 * time.Second):
+				t.Error("a request held back was never let go")
+			}
+			answerWith(http.StatusOK, windows...)(w, req)
+		}
+	}
+	const hello = `{"model":"` + opus + `","max_tokens":1,"messages":[{"role":"user","content":"hello"}]}`
+
+	// One's first request goes to work, whose quota needs using first, and
+	// is held there while two's reaches work's limit, and one's next is
+	// moved to side.
+	firstThere, letFirstGo := make(chan struct{}), make(chan struct{})
+	r.api.script(workToken, held(firstThere, letFirstGo, session, weekOf(0.5, 24*time.Hour)),
+		limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 24*time.Hour)))
+	first := make(chan int, 1)
+	go func() { first <- asking(r.proxy, "one", hello) }()
+	<-firstThere
+	if got := r.ask(t, "two", opus, ""); got != "side" {
+		t.Fatalf("two's request went out on %s last, want side, off work's limit", got)
+	}
+	nextThere, letNextGo := make(chan struct{}), make(chan struct{})
+	r.api.script(sideToken, held(nextThere, letNextGo, session, weekOf(0.5, 5*24*time.Hour)))
+	next := make(chan int, 1)
+	go func() { next <- asking(r.proxy, "one", hello) }()
+	<-nextThere
+
+	// Work answers one's first request before side answers its next.
+	close(letFirstGo)
+	if got := <-first; got != http.StatusOK {
+		t.Fatalf("one's first request was answered %d, want 200", got)
+	}
+	close(letNextGo)
+	if got := <-next; got != http.StatusOK {
+		t.Fatalf("one's next request was answered %d, want 200", got)
+	}
+	var started []router.SessionStarted
+	for _, e := range r.events.heard() {
+		if s, ok := e.(router.SessionStarted); ok && s.Session == "one" {
+			started = append(started, s)
+		}
+	}
+	want := []router.SessionStarted{{Session: "one", Model: opus, Account: "work", Reason: "new"}}
+	if !reflect.DeepEqual(started, want) {
+		t.Errorf("one is told of as started as %+v, want %+v: where the answer that started it came from, and why it went there, though it has moved since", started, want)
 	}
 }
 
