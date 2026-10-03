@@ -35,7 +35,8 @@ const day = 24 * time.Hour
 
 // harness drives a model as Bubble Tea would, on a clock the test moves. It
 // runs the commands the model returns, and holds each timer the model arms
-// until the test fires it.
+// until the test fires it, and each wait on the request stream until the
+// test has the stream tell something.
 type harness struct {
 	t        *testing.T
 	model    Model
@@ -43,6 +44,7 @@ type harness struct {
 	source   *fakeSource
 	notifier *fakeNotifier
 	timers   []*timer
+	waits    []tea.Cmd
 }
 
 // timer is one the model armed: msg is due after delay, at due.
@@ -68,7 +70,8 @@ func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
-		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Interval: interval, Policy: policy, Size: size,
+		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
+		Interval: interval, Policy: policy, Size: size,
 	})
 	return h
 }
@@ -77,6 +80,49 @@ func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 func (h *harness) arm(d time.Duration, msg tea.Msg) tea.Cmd {
 	h.timers = append(h.timers, &timer{delay: d, due: h.clock.now.Add(d), msg: msg})
 	return nil
+}
+
+// await holds a wait on the request stream instead of running it, until the
+// test has the stream tell something.
+func (h *harness) await(wait tea.Cmd) tea.Cmd {
+	h.waits = append(h.waits, wait)
+	return nil
+}
+
+// hear has the request stream opened last tell of events, and the model
+// hear them, as the wait it holds on the stream ends.
+func (h *harness) hear(events ...router.StreamEvent) {
+	h.t.Helper()
+	stream := h.source.lastStream(h.t)
+	for _, e := range events {
+		stream <- e
+	}
+	h.heard()
+}
+
+// endStream has the request stream opened last end, as a router ends it as
+// it restarts, and the model hear it end.
+func (h *harness) endStream() {
+	h.t.Helper()
+	close(h.source.lastStream(h.t))
+	h.heard()
+}
+
+// heard runs the wait on the request stream held last, and delivers what it
+// sends back.
+func (h *harness) heard() {
+	h.t.Helper()
+	if len(h.waits) == 0 {
+		h.t.Fatal("the model isn't waiting on the request stream")
+	}
+	wait := h.waits[len(h.waits)-1]
+	h.waits = h.waits[:len(h.waits)-1]
+	h.deliver(h.run(wait)...)
+}
+
+// listening reports whether the model holds a wait on the request stream.
+func (h *harness) listening() bool {
+	return len(h.waits) > 0
 }
 
 // init runs the model's first commands, returning what they send back
@@ -319,6 +365,12 @@ type fakeSource struct {
 	// while the router answers.
 	probing bool
 	refuse  error
+	// streams are the router's request streams, one each time it was
+	// opened, open until the test ends one, each under the context it was
+	// opened with, in contexts; and streamErr is what opening one fails with.
+	streams   []chan router.StreamEvent
+	contexts  []context.Context
+	streamErr error
 	// reads counts the reads that probed, or failed.
 	reads int
 	// asked lists every read asked for, in turn.
@@ -359,6 +411,25 @@ func (s *fakeSource) Sessions(context.Context) ([]status.Session, error) {
 		return nil, s.sessionsErr
 	}
 	return slices.Clone(s.sessions), nil
+}
+
+func (s *fakeSource) Stream(ctx context.Context) (<-chan router.StreamEvent, error) {
+	if s.streamErr != nil {
+		return nil, s.streamErr
+	}
+	stream := make(chan router.StreamEvent, 64)
+	s.streams, s.contexts = append(s.streams, stream), append(s.contexts, ctx)
+	return stream, nil
+}
+
+// lastStream is the request stream opened last, failing the test where none
+// was.
+func (s *fakeSource) lastStream(t *testing.T) chan router.StreamEvent {
+	t.Helper()
+	if len(s.streams) == 0 {
+		t.Fatal("the request stream was never opened")
+	}
+	return s.streams[len(s.streams)-1]
 }
 
 func (s *fakeSource) Pin(_ context.Context, accounts []string, move bool) error {

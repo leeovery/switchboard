@@ -16,14 +16,16 @@ import (
 // source is the router as a fixture has it, at the moment the fixture draws:
 // its status document, and its health check's answer, which says which
 // router it is; the sessions it has routed lately, as GET /sessions lists
-// them; and its accounts' use of their windows over time, which GET /history
-// answers from. It's the watch's Source, every read giving the document, and
-// an order a key gives changing nothing.
+// them; its accounts' use of their windows over time, which GET /history
+// answers from; and what its request stream tells, as GET /stream does. It's
+// the watch's Source, every read giving the document, and an order a key
+// gives changing nothing.
 type source struct {
 	doc      status.Document
 	health   router.Health
 	sessions []status.Session
 	trails   []trail
+	stream   []router.StreamEvent
 	now      time.Time
 }
 
@@ -105,6 +107,26 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 		h.Accounts = append(h.Accounts, held)
 	}
 	return h, nil
+}
+
+// Stream opens the router's request stream, as GET /stream does: it tells of
+// the requests the fixture has in flight, and what has befallen them, then
+// ends, as a router ends it. The watch keeps what it told until it asks for
+// it again, which a capture never has it do, as its timers never fire.
+func (s source) Stream(context.Context) (<-chan router.StreamEvent, error) {
+	events := make(chan router.StreamEvent, len(s.stream))
+	for _, e := range s.stream {
+		events <- e
+	}
+	close(events)
+	return events, nil
+}
+
+// telling is the source with its request stream telling of the events
+// given, in turn.
+func (s source) telling(events ...router.StreamEvent) source {
+	s.stream = events
+	return s
 }
 
 // forced marks a move among the events a source is given as one a limit

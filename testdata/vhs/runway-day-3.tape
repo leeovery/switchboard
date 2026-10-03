@@ -1,4 +1,4 @@
-# The runway-day-3 fixture, tab pressed to show Runway over the day, full
+# The runway-day-3 fixture, tab pressed twice to show Runway over the day, full
 # screen at its 160 × 26, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/runway-day-3.tape
 

@@ -13,10 +13,12 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The columns of a seat's row on a card's back: its session's id, its model,
-// at the least, and what it's doing's word, each with the blanks after it;
-// and how far in the note under it starts.
+// The columns of a seat's row on a card's back: the cells before its dot,
+// where ▸ marks the one picked out; its session's id, its model, at the
+// least, and what it's doing's word, each with the blanks after it; and how
+// far in the note under it starts.
 const (
+	seatLead    = 2
 	idColumn    = 6
 	modelColumn = 8
 	doingColumn = 11
@@ -69,9 +71,9 @@ func (s seated) seat() Seat {
 	return Seat{Session: s.session.ID, Model: s.assignment.Model}
 }
 
-// busy reports whether s was seen at work in the last minute before now.
-func (s seated) busy(now time.Time) bool {
-	return now.Sub(s.assignment.LastSeen) < busyWithin
+// plug is where s is plugged in: its seat, on its account.
+func (s seated) plug() Plug {
+	return Plug{Account: s.assignment.Account, Seat: s.seat()}
 }
 
 // seatedOn are the sessions listed on the account with the given id, a seat
@@ -169,7 +171,7 @@ func (f Frame) backBody(c *canvas, doc status.Document, fc face, seats []seated,
 	noted, column, row := 2*len(seats) <= room, modelColumnOf(seats), y
 	for _, s := range seats[first : first+shown] {
 		chosen := picked(s)
-		c.line(x, row, seatLine(s, column, chosen, now).fit(width))
+		c.line(x, row, f.seatLine(s, column, chosen, now).fit(width))
 		if chosen {
 			c.surface(x-1, row, width+2, hue{token: theme.BgSelection})
 		}
@@ -219,21 +221,25 @@ func modelColumnOf(seats []seated) int {
 }
 
 // seatLine is a seat's row on a card's back: ▸ where it's the one picked out;
-// its dot, lit while busy; its session's id, bold, bright while busy; its
+// its dot, lit while busy; its session's id, bright and bold while busy; its
 // model, its column cells wide; and what it's doing.
-func seatLine(s seated, column int, chosen bool, now time.Time) line {
-	lead := spaces(2)
+func (f Frame) seatLine(s seated, column int, chosen bool, now time.Time) line {
+	lead := spaces(seatLead)
 	if chosen {
 		lead = span{"▸ ", keyInk}
 	}
-	busy := s.busy(now)
+	busy := f.lit(s, now)
 	id := span{padded(sessionID(s.session.ID), idColumn), titleInk}
 	if !busy {
-		id.ink = ink{token: theme.TextMuted, bold: true}
+		id.ink = idleIDInk
 	}
-	d := doingOf(s, now)
+	d := f.doing(s, now)
 	return line{lead, sessionDot(busy), spaces(1), id, {padded(s.assignment.Name(), column), secondaryInk}, {padded(d.word, doingColumn), d.ink}, {d.detail, secondaryInk}}
 }
+
+// idleIDInk is an idle session's id: muted, and not bold, as only a busy
+// one's is.
+var idleIDInk = ink{token: theme.TextMuted}
 
 // doing is what a session's model on an account is doing, as its row on a
 // card's back says it: a word, in its ink, and what follows it.
@@ -243,14 +249,44 @@ type doing struct {
 	detail string
 }
 
-// doingOf is what the seat is doing at now, as the router last saw it: busy
-// while it was seen in the last minute, "seen now"; else idle so long, as in
-// "idle 9m".
-func doingOf(s seated, now time.Time) doing {
-	if s.busy(now) {
+// The words of what a request the request stream tells of is doing, as a
+// card's back says them: its answer streaming, or just ended, in
+// accent.mode, or sent, and waiting on it, in accent.attention.
+var (
+	streamingInk = ink{token: theme.AccentMode, bold: true}
+	waitingInk   = ink{token: theme.AccentAttention, bold: true}
+)
+
+// doing is what the seat s is doing at now: where the request stream tells
+// of a request of its in flight, its answer streaming, and how many tokens
+// so far, as in "streaming ↓ ~1.2k", or, sent with nothing back yet, how long
+// it has waited, as in "waiting 38s"; while an answer of its is held as it
+// ends, its tokens, exact as its closing usage counts them, as in "↓ 1.3k".
+// Else, with the stream, how long it has been idle, as in "idle 38s"; and
+// without it, busy, "seen now", or idle so long, as in "idle 9m".
+func (f Frame) doing(s seated, now time.Time) doing {
+	c, ok := f.Traffic.call(s.plug())
+	switch {
+	case ok && c.Doing == Streaming:
+		return doing{word: "streaming", ink: streamingInk, detail: c.streamed()}
+	case ok && c.Doing.InFlight():
+		return doing{word: "waiting", ink: waitingInk, detail: lapsed(c.Since, now)}
+	case ok && c.Doing == Answered:
+		return doing{word: c.streamed(), ink: streamingInk}
+	case !f.Traffic.Live && f.lit(s, now):
 		return doing{word: "seen", ink: secondaryInk, detail: "now"}
+	default:
+		return doing{word: "idle", ink: dimInk, detail: lapsed(f.lastSeen(s), now)}
 	}
-	return doing{word: "idle", ink: dimInk, detail: status.Countdown(s.assignment.LastSeen, now)}
+}
+
+// lapsed says how long has passed from since to now: in seconds, as "38s",
+// within a minute, and from then as status.Countdown counts, as "9m".
+func lapsed(since, now time.Time) string {
+	if d := now.Sub(since); d < time.Minute {
+		return strconv.Itoa(max(int(d/time.Second), 0)) + "s"
+	}
+	return status.Countdown(since, now)
 }
 
 // note is what's noted under a seat's row on the back of the card of the

@@ -263,6 +263,9 @@ func TestTheSeriesGoRoundAgainPastSix(t *testing.T) {
 		if got := lake.Series(n); got != lake.Colour(want) {
 			t.Errorf("Series(%d) = %s, want %s's %s", n, hex(got), want, hex(lake.Colour(want)))
 		}
+		if got := theme.SeriesOf(n); got != want {
+			t.Errorf("SeriesOf(%d) = %s, want %s", n, got, want)
+		}
 	}
 }
 

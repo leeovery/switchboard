@@ -19,8 +19,9 @@ func TestOpensOnTheViewKept(t *testing.T) {
 		want dashboard.View
 	}{
 		{name: "the view kept", kept: dashboard.Runway, want: dashboard.Runway},
+		{name: "Sessions kept", kept: dashboard.Sessions, want: dashboard.Sessions},
 		{name: "none kept: the first", kept: "", want: dashboard.Accounts},
-		{name: "one there isn't, as from a later switchboard: the first", kept: "sessions", want: dashboard.Accounts},
+		{name: "one there isn't, as from a later switchboard: the first", kept: "a-later-view", want: dashboard.Accounts},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -36,7 +37,6 @@ func TestTabShowsTheNextViewAndKeepsIt(t *testing.T) {
 	h := newHarness(t, calm())
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
-	h.model.views = []dashboard.View{dashboard.Accounts, "sessions", dashboard.Runway}
 	h.start()
 
 	if !strings.HasPrefix(h.footer(), "tab views · ") {
@@ -46,7 +46,7 @@ func TestTabShowsTheNextViewAndKeepsIt(t *testing.T) {
 		key  string
 		want dashboard.View
 	}{
-		{key: "tab", want: "sessions"},
+		{key: "tab", want: dashboard.Sessions},
 		{key: "tab", want: dashboard.Runway},
 		{key: "tab", want: dashboard.Accounts},
 		{key: "shift+tab", want: dashboard.Runway},
@@ -65,7 +65,7 @@ func TestTabTurnsRoundTheViewsBuilt(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if got, want := h.model.views, []dashboard.View{dashboard.Accounts, dashboard.Runway}; !slices.Equal(got, want) {
+	if got, want := h.model.views, []dashboard.View{dashboard.Accounts, dashboard.Sessions, dashboard.Runway}; !slices.Equal(got, want) {
 		t.Fatalf("the views are %q, want %q", got, want)
 	}
 	for _, step := range []struct {
@@ -74,9 +74,11 @@ func TestTabTurnsRoundTheViewsBuilt(t *testing.T) {
 		// wantShows is what the screen shows of the view.
 		wantShows string
 	}{
+		{key: "tab", want: dashboard.Sessions, wantShows: "┌─ 1 · WORK ─"},
 		{key: "tab", want: dashboard.Runway, wantShows: "accounts with room"},
 		{key: "tab", want: dashboard.Accounts, wantShows: "╭─ 1 Work"},
 		{key: "shift+tab", want: dashboard.Runway, wantShows: "accounts with room"},
+		{key: "shift+tab", want: dashboard.Sessions, wantShows: "┌─ 1 · WORK ─"},
 		{key: "shift+tab", want: dashboard.Accounts, wantShows: "╭─ 1 Work"},
 	} {
 		h.press(step.key)
@@ -84,7 +86,7 @@ func TestTabTurnsRoundTheViewsBuilt(t *testing.T) {
 			t.Errorf("%s showed %q, the screen\n%s\nwant %q, showing %q", step.key, h.model.view, h.view(), step.want, step.wantShows)
 		}
 	}
-	if !strings.Contains(h.view(), " Accounts   Runway   tab ⇥") {
+	if !strings.Contains(h.view(), " Accounts   Sessions   Runway   tab ⇥") {
 		t.Errorf("the screen is\n%s\nwant the views built as tabs, and tab's hint", h.view())
 	}
 }
@@ -95,7 +97,7 @@ func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	h.press("j")
 	h.press("j")
 
-	h.press("tab")
+	h.press("shift+tab")
 	if h.model.scroll != 0 || !strings.Contains(h.view(), " 1 Account A") {
 		t.Errorf("turned to Runway, scrolled %d, the screen\n%s\nwant it from its first lane", h.model.scroll, h.view())
 	}
@@ -112,7 +114,7 @@ func TestWSwitchesRunwayBetweenTheDayAndTheWeek(t *testing.T) {
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
 	h.start()
-	h.press("tab")
+	h.press("shift+tab")
 	prefs.updates = 0
 
 	for _, step := range []struct {
@@ -167,11 +169,10 @@ func TestAViewThatCantBeKeptIsShownAllTheSame(t *testing.T) {
 	log := logstest.Capture(t)
 	h := newHarness(t, calm())
 	h.model.cfg.Prefs = &fakePrefs{err: errors.New("keep the preferences: read-only file system")}
-	h.model.views = []dashboard.View{dashboard.Accounts, "sessions"}
 	h.start()
 
 	h.press("tab")
-	if h.model.view != "sessions" {
+	if h.model.view != dashboard.Sessions {
 		t.Errorf("showing %q, want sessions all the same", h.model.view)
 	}
 	if want := []string{"level=WARN", `msg="couldn't keep the view shown"`, "view=sessions"}; !log.Has(want...) {

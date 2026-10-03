@@ -187,14 +187,14 @@ func TestTheLineOverTheFooterSaysWhichWindowsHideFromEveryCard(t *testing.T) {
 	}
 }
 
-func TestTheViewIsDrawnOnlyForAccounts(t *testing.T) {
+func TestAViewNotBuiltDrawsNothing(t *testing.T) {
 	f := frameOf(160, 40)
-	f.View = "sessions"
+	f.View = "a-later-view"
 	rows := f.Draw(threeRouted(), now)
 
 	for i, row := range rows[7:39] {
 		if row != "" {
-			t.Errorf("row %d = %q, want nothing drawn of a view not built yet", i+8, row)
+			t.Errorf("row %d = %q, want nothing drawn of a view not built", i+8, row)
 		}
 	}
 }

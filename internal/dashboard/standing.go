@@ -50,20 +50,27 @@ func standingOf(doc status.Document, a status.Account, w quota.Window, now time.
 }
 
 // limitedSince is when doc's account a reached the limit the router saw it
-// reach, as the router told of it, while that limit holds at now: zero where
+// reach, as limitEvent tells of it: zero where it tells of none.
+func limitedSince(doc status.Document, a status.Account, now time.Time) time.Time {
+	e, _ := limitEvent(doc, a, now)
+	return e.At
+}
+
+// limitEvent is the router's event of doc's account a reaching the limit the
+// router saw it reach, while that limit holds at now, reporting false where
 // it doesn't, as of a window read spent while probing, which an old limit's
 // event says nothing of, or where no event tells of it.
-func limitedSince(doc status.Document, a status.Account, now time.Time) time.Time {
+func limitEvent(doc status.Document, a status.Account, now time.Time) (status.Event, bool) {
 	if !a.Limit.Holds(now) {
-		return time.Time{}
+		return status.Event{}, false
 	}
 	i := slices.IndexFunc(doc.Events, func(e status.Event) bool {
 		return e.Kind == status.EventLimit && e.Account == a.ID && !e.At.After(now)
 	})
 	if i < 0 {
-		return time.Time{}
+		return status.Event{}, false
 	}
-	return doc.Events[i].At
+	return doc.Events[i], true
 }
 
 // projected is the share of the window it's heading for by its reset, as a
@@ -80,6 +87,17 @@ func (s standing) projected() (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// paceCell is the cell of the window's bar, cells long, where even use
+// across the window would put it at now: noMarker, leaving the marker off,
+// where that can't be said, and while it's held at its limit or has lapsed.
+func (s standing) paceCell(now time.Time, cells int) int {
+	elapsed, ok := score.Elapsed(s.window, now)
+	if !ok || s.held || s.lapsed {
+		return noMarker
+	}
+	return cellAt(elapsed, cells)
 }
 
 // nearing reports whether the share the window is heading for by its reset,
@@ -103,21 +121,27 @@ func (s standing) use(k ink) span {
 }
 
 // whither says in brief where the window is heading at now, as a bar line or
-// a card's header does: that it's back at a time, at its limit; that it runs
-// out at a time, as in "→ out ~16:05", with tilde as given; that it's heading
-// for a share by its reset, as in "→ 87%", calling for attention where that
-// nears where its account runs out; or that it hasn't started. It's empty
-// where nothing says.
+// a card's header does, its times as brief shows them, as headed says it.
 func (s standing) whither(now time.Time, tilde string) span {
+	return s.headed(now, tilde, brief)
+}
+
+// headed says where the window is heading at now, its times as when shows
+// them: that it's back at a time, at its limit; that it runs out at a time,
+// as in "→ out ~16:05", with tilde as given; that it's heading for a share
+// by its reset, as in "→ 87%", calling for attention where that nears where
+// its account runs out; or that it hasn't started. It's empty where nothing
+// says.
+func (s standing) headed(now time.Time, tilde string, when func(now, t time.Time) string) span {
 	switch {
 	case s.lapsed:
 		return span{"not started", dimInk}
 	case s.held && !s.back.IsZero():
-		return span{"back " + brief(now, s.back), exhaustedInk}
+		return span{"back " + when(now, s.back), exhaustedInk}
 	case s.held:
 		return span{}
 	case s.runsOut:
-		return span{"→ out " + tilde + brief(now, s.out.At), alertInk}
+		return span{"→ out " + tilde + when(now, s.out.At), alertInk}
 	}
 	share, ok := s.projected()
 	switch {

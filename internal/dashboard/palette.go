@@ -96,6 +96,9 @@ type ink struct {
 	// colour, to 1, all beneath, where the look can blend: a mark drawn
 	// faint, as a short bar's empty cells are.
 	fade float64
+	// glow blends the colour so far toward text.primary, from 0, all the
+	// colour, to 1, all text.primary: a cord lit by what travels it.
+	glow float64
 	// ramp marks a bar's filled cell, coloured by where it sits along the
 	// bar, at, from 0 at its first cell to 1 at its last, rather than by a
 	// token.
@@ -168,14 +171,29 @@ func (l Look) render(text string, k ink) string {
 	return style.Render(text)
 }
 
-// colour is the ink's colour in the look, faded as the ink says: nil without
-// colour.
+// colour is the ink's colour in the look, glowing and faded as the ink says:
+// nil without colour.
 func (l Look) colour(k ink) color.Color {
 	if !l.coloured {
 		return nil
 	}
 	h := k.hue()
-	return l.faded(l.unfaded(h), h.fade)
+	return l.faded(l.glowing(l.unfaded(h), k.glow), h.fade)
+}
+
+// glowing is c blended amount toward text.primary, as a lit cord glows: in a
+// look that blends nothing, text.primary from halfway, else c as it is.
+func (l Look) glowing(c color.Color, amount float64) color.Color {
+	switch {
+	case amount <= 0 || c == nil:
+		return c
+	case l.blends():
+		return theme.Mix(c, l.theme.Colour(theme.TextPrimary), amount)
+	case amount >= 0.5:
+		return l.theme.Colour(theme.TextPrimary)
+	default:
+		return c
+	}
 }
 
 // unfaded is the hue's colour in the look before it's faded: its token's, or

@@ -47,9 +47,17 @@ type Frame struct {
 	Featured Feature
 	Span     Span
 	// Sessions are the sessions the router listed, the one seen last first,
-	// for the cards' dots: nil where it listed none, as while probing, and
-	// each card counts its account's sessions as the document does.
+	// for the cards' dots and Sessions' calls: nil where it listed none, as
+	// while probing, and each card counts its account's sessions as the
+	// document does.
 	Sessions []status.Session
+	// Traffic is what the router's request stream tells of the sessions'
+	// requests, while the watch reads it: zero while it doesn't.
+	Traffic Traffic
+	// Order is the order Sessions' calls run in, as the watch keeps it from
+	// look to look: a seat keeps its row while the router lists it there,
+	// and one new to its account joins its group's foot.
+	Order Order
 	// Scroll is how many rows the view's cards, or its lanes, are scrolled
 	// down by, where they don't fit: no further than Scrolling says they go.
 	Scroll int
@@ -94,6 +102,8 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 	switch f.View {
 	case Accounts:
 		f.accounts(c, doc, now, top)
+	case Sessions:
+		f.sessions(c, doc, now, top)
 	case Runway:
 		f.runway(c, doc, now, top)
 	}

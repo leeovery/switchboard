@@ -186,7 +186,7 @@ func TestAFlippedCardsBackListsItsSessions(t *testing.T) {
 	for _, want := range []string{
 		"┏━ 1 Work ━",
 		"┃  2 sessions  ·  1 busy",
-		"┃  ▸ ● d28c  opus    seen       now",
+		"┃  ▸ ● d28c  opus    idle       10s",
 		"┃      ╰ here since 12:12",
 		"┃    ○ 7f3a  haiku   idle       9m",
 		"┃  ↑↓ select  1-4 move it  space flip",
@@ -347,6 +347,23 @@ func TestTheFocusIsGivenUpOnceItsAccountGoes(t *testing.T) {
 	}
 }
 
+func TestACardIsFlippedNoMoreOnceItsAccountGoes(t *testing.T) {
+	h := gridHarness(t)
+	h.keys(rightKey, downKey, spaceKey)
+	if !h.model.flipped["client"] || h.opened() != 1 {
+		t.Fatalf("space flipped %v, the stream opened %d times, want client's card flipped, the stream open", h.model.flipped, h.opened())
+	}
+	h.startRouter(routerDocument(three()...))
+	h.tickUntilAsked()
+
+	if h.model.flipped["client"] {
+		t.Errorf("once client went, the cards flipped are %v, want client's no longer", h.model.flipped)
+	}
+	if !h.closed(h.opened()) {
+		t.Error("once client went, its card the only one flipped, the stream is open still, want it closed")
+	}
+}
+
 func TestMovingTheFocusToACardOutOfViewScrollsToIt(t *testing.T) {
 	h := newHarness(t, twelve())
 	h.start()
@@ -412,7 +429,6 @@ func TestWithOneAccountNoSessionIsPickedOut(t *testing.T) {
 
 func TestAnotherViewEndsTheSelection(t *testing.T) {
 	h := gridHarness(t)
-	h.model.views = []dashboard.View{dashboard.Accounts, "sessions"}
 	h.keys(spaceKey, downKey)
 	h.press("tab")
 

@@ -84,8 +84,7 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 	case status.EventLimit:
 		return span{"■", errorInk}, slices.Concat(line{account, {" reached its " + limits(e, doc), mutedInk}}, moves(e, doc)), true
 	case status.EventMoved:
-		moved := line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {named(doc, e.From), strongInk}, {" → ", mutedInk}, {named(doc, e.To), strongInk}}
-		return span{"▸", dimInk}, slices.Concat(moved, why(e.Reason)), true
+		return movedMark, moveSaid(e, doc, why(e.Reason)), true
 	case status.EventRefused:
 		mark, words, until := refusal(e)
 		return mark, line{account, {" " + words + until, mutedInk}}, true
@@ -104,30 +103,52 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 	return span{}, nil, false
 }
 
+// movedMark marks a session's move, as RECENT and LOG tell of it.
+var movedMark = span{"▸", dimInk}
+
+// moveSaid says a session's model moved, from where to where, as in "d28c
+// moved work → side", then why, as said gives it.
+func moveSaid(e status.Event, doc status.Document, said line) line {
+	return slices.Concat(line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {named(doc, e.From), strongInk}, {" → ", mutedInk}, {named(doc, e.To), strongInk}}, said)
+}
+
 // why says why a session went where it did, as the router's reason gives it:
 // ", the best" where it was chosen afresh, " (pin)" where a pin sent it, else
 // the reason itself; and the account under pressure the choice passed over,
 // where it passed one.
 func why(reason string) line {
-	reason = status.Clean(reason)
-	var passed string
-	if i := strings.LastIndex(reason, ", "); i >= 0 && strings.HasSuffix(reason, passedOver) {
-		reason, passed = reason[:i], reason[i+2:]
-	}
+	said, passed := passedOverIn(reason)
 	var l line
-	switch reason {
+	switch said {
 	case "":
 	case reasonNew:
 		l = line{{", the best", mutedInk}}
 	case reasonOwnPin, reasonGlobalPin, reasonPinMove:
 		l = line{{" (pin)", mutedInk}}
 	default:
-		l = line{{": " + strings.TrimPrefix(reason, reasonMovedOff), mutedInk}}
+		l = line{{": " + strings.TrimPrefix(said, reasonMovedOff), mutedInk}}
 	}
-	if passed != "" {
-		l = append(l, span{", passing over " + passed, mutedInk})
+	return slices.Concat(l, passing(passed))
+}
+
+// passedOverIn parts the reason the router gives for where a session went,
+// cleaned, into what it says of the choice, and the account under pressure
+// the choice passed over, "" where it passed none.
+func passedOverIn(reason string) (said, passed string) {
+	reason = status.Clean(reason)
+	if i := strings.LastIndex(reason, ", "); i >= 0 && strings.HasSuffix(reason, passedOver) {
+		return reason[:i], reason[i+2:]
 	}
-	return l
+	return reason, ""
+}
+
+// passing says the choice passed over the account under pressure given, as
+// in ", passing over work under pressure": nothing where it passed none.
+func passing(passed string) line {
+	if passed == "" {
+		return nil
+	}
+	return line{{", passing over " + passed, mutedInk}}
 }
 
 // runsOut says when, at the rate an account came under pressure at, its
@@ -236,12 +257,17 @@ type telling struct {
 	words line
 }
 
-// tellings are the events RECENT tells of at now, newest first, n at most:
-// each led by its time, the newest's standing out, in a column as wide as
-// the widest, then its mark. On a phone, a time is followed by a single
-// blank rather than two.
+// tellings are the events RECENT tells of at now, newest first, n at most,
+// as tellingsOf tells of them.
 func (f Frame) tellings(doc status.Document, now time.Time, n int) []telling {
-	events := recent(doc, now, n)
+	return f.tellingsOf(recent(doc, now, n), doc, now, told)
+}
+
+// tellingsOf are the events given, as tell tells of each at now: each led by
+// its time, the first's standing out, in a column as wide as the widest,
+// then its mark. On a phone, a time is followed by a single blank rather
+// than two.
+func (f Frame) tellingsOf(events []status.Event, doc status.Document, now time.Time, tell func(status.Event, status.Document, time.Time) (span, line, bool)) []telling {
 	gap, column := "  ", 0
 	if f.phone() {
 		gap = " "
@@ -251,7 +277,7 @@ func (f Frame) tellings(doc status.Document, now time.Time, n int) []telling {
 	}
 	tellings := make([]telling, len(events))
 	for i, e := range events {
-		mark, words, _ := told(e, doc, now)
+		mark, words, _ := tell(e, doc, now)
 		at := span{fmt.Sprintf("%-*s", column, status.When(now, e.At)) + gap, dimInk}
 		if i == 0 {
 			at.ink = secondaryInk

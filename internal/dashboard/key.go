@@ -37,14 +37,19 @@ type glyph struct {
 }
 
 // glyphs are the glyphs the key explains of the view shown. Of Runway, its
-// legend's. Of the cards, two groups: a chart's, its room left, the dotted
-// line where it's heading, ✕ where it runs out, and its reserve; then a
-// bar's, its use, where it's heading, even pace and the reserve, and a
-// session's dot on a card's edge. Each is drawn as the look draws it on a
-// card: a bar's projection, where the look can't fade it, in shade.
+// legend's. Of Sessions, its switchboard's and its requests', as
+// switchboardGlyphs has them. Of the cards, two groups: a chart's, its room
+// left, the dotted line where it's heading, ✕ where it runs out, and its
+// reserve; then a bar's, its use, where it's heading, even pace and the
+// reserve, and a session's dot on a card's edge. Each is drawn as the look
+// draws it on a card: a bar's projection, where the look can't fade it, in
+// shade.
 func (f Frame) glyphs() [][]glyph {
-	if f.View == Runway {
+	switch f.View {
+	case Runway:
 		return [][]glyph{f.legendGlyphs()}
+	case Sessions:
+		return switchboardGlyphs()
 	}
 	heading := line{{"██", ink{ramp: true, at: 1.0 / 3, fade: projectionFade}}}
 	if !f.Look.blends() {
@@ -67,6 +72,28 @@ func (f Frame) glyphs() [][]glyph {
 			{drawn: line{{paceMarker.text, ink{token: theme.VizPace, bold: true}}}, means: "even pace"},
 			{drawn: line{reserveMarker}, means: "reserve"},
 			{drawn: line{sessionDot(true)}, means: "session, lit while busy"},
+		},
+	}
+}
+
+// switchboardGlyphs are the glyphs of Sessions, as it draws them, in two
+// groups: its switchboard's, a cord from a call to its account's line, a free
+// jack, and a cord hanging loose from one, as a move lets it go; then what a
+// call's row says of its request: asking, its answer streaming back, refused,
+// throttled, and moved here.
+func switchboardGlyphs() [][]glyph {
+	return [][]glyph{
+		{
+			{drawn: line{{plugGlyph + strings.Repeat(heavyCord.along, 2) + pluggedJack, cordInk(1, true)}}, means: "a session's cord to its account"},
+			{drawn: line{{freeJack, freeJackInk}}, means: "a free jack"},
+			{drawn: line{{strings.Repeat(hangingGlyph, 2), dimInk}, {freeJack, freeJackInk}}, means: "a cord a move let go"},
+		},
+		{
+			{drawn: line{{"↑", nameInk}}, means: "asking"},
+			{drawn: line{{"↓", titleInk}}, means: "streaming back, ~ its tokens so far"},
+			{drawn: line{{refusedJack, exhaustedInk}}, means: "a limit or a refusal"},
+			{drawn: line{{"…", dimInk}}, means: "throttled"},
+			{drawn: line{{"↪", nameInk}}, means: "moved here"},
 		},
 	}
 }
