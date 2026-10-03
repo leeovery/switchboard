@@ -237,6 +237,38 @@ func TestWhereAnAccountsWindowRunsOut(t *testing.T) {
 	}
 }
 
+func TestAProjectionStaysPutWhileTheDocumentDoes(t *testing.T) {
+	read := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	// The session, 58% used two hours in, heads at its pace for 97% by its
+	// reset in three, and at 30% an hour lately reaches its limit in 1h 24m;
+	// the week, used at its pace, runs out in a day.
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.58, ResetsAt: read.Add(3 * time.Hour)}
+	week := quota.Window{Key: "7d", Label: "Week", Utilization: 0.8, ResetsAt: read.Add(4 * 24 * time.Hour)}
+	paced := status.Account{ID: "work", FetchedAt: read.Add(-time.Minute), Windows: []quota.Window{session, week}}
+	rated := paced
+	rated.Rates = []status.Rate{{Window: "5h", Rate: 0.3, Since: read.Add(-30 * time.Minute)}}
+	for _, a := range []status.Account{paced, rated} {
+		doc := status.Document{GeneratedAt: read, Accounts: []status.Account{a}}
+		for _, w := range a.Windows {
+			first, ok := doc.RunsOut(a, w, read)
+			heading := doc.Project(a, w, read)
+			for _, later := range []time.Duration{time.Second, 10 * time.Minute} {
+				again, stillOK := doc.RunsOut(a, w, read.Add(later))
+				if ok != stillOK || !again.At.Equal(first.At) {
+					t.Errorf("%s's %s runs out at %v, %v as read, and at %v, %v %s later, want it put", a.ID, w.Key, first.At, ok, again.At, stillOK, later)
+				}
+				if got := doc.Project(a, w, read.Add(later)); got != heading {
+					t.Errorf("%s's %s heads for %+v as read, and %+v %s later, want it put", a.ID, w.Key, heading, got, later)
+				}
+			}
+		}
+	}
+	doc := status.Document{GeneratedAt: read, Accounts: []status.Account{paced}}
+	if got := doc.Project(paced, session, session.ResetsAt); got != (status.Heading{}) {
+		t.Errorf("once its session has reset, it heads for %+v, want nowhere", got)
+	}
+}
+
 func TestAnAccountAsItStands(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: now.Add(time.Hour), Status: quota.StatusAllowedWarning}
@@ -459,7 +491,7 @@ func TestCollectBest(t *testing.T) {
 	}
 }
 
-func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
+func TestBestOfThePinnedWhileOneHasRoomAndThoseItsChosenAmong(t *testing.T) {
 	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: now.Add(3 * time.Hour)}
 	week := func(utilization float64, resetsIn time.Duration) []quota.Window {
@@ -484,17 +516,19 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 		// change changes the accounts before the best is chosen of them.
 		change func(accounts []status.Account)
 		want   string
+		// wantAmong are the accounts it's chosen among.
+		wantAmong []string
 	}{
-		{name: "unpinned, the best of every account", want: "spare"},
-		{name: "the one pinned", pinned: []string{"work"}, want: "work"},
-		{name: "the best of those pinned", pinned: []string{"work", "side"}, want: "side"},
+		{name: "unpinned, the best of every account", want: "spare", wantAmong: []string{"work", "side", "spare"}},
+		{name: "the one pinned", pinned: []string{"work"}, want: "work", wantAmong: []string{"work"}},
+		{name: "the best of those pinned", pinned: []string{"work", "side"}, want: "side", wantAmong: []string{"work", "side"}},
 		{
 			name:   "one pinned at its reserve, which the pin spends",
 			pinned: []string{"work"},
 			change: func(accounts []status.Account) {
 				accounts[0].Reserve, accounts[0].Windows = 0.1, week(0.95, 5*24*time.Hour)
 			},
-			want: "work",
+			want: "work", wantAmong: []string{"work"},
 		},
 		{
 			name:   "the best of every account once none pinned has room",
@@ -502,7 +536,7 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 			change: func(accounts []status.Account) {
 				accounts[0].Windows, accounts[1].Windows = week(1, 5*24*time.Hour), week(1, 3*24*time.Hour)
 			},
-			want: "spare",
+			want: "spare", wantAmong: []string{"spare"},
 		},
 		{
 			name:   "the first pinned with room when none pinned can be scored",
@@ -510,29 +544,29 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 			change: func(accounts []status.Account) {
 				accounts[0].Windows, accounts[1].Windows = week(1, 5*24*time.Hour), nil
 			},
-			want: "side",
+			want: "side", wantAmong: []string{"side"},
 		},
 		{
 			name:   "none pinned without a usable token",
 			pinned: []string{"work"},
 			change: func(accounts []status.Account) { accounts[0] = status.Account{ID: "work", Label: "work"} },
-			want:   "spare",
+			want:   "spare", wantAmong: []string{"side", "spare"},
 		},
 		{
 			name:   "unpinned, passing over the best under pressure",
 			change: func(accounts []status.Account) { accounts[2].Pressure.Rate = pressing },
-			want:   "side",
+			want:   "side", wantAmong: []string{"work", "side"},
 		},
 		{
 			name:   "unpinned, passing over the best under pressure at its reserve",
 			change: func(accounts []status.Account) { accounts[2].Reserve, accounts[2].Pressure.Rate = 0.1, atReserve },
-			want:   "side",
+			want:   "side", wantAmong: []string{"work", "side"},
 		},
 		{
 			name:   "the best of those pinned, passing over one under pressure for another pinned",
 			pinned: []string{"work", "side"},
 			change: func(accounts []status.Account) { accounts[1].Pressure.Rate = pressing },
-			want:   "work",
+			want:   "work", wantAmong: []string{"work"},
 		},
 		{
 			name:   "the best of those pinned, every one under pressure",
@@ -540,13 +574,28 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 			change: func(accounts []status.Account) {
 				accounts[0].Pressure.Rate, accounts[1].Pressure.Rate = pressing, pressing
 			},
-			want: "side",
+			want: "side", wantAmong: []string{"work", "side"},
 		},
 		{
 			name:   "the best of those pinned, under pressure only at its reserve, which the pin spends",
 			pinned: []string{"work", "side"},
 			change: func(accounts []status.Account) { accounts[1].Reserve, accounts[1].Pressure.Rate = 0.1, atReserve },
-			want:   "side",
+			want:   "side", wantAmong: []string{"work", "side"},
+		},
+		{
+			name: "unpinned, passing over one held back by a limit naming no window, its windows with room",
+			change: func(accounts []status.Account) {
+				accounts[2].Limit = status.Limit{Until: now.Add(time.Hour)}
+			},
+			want: "side", wantAmong: []string{"work", "side"},
+		},
+		{
+			name:   "of those pinned, passing over one whose token is refused",
+			pinned: []string{"work", "side"},
+			change: func(accounts []status.Account) {
+				accounts[1].Refused = status.Refusal{Until: now.Add(time.Hour), Status: 401}
+			},
+			want: "work", wantAmong: []string{"work"},
 		},
 	}
 	for _, tt := range tests {
@@ -557,6 +606,9 @@ func TestBestOfThePinnedWhileOneHasRoom(t *testing.T) {
 			}
 			if got := status.Best(policy, accounts, tt.pinned, now); got != tt.want {
 				t.Errorf("Best() = %q, want %q", got, tt.want)
+			}
+			if got := status.Choosable(policy, accounts, tt.pinned, now); !slices.Equal(got, tt.wantAmong) {
+				t.Errorf("Choosable() = %q, want %q", got, tt.wantAmong)
 			}
 		})
 	}

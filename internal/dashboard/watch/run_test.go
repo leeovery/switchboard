@@ -3,6 +3,7 @@ package watch
 import (
 	"bytes"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -56,6 +57,18 @@ func TestTheBackgroundIsPutBackHoweverTheWatchStops(t *testing.T) {
 	}
 }
 
+func TestAWatchsPanicLeavesNothingBehindWhateverTheEnvironmentSays(t *testing.T) {
+	t.Setenv("TEA_DEBUG", "true")
+	t.Chdir(t.TempDir())
+
+	if _, err := watchUntil(t, themedConfig(), "", "x", func() tea.Msg { panic("a bug") }); err == nil {
+		t.Fatal("run() error = nil, want the panic it recovered from")
+	}
+	if logs, _ := filepath.Glob("bubbletea-panic-*.log"); len(logs) > 0 {
+		t.Errorf("the panic left %q behind, want nothing written, whatever TEA_DEBUG says", logs)
+	}
+}
+
 func TestABackgroundNeverSetIsLeftAlone(t *testing.T) {
 	cfg := themedConfig()
 	cfg.Choice = theme.One(theme.Terminal)
@@ -79,6 +92,10 @@ func TestABackgroundNeverSetIsLeftAlone(t *testing.T) {
 // where that's set. It returns what the watch wrote, and how it stopped.
 func watchUntil(t *testing.T, cfg Config, answer, key string, as func() tea.Msg) (string, error) {
 	t.Helper()
+	// Bubble Tea reads these itself: set, they have it write a trace, or a
+	// log of a panic it recovers from in the working directory.
+	t.Setenv("TEA_TRACE", "")
+	t.Setenv("TEA_DEBUG", "")
 	var out lockedBuffer
 	in, typing := io.Pipe()
 	t.Cleanup(func() { _ = typing.Close() })

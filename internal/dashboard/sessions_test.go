@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"math/rand/v2"
@@ -147,36 +148,67 @@ func TestTheCallsKeepTheOrderTheWatchKeeps(t *testing.T) {
 	}
 }
 
-func TestTheOrderKeptIsTheCallsAsDrawnButAMovesPlaceholder(t *testing.T) {
+func TestTheOrderKeptIsTheCallsAsDrawn(t *testing.T) {
 	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "work", To: "side", At: now}
 	f := switchboard(160, 40, flippingSessions(), Traffic{Moves: []Move{move}})
 
 	want := Order{
-		"work": {{idDB8A, sonnet}, {id7F3A, haiku}},
+		"work": {{idDB8A, sonnet}, {idD28C, opus}, {id7F3A, haiku}},
 		"side": {{idC61B, opus}, {idDB8A, opus}, {id41E0, sonnet}, {idD28C, opus}},
 	}
 	if got := f.OrderOf(threeRouted()); !maps.EqualFunc(got, want, slices.Equal) {
-		t.Errorf("the order kept is %+v, want %+v: d28c's placeholder left out, as its row closes up, and it on side, where it joined the foot", got, want)
+		t.Errorf("the order kept is %+v, want %+v: d28c's placeholder on its row, which it keeps till a listing shows its move done, and d28c on side, where it joined the foot", got, want)
+	}
+}
+
+func TestAPlaceholderKeepsItsRowTillAListingShowsItsMoveDone(t *testing.T) {
+	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "work", To: "side", At: now}
+	drawn := switchboard(160, 40, flippingSessions(), Traffic{Moves: []Move{move}})
+	work := func(f Frame) []string {
+		var calls []string
+		for _, r := range bayOfFrame(t, f, threeRouted()).calls {
+			if r.assignment.Account == "work" {
+				calls = append(calls, fmt.Sprintf("%s on row %d, gone %v", sessionID(r.session.ID), r.row, r.gone))
+			}
+		}
+		return calls
+	}
+
+	// The next look lists d28c on work still, the router listing it before
+	// it moved, and turns over the order it lists the sessions in.
+	next := drawn
+	next.Order = drawn.OrderOf(threeRouted())
+	next.Sessions = slices.Clone(flippingSessions())
+	slices.Reverse(next.Sessions)
+	if got, want := work(next), work(drawn); !slices.Equal(got, want) {
+		t.Errorf("work's calls are %q, want %q, d28c's placeholder on its row", got, want)
+	}
+}
+
+func TestAMoveBringsOnTheSeatOfASessionNotListedItsModelNamed(t *testing.T) {
+	move := Move{Seat: Seat{Session: "5b19aa00", Model: opus}, From: "work", To: "side", At: now}
+	b, c := drawnBay(t, switchboard(160, 40, flippingSessions(), Traffic{Moves: []Move{move}}), threeRouted())
+
+	if got := rowOf(c, callAt(t, b, "5b19", "side").row); !strings.HasPrefix(got, "  5b19  opus") {
+		t.Errorf("its row reads %q, want its model named as the router names it for the sessions it lists", got)
 	}
 }
 
 func TestSessionsIsASwitchboardWhereItsCordsFit(t *testing.T) {
-	accounts := frameOf(160, 40)
-	accounts.Sessions = flippingSessions()
 	tests := []struct {
 		name  string
 		frame Frame
 		doc   status.Document
 		want  bool
 	}{
-		{name: "Sessions of three accounts", frame: switchboard(160, 40, flippingSessions(), Traffic{}), doc: threeRouted(), want: true},
-		{name: "Sessions of one account: a plain list", frame: switchboard(160, 40, flippingSessions(), Traffic{}), doc: routerDoc("work", 3, pressedAccount("work"))},
-		{name: "Sessions under cordsFrom columns: a plain list", frame: switchboard(cordsFrom-1, 40, flippingSessions(), Traffic{}), doc: threeRouted()},
-		{name: "Accounts", frame: accounts, doc: threeRouted()},
+		{name: "three accounts", frame: switchboard(160, 40, flippingSessions(), Traffic{}), doc: threeRouted(), want: true},
+		{name: "one account: a plain list", frame: switchboard(160, 40, flippingSessions(), Traffic{}), doc: routerDoc("work", 3, pressedAccount("work"))},
+		{name: "under cordsFrom columns: a plain list", frame: switchboard(cordsFrom-1, 40, flippingSessions(), Traffic{}), doc: threeRouted()},
 	}
 	for _, tt := range tests {
-		if got := tt.frame.Switchboard(tt.doc, now); got != tt.want {
-			t.Errorf("%s: Switchboard = %v, want %v", tt.name, got, tt.want)
+		f := tt.frame
+		if _, got := f.bayOf(tt.doc, now, f.above(newCanvas(f.Width, f.Height), tt.doc, now)); got != tt.want {
+			t.Errorf("%s: laid out as a switchboard %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
@@ -341,7 +373,8 @@ func TestACordThatStartsHigherBendsFurtherRight(t *testing.T) {
 	}{
 		{name: "the frames' three, bendsApart apart, from 12 short of the lines", width: 160, calls: 3, want: []int{84, 79, 74}},
 		{name: "too many to be bendsApart apart: closer", width: 110, calls: 5, want: []int{34, 33, 32, 31, 30}},
-		{name: "too many to bend a cell apart: a plain list", width: 110, calls: 6},
+		{name: "too many to bend a cell apart beside the bars' lines: beside the narrower lines without them", width: 110, calls: 6, want: []int{58, 53, 48, 43, 38, 33}},
+		{name: "too many to bend a cell apart even then: a plain list", width: 110, calls: 40},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -454,10 +487,12 @@ func TestAPanelsUseIsTonedAsItRises(t *testing.T) {
 func TestStubsHangFromALinesFreeJacksWhileItsLimitHolds(t *testing.T) {
 	limit := func(count int, until time.Duration) status.Document {
 		doc := threeRouted()
-		doc.Accounts[1].Limit.Until = now.Add(until).UTC()
-		doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Hour).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: now.Add(until).UTC(), Count: count, To: "side"}}
+		doc.Accounts[1].Limit.ID, doc.Accounts[1].Limit.Until = 1, now.Add(until).UTC()
+		doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Hour).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: now.Add(until).UTC(), Count: count, To: "side", Limit: 1}}
 		return doc
 	}
+	another := limit(2, time.Hour)
+	another.Events = slices.Concat([]status.Event{{ID: 2, At: now.Add(-30 * time.Minute).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi"}, Until: now.Add(48 * time.Hour).UTC(), Count: 1, To: "side", Limit: 2}}, another.Events)
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -466,6 +501,7 @@ func TestStubsHangFromALinesFreeJacksWhileItsLimitHolds(t *testing.T) {
 	}{
 		{name: "a stub each, each a cell shorter", doc: limit(2, time.Hour), want: []string{"╌╌╌╌╌╌╌○", "╌╌╌╌╌╌○"}},
 		{name: "as many as there are free jacks", doc: limit(5, time.Hour), want: []string{"╌╌╌╌╌╌╌○", "╌╌╌╌╌╌○"}},
+		{name: "the holding limit's, by its identity, though another's event is newer", doc: another, want: []string{"╌╌╌╌╌╌╌○", "╌╌╌╌╌╌○"}},
 		{name: "none once the limit has lifted", doc: limit(2, -time.Minute), want: []string{"○", "○"}},
 	}
 	for _, tt := range tests {
@@ -770,6 +806,145 @@ func TestTheSessionsViewScrollsWhereItDoesntFit(t *testing.T) {
 	}
 }
 
+func TestWhatTravelsTheCordsMovesOnScreenAlone(t *testing.T) {
+	plug := func(session, account string) Plug {
+		return Plug{Account: account, Seat: Seat{Session: session, Model: opus}}
+	}
+	tests := []struct {
+		name   string
+		height int
+		scroll bool
+		calls  map[Plug]Call
+		moves  []Move
+		want   Motion
+	}{
+		{name: "a pulse along a cord in view: frame by frame", calls: map[Plug]Call{plug(idD28C, "work"): {Doing: Asking, Pulsing: true}}, want: Motion{Smooth: true}},
+		{name: "an answer streaming back along one: its shimmer, a step at a time", calls: map[Plug]Call{plug(idD28C, "work"): {Doing: Streaming}}, want: Motion{Shimmer: true}},
+		{name: "refused, its pulse back: still", calls: map[Plug]Call{plug(idD28C, "work"): {Doing: Refused, Status: 429}}},
+		{name: "a session the router hasn't listed, with no cord: still", calls: map[Plug]Call{plug("5b19aa00", "work"): {Doing: Streaming, Pulsing: true}}},
+		{name: "a cord scrolled out of view: still", height: 14, calls: map[Plug]Call{plug(idC61B, "side"): {Doing: Asking, Pulsing: true}}},
+		{name: "scrolled into view", height: 14, scroll: true, calls: map[Plug]Call{plug(idC61B, "side"): {Doing: Asking, Pulsing: true}}, want: Motion{Smooth: true}},
+		{
+			name:  "a cord a move let go, fading from a jack in view",
+			moves: []Move{{Seat: Seat{Session: idD28C, Model: opus}, From: "work", To: "side", At: now, Listed: true, Fade: 0.4}},
+			want:  Motion{Smooth: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := flippingSessions()
+			for _, m := range tt.moves {
+				sessions = listedOn(sessions, m.Seat.Session, m.To)
+			}
+			// Fable's week used, each line has three jacks, and work, left
+			// with two calls by a move, one free.
+			doc := threeRouted()
+			doc.Accounts[2].Windows = append(doc.Accounts[2].Windows, fableOf(0.1, 4*day))
+			f := switchboard(160, cmp.Or(tt.height, 40), sessions, Traffic{Live: true, Calls: tt.calls, Moves: tt.moves})
+			if tt.scroll {
+				f.Scroll = f.Scrolling(doc, now).Most
+			}
+			if got := f.Motion(doc, now); got != tt.want {
+				t.Errorf("Motion = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// listedOn are the sessions given, the one with the given id listed on the
+// account to.
+func listedOn(sessions []status.Session, id, to string) []status.Session {
+	sessions = slices.Clone(sessions)
+	for i, s := range sessions {
+		if s.ID == id {
+			sessions[i].Assignments = slices.Clone(s.Assignments)
+			sessions[i].Assignments[0].Account = to
+		}
+	}
+	return sessions
+}
+
+func TestWhatTravelsTheCordsUnderTheHelpMovesNothing(t *testing.T) {
+	traffic := Traffic{Live: true, Calls: map[Plug]Call{{Account: "side", Seat: Seat{Session: idC61B, Model: opus}}: {Doing: Asking, Pulsing: true}}}
+	f := switchboard(160, 40, flippingSessions(), traffic)
+	f.Help = []Key{{Key: "?", Does: "these keys, and the key to the glyphs, with room enough for every one of them and more besides"}}
+
+	b := bayOfFrame(t, f, threeRouted())
+	top := f.above(newCanvas(f.Width, f.Height), threeRouted(), now) + 1
+	for _, p := range cordOf(t, b, "c61b", "side").path(b.x) {
+		if !f.helpCovers().covers(p.x, top+p.y, 1, 1) {
+			t.Fatalf("the help doesn't cover c61b's cord at %d along row %d, want it to, to test what it covers", p.x, top+p.y)
+		}
+	}
+	if got := f.Motion(threeRouted(), now); got.Smooth {
+		t.Errorf("Motion = %+v, want nothing moving, the cord under the help", got)
+	}
+}
+
+func TestAPlaceholderIsCutToTheCallsColumns(t *testing.T) {
+	doc := threeRouted()
+	doc.Accounts[2].Label = "a side account with a long name"
+	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "work", To: "side", At: now}
+	b, c := drawnBay(t, switchboard(160, 40, flippingSessions(), Traffic{Moves: []Move{move}}), doc)
+
+	said := strings.TrimRight(ansi.Cut(rowOf(c, callAt(t, b, "d28c", "work").row), 0, b.x-looseCells), " ")
+	if !strings.HasPrefix(said, "  d28c  ↪ moved to a side") || !strings.HasSuffix(said, ellipsis) || ansi.StringWidth(said) > plugAt {
+		t.Errorf("its placeholder reads %q, want it cut short, with an ellipsis, before the plugs' column, %d", said, plugAt)
+	}
+}
+
+func TestSessionsDrawsNothingOverItsHeadingOrItsFooter(t *testing.T) {
+	for _, doc := range []status.Document{threeRouted(), routerDoc("work", 3, pressedAccount("work"))} {
+		for height := 1; height <= 14; height++ {
+			f := switchboard(160, height, flippingSessions(), Traffic{})
+			bare := newCanvas(f.Width, f.Height)
+			top := f.above(bare, doc, now)
+			f.footer(bare, doc, height-1)
+			want, got := bare.rows(Look{}), f.Draw(doc, now)
+			for y := range height {
+				if (y < top || y == height-1) && got[y] != want[y] {
+					t.Errorf("%d accounts, %d rows tall: row %d reads %q, want %q, as the heading or the footer has it", len(doc.Accounts), height, y+1, got[y], want[y])
+				}
+			}
+		}
+	}
+}
+
+func TestAPlainListThatScrollsWithEveryPanelInViewSaysNothingOfScrolling(t *testing.T) {
+	doc := routerDoc("work", 3, pressedAccount("work"))
+	f := switchboard(160, 15, flippingSessions(), Traffic{})
+	rows := f.Draw(doc, now)
+
+	if f.Scrolling(doc, now).Most == 0 {
+		t.Fatal("the plain list doesn't scroll, want it to, to test what the line over the footer says")
+	}
+	if got := rows[f.Height-2]; strings.Contains(got, "scroll") || got != strings.Repeat("─", 160) {
+		t.Errorf("the line over the footer reads %q, want a rule, no account out of view", got)
+	}
+	if got := rows[f.Height-3]; !strings.HasSuffix(got, "┃") && !strings.HasSuffix(got, "│") {
+		t.Errorf("the row over it reads %q, want the scrollbar beside the view", got)
+	}
+}
+
+func TestAnUnreadAccountsPanelSaysSoAsItsCardDoes(t *testing.T) {
+	doc := threeRouted()
+	doc.Accounts[1] = status.Account{ID: "personal", Label: "personal", TokenSet: true}
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	b, c := drawnBay(t, f, doc)
+	p := b.panels[1]
+
+	says := strings.Index(rowOf(c, p.top), "not read yet")
+	if says < 0 {
+		t.Fatalf("personal's top edge reads %q, want it not read yet", rowOf(c, p.top))
+	}
+	if got := c.cells[p.top][ansi.StringWidth(rowOf(c, p.top)[:says])].ink; got != dimInk {
+		t.Errorf("its not read yet is in %+v, want dim, as its card has it", got)
+	}
+	if got := strings.TrimSpace(ansi.Cut(rowOf(c, p.bottom()), b.x, b.x+b.width)); got != "└"+strings.Repeat("─", b.width-2)+"┘" {
+		t.Errorf("its bottom edge reads %q, want it whole, nothing to say of its resets", got)
+	}
+}
+
 func TestTheLineOverTheSessionsFooterIsARule(t *testing.T) {
 	rows := switchboard(160, 40, flippingSessions(), Traffic{}).Draw(threeRouted(), now)
 
@@ -812,6 +987,24 @@ func TestNarrowerTerminalsSessions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestThePlainListShowsTheStreamsMoves(t *testing.T) {
+	d28c := Seat{Session: idD28C, Model: opus}
+	traffic := Traffic{
+		Live:  true,
+		Calls: map[Plug]Call{{Account: "side", Seat: d28c}: {Doing: Asking, Since: now.Add(-38 * time.Second), New: true}},
+		Moves: []Move{{Seat: d28c, From: "work", To: "side", At: now.Add(-time.Minute), Reason: "moved: work hit its limit"}},
+	}
+	rows := switchboard(89, 60, flippingSessions(), traffic).Draw(threeRouted(), now)
+
+	at := func(row string) int {
+		return slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, row) })
+	}
+	d28cRow, sides := at("● d28c  opus    waiting    38s"), at("3 · SIDE")
+	if d28cRow < 0 || sides < 0 || d28cRow < sides {
+		t.Errorf("the plain list is\n%s\nwant d28c under side's panel, waiting there, as the stream moved it", strings.Join(rows, "\n"))
 	}
 }
 
@@ -861,6 +1054,14 @@ func TestTokensAreCountedAsBrieflyAsARowHasRoomFor(t *testing.T) {
 	for _, tt := range tests {
 		if got := tokens(tt.n); got != tt.want {
 			t.Errorf("tokens(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestABackAndACallRoundWhenItWasLastSeenAlike(t *testing.T) {
+	for ago := time.Minute; ago <= time.Hour; ago += 7 * time.Second {
+		if back, call := lapsed(now.Add(-ago), now), seenAgo(now, now.Add(-ago)); back != call {
+			t.Errorf("seen %v ago, a back's row reads %q and a call's %q, want them alike", ago, back, call)
 		}
 	}
 }

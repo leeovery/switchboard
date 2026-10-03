@@ -75,15 +75,21 @@ func byID(id string) string {
 
 // limitNotices gathers each limit an account reaches with the sessions the
 // limit moves, for one notification of them all: one a limit, however many
-// requests reach it.
+// requests reach it, and whatever order the news of it and its moves comes
+// in.
 type limitNotices struct {
-	// gathering holds, by account, the limits whose notifications wait for
+	// gathering holds, by identity, the limits whose notifications wait for
 	// the sessions they move.
-	gathering map[string]*gathering
+	gathering map[int]*gathering
+	// heard holds, by account, the identity of the newest of its limits
+	// heard of; early, by identity, the moves of limits yet to be heard of,
+	// which wait for their limit to be counted in.
+	heard map[string]int
+	early map[int][]Moved
 }
 
 func newLimitNotices() *limitNotices {
-	return &limitNotices{gathering: make(map[string]*gathering)}
+	return &limitNotices{gathering: make(map[int]*gathering), heard: make(map[string]int), early: make(map[int][]Moved)}
 }
 
 // gathering is a limit an account reached, and the sessions it has moved so
@@ -94,29 +100,43 @@ type gathering struct {
 	due time.Time
 }
 
-// reached takes in a limit an account reached at now: one reached while the
-// account's last is gathering joins it, a new one starts gathering the
-// sessions it moves for gatherFor, and one reached again once its
-// notification has gone is no news.
+// reached takes in a limit an account reached at now, by the limit's
+// identity: one gathering joins it, one newer than every limit heard of the
+// account starts gathering the sessions it moves for gatherFor, counting
+// those it moved before it was heard of, and one heard of before, whose
+// notification has gone, is no news.
 func (l *limitNotices) reached(e LimitReached, now time.Time) {
-	if g, ok := l.gathering[e.Account]; ok {
+	if g, ok := l.gathering[e.Limit]; ok {
 		g.join(e)
 		return
 	}
-	if e.Again {
+	if e.Limit <= l.heard[e.Account] {
 		return
 	}
-	l.gathering[e.Account] = &gathering{limitMoves: newLimitMoves(e), due: now.Add(gatherFor)}
+	l.heard[e.Account] = e.Limit
+	g := &gathering{limitMoves: newLimitMoves(e), due: now.Add(gatherFor)}
+	for _, m := range l.early[e.Limit] {
+		g.add(m.Session, m.To)
+	}
+	delete(l.early, e.Limit)
+	l.gathering[e.Limit] = g
 }
 
-// moved takes in a move, and reports whether it's news of a limit gathering:
-// the session had to leave the account the limit holds.
+// moved takes in a move, and reports whether it's news of a limit: one of
+// the account it left, which held its request back there, moved the session.
+// It counts where its limit gathers, or, where its limit is yet to be heard
+// of, once it is. A limit whose notification has gone counts no more.
 func (l *limitNotices) moved(e Moved) bool {
-	g, ok := l.gathering[e.From]
-	if !ok || !e.Forced {
+	switch g, ok := l.gathering[e.Limit]; {
+	case e.Limit == 0:
+		return false
+	case ok:
+		g.add(e.Session, e.To)
+	case e.Limit > l.heard[e.From]:
+		l.early[e.Limit] = append(l.early[e.Limit], e)
+	default:
 		return false
 	}
-	g.add(e)
 	return true
 }
 
@@ -154,7 +174,7 @@ func (l *limitNotices) remove(which func(g *gathering) bool) []*gathering {
 		}
 	}
 	slices.SortFunc(removed, func(a, b *gathering) int {
-		return cmp.Or(a.due.Compare(b.due), cmp.Compare(a.Account, b.Account))
+		return cmp.Or(a.due.Compare(b.due), cmp.Compare(a.Account, b.Account), cmp.Compare(a.Limit, b.Limit))
 	})
 	return removed
 }

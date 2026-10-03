@@ -19,12 +19,17 @@ const maxEvents = 50
 // router starts. It's kept whatever the notifications are set to. It hears
 // the router's events without ever holding the router up, and looks at the
 // accounts every lookEvery, and after each event it hears, for what no event
-// tells of: an account coming under pressure, and one having room again.
-// It's safe for concurrent use.
+// tells of: an account coming under pressure, and one having room again; and
+// has the router's health judged as it looks, so a turn is told of within a
+// look of it. It's safe for concurrent use.
 type recent struct {
 	state    *state
 	sessions *sessions
 	now      func() time.Time
+	// judge judges the router's health, telling of a turn, as it looks at
+	// the accounts. It mustn't be called with mu held, as what it tells of
+	// is heard here.
+	judge func()
 	// nudge is nudged as an event is heard, for run to look at the accounts
 	// again.
 	nudge chan struct{}
@@ -34,12 +39,16 @@ type recent struct {
 	// newest.
 	kept []happening
 	last int
+	// limits holds, by account, the identity of the newest of its limits
+	// heard of, so the news of a limit heard of before, whose event is no
+	// longer kept, is told from that of one yet to be.
+	limits map[string]int
 
 	// Only run's goroutine touches what follows.
 	short ranOut
-	// under holds, by id, whether each account was under pressure as last
-	// looked at, and told when the window each was last told of as under
-	// pressure in resets.
+	// under holds, by id, whether each account read was under pressure as
+	// last looked at, and told when the window each was last told of as
+	// under pressure in resets.
 	under map[string]bool
 	told  map[string]time.Time
 }
@@ -49,28 +58,34 @@ func newRecent(state *state, sessions *sessions, now func() time.Time) *recent {
 		state:    state,
 		sessions: sessions,
 		now:      now,
+		judge:    func() {},
 		nudge:    make(chan struct{}, 1),
+		limits:   make(map[string]int),
 		short:    make(ranOut),
 		under:    make(map[string]bool),
 		told:     make(map[string]time.Time),
 	}
 }
 
-// happening is an event kept, and for a limit's, the limit, as it comes to
+// happening is an event kept; for a limit's, the limit, as it comes to
 // stand, which gives the event its windows, when it lifts, and the sessions
-// it moved.
+// it moved; for a move a limit forced, before that limit is heard of, the
+// limit's identity, which it waits for to be counted in; and for a
+// refusal's, the id of the request refused.
 type happening struct {
 	status.Event
 	limit *limitMoves
+	waits int
+	by    string
 }
 
 // event is the happening as the status document gives it, a copy: a limit's
-// as its limit now stands, with how many sessions it moved, and where, when
-// they all went to one account.
+// as its limit now stands, with its identity, how many sessions it moved,
+// and where, when they all went to one account.
 func (h happening) event() status.Event {
 	e := h.Event
 	if h.limit != nil {
-		e.Account, e.Windows, e.Until = h.limit.Account, h.limit.Windows, h.limit.Until
+		e.Account, e.Windows, e.Until, e.Limit = h.limit.Account, h.limit.Windows, h.limit.Until, h.limit.Limit
 		e.Count = len(h.limit.sessions)
 		if len(h.limit.to) == 1 {
 			e.To = h.limit.to[0]
@@ -97,13 +112,15 @@ func (r *recent) hear(e Event) {
 func (r *recent) take(e Event, now time.Time) {
 	switch e := e.(type) {
 	case SessionStarted:
-		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: e.Session, Model: e.Model, Reason: e.Reason}, now)
+		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: bounded(e.Session), Model: bounded(e.Model), Reason: e.Reason}, now)
 	case LimitReached:
 		r.reached(e, now)
 	case Moved:
 		r.moved(e, now)
 	case Refused:
-		r.add(status.Event{Kind: status.EventRefused, Account: e.Account, Until: e.Until, Status: e.Status, Family: e.Family}, now)
+		r.keep(happening{Kind: status.EventRefused, Account: e.Account, Until: e.Until, Status: e.Status, Family: e.Family, by: e.Request}, now)
+	case RefusalLifted:
+		r.lifted(e, now)
 	case HealthChanged:
 		r.add(status.Event{Kind: status.EventHealth, Reason: e.Reason}, now)
 	case Primed:
@@ -113,41 +130,65 @@ func (r *recent) take(e Event, now time.Time) {
 	}
 }
 
-// reached keeps a limit an account reached at now: a new one is news of its
-// own, and one reached again while it holds joins the account's latest
-// limit, unless that's no longer kept.
+// reached keeps a limit an account reached at now, by the limit's identity,
+// whatever order its news comes in, as the news of a limit can come after
+// the news of it reached again: one whose event is kept joins it, and one
+// newer than every limit heard of the account is news of its own, which
+// counts the moves it forced that came first. One heard of before, whose
+// event is no longer kept, is dropped.
 func (r *recent) reached(e LimitReached, now time.Time) {
-	if !e.Again {
-		r.keep(happening{Kind: status.EventLimit, limit: newLimitMoves(e)}, now)
+	if h, ok := r.limitEvent(e.Limit); ok {
+		h.limit.join(e)
 		return
 	}
-	if h, ok := r.latestLimit(e.Account); ok {
-		h.limit.join(e)
+	if e.Limit <= r.limits[e.Account] {
+		return
+	}
+	r.limits[e.Account] = e.Limit
+	event := r.keep(happening{Kind: status.EventLimit, limit: newLimitMoves(e)}, now)
+	for i := range r.kept {
+		if move := &r.kept[i]; move.waits == e.Limit {
+			move.waits, move.Limit = 0, event.ID
+			event.limit.add(move.Session, move.To)
+		}
 	}
 }
 
 // moved keeps a session's move at now, counting it among the sessions the
-// latest limit of the account it left moved when the session had to leave,
-// and that limit hadn't lifted by now; a move it counts names that limit's
-// event.
+// limit that forced it moved, which names that limit's event, or, where the
+// limit is yet to be heard of, once it is.
 func (r *recent) moved(e Moved, now time.Time) {
-	move := status.Event{Kind: status.EventMoved, Session: e.Session, Model: e.Model, From: e.From, To: e.To, Reason: e.Reason}
-	if h, ok := r.latestLimit(e.From); e.Forced && ok && now.Before(h.limit.Until) {
-		h.limit.add(e)
+	move := happening{Kind: status.EventMoved, Session: bounded(e.Session), Model: bounded(e.Model), From: e.From, To: e.To, Reason: e.Reason}
+	if h, ok := r.limitEvent(e.Limit); ok {
+		h.limit.add(move.Session, move.To)
 		move.Limit = h.ID
+	} else if e.Limit > r.limits[e.From] {
+		move.waits = e.Limit
 	}
-	r.add(move, now)
+	r.keep(move, now)
 }
 
-// latestLimit returns the latest limit event kept of the account with the
-// given id, reporting false when none is kept. r.mu must be held.
-func (r *recent) latestLimit(id string) (happening, bool) {
-	for _, h := range slices.Backward(r.kept) {
-		if h.limit != nil && h.limit.Account == id {
+// lifted has the refusals a lifting tells of, kept and in force at now, end
+// at now.
+func (r *recent) lifted(e RefusalLifted, now time.Time) {
+	for i := range r.kept {
+		h := &r.kept[i]
+		if h.Kind == status.EventRefused && h.Account == e.Account && h.Family == e.Family &&
+			(e.Family == "" || h.by == e.Request) && h.Until.After(now) {
+			h.Until = now
+		}
+	}
+}
+
+// limitEvent returns the kept event of the limit with the given identity,
+// reporting false when none is kept. r.mu must be held.
+func (r *recent) limitEvent(limit int) (*happening, bool) {
+	for i := range r.kept {
+		if h := &r.kept[i]; limit != 0 && h.limit != nil && h.limit.Limit == limit {
 			return h, true
 		}
 	}
-	return happening{}, false
+	return nil, false
 }
 
 // add keeps an event that happened at now, as keep does.
@@ -156,14 +197,16 @@ func (r *recent) add(e status.Event, now time.Time) {
 }
 
 // keep keeps a happening at now as the newest, with the next id, and drops
-// the oldest once more than maxEvents are kept. r.mu must be held.
-func (r *recent) keep(h happening, now time.Time) {
+// the oldest once more than maxEvents are kept, returning the happening as
+// it's kept. r.mu must be held.
+func (r *recent) keep(h happening, now time.Time) *happening {
 	r.last++
 	h.ID, h.At = r.last, now
 	r.kept = append(r.kept, h)
 	if len(r.kept) > maxEvents {
 		r.kept = slices.Delete(r.kept, 0, len(r.kept)-maxEvents)
 	}
+	return &r.kept[len(r.kept)-1]
 }
 
 // events returns the events kept, the newest first.
@@ -195,8 +238,10 @@ func (r *recent) run(ctx context.Context) {
 
 // look keeps what the accounts, as they stand now, call for since the last
 // look, as news says, judged as the status document judges them, with the
-// global pin's accounts spending their reserves.
+// global pin's accounts spending their reserves; and has the router's health
+// judged now, which tells of a turn as it's judged.
 func (r *recent) look() {
+	r.judge()
 	now := r.now()
 	accounts, _ := r.state.statuses(now, r.sessions.globalPin().Accounts)
 	news := r.news(accounts, r.state.standings(now))
@@ -230,10 +275,14 @@ func (r *recent) news(accounts []status.Account, standings standings) []status.E
 
 // pressed reports whether the account has come under pressure since it was
 // last looked at, which is news once a reset of its pressure window at most,
-// so a rate hovering at the line can't fill the events kept. One under
-// pressure as it's first looked at is no news, and none until that window
-// resets.
+// so a rate hovering at the line can't fill the events kept. An account is
+// first seen once it's read, as room news has it: one under pressure as it's
+// first seen is no news, nor is it until that window resets.
 func (r *recent) pressed(a status.Account) bool {
+	if len(a.Windows) == 0 {
+		delete(r.under, a.ID)
+		return false
+	}
 	was, seen := r.under[a.ID]
 	r.under[a.ID] = a.Pressure.Under
 	if !a.Pressure.Under || was {

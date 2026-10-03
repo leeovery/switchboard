@@ -151,5 +151,20 @@ func TestCOMINGUPListsThreeWithTheirCountdownsAtTheRight(t *testing.T) {
 	}
 }
 
+func TestCOMINGUPsTimesAreAsFarFromTheirWordsAsRECENTsOnAPhone(t *testing.T) {
+	doc := routerDoc("work", 0, pressedAccount("work"))
+	doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "work"}}
+	for _, width := range []int{52, 160} {
+		f := frameOf(width, 10)
+		c := newCanvas(f.Width, f.Height)
+		f.comingLines(c, upcoming(doc, now, f.Policy), now, 0, 0, 1)
+		coming := c.rows(Look{})[0]
+		recent := f.tellings(doc, now, 1)[0].lead.plain()
+		if gap, want := coming[len("14:42"):strings.Index(coming, "work")], recent[len("13:11"):strings.Index(recent, "●")]; gap != want {
+			t.Errorf("at %d columns, COMING UP's time is %q from its words, want %q, as RECENT's", width, gap, want)
+		}
+	}
+}
+
 // apart are the blanks that set a line's right apart from its left.
 var apart = regexp.MustCompile(` {3,}`)

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -276,6 +277,87 @@ func TestASessionsOwnPin(t *testing.T) {
 
 			if got, _ := s.session("one"); got.Pin != tt.want {
 				t.Errorf("session's pin = %q, want %q", got.Pin, tt.want)
+			}
+		})
+	}
+}
+
+func TestASessionsAssignmentsSayWhetherItsOwnPinYieldedAndWhenItWasGiven(t *testing.T) {
+	yields := decision{account: "work", reason: "pin yields: side has no room"}
+	tests := []struct {
+		name  string
+		model string
+		// route routes the session's requests of the model, on clock's time,
+		// its own pin naming side.
+		route func(s *sessions, clock *testClock, k key)
+		// after is how long after start the session is asked after.
+		after        time.Duration
+		wantYielded  bool
+		wantPinnedAt time.Time
+	}{
+		{
+			name:  "launched pinned to side, gone to work for want of room there",
+			model: opus,
+			route: func(s *sessions, _ *testClock, k key) { assign(s, k, "side", yields, start) },
+			after: time.Minute, wantYielded: true,
+		},
+		{
+			name:  "launched pinned to side, gone to work, its cache cold since",
+			model: opus,
+			route: func(s *sessions, _ *testClock, k key) { assign(s, k, "side", yields, start) },
+			after: 2 * time.Hour,
+		},
+		{
+			name:  "launched pinned to side, gone to work, cold since, but its model's thinking bound to work",
+			model: sonnet,
+			route: func(s *sessions, _ *testClock, k key) { assign(s, k, "side", yields, start) },
+			after: 2 * time.Hour, wantYielded: true,
+		},
+		{
+			name:  "pinned to side while it runs, then gone to work",
+			model: opus,
+			route: func(s *sessions, clock *testClock, k key) {
+				assign(s, k, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Hour))
+				clock.now = start.Add(-time.Minute)
+				s.pinSession(k.session, "side")
+				assign(s, k, "side", yields, start)
+			},
+			after: time.Minute, wantYielded: true, wantPinnedAt: start.Add(-time.Minute),
+		},
+		{
+			name:  "gone to work as its pin yielded, then pinned to side again",
+			model: opus,
+			route: func(s *sessions, clock *testClock, k key) {
+				assign(s, k, "side", yields, start.Add(-time.Minute))
+				clock.now = start
+				s.pinSession(k.session, "side")
+			},
+			after: time.Minute, wantPinnedAt: start,
+		},
+		{
+			name:  "pinned to side, and on side",
+			model: opus,
+			route: func(s *sessions, _ *testClock, k key) {
+				assign(s, k, "side", decision{account: "side", reason: reasonPinned}, start)
+			},
+			after: time.Minute,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newSessions(clock.read, unkept, unkept)
+			s.bound = claude.Provider{}.ThinkingBound
+			tt.route(s, clock, key{session: "one", model: tt.model})
+			clock.now = start.Add(tt.after)
+
+			got, _ := s.session("one")
+			if a := got.Assignments[0]; a.Yielded != tt.wantYielded || !a.PinnedAt.Equal(tt.wantPinnedAt) {
+				t.Errorf("the session's assignment is %+v, want it yielded: %v, pinned at %v", a, tt.wantYielded, tt.wantPinnedAt)
+			}
+			listed := s.running(clock.now)
+			if len(listed) > 0 && !reflect.DeepEqual(listed[0], got) {
+				t.Errorf("running() lists the session as\n%+v\nwant it as session() gives it\n%+v", listed[0], got)
 			}
 		})
 	}

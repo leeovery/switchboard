@@ -40,6 +40,11 @@ const (
 	whyReset     = "was reset by hand"
 )
 
+// reasonBack is why a session goes back to the account it was on before a
+// request every account it went out on refused, as the request stream tells
+// of it: the moves the request made came to nothing.
+const reasonBack = "back where it was before its request"
+
 // replay is the transport a routed request goes upstream on. It sends the
 // request on the exchange's account, and again, before the client has any of
 // an answer, while the account can't serve it: on the same account after a
@@ -185,7 +190,9 @@ func (rp *replay) renewed() bool {
 	token, err := rp.p.readToken(a.ID)
 	changed := err == nil && token.Reveal() != rp.sent.Reveal()
 	if changed && a.secret.replace(token, rp.p.now()) {
-		rp.p.state.tokenReplaced(a.ID)
+		if lifted, ok := rp.p.state.tokenReplaced(a.ID); ok {
+			rp.p.emit(lifted)
+		}
 		rp.p.tokensReplaced()
 	}
 	attrs := []any{"id", rp.ex.id, "account", a.ID, "changed", changed}
@@ -239,18 +246,18 @@ func (rp *replay) holdBack(account string, resp *http.Response) {
 	}
 }
 
-// throttle tells the request stream of the throttling, and waits, and has the
-// request sent again on its account, while it has been throttled there no
-// more than throttleRetries times; after that, the answer is the client's.
-// The wait is the one the upstream asks for, within reason, and ends early,
-// failing, should the client go.
+// throttle waits, and has the request sent again on its account, telling the
+// request stream of the throttling, while it has been throttled there no more
+// than throttleRetries times; after that, the answer is the client's, which
+// the stream tells of as the request ends. The wait is the one the upstream
+// asks for, within reason, and ends early, failing, should the client go.
 func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter time.Duration) (*http.Response, bool, error) {
-	rp.tell(StreamThrottled, resp.StatusCode)
 	id := rp.ex.account.ID
 	if rp.throttled >= throttleRetries {
 		logger.Warn("still throttled; passing the answer on", "id", rp.ex.id, "account", id, "attempts", rp.ex.attempts)
 		return resp, false, nil
 	}
+	rp.tell(StreamThrottled, resp.StatusCode)
 	rp.throttled++
 	wait := min(cmp.Or(retryAfter, throttleWait), maxThrottleWait)
 	logger.Warn("throttled", "id", rp.ex.id, "account", id, "wait", wait)
@@ -277,6 +284,7 @@ func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quot
 		return nil, true, nil
 	case rp.limit != nil:
 		logger.Info("answering with the limit reached before", "id", rp.ex.id, "account", rp.limit.account)
+		rp.ex.answered = rp.limit.account
 		return rp.limit.resp, false, nil
 	}
 	rp.takeBack()
@@ -286,16 +294,23 @@ func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quot
 // takeBack takes back what the request did when every account it went out
 // on refused it, as a refusal of the request every account that judged it
 // gives says more of the request than of the accounts: the moves of its
-// session, which goes back where it was, and the bars it placed on its model
-// family. A bar on an account's token stands, as it says something of the
-// account, and so does a bar another request placed, and a move another
-// request of the session made since.
+// session, which goes back where it was, as the request stream is told, and
+// the bars it placed on its model family, each told of as it lifts. A bar on
+// an account's token stands, as it says something of the account, and so
+// does a bar another request placed, and a move another request of the
+// session made since.
 func (rp *replay) takeBack() {
 	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused }) {
 		return
 	}
-	rp.p.chooser.Forget(rp.ex.req)
-	if rp.p.state.takeBack(rp.ex.id) {
+	if back := rp.p.chooser.Forget(rp.ex.req); back != "" && back != rp.ex.account.ID {
+		rp.p.tellMoved(rp.ex, rp.ex.account.ID, back, reasonBack)
+	}
+	lifted := rp.p.state.takeBack(rp.ex.id)
+	for _, e := range lifted {
+		rp.p.emit(e)
+	}
+	if len(lifted) > 0 {
 		logger.Info("refused on every account it went out on; its refusals of the request hold none back", "id", rp.ex.id, "attempts", rp.ex.attempts)
 	}
 }
@@ -306,7 +321,7 @@ func (rp *replay) takeBack() {
 // logs the refusal, and returns the news of it.
 func (rp *replay) bar(verdict quota.Verdict, status int, reason string) Refused {
 	ex := rp.ex
-	news := Refused{Account: ex.account.ID, Status: status}
+	news := Refused{Account: ex.account.ID, Status: status, Request: ex.id}
 	if verdict == quota.Refused {
 		news.Until = rp.p.state.refuse(news.Account, status, ex.id)
 		logger.Warn("upstream refused the account's token", "id", ex.id, "account", news.Account, "status", status, "error", reason)

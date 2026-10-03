@@ -4,10 +4,8 @@ import (
 	"errors"
 	"image/color"
 	"io"
-	"os"
 
-	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/term"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -61,12 +59,23 @@ func (t themes) List() theme.Listing {
 	return t.library.List()
 }
 
-// Keep keeps the user's choice in the preferences file.
-func (t themes) Keep(c theme.Choice) error {
+// Chosen is the user's choice as the preferences file keeps it now.
+func (t themes) Chosen() theme.Choice {
+	return t.kept().Choice
+}
+
+// Keep changes the user's choice in the preferences file, as it stands now,
+// as change says, and returns the choice it keeps.
+func (t themes) Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error) {
 	if t.prefs == nil {
-		return errNowhereToKeep
+		return theme.Choice{}, errNowhereToKeep
 	}
-	return t.prefs.Update(func(p *theme.Prefs) { p.Choice = c })
+	var kept theme.Choice
+	err := t.prefs.Update(func(p *theme.Prefs) {
+		p.Choice = change(p.Choice)
+		kept = p.Choice
+	})
+	return kept, err
 }
 
 // noColour reports whether NO_COLOR is set, to anything at all, as
@@ -75,30 +84,26 @@ func (a *app) noColour() bool {
 	return a.Getenv("NO_COLOR") != ""
 }
 
-// printLook is how usage prints the dashboard into the scrollback: under
-// NO_COLOR, without colour; else, of the themes, in the one chosen for the
-// terminal's background, as the terminal says it is when asked, its blends
-// worked out against it, and no canvas painted.
-func (a *app) printLook(out io.Writer, t themes, chosen theme.Choice) dashboard.Look {
+// printLook is how usage prints the dashboard into the scrollback, on out,
+// which shows the colours its profile says: under NO_COLOR, without colour;
+// else, of the themes, in the one chosen for the terminal's background, as
+// the terminal says it is when asked, where out shows colour, its blends
+// worked out against it, and no canvas painted. As it paints none, one theme
+// chosen is printed only on a background as dark, or as light, as its own:
+// on another, the default pair's half for that background is.
+func (a *app) printLook(out io.Writer, shows colorprofile.Profile, t themes, chosen theme.Choice) dashboard.Look {
 	if a.noColour() {
 		return dashboard.NoColour()
 	}
-	background := a.Background(out)
-	return dashboard.Print(t.library.Pair(chosen).For(theme.Dark(background)), background)
-}
-
-// TerminalBackground asks the terminal what its background is (OSC 11), as
-// Deps.Background does, for the process's own output: nil where out, or
-// stdin, isn't a terminal, or the terminal doesn't say.
-func TerminalBackground(out io.Writer) color.Color {
-	f, ok := out.(term.File)
-	if !ok || !term.IsTerminal(f.Fd()) || !term.IsTerminal(os.Stdin.Fd()) {
-		return nil
+	var background color.Color
+	if shows > colorprofile.ASCII {
+		background = a.Background(out)
 	}
-	background, err := lipgloss.BackgroundColor(os.Stdin, f)
-	if err != nil {
-		logger.Debug("the terminal didn't say what its background is", "error", err)
-		return nil
+	dark := theme.Dark(background)
+	in := t.library.Pair(chosen).For(dark)
+	if chosen.IsOne() && !in.Suits(dark) {
+		logger.Debug("the theme chosen doesn't suit the terminal's background, so the default stands in", "theme", in.Slug, "dark", dark)
+		in = t.library.Pair(theme.Choice{}).For(dark)
 	}
-	return background
+	return dashboard.Print(in, background)
 }

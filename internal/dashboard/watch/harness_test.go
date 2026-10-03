@@ -198,6 +198,15 @@ func (h *harness) fire(tm *timer) {
 	h.deliver(tm.msg)
 }
 
+// fireBehind moves the clock to lag short of when tm is due, as a wall clock
+// running a little behind the timers reads, and delivers it.
+func (h *harness) fireBehind(tm *timer, lag time.Duration) {
+	h.t.Helper()
+	h.clock.now = tm.due.Add(-lag)
+	tm.fired = true
+	h.deliver(tm.msg)
+}
+
 // lastTick is the tick armed last, which is the live chain's.
 func (h *harness) lastTick() *timer {
 	h.t.Helper()
@@ -338,16 +347,6 @@ func (h *harness) footer() string {
 
 // gaps are the blanks between the parts of the footer.
 var gaps = regexp.MustCompile(` {2,}`)
-
-// screenOf is the screen as the model draws doc in place of its own document,
-// as everything else stands, and the clock: the model's own screen, when it
-// draws doc.
-func (h *harness) screenOf(doc status.Document) string {
-	now := h.model.now()
-	f := h.model.frame(now)
-	f.Keys = h.model.keys()
-	return strings.Join(f.Draw(doc, now), "\n")
-}
 
 // fakeClock tells the time the test sets.
 type fakeClock struct {

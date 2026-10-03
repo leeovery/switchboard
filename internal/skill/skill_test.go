@@ -330,8 +330,12 @@ func checkInstalled(t *testing.T, path string) {
 	if data, err := os.ReadFile(path); err != nil || string(data) != string(skillText(t)) {
 		t.Errorf("the skill holds\n%s\n(%v), want the one switchboard carries", data, err)
 	}
-	if info, err := os.Stat(path); err != nil || info.Mode() != 0o644 {
-		t.Errorf("the skill's mode = %v (%v), want %v", info.Mode(), err, fs.FileMode(0o644))
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode() != 0o644 {
+		t.Errorf("the skill's mode = %v, want %v", info.Mode(), fs.FileMode(0o644))
 	}
 	if entries, err := os.ReadDir(filepath.Dir(path)); err != nil || len(entries) != 1 {
 		t.Errorf("the skill's directory holds %v (%v), want the skill alone", entries, err)

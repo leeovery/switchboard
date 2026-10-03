@@ -89,11 +89,12 @@ func (p plot) rates(width, ahead int, lasting float64) ([]rated, float64) {
 }
 
 // rateAt is the window's use per 10 minutes over the stretch of its bar
-// that column col of a chart width cells wide falls in, reporting false
-// where its readings don't say: the rise its readings make across the
-// stretch, from its last before the stretch starts, or its first within it,
-// to its last as the stretch ends, or by now while it runs, spread over the
-// whole stretch. A bar's stretch is 10 minutes, or the column's, where that
+// that the middle of column col of a chart width cells wide falls in, or
+// now, where that's sooner, as middleOf has it, reporting false where its
+// readings don't say: the rise its readings make across the stretch, from
+// its last before the stretch starts, or its first within it, to its last
+// as the stretch ends, or by now while it runs, spread over the whole
+// stretch. A bar's stretch is 10 minutes, or the column's, where that
 // covers more, as a week's does. Without history, it's the use since the
 // window started, spread evenly over it.
 func (p plot) rateAt(col, width int) (float64, bool) {
@@ -105,9 +106,9 @@ func (p plot) rateAt(col, width int) (float64, bool) {
 		return p.window.Utilization * float64(rateSpan) / float64(passed), true
 	}
 	stretch := max(rateSpan, p.length/time.Duration(width))
-	middle := p.at((float64(col) + 0.5) / float64(width))
+	middle := p.middleOf(col, width)
 	from := p.start.Add(middle.Sub(p.start) / stretch * stretch)
-	to := earliest(from.Add(stretch), p.now)
+	to := score.Earlier(from.Add(stretch), p.now)
 	before, ok := p.usedFrom(from, to)
 	after, read := p.usedAt(to)
 	if !ok || !read {

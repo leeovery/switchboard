@@ -86,8 +86,8 @@ func TestABurnRateWithoutHistorySpreadsItsUseSinceItStartedEvenly(t *testing.T) 
 }
 
 func TestABurnRateHeldAtItsLimitRunsAlongTheFloorFromWhenItWasReached(t *testing.T) {
-	session := sessionOf(1, time.Hour)
-	session.Status = quota.StatusRejected
+	// Its session reads short of spent, so the limit alone holds it back.
+	session := sessionOf(0.97, time.Hour)
 	a := readAccount("personal", session, weekOf(0.3, 4*day))
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: now.Add(30 * time.Minute).UTC()}
 	doc := routerDoc("", 0, a)
@@ -141,6 +141,26 @@ func TestAWeeksBurnRateMeasuresEachColumnsStretch(t *testing.T) {
 		if got, ok := p.rateAt(col, 7); !ok || math.Abs(got-want) > score.Tolerance {
 			t.Errorf("day %d's bar is %v, %v; want %v, its use spread over the day, per 10 minutes", col+1, got, ok, want)
 		}
+	}
+}
+
+func TestTheBarOfTheColumnNowFallsInIsTheStretchUnderWay(t *testing.T) {
+	// 49.5 minutes into a session drawn 44 columns wide, a column under 7
+	// minutes, the column now falls in has its middle in the stretch from 50
+	// minutes, still to come.
+	session := sessionOf(0.08, 5*time.Hour-49*time.Minute-30*time.Second)
+	start := session.ResetsAt.Add(-5 * time.Hour)
+	a := readAccount("work", session, weekOf(0.3, 4*day))
+	history := History{{Account: "work", Window: "5h"}: {Start: start, Readings: []score.Reading{
+		{At: start, Utilization: 0},
+		{At: start.Add(40 * time.Minute), Utilization: 0.05},
+		{At: start.Add(45 * time.Minute), Utilization: 0.08},
+	}}}
+	p := charting{doc: routerDoc("", 0, a), account: a, key: "5h"}.plot(t, history)
+
+	col := p.nowColumn(44) - 1
+	if got, ok := p.rateAt(col, 44); !ok || math.Abs(got-0.03) > score.Tolerance {
+		t.Errorf("the bar of column %d, which now falls in, is %v, %v; want 0.03, the use of the stretch from 40 minutes, under way", col, got, ok)
 	}
 }
 

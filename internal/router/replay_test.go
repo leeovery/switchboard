@@ -77,8 +77,8 @@ func TestARequestOverItsAccountsLimitIsReplayedOnAnother(t *testing.T) {
 		waitForLine(t, log, want...)
 	}
 	wantEvents := []router.Event{
-		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt},
-		router.Moved{Session: sessionID, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true},
+		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Limit: 1},
+		router.Moved{Session: sessionID, Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
 	}
 	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, wantEvents) {
 		t.Errorf("events = %+v, want %+v", got, wantEvents)
@@ -273,9 +273,9 @@ func TestAnAccountWhoseTokenIsRefusedIsSkippedForTenMinutes(t *testing.T) {
 	}
 	wantEvents := []router.Event{
 		router.Refused{Account: "work", Status: http.StatusUnauthorized, Until: now.Add(10 * time.Minute)},
-		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work was refused", Forced: true},
+		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work was refused"},
 	}
-	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, wantEvents) {
+	if got := unnamed(slices.DeleteFunc(r.events.heard(), isStart)); !reflect.DeepEqual(got, wantEvents) {
 		t.Errorf("events = %+v, want %+v", got, wantEvents)
 	}
 }
@@ -489,7 +489,7 @@ func TestAnAccountThatRefusesARequestIsSkippedForItsModelsFamilyAlone(t *testing
 		t.Errorf("a new Opus session ten minutes on went to %s, want work again", got)
 	}
 	waitForLine(t, log, "level=WARN", `msg="upstream refused the request on the account"`, "account=work", "status=403", "family=opus", `error="This model isn't on your plan"`)
-	if got := r.events.heard(); len(got) == 0 || !reflect.DeepEqual(got[0], router.Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: now.Add(10 * time.Minute)}) {
+	if got := unnamed(r.events.heard()); len(got) == 0 || !reflect.DeepEqual(got[0], router.Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: now.Add(10 * time.Minute)}) {
 		t.Errorf("events = %+v, want work's refusal of Opus first", got)
 	}
 }
@@ -522,6 +522,10 @@ func TestARequestRefusedOnEveryAccountHoldsNoneBack(t *testing.T) {
 		if a, _ := doc.Account(id); a.Refused != (status.Refusal{}) {
 			t.Errorf("the document gives %s's refusal as %+v, want none: every account refused the request", id, a.Refused)
 		}
+	}
+	refusals := slices.DeleteFunc(slices.Clone(doc.Events), func(e status.Event) bool { return e.Kind != status.EventRefused })
+	if len(refusals) != 2 || !refusals[0].Until.Equal(now) || !refusals[1].Until.Equal(now) {
+		t.Errorf("the document gives the refusals %+v, want side's and work's, each ending now, as it was taken back", refusals)
 	}
 	if got := r.ask(t, "two", opus, ""); got != "side" {
 		t.Errorf("session two's next Opus request went to %s, want side, where it was", got)
@@ -618,10 +622,12 @@ func TestASessionWhoseRequestEveryAccountRefusedIsLeftWhereItWas(t *testing.T) {
 	}
 	wantEvents := []router.Event{
 		router.Refused{Account: "side", Status: http.StatusForbidden, Family: "opus", Until: now.Add(10 * time.Minute)},
-		router.Moved{Session: "one", Model: opus, From: "side", To: "personal", Reason: "moved: side was refused", Forced: true},
+		router.Moved{Session: "one", Model: opus, From: "side", To: "personal", Reason: "moved: side was refused"},
 		router.Refused{Account: "personal", Status: http.StatusForbidden, Family: "opus", Until: now.Add(10 * time.Minute)},
+		router.RefusalLifted{Account: "personal", Family: "opus"},
+		router.RefusalLifted{Account: "side", Family: "opus"},
 	}
-	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, wantEvents) {
+	if got := unnamed(slices.DeleteFunc(r.events.heard(), isStart)); !reflect.DeepEqual(got, wantEvents) {
 		t.Errorf("events = %+v, want %+v", got, wantEvents)
 	}
 }

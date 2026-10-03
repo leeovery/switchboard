@@ -186,25 +186,32 @@ func (s stretch) backFrom() int {
 // lane is an account's room over the time Runway shows, as the document has
 // it at a moment: the account, and its place; whether anything is known of
 // it; the stretches it can't take a session, in order; and until when, from
-// now, it's heading to run out, zero where it isn't.
+// now, it's heading to run out, zero where it isn't, and in words, as in
+// "week runs out ~Sun 04:06".
 type lane struct {
 	account   status.Account
 	place     int
 	known     bool
 	stretches []stretch
 	drains    time.Time
+	drained   string
 }
 
 // laneOf is doc's account a's lane at now, its room going by the windows the
-// span counts, as counts says: without a usable token, or with its usage
-// unreadable, it has none all along, as its state says, and nothing is known
-// of one not read yet. Read, it has none while a window counted holds it
-// back, as causesOf says, nor, over the day, while the upstream refuses its
-// every request; and from now, it's heading to run out until the last of
-// those windows that run out before they reset does.
+// span counts, as counts says: without a usable token, as its state says, or
+// with its usage unreadable, as Unread says, whatever holds it back, it has
+// none all along, and nothing is known of one not read yet. Read, it has
+// none while a window counted holds it back, as causesOf says, nor, over the
+// day, while the upstream refuses its every request; and from now, it's
+// heading to run out until the last of those windows that run out before
+// they reset does.
 func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
 	l := lane{account: a, place: place(doc, a.ID), known: true}
-	switch state := doc.StateOf(a, now, f.Policy); state.Condition {
+	state := doc.StateOf(a, now, f.Policy)
+	if unread, ok := a.Unread(); ok && a.TokenSet {
+		state = unread
+	}
+	switch state.Condition {
 	case status.Tokenless, status.Unreadable:
 		l.stretches = merged([]cause{{says: state.Says, then: state.Then}})
 		return l
@@ -219,7 +226,7 @@ func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane
 		}
 		s := standingOf(doc, a, w, now, f.Policy)
 		if s.runsOut && s.out.At.After(l.drains) {
-			l.drains = s.out.At
+			l.drains, l.drained = s.out.At, f.runOutSaid(s, now)
 		}
 		causes = append(causes, f.causesOf(doc, a, s, now)...)
 	}
@@ -265,14 +272,21 @@ func (f Frame) causesOf(doc status.Document, a status.Account, s standing, now t
 		causes = append(causes, cause{until: w.ResetsAt, says: f.naming(w) + "at its reserve", resets: w.ResetsAt})
 	}
 	if s.runsOut {
-		verb := "runs out ~"
-		if s.out.Reserve {
-			verb = "reaches its reserve ~"
-		}
-		says := f.naming(w) + verb + status.Dated(now, s.out.At)
-		causes = append(causes, cause{from: s.out.At, until: w.ResetsAt, says: says, resets: w.ResetsAt})
+		causes = append(causes, cause{from: s.out.At, until: w.ResetsAt, says: f.runOutSaid(s, now), resets: w.ResetsAt})
 	}
 	return causes
+}
+
+// runOutSaid says where the window standing as s runs out, as Runway says
+// it at now: that it runs out, or reaches its account's reserve where that
+// holds it back, and when, its window named as naming has it, as in "week
+// runs out ~Fri 04:06".
+func (f Frame) runOutSaid(s standing, now time.Time) string {
+	verb := "runs out ~"
+	if s.out.Reserve {
+		verb = "reaches its reserve ~"
+	}
+	return f.naming(s.window) + verb + status.Dated(now, s.out.At)
 }
 
 // naming is how the words of what the window w holds an account back for

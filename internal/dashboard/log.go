@@ -128,12 +128,12 @@ func logTold(e status.Event, doc status.Document, now time.Time) (span, line, bo
 // RECENT says it.
 func retriedWhy(e status.Event, doc status.Document) line {
 	said, passed := passedOverIn(e.Reason)
-	if rest, ok := strings.CutPrefix(said, reasonMovedOff); ok {
+	if rest, ok := strings.CutPrefix(said, status.ReasonMovedOff); ok {
 		account, befell, _ := strings.Cut(rest, " ")
 		if words, ok := retried[befell]; ok {
 			retry := line{{": " + named(doc, account) + " " + words + ", so its request was retried on " + named(doc, e.To), mutedInk}}
-			return slices.Concat(retry, passing(passed))
+			return slices.Concat(retry, passing(doc, passed))
 		}
 	}
-	return why(e.Reason)
+	return why(doc, e.Reason)
 }

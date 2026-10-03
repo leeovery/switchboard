@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -184,6 +185,53 @@ func TestTheTerminalThemeDrawsInTheTerminalsOwnColoursAndShade(t *testing.T) {
 	}
 }
 
+func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.T) {
+	f := frames()["wide"]
+	f.Fresh = map[int]float64{1: 0.2}
+	rows := drawn(f, dashboard.Screen(builtin(t, theme.Terminal)))
+
+	for i, row := range rows {
+		for _, params := range sgrs.FindAllStringSubmatch(row, -1) {
+			for p := range strings.SplitSeq(params[1], ";") {
+				if p == "90" || p == "100" {
+					t.Fatalf("row %d is drawn in the terminal's bright black, Solarized Dark's background: %q", i+1, row)
+				}
+			}
+		}
+	}
+	for _, tt := range []struct {
+		name, text, want string
+	}{
+		{name: "a card's border, faint", text: "╭─ ", want: "2"},
+		{name: "the view shown, its tab reversed", text: "Accounts", want: "7"},
+		{name: "an event looked at newly, picked out reversed", text: "has room again", want: "7"},
+	} {
+		if params := drawnWith(rows, tt.text); !slices.Contains(params, tt.want) {
+			t.Errorf("%s: %q is drawn with SGR %q, want %s among them", tt.name, tt.text, params, tt.want)
+		}
+	}
+}
+
+// sgrs are the SGR sequences in a row, their parameters captured.
+var sgrs = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
+
+// drawnWith is the SGR parameters text is drawn with where it first shows in
+// rows: those of the last SGR before it.
+func drawnWith(rows []string, text string) []string {
+	for _, row := range rows {
+		before, _, found := strings.Cut(row, text)
+		if !found {
+			continue
+		}
+		set := sgrs.FindAllStringSubmatch(before, -1)
+		if len(set) == 0 {
+			return nil
+		}
+		return strings.Split(set[len(set)-1][1], ";")
+	}
+	return nil
+}
+
 func TestBlendsAreWorkedOutAgainstTheColourBeneath(t *testing.T) {
 	nord := builtin(t, "nord")
 	red := color.RGBA{R: 0xBF, G: 0x61, B: 0x6A, A: 0xff}
@@ -248,7 +296,7 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 		})
 	}
 	frame := strings.Join(frames()["wide"].Draw(doc, now), "\n")
-	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "7 of [31m the 9 failed"} {
+	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "7 of [31m", "the 9 failed"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("drew\n%s\nwant it to say %q, its control characters as spaces", frame, want)
 		}

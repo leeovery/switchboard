@@ -26,14 +26,16 @@ const (
 )
 
 // The labels at the lanes' left: the strip's, over the day and over the
-// week, under its heading; the most cells a name takes; and the blank cells
-// between a badge, at the labels' right, and the lane.
+// week, under its heading; the most cells a name takes; the blank cells
+// between a badge, at the labels' right, and the lane; and the next
+// account's badge, briefly, where its name has too little room beside it.
 const (
 	stripHead      = "ROOM"
 	dayStripLabel  = "accounts with room"
 	weekStripLabel = "weeks with room"
 	nameCells      = 24
 	badgeGap       = 2
+	briefNext      = "▲"
 )
 
 const (
@@ -89,16 +91,26 @@ func (f Frame) layOutRunway(doc status.Document, now time.Time, top int) runwayL
 	for _, a := range doc.Accounts {
 		l.lanes = append(l.lanes, f.laneOf(doc, a, now))
 	}
-	l.x = lanesAt(l.lanes)
+	l.x = lanesAt(l.lanes, f.Width)
 	l.timeline = timelineOf(f.Span, now, f.edge()-1-l.x)
 	for _, ln := range l.lanes {
 		l.cells = append(l.cells, ln.cells(l.timeline))
 	}
-	l.content = max(len(l.lanes)*(laneRows+laneGap)-laneGap, 0)
-	room := f.Height - 2 - l.top
-	l.view = min(l.content, max(room, 0))
-	l.legend = l.content+2 <= room && f.legendFits(l.timeline)
+	l.content, l.view = f.runwayRows(len(l.lanes), top)
+	l.legend = (f.printed() || l.content+2 <= f.Height-2-l.top) && f.legendFits(l.timeline)
 	return l
+}
+
+// runwayRows are how many rows n accounts' lanes take, content, and how many
+// of them show at once under the heading, which ends at row top, view: fewer
+// where they don't fit over the line over the footer, and all of them,
+// printed once, where there's no height to fit.
+func (f Frame) runwayRows(n, top int) (content, view int) {
+	content = max(n*(laneRows+laneGap)-laneGap, 0)
+	if f.printed() {
+		return content, content
+	}
+	return content, min(content, max(f.Height-2-top-lanesFrom, 0))
 }
 
 // scrolls reports whether the lanes scroll, more of them than the view
@@ -126,16 +138,19 @@ func (l runwayLayout) hidden(offset int) (above, below int) {
 	return above, below
 }
 
-// lanesAt is the column lanes start at, as their labels leave it: labelGap
-// cells after the widest of the strip's labels, and badgeGap after the
-// widest of the lanes' labels with room beside it for the widest badge, so
-// the lanes stay put as w switches between the day and the week.
-func lanesAt(lanes []lane) int {
-	x := margin + max(ansi.StringWidth(dayStripLabel), ansi.StringWidth(weekStripLabel)) + labelGap
+// lanesAt is the column lanes start at, as their labels leave it, on a
+// frame width cells wide: labelGap cells after the widest of the strip's
+// labels, and badgeGap after the widest of the lanes' labels with room
+// beside it for the widest badge, so the lanes stay put as w switches
+// between the day and the week; but never past halfway across, where names
+// and badges give way, as runwayLane draws them.
+func lanesAt(lanes []lane, width int) int {
+	least := margin + max(ansi.StringWidth(dayStripLabel), ansi.StringWidth(weekStripLabel)) + labelGap
+	x := least
 	for _, l := range lanes {
 		x = max(x, margin+laneLabel(l).width()+1+ansi.StringWidth(nextBadge)+badgeGap)
 	}
-	return x
+	return min(x, max(least, width/2))
 }
 
 // runway draws Runway of doc at now from row top: over the timeline, the
@@ -163,7 +178,7 @@ func (f Frame) runway(c *canvas, doc status.Document, now time.Time, top int) {
 			c.surface(l.x+col, y, 1, hue{token: theme.BgSubtle})
 		}
 	}
-	legend, over := f.Height-3, f.Height-2
+	legend, over := f.foot(l.top+l.view, l.legend)
 	if l.legend {
 		c.line(margin, legend, f.legend(l.timeline))
 	}
@@ -236,37 +251,41 @@ func hours(c *canvas, tl timeline, x, y int) {
 }
 
 // weekdays draws the week's days over its timeline from x along row y, and
-// their ticks along the rule under them: a tick at each midnight, and over
-// it, the day's name, where it clears the one before and fits, today's
-// picked out; and where a day spans quarterCells columns, a faint tick at
-// each of its quarters.
+// their ticks along the rule under them: where a day spans quarterCells
+// columns, its quarters, as quarters ticks them; and a tick at each
+// midnight, and over it, the day's name, where it clears the one before and
+// fits, as midnights has them, today's picked out.
 func weekdays(c *canvas, tl timeline, x, y int) {
-	from, today := tl.start, tl.now.Format(time.DateOnly)
-	quarters := day >= quarterCells*tl.step
-	last := -dayCells
+	if day >= quarterCells*tl.step {
+		quarters(c, tl, x, y+1)
+	}
+	end := tl.start.Add(time.Duration(tl.columns) * tl.step)
+	for _, m := range midnights(tl.start, end, tl.now, tl.column, tl.columns, len("Mon")) {
+		c.text(x+m.col, y+1, "┬", borderInk)
+		if !m.named {
+			continue
+		}
+		name := line{{m.at.Format("Mon"), mutedInk}}
+		if m.today {
+			name[0].ink = strongInk
+		}
+		c.line(x+m.col, y, name)
+	}
+}
+
+// quarters ticks the quarters of the days over the timeline from x along
+// row y, faint, the first day's among them, which starts before the
+// timeline, but at midnight, which its day's own tick marks.
+func quarters(c *canvas, tl timeline, x, y int) {
+	from := tl.start
 	for i := 1; ; i++ {
-		midnight := time.Date(from.Year(), from.Month(), from.Day()+i, 0, 0, 0, 0, from.Location())
-		col := tl.column(midnight)
+		at := time.Date(from.Year(), from.Month(), from.Day(), 6*i, 0, 0, 0, from.Location())
+		col := tl.column(at)
 		switch {
 		case col >= tl.columns:
 			return
-		case col < 0:
-			continue
-		}
-		c.text(x+col, y+1, "┬", borderInk)
-		for hour := 6; quarters && hour < 24; hour += 6 {
-			at := time.Date(midnight.Year(), midnight.Month(), midnight.Day(), hour, 0, 0, 0, midnight.Location())
-			if q := tl.column(at); q > col && q < tl.columns {
-				c.text(x+q, y+1, "╵", faintInk)
-			}
-		}
-		name := line{{midnight.Format("Mon"), mutedInk}}
-		if midnight.Format(time.DateOnly) == today {
-			name[0].ink = strongInk
-		}
-		if col-last >= dayCells && col+name.width() <= tl.columns {
-			c.line(x+col, y, name)
-			last = col
+		case col >= 0 && at.Hour() != 0:
+			c.text(x+col, y, "╵", faintInk)
 		}
 	}
 }
@@ -301,11 +320,11 @@ func (f Frame) roomStrip(c *canvas, l runwayLayout, y int) {
 		if col < l.timeline.nowColumn() {
 			k.fade = pastFade
 		}
-		filled := int(math.Round(float64(8*stripRows*with) / float64(known)))
-		if filled == 0 {
+		if with == 0 {
 			c.text(l.x+col, y+1, floorLine, k)
 			continue
 		}
+		filled := max(int(math.Round(float64(8*stripRows*with)/float64(known))), 1)
 		c.text(l.x+col, y+1, levels[min(filled, 8)], k)
 		c.text(l.x+col, y, levels[max(filled-8, 0)], k)
 	}
@@ -356,12 +375,18 @@ func (f Frame) badge(doc status.Document, l lane, now time.Time) line {
 }
 
 // runwayLane draws lane ln, its columns cells, on c from row y as layout l
-// lays it out: its label, and its badge at the labels' right; its room in
-// each column of the timeline, the past dimmed; over the week, ┃ where each
-// week resets; and under it, its words.
+// lays it out: its label, and its badge at the labels' right, the label cut
+// to fit beside it, and the next account's badge brief where the label
+// can't show whole beside it; its room in each column of the timeline, the
+// past dimmed; over the week, ┃ where each week resets; and under it, its
+// words.
 func (f Frame) runwayLane(c *canvas, doc status.Document, ln lane, cells []room, l runwayLayout, now time.Time, y int) {
-	c.line(margin, y, laneLabel(ln))
-	c.right(l.x-badgeGap, y, f.badge(doc, ln, now))
+	label, badge, room := laneLabel(ln), f.badge(doc, ln, now), l.x-badgeGap-margin
+	if label.width()+1+badge.width() > room && len(badge) == 1 && badge[0].text == nextBadge {
+		badge[0].text = briefNext
+	}
+	c.line(margin, y, label.fit(room-1-badge.width()))
+	c.right(l.x-badgeGap, y, badge)
 	for col, r := range cells {
 		glyph, k := f.cellOf(r)
 		if col < l.timeline.nowColumn() {
@@ -486,11 +511,15 @@ func resetSays(s standing, now time.Time) line {
 
 // allAlong is what's said under lane l without a stretch or a reset in
 // view: that nothing has been read of its account; else that it has room
-// all day, or all week, and when its week resets, beyond the week shown.
+// all day, and when it runs out, where it's heading to beyond the day shown,
+// as in "room all day · week runs out ~Sun 04:06"; or all week, and when its
+// week resets, beyond the week shown.
 func (f Frame) allAlong(l lane, now time.Time) line {
 	switch weeks := f.weeks(l); {
 	case !l.known:
 		return line{{"not read yet", dimInk}}
+	case f.Span != Week && l.drained != "":
+		return line{{"room all day" + status.Separator + l.drained, dimInk}}
 	case f.Span != Week:
 		return line{{"room all day", dimInk}}
 	case len(weeks) > 0 && !weeks[0].ResetsAt.IsZero():

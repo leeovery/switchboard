@@ -15,31 +15,32 @@ func TestTheTitleRow(t *testing.T) {
 		width int
 		views []View
 		shown View
-		// want are the rows it takes, and wantNext the row it returns.
+		// want are the rows it draws, and wantRows how many it takes.
 		want     []string
-		wantNext int
+		wantRows int
 	}{
 		{name: "the views as tabs, and the hint to move between them", width: 160, views: three, shown: Accounts, want: []string{
 			"  SWITCHBOARD    Accounts   Sessions   Runway   tab ⇥" + blanks(86) + "Mon 28 Sep  13:12:00",
-		}, wantNext: 1},
+		}, wantRows: 1},
 		{name: "one view, with nothing to move to", width: 160, views: []View{Accounts}, shown: Accounts, want: []string{
 			"  SWITCHBOARD    Accounts" + blanks(114) + "Mon 28 Sep  13:12:00",
-		}, wantNext: 1},
+		}, wantRows: 1},
 		{name: "on a phone, the tabs on a row of their own", width: 52, views: three, shown: Sessions, want: []string{
 			"  SWITCHBOARD" + blanks(33) + "13:12",
 			"",
 			"  Accounts  Sessions  Runway" + blanks(18) + "tab ⇥",
-		}, wantNext: 3},
+		}, wantRows: 3},
 		{name: "no views, as printed once, no tabs", width: 160, want: []string{
 			"  SWITCHBOARD" + blanks(126) + "Mon 28 Sep  13:12:00",
-		}, wantNext: 1},
+		}, wantRows: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Width: tt.width, Height: 4, Views: tt.views, View: tt.shown}
 			c := newCanvas(f.Width, f.Height)
-			if got := f.title(c, now); got != tt.wantNext {
-				t.Errorf("title() = %d, want %d", got, tt.wantNext)
+			f.title(c, now)
+			if got := f.titleRows(); got != tt.wantRows {
+				t.Errorf("titleRows() = %d, want %d", got, tt.wantRows)
 			}
 			if rows := c.rows(Look{})[:len(tt.want)]; !slices.Equal(rows, tt.want) {
 				t.Errorf("the title reads\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))

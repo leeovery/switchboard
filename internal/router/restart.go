@@ -156,22 +156,23 @@ func (r *restarts) configured() config.Accounts {
 }
 
 // ready returns what's closed once a supervised router, with a restart due,
-// has no request in flight, or nil while it's not to restart.
+// has no request in flight, or nil while it's not to restart, as while its
+// config file made no valid config at the last look, which the next settles.
 func (r *restarts) ready() <-chan struct{} {
-	if !r.supervised || r.due() == "" {
+	if !r.supervised || r.due() == "" || r.config.missed {
 		return nil
 	}
 	return r.inFlight.quiet()
 }
 
 // restart restarts the router, once a look at what it was started from finds
-// a restart still due, and reports whether it did: the config file may have
-// changed since it was last looked at, into a config the router couldn't
-// start again from.
+// a restart still due, and its config file making a valid config, and
+// reports whether it did: the config file may have changed since it was last
+// looked at, into a config the router couldn't start again from.
 func (r *restarts) restart() bool {
 	r.look()
 	why := r.due()
-	if why == "" {
+	if why == "" || r.config.missed {
 		return false
 	}
 	r.begin(why)
@@ -218,8 +219,10 @@ type configFile struct {
 	path string
 	seen fileState
 	// valid is set while the file, as last looked at, makes a valid config,
-	// which a router started again can start from.
-	valid bool
+	// which a router started again can start from: one look finding it
+	// doesn't, as a file caught while it's saved, is missed, and changes
+	// nothing until the next finds it so too.
+	valid, missed bool
 	// changed is set once the file has made another valid config since the
 	// router started, and accounts are those the last it made configures.
 	changed  bool
@@ -227,20 +230,28 @@ type configFile struct {
 }
 
 // look looks at the config file again, and reads it once it has changed:
-// a valid config calls for a restart, and an invalid one is refused, logged
-// at warn, the router carrying on with the config it has.
+// a valid config calls for a restart, and one that isn't valid at two looks
+// in a row is refused, logged at warn, the router carrying on with the config
+// it has. A single look finding it invalid changes nothing, noted at debug:
+// an editor saving the file can leave it so for a moment.
 func (c *configFile) look() {
 	now := statFile(c.path)
 	if now.same(c.seen) {
+		c.missed = false
 		return
 	}
-	c.seen = now
 	cfg, err := config.Load(c.path)
-	if err != nil {
-		c.valid = false
+	switch {
+	case err != nil && !c.missed:
+		c.missed = true
+		logger.Debug("config file makes no valid config; looking again before refusing it", "path", c.path, "error", err)
+		return
+	case err != nil:
+		c.seen, c.valid, c.missed = now, false, false
 		logger.Warn("config change refused; carrying on with the config as it was", "path", c.path, "error", err)
 		return
 	}
+	c.seen, c.missed = now, false
 	c.valid, c.changed, c.accounts = true, true, cfg.Accounts
 	logger.Info("config changed", "path", c.path)
 }

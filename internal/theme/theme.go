@@ -9,6 +9,7 @@ package theme
 import (
 	"image/color"
 	"math"
+	"time"
 )
 
 // Token is a colour by what it means and how prominent it is, never by its
@@ -119,16 +120,37 @@ type Theme struct {
 	// Slug names the theme: a built-in's name, or its file's, less .theme.
 	Slug    string
 	colours [tokens]color.Color
+	// faint are the tokens drawn faint, in the terminal's own foreground, and
+	// reversed the surfaces drawn by swapping its foreground and background:
+	// the terminal theme's, as no colour of the terminal's sixteen does for
+	// them on every terminal.
+	faint, reversed [tokens]bool
 }
 
 // Colour is the theme's colour for a token. It's nil for the zero Token, and
-// for what the terminal theme leaves as the terminal has it: its canvas, and
-// its text in the terminal's own foreground.
+// for what the terminal theme leaves as the terminal has it: its canvas, its
+// text in the terminal's own foreground, and what it draws faint or reversed.
 func (t Theme) Colour(tok Token) color.Color {
 	if tok <= 0 || tok >= tokens {
 		return nil
 	}
 	return t.colours[tok]
+}
+
+// Faint reports whether the theme draws tok faint, in the terminal's own
+// foreground, rather than in a colour of its own: the terminal theme's dim
+// text, borders and tracks, as of the terminal's sixteen colours none is dim
+// on every terminal, bright black being Solarized Dark's background.
+func (t Theme) Faint(tok Token) bool {
+	return tok > 0 && tok < tokens && t.faint[tok]
+}
+
+// Reversed reports whether the theme draws the surface tok by swapping the
+// terminal's own foreground and background, rather than in a colour of its
+// own: the terminal theme's selection and attention, as of the terminal's
+// sixteen colours none shows behind its own foreground on every terminal.
+func (t Theme) Reversed(tok Token) bool {
+	return tok > 0 && tok < tokens && t.reversed[tok]
 }
 
 // Ramp is the colours a bar fills along, from its first cell to its last.
@@ -153,6 +175,13 @@ func SeriesOf(n int) Token {
 // image as it may be, and so blends nothing into it.
 func (t Theme) Paints() bool {
 	return t.colours[Canvas] != nil
+}
+
+// Suits reports whether the theme reads on a terminal whose background is
+// dark, or light, as printed there with none of its own painted: its canvas
+// is as dark, or it paints none, its colours the terminal's own.
+func (t Theme) Suits(dark bool) bool {
+	return !t.Paints() || Dark(t.colours[Canvas]) == dark
 }
 
 // derive works out each of switchboard's tokens the theme leaves out from
@@ -189,6 +218,11 @@ func Mix(a, b color.Color, t float64) color.Color {
 	}
 	return color.RGBA{R: channel(ar, br), G: channel(ag, bg), B: channel(ab, bb), A: 0xff}
 }
+
+// AnswerWithin is how long a terminal is given to say what its background is
+// (OSC 11) before it's taken for dark: one answers in a few milliseconds, or
+// over SSH in a few more.
+const AnswerWithin = 150 * time.Millisecond
 
 // Dark reports whether a terminal's background, as the terminal gave it, is
 // dark: its lightness under half. One the terminal didn't give, nil, is taken

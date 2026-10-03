@@ -155,7 +155,7 @@ func TestALimitIsToldOfOnce(t *testing.T) {
 
 		h.limit("2", []string{"5h"}, 3*time.Hour)
 		h.after(time.Second)
-		h.limit("2", []string{"7d"}, 4*day)
+		h.limit("2", []string{"5h", "7d"}, 4*day)
 		h.after(gatherFor)
 		first := "2 · two hit its Session and Week limits, back at Wed 00:00"
 		h.expect(first)
@@ -201,11 +201,62 @@ func TestALimitsNotificationLeavesOutMovesItDidntCause(t *testing.T) {
 		h.hear(
 			Moved{Session: "idle", Model: opus, From: "2", To: "1", Reason: "rescored after 1h 2m idle"},
 			Moved{Session: "pinned", Model: opus, From: "2", To: "1", Reason: "moved by pin"},
-			forced("elsewhere", "3", "1"),
+			forcedBy(2, "elsewhere", "3", "1"),
 			forced("moved", "2", "3"),
 		)
 		h.after(gatherFor)
 		h.expect("2 · two hit its Session limit, back at Sat 03:00 — 1 session moved to 3 · three")
+	})
+}
+
+func TestALimitsNotificationCountsTheSessionsItMovedWhateverOrderTheyreToldOfIn(t *testing.T) {
+	tests := []struct {
+		name string
+		// first is set where the move is told of before the limit that
+		// forced it.
+		first bool
+	}{
+		{name: "the move told of after its limit"},
+		{name: "the move told of before its limit, as another request's can be", first: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifying(t, config.Notifications{Limits: true, Moves: true})
+				h.read("2", h.session(1, 3*time.Hour), h.week(0.5, 3*day))
+				h.start()
+
+				reached, _ := h.state.limit("2", []string{"5h"}, h.began.Add(3*time.Hour), h.state.mark())
+				news := []Event{reached, forcedBy(reached.Limit, "a", "2", "1")}
+				if tt.first {
+					slices.Reverse(news)
+				}
+				h.hear(news...)
+				h.after(gatherFor)
+				h.expect("2 · two hit its Session limit, back at Sat 03:00 — 1 session moved to 1 · one")
+			})
+		})
+	}
+}
+
+func TestANewerLimitIsToldOfWithTheSessionsItMoved(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newNotifying(t, config.Notifications{Limits: true})
+		h.read("2", h.session(1, 3*time.Hour), h.week(0.5, 3*day), h.fableWeek(1, 4*day))
+		h.start()
+
+		h.limit("2", []string{"5h"}, 3*time.Hour)
+		h.after(time.Second)
+		// A Fable request, reaching Fable's week while the session's limit
+		// holds, reaches a limit of its own, which moves its session, told of
+		// before the limit is.
+		newer, _ := h.state.limit("2", []string{"7d_oi"}, h.began.Add(4*day), h.state.mark())
+		h.hear(forcedBy(newer.Limit, "a", "2", "1"), newer)
+		h.after(gatherFor)
+		h.expect(
+			"2 · two hit its Session limit, back at Sat 03:00",
+			"2 · two hit its Fable week limit, back at Wed 00:00 — 1 session moved to 1 · one",
+		)
 	})
 }
 
@@ -607,6 +658,34 @@ func TestANotifierThatHangsNeverHoldsUpTheListener(t *testing.T) {
 	})
 }
 
+func TestNotificationsQueueTheEventsTheyTellOfAlone(t *testing.T) {
+	log := logstest.Capture(t)
+	n := newNotifications(config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}, &noting{}, newTestState(&testClock{now: start}), at(start))
+	// With nothing dealing with the queue, the router tells of more than it
+	// holds of every other kind.
+	for range queueSize + 1 {
+		for _, e := range []Event{
+			SessionStarted{Session: "one", Model: opus, Account: "work", Reason: "new"},
+			Refused{Account: "work", Status: http.StatusUnauthorized, Until: start.Add(refusedFor)},
+			RefusalLifted{Account: "work"},
+			HealthChanged{Reason: "5 of the 5 requests in the last 5 minutes failed"},
+			Primed{Account: "work", Window: "5h", ResetsAt: start.Add(5 * time.Hour)},
+			RestartDue{Reason: "upgraded"},
+		} {
+			n.hear(e)
+		}
+	}
+	n.hear(LimitReached{Account: "work", Until: start.Add(time.Hour), Limit: 1})
+	n.hear(forced("one", "work", "side"))
+
+	if got := len(n.events); got != 2 {
+		t.Errorf("%d events queued, want 2: the limit and the move, which notifications tell of", got)
+	}
+	if log.Has("fell behind") {
+		t.Errorf("log reads\n%s\nwant nothing dropped", log)
+	}
+}
+
 func TestANotificationThatFailsIsLogged(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
@@ -809,15 +888,22 @@ func (h *notifying) window(key, label string, used float64, left time.Duration) 
 	return quota.Window{Key: key, Label: label, Utilization: used, ResetsAt: h.began.Add(left), Status: verdict}
 }
 
-// forced is a session's opus requests leaving an account that couldn't take
-// them for another.
+// forced is a session's opus requests leaving an account whose limit, the
+// first the router counts, held them back, for another.
 func forced(session, from, to string) Moved {
 	return forcedModel(session, opus, from, to)
 }
 
 // forcedModel is forced, for requests of the model given.
 func forcedModel(session, model, from, to string) Moved {
-	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Forced: true}
+	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Limit: 1}
+}
+
+// forcedBy is forced, by the limit with the identity given.
+func forcedBy(limit int, session, from, to string) Moved {
+	m := forced(session, from, to)
+	m.Limit = limit
+	return m
 }
 
 // noting is a notifier that notes each message it's given, and fails as fail

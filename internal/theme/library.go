@@ -36,7 +36,8 @@ func NewLibrary(dir string) *Library {
 }
 
 // Load loads the theme slug names: the built-in, else its file in the themes
-// directory.
+// directory, found among them as List finds it, by its name exactly, however
+// the filesystem matches names.
 func (l *Library) Load(slug string) (Theme, error) {
 	if !ValidSlug(slug) {
 		return Theme{}, &Problem{Reason: badName, Detail: fmt.Sprintf("%q can't name a theme", slug)}
@@ -47,22 +48,20 @@ func (l *Library) Load(slug string) (Theme, error) {
 	if l.dir == "" {
 		return Theme{}, &Problem{Reason: notFound}
 	}
-	path := filepath.Join(l.dir, slug+fileExt)
-	t, p := readFile(path, slug)
-	switch {
-	case p != nil && missing(path):
-		return Theme{}, &Problem{Reason: notFound, Detail: "no " + slug + fileExt + " in " + l.dir}
-	case p != nil:
+	files, err := l.files()
+	if err != nil {
+		return Theme{}, &Problem{Reason: unreadable, Detail: err.Error(), Err: err}
+	}
+	name := slug + fileExt
+	i := slices.IndexFunc(files, func(path string) bool { return filepath.Base(path) == name })
+	if i < 0 {
+		return Theme{}, &Problem{Reason: notFound, Detail: "no " + name + " in " + l.dir}
+	}
+	t, p := readFile(files[i], slug)
+	if p != nil {
 		return Theme{}, p
 	}
 	return t, nil
-}
-
-// missing reports whether nothing is at path: a link that leads nowhere is
-// there, a file that can't be read rather than one that's missing.
-func missing(path string) bool {
-	_, err := os.Lstat(path)
-	return errors.Is(err, fs.ErrNotExist)
 }
 
 // Pair loads the pair of themes choice draws in, a theme that doesn't load,
@@ -127,9 +126,12 @@ func (l *Library) List() Listing {
 }
 
 // files are the paths of the candidates in the themes directory: every
-// entry at its top level whose name ends .theme, in any case, that isn't a
-// directory, links followed. A link that leads nowhere is one, as it's named
-// rather than left out. A directory that isn't there holds none.
+// entry at its top level whose name ends .theme, in any case, but one whose
+// name starts with a dot, as an editor's lock file's and macOS's own files'
+// do, such as .#lake.theme and ._lake.theme; and that's a regular file,
+// links followed, as reading anything else, such as a FIFO or a device, may
+// never end. A link that leads nowhere is one, as it's named rather than left
+// out. A directory that isn't there holds none.
 func (l *Library) files() ([]string, error) {
 	if l.dir == "" {
 		return nil, nil
@@ -140,11 +142,12 @@ func (l *Library) files() ([]string, error) {
 	}
 	var paths []string
 	for _, d := range dirEntries {
-		path := filepath.Join(l.dir, d.Name())
-		if !strings.EqualFold(filepath.Ext(d.Name()), fileExt) {
+		name := d.Name()
+		if strings.HasPrefix(name, ".") || !strings.EqualFold(filepath.Ext(name), fileExt) {
 			continue
 		}
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
+		path := filepath.Join(l.dir, name)
+		if info, err := os.Stat(path); err == nil && !info.Mode().IsRegular() {
 			continue
 		}
 		paths = append(paths, path)
@@ -161,10 +164,26 @@ func (l *Library) entry(path string) Entry {
 	case !ok || !ValidSlug(slug):
 		return Entry{Name: name, Problem: &Problem{Reason: badName, Detail: "a theme file is named <slug>.theme, its slug lower-case letters, digits and hyphens"}}
 	case isBuiltin(slug):
-		return Entry{Name: name, Problem: &Problem{Reason: reservedName, Detail: slug + " is a built-in theme's"}}
+		return reserved(slug)
 	}
 	t, p := readFile(path, slug)
 	return Entry{Name: slug, Slug: slug, Theme: t, Problem: p}
+}
+
+// FileEntry is a theme read from a file, as the picker lists it, as List
+// lists one in the themes directory: under its slug, unless that's a
+// built-in's, which no file may take.
+func FileEntry(t Theme) Entry {
+	if isBuiltin(t.Slug) {
+		return reserved(t.Slug)
+	}
+	return Entry{Name: t.Slug, Slug: t.Slug, Theme: t}
+}
+
+// reserved is the file of a theme taking the built-in slug names, as the
+// picker lists it: by its file's name, never to be picked.
+func reserved(slug string) Entry {
+	return Entry{Name: slug + fileExt, Problem: &Problem{Reason: reservedName, Detail: slug + " is a built-in theme's"}}
 }
 
 // Pair is the pair of themes choice draws in, as the listing has them: a

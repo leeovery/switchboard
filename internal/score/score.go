@@ -202,16 +202,33 @@ func (p Policy) Pick(candidates []Candidate, applies func(key string) bool, pref
 	if len(ratings) == 0 {
 		return Choice{}, false
 	}
-	relieved := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return r.pressure.Under })
-	if len(relieved) == 0 {
-		return Choice{ID: best(ratings, preferred)}, true
-	}
-	c := Choice{ID: best(relieved, preferred)}
-	if regardless := best(ratings, preferred); regardless != c.ID {
+	chosen := among(ratings)
+	c := Choice{ID: best(chosen, preferred)}
+	if regardless := best(ratings, preferred); len(chosen) < len(ratings) && regardless != c.ID {
 		passed := passedOver(ratings, regardless)
 		c.PassedOver, c.Pressure = passed.id, passed.pressure
 	}
 	return c, true
+}
+
+// Among returns the ids of the candidates Pick chooses among, in the order
+// given: those that qualify, as Pick says, but those under pressure while
+// another isn't.
+func (p Policy) Among(candidates []Candidate, applies func(key string) bool, now time.Time) []string {
+	var ids []string
+	for _, r := range among(p.qualifying(candidates, applies, now)) {
+		ids = append(ids, r.id)
+	}
+	return ids
+}
+
+// among are the ratings Pick chooses among: those not under pressure, or
+// every one where each is.
+func among(ratings []rating) []rating {
+	if relieved := slices.DeleteFunc(slices.Clone(ratings), func(r rating) bool { return r.pressure.Under }); len(relieved) > 0 {
+		return relieved
+	}
+	return ratings
 }
 
 // best is the account of those rated whose quota most needs using, keeping to

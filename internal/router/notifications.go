@@ -70,9 +70,15 @@ func newNotifications(settings config.Notifications, notifier Notifier, state *s
 	}
 }
 
-// hear queues an event for run to deal with. It never waits: with the queue
-// full, the event is dropped.
+// hear queues an event for run to deal with, of the kinds take deals with: a
+// limit reached, and a move. It never waits: with the queue full, the event
+// is dropped.
 func (n *notifications) hear(e Event) {
+	switch e.(type) {
+	case LimitReached, Moved:
+	default:
+		return
+	}
 	select {
 	case n.events <- e:
 	default:
@@ -142,7 +148,7 @@ func (n *notifications) standings() standings {
 }
 
 // take deals with an event: a limit reached starts gathering the sessions it
-// moves, and a move is told of on its own unless a limit gathering takes it.
+// moves, and a move is told of on its own unless a limit told of takes it.
 func (n *notifications) take(e Event, accounts standings) {
 	switch e := e.(type) {
 	case LimitReached:
@@ -150,7 +156,10 @@ func (n *notifications) take(e Event, accounts standings) {
 			n.limits.reached(e, time.Now())
 		}
 	case Moved:
-		if !n.limits.moved(e) && n.settings.Moves {
+		if n.settings.Limits && n.limits.moved(e) {
+			return
+		}
+		if n.settings.Moves {
 			n.post(moveNotice(e, accounts))
 		}
 	}

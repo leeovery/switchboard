@@ -178,10 +178,6 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 		held = r.hold(ls)
 	}
 	logger.Info("stopping")
-	// The request stream's readers go first, rather than wait on a router
-	// that's going while its requests finish: they reconnect to the router
-	// that comes next.
-	r.stream.close()
 	stopLooking()
 	looked.Wait()
 	r.probes.stop()
@@ -223,6 +219,15 @@ func serveOn(srv *http.Server, ln net.Listener) error {
 func shutdown(control, proxy *http.Server) {
 	_ = control.Close()
 	drain(proxy)
+}
+
+// refuse stops the proxy taking requests, as drain does first, without
+// waiting for those in flight: a shutdown with no time left closes its
+// listener and returns.
+func refuse(proxy *http.Server) {
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = proxy.Shutdown(expired)
 }
 
 // drain stops the proxy taking requests, giving those in flight DrainTimeout

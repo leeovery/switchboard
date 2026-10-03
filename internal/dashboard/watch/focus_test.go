@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -333,6 +334,30 @@ func TestALookThatCantListTheSessionsKeepsThoseListedLast(t *testing.T) {
 	h.deliver(h.press("r")...)
 	if h.model.routed() || h.model.sessions != nil || h.model.selecting() {
 		t.Errorf("probing, holding %+v, picking out %+v; want no sessions, and nothing picked out", h.model.sessions, h.model.selected)
+	}
+}
+
+func TestAnotherRouterThatCantListTheSessionsShowsNone(t *testing.T) {
+	h := gridHarness(t)
+	h.keys(spaceKey, downKey)
+	h.source.sessionsErr = errors.New("connection reset")
+	h.source.health = router.Health{PID: 4242, StartedAt: start.UTC()}
+	h.tickUntilAsked()
+
+	if h.model.sessions != nil || h.model.selecting() {
+		t.Errorf("another router answering, unable to list its sessions, the watch holds %+v, picking out %+v; want none of the last router's", h.model.sessions, h.model.selected)
+	}
+}
+
+func TestSFlippingEveryCardEndsTheSelection(t *testing.T) {
+	h := gridHarness(t)
+	h.keys(spaceKey, downKey)
+	if !h.model.selecting() {
+		t.Fatal("nothing picked out on work's back")
+	}
+	h.keys(tea.KeyPressMsg{Code: 's', Text: "s"})
+	if !h.model.everyFlipped() || h.model.selecting() {
+		t.Errorf("after s, every card flipped %v, picking out %+v; want every card flipped, nothing picked out", h.model.everyFlipped(), h.model.selected)
 	}
 }
 

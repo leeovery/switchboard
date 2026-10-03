@@ -271,6 +271,54 @@ func TestABackWithMoreSessionsThanFit(t *testing.T) {
 	}
 }
 
+func TestTheBacksShowTheStreamsMoves(t *testing.T) {
+	d28c := Seat{Session: idD28C, Model: opus}
+	f := flipped(t)
+	f.Traffic = Traffic{
+		Live:  true,
+		Calls: map[Plug]Call{{Account: "side", Seat: d28c}: {Doing: Streaming, Since: now.Add(-time.Second), Tokens: 1234}},
+		Moves: []Move{{Seat: d28c, From: "work", To: "side", At: now.Add(-time.Second), Reason: "moved: work hit its limit"}},
+	}
+
+	work := strings.Join(cardOf(t, f, flipping(), "work", 50, densities[0]), "\n")
+	if strings.Contains(work, "● d28c") || !strings.Contains(work, "2 sessions  ·  1 busy") {
+		t.Errorf("work's back is\n%s\nwant d28c gone from it, as the stream moved it", work)
+	}
+	side := strings.Join(cardOf(t, f, flipping(), "side", 50, densities[0]), "\n")
+	if !strings.Contains(side, "● d28c  opus    streaming  ↓ ~1.2k") || !strings.Contains(side, "╰ here since 13:11") || !strings.Contains(side, "4 sessions  ·  3 busy") {
+		t.Errorf("side's back is\n%s\nwant d28c on it, streaming, here since it moved", side)
+	}
+	if got := f.Seats("side", now); !slices.Contains(got, d28c) || slices.Contains(f.Seats("work", now), d28c) {
+		t.Errorf("side's seats are %+v, and work's %+v, want d28c among side's alone", got, f.Seats("work", now))
+	}
+}
+
+func TestTheBacksCountTheSessionsTheStreamSawLately(t *testing.T) {
+	brought := Seat{Session: "e5f61a2b-7c3d-4e8f-9a0b-1c2d3e4f5a6b", Model: opus}
+	cold := Seat{Session: id7F3A, Model: haiku}
+	f := flipped(t)
+	for i, s := range f.Sessions {
+		if s.ID == id7F3A {
+			f.Sessions[i].Assignments[0].LastSeen = now.Add(-2 * time.Hour).UTC()
+		}
+	}
+	f.Traffic = Traffic{
+		Live:  true,
+		Moves: []Move{{Seat: brought, From: "work", To: "side", At: now.Add(-time.Second), Reason: "moved: work hit its limit"}},
+		Seen:  map[Plug]time.Time{{Account: "work", Seat: cold}: now.Add(-5 * time.Second)},
+	}
+	if got := f.Seats("side", now); !slices.Contains(got, brought) {
+		t.Errorf("side's seats are %+v, want e5f6's among them: a move the stream told of brought it, before the router listed it", got)
+	}
+	if got := f.Seats("work", now); !slices.Contains(got, cold) {
+		t.Errorf("work's seats are %+v, want 7f3a's among them: the stream saw it there lately, though the router last listed it seen two hours ago", got)
+	}
+	side := strings.Join(cardOf(t, f, flipping(), "side", 50, densities[0]), "\n")
+	if !strings.Contains(side, "e5f6") || !strings.Contains(side, "4 sessions") {
+		t.Errorf("side's back is\n%s\nwant e5f6 on it, counted among its sessions", side)
+	}
+}
+
 func TestTheSessionPickedOutIsOnTheSelectionsSurface(t *testing.T) {
 	f := flipped(t)
 	f.Selected = Seat{Session: idD28C, Model: opus}
@@ -284,11 +332,11 @@ func TestTheSessionPickedOutIsOnTheSelectionsSurface(t *testing.T) {
 	}
 	for x := range 50 {
 		want := hue{}
-		if x >= 2 && x <= 47 {
+		if x >= 1 && x <= 48 {
 			want = hue{token: theme.BgSelection}
 		}
 		if got := c.at(x, row).ink.on; got != want {
-			t.Errorf("cell %d of the row picked out is on %+v, want %+v: bg.selection a cell in from each side", x, got, want)
+			t.Errorf("cell %d of the row picked out is on %+v, want %+v: bg.selection from side to side, as LATELY's highlight", x, got, want)
 		}
 	}
 	if got := c.at(3, row+2).ink.on; got != (hue{}) {
@@ -317,8 +365,8 @@ func TestASeatsRowSaysWhatItsDoing(t *testing.T) {
 			want: slices.Concat(busy, line{{"seen       ", secondaryInk}, {"now", secondaryInk}}),
 		},
 		{
-			name: "without the stream, seen longer ago: idle so long", seen: 9*time.Minute + 30*time.Second,
-			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"9m", secondaryInk}}),
+			name: "without the stream, seen longer ago: idle so long, to the nearest minute", seen: 9*time.Minute + 30*time.Second,
+			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"10m", secondaryInk}}),
 		},
 		{
 			name: "its answer streaming: busy, its tokens so far estimated", seen: 9 * time.Minute, live: true, told: time.Second,
@@ -359,7 +407,7 @@ func TestASeatsRowSaysWhatItsDoing(t *testing.T) {
 			want: slices.Concat(busy, line{{"idle       ", dimInk}, {"59s", secondaryInk}}),
 		},
 		{
-			name: "with the stream, told of longer ago: idle so long", seen: 20 * time.Minute, live: true, told: 9*time.Minute + 30*time.Second,
+			name: "with the stream, told of longer ago: idle so long, to the nearest minute", seen: 20 * time.Minute, live: true, told: 9*time.Minute + 29*time.Second,
 			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"9m", secondaryInk}}),
 		},
 	}
@@ -388,10 +436,20 @@ func TestASeatsNote(t *testing.T) {
 		seatOf(sonnet, "work", "new", time.Hour, time.Minute), seatOf(opus, "side", "new", time.Hour, time.Minute),
 		seatOf(haiku, "side", "new", time.Hour, time.Minute), seatOf("claude-fable-1", "personal", "new", time.Hour, time.Minute),
 	}}
-	yielded := status.Session{ID: idD28C, Pin: "side", Assignments: []status.Assignment{seatOf(opus, "work", "pin yields: side has no room", time.Hour, time.Minute)}}
+	yielding := func(reason string, yielded bool) status.Session {
+		s := status.Session{ID: idD28C, Pin: "side", Assignments: []status.Assignment{seatOf(opus, "work", reason, time.Hour, time.Minute)}}
+		s.Assignments[0].Yielded = yielded
+		return s
+	}
 	pinnedSince := status.Session{ID: idD28C, Pin: "client", Assignments: []status.Assignment{seatOf(opus, "work", "pin yields: side has no room", time.Hour, time.Minute)}}
-	movedByPin := status.Session{ID: idC61B, Assignments: []status.Assignment{seatOf(opus, "work", "pinned", 10*time.Minute, time.Minute)}}
-	movedByPin.Assignments[0].Pinned = true
+	pinnedAt := func(at time.Duration) status.Session {
+		s := status.Session{ID: idC61B, Assignments: []status.Assignment{seatOf(opus, "work", "pinned", 10*time.Minute, time.Minute)}}
+		s.Assignments[0].Pinned = true
+		if at > 0 {
+			s.Assignments[0].PinnedAt = now.Add(-at).UTC()
+		}
+		return s
+	}
 	moved := func(reason string) []status.Event {
 		return slices.Concat([]status.Event{
 			{ID: 9, At: now.Add(-10 * time.Minute).UTC(), Kind: status.EventMoved, Session: idC61B, Model: opus, From: "side", To: "work", Reason: reason},
@@ -405,12 +463,16 @@ func TestASeatsNote(t *testing.T) {
 		want    string
 	}{
 		{name: "its own pin sending it to another account", account: "work", session: pinnedAway, want: "goes to side from its next request"},
-		{name: "its own pin having yielded here at a limit", account: "work", session: yielded, want: "its pin to side yielded here"},
+		{name: "its own pin having yielded here at a limit", account: "work", session: yielding("pin yields: side has no room", true), want: "its pin to side yielded here"},
+		{name: "its own pin having yielded, the session staying where it was", account: "work", session: yielding("new", true), want: "its pin to side yielded here"},
+		{name: "its own pin no longer yielding, whatever the reason it came here", account: "work", session: yielding("pin yields: side has no room", false), want: "goes to side from its next request"},
 		{name: "its own pin to another account since it yielded", account: "work", session: pinnedSince, want: "goes to client from its next request"},
 		{name: "its other models' accounts", account: "work", session: split, want: "its opus and haiku are on side, its fable on personal"},
 		{name: "its own pin keeping it here", account: "work", session: pinnedHere, want: "pinned here"},
-		{name: "its own pin moving it here", account: "work", session: movedByPin, events: moved("pinned"), want: "pinned here at 13:02"},
-		{name: "its own pin keeping it where it moved for another reason", account: "work", session: movedByPin, events: moved("moved: side has no room"), want: "pinned here"},
+		{name: "its own pin moving it here", account: "work", session: pinnedAt(10 * time.Minute), events: moved("pinned"), want: "pinned here at 13:02"},
+		{name: "its own pin given as it ran here", account: "work", session: pinnedAt(7 * time.Minute), want: "pinned here at 13:05"},
+		{name: "its own pin it was launched with, where a move by pin says otherwise", account: "work", session: pinnedAt(0), events: moved("pinned"), want: "pinned here"},
+		{name: "its own pin keeping it where it moved for another reason", account: "work", session: pinnedAt(0), events: moved("moved: side has no room"), want: "pinned here"},
 		{name: "moved here", account: "side", session: flippingSessions()[3], want: "moved from personal at 12:22"},
 		{name: "here since it came", account: "work", session: flippingSessions()[2], want: "here since 11:12"},
 	}
@@ -439,6 +501,15 @@ func TestABackWithNoSessionsSaysWhy(t *testing.T) {
 		doc.Events = slices.Concat([]status.Event{e}, doc.Events)
 		return doc
 	}
+	// held has personal held by the limit whose event moved its sessions, by
+	// its identity, though a limit reached since in Fable's week alone has
+	// moved one more; and heldSince, a session starting on it since.
+	held := flipping()
+	held.Accounts[1].Limit.ID = 4
+	held.Events[4].Limit = 4
+	held.Events = slices.Concat([]status.Event{{ID: 8, At: now.Add(-20 * time.Minute).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"7d_oi"}, Count: 1, To: "side", Limit: 5}}, held.Events)
+	heldSince := held
+	heldSince.Events = slices.Concat([]status.Event{{ID: 9, At: now.Add(-30 * time.Second).UTC(), Kind: status.EventStarted, Account: "personal", Session: idC61B, Model: opus}}, held.Events)
 	tests := []struct {
 		name     string
 		doc      status.Document
@@ -447,6 +518,8 @@ func TestABackWithNoSessionsSaysWhy(t *testing.T) {
 	}{
 		{name: "the limit that moved them", doc: flipping(), sessions: flippingSessions(), want: []string{"3 moved to side at 12:22,", "when personal reached its limit"}},
 		{name: "a limit that moved them to several", doc: lost, sessions: flippingSessions(), want: []string{"2 moved to other accounts at 12:22,", "when personal reached its limit"}},
+		{name: "the limit holding it, by its identity", doc: held, sessions: flippingSessions(), want: []string{"3 moved to side at 12:22,", "when personal reached its limit"}},
+		{name: "the limit holding it, but a session starting on it since: nothing to say", doc: heldSince, sessions: flippingSessions()},
 		{name: "the last session moving off it", doc: away, sessions: flippingSessions(), want: []string{"d28c moved to side at 13:09 (pin)"}},
 		{name: "a session starting on it since: nothing to say", doc: since(status.Event{Kind: status.EventStarted, Account: "personal", Session: idC61B, Model: opus}), sessions: flippingSessions()},
 		{name: "a session moving to it since", doc: since(status.Event{Kind: status.EventMoved, Session: idC61B, Model: opus, From: "side", To: "personal"}), sessions: flippingSessions()},
@@ -486,7 +559,7 @@ func TestSeatsAreTheSessionsOnAnAccountInTheRoutersOrder(t *testing.T) {
 		{account: "personal"},
 	}
 	for _, tt := range tests {
-		if got := Seats(flippingSessions(), tt.account); !slices.Equal(got, tt.want) {
+		if got := (Frame{Sessions: flippingSessions()}).Seats(tt.account, now); !slices.Equal(got, tt.want) {
 			t.Errorf("Seats(%s) = %+v, want %+v", tt.account, got, tt.want)
 		}
 	}

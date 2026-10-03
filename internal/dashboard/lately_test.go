@@ -85,8 +85,9 @@ func TestLatelyTellsOfWhatBefellAnAccountFromItsSide(t *testing.T) {
 			want:  []string{"●|has room again|"},
 		},
 		{
-			name: "a move a limit forced, which the limit's lines count", account: "side",
+			name: "a move a limit forced, the limit's lines not among them: itself", account: "side",
 			event: status.Event{Kind: status.EventMoved, Session: idC61B, From: "personal", To: "side", Limit: 1},
+			want:  []string{"▸|c61b moved here from personal|"},
 		},
 		{
 			name: "another account's", account: "side",
@@ -103,7 +104,7 @@ func TestLatelyTellsOfWhatBefellAnAccountFromItsSide(t *testing.T) {
 			tt.event.ID, tt.event.At = 9, ago(time.Minute)
 			doc.Events = slices.Concat(tt.alongside, []status.Event{tt.event})
 			var got []string
-			for _, l := range latelyOf(doc, tt.account, now) {
+			for _, l := range shownLately(doc, tt.account, 10) {
 				got = append(got, l.mark.text+"|"+l.words+"|"+text(l.more))
 				if l.id != 9 || !l.at.Equal(tt.event.At) {
 					t.Errorf("a line tells of event %d at %s, want event 9 at %s", l.id, l.at, tt.event.At)
@@ -111,6 +112,57 @@ func TestLatelyTellsOfWhatBefellAnAccountFromItsSide(t *testing.T) {
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("tells %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// shownLately are the lines LATELY shows of doc's account with the given id,
+// n at most.
+func shownLately(doc status.Document, id string, n int) []lateLine {
+	return newest(latelies(doc, now)[id], n, lateLine.counted, lateLine.counting)
+}
+
+// lateFace is the card of doc's account with the given id as LATELY on its
+// back has it.
+func lateFace(doc status.Document, id string) face {
+	return face{lately: latelies(doc, now)[id]}
+}
+
+func TestLatelyHidesAMoveALimitCountsWhileTheLimitsLineShows(t *testing.T) {
+	doc := flipping()
+	limit := status.Event{ID: 5, At: now.Add(-20 * time.Minute).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 1, To: "side"}
+	moved := status.Event{ID: 6, At: now.Add(-19 * time.Minute).UTC(), Kind: status.EventMoved, Session: idC61B, Model: opus, From: "personal", To: "side", Limit: 5}
+	started := status.Event{ID: 9, At: now.Add(-11 * time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: idC61B, Reason: "new"}
+	room := status.Event{ID: 7, At: now.Add(-19*time.Minute - 30*time.Second).UTC(), Kind: status.EventRoom, Account: "side"}
+	tests := []struct {
+		name   string
+		events []status.Event
+		n      int
+		want   []string
+	}{
+		{name: "its limit's line shown: the move left out", events: []status.Event{moved, limit}, n: 4, want: []string{"1 session arrived from personal"}},
+		{
+			name:   "its limit's line too old to show, its room taken by a line between them: the move shown",
+			events: []status.Event{started, moved, room, limit}, n: 2,
+			want: []string{"c61b started here", "c61b moved here from personal"},
+		},
+		{
+			name:   "its limit's line showing once the move is left out",
+			events: []status.Event{started, moved, limit}, n: 2,
+			want: []string{"c61b started here", "1 session arrived from personal"},
+		},
+		{name: "its limit no longer kept: the move shown", events: []status.Event{moved}, n: 4, want: []string{"c61b moved here from personal"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc.Events = tt.events
+			var got []string
+			for _, l := range shownLately(doc, "side", tt.n) {
+				got = append(got, l.words)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("shows %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -128,7 +180,7 @@ func TestLatelyShowsWhatFollowsAnEventsWordsWhereItFitsWhole(t *testing.T) {
 		{width: 30, want: "12:12  ◇ primed: its 5-hour w…"},
 	} {
 		c := newCanvas(tt.width, 6)
-		Frame{}.lately(c, doc, "side", now, 0, 0, tt.width, 5)
+		Frame{}.lately(c, lateFace(doc, "side"), now, 0, 0, tt.width, 5)
 		rows := c.rows(Look{})
 		if rows[1] != "LATELY" || strings.TrimRight(rows[2], " ") != tt.want {
 			t.Errorf("%d cells wide, reads\n%s\nwant LATELY over %q", tt.width, strings.Join(rows, "\n"), tt.want)
@@ -140,7 +192,7 @@ func TestLatelyShowsAsManyAsFitTheNewestFirstEachPickedOutWhileFresh(t *testing.
 	doc := flipping()
 	f := Frame{Fresh: map[int]float64{7: 0.5}}
 	c := newCanvas(44, 6)
-	f.lately(c, doc, "side", now, 2, 0, 42, 5)
+	f.lately(c, lateFace(doc, "side"), now, 2, 0, 42, 5)
 	rows := c.rows(Look{})
 	want := []string{"", "  LATELY", "  13:11  ▲ c61b started here, the best", "  12:22  ▸ 3 sessions arrived from personal", "", ""}
 	for i := range rows {
@@ -161,7 +213,7 @@ func TestLatelyShowsAsManyAsFitTheNewestFirstEachPickedOutWhileFresh(t *testing.
 
 func TestLatelyWithoutRoomForOneIsntShown(t *testing.T) {
 	c := newCanvas(44, 4)
-	Frame{}.lately(c, flipping(), "side", now, 0, 0, 44, 3)
+	Frame{}.lately(c, lateFace(flipping(), "side"), now, 0, 0, 44, 3)
 	for _, row := range c.rows(Look{}) {
 		if strings.TrimSpace(row) != "" {
 			t.Fatalf("drew\n%s\nwant nothing: no room for a line under the label and a blank", strings.Join(c.rows(Look{}), "\n"))

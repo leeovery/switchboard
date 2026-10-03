@@ -9,6 +9,34 @@ import (
 	"testing"
 )
 
+func TestARoutedRequestOffersTheEncodingsTheRouterCanCountIn(t *testing.T) {
+	tests := []struct {
+		name string
+		// offered are the request's Accept-Encoding lines, and want what it
+		// goes upstream with, "" for none.
+		offered []string
+		want    string
+	}{
+		{name: "Claude Code's", offered: []string{"gzip, deflate, br, zstd"}, want: "gzip, deflate"},
+		{name: "in the client's order, weighed as it weighs them", offered: []string{"br;q=1.0, Deflate, GZIP;q=0.8, *;q=0.1"}, want: "Deflate, GZIP;q=0.8"},
+		{name: "over several lines", offered: []string{"br, gzip", "identity"}, want: "gzip, identity"},
+		{name: "none it can count", offered: []string{"br, zstd"}, want: "identity"},
+		{name: "none at all, which Go's transport asks gzip for, and decodes"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := http.Header{}
+			for _, line := range tt.offered {
+				h.Add("Accept-Encoding", line)
+			}
+			countable(h)
+			if got := strings.Join(h.Values("Accept-Encoding"), " | "); got != tt.want {
+				t.Errorf("Accept-Encoding goes upstream as %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestWithBodyReadsAsOftenAsAsked(t *testing.T) {
 	original := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("sent"))
 	r := withBody(original, []byte(`{"model":"claude-opus-5-5"}`))

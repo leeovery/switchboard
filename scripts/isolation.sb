@@ -2,8 +2,9 @@
 ;; this machine, no unix socket outside the temporary directory and nothing on
 ;; the router's port, no writes into the home directory but Go's caches, nor
 ;; into switchboard's real config, themes, state, preferences and bin
-;; directory, or Claude Code's config directory, wherever they are, or the
-;; directories on PATH, and none of the real programs tests must never run.
+;; directory, or Claude Code's config directory, wherever they are, nor a
+;; theme wherever its link leads, nor the directories on PATH, and none of the
+;; real programs tests must never run.
 ;;
 ;; Parameters, each a path with its symlinks resolved, as the sandbox matches
 ;; resolved paths:
@@ -14,6 +15,8 @@
 ;;   CONFIG      the config file switchboard reads
 ;;   CONFIG_DIR  its config directory
 ;;   THEMES_DIR  its themes directory
+;;   THEME_FILES the themes in it, each where its link leads, should it be a
+;;               link, joined by colons, as PATH joins directories
 ;;   STATE_DIR   its state directory
 ;;   PREFS       its preferences file, the dashboard's, in the state directory
 ;;   BIN_DIR     its bin directory, which holds the claude link
@@ -75,6 +78,14 @@
     (if (> (string-length dir) 0)
       (deny file-write* (subpath dir))))
   (split (param "PATH_DIRS")))
+
+;; Each theme, where its link leads, should it be a link to a file outside
+;; the home and the themes directory, such as with dotfiles kept elsewhere.
+(for-each
+  (lambda (file)
+    (if (> (string-length file) 0)
+      (deny file-write* (literal file))))
+  (split (param "THEME_FILES")))
 
 ;; A rule here matches the file a symlink resolves to, not the link (proven by
 ;; experiment), so each install is denied where its real file lands. The

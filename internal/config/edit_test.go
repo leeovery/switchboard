@@ -906,8 +906,12 @@ func TestSaveWritesThroughLinks(t *testing.T) {
 			}
 
 			save(t, draft)
-			if info, err := os.Lstat(path); err != nil || info.Mode()&fs.ModeSymlink == 0 {
-				t.Errorf("the config is %v (%v), want it a link still", info.Mode(), err)
+			info, err := os.Lstat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode()&fs.ModeSymlink == 0 {
+				t.Errorf("the config is %v, want it a link still", info.Mode())
 			}
 			want := strings.TrimPrefix(before+"\n", "\n") + "[[account]]\nid = \"side\"\n"
 			if got := readFile(t, target); got != want {

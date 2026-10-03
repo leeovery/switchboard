@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -51,14 +52,24 @@ func (f Frame) meter(c *canvas, s standing, reserve float64, now time.Time, x, y
 }
 
 // bar draws a window standing as s at now as a bar cells long from x along
-// row y: its use, its projection beyond, where even pace would be, and where
-// its account's reserve, reserve of it, starts.
+// row y: its use, as eased has it, its projection beyond, where even pace
+// would be, and where its account's reserve, reserve of it, starts.
 func (f Frame) bar(c *canvas, s standing, reserve float64, now time.Time, x, y, cells int) {
 	share, ok := s.projected()
 	if !ok {
 		share = 0
 	}
-	f.fill(c, x, y, cells, s.window.Utilization, share, reserveCell(reserve, cells), s.paceCell(now, cells))
+	f.fill(c, x, y, cells, f.eased(s.account, s.window), share, reserveCell(reserve, cells), s.paceCell(now, cells))
+}
+
+// eased is how much of the account with the given id's window w its bar
+// fills: as far as the bars have eased to its reading, while they ease, else
+// as read.
+func (f Frame) eased(id string, w quota.Window) float64 {
+	if used, ok := f.Eased[Ref{Account: id, Window: w.Key}]; ok {
+		return used
+	}
+	return w.Utilization
 }
 
 // fill draws a bar cells long from x along row y: used filled in eighths, each

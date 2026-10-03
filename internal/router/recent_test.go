@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -98,6 +98,63 @@ func TestAQuotaCheckSentAlongsideASessionsFirstRequestLeavesItToldOfAsStarted(t 
 	}
 }
 
+func TestASessionIsToldOfAsStartedWhereTheAnswerThatStartedItCameFrom(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
+	// Each account holds a request of one back until it's let go.
+	held := func(arrived, release chan struct{}, windows ...quota.Window) http.HandlerFunc {
+		return func(w http.ResponseWriter, req *http.Request) {
+			close(arrived)
+			select {
+			case <-release:
+			case <-time.After(5 * time.Second):
+				t.Error("a request held back was never let go")
+			}
+			answerWith(http.StatusOK, windows...)(w, req)
+		}
+	}
+	const hello = `{"model":"` + opus + `","max_tokens":1,"messages":[{"role":"user","content":"hello"}]}`
+
+	// One's first request goes to work, whose quota needs using first, and
+	// is held there while two's reaches work's limit, and one's next is
+	// moved to side.
+	firstThere, letFirstGo := make(chan struct{}), make(chan struct{})
+	r.api.script(workToken, held(firstThere, letFirstGo, session, weekOf(0.5, 24*time.Hour)),
+		limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 24*time.Hour)))
+	first := make(chan int, 1)
+	go func() { first <- asking(r.proxy, "one", hello) }()
+	<-firstThere
+	if got := r.ask(t, "two", opus, ""); got != "side" {
+		t.Fatalf("two's request went out on %s last, want side, off work's limit", got)
+	}
+	nextThere, letNextGo := make(chan struct{}), make(chan struct{})
+	r.api.script(sideToken, held(nextThere, letNextGo, session, weekOf(0.5, 5*24*time.Hour)))
+	next := make(chan int, 1)
+	go func() { next <- asking(r.proxy, "one", hello) }()
+	<-nextThere
+
+	// Work answers one's first request before side answers its next.
+	close(letFirstGo)
+	if got := <-first; got != http.StatusOK {
+		t.Fatalf("one's first request was answered %d, want 200", got)
+	}
+	close(letNextGo)
+	if got := <-next; got != http.StatusOK {
+		t.Fatalf("one's next request was answered %d, want 200", got)
+	}
+	var started []router.SessionStarted
+	for _, e := range r.events.heard() {
+		if s, ok := e.(router.SessionStarted); ok && s.Session == "one" {
+			started = append(started, s)
+		}
+	}
+	want := []router.SessionStarted{{Session: "one", Model: opus, Account: "work", Reason: "new"}}
+	if !reflect.DeepEqual(started, want) {
+		t.Errorf("one is told of as started as %+v, want %+v: where the answer that started it came from, and why it went there, though it has moved since", started, want)
+	}
+}
+
 func TestAQuotaCheckForcedOffALimitedAccountMovesNoSession(t *testing.T) {
 	r := newRouted(t)
 	r.readsAs(workToken, session, weekOf(0.5, 24*time.Hour))
@@ -116,7 +173,7 @@ func TestAQuotaCheckForcedOffALimitedAccountMovesNoSession(t *testing.T) {
 	if moved := slices.ContainsFunc(r.events.heard(), func(e router.Event) bool { _, ok := e.(router.Moved); return ok }); moved {
 		t.Errorf("events = %+v, want no move: the check moves no session", r.events.heard())
 	}
-	want := []status.Event{{ID: 1, At: now, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt}}
+	want := []status.Event{{ID: 1, At: now, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Limit: 1}}
 	if got := r.rt.Status().Events; !reflect.DeepEqual(got, want) {
 		t.Errorf("the events are %+v, want %+v: work's limit, having moved no session", got, want)
 	}
@@ -172,7 +229,7 @@ func TestALimitIsToldOfWithTheSessionsItMovedAndWhereTheyWent(t *testing.T) {
 		{ID: 7, At: now, Kind: status.EventMoved, Session: "two", Model: haiku, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4},
 		{ID: 6, At: now, Kind: status.EventMoved, Session: "two", Model: opus, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4},
 		{ID: 5, At: now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 4},
-		{ID: 4, At: now, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Count: 2},
+		{ID: 4, At: now, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Count: 2, Limit: 1},
 		{ID: 3, At: now, Kind: status.EventStarted, Account: "work", Session: "two", Model: haiku, Reason: "new"},
 		{ID: 2, At: now, Kind: status.EventStarted, Account: "work", Session: "two", Model: opus, Reason: "new"},
 		{ID: 1, At: now, Kind: status.EventStarted, Account: "work", Session: "one", Model: opus, Reason: "new"},
@@ -189,12 +246,7 @@ func TestARestartFallingDueIsToldOf(t *testing.T) {
 
 	s.upgrade(t)
 	waitForStatus(t, socket, func(doc status.Document) bool { return doc.Restart.Reason == "upgraded" })
-	// Written whole: a look at the file caught as it's written would read a
-	// config that isn't valid, which has no restart due, and the look after
-	// would tell of another restart falling due.
-	if err := atomicfile.Write(s.config, []byte(twoAccounts), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, s.config, twoAccounts)
 	doc := waitForStatus(t, socket, func(doc status.Document) bool { return doc.Restart.Reason == "config changed" })
 	want := []status.Event{{ID: 1, At: now, Kind: status.EventRestart, Reason: "upgraded"}}
 	if !reflect.DeepEqual(doc.Events, want) {

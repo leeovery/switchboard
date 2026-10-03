@@ -64,13 +64,14 @@ func Names() []string {
 }
 
 // ByName returns the fixture with the given name, drawn in the local time
-// zone. An empty or unknown name is an error that lists the fixtures.
+// zone, as moment fixes it. An empty or unknown name is an error that lists
+// the fixtures.
 func ByName(name string) (Fixture, error) {
 	return named(name, time.Local)
 }
 
 // named returns the fixture with the given name, drawn in the time zone
-// given.
+// given, as moment fixes it.
 func named(name string, loc *time.Location) (Fixture, error) {
 	if name == "" {
 		return Fixture{}, fmt.Errorf("name a fixture (available: %s)", strings.Join(Names(), ", "))
@@ -84,9 +85,13 @@ func named(name string, loc *time.Location) (Fixture, error) {
 }
 
 // moment is when every fixture is drawn, as the frames are: Thursday 1
-// October 2026, 14:42:07, in the time zone given.
+// October 2026, 14:42:07, in the time zone given, fixed as its clocks are
+// then. A fixture is built and drawn in that, a zone whose clocks never
+// change: where the given zone's change within the fixtures' week, as
+// Sydney's do on the Sunday, their resets would move by an hour.
 func moment(loc *time.Location) time.Time {
-	return time.Date(2026, time.October, 1, 14, 42, 7, 0, loc)
+	name, offset := time.Date(2026, time.October, 1, 14, 42, 7, 0, loc).Zone()
+	return time.Date(2026, time.October, 1, 14, 42, 7, 0, time.FixedZone(name, offset))
 }
 
 // fixtures are every fixture, at now, in the frames' theme: one for each set

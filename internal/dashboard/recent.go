@@ -16,36 +16,42 @@ import (
 // an account under pressure, as in "new, work under pressure".
 const passedOver = " under pressure"
 
-// The reasons the router gives for where a session went that the dashboard
-// reads: chosen afresh, as a new session; sent by its own pin; sent by the
-// global pin as it started, or moved by it; moved off an account that
-// couldn't take it, which and why following; and its own pin yielding at a
-// limit, the account the pin names following, then why.
-const (
-	reasonNew       = "new"
-	reasonOwnPin    = "pinned"
-	reasonGlobalPin = "pinned (global)"
-	reasonPinMove   = "moved by pin"
-	reasonMovedOff  = "moved: "
-	reasonPinYields = "pin yields: "
-)
-
 // recent are the events RECENT lists at now, newest first, n at most: those
-// of the kinds it tells of, but for the moves a limit counts.
+// of the kinds it tells of, but a move a limit counts while that limit's
+// line is among them, as newest has them.
 func recent(doc status.Document, now time.Time, n int) []status.Event {
 	var events []status.Event
 	for _, e := range doc.Events {
-		if _, _, ok := told(e, doc, now); ok && !counted(e) && len(events) < n {
+		if _, _, ok := told(e, doc, now); ok {
 			events = append(events, e)
 		}
 	}
-	return events
+	return newest(events, n, countedIn, countingOf)
 }
 
 // counted reports whether an event is a move a limit forced, which the
-// limit's own line counts, so RECENT, and a card's LATELY, leave it out.
+// limit's own line counts.
 func counted(e status.Event) bool {
-	return e.Limit != 0
+	return e.Kind == status.EventMoved && e.Limit != 0
+}
+
+// countedIn is the id of the limit's event that counts the move e tells of,
+// as counted has it: zero for any other event, a limit's own, whose Limit is
+// its identity, among them.
+func countedIn(e status.Event) int {
+	if counted(e) {
+		return e.Limit
+	}
+	return 0
+}
+
+// countingOf is the id of the limit's event e, whose line counts the moves
+// it forced: zero for any other event.
+func countingOf(e status.Event) int {
+	if e.Kind == status.EventLimit {
+		return e.ID
+	}
+	return 0
 }
 
 // quiet is what RECENT says where it lists no events: that the router isn't
@@ -71,27 +77,16 @@ func (f Frame) quiet(doc status.Document) line {
 }
 
 // told is what RECENT says of an event: its mark, a glyph in the ink of what
-// it tells of, and its words, its times in now's time zone; reporting false
-// for a kind it doesn't tell of, as one from a later router.
+// it tells of, and its words, its times in now's time zone, accounts by their
+// names; of what befell an account, its name, then what aside says of it;
+// reporting false for a kind it doesn't tell of, as one from a later router.
 func told(e status.Event, doc status.Document, now time.Time) (span, line, bool) {
-	account := span{named(doc, e.Account), strongInk}
 	e.At = e.At.In(now.Location())
 	switch e.Kind {
 	case status.EventStarted:
-		return span{"▲", accentInk}, slices.Concat(line{{sessionID(e.Session), titleInk}, {" started on ", mutedInk}, account}, why(e.Reason)), true
-	case status.EventPressure:
-		return span{"●", warningInk}, slices.Concat(line{account, {" came under pressure", mutedInk}}, runsOut(e, doc)), true
-	case status.EventLimit:
-		return span{"■", errorInk}, slices.Concat(line{account, {" reached its " + limits(e, doc), mutedInk}}, moves(e, doc)), true
+		return span{"▲", accentInk}, slices.Concat(line{{sessionID(e.Session), titleInk}, {" started on ", mutedInk}, {named(doc, e.Account), strongInk}}, why(doc, e.Reason)), true
 	case status.EventMoved:
-		return movedMark, moveSaid(e, doc, why(e.Reason)), true
-	case status.EventRefused:
-		mark, words, until := refusal(e)
-		return mark, line{account, {" " + words + until, mutedInk}}, true
-	case status.EventPrimed:
-		return span{"◇", primedInk}, line{account, {" primed: its " + spanOf(first(e.Windows)) + " started" + resetting(e), mutedInk}}, true
-	case status.EventRoom:
-		return span{"●", positiveInk}, line{account, {" has room again", mutedInk}}, true
+		return movedMark, moveSaid(e, doc, why(doc, e.Reason)), true
 	case status.EventRestart:
 		return span{"!", warningInk}, line{{"restart due (" + status.Clean(e.Reason) + ")", mutedInk}}, true
 	case status.EventHealth:
@@ -100,7 +95,33 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 		}
 		return span{"●", positiveInk}, line{{"the router is healthy again", mutedInk}}, true
 	}
+	if mark, gist, tail, ok := aside(e, doc); ok {
+		return mark, slices.Concat(line{{named(doc, e.Account), strongInk}, {" " + gist, mutedInk}}, tail), true
+	}
 	return span{}, nil, false
+}
+
+// aside is what's told of an event that befell an account, from the
+// account's side, which RECENT tells after its name and the account's card's
+// LATELY as it is: its mark, a glyph in the ink of what it tells of; its
+// gist, as in "reached its session limit"; and what follows it, as in "; 3
+// sessions moved to side", in the ink of their own. It reports false for an
+// event of any other kind.
+func aside(e status.Event, doc status.Document) (mark span, gist string, tail line, ok bool) {
+	switch e.Kind {
+	case status.EventPressure:
+		return span{"●", warningInk}, "came under pressure", runsOut(e, doc), true
+	case status.EventLimit:
+		return span{"■", errorInk}, "reached its " + limits(e, doc), moves(e, doc), true
+	case status.EventRefused:
+		mark, words, until := refusal(e)
+		return mark, words, line{{until, mutedInk}}, true
+	case status.EventPrimed:
+		return span{"◇", primedInk}, "primed: its " + spanOf(first(e.Windows)) + " started", line{{resetting(e), mutedInk}}, true
+	case status.EventRoom:
+		return span{"●", positiveInk}, "has room again", nil, true
+	}
+	return span{}, "", nil, false
 }
 
 // movedMark marks a session's move, as RECENT and LOG tell of it.
@@ -112,23 +133,44 @@ func moveSaid(e status.Event, doc status.Document, said line) line {
 	return slices.Concat(line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {named(doc, e.From), strongInk}, {" → ", mutedInk}, {named(doc, e.To), strongInk}}, said)
 }
 
-// why says why a session went where it did, as the router's reason gives it:
-// ", the best" where it was chosen afresh, " (pin)" where a pin sent it, else
-// the reason itself; and the account under pressure the choice passed over,
-// where it passed one.
-func why(reason string) line {
+// why says why a session went where it did, as the router's reason gives it,
+// accounts by their names in doc: ", the best" where it was chosen afresh,
+// " (pin)" where a pin sent it, else the reason itself, as namedIn has it;
+// and the account under pressure the choice passed over, where it passed
+// one.
+func why(doc status.Document, reason string) line {
 	said, passed := passedOverIn(reason)
 	var l line
 	switch said {
 	case "":
-	case reasonNew:
+	case status.ReasonNew:
 		l = line{{", the best", mutedInk}}
-	case reasonOwnPin, reasonGlobalPin, reasonPinMove:
+	case status.ReasonPinned, status.ReasonGlobalPin, status.ReasonMovedByPin:
 		l = line{{" (pin)", mutedInk}}
 	default:
-		l = line{{": " + strings.TrimPrefix(said, reasonMovedOff), mutedInk}}
+		l = line{{": " + namedIn(doc, said), mutedInk}}
 	}
-	return slices.Concat(l, passing(passed))
+	return slices.Concat(l, passing(doc, passed))
+}
+
+// namedIn is a reason the router gives, the account it leads with named as
+// doc names it: one moved off, as in "work has no room", without the reason's
+// "moved: "; or one a session's own pin yielded at, as in "pin yields: work
+// has no room". Any other reason is as it is.
+func namedIn(doc status.Document, said string) string {
+	if rest, ok := strings.CutPrefix(said, status.ReasonMovedOff); ok {
+		return namedFirst(doc, rest)
+	}
+	if rest, ok := strings.CutPrefix(said, status.ReasonPinYields); ok {
+		return status.ReasonPinYields + namedFirst(doc, rest)
+	}
+	return said
+}
+
+// namedFirst is words led by an account's id, the id named as doc names it.
+func namedFirst(doc status.Document, words string) string {
+	id, _, _ := strings.Cut(words, " ")
+	return named(doc, id) + words[len(id):]
 }
 
 // passedOverIn parts the reason the router gives for where a session went,
@@ -142,20 +184,22 @@ func passedOverIn(reason string) (said, passed string) {
 	return reason, ""
 }
 
-// passing says the choice passed over the account under pressure given, as
-// in ", passing over work under pressure": nothing where it passed none.
-func passing(passed string) line {
+// passing says the choice passed over the account under pressure with the
+// given id, named as doc names it, as in ", passing over work under
+// pressure": nothing where it passed none.
+func passing(doc status.Document, passed string) line {
 	if passed == "" {
 		return nil
 	}
-	return line{{", passing over " + passed, mutedInk}}
+	name, pressed, _ := strings.Cut(passed, " ")
+	return line{{", passing over " + named(doc, name) + " " + pressed, mutedInk}}
 }
 
 // runsOut says when, at the rate an account came under pressure at, its
 // window runs out, and the span that rate is measured over, as in ": its
 // session runs out ~16:05 at its last-30-min rate"; or reaches its reserve,
-// where doc has the account's reserve hold it back. It's nothing where the
-// event doesn't say when.
+// where its reserve held it back as it came under pressure, as reserveHeld
+// says. It's nothing where the event doesn't say when.
 func runsOut(e status.Event, doc status.Document) line {
 	if e.Until.IsZero() {
 		return nil
@@ -165,11 +209,23 @@ func runsOut(e status.Event, doc status.Document) line {
 		rate = "at its " + lately(e.Since, e.At) + " rate"
 	}
 	out := " runs out ~"
-	if a, ok := doc.Account(e.Account); ok && doc.ReserveHolds(a) {
+	if reserveHeld(e, doc) {
 		out = " reaches its reserve ~"
 	}
 	window := windowName(doc, e.Account, first(e.Windows))
 	return line{{": its " + window + out + status.When(e.At, e.Until) + " " + rate, mutedInk}}
+}
+
+// reserveHeld reports whether doc's account the event e befell had its
+// reserve hold it back when e came, as the router judged its pressure: it
+// keeps one, and no pin spent it then, as the global pin naming it now does
+// only where it was set before e.
+func reserveHeld(e status.Event, doc status.Document) bool {
+	a, ok := doc.Account(e.Account)
+	if !ok || a.Reserve <= 0 {
+		return false
+	}
+	return !doc.Pin.Has(a.ID) || doc.Pin.Since.After(e.At)
 }
 
 // limits names the limits an event says were reached, as in "session limit"
@@ -264,27 +320,32 @@ func (f Frame) tellings(doc status.Document, now time.Time, n int) []telling {
 }
 
 // tellingsOf are the events given, as tell tells of each at now: each led by
-// its time, the first's standing out, in a column as wide as the widest,
-// then its mark. On a phone, a time is followed by a single blank rather
-// than two.
+// its time, as Dated shows it, the first's standing out, in a column as wide
+// as the widest, timeGap after it, then its mark.
 func (f Frame) tellingsOf(events []status.Event, doc status.Document, now time.Time, tell func(status.Event, status.Document, time.Time) (span, line, bool)) []telling {
-	gap, column := "  ", 0
-	if f.phone() {
-		gap = " "
-	}
+	column := 0
 	for _, e := range events {
-		column = max(column, len(status.When(now, e.At)))
+		column = max(column, len(status.Dated(now, e.At)))
 	}
 	tellings := make([]telling, len(events))
 	for i, e := range events {
 		mark, words, _ := tell(e, doc, now)
-		at := span{fmt.Sprintf("%-*s", column, status.When(now, e.At)) + gap, dimInk}
+		at := span{fmt.Sprintf("%-*s", column, status.Dated(now, e.At)) + f.timeGap(), dimInk}
 		if i == 0 {
 			at.ink = secondaryInk
 		}
 		tellings[i] = telling{id: e.ID, lead: line{at, mark, spaces(1)}, words: words}
 	}
 	return tellings
+}
+
+// timeGap is the blanks after a column of times, as RECENT and COMING UP
+// have them: two, but on a phone, one.
+func (f Frame) timeGap() string {
+	if f.phone() {
+		return " "
+	}
+	return "  "
 }
 
 // recentStrip draws RECENT's lines from row y, from x until the column end,

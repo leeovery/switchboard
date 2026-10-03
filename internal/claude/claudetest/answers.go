@@ -1,4 +1,4 @@
-package router
+package claudetest
 
 import (
 	"encoding/json"
@@ -7,19 +7,28 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
-// The events a streamed answer starts and ends with, as the Messages API
-// streams one, for the tests of the request stream, inside the package and
-// out: MessageStart with the usage the answer starts with, and MessageEnd
-// with its closing usage, which give AnswerTokens together.
+// The events of a streamed answer, as the Messages API streams one: it starts
+// with MessageStart, giving the usage the answer starts with, and ends with
+// MessageEnd, MessageDelta's closing usage and MessageStop, which give
+// AnswerTokens together.
 const (
 	MessageStart = "event: message_start\n" +
-		`data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-opus-5-5","usage":{"input_tokens":3,"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"output_tokens":1}}}` + "\n\n"
-	MessageEnd = "event: message_delta\n" +
-		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":120}}` + "\n\n" +
-		"event: message_stop\n" + `data: {"type":"message_stop"}` + "\n\n"
+		`data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-opus-5-5","stop_reason":null,"usage":{"input_tokens":3,"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"output_tokens":1}}}` + "\n\n"
+	ThinkingStart = "event: content_block_start\n" +
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}` + "\n\n"
+	Signature = "event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"c2lnbmVk"}}` + "\n\n"
+	BlockStop    = "event: content_block_stop\n" + `data: {"type":"content_block_stop","index":0}` + "\n\n"
+	Ping         = "event: ping\n" + `data: {"type": "ping"}` + "\n\n"
+	MessageDelta = "event: message_delta\n" +
+		`data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":120}}` + "\n\n"
+	MessageStop = "event: message_stop\n" + `data: {"type":"message_stop"}` + "\n\n"
+	MessageEnd  = MessageDelta + MessageStop
+	// Overloaded is the error an answer can end in partway.
+	Overloaded = "event: error\n" + `data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}` + "\n\n"
 )
 
-// AnswerTokens are the tokens MessageStart and MessageEnd give together.
+// AnswerTokens are the tokens MessageStart and MessageDelta give together.
 var AnswerTokens = quota.Tokens{Input: 3, Output: 120, CacheRead: 40000, CacheWrite: 512}
 
 // The thinking and the tool's input of the answer AnswerPieces streams.
@@ -28,13 +37,15 @@ const (
 	answerInput    = `{"path": "notes.txt", "content": "Hello"}`
 )
 
-// TextDelta is the event that adds text to a streamed answer.
+// TextDelta is the event that adds text to a streamed answer. The text goes
+// in as it is, so it mustn't need escaping.
 func TextDelta(text string) string {
 	return "event: content_block_delta\n" +
 		`data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"` + text + `"}}` + "\n\n"
 }
 
-// ThinkingDelta is the event that adds thinking to a streamed answer.
+// ThinkingDelta is the event that adds thinking to a streamed answer. The
+// thinking goes in as it is, so it mustn't need escaping.
 func ThinkingDelta(thinking string) string {
 	return "event: content_block_delta\n" +
 		`data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"` + thinking + `"}}` + "\n\n"

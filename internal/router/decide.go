@@ -13,14 +13,15 @@ import (
 // cached to lose by moving.
 const cacheLife = time.Hour
 
-// Why a request goes out on the account it does, as the log shows it.
+// Why a request goes out on the account it does, as the log shows it, those
+// the dashboard reads among them, which status names.
 const (
-	reasonPinned      = "pinned"
-	reasonMovedByPin  = "moved by pin"
+	reasonPinned      = status.ReasonPinned
+	reasonMovedByPin  = status.ReasonMovedByPin
 	reasonSticky      = "sticky"
 	reasonBound       = "bound"
-	reasonGlobalPin   = "pinned (global)"
-	reasonNew         = "new"
+	reasonGlobalPin   = status.ReasonGlobalPin
+	reasonNew         = status.ReasonNew
 	reasonUnsessioned = "unsessioned"
 	reasonNoRoom      = "no account has room"
 )
@@ -117,7 +118,7 @@ func (s situation) choose() decision {
 	}
 	d := s.unpinned()
 	if !d.noRoom {
-		d.reason = "pin yields: " + pin + " " + s.unable(pin)
+		d.reason = status.ReasonPinYields + pin + " " + s.unable(pin)
 	}
 	return d
 }
@@ -228,7 +229,7 @@ func (s situation) why() (reason, preferred string) {
 	case s.movesFree():
 		return "rescored after " + status.Countdown(s.current.LastSeen, s.now) + " idle", s.current.Account
 	default:
-		return "moved: " + s.current.Account + " " + s.unable(s.current.Account), ""
+		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account), ""
 	}
 }
 

@@ -94,11 +94,11 @@ type plot struct {
 	// its prime, 16:20".
 	starts string
 	// rate is how fast the window has been used lately, a share of it an
-	// hour, rated set where that's known; and busy is set while a session on
+	// hour, none where that's not known; and busy is set while a session on
 	// its account is busy, as the request stream or its sessions say.
-	rate        float64
-	rated, busy bool
-	now         time.Time
+	rate float64
+	busy bool
+	now  time.Time
 }
 
 // elapsed is how much of the window has passed at now, from 0 to 1.
@@ -147,16 +147,17 @@ func (f Frame) chart(c *canvas, p plot, x, y, width, rows int) {
 // x along row y. The past is a level in eighths of a cell, a column for each
 // stretch of the window up to now, filled to the room left at the middle of
 // that stretch, as roomAt has it, in the state's colour faded halfway:
-// without history, the room now, dim, marked "no history yet". Where nothing
-// was left, a line runs along the floor in destructive, and on until the
-// limit lifts while the window's held at it. Now is a thin line in the
-// border's colour; where the window's heading, a dotted line from the level
-// now, to ✕ on the floor where it runs out, else to the room it has left at
-// its reset. The floor is where the account's reserve starts, where that
-// holds it back, drawn as a faint dotted line, else its limit. The marks,
-// now's line and what's ahead, are drawn last, over what's under them. A
-// lapsed window is a full level, dim, saying when it starts; and one whose
-// reset isn't known has no length to draw it over.
+// without history, the room now, dim, marked "no history yet", the words
+// drawn last, over whatever they cross. Where nothing was left, a line runs
+// along the floor in destructive, and on until the limit lifts while the
+// window's held at it. Now is a thin line in the border's colour; where the
+// window's heading, a dotted line from the level now, to ✕ on the floor where
+// it runs out, else to the room it has left at its reset. The floor is where
+// the account's reserve starts, where that holds it back, drawn as a faint
+// dotted line, else its limit. The marks, now's line and what's ahead, are
+// drawn over the level under them. A lapsed window is a full level, dim,
+// saying when it starts; and one whose reset isn't known has no length to
+// draw it over.
 func (f Frame) burndown(c *canvas, p plot, x, y, width, rows int) {
 	switch {
 	case width < 1 || rows < 1:
@@ -180,17 +181,17 @@ func (f Frame) burndown(c *canvas, p plot, x, y, width, rows int) {
 			level(c, x+col, y, rows, room, past)
 		}
 	}
+	nowRule(c, x, y, width, rows, ahead)
+	f.ahead(c, p, x, y, width, rows, ahead)
 	if !p.traced {
 		untraced(c, x, y, width, rows, ahead)
 	}
-	nowRule(c, x, y, width, rows, ahead)
-	f.ahead(c, p, x, y, width, rows, ahead)
 }
 
 // middleOf is the time at the middle of column col of a chart width cells
 // wide, or now, for the column now falls in, where that's sooner.
 func (p plot) middleOf(col, width int) time.Time {
-	return earliest(p.at((float64(col)+0.5)/float64(width)), p.now)
+	return score.Earlier(p.at((float64(col)+0.5)/float64(width)), p.now)
 }
 
 // nowRule draws the line for now down a chart width cells wide and rows
@@ -210,7 +211,7 @@ const untracedLabel = "no history yet"
 // untraced marks a chart width cells wide and rows tall from x along row y,
 // drawn without history, its column for now ahead: across its level, from
 // its left to now, where the words fit there clear of its marks, else
-// across the whole of it, under the marks drawn after.
+// across the whole of it.
 func untraced(c *canvas, x, y, width, rows, ahead int) {
 	if ahead < ansi.StringWidth(untracedLabel)+2 {
 		ahead = width
@@ -316,15 +317,15 @@ func (p plot) progress(share float64) float64 {
 }
 
 // level draws a chart's column at x, rows tall from row y, filled from its
-// floor to room, a share of the whole, in eighths of a cell, in the ink k;
-// where nothing's left, a line along the floor in destructive.
+// floor to room, a share of the whole, in eighths of a cell, in the ink k,
+// its lowest eighth at least where any room is left; and where none is, as
+// at a limit, a line along the floor in destructive.
 func level(c *canvas, x, y, rows int, room float64, k ink) {
-	filled := int(math.Round(min(max(room, 0), 1) * float64(8*rows)))
-	if filled == 0 {
+	if room <= 0 {
 		c.text(x, y+rows-1, floorLine, errorInk)
 		return
 	}
-	column(c, x, y, rows, filled, k)
+	column(c, x, y, rows, max(int(math.Round(min(room, 1)*float64(8*rows))), 1), k)
 }
 
 // column draws a chart's column at x, rows tall from row y, filled eighths
@@ -343,14 +344,6 @@ func column(c *canvas, x, y, rows, eighths int, k ink) {
 func across(c *canvas, x, y, width int, text string) {
 	text = " " + truncate(text, width-2) + " "
 	c.text(x+(width-ansi.StringWidth(text))/2, y, text, dimInk)
-}
-
-// earliest is the earlier of two times.
-func earliest(a, b time.Time) time.Time {
-	if a.Before(b) {
-		return a
-	}
-	return b
 }
 
 // axis draws a chart's axis width cells wide from x along row y: for a
@@ -382,31 +375,62 @@ const (
 )
 
 // days draws a week's days along its axis, width cells from x along row y:
-// a tick at each midnight within it, and the day's name after, where it
-// clears the day before's and fits, today's picked out.
+// at each midnight within it, in the chart's column for its time, as the
+// column it runs out in is, a tick, and the day's name after it, where it
+// clears the day before's and fits, as midnights has them, today's picked
+// out.
 func days(c *canvas, p plot, x, y, width int) {
-	loc := p.now.Location()
-	first := p.start.In(loc)
-	midnight := time.Date(first.Year(), first.Month(), first.Day()+1, 0, 0, 0, 0, loc)
-	today := p.now.In(loc).Format(time.DateOnly)
-	last := -dayCells
-	for ; midnight.Before(p.start.Add(p.length)); midnight = midnight.AddDate(0, 0, 1) {
-		col := int(math.Round(p.fraction(midnight) * float64(width-1)))
-		if col-last < dayCells || col+dayCells-1 > width {
+	column := func(t time.Time) int { return int(p.fraction(t) * float64(width)) }
+	for _, m := range midnights(p.start, p.start.Add(p.length), p.now, column, width, dayCells-1) {
+		c.text(x+m.col, y, "╵", faintInk)
+		if !m.named {
 			continue
 		}
 		name := ink{token: theme.TextSubtle}
-		if midnight.Format(time.DateOnly) == today {
+		if m.today {
 			name = strongInk
 		}
-		c.line(x+col, y, line{{"╵", faintInk}, {midnight.Format("Mon"), name}})
-		last = col
+		c.text(x+m.col+1, y, m.at.Format("Mon"), name)
 	}
 }
 
 // dayCells is how many cells a day's tick and name take on an axis, with the
 // gap after them.
 const dayCells = 5
+
+// midnight is a midnight along an axis of days: when it is, the column it's
+// in, whether its day is today, and whether its name shows.
+type midnight struct {
+	at           time.Time
+	col          int
+	today, named bool
+}
+
+// midnights are the midnights after start and before end, in now's time
+// zone, each in the column column puts it in, of those before width, its
+// name showing where it's dayCells clear of the last shown, and what shows
+// it, cells wide from its column, fits within width.
+func midnights(start, end, now time.Time, column func(time.Time) int, width, cells int) []midnight {
+	loc := now.Location()
+	first, today := start.In(loc), now.In(loc).Format(time.DateOnly)
+	var all []midnight
+	last := -dayCells
+	for at := time.Date(first.Year(), first.Month(), first.Day()+1, 0, 0, 0, 0, loc); at.Before(end); at = at.AddDate(0, 0, 1) {
+		col := column(at)
+		switch {
+		case col >= width:
+			return all
+		case col < 0:
+			continue
+		}
+		m := midnight{at: at, col: col, today: at.Format(time.DateOnly) == today, named: col-last >= dayCells && col+cells <= width}
+		if m.named {
+			last = col
+		}
+		all = append(all, m)
+	}
+	return all
+}
 
 // dots is braille drawn over a chart rows tall: each cell's dots, two
 // across and four down, in the ink of the most telling line through it.

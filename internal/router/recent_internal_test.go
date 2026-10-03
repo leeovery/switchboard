@@ -30,13 +30,13 @@ func TestEachEventAsTheDocumentGivesIt(t *testing.T) {
 		},
 		{
 			name:  "a limit reached",
-			event: LimitReached{Account: "work", Windows: []string{"5h"}, Until: until},
-			want:  status.Event{Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: until},
+			event: LimitReached{Account: "work", Windows: []string{"5h"}, Until: until, Limit: 3},
+			want:  status.Event{Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: until, Limit: 3},
 		},
 		{
 			name:  "a limit reached in no window named",
-			event: LimitReached{Account: "work", Until: until},
-			want:  status.Event{Kind: status.EventLimit, Account: "work", Until: until},
+			event: LimitReached{Account: "work", Until: until, Limit: 3},
+			want:  status.Event{Kind: status.EventLimit, Account: "work", Until: until, Limit: 3},
 		},
 		{
 			name:  "a move",
@@ -113,15 +113,15 @@ func TestTheNewestFiftyEventsAreKeptNewestFirst(t *testing.T) {
 func TestTheEventsGivenAreACopy(t *testing.T) {
 	r := newTestRecent(&testClock{now: start})
 	r.hear(Primed{Account: "side", Window: "5h", ResetsAt: start.Add(5 * time.Hour)})
-	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour)})
+	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
 
 	given := r.events()
 	for i := range given {
 		given[i].Windows[0] = "7d"
 	}
-	r.hear(LimitReached{Account: "work", Windows: []string{"7d_oi"}, Until: start.Add(time.Hour), Again: true})
+	r.hear(LimitReached{Account: "work", Windows: []string{"7d_oi", "5h"}, Until: start.Add(time.Hour), Limit: 1, Again: true})
 	want := []status.Event{
-		{ID: 2, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d_oi"}, Until: start.Add(time.Hour)},
+		{ID: 2, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d_oi"}, Until: start.Add(time.Hour), Limit: 1},
 		{ID: 1, At: start, Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: start.Add(5 * time.Hour)},
 	}
 	if got := r.events(); !reflect.DeepEqual(got, want) {
@@ -131,9 +131,7 @@ func TestTheEventsGivenAreACopy(t *testing.T) {
 
 func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 	tests := []struct {
-		name string
-		// after is how long after the limit the moves come.
-		after     time.Duration
+		name      string
 		moves     []Moved
 		wantCount int
 		wantTo    string
@@ -156,21 +154,18 @@ func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 			moves: []Moved{{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved by pin"}},
 		},
 		{
-			name:  "but a move off another account",
-			moves: []Moved{forced("one", "side", "work")},
+			name:  "but a move off it the limit didn't hold back, as at its reserve",
+			moves: []Moved{{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work is at its reserve"}},
 		},
 		{
-			name:  "but a move once the limit has lifted",
-			after: time.Hour,
-			moves: []Moved{forced("one", "work", "side")},
+			name:  "but a move another limit forced",
+			moves: []Moved{forcedBy(2, "one", "side", "work")},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clock := &testClock{now: start}
-			r := newTestRecent(clock)
-			r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour)})
-			clock.now = start.Add(tt.after)
+			r := newTestRecent(&testClock{now: start})
+			r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
 			for _, m := range tt.moves {
 				r.hear(m)
 			}
@@ -179,12 +174,12 @@ func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 			if len(got) != 1+len(tt.moves) {
 				t.Fatalf("events() = %+v, want the limit and each move", got)
 			}
-			want := status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: tt.wantTo, Windows: []string{"5h"}, Until: start.Add(time.Hour), Count: tt.wantCount}
+			want := status.Event{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: tt.wantTo, Windows: []string{"5h"}, Until: start.Add(time.Hour), Count: tt.wantCount, Limit: 1}
 			if limit := got[len(got)-1]; !reflect.DeepEqual(limit, want) {
 				t.Errorf("the limit's event = %+v, want %+v", limit, want)
 			}
 			for i, m := range tt.moves {
-				want := status.Event{ID: 2 + i, At: clock.now, Kind: status.EventMoved, Session: m.Session, Model: m.Model, From: m.From, To: m.To, Reason: m.Reason}
+				want := status.Event{ID: 2 + i, At: start, Kind: status.EventMoved, Session: m.Session, Model: m.Model, From: m.From, To: m.To, Reason: m.Reason}
 				if tt.counted {
 					want.Limit = 1
 				}
@@ -199,18 +194,18 @@ func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 func TestALimitReachedAgainJoinsItsEventInPlace(t *testing.T) {
 	clock := &testClock{now: start}
 	r := newTestRecent(clock)
-	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour)})
-	r.hear(LimitReached{Account: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour)})
+	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
+	r.hear(LimitReached{Account: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour), Limit: 2})
 	clock.now = start.Add(time.Minute)
-	r.hear(LimitReached{Account: "work", Windows: []string{"7d", "5h"}, Until: start.Add(2 * 24 * time.Hour), Again: true})
+	r.hear(LimitReached{Account: "work", Windows: []string{"7d", "5h"}, Until: start.Add(2 * 24 * time.Hour), Limit: 1, Again: true})
 	// Moved after the limit's first reset, as it now holds till its later one.
 	clock.now = start.Add(2 * time.Hour)
 	r.hear(forced("one", "work", "side"))
 
 	want := []status.Event{
 		{ID: 3, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
-		{ID: 2, At: start, Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour)},
-		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"}, Until: start.Add(2 * 24 * time.Hour), Count: 1},
+		{ID: 2, At: start, Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour), Limit: 2},
+		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"}, Until: start.Add(2 * 24 * time.Hour), Count: 1, Limit: 1},
 	}
 	if got := r.events(); !reflect.DeepEqual(got, want) {
 		t.Errorf("events() =\n%+v\nwant\n%+v", got, want)
@@ -218,58 +213,121 @@ func TestALimitReachedAgainJoinsItsEventInPlace(t *testing.T) {
 }
 
 func TestANewLimitIsAnEventOfItsOwn(t *testing.T) {
-	clock := &testClock{now: start}
-	r := newTestRecent(clock)
-	r.hear(LimitReached{Account: "work", Until: start.Add(5 * time.Minute)})
-	clock.now = start.Add(time.Hour)
-	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour)})
-	r.hear(forced("one", "work", "side"))
-
-	got := r.events()
-	if len(got) != 3 {
-		t.Fatalf("events() = %+v, want both limits and the move", got)
-	}
-	want := []status.Event{
-		{ID: 2, At: clock.now, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour), Count: 1},
-		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Until: start.Add(5 * time.Minute)},
-	}
-	if !reflect.DeepEqual(got[1:], want) {
-		t.Errorf("the limits' events = %+v, want %+v: the move counted by the latest", got[1:], want)
-	}
-	if got[0].Limit != 2 {
-		t.Errorf("the move names the limit event %d, want 2, the latest's", got[0].Limit)
-	}
-}
-
-func TestALimitReachedAgainWithNoEventToJoinIsDropped(t *testing.T) {
-	limit := LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour)}
-	restarts := make([]Event, 50)
-	for i := range restarts {
-		restarts[i] = RestartDue{Reason: "upgraded"}
-	}
 	tests := []struct {
-		name   string
-		before []Event
+		name string
+		// after is how long after the first limit the second is reached, and
+		// windows the windows it's reached in.
+		after   time.Duration
+		windows []string
 	}{
-		{name: "none ever kept"},
-		{name: "none kept any longer", before: append([]Event{limit}, restarts...)},
-		{name: "another account's alone", before: []Event{LimitReached{Account: "side", Until: start.Add(time.Hour)}}},
+		{name: "once the first has lifted", after: time.Hour, windows: []string{"5h"}},
+		{name: "while the first holds, naming windows it names none of", after: time.Minute, windows: []string{"7d_oi"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := newTestRecent(&testClock{now: start})
-			for _, e := range tt.before {
-				r.hear(e)
-			}
-			before := r.events()
+			clock := &testClock{now: start}
+			r := newTestRecent(clock)
+			r.hear(LimitReached{Account: "work", Windows: []string{"7d"}, Until: start.Add(5 * time.Minute), Limit: 1})
+			clock.now = start.Add(tt.after)
+			r.hear(LimitReached{Account: "work", Windows: tt.windows, Until: start.Add(2 * time.Hour), Limit: 2})
+			r.hear(forcedBy(2, "one", "work", "side"))
 
-			again := limit
-			again.Windows, again.Again = []string{"7d"}, true
-			r.hear(again)
-			if got := r.events(); !reflect.DeepEqual(got, before) {
-				t.Errorf("events() = %+v, want them as they were, %+v", got, before)
+			got := r.events()
+			if len(got) != 3 {
+				t.Fatalf("events() = %+v, want both limits and the move", got)
+			}
+			want := []status.Event{
+				{ID: 2, At: clock.now, Kind: status.EventLimit, Account: "work", To: "side", Windows: tt.windows, Until: start.Add(2 * time.Hour), Count: 1, Limit: 2},
+				{ID: 1, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"7d"}, Until: start.Add(5 * time.Minute), Limit: 1},
+			}
+			if !reflect.DeepEqual(got[1:], want) {
+				t.Errorf("the limits' events = %+v, want %+v: the move counted by the limit that forced it", got[1:], want)
+			}
+			if got[0].Limit != 2 {
+				t.Errorf("the move names the limit event %d, want 2, the latest's", got[0].Limit)
 			}
 		})
+	}
+}
+
+func TestALimitsNewsJoinsItsEventWhateverOrderItComesIn(t *testing.T) {
+	clock := &testClock{now: start}
+	r := newTestRecent(clock)
+	// A session's request, reaching work's limit after another's did, tells
+	// of it reached again, and a session it moved, before the first news of
+	// it comes, and of side's limit.
+	r.hear(LimitReached{Account: "work", Windows: []string{"5h", "7d"}, Until: start.Add(2 * time.Hour), Limit: 2, Again: true})
+	r.hear(forcedBy(2, "two", "work", "side"))
+	r.hear(forcedBy(3, "three", "side", "work"))
+	clock.now = start.Add(time.Second)
+	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 2})
+	r.hear(forcedBy(2, "one", "work", "side"))
+
+	want := []status.Event{
+		{ID: 4, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
+		{ID: 3, At: start, Kind: status.EventMoved, Session: "three", Model: opus, From: "side", To: "work", Reason: "moved: side hit its limit"},
+		{ID: 2, At: start, Kind: status.EventMoved, Session: "two", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
+		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"}, Until: start.Add(2 * time.Hour), Count: 2, Limit: 2},
+	}
+	if got := r.events(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events() =\n%+v\nwant\n%+v: one limit, counting both its moves", got, want)
+	}
+
+	// Side's limit's news comes last, and counts the move it forced.
+	r.hear(LimitReached{Account: "side", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 3})
+	if got := r.events(); got[0].Kind != status.EventLimit || got[0].Count != 1 || got[0].To != "work" || got[2].Limit != got[0].ID {
+		t.Errorf("events() =\n%+v\nwant side's limit counting the move it forced, which names its event", got)
+	}
+}
+
+func TestARefusalsEventEndsAsItLifts(t *testing.T) {
+	const first, second = "a1b2c3d4", "e5f6a7b8"
+	clock := &testClock{now: start}
+	r := newTestRecent(clock)
+	until := start.Add(refusedFor)
+	r.hear(Refused{Account: "work", Status: http.StatusUnauthorized, Until: until, Request: first})
+	r.hear(Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: until, Request: first})
+	r.hear(Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: until, Request: second})
+	r.hear(Refused{Account: "side", Status: http.StatusForbidden, Family: "opus", Until: until, Request: second})
+
+	// Work goes out on another token two minutes on, and the second request
+	// is refused on every account it went out on a minute later.
+	clock.now = start.Add(2 * time.Minute)
+	r.hear(RefusalLifted{Account: "work"})
+	clock.now = start.Add(3 * time.Minute)
+	r.hear(RefusalLifted{Account: "work", Family: "opus", Request: second})
+	r.hear(RefusalLifted{Account: "side", Family: "opus", Request: second})
+	// Long after, a token's refusal that's no longer in force lifts again.
+	clock.now = start.Add(time.Hour)
+	r.hear(RefusalLifted{Account: "work"})
+
+	want := []status.Event{
+		{ID: 4, At: start, Kind: status.EventRefused, Account: "side", Until: start.Add(3 * time.Minute), Status: http.StatusForbidden, Family: "opus"},
+		{ID: 3, At: start, Kind: status.EventRefused, Account: "work", Until: start.Add(3 * time.Minute), Status: http.StatusForbidden, Family: "opus"},
+		{ID: 2, At: start, Kind: status.EventRefused, Account: "work", Until: until, Status: http.StatusForbidden, Family: "opus"},
+		{ID: 1, At: start, Kind: status.EventRefused, Account: "work", Until: start.Add(2 * time.Minute), Status: http.StatusUnauthorized},
+	}
+	if got := r.events(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events() =\n%+v\nwant\n%+v: each refusal that lifted ending as it did, and the first request's refusal of Opus standing", got, want)
+	}
+}
+
+func TestALimitReachedAgainWhoseEventIsNoLongerKeptIsDropped(t *testing.T) {
+	limit := LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1}
+	r := newTestRecent(&testClock{now: start})
+	r.hear(limit)
+	for range maxEvents {
+		r.hear(RestartDue{Reason: "upgraded"})
+	}
+	before := r.events()
+
+	again := limit
+	again.Windows, again.Again = []string{"5h", "7d"}, true
+	r.hear(again)
+	r.hear(forced("one", "work", "side"))
+	got := r.events()
+	if !reflect.DeepEqual(got[1:], before[:len(before)-1]) || got[0].Kind != status.EventMoved || got[0].Limit != 0 {
+		t.Errorf("events() = %+v, want them as they were, but for the move, counted in no limit: %+v", got, before)
 	}
 }
 
@@ -325,6 +383,54 @@ func TestComingUnderPressureIsNewsOnceAReset(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnAccountsFirstReadingUnderPressureIsNoNews(t *testing.T) {
+	r := newTestRecent(&testClock{now: start})
+	reset := start.Add(3 * time.Hour)
+	next := reset.Add(5 * time.Hour)
+	// Work is yet to be read, then read under pressure, then not as its
+	// window resets, then under it again.
+	looks := []status.Account{{ID: "work"}, pressing{true, reset}.work(), pressing{false, next}.work(), pressing{true, next}.work()}
+
+	var told []int
+	for i, a := range looks {
+		if len(r.news([]status.Account{a}, nil)) > 0 {
+			told = append(told, i)
+		}
+	}
+	if want := []int{3}; !slices.Equal(told, want) {
+		t.Errorf("the looks that told of pressure = %v, want %v: work's first reading is no news", told, want)
+	}
+}
+
+func TestAHealthTurnIsToldOfWithinALook(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newTestRouter(t, func() time.Time { return time.Now().UTC() }, &stubProber{})
+		began := time.Now().UTC()
+		for range minFailures {
+			r.health.record(began, true)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			r.recent.run(ctx)
+		}()
+		defer func() {
+			cancel()
+			<-done
+		}()
+
+		// The failures leave the router's window of health, with no request
+		// since, and no one asking after it.
+		time.Sleep(healthWindow + lookEvery)
+		synctest.Wait()
+		got := r.recent.events()
+		if len(got) != 2 || got[0].Kind != status.EventHealth || got[0].Reason != "" || got[0].At.Before(began.Add(healthWindow)) || got[0].At.After(began.Add(healthWindow+lookEvery)) {
+			t.Errorf("events() = %+v, want the router healthy again, told of within a look of the failures leaving its window, at %v", got, began.Add(healthWindow))
+		}
+	})
 }
 
 // pressing is how work stands under pressure at a look: whether it's under

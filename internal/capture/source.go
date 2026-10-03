@@ -196,7 +196,7 @@ func sessionsOn(samples []sample) []status.Session {
 func (s seat) assignment(account string) status.Assignment {
 	return status.Assignment{
 		Model: s.model, Family: claude.Provider{}.Family(s.model), Account: account,
-		Pinned: s.pinned, Reason: cmp.Or(s.reason, reasonNew), AssignedAt: s.assigned, LastSeen: s.seen,
+		Pinned: s.pinned, PinnedAt: s.pinnedAt, Reason: cmp.Or(s.reason, status.ReasonNew), AssignedAt: s.assigned, LastSeen: s.seen,
 	}
 }
 

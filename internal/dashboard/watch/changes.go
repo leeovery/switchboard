@@ -37,25 +37,54 @@ type cardState struct {
 // or probing after it, or another router, as one restarted: their states
 // start afresh.
 func (c changes) looked(doc status.Document, from router.Health, now time.Time, policy score.Policy) changes {
+	states := statesOf(doc, now, policy)
+	since := make(map[string]time.Time)
+	if c.read && c.routed == routed(doc) && (!c.routed || from.Same(c.router)) {
+		since = c.changed(states, now)
+	}
+	return changes{read: true, routed: routed(doc), router: from, states: states, since: since}
+}
+
+// ticked takes in the states of doc's accounts as policy judges them at now,
+// as the clock moves on with no read, as a limit lifting at its reset moves
+// one on: each that differs from what was last found is picked out from now.
+// Before anything is read, there's nothing to tell apart.
+func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy) changes {
+	if !c.read {
+		return c
+	}
+	states := statesOf(doc, now, policy)
+	c.since, c.states = c.changed(states, now), states
+	return c
+}
+
+// changed are when each account picked out was seen to change at now, of
+// states as found against those found last: those already picked out while
+// they're picked out still, and those whose states differ, from now.
+func (c changes) changed(states map[string]cardState, now time.Time) map[string]time.Time {
+	since := make(map[string]time.Time)
+	for id, at := range c.since {
+		if now.Sub(at) < highlightFor {
+			since[id] = at
+		}
+	}
+	for id, s := range states {
+		if was, ok := c.states[id]; ok && was != s {
+			since[id] = now
+		}
+	}
+	return since
+}
+
+// statesOf are the states of doc's accounts at now, as policy judges them,
+// by id.
+func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]cardState {
 	states := make(map[string]cardState, len(doc.Accounts))
 	for _, a := range doc.Accounts {
 		s := doc.StateOf(a, now, policy)
 		states[a.ID] = cardState{condition: s.Condition, says: s.Says}
 	}
-	since := make(map[string]time.Time)
-	if c.read && c.routed == routed(doc) && (!c.routed || from.Same(c.router)) {
-		for id, at := range c.since {
-			if now.Sub(at) < highlightFor {
-				since[id] = at
-			}
-		}
-		for id, s := range states {
-			if was, ok := c.states[id]; ok && was != s {
-				since[id] = now
-			}
-		}
-	}
-	return changes{read: true, routed: routed(doc), router: from, states: states, since: since}
+	return states
 }
 
 // faded is how far the highlight on each card picked out at now has faded,

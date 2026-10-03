@@ -40,8 +40,12 @@ func TestInstall(t *testing.T) {
 	if installed.Router == nil || installed.Router.PID != 4242 || installed.Warnings != nil {
 		t.Errorf("Install() = %+v, want the router at pid 4242 answering, and no warnings", installed)
 	}
-	if info, err := os.Stat(filepath.Dir(s.svc.Log())); err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
-		t.Errorf("launchd's log directory: %v, %v; want a directory only its owner can use", info, err)
+	info, err := os.Stat(filepath.Dir(s.svc.Log()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.IsDir() || info.Mode().Perm() != 0o700 {
+		t.Errorf("launchd's log directory has mode %v, want a directory only its owner can use", info.Mode())
 	}
 }
 

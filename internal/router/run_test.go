@@ -288,8 +288,12 @@ func TestTheRouterKeepsItsReadingsHistoryInItsStateDirectory(t *testing.T) {
 	dir := filepath.Join(cfg.StateDir, "history")
 	file := filepath.Join(dir, "readings-"+now.Local().Format("2006-01-02")+".jsonl")
 	for path, want := range map[string]fs.FileMode{dir: fs.ModeDir | 0o700, file: 0o600} {
-		if info, err := os.Stat(path); err != nil || info.Mode() != want {
-			t.Fatalf("%s is %v (%v), want %v", path, info.Mode(), err, want)
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode() != want {
+			t.Fatalf("%s is %v, want %v", path, info.Mode(), want)
 		}
 	}
 	data, err := os.ReadFile(file)

@@ -168,7 +168,7 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 		c := newCanvas(4, 1)
 		c.text(0, 0, "ab", ink{})
 		c.surface(0, 0, 2, hue{token: theme.BgSelection, fade: tt.fade})
-		if got := strings.Contains(c.rows(look)[0], "\x1b[100"); got != tt.want {
+		if got := strings.Contains(c.rows(look)[0], "\x1b[7m"); got != tt.want {
 			t.Errorf("faded %v, the surface shows: %v, want %v: %q", tt.fade, got, tt.want, c.rows(look)[0])
 		}
 	}

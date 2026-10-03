@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // maxPoints is how many points GET /history gives of an account's window at
@@ -40,7 +41,7 @@ func (r *Router) windowHistory(asked historyAsk) History {
 	for _, a := range held {
 		if start, ok := a.start(now); ok {
 			placed = append(placed, a.id)
-			from = earlier(from, start)
+			from = score.Earlier(from, start)
 		}
 	}
 	written := r.history.windowReadings(asked.window, placed, from, now)

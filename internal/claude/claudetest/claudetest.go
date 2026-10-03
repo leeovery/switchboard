@@ -1,6 +1,7 @@
 // Package claudetest makes stand-ins, for tests, of what switchboard finds
 // claude among: Claude Code, switchboard's own binary and claude link, and
-// other builds of it.
+// other builds of it; and of the answers the Messages API streams, as the
+// provider and the router count them.
 package claudetest
 
 import (

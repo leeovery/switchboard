@@ -53,5 +53,5 @@ func (m Model) scrollBy(rows int) Model {
 // scrolling is how far the cards on screen scroll.
 func (m Model) scrolling() dashboard.Scrolling {
 	now := m.now()
-	return m.frame(now).Scrolling(m.shown(now), now)
+	return m.frame(now).Scrolling(m.doc, now)
 }

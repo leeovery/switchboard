@@ -65,7 +65,7 @@ func TestAnHourglassHasCapsFromFourRowsAndBulbsThatCurveInToItsNeck(t *testing.T
 
 func TestAnHourglassHoldsTheRoomLeftAboveAndTheUsePiledBelow(t *testing.T) {
 	g := newGlass(10, 4)
-	g.pour(0.42, 0.58)
+	g.pour(0.58)
 
 	want := []string{
 		"====================",
@@ -85,7 +85,7 @@ func TestAnHourglassHoldsTheRoomLeftAboveAndTheUsePiledBelow(t *testing.T) {
 func TestAnHourglassStreamFallsAGrainAStep(t *testing.T) {
 	poured := func(phase int) []string {
 		g := newGlass(10, 4)
-		g.pour(0.9, 0.1)
+		g.pour(0.1)
 		g.stream(4, phase)
 		return sketch(g)[3:7]
 	}
@@ -110,6 +110,81 @@ func TestAnHourglassStreamFallsAGrainAStep(t *testing.T) {
 		if got := poured(tt.phase); !slices.Equal(got, tt.want) {
 			t.Errorf("at phase %d, the stream is\n%s\nwant\n%s\n: four grains wide, its lines a grain out of step, each gap a grain lower than the phase before", tt.phase, strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
 		}
+	}
+}
+
+func TestAnHourglassHoldsEachGrainOnceWhereItsUseLandsOnAHalf(t *testing.T) {
+	whole := newGlass(10, 4)
+	g := newGlass(10, 4)
+	g.pour(0.25)
+
+	held := 0
+	for _, row := range sketch(g) {
+		held += strings.Count(row, "s") + strings.Count(row, "p")
+	}
+	if want := whole.inside(whole.top); held != want {
+		t.Errorf("a quarter used, 8½ of its bulb's %d grains, the glass is\n%s\nholding %d grains of sand, want %d", want, strings.Join(sketch(g), "\n"), held, want)
+	}
+}
+
+func TestAnHourglassStreamIsNeverWiderThanItsGlass(t *testing.T) {
+	g := newGlass(2, 4)
+	g.pour(0.1)
+	g.stream(6, 0)
+
+	if got := strings.Join(sketch(g), "\n"); !strings.Contains(got, "|") {
+		t.Errorf("a stream six grains wide in a glass four wide, the glass is\n%s\nwant it falling down all four", got)
+	}
+}
+
+func TestAnHourglassInANarrowChartDraws(t *testing.T) {
+	a := readAccount("work", sessionOf(0.4, 3*time.Hour), weekOf(0.3, 4*day))
+	usedLately(5)(&a)
+	for width := range 12 {
+		charting{style: Hourglass, doc: routerDoc("", 0, a), account: a, key: "5h", condition: status.Open, busy: true, width: width, rows: 4}.draw(t)
+	}
+}
+
+func TestAnHourglassInALookThatCantBlendDrawsItsCapsOverItsSand(t *testing.T) {
+	a := readAccount("work", sessionOf(0, 3*time.Hour), weekOf(0.3, 4*day))
+	terminal := Screen(builtin(t, theme.Terminal))
+	c := charting{style: Hourglass, doc: routerDoc("", 0, a), account: a, key: "5h", condition: status.Open, look: &terminal, width: 44, rows: 4}.draw(t)
+
+	if got, want := c.rows(Look{})[0], strings.Repeat(" ", 13)+"▜████████▛"; got != want {
+		t.Errorf("row 1 = %q, want %q: its cap and the sand under it as blocks, as no faded surface shows in a look that can't blend", got, want)
+	}
+}
+
+func TestAnHourglassFallsWhereItShowsAlone(t *testing.T) {
+	busyOn := func(id string) []status.Session {
+		return []status.Session{{ID: "d28c5e17", Assignments: []status.Assignment{{Account: id, LastSeen: now.Add(-20 * time.Second).UTC()}}}}
+	}
+	help := []Key{{Key: "g", Does: "cycle the chart every card draws"}, {Key: "?", Does: "these keys, and the key to the glyphs"}}
+	tests := []struct {
+		name     string
+		busy     string
+		scrolled bool
+		help     []Key
+		want     bool
+	}{
+		{name: "a card in view", busy: "a", want: true},
+		{name: "a card scrolled out of view", busy: "h"},
+		{name: "scrolled into view", busy: "h", scrolled: true, want: true},
+		{name: "a card under the help", busy: "b", help: help},
+		{name: "a card beside the help", busy: "a", help: help, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(160, 28)
+			f.Chart, f.Sessions, f.Help = Hourglass, busyOn(tt.busy), tt.help
+			doc := accountsOf(8, false)
+			if tt.scrolled {
+				f.Scroll = f.Scrolling(doc, now).Most
+			}
+			if got := f.Motion(doc, now).Falling; got != tt.want {
+				t.Errorf("Falling = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -304,7 +379,7 @@ func TestFallingSaysWhetherAnHourglassFallsOnACard(t *testing.T) {
 			f := frameOf(160, 40)
 			f.View, f.Chart, f.Sessions, f.Flipped = tt.view, tt.style, tt.sessions, map[string]bool{"work": tt.flipped}
 			doc := routerDoc("", 1, readAccount("work", sessionOf(0.4, 3*time.Hour), weekOf(0.3, 4*day)))
-			if got := f.Falling(doc, now); got != tt.want {
+			if got := f.Motion(doc, now).Falling; got != tt.want {
 				t.Errorf("Falling() = %v, want %v", got, tt.want)
 			}
 		})

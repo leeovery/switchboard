@@ -80,7 +80,22 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 		{
 			name:    "its last probe failing, its windows as last read",
 			account: with(readNow(0.2, 0.3, 0), func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }),
-			want:    status.State{Condition: status.Open, Says: "open"},
+			want:    status.State{Condition: status.Unreadable, Says: "can't read it", Then: "HTTP 529 · Overloaded"},
+		},
+		{
+			name:    "its last probe failing while a limit holds it back: the limit",
+			account: with(with(readNow(1, 0.3, 0), limited("5h")), func(a *status.Account) { a.Error = "timed out" }),
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
+		},
+		{
+			name:    "its last probe failing while a model's limit holds it back: the limit",
+			account: with(with(readNow(0.2, 0.3, 0.5), limited("7d_oi")), func(a *status.Account) { a.Error = "timed out" }),
+			want:    status.State{Condition: status.PartlyLimited, Says: "Fable wk limit", Then: "back 15:54 · other models still come here"},
+		},
+		{
+			name:    "its last probe failing while its token is refused: the refusal",
+			account: with(with(readNow(0.2, 0.3, 0), refusing(401, "")), func(a *status.Account) { a.Error = "HTTP 401 · Invalid bearer token" }),
+			want:    status.State{Condition: status.Limited, Says: "refused (401)", Then: "until 21:40"},
 		},
 		{
 			name:    "nothing read yet",
@@ -88,9 +103,19 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			want:    status.State{Condition: status.Unread, Says: "not read yet"},
 		},
 		{
-			name:    "at its session's limit",
-			account: with(readNow(1, 0.3, 0), limited("5h")),
+			name:    "nothing read yet, but the limit the router saw it reach",
+			account: with(status.Account{ID: "work", TokenSet: true}, limited("5h")),
 			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
+		},
+		{
+			name:    "at its session's limit",
+			account: with(readNow(0.98, 0.3, 0), limited("5h")),
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
+		},
+		{
+			name:    "at its session's limit, which lifts before its session, read spent, resets",
+			account: with(readNow(1, 0.3, 0), limited("5h")),
+			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
 		},
 		{
 			name:    "at a limit naming no window",
@@ -111,7 +136,7 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 		},
 		{
 			name:    "a limit before its token refused",
-			account: with(with(readNow(1, 0.3, 0), limited("5h")), refusing(401, "")),
+			account: with(with(readNow(0.98, 0.3, 0), limited("5h")), refusing(401, "")),
 			want:    status.State{Condition: status.Limited, Says: "limit reached", Then: "back 15:54, in 1h 11m"},
 		},
 		{
@@ -119,6 +144,30 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			account: with(readNow(0.2, 0.3, 1), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: at(5, 21, 0).UTC()}
 			}),
+			want: status.State{Condition: status.PartlyLimited, Says: "Fable wk limit", Then: "back Mon 21:00 · other models still come here"},
+		},
+		{
+			name: "at Fable's week's limit, its session read spent: held back from every request",
+			account: with(readNow(1, 0.3, 0.5), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: at(5, 21, 0).UTC()}
+			}),
+			want: status.State{Condition: status.Limited, Says: "limit reached", Then: "back 17:10, in 2h 27m"},
+		},
+		{
+			name: "at Fable's week's limit, a shared window at its reserve holding back the rest",
+			account: with(readNow(0.2, 0.92, 1), func(a *status.Account) {
+				a.Reserve, a.AtReserve = 0.1, []string{"7d"}
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: at(5, 21, 0).UTC()}
+			}),
+			want: status.State{Condition: status.Reserved, Says: "at its reserve (90%)"},
+		},
+		{
+			name: "at Fable's week's limit, a shared window at a reserve the pin spends",
+			account: with(readNow(0.2, 0.92, 1), func(a *status.Account) {
+				a.Reserve, a.AtReserve = 0.1, []string{"7d"}
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: at(5, 21, 0).UTC()}
+			}),
+			pin:  []string{"work"},
 			want: status.State{Condition: status.PartlyLimited, Says: "Fable wk limit", Then: "back Mon 21:00 · other models still come here"},
 		},
 		{
@@ -130,6 +179,13 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 			name:    "a family's requests refused",
 			account: with(readNow(0.2, 0.3, 0), refusing(403, "opus")),
 			want:    status.State{Condition: status.PartlyLimited, Says: "refused (403, opus)", Then: "until 21:40 · other models still come here"},
+		},
+		{
+			name: "a family's requests refused, its session at its reserve holding back the rest",
+			account: with(with(readNow(0.92, 0.3, 0), refusing(403, "opus")), func(a *status.Account) {
+				a.Reserve, a.AtReserve = 0.1, []string{"5h"}
+			}),
+			want: status.State{Condition: status.Reserved, Says: "at its reserve (90%)"},
 		},
 		{
 			name:    "at its reserve",
@@ -277,11 +333,47 @@ func TestWhatHoldsAnAccountBackAtItsLimit(t *testing.T) {
 	}{
 		{
 			name: "the limit the router saw, its shared window first",
-			account: with(readNow(1, 1, 1), func(a *status.Account) {
+			account: with(readNow(0.98, 0.3, 0.97), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"7d_oi", "5h"}, Until: at(1, 15, 54).UTC()}
 			}),
 			want:   status.Hold{Windows: []string{"5h", "7d_oi"}, Until: at(1, 15, 54).UTC(), Every: true},
 			wantOK: true,
+		},
+		{
+			name: "a model's own limit, and its session read spent: back as its session resets",
+			account: with(readNow(1, 0.3, 0.5), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: at(5, 21, 0).UTC()}
+			}),
+			want:   status.Hold{Windows: []string{"5h", "7d_oi"}, Until: at(1, 17, 10).UTC(), Every: true},
+			wantOK: true,
+		},
+		{
+			name: "a limit lifting before a window read spent resets: back as that resets",
+			account: with(readNow(1, 0.3, 0), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: at(1, 15, 54).UTC()}
+			}),
+			want:   status.Hold{Windows: []string{"5h"}, Until: at(1, 17, 10).UTC(), Every: true},
+			wantOK: true,
+		},
+		{
+			name: "a limit naming no window, and the week read spent",
+			account: with(readNow(0.5, 1.02, 0), func(a *status.Account) {
+				a.Limit = status.Limit{Until: at(1, 15, 54).UTC()}
+			}),
+			want:   status.Hold{Until: at(5, 21, 0).UTC(), Every: true},
+			wantOK: true,
+		},
+		{
+			name:    "windows read spent, without the router: back as the last resets",
+			account: readNow(1, 1.02, 0),
+			want:    status.Hold{Windows: []string{"5h", "7d"}, Until: at(5, 21, 0).UTC(), Every: true},
+			wantOK:  true,
+		},
+		{
+			name:    "a window read spent whose reset isn't known",
+			account: with(readNow(1.02, 0.3, 0), func(a *status.Account) { a.Windows[0].ResetsAt = time.Time{} }),
+			want:    status.Hold{Windows: []string{"5h"}, Every: true},
+			wantOK:  true,
 		},
 		{
 			name:    "a model's own window alone",
@@ -310,6 +402,38 @@ func TestWhatHoldsAnAccountBackAtItsLimit(t *testing.T) {
 				t.Errorf("Held() = %+v, %v, want %+v, %v", got, ok, tt.want, tt.wantOK)
 			}
 		})
+	}
+}
+
+func TestAHoldLiftsOffEachWindowAsItsOwnHoldDoes(t *testing.T) {
+	fable := func(a *status.Account) { a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: at(5, 21, 0).UTC()} }
+	unnamed := func(a *status.Account) { a.Limit = status.Limit{Until: at(1, 15, 54).UTC()} }
+	tests := []struct {
+		name    string
+		account status.Account
+		want    map[string]time.Time
+	}{
+		{
+			name:    "a model's own limit, its session read spent",
+			account: with(readNow(1, 0.3, 0.5), fable),
+			want:    map[string]time.Time{"5h": at(1, 17, 10).UTC(), "7d": {}, "7d_oi": at(5, 21, 0).UTC()},
+		},
+		{
+			name:    "a limit naming no window, the week read spent",
+			account: with(readNow(0.5, 1.02, 0), unnamed),
+			want:    map[string]time.Time{"5h": at(1, 15, 54).UTC(), "7d": at(5, 21, 0).UTC()},
+		},
+	}
+	for _, tt := range tests {
+		held, ok := tt.account.Held(stateNow, policy)
+		if !ok {
+			t.Fatalf("%s: Held() reports nothing", tt.name)
+		}
+		for key, want := range tt.want {
+			if got := held.Lifts(key); !got.Equal(want) {
+				t.Errorf("%s: Lifts(%q) = %v, want %v", tt.name, key, got, want)
+			}
+		}
 	}
 }
 

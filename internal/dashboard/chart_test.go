@@ -156,8 +156,8 @@ func TestAChartsFloorIsItsReserveWhereThatHoldsItBack(t *testing.T) {
 }
 
 func TestAChartAtItsLimitRunsAlongTheFloorTillTheLimitLifts(t *testing.T) {
-	session := sessionOf(1, 150*time.Minute)
-	session.Status = quota.StatusRejected
+	// Its session reads short of spent, so the limit alone holds it back.
+	session := sessionOf(0.97, 150*time.Minute)
 	a := readAccount("work", session, weekOf(0.3, 4*day))
 	a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt.Add(-time.Hour)}
 	start := session.ResetsAt.Add(-5 * time.Hour)
@@ -169,6 +169,18 @@ func TestAChartAtItsLimitRunsAlongTheFloorTillTheLimitLifts(t *testing.T) {
 	}
 	if got := c.at(5, 1).ink; got != errorInk {
 		t.Errorf("the line along the floor is in %+v, want destructive", got)
+	}
+}
+
+func TestAChartsLevelShowsALittleRoomLeftAsItsLowestEighth(t *testing.T) {
+	session := sessionOf(0.98, 150*time.Minute)
+	start := session.ResetsAt.Add(-5 * time.Hour)
+	a := readAccount("work", session, weekOf(0.3, 4*day))
+	trail := Trail{Start: start, Readings: []score.Reading{{At: start, Utilization: 0.5}, {At: start.Add(time.Hour), Utilization: 0.98}}}
+	c := chartOf(t, routerDoc("", 0, a), a, "5h", History{{Account: "work", Window: "5h"}: trail}, 20, 2)
+
+	if got := c.at(6, 1); got.glyph != "▁" || got.ink != (ink{token: theme.AccentAttention, fade: projectionFade}) {
+		t.Errorf("a column with 2%% left draws %q in %+v, want ▁ in the level's ink: no limit holds it", got.glyph, got.ink)
 	}
 }
 
@@ -189,10 +201,10 @@ func TestAChartWithoutHistoryIsTheRoomNowFromItsStart(t *testing.T) {
 			},
 		},
 		{
-			name: "its level too short for the words, marked across it all, its marks over them", width: 14,
+			name: "its level too short for the words, marked across it all, over its marks", width: 14,
 			want: []string{
 				"        │",
-				" no hist│ry…",
+				" no history…",
 				"████████⠁⠂⠄✕",
 				"10:42    15:42",
 			},
@@ -252,7 +264,7 @@ func TestAChartsAxis(t *testing.T) {
 	}{
 		{name: "a session: its start, now and its reset", window: sessionOf(0.4, 150*time.Minute), width: 44, want: "10:42                now               15:42"},
 		{name: "a session: now, where it would crowd its start, left off", window: sessionOf(0.1, 290*time.Minute), width: 44, want: "13:02                                  18:02"},
-		{name: "a week: its days from their midnights", window: weekOf(0.3, 4*day+8*time.Hour+48*time.Minute), width: 44, want: " ╵Sat  ╵Sun  ╵Mon  ╵Tue  ╵Wed  ╵Thu  ╵Fri"},
+		{name: "a week: its days from their midnights, each in the chart's column for its time", window: weekOf(0.3, 4*day+8*time.Hour+48*time.Minute), width: 44, want: "╵Sat  ╵Sun   ╵Mon  ╵Tue  ╵Wed  ╵Thu   ╵Fri"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

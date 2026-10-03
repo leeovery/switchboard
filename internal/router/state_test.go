@@ -548,8 +548,9 @@ func TestARequestTakesBackItsOwnRefusalsOfItsFamilyAlone(t *testing.T) {
 		return account.Refused
 	}
 
-	if !s.takeBack(second) {
-		t.Error("takeBack() = false, want the second request's refusals of Opus taken back")
+	want := []RefusalLifted{{Account: "work", Family: "opus", Request: second}, {Account: "side", Family: "opus", Request: second}}
+	if got := s.takeBack(second); !reflect.DeepEqual(got, want) {
+		t.Errorf("takeBack() = %+v, want %+v: the second request's refusals of Opus taken back, each lifting", got, want)
 	}
 	if got, want := refused("work"), (status.Refusal{Until: start.Add(refusedFor), Status: http.StatusForbidden, Family: "opus"}); got != want {
 		t.Errorf("with the second request's refusals taken back, work is refused %+v, want %+v: the first request's refusal stands", got, want)
@@ -564,8 +565,8 @@ func TestARequestTakesBackItsOwnRefusalsOfItsFamilyAlone(t *testing.T) {
 	if got := refused("work"); got != (status.Refusal{}) {
 		t.Errorf("with both requests' refusals taken back, work is refused %+v, want not", got)
 	}
-	if s.takeBack(first) {
-		t.Error("takeBack() = true, want false: the first request's refusals are gone already")
+	if got := s.takeBack(first); got != nil {
+		t.Errorf("takeBack() = %+v, want none: the first request's refusals are gone already", got)
 	}
 }
 

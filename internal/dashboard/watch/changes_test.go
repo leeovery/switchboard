@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -63,6 +64,21 @@ func TestACardWhoseStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 	}
 }
 
+func TestACardWhoseStateTheClockChangesIsPickedOutAsItTicks(t *testing.T) {
+	spent := session(1, 10*time.Second)
+	spent.Status = quota.StatusRejected
+	h := newHarness(t, document(account("work", "Work", spent, week(0.5)), three()[1]))
+	h.start()
+	h.tickUntil(start.Add(9 * time.Second))
+	if got := h.changed(); len(got) > 0 {
+		t.Fatalf("before work's session resets, picked out %v, want none", got)
+	}
+	h.tickUntil(start.Add(11 * time.Second))
+	if got, reads := h.changed(), h.source.reads; !slices.Equal(got, []string{"work"}) || reads != 1 {
+		t.Errorf("once work's session reset, with %d reads, picked out %v, want work, as the second ticked, with no read since the first", reads, got)
+	}
+}
+
 func TestACountdownMovingOnIsNoChange(t *testing.T) {
 	h := routedHarness(t, limitedWork())
 	h.start()
@@ -70,6 +86,24 @@ func TestACountdownMovingOnIsNoChange(t *testing.T) {
 
 	if got := h.changed(); len(got) > 0 {
 		t.Errorf("as work's limit counts down, picked out %v, want none: it's still at its limit", got)
+	}
+}
+
+func TestAReadFailingWhileALimitHoldsPicksOutNoCard(t *testing.T) {
+	h := routedHarness(t, limitedWork())
+	h.start()
+
+	failing := limitedWork()
+	failing.Accounts[0].Error = "timed out"
+	h.startRouter(failing)
+	h.tickUntilAsked()
+	if got := h.changed(); len(got) > 0 {
+		t.Errorf("as work's read failed, picked out %v, want none: it's still at its limit", got)
+	}
+	h.startRouter(limitedWork())
+	h.tickUntilAsked()
+	if got := h.changed(); len(got) > 0 {
+		t.Errorf("as work was read again, picked out %v, want none: it's still at its limit", got)
 	}
 }
 

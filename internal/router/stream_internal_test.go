@@ -21,8 +21,10 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -42,12 +44,12 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 		{
 			name:    "a streamed answer",
 			session: "one",
-			work:    []answer{streamed(0, AnswerPieces("Hello, ", "world ☃")...)},
+			work:    []answer{streamed(0, claudetest.AnswerPieces("Hello, ", "world ☃")...)},
 			want: []StreamEvent{
 				{Kind: StreamSent, Attempt: 1, Session: "one", Model: opus, Account: "work"},
 				{Kind: StreamFirst, Attempt: 1, Session: "one", Model: opus, Account: "work"},
 				{Kind: StreamDone, Attempt: 1, Session: "one", Model: opus, Account: "work", Status: http.StatusOK,
-					Chars: AnswerChars("Hello, ", "world ☃"), Tokens: &AnswerTokens},
+					Chars: claudetest.AnswerChars("Hello, ", "world ☃"), Tokens: &claudetest.AnswerTokens},
 			},
 		},
 		{
@@ -74,13 +76,12 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 				{Kind: StreamSent, Attempt: 2, Session: "one", Model: opus, Account: "work"},
 				{Kind: StreamThrottled, Attempt: 2, Session: "one", Model: opus, Account: "work", Status: http.StatusTooManyRequests},
 				{Kind: StreamSent, Attempt: 3, Session: "one", Model: opus, Account: "work"},
-				{Kind: StreamThrottled, Attempt: 3, Session: "one", Model: opus, Account: "work", Status: http.StatusTooManyRequests},
 				{Kind: StreamFirst, Attempt: 3, Session: "one", Model: opus, Account: "work"},
 				{Kind: StreamDone, Attempt: 3, Session: "one", Model: opus, Account: "work", Status: http.StatusTooManyRequests},
 			},
 		},
 		{
-			name:    "a refusal, and the request replayed on another account, which refuses it too",
+			name:    "a refusal, and the request replayed on another account, which refuses it too, the session going back",
 			session: "one",
 			work:    []answer{forbidden},
 			side:    []answer{unauthorized},
@@ -90,7 +91,23 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 				{Kind: StreamMoved, Attempt: 1, Session: "one", Model: opus, Account: "side", From: "work", To: "side", Reason: "moved: work was refused"},
 				{Kind: StreamSent, Attempt: 2, Session: "one", Model: opus, Account: "side"},
 				{Kind: StreamRefused, Attempt: 2, Session: "one", Model: opus, Account: "side", Status: http.StatusUnauthorized},
+				{Kind: StreamMoved, Attempt: 2, Session: "one", Model: opus, Account: "work", From: "side", To: "work", Reason: "back where it was before its request"},
 				{Kind: StreamDone, Attempt: 2, Session: "one", Model: opus, Account: "side", Status: http.StatusBadGateway},
+			},
+		},
+		{
+			name:    "a limit reached, then a refusal on the account it went to, the limit's 429 the client's",
+			session: "one",
+			work:    []answer{limitHit},
+			side:    []answer{forbidden},
+			want: []StreamEvent{
+				{Kind: StreamSent, Attempt: 1, Session: "one", Model: opus, Account: "work"},
+				{Kind: StreamLimited, Attempt: 1, Session: "one", Model: opus, Account: "work", Status: http.StatusTooManyRequests},
+				{Kind: StreamMoved, Attempt: 1, Session: "one", Model: opus, Account: "side", From: "work", To: "side", Reason: "moved: work hit its limit"},
+				{Kind: StreamSent, Attempt: 2, Session: "one", Model: opus, Account: "side"},
+				{Kind: StreamRefused, Attempt: 2, Session: "one", Model: opus, Account: "side", Status: http.StatusForbidden},
+				{Kind: StreamFirst, Attempt: 2, Session: "one", Model: opus, Account: "work"},
+				{Kind: StreamDone, Attempt: 2, Session: "one", Model: opus, Account: "work", Status: http.StatusTooManyRequests},
 			},
 		},
 		{
@@ -221,7 +238,7 @@ func TestTheQuotaCheckStartsNoSession(t *testing.T) {
 
 func TestTheRequestStreamCountsAnAnswerAsItCame(t *testing.T) {
 	texts := []string{"Hello, ", "world ☃"}
-	pieces := strings.Join(AnswerPieces(texts...), "")
+	pieces := strings.Join(claudetest.AnswerPieces(texts...), "")
 	tests := []struct {
 		name     string
 		encoding string
@@ -230,9 +247,9 @@ func TestTheRequestStreamCountsAnAnswerAsItCame(t *testing.T) {
 		wantChars  int
 		wantTokens *quota.Tokens
 	}{
-		{name: "not encoded", body: []byte(pieces), wantChars: AnswerChars(texts...), wantTokens: &AnswerTokens},
-		{name: "gzip", encoding: "gzip", body: encoded(t, "gzip", pieces), wantChars: AnswerChars(texts...), wantTokens: &AnswerTokens},
-		{name: "deflate", encoding: "deflate", body: encoded(t, "deflate", pieces), wantChars: AnswerChars(texts...), wantTokens: &AnswerTokens},
+		{name: "not encoded", body: []byte(pieces), wantChars: claudetest.AnswerChars(texts...), wantTokens: &claudetest.AnswerTokens},
+		{name: "gzip", encoding: "gzip", body: encoded(t, "gzip", pieces), wantChars: claudetest.AnswerChars(texts...), wantTokens: &claudetest.AnswerTokens},
+		{name: "deflate", encoding: "deflate", body: encoded(t, "deflate", pieces), wantChars: claudetest.AnswerChars(texts...), wantTokens: &claudetest.AnswerTokens},
 		// The standard library has no decoder for br, so its counts go
 		// untold.
 		{name: "br", encoding: "br", body: []byte("\x1b\x2c\x00\xf8 brotli, notionally")},
@@ -281,10 +298,11 @@ func TestTheRequestStreamTellsOfAnAnswersProgressEveryQuarterSecondAtMost(t *tes
 		r := newTestRouter(t, time.Now, &stubProber{})
 		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, began)
 		// The answer's start, twenty characters of text, one a piece, and its
-		// end, a piece each 101ms from 111ms after the reader joins: none
-		// comes as the counting takes what has passed, every 100ms from the
-		// first, nor as the stream tells of progress.
-		pieces := slices.Concat([]string{MessageStart}, slices.Repeat([]string{TextDelta("x")}, 20), []string{MessageEnd})
+		// end, a piece each 101ms from 111ms after the reader joins: the
+		// counting, done with each a millisecond before the next, waits for
+		// it, and counts it as it comes, which never falls as the stream
+		// tells of progress.
+		pieces := slices.Concat([]string{claudetest.MessageStart}, slices.Repeat([]string{claudetest.TextDelta("x")}, 20), []string{claudetest.MessageEnd})
 		r.proxy.transport = scripted(streamed(101*time.Millisecond, pieces...), served)
 		reader := joined(t, r)
 
@@ -297,11 +315,12 @@ func TestTheRequestStreamTellsOfAnAnswersProgressEveryQuarterSecondAtMost(t *tes
 				progress = append(progress, StreamEvent{At: e.At, Kind: e.Kind, Chars: e.Chars})
 			}
 		}
-		// Each quarter second, the characters counted by then, once there are
-		// any; the answer done at 2.232s, with all twenty.
+		// Each quarter second from a quarter second after the first character
+		// came, at 212ms, the characters counted by then; the answer done at
+		// 2.232s, with all twenty.
 		var want []StreamEvent
-		for i, chars := range []int{2, 5, 7, 10, 12, 15, 17} {
-			want = append(want, StreamEvent{At: began.Add(time.Duration(i+2) * progressEvery).UTC(), Kind: StreamProgress, Chars: chars})
+		for i, chars := range []int{3, 5, 8, 10, 13, 15, 18, 20} {
+			want = append(want, StreamEvent{At: began.Add(212*time.Millisecond + time.Duration(i+1)*progressEvery).UTC(), Kind: StreamProgress, Chars: chars})
 		}
 		if !reflect.DeepEqual(progress, want) {
 			t.Errorf("the stream told of the progress\n%s\nwant\n%s", lines(progress), lines(want))
@@ -317,10 +336,10 @@ func TestAReaderJoiningMidAnswerIsToldOfTheRequestAsItStands(t *testing.T) {
 		began := time.Now()
 		r := newTestRouter(t, time.Now, &stubProber{})
 		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, began)
-		// A piece each 1.01s: the start, then text, then more, then the end;
-		// none comes as the counting takes what has passed, every 100ms from
-		// the first, nor as the stream tells of progress.
-		r.proxy.transport = scripted(streamed(1010*time.Millisecond, MessageStart, TextDelta("Hello"), TextDelta(" world"), MessageEnd), served)
+		// A piece each 1.01s: the start, then text, then more, then the end,
+		// each counted as it comes, which never falls as the stream tells of
+		// progress.
+		r.proxy.transport = scripted(streamed(1010*time.Millisecond, claudetest.MessageStart, claudetest.TextDelta("Hello"), claudetest.TextDelta(" world"), claudetest.MessageEnd), served)
 
 		answered := make(chan struct{})
 		go func() {
@@ -328,10 +347,7 @@ func TestAReaderJoiningMidAnswerIsToldOfTheRequestAsItStands(t *testing.T) {
 			close(answered)
 		}()
 		time.Sleep(2600 * time.Millisecond)
-		inFlight, reader, ok := r.stream.join()
-		if !ok {
-			t.Fatal("join() reported the stream closed")
-		}
+		inFlight, reader := r.stream.join()
 		t.Cleanup(func() { r.stream.leave(reader) })
 		<-answered
 		got := heard(reader)
@@ -344,13 +360,12 @@ func TestAReaderJoiningMidAnswerIsToldOfTheRequestAsItStands(t *testing.T) {
 		if !reflect.DeepEqual(inFlight[0], wantInFlight) {
 			t.Errorf("the reader joined to\n%+v\nwant\n%+v", inFlight[0], wantInFlight)
 		}
-		// The rest of the text came at 3.03s, and was counted at 3.11s, which
-		// the stream tells of at its next quarter second from the reader's
-		// joining.
+		// The rest of the text came, and was counted, at 3.03s, which the
+		// stream tells of a quarter second on.
 		want := []StreamEvent{
-			{At: began.Add(3350 * time.Millisecond).UTC(), Kind: StreamProgress, Request: id, Attempt: 1, Session: "one", Model: opus, Account: "work", Chars: 11},
+			{At: began.Add(3280 * time.Millisecond).UTC(), Kind: StreamProgress, Request: id, Attempt: 1, Session: "one", Model: opus, Account: "work", Chars: 11},
 			{At: began.Add(4040 * time.Millisecond).UTC(), Kind: StreamDone, Request: id, Attempt: 1, Session: "one", Model: opus, Account: "work",
-				Status: http.StatusOK, Chars: 11, Tokens: &AnswerTokens},
+				Status: http.StatusOK, Chars: 11, Tokens: &claudetest.AnswerTokens},
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("then the stream told of\n%s\nwant\n%s", lines(got), lines(want))
@@ -361,8 +376,8 @@ func TestAReaderJoiningMidAnswerIsToldOfTheRequestAsItStands(t *testing.T) {
 func TestAReaderThatFallsBehindIsDropped(t *testing.T) {
 	log := logstest.Capture(t)
 	s := newStream(at(start))
-	_, slow, _ := s.join()
-	_, keeping, _ := s.join()
+	_, slow := s.join()
+	_, keeping := s.join()
 	t.Cleanup(func() { s.leave(keeping) })
 
 	for i := range readerLag + 1 {
@@ -385,22 +400,145 @@ func TestAReaderThatFallsBehindIsDropped(t *testing.T) {
 	}
 }
 
-func TestAClosedStreamDropsItsReadersAndTakesNoMore(t *testing.T) {
-	r := newTestRouter(t, at(start), &stubProber{})
-	_, reader, _ := r.stream.join()
+func TestAReaderJoiningIsToldOfTheLastVerdictOnARequestInFlight(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		began := time.Now().UTC()
+		r := newTestRouter(t, time.Now, &stubProber{})
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, began)
+		// Work throttles the request, which goes again a second on.
+		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: {throttled("1"), served}}}
 
-	r.stream.close()
-	if _, open := <-reader.events; open {
-		t.Error("the reader is told of an event, want it dropped as the stream closes")
+		answered := make(chan struct{})
+		go func() {
+			routeAsking(context.Background(), r, "one", opusAsked)
+			close(answered)
+		}()
+		time.Sleep(500 * time.Millisecond)
+		inFlight, reader := r.stream.join()
+		r.stream.leave(reader)
+		<-answered
+		if len(inFlight) != 1 {
+			t.Fatalf("the reader joined to %d requests in flight, want 1", len(inFlight))
+		}
+		want := StreamEvent{At: began.Add(500 * time.Millisecond), Kind: StreamInFlight, Request: inFlight[0].Request, Attempt: 1, Session: "one", Model: opus, Account: "work",
+			SentAt: began, Verdict: StreamThrottled, Status: http.StatusTooManyRequests}
+		if !reflect.DeepEqual(inFlight[0], want) {
+			t.Errorf("the reader joined to\n%s\nwant\n%s: the request throttled, waiting to go again", lines(inFlight), lines([]StreamEvent{want}))
+		}
+	})
+}
+
+func TestTheRequestStreamSleepsWhileNoAnswerStreams(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var looks atomic.Int32
+		s := newStream(func() time.Time {
+			looks.Add(1)
+			return time.Now()
+		})
+		_, reader := s.join()
+		defer s.leave(reader)
+		quiet := func() int32 {
+			before := looks.Load()
+			time.Sleep(time.Minute)
+			synctest.Wait()
+			return looks.Load() - before
+		}
+
+		if got := quiet(); got != 0 {
+			t.Errorf("with nothing in flight, the stream looked %d times in a minute, want none: it sleeps", got)
+		}
+		s.publish(StreamEvent{Kind: StreamSent, Request: "r", Attempt: 1})
+		s.progressed("r", 5)
+		if got := quiet(); got != 2 {
+			t.Errorf("with an answer that streamed once, then stopped, the stream looked %d times in a minute, want twice: to tell of it, and to find nothing more", got)
+		}
+		var told []StreamEvent
+		for range 2 {
+			told = append(told, <-reader.events)
+		}
+		if told[1].Kind != StreamProgress || told[1].Chars != 5 {
+			t.Errorf("the stream told of %+v, want the request sent, then its progress", told)
+		}
+	})
+}
+
+func TestARequestsEndIsToldOfBeforeItsHandlerReturns(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newTestRouter(t, time.Now, &stubProber{})
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
+		r.proxy.provider = slowCounting{}
+		r.proxy.transport = scripted(streamed(0, claudetest.AnswerPieces("Hello")...), served)
+		reader := joined(t, r)
+
+		routeAsking(t.Context(), r, "one", opusAsked)
+		var told []string
+		for len(reader.events) > 0 {
+			told = append(told, (<-reader.events).Kind)
+		}
+		if want := []string{StreamSent, StreamFirst, StreamDone}; !slices.Equal(told, want) {
+			t.Errorf("as the request's handler returned, the stream had told of %q, want %q: its end counted and told of first", told, want)
+		}
+	})
+}
+
+// slowCounting is Claude's provider, but for taking a second to start
+// counting an answer.
+type slowCounting struct {
+	claude.Provider
+}
+
+func (p slowCounting) Count(contentType string, body io.Reader, chars func(int)) (quota.Tokens, bool) {
+	time.Sleep(time.Second)
+	return p.Provider.Count(contentType, body, chars)
+}
+
+func TestASessionIsToldOfAsStartedAsTheFirstAnswerOfSuccessComes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newTestRouter(t, time.Now, &stubProber{})
+		began := time.Now().UTC()
+		r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+		// The session's first request is held, and fails; its second, sent
+		// meanwhile, is answered with success, its answer streaming a piece a
+		// second.
+		release := make(chan struct{})
+		r.proxy.transport = &firstHeld{release: release, then: streamed(time.Second, claudetest.AnswerPieces("Hello")...)}
+		started := func() []status.Event {
+			return slices.DeleteFunc(r.Status().Events, func(e status.Event) bool { return e.Kind != status.EventStarted })
+		}
+		want := []status.Event{{ID: 1, At: began, Kind: status.EventStarted, Account: "work", Session: "one", Model: opus, Reason: reasonNew}}
+
+		go routeAsking(context.Background(), r, "one", opusAsked)
+		synctest.Wait()
+		go routeAsking(context.Background(), r, "one", opusAsked)
+		synctest.Wait()
+		if got := started(); !reflect.DeepEqual(got, want) {
+			t.Errorf("with the second request's answer streaming, the events of sessions started are %+v, want %+v: told as its answer came", got, want)
+		}
+		close(release)
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		if got := started(); !reflect.DeepEqual(got, want) {
+			t.Errorf("with both requests done, the events of sessions started are %+v, want %+v alone", got, want)
+		}
+	})
+}
+
+// firstHeld is an upstream that answers the first request with a 500 once
+// release closes, and every other as then does.
+type firstHeld struct {
+	release chan struct{}
+	then    answer
+	asked   atomic.Int32
+}
+
+func (u *firstHeld) RoundTrip(r *http.Request) (*http.Response, error) {
+	_ = r.Body.Close()
+	if u.asked.Add(1) == 1 {
+		<-u.release
+		return serverError(r), nil
 	}
-	if _, _, ok := r.stream.join(); ok {
-		t.Error("join() let a reader join the closed stream")
-	}
-	rec := httptest.NewRecorder()
-	r.Control().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/stream", nil))
-	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), `"error":"the router is stopping`) {
-		t.Errorf("GET /stream answered %d %s once closed, want 503, saying why", rec.Code, rec.Body)
-	}
+	return u.then(r), nil
 }
 
 func TestATapPassesTheAnswerOnUntouchedThoughItsCountingFallsBehind(t *testing.T) {
@@ -439,9 +577,9 @@ func routeAsking(ctx context.Context, r *Router, session, body string) *httptest
 // joined has a reader join the router's request stream until the test ends.
 func joined(t *testing.T, r *Router) *streamReader {
 	t.Helper()
-	inFlight, reader, ok := r.stream.join()
-	if !ok || len(inFlight) > 0 {
-		t.Fatalf("join() = %+v, %v, want the stream open, with nothing in flight", inFlight, ok)
+	inFlight, reader := r.stream.join()
+	if len(inFlight) > 0 {
+		t.Fatalf("join() = %+v, want nothing in flight", inFlight)
 	}
 	t.Cleanup(func() { r.stream.leave(reader) })
 	return reader

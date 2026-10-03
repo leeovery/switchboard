@@ -7,3 +7,7 @@ const RoleAnnotation = roleAnnotation
 // ReadUnseen is how HiddenInput reads, given the terminal's part in it, for
 // tests of how a read the user interrupts ends.
 var ReadUnseen = readUnseen
+
+// AskBackground is how TerminalBackground asks a terminal its background,
+// given the terminal, for tests of how it asks, and what it hears.
+var AskBackground = askBackground

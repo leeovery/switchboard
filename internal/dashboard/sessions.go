@@ -84,12 +84,11 @@ type callRow struct {
 }
 
 // sessions draws the Sessions view of doc at now from row top: as a
-// switchboard, its labels over it, from the row under them, scrolled where it
-// doesn't fit, a scrollbar beside it; or, with one account, or under
-// cordsFrom columns, or where its cords don't fit, a plain list of each
-// account's panel with its sessions under it. Then, over the footer, what's
-// out of view, where it scrolls; else which windows hide from every panel,
-// where any does; else a rule.
+// switchboard, its labels over it, where there's a row under them, and from
+// the row under them, scrolled where it doesn't fit, a scrollbar beside it;
+// or, with one account, or under cordsFrom columns, or where its cords
+// don't fit, a plain list of each account's panel with its sessions under
+// it. Then the line over the footer, as overFooter has it.
 func (f Frame) sessions(c *canvas, doc status.Document, now time.Time, top int) {
 	if len(doc.Accounts) == 0 {
 		return
@@ -99,28 +98,44 @@ func (f Frame) sessions(c *canvas, doc status.Document, now time.Time, top int) 
 		f.plainList(c, doc, now, top)
 		return
 	}
-	c.line(callsAt, top, callsLabel)
-	c.line(b.x, top, linesLabel)
-	view := f.sessionsView(top)
-	offset := min(max(f.Scroll, 0), max(b.content-view, 0))
+	s := f.sightOf(b, top)
+	if s.rows > 0 {
+		c.line(callsAt, top, callsLabel)
+		c.line(b.x, top, linesLabel)
+	}
 	area := newCanvas(f.Width, b.content)
 	f.drawBay(area, doc, b, now)
-	c.paste(area, offset, top+1, min(view, b.content))
-	f.overFooter(c, doc, now, b.content, view, offset, b.hidden)
+	c.paste(area, s.offset, s.top, s.rows)
+	f.overFooter(c, doc, now, top, b.content, f.sessionsView(top), s.offset, b.hidden)
 }
 
-// overFooter draws the line over the footer of the Sessions view, whose
-// content is content rows tall, view of them shown from the row offset: what
-// the rows out of view hold, as hidden counts the accounts among them, and a
-// scrollbar beside the view, where it scrolls; else which windows hide from
-// every panel, where any does; else a rule.
-func (f Frame) overFooter(c *canvas, doc status.Document, now time.Time, content, view, offset int, hidden func(offset, view int) (int, int)) {
+// sightOf is how the bay b, laid out under its labels on row top, shows on
+// screen: from the row under them, scrolled as far as the frame has it, as
+// many of its rows as the view shows, under the help where it's open.
+func (f Frame) sightOf(b bay, top int) sight {
+	view := f.sessionsView(top)
+	return sight{top: top + 1, offset: min(max(f.Scroll, 0), max(b.content-view, 0)), rows: min(view, b.content), help: f.helpCovers()}
+}
+
+// overFooter draws the line over the footer of the Sessions view, from row
+// top, where it's under it: where the view's content, content rows tall,
+// scrolls, view of them shown from the row offset, a scrollbar beside the
+// view, and what the rows out of view hold, as hidden counts the accounts
+// among them, where any is; else which windows hide from every panel, where
+// any does; else a rule.
+func (f Frame) overFooter(c *canvas, doc status.Document, now time.Time, top, content, view, offset int, hidden func(offset, view int) (int, int)) {
 	over := f.Height - 2
-	switch note := hiddenNote(doc, hiddenWindows(doc, now, f.Policy)); {
-	case content > view:
-		says := outOfView(hidden(offset, view)).fit(f.edge() - margin)
-		c.line((f.Width-says.width())/2, over, says)
+	if over < top {
+		return
+	}
+	if content > view {
 		scrollbar(c, f.Width-1, over-view, view, content, offset)
+	}
+	above, below := hidden(offset, view)
+	switch note := hiddenNote(doc, hiddenWindows(doc, now, f.Policy)); {
+	case content > view && above+below > 0:
+		says := outOfView(above, below).fit(f.edge() - margin)
+		c.line((f.Width-says.width())/2, over, says)
 	case len(note) > 0:
 		c.right(f.edge(), over, note.fit(f.edge()-margin))
 	default:
@@ -144,15 +159,34 @@ func (f Frame) sessionsRows(doc status.Document, now time.Time, top int) (conten
 	return f.layOutPlain(doc, now).content, max(f.Height-2-top, 0)
 }
 
-// Switchboard reports whether the frame shows doc at now as Sessions'
-// switchboard, whose cords what the request stream tells of travels, rather
-// than as a plain list, or another view.
-func (f Frame) Switchboard(doc status.Document, now time.Time) bool {
-	if f.View != Sessions || f.printed() {
-		return false
+// travelling is what moves of what travels the cords of the Sessions
+// switchboard of doc at now, on screen: a pulse running along a cord, or a
+// cord a move let go fading, frame by frame; and the shimmer down a cord as
+// its answer streams back, a step at a time. A call whose cord doesn't show,
+// scrolled out of view or under the help, or that has none, as of a session
+// the router hasn't listed, moves nothing, nor does the plain list.
+func (f Frame) travelling(doc status.Document, now time.Time) Motion {
+	top := f.top(doc)
+	b, ok := f.bayOf(doc, now, top)
+	if !ok {
+		return Motion{}
 	}
-	_, ok := f.bayOf(doc, now, f.above(newCanvas(f.Width, f.Height), doc, now))
-	return ok
+	s := f.sightOf(b, top)
+	var m Motion
+	for _, k := range b.cords {
+		c, ok := f.Traffic.call(k.plug)
+		if !ok || !c.Pulsing && c.Doing != Streaming || !k.shows(s, b.x) {
+			continue
+		}
+		m.Smooth = m.Smooth || c.Pulsing
+		m.Shimmer = m.Shimmer || c.Doing == Streaming
+	}
+	for _, l := range f.looseCords(doc, b, now) {
+		if l.fades && !f.gone(l.fade) && s.shows(b.x-l.cells, l.y, l.cells, 1) {
+			m.Smooth = true
+		}
+	}
+	return m
 }
 
 // bayOf lays the Sessions view of doc at now out as a switchboard under its
@@ -160,16 +194,25 @@ func (f Frame) Switchboard(doc status.Document, now time.Time) bool {
 // one account, every cord would end at the same jack; under cordsFrom
 // columns there's no room for cords; and where its cords bend more than its
 // columns hold. The lines are linesWide cells wide, with bars, from barsFrom
-// columns, else linesNarrow; at the frame's right, but a cell short of it
-// where the view scrolls, clear of the scrollbar.
+// columns, where the cords fit beside them, else linesNarrow; at the
+// frame's right, but a cell short of it where the view scrolls, clear of the
+// scrollbar.
 func (f Frame) bayOf(doc status.Document, now time.Time, top int) (bay, bool) {
 	if len(doc.Accounts) < 2 || f.Width < cordsFrom {
 		return bay{}, false
 	}
-	bars, width := f.Width >= barsFrom, linesNarrow
-	if bars {
-		width = linesWide
+	if f.Width >= barsFrom {
+		if b, ok := f.bayOfWidth(doc, now, top, linesWide, true); ok {
+			return b, true
+		}
 	}
+	return f.bayOfWidth(doc, now, top, linesNarrow, false)
+}
+
+// bayOfWidth lays the switchboard of doc at now out under its labels, on row
+// top, its lines width cells wide, with bars where bars is set, as bayOf
+// places them, reporting false where its cords don't fit.
+func (f Frame) bayOfWidth(doc status.Document, now time.Time, top, width int, bars bool) (bay, bool) {
 	view := f.sessionsView(top)
 	b, ok := f.layOutBay(doc, now, f.Width-width, width, bars, view)
 	if ok && b.content > view {
@@ -260,15 +303,23 @@ func (b bay) hidden(offset, view int) (above, below int) {
 }
 
 // groupsOf are the calls of doc's accounts, a group each, in their order:
-// the seats the router listed on each, in the order the calls keep, as
-// ordered has them; each a move the request stream told of has taken off
-// since a placeholder, and each it brought on after the rest, until the
-// router's sessions are listed again.
+// the seats the router listed on each, and those the request stream told of
+// a move bringing on, in the order the calls keep, as ordered has them; each
+// a move has taken off since a placeholder, until a listing of the router's
+// sessions shows it done.
 func (f Frame) groupsOf(doc status.Document) [][]callRow {
-	moves := latestMoves(f.Traffic.repatching())
+	repatching := f.Traffic.repatching()
+	moves := latestMoves(repatching)
 	groups := make([][]callRow, len(doc.Accounts))
 	for i, a := range doc.Accounts {
-		for _, s := range f.Order.ordered(a.ID, seatedOn(f.Sessions, a.ID)) {
+		listed := seatedOn(f.Sessions, a.ID)
+		var brought []seated
+		for _, m := range repatching {
+			if m.To == a.ID && moves[m.Seat] == m && !slices.ContainsFunc(listed, func(s seated) bool { return s.seat() == m.Seat }) {
+				brought = append(brought, f.movedIn(m))
+			}
+		}
+		for _, s := range f.Order.ordered(a.ID, listed, brought) {
 			r := callRow{seated: s}
 			if m, ok := moves[s.seat()]; ok && m.To != a.ID {
 				r.gone, r.to = true, m.To
@@ -276,19 +327,13 @@ func (f Frame) groupsOf(doc status.Document) [][]callRow {
 			groups[i] = append(groups[i], r)
 		}
 	}
-	for _, m := range f.Traffic.repatching() {
-		i := place(doc, m.To) - 1
-		if i < 0 || moves[m.Seat] != m || slices.ContainsFunc(groups[i], func(r callRow) bool { return r.seat() == m.Seat }) {
-			continue
-		}
-		groups[i] = append(groups[i], callRow{seated: f.movedIn(m)})
-	}
 	return groups
 }
 
-// movedIn is the seat the move m brought onto the account it went to, as the
-// router listed it before it moved, or, where it didn't, as the move tells of
-// it.
+// movedIn is the seat the move m brought onto the account it went to, put
+// there as it moved: as the router listed it before it moved, or, where it
+// didn't, as the move tells of it, its model named as the router names it
+// for any session it lists.
 func (f Frame) movedIn(m Move) seated {
 	for _, s := range f.Sessions {
 		if s.ID != m.Seat.Session {
@@ -296,12 +341,26 @@ func (f Frame) movedIn(m Move) seated {
 		}
 		for _, a := range s.Assignments {
 			if a.Model == m.Seat.Model {
-				a.Account = m.To
+				a.Account, a.AssignedAt = m.To, m.At
 				return seated{session: s, assignment: a}
 			}
 		}
 	}
-	return seated{session: status.Session{ID: m.Seat.Session}, assignment: status.Assignment{Model: m.Seat.Model, Account: m.To}}
+	a := status.Assignment{Model: m.Seat.Model, Family: f.familyOf(m.Seat.Model), Account: m.To, AssignedAt: m.At}
+	return seated{session: status.Session{ID: m.Seat.Session, Assignments: []status.Assignment{a}}, assignment: a}
+}
+
+// familyOf is the family the router names the model with the given id by,
+// as it lists any session of it: "" where it lists none.
+func (f Frame) familyOf(model string) string {
+	for _, s := range f.Sessions {
+		for _, a := range s.Assignments {
+			if a.Model == model && a.Family != "" {
+				return a.Family
+			}
+		}
+	}
+	return ""
 }
 
 // latestMoves are the newest of the moves of each seat, by the seat.
@@ -319,16 +378,14 @@ type Order map[string][]Seat
 
 // OrderOf is the order the calls of doc's accounts run in as the frame
 // draws them, for the watch to keep for the next look: each account's
-// seats, a move's placeholders left out, as their rows close up once the
-// router's sessions are listed again.
+// seats, a move's placeholders among them, which keep their rows until a
+// listing shows their moves done.
 func (f Frame) OrderOf(doc status.Document) Order {
 	order := make(Order)
 	for i, g := range f.groupsOf(doc) {
 		id := doc.Accounts[i].ID
 		for _, r := range g {
-			if !r.gone {
-				order[id] = append(order[id], r.seat())
-			}
+			order[id] = append(order[id], r.seat())
 		}
 	}
 	return order
@@ -337,8 +394,9 @@ func (f Frame) OrderOf(doc status.Document) Order {
 // ordered are the seats on the account with the given id in the order its
 // calls run, so each keeps its row look to look, however the router's
 // listing turns over: those the order has there first, in its order, closing
-// up over those gone, then the rest at the foot, as newestFirst has them.
-func (o Order) ordered(id string, seats []seated) []seated {
+// up over those gone; then the rest at the foot, those listed as newestFirst
+// has them, then those brought on by a move.
+func (o Order) ordered(id string, listed, brought []seated) []seated {
 	kept := o[id]
 	row := func(s seated) int {
 		if i := slices.Index(kept, s.seat()); i >= 0 {
@@ -346,7 +404,7 @@ func (o Order) ordered(id string, seats []seated) []seated {
 		}
 		return len(kept)
 	}
-	seats = newestFirst(seats)
+	seats := slices.Concat(newestFirst(listed), brought)
 	slices.SortStableFunc(seats, func(a, b seated) int { return cmp.Compare(row(a), row(b)) })
 	return seats
 }
@@ -391,13 +449,14 @@ func noCalls(doc status.Document) string {
 }
 
 // drawCall draws the call r of doc at now along its row: a placeholder's id,
-// faint, and where the move took it, as in "d28c  ↪ moved to side"; else its
-// session's id, bright and bold while busy; its model; when it was last
-// seen; and what its request is doing, as the request stream tells.
+// faint, and where the move took it, as in "d28c  ↪ moved to side", cut to
+// the calls' columns; else its session's id, bright and bold while busy; its
+// model; when it was last seen; and what its request is doing, as the
+// request stream tells.
 func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time) {
 	id := sessionID(r.session.ID)
 	if r.gone {
-		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + named(doc, r.to), goneInk}})
+		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + named(doc, r.to), goneInk}}.fit(plugAt-callsAt))
 		return
 	}
 	idInk := titleInk

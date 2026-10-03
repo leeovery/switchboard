@@ -396,10 +396,32 @@ func TestAnHourglassFallsFrameByFrameWhileItsAccountIsBusy(t *testing.T) {
 		h.fire(tm)
 	}
 
-	h.clock.now = start.Add(2 * time.Minute)
-	h.deliver(frameMsg{})
-	if h.model.framing {
+	tm, _ := h.pendingFrame()
+	tm.due = start.Add(2 * time.Minute)
+	h.fire(tm)
+	if _, ok := h.pendingFrame(); ok || h.model.framing {
 		t.Error("work idle a minute and more, the frames go on, want them to stop, its stream still")
+	}
+}
+
+func TestSandFallsAGrainAFrameWhereTheClockReadsALittleBehindTheirTimers(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, "claude-opus-5-5", "work", 10*time.Second)}
+	h.start()
+	h.settle()
+	h.press("g")
+	h.press("g")
+
+	for frame := range 6 {
+		tm, ok := h.pendingFrame()
+		if !ok {
+			t.Fatalf("after %d frames, none is armed, want work's sand falling on", frame)
+		}
+		before := h.view()
+		h.fireBehind(tm, 30*time.Microsecond)
+		if h.view() == before {
+			t.Fatalf("frame %d, due %s, drew the screen as it was\n%s\nwant work's stream fallen a grain", frame+1, tm.due.Format(time.StampMicro), before)
+		}
 	}
 }
 
@@ -412,8 +434,8 @@ func TestFallingSandIsDrawnAGrainAtATimeAndWhatMovesSmoothlyAtOnce(t *testing.T)
 	h.press("g")
 	h.press("g")
 
-	if frames := h.pendingFrames(); len(frames) != 1 || frames[0].delay != dashboard.FallStep-40*time.Millisecond {
-		t.Fatalf("with work's sand falling alone, %d frames are armed, the next %v on; want one, %v on, as its stream next falls a grain", len(frames), frames[0].delay, dashboard.FallStep-40*time.Millisecond)
+	if frames := h.pendingFrames(); len(frames) != 1 || frames[0].delay != dashboard.FallStep-40*time.Millisecond+stepSlack {
+		t.Fatalf("with work's sand falling alone, %d frames are armed, the next %v on; want one, %v on, just past when its stream next falls a grain", len(frames), frames[0].delay, dashboard.FallStep-40*time.Millisecond+stepSlack)
 	}
 
 	moved := routerDocument(three()...)
@@ -425,7 +447,7 @@ func TestFallingSandIsDrawnAGrainAtATimeAndWhatMovesSmoothlyAtOnce(t *testing.T)
 	}
 
 	h.framesUntil(h.clock.now.Add(easeFor + time.Second))
-	if frames := h.pendingFrames(); len(frames) != 1 || frames[0].delay > dashboard.FallStep {
+	if frames := h.pendingFrames(); len(frames) != 1 || frames[0].delay > dashboard.FallStep+stepSlack {
 		t.Errorf("the bar eased, %d frames are armed, want one, at the sand's pace again, the frame armed before the bar moved dropped", len(frames))
 	}
 }
@@ -454,6 +476,65 @@ func TestAnHourglassFallsAsLongAsTheStreamSaysItsAccountIsBusy(t *testing.T) {
 	h.framesUntil(past(70 * time.Second))
 	if h.model.framing || len(h.pendingFrames()) > 0 {
 		t.Error("over a minute since the stream told of d28c, frames still run, want work's sand still, its account idle")
+	}
+}
+
+func TestTheStreamIsReadWhileTheCardsDrawHourglasses(t *testing.T) {
+	g := tea.KeyPressMsg{Code: 'g', Text: "g"}
+	h := streamingHarness(t)
+
+	steps := []struct {
+		chart  dashboard.Chart
+		opened int
+		open   bool
+	}{
+		{chart: dashboard.BurnRate},
+		{chart: dashboard.Hourglass, opened: 1, open: true},
+		{chart: dashboard.Burndown, opened: 1},
+	}
+	for _, step := range steps {
+		h.keys(g)
+		open := h.opened() > 0 && !h.closed(h.opened())
+		if h.model.chart != step.chart || h.opened() != step.opened || open != step.open {
+			t.Errorf("drawing %q, the stream was opened %d times, the last open %v; want %q, opened %d times, open %v", h.model.chart, h.opened(), open, step.chart, step.opened, step.open)
+		}
+	}
+}
+
+func TestAnHourglassFallsThroughALongAnswer(t *testing.T) {
+	g := tea.KeyPressMsg{Code: 'g', Text: "g"}
+	h := streamingHarness(t)
+	h.keys(g, g)
+	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", time.Second))
+
+	h.framesUntil(past(3 * time.Minute))
+	if frames := h.pendingFrames(); len(frames) == 0 || !frames[0].due.After(past(3*time.Minute)) {
+		t.Error("three minutes into d28c's answer, no frame is armed, want work's sand falling while it streams")
+	}
+}
+
+func TestAnHourglassUnderTheHelpDrawsNoFrames(t *testing.T) {
+	g, help := tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: '?', Text: "?"}
+	tests := []struct {
+		name, busy string
+		want       bool
+	}{
+		{name: "work's, beside it", busy: "work", want: true},
+		{name: "personal's, under it", busy: "personal"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.source.sessions = []status.Session{sessionOn(idD28C, opus, tt.busy, 10*time.Second)}
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+			h.start()
+			h.settle()
+			h.keys(g, g, help)
+			h.framesUntil(h.clock.now.Add(time.Second))
+			if _, ok := h.pendingFrame(); ok != tt.want {
+				t.Errorf("the help open, a frame is armed: %v, want %v", ok, tt.want)
+			}
+		})
 	}
 }
 

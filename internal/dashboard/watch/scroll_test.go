@@ -118,6 +118,19 @@ func TestAScrollTheScreenNoLongerTakesIsDrawnAsFarAsItGoes(t *testing.T) {
 	}
 }
 
+func TestTheCardsScrollAsFarAsTheyreDrawnWhileTheBarsRise(t *testing.T) {
+	accounts := make([]status.Account, 12)
+	for i := range accounts {
+		accounts[i] = account(string(rune('a'+i)), "Account "+string(rune('A'+i)), session(0.1, 3*time.Hour), week(0.2), fableWeek(0.1))
+	}
+	h := newHarness(t, document(accounts...))
+	h.start()
+	now := h.model.now()
+	if got, want := h.model.scrolling(), h.model.frame(now).Scrolling(h.model.doc, now); got != want {
+		t.Errorf("as the bars rise from nothing, the cards scroll %+v, want %+v, as far as the cards drawn, Fable's bars among them, go", got, want)
+	}
+}
+
 func TestTheWheelDoesNothingWhileTheHelpIsOpen(t *testing.T) {
 	h := newHarness(t, twelve())
 	h.start()

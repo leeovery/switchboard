@@ -25,29 +25,37 @@ var (
 	shownTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSelection}, bold: true}
 )
 
-// title draws the title row, and returns the row under it: the dashboard's
-// name; the views as tabs, the one shown picked out, then tab's hint while
-// there's another view to move to; and at the right the date and the time
-// to the second, or the time alone where the date doesn't fit. On a phone,
-// the tabs take a row of their own, the hint at its right, and the time
-// stands alone, to the minute.
-func (f Frame) title(c *canvas, now time.Time) int {
+// title draws the title row, on the rows titleRows says it takes: the
+// dashboard's name; the views as tabs, the one shown picked out, then tab's
+// hint while there's another view to move to; and at the right the date and
+// the time to the second, or the time alone where the date doesn't fit. On a
+// phone, the tabs take a row of their own, the hint at its right, and the
+// time stands alone, to the minute.
+func (f Frame) title(c *canvas, now time.Time) {
 	end := c.line(margin, 0, pill)
 	if f.phone() {
 		f.clock(c, end, line{{now.Format("15:04"), secondaryInk}})
 		if len(f.Views) == 0 {
-			return 1
+			return
 		}
 		end = f.tabs(c, margin, 2, 0)
 		if len(f.Views) > 1 {
 			f.atRight(c, 2, end, hint)
 		}
-		return 3
+		return
 	}
 	if end = f.tabs(c, tabsAt, 0, 1); len(f.Views) > 1 {
 		end = c.line(end+1, 0, hint)
 	}
 	f.clock(c, end, line{{now.Format("Mon 2 Jan  "), mutedInk}, {now.Format("15:04:05"), secondaryInk}}, line{{now.Format("15:04:05"), secondaryInk}})
+}
+
+// titleRows is how many rows the title row takes: on a phone with views to
+// show, three, its tabs on the third; else one.
+func (f Frame) titleRows() int {
+	if f.phone() && len(f.Views) > 0 {
+		return 3
+	}
 	return 1
 }
 

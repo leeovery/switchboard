@@ -358,8 +358,11 @@ type keyListing struct {
 // while the router answers, of more than one account, the digits of their
 // places, a and m; r; t, in colour; and ? and q, always. The footer leaves
 // s, j and k, r and t behind ?. With a session picked out, the keys are as
-// picking says.
+// picking says; and while the theme picker is open, they're its own alone.
 func (m Model) listings() []keyListing {
+	if m.picker.open {
+		return m.picker.keys()
+	}
 	cards, scrolled := m.view == dashboard.Accounts, m.scrolled()
 	listed := []keyListing{
 		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},
@@ -397,16 +400,16 @@ func (m Model) scrolled() string {
 }
 
 // wKey is w as the view shown has it: in Runway, switching between the day
-// and the week, the footer saying which it shows; in Accounts, cycling the
-// window every card features, the footer saying which; and elsewhere,
-// nothing.
+// and the week, the footer saying which it shows; in Accounts, once a
+// document has been read, as it does nothing before, cycling the window
+// every card features, the footer saying which; and elsewhere, nothing.
 func (m Model) wKey() keyListing {
 	if m.view == dashboard.Runway {
 		span := m.span.Name()
 		return keyListing{key: "w", footer: "window: " + span, help: "switch between the day and the week, now the " + span, works: true}
 	}
 	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
-	return keyListing{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: m.view == dashboard.Accounts}
+	return keyListing{key: "w", footer: "window: " + window, help: "cycle the window every card features, now " + window, works: m.view == dashboard.Accounts && !m.updated.IsZero()}
 }
 
 // picking are the keys there are with a session picked out: first those that

@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Readings of an account whose quota needs using soon, and one whose can
@@ -319,6 +320,26 @@ func TestChoosingRemembersTheSession(t *testing.T) {
 	}
 }
 
+func TestASessionStartedByARequestThatStuckIsToldOfAsItsAssignmentSays(t *testing.T) {
+	r := newTestRouter(t, at(start), &stubProber{readings: map[string]quota.Probe{
+		workToken: probed(nil, session, soonWeek),
+		sideToken: probed(nil, session, laterWeek),
+	}})
+	choose(t.Context(), r, Request{ID: "first", Session: "one", Model: opus, Client: "work"})
+	// The session's next request, chosen while its first is out, stays where
+	// the first went, and is answered first.
+	next := Request{ID: "next", Session: "one", Model: opus, Client: "work"}
+	c := choose(t.Context(), r, next)
+	if c.Account != "work" || c.Reason != reasonSticky {
+		t.Fatalf("the next request went to %s (%s), want work, sticking with the first", c.Account, c.Reason)
+	}
+	r.proxy.chooser.Answered(next, c.Account, c.Reason)
+
+	if got := r.recent.events(); len(got) != 1 || got[0].Kind != status.EventStarted || got[0].Account != "work" || got[0].Reason != reasonNew {
+		t.Errorf("events() = %+v, want one started on work, as new: why its assignment went there", got)
+	}
+}
+
 func TestANewSessionIsRememberedOnceItsAnswered(t *testing.T) {
 	forgot := []string{"level=DEBUG", `msg="forgot a new session whose request went unanswered"`, "session=one", "model=" + opus}
 	tests := []struct {
@@ -497,7 +518,7 @@ func TestAChoiceLeavesTheAssignmentAnotherRequestMadeSinceItLooked(t *testing.T)
 	if got := r.sessions.lookup(k).current; got != want {
 		t.Errorf("the session is assigned %+v, want %+v: the move stands", got, want)
 	}
-	wantEvents := []Event{Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true}}
+	wantEvents := []Event{Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit"}}
 	if !reflect.DeepEqual(heard, wantEvents) {
 		t.Errorf("events = %+v, want %+v alone", heard, wantEvents)
 	}
@@ -576,5 +597,79 @@ func TestMovesAreLogged(t *testing.T) {
 	choose(t.Context(), r, Request{Session: "0b5c6f2e-7d41", Model: opus, Pin: "side", Client: "work"})
 	if moves := slices.DeleteFunc(log.Lines(), func(line string) bool { return !strings.Contains(line, "msg=moved") }); len(moves) != 1 {
 		t.Errorf("log reads\n%s\nwant one move alone, for the request that moved", log)
+	}
+}
+
+func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
+	// fableAlone has work reach a limit in the Fable week, which holds back
+	// Fable's requests alone.
+	fableAlone := func(s *state) {
+		s.learn(fable, []quota.Window{fableWeek})
+		s.limit("work", []string{"7d_oi"}, start.Add(time.Hour), s.mark())
+	}
+	tests := []struct {
+		name string
+		// hold holds work back from the session's Opus request, which moves
+		// it to side.
+		hold      func(s *state)
+		wantLimit int
+	}{
+		{
+			name:      "its limit, in a window every model shares",
+			hold:      func(s *state) { s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) },
+			wantLimit: 1,
+		},
+		{
+			name: "the second of its limits, the first in the Fable week",
+			hold: func(s *state) {
+				fableAlone(s)
+				s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark())
+			},
+			wantLimit: 2,
+		},
+		{
+			name: "but a refusal of its token, while its limit holds back Fable alone",
+			hold: func(s *state) {
+				fableAlone(s)
+				s.refuse("work", http.StatusUnauthorized, someRequest)
+			},
+		},
+		{
+			name: "but its session spent, while its limit holds back Fable alone",
+			hold: func(s *state) {
+				fableAlone(s)
+				spent := session
+				spent.Utilization = 1
+				s.record("work", []quota.Window{spent, soonWeek}, s.mark())
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var heard []Event
+			r, err := New(Config{
+				Accounts: testConfigured,
+				Token:    testTokens.Read,
+				Upstream: "http://127.0.0.1:1",
+				Provider: claude.Provider{},
+				Prober:   &stubProber{},
+				Policy:   testPolicy,
+				Now:      at(start),
+				Events:   func(e Event) { heard = append(heard, e) },
+			})
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+			r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+			tt.hold(r.state)
+
+			choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"})
+			want := Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work has no room", Limit: tt.wantLimit}
+			if !reflect.DeepEqual(heard, []Event{want}) {
+				t.Errorf("events = %+v, want %+v: the move naming the limit that held its request back, if one did", heard, want)
+			}
+		})
 	}
 }

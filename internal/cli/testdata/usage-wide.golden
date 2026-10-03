@@ -7,8 +7,8 @@
 
  ╭─ 1 Work ──────────────────────── ◆ primary · ▲ next ─╮    ╭─ 2 Personal ─────────────────────────────────────────╮    ╭─ 3 Side ─────────────────────────────────────────────╮
  │                                                      │    │                                                      │    │                                                      │
- │  ■ Fable wk limit · back Sun 01:10 · other models…   │    │  ! can't read it · HTTP 401 · Invalid bearer token   │    │  ! can't read it · HTTP 401 · Invalid bearer token   │
- │                                                      │    │                                                      │    │                                                      │
+ │  ■ Fable wk limit · back Sun 01:10 · other models    │    │  ! can't read it · HTTP 401 · Invalid bearer token   │    │  ! can't read it · HTTP 401 · Invalid bearer token   │
+ │  still come here                                     │    │                                                      │    │                                                      │
  │  ▄█  █▀█ █▀█ ▀ █    FABLE WEEK  7-day window         │    │                                                      │    │                                                      │
  │   █  █ █ █ █ ▄▀     limit reached                    │    │                                                      │    │                                                      │
  │  ▀▀▀ ▀▀▀ ▀▀▀ ▀ ▀    its window resets Sun 01:10      │    │                                                      │    │                                                      │
@@ -17,7 +17,7 @@
  │             │                                        │    │                                                      │    │                                                      │
  │             │      no history yet                    │    │                                                      │    │                                                      │
  │  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁  │    │                                                      │    │                                                      │
- │         ╵Mon   ╵Tue   ╵Wed   ╵Thu   ╵Fri   ╵Sat      │    │                                                      │    │                                                      │
+ │        ╵Mon   ╵Tue    ╵Wed   ╵Thu   ╵Fri   ╵Sat   ╵  │    │                                                      │    │                                                      │
  │                                                      │    │                                                      │    │                                                      │
  │  Session  ┃████▌░░░░░░░░░░░░░░░░╎░  23%              │    │                                                      │    │                                                      │
  │  Week     █████████┃████████████╎█  93% → out 14:34  │    │                                                      │    │                                                      │

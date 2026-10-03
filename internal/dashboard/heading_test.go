@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -57,6 +58,84 @@ func TestROUTERSaysHowTheRouterIs(t *testing.T) {
 				t.Errorf("ROUTER says %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestROUTERsLastLineAlwaysShowsARestartDue(t *testing.T) {
+	doc := func(healthy bool, reason string, restart bool, pin ...string) status.Document {
+		d := threeRouted()
+		d.Router = status.Health{Healthy: healthy, Reason: reason}
+		if restart {
+			d.Restart = status.Restart{Reason: "config changed", Since: now.UTC()}
+		}
+		d.Pin = status.Pin{Accounts: pin}
+		return d
+	}
+	reason := "6 of the 8 requests in the last 5 minutes failed"
+	inRow := []int{24, 24, 55}
+	tests := []struct {
+		name   string
+		doc    status.Document
+		lost   time.Time
+		widths []int
+		want   []string
+	}{
+		{
+			name: "a restart due, its routing folded onto its sessions' line", doc: doc(true, "", true, "work", "side"), widths: inRow,
+			want: []string{"● healthy", "5 sessions · pinned to…", "restart due (config changed)"},
+		},
+		{
+			name: "unhealthy, its reason last", doc: doc(false, reason, false, "work", "side"), widths: inRow,
+			want: []string{"● unhealthy", "5 sessions · pinned to…", reason},
+		},
+		{
+			name: "unhealthy with a restart due: its reason wrapping under how it is", doc: doc(false, reason, true), widths: inRow,
+			want: []string{"● unhealthy · 6 of the 8", "requests in the last 5…", "restart due (config changed)"},
+		},
+		{
+			name: "unhealthy with a restart due, in two rows: its sessions after its reason", doc: doc(false, reason, true), widths: []int{47, 47, 118},
+			want: []string{"● unhealthy · 6 of the 8 requests in the last 5", "minutes failed · 5 sessions · auto", "restart due (config changed)"},
+		},
+		{
+			name: "its last document on screen, unhealthy: its reason kept", doc: doc(false, reason, false), lost: now.Add(-2 * time.Minute), widths: inRow,
+			want: []string{"○ no router since 13:10", "5 sessions · auto", reason},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, l := range routerLines(tt.doc, tt.lost, now, tt.widths) {
+				got = append(got, l.plain())
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("ROUTER says %q, want %q", got, tt.want)
+			}
+		})
+	}
+	rows := frameOf(160, 40).Draw(doc(true, "", true, "work", "side"), now)
+	if got, want := rows[5], " restart due (config changed)"; !strings.HasPrefix(got, want) {
+		t.Errorf("ROUTER's last line reads %q, want it to start %q", got, want)
+	}
+}
+
+func TestCOMINGUPStartsClearOfTheRoomsSummed(t *testing.T) {
+	var accounts []status.Account
+	for i := range 12 {
+		accounts = append(accounts, readAccount(fmt.Sprintf("a%d", i), sessionOf(0.1, 3*time.Hour), weekOf(0.1, 4*day)))
+	}
+	doc := routerDoc("a0", 0, accounts...)
+	for _, width := range []int{160, 120} {
+		f := frameOf(width, 40)
+		c := newCanvas(f.Width, f.Height)
+		f.heading(c, doc, now, 2)
+		for _, row := range c.rows(Look{})[2 : 2+f.headingRows(len(doc.Accounts))] {
+			if !strings.Contains(row, roomGlyph) {
+				continue
+			}
+			if _, after, _ := strings.CutLast(row, "of 12"); !strings.HasPrefix(after, "  ") {
+				t.Errorf("at %d columns, ROOM LEFT and COMING UP read %q, want two blanks after the rooms summed", width, row)
+			}
+		}
 	}
 }
 
@@ -148,7 +227,7 @@ func TestNEWSESSIONSGOTOSaysWhere(t *testing.T) {
 	}
 }
 
-func TestOpenCountsTheAccountsNewSessionsCouldGoTo(t *testing.T) {
+func TestOpenCountsTheAccountsTheRouterChoosesANewSessionsAmong(t *testing.T) {
 	open := func(id string) status.Account { return readAccount(id, sessionOf(0.2, time.Hour), weekOf(0.3, 2*day)) }
 	atReserve := readAccount("held", sessionOf(0.2, time.Hour), weekOf(0.95, 2*day))
 	atReserve.Reserve = 0.1
@@ -161,25 +240,35 @@ func TestOpenCountsTheAccountsNewSessionsCouldGoTo(t *testing.T) {
 	refusedOpus.Refused = status.Refusal{Status: 403, Family: "opus", Until: now.Add(time.Hour)}
 	fableLimited := open("fable")
 	fableLimited.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: now.Add(time.Hour)}
+	unnamed := open("unnamed")
+	unnamed.Limit = status.Limit{Until: now.Add(time.Hour)}
+	pinned := func(d status.Document, ids ...string) status.Document {
+		d.Pin = status.Pin{Accounts: ids}
+		return d
+	}
 	tests := []struct {
 		name string
 		doc  status.Document
-		want int
+		want string
 	}{
-		{name: "the frames': one under pressure, one at its limit, one open", doc: threeRouted(), want: 1},
-		{name: "every one open, idle or held back for some models alone", doc: routerDoc("a", 0, open("a"), lapsed, refusedOpus, fableLimited), want: 4},
-		{name: "every one under pressure", doc: routerDoc("a", 0, pressedAccount("a"), pressedAccount("b")), want: 2},
-		{name: "none at its reserve, without its token or refused its every request", doc: routerDoc("a", 0, open("a"), atReserve, tokenless, refused), want: 1},
-		{name: "one at its reserve that the pin spends", doc: func() status.Document {
-			d := routerDoc("held", 0, open("a"), atReserve)
-			d.Pin = status.Pin{Accounts: []string{"held"}}
-			return d
-		}(), want: 2},
+		{name: "the frames': one under pressure, one at its limit, one open", doc: threeRouted(), want: "1 of 3 open"},
+		{name: "every one open, idle or held back for some models alone", doc: routerDoc("a", 0, open("a"), lapsed, refusedOpus, fableLimited), want: "4 of 4 open"},
+		{name: "every one under pressure", doc: routerDoc("a", 0, pressedAccount("a"), pressedAccount("b")), want: "2 of 2 open"},
+		{name: "none at its reserve, without its token or refused its every request", doc: routerDoc("a", 0, open("a"), atReserve, tokenless, refused), want: "1 of 4 open"},
+		{name: "none held back by a limit naming no window, its windows with room", doc: routerDoc("a", 0, open("a"), unnamed), want: "1 of 2 open"},
+		{name: "the pin's alone, its reserve spent", doc: pinned(routerDoc("held", 0, open("a"), atReserve), "held"), want: "1 of 2 open"},
+		{
+			name: "the pin's alone, under pressure, though others aren't",
+			doc:  pinned(routerDoc("a", 0, pressedAccount("a"), open("b"), open("c")), "a"),
+			want: "1 of 3 open",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := (Frame{Policy: claudeLike}).open(tt.doc, now); got != tt.want {
-				t.Errorf("open() = %d, want %d", got, tt.want)
+			c := newCanvas(30, 3)
+			(Frame{Policy: claudeLike}).sessionsSlot(c, tt.doc, now, 0, 0, 30)
+			if got := strings.TrimSpace(c.rows(Look{})[2]); got != tt.want {
+				t.Errorf("NEW SESSIONS GO TO says %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -297,8 +386,8 @@ func TestTheHeadingIsArrangedByWidth(t *testing.T) {
 			if f.phone() {
 				top = 4
 			}
-			end := f.heading(c, tt.doc, now, top)
-			rows := c.rows(Look{})[top:end]
+			f.heading(c, tt.doc, now, top)
+			rows := c.rows(Look{})[top : top+f.headingRows(len(tt.doc.Accounts))]
 			if !slices.Equal(rows, tt.want) {
 				t.Errorf("the heading is\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
 			}
@@ -309,8 +398,9 @@ func TestTheHeadingIsArrangedByWidth(t *testing.T) {
 func TestTheHeadingIsLabelsAloneBeforeAnythingIsRead(t *testing.T) {
 	f := frameOf(160, 40)
 	c := newCanvas(f.Width, f.Height)
-	if end := f.heading(c, status.Document{}, now, 2); end != 6 {
-		t.Errorf("heading() = %d, want 6: its rows kept", end)
+	f.heading(c, status.Document{}, now, 2)
+	if rows := f.headingRows(0); rows != 4 {
+		t.Errorf("headingRows() = %d, want 4: its rows kept", rows)
 	}
 	rows := c.rows(Look{})
 	if want := " ROUTER                   NEW SESSIONS GO TO              ROOM LEFT, IN ACCOUNTS                          COMING UP"; rows[2] != want {

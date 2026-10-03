@@ -345,12 +345,13 @@ before the moment drawn, then sets the clock to the moment, presses the fixture'
 then hands the model to Bubble Tea, which starts it reading nothing more. So there's no first
 paint to race, and nothing on screen moves until a key does.
 
-A key that shows Sessions, or flips a card, has the watch open the router's request stream: the
-fixture's tells of what has befallen its requests, each at its time before the moment drawn, then
-ends, as a router ends it. The watch keeps what it told, and asks for it again only once a timer
-fires, which none does, so what travels the cords stands where the moment puts it: a pulse as far
-along as the time since its request went says, a shimmer as many steps on as the time since its
-answer's first byte. That's how a storyboard's frame is brought to its point in the animation.
+A key that shows Sessions, flips a card, or has the cards draw hourglasses, has the watch open the
+router's request stream: the fixture's tells of what has befallen its requests, each at its time
+before the moment drawn, then ends, as a router ends it. The watch keeps what it told, and asks
+for it again only once a timer fires, which none does, so what travels the cords stands where the
+moment puts it: a pulse as far along as the time since its request went says, a shimmer as many
+of the clock's steps on as have passed since its answer's first byte. That's how a storyboard's
+frame is brought to its point in the animation.
 
 ## The capture tool and its fixtures
 

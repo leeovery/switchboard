@@ -286,10 +286,17 @@ func newSelfWatching(t *testing.T, supervised bool) *selfWatching {
 			t.Fatal(err)
 		}
 	}
-	s.cfg.ConfigFile, s.cfg.Binary, s.cfg.Zone = router.Watch(s.config), router.Watch(s.binary), router.Watch(s.zone)
+	s.cfg = s.watched(s.cfg)
 	s.cfg.Supervised = supervised
 	s.cfg.WatchEvery = watchEvery
 	return s
+}
+
+// watched returns cfg with what the router is started from found as it
+// stands now, as switchboard serve finds it as it starts.
+func (s *selfWatching) watched(cfg router.Config) router.Config {
+	cfg.ConfigFile, cfg.Binary, cfg.Zone = router.Watch(s.config), router.Watch(s.binary), router.Watch(s.zone)
+	return cfg
 }
 
 // upgrade has the binary's link lead to its next version, as an upgrade

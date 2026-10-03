@@ -52,8 +52,14 @@ type usage struct {
 	// the family on the account, its token standing, which hold back the
 	// family's requests alone.
 	forbidden map[string]refusals
-	// limited is the limit the account last reached.
+	// limited is the limit the account last reached, which holds as the
+	// latest answer reaching it says.
 	limited limit
+	// reached are the limits the account has reached that may be in force,
+	// the newest last, each with every window it has been named in, and its
+	// identity, which a limit reached again in one of them keeps, though
+	// another has been reached since.
+	reached []limit
 	// reserved are the keys of the windows last found to have reached the
 	// account's reserve.
 	reserved []string
@@ -123,15 +129,16 @@ func (rs refusals) without(by string) refusals {
 }
 
 // limit is a limit an account reached: the windows the upstream named as
-// reached, if any, when the account is to have room again, and the moment it
-// was set. It holds back the requests those windows count, or every request
-// when they're none, whatever the account's windows read: a rejection they
-// don't show, or that a reading from before it outweighs, holds as well as
-// one they do.
+// reached, if any, when the account is to have room again, the moment it was
+// set, and its identity, which it keeps while it holds, reached again. It
+// holds back the requests those windows count, or every request when they're
+// none, whatever the account's windows read: a rejection they don't show, or
+// that a reading from before it outweighs, holds as well as one they do.
 type limit struct {
 	windows []string
 	until   time.Time
 	set     moment
+	id      int
 }
 
 // holds reports whether the limit holds back, at now, a request applies says
@@ -144,6 +151,15 @@ func (l limit) holds(now time.Time, applies func(key string) bool) bool {
 // inForce reports whether the limit is in force at now: it hasn't lifted.
 func (l limit) inForce(now time.Time) bool {
 	return now.Before(l.until)
+}
+
+// again reports whether a limit reached at now in windows is this one,
+// reached again: this one is in force, and they share a window, or either
+// names none, as a limit that names no window holds them all. A limit naming
+// only windows this one names none of is another.
+func (l limit) again(windows []string, now time.Time) bool {
+	return l.inForce(now) && (len(l.windows) == 0 || len(windows) == 0 ||
+		slices.ContainsFunc(windows, func(key string) bool { return slices.Contains(l.windows, key) }))
 }
 
 // liftedBy reports whether windows, read at a time off the answer to a request
@@ -200,6 +216,9 @@ type state struct {
 	// seen holds, by window key, the model families whose requests a window
 	// has been reported on.
 	seen map[string]map[string]bool
+	// limits counts the limits reached, each one's identity the count as it
+	// was reached, from 1 as the router starts.
+	limits int
 }
 
 func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, readOff func()) *state {
@@ -335,11 +354,16 @@ func (s *state) refuse(id string, status int, by string) time.Time {
 
 // tokenReplaced notes that the account with the given id goes out on another
 // token from now on: the upstream's refusals of the one before no longer hold
-// it back.
-func (s *state) tokenReplaced(id string) {
+// it back. It returns the news of them lifting, and reports false when none
+// was in force.
+func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
+	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].refused = nil
+	u := s.usage[id]
+	held := u.refused.inForce(now)
+	u.refused = nil
+	return RefusalLifted{Account: id}, held
 }
 
 // forbid notes that the upstream refused the account the request with the id
@@ -356,33 +380,41 @@ func (s *state) forbid(id, family string, status int, by string) time.Time {
 }
 
 // takeBack takes back, on every account, the refusals of the request with
-// the given id that hold back its model family, and reports whether there
-// were any. The refusals of an account's token stand, as they say something
-// of the account, and so do other requests' refusals.
-func (s *state) takeBack(by string) bool {
+// the given id that hold back its model family, and returns the news of
+// those in force lifting, in the order configured. The refusals of an
+// account's token stand, as they say something of the account, and so do
+// other requests' refusals.
+func (s *state) takeBack(by string) []RefusalLifted {
+	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	took := false
-	for _, u := range s.usage {
-		for family, rs := range u.forbidden {
+	var lifted []RefusalLifted
+	for _, a := range s.accounts {
+		u := s.usage[a.ID]
+		for _, family := range slices.Sorted(maps.Keys(u.forbidden)) {
+			rs := u.forbidden[family]
 			kept := rs.without(by)
-			took = took || len(kept) < len(rs)
+			if slices.ContainsFunc(rs, func(r refusal) bool { return r.by == by && r.inForce(now) }) {
+				lifted = append(lifted, RefusalLifted{Account: a.ID, Family: family, Request: by})
+			}
 			u.forbidden[family] = kept
 		}
 	}
-	return took
+	return lifted
 }
 
 // limit notes that the account reached its limit, as the answer to a request
 // sent at sent says, in the windows named, if any, until until, or limitedFor
 // from now when that isn't to come, and returns the news of it. Reached while
-// the account's last limit is in force, it's that limit reached again, which
-// now holds as this answer says, the upstream's latest word: one that doesn't
-// say until when extends it. The answer to a request sent after it, showing
-// it lifted, lifts it sooner. It holds in the windows named but those reset by
-// hand since the request was sent, as sinceReset says, and when it named some
-// and none is left, it's no limit: it reports false, and the account is as it
-// was.
+// a limit the account reached is in force, in a window it has been named in,
+// it's that limit reached again, which keeps its identity; any other is a new
+// limit, with an identity of its own. Either way it holds from now as this
+// answer says, the upstream's latest word: one that doesn't say until when
+// extends a limit reached again. The answer to a request sent after it,
+// showing it lifted, lifts it sooner. It holds in the windows named but those
+// reset by hand since the request was sent, as sinceReset says, and when it
+// named some and none is left, it's no limit: it reports false, and the
+// account is as it was.
 func (s *state) limit(id string, windows []string, until time.Time, sent moment) (LimitReached, bool) {
 	now := s.now().UTC()
 	if !until.After(now) {
@@ -396,9 +428,66 @@ func (s *state) limit(id string, windows []string, until time.Time, sent moment)
 	if len(windows) > 0 && len(kept) == 0 {
 		return LimitReached{Account: id, Windows: slices.Clone(windows)}, false
 	}
-	again := u.limited.inForce(now)
-	u.limited = limit{windows: kept, until: until.UTC(), set: set}
-	return LimitReached{Account: id, Windows: slices.Clone(kept), Until: u.limited.until, Again: again}, true
+	identity, again := u.reachedAgain(kept, now)
+	if !again {
+		s.limits++
+		identity = s.limits
+	}
+	u.limited = limit{windows: kept, until: until.UTC(), set: set, id: identity}
+	u.noteReached(u.limited)
+	return LimitReached{Account: id, Windows: slices.Clone(kept), Until: u.limited.until, Limit: identity, Again: again}, true
+}
+
+// reachedAgain returns the identity of the newest limit the account reached
+// that a limit reached at now in windows is, reached again, as again judges,
+// reporting false when it's none of them.
+func (u *usage) reachedAgain(windows []string, now time.Time) (int, bool) {
+	u.reached = slices.DeleteFunc(u.reached, func(l limit) bool { return !l.inForce(now) })
+	for _, l := range slices.Backward(u.reached) {
+		if l.again(windows, now) {
+			return l.id, true
+		}
+	}
+	return 0, false
+}
+
+// noteReached notes l, the limit the account reached last, among those it
+// has reached: as a new one, or as the one with its identity, named in its
+// windows too, which lifts as l does.
+func (u *usage) noteReached(l limit) {
+	i := slices.IndexFunc(u.reached, func(r limit) bool { return r.id == l.id })
+	if i < 0 {
+		l.windows = slices.Clone(l.windows)
+		u.reached = append(u.reached, l)
+		return
+	}
+	r := &u.reached[i]
+	for _, key := range l.windows {
+		if !slices.Contains(r.windows, key) {
+			r.windows = append(r.windows, key)
+		}
+	}
+	r.until = l.until
+}
+
+// lift lifts the limit the account reached last, as it's seen to have lifted
+// before its time: a limit reached after is another.
+func (u *usage) lift() {
+	lifted := u.limited.id
+	u.reached = slices.DeleteFunc(u.reached, func(l limit) bool { return l.id == lifted })
+	u.limited = limit{}
+}
+
+// limitHolding returns the identity of the limit of the account with the
+// given id that holds back a request of model at now, or 0 when none does.
+func (s *state) limitHolding(id, model string, now time.Time) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.usage[id]
+	if !ok || !u.limited.holds(now, s.counting(model)) {
+		return 0
+	}
+	return u.limited.id
 }
 
 // sinceReset returns windows, those a limit reached as the answer to a request
@@ -512,7 +601,7 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 	if u.primeFailed(policy) {
 		retry = reprimeAfter
 	}
-	return later(at, u.probed.Add(retry)), true
+	return score.Later(at, u.probed.Add(retry)), true
 }
 
 // freed returns when, at now or after, nothing holds back a prime of the
@@ -523,10 +612,10 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 	at := now
 	if u.refused.inForce(now) {
-		at = later(at, u.refused.latest().until())
+		at = score.Later(at, u.refused.latest().until())
 	}
 	if u.limited.holds(now, policy.IsShared) {
-		at = later(at, u.limited.until)
+		at = score.Later(at, u.limited.until)
 	}
 	windows := u.current(policy, now)
 	for i, w := range windows {
@@ -535,26 +624,10 @@ func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 		case w.ResetsAt.IsZero():
 			return time.Time{}, false
 		default:
-			at = later(at, w.ResetsAt)
+			at = score.Later(at, w.ResetsAt)
 		}
 	}
 	return at, true
-}
-
-// later returns the later of two times.
-func later(a, b time.Time) time.Time {
-	if b.After(a) {
-		return b
-	}
-	return a
-}
-
-// earlier returns the earlier of two times.
-func earlier(a, b time.Time) time.Time {
-	if b.Before(a) {
-		return b
-	}
-	return a
 }
 
 // primeFailed reports whether the last probe of the account with the given id
@@ -716,7 +789,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 	}
 	u.updated, u.probeErr = at, ""
 	if u.limited.liftedBy(merged, at, sent) {
-		u.limited = limit{}
+		u.lift()
 	}
 	return changed, true
 }
@@ -742,7 +815,7 @@ func readsOtherwise(held, kept quota.Window) bool {
 // with success, shows it lifted, as admits says.
 func (u *usage) admitted(sent moment) {
 	if u.limited.admits(sent) {
-		u.limited = limit{}
+		u.lift()
 	}
 }
 
@@ -911,7 +984,7 @@ func (u *usage) status(a account, policy score.Policy, now time.Time) status.Acc
 	st.Failures = slices.Clone(u.failures)
 	st.Error = u.probeErr
 	if u.limited.inForce(now) {
-		st.Limit = status.Limit{Windows: slices.Clone(u.limited.windows), Until: u.limited.until}
+		st.Limit = status.Limit{ID: u.limited.id, Windows: slices.Clone(u.limited.windows), Until: u.limited.until}
 	}
 	st.Refused = u.refusedStatus(now)
 	return st

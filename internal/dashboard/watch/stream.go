@@ -57,10 +57,12 @@ type rejoinMsg struct {
 }
 
 // wantsStream reports whether the watch reads the router's request stream:
-// while Sessions shows, or the Accounts view with a card flipped, and the
-// router answers, unless it's from before the stream.
+// while Sessions shows, or the Accounts view with a card flipped, or its
+// cards drawing hourglasses, whose sand falls while the stream says their
+// accounts are busy; and the router answers, unless it's from before the
+// stream.
 func (m Model) wantsStream() bool {
-	shows := m.view == dashboard.Sessions || (m.view == dashboard.Accounts && len(m.flipped) > 0)
+	shows := m.view == dashboard.Sessions || m.view == dashboard.Accounts && (len(m.flipped) > 0 || m.chart == dashboard.Hourglass)
 	return shows && m.answering() && !m.stream.absent
 }
 
@@ -216,8 +218,9 @@ func rejoinWait(fails int) time.Duration {
 // answeredAgain takes in a look finding the router whose health check said
 // from: where it's another router than the one before, as one restarted is,
 // its stream is asked for at once, whether the last one's was due to be
-// asked for again, having failed to open, or gone without, the last router
-// being from before it.
+// asked for again, having failed to open, or ended, what it told of the
+// requests forgotten, as they went with its router; or gone without, the
+// last router being from before it.
 func (m Model) answeredAgain(from router.Health) Model {
 	switch {
 	case m.stream.absent && !from.Same(m.stream.absentOf):
@@ -225,6 +228,7 @@ func (m Model) answeredAgain(from router.Health) Model {
 	case m.stream.rejoining && m.news.another(from):
 		m.stream.rejoining, m.stream.fails = false, 0
 		m.stream.gen++
+		m.traffic = m.traffic.afresh()
 	}
 	return m
 }

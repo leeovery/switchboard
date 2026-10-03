@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,9 +14,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -75,6 +78,10 @@ type exchange struct {
 	req     Request
 	account account
 	reason  string
+	// answered is the account whose answer the client has, when it isn't the
+	// one the request went out on last: the first whose limit the request
+	// reached, its answer held back, where every account after refused it.
+	answered string
 	// id is a routed request's own while it runs, which ties its lines in the
 	// log together, and its events in the request stream.
 	id      string
@@ -294,30 +301,43 @@ func (p *proxy) next(ctx context.Context, req Request) (account, Choice, bool) {
 // from the account given to the one the request now goes out on, as the
 // chooser made it choosing that account: none when from is "".
 func (p *proxy) moved(ex *exchange, from string) {
-	if from == "" {
-		return
+	if from != "" {
+		p.tellMoved(ex, from, ex.account.ID, ex.reason)
 	}
+}
+
+// tellMoved tells the request stream of the session of the routed request ex
+// moving, for its requests of the request's model, from the account with the
+// id from to the one with the id to, for the reason given: the event's
+// account is the one it moved to.
+func (p *proxy) tellMoved(ex *exchange, from, to, reason string) {
 	e := ex.event(StreamMoved)
-	e.From, e.To, e.Reason = from, ex.account.ID, ex.reason
+	e.Account, e.From, e.To, e.Reason = to, from, to, reason
 	p.stream.publish(e)
 }
 
 // forward sends a request upstream and its answer back, for ex: a routed one
-// as its replay has it, its answer counted for the request stream as it
-// passes.
+// as its replay has it, asking only for the encodings the router can count
+// an answer in, its answer counted for the request stream as it passes.
 func (p *proxy) forward(w http.ResponseWriter, r *http.Request, ex *exchange) {
 	transport := p.transport
+	rewrite := p.rewrite
 	if ex.routed() {
 		transport = &replay{p: p, ex: ex}
+		rewrite = func(pr *httputil.ProxyRequest) {
+			p.rewrite(pr)
+			countable(pr.Out.Header)
+		}
 	}
 	rp := &httputil.ReverseProxy{
-		Rewrite:       p.rewrite,
+		Rewrite:       rewrite,
 		Transport:     transport,
 		FlushInterval: -1,
 		ErrorLog:      p.errorLog,
 		ModifyResponse: func(resp *http.Response) error {
 			ex.status = resp.StatusCode
 			if ex.routed() {
+				p.answered(ex)
 				p.count(ex, resp)
 			}
 			return nil
@@ -335,6 +355,38 @@ func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(p.upstream)
 	pr.Out.Header.Del(PinHeader)
+}
+
+// countable narrows the encodings a request's Accept-Encoding offers to
+// those the router can read a copy of an answer in, to count it, in the
+// order the client gave them: gzip, deflate and identity. With none of those
+// offered, it asks for identity. A request that offers none at all is left
+// so: Go's transport then asks for gzip itself, and decodes the answer.
+func countable(h http.Header) {
+	offered := h.Values("Accept-Encoding")
+	if len(offered) == 0 {
+		return
+	}
+	var kept []string
+	for _, value := range offered {
+		for coding := range strings.SplitSeq(value, ",") {
+			name, _, _ := strings.Cut(coding, ";")
+			switch strings.ToLower(strings.TrimSpace(name)) {
+			case "gzip", "x-gzip", "deflate", "identity":
+				kept = append(kept, strings.TrimSpace(coding))
+			}
+		}
+	}
+	h.Set("Accept-Encoding", cmp.Or(strings.Join(kept, ", "), "identity"))
+}
+
+// answered notes that a routed request's answer has come, with its status:
+// one of success tells the chooser, which tells of the request's session as
+// started, the first time, on the account that answered.
+func (p *proxy) answered(ex *exchange) {
+	if ex.succeeded() {
+		p.chooser.Answered(ex.req, ex.account.ID, ex.reason)
+	}
 }
 
 // refusedError is the upstream refusing a routed request on the account it
@@ -393,17 +445,12 @@ func (ex *exchange) identity(r *http.Request) []any {
 
 // done notes a routed request once it's done: in the log, in the request
 // stream, once it went upstream, and, once it was answered, in the router's
-// health. A new session is remembered once its request is answered with
-// success, and told of as started; one whose request wasn't, the chooser
-// forgets.
+// health. A new session whose request wasn't answered with success, the
+// chooser forgets, unless another request of it has been routed since.
 func (p *proxy) done(r *http.Request, ex *exchange) {
 	p.logRouted(r, ex)
 	p.ended(ex)
-	switch {
-	case !ex.newSession:
-	case ex.succeeded():
-		p.emit(SessionStarted{Session: ex.req.Session, Model: ex.req.Model, Account: ex.account.ID, Reason: ex.reason})
-	default:
+	if ex.newSession && !ex.succeeded() {
 		p.chooser.Forget(ex.req)
 	}
 	if ex.status != 0 {
@@ -428,17 +475,35 @@ func (p *proxy) ended(ex *exchange) {
 }
 
 // event returns the request stream's event of the kind given of a routed
-// request, as it stands.
+// request, as it stands: on the account whose answer the client has, once
+// it has one, its session and model cut short where they run too long.
 func (ex *exchange) event(kind string) StreamEvent {
 	return StreamEvent{
 		Kind:    kind,
 		Request: ex.id,
 		Attempt: ex.attempts,
-		Session: ex.req.Session,
-		Model:   ex.req.Model,
-		Account: ex.account.ID,
+		Session: bounded(ex.req.Session),
+		Model:   bounded(ex.req.Model),
+		Account: cmp.Or(ex.answered, ex.account.ID),
 		Check:   ex.req.Check,
 	}
+}
+
+// boundedMost is how many bytes of a session's id or a model's an event
+// gives, at most: Claude Code's are a few dozen, and a request can send one
+// as long as its header or body runs to.
+const boundedMost = 200
+
+// bounded is s cut to boundedMost bytes at most, at the end of a character.
+func bounded(s string) string {
+	if len(s) <= boundedMost {
+		return s
+	}
+	cut := boundedMost
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // logRouted notes a routed request once it's done, how many times it went

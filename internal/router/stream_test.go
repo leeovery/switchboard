@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -16,13 +17,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
 func TestClientStream(t *testing.T) {
 	texts := []string{"Hello, ", "world"}
-	up := newUpstream(t, answerStreamed(router.AnswerPieces(texts...)...))
+	up := newUpstream(t, answerStreamed(claudetest.AnswerPieces(texts...)...))
 	rt := newRouter(t, up.URL)
 	ctx, stop := context.WithTimeout(t.Context(), 10*time.Second)
 	defer stop()
@@ -48,7 +50,7 @@ func TestClientStream(t *testing.T) {
 	// client's own.
 	request := router.StreamEvent{At: now, Request: got[0].Request, Attempt: 1, Session: sessionID, Model: opus, Account: "work"}
 	want := []router.StreamEvent{as(request, router.StreamSent), as(request, router.StreamFirst), as(request, router.StreamDone)}
-	want[2].Status, want[2].Chars, want[2].Tokens = http.StatusOK, router.AnswerChars(texts...), &router.AnswerTokens
+	want[2].Status, want[2].Chars, want[2].Tokens = http.StatusOK, claudetest.AnswerChars(texts...), &claudetest.AnswerTokens
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Stream() told of\n%+v\nwant\n%+v", got, want)
 	}
@@ -65,13 +67,9 @@ func TestClientStream(t *testing.T) {
 }
 
 func TestClientStreamOpensWithTheRequestsInFlight(t *testing.T) {
-	arrived, release := make(chan struct{}), make(chan struct{})
-	up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
-		close(arrived)
-		<-release
-		answerOK(w, r)
-	})
-	rt := newRouter(t, up.URL)
+	upstream, arrived, release := holdingUpstream(t)
+	defer release()
+	rt := newRouter(t, upstream)
 	client := router.NewClient(serveControl(t, rt))
 	answered := make(chan string, 1)
 	go func() { answered <- post(serveProxy(t, rt) + "/v1/messages") }()
@@ -82,13 +80,71 @@ func TestClientStreamOpensWithTheRequestsInFlight(t *testing.T) {
 		t.Fatalf("Stream() error = %v", err)
 	}
 	opening := <-events
-	close(release)
+	release()
 	want := router.StreamEvent{At: now, Kind: router.StreamInFlight, Request: opening.Request, Attempt: 1, Session: sessionID, Model: opus, Account: "work", SentAt: now}
 	if !reflect.DeepEqual(opening, want) {
 		t.Errorf("Stream() opened with %+v, want %+v", opening, want)
 	}
 	if got := <-answered; got != `200 {"type":"message"}` {
 		t.Errorf("the request in flight was answered %q, want 200 and its body", got)
+	}
+}
+
+func TestASessionOrModelTooLongIsCutShortAndCutsNoReaderOff(t *testing.T) {
+	up := newUpstream(t, answerOK)
+	rt := newRouter(t, up.URL)
+	ctx, stop := context.WithTimeout(t.Context(), 10*time.Second)
+	defer stop()
+	events, err := router.NewClient(serveControl(t, rt)).Stream(ctx)
+	if err != nil {
+		t.Fatalf("Stream() error = %v", err)
+	}
+	// A session's id of 90 KB, of characters of three bytes each, and a
+	// model's of 100 KB.
+	session, model := strings.Repeat("☃", 30_000), strings.Repeat("m", 100_000)
+	body := `{"model":"` + model + `","max_tokens":1,"messages":[{"role":"user","content":"hello"}]}`
+
+	readAll(t, send(t, http.MethodPost, serveProxy(t, rt)+"/v1/messages", with(claudeCode(workToken), "X-Claude-Code-Session-Id", session), strings.NewReader(body)))
+	cut := router.StreamEvent{Session: strings.Repeat("☃", 66), Model: strings.Repeat("m", 200)}
+	done := false
+	for e := range events {
+		if e.Session != cut.Session || e.Model != cut.Model {
+			t.Errorf("the stream told of %s's session and model as %d and %d bytes, want them cut to 200 bytes at most, at the end of a character", e.Kind, len(e.Session), len(e.Model))
+		}
+		if done = e.Kind == router.StreamDone; done {
+			break
+		}
+	}
+	if !done {
+		t.Fatal("the stream ended before telling of the request done, want it read on")
+	}
+	started := rt.Status().Events
+	if len(started) != 1 || started[0].Session != cut.Session || started[0].Model != cut.Model {
+		t.Errorf("the events are %+v, want the session started, its id and model cut short", started)
+	}
+}
+
+func TestClientStreamReadsALineLongerThanTheControlAPITakes(t *testing.T) {
+	path := filepath.Join(shortTempDir(t), "control.sock")
+	long := router.StreamEvent{Kind: router.StreamMoved, Request: "1", Reason: strings.Repeat("x", 100<<10)}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /stream", func(w http.ResponseWriter, _ *http.Request) {
+		lines := json.NewEncoder(w)
+		_ = lines.Encode(long)
+		_ = lines.Encode(router.StreamEvent{Kind: router.StreamDone, Request: "1"})
+	})
+	serveOn(t, path, mux)
+
+	events, err := router.NewClient(path).Stream(t.Context())
+	if err != nil {
+		t.Fatalf("Stream() error = %v", err)
+	}
+	var got []string
+	for e := range events {
+		got = append(got, e.Kind)
+	}
+	if want := []string{router.StreamMoved, router.StreamDone}; !slices.Equal(got, want) {
+		t.Errorf("Stream() told of %q, want %q: a line of 100 KiB read", got, want)
 	}
 }
 
@@ -104,7 +160,7 @@ func TestClientStreamOfARouterFromBeforeIt(t *testing.T) {
 }
 
 func TestTheRequestStreamLeavesTheAnswerAsItCame(t *testing.T) {
-	plain := strings.Join(router.AnswerPieces(slices.Repeat([]string{"some text of an answer "}, 2000)...), "")
+	plain := strings.Join(claudetest.AnswerPieces(slices.Repeat([]string{"some text of an answer "}, 2000)...), "")
 	tests := []struct {
 		name     string
 		encoding string
@@ -142,6 +198,48 @@ func TestTheRequestStreamLeavesTheAnswerAsItCame(t *testing.T) {
 					len(got), resp.Header.Get("Content-Type"), resp.Header.Get("Content-Encoding"), len(tt.body), "text/event-stream", tt.encoding)
 			}
 		})
+	}
+}
+
+func TestARoutedRequestAsksForAnAnswerTheRouterCanCount(t *testing.T) {
+	gzipped := gzipBody(t, strings.Join(claudetest.AnswerPieces("Hello"), ""))
+	up := newUpstream(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = w.Write(gzipped)
+	})
+	rt := newRouter(t, up.URL)
+	ctx, stop := context.WithTimeout(t.Context(), 10*time.Second)
+	defer stop()
+	events, err := router.NewClient(serveControl(t, rt)).Stream(ctx)
+	if err != nil {
+		t.Fatalf("Stream() error = %v", err)
+	}
+	proxy := serveProxy(t, rt)
+	offered := with(claudeCode(workToken), "Accept-Encoding", "gzip, deflate, br, zstd")
+
+	resp := send(t, http.MethodPost, proxy+"/v1/messages", offered, strings.NewReader(messages))
+	if got := readAll(t, resp); got != string(gzipped) || resp.Header.Get("Content-Encoding") != "gzip" {
+		t.Errorf("the client got %d bytes encoded %q, want the %d the upstream sent, encoded gzip", len(got), resp.Header.Get("Content-Encoding"), len(gzipped))
+	}
+	readAll(t, send(t, http.MethodPost, proxy+"/v1/files", offered, strings.NewReader("a file")))
+	sent := up.all()
+	if len(sent) != 2 {
+		t.Fatalf("%d requests reached the upstream, want 2", len(sent))
+	}
+	if got := sent[0].header.Get("Accept-Encoding"); got != "gzip, deflate" {
+		t.Errorf("the routed request went upstream accepting %q, want gzip, deflate: those of its encodings the router can count an answer in", got)
+	}
+	if got := sent[1].header.Get("Accept-Encoding"); got != "gzip, deflate, br, zstd" {
+		t.Errorf("the request passed through went upstream accepting %q, want it as it came", got)
+	}
+	for e := range events {
+		if e.Kind == router.StreamDone {
+			if e.Chars != claudetest.AnswerChars("Hello") {
+				t.Errorf("done told of %d characters, want the %d of the answer, counted", e.Chars, claudetest.AnswerChars("Hello"))
+			}
+			break
+		}
 	}
 }
 
@@ -184,7 +282,7 @@ func TestTheRequestStreamLeavesAConnectionSwitchedToAnotherProtocolAlone(t *test
 
 func TestAReaderThatNeverReadsIsDroppedAndHoldsNothingUp(t *testing.T) {
 	log := logstest.Capture(t)
-	pieces := router.AnswerPieces("Hello")
+	pieces := claudetest.AnswerPieces("Hello")
 	up := newUpstream(t, answerStreamed(pieces...))
 	rt := newRouter(t, up.URL)
 	control := serveControl(t, rt)
@@ -225,11 +323,13 @@ func TestAReaderThatNeverReadsIsDroppedAndHoldsNothingUp(t *testing.T) {
 	}
 }
 
-func TestARestartClosesTheRequestStreamFirst(t *testing.T) {
+func TestTheRequestStreamTellsOfTheRequestsARestartFinishes(t *testing.T) {
+	log := logstest.Capture(t)
 	s := newSelfWatching(t, true)
 	var arrived <-chan struct{}
 	var release func()
 	s.cfg.Upstream, arrived, release = holdingUpstream(t)
+	defer release()
 	execs := replacing(&s.cfg)
 	r := startRouter(t, s.cfg)
 	client := router.NewClient(router.SocketPath(s.cfg.StateDir))
@@ -247,23 +347,32 @@ func TestARestartClosesTheRequestStreamFirst(t *testing.T) {
 	if _, err := client.Restart(t.Context()); err != nil {
 		t.Fatalf("Restart() error = %v", err)
 	}
-	closed := time.After(5 * time.Second)
-	for open := true; open; {
-		select {
-		case _, open = <-events:
-		case <-closed:
-			t.Fatal("the stream is still open as the router restarts, want it closed first")
-		}
+	waitForLine(t, log, "level=INFO", "msg=stopping")
+	// A reader joining as the router finishes its requests is told of the
+	// one in flight.
+	joining, err := client.Stream(t.Context())
+	if err != nil {
+		t.Fatalf("Stream() as the router restarts: %v, want the requests it finishes", err)
 	}
-	select {
-	case got := <-answered:
-		t.Fatalf("the request was answered %q before the stream closed, want it still in flight", got)
-	default:
-	}
-	if _, err := client.Stream(t.Context()); err == nil || errors.Is(err, router.ErrNoStream) || !strings.Contains(err.Error(), "stopping") {
-		t.Errorf("Stream() as the router restarts: %v, want it refused, saying why", err)
+	if e := <-joining; e.Kind != router.StreamInFlight {
+		t.Errorf("a reader joining as the router restarts was told of %+v, want the request in flight", e)
 	}
 	release()
+	var told []string
+	closed := time.After(10 * time.Second)
+	for open := true; open; {
+		select {
+		case e, ok := <-events:
+			if open = ok; ok {
+				told = append(told, e.Kind)
+			}
+		case <-closed:
+			t.Fatal("the stream is still open once the router has finished its requests, want it closed as its control API goes")
+		}
+	}
+	if !slices.Contains(told, router.StreamDone) {
+		t.Errorf("as the router restarted, the stream told of %q, want the request it finished done, before it closed", told)
+	}
 	if got := <-answered; got != `200 {"type":"message"}` {
 		t.Errorf("the request in flight was answered %q, want 200 and its body", got)
 	}

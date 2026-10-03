@@ -62,6 +62,51 @@ func TestLoadSaysWhyAThemeDoesntLoad(t *testing.T) {
 	}
 }
 
+func TestLoadFindsAFileByItsNameExactly(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "Lake.theme"), file(nil))
+	lib := theme.NewLibrary(dir)
+
+	_, err := lib.Load("lake")
+	if p, ok := errors.AsType[*theme.Problem](err); !ok || p.Reason != "not found" {
+		t.Errorf("Load(lake) error = %v, want lake not found, as only Lake.theme is there, which List calls a bad name", err)
+	}
+	if got := listed(lib.List()); !slices.Contains(got, "Lake.theme: bad name") {
+		t.Errorf("List() lists %q, want Lake.theme named a bad name", got)
+	}
+}
+
+func TestListPassesOverDotfiles(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "lake.theme"), file(nil))
+	write(t, filepath.Join(dir, "._lake.theme"), "\x00\x05\x16\x07 the system's own\n")
+	symlink(t, "someone@machine.42:1790933400", filepath.Join(dir, ".#lake.theme"))
+	lib := theme.NewLibrary(dir)
+
+	if got, want := listed(lib.List()), []string{"amber", "exchange", "lake", "nord", "terminal", "tokyo-night", "tokyo-night-day"}; !slices.Equal(got, want) {
+		t.Errorf("List() lists %q, want %q, past the files whose names start with a dot", got, want)
+	}
+}
+
+func TestFileEntryListsAThemeFromAFileAsListDoes(t *testing.T) {
+	lake, err := theme.Parse("lake", []byte(file(nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileNord, err := theme.Parse("nord", []byte(file([]string{"canvas"}, "canvas = #000000")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	listing := theme.Listing{Entries: []theme.Entry{theme.FileEntry(lake), theme.FileEntry(fileNord)}}
+
+	if got, want := listed(listing), []string{"lake", "nord.theme: reserved name"}; !slices.Equal(got, want) {
+		t.Errorf("FileEntry() lists %q, want %q, as List lists a file taking a built-in's slug", got, want)
+	}
+	if listing.Entries[1].Slug != "" {
+		t.Errorf("a file taking a built-in's slug can be picked as %q, want it never picked", listing.Entries[1].Slug)
+	}
+}
+
 func TestListListsEveryThemeLoadedOrNot(t *testing.T) {
 	dir, elsewhere := t.TempDir(), t.TempDir()
 	write(t, filepath.Join(dir, "lake.theme"), file(nil))

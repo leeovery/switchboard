@@ -1,10 +1,12 @@
 package capture
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	_ "time/tzdata"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -69,11 +71,18 @@ func TestFramesAreDeterministic(t *testing.T) {
 }
 
 func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
+	// Sydney's clocks go forward on the Sunday of the fixtures' week.
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
-			utc, east := frameOf(t, name, time.UTC), frameOf(t, name, time.FixedZone("UTC+10", 10*60*60))
-			if utc != east {
-				t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn ten hours east\n%s", name, utc, east)
+			utc := frameOf(t, name, time.UTC)
+			for _, loc := range []*time.Location{time.FixedZone("UTC+10", 10*60*60), sydney} {
+				if frame := frameOf(t, name, loc); frame != utc {
+					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, utc, loc, frame)
+				}
 			}
 		})
 	}
@@ -152,6 +161,32 @@ func TestAFixtureIsDrawnInItsTheme(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAThemeFileTakingABuiltInsSlugIsListedAsReserved(t *testing.T) {
+	nord, _ := theme.Builtin("nord")
+	var file strings.Builder
+	for tok := theme.TextPrimary; tok <= theme.TextOnAttention; tok++ {
+		r, g, b, _ := nord.Colour(tok).RGBA()
+		if tok == theme.Canvas {
+			r, g, b = 0, 0, 0
+		}
+		fmt.Fprintf(&file, "%s = #%02X%02X%02X\n", tok, r>>8, g>>8, b>>8)
+	}
+	fileNord, err := theme.Parse("nord", []byte(file.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var named []string
+	for _, e := range listing(fileNord).Entries {
+		if strings.HasPrefix(e.Name, "nord") {
+			named = append(named, e.Name+" "+e.Slug)
+		}
+	}
+	if want := []string{"nord nord", "nord.theme "}; !slices.Equal(named, want) {
+		t.Errorf("the picker lists %q of nord, want %q: the built-in, and the file, which can't be picked", named, want)
 	}
 }
 
@@ -299,6 +334,56 @@ func TestTheStoryboardsPulsesAreWhereItsFramesHaveThem(t *testing.T) {
 			}
 		})
 	}
+}
+
+// everyKey is every key the dashboard takes but q, as the terminal sends
+// it.
+var everyKey = []tea.KeyPressMsg{
+	{Code: tea.KeyTab}, {Code: tea.KeyTab, Mod: tea.ModShift}, {Code: 'w', Text: "w"}, {Code: 'g', Text: "g"},
+	{Code: tea.KeyLeft}, {Code: tea.KeyRight}, {Code: tea.KeyUp}, {Code: tea.KeyDown},
+	{Code: tea.KeySpace, Text: " "}, {Code: 's', Text: "s"}, {Code: tea.KeyEscape}, {Code: tea.KeyEnter},
+	{Code: 'j', Text: "j"}, {Code: 'k', Text: "k"}, {Code: tea.KeyPgDown}, {Code: tea.KeyPgUp},
+	{Code: '1', Text: "1"}, {Code: '2', Text: "2"}, {Code: '3', Text: "3"}, {Code: 'a', Text: "a"}, {Code: 'm', Text: "m"},
+	{Code: 'r', Text: "r"}, {Code: 't', Text: "t"}, {Code: 'd', Text: "d"}, {Code: 'l', Text: "l"}, {Code: '?', Text: "?"},
+}
+
+// TestNoFixtureChartStyleKeyOrWidthPanics draws every fixture at every width
+// from 1 to 240, at its height, so with their -rate and -hourglass fixtures,
+// the cards of three, four and eight accounts draw each chart style at every
+// width; then from each fixture, every key in turn, at every fourth width.
+func TestNoFixtureChartStyleKeyOrWidthPanics(t *testing.T) {
+	for _, name := range Names() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := fixture(t, name)
+			m := f.settle(f.Size)
+			for width := 1; width <= 240; width++ {
+				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height})
+			}
+			m = f.settle(f.Size)
+			for i, width := 0, 1; width <= 240; i, width = i+1, width+4 {
+				key := everyKey[i%len(everyKey)]
+				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height}, key)
+			}
+		})
+	}
+}
+
+// drawnAt is m once the keys given are pressed and the terminal resized to
+// size, drawn, failing the test where pressing, resizing or drawing panics.
+func drawnAt(t *testing.T, m watch.Model, size watch.Size, keys ...tea.KeyPressMsg) watch.Model {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("at %d×%d, pressing %v: panicked: %v", size.Width, size.Height, keys, r)
+		}
+	}()
+	for _, key := range keys {
+		m = deliver(m, key)
+	}
+	m = deliver(m, tea.WindowSizeMsg{Width: size.Width, Height: size.Height})
+	m.View()
+	return m
 }
 
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {

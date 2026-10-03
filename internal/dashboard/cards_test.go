@@ -253,6 +253,258 @@ func TestACardsStateLeadsWithItsMarkInItsColour(t *testing.T) {
 	}
 }
 
+func TestACardWhoseUsageCantBeReadSaysWhyOverItsLastNumbers(t *testing.T) {
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+	doc := pressedWork()
+	work := &doc.Accounts[0]
+	work.Error = "HTTP 529 · Overloaded"
+	work.Failures = []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "timed out after 5s"}}
+	rows := cardOf(t, f, doc, "work", 50, densities[0])
+
+	if got, want := rows[2], "│  ! can't read it · HTTP 529 · Overloaded       │"; got != want {
+		t.Errorf("its state reads\n%s\nwant\n%s", got, want)
+	}
+	if !strings.Contains(rows[4], "SESSION") || !strings.Contains(rows[14], "Week     ") {
+		t.Errorf("drew\n%s\nwant its last numbers standing under its state", strings.Join(rows, "\n"))
+	}
+	if got, want := rows[15], "│  Fable wk can't read · timed out after 5s      │"; got != want {
+		t.Errorf("its unread window's row reads\n%s\nwant\n%s", got, want)
+	}
+	faces, shown := f.faces(doc, now)
+	c := drawnCard(t, f, doc, faces[0], len(shown))
+	if got := c.at(13, 15).ink; got != exhaustedInk {
+		t.Errorf("its unread window's row is in %+v, want state.destructive", got)
+	}
+}
+
+func TestAReasonTooLongForTheStateLineWrapsIntoTheRowsUnderIt(t *testing.T) {
+	reason := `Post "https://api.anthropic.com/v1/messages": dial tcp: lookup api.anthropic.com: no such host`
+	tests := []struct {
+		name string
+		// windows are those read of it before its usage couldn't be.
+		windows []quota.Window
+		density density
+		want    []string
+	}{
+		{
+			name: "nothing read of it: three lines, the last cut short", density: densities[0],
+			want: []string{
+				"│                                                │",
+				"│  ! can't read it · Post                        │",
+				`│  "https://api.anthropic.com/v1/messages":      │`,
+				"│  dial tcp: lookup api.anthropic.com: no such…  │",
+				"│                                                │",
+			},
+		},
+		{
+			name: "its last numbers standing: into the blank under it", density: densities[0],
+			windows: []quota.Window{sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*day)},
+			want: []string{
+				"│                                                │",
+				"│  ! can't read it · Post                        │",
+				`│  "https://api.anthropic.com/v1/messages": di…  │`,
+				"│  ▀▀█ █▀█ ▀ █     WEEK  7-day window            │",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := readAccount("work", tt.windows...)
+			a.Error = reason
+			if tt.windows == nil {
+				a.FetchedAt = time.Time{}
+			}
+			rows := cardOf(t, Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}, routerDoc("", 0, a), "work", 50, tt.density)
+			if got := rows[1 : 1+len(tt.want)]; !slices.Equal(got, tt.want) {
+				t.Errorf("drew\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}
+
+func TestAReadoutTellsWhenALimitWasReachedInItsWindowAlone(t *testing.T) {
+	session := sessionOf(1, time.Hour)
+	session.Status = quota.StatusRejected
+	limit := func(at time.Duration, windows ...string) status.Event {
+		return status.Event{ID: 1, At: now.Add(at).UTC(), Kind: status.EventLimit, Account: "work", Windows: windows}
+	}
+	tests := []struct {
+		name  string
+		event status.Event
+		want  string
+	}{
+		{name: "its window's, while it runs as now", event: limit(-30*time.Minute, "5h"), want: "limit reached at 12:42"},
+		{name: "a limit naming none", event: limit(-30 * time.Minute), want: "limit reached at 12:42"},
+		{name: "another window's", event: limit(-30*time.Minute, "7d_oi"), want: "limit reached"},
+		{name: "joined by its window's, from before it started", event: limit(-5*time.Hour, "7d_oi", "5h"), want: "limit reached"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := readAccount("work", session, weekOf(0.3, 4*day))
+			a.Limit = status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt}
+			doc := routerDoc("", 0, a)
+			doc.Events = []status.Event{tt.event}
+			f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+			faces, _ := f.faces(doc, now)
+			if got := text(faces[0].whereHeading(now)[0]); got != tt.want {
+				t.Errorf("its readout says %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTheLimitHoldingAWindowIsTheOneItsIdentityNames(t *testing.T) {
+	session := sessionOf(1, time.Hour)
+	session.Status = quota.StatusRejected
+	limit := func(id int, at time.Duration) status.Event {
+		return status.Event{ID: id, At: now.Add(at).UTC(), Kind: status.EventLimit, Account: "work", Limit: id}
+	}
+	tests := []struct {
+		name   string
+		limit  status.Limit
+		events []status.Event
+		// want is what the readout says, and says what Runway says of the
+		// stretch the limit holds the account back over, from since.
+		want, says string
+		since      time.Time
+	}{
+		{
+			name:  "its event, from before its window last started",
+			limit: status.Limit{ID: 4, Until: now.Add(48 * time.Hour).UTC()}, events: []status.Event{limit(4, -5*time.Hour-30*time.Minute)},
+			want: "limit reached at 07:42", says: "limit reached 07:42", since: now.Add(-5*time.Hour - 30*time.Minute),
+		},
+		{
+			name:  "none where its event isn't kept, another limit's in its window's span telling nothing",
+			limit: status.Limit{ID: 6, Windows: []string{"5h"}, Until: session.ResetsAt}, events: []status.Event{limit(3, -30*time.Minute)},
+			want: "limit reached", says: "limit reached",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := readAccount("work", session, weekOf(0.3, 4*day))
+			a.Limit = tt.limit
+			doc := routerDoc("", 0, a)
+			doc.Events = tt.events
+			f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+			faces, _ := f.faces(doc, now)
+			if got := text(faces[0].whereHeading(now)[0]); got != tt.want {
+				t.Errorf("its readout says %q, want %q", got, tt.want)
+			}
+			causes := f.causesOf(doc, a, standingOf(doc, a, session, now, f.Policy), now)
+			if len(causes) == 0 || causes[0].says != tt.says || !causes[0].from.Equal(tt.since) {
+				t.Errorf("Runway's causes are %+v, want the first to say %q from %v", causes, tt.says, tt.since)
+			}
+		})
+	}
+}
+
+func TestAReadoutsWordsKeepTheirTimeWhole(t *testing.T) {
+	reserving := readAccount("work", sessionOf(0.2, 3*time.Hour), weekOf(0.7, 4*day))
+	reserving.Reserve = 0.1
+	doc := routerDoc("", 0, reserving)
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Featured: "7d"}
+	faces, _ := f.faces(doc, now)
+	tests := []struct {
+		width int
+		want  string
+	}{
+		{width: 40, want: "→ reaches its reserve ~Tue 09:46"},
+		{width: 28, want: "→ out ~Tue 09:46"},
+		{width: 12, want: "→ out ~09:46"},
+		{width: 8, want: "→ out ~…"},
+	}
+	for _, tt := range tests {
+		if got := text(briefest(tt.width, line.fitHead, faces[0].whereHeading(now)...)); got != tt.want {
+			t.Errorf("%d cells wide, it says %q, want %q", tt.width, got, tt.want)
+		}
+	}
+	resets := faces[0].whenResets(now)
+	for _, tt := range []struct {
+		width int
+		want  string
+	}{
+		{width: 40, want: "resets Fri 13:12 · in 4d"},
+		{width: 20, want: "resets Fri 13:12"},
+	} {
+		if got := text(briefest(tt.width, line.fitWhole, resets...)); got != tt.want {
+			t.Errorf("%d cells wide, its reset reads %q, want %q: the countdown left off before the time is cut", tt.width, got, tt.want)
+		}
+	}
+}
+
+func TestAnIdleCardsStateKeepsItsPrimeWhole(t *testing.T) {
+	spare := readAccount("spare", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.05, 6*day))
+	spare.Lapsed = []string{"5h"}
+	doc := routerDoc("", 0, spare)
+	doc.Prime = status.Prime{Window: "5h", Slots: []status.Slot{{Account: "spare", At: "08:00", Next: clockAt(8, 0).Add(day).UTC()}}}
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+	faces, _ := f.faces(doc, now)
+	if got, want := faces[0].stateLines(now, 44, 1)[0].plain(), "○ idle · starts at its prime, Tue 08:00"; got != want {
+		t.Errorf("its state reads %q, want %q", got, want)
+	}
+	if got, want := faces[0].stateLines(now, 60, 1)[0].plain(), "○ idle · window starts at its prime, Tue 08:00"; got != want {
+		t.Errorf("with room, its state reads %q, want %q", got, want)
+	}
+}
+
+func TestAWindowLapsedAndHeldReadsAsHeld(t *testing.T) {
+	work := readAccount("work", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.6, 3*day))
+	work.Lapsed = []string{"5h"}
+	work.Limit = status.Limit{Until: now.Add(72 * time.Minute).UTC()}
+	doc := routerDoc("", 0, work)
+	doc.Prime = status.Prime{Window: "5h", Slots: []status.Slot{{Account: "work", At: "16:20", Next: now.Add(3 * time.Hour).UTC()}}}
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}
+	faces, _ := f.faces(doc, now)
+	c := newCanvas(44, bigRows)
+	f.readout(c, faces[0], now, 0, 0, 44)
+	rows := c.rows(Look{})
+	if !strings.HasSuffix(rows[1], "limit reached") || strings.Contains(rows[2], "prime") || strings.Contains(rows[2], "starts") {
+		t.Errorf("its readout reads\n%s\nwant its limit alone, nothing of its lapsed window starting", strings.Join(rows, "\n"))
+	}
+}
+
+func TestAReadoutSaysWhereItsResetIsntKnown(t *testing.T) {
+	session := sessionOf(0.3, 0)
+	session.ResetsAt = time.Time{}
+	doc := routerDoc("", 0, readAccount("work", session, weekOf(0.1, 4*day)))
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Featured: "5h"}
+	faces, _ := f.faces(doc, now)
+	c := newCanvas(44, bigRows)
+	f.readout(c, faces[0], now, 0, 0, 44)
+	if got := c.rows(Look{})[2]; !strings.HasSuffix(got, "reset time unknown") {
+		t.Errorf("its readout's last row reads %q, want \"reset time unknown\"", got)
+	}
+}
+
+func TestALongWindowLabelIsCutToLeaveItsBarRoom(t *testing.T) {
+	doc := routerDoc("", 0, readAccount("work", sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*day), windowOf("7d_x", "A model with a very long name week", 0.4, 4*day)))
+	shown := shownWindows(doc, now, claudeLike)
+	if got := labelWidth(doc, shown); got != barLine-useColumn-whitherColumn-leastBar {
+		t.Errorf("the labels take %d cells, want %d", got, barLine-useColumn-whitherColumn-leastBar)
+	}
+	rows := cardOf(t, Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Featured: "5h"}, doc, "work", 50, densities[0])
+	if got := rows[15]; !strings.Contains(got, "A model with a v…") || !strings.ContainsAny(got, "█▏▎▍▌▋▊▉░") {
+		t.Errorf("its row reads %q, want the label cut, and its bar", got)
+	}
+}
+
+func TestACardCountsTheSessionsActiveOnItAsTheRouterDoes(t *testing.T) {
+	f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Sessions: []status.Session{
+		{ID: "d28c5e17", Assignments: []status.Assignment{{Account: "work", LastSeen: now.Add(-10 * time.Minute).UTC()}}},
+		{ID: "7f3a0c94", Assignments: []status.Assignment{
+			{Account: "side", LastSeen: now.Add(-5 * time.Minute).UTC()},
+			{Account: "work", LastSeen: now.Add(-2 * time.Hour).UTC()},
+		}},
+	}}
+	faces, _ := f.faces(pressedWork(), now)
+	if fc := faces[0]; fc.sessions != 1 || len(fc.busy) != 1 {
+		t.Errorf("work counts %d sessions, %d dots, want 1 of each: one cold there", fc.sessions, len(fc.busy))
+	}
+	if got := f.Seats("work", now); len(got) != 1 {
+		t.Errorf("work's back has the seats %+v, want the one active there", got)
+	}
+}
+
 func TestACardsTopEdge(t *testing.T) {
 	a := readAccount("personal", sessionOf(0.2, time.Hour))
 	primary := with(a, func(a *status.Account) { a.Primary = true })
@@ -521,7 +773,7 @@ func TestAReadoutsRateIsMeasuredToWhenTheDocumentWasRead(t *testing.T) {
 	doc := pressedWork()
 	for _, later := range []time.Duration{0, 15 * time.Minute} {
 		faces, _ := f.faces(doc, now.Add(later))
-		if got := text(faces[0].whereHeading(now.Add(later))); !strings.HasSuffix(got, " at its last-30-min rate") {
+		if got := text(faces[0].whereHeading(now.Add(later))[0]); !strings.HasSuffix(got, " at its last-30-min rate") {
 			t.Errorf("%s after the document was read, it reads %q, want the last-30-min rate, the span the router measured over", later, got)
 		}
 	}

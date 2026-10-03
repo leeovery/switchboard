@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -214,15 +215,31 @@ func relight(c *canvas, p point, k ink) {
 	}
 }
 
-// hang draws the cords hanging loose from the free jacks of the bay b of doc
-// at now, ╌, dim, to their jacks' left: from each placeholder's jack, the
-// cord its move let go, looseCells long, fading as the move says, but where
-// a limit moved it; then from each account's other free jacks, in turn, a
-// stub for each session its limit moved off it, while the limit holds, the
-// first stubCells long and each a cell shorter, and the cords moves let go
-// once the router's sessions were listed again, fading.
-func (f Frame) hang(c *canvas, doc status.Document, b bay, now time.Time) {
+// shows reports whether any of the cord's cells, its jack in column jack,
+// shows on screen, as s has it.
+func (k cord) shows(s sight, jack int) bool {
+	return slices.ContainsFunc(k.path(jack), func(p point) bool { return s.shows(p.x, p.y, 1, 1) })
+}
+
+// looseCord is a cord hanging loose from the jack on row y, cells long,
+// faded so far, from 0 to 1, and fading where a move held by no limit let
+// it go.
+type looseCord struct {
+	y, cells int
+	fade     float64
+	fades    bool
+}
+
+// looseCords are the cords hanging loose from the free jacks of the bay b of
+// doc at now: from each placeholder's jack, the cord its move let go,
+// looseCells long, fading as the move says, but where a limit moved it; then
+// from each account's other free jacks, in turn, a stub for each session its
+// limit moved off it, while the limit holds, the first stubCells long and
+// each a cell shorter, and the cords moves let go once a listing of the
+// router's sessions showed them done, fading.
+func (f Frame) looseCords(doc status.Document, b bay, now time.Time) []looseCord {
 	moves := latestMoves(f.Traffic.repatching())
+	var loose []looseCord
 	for i, p := range b.panels {
 		plugged := make([]bool, p.rows)
 		for _, r := range b.calls {
@@ -231,7 +248,7 @@ func (f Frame) hang(c *canvas, doc status.Document, b bay, now time.Time) {
 			}
 			plugged[r.jack] = true
 			if m, ok := moves[r.seat()]; ok && r.gone {
-				f.hangLoose(c, b.x, p.top+1+r.jack, looseCells, m.Fade)
+				loose = append(loose, looseCord{y: p.top + 1 + r.jack, cells: looseCells, fade: m.Fade, fades: !m.Held})
 			}
 		}
 		var free []int
@@ -242,28 +259,31 @@ func (f Frame) hang(c *canvas, doc status.Document, b bay, now time.Time) {
 		}
 		stubs := stubbed(doc, p.account, now)
 		for k := 0; k < stubs && len(free) > 0; k++ {
-			f.hangLoose(c, b.x, p.top+1+free[0], max(stubCells-k, 1), 0)
+			loose = append(loose, looseCord{y: p.top + 1 + free[0], cells: max(stubCells-k, 1)})
 			free = free[1:]
 		}
 		for _, m := range f.Traffic.Moves {
 			if m.Listed && m.From == p.account.ID && len(free) > 0 {
-				f.hangLoose(c, b.x, p.top+1+free[0], looseCells, m.Fade)
+				loose = append(loose, looseCord{y: p.top + 1 + free[0], cells: looseCells, fade: m.Fade, fades: !m.Held})
 				free = free[1:]
 			}
 		}
 	}
+	return loose
 }
 
-// hangLoose draws a cord cells long hanging loose from the jack in column x
-// of row y, faded so far, from 0 to 1, as a move held by no limit fades it;
-// and once it's gone, as gone says, not at all.
-func (f Frame) hangLoose(c *canvas, x, y, cells int, fade float64) {
-	if f.gone(fade) {
-		return
+// hang draws the cords hanging loose from the jacks of the bay b of doc at
+// now, as looseCords has them, ╌, dim, to their jacks' left, each faded as
+// far as it has; and once it's gone, as gone says, not at all.
+func (f Frame) hang(c *canvas, doc status.Document, b bay, now time.Time) {
+	for _, l := range f.looseCords(doc, b, now) {
+		if f.gone(l.fade) {
+			continue
+		}
+		k := dimInk
+		k.fade = l.fade
+		c.text(b.x-l.cells, l.y, strings.Repeat(hangingGlyph, l.cells), k)
 	}
-	k := dimInk
-	k.fade = fade
-	c.text(x-cells, y, strings.Repeat(hangingGlyph, cells), k)
 }
 
 // gone reports whether what's faded so far, from 0 to 1, shows no more: once
@@ -273,9 +293,10 @@ func (f Frame) gone(fade float64) bool {
 }
 
 // stubbed is how many sessions doc's account a's limit moved off it, while
-// the limit holds at now, as the router told of it: none otherwise.
+// the limit holds at now, as its event, which limitOf finds, tells: none
+// otherwise.
 func stubbed(doc status.Document, a status.Account, now time.Time) int {
-	if e, ok := limitEvent(doc, a, now); ok {
+	if e, ok := limitOf(doc, a, now); ok {
 		return e.Count
 	}
 	return 0

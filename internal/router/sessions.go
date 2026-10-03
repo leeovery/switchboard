@@ -132,6 +132,10 @@ type sessions struct {
 	// of each that's only an assignment used again, which it keeps less
 	// often, both with s.mu held: they mustn't block, nor call s.
 	changed, usedAgain func()
+	// bound reports whether a model's thinking is bound to the account that
+	// produced it, which keeps a session that yielded its pin where it went
+	// once its cache is cold: no model's, until the router says.
+	bound func(model string) bool
 
 	mu          sync.Mutex
 	assignments map[key]assignment
@@ -139,6 +143,10 @@ type sessions struct {
 	// the request last noted on it first noted it, which forget puts back:
 	// none for a session that had none.
 	before map[key]assignment
+	// unstarted holds the sessions and models assigned afresh that are yet to
+	// be told of as started, as none of their requests has been answered
+	// with success: never one the state file kept, told of before.
+	unstarted map[key]bool
 	// own holds the pins sessions were given while they ran, by session id.
 	own map[string]ownPin
 	pin status.Pin
@@ -149,8 +157,10 @@ func newSessions(now func() time.Time, changed, usedAgain func()) *sessions {
 		now:         now,
 		changed:     changed,
 		usedAgain:   usedAgain,
+		bound:       func(string) bool { return false },
 		assignments: make(map[key]assignment),
 		before:      make(map[key]assignment),
+		unstarted:   make(map[key]bool),
 		own:         make(map[string]ownPin),
 	}
 }
@@ -179,6 +189,9 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 	}
 	if !had || found.by != req.ID {
 		s.noteBefore(k, found, had)
+	}
+	if !had {
+		s.unstarted[k] = true
 	}
 	a := found
 	if a.Account != d.account {
@@ -226,9 +239,24 @@ func (s *sessions) forget(req Request) (string, bool) {
 		s.assignments[k] = was
 	} else {
 		delete(s.assignments, k)
+		delete(s.unstarted, k)
 	}
 	s.changed()
 	return was.Account, true
+}
+
+// started notes that a request of the session and model k name was answered
+// with success, and returns their assignment, reporting true while it's yet
+// to be told of as started, which it is from then on.
+func (s *sessions) started(k key) (assignment, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.assignments[k]
+	if !ok || !s.unstarted[k] {
+		return assignment{}, false
+	}
+	delete(s.unstarted, k)
+	return a, true
 }
 
 // globalPin returns the global pin, zero when there's none.
@@ -285,13 +313,14 @@ func (s *sessions) pinSession(id, account string) bool {
 // session reports what the router says of the session with the given id,
 // but for the status of its account, and false for a session never seen.
 func (s *sessions) session(id string) (status.Session, bool) {
+	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entries, ok := s.entries()[id]
 	if !ok {
 		return status.Session{}, false
 	}
-	return s.report(id, entries), true
+	return s.report(id, entries, now), true
 }
 
 // running reports the sessions routed in the last hour at now, each as
@@ -302,7 +331,7 @@ func (s *sessions) running(now time.Time) []status.Session {
 	listed := []status.Session{}
 	for id, entries := range s.entries() {
 		if entries[0].warm(now) {
-			listed = append(listed, s.report(id, entries))
+			listed = append(listed, s.report(id, entries, now))
 		}
 	}
 	slices.SortFunc(listed, func(a, b status.Session) int {
@@ -346,6 +375,10 @@ func (s *sessions) prune(now time.Time) {
 		_, assigned := s.assignments[k]
 		return !assigned
 	})
+	maps.DeleteFunc(s.unstarted, func(k key, _ bool) bool {
+		_, assigned := s.assignments[k]
+		return !assigned
+	})
 	if forgotten := held - len(s.assignments); forgotten > 0 {
 		logger.Debug("forgot sessions unused for a week", "assignments", forgotten)
 		maps.DeleteFunc(s.own, func(id string, _ ownPin) bool { return !s.seen(id) })
@@ -368,25 +401,41 @@ func (s *sessions) entries() map[string][]entry {
 	return bySession
 }
 
-// report is what the router says of the session with the given id, whose
-// assignments are entries, the one used last first, but for the status of its
-// account. s.mu must be held.
-func (s *sessions) report(id string, entries []entry) status.Session {
+// report is what the router says at now of the session with the given id,
+// whose assignments are entries, the one used last first, but for the status
+// of its account. s.mu must be held.
+func (s *sessions) report(id string, entries []entry, now time.Time) status.Session {
+	pin, pinnedAt := s.pinOf(id, entries[0].assignment)
 	assignments := make([]status.Assignment, len(entries))
 	for i, e := range entries {
 		assignments[i] = e.export()
+		if pin != "" {
+			assignments[i].PinnedAt = pinnedAt
+		}
+		assignments[i].Yielded = e.yielded(pin, pinnedAt, now, s.bound(e.model))
 	}
-	return status.Session{ID: id, Pin: s.pinOf(id, entries[0].assignment), Assignments: assignments}
+	return status.Session{ID: id, Pin: pin, Assignments: assignments}
+}
+
+// yielded reports whether, at now, the session's own pin to the account pin
+// names, given at pinnedAt, zero for the one it was launched with, has
+// yielded, the session going elsewhere for want of room there, and the
+// session stays where it went, as a choice for it would keep it there: its
+// cache is warm, or its model's thinking is bound to the account, as bound
+// says. A pin given since the session was last routed sends it on.
+func (e entry) yielded(pin string, pinnedAt, now time.Time, bound bool) bool {
+	return pin != "" && e.Pin == pin && e.Account != pin && e.LastSeen.After(pinnedAt) && (e.warm(now) || bound)
 }
 
 // pinOf returns the own pin of the session with the given id, whose last-used
-// assignment is last: the one it was given while it ran, else the one its
-// requests last carried. s.mu must be held.
-func (s *sessions) pinOf(id string, last assignment) string {
+// assignment is last: the one it was given while it ran, and when, else the
+// one its requests last carried, given as it started, which zero stands for.
+// s.mu must be held.
+func (s *sessions) pinOf(id string, last assignment) (string, time.Time) {
 	if own, given := s.own[id]; given {
-		return own.Account
+		return own.Account, own.Since
 	}
-	return last.Pin
+	return last.Pin, time.Time{}
 }
 
 // clearOwn clears the own pin of every session that has one, the one it was
@@ -397,7 +446,7 @@ func (s *sessions) clearOwn() int {
 	cleared := ownPin{Since: s.now().UTC()}
 	n := 0
 	for id, entries := range s.entries() {
-		if s.pinOf(id, entries[0].assignment) != "" {
+		if pin, _ := s.pinOf(id, entries[0].assignment); pin != "" {
 			s.own[id] = cleared
 			n++
 		}

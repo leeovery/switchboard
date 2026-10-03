@@ -12,9 +12,9 @@ import (
 
 // switchboard's directories in a home, the directory its LaunchAgent goes in,
 // and Claude Code's config directory; the directory its themes go in, in its
-// config directory; the directory its token files go in, and its
-// preferences file, in its state directory; and the directory its skill goes
-// in, in Claude Code's config directory.
+// config directory; the directory its token files go in, in its state
+// directory; and the directory its skill goes in, in Claude Code's config
+// directory.
 var (
 	configDir       = filepath.Join(".config", "switchboard")
 	stateDir        = filepath.Join(".local", "state", "switchboard")
@@ -23,7 +23,6 @@ var (
 	claudeDir       = ".claude"
 	themesDir       = "themes"
 	tokensDir       = "tokens"
-	prefsFile       = "prefs.json"
 	skillDir        = filepath.Join("skills", "switchboard")
 )
 
@@ -64,11 +63,11 @@ func (ws watchers) changes() []string {
 // directory, which holds its claude link, by default in home, and wherever
 // XDG_DATA_HOME puts it; and what's named claude in each directory on PATH.
 // Nothing live writes the config, a theme, a LaunchAgent, the skill, a token
-// file or a claude link as it runs, nor the preferences file, but as a
-// dashboard's user picks a theme, so any change to one is a test's. A live
+// file or a claude link as it runs, so any change to one is a test's. A live
 // router writes the rest of its state as it runs, its logs, state.json and
-// readings history among it, so of that, only a state directory appearing is
-// a test's; and the OS sandbox denies a test any write there anyway.
+// readings history among it, and a live dashboard its preferences file, as
+// it's used, so of that, only a state directory appearing is a test's; and
+// the OS sandbox denies a test any write there anyway.
 func watchReal(home string, getenv func(string) string) watchers {
 	var ws watchers
 	for _, p := range slices.Concat(configPlaces(home, getenv), themesPlaces(home, getenv)) {
@@ -79,7 +78,7 @@ func watchReal(home string, getenv func(string) string) watchers {
 			ws = append(ws, absence{p})
 			continue
 		}
-		ws = append(ws, watchContents(p.in(tokensDir), nil, followed), watchContents(p.in(prefsFile), nil, followed))
+		ws = append(ws, watchContents(p.in(tokensDir), nil, followed))
 	}
 	if home != "" {
 		ws = append(ws, watchContents(inHome(home, launchAgentsDir), mentionsSwitchboard, followed))

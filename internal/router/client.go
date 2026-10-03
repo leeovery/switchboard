@@ -44,6 +44,10 @@ const (
 	clientTimeout = 5 * time.Second
 	// refreshTimeout bounds Refresh, which waits for the router's probes.
 	refreshTimeout = refreshWait + clientTimeout
+	// streamLineMost is the longest line of the request stream Stream reads:
+	// a router writes a few kilobytes at most, an event's session and model
+	// cut to 200 bytes each, so this leaves room for any field to come.
+	streamLineMost = 1 << 20
 )
 
 // Client asks a running router about itself, and tells it what to do, over
@@ -256,7 +260,7 @@ func (c *Client) openStream(ctx context.Context, cancel context.CancelFunc) (*ht
 // that isn't an event, or ctx ends.
 func readStream(ctx context.Context, body io.Reader, events chan<- StreamEvent) {
 	lines := bufio.NewScanner(body)
-	lines.Buffer(nil, maxControlBody)
+	lines.Buffer(nil, streamLineMost)
 	for lines.Scan() {
 		var e StreamEvent
 		if err := json.Unmarshal(lines.Bytes(), &e); err != nil {

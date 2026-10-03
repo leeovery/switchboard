@@ -30,8 +30,8 @@ func TestTheScreenWaitsForTheTerminalToSayWhatItsBackgroundIs(t *testing.T) {
 		t.Errorf("before the terminal says its background, the screen is %q on %v, want it blank, the background left as it is", got.Content, got.BackgroundColor)
 	}
 	tm, ok := h.pending(unansweredMsg{})
-	if !ok || tm.delay != answerWithin {
-		t.Fatalf("no wait armed for the terminal to say its background in %v", answerWithin)
+	if !ok || tm.delay != theme.AnswerWithin {
+		t.Fatalf("no wait armed for the terminal to say its background in %v", theme.AnswerWithin)
 	}
 	h.deliver(tea.BackgroundColorMsg{Color: darkBackground})
 	if got := h.view(); !strings.Contains(got, "╭─ 1 Work ") {
@@ -67,17 +67,122 @@ func TestTheThemeIsChosenByTheTerminalsBackground(t *testing.T) {
 	}
 }
 
-func TestALateAnswerChangesNothing(t *testing.T) {
-	h, _ := themedHarness(t, theme.Choice{})
-	h.start()
-	h.answer(nil)
+func TestALateAnswerIsTakenAsTheBackgroundFound(t *testing.T) {
+	tests := []struct {
+		name   string
+		answer color.Color
+		want   string
+	}{
+		{name: "the other half: the screen drawn in it", answer: lightBackground, want: "tokyo-night-day"},
+		{name: "the same half", answer: darkBackground, want: "nord"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := themedHarness(t, theme.Choice{})
+			h.start()
+			h.answer(nil)
+			h.deliver(tea.BackgroundColorMsg{Color: tt.answer})
+
+			if got := h.drawnIn(); got != tt.want {
+				t.Errorf("an answer after the dashboard was drawn has it drawn in %s, want %s", got, tt.want)
+			}
+			if got := hexOf(h.model.View().BackgroundColor); got != hexOf(h.model.showing.Colour(theme.Canvas)) {
+				t.Errorf("the terminal's background is set to %s, want the canvas of the theme it's drawn in", got)
+			}
+			var out strings.Builder
+			h.model.backdrop.putBack(&out)
+			if want := ansi.SetBackgroundColor(rgbHex(tt.answer)); out.String() != want {
+				t.Errorf("putting the background back writes %q, want %q, the one the terminal said, asked before the canvas was set", out.String(), want)
+			}
+		})
+	}
+}
+
+func TestOnlyTheAnswerToTheOneQuestionIsTaken(t *testing.T) {
+	h, _ := settledThemedHarness(t, theme.Choice{})
 	h.deliver(tea.BackgroundColorMsg{Color: lightBackground})
 
 	if got := h.drawnIn(); got != "nord" {
-		t.Errorf("an answer after the dashboard was drawn has it drawn in %s, want nord still: by then the terminal may say the canvas", got)
+		t.Errorf("a second report of the background has the screen drawn in %s, want nord still", got)
 	}
-	if h.model.backdrop.original != nil {
-		t.Errorf("the background to put back is %v, want none, an answer after the canvas was set being no telling what it was", h.model.backdrop.original)
+	if got := hexOf(h.model.backdrop.original); got != hexOf(darkBackground) {
+		t.Errorf("the background to put back is %s, want the first answer's, %s", got, hexOf(darkBackground))
+	}
+}
+
+func TestACanvasOfTheDashboardsOwnIsNeverSetBack(t *testing.T) {
+	nord, _ := theme.Builtin("nord")
+	day, _ := theme.Builtin("tokyo-night-day")
+	lake := lakeTheme(t)
+	tests := []struct {
+		name   string
+		choice theme.Choice
+		answer color.Color
+		want   string
+	}{
+		{name: "the dark default's", answer: nord.Colour(theme.Canvas), want: "nord"},
+		{name: "the light default's", answer: day.Colour(theme.Canvas), want: "tokyo-night-day"},
+		{name: "a built-in's not chosen", choice: theme.One("amber"), answer: day.Colour(theme.Canvas), want: "amber"},
+		{name: "the theme in force's", choice: theme.One("lake"), answer: lake.Colour(theme.Canvas), want: "lake"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, themes := themedHarness(t, tt.choice)
+			themes.listing.Entries = append(themes.listing.Entries, theme.Entry{Name: "lake", Slug: "lake", Theme: lake})
+			h.model.pair = themes.listing.Pair(tt.choice)
+			h.start()
+			h.answer(tt.answer)
+
+			if got := h.drawnIn(); got != tt.want {
+				t.Errorf("drawn in %s, want %s, the half of the pair as dark as the colour said", got, tt.want)
+			}
+			if h.model.backdrop.original != nil {
+				t.Errorf("the background to set back is %s, want none, the canvas maybe an exit's the dashboard couldn't catch", hexOf(h.model.backdrop.original))
+			}
+			var out strings.Builder
+			h.model.backdrop.putBack(&out)
+			if out.String() != ansi.ResetBackgroundColor {
+				t.Errorf("putting the background back writes %q, want it reset, %q", out.String(), ansi.ResetBackgroundColor)
+			}
+		})
+	}
+}
+
+func TestALightProfileLikeTokyoNightDaysCanvasIsDrawnLight(t *testing.T) {
+	day, _ := theme.Builtin("tokyo-night-day")
+	h, _ := themedHarness(t, theme.Choice{})
+	h.start()
+	h.answer(day.Colour(theme.Canvas))
+
+	if got := h.drawnIn(); got != "tokyo-night-day" {
+		t.Errorf("a light terminal whose background is tokyo-night-day's canvas is drawn in %s, want the light half, tokyo-night-day", got)
+	}
+}
+
+func TestATerminalThemeShownMidwayPutsBackTheBackgroundFound(t *testing.T) {
+	tests := []struct {
+		name   string
+		answer color.Color
+		want   string
+	}{
+		{name: "the terminal said its background: that, set again", answer: darkBackground, want: hexOf(darkBackground)},
+		{name: "the terminal didn't say: reset", want: "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, _ := themedHarness(t, theme.Choice{})
+			h.start()
+			h.answer(tt.answer)
+			h.typed("t")
+			h.typed("down")
+
+			if h.drawnIn() != theme.Terminal {
+				t.Fatalf("the cursor moved down from nord to %s, want terminal", h.drawnIn())
+			}
+			if got := hexOf(h.model.View().BackgroundColor); got != tt.want {
+				t.Errorf("shown the terminal's theme, the terminal's background is set to %s, want %s", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -138,7 +243,7 @@ func TestNoColour(t *testing.T) {
 	if !strings.Contains(view.Content, "\x1b[1m") {
 		t.Error("without colour, nothing is bold, want state told by bold where colour told it")
 	}
-	h.press("t")
+	h.typed("t")
 	if h.model.picker.open {
 		t.Error("without colour, t opened the theme picker, want it to do nothing")
 	}
@@ -150,7 +255,7 @@ func TestTOpensThePickerOverTheView(t *testing.T) {
 	if strings.Contains(h.footer(), "t themes") {
 		t.Errorf("the footer reads %q, want t left for the help to list", h.footer())
 	}
-	h.press("t")
+	h.typed("t")
 
 	view := h.view()
 	for _, want := range []string{"│ Themes", "│ ▌ nord", "● dark", "● light", "│ ⏎    set theme", "broken"} {
@@ -161,8 +266,8 @@ func TestTOpensThePickerOverTheView(t *testing.T) {
 	if !strings.Contains(view, "╭─ 1 Work ") {
 		t.Errorf("with the picker open, the screen reads\n%s\nwant the view beside it", view)
 	}
-	h.press("esc")
-	h.press("t")
+	h.typed("esc")
+	h.typed("t")
 	if themes.lists != 2 {
 		t.Errorf("the themes were listed %d times, want afresh each time the picker opens", themes.lists)
 	}
@@ -170,18 +275,18 @@ func TestTOpensThePickerOverTheView(t *testing.T) {
 
 func TestThePickerShowsEachThemeAsTheCursorReachesIt(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
-	h.press("t")
+	h.typed("t")
 
 	var reached []string
 	for range 7 {
-		h.press("down")
+		h.typed("down")
 		reached = append(reached, h.drawnIn())
 	}
 	if want := []string{"terminal", "tokyo-night", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day", "tokyo-night-day"}; !slices.Equal(reached, want) {
 		t.Errorf("moving down from nord, the screen is drawn in %q, want %q, stopping at the last", reached, want)
 	}
 	for range 7 {
-		h.press("up")
+		h.typed("up")
 	}
 	if got := h.drawnIn(); got != "amber" {
 		t.Errorf("moving up to the top, the screen is drawn in %s, want amber, past the broken theme", got)
@@ -193,10 +298,10 @@ func TestThePickerShowsEachThemeAsTheCursorReachesIt(t *testing.T) {
 
 func TestEnterSetsOneTheme(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
-	h.press("t")
-	h.press("up")
-	h.press("up")
-	h.press("enter")
+	h.typed("t")
+	h.typed("up")
+	h.typed("up")
+	h.typed("enter")
 
 	if want := []theme.Choice{theme.One("amber")}; !slices.Equal(themes.kept, want) {
 		t.Errorf("kept %+v, want %+v", themes.kept, want)
@@ -207,7 +312,7 @@ func TestEnterSetsOneTheme(t *testing.T) {
 	if view := h.view(); !strings.Contains(view, "▌ amber") || !strings.Contains(view, "●") || strings.Contains(view, "● dark") {
 		t.Errorf("the screen reads\n%s\nwant amber badged as the one theme, the pair's badges gone", view)
 	}
-	h.press("esc")
+	h.typed("esc")
 	if got := h.drawnIn(); got != "amber" {
 		t.Errorf("closed, the screen is drawn in %s, want amber, now in force", got)
 	}
@@ -215,11 +320,11 @@ func TestEnterSetsOneTheme(t *testing.T) {
 
 func TestDAndLSetTheHalvesOfThePair(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
-	h.press("t")
-	h.press("down")
-	h.press("d")
-	h.press("down")
-	h.press("l")
+	h.typed("t")
+	h.typed("down")
+	h.typed("d")
+	h.typed("down")
+	h.typed("l")
 
 	want := []theme.Choice{{Dark: "terminal"}, {Light: "tokyo-night", Dark: "terminal"}}
 	if !slices.Equal(themes.kept, want) {
@@ -228,7 +333,7 @@ func TestDAndLSetTheHalvesOfThePair(t *testing.T) {
 	if view := h.view(); !strings.Contains(view, "terminal") || !strings.Contains(view, "● dark") || !strings.Contains(view, "● light") {
 		t.Errorf("the screen reads\n%s\nwant the halves badged", view)
 	}
-	h.press("esc")
+	h.typed("esc")
 	if got := h.drawnIn(); got != "terminal" {
 		t.Errorf("closed on a dark terminal, the screen is drawn in %s, want the dark half, terminal", got)
 	}
@@ -248,16 +353,16 @@ func TestAHalfOverOneThemeAsksFirst(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h, themes := settledThemedHarness(t, theme.One("amber"))
-			h.press("t")
-			h.press("down")
-			h.press("down")
-			h.press("l")
+			h.typed("t")
+			h.typed("down")
+			h.typed("down")
+			h.typed("l")
 
 			if view := h.view(); !strings.Contains(view, "clear amber?  y / n") || !strings.Contains(view, "y    confirm") {
 				t.Errorf("setting a half over one theme, the screen reads\n%s\nwant it to ask first", view)
 			}
 			for _, key := range tt.answers {
-				h.press(key)
+				h.typed(key)
 			}
 			if !slices.Equal(themes.kept, tt.want) {
 				t.Errorf("kept %+v, want %+v", themes.kept, tt.want)
@@ -274,13 +379,13 @@ func TestAHalfOverOneThemeAsksFirst(t *testing.T) {
 
 func TestEscPutsBackTheThemeInForce(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{Dark: "exchange"})
-	h.press("t")
-	h.press("up")
-	h.press("up")
+	h.typed("t")
+	h.typed("up")
+	h.typed("up")
 	if got := h.drawnIn(); got == "exchange" {
 		t.Fatalf("moving the cursor left the screen in %s, want another theme previewed", got)
 	}
-	h.press("esc")
+	h.typed("esc")
 
 	if h.model.picker.open {
 		t.Error("esc left the picker open")
@@ -297,9 +402,9 @@ func TestAChoiceThatIsntKeptStandsAsItWas(t *testing.T) {
 	log := logstest.Capture(t)
 	h, themes := settledThemedHarness(t, theme.Choice{})
 	themes.err = errors.New("read-only file system")
-	h.press("t")
-	h.press("down")
-	h.press("enter")
+	h.typed("t")
+	h.typed("down")
+	h.typed("enter")
 
 	if view := h.view(); !strings.Contains(view, "⚠ not kept: see the log") {
 		t.Errorf("the screen reads\n%s\nwant the picker to say the choice wasn't kept", view)
@@ -310,18 +415,111 @@ func TestAChoiceThatIsntKeptStandsAsItWas(t *testing.T) {
 	if !log.Has("level=WARN", `msg="couldn't keep the theme chosen"`, `error="read-only file system"`) {
 		t.Errorf("the log reads\n%s\nwant it to say why the choice wasn't kept", log)
 	}
-	h.press("down")
+	h.typed("down")
 	if strings.Contains(h.view(), "not kept") {
 		t.Error("the note outlasted the next key")
 	}
 }
 
+func TestAPickIsSetInTheChoiceAsItStandsNow(t *testing.T) {
+	tests := []struct {
+		name string
+		// was is the choice the dashboard started with, and now what another
+		// dashboard kept since.
+		was, now theme.Choice
+		keys     []string
+		// asks is set where setting the half asks first to clear one theme.
+		asks bool
+		want []theme.Choice
+	}{
+		{
+			name: "a half, beside the other half kept since",
+			now:  theme.Choice{Light: "exchange"},
+			keys: []string{"t", "down", "d"},
+			want: []theme.Choice{{Light: "exchange", Dark: "terminal"}},
+		},
+		{
+			name: "a half, over one theme kept since, asking first",
+			now:  theme.One("amber"),
+			keys: []string{"t", "down", "l", "y"},
+			asks: true,
+			want: []theme.Choice{{Light: "terminal"}},
+		},
+		{
+			name: "a half, over one theme cleared since, asking nothing",
+			was:  theme.One("amber"),
+			now:  theme.Choice{Dark: "nord"},
+			keys: []string{"t", "down", "l"},
+			want: []theme.Choice{{Light: "exchange", Dark: "nord"}},
+		},
+		{
+			name: "one theme, the pair kept since cleared",
+			now:  theme.Choice{Light: "exchange", Dark: "amber"},
+			keys: []string{"t", "down", "enter"},
+			want: []theme.Choice{theme.One("terminal")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, themes := settledThemedHarness(t, tt.was)
+			themes.choice = tt.now
+			var asked bool
+			for _, key := range tt.keys {
+				h.typed(key)
+				asked = asked || strings.Contains(h.view(), "y / n")
+			}
+
+			if !slices.Equal(themes.kept, tt.want) {
+				t.Errorf("kept %+v, want %+v", themes.kept, tt.want)
+			}
+			if asked != tt.asks {
+				t.Errorf("asked to clear one theme: %v, want %v, as the choice kept stands now", asked, tt.asks)
+			}
+			if got, want := h.model.choice, themes.choice; got != want {
+				t.Errorf("drawn by %+v, want %+v, the choice as kept", got, want)
+			}
+		})
+	}
+}
+
+func TestThePickerReadsAndKeepsOutsideUpdate(t *testing.T) {
+	h, themes := settledThemedHarness(t, theme.Choice{})
+	for _, key := range []tea.KeyPressMsg{{Code: 't', Text: "t"}, {Code: tea.KeyDown}, {Code: tea.KeyEnter}} {
+		lists, kept := themes.lists, len(themes.kept)
+		next, cmd := h.model.Update(key)
+		if themes.lists != lists || len(themes.kept) != kept {
+			t.Errorf("%s listed the themes or kept a choice in Update, which blocks every key and frame till it's done, want it done in a command", key)
+		}
+		h.model = next.(Model)
+		h.deliver(h.run(cmd)...)
+	}
+	if want := []theme.Choice{theme.One("terminal")}; themes.lists != 1 || !slices.Equal(themes.kept, want) {
+		t.Errorf("listed %d times, kept %+v; want the themes listed once, and %+v kept, once each command ran", themes.lists, themes.kept, want)
+	}
+}
+
+func TestWhileThePickerIsOpenTheFooterListsItsKeysAlone(t *testing.T) {
+	h, _ := settledThemedHarness(t, theme.One("amber"))
+	h.typed("t")
+	if got, want := listedKeys(h.model.keys()), []string{"↑↓", "⏎", "d", "l", "esc", "q"}; !slices.Equal(got, want) {
+		t.Errorf("with the picker open, the footer lists %q, want the picker's keys alone, %q", got, want)
+	}
+	h.typed("down", "l")
+	if got, want := listedKeys(h.model.keys()), []string{"y", "n", "q"}; !slices.Equal(got, want) {
+		t.Errorf("with the picker asking, the footer lists %q, want its answers alone, %q", got, want)
+	}
+	h.typed("n", "esc")
+	if got := listedKeys(h.model.keys()); !slices.Contains(got, "?") {
+		t.Errorf("the picker closed, the footer lists %q, want the dashboard's keys back", got)
+	}
+}
+
 func TestThePickerTakesEveryKeyButQuit(t *testing.T) {
 	h, _ := settledThemedHarness(t, theme.Choice{})
-	h.press("t")
+	h.typed("t")
 	reads := len(h.source.asked)
 	for _, key := range []string{"r", "1", "a", "m", "t"} {
-		h.press(key)
+		h.typed(key)
 	}
 	if len(h.source.asked) != reads || len(h.source.orders) != 0 || !h.model.picker.open {
 		t.Errorf("with the picker open, keys read %d more times and gave orders %q, the picker open: %v; want them taken by the picker", len(h.source.asked)-reads, h.source.orders, h.model.picker.open)
@@ -336,15 +534,15 @@ func TestThePickerNeedsRoom(t *testing.T) {
 	for _, size := range []tea.WindowSizeMsg{{Width: 20, Height: 50}, {Width: 150, Height: 8}} {
 		h, _ := settledThemedHarness(t, theme.Choice{})
 		h.update(size)
-		h.press("t")
+		h.typed("t")
 		if h.model.picker.open || h.model.note != tooSmall {
 			t.Errorf("at %d×%d, t opened the picker: %v, the footer saying %q; want it closed, saying %q", size.Width, size.Height, h.model.picker.open, h.model.note, tooSmall)
 		}
 	}
 
 	h, _ := settledThemedHarness(t, theme.Choice{})
-	h.press("t")
-	h.press("down")
+	h.typed("t")
+	h.typed("down")
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 8})
 	if h.model.picker.open || h.drawnIn() != "nord" || !strings.Contains(h.footer(), tooSmall) {
 		t.Errorf("shrunk too short, the picker is open: %v, the screen in %s, the footer reading %q; want it closed, the theme in force put back, saying why",
@@ -355,7 +553,7 @@ func TestThePickerNeedsRoom(t *testing.T) {
 func TestThePickerWaitsForTheTerminalsBackground(t *testing.T) {
 	h, _ := themedHarness(t, theme.Choice{})
 	h.start()
-	h.press("t")
+	h.typed("t")
 
 	if h.model.picker.open {
 		t.Error("t opened the picker before the screen was drawn")
@@ -388,7 +586,7 @@ func TestTheBackgroundIsPutBackAsItWas(t *testing.T) {
 // lines tall, reading calm. It hasn't started.
 func themedHarness(t *testing.T, choice theme.Choice) (*harness, *fakeThemes) {
 	t.Helper()
-	themes := &fakeThemes{listing: listing()}
+	themes := &fakeThemes{listing: listing(), choice: choice}
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: calm()}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Interval: interval, Policy: policy,
@@ -427,6 +625,35 @@ func (h *harness) drawnIn() string {
 	return h.model.showing.Slug
 }
 
+// typed presses each key in turn, as press does, delivering what each sends
+// back: the themes listed, a question asked, or a choice kept.
+func (h *harness) typed(keys ...string) {
+	h.t.Helper()
+	for _, key := range keys {
+		h.deliver(h.press(key)...)
+	}
+}
+
+// lakeTheme is a theme of the user's: Nord's colours, but its canvas,
+// #102030.
+func lakeTheme(t *testing.T) theme.Theme {
+	t.Helper()
+	nord, _ := theme.Builtin("nord")
+	var file strings.Builder
+	for tok := theme.TextPrimary; tok <= theme.TextOnAttention; tok++ {
+		colour := hexOf(nord.Colour(tok))
+		if tok == theme.Canvas {
+			colour = "#102030"
+		}
+		fmt.Fprintf(&file, "%s = %s\n", tok, colour)
+	}
+	lake, err := theme.Parse("lake", []byte(file.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return lake
+}
+
 // listing lists the built-ins and a broken theme, as the picker finds them.
 func listing() theme.Listing {
 	var l theme.Listing
@@ -438,11 +665,13 @@ func listing() theme.Listing {
 	return l
 }
 
-// fakeThemes lists its listing, counting each time, and keeps each choice
-// it's given, or fails to with err.
+// fakeThemes lists its listing, counting each time, and keeps its choice,
+// which another dashboard may change, changed as each change it's given
+// says, noting what it kept, or fails to with err.
 type fakeThemes struct {
 	listing theme.Listing
 	lists   int
+	choice  theme.Choice
 	kept    []theme.Choice
 	err     error
 }
@@ -452,12 +681,17 @@ func (f *fakeThemes) List() theme.Listing {
 	return f.listing
 }
 
-func (f *fakeThemes) Keep(c theme.Choice) error {
+func (f *fakeThemes) Chosen() theme.Choice {
+	return f.choice
+}
+
+func (f *fakeThemes) Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error) {
 	if f.err != nil {
-		return f.err
+		return theme.Choice{}, f.err
 	}
-	f.kept = append(f.kept, c)
-	return nil
+	f.choice = change(f.choice)
+	f.kept = append(f.kept, f.choice)
+	return f.choice, nil
 }
 
 // quits reports whether msgs hold Bubble Tea's quit.

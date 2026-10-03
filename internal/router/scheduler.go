@@ -52,7 +52,21 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	return c
 }
 
-func (s *scheduler) Forget(req Request) {
+func (s *scheduler) Answered(req Request, account, reason string) {
+	if req.Check {
+		return
+	}
+	a, ok := s.sessions.started(req.key())
+	if !ok {
+		return
+	}
+	if a.Account != account {
+		a.Account, a.Reason = account, reason
+	}
+	s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason})
+}
+
+func (s *scheduler) Forget(req Request) string {
 	back, ok := s.sessions.forget(req)
 	switch {
 	case !ok:
@@ -61,6 +75,7 @@ func (s *scheduler) Forget(req Request) {
 	default:
 		logger.Info("session back where it was before its request", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model, "account", back)
 	}
+	return back
 }
 
 // decide chooses on what's known now, and returns the situation the choice
@@ -127,7 +142,7 @@ func (s *scheduler) remember(on situation, d decision) (first bool, from string)
 		logger.Info("moved", "session", status.ShortID(req.Session), "model", req.Model,
 			"from", found.Account, "to", d.account, "reason", d.reason)
 		s.emit(Moved{Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason,
-			Forced: !s.view(req, now).room(found.Account)})
+			Limit: s.state.limitHolding(found.Account, req.Model, now)})
 		from = found.Account
 	}
 	return noted && !on.assigned, from

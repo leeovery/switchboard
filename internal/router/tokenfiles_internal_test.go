@@ -2,9 +2,11 @@ package router
 
 import (
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -309,20 +311,32 @@ func TestAnAccountThatGoesOutOnAnotherTokenIsNoLongerHeldBackByTheRefusalOfItsLa
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
 			files := &changingFiles{files: testTokens}
-			r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
+			r := newTestRouterReading(t, clock.read, &stubProber{}, files.read)
+			until := start.Add(refusedFor)
 			r.state.refuse("work", http.StatusUnauthorized, someRequest)
 			r.state.forbid("work", "opus", http.StatusForbidden, someRequest)
+			r.recent.hear(Refused{Account: "work", Status: http.StatusUnauthorized, Until: until, Request: someRequest})
+			r.recent.hear(Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: until, Request: someRequest})
 			tt.takeUp(r)
 			if work, _ := r.Status().Account("work"); work.Refused.Status != http.StatusUnauthorized {
 				t.Fatalf("work's refusal is %+v, want its token's still: its file holds the token refused", work.Refused)
 			}
 
+			clock.now = start.Add(time.Minute)
 			files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
 			tt.takeUp(r)
-			want := status.Refusal{Until: start.Add(refusedFor), Status: http.StatusForbidden, Family: "opus"}
+			want := status.Refusal{Until: until, Status: http.StatusForbidden, Family: "opus"}
 			if work, _ := r.Status().Account("work"); work.Refused != want {
 				t.Errorf("work's refusal is %+v, want %+v: its token's gone with the token, and its opus requests' stands", work.Refused, want)
+			}
+			wantEvents := []status.Event{
+				{ID: 2, At: start, Kind: status.EventRefused, Account: "work", Until: until, Status: http.StatusForbidden, Family: "opus"},
+				{ID: 1, At: start, Kind: status.EventRefused, Account: "work", Until: start.Add(time.Minute), Status: http.StatusUnauthorized},
+			}
+			if got := r.Status().Events; !reflect.DeepEqual(got, wantEvents) {
+				t.Errorf("the events are\n%+v\nwant\n%+v: the token's refusal ending as it lifted", got, wantEvents)
 			}
 		})
 	}

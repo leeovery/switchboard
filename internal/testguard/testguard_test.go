@@ -136,16 +136,15 @@ func TestEscapesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 	}
 }
 
-func TestEscapesToThePreferencesFileFailTheRun(t *testing.T) {
+func TestALiveDashboardWritingItsPreferencesPasses(t *testing.T) {
 	tests := []struct {
 		does string
 		// state is where the state is, from a home, or elsewhere where its
-		// variable names elsewhere; want is what the guard fails the run as,
-		// %s standing for elsewhere.
-		state, variable, want string
+		// variable names elsewhere.
+		state, variable string
 	}{
-		{does: "write-the-real-preferences", state: filepath.Dir(stateFile), want: "the real ~/.local/state/switchboard/prefs.json was created"},
-		{does: "write-the-preferences-where-XDG_STATE_HOME-puts-them", state: filepath.Join("state", "switchboard"), variable: "XDG_STATE_HOME", want: "the real %s/state/switchboard/prefs.json was created"},
+		{does: "write-the-real-preferences-as-a-live-dashboard-does", state: filepath.Dir(stateFile)},
+		{does: "write-the-preferences-where-XDG_STATE_HOME-puts-them", state: filepath.Join("state", "switchboard"), variable: "XDG_STATE_HOME"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.does, func(t *testing.T) {
@@ -157,13 +156,8 @@ func TestEscapesToThePreferencesFileFailTheRun(t *testing.T) {
 			writeFile(t, filepath.Join(root, tt.state, "state.json"), "{\"version\": 1, \"sessions\": []}\n")
 
 			out, err := runChild(t, tt.does, home, env...)
-			if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 {
-				t.Errorf("child: error = %v, want exit status 1", err)
-			}
-			want := strings.ReplaceAll(tt.want, "%s", elsewhere)
-			passed := slices.Contains(strings.Split(out, "\n"), "PASS")
-			if !passed || !strings.Contains(out, "testguard: the tests reached past their isolation") || !strings.Contains(out, want) {
-				t.Errorf("child printed\n%s\nwant its test to pass, and the guard to fail the run as %q", out, want)
+			if err != nil || strings.Contains(out, "testguard") {
+				t.Errorf("child: error = %v, printing\n%s\nwant it to pass, with nothing from the guard: the sandbox denies a test the write", err, out)
 			}
 		})
 	}
@@ -225,7 +219,7 @@ func TestInChild(t *testing.T) {
 		writeFile(t, filepath.Join(realHome, themeFile), "canvas = #2E3440\n")
 	case "write-a-theme-where-SWITCHBOARD_THEMES_DIR-puts-it":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "themes", "lake.theme"), "canvas = #2E3440\n")
-	case "write-the-real-preferences":
+	case "write-the-real-preferences-as-a-live-dashboard-does":
 		writeFile(t, filepath.Join(realHome, prefsFile), "{\"theme\": \"amber\"}\n")
 	case "write-the-preferences-where-XDG_STATE_HOME-puts-them":
 		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "state", "switchboard", "prefs.json"), "{\"theme\": \"amber\"}\n")

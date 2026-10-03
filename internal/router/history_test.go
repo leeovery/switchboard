@@ -184,7 +184,7 @@ func TestTheHistoryKeepsADaysFilesAsLongAsTheConfigSays(t *testing.T) {
 		{name: "a week and a day", keep: 8 * day, days: 8},
 		{name: "400 days", keep: 400 * day, days: 400},
 	}
-	today := start.Local()
+	today := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
 	dateOf := func(back int) string { return today.AddDate(0, 0, -back).Format(historyDay) }
 	lines := linesOf(t, workRead(start, 0.2))
 	for _, tt := range tests {
@@ -207,7 +207,7 @@ func TestTheHistoryKeepsADaysFilesAsLongAsTheConfigSays(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			h := newHistory(config.History{Keep: tt.keep}, at(start))
+			h := newHistory(config.History{Keep: tt.keep}, at(today))
 			h.open(dir)
 
 			keeping(t, h)()
@@ -293,9 +293,9 @@ func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
 }
 
 func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
-	day := time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local)
+	day := time.Date(2026, 9, 25, 12, 0, 0, 0, time.Local)
 	date := day.Format(historyDay)
-	older, newer := linesOf(t, workRead(day.Add(9*time.Hour), 0.2)), linesOf(t, workRead(day.Add(10*time.Hour), 0.3))
+	older, newer := linesOf(t, workRead(day.Add(-3*time.Hour), 0.2)), linesOf(t, workRead(day.Add(-2*time.Hour), 0.3))
 	tests := []struct {
 		name string
 		// members are those the day's compressed file holds already.
@@ -312,7 +312,8 @@ func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeDay(t, dir, plainFile(date), newer)
-			h := newHistory(config.History{}, at(day.AddDate(0, 0, 3)))
+			// Days on, wherever the clocks changed between.
+			h := newHistory(config.History{}, at(day.AddDate(0, 0, 4)))
 			h.open(dir)
 
 			h.prune()
@@ -328,9 +329,9 @@ func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
 
 func TestACompressionThatFailsLeavesThePlainFileToCompressAgain(t *testing.T) {
 	log := logstest.Capture(t)
-	day := time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local)
+	day := time.Date(2026, 9, 25, 12, 0, 0, 0, time.Local)
 	date := day.Format(historyDay)
-	lines := linesOf(t, workRead(day.Add(9*time.Hour), 0.2))
+	lines := linesOf(t, workRead(day.Add(-3*time.Hour), 0.2))
 	dir := t.TempDir()
 	writeDay(t, dir, plainFile(date), lines)
 	// The day's compressed file isn't gzip, so its lines can't be added to.
@@ -338,15 +339,17 @@ func TestACompressionThatFailsLeavesThePlainFileToCompressAgain(t *testing.T) {
 	if err := os.WriteFile(damaged, []byte(lines), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h := newHistory(config.History{}, at(day.AddDate(0, 0, 3)))
+	// Days on, wherever the clocks changed between.
+	h := newHistory(config.History{}, at(day.AddDate(0, 0, 4)))
 	h.open(dir)
 
 	h.prune()
 	if got := heldIn(t, dir, plainFile(date)); got != lines {
 		t.Errorf("the day's plain file holds\n%s\nwant it as it was\n%s", got, lines)
 	}
-	if !log.Has("level=WARN", `msg="can't compress the readings history"`, "file="+plainFile(date).name()) {
-		t.Errorf("log reads\n%s\nwant the compression that failed noted", log)
+	want := []string{"level=WARN", `msg="can't compress the readings history"`, "file=" + plainFile(date).name(), `error="read ` + damaged + `: gzip: invalid header"`}
+	if !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant the compression that failed noted, naming the compressed file it couldn't read: a line with %q", log, want)
 	}
 	if err := os.Remove(damaged); err != nil {
 		t.Fatal(err)
@@ -562,7 +565,7 @@ func TestADamagedCompressedFileGivesTheLinesBeforeTheDamage(t *testing.T) {
 	}
 }
 
-func TestFilesOfADayAfterTomorrowAreNeitherTakenUpNorKept(t *testing.T) {
+func TestFilesOfADayAfterTomorrowAreKeptButNotTakenUp(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.Local)
 	dir := t.TempDir()
 	dateOf := func(offset int) string { return now.AddDate(0, 0, offset).Format(historyDay) }
@@ -585,13 +588,60 @@ func TestFilesOfADayAfterTomorrowAreNeitherTakenUpNorKept(t *testing.T) {
 		t.Errorf("readBack() = %+v, want yesterday's and today's, not those of days to come", got)
 	}
 	h.prune()
-	for _, offset := range []int{5, 6} {
-		if holdsDay(dir, dateOf(offset)) {
-			t.Errorf("the file of the day %d days on stayed, want it pruned", offset)
+	for f := range files {
+		if _, err := os.Stat(filepath.Join(dir, f.name())); err != nil {
+			t.Errorf("%s went (%v), want it kept: the clock may be the one that's wrong", f.name(), err)
 		}
 	}
-	if _, err := os.Stat(historyOf(dir, now)); err != nil {
-		t.Errorf("today's file went: %v", err)
+}
+
+func TestAClockSetBackKeepsTheDaysItIsBefore(t *testing.T) {
+	today := time.Date(2026, 9, 28, 14, 12, 0, 0, time.Local)
+	tests := []struct {
+		name string
+		// now is the clock, set back from today.
+		now time.Time
+	}{
+		{name: "two days", now: today.AddDate(0, 0, -2)},
+		{name: "a week", now: today.AddDate(0, 0, -7)},
+		{name: "to 2001", now: time.Date(2001, 1, 1, 0, 0, 0, 0, time.Local)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			// The history of the last ten days, the older compressed, as kept
+			// before the clock was set back.
+			var days []dayFile
+			for back := range 10 {
+				f := plainFile(today.AddDate(0, 0, -back).Format(historyDay))
+				if back >= 3 {
+					f = compressedFile(f.date)
+				}
+				days = append(days, f)
+				writeDay(t, dir, f, linesOf(t, workRead(today.AddDate(0, 0, -back), 0.2)))
+			}
+			h := newHistory(config.History{}, at(tt.now))
+			h.open(dir)
+
+			h.prune()
+			for _, f := range days {
+				if _, err := os.Stat(filepath.Join(dir, f.name())); err != nil {
+					t.Errorf("%s went (%v), want every day's file kept", f.name(), err)
+				}
+			}
+		})
+	}
+}
+
+func TestDatesStepADayAtATimeWhereTheClocksChangeAtMidnight(t *testing.T) {
+	santiago, err := time.LoadLocation("America/Santiago")
+	if err != nil {
+		t.Fatalf("load America/Santiago: %v", err)
+	}
+	// Chile's clocks went from 00:00 to 01:00 on 6 September 2026.
+	got := datesFrom(time.Date(2026, 9, 4, 15, 0, 0, 0, santiago), time.Date(2026, 9, 8, 10, 0, 0, 0, santiago))
+	if want := []string{"2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08"}; !slices.Equal(got, want) {
+		t.Errorf("datesFrom() = %q, want %q: each day once, the last included", got, want)
 	}
 }
 
@@ -841,13 +891,13 @@ func TestAHistoryFileThatCantBeReadIsLogged(t *testing.T) {
 	}
 }
 
-func TestADamagedHistoryFileIsWarnedOfOnceARun(t *testing.T) {
+func TestADamagedHistoryFileIsWarnedOfOnceUntilItReads(t *testing.T) {
 	yesterday := compressedFile(start.Local().AddDate(0, 0, -1).Format(historyDay))
 	lines := linesOf(t, workRead(start.Add(-24*time.Hour), 0.1))
 	tests := []struct {
 		name string
-		// data is what yesterday's compressed file holds, and warning what
-		// it's warned of.
+		// data is what yesterday's compressed file holds, damaged, and
+		// warning what it's warned of.
 		data    []byte
 		warning string
 	}{
@@ -858,22 +908,35 @@ func TestADamagedHistoryFileIsWarnedOfOnceARun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, yesterday.name()), tt.data, 0o600); err != nil {
-				t.Fatal(err)
+			hold := func(data []byte) {
+				if err := os.WriteFile(filepath.Join(dir, yesterday.name()), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
 			}
 			h := newHistory(config.History{}, at(start))
 			h.open(dir)
+			read := func() { h.windowReadings("5h", []string{"work"}, start.Add(-time.Hour), start) }
 
 			// Read back as the router starts, then read twice as GET /history
 			// reads it.
+			hold(tt.data)
 			for range h.readBack(start) {
 			}
-			for range 2 {
-				h.windowReadings("5h", []string{"work"}, start.Add(-time.Hour), start)
-			}
+			read()
+			read()
 			warned := linesWith(log, "file="+yesterday.name())
 			if len(warned) != 1 || !strings.Contains(warned[0], "level=WARN") || !strings.Contains(warned[0], tt.warning) {
-				t.Errorf("log reads\n%s\nwant the file warned of once, as the router started, a line with %s", log, tt.warning)
+				t.Fatalf("log reads\n%s\nwant the file warned of once, as the router started, a line with %s", log, tt.warning)
+			}
+
+			// Mended, it reads to its end; damaged again, it's warned of again.
+			hold(gzipOf(t, lines))
+			read()
+			hold(tt.data)
+			read()
+			read()
+			if warned := linesWith(log, "file="+yesterday.name()); len(warned) != 2 || !strings.Contains(warned[1], tt.warning) {
+				t.Errorf("log reads\n%s\nwant the file warned of again once it's damaged after reading to its end, once", log)
 			}
 		})
 	}
@@ -924,21 +987,27 @@ func TestTheHistoryPrunesOnANewDayWithNothingToWrite(t *testing.T) {
 		clock := newBubbleClock(start)
 		h := newHistory(config.History{}, clock.read)
 		h.open(dir)
-		// Its day ended 13 days before start's, so it's compressed as the
-		// history starts, and goes on the day after.
-		old := start.Local().AddDate(0, 0, -14)
-		writeDay(t, dir, plainFile(old.Format(historyDay)), linesOf(t, workRead(old, 0.2)))
 		stop := keeping(t, h)
 		defer stop()
+		synctest.Wait()
+		// A day long past keeping, whose file comes once the history has
+		// pruned for start's day, so it goes at the next prune.
+		old := start.Local().AddDate(0, 0, -30)
+		writeDay(t, dir, plainFile(old.Format(historyDay)), linesOf(t, workRead(old, 0.2)))
+		y, m, d := start.Local().Date()
+		tomorrow := time.Date(y, m, d+1, 0, 0, 0, 0, time.Local)
 
+		time.Sleep(tomorrow.Sub(start) - time.Minute)
 		synctest.Wait()
 		if !holdsDay(dir, old.Format(historyDay)) {
-			t.Fatal("the day's file went as the history started, a day it's kept")
+			t.Fatal("the day's file went before the day after start's, want it kept until the history next prunes")
 		}
-		time.Sleep(25 * time.Hour)
+		// The history looks every pruneLook, and the clocks may change by an
+		// hour on the way.
+		time.Sleep(time.Minute + 2*pruneLook)
 		synctest.Wait()
 		if holdsDay(dir, old.Format(historyDay)) {
-			t.Error("the day's file stayed a day on, want it pruned though nothing was written")
+			t.Error("the day's file stayed on the day after start's, want it pruned though nothing was written")
 		}
 	})
 }

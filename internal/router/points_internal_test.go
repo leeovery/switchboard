@@ -2,8 +2,12 @@ package router
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
@@ -414,8 +418,10 @@ func writeLines(t *testing.T, h *history, lines ...reading) {
 	}
 }
 
-// compressLines writes lines to the compressed files of the history in dir,
-// each day's to its own, as compressing their plain files would.
+// compressLines adds lines to the compressed files of the history in dir,
+// each local day's to its own, as a member of their own after any the file
+// holds, as compressing their plain files would: where the time zone puts the
+// lines of two calls on one day, it holds both.
 func compressLines(t *testing.T, dir string, lines ...reading) {
 	t.Helper()
 	byDay := make(map[string][]reading)
@@ -424,6 +430,13 @@ func compressLines(t *testing.T, dir string, lines ...reading) {
 		byDay[date] = append(byDay[date], l)
 	}
 	for date, day := range byDay {
-		writeDay(t, dir, compressedFile(date), linesOf(t, day...))
+		path := filepath.Join(dir, compressedFile(date).name())
+		held, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, append(held, gzipOf(t, linesOf(t, day...))...), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

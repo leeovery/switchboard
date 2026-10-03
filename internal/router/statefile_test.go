@@ -862,8 +862,12 @@ func TestTheStateFileIsItsOwnersAlone(t *testing.T) {
 	f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false)
 
 	f.save()
-	if info, err := os.Stat(path); err != nil || info.Mode() != 0o600 {
-		t.Errorf("state file's mode is %v (%v), want -rw-------", info.Mode(), err)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode() != 0o600 {
+		t.Errorf("state file's mode is %v, want -rw-------", info.Mode())
 	}
 	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
 		t.Errorf("directory holds %v (%v), want the state file alone", entries, err)

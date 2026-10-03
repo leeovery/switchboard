@@ -16,7 +16,7 @@ import (
 func TestStartsByReading(t *testing.T) {
 	h := newHarness(t, calm())
 
-	if got, want := h.footer(), probingKeys+" · reading usage…"; got != want {
+	if got, want := h.footer(), unreadKeys+" · reading usage…"; got != want {
 		t.Errorf("before the first read, the footer is %q, want %q", got, want)
 	}
 	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "╭─ 1 Work ") {
@@ -365,7 +365,7 @@ func TestFirstReadFails(t *testing.T) {
 	h.source.err = errors.New("connection refused")
 	h.start()
 
-	if got, want := h.footer(), probingKeys+" · couldn't read usage: connection refused · next 13:14"; got != want {
+	if got, want := h.footer(), unreadKeys+" · couldn't read usage: connection refused · next 13:14"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
 	if strings.Contains(h.view(), "╭─ 1 Work ") {
