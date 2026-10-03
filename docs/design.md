@@ -16,10 +16,10 @@ the Dashboard section describes it.
 
 A local proxy that spreads Claude Code sessions across several Claude subscriptions. It uses each
 account's quota right up to its limit, moves a session to another account when its account runs
-out, and otherwise keeps every session on one account so its prompt cache stays warm. One account,
-the primary, keeps back a share of its quota for the Claude apps, and each account's 5-hour window
-is started on a schedule that spreads the resets through the day. It also ships a terminal
-dashboard showing every account's usage.
+out, and otherwise keeps every session on one account so its prompt cache stays warm. Any account
+can keep back a share of its quota as a reserve, and each account's 5-hour window is started on a
+schedule that spreads the resets through the day. It also ships a terminal dashboard showing every
+account's usage.
 
 It's built for its author's setup, and stays general only where that costs nothing. It runs on
 macOS only.
@@ -117,9 +117,9 @@ on a model whose thinking is bound to its account only when its account can't se
 
 1. **Candidates:** accounts where every window that applies to the request's model has room: the
    5-hour window, the shared weekly window, and that model's own weekly window if it has one. A
-   window's room ends at the account's reserve (see The primary account): with a reserve of 0.1,
-   a window reading 90% has none. That holds the router's own choices alone: a pin runs its
-   accounts to their limits (see Pinning).
+   window's room ends at the account's reserve (see Reserves): with a reserve of 0.1, a window
+   reading 90% has none. That holds the router's own choices alone: a pin runs its accounts to
+   their limits (see Pinning).
 2. **Score:** perishability = the room left in the shared weekly window ÷ time until it resets,
    the room ending at the reserve: (1 − reserve − utilization) ÷ hours to reset. Hours to reset
    count as 1 at the least, a week whose reset has passed counts as its full room, to the reserve,
@@ -341,9 +341,9 @@ nothing. `run --account` fails for either too, saying what `pin` does of one tha
 
 Every pin yields at a limit: a pinned session that hits one moves by the normal rules rather than
 failing. A pin spends the reserves of the accounts it names: the reserve holds back the router's
-own choices, and a pin is the user's. So when every other account is out and the primary is at its
-reserve, `pin <primary> --move` carries the running sessions on there, in place, and `pin auto`
-hands them back to the router, reserve and all.
+own choices, and a pin is the user's. So when an account is at its reserve and every other is out,
+`pin <id> --move` carries the running sessions on there, in place, and `pin auto` hands them back
+to the router, reserve and all.
 
 Switchboard defines no per-account launchers: the user's own aliases for
 `switchboard run --account <id> --` serve.
@@ -421,23 +421,29 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
   primary's token isn't usable, a routed session gets `--account`'s, else the first account's with a
   usable token. Not routed, `run` gives Claude Code `--account`'s token, else the primary's, else
   the first account's with a usable token: see Launching.
+- `accounts`, `status` and the dashboard mark the primary.
+
+## Reserves
+
+Any account can keep a reserve, which `reserve` in its table sets (see Config).
+
 - **The reserve** is the share of every window, the 5-hour window, the shared weekly window and
-  each model's own weekly, that the router leaves unused on an account: 0.1 on the primary unless
-  set, 0 on the others. Once a window that applies to a request reads at or above 1 less the
+  each model's own weekly, that the router leaves unused on an account: 0 unless set, on the
+  primary as on the others. Once a window that applies to a request reads at or above 1 less the
   reserve, the router's own choices pass the account over: new sessions skip it, and a session on
   it moves as at a limit. Scoring counts only the room before the reserve. The router never sends
   a request to an account held back only by its reserve, even when no account has room, as that
   would spend it. A pin does spend it, running its account to its limit: the pin is the user's
-  choice, where the reserve holds back the router's (see Pinning). So the primary keeps a share
-  of every window for the Claude apps, where use can take it past the reserve, as intended, and
-  the other accounts are used right up to their limits.
+  choice, where the reserve holds back the router's (see Pinning). So an account with a reserve
+  keeps that share of every window for use outside the router, such as the Claude apps on the
+  primary, where that use can take it past the reserve, as intended, and one without is used right
+  up to its limits.
 - Readings come off responses, so one large turn can take an account a point or two past its
   reserve before the router sees it. A launch that goes direct, without the router, can spend the
-  reserve.
-- `accounts`, `status` and the dashboard mark the primary. The dashboard marks where each reserve
-  starts on its bars, and `status` and the dashboard say when a reserve holds its account back, or,
-  on an account the global pin names, that the pin is spending it; a session's own pin spending it
-  reads as the reserve holding the account back.
+  reserve of the account it goes out on.
+- The dashboard marks where each reserve starts on its bars, and `status` and the dashboard say
+  when a reserve holds its account back, or, on an account the global pin names, that the pin is
+  spending it; a session's own pin spending it reads as the reserve holding the account back.
 
 ## Priming
 
@@ -1651,7 +1657,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
   but the request that crossed the limit is billed. The accounts tested read extra usage as off.
 - **Programs whose `PATH` lacks the link's directory**, such as launchd jobs and some GUI apps,
   find the real `claude`, and aren't routed.
-- **A direct launch**, without the router, can spend the primary's reserve.
+- **A direct launch**, without the router, can spend the reserve of the account it goes out on.
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key in place of an account's token, so `claude` starts it as if switchboard
   weren't there, its requests going out on the key (see Launching).
@@ -1819,7 +1825,7 @@ upstream = "https://api.anthropic.com"  # optional: the API's base URL; overridd
 id      = "work"       # permanent name: letters, digits, '-' and '_'; its token is tokens/work
 label   = "Work"       # optional; defaults to the id
 primary = true         # optional: the account the browser and the Claude apps use; else the first
-reserve = 0.1          # optional: the share of every window the router leaves; 0.1 on the primary, else 0
+reserve = 0.1          # optional, on any account: the share of every window the router leaves; else 0
 
 [[account]]
 id    = "side"

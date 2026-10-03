@@ -215,12 +215,11 @@ func checkLabel(account, label string) error {
 
 // checkReserve keeps a reserve a share of each window short of the whole of
 // it, which would leave the router nothing of the account, or 0 for none.
-// There's nothing to check of a reserve the account doesn't give.
-func checkReserve(account string, reserve *float64) error {
-	if reserve == nil || (*reserve >= 0 && *reserve < 1) {
+func checkReserve(account string, reserve float64) error {
+	if reserve >= 0 && reserve < 1 {
 		return nil
 	}
-	return fmt.Errorf("%s: reserve %v: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1", account, *reserve)
+	return fmt.Errorf("%s: reserve %v: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1", account, reserve)
 }
 
 // checkPrimaries reports more than one account marked primary, naming each.

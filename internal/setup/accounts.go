@@ -140,7 +140,7 @@ func (r *run) primary() error {
 		r.Terminal.sayf("The primary, the account the browser and the Claude apps are signed into, is %s.", title(configured.Primary()))
 		return nil
 	}
-	r.Terminal.sayf("Which account are the browser and the Claude apps signed into? It's the primary: Claude Code's own token is its, and the router leaves a share of its quota for the apps.")
+	r.Terminal.sayf("Which account are the browser and the Claude apps signed into? It's the primary: Claude Code's own token is its, so artifacts and uploads land there.")
 	id, err := r.choose(configured.IDs())
 	if err != nil {
 		return err

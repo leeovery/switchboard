@@ -77,7 +77,7 @@ label = "Personal"
 		Listen:   "127.0.0.1:4747",
 		Upstream: "https://api.anthropic.com",
 		Accounts: []config.Account{
-			{ID: "work", Label: "work", Primary: true, Reserve: 0.1},
+			{ID: "work", Label: "work", Primary: true},
 			{ID: "personal", Label: "Personal"},
 		},
 		Notifications: config.Notifications{Limits: true, Room: true, Warning: 0.9},
@@ -96,7 +96,7 @@ label = "Personal"
 	}
 }
 
-func TestLoadThePrimaryAndTheReserves(t *testing.T) {
+func TestLoadThePrimary(t *testing.T) {
 	tests := []struct {
 		name   string
 		config string
@@ -105,32 +105,67 @@ func TestLoadThePrimaryAndTheReserves(t *testing.T) {
 		{
 			name:   "the first, without one marked",
 			config: accountTOML("work") + accountTOML("side"),
-			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.1}, {ID: "side", Label: "side"}},
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true}, {ID: "side", Label: "side"}},
 		},
 		{
 			name:   "the one marked",
 			config: accountTOML("work") + accountTOML("side") + "primary = true\n",
-			want:   []config.Account{{ID: "work", Label: "work"}, {ID: "side", Label: "side", Primary: true, Reserve: 0.1}},
+			want:   []config.Account{{ID: "work", Label: "work"}, {ID: "side", Label: "side", Primary: true}},
 		},
 		{
 			name:   "the first, with the others marked not to be",
 			config: accountTOML("work") + "primary = false\n" + accountTOML("side") + "primary = false\n",
-			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.1}, {ID: "side", Label: "side"}},
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true}, {ID: "side", Label: "side"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, tt.config))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if !slices.Equal(cfg.Accounts, tt.want) {
+				t.Errorf("Load() accounts = %+v, want %+v", cfg.Accounts, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadTheReserves(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   []config.Account
+	}{
+		{
+			name:   "none without one given, on the primary as on the others",
+			config: accountTOML("work") + accountTOML("side"),
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true}, {ID: "side", Label: "side"}},
 		},
 		{
-			name:   "with the primary's reserve given",
+			name:   "the primary's, given",
 			config: accountTOML("work") + "reserve = 0.25\n" + accountTOML("side"),
 			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.25}, {ID: "side", Label: "side"}},
 		},
 		{
-			name:   "with none on the primary",
-			config: accountTOML("work") + "reserve = 0\n" + accountTOML("side"),
-			want:   []config.Account{{ID: "work", Label: "work", Primary: true}, {ID: "side", Label: "side"}},
+			name:   "another account's, given",
+			config: accountTOML("work") + accountTOML("side") + "reserve = 0.05\n",
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true}, {ID: "side", Label: "side", Reserve: 0.05}},
 		},
 		{
-			name:   "with a reserve on another account",
-			config: accountTOML("work") + accountTOML("side") + "reserve = 0.05\n",
-			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.1}, {ID: "side", Label: "side", Reserve: 0.05}},
+			name:   "another account's, given, with the primary marked",
+			config: accountTOML("work") + "reserve = 0.05\n" + accountTOML("side") + "primary = true\n",
+			want:   []config.Account{{ID: "work", Label: "work", Reserve: 0.05}, {ID: "side", Label: "side", Primary: true}},
+		},
+		{
+			name:   "each account's, given",
+			config: accountTOML("work") + "reserve = 0.1\n" + accountTOML("side") + "reserve = 0.2\n",
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true, Reserve: 0.1}, {ID: "side", Label: "side", Reserve: 0.2}},
+		},
+		{
+			name:   "none, given as 0",
+			config: accountTOML("work") + "reserve = 0\n" + accountTOML("side"),
+			want:   []config.Account{{ID: "work", Label: "work", Primary: true}, {ID: "side", Label: "side"}},
 		},
 	}
 	for _, tt := range tests {
@@ -303,8 +338,11 @@ func TestExampleIsValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load(Example) error = %v", err)
 	}
-	if primary := cfg.Accounts.Primary(); primary.ID != "work" || primary.Reserve != 0.1 {
-		t.Errorf("Load(Example) primary = %+v, want work, with a reserve of 0.1", primary)
+	if primary := cfg.Accounts.Primary(); primary.ID != "work" {
+		t.Errorf("Load(Example) primary = %+v, want work", primary)
+	}
+	if !strings.Contains(config.Example, "\n# reserve = 0.1 ") || slices.ContainsFunc(cfg.Accounts, func(a config.Account) bool { return a.Reserve != 0 }) {
+		t.Errorf("Example reads\n%s\nwant a reserve shown, and left off", config.Example)
 	}
 	if !strings.Contains(config.Example, "# [prime]\n# day = \"08:00-23:00\"\n") || cfg.Prime.On() {
 		t.Errorf("Example reads\n%s\nwant priming shown, and left off", config.Example)
