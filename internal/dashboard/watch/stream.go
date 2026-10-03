@@ -90,12 +90,12 @@ func (m Model) openStream() (Model, tea.Cmd) {
 	}
 }
 
-// closeStream closes the request stream, forgetting what it told, which is
-// past telling once the watch no longer hears it.
+// closeStream closes the request stream, forgetting what it told of the
+// requests, which is past telling once the watch no longer hears it.
 func (m Model) closeStream() Model {
 	m.stream.end()
 	m.stream = streaming{gen: m.stream.gen + 1, absent: m.stream.absent, absentOf: m.stream.absentOf}
-	m.traffic = traffic{}
+	m.traffic = m.traffic.afresh()
 	return m
 }
 
@@ -107,19 +107,21 @@ func (s streaming) end() {
 }
 
 // opened takes in the request stream opening, or why it couldn't, forgetting
-// what it told before: what it tells as it opens tells of the requests in
-// flight afresh. Open, the watch listens to it. From a router from before
-// it, the watch goes without it until another router answers. Otherwise it
-// asks for it again, later each time it fails in a row.
+// what it told before of the requests: what it tells as it opens tells of
+// those in flight afresh. Open, the watch listens to it, what it draws live.
+// From a router from before it, the watch goes without it until another
+// router answers. Otherwise it asks for it again, later each time it fails
+// in a row.
 func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen {
 		return m, nil
 	}
 	m.stream.opening = false
-	m.traffic = traffic{listed: m.traffic.listed}
+	m.traffic = m.traffic.afresh()
 	switch {
 	case msg.err == nil:
 		m.stream.open, m.stream.events, m.stream.fails = true, msg.events, 0
+		m.traffic.live = true
 		logger.Debug("reading the router's request stream")
 		return m, m.listen()
 	case errors.Is(msg.err, router.ErrNoStream):
@@ -168,25 +170,21 @@ func hear(gen int, events <-chan router.StreamEvent) streamHeardMsg {
 	}
 }
 
-// heard takes in what the request stream told, drawing frames while what it
-// told moves, and listens on; or, where it ended, as a router ends it as it
-// restarts, asks for it again after rejoinAfter, keeping what it told until
-// it opens again.
+// heard takes in what the request stream told, and listens on; or, where it
+// ended, as a router ends it as it restarts, asks for it again after
+// rejoinAfter, keeping what it told until it opens again.
 func (m Model) heard(msg streamHeardMsg) (Model, tea.Cmd) {
 	if msg.gen != m.stream.gen || !m.stream.open {
 		return m, nil
 	}
-	now := m.now()
-	m.traffic = m.traffic.took(msg.events, m.held, now)
-	m, frames := m.startFrames(now)
+	m.traffic = m.traffic.took(msg.events, m.held, m.now())
 	if !msg.ended {
-		return m, tea.Batch(frames, m.listen())
+		return m, m.listen()
 	}
 	logger.Debug("the router's request stream ended: asking for it again")
 	m.stream.end()
 	m.stream.open, m.stream.events = false, nil
-	m, rejoin := m.rejoinIn(rejoinAfter)
-	return m, tea.Batch(frames, rejoin)
+	return m.rejoinIn(rejoinAfter)
 }
 
 // rejoinIn has the request stream asked for again once wait has passed.

@@ -222,7 +222,7 @@ func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
 		name string
 		want []string
 	}{
-		{name: "sessions-1", want: []string{" Sessions ", "┌─ 1 · WORK ─ ● under pressure", "    ● db8a  sonnet  seen       now", "  LOG"}},
+		{name: "sessions-1", want: []string{" Sessions ", "┌─ 1 · WORK ─ ● under pressure", "    ● db8a  sonnet  idle       3s", "  LOG"}},
 		{name: "sessions-3", want: []string{
 			"CALLS  sessions, by the line they are on", "LINES  accounts",
 			"  d28c  opus    1m           ●━", "  41e0  sonnet  4m           ●━━", "╌╌╌╌╌╌╌○  Session", "└─ resets  session 18:50  ·  weeks Mon 10:00 ─",

@@ -229,8 +229,10 @@ type Model struct {
 	trails  dashboard.History
 	// sessions are the sessions the router listed with the document on
 	// screen, for the cards' dots and Sessions' calls: nil where it listed
-	// none.
+	// none. order is the order Sessions' calls ran in as they were listed,
+	// which they keep from look to look.
 	sessions []status.Session
+	order    dashboard.Order
 	// stream is the watch's hold on the router's request stream, and traffic
 	// what the stream has told of the routed requests.
 	stream  streaming
@@ -254,13 +256,14 @@ type Model struct {
 }
 
 // fetchedMsg is what a read that asked for read found, and which router gave
-// it, with the sessions it listed, where listed says it listed them.
+// it, with the sessions it listed and when it asked for them, listed: zero
+// where it listed none.
 type fetchedMsg struct {
 	read     Read
 	doc      status.Document
 	router   router.Health
 	sessions []status.Session
-	listed   bool
+	listed   time.Time
 	err      error
 }
 
@@ -303,12 +306,14 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, as take says, then has the watch read the
-// router's request stream while it wants it, and only then. The view is
-// drawn again after each, which is all a note's lapsing asks.
+// router's request stream while it wants it, and only then, and draw frames
+// while anything on screen moves. The view is drawn again after each, which
+// is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
-	return tuned, tea.Batch(cmd, stream)
+	tuned, frames := tuned.startFrames(tuned.now())
+	return tuned, tea.Batch(cmd, stream, frames)
 }
 
 // take takes in a message: a key, the wheel, a resize, the terminal's
@@ -385,16 +390,16 @@ func (m Model) View() tea.View {
 // keys its footer lists: at the size drawn at, in the look, showing the view
 // shown, with what the watch knows of the router, its events and its
 // history, the window the cards feature, how far ahead Runway looks, the
-// sessions listed and what the request stream tells of their requests, how
-// far the view is scrolled, the card with the focus, the cards flipped and
-// the session picked out, the keys that work on a card's sessions, the note
-// a key left, and how reading goes.
+// sessions listed, what the request stream tells of their requests and the
+// order Sessions' calls keep, how far the view is scrolled, the card with
+// the focus, the cards flipped and the session picked out, the keys that
+// work on a card's sessions, the note a key left, and how reading goes.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		Views: m.views, View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails,
-		Featured: m.featured, Span: m.span, Sessions: m.sessions, Traffic: m.traffic.at(now), Scroll: m.scroll,
+		Featured: m.featured, Span: m.span, Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus: m.focus, Flipped: m.flipped, Selected: m.selected, Patch: m.patch(),
 		Note: m.noted(now), Status: m.status(now),
 		Policy: m.cfg.Policy,
@@ -427,28 +432,32 @@ func (m Model) read(r Read) (Model, tea.Cmd) {
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks, as fetchFrom reads it.
+// fetch reads the source as r asks, as fetchFrom reads it, on the model's
+// clock.
 func (m Model) fetch(r Read) tea.Cmd {
-	ctx, source := m.ctx, m.cfg.Source
+	ctx, source, now := m.ctx, m.cfg.Source, m.now
 	return func() tea.Msg {
-		return fetchFrom(ctx, source, r)
+		return fetchFrom(ctx, source, r, now)
 	}
 }
 
 // fetchFrom reads the source as r asks, and from a router, the sessions it
-// lists, for the cards' dots: a router that can't list them leaves them out.
-func fetchFrom(ctx context.Context, source Source, r Read) fetchedMsg {
+// lists, for the cards' dots and Sessions' calls, stamped with when now says
+// it asked for them, as a move told of after is one they don't list yet: a
+// router that can't list them leaves them out.
+func fetchFrom(ctx context.Context, source Source, r Read, now func() time.Time) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
 	if err != nil || !routed(doc) {
 		return msg
 	}
+	listed := now()
 	sessions, err := source.Sessions(ctx)
 	if err != nil {
 		logger.Debug("couldn't list the router's sessions", "error", err)
 		return msg
 	}
-	msg.sessions, msg.listed = sessions, true
+	msg.sessions, msg.listed = sessions, listed
 	return msg
 }
 
@@ -505,14 +514,15 @@ func logRead(msg fetchedMsg, next time.Time) {
 }
 
 // show puts the document a read found at now on screen, with the sessions
-// the router listed, or where it couldn't list them, those it listed last,
-// and none while probing: it posts what the change calls for, unless the
-// router is there to post its own, as nothing is to be told twice; follows
-// the router as it goes and comes back; notes the events new to it, and the
-// readings it gives; asks the router for its history with a full read, and
-// as the router answers again, or another router does, as one restarted;
-// keeps the focus and the selection where they still are; and eases the bars
-// to it from where they stand.
+// the router listed, as they stood as it was asked for them, Sessions' calls
+// keeping the order they ran in; or where it couldn't list them, those it
+// listed last; and none while probing. It posts what the change calls for,
+// unless the router is there to post its own, as nothing is to be told
+// twice; follows the router as it goes and comes back; notes the events new
+// to it, and the readings it gives; asks the router for its history with a
+// full read, and as the router answers again, or another router does, as one
+// restarted; keeps the focus, the cards flipped and the selection where
+// they still are; and eases the bars to it from where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
@@ -530,17 +540,17 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
-	if msg.listed || !routed(doc) {
+	if !msg.listed.IsZero() || !routed(doc) {
+		m.order = m.frame(now).OrderOf(doc)
 		m.sessions = msg.sessions
-		m.traffic = m.traffic.listedAt(now)
+		m.traffic = m.traffic.listedAt(cmp.Or(msg.listed, now))
 	}
 	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
 	if ask {
 		m, asked = m.askHistory(doc)
 	}
-	m, frames := m.startFrames(now)
-	return m, tea.Batch(post, asked, frames)
+	return m, tea.Batch(post, asked)
 }
 
 // follow notes where doc, read at now, came from, against where the document
@@ -626,9 +636,18 @@ func (m Model) framed() (tea.Model, tea.Cmd) {
 
 // moving reports whether anything on screen moves at now: a bar easing to
 // its reading, the highlight on an event, or on a card's state, fading back,
-// or what travels the cords, as the request stream tells.
+// or what travels the cords, as travelling says.
 func (m Model) moving(now time.Time) bool {
-	return (m.ease.moves(m.doc) && !m.ease.done(now)) || m.news.faded(now) != nil || m.changes.faded(now) != nil || m.traffic.moving(now)
+	return (m.ease.moves(m.doc) && !m.ease.done(now)) || m.news.faded(now) != nil || m.changes.faded(now) != nil || m.travelling(now)
+}
+
+// travelling reports whether what travels the cords moves at now, as the
+// request stream tells, on Sessions' switchboard, the only place it's drawn.
+// The cards' backs and Sessions' plain list are drawn again as the stream
+// tells of more, and as the clock ticks, drawing nothing new while nothing
+// happens.
+func (m Model) travelling(now time.Time) bool {
+	return m.view == dashboard.Sessions && m.traffic.moving(now) && m.frame(now).Switchboard(m.shown(now), now)
 }
 
 // post posts the alerts in turn, noting each in the log. Of a document probed

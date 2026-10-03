@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -123,6 +124,80 @@ func TestACallKeepsItsRowHoweverTheRouterListsTheSessions(t *testing.T) {
 	for _, listed := range [][]status.Session{sessions, turned} {
 		if got := order(listed); !slices.Equal(got, want) {
 			t.Errorf("listed %v, the calls run %v, want %v, the one put there last first", order(listed), got, want)
+		}
+	}
+}
+
+func TestTheCallsKeepTheOrderTheWatchKeeps(t *testing.T) {
+	f := switchboard(160, 40, flippingSessions(), Traffic{})
+	f.Order = Order{"work": {{idD28C, opus}, {"5b19aa00", opus}, {id7F3A, haiku}}}
+	b := bayOfFrame(t, f, threeRouted())
+
+	var got []string
+	for _, r := range b.calls {
+		if r.assignment.Account == "work" {
+			got = append(got, fmt.Sprintf("%s on row %d", sessionID(r.session.ID), r.row))
+		}
+	}
+	// d28c and 7f3a in the order kept, closing up over 5b19, which the router
+	// no longer lists; then db8a's sonnet, which the order doesn't place, at
+	// the foot.
+	if want := []string{"d28c on row 1", "7f3a on row 2", "db8a on row 3"}; !slices.Equal(got, want) {
+		t.Errorf("work's calls are %q, want %q", got, want)
+	}
+}
+
+func TestTheOrderKeptIsTheCallsAsDrawnButAMovesPlaceholder(t *testing.T) {
+	move := Move{Seat: Seat{Session: idD28C, Model: opus}, From: "work", To: "side", At: now}
+	f := switchboard(160, 40, flippingSessions(), Traffic{Moves: []Move{move}})
+
+	want := Order{
+		"work": {{idDB8A, sonnet}, {id7F3A, haiku}},
+		"side": {{idC61B, opus}, {idDB8A, opus}, {id41E0, sonnet}, {idD28C, opus}},
+	}
+	if got := f.OrderOf(threeRouted()); !maps.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("the order kept is %+v, want %+v: d28c's placeholder left out, as its row closes up, and it on side, where it joined the foot", got, want)
+	}
+}
+
+func TestSessionsIsASwitchboardWhereItsCordsFit(t *testing.T) {
+	accounts := frameOf(160, 40)
+	accounts.Sessions = flippingSessions()
+	tests := []struct {
+		name  string
+		frame Frame
+		doc   status.Document
+		want  bool
+	}{
+		{name: "Sessions of three accounts", frame: switchboard(160, 40, flippingSessions(), Traffic{}), doc: threeRouted(), want: true},
+		{name: "Sessions of one account: a plain list", frame: switchboard(160, 40, flippingSessions(), Traffic{}), doc: routerDoc("work", 3, pressedAccount("work"))},
+		{name: "Sessions under cordsFrom columns: a plain list", frame: switchboard(cordsFrom-1, 40, flippingSessions(), Traffic{}), doc: threeRouted()},
+		{name: "Accounts", frame: accounts, doc: threeRouted()},
+	}
+	for _, tt := range tests {
+		if got := tt.frame.Switchboard(tt.doc, now); got != tt.want {
+			t.Errorf("%s: Switchboard = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestACallsIDIsBrightAndBoldWhileItsBusy(t *testing.T) {
+	b, c := drawnBay(t, switchboard(160, 40, flippingSessions(), Traffic{}), threeRouted())
+
+	tests := []struct {
+		call string
+		want ink
+	}{
+		{call: "d28c", want: titleInk},
+		{call: "7f3a", want: ink{token: theme.TextMuted}},
+	}
+	for _, tt := range tests {
+		r := callAt(t, b, tt.call, "work")
+		for x := callsAt; x < callsAt+len(tt.call); x++ {
+			if got := c.cells[r.row][x].ink; got != tt.want {
+				t.Errorf("%s's id, at %d, is %+v, want %+v", tt.call, x, got, tt.want)
+				break
+			}
 		}
 	}
 }
@@ -420,16 +495,16 @@ func TestACallsRowSaysWhatItsRequestIsDoing(t *testing.T) {
 		jackInk  ink
 		shimmers bool
 	}{
-		{name: "gone out", call: Call{Doing: Asking, Seen: now}, want: span{"↑ ask", nameInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
-		{name: "gone out on an account a move just brought it to", call: Call{Doing: Asking, New: true, Seen: now}, want: span{"↪ new", nameInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
+		{name: "gone out", call: Call{Doing: Asking}, want: span{"↑ ask", nameInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
+		{name: "gone out on an account a move just brought it to", call: Call{Doing: Asking, New: true}, want: span{"↪ new", nameInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
 		{
-			name: "its answer streaming, its tokens estimated, every fourth cell lit and its jack", call: Call{Doing: Streaming, Tokens: 1234, Seen: now, Shimmer: 1},
+			name: "its answer streaming, its tokens estimated, every fourth cell lit and its jack", call: Call{Doing: Streaming, Tokens: 1234, Shimmer: 1},
 			want: span{"↓ ~1.2k", titleInk}, jack: pluggedJack, jackInk: titleInk, shimmers: true,
 		},
-		{name: "its answer ended, its tokens exact", call: Call{Doing: Answered, Tokens: 1234, Exact: true, Seen: now}, want: span{"↓ 1.2k", titleInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
-		{name: "refused at a limit", call: Call{Doing: Refused, Status: 429, Seen: now}, want: span{"✕ 429", exhaustedInk}, jack: refusedJack, jackInk: exhaustedInk},
-		{name: "refused alone", call: Call{Doing: Refused, Status: 403, Seen: now}, want: span{"✕ 403", exhaustedInk}, jack: refusedJack, jackInk: exhaustedInk},
-		{name: "throttled, dim", call: Call{Doing: Throttled, Status: 429, Seen: now}, want: span{"… 429", dimInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
+		{name: "its answer ended, its tokens exact", call: Call{Doing: Answered, Tokens: 1234, Exact: true}, want: span{"↓ 1.2k", titleInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
+		{name: "refused at a limit", call: Call{Doing: Refused, Status: 429}, want: span{"✕ 429", exhaustedInk}, jack: refusedJack, jackInk: exhaustedInk},
+		{name: "refused alone", call: Call{Doing: Refused, Status: 403}, want: span{"✕ 403", exhaustedInk}, jack: refusedJack, jackInk: exhaustedInk},
+		{name: "throttled, dim", call: Call{Doing: Throttled, Status: 429}, want: span{"… 429", dimInk}, jack: pluggedJack, jackInk: ink{token: theme.VizSeries1}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -472,7 +547,6 @@ func TestAPulseTravelsACord(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.call.Seen = now
 			f := switchboard(160, 40, flippingSessions(), Traffic{Calls: map[Plug]Call{plug: tt.call}})
 			b, c := drawnBay(t, f, threeRouted())
 			path := cordOf(t, b, "d28c", "work").path(b.x)
@@ -500,7 +574,8 @@ func TestAPulseTravelsACord(t *testing.T) {
 func TestAMoveRePatchesTheCall(t *testing.T) {
 	seat := Seat{Session: idD28C, Model: opus}
 	move := Move{Seat: seat, From: "work", To: "side", At: now.Add(-time.Second), Reason: "moved: work hit its limit", Held: true}
-	traffic := Traffic{Calls: map[Plug]Call{{Account: "side", Seat: seat}: {Doing: Asking, New: true, Seen: now}}, Moves: []Move{move}}
+	side := Plug{Account: "side", Seat: seat}
+	traffic := Traffic{Calls: map[Plug]Call{side: {Doing: Asking, New: true}}, Seen: map[Plug]time.Time{side: now}, Moves: []Move{move}}
 	f := switchboard(160, 40, flippingSessions(), traffic)
 	doc := threeRouted()
 	doc.GeneratedAt = now.Add(-4 * time.Second).UTC()
@@ -610,15 +685,27 @@ func TestLOGListsEachMoveAndWhy(t *testing.T) {
 		"  12:22  ▸ 41e0 moved personal → side: personal has no room",
 		"  12:22  ▸ db8a moved personal → side: personal has no room",
 	}
-	for i, w := range want {
-		if i >= len(got) || !strings.HasPrefix(w, strings.TrimSuffix(got[i], "…")) {
-			t.Errorf("LOG reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
-			break
-		}
+	told := len(got) == len(want)
+	for i := range want {
+		told = told && tells(got[i], want[i], b.log.end)
+	}
+	if !told {
+		t.Errorf("LOG reads\n%s\nwant\n%s\neach whole, or cut short at its end, column %d", strings.Join(got, "\n"), strings.Join(want, "\n"), b.log.end)
 	}
 	if label := strings.TrimRight(ansi.Cut(rowOf(c, b.log.row), 0, b.log.end), " "); label != "  LOG" {
 		t.Errorf("LOG's label reads %q", label)
 	}
+}
+
+// tells reports whether a row of LOG, its blanks trimmed, tells of an event
+// as said: the whole of it, or as much as fits before LOG's end, cut short
+// with an ellipsis, a blank before it trimmed.
+func tells(row, said string, end int) bool {
+	if row == said {
+		return true
+	}
+	kept, cut := strings.CutSuffix(row, ellipsis)
+	return cut && strings.HasPrefix(said, kept) && ansi.StringWidth(row) >= end-1
 }
 
 func TestLOGLeavesAMoveToTheDocumentBuiltSinceIt(t *testing.T) {
@@ -632,16 +719,33 @@ func TestLOGLeavesAMoveToTheDocumentBuiltSinceIt(t *testing.T) {
 }
 
 func TestLOGEndsShortOfTheCordsThatTurnDownBesideIt(t *testing.T) {
-	b := bayOfFrame(t, switchboard(160, 40, flippingSessions(), Traffic{}), flipping())
-
-	leftmost := b.x
+	f, doc := switchboard(160, 40, flippingSessions(), Traffic{}), flipping()
+	b := bayOfFrame(t, f, doc)
+	logged := newCanvas(f.Width, b.content)
+	f.drawLog(logged, doc, b.log, now)
+	corded := make(map[point]bool)
 	for _, k := range b.cords {
-		if k.from != k.to && k.from <= b.log.row+b.log.lines && k.to >= b.log.row {
-			leftmost = min(leftmost, k.bend)
+		for _, p := range k.path(b.x) {
+			corded[p] = true
 		}
 	}
-	if b.log.end != leftmost-bendsApart {
-		t.Errorf("LOG's lines end before %d, want %d, bendsApart short of the leftmost cord beside it, at %d", b.log.end, leftmost-bendsApart, leftmost)
+
+	beside := 0
+	for y := b.log.row + 1; y <= b.log.row+b.log.lines; y++ {
+		for x := range f.Width {
+			if corded[point{x, y}] {
+				beside++
+			}
+			if cell := logged.at(x, y); cell.glyph == " " {
+				continue
+			}
+			if corded[point{x - 1, y}] || corded[point{x, y}] || corded[point{x + 1, y}] {
+				t.Errorf("LOG's row %d reads %q, its cell at %d meeting a cord's", y, rowOf(logged, y), x)
+			}
+		}
+	}
+	if beside == 0 {
+		t.Fatal("no cord turns down beside LOG, want the frame to test it against one")
 	}
 }
 
@@ -726,6 +830,21 @@ func TestWithOneAccountSessionsIsAPlainList(t *testing.T) {
 	for i, w := range want {
 		if got := strings.TrimRight(rows[4+i], " "); got != w {
 			t.Errorf("row %d reads %q, want %q", 5+i, got, w)
+		}
+	}
+}
+
+func TestARequestIsInFlightWhileItAsksStreamsOrIsThrottled(t *testing.T) {
+	tests := []struct {
+		doing Doing
+		want  bool
+	}{
+		{doing: Asking, want: true}, {doing: Streaming, want: true}, {doing: Throttled, want: true},
+		{doing: Answered}, {doing: Refused}, {doing: 0},
+	}
+	for _, tt := range tests {
+		if got := tt.doing.InFlight(); got != tt.want {
+			t.Errorf("Doing(%d).InFlight() = %v, want %v", tt.doing, got, tt.want)
 		}
 	}
 }

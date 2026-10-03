@@ -164,15 +164,26 @@ func (m Model) selecting() bool {
 	return !m.selected.IsZero()
 }
 
-// stillThere is the model with the focus given up where the document no
-// longer has the card that had it, and the selection ended where the card's
-// back no longer has the session picked out.
+// stillThere is the model with the focus given up, and the cards no longer
+// flipped, where the document no longer has their accounts; and the
+// selection ended where the card's back no longer has the session picked
+// out.
 func (m Model) stillThere() Model {
-	if !slices.ContainsFunc(m.doc.Accounts, func(a status.Account) bool { return a.ID == m.focus }) {
+	if !m.has(m.focus) {
 		m.focus = ""
 	}
+	flipped := maps.Clone(m.flipped)
+	maps.DeleteFunc(flipped, func(id string, _ bool) bool { return !m.has(id) })
+	m.flipped = flipped
 	if !slices.Contains(m.seats(), m.selected) {
 		m.selected = dashboard.Seat{}
 	}
 	return m
+}
+
+// has reports whether the document on screen has the account with the given
+// id.
+func (m Model) has(id string) bool {
+	_, ok := m.doc.Account(id)
+	return ok
 }

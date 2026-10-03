@@ -64,67 +64,67 @@ func TestWhatEachStreamEventDoes(t *testing.T) {
 	}{
 		{
 			name: "sent: asking, a pulse running out to the jack", events: []router.StreamEvent{sent}, at: 270 * time.Millisecond,
-			want: &dashboard.Call{Doing: dashboard.Asking, Since: past(0), Seen: past(0), Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5}},
+			want: &dashboard.Call{Doing: dashboard.Asking, Since: past(0), Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5}},
 		},
 		{
 			name: "the pulse at the jack: asking still", events: []router.StreamEvent{sent}, at: time.Second,
-			want: &dashboard.Call{Doing: dashboard.Asking, Since: past(0), Seen: past(0), Pulse: dashboard.Pulse{Along: 1}},
+			want: &dashboard.Call{Doing: dashboard.Asking, Since: past(0), Pulse: dashboard.Pulse{Along: 1}},
 		},
 		{
 			name: "its first byte: streaming, its shimmer a step on each shimmerStep", events: []router.StreamEvent{sent, first}, at: time.Second + 3*shimmerStep,
-			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(0), Seen: past(time.Second), Shimmer: 3, Pulse: dashboard.Pulse{Along: 3 * float64(shimmerStep) / float64(pulseFor)}},
+			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(0), Shimmer: 3, Pulse: dashboard.Pulse{Along: 3 * float64(shimmerStep) / float64(pulseFor)}},
 		},
 		{
 			name: "its progress: its tokens so far, estimated at four characters a token", events: []router.StreamEvent{sent, first, progress}, at: 2 * time.Second,
-			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(0), Tokens: 1234, Seen: past(2 * time.Second), Shimmer: 12, Pulse: dashboard.Pulse{Along: 1}},
+			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(0), Tokens: 1234, Shimmer: 12, Pulse: dashboard.Pulse{Along: 1}},
 		},
 		{
 			name: "done with success: answered, its tokens as its closing usage counts them, a pulse running back", at: 5*time.Second + 270*time.Millisecond,
 			events: []router.StreamEvent{sent, first, progress, done(200, &quota.Tokens{Input: 12, Output: 1180})},
-			want:   &dashboard.Call{Doing: dashboard.Answered, Since: past(0), Tokens: 1180, Exact: true, Seen: past(5 * time.Second), Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5, Back: true}},
+			want:   &dashboard.Call{Doing: dashboard.Answered, Since: past(0), Tokens: 1180, Exact: true, Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5, Back: true}},
 		},
 		{
 			name: "done without its tokens counted: the estimate stands", at: 6 * time.Second,
 			events: []router.StreamEvent{sent, first, progress, done(200, nil)},
-			want:   &dashboard.Call{Doing: dashboard.Answered, Since: past(0), Tokens: 1234, Seen: past(5 * time.Second), Pulse: dashboard.Pulse{Along: 1, Back: true}},
+			want:   &dashboard.Call{Doing: dashboard.Answered, Since: past(0), Tokens: 1234, Pulse: dashboard.Pulse{Along: 1, Back: true}},
 		},
 		{name: "answered answeredFor ago: over", events: []router.StreamEvent{sent, first, done(200, nil)}, at: 5*time.Second + answeredFor},
 		{name: "done unanswered, as its client went: over", events: []router.StreamEvent{sent, done(0, nil)}, at: 5 * time.Second},
 		{
 			name: "limited: refused, a red pulse running back", events: []router.StreamEvent{sent, refusal(router.StreamLimited, 429)}, at: 770 * time.Millisecond,
-			want: &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 429, Seen: past(500 * time.Millisecond), Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5, Back: true, Red: true}},
+			want: &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 429, Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5, Back: true, Red: true}},
 		},
 		{
 			name: "refused alone: the same", events: []router.StreamEvent{sent, refusal(router.StreamRefused, 403)}, at: 770 * time.Millisecond,
-			want: &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 403, Seen: past(500 * time.Millisecond), Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5, Back: true, Red: true}},
+			want: &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 403, Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5, Back: true, Red: true}},
 		},
 		{
 			name: "limited, then ended so: refused still, until answeredFor after", events: []router.StreamEvent{sent, refusal(router.StreamLimited, 429), done(429, nil)},
 			at:   5*time.Second + answeredFor - time.Millisecond,
-			want: &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 429, Seen: past(5 * time.Second), Pulse: dashboard.Pulse{Along: 1, Back: true, Red: true}},
+			want: &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 429, Pulse: dashboard.Pulse{Along: 1, Back: true, Red: true}},
 		},
 		{
 			name: "throttled: no pulse", events: []router.StreamEvent{sent, refusal(router.StreamThrottled, 429)}, at: 600 * time.Millisecond,
-			want: &dashboard.Call{Doing: dashboard.Throttled, Since: past(0), Status: 429, Seen: past(500 * time.Millisecond), Pulse: dashboard.Pulse{Along: 100 * float64(time.Millisecond) / float64(pulseFor)}},
+			want: &dashboard.Call{Doing: dashboard.Throttled, Since: past(0), Status: 429, Pulse: dashboard.Pulse{Along: 100 * float64(time.Millisecond) / float64(pulseFor)}},
 		},
 		{
 			name: "throttled, then sent again: asking afresh", at: 2*time.Second + 270*time.Millisecond,
 			events: []router.StreamEvent{sent, refusal(router.StreamThrottled, 429), alter(told(router.StreamSent, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.Attempt = 2 })},
-			want:   &dashboard.Call{Doing: dashboard.Asking, Since: past(2 * time.Second), Seen: past(2 * time.Second), Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5}},
+			want:   &dashboard.Call{Doing: dashboard.Asking, Since: past(2 * time.Second), Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5}},
 		},
 		{name: "the client's quota check: nothing", events: []router.StreamEvent{alter(sent, func(e *router.StreamEvent) { e.Check = true })}, at: 270 * time.Millisecond},
 		{name: "a request of no session: nothing", events: []router.StreamEvent{alter(sent, func(e *router.StreamEvent) { e.Session = "" })}, at: 270 * time.Millisecond},
 		{
 			name: "in flight as the stream opens, sent with nothing back yet", at: time.Second,
 			events: []router.StreamEvent{alter(told(router.StreamInFlight, "r1", "work", time.Second), func(e *router.StreamEvent) { e.SentAt = past(-38 * time.Second) })},
-			want:   &dashboard.Call{Doing: dashboard.Asking, Since: past(-38 * time.Second), Seen: past(time.Second), Pulse: dashboard.Pulse{Along: 1}},
+			want:   &dashboard.Call{Doing: dashboard.Asking, Since: past(-38 * time.Second), Pulse: dashboard.Pulse{Along: 1}},
 		},
 		{
 			name: "in flight as the stream opens, its answer streaming", at: time.Second,
 			events: []router.StreamEvent{alter(told(router.StreamInFlight, "r1", "work", time.Second), func(e *router.StreamEvent) {
 				e.SentAt, e.FirstAt, e.Chars = past(-20*time.Second), past(-18*time.Second), 4800
 			})},
-			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(-20 * time.Second), Tokens: 1200, Seen: past(time.Second), Shimmer: 237, Pulse: dashboard.Pulse{Along: 1}},
+			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(-20 * time.Second), Tokens: 1200, Shimmer: 237, Pulse: dashboard.Pulse{Along: 1}},
 		},
 	}
 	for _, tt := range tests {
@@ -163,7 +163,7 @@ func TestAMoveShowsOnceTheRefusalThatMovedItHasBouncedBack(t *testing.T) {
 	if len(later.Moves) != 1 || later.Moves[0] != wantMove {
 		t.Errorf("once it has, the moves are %+v, want %+v, held, as work's limit moved it", later.Moves, wantMove)
 	}
-	wantCall := dashboard.Call{Doing: dashboard.Asking, Since: past(refused), Seen: past(refused), New: true, Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5}}
+	wantCall := dashboard.Call{Doing: dashboard.Asking, Since: past(refused), New: true, Pulsing: true, Pulse: dashboard.Pulse{Along: 0.5}}
 	if got := later.Calls[d28cOn("side")]; got != wantCall {
 		t.Errorf("on side, it's drawn %+v, want %+v, new, its pulse out from when the move shows", got, wantCall)
 	}
@@ -206,6 +206,89 @@ func TestARequestMovedOffAnAccountLeavesNothingThereOnceItsMoveHasShown(t *testi
 	}
 	if tidied := tr.tidied(past(gone)); len(tidied.calls) > 0 {
 		t.Errorf("tidied, the calls kept are %+v, want none, its request never going out where it was brought", tidied.calls)
+	}
+}
+
+func TestARequestIsOutOnOneAccountAtATime(t *testing.T) {
+	const refused = 300 * time.Millisecond
+	limited := func(request string) router.StreamEvent {
+		return alter(told(router.StreamLimited, request, "work", refused), func(e *router.StreamEvent) { e.Status = 429 })
+	}
+	again := func(request string) router.StreamEvent {
+		return alter(told(router.StreamSent, request, "side", refused), func(e *router.StreamEvent) { e.Attempt = 2 })
+	}
+	moved := alter(told(router.StreamMoved, "r1", "side", refused), func(e *router.StreamEvent) {
+		e.From, e.To, e.Reason = "work", "side", "moved: work hit its limit"
+	})
+	tests := []struct {
+		name   string
+		events []router.StreamEvent
+		// gone is when nothing's left on work: answeredFor once the requests
+		// are done with there.
+		gone time.Duration
+	}{
+		{
+			name: "two of a session's requests refused at once, the second going on with no move of its own, its session moved for the first",
+			events: []router.StreamEvent{
+				told(router.StreamSent, "r1", "work", 0), told(router.StreamSent, "r2", "work", 0),
+				limited("r1"), limited("r2"), moved, again("r1"), again("r2"),
+			},
+			gone: refused + pulseFor + answeredFor,
+		},
+		{
+			name:   "a request refused as a pin moves its session: no move told of",
+			events: []router.StreamEvent{told(router.StreamSent, "r1", "work", 0), limited("r1"), again("r1")},
+			gone:   refused + pulseFor + answeredFor,
+		},
+		{
+			name: "a request refused, then done on another account",
+			events: []router.StreamEvent{
+				told(router.StreamSent, "r1", "work", 0), limited("r1"),
+				alter(told(router.StreamDone, "r1", "side", 2*time.Second), func(e *router.StreamEvent) { e.Status = 200 }),
+			},
+			gone: 2*time.Second + answeredFor,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := traffic{}.took(tt.events, heldNowhere, past(refused))
+			if c := tr.at(past(tt.gone - time.Millisecond)).Calls[d28cOn("work")]; c.Doing != dashboard.Refused {
+				t.Errorf("just short of answeredFor once it's done with, d28c's opus on work is drawn %+v, want refused still", c)
+			}
+			if c, ok := tr.at(past(tt.gone)).Calls[d28cOn("work")]; ok {
+				t.Errorf("answeredFor once it's done with, d28c's opus on work is drawn %+v, want nothing, every request of its out on side", c)
+			}
+			for k := range tr.tidied(past(tt.gone)).calls {
+				if k.account == "work" {
+					t.Errorf("tidied, %s's call on work is kept, want it gone", k.request)
+				}
+			}
+		})
+	}
+}
+
+func TestWhenTheStreamLastSawASeatOutlastsItsCalls(t *testing.T) {
+	answered := 90 * time.Second
+	events := []router.StreamEvent{
+		told(router.StreamSent, "r1", "work", 0),
+		told(router.StreamFirst, "r1", "work", time.Second),
+		alter(told(router.StreamDone, "r1", "work", answered), func(e *router.StreamEvent) { e.Status = 200 }),
+	}
+	tr := traffic{}.took(events, heldNowhere, past(answered))
+	tidied := past(answered + answeredFor)
+
+	drawn := tr.tidied(tidied).at(tidied)
+	if c, ok := drawn.Calls[d28cOn("work")]; ok {
+		t.Fatalf("answeredFor after its answer ended, d28c's opus on work is drawn %+v, want its call done with", c)
+	}
+	if got := drawn.Seen[d28cOn("work")]; !got.Equal(past(answered)) {
+		t.Errorf("once its call is done with, the stream last saw d28c's opus on work at %s, want %s, as its answer ended", got, past(answered))
+	}
+	if got := tr.afresh().at(tidied).Seen[d28cOn("work")]; !got.Equal(past(answered)) {
+		t.Errorf("as the stream opens again, the stream last saw it at %s, want %s kept", got, past(answered))
+	}
+	if seen, ok := tr.tidied(past(answered + seenFor)).at(past(answered + seenFor)).Seen[d28cOn("work")]; ok {
+		t.Errorf("seenFor after, the stream last saw it at %s, want it forgotten, as the router's listing says since", seen)
 	}
 }
 

@@ -132,7 +132,7 @@ func (f Frame) busy(id string, now time.Time) []bool {
 // lit reports whether the seat s is busy at now: a request of its in flight,
 // as the request stream tells, or it was seen at work in the last minute.
 func (f Frame) lit(s seated, now time.Time) bool {
-	if c, ok := f.Traffic.call(s.plug()); ok && c.inFlight() {
+	if c, ok := f.Traffic.call(s.plug()); ok && c.Doing.InFlight() {
 		return true
 	}
 	return now.Sub(f.lastSeen(s)) < busyWithin
@@ -141,11 +141,7 @@ func (f Frame) lit(s seated, now time.Time) bool {
 // lastSeen is when the seat s was last seen at work: as the router listed
 // it, or later, as the request stream told of it.
 func (f Frame) lastSeen(s seated) time.Time {
-	seen := s.assignment.LastSeen
-	if c, ok := f.Traffic.call(s.plug()); ok {
-		seen = latest(seen, c.Seen)
-	}
-	return seen
+	return latest(s.assignment.LastSeen, f.Traffic.Seen[s.plug()])
 }
 
 // latest is the later of two times.

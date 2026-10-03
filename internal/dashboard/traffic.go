@@ -9,17 +9,23 @@ import (
 
 // Traffic is what the router's request stream tells of the sessions'
 // requests at a moment, as the watch reads it: what each session's model is
-// doing on its account, and what travels its cord; and the moves the stream
-// told of while they show. The zero Traffic is a watch without the stream,
-// whose cords and cards' backs draw the sessions as each look reads them,
-// with no requests travelling.
+// doing on its account, and what travels its cord; when the stream last saw
+// each at work; and the moves the stream told of while they show. The zero
+// Traffic is a watch without the stream, whose cords and cards' backs draw
+// the sessions as each look reads them, with no requests travelling.
 type Traffic struct {
-	// Live is set while the watch reads the stream: the cards' backs then say
-	// what each session is doing.
+	// Live is set while what the watch draws is the stream's: from when it
+	// opens until the watch forgets what it told. The cards' backs then say
+	// what each session is doing, or how long it has been idle.
 	Live bool
 	// Calls are what each session's model is doing on its account, where the
 	// stream has told of it lately, by where it's plugged in.
 	Calls map[Plug]Call
+	// Seen are when the stream last told of each session's model on its
+	// account, by where it's plugged in, kept once its calls are done with:
+	// the router's sessions say when each was last seen as its request
+	// arrived, which a long answer leaves far behind.
+	Seen map[Plug]time.Time
 	// Moves are the moves the stream told of, the oldest first, while each
 	// shows: as a re-patch until the router's sessions are listed again, and
 	// as the cord it left hanging loose until that's gone.
@@ -50,6 +56,12 @@ const (
 	Throttled
 )
 
+// InFlight reports whether a request doing d is in flight on its account:
+// asking, streaming, or throttled, to be sent again.
+func (d Doing) InFlight() bool {
+	return d == Asking || d == Streaming || d == Throttled
+}
+
 // Call is what a seat is doing on its account at a moment, as the request
 // stream tells of it, and what travels its cord.
 type Call struct {
@@ -63,8 +75,6 @@ type Call struct {
 	Exact  bool
 	// Status is the upstream's answer that refused or throttled it.
 	Status int
-	// Seen is when the stream last told of it.
-	Seen time.Time
 	// New is set while it asks on an account a move has just brought it to.
 	New bool
 	// Pulse travels its cord while Pulsing is set.
@@ -109,12 +119,6 @@ type Move struct {
 func (t Traffic) call(p Plug) (Call, bool) {
 	c, ok := t.Calls[p]
 	return c, ok
-}
-
-// inFlight reports whether the call has a request in flight: asking,
-// streaming, or throttled, to be sent again.
-func (c Call) inFlight() bool {
-	return c.Doing == Asking || c.Doing == Streaming || c.Doing == Throttled
 }
 
 // repatching are the moves that re-patch at the moment: those the router's

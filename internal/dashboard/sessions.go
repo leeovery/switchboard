@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 	"strconv"
 	"time"
@@ -143,6 +144,17 @@ func (f Frame) sessionsRows(doc status.Document, now time.Time, top int) (conten
 	return f.layOutPlain(doc, now).content, max(f.Height-2-top, 0)
 }
 
+// Switchboard reports whether the frame shows doc at now as Sessions'
+// switchboard, whose cords what the request stream tells of travels, rather
+// than as a plain list, or another view.
+func (f Frame) Switchboard(doc status.Document, now time.Time) bool {
+	if f.View != Sessions || f.printed() {
+		return false
+	}
+	_, ok := f.bayOf(doc, now, f.above(newCanvas(f.Width, f.Height), doc, now))
+	return ok
+}
+
 // bayOf lays the Sessions view of doc at now out as a switchboard under its
 // labels, on row top, reporting false where it's a plain list instead: with
 // one account, every cord would end at the same jack; under cordsFrom
@@ -248,15 +260,15 @@ func (b bay) hidden(offset, view int) (above, below int) {
 }
 
 // groupsOf are the calls of doc's accounts, a group each, in their order:
-// the seats the router listed on each, the one put there last first, as
-// newestFirst has them; each a move the request stream told of has taken off
+// the seats the router listed on each, in the order the calls keep, as
+// ordered has them; each a move the request stream told of has taken off
 // since a placeholder, and each it brought on after the rest, until the
 // router's sessions are listed again.
 func (f Frame) groupsOf(doc status.Document) [][]callRow {
 	moves := latestMoves(f.Traffic.repatching())
 	groups := make([][]callRow, len(doc.Accounts))
 	for i, a := range doc.Accounts {
-		for _, s := range newestFirst(seatedOn(f.Sessions, a.ID)) {
+		for _, s := range f.Order.ordered(a.ID, seatedOn(f.Sessions, a.ID)) {
 			r := callRow{seated: s}
 			if m, ok := moves[s.seat()]; ok && m.To != a.ID {
 				r.gone, r.to = true, m.To
@@ -301,10 +313,48 @@ func latestMoves(moves []Move) map[Seat]Move {
 	return latest
 }
 
-// newestFirst are the seats on an account in the order its calls list them:
-// the one put there last first, so a seat keeps its row look to look,
-// however the router's listing turns over, and between those put there at
-// once, as the router listed them, the one seen last first.
+// Order is the order Sessions' calls run in, as the watch keeps it from look
+// to look: each account's seats, by its id, in the order of their rows.
+type Order map[string][]Seat
+
+// OrderOf is the order the calls of doc's accounts run in as the frame
+// draws them, for the watch to keep for the next look: each account's
+// seats, a move's placeholders left out, as their rows close up once the
+// router's sessions are listed again.
+func (f Frame) OrderOf(doc status.Document) Order {
+	order := make(Order)
+	for i, g := range f.groupsOf(doc) {
+		id := doc.Accounts[i].ID
+		for _, r := range g {
+			if !r.gone {
+				order[id] = append(order[id], r.seat())
+			}
+		}
+	}
+	return order
+}
+
+// ordered are the seats on the account with the given id in the order its
+// calls run, so each keeps its row look to look, however the router's
+// listing turns over: those the order has there first, in its order, closing
+// up over those gone, then the rest at the foot, as newestFirst has them.
+func (o Order) ordered(id string, seats []seated) []seated {
+	kept := o[id]
+	row := func(s seated) int {
+		if i := slices.Index(kept, s.seat()); i >= 0 {
+			return i
+		}
+		return len(kept)
+	}
+	seats = newestFirst(seats)
+	slices.SortStableFunc(seats, func(a, b seated) int { return cmp.Compare(row(a), row(b)) })
+	return seats
+}
+
+// newestFirst are the seats on an account in the order they join its calls:
+// the one put there last first, which gives the calls their order at the
+// first look, and between those put there at once, as the router listed
+// them, the one seen last first.
 func newestFirst(seats []seated) []seated {
 	seats = slices.Clone(seats)
 	slices.SortStableFunc(seats, func(a, b seated) int { return b.assignment.AssignedAt.Compare(a.assignment.AssignedAt) })
@@ -342,8 +392,8 @@ func noCalls(doc status.Document) string {
 
 // drawCall draws the call r of doc at now along its row: a placeholder's id,
 // faint, and where the move took it, as in "d28c  ↪ moved to side"; else its
-// session's id, bold, bright while busy; its model; when it was last seen;
-// and what its request is doing, as the request stream tells.
+// session's id, bright and bold while busy; its model; when it was last
+// seen; and what its request is doing, as the request stream tells.
 func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time) {
 	id := sessionID(r.session.ID)
 	if r.gone {

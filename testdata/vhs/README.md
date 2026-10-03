@@ -105,6 +105,8 @@ known:
   has no room, where the frame leaves it blank.
 - **An answer's tokens, as it streams,** are an estimate, `↓ ~1.2k`, as the doc says, on a card's
   back and in Sessions alike, where the frames say `↓ 1.2k`: the exact count comes as it ends.
+- **An idle session's id** isn't bold, as the doc has an id bold while busy alone: on a card's back
+  and among Sessions' calls, 7f3a's and 41e0's are muted, where the frames draw every id bold.
 - **A session's note** says the doc's words: c61b's is `here since 14:41`, where the frames have
   `new at 14:41: side was the best`; and every row has one where there's room for every one's,
   7f3a's `here since 13:10` too, where the frames give it none.
@@ -398,9 +400,9 @@ its own rules, so a few read otherwise than the generator drew them:
   the busy ones lead: work's read `● ● ○`, where the frames have `● ○ ●`. Its back lists them in
   that order too, work's db8a, d28c and 7f3a, where the frames have d28c, 7f3a and db8a, so the
   flipped-selected fixture picks out d28c, the frames' session, with `↓` twice, on work's second
-  row rather than its first. Sessions' calls keep their rows look to look, the one put on its
-  account last first, which gives the frames' order: 7f3a was put on work at 13:10, between db8a
-  at 13:05 and d28c at 13:20.
+  row rather than its first. Sessions' calls, at the first look, run the one put on its account
+  last first, which gives the frames' order: 7f3a was put on work at 13:10, between db8a at 13:05
+  and d28c at 13:20. From then on each keeps its row, a new one joining its group's foot.
 - **The cards' backs and Sessions draw different moments**, as their frames do: the backs' frames
   have four requests in flight, d28c's opus streaming on work, 1.2k tokens of it, db8a's sonnet
   waiting 38s there, c61b's opus streaming on side, 3.4k tokens, and db8a's opus waiting 12s; the

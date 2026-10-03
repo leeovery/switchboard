@@ -54,6 +54,10 @@ type Frame struct {
 	// Traffic is what the router's request stream tells of the sessions'
 	// requests, while the watch reads it: zero while it doesn't.
 	Traffic Traffic
+	// Order is the order Sessions' calls run in, as the watch keeps it from
+	// look to look: a seat keeps its row while the router lists it there,
+	// and one new to its account joins its group's foot.
+	Order Order
 	// Scroll is how many rows the view's cards, or its lanes, are scrolled
 	// down by, where they don't fit: no further than Scrolling says they go.
 	Scroll int
