@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"image/color"
 	"testing"
 	"time"
 
@@ -52,70 +51,70 @@ func TestDetailGivesWayAsWidthShrinks(t *testing.T) {
 
 func TestDetailSays(t *testing.T) {
 	tests := []struct {
-		name      string
-		window    quota.Window
-		want      string
-		wantColor color.Color
+		name    string
+		window  quota.Window
+		want    string
+		wantInk ink
 	}{
 		{
-			name:      "keeping pace, quietly",
-			window:    quota.Window{Key: "5h", Utilization: 0.37, ResetsAt: now.Add(5 * time.Minute)},
-			want:      "on pace for 38% · resets in 5m · Mon 13:17",
-			wantColor: dimColor,
+			name:    "keeping pace, quietly",
+			window:  quota.Window{Key: "5h", Utilization: 0.37, ResetsAt: now.Add(5 * time.Minute)},
+			want:    "on pace for 38% · resets in 5m · Mon 13:17",
+			wantInk: dimInk,
 		},
 		{
-			name:      "running out, as a warning",
-			window:    quota.Window{Key: "7d", Utilization: 0.64, ResetsAt: now.Add(76 * time.Hour)},
-			want:      "runs out ~Wed 16:57 · resets in 3d 4h · Thu 17:12",
-			wantColor: orange,
+			name:    "running out, as a warning",
+			window:  quota.Window{Key: "7d", Utilization: 0.64, ResetsAt: now.Add(76 * time.Hour)},
+			want:    "runs out ~Wed 16:57 · resets in 3d 4h · Thu 17:12",
+			wantInk: warningInk,
 		},
 		{
-			name:      "running out in the red",
-			window:    quota.Window{Key: "7d", Utilization: 0.91, ResetsAt: now.Add(24 * time.Hour)},
-			want:      "runs out ~Tue 03:26 · resets in 1d · Tue 13:12",
-			wantColor: red,
+			name:    "running out in the red",
+			window:  quota.Window{Key: "7d", Utilization: 0.91, ResetsAt: now.Add(24 * time.Hour)},
+			want:    "runs out ~Tue 03:26 · resets in 1d · Tue 13:12",
+			wantInk: errorInk,
 		},
 		{
-			name:      "exhausted, and when it's back",
-			window:    quota.Window{Key: "5h", Utilization: 1, ResetsAt: now.Add(80 * time.Minute)},
-			want:      "back in 1h 20m · Mon 14:32",
-			wantColor: red,
+			name:    "exhausted, and when it's back",
+			window:  quota.Window{Key: "5h", Utilization: 1, ResetsAt: now.Add(80 * time.Minute)},
+			want:    "back in 1h 20m · Mon 14:32",
+			wantInk: exhaustedInk,
 		},
 		{
-			name:      "exhausted, back within ten minutes, to the second",
-			window:    quota.Window{Key: "5h", Utilization: 1, ResetsAt: now.Add(7*time.Minute + 42*time.Second)},
-			want:      "back in 07:42 · Mon 13:19",
-			wantColor: red,
+			name:    "exhausted, back within ten minutes, to the second",
+			window:  quota.Window{Key: "5h", Utilization: 1, ResetsAt: now.Add(7*time.Minute + 42*time.Second)},
+			want:    "back in 07:42 · Mon 13:19",
+			wantInk: exhaustedInk,
 		},
 		{
-			name:      "exhausted, back at an unknown time",
-			window:    quota.Window{Key: "7d_oi", Utilization: 1.04},
-			want:      "exhausted",
-			wantColor: red,
+			name:    "exhausted, back at an unknown time",
+			window:  quota.Window{Key: "7d_oi", Utilization: 1.04},
+			want:    "exhausted",
+			wantInk: exhaustedInk,
 		},
 		{
-			name:      "too early to project",
-			window:    quota.Window{Key: "5h", Utilization: 0.01, ResetsAt: now.Add(290 * time.Minute)},
-			want:      "resets in 4h 50m · Mon 18:02",
-			wantColor: dimColor,
+			name:    "too early to project",
+			window:  quota.Window{Key: "5h", Utilization: 0.01, ResetsAt: now.Add(290 * time.Minute)},
+			want:    "resets in 4h 50m · Mon 18:02",
+			wantInk: dimInk,
 		},
 		{
-			name:      "a length that can't be read",
-			window:    quota.Window{Key: "burst", Utilization: 0.62, ResetsAt: now.Add(42 * time.Minute)},
-			want:      "resets in 42m · Mon 13:54",
-			wantColor: dimColor,
+			name:    "a length that can't be read",
+			window:  quota.Window{Key: "burst", Utilization: 0.62, ResetsAt: now.Add(42 * time.Minute)},
+			want:    "resets in 42m · Mon 13:54",
+			wantInk: dimInk,
 		},
 		{
-			name:      "reset since it was read",
-			window:    quota.Window{Key: "5h", Utilization: 0.8, ResetsAt: now.Add(-12 * time.Minute)},
-			want:      "resets now · Mon 13:00",
-			wantColor: dimColor,
+			name:    "reset since it was read",
+			window:  quota.Window{Key: "5h", Utilization: 0.8, ResetsAt: now.Add(-12 * time.Minute)},
+			want:    "resets now · Mon 13:00",
+			wantInk: dimInk,
 		},
 		{
-			name:      "an unknown reset",
-			window:    quota.Window{Key: "5h", Utilization: 0.23},
-			want:      "reset time unknown",
-			wantColor: dimColor,
+			name:    "an unknown reset",
+			window:  quota.Window{Key: "5h", Utilization: 0.23},
+			want:    "reset time unknown",
+			wantInk: dimInk,
 		},
 	}
 	for _, tt := range tests {
@@ -124,8 +123,8 @@ func TestDetailSays(t *testing.T) {
 			if got.plain() != tt.want {
 				t.Errorf("detail() = %q, want %q", got.plain(), tt.want)
 			}
-			if lead := got[0].ink.color; !sameColor(lead, tt.wantColor) {
-				t.Errorf("detail() leads in %v, want %v", lead, tt.wantColor)
+			if lead := got[0].ink; lead != tt.wantInk {
+				t.Errorf("detail() leads in %+v, want %+v", lead, tt.wantInk)
 			}
 		})
 	}

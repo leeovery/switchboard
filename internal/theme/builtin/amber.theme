@@ -1,0 +1,45 @@
+# Amber: an amber CRT, its phosphor in every token, dark.
+#
+# Its text on a selection is its brightest phosphor, as its selection is
+# dark. Its own cords' colours, as one hue gives the defaults too few:
+# amber's shades and its orange, never the red a limit or a refusal is drawn
+# in.
+
+# Text, bright to faint.
+text.primary = #FFD27A
+text.secondary = #FFC447
+text.tertiary = #FFB000
+text.muted = #B07A00
+text.subtle = #8A6000
+text.faint = #3A2A08
+text.on-selection = #FFE7B0
+
+# Accents and states.
+accent.primary = #FFB000
+accent.key = #FFD27A
+accent.mode = #FFC447
+accent.attention = #FF8A1F
+state.positive = #FFB000
+state.destructive = #FF5A36
+
+# Surfaces, and the text drawn on the attention surface.
+canvas = #0E0B06
+bg.selection = #3A2A08
+bg.attention = #2A1A05
+bg.subtle = #1C1406
+border = #4A3608
+text.on-attention = #FFD27A
+
+# The charts.
+viz.ramp.1 = #B07A00
+viz.ramp.2 = #FFB000
+viz.ramp.3 = #FF8A1F
+viz.ramp.4 = #FF5A36
+viz.track = #2A1E05
+viz.pace = #FFE7B0
+viz.series.1 = #FFB000
+viz.series.2 = #FFE7B0
+viz.series.3 = #B07A00
+viz.series.4 = #FF8A1F
+viz.series.5 = #FFD27A
+viz.series.6 = #FFC447

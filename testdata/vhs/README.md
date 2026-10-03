@@ -8,9 +8,10 @@ screenshots the dashboard through it, and judges the capture against the frame i
 The dashboard is drawn by `cmd/capturetool`, a program of its own, not a switchboard subcommand.
 It builds the dashboard's real watch model through `watch.New`, as `usage -w` does, with every seam
 faked by `internal/capture`: the router's status document, sessions and history, the clock and its
-timers, the notifier and the terminal's size. It never dials the router's socket, probes, touches
-the network, reads or writes the real config, state, prefs or tokens, or runs another process, so
-it's safe to run beside a live router. Switchboard's own binary never imports `internal/capture`:
+timers, the notifier, the terminal's size and background, and the themes. It never dials the
+router's socket, probes, touches the network, reads or writes the real config, themes, state, prefs
+or tokens, or runs another process, so it's safe to run beside a live router. A theme picked in it
+is kept for the run alone. Switchboard's own binary never imports `internal/capture`:
 `cmd/capturetool`'s import guard test fails if anything `cmd/switchboard` builds ever does.
 
 ## What lives here, and for how long
@@ -41,7 +42,10 @@ Where the frames differ from `docs/design.md`'s Dashboard section, the doc holds
 known:
 
 - **Account 1's cords** are red in the frames: in the doc they're `viz.series.1`, which is
-  `accent.key` where a theme doesn't set it, and never `state.destructive`.
+  `accent.key` where a theme doesn't set it, and never `state.destructive`. So too the theme
+  sheets' `series` rows, which open with each theme's red: the built-ins' series take none,
+  `nord`'s and the Tokyo Nights' being the doc's defaults, and `amber`'s and `exchange`'s their
+  sheets' other five, and a sixth of their own.
 - **The sample session ids** differ: the frames have `d28c`, `c61b`, `db8a` and so on, the doc's
   examples `5b19`, `3e7a`, `9e21`. The fixtures use the frames'.
 
@@ -76,6 +80,7 @@ October 2026 at 14:42:07, so nothing moves of itself.
 |---|---|---|---|
 | `accounts-1` | `work` | 160 × 27 | `accounts-1` |
 | `accounts-3` | `work`, `personal`, `side` | 160 × 34 | `accounts-3-auto` |
+| `accounts-3-themes` | `work`, `personal`, `side`, the theme picker open, the cursor up a theme | 160 × 34 | none: Portal draws the picker |
 | `accounts-4` | and `client` | 160 × 40 | `accounts-4` |
 | `accounts-5` | and `spare` | 160 × 40 | none: Sessions' and Runway's are 5 accounts |
 | `accounts-6` | and `lab` | 160 × 40 | `accounts-6` |
@@ -83,6 +88,21 @@ October 2026 at 14:42:07, so nothing moves of itself.
 | `accounts-phone` | `work`, `personal`, `side` | 52 × 36 | `accounts-phone` |
 
 The four, six and eight accounts have nothing used of Fable's week, as their frames do.
+
+### `--theme`, and `NO_COLOR`
+
+```bash
+go run ./cmd/capturetool --fixture accounts-3 --theme amber
+go run ./cmd/capturetool --fixture accounts-3 --theme path/to/lake.theme
+NO_COLOR=1 go run ./cmd/capturetool --fixture accounts-3
+```
+
+A fixture is drawn in `nord`, the frames' theme, as the one theme chosen, on a terminal that says
+its background is Nord's canvas. `--theme` names another: a built-in by its slug, or a `.theme`
+file by its path, whatever it's named, as a theme written and not yet in the themes directory. It's
+an input, never looked for in the themes directory, and one that doesn't load is an error, never a
+theme drawn in its place. With `NO_COLOR` set, the fixture is drawn without colour, as the
+dashboard is.
 
 ### `--print`
 
@@ -235,13 +255,13 @@ paint to race, and nothing on screen moves until a key does.
 ## The capture tool and its fixtures
 
 ```
-cmd/capturetool/       the tool: --fixture, --print, --size, --ansi, and the import guard
+cmd/capturetool/       the tool: --fixture, --theme, --print, --size, --ansi, and the import guard
 internal/capture/      imported by the tool alone
-  capture.go           the Fixture, and the registry: Names, ByName, and every fixture's name, size and router
+  capture.go           the Fixture, and the registry: Names, ByName, and every fixture's name, size, router and theme
   samples.go           the frames' sample accounts and sessions, and the sets of them the frames draw
   source.go            the fake router: its status document, GET /sessions and GET /history
   history.go           the accounts' windows' use over time, as the frames' charts draw it
-  harness.go           builds the watch model, settles it at the fixture's moment, and draws it
+  harness.go           builds the watch model, its themes faked, settles it at the fixture's moment, and draws it
 ```
 
 A fixture is a moment of the dashboard: what the router gives at it, the terminal it's drawn on,

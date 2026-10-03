@@ -2,6 +2,7 @@ package capture
 
 import (
 	"context"
+	"image/color"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // interval is how often a watch reads in full when usage -w isn't told
@@ -37,12 +39,13 @@ func (f Fixture) Model() tea.Model {
 
 // settle builds the dashboard's watch model of the fixture, as watch.New
 // builds it for usage -w, on a terminal of the given size, and brings it to
-// the fixture's moment: its first read lands readAgo before, then the clock
-// reads the moment, and the fixture's keys are pressed. Its timers never
-// fire, so nothing moves from there but what a key does.
+// the fixture's moment: its first read lands readAgo before, the terminal
+// says what its background is, then the clock reads the moment, and the
+// fixture's keys are pressed. Its timers never fire, so nothing moves from
+// there but what a key does.
 func (f Fixture) settle(size watch.Size) watch.Model {
 	clock := &clock{now: ago(f.now, readAgo)}
-	m := watch.New(context.Background(), watch.Config{
+	cfg := watch.Config{
 		Source:   f.router,
 		Notifier: quiet{},
 		Now:      clock.read,
@@ -50,13 +53,55 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     size,
-	})
+	}
+	if !f.colourless {
+		cfg.Themes = themes{listing: listing(f.theme)}
+		cfg.Choice, cfg.Pair = theme.One(f.theme.Slug), theme.Pair{Light: f.theme, Dark: f.theme}
+	}
+	m := watch.New(context.Background(), cfg)
 	m = deliver(m, run(m.Init())...)
+	if !f.colourless {
+		m = deliver(m, tea.BackgroundColorMsg{Color: terminalBackground})
+	}
 	clock.now = f.now
 	for _, key := range f.keys {
 		m = deliver(m, key)
 	}
 	return m
+}
+
+// terminalBackground is what the terminal a tape runs says its background
+// is: the frames' canvas, Nord's.
+var terminalBackground = color.RGBA{R: 0x2E, G: 0x34, B: 0x40, A: 0xff}
+
+// themes are a capture's themes, as the theme picker takes them: listed,
+// never looked for in the themes directory, and a choice made among them
+// kept for the capture alone, never written.
+type themes struct {
+	listing theme.Listing
+}
+
+// List lists the capture's themes.
+func (t themes) List() theme.Listing {
+	return t.listing
+}
+
+// Keep keeps nothing, as a capture writes nothing.
+func (themes) Keep(theme.Choice) error {
+	return nil
+}
+
+// listing lists the built-ins, and t where it isn't one, as when the
+// capture tool is given a theme's file.
+func listing(t theme.Theme) theme.Listing {
+	var l theme.Listing
+	for _, b := range theme.Builtins() {
+		l.Entries = append(l.Entries, theme.Entry{Name: b.Slug, Slug: b.Slug, Theme: b})
+	}
+	if b, ok := theme.Builtin(t.Slug); !ok || b != t {
+		l.Entries = append(l.Entries, theme.Entry{Name: t.Slug, Slug: t.Slug, Theme: t})
+	}
+	return l
 }
 
 // deliver gives the model each message, and each that the commands it

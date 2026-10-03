@@ -83,13 +83,19 @@ the next full read, or r, probes the accounts instead. Without the router it
 probes every account every interval, sooner for a window that resets or an
 account that couldn't be read, and reads the router again once it's back.
 
-Keys: r refresh, q quit. While it reads the router, and the router answers,
-1-9 pin new sessions to the account in that place, beside those pinned
-already, or unpin it, a routes every session automatically again, and m moves
-running sessions to the pinned accounts. While the router runs, it posts the
-desktop notifications, --probe or not; without it, the dashboard posts its own
-of an account with room again and a window passing the warning, as the
-config's [notifications] asks, unless --no-notify.`,
+Keys: r refresh, t the theme picker, q quit. While it reads the router, and
+the router answers, 1-9 pin new sessions to the account in that place, beside
+those pinned already, or unpin it, a routes every session automatically again,
+and m moves running sessions to the pinned accounts. While the router runs, it
+posts the desktop notifications, --probe or not; without it, the dashboard
+posts its own of an account with room again and a window passing the warning,
+as the config's [notifications] asks, unless --no-notify.
+
+The dashboard is drawn in the theme chosen in the picker, or the pair of
+tokyo-night-day for a light terminal and nord for a dark one, which the
+terminal is asked. Themes of your own are <slug>.theme files in
+$SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
+~/.config/switchboard/themes. NO_COLOR draws it without colour.`,
 		Args: opts.parseArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			switch out := cmd.OutOrStdout(); {
@@ -153,7 +159,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		return err
 	}
 	width := a.terminalWidth(out)
-	frame := dashboard.Render(doc, a.Now(), dashboard.Options{Width: width, Color: true})
+	frame := dashboard.Render(doc, a.Now(), dashboard.Options{Width: width, Look: a.printLook(out)})
 	// The frame is drawn in full colour; the writer brings it down to what
 	// the terminal shows, which is none when it isn't one.
 	colors := colorprofile.NewWriter(out, a.Environ())
@@ -186,7 +192,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	if opts.noNotify {
 		notifier = notify.Off{}
 	}
-	err = a.Watch(ctx, watch.Config{
+	wc := watch.Config{
 		Source:        a.source(cfg, opts.probe),
 		Notifier:      notifier,
 		Notifications: cfg.Notifications,
@@ -194,7 +200,14 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Interval:      opts.interval,
 		Policy:        claude.Policy,
 		Size:          a.environSize(),
-	}, out, a.Environ())
+	}
+	if !a.noColour() {
+		t := a.themes()
+		wc.Choice = t.chosen()
+		wc.Pair = t.library.Pair(wc.Choice)
+		wc.Themes = t
+	}
+	err = a.Watch(ctx, wc, out, a.Environ())
 	if errors.Is(err, watch.ErrNotTerminal) {
 		return errors.New("--watch needs a terminal, and stdout isn't one")
 	}

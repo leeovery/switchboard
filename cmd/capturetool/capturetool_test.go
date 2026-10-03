@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -73,7 +75,7 @@ func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			err := run(tt.args, &stdout, &stderr)
+			err := run(tt.args, &stdout, &stderr, noEnv)
 			if err == nil || err.Error() != tt.want {
 				t.Errorf("run(%q) error = %v, want %s", tt.args, err, tt.want)
 			}
@@ -116,12 +118,112 @@ func TestReadsASizeGivenAsWxH(t *testing.T) {
 	}
 }
 
+func TestDrawsInTheThemeGiven(t *testing.T) {
+	lake := filepath.Join(t.TempDir(), "Lake Draft.theme")
+	if err := os.WriteFile(lake, []byte(strings.ReplaceAll(nordFile, "#2E3440", "#102030")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		args []string
+		// want is the canvas the frame is painted on, as a background's SGR.
+		want string
+	}{
+		{name: "nord, the frames', unless given", want: "48;2;46;52;64"},
+		{name: "a built-in", args: []string{"--theme", "amber"}, want: "48;2;14;11;6"},
+		{name: "a theme's file, whatever it's named", args: []string{"--theme", lake}, want: "48;2;16;32;48"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := capturing(t, append([]string{"--fixture", "accounts-3", "--print", "--ansi"}, tt.args...)...)
+			for i, line := range strings.Split(strings.TrimSuffix(out, "\n"), "\n") {
+				if !strings.Contains(line, tt.want) {
+					t.Fatalf("line %d is off the canvas %s: %q", i+1, tt.want, line)
+				}
+			}
+		})
+	}
+}
+
+func TestRefusesAThemeThatDoesntLoad(t *testing.T) {
+	broken := filepath.Join(t.TempDir(), "broken.theme")
+	if err := os.WriteFile(broken, []byte("canvas = #2E3440\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name, theme, want string
+	}{
+		{name: "no such built-in", theme: "solarized", want: `--theme "solarized" names no built-in theme (built in: amber, exchange, nord, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
+		{name: "a broken file", theme: broken, want: `--theme "` + broken + `" doesn't load: missing tokens: missing text.primary`},
+		{name: "no such file", theme: filepath.Join(t.TempDir(), "gone.theme"), want: "doesn't load: unreadable"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			err := run([]string{"--fixture", "accounts-3", "--print", "--theme", tt.theme}, &stdout, &stderr, noEnv)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("run() error = %v, want one saying %s", err, tt.want)
+			}
+			if stdout.Len() > 0 {
+				t.Errorf("run() printed %q, want nothing drawn in a theme it wasn't given", stdout.String())
+			}
+		})
+	}
+}
+
+func TestDrawsWithoutColourUnderNoColour(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	noColour := func(key string) string { return map[string]string{"NO_COLOR": "1"}[key] }
+	if err := run([]string{"--fixture", "accounts-3", "--print", "--ansi"}, &stdout, &stderr, noColour); err != nil {
+		t.Fatal(err)
+	}
+
+	if out := stdout.String(); strings.Contains(out, "38;") || strings.Contains(out, "48;") || !strings.Contains(out, "\x1b[1m") {
+		t.Errorf("under NO_COLOR, printed\n%q\nwant no colour, nor canvas, but bold", out)
+	}
+}
+
+func TestDrawsThePickerOverTheView(t *testing.T) {
+	out := capturing(t, "--fixture", "accounts-3-themes", "--print")
+
+	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "Switchboard"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("printed\n%s\nwant %q", out, want)
+		}
+	}
+}
+
+// nordFile is Nord's theme file, as Portal's tokens give it.
+const nordFile = `text.primary = #ECEFF4
+text.secondary = #E5E9F0
+text.tertiary = #D8DEE9
+text.muted = #939EB2
+text.subtle = #73819B
+text.faint = #4C566A
+text.on-selection = #FFFFFF
+accent.primary = #B48EAD
+accent.key = #81A1C1
+accent.mode = #88C0D0
+accent.attention = #EBCB8B
+state.positive = #A7C492
+state.destructive = #DD8188
+canvas = #2E3440
+bg.selection = #434C5E
+bg.attention = #3D4046
+bg.subtle = #3B4252
+border = #4C566A
+text.on-attention = #ECEFF4
+`
+
 // capturing runs the command with args, returning what it prints.
 func capturing(t *testing.T, args ...string) string {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	if err := run(args, &stdout, &stderr); err != nil {
+	if err := run(args, &stdout, &stderr, noEnv); err != nil {
 		t.Fatalf("run(%q): %v\n%s", args, err, stderr.String())
 	}
 	return stdout.String()
 }
+
+// noEnv is an environment without a variable set.
+func noEnv(string) string { return "" }

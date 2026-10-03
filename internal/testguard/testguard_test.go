@@ -47,11 +47,13 @@ var seeded = []string{
 	"ALL_PROXY=socks5://127.0.0.1:9",
 }
 
-// Where switchboard keeps its config, its state, its LaunchAgent and its
-// skill, from a home.
+// Where switchboard keeps its config, a theme, its state, its preferences,
+// its LaunchAgent and its skill, from a home.
 var (
 	configFile = filepath.Join(".config", "switchboard", "config.toml")
+	themeFile  = filepath.Join(".config", "switchboard", "themes", "lake.theme")
 	stateFile  = filepath.Join(".local", "state", "switchboard", "state.json")
+	prefsFile  = filepath.Join(".local", "state", "switchboard", "prefs.json")
 	agentFile  = filepath.Join("Library", "LaunchAgents", "io.github.leeovery.switchboard.plist")
 	skillFile  = filepath.Join(".claude", "skills", "switchboard", "SKILL.md")
 )
@@ -70,6 +72,7 @@ func TestEscapesFailTheRunThoughEveryTestPasses(t *testing.T) {
 		{does: "dial-off-the-machine", want: "blocked dial to 192.0.2.1:80"},
 		{does: "dial-a-socket-outside-the-temporary-directory", want: "blocked dial to " + outsideSocket},
 		{does: "overwrite-the-real-config", want: "the real ~/.config/switchboard/config.toml was modified"},
+		{does: "write-a-real-theme", want: "the real ~/.config/switchboard/themes/lake.theme was created"},
 		{does: "create-the-real-state", want: "the real ~/.local/state/switchboard appeared"},
 		{does: "install-the-real-launch-agent", want: "the real ~/Library/LaunchAgents/io.github.leeovery.switchboard.plist was created"},
 		{does: "install-the-real-skill", want: "the real ~/.claude/skills/switchboard/SKILL.md was created"},
@@ -100,6 +103,7 @@ func TestEscapesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 		want string
 	}{
 		{does: "overwrite-the-config-SWITCHBOARD_CONFIG-names", want: "the real %s/work.toml was modified"},
+		{does: "write-a-theme-where-SWITCHBOARD_THEMES_DIR-puts-it", want: "the real %s/themes/lake.theme was created"},
 		{does: "create-the-state-where-XDG_STATE_HOME-puts-it", want: "the real %s/state/switchboard appeared"},
 		{does: "dial-the-control-socket-where-XDG_STATE_HOME-puts-it", want: "blocked dial to %s/state/switchboard/control.sock"},
 		{does: "install-the-skill-where-CLAUDE_CONFIG_DIR-puts-it", want: "the real %s/claude/skills/switchboard/SKILL.md was created"},
@@ -115,6 +119,7 @@ func TestEscapesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 
 			out, err := runChild(t, tt.does, t.TempDir(),
 				"SWITCHBOARD_CONFIG="+filepath.Join(elsewhere, "work.toml"),
+				"SWITCHBOARD_THEMES_DIR="+filepath.Join(elsewhere, "themes"),
 				"XDG_STATE_HOME="+filepath.Join(elsewhere, "state"),
 				"CLAUDE_CONFIG_DIR="+filepath.Join(elsewhere, "claude"),
 				"PATH="+filepath.Join(elsewhere, "bin"),
@@ -123,6 +128,39 @@ func TestEscapesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 				t.Errorf("child: error = %v, want exit status 1", err)
 			}
 			want := fmt.Sprintf(tt.want, elsewhere)
+			passed := slices.Contains(strings.Split(out, "\n"), "PASS")
+			if !passed || !strings.Contains(out, "testguard: the tests reached past their isolation") || !strings.Contains(out, want) {
+				t.Errorf("child printed\n%s\nwant its test to pass, and the guard to fail the run as %q", out, want)
+			}
+		})
+	}
+}
+
+func TestEscapesToThePreferencesFileFailTheRun(t *testing.T) {
+	tests := []struct {
+		does string
+		// state is where the state is, from a home, or elsewhere where its
+		// variable names elsewhere; want is what the guard fails the run as,
+		// %s standing for elsewhere.
+		state, variable, want string
+	}{
+		{does: "write-the-real-preferences", state: filepath.Dir(stateFile), want: "the real ~/.local/state/switchboard/prefs.json was created"},
+		{does: "write-the-preferences-where-XDG_STATE_HOME-puts-them", state: filepath.Join("state", "switchboard"), variable: "XDG_STATE_HOME", want: "the real %s/state/switchboard/prefs.json was created"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.does, func(t *testing.T) {
+			home, elsewhere := t.TempDir(), t.TempDir()
+			root, env := home, []string{childElsewhere + "=" + elsewhere}
+			if tt.variable != "" {
+				root, env = elsewhere, append(env, tt.variable+"="+filepath.Join(elsewhere, "state"))
+			}
+			writeFile(t, filepath.Join(root, tt.state, "state.json"), "{\"version\": 1, \"sessions\": []}\n")
+
+			out, err := runChild(t, tt.does, home, env...)
+			if exit, ok := errors.AsType[*exec.ExitError](err); !ok || exit.ExitCode() != 1 {
+				t.Errorf("child: error = %v, want exit status 1", err)
+			}
+			want := strings.ReplaceAll(tt.want, "%s", elsewhere)
 			passed := slices.Contains(strings.Split(out, "\n"), "PASS")
 			if !passed || !strings.Contains(out, "testguard: the tests reached past their isolation") || !strings.Contains(out, want) {
 				t.Errorf("child printed\n%s\nwant its test to pass, and the guard to fail the run as %q", out, want)
@@ -183,6 +221,14 @@ func TestInChild(t *testing.T) {
 		}
 	case "overwrite-the-real-config":
 		writeFile(t, filepath.Join(realHome, configFile), "listen = \"127.0.0.1:4748\"\nupstream = \"http://127.0.0.1:1\"\n")
+	case "write-a-real-theme":
+		writeFile(t, filepath.Join(realHome, themeFile), "canvas = #2E3440\n")
+	case "write-a-theme-where-SWITCHBOARD_THEMES_DIR-puts-it":
+		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "themes", "lake.theme"), "canvas = #2E3440\n")
+	case "write-the-real-preferences":
+		writeFile(t, filepath.Join(realHome, prefsFile), "{\"theme\": \"amber\"}\n")
+	case "write-the-preferences-where-XDG_STATE_HOME-puts-them":
+		writeFile(t, filepath.Join(os.Getenv(childElsewhere), "state", "switchboard", "prefs.json"), "{\"theme\": \"amber\"}\n")
 	case "create-the-real-state":
 		writeFile(t, filepath.Join(realHome, stateFile), "{\"version\": 1, \"sessions\": []}\n")
 	case "install-the-real-launch-agent":

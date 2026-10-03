@@ -59,19 +59,27 @@ func (o order) log(err error) {
 	}
 }
 
-// pressed acts on a key: r reads now, having the router refresh what it hasn't
-// read in the last minute, and what can take no request, or probing when it
-// doesn't answer; q or ctrl+c quits. While the router answers, 1–9 pin new
-// sessions to the account in that place, as configured, beside those pinned
-// already, or unpin it; a routes every session on its merits again; and m
-// moves running sessions to the accounts pinned.
+// pressed acts on a key: q or ctrl+c quits, whatever's open; while the theme
+// picker is open, it takes every other key. Otherwise, r reads now, having
+// the router refresh what it hasn't read in the last minute, and what can
+// take no request, or probing when it doesn't answer; and t opens the theme
+// picker. While the router answers, 1–9 pin new sessions to the account in
+// that place, as configured, beside those pinned already, or unpin it; a
+// routes every session on its merits again; and m moves running sessions to
+// the accounts pinned.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k := key.String(); {
+	case k == "q" || k == "Q" || k == "ctrl+c":
+		return m, tea.Quit
+	case m.picker.open:
+		return m.pickerKey(k)
+	}
 	switch k := key.String(); k {
 	case "r", "R":
 		logger.Debug("refresh key pressed", "already_reading", m.fetching)
 		return m.read(Fresh())
-	case "q", "Q", "ctrl+c":
-		return m, tea.Quit
+	case "t", "T":
+		return m.openPicker()
 	case "a", "A":
 		return m.command(routing)
 	case "m", "M":
@@ -232,16 +240,19 @@ func (m Model) unanswered() (Model, tea.Cmd) {
 }
 
 // keys says what the keys do: while the router answers, the ones that tell it
-// where to send sessions too.
+// where to send sessions too, and in colour, the theme picker's.
 func (m Model) keys() string {
-	if !m.answering() {
-		return "r refresh · q quit"
-	}
 	keys := []string{"r refresh"}
-	if len(m.doc.Accounts) > 0 {
-		keys = append(keys, places(len(m.doc.Accounts))+" toggle pin")
+	if m.answering() {
+		if len(m.doc.Accounts) > 0 {
+			keys = append(keys, places(len(m.doc.Accounts))+" toggle pin")
+		}
+		keys = append(keys, "a auto", "m move")
 	}
-	return strings.Join(append(keys, "a auto", "m move", "q quit"), " · ")
+	if m.coloured() {
+		keys = append(keys, "t themes")
+	}
+	return strings.Join(append(keys, "q quit"), " · ")
 }
 
 // places names the keys of the first n accounts' places, of the first nine:

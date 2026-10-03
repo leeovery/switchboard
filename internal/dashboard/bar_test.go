@@ -3,6 +3,8 @@ package dashboard
 import (
 	"image/color"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestBarCells(t *testing.T) {
@@ -120,54 +122,84 @@ func TestBarMarksWhereTheReserveStarts(t *testing.T) {
 			}
 		})
 	}
-	if got := bar(0.5, 10).mark(reserveCell(0.1, 10), reserveMarker)[9].ink; got != warningInk {
-		t.Errorf("the reserve's mark is drawn in %v, want the warning colour, %v", got, warningInk)
+	if got := bar(0.5, 10).mark(reserveCell(0.1, 10), reserveMarker)[9].ink; got != reserveInk {
+		t.Errorf("the reserve's mark is drawn in %+v, want viz.reserve's ink, %+v", got, reserveInk)
 	}
 }
 
 func TestBarColors(t *testing.T) {
+	look := Screen(builtin(t, "nord"))
 	cells := bar(1, 10)
-	if got := cells[0].ink.color; !sameColor(got, green) {
-		t.Errorf("first cell's color = %v, want green %v", got, green)
+	if got := look.colour(cells[0].ink); !sameColor(got, rgb(0xA3BE8C)) {
+		t.Errorf("first cell's color = %v, want the ramp's first stop, #A3BE8C", got)
 	}
-	if got := cells[9].ink.color; !sameColor(got, red) {
-		t.Errorf("last cell's color = %v, want red %v", got, red)
+	if got := look.colour(cells[9].ink); !sameColor(got, rgb(0xBF616A)) {
+		t.Errorf("last cell's color = %v, want the ramp's last stop, #BF616A", got)
 	}
 	short := bar(0.2, 10)
-	if got, want := short[1].ink.color, rampAt(1.0/9); !sameColor(got, want) {
+	if got, want := look.colour(short[1].ink), look.ramp(1.0/9); !sameColor(got, want) {
 		t.Errorf("second cell of a short bar's color = %v, want the ramp's %v, as on a full bar", got, want)
 	}
-	if got := short[2].ink.color; !sameColor(got, trackInk.color) {
-		t.Errorf("track color = %v, want %v", got, trackInk.color)
+	if got := short[2].ink; got != trackInk {
+		t.Errorf("track drawn in %+v, want viz.track's ink, %+v", got, trackInk)
 	}
 }
 
-func TestRampAt(t *testing.T) {
+func TestRamp(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
 	tests := []struct {
 		name string
 		t    float64
 		want color.Color
 	}{
-		{name: "start", t: 0, want: green},
-		{name: "before the start", t: -1, want: green},
-		{name: "a third", t: 1.0 / 3, want: yellow},
-		{name: "two thirds", t: 2.0 / 3, want: orange},
-		{name: "end", t: 1, want: red},
-		{name: "past the end", t: 2, want: red},
-		{name: "three quarters of the way from green to yellow", t: 0.25, want: color.RGBA{R: 0xD9, G: 0xC8, B: 0x8B, A: 0xff}},
-		{name: "two thirds of the way from yellow to orange", t: 5.0 / 9, want: color.RGBA{R: 0xD9, G: 0x9E, B: 0x79, A: 0xff}},
-		{name: "seven tenths of the way from orange to red", t: 0.9, want: color.RGBA{R: 0xC4, G: 0x6C, B: 0x6C, A: 0xff}},
+		{name: "start", t: 0, want: rgb(0xA3BE8C)},
+		{name: "before the start", t: -1, want: rgb(0xA3BE8C)},
+		{name: "a third", t: 1.0 / 3, want: rgb(0xEBCB8B)},
+		{name: "two thirds", t: 2.0 / 3, want: rgb(0xD08770)},
+		{name: "end", t: 1, want: rgb(0xBF616A)},
+		{name: "past the end", t: 2, want: rgb(0xBF616A)},
+		{name: "three quarters of the way from green to yellow", t: 0.25, want: rgb(0xD9C88B)},
+		{name: "two thirds of the way from yellow to orange", t: 5.0 / 9, want: rgb(0xD99E79)},
+		{name: "seven tenths of the way from orange to red", t: 0.9, want: rgb(0xC46C6C)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := rampAt(tt.t); !sameColor(got, tt.want) {
-				t.Errorf("rampAt(%v) = %v, want %v", tt.t, got, tt.want)
+			if got := nord.ramp(tt.t); !sameColor(got, tt.want) {
+				t.Errorf("ramp(%v) = %v, want %v", tt.t, got, tt.want)
 			}
 		})
 	}
 }
 
+func TestTheTerminalsRampStepsRatherThanBlends(t *testing.T) {
+	term := Screen(builtin(t, "terminal"))
+	stops := term.theme.Ramp()
+	for at, want := range map[float64]color.Color{0: stops[0], 0.15: stops[0], 0.2: stops[1], 0.45: stops[1], 0.55: stops[2], 0.8: stops[2], 0.9: stops[3], 1: stops[3]} {
+		if got := term.ramp(at); got != want {
+			t.Errorf("ramp(%v) = %v, want the nearest stop, %v, never a blend the terminal's colours can't name", at, got, want)
+		}
+	}
+}
+
+// builtin is the built-in theme slug names.
+func builtin(t *testing.T, slug string) theme.Theme {
+	t.Helper()
+	b, ok := theme.Builtin(slug)
+	if !ok {
+		t.Fatalf("no built-in theme %s", slug)
+	}
+	return b
+}
+
+// rgb is the colour 0xRRGGBB.
+func rgb(hex uint32) color.Color {
+	return color.RGBA{R: uint8(hex >> 16), G: uint8(hex >> 8), B: uint8(hex), A: 0xff}
+}
+
 func sameColor(a, b color.Color) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
 	ar, ag, ab, aa := a.RGBA()
 	br, bg, bb, ba := b.RGBA()
 	return ar == br && ag == bg && ab == bb && aa == ba

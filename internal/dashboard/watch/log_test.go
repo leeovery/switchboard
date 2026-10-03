@@ -58,7 +58,7 @@ func TestLogsWhenAWatchStartsAndStops(t *testing.T) {
 	clock := &fakeClock{now: start}
 	cfg := Config{Source: &fakeSource{doc: calm()}, Notifier: &fakeNotifier{}, Now: clock.Now, Interval: interval, Policy: policy, Size: Size{Width: 80, Height: 24}}
 
-	err := run(t.Context(), cfg, tea.WithInput(strings.NewReader("q")), tea.WithOutput(io.Discard), tea.WithoutSignals())
+	err := run(t.Context(), cfg, io.Discard, tea.WithInput(strings.NewReader("q")), tea.WithoutSignals())
 	if err != nil {
 		t.Fatalf("run() error = %v", err)
 	}

@@ -66,14 +66,15 @@ func detailParts(w quota.Window, h status.Heading, now time.Time) []span {
 	return parts
 }
 
-// projectionInk is how loudly a projection speaks: running out is a
-// warning, red once the window is in the red, while keeping pace is quiet.
+// projectionInk is how loudly a projection speaks: running out calls for
+// attention, and is destructive once the window's tone is, while keeping
+// pace is quiet.
 func projectionInk(w quota.Window, p score.Projection) ink {
 	switch {
 	case p.Kind != score.RunsOut:
 		return dimInk
-	case w.Utilization >= redFrom:
-		return ink{color: red}
+	case w.Utilization >= destructiveFrom:
+		return errorInk
 	default:
 		return warningInk
 	}

@@ -207,11 +207,11 @@ func content(doc status.Document, a status.Account, now time.Time, cw int) []lin
 }
 
 // heldBy is what holds an account in doc back at now, a line each: the limit
-// it reached, then the upstream's refusal, in red, while each holds; then its
-// reserve, in the warning colour, once a window has reached it, whether it
-// holds the account back or the global pin spends it; then, in the warning
-// colour too, that it's under pressure, which passes it over for new
-// sessions. It's nil when nothing does.
+// it reached, then the upstream's refusal, destructive, while each holds;
+// then its reserve, calling for attention, once a window has reached it,
+// whether it holds the account back or the global pin spends it; then, as
+// loudly, that it's under pressure, which passes it over for new sessions.
+// It's nil when nothing does.
 func heldBy(doc status.Document, a status.Account, now time.Time, cw int) []line {
 	var lines []line
 	for _, held := range a.HeldBy(now) {
@@ -260,7 +260,7 @@ func windowBlock(doc status.Document, a status.Account, w quota.Window, now time
 
 // use is how much of a window is used, as a percentage in its tone.
 func use(w quota.Window, p score.Projection) span {
-	return span{status.Percent(w.Utilization), ink{color: tone(w, p), bold: true}}
+	return span{status.Percent(w.Utilization), ink{token: tone(w, p), bold: true}}
 }
 
 // pace is the cell of the window's bar that takes the pace marker. There's
@@ -276,7 +276,7 @@ func pace(w quota.Window, p score.Projection, now time.Time, width int) int {
 
 // failureBlock shows a window that couldn't be read, and why.
 func failureBlock(f quota.Failure, cw int) []line {
-	lines := []line{{{truncate(status.Clean(f.Label)+" offline", cw), offlineInk}}}
+	lines := []line{{{truncate(status.Clean(f.Label)+" offline", cw), warningInk}}}
 	for _, text := range wrap(status.Clean(f.Error), cw, reasonLines) {
 		lines = append(lines, line{{text, dimInk}})
 	}

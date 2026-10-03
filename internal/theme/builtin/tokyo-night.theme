@@ -1,0 +1,36 @@
+# Tokyo Night (github.com/tokyo-night/tokyo-night-vscode-theme), dark.
+#
+# Its 19 base tokens are Portal's port of Tokyo Night, tuned to read against
+# this canvas. The bars fill along Tokyo Night's green, yellow, orange and
+# red, its yellow a step its base tokens don't take.
+
+# Text, bright to faint.
+text.primary = #C0CAF5
+text.secondary = #A9B1D6
+text.tertiary = #828BB8
+text.muted = #737AA2
+text.subtle = #535C86
+text.faint = #3B4261
+text.on-selection = #FFFFFF
+
+# Accents and states.
+accent.primary = #BB9AF7
+accent.key = #7AA2F7
+accent.mode = #7DCFFF
+accent.attention = #FF9E64
+state.positive = #9ECE6A
+state.destructive = #F7768E
+
+# Surfaces, and the text drawn on the attention surface.
+canvas = #0B0C14
+bg.selection = #28243A
+bg.attention = #241B10
+bg.subtle = #26283A
+border = #292E42
+text.on-attention = #E8C9A0
+
+# The bars' ramp.
+viz.ramp.1 = #9ECE6A
+viz.ramp.2 = #E0AF68
+viz.ramp.3 = #FF9E64
+viz.ramp.4 = #F7768E
