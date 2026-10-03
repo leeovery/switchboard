@@ -75,18 +75,17 @@ func toldLately(e status.Event, doc status.Document, id string) []lateLine {
 	tell := func(mark span, words string, more line) lateLine {
 		return lateLine{id: e.ID, at: e.At, mark: mark, words: words, more: more}
 	}
-	moved := span{"▸", dimInk}
 	if e.Kind == status.EventLimit && e.Account != id {
 		if n := arrivals(doc, e, id); n > 0 {
-			return []lateLine{tell(moved, status.SessionCount(n)+" arrived from "+named(doc, e.Account), nil)}
+			return []lateLine{tell(movedMark, status.SessionCount(n)+" arrived from "+named(doc, e.Account), nil)}
 		}
 		return nil
 	}
 	switch {
 	case e.Kind == status.EventMoved && e.From == id:
-		return []lateLine{tell(moved, sessionID(e.Session)+" moved to "+named(doc, e.To), why(e.Reason))}
+		return []lateLine{tell(movedMark, sessionID(e.Session)+" moved to "+named(doc, e.To), why(e.Reason))}
 	case e.Kind == status.EventMoved && e.To == id:
-		return []lateLine{tell(moved, sessionID(e.Session)+" moved here from "+named(doc, e.From), why(e.Reason))}
+		return []lateLine{tell(movedMark, sessionID(e.Session)+" moved here from "+named(doc, e.From), why(e.Reason))}
 	case e.Account != id:
 		return nil
 	}
@@ -98,7 +97,7 @@ func toldLately(e status.Event, doc status.Document, id string) []lateLine {
 	case status.EventLimit:
 		lines := []lateLine{tell(span{"■", errorInk}, "reached its "+limits(e, doc), nil)}
 		if e.Count > 0 {
-			lines = append(lines, tell(moved, status.SessionCount(e.Count)+" moved"+movedTo(doc, e), nil))
+			lines = append(lines, tell(movedMark, status.SessionCount(e.Count)+" moved"+movedTo(doc, e), nil))
 		}
 		return lines
 	case status.EventRefused:

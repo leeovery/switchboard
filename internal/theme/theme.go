@@ -139,7 +139,13 @@ func (t Theme) Ramp() []color.Color {
 // Series is the colour of the account in place n, counting from 1, round
 // again past six.
 func (t Theme) Series(n int) color.Color {
-	return t.colours[VizSeries1+Token((max(n, 1)-1)%seriesCount)]
+	return t.colours[SeriesOf(n)]
+}
+
+// SeriesOf is the token of the account in place n, counting from 1, round
+// again past six: viz.series.1 to viz.series.6, which its cords are drawn in.
+func SeriesOf(n int) Token {
+	return VizSeries1 + Token((max(n, 1)-1)%seriesCount)
 }
 
 // Paints reports whether the theme paints its canvas: every theme but the

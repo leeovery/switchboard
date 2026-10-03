@@ -9,8 +9,9 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// busyWithin is how lately a session was seen for its dot to light: without
-// the request stream, a session is busy when it was seen in the last minute.
+// busyWithin is how lately a session was seen for its dot to light: it's
+// busy when it was seen in the last minute, or, as the request stream tells,
+// while a request of its is in flight.
 const busyWithin = time.Minute
 
 // face is an account's card, as the document has it at a moment: the
@@ -81,7 +82,7 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 		}
 	}
 	if f.Sessions != nil {
-		fc.busy = busy(f.Sessions, a.ID, now)
+		fc.busy = f.busy(a.ID, now)
 		fc.sessions = len(fc.busy)
 	}
 	return fc
@@ -109,23 +110,42 @@ func primedNext(doc status.Document, id string) time.Time {
 	return doc.Prime.Slots[i].Next
 }
 
-// busy are the sessions on the account with the given id, of those listed,
-// in their order, the one seen last first: each lit while busy, its requests
-// to the account seen in the last minute before now.
-func busy(sessions []status.Session, id string, now time.Time) []bool {
-	var lit []bool
-	for _, s := range sessions {
-		seen, on := time.Time{}, false
+// busy are the sessions on the account with the given id, of those the
+// router listed, in their order, the one seen last first: each lit while any
+// of its models is busy there, as lit says.
+func (f Frame) busy(id string, now time.Time) []bool {
+	var busy []bool
+	for _, s := range f.Sessions {
+		on, lit := false, false
 		for _, a := range s.Assignments {
 			if a.Account == id {
-				seen, on = latest(seen, a.LastSeen), true
+				on, lit = true, lit || f.lit(seated{session: s, assignment: a}, now)
 			}
 		}
 		if on {
-			lit = append(lit, now.Sub(seen) < busyWithin)
+			busy = append(busy, lit)
 		}
 	}
-	return lit
+	return busy
+}
+
+// lit reports whether the seat s is busy at now: a request of its in flight,
+// as the request stream tells, or it was seen at work in the last minute.
+func (f Frame) lit(s seated, now time.Time) bool {
+	if c, ok := f.Traffic.call(s.plug()); ok && c.inFlight() {
+		return true
+	}
+	return now.Sub(f.lastSeen(s)) < busyWithin
+}
+
+// lastSeen is when the seat s was last seen at work: as the router listed
+// it, or later, as the request stream told of it.
+func (f Frame) lastSeen(s seated) time.Time {
+	seen := s.assignment.LastSeen
+	if c, ok := f.Traffic.call(s.plug()); ok {
+		seen = latest(seen, c.Seen)
+	}
+	return seen
 }
 
 // latest is the later of two times.

@@ -217,6 +217,64 @@ func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
 	}
 }
 
+func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		want []string
+	}{
+		{name: "sessions-1", want: []string{" Sessions ", "┌─ 1 · WORK ─ ● under pressure", "    ● db8a  sonnet  seen       now", "  LOG"}},
+		{name: "sessions-3", want: []string{
+			"CALLS  sessions, by the line they are on", "LINES  accounts",
+			"  d28c  opus    1m           ●━", "  41e0  sonnet  4m           ●━━", "╌╌╌╌╌╌╌○  Session", "└─ resets  session 18:50  ·  weeks Mon 10:00 ─",
+		}},
+		{name: "sessions-3-keys", want: []string{"│  ●━━◉   a session's cord to its account", "│  ↓      streaming back, ~ its tokens so far"}},
+		{name: "sessions-5", want: []string{"  9e21  sonnet  now          ●━", "┌─ 5 · SPARE ─ ○ idle", "└─ primed at 16:20 ─", "  14:39  ▸ 9e21 moved side → client (pin)"}},
+		{name: "sessions-storyboard-1-request-out", want: []string{"  c61b  opus    now  ↑ ask   ●━"}},
+		{name: "sessions-storyboard-2-streaming-back", want: []string{"  c61b  opus    now  ↓ ~1.2k ●━"}},
+		{name: "sessions-storyboard-3-refused", want: []string{"  d28c  opus    now  ✕ 429   ●━", "━✕  Session", "┌─ 1 · WORK ─ ■ limit reached"}},
+		{name: "sessions-storyboard-4-repatched", want: []string{
+			"  d28c  ↪ moved to side", "╌╌╌╌╌╌╌╌╌○  Session", "  d28c  opus    now  ↪ new   ●━",
+			"  14:43  ▸ d28c moved work → side: work reached its limit, so",
+		}},
+		{name: "accounts-flipped-all", want: []string{"● d28c  opus    streaming  ↓ ~1.2k", "● db8a  sonnet  waiting    38s", "● c61b  opus    streaming  ↓ ~3.4k", "● db8a  opus    waiting    12s"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			for _, want := range tt.want {
+				if !strings.Contains(frame, want) {
+					t.Errorf("the frame\n%s\nhas no %q", frame, want)
+				}
+			}
+		})
+	}
+}
+
+func TestTheStoryboardsPulsesAreWhereItsFramesHaveThem(t *testing.T) {
+	tests := []struct {
+		name string
+		// row is the frame's row the pulse is on, and head the column of
+		// its head, drawn bold.
+		row, head int
+	}{
+		{name: "sessions-storyboard-1-request-out", row: 13, head: 70},
+		{name: "sessions-storyboard-3-refused", row: 9, head: 79},
+		{name: "sessions-storyboard-4-repatched", row: 23, head: 94},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := strings.Split(frameOf(t, tt.name, time.UTC), "\n")
+			cells := ansi.Strip(rows[tt.row])
+			if got := []rune(cells)[tt.head]; got != '━' {
+				t.Fatalf("row %d reads %q, want the pulse's head, ━, at %d", tt.row, cells, tt.head)
+			}
+			if bold := ansi.Cut(rows[tt.row], tt.head, tt.head+1); !strings.Contains(bold, "\x1b[1") {
+				t.Errorf("the cell at %d is drawn %q, want it bold, the pulse's head", tt.head, bold)
+			}
+		})
+	}
+}
+
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
 	f := fixture(t, "accounts-3")
 	m := f.Model()

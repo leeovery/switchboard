@@ -123,7 +123,7 @@ func work(now time.Time) sample {
 		prime:   on(now, 2, 3, 50),
 		seats: []seat{
 			{session: idD28C, model: opus, assigned: on(now, 1, 13, 20), seen: ago(now, 50*time.Second)},
-			{session: id7F3A, model: haiku, assigned: on(now, 1, 12, 40), seen: ago(now, 9*time.Minute)},
+			{session: id7F3A, model: haiku, assigned: on(now, 1, 13, 10), seen: ago(now, 9*time.Minute)},
 			{session: idDB8A, model: sonnet, assigned: on(now, 1, 13, 5), seen: ago(now, 3*time.Second)},
 		},
 	}

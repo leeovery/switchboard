@@ -10,17 +10,21 @@ const (
 	// Accounts is the view of a card per account: how much of each is left,
 	// and where that's heading.
 	Accounts View = "accounts"
+	// Sessions is the view of where each session's requests go, as a
+	// switchboard draws it: the sessions as calls, the accounts as lines,
+	// and a cord from each call to its line, with requests travelling it.
+	Sessions View = "sessions"
 	// Runway is the view of when each account has room, as a timeline: a lane
 	// per account, over the day, or the week.
 	Runway View = "runway"
 )
 
 // titles are the views' names on their tabs.
-var titles = map[View]string{Accounts: "Accounts", Runway: "Runway"}
+var titles = map[View]string{Accounts: "Accounts", Sessions: "Sessions", Runway: "Runway"}
 
 // Views are the views there are, in the order tab moves through them.
 func Views() []View {
-	return []View{Accounts, Runway}
+	return []View{Accounts, Sessions, Runway}
 }
 
 // Title is the view's name on its tab, such as Accounts.

@@ -4,7 +4,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -46,17 +45,20 @@ func (f Frame) meter(c *canvas, s standing, reserve float64, now time.Time, x, y
 	if cells < 1 {
 		return
 	}
+	f.bar(c, s, reserve, now, x+labelled, y, cells)
+	c.right(x+labelled+cells+useColumn, y, line{s.use(titleInk)})
+	c.line(x+labelled+cells+useColumn+1, y, line{s.whither(now, "")}.fit(whitherColumn-1))
+}
+
+// bar draws a window standing as s at now as a bar cells long from x along
+// row y: its use, its projection beyond, where even pace would be, and where
+// its account's reserve, reserve of it, starts.
+func (f Frame) bar(c *canvas, s standing, reserve float64, now time.Time, x, y, cells int) {
 	share, ok := s.projected()
 	if !ok {
 		share = 0
 	}
-	pace := noMarker
-	if elapsed, ok := score.Elapsed(s.window, now); ok && !s.held && !s.lapsed {
-		pace = cellAt(elapsed, cells)
-	}
-	f.fill(c, x+labelled, y, cells, s.window.Utilization, share, reserveCell(reserve, cells), pace)
-	c.right(x+labelled+cells+useColumn, y, line{s.use(titleInk)})
-	c.line(x+labelled+cells+useColumn+1, y, line{s.whither(now, "")}.fit(whitherColumn-1))
+	f.fill(c, x, y, cells, s.window.Utilization, share, reserveCell(reserve, cells), s.paceCell(now, cells))
 }
 
 // fill draws a bar cells long from x along row y: used filled in eighths, each

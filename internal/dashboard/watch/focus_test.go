@@ -412,7 +412,6 @@ func TestWithOneAccountNoSessionIsPickedOut(t *testing.T) {
 
 func TestAnotherViewEndsTheSelection(t *testing.T) {
 	h := gridHarness(t)
-	h.model.views = []dashboard.View{dashboard.Accounts, "sessions"}
 	h.keys(spaceKey, downKey)
 	h.press("tab")
 

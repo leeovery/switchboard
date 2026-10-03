@@ -297,24 +297,64 @@ func TestTheSessionPickedOutIsOnTheSelectionsSurface(t *testing.T) {
 }
 
 func TestASeatsRowSaysWhatItsDoing(t *testing.T) {
+	busy := line{spaces(2), {"●", positiveInk}, spaces(1), {"d28c  ", titleInk}, {"opus    ", secondaryInk}}
+	idle := line{spaces(2), {"○", dimInk}, spaces(1), {"d28c  ", ink{token: theme.TextMuted, bold: true}}, {"opus    ", secondaryInk}}
+	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	tests := []struct {
 		name string
+		// seen is how long ago the router listed it as last seen, and call
+		// what the request stream tells of it, where it tells of it.
 		seen time.Duration
+		call *Call
 		want line
 	}{
 		{
 			name: "seen in the last minute: busy", seen: 59 * time.Second,
-			want: line{spaces(2), {"●", positiveInk}, spaces(1), {"d28c  ", titleInk}, {"opus    ", secondaryInk}, {"seen       ", secondaryInk}, {"now", secondaryInk}},
+			want: slices.Concat(busy, line{{"seen       ", secondaryInk}, {"now", secondaryInk}}),
 		},
 		{
 			name: "seen longer ago: idle so long", seen: 9*time.Minute + 30*time.Second,
-			want: line{spaces(2), {"○", dimInk}, spaces(1), {"d28c  ", ink{token: theme.TextMuted, bold: true}}, {"opus    ", secondaryInk}, {"idle       ", dimInk}, {"9m", secondaryInk}},
+			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"9m", secondaryInk}}),
+		},
+		{
+			name: "its answer streaming, as the stream tells: busy, its tokens so far estimated", seen: 9 * time.Minute,
+			call: &Call{Doing: Streaming, Since: ago(time.Minute), Tokens: 1234, Seen: ago(2 * time.Minute)},
+			want: slices.Concat(busy, line{{"streaming  ", streamingInk}, {"↓ ~1.2k", secondaryInk}}),
+		},
+		{
+			name: "sent with nothing back yet: waiting so long, in seconds", seen: 9 * time.Minute,
+			call: &Call{Doing: Asking, Since: ago(38*time.Second + 600*time.Millisecond), Seen: ago(38 * time.Second)},
+			want: slices.Concat(busy, line{{"waiting    ", waitingInk}, {"38s", secondaryInk}}),
+		},
+		{
+			name: "waiting a minute or more", seen: 9 * time.Minute,
+			call: &Call{Doing: Asking, Since: ago(2*time.Minute + 5*time.Second), Seen: ago(2 * time.Minute)},
+			want: slices.Concat(busy, line{{"waiting    ", waitingInk}, {"2m", secondaryInk}}),
+		},
+		{
+			name: "throttled, to be sent again: waiting still", seen: 9 * time.Minute,
+			call: &Call{Doing: Throttled, Since: ago(5 * time.Second), Status: 429, Seen: ago(time.Second)},
+			want: slices.Concat(busy, line{{"waiting    ", waitingInk}, {"5s", secondaryInk}}),
+		},
+		{
+			name: "its answer just ended: seen now, by the stream, though listed long since", seen: 9 * time.Minute,
+			call: &Call{Doing: Answered, Since: ago(time.Minute), Tokens: 900, Exact: true, Seen: ago(time.Second)},
+			want: slices.Concat(busy, line{{"seen       ", secondaryInk}, {"now", secondaryInk}}),
+		},
+		{
+			name: "told of long ago: idle since the stream last told", seen: 20 * time.Minute,
+			call: &Call{Doing: Refused, Status: 429, Seen: ago(9*time.Minute + 30*time.Second)},
+			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"9m", secondaryInk}}),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := seated{session: status.Session{ID: idD28C}, assignment: seatOf(opus, "work", "new", time.Hour, tt.seen)}
-			if got := seatLine(s, modelColumn, false, now); !slices.Equal(got, tt.want) {
+			var f Frame
+			if tt.call != nil {
+				f.Traffic.Calls = map[Plug]Call{s.plug(): *tt.call}
+			}
+			if got := f.seatLine(s, modelColumn, false, now); !slices.Equal(got, tt.want) {
 				t.Errorf("reads %+v, want %+v", got, tt.want)
 			}
 		})

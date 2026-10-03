@@ -113,6 +113,16 @@ func (s usageSource) Sessions(ctx context.Context) ([]status.Session, error) {
 	return s.router.Sessions(ctx)
 }
 
+// Stream opens the router's request stream, which tells of what befalls each
+// routed request as it happens: it fails with router.ErrNoStream, wrapped,
+// from a router from before GET /stream.
+func (s usageSource) Stream(ctx context.Context) (<-chan router.StreamEvent, error) {
+	if s.router == nil {
+		return nil, errRouterDown
+	}
+	return s.router.Stream(ctx)
+}
+
 // document is the router's status document, once it has probed the accounts
 // it hasn't read for refresh, when that's more than zero.
 func (s usageSource) document(ctx context.Context, refresh time.Duration) (status.Document, error) {

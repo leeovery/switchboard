@@ -357,11 +357,7 @@ type keyListing struct {
 // k, r and t behind ?. With a session picked out, the keys are as picking
 // says.
 func (m Model) listings() []keyListing {
-	cards := m.view == dashboard.Accounts
-	scrolled := "the cards"
-	if m.view == dashboard.Runway {
-		scrolled = "the lanes"
-	}
+	cards, scrolled := m.view == dashboard.Accounts, m.scrolled()
 	listed := []keyListing{
 		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},
 		m.wKey(),
@@ -381,6 +377,19 @@ func (m Model) listings() []keyListing {
 		return m.picking(listed)
 	}
 	return listed
+}
+
+// scrolled is what j and k scroll in the view shown: Sessions' calls and
+// lines, Runway's lanes, or the cards.
+func (m Model) scrolled() string {
+	switch m.view {
+	case dashboard.Sessions:
+		return "the calls and lines"
+	case dashboard.Runway:
+		return "the lanes"
+	default:
+		return "the cards"
+	}
 }
 
 // wKey is w as the view shown has it: in Runway, switching between the day

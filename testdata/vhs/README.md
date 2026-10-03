@@ -45,7 +45,9 @@ known:
   `accent.key` where a theme doesn't set it, and never `state.destructive`. So too the theme
   sheets' `series` rows, which open with each theme's red: the built-ins' series take none,
   `nord`'s and the Tokyo Nights' being the doc's defaults, and `amber`'s and `exchange`'s their
-  sheets' other five, and a sixth of their own.
+  sheets' other five, and a sixth of their own. So every account's cords in Sessions are the doc's
+  series in `nord`: work's `accent.key`, side's `accent.primary` and client's `accent.mode`, where
+  the frames' are red, `accent.key` and Aurora green.
 - **The sample session ids** differ: the frames have `d28c`, `c61b`, `db8a` and so on, the doc's
   examples `5b19`, `3e7a`, `9e21`. The fixtures use the frames'.
 - **The footer's keys** are the doc's, in its order, `? keys` and `q quit` always listed: where
@@ -54,7 +56,8 @@ known:
   phone's footer keeps. Runway's day frames list the generator's own `r refresh`, `d day`, `w
   week` and `t theme`, and its week's frame leaves out `m move`: the doc's `w` switches between
   the day and the week, the footer saying which shows, `w window: day`, as the week's frame says
-  `w window: week`. Runway's frames say `read 4s ago · next look 1s`, where the dashboard,
+  `w window: week`. Sessions' frames list `r refresh` and `t theme` too, which the doc leaves to
+  `?`. Runway's and Sessions' frames say `read 4s ago · next look 1s`, where the dashboard,
   reading the router, says `read 4s ago`, as the cards' frames do.
 - **Runway's lanes** go by the doc: a lane is in `accent.attention` wherever its account has room
   but is heading to run out before its reset, whichever window that is, so personal's, back from
@@ -81,17 +84,30 @@ known:
   stop at `╎ reserve`.
 - **The line over the footer, as the cards scroll,** says the doc's `▼ 2 more accounts below · j/k
   or wheel to scroll`, centred, where the frames add `header and footer stay put`.
+- **LOG** shows under the calls wherever it has room, as the doc puts it there: at 28 rows, as
+  sessions-3 has, its five lines fit under the calls, where the frame draws none. And it lists
+  each move the router told of, and why, those a limit forced too, which RECENT and LATELY fold
+  into the limit's line: so sessions-5's has db8a's and 41e0's moves off personal, where the
+  frame has personal's limit and side's prime.
+- **A line's use toward its reserve** says so, as a card's bar does: work's week, heading for 87%
+  within ten points of its 90% reserve, reads `→ 87%` in `accent.attention`, where the Sessions
+  frames' panels have it muted.
+- **The storyboards** are moments of Sessions, drawn by the fixtures whole, at 160 × 28: their
+  frames draw the calls and lines alone, under a caption, so a capture's rows 7 to 25 are a
+  frame's rows 2 to 20. The fourth frame's line telling of d28c's move is LOG's first, under the
+  calls, cut short beside the cords, its `▸` dim, as RECENT's is, where the frame draws it whole
+  in `accent.mode`, under the lines; and its pulse is five cells, as every pulse is, where the
+  frame's has a sixth, glowing a tenth. A call the stream has just told of was seen `now`: d28c,
+  refused in the third frame, where the frame has `1m`.
 - **COMING UP beside one account's card** gives each thing's countdown at the right, as COMING UP
   always does, where the frame gives none.
 - **The phone's line over the footer** says `? for the key`, as any frame does where the key line
   has no room, where the frame leaves it blank.
-- **A card's back, without the request stream,** which comes with Sessions, says a session's row
-  is `seen now` or `idle 9m`, as the doc says it does without it, `seen` in `text.secondary`,
-  where the frames say `streaming  ↓ 1.2k` in `accent.mode` and `waiting  38s` in
-  `accent.attention`.
+- **An answer's tokens, as it streams,** are an estimate, `↓ ~1.2k`, as the doc says, on a card's
+  back and in Sessions alike, where the frames say `↓ 1.2k`: the exact count comes as it ends.
 - **A session's note** says the doc's words: c61b's is `here since 14:41`, where the frames have
   `new at 14:41: side was the best`; and every row has one where there's room for every one's,
-  7f3a's `here since 12:40` too, where the frames give it none.
+  7f3a's `here since 13:10` too, where the frames give it none.
 - **LATELY** tells of an account's events as RECENT does, in the doc's words, but from its side,
   its name left out, and what follows the gist only where it fits whole: work `came under
   pressure`, where the frames add `new sessions go elsewhere`; `d28c started here, the best`;
@@ -140,14 +156,25 @@ October 2026 at 14:42:07, so nothing moves of itself.
 | `accounts-6` | and `lab` | 160 × 40 | `accounts-6` |
 | `accounts-8` | and `team` and `extra` | 160 × 40 | `accounts-8` |
 | `accounts-8-scrolling` | the same eight, too many for 28 rows, so they scroll | 160 × 28 | `accounts-8-scrolling` |
-| `accounts-flipped-all` | `work`, `personal`, `side`, `s` pressed: every card flipped, the focus on work's | 160 × 34 | `accounts-flipped-all` |
-| `accounts-flipped-selected` | `work`, `personal`, `side`, `space` and `↓` twice pressed: work's card flipped, d28c picked out | 160 × 34 | `accounts-flipped-selected` |
+| `accounts-flipped-all` | `work`, `personal`, `side`, four requests in flight, `s` pressed: every card flipped, the focus on work's | 160 × 34 | `accounts-flipped-all` |
+| `accounts-flipped-selected` | `work`, `personal`, `side`, four requests in flight, `space` and `↓` twice pressed: work's card flipped, d28c picked out | 160 × 34 | `accounts-flipped-selected` |
 | `accounts-phone` | `work`, `personal`, `side` | 52 × 36 | `accounts-phone` |
-| `runway-day-3` | `work`, `personal`, `side`, `tab` pressed: Runway, over the day | 160 × 26 | `runway-day-3` |
-| `runway-day-5` | and `client` and `spare`, `tab` pressed | 160 × 32 | `runway-day-5` |
-| `runway-week-3` | `work`, `personal`, `side`, `tab` then `w` pressed: Runway, over the week | 160 × 26 | `runway-week-3` |
+| `runway-day-3` | `work`, `personal`, `side`, `tab` pressed twice: Runway, over the day | 160 × 26 | `runway-day-3` |
+| `runway-day-5` | and `client` and `spare`, `tab` pressed twice | 160 × 32 | `runway-day-5` |
+| `runway-week-3` | `work`, `personal`, `side`, `tab` pressed twice, then `w`: Runway, over the week | 160 × 26 | `runway-week-3` |
+| `sessions-1` | `work`, `tab` pressed: Sessions, a plain list of one account | 160 × 27 | none: the frames don't draw one account's |
+| `sessions-3` | `work`, `personal`, `side`, `tab` pressed: Sessions | 160 × 28 | `sessions-3` |
+| `sessions-3-keys` | `work`, `personal`, `side`, `tab` then `?` pressed: the help over Sessions | 160 × 28 | none: the frames don't draw the help |
+| `sessions-5` | and `client` and `spare`, `tab` pressed | 160 × 40 | `sessions-5` |
+| `sessions-storyboard-1-request-out` | the storyboard's, `tab` pressed: c61b's request 0.3s out | 160 × 28 | `sessions-storyboard-1-request-out` |
+| `sessions-storyboard-2-streaming-back` | its answer streaming back, 1.2k tokens of it | 160 × 28 | `sessions-storyboard-2-streaming-back` |
+| `sessions-storyboard-3-refused` | work at its limit: d28c's request refused, its red pulse a quarter of the way back | 160 × 28 | `sessions-storyboard-3-refused` |
+| `sessions-storyboard-4-repatched` | d28c moved to side, and sent again there, its pulse almost at side's jack | 160 × 28 | `sessions-storyboard-4-repatched` |
 
-The four, six and eight accounts have nothing used of Fable's week, as their frames do.
+The four, six and eight accounts have nothing used of Fable's week, as their frames do. The
+storyboard's accounts are `work`, `personal` and `side`, but side with c61b and db8a alone on it,
+and in its last two frames, work at its session's limit, reached at 14:43, as the storyboard has
+them; its frames are drawn at 14:43:02.
 
 ### `--theme`, and `NO_COLOR`
 
@@ -312,6 +339,13 @@ before the moment drawn, then sets the clock to the moment, presses the fixture'
 then hands the model to Bubble Tea, which starts it reading nothing more. So there's no first
 paint to race, and nothing on screen moves until a key does.
 
+A key that shows Sessions, or flips a card, has the watch open the router's request stream: the
+fixture's tells of what has befallen its requests, each at its time before the moment drawn, then
+ends, as a router ends it. The watch keeps what it told, and asks for it again only once a timer
+fires, which none does, so what travels the cords stands where the moment puts it: a pulse as far
+along as the time since its request went says, a shimmer as many steps on as the time since its
+answer's first byte. That's how a storyboard's frame is brought to its point in the animation.
+
 ## The capture tool and its fixtures
 
 ```
@@ -319,8 +353,9 @@ cmd/capturetool/       the tool: --fixture, --theme, --print, --size, --ansi, an
 internal/capture/      imported by the tool alone
   capture.go           the Fixture, and the registry: Names, ByName, and every fixture's name, size, router and theme
   samples.go           the frames' sample accounts and sessions, and the sets of them the frames draw
-  source.go            the fake router: its status document and health, GET /sessions and GET /history
+  source.go            the fake router: its status document and health, GET /sessions, GET /history and GET /stream
   history.go           the accounts' windows' use over time, as the frames' charts draw it
+  stream.go            what the request stream tells: the cards' backs' requests in flight, and the storyboard's moments
   harness.go           builds the watch model, its themes faked, settles it at the fixture's moment, and draws it
 ```
 
@@ -363,7 +398,18 @@ its own rules, so a few read otherwise than the generator drew them:
   the busy ones lead: work's read `● ● ○`, where the frames have `● ○ ●`. Its back lists them in
   that order too, work's db8a, d28c and 7f3a, where the frames have d28c, 7f3a and db8a, so the
   flipped-selected fixture picks out d28c, the frames' session, with `↓` twice, on work's second
-  row rather than its first.
+  row rather than its first. Sessions' calls keep their rows look to look, the one put on its
+  account last first, which gives the frames' order: 7f3a was put on work at 13:10, between db8a
+  at 13:05 and d28c at 13:20.
+- **The cards' backs and Sessions draw different moments**, as their frames do: the backs' frames
+  have four requests in flight, d28c's opus streaming on work, 1.2k tokens of it, db8a's sonnet
+  waiting 38s there, c61b's opus streaming on side, 3.4k tokens, and db8a's opus waiting 12s; the
+  Sessions frames have none, their cords at rest. So the flipped fixtures' router tells of those
+  four as its request stream opens, and the Sessions fixtures' of none.
+- **A line's pace** is the dashboard's, from the samples' times: side's week is 45.6% through,
+  so its marker is a cell left of the frames', whose generator rounded it to 46%, and so is its
+  Fable week's. In the storyboards, drawn at 14:43:02, personal's week runs out `~Fri 04:07`, its
+  pace moving it on a minute a minute, where the frames have 04:06.
 - **A card's back** draws its notes and LATELY from the router's events among the 50: the
   fixtures' tell, older than RECENT's four or counted in personal's limit, of db8a's opus and 41e0
   moving to side as personal reached its limit, d28c starting on work, and work's and personal's
@@ -385,5 +431,6 @@ its own rules, so a few read otherwise than the generator drew them:
    as the calibrated settings say.
 3. Clear the tape and its capture at the milestone's sign-off. Leave the fixture.
 
-What a later view reads, such as the request stream, joins the router in `source.go`, its data with
-the samples it's of, so every fixture over those samples has it.
+What a later view reads joins the router in `source.go`, its data with the samples it's of, so
+every fixture over those samples has it. The request stream is the exception, as it's a moment's:
+what it tells is each fixture's own, `telling` the events, its data in `stream.go`.
