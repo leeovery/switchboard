@@ -1,10 +1,13 @@
 // Command capturetool draws a fixture of switchboard's dashboard, for the
 // visual capture harness in testdata/vhs: a named, deterministic moment, drawn
 // by the dashboard's own watch model, built through watch.New with every seam
-// faked (internal/capture). It never dials the router, probes, touches the
-// network, reads or writes the real config, state, prefs or tokens, looks in
-// the themes directory, or runs another process. NO_COLOR draws it without
-// colour, as it does the dashboard.
+// faked (internal/capture). Or it plays a scenario through the same model in
+// real time, for the README's demos in demo/: the clock running, the timers
+// firing, and the fake router telling of what its cues have it do. It never
+// dials the router, probes, touches the network, reads or writes the real
+// config, state, prefs or tokens, looks in the themes directory, or runs
+// another process. NO_COLOR draws it without colour, as it does the
+// dashboard.
 //
 // Usage:
 //
@@ -13,6 +16,7 @@
 //	capturetool --fixture accounts-3 --print --ansi --size 120x40
 //	capturetool --fixture accounts-3 --theme amber
 //	capturetool --fixture accounts-3 --theme ~/themes/lake.theme
+//	capturetool --scenario routing            played full screen, in real time
 package main
 
 import (
@@ -43,15 +47,16 @@ func main() {
 
 // options are what the command line asks for.
 type options struct {
-	fixture     string
-	print, ansi bool
-	size        string
-	theme       string
+	fixture, scenario string
+	print, ansi       bool
+	size              string
+	theme             string
 }
 
 // run draws the fixture args name, in the theme they name, or without colour
 // where getenv has NO_COLOR set: printed once to stdout with --print, else
-// full screen in the terminal stdout is.
+// full screen in the terminal stdout is; or plays the scenario they name, so,
+// full screen.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) error {
 	o, err := parse(args, stderr)
 	if errors.Is(err, flag.ErrHelp) {
@@ -59,6 +64,9 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) er
 	}
 	if err != nil {
 		return err
+	}
+	if o.scenario != "" {
+		return play(o, stdout, getenv)
 	}
 	f, err := capture.ByName(o.fixture)
 	if err != nil {
@@ -73,9 +81,27 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) er
 		f = f.WithoutColour()
 	}
 	if !o.print {
-		return live(f, stdout)
+		return fullScreen(f.Model(), stdout, "full screen, it needs a terminal: --print draws without one")
 	}
 	return printFrame(f, o, stdout)
+}
+
+// play plays the scenario o names, full screen in the terminal out is, in
+// the theme o names, or without colour where getenv has NO_COLOR set.
+func play(o options, out io.Writer, getenv func(string) string) error {
+	s, err := capture.ScenarioNamed(o.scenario)
+	if err != nil {
+		return fmt.Errorf("--scenario: %w", err)
+	}
+	t, err := themeOf(o.theme)
+	if err != nil {
+		return err
+	}
+	s = s.InTheme(t)
+	if getenv("NO_COLOR") != "" {
+		s = s.WithoutColour()
+	}
+	return fullScreen(s.Model(), out, "a scenario plays full screen: it needs a terminal")
 }
 
 // themeOf is the theme --theme names, as an input, never looked for in the
@@ -101,12 +127,14 @@ func themeOf(arg string) (theme.Theme, error) {
 	return t, nil
 }
 
-// parse reads the command line, refusing what only --print takes without it.
+// parse reads the command line, refusing a fixture and a scenario both, and
+// what only --print takes without it.
 func parse(args []string, stderr io.Writer) (options, error) {
 	var o options
 	flags := flag.NewFlagSet("capturetool", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.StringVar(&o.fixture, "fixture", "", "the fixture to draw: "+strings.Join(capture.Names(), ", "))
+	flags.StringVar(&o.scenario, "scenario", "", "the scenario to play, full screen, in real time: "+strings.Join(capture.ScenarioNames(), ", "))
 	flags.StringVar(&o.theme, "theme", theme.DefaultDark, "the theme to draw it in: a built-in's slug, or the path of a .theme file")
 	flags.BoolVar(&o.print, "print", false, "print its frame once, as text, rather than run it full screen")
 	flags.StringVar(&o.size, "size", "", "with --print, the terminal's size as WxH, such as 160x34: the fixture's own unless given")
@@ -117,6 +145,10 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	switch {
 	case flags.NArg() > 0:
 		return options{}, fmt.Errorf("unexpected argument %q", flags.Arg(0))
+	case o.scenario != "" && o.fixture != "":
+		return options{}, errors.New("--scenario and --fixture: name one")
+	case o.scenario != "" && o.print:
+		return options{}, errors.New("--print takes a fixture: a scenario plays in time, full screen")
 	case !o.print && o.size != "":
 		return options{}, errors.New("--size takes --print: full screen, the terminal gives the size")
 	case !o.print && o.ansi:
@@ -143,15 +175,16 @@ func printFrame(f capture.Fixture, o options, out io.Writer) error {
 	return err
 }
 
-// live runs the fixture full screen in the terminal out is, at whatever size
-// it gives, until q.
-func live(f capture.Fixture, out io.Writer) error {
+// fullScreen runs m full screen in the terminal out is, at whatever size it
+// gives, until q; where out is no terminal, it fails, saying so as refusal
+// does.
+func fullScreen(m tea.Model, out io.Writer, refusal string) error {
 	if file, ok := out.(term.File); !ok || !term.IsTerminal(file.Fd()) {
-		return errors.New("full screen, it needs a terminal: --print draws without one")
+		return errors.New(refusal)
 	}
-	_, err := tea.NewProgram(f.Model(), tea.WithOutput(out)).Run()
+	_, err := tea.NewProgram(m, tea.WithOutput(out)).Run()
 	if err != nil && !errors.Is(err, tea.ErrInterrupted) {
-		return fmt.Errorf("run the fixture: %w", err)
+		return fmt.Errorf("run it full screen: %w", err)
 	}
 	return nil
 }

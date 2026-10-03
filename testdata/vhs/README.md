@@ -356,7 +356,7 @@ frame is brought to its point in the animation.
 ## The capture tool and its fixtures
 
 ```
-cmd/capturetool/       the tool: --fixture, --theme, --print, --size, --ansi, and the import guard
+cmd/capturetool/       the tool: --fixture, --scenario, --theme, --print, --size, --ansi, and the import guard
 internal/capture/      imported by the tool alone
   capture.go           the Fixture, and the registry: Names, ByName, and every fixture's name, size, router and theme
   samples.go           the frames' sample accounts and sessions, and the sets of them the frames draw
@@ -364,7 +364,13 @@ internal/capture/      imported by the tool alone
   history.go           the accounts' windows' use over time, as the frames' charts draw it
   stream.go            what the request stream tells: the cards' backs' requests in flight, and the storyboard's moments
   harness.go           builds the watch model, its themes faked, settles it at the fixture's moment, and draws it
+  scenario.go          the Scenario, its registry, and how its cues play: the router's world, moment by moment
+  scenarios.go         the README's demos' scenarios: each one's accounts, and its cues
+  live.go              plays a scenario in real time: its router as the watch's source, and each key shown as pressed
 ```
+
+`--scenario` plays a scenario through the same watch model in real time, its clock running and its
+timers firing, for the README's demos: [demo/README.md](../../demo/README.md) says how.
 
 A fixture is a moment of the dashboard: what the router gives at it, the terminal it's drawn on,
 and the keys pressed once its document is read. What the router gives mirrors the frames' sample

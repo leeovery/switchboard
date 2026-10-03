@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -48,8 +49,10 @@ const readAgo = 4 * time.Second
 // sample is an account as the frames draw it, from the generator that drew
 // them: enough to give its status, its sessions and its windows' history.
 type sample struct {
-	id      string
-	primary bool
+	// id names it, and label is what it's shown as: its id, as the frames
+	// have it, where it's "".
+	id, label string
+	primary   bool
 	// reserve is the share of every window the router leaves unused.
 	reserve float64
 	session fiveHours
@@ -333,7 +336,7 @@ func (s sample) account(now time.Time) status.Account {
 		read = ago(now, readAgo)
 	}
 	a := status.Account{
-		ID: s.id, Label: s.id, Primary: s.primary, Reserve: s.reserve, TokenSet: true, FetchedAt: read,
+		ID: s.id, Label: cmp.Or(s.label, s.id), Primary: s.primary, Reserve: s.reserve, TokenSet: true, FetchedAt: read,
 		Windows: s.windows(), Sessions: len(s.seats),
 	}
 	if !s.session.limited.IsZero() {
