@@ -30,13 +30,13 @@ type orderedMsg struct {
 // order is what a key tells the router: send new sessions to the best of
 // accounts, and with move, running ones on another account too; with no
 // accounts, route every session on its merits again; or, of one session
-// alone, send it to the first of accounts, or with none, clear its own pin.
+// alone, send it to the account to, or with none, clear its own pin.
 type order struct {
 	accounts []string
 	move     bool
-	// session is the id of the session the order is of alone: "" for an
-	// order of every session.
-	session string
+	// session is the id of the session the order is of alone, "" for an
+	// order of every session, and to the id of the account it sends it to.
+	session, to string
 	// done says what the order did, for the footer.
 	done string
 }
@@ -47,8 +47,8 @@ var routing = order{done: "routing automatically"}
 // give has the source carry the order out.
 func (o order) give(ctx context.Context, s Source) error {
 	switch {
-	case o.session != "" && len(o.accounts) > 0:
-		return s.PinSession(ctx, o.session, o.accounts[0])
+	case o.session != "" && o.to != "":
+		return s.PinSession(ctx, o.session, o.to)
 	case o.session != "":
 		return s.UnpinSession(ctx, o.session)
 	case len(o.accounts) == 0:
@@ -58,22 +58,38 @@ func (o order) give(ctx context.Context, s Source) error {
 	}
 }
 
-// log notes how the order went, naming the accounts by their ids alone.
+// log notes how the order went, naming the accounts by their ids alone, and
+// a session by its id cut short, as the router logs it.
 func (o order) log(err error) {
+	if o.session != "" {
+		o.logSession(err)
+		return
+	}
 	accounts := strings.Join(o.accounts, ",")
 	switch {
-	case err != nil && o.session != "":
-		logger.Warn("the router didn't take an order", "session", o.session, "accounts", accounts, "error", err)
 	case err != nil:
 		logger.Warn("the router didn't take an order", "accounts", accounts, "move", o.move, "error", err)
-	case o.session != "" && len(o.accounts) > 0:
-		logger.Info("pinned a session", "session", o.session, "account", accounts)
-	case o.session != "":
-		logger.Info("unpinned a session", "session", o.session)
 	case len(o.accounts) == 0:
 		logger.Info("unpinned")
 	default:
 		logger.Info("pinned", "accounts", accounts, "move", o.move)
+	}
+}
+
+// logSession notes how an order of one session went: the session, and the
+// account it sends it to, where it sends it to one.
+func (o order) logSession(err error) {
+	attrs := []any{"session", status.ShortID(o.session)}
+	if o.to != "" {
+		attrs = append(attrs, "account", o.to)
+	}
+	switch {
+	case err != nil:
+		logger.Warn("the router didn't take an order", append(attrs, "error", err)...)
+	case o.to != "":
+		logger.Info("pinned a session", attrs...)
+	default:
+		logger.Info("unpinned a session", attrs...)
 	}
 }
 
@@ -185,7 +201,7 @@ func (m Model) pinSession(n int) (Model, tea.Cmd) {
 	}
 	to := m.doc.Accounts[n-1].ID
 	return m.command(order{
-		session: m.selected.Session, accounts: []string{to},
+		session: m.selected.Session, to: to,
 		done: m.selected.Shown() + " goes to " + m.doc.Names([]string{to}) + " from its next request",
 	})
 }

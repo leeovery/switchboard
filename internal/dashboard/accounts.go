@@ -47,7 +47,7 @@ type strip struct {
 func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) {
 	faces, shown := f.faces(doc, now)
 	l := f.layOut(doc, now, len(shown), top)
-	offset := min(max(f.Scroll, 0), l.content-l.view)
+	offset := f.scrolled(l)
 	area := newCanvas(f.Width, l.content)
 	f.grid(area, doc, now, faces, l, labelWidth(doc, shown))
 	c.paste(area, offset, top, l.view)
@@ -60,7 +60,7 @@ func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) 
 	}
 	if l.scrolls() {
 		above, below := l.hidden(len(faces), offset)
-		says := scrolled(above, below).fit(f.edge() - margin)
+		says := outOfView(above, below).fit(f.edge() - margin)
 		c.line((f.Width-says.width())/2, over, says)
 		scrollbar(c, f.Width-1, top, l.view, l.content, offset)
 		return
@@ -202,10 +202,10 @@ func (f Frame) column(c *canvas, doc status.Document, now time.Time, x, y, heigh
 	f.recentColumn(c, doc, now, x, at+1, y+height)
 }
 
-// scrolled says what's out of view where the cards scroll: how many more
+// outOfView says what's out of view where the cards scroll: how many more
 // accounts there are above, and below, and how to scroll to them, as in "▼ 2
 // more accounts below · j/k or wheel to scroll".
-func scrolled(above, below int) line {
+func outOfView(above, below int) line {
 	var l line
 	for _, out := range []struct {
 		n           int

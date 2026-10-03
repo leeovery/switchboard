@@ -175,8 +175,16 @@ func TestACardsTopEdge(t *testing.T) {
 		{name: "on a narrow card, the name given the room the badges shown leave", fc: face{account: a, place: 2}, width: 30, want: "╭─ 2 personal ───────────────╮"},
 		{name: "flipped, its sessions' badge first", fc: face{account: primary, place: 2, flipped: true}, width: 50, want: "╭─ 2 personal ──────────── sessions · ◆ primary ─╮"},
 		{
-			name: "flipped, with every badge, those that don't fit left off, the last first", fc: face{account: primary, place: 2, pinned: true, next: true, flipped: true}, width: 50,
-			want: "╭─ 2 personal ─ sessions · ◆ primary · ● pinned ─╮",
+			name: "flipped, with every badge: the primary's left off, as they don't all fit", fc: face{account: primary, place: 2, pinned: true, next: true, flipped: true}, width: 50,
+			want: "╭─ 2 personal ──── sessions · ● pinned · ▲ next ─╮",
+		},
+		{
+			name: "flipped, with every badge, narrower: the next's left off too, for the name", fc: face{account: primary, place: 2, pinned: true, next: true, flipped: true}, width: 38,
+			want: "╭─ 2 personal ─ sessions · ● pinned ─╮",
+		},
+		{
+			name: "on a narrow card, every badge but the pin's left off for the name", fc: face{account: primary, place: 2, pinned: true, next: true}, width: 30,
+			want: "╭─ 2 personal ──── ● pinned ─╮",
 		},
 	}
 	for _, tt := range tests {

@@ -237,12 +237,13 @@ type Model struct {
 }
 
 // fetchedMsg is what a read that asked for read found, and which router gave
-// it, with the sessions it listed: none where it listed none.
+// it, with the sessions it listed, where listed says it listed them.
 type fetchedMsg struct {
 	read     Read
 	doc      status.Document
 	router   router.Health
 	sessions []status.Session
+	listed   bool
 	err      error
 }
 
@@ -414,7 +415,7 @@ func fetchFrom(ctx context.Context, source Source, r Read) fetchedMsg {
 		logger.Debug("couldn't list the router's sessions", "error", err)
 		return msg
 	}
-	msg.sessions = sessions
+	msg.sessions, msg.listed = sessions, true
 	return msg
 }
 
@@ -471,13 +472,14 @@ func logRead(msg fetchedMsg, next time.Time) {
 }
 
 // show puts the document a read found at now on screen, with the sessions
-// the router listed: it posts what the change calls for, unless the router is
-// there to post its own, as nothing is to be told twice; follows the router
-// as it goes and comes back; notes the events new to it, and the readings it
-// gives; asks the router for its history with a full read, and as the router
-// answers again, or another router does, as one restarted; keeps the focus
-// and the selection where they still are; and eases the bars to it from
-// where they stand.
+// the router listed, or where it couldn't list them, those it listed last,
+// and none while probing: it posts what the change calls for, unless the
+// router is there to post its own, as nothing is to be told twice; follows
+// the router as it goes and comes back; notes the events new to it, and the
+// readings it gives; asks the router for its history with a full read, and
+// as the router answers again, or another router does, as one restarted;
+// keeps the focus and the selection where they still are; and eases the bars
+// to it from where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
@@ -491,7 +493,10 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
-	m.doc, m.updated, m.failed, m.sessions = doc, now, "", msg.sessions
+	m.doc, m.updated, m.failed = doc, now, ""
+	if msg.listed || !routed(doc) {
+		m.sessions = msg.sessions
+	}
 	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
 	if ask {

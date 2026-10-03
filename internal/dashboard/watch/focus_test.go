@@ -2,6 +2,8 @@ package watch
 
 import (
 	"errors"
+	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -173,8 +175,8 @@ func TestSpaceFlipsTheCardWithTheFocusAndSEveryCardOrBack(t *testing.T) {
 			t.Errorf("step %d: flipped %q, want %q", i+1, got, s.want)
 		}
 	}
-	if got := strings.Count(h.view(), " sessions ─"); got < 3 {
-		t.Errorf("the screen is\n%s\nwant every card saying sessions on its top edge", h.view())
+	if got := strings.Count(h.view(), " sessions ─╮") + strings.Count(h.view(), " sessions ━┓"); got != 4 {
+		t.Errorf("the screen is\n%s\nwant every card's top edge saying sessions, where %d of 4 do", h.view(), got)
 	}
 }
 
@@ -217,7 +219,7 @@ func TestADigitPinsTheSessionPickedOutAndATakesItsPinOff(t *testing.T) {
 	if !h.source.router.Pin.IsZero() {
 		t.Errorf("the router's pin is %+v, want none: the session's pin is its own", h.source.router.Pin)
 	}
-	if want := []string{"level=INFO", `msg="pinned a session"`, "session=" + idD28C, "account=side"}; !log.Has(want...) {
+	if want := []string{"level=INFO", `msg="pinned a session"`, "session=d28c5e17", "account=side"}; !log.Has(want...) {
 		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 	}
 
@@ -228,9 +230,16 @@ func TestADigitPinsTheSessionPickedOutAndATakesItsPinOff(t *testing.T) {
 	if got, want := h.footer(), "d28c is routed automatically from its next request · d28c selected on Work"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
 	}
+	if want := []string{"level=INFO", `msg="unpinned a session"`, "session=d28c5e17"}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+	}
+	if strings.Contains(log.String(), idD28C) {
+		t.Errorf("log reads\n%s\nwant the session's id cut short, as the router logs it", log)
+	}
 }
 
 func TestAnOrderOfASessionTheRouterRefusesSaysWhy(t *testing.T) {
+	log := logstest.Capture(t)
 	h := gridHarness(t)
 	h.source.refuse = errors.New("personal has no usable token: switchboard accounts token personal")
 	h.keys(spaceKey, downKey)
@@ -238,6 +247,9 @@ func TestAnOrderOfASessionTheRouterRefusesSaysWhy(t *testing.T) {
 	h.deliver(h.press("2")...)
 	if got, want := h.footer(), "personal has no usable token: switchboard accounts token personal · d28c selected on Work"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
+	}
+	if want := []string{"level=WARN", `msg="the router didn't take an order"`, "session=d28c5e17", "account=personal", "error="}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 	}
 }
 
@@ -302,6 +314,28 @@ func TestTheSelectionEndsOnceItsSessionLeavesTheCard(t *testing.T) {
 	}
 }
 
+func TestALookThatCantListTheSessionsKeepsThoseListedLast(t *testing.T) {
+	h := gridHarness(t)
+	h.keys(spaceKey, downKey)
+	listed := h.model.sessions
+	h.source.sessionsErr = errors.New("connection reset")
+	asked := h.source.listed
+	h.tickUntilAsked()
+
+	if h.source.listed != asked+1 || !reflect.DeepEqual(h.model.sessions, listed) {
+		t.Errorf("listing failed on a look, the watch asked %d times, holding %+v; want it asked once more, holding those listed last %+v", h.source.listed-asked, h.model.sessions, listed)
+	}
+	if h.model.selected != seatOf(idD28C, "claude-opus-5-5") || !strings.Contains(h.view(), "┗━ ● ○ ━") {
+		t.Errorf("picking out %+v, the screen\n%s\nwant d28c still picked out, work's dots still lit as listed", h.model.selected, h.view())
+	}
+
+	h.stopRouter()
+	h.deliver(h.press("r")...)
+	if h.model.routed() || h.model.sessions != nil || h.model.selecting() {
+		t.Errorf("probing, holding %+v, picking out %+v; want no sessions, and nothing picked out", h.model.sessions, h.model.selected)
+	}
+}
+
 func TestTheFocusIsGivenUpOnceItsAccountGoes(t *testing.T) {
 	h := gridHarness(t)
 	h.keys(rightKey, downKey)
@@ -337,16 +371,30 @@ func TestMovingTheFocusToACardOutOfViewScrollsToIt(t *testing.T) {
 	}
 }
 
-func TestTheFirstFocusIsOnTheFirstCardInView(t *testing.T) {
+func TestTheFirstFocusIsOnTheFirstCardWhollyInView(t *testing.T) {
 	h := newHarness(t, twelve())
 	h.start()
-	h.update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	h.press("j")
+	cards := strings.Split(h.view(), "\n")[7:]
+	top := slices.IndexFunc(cards, func(row string) bool { return strings.Contains(row, "╭─ ") })
+	if top <= 0 {
+		t.Fatalf("scrolled a row, the cards start\n%s\nwant a card cut short at the top of the view, and another's top edge under it", strings.Join(cards, "\n"))
+	}
 	h.keys(rightKey)
 
-	if h.model.focus == "a" || !strings.Contains(h.view(), "┏━") {
-		t.Errorf("scrolled down, the first arrow gave the focus to %q, the screen\n%s\nwant a card in view", h.model.focus, h.view())
+	cards = strings.Split(h.view(), "\n")[7:]
+	first := topEdge.FindStringSubmatch(cards[top])
+	if first == nil || strings.ToLower(first[1]) != h.model.focus {
+		t.Fatalf("the focus is on %q, the cards\n%s\nwant it on the first card whose top edge is in view, heavy-edged", h.model.focus, strings.Join(cards, "\n"))
+	}
+	if !slices.ContainsFunc(cards[top:], func(row string) bool { return strings.HasPrefix(strings.TrimSpace(row), "┗━") }) {
+		t.Errorf("the cards are\n%s\nwant the card with the focus whole in view, its bottom edge too", strings.Join(cards, "\n"))
 	}
 }
+
+// topEdge is the top edge of the leftmost card on a row, heavy-edged, its
+// account's name ending in the letter it names.
+var topEdge = regexp.MustCompile(`^ ┏━ \d+ Account ([A-Z]) `)
 
 func TestWithOneAccountNoSessionIsPickedOut(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()[0]))

@@ -12,10 +12,20 @@ import (
 
 func TestLatelyTellsOfWhatBefellAnAccountFromItsSide(t *testing.T) {
 	ago := func(d time.Duration) time.Time { return now.Add(-d).UTC() }
+	// spread are the moves of personal's limit, which spread its sessions
+	// over side and client: c61b's two models to side, and 41e0 to client.
+	spread := []status.Event{
+		{Kind: status.EventMoved, Session: idC61B, Model: opus, From: "personal", To: "side", Limit: 9},
+		{Kind: status.EventMoved, Session: idC61B, Model: sonnet, From: "personal", To: "side", Limit: 9},
+		{Kind: status.EventMoved, Session: id41E0, Model: sonnet, From: "personal", To: "client", Limit: 9},
+	}
 	tests := []struct {
 		name    string
 		account string
 		event   status.Event
+		// alongside are the document's other events, which none of its
+		// lines tell of.
+		alongside []status.Event
 		// want are the lines told, each its mark, its words and what follows
 		// them, a bar between.
 		want []string
@@ -39,6 +49,15 @@ func TestLatelyTellsOfWhatBefellAnAccountFromItsSide(t *testing.T) {
 			name: "another's limit moving its sessions here", account: "side",
 			event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 1, To: "side"},
 			want:  []string{"▸|1 session arrived from personal|"},
+		},
+		{
+			name: "another's limit spreading its sessions, one of them here", account: "side",
+			event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2}, alongside: spread,
+			want: []string{"▸|1 session arrived from personal|"},
+		},
+		{
+			name: "another's limit spreading its sessions, none here", account: "work",
+			event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2}, alongside: spread,
 		},
 		{
 			name: "a session moving off it", account: "side",
@@ -82,7 +101,7 @@ func TestLatelyTellsOfWhatBefellAnAccountFromItsSide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := flipping()
 			tt.event.ID, tt.event.At = 9, ago(time.Minute)
-			doc.Events = []status.Event{tt.event}
+			doc.Events = slices.Concat(tt.alongside, []status.Event{tt.event})
 			var got []string
 			for _, l := range latelyOf(doc, tt.account, now) {
 				got = append(got, l.mark.text+"|"+l.words+"|"+text(l.more))

@@ -69,21 +69,36 @@ func (s Session) Line(now time.Time) string {
 // one account together, the account used last first: "opus and haiku on
 // work, sonnet on side".
 func (s Session) where() string {
-	var accounts []string
-	models := make(map[string][]string)
-	for _, a := range s.Assignments {
-		if _, ok := models[a.Account]; !ok {
-			accounts = append(accounts, a.Account)
-		}
-		if name := a.Name(); !slices.Contains(models[a.Account], name) {
-			models[a.Account] = append(models[a.Account], name)
-		}
-	}
-	on := make([]string, len(accounts))
-	for i, account := range accounts {
-		on[i] = prose.List(models[account]) + " on " + Clean(account)
+	byAccount := s.ByAccount()
+	on := make([]string, len(byAccount))
+	for i, models := range byAccount {
+		on[i] = prose.List(models.Names) + " on " + Clean(models.Account)
 	}
 	return strings.Join(on, ", ")
+}
+
+// Models are the models of a session whose requests go to one account: the
+// account, by its id, and the models, each named as Name names it, once.
+type Models struct {
+	Account string
+	Names   []string
+}
+
+// ByAccount groups the session's models by the account their requests go
+// to, the account used last first, and of each, the model used last first.
+func (s Session) ByAccount() []Models {
+	var grouped []Models
+	for _, a := range s.Assignments {
+		i := slices.IndexFunc(grouped, func(m Models) bool { return m.Account == a.Account })
+		if i < 0 {
+			grouped = append(grouped, Models{Account: a.Account})
+			i = len(grouped) - 1
+		}
+		if name := a.Name(); !slices.Contains(grouped[i].Names, name) {
+			grouped[i].Names = append(grouped[i].Names, name)
+		}
+	}
+	return grouped
 }
 
 // Name names the assignment's model as briefly as tells it apart, cleaned: by

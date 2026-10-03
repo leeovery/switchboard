@@ -329,11 +329,15 @@ func TestASeatsNote(t *testing.T) {
 		seatOf(sonnet, "work", "new", time.Hour, time.Minute), seatOf(opus, "side", "new", time.Hour, time.Minute),
 		seatOf(haiku, "side", "new", time.Hour, time.Minute), seatOf("claude-fable-1", "personal", "new", time.Hour, time.Minute),
 	}}
+	yielded := status.Session{ID: idD28C, Pin: "side", Assignments: []status.Assignment{seatOf(opus, "work", "pin yields: side has no room", time.Hour, time.Minute)}}
+	pinnedSince := status.Session{ID: idD28C, Pin: "client", Assignments: []status.Assignment{seatOf(opus, "work", "pin yields: side has no room", time.Hour, time.Minute)}}
 	movedByPin := status.Session{ID: idC61B, Assignments: []status.Assignment{seatOf(opus, "work", "pinned", 10*time.Minute, time.Minute)}}
 	movedByPin.Assignments[0].Pinned = true
-	moves := slices.Concat([]status.Event{
-		{ID: 9, At: now.Add(-10 * time.Minute).UTC(), Kind: status.EventMoved, Session: idC61B, Model: opus, From: "side", To: "work", Reason: "pinned"},
-	}, doc.Events)
+	moved := func(reason string) []status.Event {
+		return slices.Concat([]status.Event{
+			{ID: 9, At: now.Add(-10 * time.Minute).UTC(), Kind: status.EventMoved, Session: idC61B, Model: opus, From: "side", To: "work", Reason: reason},
+		}, doc.Events)
+	}
 	tests := []struct {
 		name    string
 		account string
@@ -342,9 +346,12 @@ func TestASeatsNote(t *testing.T) {
 		want    string
 	}{
 		{name: "its own pin sending it to another account", account: "work", session: pinnedAway, want: "goes to side from its next request"},
+		{name: "its own pin having yielded here at a limit", account: "work", session: yielded, want: "its pin to side yielded here"},
+		{name: "its own pin to another account since it yielded", account: "work", session: pinnedSince, want: "goes to client from its next request"},
 		{name: "its other models' accounts", account: "work", session: split, want: "its opus and haiku are on side, its fable on personal"},
 		{name: "its own pin keeping it here", account: "work", session: pinnedHere, want: "pinned here"},
-		{name: "its own pin moving it here", account: "work", session: movedByPin, events: moves, want: "pinned here at 13:02"},
+		{name: "its own pin moving it here", account: "work", session: movedByPin, events: moved("pinned"), want: "pinned here at 13:02"},
+		{name: "its own pin keeping it where it moved for another reason", account: "work", session: movedByPin, events: moved("moved: side has no room"), want: "pinned here"},
 		{name: "moved here", account: "side", session: flippingSessions()[3], want: "moved from personal at 12:22"},
 		{name: "here since it came", account: "work", session: flippingSessions()[2], want: "here since 11:12"},
 	}
@@ -367,6 +374,12 @@ func TestABackWithNoSessionsSaysWhy(t *testing.T) {
 	away.Events = []status.Event{{ID: 1, At: now.Add(-3 * time.Minute).UTC(), Kind: status.EventMoved, Session: idD28C, Model: opus, From: "personal", To: "side", Reason: "pinned"}}
 	lost := flipping()
 	lost.Events = []status.Event{{ID: 1, At: now.Add(-50 * time.Minute).UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2}}
+	since := func(e status.Event) status.Document {
+		doc := flipping()
+		e.ID, e.At = 8, now.Add(-30*time.Second).UTC()
+		doc.Events = slices.Concat([]status.Event{e}, doc.Events)
+		return doc
+	}
 	tests := []struct {
 		name     string
 		doc      status.Document
@@ -376,6 +389,9 @@ func TestABackWithNoSessionsSaysWhy(t *testing.T) {
 		{name: "the limit that moved them", doc: flipping(), sessions: flippingSessions(), want: []string{"3 moved to side at 12:22,", "when personal reached its limit"}},
 		{name: "a limit that moved them to several", doc: lost, sessions: flippingSessions(), want: []string{"2 moved to other accounts at 12:22,", "when personal reached its limit"}},
 		{name: "the last session moving off it", doc: away, sessions: flippingSessions(), want: []string{"d28c moved to side at 13:09 (pin)"}},
+		{name: "a session starting on it since: nothing to say", doc: since(status.Event{Kind: status.EventStarted, Account: "personal", Session: idC61B, Model: opus}), sessions: flippingSessions()},
+		{name: "a session moving to it since", doc: since(status.Event{Kind: status.EventMoved, Session: idC61B, Model: opus, From: "side", To: "personal"}), sessions: flippingSessions()},
+		{name: "sessions another's limit moved to it since", doc: since(status.Event{Kind: status.EventLimit, Account: "side", Count: 2, To: "personal"}), sessions: flippingSessions()},
 		{name: "probing, without the router to list them", doc: probed(flipping().Accounts...), want: []string{"the router isn't running"}},
 		{name: "nothing told of to say why", doc: routerDoc("", 0, flipping().Accounts...), sessions: flippingSessions()},
 	}
@@ -394,8 +410,8 @@ func TestABackWithNoSessionsSaysWhy(t *testing.T) {
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("says %q, want %q", got, tt.want)
 			}
-			if len(tt.want) == 0 && strings.TrimSpace(strings.Trim(rows[3], "│")) != "" {
-				t.Errorf("says %q, want nothing", rows[3])
+			if after := strings.TrimSpace(strings.Trim(rows[3], "│")); len(tt.want) == 0 && after != "" && after != latelyLabel {
+				t.Errorf("says %q, want nothing, LATELY at most following the count", rows[3])
 			}
 		})
 	}

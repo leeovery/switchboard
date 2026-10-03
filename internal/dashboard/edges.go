@@ -49,8 +49,9 @@ func (e edging) rule(n int) string {
 // edges it: the account's place and name, and at the right its badges. The
 // name is cut to leave room for every badge but the flipped card's, so a pin
 // or the next account coming or going never moves it; but on a card too
-// narrow to leave it leastName cells so, to leave room for those shown. A
-// badge that still doesn't fit is left off, the last first.
+// narrow to leave it leastName cells so, to leave room for those shown. Of
+// those, leavingOff leaves off what doesn't fit: on a narrow card, first to
+// give the name leastName cells; then to fit beside the name.
 func topEdge(c *canvas, fc face, x, y, width int, e edging) {
 	tail := func(badges []span) line {
 		if len(badges) == 0 {
@@ -65,18 +66,30 @@ func topEdge(c *canvas, fc face, x, y, width int, e edging) {
 	fixed := ansi.StringWidth(opening+place) + 2
 	room := width - fixed - every.width()
 	if room < leastName {
+		shown = leavingOff(shown, func(badges []span) bool { return width-fixed-tail(badges).width() >= leastName })
 		room = width - fixed - tail(shown).width()
 	}
 	lead := line{{opening, e.ink}, {place, dimInk}, {truncate(name(fc.account), max(room, 1)), titleInk}, {" ", e.ink}}
-	for len(shown) > 1 && lead.width()+tail(shown).width() > width {
-		shown = shown[:len(shown)-1]
-	}
+	shown = leavingOff(shown, func(badges []span) bool { return lead.width()+tail(badges).width() <= width })
 	edge(c, x, y, width, lead, tail(shown), e)
 }
 
 // leastName is the fewest cells a card's top edge leaves its account's name
 // beside every badge before it leaves it the room beside those shown alone.
 const leastName = 8
+
+// leavingOff is the badges, with ◆ primary left off, then ▲ next, until fit
+// reports that they fit: ● pinned, the pin's only mark on a card, and a
+// flipped card's sessions are never left off.
+func leavingOff(badges []span, fit func([]span) bool) []span {
+	for _, off := range []string{primaryBadge, nextBadge} {
+		if fit(badges) {
+			break
+		}
+		badges = slices.DeleteFunc(slices.Clone(badges), func(b span) bool { return b.text == off })
+	}
+	return badges
+}
 
 // badges are the badges on the card's top edge, in order: the flipped
 // card's, the primary's, the pin's, and the next account's.

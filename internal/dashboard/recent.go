@@ -16,6 +16,20 @@ import (
 // an account under pressure, as in "new, work under pressure".
 const passedOver = " under pressure"
 
+// The reasons the router gives for where a session went that the dashboard
+// reads: chosen afresh, as a new session; sent by its own pin; sent by the
+// global pin as it started, or moved by it; moved off an account that
+// couldn't take it, which and why following; and its own pin yielding at a
+// limit, the account the pin names following, then why.
+const (
+	reasonNew       = "new"
+	reasonOwnPin    = "pinned"
+	reasonGlobalPin = "pinned (global)"
+	reasonPinMove   = "moved by pin"
+	reasonMovedOff  = "moved: "
+	reasonPinYields = "pin yields: "
+)
+
 // recent are the events RECENT lists at now, newest first, n at most: those
 // of the kinds it tells of, but for the moves a limit counts.
 func recent(doc status.Document, now time.Time, n int) []status.Event {
@@ -103,12 +117,12 @@ func why(reason string) line {
 	var l line
 	switch reason {
 	case "":
-	case "new":
+	case reasonNew:
 		l = line{{", the best", mutedInk}}
-	case "pinned", "pinned (global)", "moved by pin":
+	case reasonOwnPin, reasonGlobalPin, reasonPinMove:
 		l = line{{" (pin)", mutedInk}}
 	default:
-		l = line{{": " + strings.TrimPrefix(reason, "moved: "), mutedInk}}
+		l = line{{": " + strings.TrimPrefix(reason, reasonMovedOff), mutedInk}}
 	}
 	if passed != "" {
 		l = append(l, span{", passing over " + passed, mutedInk})

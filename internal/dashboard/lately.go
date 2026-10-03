@@ -76,13 +76,17 @@ func toldLately(e status.Event, doc status.Document, id string) []lateLine {
 		return lateLine{id: e.ID, at: e.At, mark: mark, words: words, more: more}
 	}
 	moved := span{"▸", dimInk}
+	if e.Kind == status.EventLimit && e.Account != id {
+		if n := arrivals(doc, e, id); n > 0 {
+			return []lateLine{tell(moved, status.SessionCount(n)+" arrived from "+named(doc, e.Account), nil)}
+		}
+		return nil
+	}
 	switch {
 	case e.Kind == status.EventMoved && e.From == id:
 		return []lateLine{tell(moved, sessionID(e.Session)+" moved to "+named(doc, e.To), why(e.Reason))}
 	case e.Kind == status.EventMoved && e.To == id:
 		return []lateLine{tell(moved, sessionID(e.Session)+" moved here from "+named(doc, e.From), why(e.Reason))}
-	case e.Kind == status.EventLimit && e.Account != id && e.To == id && e.Count > 0:
-		return []lateLine{tell(moved, status.SessionCount(e.Count)+" arrived from "+named(doc, e.Account), nil)}
 	case e.Account != id:
 		return nil
 	}
@@ -106,6 +110,26 @@ func toldLately(e status.Event, doc status.Document, id string) []lateLine {
 		return []lateLine{tell(span{"●", positiveInk}, "has room again", nil)}
 	}
 	return nil
+}
+
+// arrivals counts the sessions another account's limit, e, moved to the
+// account with the given id: every one it moved, where they all went there;
+// else, where they went to several, those of the moves it counts that went
+// there, each session once, however many of its models moved.
+func arrivals(doc status.Document, e status.Event, id string) int {
+	if e.To != "" {
+		if e.To == id {
+			return e.Count
+		}
+		return 0
+	}
+	var sessions []string
+	for _, m := range doc.Events {
+		if m.Kind == status.EventMoved && m.Limit == e.ID && m.To == id && !slices.Contains(sessions, m.Session) {
+			sessions = append(sessions, m.Session)
+		}
+	}
+	return len(sessions)
 }
 
 // movedTo says where the sessions a limit moved went, where they all went to
