@@ -1,15 +1,16 @@
 # Switchboard — design
 
-**Status:** milestones 0 to 3 are built, and this document describes the design as built. Milestones
-0 to 2 built the usage dashboard (one-off, and in watch mode) and `status`, which read the router
-while it runs and probe when it doesn't; logging; the router, with its scheduler, pins, state, limit
-and refusal handling, health and desktop notifications; and launching (`run` and the service).
-Milestone 3 added token files and the `accounts` commands, `setup`, every `claude` going through
-switchboard in place of `init zsh`, the primary account and its reserve, priming the 5-hour windows,
-and the router looking after itself; Milestones lists it in full, with what its final review
-changed. Next is milestone 4, the author's switch-over, which happens outside this repo. The release
-follows milestone 3. Milestone 5, the dashboard redesigned with its owner, is designed and not yet
-built: the Dashboard section, and the parts of the others marked *milestone 5*, describe it.
+**Status:** milestones 0 to 3 and 5 are built, and this document describes the design as built.
+Milestones 0 to 2 built the usage dashboard (one-off, and in watch mode) and `status`, which read
+the router while it runs and probe when it doesn't; logging; the router, with its scheduler, pins,
+state, limit and refusal handling, health and desktop notifications; and launching (`run` and the
+service). Milestone 3 added token files and the `accounts` commands, `setup`, every `claude` going
+through switchboard in place of `init zsh`, the primary account and its reserve, priming the 5-hour
+windows, and the router looking after itself; Milestones lists it in full, with what its final
+review changed. Next is milestone 4, the author's switch-over, which happens outside this repo. The
+release follows milestone 3. Milestone 5 rebuilt the dashboard as its owner redesigned it, in three
+views, with themes, and with the router's history, events and request stream to draw them from:
+the Dashboard section describes it.
 
 ## What it is
 
@@ -178,10 +179,13 @@ on a model whose thinking is bound to its account only when its account can't se
    refusal, another error or its client gone, leaves nothing remembered, unless another request of
    the session has been routed since, whose account stands: the quota check `--resume` sends as it
    starts goes under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 7),
-   would otherwise be kept, and listed among the sessions, for a week. A session already remembered
-   keeps its account whatever its requests end in, but for a request every account it went out on
-   refused, which leaves the session where it was before (see Requests that need special
-   handling).
+   would otherwise be kept, and listed among the sessions, for a week. A request the router knows
+   for that quota check, `max_tokens` 1 and one message whose content is `quota`, is never
+   remembered, whatever its answer: on Claude Haiku it's answered with success, and would otherwise
+   claim the session's first account, and keep a `--resume` check's throwaway id for a week. A
+   session already remembered keeps its account whatever its requests end in, but for a request
+   every account it went out on refused, which leaves the session where it was before (see Requests
+   that need special handling).
 5. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
@@ -671,17 +675,18 @@ as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's na
 
 ## Dashboard
 
-**Milestone 5: designed, not yet built.** This section describes the dashboard milestone 5 builds,
-signed off with its owner on 2 October 2026; until it lands, the dashboard built is the one this
-section described before it, in the history of this file. This section is the design, complete
-without any picture. For whoever builds it, the designs are also drawn, frame by frame, in the
-owner's Paper file *Switchboard dashboard spikes*, on its page **FINAL · signed off · 2 Oct 2026**:
-the only page there that holds. The pages named `superseded · round 1` to `round 5` are the
-iterations that led to it, kept as history; where they differ from the final page, they're wrong,
-and where the final page differs from this section, this section holds, the page's own read-me
-listing the differences known. The frames use placeholder accounts (`work`,
-`personal`, `side`, `client`, `spare`, `lab`, `team`, `extra`) and sample numbers; the mocks are
-160 columns wide unless named otherwise, and 52 for a phone.
+**Milestone 5: built.** This section describes the dashboard milestone 5 built, as signed off with
+its owner on 2 October 2026, and as building it settled what the design left open; the dashboard
+before it is described in the history of this file. This section is the design, complete without
+any picture. The designs are also drawn, frame by frame, in the owner's Paper file *Switchboard
+dashboard spikes*, on its page **FINAL · signed off · 2 Oct 2026**: the only page there that holds,
+its frames kept in `testdata/vhs/reference/` too (see Files). The pages named
+`superseded · round 1` to `round 5` are the iterations that led to it, kept as history; where they
+differ from the final page, they're wrong, and where the final page differs from this section,
+this section holds: the page's own read-me lists the differences known as it was signed off, and
+`testdata/vhs/README.md` lists them in full, those building it found among them. The frames use
+placeholder accounts (`work`, `personal`, `side`, `client`, `spare`, `lab`, `team`, `extra`) and
+sample numbers; the mocks are 160 columns wide unless named otherwise, and 52 for a phone.
 
 The dashboard is three views of the same document, a heading that sums them up, and the keys to act
 on them. It runs in watch mode (`usage -w`), filling the terminal and redrawing as things change, or
@@ -697,10 +702,11 @@ once (`usage`), printing the Accounts view and exiting.
   *when will I have room?*
 
 `tab` and `shift-tab` move between them, in that order and round, as the digits are the pin's. The
-title row names them as tabs, the one shown picked out in `bg.selection`, with `tab ⇥` beside them:
-`SWITCHBOARD  Accounts  Sessions  Runway  tab ⇥`, and the date and the time at its right. The view
-shown is remembered in the preferences file (see Themes), so a watch opens where it was left. The
-one-shot `usage` prints the Accounts view alone, without the tabs.
+title row names them as tabs, the one shown picked out in `bg.selection`, with `tab ⇥` beside them
+while there's another view to move to: `SWITCHBOARD  Accounts  Sessions  Runway  tab ⇥`, and the
+date and the time at its right. The view shown is remembered in the preferences file (see Themes),
+so a watch opens where it was left. The one-shot `usage` prints the Accounts view alone, without
+the tabs.
 
 ### The heading
 
@@ -729,8 +735,10 @@ under it, at fixed places, so the eye learns where to look:
 - **COMING UP:** the next three things to happen, soonest first, each with its time, its account
   and what happens, and on the right how long until it: `15:54  personal back from its limit  in 1h
   12m`, `16:05  work runs out at its pace  in 1h 23m`, `17:10  work's session resets  in 2h 28m`,
-  and primes, `16:20  spare is primed`. A run-out is in `accent.attention`. This takes the place of
-  the line of next reset and next prime; the priming schedule itself stays `status`'s.
+  and primes, `16:20  spare is primed`. A run-out goes by the floor the account runs out at: its
+  reserve, where the reserve would hold it back, `15:45  work reaches its reserve`, else its limit,
+  `16:05  work runs out at its pace`; it's in `accent.attention`. This takes the place of the line
+  of next reset and next prime; the priming schedule itself stays `status`'s.
 
 The pin isn't in the heading but on the cards, as their `● pinned` badge, and ROUTER's routing
 word. With **one account**, there's nothing to choose between, so the heading is a single line:
@@ -749,7 +757,8 @@ A card, top to bottom:
   `text.tertiary`; `● pinned`, in `accent.primary`, while the global pin names it; `▲ next`, in
   `accent.mode`, on the account new sessions go to, whose border is `accent.mode` too; and
   `sessions`, in `accent.key`, while the card is flipped. Cards are wide enough for every badge, so
-  pinning never reflows them.
+  pinning never reflows them; a flipped card too narrow for them all, `sessions` among them, drops
+  `◆ primary` first, then `▲ next`, as `● pinned` and `sessions` always show.
 - **Its state, in words**, the coloured dot or square leading: what holds it back or what it's
   doing, and what that means for new sessions. In order of precedence:
   - `✕ no token · switchboard accounts token work`, in `state.destructive`, without a usable token;
@@ -761,34 +770,39 @@ A card, top to bottom:
     says what still goes: `■ Fable wk limit · back Mon 21:00 · other models still come here`,
     `■ refused (403, opus) · until 21:40 · other models still come here`.
   - `● at its reserve (90%)`, or with the global pin naming it, `● spending its reserve (pinned)`,
-    in `accent.attention`.
+    in `accent.attention`; a model's own window at its reserve, as Fable's week, says what still
+    goes: `● Fable wk at its reserve (90%) · other models still come here`.
   - `● under pressure · new sessions go elsewhere`, in `accent.attention`, while another account
     takes them; where new sessions still come here, as with one account or every account under
     pressure, `● under pressure · runs out ~16:05 at this pace`; where its reserve would hold it
     back, `● under pressure · at its reserve ~18:21`.
-  - `○ idle · its window starts at its prime, 16:20`, while its 5-hour window has lapsed; without
-    priming, or probing, which can't say when it's next primed, `○ idle · its window starts with
-    its next request`.
+  - `○ idle · window starts at its prime, 16:20`, while its 5-hour window has lapsed; without
+    priming, or probing, which can't say when it's next primed, `○ idle · window starts with its
+    next request`.
   - `● open · new sessions come here` on the account new sessions go to; `● open` on the rest;
     `● open · its week nears its reserve` once a week is within 10 points of it.
 - **The featured window** (see below): its use in big digits, three cells tall, drawn in `▀▄█`, in
   the colour of the account's state, or for a limited 5-hour window the time until it lifts, `1:12`,
-  in `state.destructive`; beside them the window's name, `SESSION 5-hour window` or `WEEK 7-day
-  window`, where it's heading, `→ runs out ~16:05 at its last-30-min rate` or `→ 54% by its reset`,
-  and when it resets, `resets 17:10 · in 2h 28m`. Under them its chart (see Charts), and under that
-  its axis: the 5-hour window's start, `now` and its reset; or the week's days, `╵Tue ╵Wed ╵Thu`,
-  today's picked out.
+  as `h:mm`, and `mm:ss` in its last ten minutes, in `state.destructive`; beside them the window's
+  name, `SESSION 5-hour window` or `WEEK 7-day window`, where it's heading, `→ runs out ~16:05 at
+  its last-30-min rate`, or at its reserve, `→ reaches its reserve ~15:45`, or `→ 54% by its
+  reset`, and when it resets, `resets 17:10 · in 2h 28m`. At a limit, where it's heading reads
+  `limit reached at 14:12`, and when it resets, `its window resets 15:54`; lapsed, `not started`,
+  and `next prime 16:20 · in 1h 38m`, or `starts with its next request`. Under them its chart (see
+  Charts), and under that its axis: the 5-hour window's start, `now` and its reset; or the week's
+  days, `╵Tue ╵Wed ╵Thu`, today's picked out.
 - **The other windows**, a line each, in the status document's order, shortest first: the name, a
-  bar, the use and where it's heading: `Week ██████┃███▋╎░ 34% → 87%`, `→ out Fri` in
-  `accent.attention` where it runs out before its reset, `back 15:54` in `state.destructive` for a
-  limit, `not started` for a lapsed window. A bar fills along `viz.ramp`, from its first stop at its
-  first cell to its last at its last, so its colour says how far along it is; the share it's heading
-  for by its reset follows in the ramp's colours blended halfway into the canvas; `┃` in `viz.pace`
-  marks where even use across the window would be now; `╎` in `viz.reserve` where the reserve
-  starts. A window reset by hand measures its pace and projection from its start again, as Pace and
-  projection says.
+  bar, the use and where it's heading: `Week ██████┃███▋╎░ 34% → 87%`, where it's heading turning
+  `accent.attention` within 10 points of the floor it runs out at; `→ out Fri` in `accent.attention`
+  where it runs out before its reset, `back 15:54` in `state.destructive` for a limit, `not started`
+  for a lapsed window. A bar fills along `viz.ramp`, from its first stop at its first cell to its
+  last at its last, so its colour says how far along it is; the share it's heading for by its reset
+  follows in the ramp's colours blended halfway into the canvas; `┃` in `viz.pace` marks where even
+  use across the window would be now; `╎` in `viz.reserve` where the reserve starts. A window reset
+  by hand measures its pace and projection from its start again, as Pace and projection says.
 - **Its bottom edge:** a dot per session on it, `●` lit in `state.positive` while busy, `○` while
-  idle, and the count at its right, `3 sessions`, or `no sessions`.
+  idle, and the count at its right, `3 sessions`, or `no sessions`. A session is busy while a
+  request of it is in flight, or it was seen in the last minute.
 
 The 5-hour window and the shared week always show. A model's own window, as Fable's week, that no
 account has used this period, nor is heading to use, is hidden from every card, and the line over
@@ -799,9 +813,13 @@ uses it. Every card shows the same windows in the same order, so their rows line
 the rest are the one-line bars. `w` cycles which, for every card at once, so the cards stay
 comparable: `auto`, then the 5-hour window, then the week, then any other window in use, such as
 Fable's week, and round to `auto`. The footer says which, `w window: auto`, and the choice is
-remembered in the preferences file. On `auto`, each card features what will stop its account first:
+remembered in the preferences file. A window remembered that's no longer in use reads as `auto`,
+in the footer and `?` alike, and `w` moves on from `auto`. On `auto`, each card features what will
+stop its account first:
 
-1. The window holding it back now, under a limit or at its reserve.
+1. The window holding it back now, under a limit or at its reserve. A limit that names no window,
+   its overall verdict alone, holds every window: the card features the 5-hour window as limited,
+   the time until it lifts in its digits and its level on the floor.
 2. Else the window that runs out soonest, at the projection Charts gives, where one runs out
    before it resets.
 3. Else its most-used window, by share; a lapsed 5-hour window counts as unused.
@@ -827,27 +845,40 @@ toward the floor as it's used.
   sooner or end more used; and for the 5-hour window, the recent rate whenever there is one (see
   Choosing an account). The floor it runs out at is its reserve, drawn as a faint dotted line in
   `viz.reserve`, where the reserve would hold it back, else its limit.
-- **A lapsed 5-hour window** shows a full level, dim, and `full · its window starts at its prime,
-  16:20` across it.
+- **A lapsed 5-hour window** shows a full level, dim, and `full · window starts at its prime, 16:20`
+  across it.
 - **The week** draws the same way over its seven days, a column covering about four hours at 160
   columns, so it steps down through each working day and runs flat overnight: the owner's own
   rhythm, and how many working days are left before the `✕`. On a fresh install it fills in as the
   history grows.
 
 Braille was tried for the level and rejected: a large area of braille reads as a grid of dots, not
-a level. `g` cycles the chart style, for every card, remembered in the preferences file:
-burn-down; **burn rate**, the use per 10 minutes as bars, with a dotted line at the fastest rate it
-could burn and still last to its reset, bars above it in `accent.attention`; and **hourglass**, the
-window as an hourglass in blocks, the sand above the room left, the pile below the use, and the
-stream between them as thick as the recent rate, falling while the account is busy and still while
-it isn't, turning over at the reset. Burn rate and hourglass were sketched, not drawn on the final
-page, and come after burn-down. A fourth, a heartbeat of the account's requests, waits for the
-request stream (see Live updates).
+a level. `g` cycles the chart style, for every card, remembered in the preferences file: burn-down,
+then burn rate and hourglass, which were sketched, not drawn on the final page:
 
-**The key.** Where there's room, a line over the footer explains the glyphs: `▆ room left`, the
-dotted `heading`, `✕ runs out`, the dotted `reserve`, then the bars' `used`, `heading`, `┃ even
-pace` and `╎ reserve`, `● session, lit while busy`. Where there isn't, it's behind `?`, and the line
-says so: `? for the key`.
+- **Burn rate** is the window's use per 10 minutes, as bars in eighth blocks: a bar each 10
+  minutes, or each column where a column covers more, as over the week, measured per 10 minutes
+  all the same, in the state's colour blended halfway into the canvas. A dotted line in `viz.pace`
+  runs at the even pace from now to the floor it runs out at, the fastest it could burn and still
+  last to its reset, and the bars above it are in `accent.attention`. The bars and the line share
+  one scale, each card its own. At a limit, a line runs along the floor until the limit lifts, as a
+  burn-down's does, and there's no dotted line.
+- **Hourglass** is the window as an hourglass in quadrant blocks, as tall as the chart, standing
+  over `now`: the sand above the room left, the pile below the use. The stream between them is 2,
+  4 or 6 grains wide as the recent rate stands against the rate that would last to the reset, and
+  falls a grain every 125 milliseconds while the account is busy, drawn at that pace rather than 30
+  frames a second, and is still while it isn't. At its reset it's turned over, full and still. It
+  draws no reserve.
+
+A fourth, a heartbeat of the account's requests from the request stream (see Live updates), wasn't
+built with them.
+
+**The key.** Where there's room, a line over the footer explains the glyphs, the chart's in the
+style the cards draw: for a burn-down, `▆ room left`, the dotted `heading`, `✕ runs out`, the
+dotted `reserve`; then the bars' `used`, `heading`, `┃ even pace` and `╎ reserve`, `● session, lit
+while busy`. It shows only where all of it fits: where it doesn't, as for a style whose glyphs need
+more width than there is, or there's no row for it, it's behind `?`, and the line says so: `? for
+the key`.
 
 ### Pace and projection
 
@@ -862,12 +893,13 @@ says so: `? for the key`.
 - **It says the span it measures over** when it goes at the recent rate: on a card, `→ runs out
   ~16:05 at its last-30-min rate`; `last-18-min` for a window without a level from before the half
   hour, or `last-2h` across a gap in its readings; the event, `work came under pressure: its session
-  runs out ~16:05 at its last-30-min rate`. `status`, whose text keeps its form until it's designed
-  afresh, says `runs out ~Mon 17:25 at its rate over the last 30 min`, `over the last 18 min` or
-  `over the last 2h` as the span is, and its pressure line adds the rate it goes by and the reset it
-  runs out before: `under pressure: runs out ~18:21 at Session's rate over the last 30 min, before
-  its reset at 20:10`, or where its reserve would hold it back, `under pressure: at its reserve
-  ~18:21 at Session's rate over the last 30 min, before its reset at 20:10`.
+  runs out ~16:05 at its last-30-min rate`, or where its reserve would hold it back, `…: its session
+  reaches its reserve ~15:45 at its last-30-min rate`. `status`, whose text keeps its form until
+  it's designed afresh, says `runs out ~Mon 17:25 at its rate over the last 30 min`, `over the last
+  18 min` or `over the last 2h` as the span is, and its pressure line adds the rate it goes by and
+  the reset it runs out before: `under pressure: runs out ~18:21 at Session's rate over the last 30
+  min, before its reset at 20:10`, or where its reserve would hold it back, `under pressure: at its
+  reserve ~18:21 at Session's rate over the last 30 min, before its reset at 20:10`.
 - **A window reset by hand** before its reset time, as claude.ai's banked reset does, dropping its
   use but keeping its reset (see Observed), has effectively started again: the router reads it with
   the same reset, taken as current (see How it works), fallen by a tenth of the window or more, and
@@ -888,10 +920,12 @@ The layout follows rules, so every number of accounts and every terminal size ge
 falls back to a line per account. The final page draws 1, 3, 4, 6 and 8 accounts, 8 scrolled, and a
 phone; a panel there lists these rules.
 
-1. **Columns:** as many 50-column cards as fit across, never more than there are accounts; the cards
-   share the spare width. 160 columns hold 3, 210 hold 4, a phone 1.
+1. **Columns:** as many 50-column cards as fit across, never more than there are accounts, 4 columns
+   apart, or 2 where that fits another card; the cards share the spare width. So 160 columns hold 3,
+   as the frames lay them out, 210 hold 4, and a phone 1.
 2. **One account** gets one wide card, about 104 columns, with its chart 6 rows tall, and COMING UP
-   and RECENT in a column beside it, once the terminal is 150 columns wide.
+   and RECENT in a column beside it, once the terminal is 150 columns wide, RECENT giving each
+   event's subject a line, and the rest of it the lines under.
 3. **One size:** rows of cards wrap, every card in the grid is the same size and density, and they
    show the same windows, so their rows line up.
 4. **Recent events** (see Live updates) take the first empty cell of the last row, as with 4, 5 or
@@ -907,18 +941,21 @@ phone; a panel there lists these rules.
 
    The windows' bars and the edges come with every one. A card fits when every row of cards does,
    with one line of recent events under them where they take a strip.
-7. **Then the extras:** rows left over grow the recent strip to four lines, then show the key line;
-   without room for it, the key is behind `?`.
-8. **Scroll last**, in watch mode, only once 2-row charts don't fit. The title row, the heading and
-   the footer stay put and the rows of cards scroll between them: `j`/`k`, PgUp and PgDn, and the
-   wheel, and moving the focus to a card out of view scrolls to it. A scrollbar runs down the right
-   edge, `┃` the part shown on a `│` track, and the line over the footer says what's hidden: `▼ 2
-   more accounts below · j/k or wheel to scroll`.
+7. **Then the extras:** rows left over grow the recent strip to four lines, then show the key line,
+   where all of it fits; else the key is behind `?`, and the line over the footer says `? for the
+   key`.
+8. **Scroll last**, in watch mode, only once 2-row charts don't fit. The title row, the heading, a
+   recent strip under the cards and the footer stay put, and the rows of cards scroll between them,
+   a recent cell with its row: `j`/`k`, PgUp and PgDn, and the wheel, and moving the focus to a card
+   out of view scrolls to it. A scrollbar runs down the right edge, `┃` the part shown on a `│`
+   track, and the line over the footer counts the accounts out of view, above and below: `▲ 1 more
+   account above · ▼ 2 more accounts below · j/k or wheel to scroll`.
 9. **The one-shot `usage`** never scrolls: it has no height to fit, so it prints every card at the
    full density, as wide as the terminal allows, and the terminal's scrollback holds what doesn't
-   fit the screen. It reads `GET /history` once, where the router answers, and keeps the
-   preferences file's theme, featured window and chart style. Without history, as probing, a chart
-   draws the room the window has now as a flat level from its start, dim, marked `no history yet`.
+   fit the screen. It reads `GET /history` once, where the router answers, and `GET /sessions`, for
+   the cards' dots, and keeps the preferences file's theme, featured window and chart style.
+   Without history, as probing, a chart draws the room the window has now as a flat level from its
+   start, dim, marked `no history yet`.
 10. **Narrow:** under 50 columns of room for a card, a card takes the full width; the phone layout
     stacks compact cards with 2-row charts, which fits three accounts in 36 rows.
 
@@ -944,20 +981,29 @@ What the rules choose at 160 columns:
 
 A card turns over to show the sessions on its account, rather than squeezing them onto its front.
 
-- **Focus:** the arrow keys move a focus between cards, `←` `→` along a row of them, `↑` `↓` between
-  rows, over a flipped card's sessions first; the focused card's border turns heavy (`┏━┓┃┗━┛`) and
-  `accent.key`. `space` flips the focused card; `s` flips every card, or back. A flipped card keeps
-  its size and its place, and says `sessions` on its top edge.
-- **Its back:** `3 sessions · 2 busy`; then a row per session and model on the account, a session
-  whose models go to two accounts showing on both, its other half noted: a dot, lit while busy; the
-  session's id, cut to 4; its model; what it's doing, `streaming ↓ ~1.2k` in `accent.mode`, an
-  estimate of its tokens so far at four characters a token, until the exact count comes as it ends;
-  `waiting 38s`, sent with nothing back yet, in `accent.attention`; or `idle 9m`; and under it,
-  where there's room, a note, `╰ here since 13:20`, `╰ its opus is on side`, `╰ moved from personal
-  at 14:12`, `╰ pinned here at 14:39`. Then, where there's room, `LATELY`, the account's own recent
-  events, and last a line of the keys: `↑↓ select · 1-3 move it · space flip`. An account with no
-  sessions says so, and why where it can: `3 moved to side at 14:12, when personal reached its
-  limit`.
+- **Focus:** no card has it until an arrow, `space` or `s` gives it to the first card wholly in
+  view; then it stays. The arrow keys move it between cards, `←` `→` along a row of them, stopping
+  at its ends, `↑` `↓` between rows, over a flipped card's sessions first, `↓` to a shorter last row
+  landing on its last card; the focused card's border turns heavy (`┏━┓┃┗━┛`) and `accent.key`.
+  `space` flips the focused card; `s` flips every card, or back. A flipped card keeps its size and
+  its place, and says `sessions` on its top edge.
+- **Its back:** `3 sessions · 2 busy`, and a blank; then a row per session and model on the
+  account, a session whose models go to two accounts showing on both, its other half noted: a dot,
+  lit while busy; the session's id, cut to 4; its model; and what it's doing. While a request of it
+  is out, that's `streaming ↓ ~1.2k`, in `accent.mode`, an estimate of its tokens so far at four
+  characters a token, or `waiting 38s`, sent with nothing back yet, in `accent.attention`; for the
+  2 seconds an answer is held as it ends, its exact count, `↓ 1.3k`; otherwise `idle 38s` under a
+  minute, and `idle 9m` after. Under each row, where there's room for every row's, a note, the first
+  of these that holds: its own pin sending it elsewhere, `╰ goes to side from its next request`,
+  or, where that pin yielded at a limit and the session stays where it went, `╰ its pin to side
+  yielded here`; its other models, `╰ its opus is on side`; `╰ pinned here at 14:39`; `╰ moved
+  from personal at 14:12`; `╰ here since 13:20`. A back too crowded for every row drops the blank
+  under its count first, then shows as many rows as fit and `+2 more`, the selected row among
+  them. Then, where there's room, `LATELY`, the account's own events, told from its side: a limit
+  takes two lines, `■ reached its session limit`, then `▸ 3 sessions moved to side`, and the card
+  they went to says `▸ 3 sessions arrived from personal`. Last, a line of the keys: `↑↓ select ·
+  1-3 move it · space flip`. An account with no sessions says so, and why where it can: `3 moved
+  to side at 14:12, when personal reached its limit`.
 - **Hand-patching:** on the focused flipped card, `↑`/`↓` select a session, its row in
   `bg.selection`, `▸` before it, and carry the focus on to the card above or below past its first
   or last. A digit then pins that session to the account in that place, every model of it, as
@@ -966,7 +1012,8 @@ A card turns over to show the sessions on its account, rather than squeezing the
   While a session is selected, the footer gives that mode's keys: `↑↓ select · 1-3 move 5b19 to
   that account · space flip back · esc done`, and at its right `5b19 selected on work`.
 - **Without the request stream**, as from a router from before it, a session is busy when it was
-  seen in the last minute, and its row says `seen now` or `idle 9m` rather than what it's doing.
+  seen in the last minute, and its row says `seen now`, which only a back without the stream says,
+  or `idle 9m`, rather than what it's doing.
 
 ### Sessions
 
@@ -974,60 +1021,81 @@ Where each session's requests go, and why, as a switchboard draws it: **calls** 
 sessions, and **lines** on the right, the accounts, with a cord from each call to its line.
 
 - **Calls:** a row per session and model, grouped by the account it's on, in the accounts' order,
-  a blank row between groups: its id, cut to 4, bold while busy; its model; when it was last seen.
-  A session split across accounts has a row in each group.
+  a blank row between groups: its id, cut to 4, bold while busy; its model; when it was last seen,
+  the later of the router's `last_seen` and what the stream told of it, which outlasts its answer.
+  A session split across accounts has a row in each group. Rows keep their places from look to look,
+  a new one joining its group's foot.
 - **Lines:** a panel per account, its name and state on its top edge, `┌─ 1 · WORK ─ ● under
   pressure ──── ◆ primary ─┐`, a row per window under it, its bar, use and where it's heading,
   and its resets on its bottom edge, `└─ resets session 17:10 · weeks Mon 21:00 ─┘`. A jack, `◉`,
   at the panel's left on each row a cord ends at, `○` where none does.
 - **Cords** run from the call, `●`, along its row, and down to a jack of its account's panel, in
-  `━ ┃ ┓ ┗`; a cord that starts higher bends further right, so none cross. They only ever run right,
+  `━ ┃ ┓ ┗`; a cord that starts higher bends further right, so none cross, the bends starting 12
+  cells left of the lines and stepping 5 apart, closer when crowded. They only ever run right,
   then down: a panel has a jack for each of its window rows, and grows a row for each call past
   those; and where a group of calls would start below its panel's first jack, the panels move down
   to meet it. Every cord to an account is that account's colour, from `viz.series`, in its
   configured order; an idle session's cord is dimmed. Sessions a limit moved off an account leave
   dashed stubs, `╌`, hanging at its jacks while the limit holds.
 - **Requests travel the cords** (see Live updates): a bright pulse runs from the call to the jack
-  as a request goes out, the call row saying `↑ ask`; while the answer streams back, the cord
-  shimmers toward the call, every fourth cell lit, and the row counts the tokens, estimated,
-  `↓ ~1.2k`; a pulse runs back as the answer ends. A limit or a refusal shows as `✕` on the jack,
-  in `state.destructive`, and a red pulse bouncing back, the row saying `✕ 429` or `✕ 403`;
-  throttling, a 429 the client retries, as a dim `… 429` and no pulse. Claude Code's quota check
-  isn't drawn.
+  in 0.54 seconds as a request goes out, the call row saying `↑ ask`; while the answer streams
+  back, the cord shimmers toward the call, every fourth cell lit, stepping every 80 milliseconds,
+  and the row counts the tokens, estimated, `↓ ~1.2k`; a pulse runs back as the answer ends. A
+  limit or a refusal shows as `✕` on the jack, in `state.destructive`, and a red pulse bouncing
+  back, the row saying `✕ 429` or `✕ 403`; throttling, a 429 the client retries, as a dim `… 429`
+  and no pulse. An answer's end, and a `✕`, hold for 2 seconds. Claude Code's quota check isn't
+  drawn.
 - **A move re-patches:** the session's row leaves its old group, a faint placeholder, `5b19 ↪
   moved to side`, standing in its place until the next look, so the other cords stay put; it joins
   its new account's group, `↪ new`, its cord running to a free jack there; its old cord hangs loose
-  from its old jack, `╌`, and fades within a few seconds, or where a limit moved it, stays as a
-  stub while the limit holds. The log line says why: `14:43 ▸ 5b19 moved
-  work → side: work reached its limit, so its request was retried on side`.
-- **Under the calls,** `LOG`, the recent events.
+  from its old jack, `╌`, and fades over 3 seconds, or where a limit moved it, stays as a stub while
+  the limit holds. A move at a limit or a refusal re-patches once the red pulse has bounced back,
+  the retried request's pulse setting out along the new cord as it does. The log line says why:
+  `14:43 ▸ 5b19 moved work → side: work reached its limit, so its request was retried on side`.
+- **Under the calls,** `LOG`, the recent events, every move among them, and why, as the re-patch's
+  line above, those a limit forced too, which RECENT and the cards' LATELY fold into the limit's
+  line.
 - **Panels shrink** with the accounts: three window rows and the edges, so five accounts fit in 40
   rows; beyond what fits, the view scrolls as Accounts does.
 - **With one account,** every cord would end at the same jack, so the view is a plain list of the
   sessions instead: as the back of a card lists them, with the account's panel above.
 - **Narrower terminals:** the lines keep their width, about 64 columns, and the cords shorten; under
-  110 columns the panels' bars give way to the windows' percentages; under 90, the view is the plain
-  list, a panel per account each with its sessions under it.
+  110 columns the panels' bars give way to the windows' percentages; under 90, or wherever the bends
+  can't fit 1 apart, the view is the plain list, a panel per account each with its sessions under
+  it. The plain list's panels are boxed, without jacks.
 
 ### Runway
 
 When each account has room, as a timeline: one lane per account, and a strip above them counting
-how many accounts have room at each moment.
+how many of the accounts read have room at each moment, with a line along its floor, in the ramp's
+last stop, where none has; with none read, it draws nothing.
 
-- **The day**, by default: from the hour before now to a day ahead, across the width the labels
-  leave, a column every 10 minutes at 160 columns, more minutes a column as the terminal narrows,
-  the hours along the top, `now` and its column picked out in `bg.subtle`, the past dimmed. A lane
-  is thick, `▆`, where the account can take a session; `▆` in `accent.attention` where it can but is
-  heading to run out before its reset; and a thin line, `─` in `state.destructive`, where it can't.
-  The 5-hour window, its limit, and its week running out all count: an account's room is all of
-  them.
+- **The day**, by default: from the hour before now, taken back to its ten-minute mark, for 22
+  hours and 40 minutes, across the width the labels leave: 136 columns of 10 minutes at 160
+  columns, the minutes a column scaling with the lanes' width. The hours run along the top, ticked
+  at least 3 cells apart and labelled at least 10 apart, midnight with its weekday; `now` and its
+  column are picked out in `bg.subtle`, and the past dimmed. A lane is thick, `▆`, where the account
+  can take a session; `▆` in `accent.attention` where it can but is heading to run out, from now
+  until the last time it runs out before a reset; and a thin line, `─` in `state.destructive`,
+  where it can't. The 5-hour window, its limit, and its week running out all count, and over the
+  day a refusal of every request too: an account's room is all of them. A limit's stretch starts
+  at the router's event of it, and a hold whose start isn't known runs from before the timeline.
+  An account without a usable token, or whose usage can't be read, has no room all along, and one
+  not yet read is left blank.
 - **Words where it changes**, on the line under the lane, where each stretch without room starts:
-  `runs out ~16:05 · back 17:10, as it resets`; `limit reached 14:12 · back 15:54`; `week runs out
-  ~Fri 04:06 · back Sun 02:00`. A lane with room all day says `room all day`.
+  `runs out ~16:05 · back 17:10, as it resets`; `reaches its reserve ~15:45 · back 17:10, as it
+  resets`, or already there, `at its reserve · back 17:10, as it resets`; `limit reached 14:12 ·
+  back 15:54`; `refused (401) · back 14:00`; `week runs out ~Fri 04:06 · back Sun 02:00`. Where
+  causes overlap, each is told where it starts, and `back …` once, where room really returns.
+  Words that don't fit drop whole parts from the end, `, as it resets` first. A lane with room all
+  day says `room all day`.
 - **`w`, the week:** from yesterday to six days ahead, a column about every 75 minutes, the days
   along the top: the weeks' room alone, a `┃` where each week resets, labelled `resets Mon 21:00 ·
-  87% used by then`, or `runs out ~Fri 04:06 · back Sun 02:00, as it resets`. The strip shows the
-  stretch when fewer accounts have weekly room, as the final page's Friday to Sunday.
+  87% used by then`, or `runs out ~Fri 04:06 · back Sun 02:00, as it resets`, and a week that
+  resets beyond the view, `room all week · resets …`. The strip shows the stretch when fewer
+  accounts have weekly room, as the final page's Friday to Sunday. The footer says which shows,
+  `w window: day` or `w window: week`, which, unlike the featured window, the preferences file
+  doesn't keep.
 - **The legend**, over the footer: `▆ has room · ▆ has room, but running out · ─ no room`, and for
   the week, `┃ week resets`.
 
@@ -1139,19 +1207,24 @@ Portal theme works in switchboard as it is.
   history: the charts draw from the readings the watch itself has
   seen, so they fill in as it runs.
 - **The request stream:** while Sessions is shown, or a card is flipped, the watch subscribes to
-  the router's request stream, `GET /stream` (see Control API), and animates what it says as it
-  says it, at up to 30 frames a second, drawing nothing new while nothing happens. The stream opens
-  with the requests already in flight, so a view opened mid-answer shows it. Without it, from a
-  router from before it, the cords and the cards' backs fall back to the sessions as each look
-  reads them, with no requests travelling.
+  the router's request stream, `GET /stream` (see Control API). While Sessions' switchboard shows,
+  it animates the cords as the stream tells, at up to 30 frames a second, drawing nothing new while
+  nothing happens; the cards' backs and the plain list redraw as the stream tells, and on the
+  second's tick. The stream opens with the requests already in flight, so a view opened mid-answer
+  shows it. A stream that ends is joined again a second later, and one that fails to open is tried
+  again after a second, doubling to 30 seconds. A router from before it has none, and the watch
+  stops asking until another router answers: the cords and the cards' backs fall back to the
+  sessions as each look reads them, with no requests travelling.
 - **Recent events:** the router's own, from the status document's `events` (see The status
   document): a session starting, `14:41 ▲ 3e7a started on side, the best`; coming under pressure,
-  `14:38 ● work came under pressure: its session runs out ~16:05 at its last-30-min rate`; a limit,
-  with the sessions it moved, `14:12 ■ personal reached its session limit; 3 sessions moved to
-  side`; a move by pin, `14:39 ▸ 9e21 moved side → client (pin)`; a refusal; a prime, `13:50 ◇ side
-  primed: its 5-hour window started, resetting 18:50`; room again; a restart due; the router's
-  health turning. Probing without the router, the dashboard has none, and RECENT says `the router
-  isn't running`.
+  `14:38 ● work came under pressure: its session runs out ~16:05 at its last-30-min rate`, or where
+  its reserve would hold it back, `…: its session reaches its reserve ~15:45 at its last-30-min
+  rate`; a limit, with the sessions it moved, `14:12 ■ personal reached its session limit; 3
+  sessions moved to side`, its line taking in the moves it forced, which Sessions' `LOG` lists; a
+  move by pin, `14:39 ▸ 9e21 moved side → client (pin)`; a refusal; a prime, `13:50 ◇ side primed:
+  its 5-hour window started, resetting 18:50`; room again; a restart due; the router's health
+  turning. Probing without the router, the dashboard has none, and RECENT says `the router isn't
+  running`.
 - **A router from before milestone 5**, as one still running between an upgrade and its restart:
   without `GET /history`, the charts draw as without history; without `events`, RECENT says
   `restart the router for recent events`; without `GET /stream`, as above.
@@ -1191,11 +1264,12 @@ for a few seconds, and the router's document is read again at once. Pressed whil
 document stays on screen, the router not answering, each says so instead. With one account, the
 digits, `a` and `m` do nothing and aren't listed.
 
-The footer lists the keys that work where they are, the most used first, as many as fit, and at its
-right when the document was read: `tab views · w window: auto · ←→ focus · space flip · g chart ·
-1-3 pin · a auto · m move · ? keys · q quit`, then `read 4s ago`. What doesn't fit is behind `?`.
+The footer lists the keys that work where they are, the most used first, in this order, as many as
+fit, and `? keys` and `q quit` always; and at its right when the document was read: `tab views · w
+window: auto · ←→ focus · space flip · g chart · 1-3 pin · a auto · m move · ? keys · q quit`,
+then `read 4s ago`. What doesn't fit is behind `?`, as `r`, `t`, `s` and `j`/`k` always are.
 
-### Kept from the dashboard as built
+### Kept from the dashboard before milestone 5
 
 - Desktop notifications: see Notifications.
 - Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
@@ -1315,9 +1389,10 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   catches up (`readings history fell behind`), that a reading can't be put as a line, once
   (`readings history can't hold a reading`), how many of its lines couldn't be read as a reading
   as it was taken up (`readings history lines unread`), a file or its directory that can't be
-  read (`can't read the readings history`), a file cut short as it was read (`readings history
-  read short`), and a file, or the directory, that couldn't be pruned (`can't prune the readings
-  history`).
+  read (`can't read the readings history`), and a file cut short or damaged as it was read
+  (`readings history read short`), each file once a run, as `GET /history` reads them again and
+  again; a file that couldn't be compressed (`can't compress the readings history`); and a file,
+  or the directory, that couldn't be pruned (`can't prune the readings history`).
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -1495,6 +1570,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | Package | Owns |
 |---|---|
 | `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
+| `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text to diff with a frame's (`--print`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot and the eye to judge against the final page (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
@@ -1505,9 +1581,10 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/score` | Pace, projection, a window's rate of use, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, building it by probing every account, what the router says of a session, and their words: `status`'s text, and the countdowns, clocks, titles and state words the dashboard shares |
-| `internal/dashboard` | Rendering the views as frames (Lip Gloss): the title row and heading, the Accounts layout rules, the cards, front and back, and their charts, Sessions' calls, lines and cords, Runway's lanes, and the key. *Milestone 5*; built today, the cards or a line per account |
+| `internal/dashboard` | Rendering the views as frames (Lip Gloss): the title row and heading, the Accounts layout rules, the cards, front and back, and their charts, Sessions' calls, lines and cords, Runway's lanes, and the key |
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, the history and the request stream, its keys, the focus, flipping and selection, scrolling, easing the bars and animating the cords, the theme picker, and its desktop notifications while it probes without the router |
-| `internal/theme` | *Milestone 5.* Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, picking the light or dark half by the terminal's background, and the preferences file |
+| `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, picking the light or dark half by the terminal's background, and the preferences file |
+| `internal/capture` | The capture harness's fixtures, each a moment of the dashboard: the frames' sample accounts and sessions, a fake router serving them, with its history and request stream, and the real watch model built through `watch.New` with every seam faked, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, preferences or tokens. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the readings history, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
@@ -1593,24 +1670,28 @@ hiding it behind the provider would take a wider interface than it's worth:
   lines queue, those of 1,024 answers or probes at most, dropping any past that, for a goroutine
   of their own to write; a write that fails is logged once until one succeeds, and the reading
   goes unwritten, as the history never stands in routing's way. As it starts, the router takes up
-  the lines of its two newest files, by the dates they're named for, as a change of time zone can
-  name today's file for another day than the clock's, but for one named for a day after tomorrow,
-  into each window's recent readings, its baseline included (see Choosing an account): the
-  history holds each change of a window's use, so they are as they were, but for when each level
-  was last read again, which it takes as its line's time, and the recent rates outlast the
-  restart. It reads them a line at a time, keeping what the recent readings need alone. A window
-  quiet since before the older of the two has no baseline to take up. It passes over a line that
+  the lines of its two newest days, by the dates their files are named for, as a change of time
+  zone can name today's file for another day than the clock's, but for a day after tomorrow, into
+  each window's recent readings, its baseline included (see Choosing an account): the history
+  holds each change of a window's use, so they are as they were, but for when each level was last
+  read again, which it takes as its line's time, and the recent rates outlast the restart. It
+  reads them a line at a time, keeping what the recent readings need alone. A window quiet since
+  before the older of the two has no baseline to take up. It passes over a line that
   doesn't read as a reading, as one cut short, or one over 4 KiB, which no reading makes and
   which it skips without holding, one of an account no longer configured, and those of a window
   that has reset since, as `state.json` has it. A reading that can't be put as a line, as one
-  whose use isn't a number, goes unwritten, logged once. *Milestone 5:* a day's file is compressed,
-  as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of them would
+  whose use isn't a number, goes unwritten, logged once. A day's file is compressed, as
+  `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of them would
   otherwise run to hundreds of megabytes; the router reads either form back, as it starts and for
-  `GET /history`, which the dashboard's charts draw from (see Control API).
-- **Preferences:** *Milestone 5.* `<state dir>/prefs.json`: the dashboard's theme or pair of
-  themes, the view it shows, the featured window and the chart style, written whole by the
-  dashboard alone, never by hand (see Themes).
-- **Themes:** *Milestone 5.* `<slug>.theme` files in `SWITCHBOARD_THEMES_DIR`, else
+  `GET /history`, which the dashboard's charts draw from (see Control API). A day whose compressed
+  file already ends with its plain file's lines, as when the router stopped between writing the one
+  and removing the other, is read from the compressed file alone. A file that can't be read is
+  passed over, and one damaged, as a compressed file cut short, read up to the damage, each warned
+  of once a run (see Logging).
+- **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, the view it
+  shows, the featured window and the chart style, written whole by the dashboard alone, never by
+  hand (see Themes).
+- **Themes:** `<slug>.theme` files in `SWITCHBOARD_THEMES_DIR`, else
   `$XDG_CONFIG_HOME/switchboard/themes/`, else `~/.config/switchboard/themes/` (see Themes).
 - **Tokens:** `<state dir>/tokens/<id>`, a file per account, 0600 in a 0700 directory: see Accounts
   and tokens.
@@ -1625,6 +1706,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   real `claude`'s directory.
 - **The skill:** `skills/switchboard/SKILL.md` in Claude Code's config directory,
   `$CLAUDE_CONFIG_DIR`, else `~/.claude`, once `setup` has written it.
+- **The capture harness,** in the repository: `testdata/vhs/`, where the dashboard is checked by
+  eye against its design, which a test can't do. `reference/` keeps the final page's frames,
+  exported from Paper as PNGs, and as the text and ANSI of the generator that drew them, which a
+  capture, or `capturetool --print`'s text, is held against; it stays, as the design the dashboard
+  was built to, though no code points at it. Beside it, `vhs` tapes screenshot fixtures
+  `cmd/capturetool` draws: scaffolding, cleared, with their captures, once milestone 5 is signed
+  off. `testdata/vhs/README.md` says how, and lists where the dashboard differs from the frames, as
+  this document holds over them (see Visual capture harness in `CLAUDE.md`).
 
 ### Config
 
@@ -1651,7 +1740,7 @@ room    = true   # an account has room again
 warning = 0.9    # a window passing this share of its limit; 0 turns it off
 moves   = false  # every other session move, such as after an idle hour or by pin
 
-[history]                          # optional, milestone 5
+[history]                          # optional: the readings history
 keep = "14d"                       # how long the readings history is kept, from 8d to 400d
 ```
 
@@ -1679,8 +1768,8 @@ fails as it is; one that parses has every problem reported at once:
 - **`[prime]`**: `day` is two times of day, `HH:MM`, joined by `-`, and not the same time twice.
 - **`[notifications]`**: each key defaults as shown. `warning` is 0, or more than 0 and less than
   1.
-- **`[history]`** (*milestone 5*): `keep` is a whole number of days, `<n>d`, from `8d`, a week and
-  a day, which the week's chart needs, to `400d`, a year with room to spare.
+- **`[history]`**: `keep` is a whole number of days, `<n>d`, from `8d`, a week and a day, which the
+  week's chart needs, to `400d`, a year with room to spare.
 - **No error quotes a token:** one that quotes a value, of `listen`, `upstream` or `prime.day`, an
   unknown key's name, or the key a file that isn't TOML fails at, such as one without a value or
   given twice, shows anything in it shaped like a token as `[redacted]`, and an unknown key's value
@@ -1728,8 +1817,8 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
-| `GET /history?window=<key>&step=<duration>` | *Milestone 5.* Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | *Milestone 5.* The requests as they happen, for the dashboard's Sessions and its cards' backs: held open, a line of JSON an event, `{at, kind, request, attempt, session, model, account, …}`, `request` the router's id for the request, unique while it runs, and `attempt` which time it went upstream. It opens with an `inflight` for each request already in flight; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, the characters of its text and thinking so far, every 250 ms at most while it streams, as the API counts tokens only as an answer ends; `done` as it ends, with `status` and the closing usage's token counts, `{input, output, cache_read, cache_write}`; `limited`, a 429 at a limit; `throttled`, a 429 the client retries; `refused`, a 401 or 403; and `moved`, with `from`, `to` and `reason`. A request the router knows for Claude Code's quota check carries `check: true`. Reading the counts reads a copy of the answer's stream as it passes, decompressed where the answer is, never changing or holding the bytes passed on. A reader that falls 256 events behind is dropped, and reconnects; a restart closes every stream first, as one held open would never let it finish its requests, and the dashboard reconnects to the new router |
+| `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
+| `GET /stream` | The requests as they happen, for the dashboard's Sessions and its cards' backs: held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, model, account}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, and `account` the account it goes out on. It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, every 250 ms at most while it streams, as the API counts tokens only as an answer ends; `done` as it ends, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 the client retries, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, or a 401 to a token replaced since, which go out again on the same account, are neither. A request the router knows for Claude Code's quota check carries `check: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. While the router stops, it answers 503; a restart closes every stream first, as one held open would never let it finish its requests, and the dashboard reconnects to the new router |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
 
@@ -1756,7 +1845,7 @@ probing.
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again. Left out while none is due (see The router looking after itself) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
-| `events` | *router*, *milestone 5* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh: `[{id, at, kind, account, session, model, from, to, reason, windows, until, count}]`, `id` rising by one an event, so a reader tells which are new; `kind` one of `started` (a session first remembered, as Choosing an account remembers one, so never a quota check's), `pressure` (an account came under it), `limit` (with `count`, the sessions it moved, and where), `moved`, `refused`, `primed`, `room` (room again), `restart` (one falling due) and `health` (the router's turning), and the rest as each kind needs. The dashboard's RECENT reads the newest, and each card's LATELY its account's among the 50. Left out when there are none |
+| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh: `[{id, at, kind, account, session, model, from, to, reason, windows, until, since, count, limit, status, family}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started` (a session first remembered, as Choosing an account remembers one, so never a quota check's), `pressure` (an account came under it: `windows` the window under pressure, `until` when it runs out, and `since` when its rate is measured from; told once a reset of that window), `limit` (with `count`, the sessions it moved while it holds, each once, by the moves it forced, and `to`, the account they went to when they all went to one, left out when they went to several; reached again while it holds, it joins its event, keeping its `id`), `moved` (with `from`, `to` and `reason`, and `limit`, the id of the limit's event, for a move counted in a limit), `refused` (with `status`, `family` for a request refused alone, and `until`), `primed` (`windows` the window it started, and `until` its reset), `room` (room again), `restart` (one falling due) and `health` (the router's turning, with `reason` as it turns unhealthy), and the rest as each kind needs. The dashboard's RECENT reads the newest, and each card's LATELY its account's among the 50, both folding the moves a limit counts into its line, where Sessions' `LOG` lists each. Left out when there are none |
 | `accounts` | Every configured account, in the config's order, as below |
 
 Each account:
@@ -1929,9 +2018,10 @@ steps aside for an API key; and `switchboard version`.
 
 **4. Switch-over — next.** The author's shell and dotfiles move onto switchboard, outside this repo.
 
-**5. The dashboard — designed.** The dashboard as its owner redesigned it, in Paper, over five
-rounds, signed off on 2 October 2026 (see Dashboard). Built in stages, a pull request each, each
-leaving a working dashboard:
+**5. The dashboard — done.** The dashboard as its owner redesigned it, in Paper, over five rounds,
+signed off on 2 October 2026 (see Dashboard). Built in stages, a pull request each, each leaving a
+working dashboard, judged by eye against the final page's frames through the capture harness, a
+pull request of its own after the first (see Files):
 
 1. **The router's side:** `[history] keep`, the history's compression, `GET /history`, and the
    status document's `events`.
@@ -1944,10 +2034,14 @@ leaving a working dashboard:
 4. **Flipping and hand-patching:** the focus, `space` and `s`, the cards' backs, and selecting and
    moving a session.
 5. **Runway:** the day and the week.
-6. **Sessions:** the request stream, `GET /stream`, reviewed as a change of its own, as the request
-   ledger's idea asks of code in every answer's path; and Sessions with requests travelling the
-   cords; the cards' backs saying what each session is doing.
+6. **Sessions,** in two pull requests: the request stream, `GET /stream`, reviewed as a change of
+   its own, as the request ledger's idea asks of code in every answer's path, with Claude Code's
+   quota check never remembered; then Sessions with requests travelling the cords, and the cards'
+   backs saying what each session is doing.
 7. **More charts:** burn rate and hourglass, `g`.
+
+Building it settled what the design left open, and found the design, or the frames, wrong in
+places: the Dashboard section, and the parts of the others it touched, say what was built.
 
 `status`'s text follows, designed with its owner first (see Backlog).
 
@@ -1965,7 +2059,7 @@ any of it. Times are the Mac's, UTC+1.
   directly as through the router, on every account; on Claude Haiku 4.5 it's answered 200, with
   every usage header. Claude Code ignores the failure. `--resume` sends it under a session id
   never used again. Hence step 7 of Choosing an account, and a session remembered only once
-  answered (step 4).
+  answered, and never for a quota check (step 4).
 - **30 September 2026, 15:37: a weekly limit.** An account's shared week reached 100% under
   traffic. The 429 carried the usage headers: the week `rejected`, and its reset, Monday 10:00,
   as the overall reset. The router held the account back until then, replayed the request on the
