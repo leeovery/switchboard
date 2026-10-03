@@ -2268,22 +2268,22 @@ What's built but hasn't been seen against the real thing:
 
 ## Backlog
 
-Ideas live one to a file in `.workflows/.inbox/ideas/`, named for the day each was captured
-(`2026-09-30--request-ledger.md`), the inbox the workflows convention reads; this table is their
-index. An idea taken up leaves the table for its pull request and the design proper; one dropped
-leaves it with a line in its file saying why.
+Ideas live one to a file in `ideas/`, named for the day each was captured
+(`2026-09-30--request-ledger.md`); this table is their index. An idea taken up leaves the table
+for its pull request and the design proper; one dropped leaves it with a line in its file saying
+why.
 
 | Idea | Status | File |
 |---|---|---|
-| A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../.workflows/.inbox/ideas/2026-10-03--reserve-last-resort.md) |
-| The plain text `switchboard status` prints, redesigned to match milestone 5's dashboard | next, to design with its owner | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
-| Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../.workflows/.inbox/ideas/2026-10-01--developer-id-signing.md) |
-| A ledger of the requests the router routes, with their token counts | new: milestone 5's `GET /stream` reads the same counts, live | [request-ledger](../.workflows/.inbox/ideas/2026-09-30--request-ledger.md) |
-| Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../.workflows/.inbox/ideas/2026-09-30--judgments-with-jev.md) |
-| OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../.workflows/.inbox/ideas/2026-09-30--oauth-logins.md) |
-| A notice when a session moves, through a hook | deferred | [move-notice](../.workflows/.inbox/ideas/2026-09-30--move-notice.md) |
-| Other agents than Claude Code | deferred | [other-agents](../.workflows/.inbox/ideas/2026-09-30--other-agents.md) |
-| Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../.workflows/.inbox/ideas/2026-09-30--prompt-cache-keep-warm.md) |
-| An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../.workflows/.inbox/ideas/2026-09-30--artifact-proxy.md) |
-| Intercepting traffic that ignores `ANTHROPIC_BASE_URL` | not planned | [local-ca-interception](../.workflows/.inbox/ideas/2026-09-30--local-ca-interception.md) |
-| An MCP server exposing switchboard to agents, such as to stream them live events | not planned | [mcp-server](../.workflows/.inbox/ideas/2026-09-30--mcp-server.md) |
+| A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
+| The plain text `switchboard status` prints, redesigned to match milestone 5's dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
+| Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
+| A ledger of the requests the router routes, with their token counts | new: milestone 5's `GET /stream` reads the same counts, live | [request-ledger](../ideas/2026-09-30--request-ledger.md) |
+| Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
+| OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
+| A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
+| Other agents than Claude Code | deferred | [other-agents](../ideas/2026-09-30--other-agents.md) |
+| Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../ideas/2026-09-30--prompt-cache-keep-warm.md) |
+| An artifact proxy, one browser for every account's artifacts | open | [artifact-proxy](../ideas/2026-09-30--artifact-proxy.md) |
+| Intercepting traffic that ignores `ANTHROPIC_BASE_URL` | not planned | [local-ca-interception](../ideas/2026-09-30--local-ca-interception.md) |
+| An MCP server exposing switchboard to agents, such as to stream them live events | not planned | [mcp-server](../ideas/2026-09-30--mcp-server.md) |
