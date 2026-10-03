@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-10-03
+
+✨ Added
+- A redesigned dashboard: a card per account with big-digit readouts, charts and a heading summing up the router, its sessions, where new sessions go, room left and what's coming up.
+- Three dashboard views, switched with `tab`: Accounts, Sessions (a switchboard of cords from each session to its account, with a live log) and Runway (when each account has room, over the day or the week).
+- Card charts you cycle with `g` — a burn-down, a burn rate or an hourglass — and `w` to choose which window each card features.
+- Flip a card (`space`, or `s` for all) to see its sessions, pick one out with the arrow keys and pin it to another account with a digit key.
+- Live request tracking in the dashboard: pulses along cords as requests go out, answers stream back with token counts, and refusals bounce back red.
+- Dashboard themes: built-in `nord`, `tokyo-night`, `tokyo-night-day`, `amber`, `exchange` and `terminal`, a live theme picker on `t`, light/dark pairs chosen by the terminal's background, and support for your own `.theme` files in Portal's format.
+- A `?` help panel listing every key and what the dashboard's glyphs mean.
+- `GET /history` and `GET /stream` on the router, serving the usage history and a live stream of request events that feed the dashboard.
+- The router now keeps a list of recent events — sessions started and moved, limits, pressure, refusals, primes, restarts — shown in the dashboard and the status document.
+- `[history] keep` config option sets how long the readings history is kept (8d to 400d, default 14d).
+- Readings history files are compressed once their day ended two days ago.
+- Animated demos and stills for the README, recorded from scripted scenarios with the new `capturetool`.
+
+🔧 Changed
+- Reserves are now opt-in on every account, the primary's included — with none set, the router runs every account to its limit.
+- `usage` printed once draws the full Accounts view, with its charts, in your chosen theme.
+- The dashboard remembers your view, featured window, chart style and theme between runs.
+- The dashboard's colours are brought down to what the terminal shows, and `NO_COLOR` draws it with no colour at all.
+- README rewritten to lead with tracking and routing usage across accounts.
+
+🐛 Fixed
+- Router restarts no longer leave a connecting launcher hanging while it stops.
+- A config file caught half-saved no longer causes a refused or premature restart.
+- A projection no longer reports a window running out when it only reaches its limit just as it resets.
+
 ## [0.0.6] - 2026-09-30
 
 🔧 Changed
