@@ -2,7 +2,6 @@ package watch
 
 import (
 	"context"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
@@ -26,7 +25,7 @@ type Snapshot struct {
 // router from before GET /history, there's no history, and the charts draw
 // the room each window has now.
 func Once(ctx context.Context, source Source, r Read) (Snapshot, error) {
-	got := fetchFrom(ctx, source, r, time.Now)
+	got := fetchFrom(ctx, source, r)
 	if got.err != nil {
 		return Snapshot{}, got.err
 	}

@@ -2,12 +2,14 @@ package watch
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // opus is the model the stream's requests in the tests ask for.
@@ -76,7 +78,7 @@ func TestWhatEachStreamEventDoes(t *testing.T) {
 		},
 		{
 			name: "its progress: its tokens so far, estimated at four characters a token", events: []router.StreamEvent{sent, first, progress}, at: 2 * time.Second,
-			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(0), Tokens: 1234, Shimmer: 12, Pulse: dashboard.Pulse{Along: 1}},
+			want: &dashboard.Call{Doing: dashboard.Streaming, Since: past(0), Tokens: 1234, Shimmer: 13, Pulse: dashboard.Pulse{Along: 1}},
 		},
 		{
 			name: "done with success: answered, its tokens as its closing usage counts them, a pulse running back", at: 5*time.Second + 270*time.Millisecond,
@@ -102,6 +104,16 @@ func TestWhatEachStreamEventDoes(t *testing.T) {
 			name: "limited, then ended so: refused still, until answeredFor after", events: []router.StreamEvent{sent, refusal(router.StreamLimited, 429), done(429, nil)},
 			at:   5*time.Second + answeredFor - time.Millisecond,
 			want: &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 429, Pulse: dashboard.Pulse{Along: 1, Back: true, Red: true}},
+		},
+		{
+			name: "limited, then its 429 passed on, as the router taps its body: refused still", at: 6 * time.Second,
+			events: []router.StreamEvent{sent, refusal(router.StreamLimited, 429), first, done(429, nil)},
+			want:   &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 429, Pulse: dashboard.Pulse{Along: 1, Back: true, Red: true}},
+		},
+		{
+			name: "refused, then its 429 passed on: refused still", at: 6 * time.Second,
+			events: []router.StreamEvent{sent, refusal(router.StreamRefused, 429), first, done(429, nil)},
+			want:   &dashboard.Call{Doing: dashboard.Refused, Since: past(0), Status: 429, Pulse: dashboard.Pulse{Along: 1, Back: true, Red: true}},
 		},
 		{
 			name: "throttled: no pulse", events: []router.StreamEvent{sent, refusal(router.StreamThrottled, 429)}, at: 600 * time.Millisecond,
@@ -168,9 +180,65 @@ func TestAMoveShowsOnceTheRefusalThatMovedItHasBouncedBack(t *testing.T) {
 		t.Errorf("on side, it's drawn %+v, want %+v, new, its pulse out from when the move shows", got, wantCall)
 	}
 
-	listed := tr.listedAt(past(shows + time.Second))
+	listed := tr.listedAs(d28cListedOn("side"))
 	if moves := listed.at(past(shows + time.Second)).Moves; len(moves) > 0 {
-		t.Errorf("once the sessions are listed again, the moves are %+v, want none: work's limit's own stubs stand for it", moves)
+		t.Errorf("once the sessions are listed with d28c on side, the moves are %+v, want none: work's limit's own stubs stand for it", moves)
+	}
+}
+
+// d28cListedOn is the router's listing of its sessions, d28c's opus on the
+// account with the given id.
+func d28cListedOn(account string) []status.Session {
+	return []status.Session{{ID: idD28C, Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: account}}}}
+}
+
+func TestAMoveRePatchesTillAListingShowsItDone(t *testing.T) {
+	moved := func(to string, d time.Duration) router.StreamEvent {
+		return alter(told(router.StreamMoved, "r1", to, d), func(e *router.StreamEvent) { e.From, e.To, e.Reason = "work", to, "pinned" })
+	}
+	tests := []struct {
+		name string
+		tr   traffic
+		// want is whether the move to side is listed done.
+		want bool
+	}{
+		{name: "listed on work, where it was: re-patching", tr: traffic{}.took([]router.StreamEvent{moved("side", 0)}, heldNowhere, past(0)).listedAs(d28cListedOn("work"))},
+		{name: "listed on side, where it went: done", tr: traffic{}.took([]router.StreamEvent{moved("side", 0)}, heldNowhere, past(0)).listedAs(d28cListedOn("side")), want: true},
+		{name: "listed on side before the stream told of it: done as it's told", tr: traffic{}.listedAs(d28cListedOn("side")).took([]router.StreamEvent{moved("side", 0)}, heldNowhere, past(0)), want: true},
+		{
+			name: "moved on again, listed where it went last: done, as the later move is",
+			tr:   traffic{}.took([]router.StreamEvent{moved("side", 0), alter(moved("client", time.Second), func(e *router.StreamEvent) { e.From = "side" })}, heldNowhere, past(time.Second)).listedAs(d28cListedOn("client")),
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i := slices.IndexFunc(tt.tr.moves, func(m move) bool { return m.To == "side" })
+			if i < 0 || tt.tr.moves[i].Listed != tt.want {
+				t.Errorf("the moves are %+v, want the move to side listed done: %v", tt.tr.moves, tt.want)
+			}
+		})
+	}
+}
+
+func TestAMoveNoListingShowsDoneGoesSeenForAfter(t *testing.T) {
+	moved := alter(told(router.StreamMoved, "r1", "side", 0), func(e *router.StreamEvent) { e.From, e.To, e.Reason = "work", "side", "pinned" })
+	tr := traffic{}.took([]router.StreamEvent{moved}, heldNowhere, past(0)).listedAs(d28cListedOn("work"))
+
+	if moves := tr.tidied(past(seenFor - time.Second)).moves; len(moves) != 1 {
+		t.Errorf("short of seenFor after it, the moves kept are %+v, want it, re-patching still", moves)
+	}
+	if moves := tr.tidied(past(seenFor)).moves; len(moves) > 0 {
+		t.Errorf("seenFor after it, the moves kept are %+v, want none", moves)
+	}
+}
+
+func TestTheStreamOpeningAgainKeepsItsMoves(t *testing.T) {
+	moved := alter(told(router.StreamMoved, "r1", "side", 0), func(e *router.StreamEvent) { e.From, e.To, e.Reason = "work", "side", "pinned" })
+	tr := traffic{live: true}.took([]router.StreamEvent{moved}, heldNowhere, past(0)).afresh()
+
+	if drawn := tr.at(past(time.Second)); drawn.Live || len(drawn.Moves) != 1 || drawn.Moves[0].Listed {
+		t.Errorf("forgotten as the stream opens again, the traffic is drawn %+v, want its move re-patching still, no listing having shown it done", drawn)
 	}
 }
 
@@ -304,15 +372,15 @@ func TestAMovesCordFadesWithinAFewSeconds(t *testing.T) {
 	}{
 		{name: "at once, no refusal to bounce back", at: 0, want: &dashboard.Move{Fade: 0}},
 		{name: "half faded", at: looseFor / 2, want: &dashboard.Move{Fade: 0.5}},
-		{name: "faded, but re-patching until the sessions are listed", at: looseFor + time.Second, want: &dashboard.Move{Fade: 1}},
-		{name: "listed since, fading still", listed: true, at: looseFor / 2, want: &dashboard.Move{Fade: 0.5, Listed: true}},
-		{name: "listed since, and faded: gone", listed: true, at: looseFor},
+		{name: "faded, but re-patching until a listing shows it done", at: looseFor + time.Second, want: &dashboard.Move{Fade: 1}},
+		{name: "listed done, fading still", listed: true, at: looseFor / 2, want: &dashboard.Move{Fade: 0.5, Listed: true}},
+		{name: "listed done, and faded: gone", listed: true, at: looseFor},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			at := tr
 			if tt.listed {
-				at = tr.listedAt(past(time.Millisecond))
+				at = tr.listedAs(d28cListedOn("side"))
 			}
 			moves := at.at(past(tt.at)).Moves
 			switch {
@@ -335,27 +403,33 @@ func TestAMoveOffAnAccountALimitHoldsBackIsHeld(t *testing.T) {
 	}
 }
 
-func TestTheTrafficMovesWhileSomethingTravelsItsCords(t *testing.T) {
-	sent := told(router.StreamSent, "r1", "work", 0)
-	first := told(router.StreamFirst, "r1", "work", time.Second)
-	throttled := alter(told(router.StreamThrottled, "r1", "work", 0), func(e *router.StreamEvent) { e.Status = 429 })
-	tests := []struct {
-		name   string
-		events []router.StreamEvent
-		at     time.Duration
-		want   bool
-	}{
-		{name: "a pulse running out", events: []router.StreamEvent{sent}, at: pulseFor / 2, want: true},
-		{name: "asking, its pulse at the jack", events: []router.StreamEvent{sent}, at: pulseFor},
-		{name: "streaming: its shimmer", events: []router.StreamEvent{sent, first}, at: time.Minute, want: true},
-		{name: "throttled", events: []router.StreamEvent{sent, throttled}, at: pulseFor / 2},
-		{name: "nothing told", at: 0},
+func TestAMoveYetToShowShowsOnceItsRefusalHasBouncedBack(t *testing.T) {
+	refused := 300 * time.Millisecond
+	tr := traffic{}.took(movedToSide(refused), heldNowhere, past(refused))
+
+	if shows, ok := tr.showing(past(refused + time.Millisecond)); !ok || !shows.Equal(past(refused+pulseFor)) {
+		t.Errorf("as its refusal bounces back, the move shows next at %s, %v, want at %s", shows, ok, past(refused+pulseFor))
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := (traffic{}).took(tt.events, heldNowhere, past(0)).moving(past(tt.at)); got != tt.want {
-				t.Errorf("moving = %v, want %v", got, tt.want)
-			}
-		})
+	if shows, ok := tr.showing(past(refused + pulseFor)); ok {
+		t.Errorf("once it shows, the next move shows at %s, want none yet to", shows)
+	}
+}
+
+func TestEveryCordsShimmerStepsOnTheClocksSteps(t *testing.T) {
+	step := past(0).Add(untilStep(past(0), shimmerStep))
+	first := func(request, session string, before time.Duration) []router.StreamEvent {
+		return []router.StreamEvent{
+			alter(told(router.StreamSent, request, "work", -time.Second), func(e *router.StreamEvent) { e.Session = session }),
+			alter(told(router.StreamFirst, request, "work", 0), func(e *router.StreamEvent) { e.Session, e.At = session, step.Add(-before) }),
+		}
+	}
+	tr := traffic{}.took(slices.Concat(first("r1", idD28C, 70*time.Millisecond), first("r2", id7F3A, 30*time.Millisecond)), heldNowhere, step.Add(-time.Millisecond))
+	shimmers := func(at time.Time) [2]int {
+		drawn := tr.at(at)
+		return [2]int{drawn.Calls[d28cOn("work")].Shimmer, drawn.Calls[dashboard.Plug{Account: "work", Seat: dashboard.Seat{Session: id7F3A, Model: opus}}].Shimmer}
+	}
+
+	if before, on := shimmers(step.Add(-time.Millisecond)), shimmers(step); before != [2]int{0, 0} || on != [2]int{1, 1} {
+		t.Errorf("their first bytes 40ms apart, the shimmers stood at %v just before the clock's step and %v on it, want both a step on together, {1, 1}", before, on)
 	}
 }

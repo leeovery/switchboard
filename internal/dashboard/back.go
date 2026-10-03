@@ -48,10 +48,11 @@ func (s Seat) Shown() string {
 }
 
 // Seats are the seats of the sessions listed on the account with the given
-// id, a row each of its card's back, in the order the router lists them, the
-// session seen last first, and of each session, the model used last first.
-func Seats(sessions []status.Session, id string) []Seat {
-	on := seatedOn(sessions, id)
+// id, the request stream's moves among them, a row each of its card's back,
+// in the order the router lists them, the session seen last first, and of
+// each session, the model used last first.
+func (f Frame) Seats(id string) []Seat {
+	on := seatedOn(f.listing(), id)
 	seats := make([]Seat, len(on))
 	for i, s := range on {
 		seats[i] = s.seat()
@@ -100,7 +101,7 @@ func (f Frame) back(c *canvas, doc status.Document, fc face, now time.Time, x, y
 	if rows < 1 {
 		return
 	}
-	seats := seatedOn(f.Sessions, fc.account.ID)
+	seats := seatedOn(f.listing(), fc.account.ID)
 	c.line(x, y, tally(fc).fit(width))
 	if rows < 2 {
 		return
@@ -281,12 +282,12 @@ func (f Frame) doing(s seated, now time.Time) doing {
 }
 
 // lapsed says how long has passed from since to now: in seconds, as "38s",
-// within a minute, and from then as status.Countdown counts, as "9m".
+// within a minute, and from then as seenAgo rounds it, as "9m".
 func lapsed(since, now time.Time) string {
 	if d := now.Sub(since); d < time.Minute {
 		return strconv.Itoa(max(int(d/time.Second), 0)) + "s"
 	}
-	return status.Countdown(since, now)
+	return seenAgo(now, since)
 }
 
 // note is what's noted under a seat's row on the back of the card of the

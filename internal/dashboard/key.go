@@ -159,6 +159,23 @@ func (f Frame) keyFits(strips []strip) bool {
 // the glyphs in one column; a rule between each. Where the frame is too
 // small for it, it's cut to fit.
 func (f Frame) help(c *canvas) {
+	compartments, inner := f.helpCompartments()
+	panel(c, compartments, inner, f.Width, f.Height)
+}
+
+// helpCovers is the cells the help covers while it's open over the frame:
+// none while it's closed.
+func (f Frame) helpCovers() box {
+	if f.Help == nil {
+		return box{}
+	}
+	compartments, inner := f.helpCompartments()
+	return panelBox(compartments, inner, f.Width, f.Height)
+}
+
+// helpCompartments are the help's compartments, as help draws them, and how
+// many cells wide their lines are.
+func (f Frame) helpCompartments() ([][]line, int) {
 	keys := make([]glyph, len(f.Help))
 	for i, k := range f.Help {
 		keys[i] = glyph{drawn: line{{k.Key, keyInk}}, means: k.Does}
@@ -184,7 +201,22 @@ func (f Frame) help(c *canvas) {
 	}
 	inner = min(inner, f.Width-2-2*helpInset)
 	compartments[0][0] = spread(title, closes, inner)
-	panel(c, compartments, inner, f.Width, f.Height)
+	return compartments, inner
+}
+
+// panelBox is the cells panel draws compartments of lines inner cells wide
+// over, on a canvas width cells wide and height tall: none where inner is
+// less than a cell.
+func panelBox(compartments [][]line, inner, width, height int) box {
+	if inner < 1 {
+		return box{}
+	}
+	rows := 1 + len(compartments)
+	for _, lines := range compartments {
+		rows += len(lines)
+	}
+	inside := inner + 2*helpInset
+	return box{x: (width - inside - 2) / 2, y: max((height-rows)/2, 0), width: inside + 2, rows: rows}
 }
 
 // panel draws compartments of lines, inner cells wide, in a rounded border
@@ -192,15 +224,11 @@ func (f Frame) help(c *canvas) {
 // and height tall, each line inset helpInset cells, over whatever's drawn
 // there: from its top, where it's taller than the canvas.
 func panel(c *canvas, compartments [][]line, inner, width, height int) {
-	if inner < 1 {
+	b := panelBox(compartments, inner, width, height)
+	if b.width == 0 {
 		return
 	}
-	rows := 1 + len(compartments)
-	for _, lines := range compartments {
-		rows += len(lines)
-	}
-	inside := inner + 2*helpInset
-	x, y := (width-inside-2)/2, max((height-rows)/2, 0)
+	x, y, inside := b.x, b.y, b.width-2
 	c.text(x, y, "╭"+rule(inside)+"╮", borderInk)
 	for i, lines := range compartments {
 		if i > 0 {

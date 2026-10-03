@@ -136,6 +136,27 @@ func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
 	}
 }
 
+func TestFramesRunOnWhereTheClockReadsALittleBehindTheirTimers(t *testing.T) {
+	h := newHarness(t, sessionAndWeek(0.5, 0.25))
+	h.start()
+
+	const lag = 30 * time.Microsecond
+	for frames := 0; ; frames++ {
+		tm, ok := h.pendingFrame()
+		if !ok {
+			break
+		}
+		if frames > 100 {
+			t.Fatal("frames ran on past 100, want them to stop once the bars have eased")
+		}
+		h.fireBehind(tm, lag)
+	}
+	if h.clock.now.Before(start.Add(easeFor)) {
+		t.Errorf("frames stopped at %s, before the bars had eased, at %s", h.clock.now.Format(time.StampMicro), start.Add(easeFor).Format(time.StampMicro))
+	}
+	checkScreen(t, h, sessionAndWeek(0.5, 0.25))
+}
+
 func TestEasingLeavesTheDocumentAlone(t *testing.T) {
 	doc := sessionAndWeek(0.5, 0.25)
 	h := newHarness(t, doc)

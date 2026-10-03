@@ -198,6 +198,15 @@ func (h *harness) fire(tm *timer) {
 	h.deliver(tm.msg)
 }
 
+// fireBehind moves the clock to lag short of when tm is due, as a wall clock
+// running a little behind the timers reads, and delivers it.
+func (h *harness) fireBehind(tm *timer, lag time.Duration) {
+	h.t.Helper()
+	h.clock.now = tm.due.Add(-lag)
+	tm.fired = true
+	h.deliver(tm.msg)
+}
+
 // lastTick is the tick armed last, which is the live chain's.
 func (h *harness) lastTick() *timer {
 	h.t.Helper()

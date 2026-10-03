@@ -25,21 +25,22 @@ type plain struct {
 
 // layOutPlain lays the Sessions view of doc at now out as a plain list: each
 // panel as wide as the lines are, but never wider than the frame, with bars
-// from barsFrom columns; under it a row for each of its sessions' models and
-// a note under each, as a card's back has them, or where it has none, why,
-// in as many rows as that takes, or a row saying so; then LOG, logGap blank
-// rows under the last, with as many lines as it has, logLines at most.
+// from barsFrom columns; under it a row for each of its sessions' models,
+// the request stream's moves among them, and a note under each, as a card's
+// back has them, or where it has none, why, in as many rows as that takes,
+// or a row saying so; then LOG, logGap blank rows under the last, with as
+// many lines as it has, logLines at most.
 func (f Frame) layOutPlain(doc status.Document, now time.Time) plain {
 	l := plain{bars: f.Width >= barsFrom, width: linesNarrow}
 	if l.bars {
 		l.width = linesWide
 	}
 	l.width = min(l.width, f.edge()-margin)
-	shown, last := shownWindows(doc, now, f.Policy), -2
+	shown, last, listing := shownWindows(doc, now, f.Policy), -2, f.listing()
 	for _, a := range doc.Accounts {
 		p := f.linePanelOf(doc, a, now, shown)
 		p.top, p.rows, p.boxed = last+2, len(shown), true
-		seats := seatedOn(f.Sessions, a.ID)
+		seats := seatedOn(listing, a.ID)
 		l.panels, l.seats = append(l.panels, p), append(l.seats, seats)
 		last = p.bottom() + f.underPanel(doc, p, seats, now)
 	}
@@ -90,7 +91,7 @@ func (f Frame) plainList(c *canvas, doc status.Document, now time.Time, top int)
 	}
 	f.drawLog(area, doc, l.log, now)
 	c.paste(area, offset, top, min(view, l.content))
-	f.overFooter(c, doc, now, l.content, view, offset, l.hidden)
+	f.overFooter(c, doc, now, top, l.content, view, offset, l.hidden)
 }
 
 // plainSeats draws the seats under the panel p of doc at now, as a card's

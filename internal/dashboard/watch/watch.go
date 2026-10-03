@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -203,9 +204,11 @@ type Model struct {
 	// chain numbers the live chain of ticks: a tick from an earlier one is
 	// dropped.
 	chain int
-	// ease moves each bar to doc's reading; framing is set while frames run
-	// to draw what moves, and frameDue is when the next is due.
+	// ease moves each bar to doc's reading. frames numbers the frames armed
+	// to draw what moves, a frame armed before the last being dropped;
+	// framing is set while the last is yet to come, due at frameDue.
 	ease     easing
+	frames   int
 	framing  bool
 	frameDue time.Time
 	readings readings
@@ -260,14 +263,13 @@ type Model struct {
 }
 
 // fetchedMsg is what a read that asked for read found, and which router gave
-// it, with the sessions it listed and when it asked for them, listed: zero
-// where it listed none.
+// it, with the sessions it listed, where listed says it listed them.
 type fetchedMsg struct {
 	read     Read
 	doc      status.Document
 	router   router.Health
 	sessions []status.Session
-	listed   time.Time
+	listed   bool
 	err      error
 }
 
@@ -276,8 +278,11 @@ type tickMsg struct {
 	chain int
 }
 
-// frameMsg draws the next frame of what moves on screen.
-type frameMsg struct{}
+// frameMsg draws the next frame of what moves on screen: the frame numbered
+// gen as it was armed.
+type frameMsg struct {
+	gen int
+}
 
 // New returns a model that reads cfg's source at once, and whenever a read
 // falls due after, under ctx.
@@ -360,7 +365,7 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		return m.ticked(msg)
 	case frameMsg:
-		return m.framed()
+		return m.framed(msg), nil
 	}
 	return m, nil
 }
@@ -445,32 +450,29 @@ func (m Model) read(r Read) (Model, tea.Cmd) {
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks, as fetchFrom reads it, on the model's
-// clock.
+// fetch reads the source as r asks, as fetchFrom reads it.
 func (m Model) fetch(r Read) tea.Cmd {
-	ctx, source, now := m.ctx, m.cfg.Source, m.now
+	ctx, source := m.ctx, m.cfg.Source
 	return func() tea.Msg {
-		return fetchFrom(ctx, source, r, now)
+		return fetchFrom(ctx, source, r)
 	}
 }
 
 // fetchFrom reads the source as r asks, and from a router, the sessions it
-// lists, for the cards' dots and Sessions' calls, stamped with when now says
-// it asked for them, as a move told of after is one they don't list yet: a
-// router that can't list them leaves them out.
-func fetchFrom(ctx context.Context, source Source, r Read, now func() time.Time) fetchedMsg {
+// lists, for the cards' dots and Sessions' calls: a router that can't list
+// them leaves them out.
+func fetchFrom(ctx context.Context, source Source, r Read) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
 	if err != nil || !routed(doc) {
 		return msg
 	}
-	listed := now()
 	sessions, err := source.Sessions(ctx)
 	if err != nil {
 		logger.Debug("couldn't list the router's sessions", "error", err)
 		return msg
 	}
-	msg.sessions, msg.listed = sessions, listed
+	msg.sessions, msg.listed = sessions, true
 	return msg
 }
 
@@ -527,15 +529,16 @@ func logRead(msg fetchedMsg, next time.Time) {
 }
 
 // show puts the document a read found at now on screen, with the sessions
-// the router listed, as they stood as it was asked for them, Sessions' calls
-// keeping the order they ran in; or where it couldn't list them, those it
-// listed last; and none while probing. It posts what the change calls for,
-// unless the router is there to post its own, as nothing is to be told
-// twice; follows the router as it goes and comes back; notes the events new
-// to it, and the readings it gives; asks the router for its history with a
-// full read, and as the router answers again, or another router does, as one
-// restarted; keeps the focus, the cards flipped and the selection where
-// they still are; and eases the bars to it from where they stand.
+// the router listed, Sessions' calls keeping the order they ran in, each
+// move they show done no longer re-patching them; or where it couldn't list
+// them, those it listed last; and none while probing. It posts what the
+// change calls for, unless the router is there to post its own, as nothing
+// is to be told twice; follows the router as it goes and comes back; notes
+// the events new to it, and the readings it gives; asks the router for its
+// history with a full read, and as the router answers again, or another
+// router does, as one restarted; keeps the focus, the cards flipped and the
+// selection where they still are; and eases the bars to it from where they
+// stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
@@ -553,10 +556,10 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.history = m.history.saw(doc)
 	m.ease = easing{from: utilizations(m.shown(now)), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
-	if !msg.listed.IsZero() || !routed(doc) {
+	if msg.listed || !routed(doc) {
 		m.order = m.frame(now).OrderOf(doc)
 		m.sessions = msg.sessions
-		m.traffic = m.traffic.listedAt(cmp.Or(msg.listed, now))
+		m.traffic = m.traffic.listedAs(msg.sessions)
 	}
 	m = m.stillThere()
 	m.trails = m.history.drawn(doc)
@@ -628,78 +631,71 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 	return m.after(delay, tickMsg{chain: m.chain})
 }
 
-// startFrames starts drawing frames while anything on screen moves at now,
-// unless they're running already at the pace what moves calls for: frames
-// running at a falling hourglass's pace, as something starts moving
-// smoothly, have one drawn at once.
+// stepSlack sets a frame drawn for what moves a step at a time just past the
+// step it waits for, so the wall clock it reads, which can run a little
+// behind the timer that brings it, has turned over.
+const stepSlack = time.Millisecond
+
+// startFrames arms the next frame, while anything on screen moves at now,
+// as nextFrame has it, unless the one armed already comes as soon.
 func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
-	switch {
-	case m.framing && m.dueInTime(now):
-		return m, nil
-	case !m.framing && !m.moving(now):
+	next, moving := m.nextFrame(now)
+	if !moving || m.framing && !m.frameDue.After(now.Add(next)) {
 		return m, nil
 	}
-	return m.armFrame(now)
+	m.frames++
+	m.framing, m.frameDue = true, now.Add(next)
+	return m, m.after(next, frameMsg{gen: m.frames})
 }
 
-// dueInTime reports whether the frame due next comes soon enough for what
-// moves at now: within frameEvery while anything moves smoothly, else
-// whenever it's armed.
-func (m Model) dueInTime(now time.Time) bool {
-	return !m.smoothly(now) || !m.frameDue.After(now.Add(frameEvery))
-}
-
-// armFrame arms the next frame, as nextFrame has it after now.
-func (m Model) armFrame(now time.Time) (Model, tea.Cmd) {
-	delay := m.nextFrame(now)
-	m.framing, m.frameDue = true, now.Add(delay)
-	return m, m.after(delay, frameMsg{})
-}
-
-// framed arms the next frame, while anything on screen moves. A frame that
-// comes before the one due, armed before it at a slower pace, is dropped.
-func (m Model) framed() (tea.Model, tea.Cmd) {
-	switch now := m.now(); {
-	case now.Before(m.frameDue):
-		return m, nil
-	case !m.moving(now):
+// framed takes in a frame: the one armed last, which startFrames follows
+// with the next while anything still moves; or one armed before something
+// moved sooner, which is dropped. Neither is held to the wall clock, which
+// can read a little behind the timer that brought it.
+func (m Model) framed(msg frameMsg) Model {
+	if msg.gen == m.frames {
 		m.framing = false
-		return m, nil
-	default:
-		return m.armFrame(now)
 	}
+	return m
 }
 
-// nextFrame is how long after now the next frame is drawn: frameEvery while
-// anything moves smoothly; else, while only the sand falls in a card's
-// hourglass, once it has fallen a grain more.
-func (m Model) nextFrame(now time.Time) time.Duration {
-	if m.smoothly(now) {
-		return frameEvery
+// nextFrame is how long after now what moves on screen next changes, and
+// whether anything does: frameEvery while anything moves frame by frame, a
+// bar easing to its reading, the highlight on an event, or on a card's
+// state, fading back, or what travels the cords, as Motion says; else as
+// soon as the shimmer down a cord steps on, or the sand in a card's
+// hourglass falls a grain, on the clock's steps of each, or a move yet to
+// show re-patches Sessions' calls. The cards' backs and Sessions' plain list
+// are drawn again as the stream tells of more, and as the clock ticks.
+func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
+	f := m.frame(now)
+	if m.helping {
+		f.Help = m.helpKeys()
 	}
-	return dashboard.FallStep - now.Sub(now.Truncate(dashboard.FallStep))
+	moving := f.Motion(m.shown(now), now)
+	if moving.Smooth || m.ease.moves(m.doc) && !m.ease.done(now) || m.news.faded(now) != nil || m.changes.faded(now) != nil {
+		return frameEvery, true
+	}
+	var next []time.Duration
+	if moving.Shimmer {
+		next = append(next, untilStep(now, shimmerStep)+stepSlack)
+	}
+	if moving.Falling {
+		next = append(next, untilStep(now, dashboard.FallStep)+stepSlack)
+	}
+	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions {
+		next = append(next, shows.Sub(now)+stepSlack)
+	}
+	if len(next) == 0 {
+		return 0, false
+	}
+	return slices.Min(next), true
 }
 
-// moving reports whether anything on screen moves at now: smoothly, or the
-// sand falling in a card's hourglass, as Falling says, wherever one shows.
-func (m Model) moving(now time.Time) bool {
-	return m.smoothly(now) || m.frame(now).Falling(m.shown(now), now)
-}
-
-// smoothly reports whether anything on screen moves smoothly at now, frame
-// by frame: a bar easing to its reading, the highlight on an event, or on a
-// card's state, fading back, or what travels the cords, as travelling says.
-func (m Model) smoothly(now time.Time) bool {
-	return (m.ease.moves(m.doc) && !m.ease.done(now)) || m.news.faded(now) != nil || m.changes.faded(now) != nil || m.travelling(now)
-}
-
-// travelling reports whether what travels the cords moves at now, as the
-// request stream tells, on Sessions' switchboard, the only place it's drawn.
-// The cards' backs and Sessions' plain list are drawn again as the stream
-// tells of more, and as the clock ticks, drawing nothing new while nothing
-// happens.
-func (m Model) travelling(now time.Time) bool {
-	return m.view == dashboard.Sessions && m.traffic.moving(now) && m.frame(now).Switchboard(m.shown(now), now)
+// untilStep is how long after now the clock passes its next whole step of
+// step.
+func untilStep(now time.Time, step time.Duration) time.Duration {
+	return step - time.Duration(now.UnixNano()%int64(step))
 }
 
 // post posts the alerts in turn, noting each in the log. Of a document probed

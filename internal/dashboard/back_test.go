@@ -271,6 +271,28 @@ func TestABackWithMoreSessionsThanFit(t *testing.T) {
 	}
 }
 
+func TestTheBacksShowTheStreamsMoves(t *testing.T) {
+	d28c := Seat{Session: idD28C, Model: opus}
+	f := flipped(t)
+	f.Traffic = Traffic{
+		Live:  true,
+		Calls: map[Plug]Call{{Account: "side", Seat: d28c}: {Doing: Streaming, Since: now.Add(-time.Second), Tokens: 1234}},
+		Moves: []Move{{Seat: d28c, From: "work", To: "side", At: now.Add(-time.Second), Reason: "moved: work hit its limit"}},
+	}
+
+	work := strings.Join(cardOf(t, f, flipping(), "work", 50, densities[0]), "\n")
+	if strings.Contains(work, "● d28c") || !strings.Contains(work, "2 sessions  ·  1 busy") {
+		t.Errorf("work's back is\n%s\nwant d28c gone from it, as the stream moved it", work)
+	}
+	side := strings.Join(cardOf(t, f, flipping(), "side", 50, densities[0]), "\n")
+	if !strings.Contains(side, "● d28c  opus    streaming  ↓ ~1.2k") || !strings.Contains(side, "╰ here since 13:11") || !strings.Contains(side, "4 sessions  ·  3 busy") {
+		t.Errorf("side's back is\n%s\nwant d28c on it, streaming, here since it moved", side)
+	}
+	if got := f.Seats("side"); !slices.Contains(got, d28c) || slices.Contains(f.Seats("work"), d28c) {
+		t.Errorf("side's seats are %+v, and work's %+v, want d28c among side's alone", got, f.Seats("work"))
+	}
+}
+
 func TestTheSessionPickedOutIsOnTheSelectionsSurface(t *testing.T) {
 	f := flipped(t)
 	f.Selected = Seat{Session: idD28C, Model: opus}
@@ -317,8 +339,8 @@ func TestASeatsRowSaysWhatItsDoing(t *testing.T) {
 			want: slices.Concat(busy, line{{"seen       ", secondaryInk}, {"now", secondaryInk}}),
 		},
 		{
-			name: "without the stream, seen longer ago: idle so long", seen: 9*time.Minute + 30*time.Second,
-			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"9m", secondaryInk}}),
+			name: "without the stream, seen longer ago: idle so long, to the nearest minute", seen: 9*time.Minute + 30*time.Second,
+			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"10m", secondaryInk}}),
 		},
 		{
 			name: "its answer streaming: busy, its tokens so far estimated", seen: 9 * time.Minute, live: true, told: time.Second,
@@ -359,7 +381,7 @@ func TestASeatsRowSaysWhatItsDoing(t *testing.T) {
 			want: slices.Concat(busy, line{{"idle       ", dimInk}, {"59s", secondaryInk}}),
 		},
 		{
-			name: "with the stream, told of longer ago: idle so long", seen: 20 * time.Minute, live: true, told: 9*time.Minute + 30*time.Second,
+			name: "with the stream, told of longer ago: idle so long, to the nearest minute", seen: 20 * time.Minute, live: true, told: 9*time.Minute + 29*time.Second,
 			want: slices.Concat(idle, line{{"idle       ", dimInk}, {"9m", secondaryInk}}),
 		},
 	}
@@ -486,7 +508,7 @@ func TestSeatsAreTheSessionsOnAnAccountInTheRoutersOrder(t *testing.T) {
 		{account: "personal"},
 	}
 	for _, tt := range tests {
-		if got := Seats(flippingSessions(), tt.account); !slices.Equal(got, tt.want) {
+		if got := (Frame{Sessions: flippingSessions()}).Seats(tt.account); !slices.Equal(got, tt.want) {
 			t.Errorf("Seats(%s) = %+v, want %+v", tt.account, got, tt.want)
 		}
 	}

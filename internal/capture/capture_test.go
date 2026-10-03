@@ -336,6 +336,56 @@ func TestTheStoryboardsPulsesAreWhereItsFramesHaveThem(t *testing.T) {
 	}
 }
 
+// everyKey is every key the dashboard takes but q, as the terminal sends
+// it.
+var everyKey = []tea.KeyPressMsg{
+	{Code: tea.KeyTab}, {Code: tea.KeyTab, Mod: tea.ModShift}, {Code: 'w', Text: "w"}, {Code: 'g', Text: "g"},
+	{Code: tea.KeyLeft}, {Code: tea.KeyRight}, {Code: tea.KeyUp}, {Code: tea.KeyDown},
+	{Code: tea.KeySpace, Text: " "}, {Code: 's', Text: "s"}, {Code: tea.KeyEscape}, {Code: tea.KeyEnter},
+	{Code: 'j', Text: "j"}, {Code: 'k', Text: "k"}, {Code: tea.KeyPgDown}, {Code: tea.KeyPgUp},
+	{Code: '1', Text: "1"}, {Code: '2', Text: "2"}, {Code: '3', Text: "3"}, {Code: 'a', Text: "a"}, {Code: 'm', Text: "m"},
+	{Code: 'r', Text: "r"}, {Code: 't', Text: "t"}, {Code: 'd', Text: "d"}, {Code: 'l', Text: "l"}, {Code: '?', Text: "?"},
+}
+
+// TestNoFixtureChartStyleKeyOrWidthPanics draws every fixture at every width
+// from 1 to 240, at its height, so with their -rate and -hourglass fixtures,
+// the cards of three, four and eight accounts draw each chart style at every
+// width; then from each fixture, every key in turn, at every fourth width.
+func TestNoFixtureChartStyleKeyOrWidthPanics(t *testing.T) {
+	for _, name := range Names() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := fixture(t, name)
+			m := f.settle(f.Size)
+			for width := 1; width <= 240; width++ {
+				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height})
+			}
+			m = f.settle(f.Size)
+			for i, width := 0, 1; width <= 240; i, width = i+1, width+4 {
+				key := everyKey[i%len(everyKey)]
+				m = drawnAt(t, m, watch.Size{Width: width, Height: f.Size.Height}, key)
+			}
+		})
+	}
+}
+
+// drawnAt is m once the keys given are pressed and the terminal resized to
+// size, drawn, failing the test where pressing, resizing or drawing panics.
+func drawnAt(t *testing.T, m watch.Model, size watch.Size, keys ...tea.KeyPressMsg) watch.Model {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("at %d×%d, pressing %v: panicked: %v", size.Width, size.Height, keys, r)
+		}
+	}()
+	for _, key := range keys {
+		m = deliver(m, key)
+	}
+	m = deliver(m, tea.WindowSizeMsg{Width: size.Width, Height: size.Height})
+	m.View()
+	return m
+}
+
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
 	f := fixture(t, "accounts-3")
 	m := f.Model()

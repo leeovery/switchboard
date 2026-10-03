@@ -100,20 +100,20 @@ func (f Frame) plotOf(doc status.Document, fc face, now time.Time) plot {
 	p.start, p.length, p.spanned = p.window.Span()
 	p.trail = f.History[Ref{Account: fc.account.ID, Window: p.window.Key}]
 	p.traced = len(p.trail.Readings) > 0
-	p.rate, p.rated = recentRate(fc.account, p.window, p.trail, now)
+	p.rate = recentRate(fc.account, p.window, p.trail, now)
 	return p
 }
 
 // recentRate is how fast account a's window w has been used lately, at now,
 // a share of it an hour: as the router saw it over the last half hour, where
 // it gives the rate; else as the window's readings, trail, rise over it, as
-// score.RecentRate measures it; reporting false where neither says.
-func recentRate(a status.Account, w quota.Window, trail Trail, now time.Time) (float64, bool) {
+// score.RecentRate measures it; none where neither says.
+func recentRate(a status.Account, w quota.Window, trail Trail, now time.Time) float64 {
 	if i := slices.IndexFunc(a.Rates, func(r status.Rate) bool { return r.Window == w.Key }); i >= 0 {
-		return a.Rates[i].Rate, true
+		return a.Rates[i].Rate
 	}
-	rate, _, ok := score.RecentRate(w, trail.Readings, now)
-	return rate, ok
+	rate, _, _ := score.RecentRate(w, trail.Readings, now)
+	return rate
 }
 
 // primedNext is when the router next primes the account with the given id,
@@ -127,11 +127,12 @@ func primedNext(doc status.Document, id string) time.Time {
 }
 
 // busy are the sessions on the account with the given id, of those the
-// router listed, in their order, the one seen last first: each lit while any
-// of its models is busy there, as lit says.
+// router listed, the request stream's moves among them, in their order, the
+// one seen last first: each lit while any of its models is busy there, as
+// lit says.
 func (f Frame) busy(id string, now time.Time) []bool {
 	var busy []bool
-	for _, s := range f.Sessions {
+	for _, s := range f.listing() {
 		on, lit := false, false
 		for _, a := range s.Assignments {
 			if a.Account == id {

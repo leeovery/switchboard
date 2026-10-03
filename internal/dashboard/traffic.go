@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -27,8 +28,8 @@ type Traffic struct {
 	// arrived, which a long answer leaves far behind.
 	Seen map[Plug]time.Time
 	// Moves are the moves the stream told of, the oldest first, while each
-	// shows: as a re-patch until the router's sessions are listed again, and
-	// as the cord it left hanging loose until that's gone.
+	// shows: as a re-patch until a listing of the router's sessions shows it
+	// done, and as the cord it left hanging loose until that's gone.
 	Moves []Move
 }
 
@@ -102,9 +103,9 @@ type Move struct {
 	From, To string
 	At       time.Time
 	Reason   string
-	// Listed is set once the router's sessions have been listed since the
-	// move, as they then list the seat where it went: it no longer
-	// re-patches, its cord alone hanging loose.
+	// Listed is set once a listing of the router's sessions shows the move
+	// done, the seat where it went: it no longer re-patches, its cord alone
+	// hanging loose.
 	Listed bool
 	// Held is set where a limit moved it: its cord hangs as a stub, unfaded,
 	// while the move re-patches.
@@ -121,8 +122,8 @@ func (t Traffic) call(p Plug) (Call, bool) {
 	return c, ok
 }
 
-// repatching are the moves that re-patch at the moment: those the router's
-// sessions haven't been listed since.
+// repatching are the moves that re-patch at the moment: those no listing of
+// the router's sessions has shown done.
 func (t Traffic) repatching() []Move {
 	var moves []Move
 	for _, m := range t.Moves {
@@ -131,6 +132,41 @@ func (t Traffic) repatching() []Move {
 		}
 	}
 	return moves
+}
+
+// listing is the sessions as the router listed them, the request stream's
+// moves among them, as the cards' backs, their dots and the plain list
+// draw them: each seat a move re-patches put on the account it went to, as
+// movedIn has it, and a session the router didn't list, which a move
+// brought on, first, as the one seen last.
+func (f Frame) listing() []status.Session {
+	repatching := f.Traffic.repatching()
+	if len(repatching) == 0 {
+		return f.Sessions
+	}
+	listing := make([]status.Session, len(f.Sessions))
+	for i, s := range f.Sessions {
+		s.Assignments = slices.Clone(s.Assignments)
+		listing[i] = s
+	}
+	moves := latestMoves(repatching)
+	for _, m := range repatching {
+		if moves[m.Seat] != m {
+			continue
+		}
+		brought := f.movedIn(m).assignment
+		i := slices.IndexFunc(listing, func(s status.Session) bool { return s.ID == m.Seat.Session })
+		if i < 0 {
+			listing = slices.Insert(listing, 0, status.Session{ID: m.Seat.Session, Assignments: []status.Assignment{brought}})
+			continue
+		}
+		if j := slices.IndexFunc(listing[i].Assignments, func(a status.Assignment) bool { return a.Model == m.Seat.Model }); j >= 0 {
+			listing[i].Assignments[j] = brought
+		} else {
+			listing[i].Assignments = append(listing[i].Assignments, brought)
+		}
+	}
+	return listing
 }
 
 // event is the move as the router's events tell of one, for LOG, which tells

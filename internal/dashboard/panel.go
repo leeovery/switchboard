@@ -104,15 +104,19 @@ func (f Frame) drawPanel(c *canvas, doc status.Document, p linePanel, x, width i
 
 // panelTop draws the panel's top edge from x along its top row, width cells
 // wide: its place and its account's name, in capitals; its state, its mark
-// and its words, as its card leads with them; and at its right its badges,
-// those leavingOff leaves where they don't all fit, the name and the state
-// cut short where even they don't.
+// and its words, as its card leads with them, but idle's in text.tertiary,
+// and nothing read yet's dim; and at its right its badges, those leavingOff
+// leaves where they don't all fit, the name and the state cut short where
+// even they don't.
 func panelTop(c *canvas, p linePanel, x, width int) {
 	edge := p.edges()
 	mark, tone := marked(p.state.Condition)
 	says := ink{token: tone, bold: true}
-	if p.state.Condition == status.Idle {
+	switch p.state.Condition {
+	case status.Idle:
 		says.token = theme.TextTertiary
+	case status.Unread:
+		says = dimInk
 	}
 	lead := line{{"┌─", edge}, {" " + strconv.Itoa(p.place) + " · ", dimInk}, {strings.ToUpper(name(p.account)), titleInk}, {" ─ ", edge}, {mark + " ", ink{token: tone}}, {p.state.Says, says}, {" ", edge}}
 	badges := p.badges()
@@ -216,11 +220,12 @@ func primedAt(p linePanel, now time.Time) (line, bool) {
 
 // resetsSays says when the panel's windows reset, as resets has them: in
 // full, as in " resets  session 17:10  ·  weeks Mon 21:00 ", or briefly, as
-// a narrow panel has room for, as in " session 17:10 · weeks Mon 21:00 ".
+// a narrow panel has room for, as in " session 17:10 · weeks Mon 21:00 ";
+// nothing where none does, so its edge runs whole.
 func resetsSays(p linePanel, now time.Time, brief bool) line {
 	said := p.resets(now)
 	if len(said) == 0 {
-		return line{{" ", dimInk}}
+		return nil
 	}
 	lead, sep := " resets  ", status.Separator
 	if brief {

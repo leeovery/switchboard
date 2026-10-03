@@ -124,18 +124,19 @@ func (g glass) inside(rows []int) int {
 	return n
 }
 
-// pour pours sand into the empty glass: room of its top bulb, a share,
-// settling from its neck up, and used of its bottom bulb, piling from its
-// foot up, each as a level, the last of it in the middle of its row.
-func (g glass) pour(room, used float64) {
-	g.settle(g.top, sand, room)
-	g.settle(g.bottom, piled, used)
+// pour pours sand into the empty glass: used of it, a share, piled in its
+// bottom bulb from its foot up, and the rest in its top bulb, which holds as
+// many grains, settling from its neck up, so each grain is in one or the
+// other; each as a level, the last of it in the middle of its row.
+func (g glass) pour(used float64) {
+	piles := grainsOf(used, g.inside(g.bottom))
+	g.settle(g.top, sand, g.inside(g.top)-piles)
+	g.settle(g.bottom, piled, piles)
 }
 
-// settle fills share of the bulb whose rows are given, top to bottom, with
-// gr: its lowest row first, and on up, each row from its middle out.
-func (g glass) settle(bulb []int, gr grain, share float64) {
-	n := grainsOf(share, g.inside(bulb))
+// settle fills n grains of the bulb whose rows are given, top to bottom,
+// with gr: its lowest row first, and on up, each row from its middle out.
+func (g glass) settle(bulb []int, gr grain, n int) {
 	for i, at := range g.order(slices.Backward(bulb)) {
 		if i < n {
 			g.grains[at[1]][at[0]] = gr
@@ -168,12 +169,13 @@ func (g glass) order(rows func(func(int, int) bool)) [][2]int {
 	return grains
 }
 
-// stream lets a stream wide grains across fall down the middle of the
-// glass's bottom bulb, through what's empty of it, onto the pile, phase
-// grains further down than at rest: a line of grains down each of its
-// columns, a gap in it every grainCycle grains, each line a grain out of
-// step with the one beside it.
+// stream lets a stream wide grains across, but never wider than the glass,
+// fall down the middle of the glass's bottom bulb, through what's empty of
+// it, onto the pile, phase grains further down than at rest: a line of
+// grains down each of its columns, a gap in it every grainCycle grains,
+// each line a grain out of step with the one beside it.
 func (g glass) stream(wide, phase int) {
+	wide = min(wide, len(g.grains[0]))
 	from := (len(g.grains[0]) - wide) / 2
 	for i, y := range g.bottom {
 		for x := from; x < from+wide; x++ {
@@ -219,36 +221,56 @@ func quadrant(grains [4]grain, is func(grain) bool) string {
 // stands there full, dim, saying when it starts. One whose reset isn't known
 // has no length to stand it on.
 func (f Frame) hourglass(c *canvas, p plot, x, y, width, rows int) {
-	cells := min(glassCells(rows), width-width%2)
+	from, cells := p.glassAt(width, rows)
 	switch {
-	case cells < 2 || rows < 1:
-		return
+	case cells == 0:
 	case p.lapsed:
 		f.drawGlass(c, p.glass(cells, rows), x, y, sandInks(faintLevelInk))
 		across(c, x+cells, y+rows/2, width-cells, "full · "+p.starts)
-		return
-	case !p.spanned:
-		return
+	case p.spanned:
+		f.drawGlass(c, p.glass(cells, rows), x+from, y, sandInks(ink{token: p.tone, fade: projectionFade}))
 	}
-	from := 0
+}
+
+// glassAt is where the window's hourglass rows tall stands in a chart width
+// cells wide: from its column from, cells wide, over the column for now
+// while the window runs, else at the chart's start; cells none where there's
+// no room for one.
+func (p plot) glassAt(width, rows int) (from, cells int) {
+	cells = min(glassCells(rows), width-width%2)
+	if cells < 2 || rows < 1 {
+		return 0, 0
+	}
 	if p.running() {
 		from = min(max(p.nowColumn(width)-cells/2, 0), width-cells)
 	}
-	f.drawGlass(c, p.glass(cells, rows), x+from, y, sandInks(ink{token: p.tone, fade: projectionFade}))
+	return from, cells
 }
 
-// Falling reports whether an hourglass falls on a card in the frame of doc
-// at now, so a watch draws it as it falls: the cards draw hourglasses, in
-// the Accounts view, and a card not flipped has its stream falling, its
-// account busy.
-func (f Frame) Falling(doc status.Document, now time.Time) bool {
-	if f.View != Accounts || f.Chart != Hourglass {
+// falling reports whether the sand falls in an hourglass on screen in the
+// Accounts view of doc at now: the cards draw hourglasses, and one not
+// flipped has its stream falling, its account busy, where any of its glass
+// shows, scrolled into view, and not under the help.
+func (f Frame) falling(doc status.Document, now time.Time) bool {
+	if f.Chart != Hourglass {
 		return false
 	}
-	faces, _ := f.faces(doc, now)
-	return slices.ContainsFunc(faces, func(fc face) bool {
-		return fc.hasFeatured && !fc.flipped && fc.chart.falls()
-	})
+	faces, shown := f.faces(doc, now)
+	top := f.above(newCanvas(f.Width, f.Height), doc, now)
+	l := f.layOut(doc, now, len(shown), top)
+	s := sight{top: top, offset: f.scrolled(l), rows: l.view, help: f.helpCovers()}
+	inside, rows := l.width-2*(padding+1), l.density.chart
+	for i, fc := range faces {
+		if !fc.hasFeatured || fc.flipped || !fc.chart.falls() {
+			continue
+		}
+		x, y := l.at(i, l.density)
+		from, cells := fc.chart.glassAt(inside, rows)
+		if s.shows(x+padding+1+from, y+l.density.offset(chartRows, l.bars), cells, rows) {
+			return true
+		}
+	}
+	return false
 }
 
 // running reports whether the window is running at now: neither lapsed nor
@@ -270,7 +292,7 @@ func (p plot) glass(cells, rows int) glass {
 	case p.held:
 		used = 1
 	}
-	g.pour(1-used, used)
+	g.pour(used)
 	if wide := p.streamWide(); wide > 0 {
 		g.stream(wide, p.phase())
 	}
@@ -278,19 +300,20 @@ func (p plot) glass(cells, rows int) glass {
 }
 
 // streamWide is how many grains wide the window's stream falls: none where
-// it has no sand left above but what its account's reserve keeps there, or
-// where it's neither used lately nor busy; else two, and two more each time
-// its recent rate passes again the fastest it could be used and still last
-// to its reset, six at most; and two where that can't be said.
+// it has no sand left above but what its account's reserve keeps there;
+// where it's been used lately, two, and two more each time its recent rate
+// passes again the fastest it could be used and still last to its reset,
+// six at most; else two while its account is busy, and none while it
+// isn't.
 func (p plot) streamWide() int {
-	lasting, lasts := p.lasting()
 	switch {
 	case !p.running() || p.held || p.window.Utilization >= p.floor-score.Tolerance:
 		return 0
-	case p.rated && p.rate > score.Tolerance && lasts && lasting > 0:
+	case p.rate > score.Tolerance:
+		lasting, _ := p.lasting()
 		perHour := lasting * float64(time.Hour/rateSpan)
 		return 2 * min(max(int(math.Ceil(p.rate/perHour)), 1), 3)
-	case p.busy || p.rated && p.rate > score.Tolerance:
+	case p.busy:
 		return 2
 	default:
 		return 0
@@ -331,7 +354,7 @@ func sandInks(sanded ink) map[grain]ink {
 func (f Frame) drawGlass(c *canvas, g glass, x, y int, inks map[grain]ink) {
 	for row := range len(g.grains) / 2 {
 		for col := range len(g.grains[0]) / 2 {
-			if glyph, k, ok := g.glyph(col, row, inks, f.Look.coloured); ok {
+			if glyph, k, ok := g.glyph(col, row, inks, f.Look.blends()); ok {
 				c.text(x+col, y+row, glyph, k)
 			}
 		}
@@ -339,25 +362,26 @@ func (f Frame) drawGlass(c *canvas, g glass, x, y int, inks map[grain]ink) {
 }
 
 // glyph is the glyph of the glass's cell at col along row, and its ink, in a
-// look that has colour or not, as colouredGlyph and plainGlyph have it,
-// reporting false where the cell holds nothing of the glass.
-func (g glass) glyph(col, row int, inks map[grain]ink, coloured bool) (string, ink, bool) {
+// look that blends its colours or not, as blendedGlyph and plainGlyph have
+// it, reporting false where the cell holds nothing of the glass.
+func (g glass) glyph(col, row int, inks map[grain]ink, blends bool) (string, ink, bool) {
 	grains := g.cell(col, row)
 	if slices.Max(grains[:]) == outside {
 		return "", ink{}, false
 	}
-	if coloured {
-		return colouredGlyph(grains, inks)
+	if blends {
+		return blendedGlyph(grains, inks)
 	}
 	return plainGlyph(grains, inks)
 }
 
-// colouredGlyph is a cell's grains as a quadrant block in a look that has
-// colour, and its ink: its most telling grains in their ink, on the ink the
-// rest of it is drawn in, where that's one ink, all within the glass; else
-// on the canvas, with any more of its sand or its stream, but never the
-// glass, whose ink isn't theirs. A cell of glass alone is its block.
-func colouredGlyph(grains [4]grain, inks map[grain]ink) (string, ink, bool) {
+// blendedGlyph is a cell's grains as a quadrant block in a look that blends
+// its colours, and its ink: its most telling grains in their ink, on the
+// ink the rest of it is drawn in, where that's one ink, all within the
+// glass; else on the canvas, with any more of its sand or its stream, but
+// never the glass, whose ink isn't theirs. A cell of glass alone is its
+// block.
+func blendedGlyph(grains [4]grain, inks map[grain]ink) (string, ink, bool) {
 	fore := slices.Max(grains[:])
 	k := inks[fore]
 	switch back, ok := beneath(grains, fore, inks); {
@@ -371,8 +395,10 @@ func colouredGlyph(grains [4]grain, inks map[grain]ink) (string, ink, bool) {
 	}
 }
 
-// plainGlyph is a cell's grains as a look without colour draws them, and its
-// ink: its sand, its stream and the glass's caps as a quadrant block; else,
+// plainGlyph is a cell's grains as a look that can't blend its colours draws
+// them, without the faded surface a blended cell stands on, as a bar's
+// projection is drawn in such a look: its sand, its stream and the glass's
+// caps as a quadrant block, in the ink of the most telling of them; else,
 // where half of it or more is the glass's inside, the bars' track; else
 // nothing, reporting false.
 func plainGlyph(grains [4]grain, inks map[grain]ink) (string, ink, bool) {

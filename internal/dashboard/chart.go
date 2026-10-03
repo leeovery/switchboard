@@ -94,11 +94,11 @@ type plot struct {
 	// its prime, 16:20".
 	starts string
 	// rate is how fast the window has been used lately, a share of it an
-	// hour, rated set where that's known; and busy is set while a session on
+	// hour, none where that's not known; and busy is set while a session on
 	// its account is busy, as the request stream or its sessions say.
-	rate        float64
-	rated, busy bool
-	now         time.Time
+	rate float64
+	busy bool
+	now  time.Time
 }
 
 // elapsed is how much of the window has passed at now, from 0 to 1.

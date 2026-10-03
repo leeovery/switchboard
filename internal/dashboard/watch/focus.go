@@ -156,7 +156,7 @@ func (m Model) seats() []dashboard.Seat {
 	if !m.flipped[m.focus] || m.single() {
 		return nil
 	}
-	return dashboard.Seats(m.sessions, m.focus)
+	return m.frame(m.now()).Seats(m.focus)
 }
 
 // selecting reports whether a session is picked out on a card's back.
