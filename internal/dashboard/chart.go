@@ -11,6 +11,47 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
+// Chart is the style the cards draw the window each features in, as g
+// cycles it, for every card at once, so the cards stay comparable, and the
+// preferences file keeps it: a burn-down, then its burn rate, then an
+// hourglass, and round.
+type Chart string
+
+const (
+	// Burndown is the room left in the window, falling toward the floor as
+	// it's used, and where it's heading.
+	Burndown Chart = ""
+	// BurnRate is the window's use per 10 minutes, as bars, against the
+	// fastest it could be used and still last to its reset.
+	BurnRate Chart = "burn-rate"
+	// Hourglass is the window as an hourglass: the sand above the room left,
+	// the pile below the use, and the stream between them its recent rate.
+	Hourglass Chart = "hourglass"
+)
+
+// charts are the chart styles, in the order g moves through them.
+var charts = []Chart{Burndown, BurnRate, Hourglass}
+
+// Next is the style g moves on to from c, round to burn-down. A style g
+// doesn't reach, as one a later switchboard kept, the cards draw as
+// burn-down, and it moves on as burn-down does.
+func (c Chart) Next() Chart {
+	return charts[(max(slices.Index(charts, c), 0)+1)%len(charts)]
+}
+
+// Name is what the help calls the style, as the cards draw it: "burn rate",
+// "hourglass", or "burn-down", which a style g doesn't reach is drawn as.
+func (c Chart) Name() string {
+	switch c {
+	case BurnRate:
+		return "burn rate"
+	case Hourglass:
+		return "hourglass"
+	default:
+		return "burn-down"
+	}
+}
+
 // levels fill a cell of a chart by eighths, from its floor up.
 var levels = [...]string{"", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
 
@@ -33,9 +74,11 @@ var (
 	faintLevelInk = ink{token: theme.TextSubtle, fade: projectionFade}
 )
 
-// burndown is a window's chart on a card: the room left in it over its
-// length, falling toward the floor as it's used, and where it's heading.
-type burndown struct {
+// plot is the chart of a window on a card, whichever style it's drawn in:
+// how the window stands, its span and its history, how fast it's been used
+// lately and whether its account is busy, in the colour of the account's
+// state, at the moment drawn.
+type plot struct {
 	standing
 	// start and length are when the window started, and how long it runs
 	// until it resets: its span, spanned set where that's known.
@@ -50,84 +93,115 @@ type burndown struct {
 	// starts says when a lapsed window starts again, as in "window starts at
 	// its prime, 16:20".
 	starts string
-	now    time.Time
+	// rate is how fast the window has been used lately, a share of it an
+	// hour, rated set where that's known; and busy is set while a session on
+	// its account is busy, as the request stream or its sessions say.
+	rate        float64
+	rated, busy bool
+	now         time.Time
 }
 
 // elapsed is how much of the window has passed at now, from 0 to 1.
-func (b burndown) elapsed() float64 {
-	return min(max(float64(b.now.Sub(b.start))/float64(b.length), 0), 1)
+func (p plot) elapsed() float64 {
+	return min(max(float64(p.now.Sub(p.start))/float64(p.length), 0), 1)
 }
 
 // nowColumn is the column of a chart width cells wide just past the one now
 // falls in, which the line for now takes, and what's ahead starts in.
-func (b burndown) nowColumn(width int) int {
-	return min(int(b.elapsed()*float64(width)), width-1) + 1
+func (p plot) nowColumn(width int) int {
+	return min(int(p.elapsed()*float64(width)), width-1) + 1
 }
 
 // usedAt is how much of the window its last reading at or before t had used,
 // reporting false where it has none; or, without history, how much is used
 // now.
-func (b burndown) usedAt(t time.Time) (float64, bool) {
-	if !b.traced {
-		return b.window.Utilization, true
+func (p plot) usedAt(t time.Time) (float64, bool) {
+	if !p.traced {
+		return p.window.Utilization, true
 	}
-	i, found := slices.BinarySearchFunc(b.trail.Readings, t, func(r score.Reading, t time.Time) int { return r.At.Compare(t) })
+	i, found := slices.BinarySearchFunc(p.trail.Readings, t, func(r score.Reading, t time.Time) int { return r.At.Compare(t) })
 	if !found {
 		i--
 	}
 	if i < 0 {
 		return 0, false
 	}
-	return b.trail.Readings[i].Utilization, true
+	return p.trail.Readings[i].Utilization, true
 }
 
-// chart draws the burn-down width cells wide and rows tall from x along row
-// y. The past is a level in eighths of a cell, a column for each stretch of
-// the window up to now, filled to the room left at the middle of that
-// stretch, as roomAt has it, in the state's colour faded halfway: without
-// history, the room now, dim, marked "no history yet". Where nothing was
-// left, a line runs along the floor in destructive, and on until the limit
-// lifts while the window's held at it. Now is a thin line in the border's
-// colour; where the window's heading, a dotted line from the level now, to
-// ✕ on the floor where it runs out, else to the room it has left at its
-// reset. The floor is where the account's reserve starts, where that holds
-// it back, drawn as a faint dotted line, else its limit. The marks, now's
-// line and what's ahead, are drawn last, over what's under them. A lapsed
-// window is a full level, dim, saying when it starts; and one whose reset
-// isn't known has no length to draw it over.
-func (f Frame) chart(c *canvas, b burndown, x, y, width, rows int) {
+// chart draws the chart p of the window a card features, width cells wide
+// and rows tall from x along row y, in the style the frame's Chart names: a
+// burn-down, its burn rate, or an hourglass.
+func (f Frame) chart(c *canvas, p plot, x, y, width, rows int) {
+	switch f.Chart {
+	case BurnRate:
+		f.burnRate(c, p, x, y, width, rows)
+	case Hourglass:
+		f.hourglass(c, p, x, y, width, rows)
+	default:
+		f.burndown(c, p, x, y, width, rows)
+	}
+}
+
+// burndown draws the window's burn-down width cells wide and rows tall from
+// x along row y. The past is a level in eighths of a cell, a column for each
+// stretch of the window up to now, filled to the room left at the middle of
+// that stretch, as roomAt has it, in the state's colour faded halfway:
+// without history, the room now, dim, marked "no history yet". Where nothing
+// was left, a line runs along the floor in destructive, and on until the
+// limit lifts while the window's held at it. Now is a thin line in the
+// border's colour; where the window's heading, a dotted line from the level
+// now, to ✕ on the floor where it runs out, else to the room it has left at
+// its reset. The floor is where the account's reserve starts, where that
+// holds it back, drawn as a faint dotted line, else its limit. The marks,
+// now's line and what's ahead, are drawn last, over what's under them. A
+// lapsed window is a full level, dim, saying when it starts; and one whose
+// reset isn't known has no length to draw it over.
+func (f Frame) burndown(c *canvas, p plot, x, y, width, rows int) {
 	switch {
 	case width < 1 || rows < 1:
 		return
-	case b.lapsed:
+	case p.lapsed:
 		for col := range width {
 			level(c, x+col, y, rows, 1, faintLevelInk)
 		}
-		across(c, x, y+rows/2, width, "full · "+b.starts)
+		across(c, x, y+rows/2, width, "full · "+p.starts)
 		return
-	case !b.spanned:
+	case !p.spanned:
 		return
 	}
-	past := ink{token: b.tone, fade: projectionFade}
-	if !b.traced {
+	past := ink{token: p.tone, fade: projectionFade}
+	if !p.traced {
 		past = faintLevelInk
 	}
-	ahead := b.nowColumn(width)
+	ahead := p.nowColumn(width)
 	for col := range ahead {
-		stretch := (float64(col) + 0.5) / float64(width)
-		if room, ok := b.roomAt(earliest(b.at(stretch), b.now)); ok {
+		if room, ok := p.roomAt(p.middleOf(col, width)); ok {
 			level(c, x+col, y, rows, room, past)
 		}
 	}
-	if !b.traced {
+	if !p.traced {
 		untraced(c, x, y, width, rows, ahead)
 	}
-	if ahead < width {
-		for row := range rows {
-			c.text(x+ahead, y+row, nowLine, borderInk)
-		}
+	nowRule(c, x, y, width, rows, ahead)
+	f.ahead(c, p, x, y, width, rows, ahead)
+}
+
+// middleOf is the time at the middle of column col of a chart width cells
+// wide, or now, for the column now falls in, where that's sooner.
+func (p plot) middleOf(col, width int) time.Time {
+	return earliest(p.at((float64(col)+0.5)/float64(width)), p.now)
+}
+
+// nowRule draws the line for now down a chart width cells wide and rows
+// tall from x along row y, in its column ahead, where that's within it.
+func nowRule(c *canvas, x, y, width, rows, ahead int) {
+	if ahead >= width {
+		return
 	}
-	f.ahead(c, b, x, y, width, rows, ahead)
+	for row := range rows {
+		c.text(x+ahead, y+row, nowLine, borderInk)
+	}
 }
 
 // untracedLabel marks a chart drawn without history.
@@ -148,22 +222,28 @@ func untraced(c *canvas, x, y, width, rows, ahead int) {
 // before t left it, reporting false where it has none, or, without history,
 // the room it has now; and none from when it was held at its limit, where
 // that's known.
-func (b burndown) roomAt(t time.Time) (float64, bool) {
-	if b.held && !b.since.IsZero() && !t.Before(b.since) {
+func (p plot) roomAt(t time.Time) (float64, bool) {
+	if p.heldAt(t) {
 		return 0, true
 	}
-	used, ok := b.usedAt(t)
+	used, ok := p.usedAt(t)
 	return 1 - used, ok
 }
 
+// heldAt reports whether the window was held at its limit at t, as it is
+// from when it was reached, where that's known.
+func (p plot) heldAt(t time.Time) bool {
+	return p.held && !p.since.IsZero() && !t.Before(p.since)
+}
+
 // at is the time a share of the way through the window.
-func (b burndown) at(share float64) time.Time {
-	return b.start.Add(time.Duration(share * float64(b.length)))
+func (p plot) at(share float64) time.Time {
+	return p.start.Add(time.Duration(share * float64(p.length)))
 }
 
 // fraction is how far through the window t is, from 0 at its start.
-func (b burndown) fraction(t time.Time) float64 {
-	return float64(t.Sub(b.start)) / float64(b.length)
+func (p plot) fraction(t time.Time) float64 {
+	return float64(t.Sub(p.start)) / float64(p.length)
 }
 
 // ahead draws what's ahead of a chart from its column ahead: while its
@@ -171,31 +251,38 @@ func (b burndown) fraction(t time.Time) float64 {
 // else where it's heading, as a dotted line, to ✕ on its floor where it runs
 // out, and its account's reserve, where that's its floor, as a faint dotted
 // line along it.
-func (f Frame) ahead(c *canvas, b burndown, x, y, width, rows, ahead int) {
-	if b.held {
-		for col := ahead; col < width && (b.back.IsZero() || b.at(float64(col)/float64(width)).Before(b.back)); col++ {
-			c.text(x+col, y+rows-1, floorLine, errorInk)
-		}
+func (f Frame) ahead(c *canvas, p plot, x, y, width, rows, ahead int) {
+	if p.held {
+		limitLine(c, p, x, y, width, rows, ahead)
 		return
 	}
-	plot := newDots(rows)
-	if b.floor < 1 {
+	d := newDots(rows)
+	if p.floor < 1 {
 		for col := ahead + 2 - ahead%2; col < width; col += 2 {
-			plot.dot(2*col+1, plot.rowOf(1-b.floor), ink{token: theme.VizReserve, fade: reserveFade}, 0)
+			d.dot(2*col+1, d.rowOf(1-p.floor), ink{token: theme.VizReserve, fade: reserveFade}, 0)
 		}
 	}
-	end, room := b.headingTo(width)
-	if b.runsOut {
+	end, room := p.headingTo(width)
+	if p.runsOut {
 		end = max(end, ahead)
 	}
-	from := 1 - b.window.Utilization
+	from := 1 - p.window.Utilization
 	for col := ahead; col < end; col++ {
 		at := (float64(col) + 0.25) / float64(width)
-		plot.dot(2*col, plot.rowOf(from+(room-from)*b.progress(at)), ink{token: b.tone}, 1)
+		d.dot(2*col, d.rowOf(from+(room-from)*p.progress(at)), ink{token: p.tone}, 1)
 	}
-	plot.draw(c, x, y)
-	if b.runsOut && end < width {
-		c.text(x+end, y+plot.rowOf(1-b.floor)/4, outMark, outInk)
+	d.draw(c, x, y)
+	if p.runsOut && end < width {
+		c.text(x+end, y+d.rowOf(1-p.floor)/4, outMark, outInk)
+	}
+}
+
+// limitLine draws a line along the floor of a chart width cells wide and rows
+// tall from x along row y, its window held at its limit, from its column
+// from until the limit lifts, or to its end where that's not known.
+func limitLine(c *canvas, p plot, x, y, width, rows, from int) {
+	for col := from; col < width && (p.back.IsZero() || p.at(float64(col)/float64(width)).Before(p.back)); col++ {
+		c.text(x+col, y+rows-1, floorLine, errorInk)
 	}
 }
 
@@ -203,12 +290,12 @@ func (f Frame) ahead(c *canvas, b burndown, x, y, width, rows, ahead int) {
 // the column it runs out in, and the room on its floor; else its last, and
 // the room it has left at its reset; or nowhere, where nothing says, or its
 // use has reached its floor already.
-func (b burndown) headingTo(width int) (int, float64) {
-	share, ok := b.projected()
+func (p plot) headingTo(width int) (int, float64) {
+	share, ok := p.projected()
 	switch {
-	case b.runsOut:
-		return min(int(b.fraction(b.out.At)*float64(width)), width), 1 - b.floor
-	case !ok || b.window.Utilization >= b.floor-score.Tolerance:
+	case p.runsOut:
+		return min(int(p.fraction(p.out.At)*float64(width)), width), 1 - p.floor
+	case !ok || p.window.Utilization >= p.floor-score.Tolerance:
 		return 0, 0
 	default:
 		return width, 1 - share
@@ -217,15 +304,15 @@ func (b burndown) headingTo(width int) (int, float64) {
 
 // progress is how far a share of the way through the window is from now
 // toward where the window is heading: 0 now, 1 there.
-func (b burndown) progress(share float64) float64 {
+func (p plot) progress(share float64) float64 {
 	end := 1.0
-	if b.runsOut {
-		end = b.fraction(b.out.At)
+	if p.runsOut {
+		end = p.fraction(p.out.At)
 	}
-	if end <= b.elapsed() {
+	if end <= p.elapsed() {
 		return 1
 	}
-	return min(max((share-b.elapsed())/(end-b.elapsed()), 0), 1)
+	return min(max((share-p.elapsed())/(end-p.elapsed()), 0), 1)
 }
 
 // level draws a chart's column at x, rows tall from row y, filled from its
@@ -237,9 +324,15 @@ func level(c *canvas, x, y, rows int, room float64, k ink) {
 		c.text(x, y+rows-1, floorLine, errorInk)
 		return
 	}
+	column(c, x, y, rows, filled, k)
+}
+
+// column draws a chart's column at x, rows tall from row y, filled eighths
+// eighths of a cell up from its floor, in the ink k.
+func column(c *canvas, x, y, rows, eighths int, k ink) {
 	for row := range rows {
-		if eighths := min(filled-8*row, 8); eighths > 0 {
-			c.text(x, y+rows-1-row, levels[eighths], k)
+		if filled := min(eighths-8*row, 8); filled > 0 {
+			c.text(x, y+rows-1-row, levels[filled], k)
 		}
 	}
 }
@@ -265,18 +358,18 @@ func earliest(a, b time.Time) time.Time {
 // where it clears both, and its reset; for a longer one, its days, each from
 // the midnight it starts at, where its name fits, today's picked out. A
 // lapsed window has none.
-func (f Frame) axis(c *canvas, b burndown, x, y, width int) {
+func (f Frame) axis(c *canvas, p plot, x, y, width int) {
 	switch {
-	case b.lapsed || !b.spanned || width < 1:
+	case p.lapsed || !p.spanned || width < 1:
 		return
-	case b.length > day:
-		days(c, b, x, y, width)
+	case p.length > day:
+		days(c, p, x, y, width)
 		return
 	}
-	end := b.start.Add(b.length)
-	c.text(x, y, b.start.In(b.now.Location()).Format("15:04"), dimInk)
-	c.right(x+width, y, line{{end.In(b.now.Location()).Format("15:04"), mutedInk}})
-	if ahead := b.nowColumn(width); ahead-2 >= clockCells+axisGap && ahead+1+axisGap <= width-clockCells {
+	end := p.start.Add(p.length)
+	c.text(x, y, p.start.In(p.now.Location()).Format("15:04"), dimInk)
+	c.right(x+width, y, line{{end.In(p.now.Location()).Format("15:04"), mutedInk}})
+	if ahead := p.nowColumn(width); ahead-2 >= clockCells+axisGap && ahead+1+axisGap <= width-clockCells {
 		c.text(x+ahead-2, y, "now", strongInk)
 	}
 }
@@ -291,14 +384,14 @@ const (
 // days draws a week's days along its axis, width cells from x along row y:
 // a tick at each midnight within it, and the day's name after, where it
 // clears the day before's and fits, today's picked out.
-func days(c *canvas, b burndown, x, y, width int) {
-	loc := b.now.Location()
-	first := b.start.In(loc)
+func days(c *canvas, p plot, x, y, width int) {
+	loc := p.now.Location()
+	first := p.start.In(loc)
 	midnight := time.Date(first.Year(), first.Month(), first.Day()+1, 0, 0, 0, 0, loc)
-	today := b.now.In(loc).Format(time.DateOnly)
+	today := p.now.In(loc).Format(time.DateOnly)
 	last := -dayCells
-	for ; midnight.Before(b.start.Add(b.length)); midnight = midnight.AddDate(0, 0, 1) {
-		col := int(math.Round(b.fraction(midnight) * float64(width-1)))
+	for ; midnight.Before(p.start.Add(p.length)); midnight = midnight.AddDate(0, 0, 1) {
+		col := int(math.Round(p.fraction(midnight) * float64(width-1)))
 		if col-last < dayCells || col+dayCells-1 > width {
 			continue
 		}

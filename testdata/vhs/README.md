@@ -150,13 +150,17 @@ October 2026 at 14:42:07, so nothing moves of itself.
 | `accounts-1` | `work` | 160 × 27 | `accounts-1` |
 | `accounts-3` | `work`, `personal`, `side` | 160 × 34 | `accounts-3-auto` |
 | `accounts-3-5h` | `work`, `personal`, `side`, `w` pressed: every card featuring its 5-hour window | 160 × 34 | `accounts-3-5h` |
+| `accounts-3-rate` | `work`, `personal`, `side`, `g` pressed: every card drawing its burn rate | 160 × 34 | none: the burn rate was sketched in the design session, not drawn on the final page |
+| `accounts-3-hourglass` | `work`, `personal`, `side`, `g` pressed twice: every card drawing its hourglass | 160 × 34 | none: the hourglass was sketched in the design session, not drawn on the final page |
 | `accounts-3-week` | `work`, `personal`, `side`, `w` pressed twice: every card featuring its week | 160 × 34 | `accounts-3-week` |
 | `accounts-3-keys` | `work`, `personal`, `side`, `?` pressed: the help open over them | 160 × 34 | none: the frames don't draw the help |
 | `accounts-3-themes` | `work`, `personal`, `side`, the theme picker open, the cursor up a theme | 160 × 34 | none: Portal draws the picker |
 | `accounts-4` | and `client` | 160 × 40 | `accounts-4` |
+| `accounts-4-rate`, `accounts-4-hourglass` | the four, `g` pressed once, and twice | 160 × 40 | none, as `accounts-3-rate` |
 | `accounts-5` | and `spare` | 160 × 40 | none: Sessions' and Runway's are 5 accounts |
 | `accounts-6` | and `lab` | 160 × 40 | `accounts-6` |
 | `accounts-8` | and `team` and `extra` | 160 × 40 | `accounts-8` |
+| `accounts-8-rate`, `accounts-8-hourglass` | the eight, `g` pressed once, and twice | 160 × 40 | none, as `accounts-3-rate` |
 | `accounts-8-scrolling` | the same eight, too many for 28 rows, so they scroll | 160 × 28 | `accounts-8-scrolling` |
 | `accounts-flipped-all` | `work`, `personal`, `side`, four requests in flight, `s` pressed: every card flipped, the focus on work's | 160 × 34 | `accounts-flipped-all` |
 | `accounts-flipped-selected` | `work`, `personal`, `side`, four requests in flight, `space` and `↓` twice pressed: work's card flipped, d28c picked out | 160 × 34 | `accounts-flipped-selected` |

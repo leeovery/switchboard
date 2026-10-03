@@ -5,6 +5,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -23,10 +25,10 @@ type face struct {
 	place   int
 	state   status.State
 	// featured is the window it features, where it has one to, and chart its
-	// burn-down.
+	// chart.
 	featured    standing
 	hasFeatured bool
-	chart       burndown
+	chart       plot
 	// windows are the keys of the windows every card shows, in order, and
 	// bars how those it doesn't feature stand, of those it has.
 	windows []string
@@ -71,33 +73,47 @@ func (f Frame) face(doc status.Document, a status.Account, now time.Time, shown 
 		sessions: a.Sessions, primed: primedNext(doc, a.ID),
 		read: cmp.Or(doc.GeneratedAt, now), focused: f.Focus == a.ID, flipped: f.Flipped[a.ID],
 	}
+	if f.Sessions != nil {
+		fc.busy = f.busy(a.ID, now)
+		fc.sessions = len(fc.busy)
+	}
 	w, ok := featured(doc, a, now, f.Policy, f.Featured, shown)
 	if ok {
 		fc.featured, fc.hasFeatured = standingOf(doc, a, w, now, f.Policy), true
-		fc.chart = f.burndownOf(doc, fc, now)
+		fc.chart = f.plotOf(doc, fc, now)
 	}
 	for _, key := range shown {
 		if bar, has := a.Window(key); has && (!ok || key != w.Key) {
 			fc.bars[key] = standingOf(doc, a, bar, now, f.Policy)
 		}
 	}
-	if f.Sessions != nil {
-		fc.busy = f.busy(a.ID, now)
-		fc.sessions = len(fc.busy)
-	}
 	return fc
 }
 
-// burndownOf is the chart of the window the card of doc's account fc
-// features, as it stands at now, in the tone of its state, from its history,
-// and while it's held at its limit, on the floor from when that was reached,
-// as its standing says.
-func (f Frame) burndownOf(doc status.Document, fc face, now time.Time) burndown {
-	b := burndown{standing: fc.featured, tone: fc.tone(), now: now, starts: doc.StartsAt(fc.account.ID, now)}
-	b.start, b.length, b.spanned = b.window.Span()
-	b.trail = f.History[Ref{Account: fc.account.ID, Window: b.window.Key}]
-	b.traced = len(b.trail.Readings) > 0
-	return b
+// plotOf is the chart of the window the card of doc's account fc features,
+// as it stands at now, in the tone of its state, from its history, and
+// while it's held at its limit, on the floor from when that was reached, as
+// its standing says; how fast it's been used lately, as recentRate says; and
+// whether a session on the account is busy, as its dots say.
+func (f Frame) plotOf(doc status.Document, fc face, now time.Time) plot {
+	p := plot{standing: fc.featured, tone: fc.tone(), now: now, starts: doc.StartsAt(fc.account.ID, now), busy: slices.Contains(fc.busy, true)}
+	p.start, p.length, p.spanned = p.window.Span()
+	p.trail = f.History[Ref{Account: fc.account.ID, Window: p.window.Key}]
+	p.traced = len(p.trail.Readings) > 0
+	p.rate, p.rated = recentRate(fc.account, p.window, p.trail, now)
+	return p
+}
+
+// recentRate is how fast account a's window w has been used lately, at now,
+// a share of it an hour: as the router saw it over the last half hour, where
+// it gives the rate; else as the window's readings, trail, rise over it, as
+// score.RecentRate measures it; reporting false where neither says.
+func recentRate(a status.Account, w quota.Window, trail Trail, now time.Time) (float64, bool) {
+	if i := slices.IndexFunc(a.Rates, func(r status.Rate) bool { return r.Window == w.Key }); i >= 0 {
+		return a.Rates[i].Rate, true
+	}
+	rate, _, ok := score.RecentRate(w, trail.Readings, now)
+	return rate, ok
 }
 
 // primedNext is when the router next primes the account with the given id,

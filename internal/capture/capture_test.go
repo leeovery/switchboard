@@ -217,6 +217,32 @@ func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
 	}
 }
 
+func TestTheChartFixturesDrawEachStyleWithTheirKeys(t *testing.T) {
+	rate := "KEY      ▃▅ use per 10 min   ▆▆ too fast to last   ⠂⠂⠂ fastest that lasts   │"
+	hourglass := "KEY      ▀▀ room left   ▄▄ used   ▐▌ its recent rate, falling while busy   │"
+	tests := []struct {
+		name string
+		want []string
+	}{
+		{name: "accounts-3-rate", want: []string{rate, "g chart", "│  12:10                now               17:10  │", "█▁▁▁▁▁▁▁▁▁│▁▁▁▁▁▁▁▁▁"}},
+		{name: "accounts-3-hourglass", want: []string{hourglass, "│                    ▜████████▛                  │", "│  12:10                now               17:10  │"}},
+		{name: "accounts-4-rate", want: []string{rate, "│  12:10                now               17:10  │"}},
+		{name: "accounts-4-hourglass", want: []string{hourglass, "│                  ▜████████████▛                │"}},
+		{name: "accounts-8-rate", want: []string{rate, "│  Session  58%  → out ~15:45      resets 17:10  │"}},
+		{name: "accounts-8-hourglass", want: []string{hourglass, "│                     ▗▄▟▟▟▄▄▖                   │"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			for _, want := range tt.want {
+				if !strings.Contains(frame, want) {
+					t.Errorf("the frame\n%s\nhas no %q", frame, want)
+				}
+			}
+		})
+	}
+}
+
 func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
 	tests := []struct {
 		name string

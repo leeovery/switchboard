@@ -104,6 +104,17 @@ func TestUsageWatchFeaturesTheWindowKept(t *testing.T) {
 	}
 }
 
+func TestUsageWatchDrawsTheChartKept(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"view": "accounts", "chart": "hourglass"}`)
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "usage", "--watch")
+
+	if cfg.Chart != dashboard.Hourglass {
+		t.Errorf("the watch's cards draw %q, want the hourglass prefs.json keeps", cfg.Chart)
+	}
+}
+
 func TestUsageWatchFindsThemesWhereSwitchboardThemesDirSays(t *testing.T) {
 	dotfiles := t.TempDir()
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_THEMES_DIR": dotfiles})

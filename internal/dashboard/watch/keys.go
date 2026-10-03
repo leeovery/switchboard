@@ -100,8 +100,9 @@ func (o order) logSession(err error) {
 // shift-tab show the next view and the one before, r reads now, having the
 // router refresh what it hasn't read in the last minute, and what can take
 // no request, or probing when it doesn't answer; t opens the theme picker;
-// and w has the cards feature the next window, or in Runway, switches
-// between the day and the week.
+// w has the cards feature the next window, or in Runway, switches between
+// the day and the week; and g has the cards draw their charts in the next
+// style.
 // While the router answers, of more than one account, 1–9 pin new sessions
 // to the account in that place, as configured, beside those pinned already,
 // or unpin it; a routes every session on its merits again; and m moves
@@ -139,6 +140,8 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openPicker()
 	case "w", "W":
 		return m.nextWindow()
+	case "g", "G":
+		return m.nextChart(), nil
 	case "a", "A":
 		switch {
 		case m.single():
@@ -351,11 +354,11 @@ type keyListing struct {
 // listings are every key there is, as m stands, in the design's order, so
 // the footer comes out as the design has it once every key works: tab,
 // while there's another view to move to; w, as wKey says; in the Accounts
-// view, the arrows and space, and s; j and k, where the view scrolls; while
-// the router answers, of more than one account, the digits of their places,
-// a and m; r; t, in colour; and ? and q, always. The footer leaves s, j and
-// k, r and t behind ?. With a session picked out, the keys are as picking
-// says.
+// view, the arrows and space, s, and g; j and k, where the view scrolls;
+// while the router answers, of more than one account, the digits of their
+// places, a and m; r; t, in colour; and ? and q, always. The footer leaves
+// s, j and k, r and t behind ?. With a session picked out, the keys are as
+// picking says.
 func (m Model) listings() []keyListing {
 	cards, scrolled := m.view == dashboard.Accounts, m.scrolled()
 	listed := []keyListing{
@@ -364,6 +367,7 @@ func (m Model) listings() []keyListing {
 		{key: "←→", footer: "focus", help: "move the focus; ↑↓ between rows, over a flipped card's sessions first", works: cards},
 		{key: "space", footer: "flip", help: "flip the card with the focus to its sessions, or back", works: cards},
 		{key: "s", help: "flip every card, or back", works: cards},
+		{key: "g", footer: "chart", help: "cycle the chart every card draws: burn-down, burn rate, hourglass; now " + m.chart.Name(), works: cards},
 		{key: "j k", help: "scroll " + scrolled + "; PgUp and PgDn a page, or the wheel", works: m.scrolling().Most > 0},
 		{key: places(len(m.doc.Accounts)), footer: "pin", help: "toggle the account in that place in the pin", works: m.orders()},
 		{key: "a", footer: "auto", help: "route automatically again", works: m.orders()},

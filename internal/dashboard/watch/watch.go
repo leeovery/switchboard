@@ -146,10 +146,12 @@ type Config struct {
 	// NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
 	// View is the view the preferences kept, which the watch opens on where
-	// it's one there is, and Featured the window they keep the cards
-	// featuring; Prefs keeps both as they change: nil keeps nothing.
+	// it's one there is, Featured the window they keep the cards featuring,
+	// and Chart the style they keep the cards drawing it in; Prefs keeps
+	// each as it changes: nil keeps nothing.
 	View     dashboard.View
 	Featured dashboard.Feature
+	Chart    dashboard.Chart
 	Prefs    Prefs
 }
 
@@ -201,10 +203,11 @@ type Model struct {
 	// chain numbers the live chain of ticks: a tick from an earlier one is
 	// dropped.
 	chain int
-	// ease moves each bar to doc's reading, and framing is set while frames
-	// run to draw it.
+	// ease moves each bar to doc's reading; framing is set while frames run
+	// to draw what moves, and frameDue is when the next is due.
 	ease     easing
 	framing  bool
+	frameDue time.Time
 	readings readings
 
 	// choice is the theme or pair the user chose, and pair the themes it
@@ -237,9 +240,10 @@ type Model struct {
 	// what the stream has told of the routed requests.
 	stream  streaming
 	traffic traffic
-	// featured is which window every card features, and span how far ahead
-	// Runway looks.
+	// featured is which window every card features, chart the style every
+	// card draws it in, and span how far ahead Runway looks.
 	featured dashboard.Feature
+	chart    dashboard.Chart
 	span     dashboard.Span
 	// scroll is how many rows the view shown is scrolled down by, where its
 	// cards, or its lanes, don't fit.
@@ -272,7 +276,7 @@ type tickMsg struct {
 	chain int
 }
 
-// frameMsg draws the next frame of the bars easing.
+// frameMsg draws the next frame of what moves on screen.
 type frameMsg struct{}
 
 // New returns a model that reads cfg's source at once, and whenever a read
@@ -281,7 +285,7 @@ func New(ctx context.Context, cfg Config) Model {
 	views := dashboard.Views()
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true, loud: true,
-		choice: cfg.Choice, pair: cfg.Pair, views: views, view: opening(cfg.View, views), featured: cfg.Featured,
+		choice: cfg.Choice, pair: cfg.Pair, views: views, view: opening(cfg.View, views), featured: cfg.Featured, chart: cfg.Chart,
 	}
 	if m.after == nil {
 		m.after = after
@@ -389,17 +393,19 @@ func (m Model) View() tea.View {
 // frame is the dashboard's frame as the model stands at now, but for the
 // keys its footer lists: at the size drawn at, in the look, showing the view
 // shown, with what the watch knows of the router, its events and its
-// history, the window the cards feature, how far ahead Runway looks, the
-// sessions listed, what the request stream tells of their requests and the
-// order Sessions' calls keep, how far the view is scrolled, the card with
-// the focus, the cards flipped and the session picked out, the keys that
-// work on a card's sessions, the note a key left, and how reading goes.
+// history, the window the cards feature and the style they draw it in, how
+// far ahead Runway looks, the sessions listed, what the request stream tells
+// of their requests and the order Sessions' calls keep, how far the view is
+// scrolled, the card with the focus, the cards flipped and the session
+// picked out, the keys that work on a card's sessions, the note a key left,
+// and how reading goes.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		Views: m.views, View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), History: m.trails,
-		Featured: m.featured, Span: m.span, Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
+		Featured: m.featured, Chart: m.chart, Span: m.span,
+		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus: m.focus, Flipped: m.flipped, Selected: m.selected, Patch: m.patch(),
 		Note: m.noted(now), Status: m.status(now),
 		Policy: m.cfg.Policy,
@@ -616,28 +622,67 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 }
 
 // startFrames starts drawing frames while anything on screen moves at now,
-// unless they're running already, and carry on through what moves now.
+// unless they're running already at the pace what moves calls for: frames
+// running at a falling hourglass's pace, as something starts moving
+// smoothly, have one drawn at once.
 func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
-	if m.framing || !m.moving(now) {
+	switch {
+	case m.framing && m.dueInTime(now):
+		return m, nil
+	case !m.framing && !m.moving(now):
 		return m, nil
 	}
-	m.framing = true
-	return m, m.after(frameEvery, frameMsg{})
+	return m.armFrame(now)
 }
 
-// framed arms the next frame, while anything on screen moves.
+// dueInTime reports whether the frame due next comes soon enough for what
+// moves at now: within frameEvery while anything moves smoothly, else
+// whenever it's armed.
+func (m Model) dueInTime(now time.Time) bool {
+	return !m.smoothly(now) || !m.frameDue.After(now.Add(frameEvery))
+}
+
+// armFrame arms the next frame, as nextFrame has it after now.
+func (m Model) armFrame(now time.Time) (Model, tea.Cmd) {
+	delay := m.nextFrame(now)
+	m.framing, m.frameDue = true, now.Add(delay)
+	return m, m.after(delay, frameMsg{})
+}
+
+// framed arms the next frame, while anything on screen moves. A frame that
+// comes before the one due, armed before it at a slower pace, is dropped.
 func (m Model) framed() (tea.Model, tea.Cmd) {
-	if !m.moving(m.now()) {
+	switch now := m.now(); {
+	case now.Before(m.frameDue):
+		return m, nil
+	case !m.moving(now):
 		m.framing = false
 		return m, nil
+	default:
+		return m.armFrame(now)
 	}
-	return m, m.after(frameEvery, frameMsg{})
 }
 
-// moving reports whether anything on screen moves at now: a bar easing to
-// its reading, the highlight on an event, or on a card's state, fading back,
-// or what travels the cords, as travelling says.
+// nextFrame is how long after now the next frame is drawn: frameEvery while
+// anything moves smoothly; else, while only the sand falls in a card's
+// hourglass, once it has fallen a grain more.
+func (m Model) nextFrame(now time.Time) time.Duration {
+	if m.smoothly(now) {
+		return frameEvery
+	}
+	return dashboard.FallStep - now.Sub(now.Truncate(dashboard.FallStep))
+}
+
+// moving reports whether anything on screen moves at now: smoothly, or the
+// sand falling in a card's hourglass, as Falling says, wherever one shows.
 func (m Model) moving(now time.Time) bool {
+	return m.smoothly(now) || m.frame(now).Falling(m.shown(now), now)
+}
+
+// smoothly reports whether anything on screen moves smoothly at now, frame
+// by frame: a bar easing to its reading, the highlight on an event, or on a
+// card's state, fading back, or what travels the cords, as travelling says.
+func (m Model) smoothly(now time.Time) bool {
 	return (m.ease.moves(m.doc) && !m.ease.done(now)) || m.news.faded(now) != nil || m.changes.faded(now) != nil || m.travelling(now)
 }
 

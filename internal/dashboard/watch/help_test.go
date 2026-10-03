@@ -63,14 +63,14 @@ func TestTheHelpListsEveryKeyThatWorksAndTheFooterTheMostUsed(t *testing.T) {
 		{
 			name:       "the router of three",
 			h:          func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
-			wantHelp:   []string{"tab", "w", "←→", "space", "s", "1-3", "a", "m", "r", "?", "q"},
-			wantFooter: []string{"tab", "w", "←→", "space", "1-3", "a", "m", "?", "q"},
+			wantHelp:   []string{"tab", "w", "←→", "space", "s", "g", "1-3", "a", "m", "r", "?", "q"},
+			wantFooter: []string{"tab", "w", "←→", "space", "g", "1-3", "a", "m", "?", "q"},
 		},
 		{
 			name:       "probing twelve, which scroll",
 			h:          func(t *testing.T) *harness { return newHarness(t, twelve()) },
-			wantHelp:   []string{"tab", "w", "←→", "space", "s", "j k", "r", "?", "q"},
-			wantFooter: []string{"tab", "w", "←→", "space", "?", "q"},
+			wantHelp:   []string{"tab", "w", "←→", "space", "s", "g", "j k", "r", "?", "q"},
+			wantFooter: []string{"tab", "w", "←→", "space", "g", "?", "q"},
 		},
 	}
 	for _, tt := range tests {
@@ -105,6 +105,7 @@ func TestTheHelpSaysWhatEachKeyDoes(t *testing.T) {
 		"←→      move the focus; ↑↓ between rows, over a flipped card's sessions first",
 		"space   flip the card with the focus to its sessions, or back",
 		"s       flip every card, or back",
+		"g       cycle the chart every card draws: burn-down, burn rate, hourglass; now burn-down",
 		"1-3     toggle the account in that place in the pin",
 		"a       route automatically again",
 		"m       move running sessions to the pinned accounts",

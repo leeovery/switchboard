@@ -259,7 +259,7 @@ func TestTheFooterGivesTheSelectionsKeys(t *testing.T) {
 	if got, want := h.footer(), "↑↓ select · 1-4 move d28c to that account · space flip back · esc done · d28c selected on Work"; got != want {
 		t.Errorf("with d28c picked out, footer = %q, want %q", got, want)
 	}
-	if got, want := listedKeys(h.model.helpKeys()), []string{"↑↓", "1-4", "a", "space", "esc", "tab", "w", "←→", "s", "m", "r", "?", "q"}; !slices.Equal(got, want) {
+	if got, want := listedKeys(h.model.helpKeys()), []string{"↑↓", "1-4", "a", "space", "esc", "tab", "w", "←→", "s", "g", "m", "r", "?", "q"}; !slices.Equal(got, want) {
 		t.Errorf("with d28c picked out, the help lists %q, want %q", got, want)
 	}
 
@@ -267,7 +267,7 @@ func TestTheFooterGivesTheSelectionsKeys(t *testing.T) {
 	if h.model.selecting() || !h.model.flipped["work"] || h.model.focus != "work" {
 		t.Errorf("after esc, picking out %+v, flipped %v, focus on %q; want nothing picked out, work's card flipped still, with the focus", h.model.selected, h.model.flipped, h.model.focus)
 	}
-	if got, want := h.footer(), "tab views · w window: auto · ←→ focus · space flip · 1-4 pin · a auto · m move · ? keys · q quit · read 0s ago"; got != want {
+	if got, want := h.footer(), "tab views · w window: auto · ←→ focus · space flip · g chart · 1-4 pin · a auto · m move · ? keys · q quit · read 0s ago"; got != want {
 		t.Errorf("after esc, footer = %q, want %q", got, want)
 	}
 }

@@ -125,6 +125,105 @@ func TestACardAtEachDensity(t *testing.T) {
 	}
 }
 
+func TestACardAtEachDensityInEveryChartStyle(t *testing.T) {
+	doc := pressedWork()
+	session, _ := doc.Accounts[0].Window("5h")
+	start := session.ResetsAt.Add(-5 * time.Hour)
+	history := History{{Account: "work", Window: "5h"}: {Start: start, Readings: []score.Reading{
+		{At: start, Utilization: 0},
+		{At: start.Add(20 * time.Minute), Utilization: 0.1},
+		{At: start.Add(50 * time.Minute), Utilization: 0.18},
+		{At: start.Add(80 * time.Minute), Utilization: 0.4},
+		{At: start.Add(110 * time.Minute), Utilization: 0.58},
+	}}}
+	busy := []status.Session{
+		{ID: "d28c5e17", Assignments: []status.Assignment{{Account: "work", LastSeen: now.Add(-20 * time.Second).UTC()}}},
+		{ID: "7f3a0c94", Assignments: []status.Assignment{{Account: "work", LastSeen: now.Add(-9 * time.Minute).UTC()}}},
+	}
+	readout := []string{
+		"╭─ 1 work ─────────────────────────── ◆ primary ─╮",
+		"│                                                │",
+		"│  ● under pressure · new sessions go elsewhere  │",
+		"│                                                │",
+		"│  █▀▀ █▀█ ▀ █     SESSION  5-hour window        │",
+		"│  ▀▀█ █▀█ ▄▀      → reaches its reserve ~14:20  │",
+		"│  ▀▀▀ ▀▀▀ ▀ ▀     resets 16:12 · in 3h          │",
+		"│                                                │",
+	}
+	header := []string{
+		"╭─ 1 work ─────────────────────────── ◆ primary ─╮",
+		"│  ● under pressure · new sessions go elsewhere  │",
+		"│                                                │",
+		"│  Session  58%  → out ~14:20      resets 16:12  │",
+	}
+	bars := []string{
+		"│  Week     ██████▏┃██████▎░╎░  34% → 79%        │",
+		"│  Fable wk ██▏██░░┃░░░░░░░░╎░  12% → 28%        │",
+	}
+	axis := "│  11:12           now                    16:12  │"
+	foot := "╰─ ● ○ ───────────────────────────── 2 sessions ─╯"
+	full := func(chart ...string) []string {
+		return slices.Concat(readout, chart, []string{axis, "│                                                │"}, bars, []string{"│                                                │", foot})
+	}
+	mid := func(chart ...string) []string {
+		return slices.Concat(header, chart, []string{axis}, bars, []string{foot})
+	}
+	compact := func(chart ...string) []string {
+		return slices.Concat([]string{header[0], header[1], header[3]}, chart, bars, []string{foot})
+	}
+	tests := []struct {
+		name    string
+		style   Chart
+		density density
+		want    []string
+	}{
+		{name: "burn rate, full: a 4-row chart and its axis", style: BurnRate, density: densities[0], want: full(
+			"│            ██   ▂  │                           │",
+			"│            ██   █  │                           │",
+			"│   ▇▇   ▄   ██   █  │                           │",
+			"│  ⠄██⠄⠄⠄█⠄⠄⠄██⠄⠄⠄█⠄⠄│⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄  │",
+		)},
+		{name: "burn rate, mid: a 6-row chart and its axis", style: BurnRate, density: densities[1], want: mid(
+			"│            ██      │                           │",
+			"│            ██   ▇  │                           │",
+			"│            ██   █  │                           │",
+			"│   ▆▆   ▁   ██   █  │                           │",
+			"│   ██   █   ██   █  │                           │",
+			"│  ⠂██⠂⠂⠂█⠂⠂⠂██⠂⠂⠂█⠂⠂│⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂⠂  │",
+		)},
+		{name: "burn rate, compact: a 2-row chart, no axis", style: BurnRate, density: densities[len(densities)-1], want: compact(
+			"│            ██   ▅  │                           │",
+			"│  ⠄▇▇⠄⠄⠄▆⠄⠄⠄██⠄⠄⠄█⠄⠄│⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄  │",
+		)},
+		{name: "hourglass, full: 4 rows over its axis", style: Hourglass, density: densities[0], want: full(
+			"│               ▜████████▛                       │",
+			"│                ▝▀▀▜▛▀▀▘                        │",
+			"│                ▗▄▄▟▌▖▄▖                        │",
+			"│               ▝▀▀▀▀▀▀▀▀▘                       │",
+		)},
+		{name: "hourglass, mid: 6 rows over its axis", style: Hourglass, density: densities[1], want: mid(
+			"│             ▜████████████▛                     │",
+			"│              ▝▗▄▄▄▄▄▄▄▄▖▘                      │",
+			"│                ▝▀▀▜▛▀▀▘                        │",
+			"│                ▗▄▄▞▌▖▄▖                        │",
+			"│              ▗▄▄▄▟▟▟▄▄▄▄▖                      │",
+			"│             ▝▀▀▀▀▀▀▀▀▀▀▀▀▘                     │",
+		)},
+		{name: "hourglass, compact: 2 rows, no axis", style: Hourglass, density: densities[len(densities)-1], want: compact(
+			"│                 ▝▀▜▌▀▘                         │",
+			"│                 ▗▄▟▙▖▖                         │",
+		)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike, Chart: tt.style, History: history, Sessions: busy}
+			if got := cardOf(t, f, doc, "work", 50, tt.density); !slices.Equal(got, tt.want) {
+				t.Errorf("drew\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}
+
 func TestACardsStateLeadsWithItsMarkInItsColour(t *testing.T) {
 	tests := []struct {
 		condition status.Condition

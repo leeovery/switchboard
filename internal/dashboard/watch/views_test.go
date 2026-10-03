@@ -7,8 +7,12 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -295,6 +299,186 @@ func TestAFeaturedWindowThatCantBeKeptIsFeaturedAllTheSame(t *testing.T) {
 	if want := []string{"level=WARN", `msg="couldn't keep the window the cards feature"`, "window=5h"}; !log.Has(want...) {
 		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 	}
+}
+
+func TestGCyclesTheChartEveryCardDrawsAndKeepsIt(t *testing.T) {
+	h := newHarness(t, calm())
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 50})
+	h.start()
+
+	for _, step := range []struct {
+		want     dashboard.Chart
+		kept     string
+		glyphs   string
+		describe string
+	}{
+		{want: dashboard.BurnRate, kept: "burn-rate", glyphs: "▃▅ use per 10 min", describe: "now burn rate"},
+		{want: dashboard.Hourglass, kept: "hourglass", glyphs: "▐▌ its recent rate, falling while busy", describe: "now hourglass"},
+		{want: dashboard.Burndown, kept: "", glyphs: "⠂⠄⡀ heading", describe: "now burn-down"},
+	} {
+		h.press("g")
+		if h.model.chart != step.want || prefs.kept.Chart != step.kept {
+			t.Errorf("g drew %q and kept %q, want %q, kept as %q", h.model.chart, prefs.kept.Chart, step.want, step.kept)
+		}
+		if !strings.Contains(h.view(), step.glyphs) {
+			t.Errorf("the screen is\n%s\nwant the key line to explain the %s's glyphs, %q", h.view(), step.want.Name(), step.glyphs)
+		}
+		if g := listedHelp(h.model, "g"); !strings.HasSuffix(g, step.describe) {
+			t.Errorf("the help says g does %q, want it to end %q", g, step.describe)
+		}
+	}
+}
+
+func TestGWorksInTheAccountsViewAlone(t *testing.T) {
+	h := newHarness(t, calm())
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+	h.press("tab")
+
+	if h.press("g"); h.model.chart != dashboard.Burndown || prefs.kept.Chart != "" {
+		t.Errorf("g in Sessions drew %q and kept %q, want the cards' style left as it was, and nothing kept", h.model.chart, prefs.kept.Chart)
+	}
+	if listedHelp(h.model, "g") != "" || strings.Contains(h.footer(), "g chart") {
+		t.Errorf("in Sessions, the help lists g as %q and the footer reads %q, want g in neither", listedHelp(h.model, "g"), h.footer())
+	}
+}
+
+func TestOpensDrawingTheChartKept(t *testing.T) {
+	h := unsizedHarness(t, calm(), Size{Width: 160, Height: 40})
+	h.model = New(t.Context(), Config{
+		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm,
+		Interval: interval, Policy: policy, Size: Size{Width: 160, Height: 40}, Chart: dashboard.Hourglass,
+	})
+	h.start()
+
+	if h.model.chart != dashboard.Hourglass || !strings.Contains(h.view(), "its recent rate, falling while busy") {
+		t.Errorf("drawing %q, the screen is\n%s\nwant the cards' hourglasses the preferences kept", h.model.chart, h.view())
+	}
+}
+
+func TestAChartStyleThatCantBeKeptIsDrawnAllTheSame(t *testing.T) {
+	log := logstest.Capture(t)
+	h := newHarness(t, calm())
+	h.model.cfg.Prefs = &fakePrefs{err: errors.New("keep the preferences: read-only file system")}
+	h.start()
+
+	if h.press("g"); h.model.chart != dashboard.BurnRate {
+		t.Errorf("drawing %q, want burn rate all the same", h.model.chart)
+	}
+	if want := []string{"level=WARN", `msg="couldn't keep the chart style"`, `chart="burn rate"`}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+	}
+}
+
+func TestAnHourglassFallsFrameByFrameWhileItsAccountIsBusy(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, "claude-opus-5-5", "work", 10*time.Second)}
+	h.start()
+	h.settle()
+
+	h.press("g")
+	if _, ok := h.pendingFrame(); ok {
+		t.Fatal("drawing burn rates, a frame is armed, want none, nothing moving")
+	}
+	h.press("g")
+	if _, ok := h.pendingFrame(); !ok {
+		t.Fatal("drawing hourglasses, work busy, no frame is armed, want frames as its sand falls")
+	}
+	before, falling := h.view(), h.clock.now
+	for h.view() == before {
+		tm, ok := h.pendingFrame()
+		if !ok || h.clock.now.After(falling.Add(time.Second)) {
+			t.Fatalf("a second on, the screen is as it was\n%s\nwant work's stream fallen a grain, frame by frame", before)
+		}
+		h.fire(tm)
+	}
+
+	h.clock.now = start.Add(2 * time.Minute)
+	h.deliver(frameMsg{})
+	if h.model.framing {
+		t.Error("work idle a minute and more, the frames go on, want them to stop, its stream still")
+	}
+}
+
+func TestFallingSandIsDrawnAGrainAtATimeAndWhatMovesSmoothlyAtOnce(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, "claude-opus-5-5", "work", 10*time.Second)}
+	h.start()
+	h.settle()
+	h.clock.now = start.Add(2*time.Second + 40*time.Millisecond)
+	h.press("g")
+	h.press("g")
+
+	if frames := h.pendingFrames(); len(frames) != 1 || frames[0].delay != dashboard.FallStep-40*time.Millisecond {
+		t.Fatalf("with work's sand falling alone, %d frames are armed, the next %v on; want one, %v on, as its stream next falls a grain", len(frames), frames[0].delay, dashboard.FallStep-40*time.Millisecond)
+	}
+
+	moved := routerDocument(three()...)
+	moved.Accounts[1].Windows[0].Utilization = 0.3
+	h.startRouter(moved)
+	h.deliver(h.press("r")...)
+	if frames := h.pendingFrames(); len(frames) != 2 || frames[0].delay != frameEvery {
+		t.Fatalf("as personal's bar starts to ease, %d frames are armed, the soonest after %v; want one at once, %v on, beside the sand's", len(frames), frames[0].delay, frameEvery)
+	}
+
+	h.framesUntil(h.clock.now.Add(easeFor + time.Second))
+	if frames := h.pendingFrames(); len(frames) != 1 || frames[0].delay > dashboard.FallStep {
+		t.Errorf("the bar eased, %d frames are armed, want one, at the sand's pace again, the frame armed before the bar moved dropped", len(frames))
+	}
+}
+
+func TestAnHourglassFallsAsLongAsTheStreamSaysItsAccountIsBusy(t *testing.T) {
+	g, right := tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: tea.KeyRight}
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 9*time.Minute)}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	h.settle()
+	h.keys(g, g, right, right, spaceKey)
+	if _, ok := h.pendingFrame(); ok || h.opened() != 1 {
+		t.Fatalf("personal's card flipped, the stream opened %d times, a frame armed %v; want it open, and none armed, d28c idle on work as listed", h.opened(), ok)
+	}
+
+	h.hear(told(router.StreamSent, "r1", "work", 0))
+	if _, ok := h.pendingFrame(); !ok {
+		t.Fatal("as d28c's request goes out on work, no frame is armed, want work's sand falling")
+	}
+	h.hear(alter(told(router.StreamDone, "r1", "work", 3*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
+	h.framesUntil(past(62 * time.Second))
+	if !h.model.framing {
+		t.Error("a minute after the stream last told of d28c, work's sand stopped, want it falling till a minute has passed")
+	}
+	h.framesUntil(past(70 * time.Second))
+	if h.model.framing || len(h.pendingFrames()) > 0 {
+		t.Error("over a minute since the stream told of d28c, frames still run, want work's sand still, its account idle")
+	}
+}
+
+func TestAnHourglassOfAnIdleAccountDrawsNoFrames(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.source.sessions = []status.Session{sessionOn(id7F3A, "claude-haiku-4-5", "work", 9*time.Minute)}
+	h.start()
+	h.settle()
+
+	h.press("g")
+	h.press("g")
+	if _, ok := h.pendingFrame(); ok {
+		t.Error("drawing hourglasses, no account busy, a frame is armed, want none, every stream still")
+	}
+}
+
+// listedHelp is what the help says the key does, as m stands: "" where it
+// doesn't list it.
+func listedHelp(m Model, key string) string {
+	for _, k := range m.helpKeys() {
+		if k.Key == key {
+			return k.Does
+		}
+	}
+	return ""
 }
 
 // fakePrefs keeps the preferences each update makes of them, or fails to with
