@@ -14,6 +14,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -55,7 +56,9 @@ type proxy struct {
 	chooser        Chooser
 	health         *health
 	emit           func(Event)
-	now            func() time.Time
+	// stream tells of what befalls each routed request as it happens.
+	stream *stream
+	now    func() time.Time
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger
@@ -72,7 +75,8 @@ type exchange struct {
 	req     Request
 	account account
 	reason  string
-	// id ties a routed request's log lines together.
+	// id is a routed request's own while it runs, which ties its lines in the
+	// log together, and its events in the request stream.
 	id      string
 	started time.Time
 	// arrived is when a routed request arrived, by the router's clock.
@@ -90,6 +94,9 @@ type exchange struct {
 	// spends is set when a routed request spends its account's quota, as the
 	// provider says of its path.
 	spends bool
+	// tap is the answer a routed request's client has, counted for the
+	// request stream as it passes: nil while it has none.
+	tap *tap
 }
 
 func (ex *exchange) routed() bool {
@@ -147,18 +154,22 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		return
 	}
 	ex.account, ex.reason = p.chosen(ex, choice, client)
+	p.moved(ex, choice.From)
 	p.forward(w, withBody(r, body), ex)
 }
 
 // request is what the chooser is to know of a routed request, whose body is
 // body, sent by client's token: its session, its model and whether the
-// model's thinking is bound to its account, and its pin.
+// model's thinking is bound to its account, whether it's the client's quota
+// check, and its pin.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) Request {
-	model, session := p.provider.Model(body), p.provider.Session(r.Header)
+	model, check := p.provider.Asks(body)
+	session := p.provider.Session(r.Header)
 	return Request{
 		ID:      ex.id,
 		Session: session,
 		Model:   model,
+		Check:   check,
 		Bound:   p.provider.ThinkingBound(model),
 		Pin:     p.pin(r, ex, session),
 		Client:  client.ID,
@@ -268,19 +279,32 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 }
 
 // next asks the chooser which account a request goes out on after those it
-// has been tried on, and why. It reports false when none other has room for
-// it.
-func (p *proxy) next(ctx context.Context, req Request) (account, string, bool) {
+// has been tried on, and returns it with the choice, which says why. It
+// reports false when none other has room for it.
+func (p *proxy) next(ctx context.Context, req Request) (account, Choice, bool) {
 	choice := p.chooser.Choose(ctx, req)
 	a, ok := p.accounts.byID(choice.Account)
 	if _, tried := req.attempt(a.ID); choice.NoRoom || !ok || !a.hasToken() || tried {
-		return account{}, "", false
+		return account{}, Choice{}, false
 	}
-	return a, choice.Reason, true
+	return a, choice, true
+}
+
+// moved tells the request stream of the move of a routed request's session
+// from the account given to the one the request now goes out on, as the
+// chooser made it choosing that account: none when from is "".
+func (p *proxy) moved(ex *exchange, from string) {
+	if from == "" {
+		return
+	}
+	e := ex.event(StreamMoved)
+	e.From, e.To, e.Reason = from, ex.account.ID, ex.reason
+	p.stream.publish(e)
 }
 
 // forward sends a request upstream and its answer back, for ex: a routed one
-// as its replay has it.
+// as its replay has it, its answer counted for the request stream as it
+// passes.
 func (p *proxy) forward(w http.ResponseWriter, r *http.Request, ex *exchange) {
 	transport := p.transport
 	if ex.routed() {
@@ -293,6 +317,9 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request, ex *exchange) {
 		ErrorLog:      p.errorLog,
 		ModifyResponse: func(resp *http.Response) error {
 			ex.status = resp.StatusCode
+			if ex.routed() {
+				p.count(ex, resp)
+			}
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) { p.fail(w, r, ex, err) },
@@ -364,12 +391,14 @@ func (ex *exchange) identity(r *http.Request) []any {
 	return []any{"method", r.Method, "path", r.URL.Path}
 }
 
-// done notes a routed request once it's done: in the log, and, once it was
-// answered, in the router's health. A new session is remembered once its
-// request is answered with success, and told of as started; one whose request
-// wasn't, the chooser forgets.
+// done notes a routed request once it's done: in the log, in the request
+// stream, once it went upstream, and, once it was answered, in the router's
+// health. A new session is remembered once its request is answered with
+// success, and told of as started; one whose request wasn't, the chooser
+// forgets.
 func (p *proxy) done(r *http.Request, ex *exchange) {
 	p.logRouted(r, ex)
+	p.ended(ex)
 	switch {
 	case !ex.newSession:
 	case ex.succeeded():
@@ -379,6 +408,36 @@ func (p *proxy) done(r *http.Request, ex *exchange) {
 	}
 	if ex.status != 0 {
 		p.health.record(ex.arrived, ex.failed)
+	}
+}
+
+// ended tells the request stream of a routed request that went upstream
+// being done, with what its client was answered: once its answer is counted,
+// when it has one.
+func (p *proxy) ended(ex *exchange) {
+	if ex.attempts == 0 {
+		return
+	}
+	done := ex.event(StreamDone)
+	done.Status = ex.status
+	if ex.tap != nil {
+		ex.tap.end(done)
+		return
+	}
+	p.stream.publish(done)
+}
+
+// event returns the request stream's event of the kind given of a routed
+// request, as it stands.
+func (ex *exchange) event(kind string) StreamEvent {
+	return StreamEvent{
+		Kind:    kind,
+		Request: ex.id,
+		Attempt: ex.attempts,
+		Session: ex.req.Session,
+		Model:   ex.req.Model,
+		Account: ex.account.ID,
+		Check:   ex.req.Check,
 	}
 }
 
@@ -446,7 +505,17 @@ func withBody(r *http.Request, body []byte) *http.Request {
 	return r
 }
 
-// newID returns a short id to tie a request's log lines together.
+// lastID is the number the last routed request's id was made from: each
+// takes the next, from a random start, so a request's id is its own while the
+// router runs, and unlike those of the runs before it.
+var lastID atomic.Uint32
+
+func init() {
+	lastID.Store(rand.Uint32())
+}
+
+// newID returns a routed request's id, which ties its lines in the log
+// together, and its events in the request stream.
 func newID() string {
-	return fmt.Sprintf("%08x", rand.Uint32())
+	return fmt.Sprintf("%08x", lastID.Add(1))
 }

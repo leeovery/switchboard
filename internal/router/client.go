@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -31,6 +32,10 @@ var (
 	// be asked for a window's history: one from before GET /history doesn't
 	// know the path.
 	ErrNoHistory = errors.New("the router can't be asked for a window's history")
+	// ErrNoStream is what Stream fails with, wrapped, when the router can't
+	// be asked for its request stream: one from before GET /stream doesn't
+	// know the path.
+	ErrNoStream = errors.New("the router can't be asked for its request stream")
 )
 
 const (
@@ -205,30 +210,105 @@ func (c *Client) History(ctx context.Context, window string, step time.Duration)
 	return h, nil
 }
 
+// Stream opens the router's request stream, and returns what befalls each
+// routed request as it happens, starting with each request in flight as it
+// opens, until ctx ends or the router ends the stream, as it does for a
+// reader that falls behind, and as it stops: then the channel closes. Read it
+// until it does, or end ctx. Stream waits a few seconds at most for the router
+// to answer, and fails with ErrNoStream, wrapped, when it can't be asked for
+// its stream, as a router from before GET /stream can't.
+func (c *Client) Stream(ctx context.Context) (<-chan StreamEvent, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	resp, err := c.openStream(ctx, cancel)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	events := make(chan StreamEvent)
+	go func() {
+		defer cancel()
+		defer close(events)
+		defer func() { _ = resp.Body.Close() }()
+		readStream(ctx, resp.Body, events)
+	}()
+	return events, nil
+}
+
+// openStream asks the router for its request stream, which runs as long as
+// ctx does, giving up, by cancel, should it not answer within clientTimeout.
+func (c *Client) openStream(ctx context.Context, cancel context.CancelFunc) (*http.Response, error) {
+	answering := time.AfterFunc(clientTimeout, cancel)
+	resp, err := c.send(ctx, http.MethodGet, "/stream", nil)
+	if !answering.Stop() {
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		return nil, fmt.Errorf("ask the router: no answer within %v", clientTimeout)
+	}
+	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason == "" {
+		return nil, fmt.Errorf("%w: %w", ErrNoStream, err)
+	}
+	return resp, err
+}
+
+// readStream reads the events of the request stream from body, a line of JSON
+// each, and hands each on to events, until the stream ends, or holds a line
+// that isn't an event, or ctx ends.
+func readStream(ctx context.Context, body io.Reader, events chan<- StreamEvent) {
+	lines := bufio.NewScanner(body)
+	lines.Buffer(nil, maxControlBody)
+	for lines.Scan() {
+		var e StreamEvent
+		if err := json.Unmarshal(lines.Bytes(), &e); err != nil {
+			logger.Debug("the router's request stream held a line that isn't an event; leaving it", "error", err)
+			return
+		}
+		select {
+		case events <- e:
+		case <-ctx.Done():
+			return
+		}
+	}
+	if err := lines.Err(); err != nil && ctx.Err() == nil {
+		logger.Debug("the router's request stream broke off", "error", err)
+	}
+}
+
 // call sends the router a request for path, with body as JSON unless it's
 // nil, and decodes its answer into answer, giving up once timeout has passed.
 func (c *Client) call(ctx context.Context, timeout time.Duration, method, path string, body, answer any) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	req, err := newControlRequest(ctx, method, path, body)
+	resp, err := c.send(ctx, method, path, body)
 	if err != nil {
 		return err
 	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		if isDial(err) {
-			return fmt.Errorf("%w: %w", ErrNotRunning, err)
-		}
-		return fmt.Errorf("ask the router: %w", err)
-	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return refused(resp, method, path)
-	}
 	if err := json.NewDecoder(resp.Body).Decode(answer); err != nil {
 		return fmt.Errorf("read the router's answer to %s %s: %w", method, path, err)
 	}
 	return nil
+}
+
+// send sends the router a request for path, with body as JSON unless it's
+// nil, and returns its answer, which it fails unless it's 200.
+func (c *Client) send(ctx context.Context, method, path string, body any) (*http.Response, error) {
+	req, err := newControlRequest(ctx, method, path, body)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		if isDial(err) {
+			return nil, fmt.Errorf("%w: %w", ErrNotRunning, err)
+		}
+		return nil, fmt.Errorf("ask the router: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		defer func() { _ = resp.Body.Close() }()
+		return nil, refused(resp, method, path)
+	}
+	return resp, nil
 }
 
 func newControlRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {

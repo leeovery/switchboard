@@ -36,9 +36,11 @@ type Provider interface {
 	// Session returns the id of the session a request belongs to, or "" when
 	// it doesn't say.
 	Session(h http.Header) string
-	// Model returns the model a request's body asks for, or "" when it doesn't
-	// say.
-	Model(body []byte) string
+	// Asks reads a request's body for the model it asks for, or "" when it
+	// doesn't say, and whether it's the client's quota check: a request that
+	// asks nothing of the model, but spends a token to see the account has
+	// quota.
+	Asks(body []byte) (model string, check bool)
 	// Family returns the family a model belongs to. A window reported on a
 	// response to one of a family's models counts all of theirs.
 	Family(model string) string
@@ -61,6 +63,12 @@ type Provider interface {
 	// with token and anything else shaped like one hidden, or "" when it
 	// holds none.
 	ErrorMessage(body io.Reader, token string) string
+	// Count reads an answer's body, decoded, as far as it needs, by its
+	// content type, calling chars with how many characters of text, thinking
+	// and tools' input it has streamed so far as each part of them comes. It
+	// returns the tokens the answer's closing usage gives, reporting false
+	// when none came, as for an answer cut short.
+	Count(contentType string, body io.Reader, chars func(int)) (quota.Tokens, bool)
 }
 
 // Prober reads an account's usage by spending requests on its token, and
@@ -167,9 +175,10 @@ func (c Config) notifying() bool {
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
-// the router's own health, what has happened lately, the control API that
-// reports on it all, the desktop notifications of what befalls the accounts,
-// and its upkeep, which keeps it in step with what it was started from.
+// the router's own health, what has happened lately, the request stream of
+// what befalls each request as it happens, the control API that reports on it
+// all, the desktop notifications of what befalls the accounts, and its
+// upkeep, which keeps it in step with what it was started from.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
@@ -178,6 +187,9 @@ type Router struct {
 	sessions *sessions
 	// recent keeps the router's newest events.
 	recent *recent
+	// stream tells its readers of what befalls each routed request as it
+	// happens.
+	stream *stream
 	// file keeps what should outlast the router, once Run has loaded it.
 	file *stateFile
 	// history keeps each account's readings as they change, once Run has
@@ -228,6 +240,7 @@ func New(cfg Config) (*Router, error) {
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
+	stream := newStream(cfg.Now)
 	transport := newPool()
 	awake := &wakes{now: clock, woke: func() {
 		transport.renew()
@@ -240,6 +253,7 @@ func New(cfg Config) (*Router, error) {
 		state:    state,
 		sessions: sessions,
 		recent:   recent,
+		stream:   stream,
 		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
 		history:  history,
 		probes:   probes,
@@ -255,6 +269,7 @@ func New(cfg Config) (*Router, error) {
 			chooser:        scheduler,
 			health:         health,
 			emit:           emit,
+			stream:         stream,
 			now:            cfg.Now,
 			errorLog:       logs.StdLogger("router", slog.LevelWarn),
 		},

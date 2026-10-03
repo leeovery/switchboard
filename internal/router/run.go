@@ -178,6 +178,10 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 		held = r.hold(ls)
 	}
 	logger.Info("stopping")
+	// The request stream's readers go first, rather than wait on a router
+	// that's going while its requests finish: they reconnect to the router
+	// that comes next.
+	r.stream.close()
 	stopLooking()
 	looked.Wait()
 	r.probes.stop()

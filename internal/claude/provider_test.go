@@ -62,23 +62,63 @@ func TestProviderSession(t *testing.T) {
 	}
 }
 
-func TestProviderModel(t *testing.T) {
+func TestProviderAsks(t *testing.T) {
 	tests := []struct {
-		name string
-		body string
-		want string
+		name      string
+		body      string
+		wantModel string
+		wantCheck bool
 	}{
-		{name: "leading the body", body: `{"model":"claude-opus-5-5","max_tokens":1,"messages":[]}`, want: "claude-opus-5-5"},
-		{name: "after the rest", body: `{"messages":[{"role":"user","content":"model"}],"model":"claude-haiku-4-5-20251001"}`, want: "claude-haiku-4-5-20251001"},
-		{name: "missing", body: `{"messages":[]}`, want: ""},
-		{name: "not a string", body: `{"model":7}`, want: ""},
-		{name: "not JSON", body: `model=claude-opus-5-5`, want: ""},
-		{name: "empty", body: ``, want: ""},
+		{name: "a model leading the body", body: `{"model":"claude-opus-5-5","max_tokens":32000,"messages":[]}`, wantModel: "claude-opus-5-5"},
+		{name: "a model after the rest", body: `{"messages":[{"role":"user","content":"model"}],"model":"claude-haiku-4-5-20251001"}`, wantModel: "claude-haiku-4-5-20251001"},
+		{name: "no model", body: `{"messages":[]}`},
+		{name: "a model that isn't a string", body: `{"model":7}`},
+		{name: "a model beside tokens that aren't a number", body: `{"model":"claude-opus-5-5","max_tokens":"lots"}`, wantModel: "claude-opus-5-5"},
+		{name: "a body that isn't JSON", body: `model=claude-opus-5-5`},
+		{name: "an empty body", body: ``},
+		{
+			name:      "the quota check",
+			body:      `{"model":"claude-opus-5-5","max_tokens":1,"messages":[{"role":"user","content":"quota"}],"metadata":{"user_id":"user_test"}}`,
+			wantModel: "claude-opus-5-5",
+			wantCheck: true,
+		},
+		{
+			name:      "the quota check asking in a block of text",
+			body:      `{"messages":[{"role":"user","content":[{"type":"text","text":"quota"}]}],"max_tokens" : 1,"model":"claude-haiku-4-5-20251001"}`,
+			wantModel: "claude-haiku-4-5-20251001",
+			wantCheck: true,
+		},
+		{
+			name:      "quota asked with room to answer",
+			body:      `{"model":"claude-opus-5-5","max_tokens":2,"messages":[{"role":"user","content":"quota"}]}`,
+			wantModel: "claude-opus-5-5",
+		},
+		{
+			name:      "a token asked for something else",
+			body:      `{"model":"claude-opus-5-5","max_tokens":1,"messages":[{"role":"user","content":"quotas"}]}`,
+			wantModel: "claude-opus-5-5",
+		},
+		{
+			name:      "quota asked after another message",
+			body:      `{"model":"claude-opus-5-5","max_tokens":1,"messages":[{"role":"user","content":"hello"},{"role":"user","content":"quota"}]}`,
+			wantModel: "claude-opus-5-5",
+		},
+		{
+			name:      "quota asked beside another block",
+			body:      `{"model":"claude-opus-5-5","max_tokens":1,"messages":[{"role":"user","content":[{"type":"text","text":"quota"},{"type":"text","text":"now"}]}]}`,
+			wantModel: "claude-opus-5-5",
+		},
+		{
+			name:      "a block that isn't text",
+			body:      `{"model":"claude-opus-5-5","max_tokens":1,"messages":[{"role":"user","content":[{"type":"image","text":"quota"}]}]}`,
+			wantModel: "claude-opus-5-5",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := (claude.Provider{}).Model([]byte(tt.body)); got != tt.want {
-				t.Errorf("Model(%s) = %q, want %q", tt.body, got, tt.want)
+			model, check := (claude.Provider{}).Asks([]byte(tt.body))
+			if model != tt.wantModel || check != tt.wantCheck {
+				t.Errorf("Asks(%s) = %q, %v, want %q, %v", tt.body, model, check, tt.wantModel, tt.wantCheck)
 			}
 		})
 	}

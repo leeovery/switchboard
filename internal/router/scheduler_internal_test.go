@@ -510,6 +510,59 @@ func TestAChoiceLeavesTheAssignmentAnotherRequestMadeSinceItLooked(t *testing.T)
 	}
 }
 
+func TestTheQuotaCheckIsChosenForButNeverRemembered(t *testing.T) {
+	tests := []struct {
+		name string
+		// assigned is the account the session is on before its check, "" for
+		// none, as for a new session.
+		assigned string
+	}{
+		{name: "of a new session"},
+		{name: "of a session whose account has no room", assigned: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var heard []Event
+			r, err := New(Config{
+				Accounts: testConfigured,
+				Token:    testTokens.Read,
+				Upstream: "http://127.0.0.1:1",
+				Provider: claude.Provider{},
+				Prober:   &stubProber{},
+				Policy:   testPolicy,
+				Now:      at(start),
+				Events:   func(e Event) { heard = append(heard, e) },
+			})
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			// Work has no room in its session; side has, and its quota needs
+			// using soon.
+			full := session
+			full.Utilization = 1
+			r.state.record("work", []quota.Window{full, laterWeek}, r.state.mark())
+			r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+			k := key{session: "one", model: opus}
+			if tt.assigned != "" {
+				assign(r.sessions, k, "", decision{account: tt.assigned, reason: reasonNew}, start.Add(-time.Minute))
+			}
+			before := r.sessions.lookup(k)
+
+			got := choose(t.Context(), r, Request{ID: "check", Session: "one", Model: opus, Check: true, Client: "work"})
+			if got.Account != "side" || got.New || got.From != "" {
+				t.Errorf("Choose() = %+v, want side, the session neither new to it nor moved there", got)
+			}
+			if after := r.sessions.lookup(k); after.current != before.current || after.assigned != before.assigned {
+				t.Errorf("the session is assigned %+v (%v), want %+v (%v), as before its check: the check is never remembered",
+					after.current, after.assigned, before.current, before.assigned)
+			}
+			if len(heard) > 0 {
+				t.Errorf("events = %+v, want none: the check moves no session", heard)
+			}
+		})
+	}
+}
+
 func TestMovesAreLogged(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newTestRouter(t, at(start), &stubProber{})

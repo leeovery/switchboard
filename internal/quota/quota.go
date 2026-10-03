@@ -1,6 +1,7 @@
 // Package quota is the provider-neutral usage model: the windows an account's
 // quota is measured over, the ones a provider expected to read but couldn't,
-// and what a response says of the account it came from.
+// what a response says of the account it came from, and the tokens an answer
+// counted.
 package quota
 
 import (
@@ -119,6 +120,16 @@ type Outcome struct {
 	// LimitedUntil is when an account whose limit is reached has room again,
 	// as far as the response says, or zero when it doesn't say.
 	LimitedUntil time.Time
+}
+
+// Tokens are the tokens an answer counted, as its closing usage gives them:
+// the input it read afresh, the output it wrote, and the input it read from
+// the prompt cache, and wrote to it.
+type Tokens struct {
+	Input      int `json:"input"`
+	Output     int `json:"output"`
+	CacheRead  int `json:"cache_read"`
+	CacheWrite int `json:"cache_write"`
 }
 
 var lengthPattern = regexp.MustCompile(`^([1-9][0-9]*)([hd])(?:_|$)`)

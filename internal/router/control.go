@@ -147,7 +147,9 @@ type problem struct {
 // asks, and those that can take no request anyway, each of the three
 // answering with the status document as it leaves it. GET /history gives
 // every account's use of a window over its current length, a point each step
-// asked, from the readings history and the readings since. POST /restart
+// asked, from the readings history and the readings since. GET /stream tells
+// of what befalls each routed request as it happens, held open, a line of
+// JSON an event, starting with the requests in flight. POST /restart
 // restarts the router at once, as it restarts itself but for waiting for a
 // moment with no request in flight, answering, before it goes, as GET /health
 // does, and whether it means to restart in place; it refuses, saying why, when
@@ -228,6 +230,7 @@ func (r *Router) Control() http.Handler {
 		}
 		writeJSON(w, r.windowHistory(asked))
 	})
+	mux.HandleFunc("GET /stream", r.serveStream)
 	return mux
 }
 

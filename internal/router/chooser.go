@@ -14,7 +14,8 @@ type Chooser interface {
 	// account it could fall back to is held back by its reserve alone,
 	// which the router never spends, or the request has been tried already.
 	// A session is remembered on the account picked, and on none when none
-	// is.
+	// is, but for the client's quota check, which no session is remembered
+	// for.
 	Choose(ctx context.Context, req Request) Choice
 	// Forget takes back the accounts chosen for req, as they came to nothing:
 	// its session's assignment for the request's model goes back to what it
@@ -36,6 +37,11 @@ type Request struct {
 	Session string
 	// Model is the model the request asks for, or "" when it doesn't say.
 	Model string
+	// Check is set when the request is the client's quota check, which asks
+	// nothing of the model: it goes where it's chosen to go, but its session
+	// is never remembered for it, so it neither starts the session nor moves
+	// it.
+	Check bool
 	// Bound is set when the model's thinking is bound to the account that
 	// produced it: moving the session loses its reasoning, so it stays on its
 	// account, cache cold or not, while the account can serve it.
@@ -97,4 +103,8 @@ type Choice struct {
 	// for the request's model: the session is new, and is remembered once the
 	// request is answered, as Chooser's Forget says.
 	New bool
+	// From is the account the choice moved the request's session from, for
+	// its requests of the request's model, as Moved tells of it: "" when it
+	// didn't move it.
+	From string
 }

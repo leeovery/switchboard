@@ -46,8 +46,8 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 		notePressure(req, d)
 	}
 	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
-	if req.Session != "" && d.account != "" {
-		c.New = s.remember(on, d)
+	if req.Session != "" && d.account != "" && !req.Check {
+		c.New, c.From = s.remember(on, d)
 	}
 	return c
 }
@@ -114,8 +114,9 @@ func (s *scheduler) recheck(ctx context.Context, req Request) bool {
 // in the situation on, and logs and tells of a move. Should another request
 // of the session have moved it since, the newer assignment stands, and the
 // log says so: the request goes where d says all the same. It reports whether
-// it gave the session its first account for the request's model.
-func (s *scheduler) remember(on situation, d decision) (first bool) {
+// it gave the session its first account for the request's model, and returns
+// the account it moved the session from, "" when it didn't move it.
+func (s *scheduler) remember(on situation, d decision) (first bool, from string) {
 	req, now := on.req, s.now()
 	found, noted := s.sessions.remember(req, on.current, d, now)
 	switch {
@@ -127,6 +128,7 @@ func (s *scheduler) remember(on situation, d decision) (first bool) {
 			"from", found.Account, "to", d.account, "reason", d.reason)
 		s.emit(Moved{Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason,
 			Forced: !s.view(req, now).room(found.Account)})
+		from = found.Account
 	}
-	return noted && !on.assigned
+	return noted && !on.assigned, from
 }

@@ -621,6 +621,9 @@ func TestClientWithoutARouter(t *testing.T) {
 			if _, err := client.History(t.Context(), "5h", 5*time.Minute); !errors.Is(err, router.ErrNotRunning) || errors.Is(err, router.ErrNoHistory) {
 				t.Errorf("History() error = %v, want ErrNotRunning, and not ErrNoHistory", err)
 			}
+			if _, err := client.Stream(t.Context()); !errors.Is(err, router.ErrNotRunning) || errors.Is(err, router.ErrNoStream) {
+				t.Errorf("Stream() error = %v, want ErrNotRunning, and not ErrNoStream", err)
+			}
 		})
 	}
 }

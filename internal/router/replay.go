@@ -110,6 +110,7 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	rp.sent = ex.account.token()
 	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
 	rp.when = rp.p.state.mark()
+	rp.p.stream.publish(ex.event(StreamSent))
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
 		return nil, err
@@ -142,6 +143,16 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response) (*http.Respon
 	default:
 		return resp, false, nil
 	}
+}
+
+// tell tells the request stream of an answer, with status, that the router
+// has judged to hold against the account the request went out on, as kind
+// says: its limit reached, its throttling, or a refusal. An answer the router
+// takes as the client's is told of as the client has it.
+func (rp *replay) tell(kind string, status int) {
+	e := rp.ex.event(kind)
+	e.Status = status
+	rp.p.stream.publish(e)
 }
 
 // tokenRefused has the request go out again on its account when the
@@ -187,12 +198,12 @@ func (rp *replay) renewed() bool {
 
 // limitReached bars an account whose limit the request reached in the
 // windows rejected, if any, until when the answer says, from the requests
-// those windows count, and moves on from it, when another account can take
-// the request, holding the answer back. When none can, the answer is the
-// client's. A limit reached only in windows reset by hand since the request
-// was sent, as the state's limit says, is no limit: the request goes out
-// again on the account, after the reset, where the answer is the account's
-// as it now stands.
+// those windows count, tells the request stream of it, and moves on from it,
+// when another account can take the request, holding the answer back. When
+// none can, the answer is the client's. A limit reached only in windows reset
+// by hand since the request was sent, as the state's limit says, is no limit:
+// the request goes out again on the account, after the reset, where the
+// answer is the account's as it now stands.
 func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejected []string, until time.Time) (*http.Response, bool, error) {
 	reached, ok := rp.p.state.limit(rp.ex.account.ID, rejected, until, rp.when)
 	if !ok {
@@ -201,6 +212,7 @@ func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejecte
 		rp.replaying(reached.Account, whyReset)
 		return nil, true, nil
 	}
+	rp.tell(StreamLimited, resp.StatusCode)
 	news := "limit reached"
 	if reached.Again {
 		news = "limit reached again"
@@ -227,11 +239,13 @@ func (rp *replay) holdBack(account string, resp *http.Response) {
 	}
 }
 
-// throttle waits, and has the request sent again on its account, while it has
-// been throttled there no more than throttleRetries times; after that, the
-// answer is the client's. The wait is the one the upstream asks for, within
-// reason, and ends early, failing, should the client go.
+// throttle tells the request stream of the throttling, and waits, and has the
+// request sent again on its account, while it has been throttled there no
+// more than throttleRetries times; after that, the answer is the client's.
+// The wait is the one the upstream asks for, within reason, and ends early,
+// failing, should the client go.
 func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter time.Duration) (*http.Response, bool, error) {
+	rp.tell(StreamThrottled, resp.StatusCode)
 	id := rp.ex.account.ID
 	if rp.throttled >= throttleRetries {
 		logger.Warn("still throttled; passing the answer on", "id", rp.ex.id, "account", id, "attempts", rp.ex.attempts)
@@ -249,11 +263,12 @@ func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter 
 }
 
 // refused bars an account that refused the request for a while, as bar
-// does, and moves on from it when another account can take the request. When
-// none can, the client has the answer of the first account whose limit the
-// request reached, as that's why no account was left, else a refusal, giving
-// the upstream's reason.
+// does, tells the request stream of the refusal, and moves on from the
+// account when another can take the request. When none can, the client has
+// the answer of the first account whose limit the request reached, as that's
+// why no account was left, else a refusal, giving the upstream's reason.
 func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quota.Verdict) (*http.Response, bool, error) {
+	rp.tell(StreamRefused, resp.StatusCode)
 	reason := prose.Truncate(rp.p.provider.ErrorMessage(resp.Body, rp.sent.Reveal()), refusalShown)
 	discard(resp)
 	rp.p.emit(rp.bar(verdict, resp.StatusCode, reason))
@@ -310,14 +325,15 @@ func (rp *replay) moveOn(ctx context.Context, why string) bool {
 	ex := rp.ex
 	from := ex.account.ID
 	ex.req.Tried = append(ex.req.Tried, Attempt{Account: from, Why: why})
-	to, reason, ok := rp.p.next(ctx, ex.req)
+	to, choice, ok := rp.p.next(ctx, ex.req)
 	if !ok {
 		logger.Warn("no account left to try", "id", ex.id, "attempts", ex.attempts)
 		return false
 	}
-	ex.account, ex.reason = to, reason
+	ex.account, ex.reason = to, choice.Reason
 	rp.throttled, rp.reread = 0, false
 	rp.replaying(from, why)
+	rp.p.moved(ex, choice.From)
 	return true
 }
 
