@@ -46,7 +46,7 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 		notePressure(req, d)
 	}
 	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
-	if req.Session != "" && d.account != "" {
+	if req.Session != "" && d.account != "" && !req.Check {
 		c.New, c.From = s.remember(on, d)
 	}
 	return c

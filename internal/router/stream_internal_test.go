@@ -12,7 +12,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/iotest"
 	"testing/synctest"
@@ -21,6 +23,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
@@ -128,6 +131,75 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestTheRequestStreamTellsOfNoLimitFromBeforeAResetMadeByHand(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newTestRouter(t, at(start), &stubProber{})
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+		// Work answers the request late, rejected in its session, which the
+		// answer to a request sent after it read reset by hand meanwhile.
+		reset := session
+		reset.Utilization = 0.02
+		late := func(req *http.Request) *http.Response {
+			r.state.record("work", []quota.Window{reset, laterWeek}, r.state.mark())
+			return sessionRejected(req)
+		}
+		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: {late, served}}}
+		reader := joined(t, r)
+
+		routeAsking(t.Context(), r, "one", opusAsked)
+		got := heard(reader)
+		if len(got) == 0 {
+			t.Fatal("the stream told of nothing, want the request")
+		}
+		request := StreamEvent{At: start, Request: got[0].Request, Session: "one", Model: opus, Account: "work"}
+		want := []StreamEvent{
+			told(request, StreamSent, 1, 0), told(request, StreamSent, 2, 0),
+			told(request, StreamFirst, 2, 0), told(request, StreamDone, 2, http.StatusOK),
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("the stream told of\n%s\nwant\n%s: the 429 from before the reset is no limit", lines(got), lines(want))
+		}
+	})
+}
+
+func TestTheRequestStreamTellsOfNoRefusalOfATokenReplacedSince(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const replacement = "test-token-work-replaced"
+		var replaced atomic.Bool
+		read := func(id string) (tokens.Token, error) {
+			if id == "work" && replaced.Load() {
+				return tokens.Parse(replacement)
+			}
+			return testTokens.Read(id)
+		}
+		r := newTestRouterReading(t, at(start), &stubProber{}, read)
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+		// Work's token is replaced in its file, then refused.
+		refusedOnceReplaced := func(req *http.Request) *http.Response {
+			replaced.Store(true)
+			return unauthorized(req)
+		}
+		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: {refusedOnceReplaced}, replacement: {served}}}
+		reader := joined(t, r)
+
+		routeAsking(t.Context(), r, "one", opusAsked)
+		got := heard(reader)
+		if len(got) == 0 {
+			t.Fatal("the stream told of nothing, want the request")
+		}
+		request := StreamEvent{At: start, Request: got[0].Request, Session: "one", Model: opus, Account: "work"}
+		want := []StreamEvent{
+			told(request, StreamSent, 1, 0), told(request, StreamSent, 2, 0),
+			told(request, StreamFirst, 2, 0), told(request, StreamDone, 2, http.StatusOK),
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("the stream told of\n%s\nwant\n%s: the 401 of the token replaced is no refusal of the account", lines(got), lines(want))
+		}
+	})
 }
 
 func TestTheQuotaCheckStartsNoSession(t *testing.T) {
@@ -435,6 +507,25 @@ func (p *paced) Read(b []byte) (int, error) {
 // unauthorized answers with a 401, refusing the account's token.
 func unauthorized(r *http.Request) *http.Response {
 	return respond(r, http.StatusUnauthorized, http.Header{}, `{"type":"error","error":{"type":"authentication_error","message":"invalid bearer token"}}`)
+}
+
+// sessionRejected answers with a 429 rejecting the request in the session
+// window, at its limit, which resets as session does.
+func sessionRejected(r *http.Request) *http.Response {
+	h := http.Header{
+		"Anthropic-Ratelimit-Unified-Status":         {"rejected"},
+		"Anthropic-Ratelimit-Unified-5h-Utilization": {"1"},
+		"Anthropic-Ratelimit-Unified-5h-Reset":       {strconv.FormatInt(session.ResetsAt.Unix(), 10)},
+		"Anthropic-Ratelimit-Unified-5h-Status":      {"rejected"},
+	}
+	return respond(r, http.StatusTooManyRequests, h, `{"type":"error","error":{"type":"rate_limit_error","message":"You've hit your limit"}}`)
+}
+
+// told is the event of the kind given, at the attempt given, telling of
+// request, with status, zero for none.
+func told(request StreamEvent, kind string, attempt, status int) StreamEvent {
+	request.Kind, request.Attempt, request.Status = kind, attempt, status
+	return request
 }
 
 // encoded is s encoded as the Content-Encoding given, gzip or deflate, names.

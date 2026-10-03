@@ -28,16 +28,19 @@ const (
 	// the tokens the answer's closing usage gives.
 	StreamDone = "done"
 	// StreamLimited is the upstream answering that the account has reached its
-	// limit: a 429.
+	// limit: a 429, but for one to a request sent before the limit was reset
+	// by hand, which goes out again on the account.
 	StreamLimited = "limited"
 	// StreamThrottled is the upstream throttling the account: a 429 that's
 	// sent again.
 	StreamThrottled = "throttled"
 	// StreamRefused is the upstream refusing the request on the account: a 401
-	// or a 403.
+	// or a 403, but for a 401 of a token the account's file has replaced since,
+	// which goes out again on the new one.
 	StreamRefused = "refused"
 	// StreamMoved is the request's session moving to another account, for its
-	// requests of the model.
+	// requests of the model: never the client's quota check's, which no
+	// session is remembered for.
 	StreamMoved = "moved"
 )
 
