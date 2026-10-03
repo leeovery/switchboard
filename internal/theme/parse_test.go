@@ -10,7 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// base are a theme file's lines for Portal's 19 tokens, Nord's, which every
+// base are a theme file's lines for the 19 base tokens, Nord's, which every
 // theme file gives.
 var base = []string{
 	"text.primary = #ECEFF4",
@@ -74,7 +74,7 @@ func TestParseReadsAFileAsWritten(t *testing.T) {
 		{name: "Windows line endings", text: strings.ReplaceAll(file(nil), "\n", "\r\n")},
 		{name: "a byte order mark", text: string(rune(0xFEFF)) + file(nil)},
 		{name: "a key it doesn't know, passed over", text: file(nil, "bg.hover = #123456", "glyph.tick = ✓")},
-		{name: "Portal's own file, as it is", text: "# A Portal theme\n" + file(nil)},
+		{name: "the base tokens alone, under a comment", text: "# Lake: the base tokens alone.\n" + file(nil)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -100,7 +100,7 @@ func TestAThemeSuitsTheBackgroundsOfItsOwnDarkness(t *testing.T) {
 	}
 }
 
-func TestNordIsPortalsWithTheDashboardsOwnBars(t *testing.T) {
+func TestNordIsNordTunedWithTheDashboardsOwnBars(t *testing.T) {
 	nord, _ := theme.Builtin("nord")
 	for tok, want := range map[theme.Token]string{
 		theme.TextPrimary:      "#ECEFF4",

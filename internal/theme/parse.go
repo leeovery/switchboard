@@ -9,7 +9,7 @@ import (
 )
 
 // Why a theme doesn't load, each in a word or two, as the theme picker shows
-// it beside the theme. They're Portal's words.
+// it beside the theme.
 const (
 	badName       = "bad name"
 	reservedName  = "reserved name"
@@ -55,10 +55,10 @@ var byName = func() map[string]Token {
 
 // Parse reads a theme, under the slug given, from a .theme file's text:
 // flat `key = #RRGGBB` lines, a # starting a comment only at the start of a
-// line, a value unquoted, and a key once. A key it doesn't know is passed
-// over, as a Portal theme's would be for a token switchboard doesn't draw, or
-// a newer switchboard's. A file without one of Portal's 19 tokens doesn't
-// load; one without one of switchboard's own has it worked out from them.
+// line, a value unquoted, and a key once. A key it doesn't know, such as a
+// newer switchboard's, is passed over. A file without one of the 19 base
+// tokens doesn't load; one without one of the charts' has it worked out from
+// them.
 func Parse(slug string, data []byte) (Theme, error) {
 	t, p := parse(slug, data)
 	if p != nil {

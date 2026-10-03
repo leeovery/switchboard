@@ -1,12 +1,13 @@
 # Nord (nordtheme.com): the dashboard's palette from the start, and the dark
 # half of the default pair.
 #
-# Its 19 base tokens are Portal's port of Nord, which corrects two of Nord's
-# colours to read against this canvas, state.positive and state.destructive,
-# and invents three Nord lacks, text.muted, text.subtle and bg.attention;
-# Portal's own nord.theme says how each was settled. The bars fill along the
-# dashboard's ramp from before themes: Nord's Aurora green, yellow, orange
-# and red.
+# Its 19 base tokens port Nord. Two of Nord's colours are corrected, each as
+# little as it takes to read as text must: state.destructive against this
+# canvas, and state.positive against the selection too. Three Nord lacks are
+# invented: text.muted and text.subtle, between its bright greys and its dark
+# ones, and bg.attention, a faint blend of its yellow into the canvas,
+# settled by eye. The bars fill along the dashboard's ramp from before
+# themes: Nord's Aurora green, yellow, orange and red.
 
 # Text, bright to faint.
 text.primary = #ECEFF4

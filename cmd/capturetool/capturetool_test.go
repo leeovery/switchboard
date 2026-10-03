@@ -200,7 +200,7 @@ func TestDrawsThePickerOverTheView(t *testing.T) {
 	}
 }
 
-// nordFile is Nord's theme file, as Portal's tokens give it.
+// nordFile is Nord's theme file, its 19 base tokens alone.
 const nordFile = `text.primary = #ECEFF4
 text.secondary = #E5E9F0
 text.tertiary = #D8DEE9

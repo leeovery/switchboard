@@ -154,7 +154,7 @@ October 2026 at 14:42:07, so nothing moves of itself.
 | `accounts-3-hourglass` | `work`, `personal`, `side`, `g` pressed twice: every card drawing its hourglass | 160 × 34 | none: the hourglass was sketched in the design session, not drawn on the final page |
 | `accounts-3-week` | `work`, `personal`, `side`, `w` pressed twice: every card featuring its week | 160 × 34 | `accounts-3-week` |
 | `accounts-3-keys` | `work`, `personal`, `side`, `?` pressed: the help open over them | 160 × 34 | none: the frames don't draw the help |
-| `accounts-3-themes` | `work`, `personal`, `side`, the theme picker open, the cursor up a theme | 160 × 34 | none: Portal draws the picker |
+| `accounts-3-themes` | `work`, `personal`, `side`, the theme picker open, the cursor up a theme | 160 × 34 | none: the frames don't draw the picker |
 | `accounts-4` | and `client` | 160 × 40 | `accounts-4` |
 | `accounts-4-rate`, `accounts-4-hourglass` | the four, `g` pressed once, and twice | 160 × 40 | none, as `accounts-3-rate` |
 | `accounts-5` | and `spare` | 160 × 40 | none: Sessions' and Runway's are 5 accounts |

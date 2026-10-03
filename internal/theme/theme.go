@@ -1,7 +1,6 @@
-// Package theme is the dashboard's colour, as Portal's is: the tokens it's
-// drawn in, which name what a colour means and how prominent it is, never a
-// hue; the themes that give each token a colour, built in or read from
-// .theme files in Portal's format, so a Portal theme works as it is; the
+// Package theme is the dashboard's colour: the tokens it's drawn in, which
+// name what a colour means and how prominent it is, never a hue; the themes
+// that give each token a colour, built in or read from .theme files; the
 // choice of one theme, or of a pair for light and dark terminals; and the
 // preferences file that keeps the choice.
 package theme
@@ -16,8 +15,8 @@ import (
 // hue: the key a .theme file gives it under. The zero Token names no colour.
 type Token int
 
-// The tokens: Portal's 19, which every theme file gives, then switchboard's
-// own, for its charts, each worked out from Portal's where a file leaves it
+// The tokens: the 19 base tokens, which every theme file gives, then the
+// charts' own, each worked out from the base tokens where a file leaves it
 // out.
 const (
 	_ Token = iota
@@ -63,8 +62,8 @@ const (
 	tokens
 )
 
-// The first and last of Portal's tokens, every one of which a theme file
-// gives, and of the ramp's and the series'.
+// The first and last of the base tokens, every one of which a theme file
+// gives, and how many series there are.
 const (
 	firstBase   = TextPrimary
 	lastBase    = TextOnAttention
@@ -184,8 +183,8 @@ func (t Theme) Suits(dark bool) bool {
 	return !t.Paints() || Dark(t.colours[Canvas]) == dark
 }
 
-// derive works out each of switchboard's tokens the theme leaves out from
-// Portal's, so a theme without them still draws every chart. The series
+// derive works out each of the charts' tokens the theme leaves out from the
+// base tokens, so a theme without them still draws every chart. The series
 // never take state.destructive, which a limit or a refusal is drawn in.
 func (t *Theme) derive() {
 	c := &t.colours

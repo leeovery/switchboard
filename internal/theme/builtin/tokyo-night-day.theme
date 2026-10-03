@@ -1,10 +1,11 @@
 # Tokyo Night Day (github.com/tokyo-night/tokyo-night-vscode-theme), light,
 # and the light half of the default pair.
 #
-# Its 19 base tokens are Portal's port of Tokyo Night Day, tuned against its
-# own near-white canvas rather than lightened from the dark theme: Portal's
-# own tokyo-night-day.theme says how each correction was settled. The bars
-# fill along a ramp darkened to hold its colour on that canvas.
+# Its 19 base tokens port Tokyo Night Day, tuned against its own near-white
+# canvas rather than lightened from the dark theme: seven of its colours
+# darkened till they read against it, or against the selection, and its
+# surface tints settled by eye. The bars fill along a ramp darkened to hold
+# its colour on that canvas.
 
 # Text, bright to faint.
 text.primary = #2E3C64

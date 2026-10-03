@@ -1157,15 +1157,15 @@ says when there's room, not why. COMING UP and the cards say why.
 
 ### Themes
 
-Themes work as Portal's do, sharing its token vocabulary, its file format and its picker, so a
-Portal theme works in switchboard as it is.
+The dashboard is drawn in a theme, which gives each of its tokens a colour. Themes are built in, or
+written by the user as `.theme` files, and chosen in a picker drawn over the view.
 
-- **Tokens:** the 19 Portal names, for meaning and prominence, never a hue: `text.primary`,
-  `text.secondary`, `text.tertiary`, `text.muted`, `text.subtle`, `text.faint`,
+- **Tokens:** 19 base tokens, which every theme file gives, for meaning and prominence, never a hue:
+  `text.primary`, `text.secondary`, `text.tertiary`, `text.muted`, `text.subtle`, `text.faint`,
   `text.on-selection`, `accent.primary`, `accent.key`, `accent.mode`, `accent.attention`,
   `state.positive`, `state.destructive`, `canvas`, `bg.selection`, `bg.attention`, `bg.subtle`,
-  `border` and `text.on-attention`. Switchboard adds `viz.*`, each optional and worked out from the
-  others where a file leaves it out:
+  `border` and `text.on-attention`. The charts' own, `viz.*`, are each optional, worked out from the
+  base tokens where a file leaves it out:
 
   | Token | Is | Default |
   |---|---|---|
@@ -1175,8 +1175,8 @@ Portal theme works in switchboard as it is.
   | `viz.reserve` | The reserve's mark and floor | `accent.key` |
   | `viz.series.1`–`viz.series.6` | The accounts' cords, in order, round again past six | `accent.key`, `state.positive`, `accent.primary`, `accent.mode`, `text.secondary`, `accent.attention`: never `state.destructive`, which a limit or refusal draws in |
 
-  So a theme missing a base token is rejected, as Portal rejects one, and a theme without any
-  `viz.*` still draws every chart.
+  So a theme missing a base token is rejected, and a theme without any `viz.*` still draws every
+  chart.
 - **Files:** `<slug>.theme`, flat `key = #RRGGBB` lines, `#` starting a comment only at the start
   of a line, unquoted, a key once, unknown keys ignored, a missing base key rejecting the file; the
   slug matching `^[a-z0-9][a-z0-9-]*$`. They're read from `SWITCHBOARD_THEMES_DIR`, else
@@ -1186,8 +1186,9 @@ Portal theme works in switchboard as it is.
   lock file's does. A theme is found by its name exactly, however the filesystem matches names. One
   that doesn't load is named, with why, in the picker and in the log. The built-ins' slugs are
   reserved.
-- **Built in:** `nord`, today's palette, its base tokens Portal's, and the dark half of the default
-  pair; `tokyo-night` and `tokyo-night-day`, Portal's, the latter light and the light half of the
+- **Built in:** `nord`, today's palette, its base tokens Nord's, tuned to read against its canvas,
+  and the dark half of the default pair; `tokyo-night` and `tokyo-night-day`, Tokyo Night's dark
+  palette and its light one, each tuned against its own canvas, the latter the light half of the
   default pair; `amber`, an amber CRT; `exchange`, a telephone exchange's brass and walnut; and
   `terminal`, for a terminal with a transparent or image background, which paints no background and
   uses the terminal's own 16 colours. `terminal` is built in, not a file, as `#RRGGBB` can't name
@@ -1219,8 +1220,8 @@ Portal theme works in switchboard as it is.
   sorted order, and those it doesn't know, as a newer build's, are kept as they are. One that can't
   be read is set aside as `prefs.json.corrupt-<unix time>`, or, where it's a link, where it leads,
   the link kept, and the defaults stand.
-- **The background:** in watch mode the dashboard owns it, as Portal does: it paints `canvas` on
-  every cell and sets the terminal's background to it, having asked for the old one first (OSC 11),
+- **The background:** in watch mode the dashboard owns it: it paints `canvas` on every cell and
+  sets the terminal's background to it, having asked for the old one first (OSC 11),
   and puts it back on every exit it can catch: quitting, an interrupt, a terminate signal, or a
   panic it recovers from; where the terminal didn't answer, it resets it instead (OSC 111), which
   restores the terminal profile's own. A kill leaves `canvas` as the background until the terminal's

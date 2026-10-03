@@ -18,8 +18,8 @@ const (
 	groupRule = "   │   "
 )
 
-// The help's panel, as Portal's: its rows inset helpInset cells inside its
-// border, its keys in a column, helpGap cells before what each does.
+// The help's panel: its rows inset helpInset cells inside its border, its
+// keys in a column, helpGap cells before what each does.
 const (
 	helpInset = 2
 	helpGap   = 3
@@ -153,11 +153,11 @@ func (f Frame) keyFits(strips []strip) bool {
 	return margin+f.keyLine(strips).width() <= f.edge()
 }
 
-// help draws the help over the middle of the frame, as Portal's is drawn: in
-// a border, its title and how it closes; then every key there is and what it
-// does; then the key to the glyphs, a chart's, then a bar's, the keys and
-// the glyphs in one column; a rule between each. Where the frame is too
-// small for it, it's cut to fit.
+// help draws the help over the middle of the frame, in a border: its title
+// and how it closes; then every key there is and what it does; then the key
+// to the glyphs, a chart's, then a bar's, the keys and the glyphs in one
+// column; a rule between each. Where the frame is too small for it, it's cut
+// to fit.
 func (f Frame) help(c *canvas) {
 	compartments, inner := f.helpCompartments()
 	panel(c, compartments, inner, f.Width, f.Height)

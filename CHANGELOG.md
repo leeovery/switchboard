@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Card charts you cycle with `g` — a burn-down, a burn rate or an hourglass — and `w` to choose which window each card features.
 - Flip a card (`space`, or `s` for all) to see its sessions, pick one out with the arrow keys and pin it to another account with a digit key.
 - Live request tracking in the dashboard: pulses along cords as requests go out, answers stream back with token counts, and refusals bounce back red.
-- Dashboard themes: built-in `nord`, `tokyo-night`, `tokyo-night-day`, `amber`, `exchange` and `terminal`, a live theme picker on `t`, light/dark pairs chosen by the terminal's background, and support for your own `.theme` files in Portal's format.
+- Dashboard themes: built-in `nord`, `tokyo-night`, `tokyo-night-day`, `amber`, `exchange` and `terminal`, a live theme picker on `t`, light/dark pairs chosen by the terminal's background, and support for your own `.theme` files.
 - A `?` help panel listing every key and what the dashboard's glyphs mean.
 - `GET /history` and `GET /stream` on the router, serving the usage history and a live stream of request events that feed the dashboard.
 - The router now keeps a list of recent events — sessions started and moved, limits, pressure, refusals, primes, restarts — shown in the dashboard and the status document.

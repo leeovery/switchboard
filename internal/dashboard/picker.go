@@ -8,9 +8,9 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// Picker is the theme picker as it's drawn: Portal's, a panel slid over the
-// right of the screen, so the view beside it shows each theme as the cursor
-// reaches it.
+// Picker is the theme picker as it's drawn: a panel slid over the right of
+// the screen, so the view beside it shows each theme as the cursor reaches
+// it.
 type Picker struct {
 	// Rows are the themes it lists, in order.
 	Rows []PickerRow

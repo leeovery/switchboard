@@ -1,8 +1,8 @@
 # Tokyo Night (github.com/tokyo-night/tokyo-night-vscode-theme), dark.
 #
-# Its 19 base tokens are Portal's port of Tokyo Night, tuned to read against
-# this canvas. The bars fill along Tokyo Night's green, yellow, orange and
-# red, its yellow a step its base tokens don't take.
+# Its 19 base tokens port Tokyo Night, tuned to read against this canvas. The
+# bars fill along Tokyo Night's green, yellow, orange and red, its yellow a
+# step its base tokens don't take.
 
 # Text, bright to faint.
 text.primary = #C0CAF5
