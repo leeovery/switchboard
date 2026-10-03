@@ -17,9 +17,6 @@ import (
 const (
 	defaultListen   = "127.0.0.1:4747"
 	defaultUpstream = "https://api.anthropic.com"
-	// primaryReserve is the primary's reserve where the config doesn't give
-	// one. The other accounts' is 0.
-	primaryReserve = 0.1
 )
 
 // DefaultKeep is how long the readings history is kept where the config
@@ -35,7 +32,7 @@ const Example = `# One [[account]] per Claude subscription. Each account's token
 id      = "work"  # for good: letters, digits, '-' and '_'; its token is tokens/work
 label   = "Work"  # optional; defaults to the id
 primary = true    # optional: the account the browser and the Claude apps use; else the first
-reserve = 0.1     # optional: the share of every window the router leaves; 0.1 on the primary, else 0
+# reserve = 0.1   # optional, on any account: the share of every window the router leaves; else 0
 
 [[account]]
 id    = "personal"
@@ -67,7 +64,7 @@ type Account struct {
 	// Claude apps are signed into: the one the config marks, else the first.
 	Primary bool
 	// Reserve is the share of every window the router leaves unused on the
-	// account: the config's, else 0.1 on the primary and 0 on the others.
+	// account: the config's, else 0.
 	Reserve float64
 }
 
@@ -165,11 +162,10 @@ type file struct {
 
 // fileAccount is an [[account]] table as it's written.
 type fileAccount struct {
-	ID      string `toml:"id"`
-	Label   string `toml:"label"`
-	Primary bool   `toml:"primary"`
-	// Reserve is nil when the table doesn't give one.
-	Reserve *float64 `toml:"reserve"`
+	ID      string  `toml:"id"`
+	Label   string  `toml:"label"`
+	Primary bool    `toml:"primary"`
+	Reserve float64 `toml:"reserve"`
 }
 
 // filePrime is the [prime] table as it's written.
@@ -259,28 +255,12 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 }
 
 // resolve returns the accounts as they're written, with their defaults filled
-// in: the id for a label, the first account for the primary, and the
-// primary's default reserve.
+// in: the id for a label, and the first account for the primary.
 func resolve(written []fileAccount) Accounts {
 	accounts := make(Accounts, len(written))
 	for i, w := range written {
-		accounts[i] = Account{ID: w.ID, Label: cmp.Or(w.Label, w.ID), Primary: w.Primary}
+		accounts[i] = Account{ID: w.ID, Label: cmp.Or(w.Label, w.ID), Primary: w.Primary, Reserve: w.Reserve}
 	}
 	accounts[accounts.primary()].Primary = true
-	for i, w := range written {
-		accounts[i].Reserve = reserve(w.Reserve, accounts[i].Primary)
-	}
 	return accounts
-}
-
-// reserve is an account's reserve: the one given, else the primary's default,
-// else none.
-func reserve(given *float64, primary bool) float64 {
-	switch {
-	case given != nil:
-		return *given
-	case primary:
-		return primaryReserve
-	}
-	return 0
 }

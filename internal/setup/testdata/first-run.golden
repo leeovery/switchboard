@@ -12,7 +12,7 @@ Its label, to show it by (Enter for side): Side
 Paste side's token, from claude setup-token run while signed in to that subscription (it won't show): 
 Added side.
 Add another account? [y/N] 
-Which account are the browser and the Claude apps signed into? It's the primary: Claude Code's own token is its, and the router leaves a share of its quota for the apps.
+Which account are the browser and the Claude apps signed into? It's the primary: Claude Code's own token is its, so artifacts and uploads land there.
 The primary, of work, side (Enter for work): 
 The primary is work · Work.
 

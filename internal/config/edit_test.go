@@ -306,7 +306,7 @@ func TestEditsLoadAsMeant(t *testing.T) {
 				{ID: "work", Label: "Work", Reserve: 0.1},
 				{ID: "personal", Label: "Personal"},
 				{ID: "side", Label: "Side"},
-				{ID: "spare", Label: "spare", Primary: true, Reserve: 0.1},
+				{ID: "spare", Label: "spare", Primary: true},
 			},
 		},
 		{
@@ -322,7 +322,7 @@ func TestEditsLoadAsMeant(t *testing.T) {
 			name: "remove work",
 			edit: func(d *config.Draft) error { return d.RemoveAccount("work") },
 			want: []config.Account{
-				{ID: "personal", Label: "Personal", Primary: true, Reserve: 0.1},
+				{ID: "personal", Label: "Personal", Primary: true},
 				{ID: "side", Label: "Side"},
 			},
 		},

@@ -186,7 +186,7 @@ func TestTheAccountsStep(t *testing.T) {
 func TestTheAccountsStepSettlesThePrimary(t *testing.T) {
 	const twoUnmarked = "[[account]]\nid    = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n\n[prime]\nday = \"08:00-23:00\"\n"
 	const asked = "Which account are the browser and the Claude apps signed into? It's the primary: " +
-		"Claude Code's own token is its, and the router leaves a share of its quota for the apps.\n"
+		"Claude Code's own token is its, so artifacts and uploads land there.\n"
 	const question = "The primary, of work, side (Enter for work): "
 	tests := []struct {
 		name    string
