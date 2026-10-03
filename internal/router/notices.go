@@ -110,13 +110,14 @@ func (l *limitNotices) reached(e LimitReached, now time.Time) {
 }
 
 // moved takes in a move, and reports whether it's news of a limit gathering:
-// the session had to leave the account the limit holds.
+// a limit of the account it left, which held its request back there, moved
+// the session.
 func (l *limitNotices) moved(e Moved) bool {
 	g, ok := l.gathering[e.From]
-	if !ok || !e.Forced {
+	if !ok || e.Limit == 0 {
 		return false
 	}
-	g.add(e)
+	g.add(e.Session, e.To)
 	return true
 }
 

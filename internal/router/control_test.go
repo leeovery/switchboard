@@ -445,7 +445,7 @@ func TestClientPinSession(t *testing.T) {
 	want := status.Session{
 		ID:          sessionID,
 		Pin:         "side",
-		Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: "work", Pinned: true, Reason: "pinned", AssignedAt: now, LastSeen: now}},
+		Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: "work", Pinned: true, PinnedAt: now, Reason: "pinned", AssignedAt: now, LastSeen: now}},
 		Account:     status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
@@ -453,7 +453,7 @@ func TestClientPinSession(t *testing.T) {
 	}
 
 	got, err = client.UnpinSession(t.Context(), sessionID)
-	want.Pin = ""
+	want.Pin, want.Assignments[0].PinnedAt = "", time.Time{}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("UnpinSession() =\n%+v, %v\nwant the session as it stands, with no pin of its own\n%+v", got, err, want)
 	}

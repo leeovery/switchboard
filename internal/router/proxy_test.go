@@ -39,7 +39,7 @@ func TestRoutedRequestGoesOutOnTheChosenAccount(t *testing.T) {
 	if got.method != http.MethodPost || got.path != "/v1/messages" || got.query != "beta=true" {
 		t.Errorf("upstream got %s %s?%s, want POST /v1/messages?beta=true", got.method, got.path, got.query)
 	}
-	checkHeader(t, got, with(claudeCode(workToken), "Authorization", "Bearer "+sideToken))
+	checkHeader(t, got, routedOn(sideToken))
 	asked := chooser.requests()
 	if len(asked) != 1 || asked[0].ID == "" {
 		t.Fatalf("chooser was asked %+v, want one request, with its id", asked)
@@ -103,7 +103,7 @@ func TestPins(t *testing.T) {
 			proxy := serveProxy(t, newRouter(t, up.URL))
 
 			readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", with(claudeCode(workToken), "X-Switchboard-Account", tt.pin), strings.NewReader(messages)))
-			checkHeader(t, up.only(t), with(claudeCode(workToken), "Authorization", "Bearer "+tokens[tt.wantAccount]))
+			checkHeader(t, up.only(t), routedOn(tokens[tt.wantAccount]))
 			waitForLine(t, log, "msg=routed", "account="+tt.wantAccount, tt.wantReason)
 			if warned := log.Has("level=WARN"); warned != (tt.wantWarning != nil) {
 				t.Errorf("log reads\n%s\nwant a warning: %v", log, tt.wantWarning != nil)
@@ -337,7 +337,7 @@ func TestUsageIsReadOffResponses(t *testing.T) {
 			name:      "a 429",
 			status:    http.StatusTooManyRequests,
 			windows:   []quota.Window{spent, week},
-			wantLimit: status.Limit{Windows: []string{"5h"}, Until: spent.ResetsAt},
+			wantLimit: status.Limit{ID: 1, Windows: []string{"5h"}, Until: spent.ResetsAt},
 		},
 	}
 	for _, tt := range tests {
@@ -661,7 +661,7 @@ func TestAChoiceTheRouterCantSendOnKeepsToTheClientsAccount(t *testing.T) {
 	proxy := serveProxy(t, rt)
 
 	send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
-	checkHeader(t, up.only(t), claudeCode(workToken))
+	checkHeader(t, up.only(t), routedOn(workToken))
 	waitForLine(t, log, "level=ERROR", `msg="chooser picked an account it can't send on; keeping the client's"`, "picked=personal")
 }
 
@@ -680,8 +680,11 @@ func (c *fixedChooser) Choose(_ context.Context, req router.Request) router.Choi
 	return router.Choice{Account: c.account, Reason: "fixed"}
 }
 
-// Forget forgets nothing: the chooser remembers no session.
-func (c *fixedChooser) Forget(router.Request) {}
+// Answered starts nothing, and Forget forgets nothing: the chooser
+// remembers no session.
+func (c *fixedChooser) Answered(router.Request) {}
+
+func (c *fixedChooser) Forget(router.Request) string { return "" }
 
 func (c *fixedChooser) requests() []router.Request {
 	c.mu.Lock()

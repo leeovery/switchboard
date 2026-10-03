@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -116,7 +115,7 @@ func TestAQuotaCheckForcedOffALimitedAccountMovesNoSession(t *testing.T) {
 	if moved := slices.ContainsFunc(r.events.heard(), func(e router.Event) bool { _, ok := e.(router.Moved); return ok }); moved {
 		t.Errorf("events = %+v, want no move: the check moves no session", r.events.heard())
 	}
-	want := []status.Event{{ID: 1, At: now, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt}}
+	want := []status.Event{{ID: 1, At: now, Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Limit: 1}}
 	if got := r.rt.Status().Events; !reflect.DeepEqual(got, want) {
 		t.Errorf("the events are %+v, want %+v: work's limit, having moved no session", got, want)
 	}
@@ -172,7 +171,7 @@ func TestALimitIsToldOfWithTheSessionsItMovedAndWhereTheyWent(t *testing.T) {
 		{ID: 7, At: now, Kind: status.EventMoved, Session: "two", Model: haiku, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4},
 		{ID: 6, At: now, Kind: status.EventMoved, Session: "two", Model: opus, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4},
 		{ID: 5, At: now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 4},
-		{ID: 4, At: now, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Count: 2},
+		{ID: 4, At: now, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Count: 2, Limit: 1},
 		{ID: 3, At: now, Kind: status.EventStarted, Account: "work", Session: "two", Model: haiku, Reason: "new"},
 		{ID: 2, At: now, Kind: status.EventStarted, Account: "work", Session: "two", Model: opus, Reason: "new"},
 		{ID: 1, At: now, Kind: status.EventStarted, Account: "work", Session: "one", Model: opus, Reason: "new"},
@@ -189,12 +188,7 @@ func TestARestartFallingDueIsToldOf(t *testing.T) {
 
 	s.upgrade(t)
 	waitForStatus(t, socket, func(doc status.Document) bool { return doc.Restart.Reason == "upgraded" })
-	// Written whole: a look at the file caught as it's written would read a
-	// config that isn't valid, which has no restart due, and the look after
-	// would tell of another restart falling due.
-	if err := atomicfile.Write(s.config, []byte(twoAccounts), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, s.config, twoAccounts)
 	doc := waitForStatus(t, socket, func(doc status.Document) bool { return doc.Restart.Reason == "config changed" })
 	want := []status.Event{{ID: 1, At: now, Kind: status.EventRestart, Reason: "upgraded"}}
 	if !reflect.DeepEqual(doc.Events, want) {

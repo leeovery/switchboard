@@ -227,6 +227,7 @@ func New(cfg Config) (*Router, error) {
 	history := newHistory(cfg.History, cfg.Now)
 	state.history = history.note
 	sessions := newSessions(cfg.Now, changes.note, changes.routine)
+	sessions.bound = cfg.Provider.ThinkingBound
 	recent := newRecent(state, sessions, cfg.Now)
 	listeners := []func(Event){cfg.Events, recent.hear}
 	var notices *notifications
@@ -237,6 +238,7 @@ func New(cfg Config) (*Router, error) {
 	emit := hearing(listeners...)
 	probes := newProbes(cfg.Prober, state, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
+	recent.judge = health.look
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()

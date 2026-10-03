@@ -79,6 +79,9 @@ func TestTheConfigFileIsLookedAtForAChange(t *testing.T) {
 			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), unheeded)
 
 			tt.change(t, s)
+			// Two looks, as a config file that's invalid at one may only be
+			// caught while it's saved.
+			r.look()
 			r.look()
 			if got := r.due(); got != tt.wantDue {
 				t.Errorf("due() = %q, want %q", got, tt.wantDue)
@@ -242,8 +245,12 @@ func TestARestartIsHeldBackWhileTheConfigFileIsInvalid(t *testing.T) {
 	writeFile(t, s.kept, notAConfig)
 	relink(t, s.binary, s.version("1.1"))
 	r.look()
+	if ready := r.ready(); ready != nil {
+		t.Errorf("upgraded, with the config file invalid at a look, ready() = %v, want none until the next look", ready)
+	}
+	r.look()
 	if got, ready := r.due(), r.ready(); got != "" || ready != nil {
-		t.Errorf("upgraded, with the config file invalid, due() = %q, and ready() = %v, want none: a router started again couldn't start", got, ready)
+		t.Errorf("upgraded, with the config file invalid at two looks, due() = %q, and ready() = %v, want none: a router started again couldn't start", got, ready)
 	}
 
 	writeFile(t, s.kept, twoAccounts)
@@ -372,8 +379,9 @@ func TestARestartDueIsReported(t *testing.T) {
 
 			writeFile(t, s.kept, notAConfig)
 			r.look()
+			r.look()
 			if got := r.report(); got != (status.Restart{}) {
-				t.Errorf("with the config file invalid, report() = %+v, want none due: a router started again couldn't start", got)
+				t.Errorf("with the config file invalid at two looks, report() = %+v, want none due: a router started again couldn't start", got)
 			}
 		})
 	}
@@ -389,16 +397,74 @@ func TestARestartIsToldOfAsItFallsDue(t *testing.T) {
 	r.look()
 	r.look()
 	// Its reason changes while it stays due, then it's due no longer while
-	// the config file is invalid, then falls due again once it's put right.
+	// the config file is invalid, at two looks, then falls due again once
+	// it's put right.
 	writeFile(t, s.kept, twoAccounts)
 	r.look()
 	writeFile(t, s.kept, notAConfig)
+	r.look()
 	r.look()
 	writeFile(t, s.kept, oneAccount)
 	r.look()
 	want := []Event{RestartDue{Reason: "upgraded"}, RestartDue{Reason: "config changed"}}
 	if !reflect.DeepEqual(heard, want) {
 		t.Errorf("heard %+v, want %+v: each time it fell due", heard, want)
+	}
+}
+
+func TestAConfigFileCaughtWhileItsSavedLeavesARestartDue(t *testing.T) {
+	tests := []struct {
+		name string
+		// looks is how many looks find the config file invalid before it's
+		// put right.
+		looks int
+		// wantDue is whether a restart stays due while it's invalid, and
+		// wantHeard the restarts told of as they fall due.
+		wantDue   bool
+		wantHeard []Event
+		wantWarn  bool
+	}{
+		{
+			name:      "caught at a look, as an editor saving it leaves it",
+			looks:     1,
+			wantDue:   true,
+			wantHeard: []Event{RestartDue{Reason: "upgraded"}},
+		},
+		{
+			name:      "invalid at two looks in a row",
+			looks:     2,
+			wantHeard: []Event{RestartDue{Reason: "upgraded"}, RestartDue{Reason: "config changed"}},
+			wantWarn:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			s := newStartedFrom(t)
+			var heard []Event
+			r := newRestarts(Watch(s.config), Watch(s.binary), Watch(s.zone), true, newInFlight(), at(start), func(e Event) { heard = append(heard, e) })
+			relink(t, s.binary, s.version("1.1"))
+			r.look()
+
+			writeFile(t, s.kept, notAConfig)
+			for range tt.looks {
+				r.look()
+			}
+			if due := r.due() != ""; due != tt.wantDue {
+				t.Errorf("with the config file invalid at %d looks, due() = %q, want due: %v", tt.looks, r.due(), tt.wantDue)
+			}
+			writeFile(t, s.kept, twoAccounts)
+			r.look()
+			if got := r.due(); got != "config changed" {
+				t.Errorf("once it's saved, due() = %q, want config changed", got)
+			}
+			if !reflect.DeepEqual(heard, tt.wantHeard) {
+				t.Errorf("heard %+v, want %+v", heard, tt.wantHeard)
+			}
+			if warned := log.Has("level=WARN", `msg="config change refused`); warned != tt.wantWarn {
+				t.Errorf("log reads\n%s\nwant the config refused at warn: %v", log, tt.wantWarn)
+			}
+		})
 	}
 }
 

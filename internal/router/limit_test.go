@@ -27,7 +27,7 @@ func TestAnOverallRejectionBarsItsAccountUntilItsReset(t *testing.T) {
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Until: reset})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Until: reset})
 	if best := r.rt.Status().Best; best != "side" {
 		t.Errorf("the best account is %q, want side: work is barred", best)
 	}
@@ -62,13 +62,13 @@ func TestARejectionReadBelowTheUseLastReadBarsItsAccount(t *testing.T) {
 	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(work.Windows[0], rejected) {
 		t.Fatalf("work's session reads %+v, want %+v: the 429's reading", work.Windows[0], rejected)
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"5h"}, Until: session.ResetsAt})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Windows: []string{"5h"}, Until: session.ResetsAt})
 	r.clock.advance(time.Minute)
 	if got := r.ask(t, "two", opus, ""); got != "side" {
 		t.Errorf("a new session went to %s, want side: work's session rejected it", got)
 	}
 	waitForLine(t, log, "level=WARN", `msg="limit reached"`, "account=work", "windows=5h", "until=")
-	want := router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: session.ResetsAt}
+	want := router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: session.ResetsAt, Limit: 1}
 	if got := r.events.heard(); len(got) == 0 || !reflect.DeepEqual(got[0], want) {
 		t.Errorf("events = %+v, want %+v first", got, want)
 	}
@@ -83,7 +83,7 @@ func TestALimitThatDoesntSayForHowLongHoldsFiveMinutes(t *testing.T) {
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Until: now.Add(5 * time.Minute)})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Until: now.Add(5 * time.Minute)})
 	r.clock.advance(5*time.Minute - time.Second)
 	if got := r.ask(t, "two", opus, ""); got != "side" {
 		t.Errorf("a new session just under five minutes on went to %s, want side", got)
@@ -105,7 +105,7 @@ func TestAReadingShowingRoomLiftsALimitEarly(t *testing.T) {
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"5h"}, Until: now.Add(2 * time.Hour)})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Windows: []string{"5h"}, Until: now.Add(2 * time.Hour)})
 
 	// Once the session resets, a probe of work, stale by then, reads it
 	// afresh.
@@ -257,7 +257,7 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 		wantLimit status.Limit
 	}{
 		{name: "a probe answered with success", admitted: true},
-		{name: "a probe answered with the limit", wantLimit: status.Limit{Until: now.Add(2 * time.Hour)}},
+		{name: "a probe answered with the limit", wantLimit: status.Limit{ID: 1, Until: now.Add(2 * time.Hour)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -268,7 +268,7 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 			if got := r.ask(t, "one", opus, ""); got != "side" {
 				t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 			}
-			checkLimit(t, r.rt, "work", status.Limit{Until: now.Add(2 * time.Hour)})
+			checkLimit(t, r.rt, "work", status.Limit{ID: 1, Until: now.Add(2 * time.Hour)})
 
 			r.clock.advance(2 * time.Minute)
 			r.prober.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, weekOf(0.5, 24*time.Hour)}}, admitted: tt.admitted})
@@ -293,8 +293,8 @@ func TestALimitReachedInNoWindowNamedLiftsOnceARequestSentSinceIsTaken(t *testin
 	r.api.script(workToken, rejectedUntil(until, session, weekOf(0.5, 24*time.Hour)))
 	r.api.script(sideToken, rejectedUntil(until, session, weekOf(0.5, 5*24*time.Hour)))
 	r.ask(t, "one", opus, "")
-	checkLimit(t, r.rt, "work", status.Limit{Until: until})
-	checkLimit(t, r.rt, "side", status.Limit{Until: until})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Until: until})
+	checkLimit(t, r.rt, "side", status.Limit{ID: 2, Until: until})
 
 	// With no account left, the next requests go out on their client's, work,
 	// which takes them. Counting a message's tokens spends no quota, so says
@@ -304,12 +304,12 @@ func TestALimitReachedInNoWindowNamedLiftsOnceARequestSentSinceIsTaken(t *testin
 	if got := r.api.lastAccount(); got != "work" {
 		t.Fatalf("counting tokens went to %s, want work, its client's", got)
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Until: until})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Until: until})
 	if got := r.ask(t, "two", opus, ""); got != "work" {
 		t.Fatalf("the request went to %s, want work, its client's", got)
 	}
 	checkLimit(t, r.rt, "work", status.Limit{})
-	checkLimit(t, r.rt, "side", status.Limit{Until: until})
+	checkLimit(t, r.rt, "side", status.Limit{ID: 2, Until: until})
 }
 
 func TestAProbeAnsweredWithTheLimitKeepsItsBar(t *testing.T) {
@@ -326,7 +326,7 @@ func TestAProbeAnsweredWithTheLimitKeepsItsBar(t *testing.T) {
 	if r.prober.probes(workToken) == probes {
 		t.Fatal("work wasn't probed, want it probed: its limit holds back every request, so its session lapsing doesn't stop a probe")
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"7d"}, Until: spentWeek().ResetsAt})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Windows: []string{"7d"}, Until: spentWeek().ResetsAt})
 	if got := r.ask(t, "two", opus, ""); got != "side" {
 		t.Errorf("a new session went to %s, want side: work's week is still spent", got)
 	}
@@ -347,7 +347,7 @@ func limitedOnItsWeek(t *testing.T) (*routed, *router.Client) {
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"7d"}, Until: spentWeek().ResetsAt})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Windows: []string{"7d"}, Until: spentWeek().ResetsAt})
 	return r, router.NewClient(serveControl(t, r.rt))
 }
 
@@ -389,7 +389,7 @@ func TestAWindowRejectedWithoutItsUseBarsTheRequestsItCountsAlone(t *testing.T) 
 	if got := r.ask(t, "writing", fable, ""); got != "side" {
 		t.Fatalf("the Fable request went to %s last, want side, work having rejected it", got)
 	}
-	checkLimit(t, r.rt, "work", status.Limit{Windows: []string{"7d_oi"}, Until: reset})
+	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Windows: []string{"7d_oi"}, Until: reset})
 	if got := r.ask(t, "titling", haiku, ""); got != "work" {
 		t.Errorf("a Haiku session went to %s, want work: its Fable week doesn't count Haiku", got)
 	}

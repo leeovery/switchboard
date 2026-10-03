@@ -13,6 +13,28 @@ import (
 // sessions of a day apart at a glance.
 const idShown = 8
 
+// The reasons the router gives for where a session's requests go, as an
+// Assignment's Reason and an Event's give them, that the dashboard reads
+// too.
+const (
+	// ReasonNew is a new session's first account.
+	ReasonNew = "new"
+	// ReasonPinned is the session's own pin.
+	ReasonPinned = "pinned"
+	// ReasonGlobalPin is one of the global pin's accounts, chosen afresh.
+	ReasonGlobalPin = "pinned (global)"
+	// ReasonMovedByPin is a move by a global pin that moves running sessions.
+	ReasonMovedByPin = "moved by pin"
+	// ReasonMovedOff starts the reason for a move off the session's account,
+	// as it can't take the request, which account and why following, as in
+	// "moved: work hit its limit".
+	ReasonMovedOff = "moved: "
+	// ReasonPinYields starts the reason for going elsewhere than the
+	// session's own pin sends it, as its account can't take the request,
+	// which account and why following, as in "pin yields: side has no room".
+	ReasonPinYields = "pin yields: "
+)
+
 // Session is what the router says of a Claude Code session, as GET
 // /sessions/{id} answers: its own pin, and the account each of its models'
 // requests go to.
@@ -37,7 +59,15 @@ type Assignment struct {
 	Family  string `json:"family,omitempty"`
 	Account string `json:"account"`
 	// Pinned is set when the session's own pin put it on the account.
-	Pinned     bool      `json:"pinned"`
+	Pinned bool `json:"pinned"`
+	// Yielded is set while the session's own pin has yielded, the account it
+	// names having had no room for a request of it, and it stays where it
+	// went: while its cache there is warm, or its model's thinking is bound
+	// to the account, and it's given no pin since.
+	Yielded bool `json:"yielded,omitempty"`
+	// PinnedAt is when the session was given its own pin while it ran: zero
+	// for the one it was launched with, and while it has none.
+	PinnedAt   time.Time `json:"pinned_at,omitzero"`
 	Reason     string    `json:"reason"`
 	AssignedAt time.Time `json:"assigned_at"`
 	LastSeen   time.Time `json:"last_seen"`

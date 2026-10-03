@@ -209,6 +209,14 @@ func (u *upstream) only(t *testing.T) received {
 	return u.requests[0]
 }
 
+// all returns the requests that have reached the upstream, in the order they
+// came.
+func (u *upstream) all() []received {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return slices.Clone(u.requests)
+}
+
 // count returns how many requests have reached the upstream.
 func (u *upstream) count() int {
 	u.mu.Lock()
@@ -261,6 +269,13 @@ func claudeCode(token string) http.Header {
 		"User-Agent":               {"claude-cli/2.1.300 (external, cli)"},
 		"X-Claude-Code-Session-Id": {sessionID},
 	}
+}
+
+// routedOn is the header of a messages request Claude Code sends with work's
+// token as the router sends it upstream on token: asking for those of the
+// encodings it offers that the router can count an answer in.
+func routedOn(token string) http.Header {
+	return with(with(claudeCode(workToken), "Authorization", "Bearer "+token), "Accept-Encoding", "gzip")
 }
 
 // with returns h with the header name set to value, or deleted when value is
@@ -527,11 +542,28 @@ func (l *eventLog) heard() []router.Event {
 }
 
 // isStart reports whether an event is a session started, which every new
-// session's first answer brings as its request ends, after the client has
-// it: so a test of the router's other events looks past them.
+// session's first answer brings as it comes: so a test of the router's other
+// events looks past them.
 func isStart(e router.Event) bool {
 	_, started := e.(router.SessionStarted)
 	return started
+}
+
+// unnamed returns events without the ids of the requests they're of, which
+// count up from a random start.
+func unnamed(events []router.Event) []router.Event {
+	events = slices.Clone(events)
+	for i, e := range events {
+		switch e := e.(type) {
+		case router.Refused:
+			e.Request = ""
+			events[i] = e
+		case router.RefusalLifted:
+			e.Request = ""
+			events[i] = e
+		}
+	}
+	return events
 }
 
 // shortTempDir returns a directory of the test's own with a path short enough

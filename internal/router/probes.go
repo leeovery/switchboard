@@ -61,9 +61,9 @@ type probing struct {
 	done <-chan struct{}
 }
 
-// report notes how a probe of an account went: what it read, or why it read
-// nothing, and how long it took.
-type report func(a account, probed quota.Probe, err error, took time.Duration)
+// report notes how a probe of an account, sent at sent, went: what it read,
+// or why it read nothing, and how long it took.
+type report func(a account, probed quota.Probe, err error, sent time.Time, took time.Duration)
 
 // start probes each of the accounts that due says wants a probe, unless a
 // probe of it is under way already, and returns every probe of them under
@@ -213,7 +213,7 @@ func (p *probes) stop() {
 
 // probe reads an account's usage, as r, and notes how that went.
 func (p *probes) probe(a account, r *run) {
-	started, sent := time.Now(), p.state.mark()
+	started, at, sent := time.Now(), p.now(), p.state.mark()
 	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if p.ctx.Err() != nil {
@@ -221,11 +221,11 @@ func (p *probes) probe(a account, r *run) {
 		return
 	}
 	p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
-	p.told(r)(a, probed, err, took)
+	p.told(r)(a, probed, err, at, took)
 }
 
 // logProbe logs how a probe of an account went.
-func logProbe(a account, probed quota.Probe, err error, took time.Duration) {
+func logProbe(a account, probed quota.Probe, err error, _ time.Time, took time.Duration) {
 	if err != nil {
 		logger.Warn("probe failed", "account", a.ID, "duration", took, "error", err)
 		return
@@ -234,10 +234,11 @@ func logProbe(a account, probed quota.Probe, err error, took time.Duration) {
 	logUnread(a, probed)
 }
 
-// logPrime logs how a prime of an account went: at info, with the reset it
-// read of the window it primed, or at warn when it failed, or didn't start
-// that window. A prime that started it is told of too.
-func (p *probes) logPrime(a account, probed quota.Probe, err error, took time.Duration) {
+// logPrime logs how a prime of an account, sent at sent, went: at info, with
+// the reset it read of the window it primed, or at warn when it failed, or
+// didn't start that window. A prime that started it is told of too, but for
+// one that found it running already, as when the Claude apps started it.
+func (p *probes) logPrime(a account, probed quota.Probe, err error, sent time.Time, took time.Duration) {
 	if err != nil {
 		logger.Warn("prime failed", "account", a.ID, "duration", took, "error", err)
 		return
@@ -252,9 +253,24 @@ func (p *probes) logPrime(a account, probed quota.Probe, err error, took time.Du
 		logger.Warn("prime didn't start the window", append(attrs, "window", primed.Window)...)
 	} else {
 		logger.Info("primed", attrs...)
-		p.emit(primed)
+		if primed.startedBy(sent) {
+			p.emit(primed)
+		}
 	}
 	logUnread(a, probed)
+}
+
+// markedBack is the most the upstream takes the start of a window back by:
+// to the ten-minute mark it falls in.
+const markedBack = 10 * time.Minute
+
+// startedBy reports whether the window the prime read is one it started,
+// having been sent at sent: it resets the window's length after that, or
+// after the ten-minute mark it falls in. One that resets sooner was running
+// already.
+func (p Primed) startedBy(sent time.Time) bool {
+	length, ok := quota.Length(p.Window)
+	return ok && !p.ResetsAt.IsZero() && !p.ResetsAt.Before(sent.Add(length-markedBack))
 }
 
 // logUnread logs each window a probe of an account expected, and couldn't

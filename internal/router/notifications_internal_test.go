@@ -607,6 +607,34 @@ func TestANotifierThatHangsNeverHoldsUpTheListener(t *testing.T) {
 	})
 }
 
+func TestNotificationsQueueTheEventsTheyTellOfAlone(t *testing.T) {
+	log := logstest.Capture(t)
+	n := newNotifications(config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}, &noting{}, newTestState(&testClock{now: start}), at(start))
+	// With nothing dealing with the queue, the router tells of more than it
+	// holds of every other kind.
+	for range queueSize + 1 {
+		for _, e := range []Event{
+			SessionStarted{Session: "one", Model: opus, Account: "work", Reason: "new"},
+			Refused{Account: "work", Status: http.StatusUnauthorized, Until: start.Add(refusedFor)},
+			RefusalLifted{Account: "work"},
+			HealthChanged{Reason: "5 of the 5 requests in the last 5 minutes failed"},
+			Primed{Account: "work", Window: "5h", ResetsAt: start.Add(5 * time.Hour)},
+			RestartDue{Reason: "upgraded"},
+		} {
+			n.hear(e)
+		}
+	}
+	n.hear(LimitReached{Account: "work", Until: start.Add(time.Hour), Limit: 1})
+	n.hear(forced("one", "work", "side"))
+
+	if got := len(n.events); got != 2 {
+		t.Errorf("%d events queued, want 2: the limit and the move, which notifications tell of", got)
+	}
+	if log.Has("fell behind") {
+		t.Errorf("log reads\n%s\nwant nothing dropped", log)
+	}
+}
+
 func TestANotificationThatFailsIsLogged(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
@@ -809,15 +837,22 @@ func (h *notifying) window(key, label string, used float64, left time.Duration) 
 	return quota.Window{Key: key, Label: label, Utilization: used, ResetsAt: h.began.Add(left), Status: verdict}
 }
 
-// forced is a session's opus requests leaving an account that couldn't take
-// them for another.
+// forced is a session's opus requests leaving an account whose limit, the
+// first the router counts, held them back, for another.
 func forced(session, from, to string) Moved {
 	return forcedModel(session, opus, from, to)
 }
 
 // forcedModel is forced, for requests of the model given.
 func forcedModel(session, model, from, to string) Moved {
-	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Forced: true}
+	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Limit: 1}
+}
+
+// forcedBy is forced, by the limit with the identity given.
+func forcedBy(limit int, session, from, to string) Moved {
+	m := forced(session, from, to)
+	m.Limit = limit
+	return m
 }
 
 // noting is a notifier that notes each message it's given, and fails as fail

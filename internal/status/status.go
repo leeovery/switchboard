@@ -136,9 +136,11 @@ type Event struct {
 	Since time.Time `json:"since,omitzero"`
 	// Count is how many sessions a limit moved.
 	Count int `json:"count,omitzero"`
-	// Limit is the id of the limit's event a move is counted in, as one of
-	// the sessions that limit moved: zero for a move it doesn't count, and an
-	// event of any other kind.
+	// Limit is, of a limit's event, the limit's identity, as the account's
+	// Limit gives it while it holds; and of a move's, the id of the limit's
+	// event the move is counted in, as one of the sessions that limit moved,
+	// zero for a move it doesn't count. It's zero for an event of any other
+	// kind.
 	Limit int `json:"limit,omitzero"`
 	// Status is the upstream's answer refusing requests, and Family, for a
 	// request refused alone, the model family the refusal holds back.
@@ -288,8 +290,11 @@ type Account struct {
 // Limit is a limit an account reached, as the upstream answered a request on
 // it: the windows it named as reached, if any, and when the account is to
 // have room again. Until then it has none for the requests those windows
-// count, or for any request when they're none, whatever its windows read.
+// count, or for any request when they're none, whatever its windows read. ID
+// is the limit's identity, which it keeps while it holds, as the router
+// counts its limits from 1 as it starts: its event gives it as its Limit.
 type Limit struct {
+	ID      int       `json:"id,omitzero"`
 	Windows []string  `json:"windows,omitempty"`
 	Until   time.Time `json:"until"`
 }

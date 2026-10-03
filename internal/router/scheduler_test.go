@@ -122,8 +122,8 @@ func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing
 	waitForLine(t, log, "msg=routed", "session=one", "model="+sonnet, "account=side", `reason="moved: work hit its limit"`, "attempts=2")
 	want := []router.Event{
 		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "rescored after 2h idle"},
-		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt},
-		router.Moved{Session: "one", Model: sonnet, From: "work", To: "side", Reason: "moved: work hit its limit", Forced: true},
+		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Limit: 1},
+		router.Moved{Session: "one", Model: sonnet, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
 	}
 	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v", got, want)
@@ -149,7 +149,7 @@ func TestTheSessionPinHeader(t *testing.T) {
 		t.Errorf("with side spent, the pinned session went to %s, want work", got)
 	}
 	waitForLine(t, log, "msg=routed", "session=one", "account=work", `reason="pin yields: side has no room"`)
-	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "pin yields: side has no room", Forced: true}}
+	want := []router.Event{router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "pin yields: side has no room"}}
 	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v", got, want)
 	}

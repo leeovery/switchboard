@@ -70,9 +70,15 @@ func newNotifications(settings config.Notifications, notifier Notifier, state *s
 	}
 }
 
-// hear queues an event for run to deal with. It never waits: with the queue
-// full, the event is dropped.
+// hear queues an event for run to deal with, of the kinds take deals with: a
+// limit reached, and a move. It never waits: with the queue full, the event
+// is dropped.
 func (n *notifications) hear(e Event) {
+	switch e.(type) {
+	case LimitReached, Moved:
+	default:
+		return
+	}
 	select {
 	case n.events <- e:
 	default:

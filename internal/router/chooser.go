@@ -17,13 +17,20 @@ type Chooser interface {
 	// is, but for the client's quota check, which no session is remembered
 	// for.
 	Choose(ctx context.Context, req Request) Choice
+	// Answered notes that req was answered with success, as its answer
+	// comes: its session's assignment for the request's model, made by req
+	// or another, is told of as started once, as the first is answered. The
+	// client's quota check starts none.
+	Answered(req Request)
 	// Forget takes back the accounts chosen for req, as they came to nothing:
 	// its session's assignment for the request's model goes back to what it
 	// was before req, none for a session req's first choice said was new,
 	// which is remembered once a request is answered with success, or when
 	// req was refused on every account it went out on. An account chosen for
-	// another request of the session since stands.
-	Forget(req Request)
+	// another request of the session since stands. It returns the account
+	// the session is back on, "" when it has none, or one chosen since
+	// stands.
+	Forget(req Request) string
 }
 
 // Request is what the router knows of a routed request when it chooses the

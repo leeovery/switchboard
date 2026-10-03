@@ -39,8 +39,8 @@ const (
 	// which goes out again on the new one.
 	StreamRefused = "refused"
 	// StreamMoved is the request's session moving to another account, for its
-	// requests of the model: never the client's quota check's, which no
-	// session is remembered for.
+	// requests of the model, its account the one it moved to: never the
+	// client's quota check's, which no session is remembered for.
 	StreamMoved = "moved"
 )
 
@@ -69,10 +69,12 @@ type StreamEvent struct {
 	Request string `json:"request"`
 	Attempt int    `json:"attempt,omitzero"`
 	// Session and Model are the session the request belongs to and the model
-	// it asks for, either "" when it doesn't say.
+	// it asks for, either "" when it doesn't say, each cut to 200 bytes.
 	Session string `json:"session,omitempty"`
 	Model   string `json:"model,omitempty"`
-	// Account is the account the request goes out on, or went out on last.
+	// Account is the account the request goes out on, or went out on last,
+	// or, once the client has an answer, the one it came from; and of a
+	// move, the account the session moved to.
 	Account string `json:"account,omitempty"`
 	// Check is set when the request is the client's quota check.
 	Check bool `json:"check,omitzero"`
@@ -84,6 +86,11 @@ type StreamEvent struct {
 	// answer has streamed so far, or in all once the request is done: zero
 	// when it streamed none, or they couldn't be counted.
 	Chars int `json:"chars,omitzero"`
+	// Verdict is, of a request in flight as a reader joins, the last the
+	// stream told of its answer on the account it went out on last,
+	// StreamLimited, StreamThrottled or StreamRefused, with that answer's
+	// Status: "" while there's none.
+	Verdict string `json:"verdict,omitempty"`
 	// Status is the upstream's answer that limited, throttled or refused the
 	// request, or what the client was answered once it's done: zero when the
 	// client went before it was answered.
@@ -102,9 +109,10 @@ type StreamEvent struct {
 // as it happens, for the readers of GET /stream, and the requests in flight,
 // as each stands, which a reader is told of first as it joins. While it has
 // readers, it tells of the progress of each request's answer every
-// progressEvery at most. Telling of an event never waits for a reader: one
-// that falls readerLag events behind is dropped, to reconnect. It's safe for
-// concurrent use.
+// progressEvery at most while answers progress, and sleeps while none does.
+// Telling of an event never waits for a reader: one that falls readerLag
+// events behind is dropped, to reconnect. A reader's stream ends as the
+// control API closes, as the router stops. It's safe for concurrent use.
 type stream struct {
 	now func() time.Time
 
@@ -114,17 +122,18 @@ type stream struct {
 	// pacing is closed as the last reader leaves, to stop telling of
 	// progress: nil while there's none.
 	pacing chan struct{}
-	// closed is set once the stream is closed, as the router stops: no
-	// reader joins it after.
-	closed bool
+	// idle is set while the pacer sleeps, no answer having streamed more
+	// since it last told of progress, and stir wakes it.
+	idle bool
+	stir chan struct{}
 }
 
 // flight is a request in flight, as the stream keeps it: the inflight event
-// that tells of it as it stands, but for the characters its answer has
-// streamed so far, chars, and as last told of, told.
+// that tells of it as it stands, its Chars those its answer has streamed so
+// far, and told those last told of.
 type flight struct {
 	StreamEvent
-	chars, told int
+	told int
 }
 
 // streamReader is a reader of the stream, and the events it's yet to take:
@@ -149,19 +158,23 @@ func (s *stream) publish(e StreamEvent) {
 }
 
 // keep keeps the request e tells of as e leaves it: in flight from each time
-// it goes upstream until it's done. s.mu must be held.
+// it goes upstream until it's done, with the last verdict told of its answer
+// there, on the account whose answer the client has once it has one. s.mu
+// must be held.
 func (s *stream) keep(e StreamEvent) {
-	switch e.Kind {
-	case StreamSent:
-		f := &flight{StreamEvent: e}
-		f.Kind, f.SentAt = StreamInFlight, e.At
-		s.flying[e.Request] = f
-	case StreamFirst:
-		if f, ok := s.flying[e.Request]; ok {
-			f.FirstAt = e.At
-		}
-	case StreamDone:
+	f, ok := s.flying[e.Request]
+	switch {
+	case e.Kind == StreamSent:
+		sent := &flight{StreamEvent: e}
+		sent.Kind, sent.SentAt = StreamInFlight, e.At
+		s.flying[e.Request] = sent
+	case e.Kind == StreamDone:
 		delete(s.flying, e.Request)
+	case !ok:
+	case e.Kind == StreamFirst:
+		f.FirstAt, f.Account = e.At, e.Account
+	case e.Kind == StreamLimited, e.Kind == StreamThrottled, e.Kind == StreamRefused:
+		f.Verdict, f.Status = e.Kind, e.Status
 	}
 }
 
@@ -188,29 +201,36 @@ func noteBehind(readers int) {
 }
 
 // progressed notes that the answer to the request with the given id has
-// streamed chars characters of text, thinking and tools' input so far.
+// streamed chars characters of text, thinking and tools' input so far,
+// waking the pacer should it sleep.
 func (s *stream) progressed(request string, chars int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if f, ok := s.flying[request]; ok {
-		f.chars = chars
+	f, ok := s.flying[request]
+	if !ok || f.Chars == chars {
+		return
+	}
+	f.Chars = chars
+	if s.idle {
+		s.idle = false
+		select {
+		case s.stir <- struct{}{}:
+		default:
+		}
 	}
 }
 
 // join has a reader join the stream: it returns the requests in flight, as
 // they stand, the first sent first, and the reader, to be told of every event
-// after them. It reports false once the stream is closed.
-func (s *stream) join() ([]StreamEvent, *streamReader, bool) {
+// after them.
+func (s *stream) join() ([]StreamEvent, *streamReader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return nil, nil, false
-	}
 	at := s.now().UTC()
 	inFlight := make([]StreamEvent, 0, len(s.flying))
 	for _, f := range s.flying {
 		e := f.StreamEvent
-		e.At, e.Chars = at, f.chars
+		e.At = at
 		inFlight = append(inFlight, e)
 	}
 	slices.SortFunc(inFlight, func(a, b StreamEvent) int {
@@ -221,18 +241,18 @@ func (s *stream) join() ([]StreamEvent, *streamReader, bool) {
 	if s.pacing == nil {
 		s.startPacing()
 	}
-	return inFlight, r, true
+	return inFlight, r
 }
 
 // startPacing starts telling of the progress of the requests' answers, as
 // the first reader joins, whose inflight events tell it of their progress so
-// far. s.mu must be held.
+// far: the pacer sleeps until an answer streams more. s.mu must be held.
 func (s *stream) startPacing() {
 	for _, f := range s.flying {
-		f.told = f.chars
+		f.told = f.Chars
 	}
-	s.pacing = make(chan struct{})
-	go s.pace(s.pacing)
+	s.pacing, s.stir, s.idle = make(chan struct{}), make(chan struct{}, 1), true
+	go s.pace(s.pacing, s.stir)
 }
 
 // leave stops telling r of events, as it goes.
@@ -244,16 +264,6 @@ func (s *stream) leave(r *streamReader) {
 	}
 }
 
-// close drops every reader, as the router stops, and has none join after.
-func (s *stream) close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.closed = true
-	for r := range s.readers {
-		s.drop(r)
-	}
-}
-
 // drop stops telling r of events, and closes them, stopping telling of
 // progress once no reader is left. s.mu must be held.
 func (s *stream) drop(r *streamReader) {
@@ -261,54 +271,67 @@ func (s *stream) drop(r *streamReader) {
 	close(r.events)
 	if len(s.readers) == 0 {
 		close(s.pacing)
-		s.pacing = nil
+		s.pacing, s.idle = nil, false
 	}
 }
 
 // pace tells of the progress of the requests' answers, as tellProgress does,
-// every progressEvery, until stop is closed.
-func (s *stream) pace(stop <-chan struct{}) {
+// every progressEvery while they stream more, from progressEvery after stir
+// wakes it, as an answer streams more, sleeping again once a look finds none
+// has, until stop is closed.
+func (s *stream) pace(stop, stir <-chan struct{}) {
 	timer := time.NewTimer(progressEvery)
+	timer.Stop()
 	defer timer.Stop()
 	for {
 		select {
 		case <-stop:
 			return
-		case <-timer.C:
-			s.tellProgress()
+		case <-stir:
+		}
+		for told := true; told; told = s.tellProgress(stop) {
 			timer.Reset(progressEvery)
+			select {
+			case <-stop:
+				return
+			case <-timer.C:
+			}
 		}
 	}
 }
 
 // tellProgress tells every reader of each request whose answer has streamed
-// more characters since it was last told of.
-func (s *stream) tellProgress() {
+// more characters since it was last told of, for the pacer stop stops, and
+// reports whether there were any: when there were none, the pacer is idle
+// from then on. A pacer stopped, as the last reader left, tells of nothing.
+func (s *stream) tellProgress(stop <-chan struct{}) bool {
 	s.mu.Lock()
-	at, behind := s.now().UTC(), 0
+	if s.pacing != stop {
+		s.mu.Unlock()
+		return false
+	}
+	at, told, behind := s.now().UTC(), false, 0
 	for _, f := range s.flying {
-		if f.chars == f.told {
+		if f.Chars == f.told {
 			continue
 		}
-		f.told = f.chars
+		f.told, told = f.Chars, true
 		e := f.StreamEvent
-		e.At, e.Kind, e.Chars = at, StreamProgress, f.chars
-		e.SentAt, e.FirstAt = time.Time{}, time.Time{}
+		e.At, e.Kind = at, StreamProgress
+		e.SentAt, e.FirstAt, e.Verdict, e.Status = time.Time{}, time.Time{}, "", 0
 		behind += s.tell(e)
 	}
+	s.idle = !told
 	s.mu.Unlock()
 	noteBehind(behind)
+	return told
 }
 
 // serveStream answers GET /stream: the requests in flight as the reader
 // joins, then every event of the stream as it comes, a line of JSON each,
-// until the reader goes or is dropped, or the stream closes.
+// until the reader goes or is dropped, or the control API closes.
 func (r *Router) serveStream(w http.ResponseWriter, req *http.Request) {
-	inFlight, reader, ok := r.stream.join()
-	if !ok {
-		writeProblem(w, http.StatusServiceUnavailable, "the router is stopping: ask again once it's back")
-		return
-	}
+	inFlight, reader := r.stream.join()
 	defer r.stream.leave(reader)
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	if !writeEvents(w, inFlight) {

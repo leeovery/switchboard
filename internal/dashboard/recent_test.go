@@ -217,7 +217,7 @@ func TestRECENTLeavesTheMovesALimitForcedToItsLine(t *testing.T) {
 		{ID: 5, At: now.UTC(), Kind: status.EventMoved, Session: "9e21d4a8", From: "side", To: "client", Reason: "pinned"},
 		{ID: 4, At: now.UTC(), Kind: status.EventMoved, Session: "41e0b6c2", From: "personal", To: "side", Reason: "moved: personal has no room", Limit: 2},
 		{ID: 3, At: now.UTC(), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "side", Reason: "moved: personal hit its limit", Limit: 2},
-		{ID: 2, At: now.UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side"},
+		{ID: 2, At: now.UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side", Limit: 1},
 		{ID: 1, At: now.UTC(), Kind: status.EventMoved, Session: "5c7a93f1", From: "personal", To: "side", Reason: "moved: personal has no room"},
 	}
 	var got []int

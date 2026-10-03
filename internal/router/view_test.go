@@ -233,7 +233,7 @@ func TestALimitThatsAlreadyDueHoldsFiveMinutes(t *testing.T) {
 	}
 }
 
-func TestALimitReachedAgainWhileItsInForceIsTheSameLimit(t *testing.T) {
+func TestALimitReachedAgainInAWindowItWasNamedInKeepsItsIdentity(t *testing.T) {
 	clock := &testClock{now: start}
 	s := newTestState(clock)
 	s.record("work", []quota.Window{session, week, fableWeek}, s.mark())
@@ -248,27 +248,32 @@ func TestALimitReachedAgainWhileItsInForceIsTheSameLimit(t *testing.T) {
 		{
 			name:    "reached",
 			windows: []string{"7d_oi"}, until: start.Add(time.Hour),
-			want: LimitReached{Account: "work", Windows: []string{"7d_oi"}, Until: start.Add(time.Hour)},
+			want: LimitReached{Account: "work", Windows: []string{"7d_oi"}, Until: start.Add(time.Hour), Limit: 1},
 		},
 		{
-			name:  "reached again in another window, until sooner",
+			name:  "another reached while it holds, in a window it names none of",
 			after: 10 * time.Minute, windows: []string{"5h"}, until: start.Add(30 * time.Minute),
-			want: LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(30 * time.Minute), Again: true},
+			want: LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(30 * time.Minute), Limit: 2},
 		},
 		{
-			name:  "reached again in no window named, until it doesn't say",
+			name:  "the newest reached again in no window named, until it doesn't say",
 			after: 20 * time.Minute,
-			want:  LimitReached{Account: "work", Until: start.Add(25 * time.Minute), Again: true},
+			want:  LimitReached{Account: "work", Until: start.Add(25 * time.Minute), Limit: 2, Again: true},
 		},
 		{
 			name:  "reached again, until it still doesn't say, which extends it",
 			after: 24 * time.Minute,
-			want:  LimitReached{Account: "work", Until: start.Add(29 * time.Minute), Again: true},
+			want:  LimitReached{Account: "work", Until: start.Add(29 * time.Minute), Limit: 2, Again: true},
 		},
 		{
-			name:  "reached once it has lifted",
+			name:  "the first reached again in its window, while it holds, though another was reached since",
+			after: 26 * time.Minute, windows: []string{"7d_oi"}, until: start.Add(time.Hour),
+			want: LimitReached{Account: "work", Windows: []string{"7d_oi"}, Until: start.Add(time.Hour), Limit: 1, Again: true},
+		},
+		{
+			name:  "the second's window reached once it has lifted",
 			after: 30 * time.Minute, windows: []string{"5h"}, until: start.Add(3 * time.Hour),
-			want: LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(3 * time.Hour)},
+			want: LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(3 * time.Hour), Limit: 3},
 		},
 	}
 	for _, step := range steps {

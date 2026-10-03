@@ -45,7 +45,7 @@ func recent(doc status.Document, now time.Time, n int) []status.Event {
 // counted reports whether an event is a move a limit forced, which the
 // limit's own line counts, so RECENT, and a card's LATELY, leave it out.
 func counted(e status.Event) bool {
-	return e.Limit != 0
+	return e.Kind == status.EventMoved && e.Limit != 0
 }
 
 // quiet is what RECENT says where it lists no events: that the router isn't

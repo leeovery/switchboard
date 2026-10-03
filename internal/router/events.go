@@ -7,15 +7,15 @@ import (
 
 // Event is news from the router that something outside it may want to act
 // on, such as by notifying the user: SessionStarted, LimitReached, Moved,
-// Refused, HealthChanged, Primed or RestartDue. Config.Events hears each as
-// it happens.
+// Refused, RefusalLifted, HealthChanged, Primed or RestartDue. Config.Events
+// hears each as it happens.
 type Event interface {
 	event()
 }
 
 // SessionStarted is a session first remembered, for its requests of Model:
-// its first answered with success, on Account, where it went as the routed
-// line's Reason says.
+// the first of them answered with success, as its answer comes, on Account,
+// where the session went as the routed line's Reason says.
 type SessionStarted struct {
 	Session string
 	Model   string
@@ -26,37 +26,57 @@ type SessionStarted struct {
 // LimitReached is an account's limit reached, as the upstream answered a
 // request on it: Windows are the keys of those it's reached in, which can be
 // none when only its overall verdict said so, and Until is when the account is
-// to have room again. Again is set when the account's last limit still held:
-// it's that limit, reached again, which now holds as Windows and Until say.
+// to have room again. Limit is the limit's identity, which it keeps while it
+// holds, and a new limit takes afresh: one reached while none holds, or
+// naming windows the one that holds names none of. Again is set when it's
+// the limit that holds, reached again, which now holds as Windows and Until
+// say.
 type LimitReached struct {
 	Account string
 	Windows []string
 	Until   time.Time
+	Limit   int
 	Again   bool
 }
 
 // Moved is a session's requests of a model moving to another account, and
-// why, as the routed line's reason says. Forced is set when From couldn't
-// take the request, as when it reached its limit, so the session had to
-// move, rather than moving by choice, as after an idle hour or by pin.
+// why, as the routed line's reason says. Limit is the identity of the limit
+// that held the request back on From, as LimitReached gives it, where that's
+// why the session moved: zero for a move by choice, as after an idle hour or
+// by pin, and for one that had to be for anything else, as From's reserve or
+// a refusal.
 type Moved struct {
 	Session string
 	Model   string
 	From    string
 	To      string
 	Reason  string
-	Forced  bool
+	Limit   int
 }
 
-// Refused is the upstream refusing a request on an account, answering with
-// Status: its token, which holds back every request, or, when Family is set,
-// the request alone, which holds back the requests of that model family,
-// either until Until.
+// Refused is the upstream refusing the request with the id Request on an
+// account, answering with Status: its token, which holds back every request,
+// or, when Family is set, the request alone, which holds back the requests of
+// that model family, either until Until, unless RefusalLifted tells of it
+// lifting sooner.
 type Refused struct {
 	Account string
 	Status  int
 	Family  string
 	Until   time.Time
+	Request string
+}
+
+// RefusalLifted is a refusal on Account lifting before its time: of every
+// request, its token refused, when Family is "", as the account goes out on
+// another token, each such refusal in force; or of the requests of Family,
+// as the request with the id Request, which the upstream refused there, was
+// refused on every account it went out on, which says more of the request
+// than of the accounts.
+type RefusalLifted struct {
+	Account string
+	Family  string
+	Request string
 }
 
 // HealthChanged is the router turning unhealthy, saying why, or healthy
@@ -84,6 +104,7 @@ func (SessionStarted) event() {}
 func (LimitReached) event()   {}
 func (Moved) event()          {}
 func (Refused) event()        {}
+func (RefusalLifted) event()  {}
 func (HealthChanged) event()  {}
 func (Primed) event()         {}
 func (RestartDue) event()     {}
@@ -113,23 +134,24 @@ func newLimitMoves(e LimitReached) *limitMoves {
 	return m
 }
 
-// join takes in the account reaching its limit again while it holds: in
-// other windows, perhaps, and until later.
+// join takes in the limit reached again while it holds: in other windows,
+// perhaps, and until later. The news of a limit can come after the news of
+// it reached again, so it holds until the latest it's told of.
 func (m *limitMoves) join(e LimitReached) {
 	for _, key := range e.Windows {
 		if !slices.Contains(m.Windows, key) {
 			m.Windows = append(m.Windows, key)
 		}
 	}
-	m.Until = e.Until
+	m.Until = later(m.Until, e.Until)
 }
 
-// add takes in a session the limit moved.
-func (m *limitMoves) add(e Moved) {
-	if !slices.Contains(m.sessions, e.Session) {
-		m.sessions = append(m.sessions, e.Session)
+// add takes in a session the limit moved to the account with the id to.
+func (m *limitMoves) add(session, to string) {
+	if !slices.Contains(m.sessions, session) {
+		m.sessions = append(m.sessions, session)
 	}
-	if !slices.Contains(m.to, e.To) {
-		m.to = append(m.to, e.To)
+	if !slices.Contains(m.to, to) {
+		m.to = append(m.to, to)
 	}
 }

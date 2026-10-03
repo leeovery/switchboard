@@ -75,6 +75,12 @@ func (h *health) report() status.Health {
 	return h.judge(h.now())
 }
 
+// look judges the router's health now, so a turn, as when the failures leave
+// the window with no request since, is told of though nothing asks.
+func (h *health) look() {
+	h.report()
+}
+
 // judge forgets the requests that have left the window at now, and judges the
 // router's health on the rest, logging and announcing any change. A change
 // is announced as it's judged, under h.mu, so announcements can't cross.

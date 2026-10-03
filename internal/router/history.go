@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"iter"
@@ -122,7 +123,7 @@ type history struct {
 	// cut short, which it skips.
 	files sync.RWMutex
 	// warned holds the files a read has warned of, as files that can't be
-	// read or read short, so each is warned of once a run.
+	// read or read short, so each is warned of once until it reads again.
 	warned filesWarned
 
 	// Only run's goroutine touches what follows.
@@ -349,13 +350,15 @@ func (h *history) prune() {
 }
 
 // tend removes the history's file f, of the local day given, once the day
-// ended keep or more before now, or when it's a day after tomorrow, as a
-// clock once set ahead named it, which would crowd out the real ones; and
-// compresses it, a plain file, once the day ended two days or more before
-// now. What it can't do is logged, and left to the next prune.
+// ended keep or more before now, and compresses it, a plain file, once the
+// day ended two days or more before now. A file of a day after tomorrow, as
+// a clock once set ahead names one, stays until its day is past keeping too:
+// the clock may be the one that's wrong, set back, and reading back passes
+// such a file over meanwhile. What it can't do is logged, and left to the
+// next prune.
 func (h *history) tend(f dayFile, day, now time.Time) {
 	switch ended := now.Sub(day.AddDate(0, 0, 1)); {
-	case ended >= h.keep || afterTomorrow(day, now):
+	case ended >= h.keep:
 		if err := os.Remove(h.path(f)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			logger.Warn("can't prune the readings history", "file", f.name(), "error", err)
 		}
@@ -432,10 +435,13 @@ func readCompressed(path string) (written, lines []byte, err error) {
 	}
 	members, err := gzip.NewReader(bytes.NewReader(written))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	lines, err = io.ReadAll(members)
-	return written, lines, err
+	if err != nil {
+		return nil, nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	return written, lines, nil
 }
 
 // gzipped returns data compressed, as a gzip member of its own.
@@ -484,7 +490,7 @@ func (h *history) windowReadings(key string, ids []string, from, to time.Time) m
 	h.files.RLock()
 	defer h.files.RUnlock()
 	readings := make(map[string][]reading)
-	h.readDays(datesFrom(startOfDay(from).AddDate(0, 0, -1), to.Local().AddDate(0, 0, 1)), func(r reading) bool {
+	h.readDays(datesFrom(noon(from.Local()).AddDate(0, 0, -1), noon(to.Local()).AddDate(0, 0, 1)), func(r reading) bool {
 		if r.Window == key && slices.Contains(ids, r.Account) {
 			readings[r.Account] = append(readings[r.Account], r)
 		}
@@ -532,20 +538,23 @@ func (h *history) readDays(dates []string, take func(reading) bool) (bad int) {
 	return bad
 }
 
-// datesFrom returns the dates, as historyDay lays them out, of the local days
-// from first's to last's.
+// datesFrom returns the dates, as historyDay lays them out, of the days from
+// first's to last's, in first's time zone. It steps a day at a time from
+// noon: where the clocks change at midnight, a step from midnight would land
+// on a date twice, and leave out the last.
 func datesFrom(first, last time.Time) []string {
+	end := noon(last.In(first.Location()))
 	var dates []string
-	for day := startOfDay(first); !day.After(last); day = day.AddDate(0, 0, 1) {
+	for day := noon(first); !day.After(end); day = day.AddDate(0, 0, 1) {
 		dates = append(dates, day.Format(historyDay))
 	}
 	return dates
 }
 
-// startOfDay returns when the local day t falls on starts.
-func startOfDay(t time.Time) time.Time {
-	y, m, d := t.Local().Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+// noon returns noon of the day t falls on, in t's time zone.
+func noon(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, 12, 0, 0, 0, t.Location())
 }
 
 // dayFiles returns those of the history's files of the local day with the
@@ -590,7 +599,7 @@ func afterTomorrow(day, now time.Time) bool {
 // historyLineMax is skipped without being held. A file that can't be read
 // holds none, which is warned of but for one that isn't there, and one
 // damaged, as a compressed file cut short, the lines before the damage, which
-// is warned of too: each once a run, as warn says.
+// is warned of too: each once until it reads to its end again, as warn says.
 func (h *history) readFile(f dayFile, take func(reading) bool) (bad int, more bool) {
 	src, err := h.openFile(f)
 	if err != nil {
@@ -620,7 +629,9 @@ func (h *history) readFile(f dayFile, take func(reading) bool) (bad int, more bo
 			}
 		}
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
+				h.warned.forget(f.name())
+			} else {
 				h.warn("readings history read short", f, err)
 			}
 			return bad, true
@@ -653,7 +664,7 @@ type readCloser struct {
 }
 
 // warn logs msg of the history's file f, saying why, the first time a read of
-// it fails this run.
+// it fails since it last read to its end.
 func (h *history) warn(msg string, f dayFile, err error) {
 	if h.warned.first(f.name()) {
 		logger.Warn(msg, "file", f.name(), "error", err)
@@ -661,16 +672,17 @@ func (h *history) warn(msg string, f dayFile, err error) {
 }
 
 // filesWarned holds, by name, the history's files a read has warned of, so
-// each is warned of once a run, not at every GET /history: a file that can't
-// be read, or is damaged, doesn't mend itself. It's safe for concurrent use,
-// as reads of the history are.
+// each is warned of once until it reads to its end again, not at every GET
+// /history: a file that can't be read, or is damaged, seldom mends itself,
+// but one that does is warned of afresh should it fail again. It's safe for
+// concurrent use, as reads of the history are.
 type filesWarned struct {
 	mu   sync.Mutex
 	told map[string]bool
 }
 
 // first reports whether the file with the given name is warned of for the
-// first time.
+// first time since it last read to its end.
 func (w *filesWarned) first(name string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -682,6 +694,14 @@ func (w *filesWarned) first(name string) bool {
 	}
 	w.told[name] = true
 	return true
+}
+
+// forget notes that the file with the given name read to its end: a read of
+// it that fails after is warned of again.
+func (w *filesWarned) forget(name string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	delete(w.told, name)
 }
 
 // skipLine reads past the rest of a line too long to hold, reporting why it

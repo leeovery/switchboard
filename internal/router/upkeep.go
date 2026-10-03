@@ -26,11 +26,12 @@ type upkeep struct {
 }
 
 // newUpkeep returns the upkeep of a router built from cfg, with the accounts
-// given, whose refusals state lifts once they go out on another token, noting
-// each change to their tokens for the state file to keep with changes,
-// working out the schedule of primer, if it primes, again whenever the
-// accounts with tokens change, telling emit of a restart as it falls due,
-// restarting once inFlight counts no request in flight, and noticing wakes.
+// given, whose refusals state lifts once they go out on another token,
+// telling emit of those that lift, noting each change to their tokens for the
+// state file to keep with changes, working out the schedule of primer, if it
+// primes, again whenever the accounts with tokens change, telling emit of a
+// restart as it falls due, restarting once inFlight counts no request in
+// flight, and noticing wakes.
 func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
@@ -44,7 +45,11 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			now:      cfg.Now,
 			kept:     changes.note,
 			sendable: replan,
-			replaced: state.tokenReplaced,
+			replaced: func(id string) {
+				if lifted, ok := state.tokenReplaced(id); ok {
+					emit(lifted)
+				}
+			},
 		},
 		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit),
 		wakes:    wakes,

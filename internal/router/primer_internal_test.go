@@ -209,6 +209,54 @@ func TestAPrimeThatStartsItsWindowIsAnEventInTheStatus(t *testing.T) {
 	})
 }
 
+func TestAPrimeThatFindsItsWindowRunningAlreadyIsNoEvent(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 4, 0))
+		upstream := newWindowsUpstream(clock)
+		// The Claude apps started work's session at 02:20, which the router
+		// knows nothing of as work's slot, 04:10, comes; side's primes start
+		// nothing.
+		upstream.startElsewhere(workToken, onDay(1, 7, 20))
+		upstream.leaveIdle(sideToken, onDay(1, 1, 0))
+		r := newPrimingRouter(t, clock.read, upstream, daytime)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(20 * time.Minute)
+		synctest.Wait()
+		resets := onDay(1, 7, 20).Local().Format("2006-01-02T15:04:05.000-07:00")
+		if !log.Has("level=INFO", "msg=primed", "account=work", "resets="+resets) {
+			t.Errorf("log reads\n%s\nwant work's prime, with the reset it read", log)
+		}
+		if got := r.recent.events(); got != nil {
+			t.Errorf("events() = %+v, want none: work's prime found its session running already", got)
+		}
+	})
+}
+
+func TestAPrimesWindowIsTheOneItStarted(t *testing.T) {
+	sent := onDay(1, 4, 10).Add(5 * time.Second)
+	tests := []struct {
+		name   string
+		resets time.Time
+		want   bool
+	}{
+		{name: "five hours on from the ten-minute mark it fell in", resets: onDay(1, 9, 10), want: true},
+		{name: "five hours less ten minutes on, to the second", resets: sent.Add(5*time.Hour - 10*time.Minute), want: true},
+		{name: "a window started before it", resets: onDay(1, 7, 20)},
+		{name: "a reset not read"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Primed{Account: "work", Window: "5h", ResetsAt: tt.resets}
+			if got := p.startedBy(sent); got != tt.want {
+				t.Errorf("startedBy() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 	far := onDay(4, 0, 0)
 	spentWeek := week
@@ -551,6 +599,14 @@ func (u *windowsUpstream) refuse(token string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.refused[token] = true
+}
+
+// startElsewhere has the session of the account whose token is token run
+// till reset, started elsewhere, as by the Claude apps.
+func (u *windowsUpstream) startElsewhere(token string, reset time.Time) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.sessions[token] = reset
 }
 
 // leaveIdle has the upstream start no session on token from now on: its
