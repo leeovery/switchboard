@@ -769,9 +769,7 @@ A card, top to bottom:
 - **Its state, in words**, the coloured dot or square leading, wrapping onto three rows where
   they're long: what holds it back or what it's doing, and what that means for new sessions. In
   order of precedence:
-  - `✕ no token · switchboard accounts token work`, in `state.destructive`, without a usable token;
-    `! can't read it · <why>`, in `state.destructive`, when its usage can't be read, over the
-    numbers last read of it; `… not read yet`, dim, before anything has been.
+  - `✕ no token · switchboard accounts token work`, in `state.destructive`, without a usable token.
   - `■ limit reached · back 15:54, in 1h 12m`, in `state.destructive`, while a limit holds back
     every request: the router's limit and every window read spent hold it back together, and it's
     back as the last of them lifts. `■ refused (401) · until 21:40` while its token is refused. One
@@ -779,7 +777,10 @@ A card, top to bottom:
     `accent.attention`, and says what still goes: `■ Fable wk limit · back Mon 21:00 · other models
     still come here`, `■ refused (403, opus) · until 21:40 · other models still come here`; but a
     window every model shares at the reserve that holds the account back outranks it, and is said
-    as the next line says.
+    as the reserve's line below says. A limit or a refusal that holds is said even where the
+    account's last read failed, so a probe timing out under a limit leaves the card at its limit.
+  - `! can't read it · <why>`, in `state.destructive`, when its usage can't be read, over the
+    numbers last read of it; `… not read yet`, dim, before anything has been.
   - `● at its reserve (90%)`, or with the global pin naming it, `● spending its reserve (pinned)`,
     in `accent.attention`; a model's own window at its reserve, as Fable's week, says what still
     goes: `● Fable wk at its reserve (90%) · other models still come here`.
@@ -1122,8 +1123,9 @@ last stop, where none has; with none read, it draws nothing.
   where it can't. The 5-hour window, its limit, and its week running out all count, and over the
   day a refusal of every request too: an account's room is all of them. A limit's stretch starts
   at the router's event of it, and a hold whose start isn't known runs from before the timeline.
-  An account without a usable token, or whose usage can't be read, has no room all along, and one
-  not yet read is left blank.
+  An account without a usable token has no room all along; so has one whose usage can't be read,
+  its words saying why, as `can't read it · timed out`, and one not yet read is left blank, each
+  even while a router limit holds it, which its card shows instead.
 - **Words where it changes**, on the line under the lane, where each stretch without room starts:
   `runs out ~16:05 · back 17:10, as it resets`; `reaches its reserve ~15:45 · back 17:10, as it
   resets`, or already there, `at its reserve · back 17:10, as it resets`; `limit reached 14:12 ·
@@ -1223,7 +1225,11 @@ Portal theme works in switchboard as it is.
   out against `canvas`. The one-shot `usage` paints no background, printing into the scrollback:
   where it shows colour, and never from a job in the background, it asks the terminal for its
   background (OSC 11), through `/dev/tty`, picks the light or dark half by it, and blends against
-  the colour it gets. One theme chosen prints only on a background as dark or light as its own,
+  the colour it gets. It asks the terminal's device attributes after (DA1), which every terminal
+  answers, so one that doesn't answer OSC 11 is known at once. Having given up on an answer, it
+  keeps the terminal raw for a grace of 100 milliseconds, ending as the DA1 reply comes, reading
+  and dropping what comes late, so no answer is left in the shell, and an answer that comes in the
+  grace isn't taken. One theme chosen prints only on a background as dark or light as its own,
   else the default pair's half for that background. The `terminal` theme never paints, and blends
   nothing.
 - **Fewer colours:** the frame is drawn in the theme's colours and brought down to what the
@@ -1388,7 +1394,10 @@ it posts: see Config.
   none moved, it says when no other account has room. When the account is back goes unsaid where
   it would make the message longer than a banner shows. One notification a limit, however many
   requests reach it: one reached again while it holds is the same limit, but another limit reached
-  meanwhile, in other windows, has a notification of its own (see Choosing an account, step 6).
+  meanwhile, in windows the holding one doesn't name, has a notification of its own, with its own
+  moves (see Choosing an account, step 6). The moves are gathered by the limit's identity, in
+  whatever order the news comes: a move told of before its limit waits for it. They're gathered
+  only while `limits` is on.
 - **Room again:** an account whose quota for a request of any model ran out, under a limit, with
   a shared window spent, or at its reserve, and has come back: `work · Work has room again`. A
   refusal isn't quota, so one lifting is no news, or a revoked token would be announced every ten
@@ -1396,7 +1405,8 @@ it posts: see Config.
   looks at the accounts on every event and every 15 seconds, so a limit lifting or a window
   resetting with no traffic is noticed.
 - **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
-- **Moves:** each move a limit's notification doesn't tell of:
+- **Moves:** each move a limit's notification doesn't tell of, as one its limit forced once the
+  limit's notification has gone out, or any while `limits` is off:
   `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`.
 
 Room again and warnings compare an account with how it last stood, so neither tells of how the
@@ -1748,30 +1758,30 @@ hiding it behind the provider would take a wider interface than it's worth:
   to a line, never renamed, and a reader passes over those it doesn't know. The router removes a
   day's file once its day ended as long ago as `[history] keep` says, 14 days unless it's set (see
   Config), as it starts and on each day after, and leaves anything else in the directory alone. A
-  file named for a day after tomorrow, as a clock once set ahead names one, is kept as any other,
-  as the clock may be the one that's wrong, set back, and no day of the history is to be deleted
-  for it: reading back passes it over, and it's removed once its own day is past keeping. Writing
-  never holds a request up: the lines queue, those of 1,024 answers or probes at most, dropping
-  any past that, for a goroutine of their own to write; a write that fails is logged once until
-  one succeeds, and the reading goes unwritten, as the history never stands in routing's way. As
-  it starts, the router takes up the lines of its two newest days, by the dates their files are
-  named for, as a change of time zone can name today's file for another day than the clock's, but
-  for a day after tomorrow, into each window's recent readings, its baseline included (see
-  Choosing an account): the history holds each change of a window's use, so they are as they
-  were, but for when each level was last read again, which it takes as its line's time, and the
-  recent rates outlast the restart. It reads them a line at a time, keeping what the recent
-  readings need alone. A window quiet since before the older of the two has no baseline to take
-  up. It passes over a line that doesn't read as a reading, as one cut short, or one over 4 KiB,
-  which no reading makes and which it skips without holding, one of an account no longer
+  file named for a day after tomorrow, as a clock once set ahead names one, stays, as the clock may
+  be the one that's wrong, set back, and a clock set back must never delete real history: every
+  read passes it over until its date comes round, and it's removed, as any other, once its day is
+  past keeping. Writing never holds a request up: the lines queue, those of 1,024 answers or
+  probes at most, dropping any past that, for a goroutine of their own to write; a write that
+  fails is logged once until one succeeds, and the reading goes unwritten, as the history never
+  stands in routing's way. As it starts, the router takes up the lines of its two newest days, by
+  the dates their files are named for, as a change of time zone can name today's file for another
+  day than the clock's, but for a day after tomorrow, into each window's recent readings, its
+  baseline included (see Choosing an account): the history holds each change of a window's use, so
+  they are as they were, but for when each level was last read again, which it takes as its line's
+  time, and the recent rates outlast the restart. It reads them a line at a time, keeping what the
+  recent readings need alone. A window quiet since before the older of the two has no baseline to
+  take up. It passes over a line that doesn't read as a reading, as one cut short, or one over
+  4 KiB, which no reading makes and which it skips without holding, one of an account no longer
   configured, and those of a window that has reset since, as `state.json` has it. A reading that
-  can't be put as a line, as one whose use isn't a number, goes unwritten, logged once. A day's
-  file is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a
-  year of them would otherwise run to hundreds of megabytes; the router reads either form back, as
-  it starts and for `GET /history`, which the dashboard's charts draw from (see Control API). A day
-  whose compressed file already ends with its plain file's lines, as when the router stopped
-  between writing the one and removing the other, is read from the compressed file alone. A file
-  that can't be read is passed over, and one damaged, as a compressed file cut short, read up to
-  the damage, each warned of once, until it reads to its end again (see Logging).
+  can't be put as a line, as one whose use isn't a number, goes unwritten, logged once. A day's file
+  is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of
+  them would otherwise run to hundreds of megabytes; the router reads either form back, as it starts
+  and for `GET /history`, which the dashboard's charts draw from (see Control API). A day whose
+  compressed file already ends with its plain file's lines, as when the router stopped between
+  writing the one and removing the other, is read from the compressed file alone. A file that can't
+  be read is passed over, and one damaged, as a compressed file cut short, read up to the damage,
+  each warned of once, until it reads to its end again (see Logging).
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, the view it
   shows, the featured window and the chart style, written whole by the dashboard alone, never by
   hand (see Themes).
@@ -1933,7 +1943,7 @@ probing.
 | `router` | *router* Its health: `{healthy, requests, failures, reason}`, over the last 5 minutes, `reason` left out while healthy |
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again. Left out while none is due (see The router looking after itself) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
-| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh: `[{id, at, kind, account, session, model, from, to, reason, windows, until, since, count, limit, status, family}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started` (a session first remembered, as Choosing an account remembers one, told as its first answer of success comes, so never a quota check's), `pressure` (an account came under it, but for its first reading, which is no news: `windows` the window under pressure, `until` when it runs out, and `since` when its rate is measured from; told once a reset of that window), `limit` (with `limit`, the limit's identity, which the account's `limit` gives as its `id` while it holds; `count`, the sessions it moved while it holds, each once, by the moves it forced; and `to`, the account they went to when they all went to one, left out when they went to several. Reached again while it holds, it joins its event, keeping its `id`, in whatever order the news of it comes; another limit reached meanwhile is an event of its own), `moved` (with `from`, `to` and `reason`, and `limit`, the id of the limit's event, for a move that limit forced, holding the session's request back), `refused` (with `status`, `family` for a request refused alone, and `until`, brought forward should the refusal lift early), `primed` (a prime that started its window: `windows` the window it started, and `until` its reset), `room` (room again), `restart` (one falling due) and `health` (the router's turning, with `reason` as it turns unhealthy), and the rest as each kind needs. The dashboard's RECENT reads the newest, and each card's LATELY its account's among the 50, both folding the moves a limit counts into its line where that's among theirs, while Sessions' `LOG` lists each. Left out when there are none |
+| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh: `[{id, at, kind, account, session, model, from, to, reason, windows, until, since, count, limit, status, family}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started` (a session first remembered, as Choosing an account remembers one, told as its first answer of success comes, so never a quota check's: `account` the account whose answer started it, and `reason` why the session is there, as its assignment says, while it's still there, else why that request went there, another request having moved the session since), `pressure` (an account came under it, but for its first reading, which is no news: `windows` the window under pressure, `until` when it runs out, and `since` when its rate is measured from; told once a reset of that window), `limit` (with `limit`, the limit's identity, which the account's `limit` gives as its `id` while it holds; `count`, the sessions it moved while it holds, each once, by the moves it forced; and `to`, the account they went to when they all went to one, left out when they went to several. Reached again while it holds, it joins its event, keeping its `id`, in whatever order the news of it comes; another limit reached meanwhile is an event of its own), `moved` (with `from`, `to` and `reason`, and `limit`, the id of the limit's event, for a move that limit forced, holding the session's request back), `refused` (with `status`, `family` for a request refused alone, and `until`, brought forward should the refusal lift early), `primed` (a prime that started its window: `windows` the window it started, and `until` its reset), `room` (room again), `restart` (one falling due) and `health` (the router's turning, with `reason` as it turns unhealthy), and the rest as each kind needs. The dashboard's RECENT reads the newest, and each card's LATELY its account's among the 50, both folding the moves a limit counts into its line where that's among theirs, while Sessions' `LOG` lists each. Left out when there are none |
 | `accounts` | Every configured account, in the config's order, as below |
 
 Each account:
