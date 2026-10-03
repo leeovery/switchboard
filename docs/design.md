@@ -2269,6 +2269,7 @@ leaves it with a line in its file saying why.
 
 | Idea | Status | File |
 |---|---|---|
+| A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../.workflows/.inbox/ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text `switchboard status` prints, redesigned to match milestone 5's dashboard | next, to design with its owner | [dashboard-layout](../.workflows/.inbox/ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../.workflows/.inbox/ideas/2026-10-01--developer-id-signing.md) |
 | A ledger of the requests the router routes, with their token counts | new: milestone 5's `GET /stream` reads the same counts, live | [request-ledger](../.workflows/.inbox/ideas/2026-09-30--request-ledger.md) |
