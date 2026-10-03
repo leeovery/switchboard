@@ -84,7 +84,10 @@ func TestARestartingRouterReplacesItselfInPlace(t *testing.T) {
 			if _, err := os.Stat(router.SocketPath(s.cfg.StateDir)); err != nil {
 				t.Errorf("the control socket between the routers: %v, want it kept for the next", err)
 			}
-			next := s.cfg
+			// The router it becomes finds what it's started from afresh, as
+			// switchboard serve does: what this one found would have it
+			// restart again at its first look.
+			next := s.watched(s.cfg)
 			next.Exec, next.Handed = nil, handed
 			startRouter(t, next)
 			if got := answerOn(t, waiting); got != `200 {"type":"message"}` {

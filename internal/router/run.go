@@ -221,6 +221,15 @@ func shutdown(control, proxy *http.Server) {
 	drain(proxy)
 }
 
+// refuse stops the proxy taking requests, as drain does first, without
+// waiting for those in flight: a shutdown with no time left closes its
+// listener and returns.
+func refuse(proxy *http.Server) {
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = proxy.Shutdown(expired)
+}
+
 // drain stops the proxy taking requests, giving those in flight DrainTimeout
 // to finish, and cuts off any still going then.
 func drain(proxy *http.Server) {

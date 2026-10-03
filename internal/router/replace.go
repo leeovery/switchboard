@@ -63,11 +63,13 @@ func (r *Router) hold(ls listeners) *handover.Held {
 // launched meanwhile sends its requests to the proxy's socket, held open,
 // where they wait for the router this one becomes; then closes the control
 // API, and returns held, to hand over. Told to stop meanwhile, as by a
-// signal, it stops as at one after all: the control API goes, its socket
-// removed, and the sockets held close, so launchers connect directly and no
-// request waits on a socket nothing will take up; it returns nil once the
-// requests in flight have finished.
+// signal, it stops as at one after all: the sockets held close, so no
+// request waits on one nothing will take up, its control socket is removed,
+// and then the control API goes, so a launcher that finds the router gone
+// finds nothing on its proxy's address either, and connects directly; it
+// returns nil once the requests in flight have finished.
 func (r *Router) drainHandingOver(ctx context.Context, control, proxy *http.Server, held *handover.Held) *handover.Held {
+	refuse(proxy)
 	drained := make(chan struct{})
 	go func() {
 		drain(proxy)
@@ -79,9 +81,12 @@ func (r *Router) drainHandingOver(ctx context.Context, control, proxy *http.Serv
 	}
 	if ctx.Err() != nil {
 		logger.Info("told to stop as it restarted; stopping instead")
-		_ = control.Close()
 		held.Close()
+		// Removed before the control API closes its socket: macOS can leave a
+		// connection made to a unix socket as it closes hanging, neither
+		// answered nor closed (proven by experiment).
 		r.removeSocket()
+		_ = control.Close()
 		<-drained
 		return nil
 	}
