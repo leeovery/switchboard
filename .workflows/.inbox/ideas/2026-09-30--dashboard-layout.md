@@ -16,3 +16,8 @@ and `usage` prints the same where its output isn't a terminal; so the text can c
 the dashboard, where the status document only ever gains fields.
 
 Next up after the 5-hour pressure work; to be designed with its owner before anything is built.
+
+**The dashboard's part is taken up:** designed with its owner in Paper over five rounds and signed
+off on 2 October 2026 as milestone 5, in the design's Dashboard section. What's left here is
+`status`'s text: to be redesigned to match the new dashboard, its words the cards' and its order the
+heading's, designed with its owner before it's built.
