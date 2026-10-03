@@ -60,6 +60,7 @@ func TestPrintsAtTheSizeGiven(t *testing.T) {
 
 func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 	available := "(available: " + strings.Join(capture.Names(), ", ") + ")"
+	scenarios := "(available: " + strings.Join(capture.ScenarioNames(), ", ") + ")"
 	tests := []struct {
 		name string
 		args []string
@@ -71,6 +72,12 @@ func TestRefusesWhatTheCommandLineCantMean(t *testing.T) {
 		{name: "colours full screen", args: []string{"--fixture", "accounts-3", "--ansi"}, want: "--ansi takes --print: full screen, the frame is drawn in colour"},
 		{name: "an argument", args: []string{"--fixture", "accounts-3", "--print", "now"}, want: `unexpected argument "now"`},
 		{name: "full screen without a terminal", args: []string{"--fixture", "accounts-3"}, want: "full screen, it needs a terminal: --print draws without one"},
+		{name: "an unknown scenario", args: []string{"--scenario", "accounts-3"}, want: `--scenario: unknown scenario "accounts-3" ` + scenarios},
+		{name: "a fixture and a scenario", args: []string{"--fixture", "accounts-3", "--scenario", "routing"}, want: "--scenario and --fixture: name one"},
+		{name: "a scenario printed", args: []string{"--scenario", "routing", "--print"}, want: "--print takes a fixture: a scenario plays in time, full screen"},
+		{name: "a scenario's size", args: []string{"--scenario", "routing", "--size", "80x24"}, want: "--size takes --print: full screen, the terminal gives the size"},
+		{name: "a scenario in a theme there isn't", args: []string{"--scenario", "routing", "--theme", "solarized"}, want: `--theme "solarized" names no built-in theme (built in: amber, exchange, nord, terminal, tokyo-night, tokyo-night-day), nor a .theme file`},
+		{name: "a scenario without a terminal", args: []string{"--scenario", "routing"}, want: "a scenario plays full screen: it needs a terminal"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

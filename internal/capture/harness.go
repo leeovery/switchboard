@@ -55,10 +55,7 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		Policy:   claude.Policy,
 		Size:     size,
 	}
-	if !f.colourless {
-		cfg.Choice, cfg.Pair = theme.One(f.theme.Slug), theme.Pair{Light: f.theme, Dark: f.theme}
-		cfg.Themes = &themes{listing: listing(f.theme), choice: cfg.Choice}
-	}
+	dressed(&cfg, f.theme, f.colourless)
 	m := watch.New(context.Background(), cfg)
 	m = deliver(m, run(m.Init())...)
 	if !f.colourless {
@@ -69,6 +66,16 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		m = deliver(m, key)
 	}
 	return m
+}
+
+// dressed has the watch cfg configures drawn in t, as the one theme chosen,
+// its themes a capture's; or, colourless, without colour, as NO_COLOR asks.
+func dressed(cfg *watch.Config, t theme.Theme, colourless bool) {
+	if colourless {
+		return
+	}
+	cfg.Choice, cfg.Pair = theme.One(t.Slug), theme.Pair{Light: t, Dark: t}
+	cfg.Themes = &themes{listing: listing(t), choice: cfg.Choice}
 }
 
 // terminalBackground is what the terminal a tape runs says its background

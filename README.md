@@ -2,10 +2,10 @@
 
 # 🎛️ Switchboard
 
-**One Claude Code, many subscriptions**
+**Your Claude usage, tracked, and routed across your subscriptions**
 
-A local proxy that spreads your Claude Code sessions across several Claude subscriptions,
-<br>keeps each session's prompt cache warm, and moves it when an account runs out, before Claude Code notices.
+A local router for Claude Code that tracks and analyses your Claude usage and history,
+<br>and with several subscriptions spreads your sessions across them, moving one the moment an account runs out.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8.svg)](https://go.dev)
@@ -13,28 +13,45 @@ A local proxy that spreads your Claude Code sessions across several Claude subsc
 
 [Install](#install) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Commands](#commands) · [Configuration](#configuration) · [Dashboard](#the-dashboard)
 
+<br>
+
+<img src="art/routing.webp" alt="Switchboard's dashboard routing three accounts: a new session starts on the best, work reaches its limit and its sessions re-patch to side, Runway shows when each has room, and a session is hand-patched to personal" width="840">
+
 </div>
 
 ---
 
-Switchboard sits between Claude Code and the Claude API. Every `claude` you start goes through it: switchboard decides which of your subscriptions each request goes out on, swaps in that account's token, and forwards the request otherwise untouched. When an account hits its 5-hour or weekly limit mid-session, the request is replayed on another account and the session carries on: no exiting, no resuming.
+Switchboard sits between Claude Code and the Claude API. Every `claude` you start goes through it, and every answer tells it how much of each of its account's windows is used. `switchboard usage -w` keeps that on screen: how much of each window is left, where it's heading at its pace, when it runs out, when it resets, and when you'll have room again, charted from the history switchboard keeps. With one subscription, that's most of what it does.
 
-One account is the primary, the one your browser and the Claude apps are signed into. Claude Code's own token is the primary's, so artifacts and uploads land there whichever account a conversation is on, and the router leaves a share of the primary's quota for the apps. With a day set, switchboard starts each account's 5-hour window on a staggered schedule, so the resets are spread through your day rather than coming together. `switchboard usage -w` keeps a live dashboard of every account on screen.
+With several, switchboard also decides which subscription each request goes out on, swaps in that account's token, and forwards the request otherwise untouched. When an account hits its 5-hour or weekly limit mid-session, the request is replayed on another account and the session carries on: no exiting, no resuming.
 
-Switchboard is built for its author's setup: macOS, Claude Code, and several Claude subscriptions. It's public because it can be, and general only where that costs nothing.
+One account is the primary, the one your browser and the Claude apps are signed into. Claude Code's own token is the primary's, so artifacts and uploads land there whichever account a conversation is on, and the router leaves a share of the primary's quota for the apps. With a day set, switchboard starts each account's first 5-hour window before your day begins, and each next as the last resets, so its windows run back to back through the day, and several accounts' resets come one at a time rather than together.
+
+Switchboard is built for its author's setup: macOS, Claude Code, and a Claude subscription or several. It's public because it can be, and general only where that costs nothing.
 
 ## Why Switchboard?
 
-Run more than one Claude subscription and you know the routine: watch the limits, notice one has run out, exit Claude Code, switch accounts, resume. Meanwhile the weekly quota you didn't get round to before its reset is lost.
+Claude's limits are windows on clocks of their own: a 5-hour window and a week. Claude Code's `/usage` says where they stand when you ask. Switchboard keeps them on screen, and looks ahead.
+
+With one subscription, that means:
+
+- **Usage for free.** Every API response carries its account's usage headers, so switchboard reads usage off real traffic, and probes only an account it hasn't heard from lately.
+- **Where it's heading.** The dashboard shows how much of each window is left, where it's heading at its pace, when it runs out and when it resets, and, over the day or the week, when you'll have room.
+- **A history to look back on.** The router keeps each reading that changes, for 14 days or as long as you say, for the dashboard's charts and for you.
+- **Told in time.** Desktop notifications when a window passes a share you choose, when an account hits a limit, and when it has room again.
+
+Run more than one and you know the routine: watch the limits, notice one has run out, exit Claude Code, switch accounts, resume. Meanwhile the weekly quota you didn't get round to before its reset is lost.
 
 Switchboard automates the routine without paying for it in prompt cache:
 
 - **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees any of the answer. You get one slower turn while the cache rebuilds there, then the session carries on.
 - **Sessions stay put.** Prompt caches are per account, and the first turn after a move costs around 40× a warm one. A session stays on its account while its cache is warm, and moves only when it must, or once it has idled long enough that its cache is cold anyway.
 - **No quota goes to waste.** New sessions go to the account whose weekly quota would be lost soonest unused: the share left, divided by the time until it resets. Between near equals, the one whose 5-hour window resets soonest goes first, as what's left in a window at its reset is lost too.
-- **The apps keep their share.** The router leaves a share of every window on the primary, 10% unless you set another, for the Claude apps, and never spends it itself.
 - **Resets come one at a time.** Priming starts the accounts' 5-hour windows at staggered times, so once all are spent, the next is back within 5 hours ÷ the number of accounts, rather than at the one reset they'd share.
-- **Usage for free.** Every API response carries its account's usage headers, so switchboard reads usage off real traffic, and probes only the accounts it hasn't heard from lately.
+
+Either way:
+
+- **The apps keep their share.** The router leaves a share of every window on the primary, 10% unless you set another, for the Claude apps, and never spends it itself: with one subscription, or once the others are spent, Claude Code stops there, at 90% of each window by default. See [The primary and its reserve](#the-primary-and-its-reserve).
 - **Never in the way.** When the router isn't running, `claude` connects directly; when switchboard can't take part at all, `claude` starts as it would without it.
 
 ## Install
@@ -156,12 +173,13 @@ In watch mode, reading the router, it looks at the router's view every 5 seconds
 
 | Key | Does |
 |---|---|
+| `tab` | the next view: Accounts, Sessions or Runway (see [The Dashboard](#the-dashboard)); `shift-tab` the one before; the next dashboard opens on it |
 | `r` | refresh now: the router probes the accounts it hasn't read in the last minute, and those that can take no request however lately it read them, but for those whose 5-hour window has lapsed and that can take a request, and none twice in a minute; without it, every account is probed |
 | `1`–`9` | pin the account in that place, as configured, beside any pinned already, so new sessions go to the best of them; or, pinned already, unpin it, routing automatically again once none is left. With a session picked out on a card's back, pin that session to the account in that place, every model of it, as [`pin <account> --session`](#pin) does |
 | `a` | route automatically again; with a session picked out, clear its own pin, as `pin auto --session` does |
 | `m` | move running sessions to the pinned accounts |
 | `t` | the theme picker: see [Themes](#themes) |
-| `w` | the window every card features, with its big readout and chart: `auto`, each card what will stop its account first, then the 5-hour window, the week, and any other window in use; the next dashboard starts with it |
+| `w` | the window every card features, with its big readout and chart: `auto`, each card what will stop its account first, then the 5-hour window, the week, and any other window in use; the next dashboard starts with it. In Runway, the day or the week |
 | `g` | the chart every card draws of the window it features: a burn-down, its burn rate, or an hourglass; the next dashboard, and `usage` printed once, draw it so |
 | `←` `→` `↑` `↓` | move the focus between the cards, the card with it edged heavy: `←` `→` along a row, `↑` `↓` between rows, over a flipped card's sessions first, picking one out, and past its first or last, on to the card above or below. The first gives the focus to the first card in view; a card out of view is scrolled to |
 | `space` | flip the card with the focus to its back, the sessions on its account, or back |
@@ -519,8 +537,15 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 
 ## The Dashboard
 
+<div align="center">
+<img src="art/usage.webp" alt="One account's dashboard: its card's burn-down from its history and the dotted projection to where it reaches its reserve, COMING UP and RECENT beside it, a session's dot lighting as it goes to work; then its burn rate, its hourglass, its sessions, and Runway" width="840">
+</div>
+
+One account: its card's burn-down, and where it's heading, with COMING UP and RECENT beside it; then `g` to its burn rate and its hourglass, and `tab` past its sessions to Runway, the day ahead.
+
 `switchboard usage` draws a title row, a heading that sums the accounts up, and a card per account.
 
+- **The views:** `tab` and `shift-tab` move between three. Accounts, the cards. Sessions, a switchboard of where each session's requests go: the sessions as calls, the accounts as lines, and a cord from each call to its line, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red; with LOG, what the router did and why. With one account, or where the cords don't fit, it's a plain list of each account and its sessions. And Runway, when each account has room, a lane each, over the day, or, with `w`, the week. With `-w`, the next dashboard opens on the view last shown.
 - **The heading** says how the router is, its sessions and how it routes them (`● healthy`, `5 sessions · auto`), or that the accounts were probed, and why; where new sessions go (`▲ 3 side`, `1 of 3 open`); the room left in each account's 5-hour window and week, as bars, summed as accounts' worth (`1.3 of 3`); and the next three things coming up, such as a limit lifting, a window running out at its pace, a reset or a prime, each with how long until it. With one account, it's a single line.
 - **A card** says its account's state in words, what holds it back or what it's doing, and what that means for new sessions: `● under pressure · new sessions go elsewhere`, `■ limit reached · back 15:54, in 1h 12m`, `○ idle · its window starts at its prime, 16:20`. It features the window that will stop its account first, or the one `w` chooses, in big digits, with where it's heading (`→ runs out ~16:05 at its last-30-min rate`) and when it resets, over a chart of it, in the style `g` chooses: a burn-down of the room left in it, the past from the router's history, a dotted line to where it's heading, `✕` where it runs out; its burn rate, its use each 10 minutes as bars, those faster than it could go on being used and still last to its reset in the theme's attention colour, under a dotted line at that rate; or an hourglass, standing over now, the room left as sand above and the use piled below, its stream as thick as its recent rate, falling while the account is busy, and turned over at its reset. Its other windows are bars, filled along the theme's ramp, the share they're heading for faded beyond, `┃` where even use would be now and `╎` where a reserve starts. Its badges, `◆ primary`, `● pinned` and `▲ next`, are on its top edge, and a dot for each session on its foot, lit while busy. A model's own window no account uses, as Fable's week, is hidden from every card, and the line over the footer says so.
 - **A card's back:** `space` flips the card with the focus, and `s` every card, to show the sessions on its account, keeping its size and place: how many there are and how many busy; a row for each session's model, its dot lit while busy, its id, the model, and `seen now` or `idle 9m`, and under it, where there's room, a note: where its session goes from its next request, or that its own pin yielded there at a limit, where its other models are, `pinned here`, `moved from personal at 14:12`, or `here since 13:20`; then, where there's room, what has befallen the account lately; and the keys. One with no sessions says why where it can, as `3 moved to side at 14:12, when personal reached its limit`. On it, `↑` and `↓` pick out a session, which a digit moves to the account in that place, and `a` hands back to the router.
@@ -529,7 +554,23 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 
 With `-w` it stays on screen, reading as [`usage`](#usage) says, and takes its keys.
 
+<table>
+  <tr>
+    <td align="center"><img src="art/flipped.webp" alt="Side's card flipped to its sessions, each streaming, waiting or idle, and one picked out" width="280"><br><b>A card flipped to its sessions</b></td>
+    <td align="center"><img src="art/repatch.webp" alt="Sessions as work reaches its limit: the 429 bounces back red along its cord, and work's sessions re-patch to side, LOG saying why" width="280"><br><b>Sessions, re-patched at a limit</b></td>
+    <td align="center" rowspan="2"><img src="art/phone.webp" alt="The dashboard in a phone's terminal, 52 columns wide: the heading in two lines, the cards stacked" width="200"><br><b>In a phone's terminal</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="art/runway-week.webp" alt="Runway over the week: personal's week reaches its reserve on Saturday, and is back as it resets on Sunday" width="280"><br><b>Runway, over the week</b></td>
+    <td align="center"><img src="art/help.webp" alt="The help over the Accounts view: every key that works, and what the glyphs mean" width="280"><br><b>Every key, and every glyph</b></td>
+  </tr>
+</table>
+
 ### Themes
+
+<div align="center">
+<img src="art/themes.webp" alt="The theme picker over the Accounts view, the dashboard redrawn in each theme the cursor reaches: nord, terminal, tokyo-night, tokyo-night-day, exchange and amber, then nord again" width="840">
+</div>
 
 The dashboard is drawn in a theme. Themes name colours by what they mean and how prominent they are, never by hue, in the vocabulary of [Portal](https://github.com/leeovery/portal)'s, whose theme files load here as they are.
 
@@ -589,6 +630,8 @@ scripts/test-isolated    # every test, race detector on, sandboxed
 golangci-lint run ./...
 go build ./...
 ```
+
+The clips and stills in this README are recorded from scenarios played through the real dashboard, every seam faked: [demo/README.md](demo/README.md) says how to record them again.
 
 No test touches the real network, environment, home directory, config, state, binaries or notifications. `scripts/test-isolated` runs the suite inside a macOS sandbox (`scripts/isolation.sb`) that denies it the network beyond loopback, and the router's default port, 4747; writes into the home directory but Go's caches, switchboard's real config, state and bin directories, Claude Code's config directory and the directories on `PATH`; and running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`. Each run first proves the sandbox holds, and `scripts/test-isolated --self-check` does only that: among the rest, that it denies running the real `claude`, found as switchboard finds it. Every package's tests also run through `internal/testguard`, which points `HOME` and the XDG directories at a throwaway root, clears the variables that can hold a token, puts stubs on `PATH`, and fails the run when a test reaches the real system, such as a real token file appearing, changing or going, even if every test passed. A test that needs something the guards block injects it instead.
 

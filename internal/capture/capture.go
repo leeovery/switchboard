@@ -1,11 +1,13 @@
 // Package capture is the visual capture harness's: the named, deterministic
-// fixtures of the dashboard that cmd/capturetool draws, and the fakes it
-// draws them through. A fixture is a moment of the dashboard as the frames
-// signed off for milestone 5 draw it: what the router gives at that moment,
-// on a terminal of a size. It's drawn by the dashboard's own watch model,
-// built through watch.New, with every seam faked, so a capture never dials
-// the router, probes, touches the network, reads or writes the real config,
-// state, prefs or tokens, or runs another process.
+// fixtures of the dashboard that cmd/capturetool draws, the scenarios it
+// plays for the README's demos, and the fakes it draws them through. A
+// fixture is a moment of the dashboard as the frames signed off for
+// milestone 5 draw it: what the router gives at that moment, on a terminal of
+// a size. A scenario is a stretch of the router's life, played in real time.
+// Both are drawn by the dashboard's own watch model, built through watch.New,
+// with every seam faked, so a capture never dials the router, probes, touches
+// the network, reads or writes the real config, state, prefs or tokens, or
+// runs another process.
 //
 // Only cmd/capturetool imports it: switchboard itself never does.
 package capture
