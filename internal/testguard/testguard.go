@@ -31,15 +31,14 @@ import (
 //
 // After them, it fails the run, even when every test passed, if a stub ran,
 // a dial was blocked, switchboard's real config or themes directory changed,
-// its state directory appeared, or a token file or the preferences file in
-// it appeared or changed, in the real home or wherever SWITCHBOARD_CONFIG,
-// SWITCHBOARD_THEMES_DIR, XDG_CONFIG_HOME and XDG_STATE_HOME put them as the
-// tests began, a file of its among the real LaunchAgents appeared or
-// changed, its skill in Claude Code's real config directory did, in the real
-// home or wherever CLAUDE_CONFIG_DIR put it, its bin directory did, in the
-// real home or wherever XDG_DATA_HOME put it, or a claude link did in a
-// directory on the real PATH, saying which on stderr. Then it removes the
-// root.
+// its state directory appeared, or a token file in it appeared or changed,
+// in the real home or wherever SWITCHBOARD_CONFIG, SWITCHBOARD_THEMES_DIR,
+// XDG_CONFIG_HOME and XDG_STATE_HOME put them as the tests began, a file of
+// its among the real LaunchAgents appeared or changed, its skill in Claude
+// Code's real config directory did, in the real home or wherever
+// CLAUDE_CONFIG_DIR put it, its bin directory did, in the real home or
+// wherever XDG_DATA_HOME put it, or a claude link did in a directory on the
+// real PATH, saying which on stderr. Then it removes the root.
 func Main(m *testing.M) int {
 	g, err := install()
 	if err != nil {

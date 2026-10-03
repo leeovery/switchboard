@@ -5,8 +5,8 @@
 # the temporary directory, nothing on the router's port, no writes into the
 # home directory but Go's caches, nor into switchboard's real config, themes,
 # state, preferences and bin directory, or Claude Code's config directory,
-# wherever they are, or the directories on PATH, and none of the real
-# programs tests must never run.
+# wherever they are, nor a theme wherever its link leads, nor the directories
+# on PATH, and none of the real programs tests must never run.
 # Arguments go on to go test, as in: scripts/test-isolated -run TestStatus
 #
 # The variables that can hold real tokens, or lead to the real tmux server or
@@ -80,6 +80,21 @@ themes_dir=$(resolved "$(absolute "${SWITCHBOARD_THEMES_DIR-}" "$config_dir/them
 prefs=$(resolved "$state_dir/prefs.json")
 claude_dir=$(resolved "$(absolute "${CLAUDE_CONFIG_DIR-}" "$HOME/.claude")")
 
+# resolved_themes prints where each theme in the themes directory is, every
+# <slug>.theme there, in any case, but those whose names start with a dot,
+# which the dashboard passes over, joined by colons as PATH joins
+# directories: each resolved, so a theme linked in from outside the home and
+# the themes directory is denied where its link leads.
+resolved_themes() {
+	local file list=
+	shopt -s nullglob nocaseglob
+	for file in "$themes_dir"/*.theme; do
+		list=${list:+$list:}$(resolved "$file")
+	done
+	printf '%s\n' "$list"
+}
+theme_files=$(resolved_themes)
+
 scrub
 
 if [ "$(uname -s)" != Darwin ]; then
@@ -133,7 +148,7 @@ sandboxed() {
 	"$sandbox_exec" -f "$repo/scripts/isolation.sb" \
 		-D HOME="$home" -D TMPDIR="$tmp" -D GOCACHE="$gocache" -D GOMODCACHE="$gomodcache" \
 		-D CONFIG="$config" -D CONFIG_DIR="$config_dir" -D THEMES_DIR="$themes_dir" \
-		-D STATE_DIR="$state_dir" -D PREFS="$prefs" -D BIN_DIR="$bin_dir" \
+		-D THEME_FILES="$theme_files" -D STATE_DIR="$state_dir" -D PREFS="$prefs" -D BIN_DIR="$bin_dir" \
 		-D CLAUDE_DIR="$claude_dir" -D PATH_DIRS="$path_dirs" "$@"
 }
 
@@ -200,6 +215,21 @@ denies_writing_to() {
 		return 0
 	fi
 	denied "a write to the $what, $file" "$file: Operation not permitted" /usr/bin/tee -a "$file"
+}
+
+# denies_writing_to_themes proves the sandbox denies a write to each theme
+# in the themes directory, where its link leads, should it be a link.
+denies_writing_to_themes() {
+	local entries file status=0
+	if [ -z "$theme_files" ]; then
+		echo "test-isolated: no theme in $themes_dir, so no write to one to deny"
+		return 0
+	fi
+	IFS=: read -r -a entries <<<"$theme_files"
+	for file in "${entries[@]}"; do
+		denies_writing_to "real theme" "$file" || status=1
+	done
+	return "$status"
 }
 
 # denies_foreign_socket proves the sandbox denies a connect to a unix socket
@@ -336,6 +366,7 @@ self_check() {
 	denies_writing_on_path || status=1
 	denies_writing_to "real config file" "$config" || status=1
 	denies_writing_to "real preferences file" "$prefs" || status=1
+	denies_writing_to_themes || status=1
 	denies_running claude "$(real_claude)" --version || status=1
 	denies_running osascript "$(type -P osascript)" -e 'return 1' || status=1
 	denies_running launchctl "$(type -P launchctl)" version || status=1

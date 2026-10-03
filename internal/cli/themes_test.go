@@ -61,12 +61,32 @@ func TestUsageWatchIsDrawnInTheThemesChosen(t *testing.T) {
 	if !slices.ContainsFunc(cfg.Themes.List().Entries, func(e theme.Entry) bool { return e.Slug == "lake" && e.Problem == nil }) {
 		t.Error("the picker doesn't list lake, from the themes directory")
 	}
-	if err := cfg.Themes.Keep(theme.One("exchange")); err != nil {
+	if _, err := cfg.Themes.Keep(func(theme.Choice) theme.Choice { return theme.One("exchange") }); err != nil {
 		t.Fatalf("Keep() error = %v", err)
 	}
 	data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
 	if err != nil || !strings.Contains(string(data), `"theme": "exchange"`) {
 		t.Errorf("prefs.json holds %s, %v; want the choice kept", data, err)
+	}
+}
+
+func TestTheWatchsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"theme_light": "exchange", "view": "accounts"}`)
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "usage", "--watch")
+	writePrefs(t, deps, `{"theme_light": "tokyo-night", "view": "accounts"}`)
+
+	if got, want := cfg.Themes.Chosen(), (theme.Choice{Light: "tokyo-night"}); got != want {
+		t.Errorf("Chosen() = %+v, want %+v, as another dashboard kept it since", got, want)
+	}
+	kept, err := cfg.Themes.Keep(func(c theme.Choice) theme.Choice { return c.WithHalf(true, "amber") })
+	if want := (theme.Choice{Light: "tokyo-night", Dark: "amber"}); err != nil || kept != want {
+		t.Errorf("Keep() = %+v, %v; want %+v, the half set beside the one kept since", kept, err, want)
+	}
+	data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
+	if err != nil || !strings.Contains(string(data), `"theme_light": "tokyo-night"`) || !strings.Contains(string(data), `"view": "accounts"`) {
+		t.Errorf("prefs.json holds %s, %v; want the choice kept beside the view", data, err)
 	}
 }
 
@@ -166,7 +186,16 @@ func TestUsageIsPrintedInTheThemeForTheTerminalsBackground(t *testing.T) {
 		{name: "a dark terminal: the dark default, nord", background: color.Black, want: "38;2;236;239;244", canvas: "48;2;46;52;64"},
 		{name: "a terminal that doesn't say: nord", want: "38;2;236;239;244", canvas: "48;2;46;52;64"},
 		{name: "a light terminal: the light default, tokyo-night-day", background: color.White, want: "38;2;46;60;100", canvas: "48;2;225;226;231"},
-		{name: "one theme chosen, whatever the background", prefs: `{"theme": "amber"}`, background: color.White, want: "38;2;255;210;122", canvas: "48;2;14;11;6"},
+		{name: "one theme chosen, on a terminal as dark", prefs: `{"theme": "amber"}`, background: color.Black, want: "38;2;255;210;122", canvas: "48;2;14;11;6"},
+		{
+			name: "one dark theme chosen, on a light terminal: the light default", prefs: `{"theme": "amber"}`, background: color.White,
+			want: "38;2;46;60;100", canvas: "48;2;225;226;231",
+		},
+		{
+			name: "one light theme chosen, on a terminal that doesn't say: the dark default", prefs: `{"theme": "tokyo-night-day"}`,
+			want: "38;2;236;239;244", canvas: "48;2;46;52;64",
+		},
+		{name: "a pair chosen, on a light terminal", prefs: `{"theme_light": "amber"}`, background: color.White, want: "38;2;255;210;122", canvas: "48;2;14;11;6"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -205,6 +234,35 @@ func TestUsageUnderNoColourAsksTheTerminalNothing(t *testing.T) {
 
 	if got.code != 0 || strings.Contains(got.stdout, "\x1b[38;") || !strings.Contains(got.stdout, "\x1b[1m") {
 		t.Errorf("switchboard usage under NO_COLOR = %+v, want no colour, but bold", got)
+	}
+}
+
+func TestUsageAsksTheTerminalItsBackgroundOnlyWhereItShowsColour(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		asks bool
+	}{
+		{name: "a terminal of 256 colours", env: map[string]string{"TTY_FORCE": "1", "TERM": "xterm-256color"}, asks: true},
+		{name: "a dumb terminal", env: map[string]string{"TTY_FORCE": "1", "TERM": "dumb"}},
+		{name: "a terminal that names no kind", env: map[string]string{"TTY_FORCE": "1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := goldenDeps(t, tt.env)
+			asked := false
+			deps.Background = func(io.Writer) color.Color {
+				asked = true
+				return nil
+			}
+
+			if got := run(t, deps, "usage"); got.code != 0 {
+				t.Fatalf("switchboard usage = %+v", got)
+			}
+			if asked != tt.asks {
+				t.Errorf("the terminal was asked its background: %v, want %v", asked, tt.asks)
+			}
+		})
 	}
 }
 

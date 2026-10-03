@@ -358,8 +358,11 @@ type keyListing struct {
 // while the router answers, of more than one account, the digits of their
 // places, a and m; r; t, in colour; and ? and q, always. The footer leaves
 // s, j and k, r and t behind ?. With a session picked out, the keys are as
-// picking says.
+// picking says; and while the theme picker is open, they're its own alone.
 func (m Model) listings() []keyListing {
+	if m.picker.open {
+		return m.picker.keys()
+	}
 	cards, scrolled := m.view == dashboard.Accounts, m.scrolled()
 	listed := []keyListing{
 		{key: "tab", footer: "views", help: "the next view; shift-tab, the one before", works: len(m.views) > 1},

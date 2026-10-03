@@ -33,11 +33,15 @@ func TestThePreferencesAreWrittenWholeAndReadBack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "{\n  \"theme_light\": \"exchange\",\n  \"theme_dark\": \"amber\"\n}\n"; string(data) != want {
+	if want := "{\n  \"theme_dark\": \"amber\",\n  \"theme_light\": \"exchange\"\n}\n"; string(data) != want {
 		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
 	}
-	if info, err := os.Stat(filepath.Join(state, "prefs.json")); err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("prefs.json: %v, mode %v; want it its owner's alone", err, info.Mode().Perm())
+	info, err := os.Stat(filepath.Join(state, "prefs.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("prefs.json has mode %v, want it its owner's alone", info.Mode().Perm())
 	}
 	if entries, _ := os.ReadDir(state); len(entries) != 1 {
 		t.Errorf("the state directory holds %d files, want prefs.json alone, nothing left beside it", len(entries))
@@ -163,6 +167,50 @@ func TestACorruptPreferencesFileIsSetAsideAndTheDefaultsStand(t *testing.T) {
 				t.Errorf("the log reads\n%s\nwant it to say the file was set aside, and where", log)
 			}
 		})
+	}
+}
+
+func TestACorruptPreferencesFileLinkedElsewhereIsSetAsideWhereItLeads(t *testing.T) {
+	log := logstest.Capture(t)
+	state, elsewhere := t.TempDir(), t.TempDir()
+	kept, link := filepath.Join(elsewhere, "prefs.json"), filepath.Join(state, "prefs.json")
+	write(t, kept, "{\"theme\": ")
+	symlink(t, kept, link)
+
+	if got := theme.NewPrefsFile(state, clock).Read(); got != (theme.Prefs{}) {
+		t.Errorf("Read() = %+v, want the defaults", got)
+	}
+	aside := kept + ".corrupt-1790933400"
+	if data, err := os.ReadFile(aside); err != nil || string(data) != "{\"theme\": " {
+		t.Errorf("set aside: %q, %v; want the corrupt file at %s, beside where it was", data, err, aside)
+	}
+	if target, err := os.Readlink(link); err != nil || target != kept {
+		t.Errorf("prefs.json: link to %q, %v; want the link kept, leading to %s", target, err, kept)
+	}
+	if !log.Has("level=WARN", `msg="preferences file corrupt; set aside, the defaults stand"`, "aside="+aside) {
+		t.Errorf("the log reads\n%s\nwant it to say the file was set aside, and where", log)
+	}
+}
+
+func TestUpdateKeepsTheKeysOfANewerBuild(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "featured": "7d", "lens": "wide", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.View, p.Featured = "accounts", "" }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), View: "accounts"}); got != want {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "{\n  \"lens\": \"wide\",\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\",\n  \"view\": \"accounts\"\n}\n"
+	if string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
 	}
 }
 

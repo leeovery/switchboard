@@ -225,51 +225,45 @@ func TestChangesToTheRealThemesThroughLinks(t *testing.T) {
 	}
 }
 
-func TestChangesToTheRealPreferencesFile(t *testing.T) {
-	const prefs = "the real ~/.local/state/switchboard/prefs.json"
+func TestALiveDashboardWritingItsPreferencesIsNoTestsChange(t *testing.T) {
 	tests := []struct {
 		name string
-		// before lays out the state directory, at state, before the tests
-		// begin.
-		before func(t *testing.T, state string)
-		// during changes it as the tests run.
-		during func(t *testing.T, state string)
-		want   []string
+		// before lays out the state directory, at state, and what else the
+		// home holds, at home, before the tests begin.
+		before func(t *testing.T, home, state string)
+		// during changes them as the tests run.
+		during func(t *testing.T, home, state string)
 	}{
 		{
-			name:   "nothing",
-			before: writePrefs,
-			during: func(*testing.T, string) {},
-		},
-		{
 			name:   "written where there was none",
-			before: writeState,
-			during: writePrefs,
-			want:   []string{prefs + " was created"},
+			before: func(t *testing.T, _, state string) { writeState(t, state) },
+			during: func(t *testing.T, _, state string) { writePrefs(t, state) },
 		},
 		{
 			name:   "rewritten",
-			before: writePrefs,
-			during: func(t *testing.T, state string) {
+			before: func(t *testing.T, _, state string) { writePrefs(t, state) },
+			during: func(t *testing.T, _, state string) {
 				write(t, filepath.Join(state, prefsFile), "{\n  \"theme_dark\": \"amber\"\n}\n")
 			},
-			want: []string{prefs + " was modified"},
 		},
 		{
 			name:   "removed",
-			before: writePrefs,
-			during: func(t *testing.T, state string) {
+			before: func(t *testing.T, _, state string) { writePrefs(t, state) },
+			during: func(t *testing.T, _, state string) {
 				if err := os.Remove(filepath.Join(state, prefsFile)); err != nil {
 					t.Fatal(err)
 				}
 			},
-			want: []string{prefs + " was removed"},
 		},
 		{
-			name:   "a live router writing the rest of its state",
-			before: writePrefs,
-			during: func(t *testing.T, state string) {
-				write(t, filepath.Join(state, "state.json"), "{\"version\": 1, \"sessions\": [], \"pin\": {}}\n")
+			name: "rewritten where its link leads",
+			before: func(t *testing.T, home, state string) {
+				writeState(t, state)
+				write(t, filepath.Join(home, "dotfiles", prefsFile), "{\n  \"theme\": \"nord\"\n}\n")
+				symlink(t, filepath.Join(home, "dotfiles", prefsFile), filepath.Join(state, prefsFile))
+			},
+			during: func(t *testing.T, home, _ string) {
+				write(t, filepath.Join(home, "dotfiles", prefsFile), "{\n  \"theme\": \"amber\"\n}\n")
 			},
 		},
 	}
@@ -277,33 +271,16 @@ func TestChangesToTheRealPreferencesFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
 			state := filepath.Join(home, stateDir)
-			tt.before(t, state)
+			tt.before(t, home, state)
 			backdate(t, home)
 			watched := watchReal(home, noEnv)
 
-			tt.during(t, state)
+			tt.during(t, home, state)
 
-			if got := watched.changes(); !slices.Equal(got, tt.want) {
-				t.Errorf("changes() = %q, want %q", got, tt.want)
+			if got := watched.changes(); len(got) > 0 {
+				t.Errorf("changes() = %q, want none: a live dashboard writes it as it's used, and the sandbox denies a test any write there", got)
 			}
 		})
-	}
-}
-
-func TestChangesToARealPreferencesFileThroughALink(t *testing.T) {
-	home, dotfiles := t.TempDir(), t.TempDir()
-	kept := filepath.Join(dotfiles, prefsFile)
-	write(t, kept, "{\n  \"theme\": \"nord\"\n}\n")
-	writeState(t, filepath.Join(home, stateDir))
-	symlink(t, kept, filepath.Join(home, stateDir, prefsFile))
-	backdate(t, dotfiles)
-	watched := watchReal(home, noEnv)
-
-	write(t, kept, "{\n  \"theme\": \"amber\"\n}\n")
-
-	want := []string{"the real ~/.local/state/switchboard/prefs.json was modified"}
-	if got := watched.changes(); !slices.Equal(got, want) {
-		t.Errorf("changes() = %q, want %q", got, want)
 	}
 }
 
@@ -935,12 +912,11 @@ func TestChangesWhereTheEnvironmentPutsTheConfigStateAndSkill(t *testing.T) {
 			},
 		},
 		{
-			name:   "the preferences file written in the state there all along",
+			name:   "the preferences file written in the state there all along, as a live dashboard does",
 			before: func(t *testing.T, elsewhere string) { writeState(t, filepath.Join(elsewhere, "state", "switchboard")) },
 			during: func(t *testing.T, elsewhere string) {
 				write(t, filepath.Join(elsewhere, "state", "switchboard", prefsFile), "{\"theme\": \"amber\"}\n")
 			},
-			want: []string{"the real %[1]s/state/switchboard/prefs.json was created"},
 		},
 		{
 			name: "the skill installed where CLAUDE_CONFIG_DIR puts it",
@@ -1007,7 +983,6 @@ func TestWhatsWatchedIsWhereItsLinkLedAsTheTestsBegan(t *testing.T) {
 		{name: "the config", variable: "SWITCHBOARD_CONFIG"},
 		{name: "a theme", variable: "SWITCHBOARD_THEMES_DIR", file: "lake.theme"},
 		{name: "a token file", variable: "XDG_STATE_HOME", file: filepath.Join("switchboard", tokensDir, "work")},
-		{name: "the preferences file", variable: "XDG_STATE_HOME", file: filepath.Join("switchboard", prefsFile)},
 		{name: "the skill", variable: "CLAUDE_CONFIG_DIR", file: filepath.Join(skillDir, "SKILL.md")},
 		{name: "claude on PATH", variable: "PATH", file: "claude"},
 		{name: "switchboard's bin directory", variable: "XDG_DATA_HOME", file: filepath.Join("switchboard", "bin", "claude")},
@@ -1060,6 +1035,9 @@ func writeState(t *testing.T, state string) {
 	write(t, filepath.Join(state, "state.json"), "{\"version\": 1, \"sessions\": []}\n")
 	write(t, filepath.Join(state, "logs", "router.log"), "level=INFO msg=routed\n")
 }
+
+// prefsFile is the dashboard's preferences file, in the state directory.
+const prefsFile = "prefs.json"
 
 // writePrefs lays out a state directory at state as writeState does, with
 // the dashboard's preferences file in it.

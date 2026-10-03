@@ -4,6 +4,7 @@ import (
 	"context"
 	"image/color"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -55,8 +56,8 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		Size:     size,
 	}
 	if !f.colourless {
-		cfg.Themes = themes{listing: listing(f.theme)}
 		cfg.Choice, cfg.Pair = theme.One(f.theme.Slug), theme.Pair{Light: f.theme, Dark: f.theme}
+		cfg.Themes = &themes{listing: listing(f.theme), choice: cfg.Choice}
 	}
 	m := watch.New(context.Background(), cfg)
 	m = deliver(m, run(m.Init())...)
@@ -79,27 +80,40 @@ var terminalBackground = color.RGBA{R: 0x2E, G: 0x34, B: 0x40, A: 0xff}
 // kept for the capture alone, never written.
 type themes struct {
 	listing theme.Listing
+	mu      sync.Mutex
+	choice  theme.Choice
 }
 
 // List lists the capture's themes.
-func (t themes) List() theme.Listing {
+func (t *themes) List() theme.Listing {
 	return t.listing
 }
 
-// Keep keeps nothing, as a capture writes nothing.
-func (themes) Keep(theme.Choice) error {
-	return nil
+// Chosen is the choice kept for the capture.
+func (t *themes) Chosen() theme.Choice {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.choice
+}
+
+// Keep changes the choice kept for the capture, as a capture writes nothing.
+func (t *themes) Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.choice = change(t.choice)
+	return t.choice, nil
 }
 
 // listing lists the built-ins, and t where it isn't one, as when the
-// capture tool is given a theme's file.
+// capture tool is given a theme's file, as the themes directory lists a
+// file: taking a built-in's slug, it's never to be picked.
 func listing(t theme.Theme) theme.Listing {
 	var l theme.Listing
 	for _, b := range theme.Builtins() {
 		l.Entries = append(l.Entries, theme.Entry{Name: b.Slug, Slug: b.Slug, Theme: b})
 	}
 	if b, ok := theme.Builtin(t.Slug); !ok || b != t {
-		l.Entries = append(l.Entries, theme.Entry{Name: t.Slug, Slug: t.Slug, Theme: t})
+		l.Entries = append(l.Entries, theme.FileEntry(t))
 	}
 	return l
 }

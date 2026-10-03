@@ -299,12 +299,12 @@ func after(d time.Duration, msg tea.Msg) tea.Cmd {
 }
 
 // Init starts the first read, a full one, and the ticks, and in colour, asks
-// the terminal what its background is (OSC 11), giving it answerWithin to
-// say.
+// the terminal what its background is (OSC 11), the screen staying blank for
+// theme.AnswerWithin at most, so as not to flash one theme then the other.
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.fetch(m.plan.full()), m.armTick(m.now())}
 	if m.coloured() {
-		cmds = append(cmds, tea.RequestBackgroundColor, m.after(answerWithin, unansweredMsg{}))
+		cmds = append(cmds, tea.RequestBackgroundColor, m.after(theme.AnswerWithin, unansweredMsg{}))
 	}
 	return tea.Batch(cmds...)
 }
@@ -321,9 +321,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // take takes in a message: a key, the wheel, a resize, the terminal's
-// background, a read, the router's history, the router carrying out an
-// order, the request stream opening, telling of requests or falling due to
-// be asked for again, a tick or a frame.
+// background, the themes listed for the picker, or the choice kept as it
+// stands, a read, the router's history, the router carrying out an order,
+// the request stream opening, telling of requests or falling due to be asked
+// for again, a tick or a frame.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -335,7 +336,13 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.BackgroundColorMsg:
 		return m.answered(msg.Color), nil
 	case unansweredMsg:
-		return m.answered(nil), nil
+		return m.noAnswer(), nil
+	case listedMsg:
+		return m.listed(msg)
+	case askMsg:
+		return m.asked(msg), nil
+	case keptMsg:
+		return m.kept(msg), nil
 	case fetchedMsg:
 		return m.fetched(msg)
 	case historyMsg:
@@ -363,9 +370,9 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 // they're open. In colour, it's drawn once the terminal has said what its
 // background is, or had its time to, so it never shows one theme then
 // another: in the theme shown, its canvas painted on every cell, and set as
-// the terminal's background too. While the cards scroll, it asks for the
-// wheel, which takes the terminal's own selecting with the mouse, so it asks
-// for it then alone.
+// the terminal's background too, as background says. While the cards scroll,
+// it asks for the wheel, which takes the terminal's own selecting with the
+// mouse, so it asks for it then alone.
 func (m Model) View() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
@@ -383,7 +390,7 @@ func (m Model) View() tea.View {
 		lines = m.picker.drawn(m.choice).Over(lines, m.size.Width, f.Look)
 	}
 	v.SetContent(strings.Join(lines, "\n"))
-	v.BackgroundColor = f.Look.Canvas()
+	v.BackgroundColor = m.background(f.Look)
 	if f.Scrolling(doc, now).Most > 0 {
 		v.MouseMode = tea.MouseModeCellMotion
 	}

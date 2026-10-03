@@ -1,10 +1,12 @@
 package capture
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	_ "time/tzdata"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -69,11 +71,18 @@ func TestFramesAreDeterministic(t *testing.T) {
 }
 
 func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
+	// Sydney's clocks go forward on the Sunday of the fixtures' week.
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
-			utc, east := frameOf(t, name, time.UTC), frameOf(t, name, time.FixedZone("UTC+10", 10*60*60))
-			if utc != east {
-				t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn ten hours east\n%s", name, utc, east)
+			utc := frameOf(t, name, time.UTC)
+			for _, loc := range []*time.Location{time.FixedZone("UTC+10", 10*60*60), sydney} {
+				if frame := frameOf(t, name, loc); frame != utc {
+					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, utc, loc, frame)
+				}
 			}
 		})
 	}
@@ -152,6 +161,32 @@ func TestAFixtureIsDrawnInItsTheme(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAThemeFileTakingABuiltInsSlugIsListedAsReserved(t *testing.T) {
+	nord, _ := theme.Builtin("nord")
+	var file strings.Builder
+	for tok := theme.TextPrimary; tok <= theme.TextOnAttention; tok++ {
+		r, g, b, _ := nord.Colour(tok).RGBA()
+		if tok == theme.Canvas {
+			r, g, b = 0, 0, 0
+		}
+		fmt.Fprintf(&file, "%s = #%02X%02X%02X\n", tok, r>>8, g>>8, b>>8)
+	}
+	fileNord, err := theme.Parse("nord", []byte(file.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var named []string
+	for _, e := range listing(fileNord).Entries {
+		if strings.HasPrefix(e.Name, "nord") {
+			named = append(named, e.Name+" "+e.Slug)
+		}
+	}
+	if want := []string{"nord nord", "nord.theme "}; !slices.Equal(named, want) {
+		t.Errorf("the picker lists %q of nord, want %q: the built-in, and the file, which can't be picked", named, want)
 	}
 }
 

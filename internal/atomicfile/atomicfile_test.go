@@ -37,8 +37,12 @@ func TestWrite(t *testing.T) {
 			if data, err := os.ReadFile(path); err != nil || string(data) != "new\n" {
 				t.Errorf("the file holds %q (%v), want %q", data, err, "new\n")
 			}
-			if info, err := os.Stat(path); err != nil || info.Mode() != tt.perm {
-				t.Errorf("the file's mode = %v (%v), want %v", info.Mode(), err, tt.perm)
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode() != tt.perm {
+				t.Errorf("the file's mode = %v, want %v", info.Mode(), tt.perm)
 			}
 			if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
 				t.Errorf("the directory holds %v (%v), want the file alone", entries, err)

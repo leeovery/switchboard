@@ -158,10 +158,11 @@ var (
 // render draws text in the ink, as the look draws it.
 func (l Look) render(text string, k ink) string {
 	fg, bg := l.colour(k), l.surface(k)
-	if !l.styled || text == "" || (fg == nil && bg == nil && !k.bold) {
+	faint, reversed := l.faint(k), l.reversed(k)
+	if !l.styled || text == "" || (fg == nil && bg == nil && !k.bold && !faint && !reversed) {
 		return text
 	}
-	style := lipgloss.NewStyle().Bold(k.bold)
+	style := lipgloss.NewStyle().Bold(k.bold).Faint(faint).Reverse(reversed)
 	if fg != nil {
 		style = style.Foreground(fg)
 	}
@@ -169,6 +170,20 @@ func (l Look) render(text string, k ink) string {
 		style = style.Background(bg)
 	}
 	return style.Render(text)
+}
+
+// faint reports whether the look draws the ink faint, in the terminal's own
+// foreground, as its theme draws the ink's token.
+func (l Look) faint(k ink) bool {
+	return l.coloured && !k.ramp && l.theme.Faint(k.token)
+}
+
+// reversed reports whether the look draws the ink's surface by swapping the
+// terminal's own foreground and background, as its theme draws the
+// surface's token: until it's faded halfway, as a look that blends nothing
+// shows a surface.
+func (l Look) reversed(k ink) bool {
+	return l.coloured && !k.on.ramp && l.theme.Reversed(k.on.token) && k.on.fade < 0.5
 }
 
 // colour is the ink's colour in the look, glowing and faded as the ink says:

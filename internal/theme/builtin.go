@@ -71,29 +71,30 @@ func Builtins() []Theme {
 }
 
 // terminal is the theme for a terminal whose background is transparent or an
-// image: its text in the terminal's own foreground and its colours the
-// terminal's own sixteen, on the terminal's own background, so it paints no
-// canvas, and, its colours being whatever the terminal makes them, blends
-// nothing. A bar's ramp steps from colour to colour rather than through them.
+// image: its text in the terminal's own foreground, dim text, borders and a
+// bar's track faint in it, its selection and what's picked out for attention
+// in reverse, and its colours the terminal's own sixteen, on the terminal's
+// own background, so it paints no canvas, and, its colours being whatever
+// the terminal makes them, blends nothing. A bar's ramp steps from colour to
+// colour rather than through them.
 func terminal() Theme {
 	t := Theme{Slug: Terminal}
 	for tok, c := range map[Token]color.Color{
-		TextMuted:        ansi.BrightBlack,
-		TextSubtle:       ansi.BrightBlack,
-		TextFaint:        ansi.BrightBlack,
 		AccentPrimary:    ansi.Magenta,
 		AccentKey:        ansi.Blue,
 		AccentMode:       ansi.Cyan,
 		AccentAttention:  ansi.Yellow,
 		StatePositive:    ansi.Green,
 		StateDestructive: ansi.Red,
-		BgSelection:      ansi.BrightBlack,
-		Border:           ansi.BrightBlack,
 		TextOnAttention:  ansi.Yellow,
 		VizRamp3:         ansi.BrightRed,
 	} {
 		t.colours[tok] = c
 	}
+	for _, tok := range []Token{TextMuted, TextSubtle, TextFaint, Border, VizTrack} {
+		t.faint[tok] = true
+	}
+	t.reversed[BgSelection], t.reversed[BgAttention] = true, true
 	t.derive()
 	return t
 }

@@ -33,7 +33,7 @@ func TestEveryBuiltInGivesEveryToken(t *testing.T) {
 	for _, b := range theme.Builtins() {
 		t.Run(b.Slug, func(t *testing.T) {
 			for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
-				if b.Colour(tok) == nil && !leftToTheTerminal(b, tok) {
+				if b.Colour(tok) == nil && !b.Faint(tok) && !b.Reversed(tok) && !leftToTheTerminal(b, tok) {
 					t.Errorf("%s has no %s", b.Slug, tok)
 				}
 			}
@@ -49,8 +49,55 @@ func leftToTheTerminal(b theme.Theme, tok theme.Token) bool {
 	}
 	return slices.Contains([]theme.Token{
 		theme.TextPrimary, theme.TextSecondary, theme.TextTertiary, theme.TextOnSelection,
-		theme.Canvas, theme.BgAttention, theme.BgSubtle, theme.VizPace, theme.VizSeries5,
+		theme.Canvas, theme.BgSubtle, theme.VizPace, theme.VizSeries5,
 	}, tok)
+}
+
+func TestTheTerminalThemeLeansOnNoColourThatsDimOnlySomewhere(t *testing.T) {
+	term, _ := theme.Builtin(theme.Terminal)
+	for tok := theme.TextPrimary; tok <= theme.VizSeries6; tok++ {
+		if term.Colour(tok) == ansi.BrightBlack {
+			t.Errorf("the terminal theme's %s is the terminal's bright black, which is Solarized Dark's background", tok)
+		}
+	}
+	for _, tok := range []theme.Token{theme.TextMuted, theme.TextSubtle, theme.TextFaint, theme.Border, theme.VizTrack} {
+		if !term.Faint(tok) || term.Colour(tok) != nil {
+			t.Errorf("the terminal theme's %s is %v, faint: %v; want it faint, in the terminal's own foreground", tok, term.Colour(tok), term.Faint(tok))
+		}
+	}
+	for _, tok := range []theme.Token{theme.BgSelection, theme.BgAttention} {
+		if !term.Reversed(tok) || term.Colour(tok) != nil {
+			t.Errorf("the terminal theme's %s is %v, reversed: %v; want it the terminal's own colours reversed", tok, term.Colour(tok), term.Reversed(tok))
+		}
+	}
+	for _, b := range theme.Builtins() {
+		for tok := theme.TextPrimary; tok <= theme.VizSeries6 && b.Slug != theme.Terminal; tok++ {
+			if b.Faint(tok) || b.Reversed(tok) {
+				t.Errorf("%s draws its %s faint or reversed, want it in its own colour", b.Slug, tok)
+			}
+		}
+	}
+}
+
+func TestAThemeSuitsTheBackgroundsOfItsOwnDarkness(t *testing.T) {
+	tests := []struct {
+		slug            string
+		onDark, onLight bool
+	}{
+		{slug: "nord", onDark: true},
+		{slug: "amber", onDark: true},
+		{slug: "tokyo-night-day", onLight: true},
+		{slug: theme.Terminal, onDark: true, onLight: true},
+	}
+	for _, tt := range tests {
+		b, _ := theme.Builtin(tt.slug)
+		if got := b.Suits(true); got != tt.onDark {
+			t.Errorf("%s.Suits(a dark background) = %v, want %v", tt.slug, got, tt.onDark)
+		}
+		if got := b.Suits(false); got != tt.onLight {
+			t.Errorf("%s.Suits(a light background) = %v, want %v", tt.slug, got, tt.onLight)
+		}
+	}
 }
 
 func TestNordIsPortalsWithTheDashboardsOwnBars(t *testing.T) {

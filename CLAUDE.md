@@ -63,9 +63,8 @@ notifications. Ever.
   - the real switchboard config changed, its state directory appeared, or a token file in its
     `tokens` directory appeared or changed: in the home, or where `SWITCHBOARD_CONFIG`,
     `XDG_CONFIG_HOME` and `XDG_STATE_HOME` put them as the run began, links resolved;
-  - the dashboard's real themes directory, or a theme in it, appeared or changed, or its
-    `prefs.json`, in the state directory, did: in the home, or where `SWITCHBOARD_THEMES_DIR`,
-    `XDG_CONFIG_HOME` and `XDG_STATE_HOME` put them as the run began, links resolved;
+  - the dashboard's real themes directory, or a theme in it, appeared or changed: in the home, or
+    where `SWITCHBOARD_THEMES_DIR` and `XDG_CONFIG_HOME` put it as the run began, links resolved;
   - a switchboard file in the real `~/Library/LaunchAgents` appeared or changed;
   - switchboard's skill in Claude Code's real config directory appeared or changed: in
     `~/.claude`, or where `CLAUDE_CONFIG_DIR` put it as the run began, links resolved;
@@ -89,8 +88,8 @@ notifications. Ever.
   - unix sockets outside the temporary directory, and in the real state directory;
   - the router's port, 4747, either way;
   - writes into the home directory, but Go's caches, and into the real config, themes, state and
-    bin directory, the real `prefs.json`, and Claude Code's config directory, wherever the
-    environment puts them, links resolved;
+    bin directory, the real `prefs.json`, each theme in the themes directory, and Claude Code's
+    config directory, wherever the environment puts them, links resolved;
   - writes into the directories on `PATH` outside the home, such as `/opt/homebrew/bin`;
   - running the real `claude`, `osascript`, `launchctl`, `tmux` and `open`.
 - **It unsets the variables testguard clears** before anything starts, as testguard clears them
@@ -100,8 +99,8 @@ notifications. Ever.
     directory;
   - it denies connecting to and binding 4747;
   - it denies a write into the home directory, and into the real config, themes, state and bin
-    directory, the real config file and `prefs.json`, and Claude Code's config directory, where
-    they exist;
+    directory, the real config file and `prefs.json`, each theme, where its link leads, and
+    Claude Code's config directory, where they exist;
   - it denies a write into each directory on `PATH` outside the home that the user can write to;
   - it denies running each of those programs that's installed, where `PATH` finds it, links
     resolved: the real `claude` where switchboard finds it, past switchboard's bin directory and
