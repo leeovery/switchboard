@@ -35,6 +35,17 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 	asked := ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Model: opus, Account: "work", Reason: reasonSticky,
 		Status: http.StatusOK, Attempts: 1, Agent: testAgent, Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
 		Shape: ledger.Shape{Bytes: len(opusAsked), MaxTokens: new(int64(1))}}
+	// answered is what the answer AnswerPieces streams tells of itself, and
+	// its usage, which Message's is too.
+	answered := ledger.Reply{Answer: ledger.Answer{Model: opus, Stop: "end_turn"},
+		Usage: json.RawMessage(`{"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"input_tokens":3,"output_tokens":120}`)}
+	// limited is an answer's header as the API gives it, its id and its usage
+	// headers, of a stream of events; and the limits a line has of them.
+	limited := http.Header{"Content-Type": {"text/event-stream"}, "Request-Id": {"req_011CTest"},
+		"Anthropic-Ratelimit-Unified-Status": {"allowed"}, "Anthropic-Ratelimit-Unified-5h-Utilization": {"0.23"}}
+	limits := map[string]string{"status": "allowed", "5h-utilization": "0.23"}
+	// unreadable is an answer encoded as the router can't decode.
+	const unreadable = "\x1b\x2c\x00\xf8 brotli, notionally"
 	tests := []struct {
 		name string
 		// path is the request's, /v1/messages unless it says, and body its
@@ -45,18 +56,40 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 		// goneAfter is when the client goes, if it does.
 		goneAfter time.Duration
 		want      ledger.Line
+		// wantAnswer is the answer the client gets, where it matters.
+		wantAnswer string
 	}{
 		{
 			name:    "a streamed answer, its first byte a second on, its end five after",
 			session: "one",
 			work:    []answer{streamed(time.Second, claudetest.AnswerPieces("Hello")...)},
-			want:    edited(asked, func(l *ledger.Line) { l.FirstMS, l.TotalMS = ms(1000), 6000 }),
+			want:    edited(asked, func(l *ledger.Line) { l.FirstMS, l.TotalMS, l.Reply = ms(1000), 6000, answered }),
 		},
 		{
 			name:    "a message answered whole",
 			session: "one",
 			work:    []answer{messageWhole},
-			want:    edited(asked, func(l *ledger.Line) { l.FirstMS = ms(0) }),
+			want: edited(asked, func(l *ledger.Line) {
+				l.FirstMS, l.Reply = ms(0), answered
+				l.Answer.Blocks = map[string]int{"text": 1}
+			}),
+		},
+		{
+			name:    "an answer whose header gives its id and limits, which called a tool",
+			session: "one",
+			work: []answer{answeredAs(limited, claudetest.MessageStart+claudetest.BlockStart("tool_use", "Bash")+
+				claudetest.InputDelta(`{"command":"ls"}`)+claudetest.MessageEnd)},
+			want: edited(asked, func(l *ledger.Line) {
+				l.FirstMS, l.Reply = ms(0), answered
+				l.Answer.ID, l.Answer.Blocks, l.Answer.Tools, l.Limits = "req_011CTest", map[string]int{"tool_use": 1}, []string{"Bash"}, limits
+			}),
+		},
+		{
+			name:       "an answer in an encoding the router can't read, its header read alone",
+			session:    "one",
+			work:       []answer{answeredAs(with(limited, "Content-Encoding", "br"), unreadable)},
+			want:       edited(asked, func(l *ledger.Line) { l.FirstMS, l.Answer.ID, l.Limits = ms(0), "req_011CTest", limits }),
+			wantAnswer: unreadable,
 		},
 		{
 			name:    "a limit reached, and the request moved to side with its session",
@@ -102,11 +135,13 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 			want:    edited(asked, func(l *ledger.Line) { l.Kind, l.FirstMS = ledger.KindCount, ms(0) }),
 		},
 		{
-			name:      "a client gone mid-answer",
+			name:      "a client gone mid-answer, its answer read as far as it came",
 			session:   "one",
 			work:      []answer{streamed(time.Second, claudetest.AnswerPieces("Hello")...)},
 			goneAfter: 1500 * time.Millisecond,
-			want:      edited(asked, func(l *ledger.Line) { l.Canceled, l.FirstMS, l.TotalMS = true, ms(1000), 1500 }),
+			want: edited(asked, func(l *ledger.Line) {
+				l.Canceled, l.FirstMS, l.TotalMS, l.Answer = true, ms(1000), 1500, ledger.Answer{Model: opus}
+			}),
 		},
 		{
 			name:      "a client gone before an answer came",
@@ -128,7 +163,10 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 				r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: tt.work, sideToken: tt.side}}
 				lines := keepingLedger(t, r)
 
-				routeAs(clientGoing(t, tt.goneAfter), r, cmp.Or(tt.path, "/v1/messages"), tt.session, cmp.Or(tt.body, opusAsked))
+				rec := routeAs(clientGoing(t, tt.goneAfter), r, cmp.Or(tt.path, "/v1/messages"), tt.session, cmp.Or(tt.body, opusAsked))
+				if tt.wantAnswer != "" && rec.Body.String() != tt.wantAnswer {
+					t.Errorf("the client got %q, want the answer as it came, %q", rec.Body.String(), tt.wantAnswer)
+				}
 				checkLines(t, lines(), tt.want)
 			})
 		})
@@ -175,6 +213,20 @@ func TestTheLedgerHoldsALineOfARequestTheRouterAnswersItself(t *testing.T) {
 // messageWhole answers with a message whole, not streamed.
 func messageWhole(r *http.Request) *http.Response {
 	return respond(r, http.StatusOK, http.Header{"Content-Type": {"application/json"}}, claudetest.Message)
+}
+
+// answeredAs answers with the header and body given.
+func answeredAs(h http.Header, body string) answer {
+	return func(r *http.Request) *http.Response {
+		return respond(r, http.StatusOK, h.Clone(), body)
+	}
+}
+
+// with returns h with the header name set to value.
+func with(h http.Header, name, value string) http.Header {
+	h = h.Clone()
+	h.Set(name, value)
+	return h
 }
 
 // countAnswered answers a count of a request's tokens.

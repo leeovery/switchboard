@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -37,13 +38,31 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 				Agent: "claude-cli/2.1.0 (external, cli)", Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
 				Shape: ledger.Shape{Bytes: 482113, Messages: 214, System: 3, Tools: 31, MaxTokens: new(int64(32000)),
 					Thinking: ledger.Thinking{Type: "enabled", BudgetTokens: new(int64(31999))}, Stream: new(true),
-					ToolChoice: ledger.ToolChoice{Type: "auto"}, Temperature: new(1.0), ServiceTier: "auto"}},
+					ToolChoice: ledger.ToolChoice{Type: "auto"}, Temperature: new(1.0), ServiceTier: "auto"},
+				Answer: ledger.Answer{ID: "req_011CTest", Model: "claude-opus-5-5", Stop: "tool_use",
+					Blocks: map[string]int{"thinking": 1, "text": 1, "tool_use": 2}, Tools: []string{"Bash", "Read"}},
+				Usage: json.RawMessage(`{"input_tokens":12,"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
+					`"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":3120},"output_tokens":845,"service_tier":"standard"}`),
+				Limits: map[string]string{"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}},
 			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c4","kind":"message","session":"5b0e7c1a-1f2a-4b3c-9d8e-7f6a5b4c3d2e",` +
 				`"model":"claude-opus-5-5","account":"side","reason":"moved: work hit its limit","from":"work",` +
 				`"tried":[{"account":"work","why":"hit its limit"}],"status":200,"attempts":2,"first_ms":812,"total_ms":14230,` +
 				`"agent":"claude-cli/2.1.0 (external, cli)","betas":["oauth-2025-04-20","context-1m-2025-08-07"],` +
 				`"shape":{"bytes":482113,"messages":214,"system":3,"tools":31,"max_tokens":32000,"thinking":{"type":"enabled","budget_tokens":31999},` +
-				`"stream":true,"tool_choice":{"type":"auto"},"temperature":1,"service_tier":"auto"}}`,
+				`"stream":true,"tool_choice":{"type":"auto"},"temperature":1,"service_tier":"auto"},` +
+				`"answer":{"id":"req_011CTest","model":"claude-opus-5-5","stop":"tool_use","blocks":{"text":1,"thinking":1,"tool_use":2},"tools":["Bash","Read"]},` +
+				`"usage":{"input_tokens":12,"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
+				`"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":3120},"output_tokens":845,"service_tier":"standard"},` +
+				`"limits":{"5h-reset":"1791320400","5h-utilization":"0.23","7d-reset":"1791590400","7d-utilization":"0.41","status":"allowed"}}`,
+		},
+		{
+			name: "an error the API answered with",
+			line: ledger.Line{At: arrived, Request: "3f2a91c8", Kind: ledger.KindMessage, Session: "one", Model: "claude-opus-5-5", Account: "work",
+				Reason: "sticky", Status: 529, Attempts: 1, FirstMS: ms(95), TotalMS: 96,
+				Answer: ledger.Answer{ID: "req_011CError", Error: ledger.Error{Type: "overloaded_error", Message: "Overloaded"}}},
+			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c8","kind":"message","session":"one","model":"claude-opus-5-5","account":"work",` +
+				`"reason":"sticky","status":529,"attempts":1,"first_ms":95,"total_ms":96,` +
+				`"answer":{"id":"req_011CError","error":{"type":"overloaded_error","message":"Overloaded"}}}`,
 		},
 		{
 			name: "a count of tokens, of no settings but its lists",

@@ -20,9 +20,9 @@ const (
 	// dropped rather than hold a request up. It's eight times the readings
 	// history's, as a line dropped is a request never counted.
 	queue = 8192
-	// lineMax is the longest line read back: a request's is a few hundred
-	// bytes, and the longest written, every text and list at its most and
-	// each character escaped, runs to some 130 KiB.
+	// lineMax is the longest line read back: a request's is a kilobyte or
+	// so, and the longest written, every text, list and count at its most and
+	// each character escaped, runs to some 410 KiB.
 	lineMax = 1 << 20
 )
 

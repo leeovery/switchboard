@@ -68,12 +68,13 @@ type Provider interface {
 	// with token and anything else shaped like one hidden, or "" when it
 	// holds none.
 	ErrorMessage(body io.Reader, token string) string
-	// Count reads an answer's body, decoded, as far as it needs, by its
-	// content type, calling chars with how many characters of text, thinking
-	// and tools' input it has streamed so far as each part of them comes. It
-	// returns the tokens the answer's closing usage gives, reporting false
-	// when none came, as for an answer cut short.
-	Count(contentType string, body io.Reader, chars func(int)) (quota.Tokens, bool)
+	// Count reads an answer, by its header, and its body, decoded, as far as
+	// it needs, by its content type, calling chars with how many characters
+	// of text, thinking and tools' input it has streamed so far as each part
+	// of them comes. It returns the tokens the answer's closing usage gives,
+	// nil when none came, as for an answer cut short, and what the request
+	// ledger keeps of the answer.
+	Count(h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply)
 }
 
 // Prober reads an account's usage by spending requests on its token, and

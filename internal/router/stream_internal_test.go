@@ -22,6 +22,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -487,9 +488,9 @@ type slowCounting struct {
 	claude.Provider
 }
 
-func (p slowCounting) Count(contentType string, body io.Reader, chars func(int)) (quota.Tokens, bool) {
+func (p slowCounting) Count(h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply) {
 	time.Sleep(time.Second)
-	return p.Provider.Count(contentType, body, chars)
+	return p.Provider.Count(h, body, chars)
 }
 
 func TestASessionIsToldOfAsStartedAsTheFirstAnswerOfSuccessComes(t *testing.T) {

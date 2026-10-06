@@ -11,8 +11,11 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
+// limitsPrefix begins the name of each of the usage headers, lowercased.
+const limitsPrefix = "anthropic-ratelimit-unified-"
+
 // windowHeader matches a lowercased usage header: its window key, then its field.
-var windowHeader = regexp.MustCompile(`^anthropic-ratelimit-unified-(.+)-(utilization|reset|status)$`)
+var windowHeader = regexp.MustCompile(`^` + limitsPrefix + `(.+)-(utilization|reset|status)$`)
 
 // overageKey names the extra-usage state, which the headers report like a window.
 const overageKey = "overage"
@@ -39,6 +42,25 @@ func ParseWindows(h http.Header) []quota.Window {
 	}
 	quota.Sort(windows)
 	return windows
+}
+
+// limitsOf returns each of the usage headers h holds, by its name lowercased,
+// limitsPrefix taken off, and its value as given: of a window, as
+// 5h-utilization, and of the answer as a whole, as status. It's nil where h
+// holds none.
+func limitsOf(h http.Header) map[string]string {
+	var limits map[string]string
+	for name, values := range h {
+		limit := len(name) > len(limitsPrefix) && strings.EqualFold(name[:len(limitsPrefix)], limitsPrefix)
+		if !limit || len(values) == 0 {
+			continue
+		}
+		if limits == nil {
+			limits = make(map[string]string)
+		}
+		limits[strings.ToLower(name[len(limitsPrefix):])] = values[0]
+	}
+	return limits
 }
 
 // windowFields groups the usage headers by window key, then by field.

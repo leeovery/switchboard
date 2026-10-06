@@ -74,7 +74,7 @@ func (p *proxy) line(ex *exchange, h http.Header, took time.Duration, canceled b
 		Shape:    ex.shape,
 	}
 	if ex.tap != nil {
-		line.FirstMS = ex.tap.firstMS(ex.started)
+		line.FirstMS, line.Reply = ex.tap.firstMS(ex.started), ex.tap.reply
 	}
 	return line
 }

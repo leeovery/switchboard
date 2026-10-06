@@ -42,6 +42,17 @@ const (
 	answerInput    = `{"path": "notes.txt", "content": "Hello"}`
 )
 
+// BlockStart is the event that starts a block of a streamed answer, of the
+// kind given, calling the tool named, where it's a call of one. The kind and
+// the tool's name go in as they are, so they mustn't need escaping.
+func BlockStart(kind, tool string) string {
+	block := `{"type":"` + kind + `"`
+	if tool != "" {
+		block += `,"id":"toolu_test","name":"` + tool + `","input":{}`
+	}
+	return "event: content_block_start\n" + `data: {"type":"content_block_start","index":0,"content_block":` + block + "}}\n\n"
+}
+
 // TextDelta is the event that adds text to a streamed answer. The text goes
 // in as it is, so it mustn't need escaping.
 func TextDelta(text string) string {

@@ -1,6 +1,9 @@
 package ledger
 
 import (
+	"encoding/json"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -21,8 +24,15 @@ const (
 	// textMost is how many bytes of a text a line holds, cut at the end of a
 	// character, as the request stream cuts a session's id and a model's.
 	textMost = 200
-	// listMost is how many of a list's entries a line holds.
+	// listMost is how many of a list's entries a line holds, or kinds of a
+	// count's.
 	listMost = 32
+	// limitsMost is how many of an answer's usage headers a line holds: the
+	// API gives some twenty.
+	limitsMost = 64
+	// usageMost is the most bytes of an answer's usage a line holds: the API
+	// gives a few hundred, and a line leaves out one longer.
+	usageMost = 8 << 10
 )
 
 // Line is a request the router routed, as the ledger holds it, a line of
@@ -71,6 +81,8 @@ type Line struct {
 	Betas []string `json:"betas,omitempty"`
 	// Shape is the request's shape, zero where its body isn't a request.
 	Shape Shape `json:"shape,omitzero"`
+	// Reply is what came back, of the answer the client got.
+	Reply
 }
 
 // Tried is an account a request went out on that couldn't serve it, and why
@@ -109,9 +121,42 @@ type ToolChoice struct {
 	Type string `json:"type,omitempty"`
 }
 
+// Reply is what the API said back, of the answer the client got, each part
+// left out where the answer didn't give it.
+type Reply struct {
+	// Answer is what the answer told of itself.
+	Answer Answer `json:"answer,omitzero"`
+	// Usage is the answer's closing usage, as the API gave it, field for
+	// field, whatever it counts: none where the answer gave none, as an
+	// error, a count of tokens or an answer cut short gives none.
+	Usage json.RawMessage `json:"usage,omitempty"`
+	// Limits are the answer's anthropic-ratelimit-unified-* headers, by
+	// their names, the prefix taken off, and their values as given.
+	Limits map[string]string `json:"limits,omitempty"`
+}
+
+// Answer is what an answer told of itself: Anthropic's id for it, the model
+// it named, why it stopped, how many blocks of each kind it held, the tools
+// it called, by name alone, and its error, each left out where it didn't
+// give it.
+type Answer struct {
+	ID     string         `json:"id,omitempty"`
+	Model  string         `json:"model,omitempty"`
+	Stop   string         `json:"stop,omitempty"`
+	Blocks map[string]int `json:"blocks,omitempty"`
+	Tools  []string       `json:"tools,omitempty"`
+	Error  Error          `json:"error,omitzero"`
+}
+
+// Error is the error an answer gave: its type and message.
+type Error struct {
+	Type    string `json:"type,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
 // written returns the line as it's written: at in UTC, to the millisecond,
-// each of its texts cut to textMost bytes, and each of its lists to
-// listMost, so no line runs past lineMax.
+// each of its texts cut to textMost bytes, and each of its lists and counts
+// to its most, so no line runs past lineMax.
 func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
@@ -122,9 +167,36 @@ func (l *Line) written() *Line {
 		w.Tried = append(w.Tried, Tried{Account: cut(t.Account), Why: cut(t.Why)})
 	}
 	w.Betas = cutAll(l.Betas)
-	w.Shape.Thinking.Type, w.Shape.Thinking.Display = cut(l.Shape.Thinking.Type), cut(l.Shape.Thinking.Display)
-	w.Shape.ToolChoice.Type, w.Shape.ServiceTier = cut(l.Shape.ToolChoice.Type), cut(l.Shape.ServiceTier)
+	w.Shape = l.Shape.written()
+	w.Reply = l.Reply.written()
 	return &w
+}
+
+// written returns the shape as a line writes it.
+func (s Shape) written() Shape {
+	s.Thinking.Type, s.Thinking.Display = cut(s.Thinking.Type), cut(s.Thinking.Display)
+	s.ToolChoice.Type, s.ServiceTier = cut(s.ToolChoice.Type), cut(s.ServiceTier)
+	return s
+}
+
+// written returns the reply as a line writes it: without its usage, should
+// that run past usageMost bytes.
+func (r Reply) written() Reply {
+	r.Answer = r.Answer.written()
+	if len(r.Usage) > usageMost {
+		r.Usage = nil
+	}
+	r.Limits = cutMap(r.Limits, limitsMost, cut)
+	return r
+}
+
+// written returns the answer as a line writes it.
+func (a Answer) written() Answer {
+	a.ID, a.Model, a.Stop = cut(a.ID), cut(a.Model), cut(a.Stop)
+	a.Error = Error{Type: cut(a.Error.Type), Message: cut(a.Error.Message)}
+	a.Blocks = cutMap(a.Blocks, listMost, func(n int) int { return n })
+	a.Tools = cutAll(a.Tools)
+	return a
 }
 
 // cut is s cut to textMost bytes, at the end of a character.
@@ -140,4 +212,18 @@ func cutAll(texts []string) []string {
 		all = append(all, cut(s))
 	}
 	return all
+}
+
+// cutMap returns the first most of m's entries, in the order of their names,
+// each name cut and each value as value gives it, as a map of their own: nil
+// for none.
+func cutMap[V any](m map[string]V, most int, value func(V) V) map[string]V {
+	var kept map[string]V
+	for _, name := range slices.Sorted(maps.Keys(m))[:min(len(m), most)] {
+		if kept == nil {
+			kept = make(map[string]V)
+		}
+		kept[cut(name)] = value(m[name])
+	}
+	return kept
 }
