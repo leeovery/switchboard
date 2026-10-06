@@ -175,12 +175,14 @@ type Error struct {
 }
 
 // written returns the line as it's written: at in UTC, to the millisecond,
-// each of its texts cut to textMost bytes, and each of its lists and counts
-// to its most, so no line runs past lineMax.
+// each of its texts cut to textMost bytes, a directory from its front, so it
+// keeps its own name, and each of its lists and counts to its most, so no
+// line runs past lineMax.
 func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
-	w.Request, w.Kind, w.Session, w.Dir, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Dir), cut(l.Model)
+	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
+	w.Dir = prose.TruncateBytesFront(l.Dir, textMost)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = nil
 	for _, t := range l.Tried[:min(len(l.Tried), listMost)] {

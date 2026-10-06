@@ -1466,8 +1466,9 @@ first day a router that has it runs, so nothing before then is in it.
     home directory at its start shown as `~`, as `~/Code/api`; left out where a request names none,
     as one from a `claude` that `run` didn't start doesn't. It's the directory `claude` was started
     in, which a session doesn't keep: one resumed elsewhere carries the new one from then on.
-    `model`: the model it asked for. Each is cut to 200 bytes, as the request stream cuts a
-    session's id and a model's.
+    `model`: the model it asked for. Each is cut to 200 bytes: a session's id and a model's at
+    their end, as the request stream cuts them, and a directory at its start, `…` standing for
+    what's cut, so it keeps its own name.
   - `account`: the account whose answer the client got, by its id. `reason`: why that account was
     chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
     limit`). `from`: the account the request's session was on before, where the request moved it.
@@ -2013,16 +2014,16 @@ fails as it is; one that parses has every problem reported at once:
   **and** its bearer token is one of the configured accounts' tokens, which Claude Code's, the
   primary's, is, or one an account had before the router took up another, or one of an account
   removed from the config, which counts as the primary's, for 7 days after (see Accounts and
-  tokens): an account without a usable token has none that counts. Anything else
-  passes through untouched: batches, whose ids belong to one account, stay on it, and a local
-  process that doesn't already hold a token can't borrow one.
+  tokens): an account without a usable token has none that counts. Anything else passes through
+  untouched but for switchboard's own headers (below), so batches, whose ids belong to one
+  account, stay on it, and a local process that doesn't already hold a token can't borrow one.
 - A token an account had before is known by its SHA-256 hash, which a request's token is hashed
   and compared with in constant time, as the current tokens are. A request carrying one is the
   account's, and goes out on the account's current token, as every routed request does. One
   carrying a token of an account removed is the primary's: the primary is its client account,
   which it falls back to when no account has room.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
-  that session. It is stripped before the request goes upstream. One naming an account that isn't
+  that session. It is stripped from every request going upstream. One naming an account that isn't
   configured, or has no token, is ignored, and the log warns of it once for each session and
   account, and notes it at debug after, until the account can be sent on again. The router keeps
   a thousand sessions of an account, and a thousand accounts, told of at most, forgetting them past
@@ -2032,12 +2033,12 @@ fails as it is; one that parses has every problem reported at once:
   a header can't carry it as it is, and nowhere else: a control character, such as a newline,
   which would end the header's line; each byte of a character past ASCII; a space at either end,
   which would be trimmed off; and a percent sign. One that doesn't decode is passed over, and the
-  request's line names no directory. It is stripped before the request goes upstream, as the pin
-  header is, routed or passed through, so a user's directory never reaches the API.
+  request's line names no directory. It is stripped from every request going upstream, as the pin
+  header is, so a user's directory never reaches the API.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
   its answer in, to count it for the request stream (see Control API): gzip, deflate and identity,
   in the order the client gave them, or identity where it offered none of those. A request passed
-  through goes as it came.
+  through keeps the encodings it offered.
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
   header is never remembered, and but for a launch pin it carries, is decided afresh every time,
   as a new session's is.
