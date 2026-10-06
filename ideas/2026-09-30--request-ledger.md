@@ -49,3 +49,8 @@ show is this ledger's. The owner agreed how it's kept:
   the code.
 - **Agents read it** through read commands with `--json`, sharing the one data layer the
   dashboard draws from, as `status --json` does today.
+
+## Taken up, 6 October 2026
+
+As milestone 6, ahead of the dashboard it feeds, as a day it isn't recording is a day History never
+shows: see The request ledger, and Milestones, in `docs/design.md`.

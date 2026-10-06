@@ -664,6 +664,8 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `setup` | Walk through setting up, or what's left of it: see Setup |
 | `status [--session <id>] [--json] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document, which is what an agent reads (see The skill). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--watch [interval]] [--no-notify] [--probe] [--refresh]` | The dashboard. Where stdout isn't a terminal, as in a pipe or Claude Code's Bash tool, it prints the status document instead, as `status --json` does, read as its flags say; `--watch` needs a terminal, and refuses without one. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `r` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. It reads once, so it takes no `--watch` |
+| `requests [--session <id>] [--account <id>] [--since <when>] [--json]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, a line each with the time, the session's id cut short, the model, the account, the status, the tokens and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), or a duration ago (`3h`, `2d`). `--json` prints each line as the ledger holds it, a JSON object a line. It reads the ledger's files, so it needs no router |
+| `history [--since <when>] [--json]` | The request ledger's days: the last 30 unless `--since` says otherwise, a row for each account and model with its requests, tokens, sessions and worth, then each account's moves, limits reached and windows' highest use; today's from its lines, as far as it's gone. `--json` prints `{"prices_as_of": "2026-10-01", "days": [{"day": "2026-10-05", "accounts": […]}]}`, each day's summary as the ledger holds it with each model's `worth` in US dollars added, left out where the model is unpriced. It reads the ledger's files, so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
 | `pin <id>... [--move] [--force]`, `pin auto [--force]` | Set the global pin to the accounts given, replacing any before, or clear it: see Pinning. It needs the router |
@@ -673,6 +675,9 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `service uninstall`, `service restart`, `service status` | Stop the router and remove the LaunchAgent; restart the router in place, letting it finish its requests in flight; report the plist, whether launchd has it loaded, and the router's health: see Launching |
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
+
+The plain text `requests` and `history` print is a first cut, to be designed with their owner as
+`status`'s is (see Backlog); agents read their `--json`.
 
 A command that needs the router fails without it, saying `the router isn't running: start it
 with switchboard service install (or switchboard serve)`. Any notice a command gives on stderr,
@@ -1432,6 +1437,79 @@ none with `--no-notify`. While the router answers, the dashboard posts none, so 
 twice: probing with `--probe`, it asks after the router before it posts, and posts only when it
 doesn't answer. It sees no limits or moves, which are the router's alone.
 
+## The request ledger
+
+The readings history says how each window's use changed; the request ledger says what used it. It
+holds a line for each request the router routes, written as the request ends, and a summary of each
+day once the day is over. The dashboard's History and Accounts tabs, and a session's own page, look
+back through it, as agents do through `requests` and `history` (see Commands). It records from the
+first day a router that has it runs, so nothing before then is in it.
+
+- **A line a request:** each request the proxy routes, whether it went upstream or the router
+  answered it itself, as when no account has room; not those passed through, nor the router's
+  probes and primes, which the readings history notes. The line is written as the router finishes
+  with the request, when it logs it `routed` (see Logging), as one JSON object:
+
+  ```json
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "tokens": {"input": 12, "output": 845, "cache_read": 182340, "cache_write": 3120, "cache_write_1h": 3120}, "stop": "tool_use"}
+  ```
+
+  - `at`: when it arrived, in UTC, to the millisecond.
+  - `request`: the router's id for it, as its `routed` line and the request stream give it, unique
+    while the router runs but not across restarts.
+  - `kind`: `message`, a request that spends quota; `check`, Claude Code's quota check (see
+    Choosing an account); or `count`, a token count, which spends nothing.
+  - `session`: Claude Code's session id, left out where a request carries none. `model`: the model
+    it asked for. Each is cut to 200 bytes, as the request stream cuts them. `served_model`: the
+    model the answer named, only where it named another.
+  - `account`: the account whose answer the client got, by its id. `reason`: why that account was
+    chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
+    limit`). `from`: the account the request's session was on before, where the request moved it.
+    `tried`: the accounts it went out on before, and why each was left, as `[{"account":
+    "personal", "why": "hit its limit"}]`, where there were any.
+  - `status`: the status the client got, 0 where it went away before an answer. `canceled`: true
+    where it went away before the end. `attempts`: how many times it went upstream, 0 where the
+    router answered it itself.
+  - `first_ms` and `total_ms`: how long after it arrived its answer's first byte came, and its end.
+    `first_ms` is left out where no answer came.
+  - `tokens`: the closing usage's counts, as the request stream's `done` gives them, with
+    `cache_write_1h`, the part of `cache_write` cached for an hour, the rest being cached for five
+    minutes, as the two cost differently. Left out where the answer gave none, as an error, a count
+    or an answer cut short gives none.
+  - `stop`: why the answer ended (`end_turn`, `tool_use`, `max_tokens`), where it said.
+
+  An account appears by its id alone, never by a token or a label. Nothing of a prompt or an answer
+  is written, and no header but the session's. Fields may be added to a line, never renamed, and a
+  reader passes over those it doesn't know.
+- **Writing never holds a request up.** The request hands its line to a queue of 8,192 lines at
+  most, longer than the readings history's, as a line dropped is a request History never counts,
+  and goes on. A goroutine of the ledger's own writes the lines to the day's file, as the readings
+  history writes its own (see Files). A line past the queue's end is dropped, logged once until the
+  queue catches up; a write that fails is logged once until one succeeds, and its lines go
+  unwritten. A benchmark of the proxy path, taken before the ledger joins it and again after, shows
+  what the ledger costs a request (see Milestones).
+- **A summary a day:** once a day has ended, on the hourly round that compresses and prunes the
+  files, the router writes the day's summary from the day's lines and the day's readings history.
+  For each account, by model, it holds the requests that went upstream, those the router answered
+  itself, the checks, the counts, the tokens of each kind, and the sessions. For the account as a
+  whole it holds the sessions, the sessions moved onto it and off it, each window's highest use that
+  day, counting the use it began the day at unless the window has reset since, and the limits it
+  reached, each a window's status turning `rejected`. A summary is written once, whole, and kept for
+  good: a year of them runs to a few megabytes. A day left without one, as when the router was
+  stopped as the day ended, is summarised by the next round that finds its lines. Views over weeks
+  and months read the summaries; today, and any day not yet summarised, is summarised from its
+  lines as it's read.
+- **Worth** is what tokens would have cost through the API, priced from a table built into
+  switchboard. The table holds, per model, the price of input, output, cache reads, and cache writes
+  for five minutes and for an hour, and the date its prices were current. Worth is worked out as
+  it's read and never stored, so a release with new prices prices the whole ledger afresh. A model
+  the table doesn't know has no worth, and is shown as unpriced.
+- **Reading needs no router.** The dashboard and the read commands read the ledger's files where
+  they lie, through one package, `internal/ledger`. A line that doesn't read as one, as one cut
+  short, is passed over, and a damaged compressed file is read up to the damage, as the readings
+  history is read. A session's page reads the lines of its own days; History and Accounts read the
+  summaries.
+
 ## Logging
 
 Logs are for working out, after the fact, why a session went to an account, why a request failed,
@@ -1486,7 +1564,14 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   (`readings history read short`), each file once until it reads to its end again, as
   `GET /history` reads them again and again; a file that couldn't be compressed (`can't compress
   the readings history`); and a file, or the directory, that couldn't be pruned (`can't prune the
-  readings history`).
+  readings history`). Of the request ledger (see The request ledger): at `info`, each day it
+  summarises (`summarised a day of the request ledger`, with the day and its requests), and that
+  it's written again after failing (`writing the request ledger again`); at `warn`, that its
+  directory can't be made private, that it can't be written, once until it can be (`can't write the
+  request ledger`), that lines were dropped from it for its falling behind, once until it catches up
+  (`request ledger fell behind`), that a request's line can't be put as JSON, once, a file that
+  can't be read or was read short, as the readings history's are warned of, and a file that couldn't
+  be compressed, pruned or summarised.
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -1675,6 +1760,8 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
+| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, lines cut short and damaged files included |
+| `internal/ledger` | The request ledger: its lines, the queue and goroutine that write them, the days' summaries, reading lines and summaries back, and the price table and the worth it gives |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
@@ -1685,7 +1772,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, the history and the request stream, its keys, the focus, flipping and selection, scrolling, easing the bars and animating the cords, the theme picker, and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, picking the light or dark half by the terminal's background, and the preferences file |
 | `internal/capture` | The capture harness's fixtures, each a moment of the dashboard: the frames' sample accounts and sessions, a fake router serving them, with its history and request stream, and the real watch model built through `watch.New` with every seam faked, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, preferences or tokens. Imported by `cmd/capturetool` alone |
-| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the readings history, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
+| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the readings history, each routed request's line handed to the request ledger, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
@@ -1736,7 +1823,7 @@ hiding it behind the provider would take a wider interface than it's worth:
   account's last readings, with the model families each window has been seen to count, and when a
   window started again, as its reading's `restarted_at`, so a restart doesn't scatter sessions or
   need a probe, and the hashes of every configured account's tokens, with a usable token or not:
-  see Accounts and tokens), `control.sock`, `tokens/`, `logs/` and `history/`.
+  see Accounts and tokens), `control.sock`, `tokens/`, `logs/`, `history/` and `ledger/`.
   `state.json` is versioned, the version changing only when a router couldn't read what another
   wrote: an older file, without readings, loads as having none, one whose readings lack
   `restarted_at` as windows that run a whole length before their resets, which a router from
@@ -1789,6 +1876,12 @@ hiding it behind the provider would take a wider interface than it's worth:
   writing the one and removing the other, is read from the compressed file alone. A file that can't
   be read is passed over, and one damaged, as a compressed file cut short, read up to the damage,
   each warned of once, until it reads to its end again (see Logging).
+- **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
+  and `day-<local date>.json`, a day's summary, each 0600 (see The request ledger). The lines are
+  appended, compressed and removed as the readings history's are, by the same rules, but kept as
+  long as `[ledger] keep` says, 90 days unless it's set (see Config). A day's summary is written
+  whole, beside where it goes and renamed into place, and never removed. The router leaves anything
+  else in the directory alone.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, the view it
   shows, the featured window and the chart style, written whole by the dashboard alone, never by
   hand (see Themes).
@@ -1843,6 +1936,9 @@ moves   = false  # every other session move, such as after an idle hour or by pi
 
 [history]                          # optional: the readings history
 keep = "14d"                       # how long the readings history is kept, from 8d to 400d
+
+[ledger]                           # optional: the request ledger
+keep = "90d"                       # how long each request's line is kept, from 8d to 400d; the days' summaries are kept for good
 ```
 
 The accounts keep their file order, which is their order everywhere they're shown, and the order
@@ -1871,6 +1967,7 @@ fails as it is; one that parses has every problem reported at once:
   1.
 - **`[history]`**: `keep` is a whole number of days, `<n>d`, from `8d`, a week and a day, which the
   week's chart needs, to `400d`, a year with room to spare.
+- **`[ledger]`**: `keep` is as `[history]`'s is, from `8d` to `400d`.
 - **No error quotes a token:** one that quotes a value, of `listen`, `upstream` or `prime.day`, an
   unknown key's name, or the key a file that isn't TOML fails at, such as one without a value or
   given twice, shows anything in it shaped like a token as `[redacted]`, and an unknown key's value
@@ -1923,7 +2020,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | The requests as they happen, for the dashboard's Sessions, its cards' backs and its hourglasses: held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, model, account}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, and `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got. It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, or a 401 to a token replaced since, which go out again on the same account, are neither. A request the router knows for Claude Code's quota check carries `check: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes, which a restart does after its drain, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes |
+| `GET /stream` | The requests as they happen, for the dashboard's Sessions, its cards' backs and its hourglasses: held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, model, account}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, and `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got. It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write, cache_write_1h}`, `cache_write_1h` the part of `cache_write` cached for an hour, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, or a 401 to a token replaced since, which go out again on the same account, are neither. A request the router knows for Claude Code's quota check carries `check: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes, which a restart does after its drain, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
 
@@ -2156,6 +2253,23 @@ leaves nothing to connect to.
 
 `status`'s text follows, designed with its owner first (see Backlog).
 
+**6. The request ledger — next.** The redesigned dashboard's History and Accounts tabs, and a
+session's page, look back on requests nothing records yet, and every day the ledger isn't recording
+is a day History will never show; so the ledger comes first, ahead of the dashboard it feeds (see
+The request ledger). A pull request a stage, each merged as it's ready, so the ledger records as
+early as it can:
+
+1. **A benchmark of the proxy path:** a streamed answer from an `httptest` upstream through the
+   proxy, timed and its allocations counted, before anything joins the path.
+2. **`internal/dayfile`:** the readings history's files a day, taken out of `internal/router`
+   unchanged, for the ledger to share.
+3. **The lines:** `[ledger] keep`; the ledger's queue, goroutine and files; the line each routed
+   request hands it as it ends; the answer's hour-long cache writes, why it stopped and the model it
+   named, read with its closing usage; and the benchmark taken again.
+4. **The summaries,** written on the hourly round for each day that has ended, and kept.
+5. **Reading:** `internal/ledger`'s readers, the price table and worth, `requests` and `history`,
+   and the skill telling agents of them.
+
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
 ## Observed
@@ -2279,7 +2393,6 @@ why.
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text `switchboard status` prints, redesigned to match milestone 5's dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
-| A ledger of the requests the router routes, with their token counts | next: the redesigned dashboard's History tab needs it; how it's kept is settled | [request-ledger](../ideas/2026-09-30--request-ledger.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
