@@ -1479,7 +1479,9 @@ first day a router that has it runs, so nothing before then is in it.
     `anthropic-beta` header asked for, some of which change what a request costs.
   - `shape`: the request's size in bytes; how many messages, system blocks and tools it carried, as
     counts; and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`,
-    `tool_choice`'s type, `temperature` and `service_tier`. A field it doesn't know isn't kept, as
+    `tool_choice`'s type, `temperature`, `top_k`, `top_p`, `service_tier`, `output_config`'s
+    `effort`, `speed`, `inference_geo`, and the types of `context_management`'s edits, nothing of
+    their parameters. A field it doesn't know isn't kept, nor a setting's field it doesn't know, as
     one may carry a secret, as an MCP server's token does. The router reads the shape in the pass
     over the body it already makes for the model and the quota check, so it costs a request next to
     nothing.

@@ -13,16 +13,22 @@ import (
 // of which the most tokens it asks for tell its quota check. Of the rest of
 // the body, nothing is kept.
 type asked struct {
-	Model       string                     `json:"model"`
-	MaxTokens   setting[int64]             `json:"max_tokens"`
-	Messages    []entry                    `json:"messages"`
-	System      count                      `json:"system"`
-	Tools       []entry                    `json:"tools"`
-	Thinking    setting[ledger.Thinking]   `json:"thinking"`
-	Stream      setting[bool]              `json:"stream"`
-	ToolChoice  setting[ledger.ToolChoice] `json:"tool_choice"`
-	Temperature setting[float64]           `json:"temperature"`
-	ServiceTier setting[string]            `json:"service_tier"`
+	Model             string                       `json:"model"`
+	MaxTokens         setting[int64]               `json:"max_tokens"`
+	Messages          []entry                      `json:"messages"`
+	System            count                        `json:"system"`
+	Tools             []entry                      `json:"tools"`
+	Thinking          setting[ledger.Thinking]     `json:"thinking"`
+	Stream            setting[bool]                `json:"stream"`
+	ToolChoice        setting[ledger.ToolChoice]   `json:"tool_choice"`
+	Temperature       setting[float64]             `json:"temperature"`
+	TopK              setting[int64]               `json:"top_k"`
+	TopP              setting[float64]             `json:"top_p"`
+	ServiceTier       setting[string]              `json:"service_tier"`
+	OutputConfig      setting[ledger.OutputConfig] `json:"output_config"`
+	Speed             setting[string]              `json:"speed"`
+	InferenceGeo      setting[string]              `json:"inference_geo"`
+	ContextManagement setting[contextManagement]   `json:"context_management"`
 }
 
 // readAsked reads body into req, reporting false where it isn't a JSON
@@ -37,17 +43,42 @@ func readAsked(body []byte, req *asked) bool {
 // shape is the request's shape, its body being size bytes.
 func (a asked) shape(size int) ledger.Shape {
 	return ledger.Shape{
-		Bytes:       size,
-		Messages:    len(a.Messages),
-		System:      int(a.System),
-		Tools:       len(a.Tools),
-		MaxTokens:   a.MaxTokens.pointer(),
-		Thinking:    a.Thinking.read,
-		Stream:      a.Stream.pointer(),
-		ToolChoice:  a.ToolChoice.read,
-		Temperature: a.Temperature.pointer(),
-		ServiceTier: a.ServiceTier.read,
+		Bytes:             size,
+		Messages:          len(a.Messages),
+		System:            int(a.System),
+		Tools:             len(a.Tools),
+		MaxTokens:         a.MaxTokens.pointer(),
+		Thinking:          a.Thinking.read,
+		Stream:            a.Stream.pointer(),
+		ToolChoice:        a.ToolChoice.read,
+		Temperature:       a.Temperature.pointer(),
+		TopK:              a.TopK.pointer(),
+		TopP:              a.TopP.pointer(),
+		ServiceTier:       a.ServiceTier.read,
+		OutputConfig:      a.OutputConfig.read,
+		Speed:             a.Speed.read,
+		InferenceGeo:      a.InferenceGeo.read,
+		ContextManagement: a.ContextManagement.read.kept(),
 	}
+}
+
+// contextManagement is how a request's body has its context managed, as the
+// API takes it: of the edits it asks for, the type of each is read, and
+// nothing of their parameters.
+type contextManagement struct {
+	Edits []struct {
+		Type string `json:"type"`
+	} `json:"edits"`
+}
+
+// kept is the context management as the request ledger keeps it: the types
+// of its edits, in order.
+func (c contextManagement) kept() ledger.ContextManagement {
+	var kept ledger.ContextManagement
+	for _, edit := range c.Edits {
+		kept.Edits = append(kept.Edits, edit.Type)
+	}
+	return kept
 }
 
 // entry is an entry of a list a request's body gives, counted, as a list's

@@ -11,18 +11,24 @@ import (
 
 func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	long := strings.Repeat("☃", textMost)
-	got := (&Line{Session: long, Betas: slices.Repeat([]string{long}, 2*listMost), Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost),
-		Shape: Shape{ServiceTier: long}, Answer: Answer{Error: Error{Type: "overloaded_error", Message: long}}}).written()
+	longs := slices.Repeat([]string{long}, 2*listMost)
+	got := (&Line{Session: long, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost),
+		Shape:  Shape{ServiceTier: long, OutputConfig: OutputConfig{Effort: long}, ContextManagement: ContextManagement{Edits: longs}},
+		Answer: Answer{Error: Error{Type: "overloaded_error", Message: long}}}).written()
 	cut := strings.Repeat("☃", textMost/len("☃"))
-	if got.Session != cut || got.Shape.ServiceTier != cut || got.Answer.Error.Message != cut {
-		t.Errorf("a session's id, a service tier and an error's message of %d bytes are written as %d, %d and %d, want %d: cut to %d bytes at the end of a character",
-			len(long), len(got.Session), len(got.Shape.ServiceTier), len(got.Answer.Error.Message), len(cut), textMost)
+	for name, text := range map[string]string{"a session's id": got.Session, "a service tier": got.Shape.ServiceTier,
+		"an effort": got.Shape.OutputConfig.Effort, "an error's message": got.Answer.Error.Message} {
+		if text != cut {
+			t.Errorf("%s of %d bytes is written as %d, want %d: cut to %d bytes at the end of a character", name, len(long), len(text), len(cut), textMost)
+		}
 	}
-	if len(got.Betas) != listMost || len(got.Tried) != listMost {
-		t.Fatalf("%d betas and %d accounts tried are written as %d and %d, want %d of each", 2*listMost, 2*listMost, len(got.Betas), len(got.Tried), listMost)
+	for name, list := range map[string][]string{"betas": got.Betas, "context edits": got.Shape.ContextManagement.Edits} {
+		if !slices.Equal(list, slices.Repeat([]string{cut}, listMost)) {
+			t.Errorf("%d %s are written as %d of %d bytes, want %d, each cut", 2*listMost, name, len(list), len(list[0]), listMost)
+		}
 	}
-	if got.Betas[0] != cut || got.Tried[0] != (Tried{Account: cut, Why: cut}) {
-		t.Errorf("a beta is written as %d bytes, an account tried as %d and %d, want %d: each cut", len(got.Betas[0]), len(got.Tried[0].Account), len(got.Tried[0].Why), len(cut))
+	if len(got.Tried) != listMost || got.Tried[0] != (Tried{Account: cut, Why: cut}) {
+		t.Errorf("%d accounts tried are written as %d, the first's %d and %d bytes, want %d, each cut", 2*listMost, len(got.Tried), len(got.Tried[0].Account), len(got.Tried[0].Why), listMost)
 	}
 }
 
@@ -82,7 +88,8 @@ func longest() *Line {
 	return &Line{
 		At: time.Now(), Request: text, Kind: text, Session: text, Model: text, Account: text, Reason: text, From: text,
 		Tried: slices.Repeat([]Tried{{Account: text, Why: text}}, 2*listMost), Agent: text, Betas: texts,
-		Shape:  Shape{Thinking: Thinking{Type: text, Display: text}, ToolChoice: ToolChoice{Type: text}, ServiceTier: text},
+		Shape: Shape{Thinking: Thinking{Type: text, Display: text}, ToolChoice: ToolChoice{Type: text}, ServiceTier: text,
+			OutputConfig: OutputConfig{Effort: text}, Speed: text, InferenceGeo: text, ContextManagement: ContextManagement{Edits: texts}},
 		Answer: Answer{ID: text, Model: text, Stop: text, Blocks: blocks, Tools: texts, Error: Error{Type: text, Message: text}},
 		Usage:  json.RawMessage(usage),
 		Limits: limits,

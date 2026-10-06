@@ -97,16 +97,22 @@ type Tried struct {
 // each left out where the request doesn't give it. A setting switchboard
 // doesn't know isn't kept, as one may carry a secret.
 type Shape struct {
-	Bytes       int        `json:"bytes"`
-	Messages    int        `json:"messages"`
-	System      int        `json:"system"`
-	Tools       int        `json:"tools"`
-	MaxTokens   *int64     `json:"max_tokens,omitempty"`
-	Thinking    Thinking   `json:"thinking,omitzero"`
-	Stream      *bool      `json:"stream,omitempty"`
-	ToolChoice  ToolChoice `json:"tool_choice,omitzero"`
-	Temperature *float64   `json:"temperature,omitempty"`
-	ServiceTier string     `json:"service_tier,omitempty"`
+	Bytes             int               `json:"bytes"`
+	Messages          int               `json:"messages"`
+	System            int               `json:"system"`
+	Tools             int               `json:"tools"`
+	MaxTokens         *int64            `json:"max_tokens,omitempty"`
+	Thinking          Thinking          `json:"thinking,omitzero"`
+	Stream            *bool             `json:"stream,omitempty"`
+	ToolChoice        ToolChoice        `json:"tool_choice,omitzero"`
+	Temperature       *float64          `json:"temperature,omitempty"`
+	TopK              *int64            `json:"top_k,omitempty"`
+	TopP              *float64          `json:"top_p,omitempty"`
+	ServiceTier       string            `json:"service_tier,omitempty"`
+	OutputConfig      OutputConfig      `json:"output_config,omitzero"`
+	Speed             string            `json:"speed,omitempty"`
+	InferenceGeo      string            `json:"inference_geo,omitempty"`
+	ContextManagement ContextManagement `json:"context_management,omitzero"`
 }
 
 // Thinking is a request's thinking, of the fields switchboard knows.
@@ -119,6 +125,18 @@ type Thinking struct {
 // ToolChoice is a request's choice of the tools it gives, by its type alone.
 type ToolChoice struct {
 	Type string `json:"type,omitempty"`
+}
+
+// OutputConfig is how a request has its output made, of the fields
+// switchboard knows.
+type OutputConfig struct {
+	Effort string `json:"effort,omitempty"`
+}
+
+// ContextManagement is how a request has its context managed: the edits it
+// asks for, by their types alone.
+type ContextManagement struct {
+	Edits []string `json:"edits,omitempty"`
 }
 
 // Reply is what the API said back, of the answer the client got, each part
@@ -176,6 +194,8 @@ func (l *Line) written() *Line {
 func (s Shape) written() Shape {
 	s.Thinking.Type, s.Thinking.Display = cut(s.Thinking.Type), cut(s.Thinking.Display)
 	s.ToolChoice.Type, s.ServiceTier = cut(s.ToolChoice.Type), cut(s.ServiceTier)
+	s.OutputConfig.Effort, s.Speed, s.InferenceGeo = cut(s.OutputConfig.Effort), cut(s.Speed), cut(s.InferenceGeo)
+	s.ContextManagement.Edits = cutAll(s.ContextManagement.Edits)
 	return s
 }
 

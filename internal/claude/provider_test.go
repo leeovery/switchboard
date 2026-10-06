@@ -170,11 +170,17 @@ func TestProviderAsksTheShapeOfARequest(t *testing.T) {
 				`"system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"The environment."}],` +
 				`"tools":[{"name":"Bash","input_schema":{}},{"name":"Read","input_schema":{}}],` +
 				`"thinking":{"type":"enabled","budget_tokens":31999,"display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}},` +
-				`"stream":true,"tool_choice":{"type":"auto","disable_parallel_tool_use":true},"temperature":0.7,"service_tier":"auto",` +
+				`"stream":true,"tool_choice":{"type":"auto","disable_parallel_tool_use":true},"temperature":0.7,"top_k":40,"top_p":0.95,"service_tier":"auto",` +
+				`"output_config":{"effort":"high","format":{"type":"json_schema","schema":{"description":"` + secret + `"}},"task_budget":{"type":"tokens","total":64000}},` +
+				`"speed":"fast","inference_geo":"us",` +
+				`"context_management":{"edits":[{"type":"clear_tool_uses_20250919","trigger":{"type":"input_tokens","value":100000},"exclude_tools":["` + secret + `"]},` +
+				`{"type":"compact_20260112"}]},` +
 				`"metadata":{"user_id":"user_device_account"},"mcp_servers":[{"name":"notes","authorization_token":"` + secret + `"}]}`,
 			want: ledger.Shape{Messages: 3, System: 2, Tools: 2, MaxTokens: new(int64(32000)),
 				Thinking: ledger.Thinking{Type: "enabled", BudgetTokens: new(int64(31999)), Display: "summarized"},
-				Stream:   new(true), ToolChoice: ledger.ToolChoice{Type: "auto"}, Temperature: new(0.7), ServiceTier: "auto"},
+				Stream:   new(true), ToolChoice: ledger.ToolChoice{Type: "auto"}, Temperature: new(0.7), TopK: new(int64(40)), TopP: new(0.95),
+				ServiceTier: "auto", OutputConfig: ledger.OutputConfig{Effort: "high"}, Speed: "fast", InferenceGeo: "us",
+				ContextManagement: ledger.ContextManagement{Edits: []string{"clear_tool_uses_20250919", "compact_20260112"}}},
 		},
 		{
 			name: "a system prompt given as a string, not streamed",
@@ -188,17 +194,19 @@ func TestProviderAsksTheShapeOfARequest(t *testing.T) {
 		},
 		{
 			name: "lists given empty, and settings at zero",
-			body: `{"model":"claude-opus-5-5","max_tokens":0,"system":[ ],"messages":[],"tools":[],"temperature":0}`,
-			want: ledger.Shape{MaxTokens: new(int64(0)), Temperature: new(0.0)},
+			body: `{"model":"claude-opus-5-5","max_tokens":0,"system":[ ],"messages":[],"tools":[],"temperature":0,"top_k":0,"top_p":0,"context_management":{"edits":[]}}`,
+			want: ledger.Shape{MaxTokens: new(int64(0)), Temperature: new(0.0), TopK: new(int64(0)), TopP: new(0.0)},
 		},
 		{
 			name: "settings given as null",
-			body: `{"model":"claude-opus-5-5","max_tokens":null,"system":null,"messages":null,"thinking":null,"stream":null,"tool_choice":null,"temperature":null,"service_tier":null}`,
+			body: `{"model":"claude-opus-5-5","max_tokens":null,"system":null,"messages":null,"thinking":null,"stream":null,"tool_choice":null,"temperature":null,` +
+				`"top_k":null,"top_p":null,"service_tier":null,"output_config":null,"speed":null,"inference_geo":null,"context_management":null}`,
 		},
 		{
 			name: "settings and lists of types the API wouldn't take",
 			body: `{"model":"claude-opus-5-5","max_tokens":"lots","messages":"hello","tools":{"name":"Bash"},` +
-				`"thinking":"on","stream":"yes","tool_choice":"auto","temperature":"hot","service_tier":1}`,
+				`"thinking":"on","stream":"yes","tool_choice":"auto","temperature":"hot","top_k":"forty","top_p":"most","service_tier":1,` +
+				`"output_config":"high","speed":1,"inference_geo":["us"],"context_management":{"edits":["clear_tool_uses_20250919"]}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -212,7 +220,8 @@ func TestProviderAsksTheShapeOfARequest(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, unknown := range []string{secret, "user_device_account", "block_binding", "disable_parallel_tool_use", "Bash", "hello", "You are"} {
+			for _, unknown := range []string{secret, "user_device_account", "block_binding", "disable_parallel_tool_use", "json_schema", "task_budget",
+				"trigger", "exclude_tools", "Bash", "hello", "You are"} {
 				if strings.Contains(string(kept), unknown) {
 					t.Errorf("the shape holds %s, want nothing of %q", kept, unknown)
 				}
