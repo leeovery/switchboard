@@ -71,6 +71,7 @@ func (p *proxy) line(ex *exchange, h http.Header, took time.Duration, canceled b
 		TotalMS:  took.Milliseconds(),
 		Agent:    h.Get("User-Agent"),
 		Betas:    p.provider.Betas(h),
+		Shape:    ex.shape,
 	}
 	if ex.tap != nil {
 		line.FirstMS = ex.tap.firstMS(ex.started)

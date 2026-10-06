@@ -70,7 +70,7 @@ func answerMessage(w http.ResponseWriter, _ *http.Request) {
 // in three blocks, 30 tools' definitions and 200 messages, the assistant's
 // thinking, text and tool calls in turn with the user's tool results, asking
 // for 32,000 tokens at most, with thinking, streamed.
-func longSession(b *testing.B) string {
+func longSession(t testing.TB) string {
 	type object = map[string]any
 	tools := make([]object, 30)
 	for i := range tools {
@@ -127,7 +127,7 @@ func longSession(b *testing.B) string {
 		Stream:    true,
 	})
 	if err != nil {
-		b.Fatal(err)
+		t.Fatal(err)
 	}
 	return string(body)
 }

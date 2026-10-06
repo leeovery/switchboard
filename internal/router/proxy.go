@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -80,6 +81,8 @@ type exchange struct {
 	req     Request
 	account account
 	reason  string
+	// shape is a routed request's shape, as the request ledger keeps it.
+	shape ledger.Shape
 	// answered is the account whose answer the client has, when it isn't the
 	// one the request went out on last: the first whose limit the request
 	// reached, its answer held back, where every account after refused it.
@@ -158,7 +161,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		return
 	}
 	ex := &exchange{id: newID(), started: started, arrived: p.now(), spends: p.provider.Spends(r.URL.Path)}
-	ex.req = p.request(r, body, ex, client)
+	ex.req, ex.shape = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
 	ex.newSession = choice.New
 	defer p.done(r, ex)
@@ -174,9 +177,10 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 // request is what the chooser is to know of a routed request, whose body is
 // body, sent by client's token: its session, its model and whether the
 // model's thinking is bound to its account, whether it's the client's quota
-// check, and its pin.
-func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) Request {
-	model, check := p.provider.Asks(body)
+// check, and its pin; and the request's shape, which the provider reads in
+// the same pass over the body.
+func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
+	model, check, shape := p.provider.Asks(body)
 	session := p.provider.Session(r.Header)
 	return Request{
 		ID:      ex.id,
@@ -186,7 +190,7 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 		Bound:   p.provider.ThinkingBound(model),
 		Pin:     p.pin(r, ex, session),
 		Client:  client.ID,
-	}
+	}, shape
 }
 
 // passThrough sends a request upstream as it came.

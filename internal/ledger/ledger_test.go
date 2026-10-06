@@ -34,11 +34,23 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 			line: ledger.Line{At: arrived, Request: "3f2a91c4", Kind: ledger.KindMessage, Session: "5b0e7c1a-1f2a-4b3c-9d8e-7f6a5b4c3d2e",
 				Model: "claude-opus-5-5", Account: "side", Reason: "moved: work hit its limit", From: "work",
 				Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}}, Status: 200, Attempts: 2, FirstMS: ms(812), TotalMS: 14230,
-				Agent: "claude-cli/2.1.0 (external, cli)", Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"}},
+				Agent: "claude-cli/2.1.0 (external, cli)", Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
+				Shape: ledger.Shape{Bytes: 482113, Messages: 214, System: 3, Tools: 31, MaxTokens: new(int64(32000)),
+					Thinking: ledger.Thinking{Type: "enabled", BudgetTokens: new(int64(31999))}, Stream: new(true),
+					ToolChoice: ledger.ToolChoice{Type: "auto"}, Temperature: new(1.0), ServiceTier: "auto"}},
 			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c4","kind":"message","session":"5b0e7c1a-1f2a-4b3c-9d8e-7f6a5b4c3d2e",` +
 				`"model":"claude-opus-5-5","account":"side","reason":"moved: work hit its limit","from":"work",` +
 				`"tried":[{"account":"work","why":"hit its limit"}],"status":200,"attempts":2,"first_ms":812,"total_ms":14230,` +
-				`"agent":"claude-cli/2.1.0 (external, cli)","betas":["oauth-2025-04-20","context-1m-2025-08-07"]}`,
+				`"agent":"claude-cli/2.1.0 (external, cli)","betas":["oauth-2025-04-20","context-1m-2025-08-07"],` +
+				`"shape":{"bytes":482113,"messages":214,"system":3,"tools":31,"max_tokens":32000,"thinking":{"type":"enabled","budget_tokens":31999},` +
+				`"stream":true,"tool_choice":{"type":"auto"},"temperature":1,"service_tier":"auto"}}`,
+		},
+		{
+			name: "a count of tokens, of no settings but its lists",
+			line: ledger.Line{At: arrived, Request: "3f2a91c7", Kind: ledger.KindCount, Session: "one", Model: "claude-opus-5-5", Account: "work",
+				Reason: "sticky", Status: 200, Attempts: 1, FirstMS: ms(0), TotalMS: 140, Shape: ledger.Shape{Bytes: 1200, Messages: 3}},
+			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c7","kind":"count","session":"one","model":"claude-opus-5-5","account":"work",` +
+				`"reason":"sticky","status":200,"attempts":1,"first_ms":0,"total_ms":140,"shape":{"bytes":1200,"messages":3,"system":0,"tools":0}}`,
 		},
 		{
 			name: "a request the router answered itself, of no session, its client saying nothing of itself",

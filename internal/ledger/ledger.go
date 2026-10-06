@@ -22,7 +22,7 @@ const (
 	queue = 8192
 	// lineMax is the longest line read back: a request's is a few hundred
 	// bytes, and the longest written, every text and list at its most and
-	// each character escaped, runs to some 125 KiB.
+	// each character escaped, runs to some 130 KiB.
 	lineMax = 1 << 20
 )
 

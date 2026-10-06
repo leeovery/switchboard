@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -40,10 +41,11 @@ type Provider interface {
 	// its version, some of which change what a request costs.
 	Betas(h http.Header) []string
 	// Asks reads a request's body for the model it asks for, or "" when it
-	// doesn't say, and whether it's the client's quota check: a request that
+	// doesn't say; whether it's the client's quota check: a request that
 	// asks nothing of the model, but spends a token to see the account has
-	// quota.
-	Asks(body []byte) (model string, check bool)
+	// quota; and its shape, as the request ledger keeps it, the zero Shape
+	// where the body doesn't read as a request.
+	Asks(body []byte) (model string, check bool, shape ledger.Shape)
 	// Family returns the family a model belongs to. A window reported on a
 	// response to one of a family's models counts all of theirs.
 	Family(model string) string

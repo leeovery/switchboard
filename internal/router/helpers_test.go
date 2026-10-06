@@ -477,7 +477,7 @@ func modelOf(t *testing.T, r *http.Request) string {
 	if err != nil {
 		t.Errorf("upstream: read request body: %v", err)
 	}
-	model, _ := (claude.Provider{}).Asks(body)
+	model, _, _ := (claude.Provider{}).Asks(body)
 	return model
 }
 

@@ -10,10 +10,12 @@ import (
 
 func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	long := strings.Repeat("☃", textMost)
-	got := (&Line{Session: long, Betas: slices.Repeat([]string{long}, 2*listMost), Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost)}).written()
+	got := (&Line{Session: long, Betas: slices.Repeat([]string{long}, 2*listMost), Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost),
+		Shape: Shape{ServiceTier: long}}).written()
 	cut := strings.Repeat("☃", textMost/len("☃"))
-	if got.Session != cut {
-		t.Errorf("a session's id of %d bytes is written as %d, want %d: cut to %d bytes at the end of a character", len(long), len(got.Session), len(cut), textMost)
+	if got.Session != cut || got.Shape.ServiceTier != cut {
+		t.Errorf("a session's id and a service tier of %d bytes are written as %d and %d, want %d: cut to %d bytes at the end of a character",
+			len(long), len(got.Session), len(got.Shape.ServiceTier), len(cut), textMost)
 	}
 	if len(got.Betas) != listMost || len(got.Tried) != listMost {
 		t.Fatalf("%d betas and %d accounts tried are written as %d and %d, want %d of each", 2*listMost, 2*listMost, len(got.Betas), len(got.Tried), listMost)
@@ -40,5 +42,6 @@ func longest() *Line {
 	return &Line{
 		At: time.Now(), Request: text, Kind: text, Session: text, Model: text, Account: text, Reason: text, From: text,
 		Tried: slices.Repeat([]Tried{{Account: text, Why: text}}, 2*listMost), Agent: text, Betas: slices.Repeat([]string{text}, 2*listMost),
+		Shape: Shape{Thinking: Thinking{Type: text, Display: text}, ToolChoice: ToolChoice{Type: text}, ServiceTier: text},
 	}
 }

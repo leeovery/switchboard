@@ -33,7 +33,8 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 	// quotaCheck is Claude Code's quota check, on Claude Haiku.
 	const quotaCheck = `{"model":"` + haiku + `","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`
 	asked := ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Model: opus, Account: "work", Reason: reasonSticky,
-		Status: http.StatusOK, Attempts: 1, Agent: testAgent, Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"}}
+		Status: http.StatusOK, Attempts: 1, Agent: testAgent, Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
+		Shape: ledger.Shape{Bytes: len(opusAsked), MaxTokens: new(int64(1))}}
 	tests := []struct {
 		name string
 		// path is the request's, /v1/messages unless it says, and body its
@@ -90,6 +91,7 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 			side:    []answer{served},
 			want: edited(asked, func(l *ledger.Line) {
 				l.Kind, l.Session, l.Model, l.Account, l.Reason, l.FirstMS = ledger.KindCheck, "check", haiku, "side", reasonNew, ms(0)
+				l.Shape = ledger.Shape{Bytes: len(quotaCheck), Messages: 1, MaxTokens: new(int64(1))}
 			}),
 		},
 		{
@@ -164,7 +166,8 @@ func TestTheLedgerHoldsALineOfARequestTheRouterAnswersItself(t *testing.T) {
 			t.Fatalf("the request went out on %q, want none", sent)
 		}
 		want := ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Model: opus, Reason: reasonNoRoom,
-			Status: http.StatusTooManyRequests, Agent: testAgent, Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"}}
+			Status: http.StatusTooManyRequests, Agent: testAgent, Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
+			Shape: ledger.Shape{Bytes: len(opusAsked), MaxTokens: new(int64(1))}}
 		checkLines(t, lines(), want)
 	})
 }

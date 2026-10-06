@@ -69,6 +69,8 @@ type Line struct {
 	// request costs.
 	Agent string   `json:"agent,omitempty"`
 	Betas []string `json:"betas,omitempty"`
+	// Shape is the request's shape, zero where its body isn't a request.
+	Shape Shape `json:"shape,omitzero"`
 }
 
 // Tried is an account a request went out on that couldn't serve it, and why
@@ -76,6 +78,35 @@ type Line struct {
 type Tried struct {
 	Account string `json:"account"`
 	Why     string `json:"why"`
+}
+
+// Shape is a request's shape: its size in bytes, how many messages, system
+// blocks and tools it carried, and those of its settings switchboard knows,
+// each left out where the request doesn't give it. A setting switchboard
+// doesn't know isn't kept, as one may carry a secret.
+type Shape struct {
+	Bytes       int        `json:"bytes"`
+	Messages    int        `json:"messages"`
+	System      int        `json:"system"`
+	Tools       int        `json:"tools"`
+	MaxTokens   *int64     `json:"max_tokens,omitempty"`
+	Thinking    Thinking   `json:"thinking,omitzero"`
+	Stream      *bool      `json:"stream,omitempty"`
+	ToolChoice  ToolChoice `json:"tool_choice,omitzero"`
+	Temperature *float64   `json:"temperature,omitempty"`
+	ServiceTier string     `json:"service_tier,omitempty"`
+}
+
+// Thinking is a request's thinking, of the fields switchboard knows.
+type Thinking struct {
+	Type         string `json:"type,omitempty"`
+	BudgetTokens *int64 `json:"budget_tokens,omitempty"`
+	Display      string `json:"display,omitempty"`
+}
+
+// ToolChoice is a request's choice of the tools it gives, by its type alone.
+type ToolChoice struct {
+	Type string `json:"type,omitempty"`
 }
 
 // written returns the line as it's written: at in UTC, to the millisecond,
@@ -91,6 +122,8 @@ func (l *Line) written() *Line {
 		w.Tried = append(w.Tried, Tried{Account: cut(t.Account), Why: cut(t.Why)})
 	}
 	w.Betas = cutAll(l.Betas)
+	w.Shape.Thinking.Type, w.Shape.Thinking.Display = cut(l.Shape.Thinking.Type), cut(l.Shape.Thinking.Display)
+	w.Shape.ToolChoice.Type, w.Shape.ServiceTier = cut(l.Shape.ToolChoice.Type), cut(l.Shape.ServiceTier)
 	return &w
 }
 
