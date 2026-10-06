@@ -28,8 +28,32 @@ func TestClientHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Health() error = %v", err)
 	}
-	if want := (router.Health{OK: true, Version: "1.2.3", PID: os.Getpid(), StartedAt: now}); got != want {
+	if want := (router.Health{OK: true, Version: "1.2.3", PID: os.Getpid(), StartedAt: now, StripsOwnHeaders: true}); got != want {
 		t.Errorf("Health() = %+v, want %+v", got, want)
+	}
+}
+
+func TestHealthSaysTheRouterStripsItsOwnHeaders(t *testing.T) {
+	rt := newRouter(t, "http://127.0.0.1:1")
+	rec := httptest.NewRecorder()
+
+	rt.Control().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil))
+	if body := rec.Body.String(); rec.Code != http.StatusOK || !strings.Contains(body, `"strips_own_headers":true`) {
+		t.Errorf("GET /health answered %d %s, want 200, saying the router takes every X-Switchboard- header off what it sends upstream", rec.Code, body)
+	}
+}
+
+func TestClientHealthOfARouterFromBeforeItStrippedItsOwnHeaders(t *testing.T) {
+	path := filepath.Join(shortTempDir(t), "control.sock")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"ok": true, "listen": "127.0.0.1:4747", "version": "0.1.0", "pid": 4242, "started_at": "2026-10-03T09:00:00Z"}`)
+	})
+	serveOn(t, path, mux)
+
+	got, err := router.NewClient(path).Health(t.Context())
+	if err != nil || !got.OK || got.StripsOwnHeaders {
+		t.Errorf("Health() = %+v, %v, want it healthy, and not taking every X-Switchboard- header off", got, err)
 	}
 }
 

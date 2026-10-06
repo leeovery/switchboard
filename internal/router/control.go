@@ -46,6 +46,13 @@ type Health struct {
 	Version   string    `json:"version"`
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
+	// StripsOwnHeaders is set by a router that takes every header of
+	// switchboard's own, named X-Switchboard-…, off a request going upstream,
+	// whatever follows the prefix. run tells only such a router the directory
+	// Claude Code starts in: one from before, whose answer decodes without it,
+	// took the pin off alone, by its name, and would send the directory on to
+	// the API.
+	StripsOwnHeaders bool `json:"strips_own_headers"`
 }
 
 // Same reports whether h and o are the answers of one router: the same
@@ -237,7 +244,7 @@ func (r *Router) Control() http.Handler {
 // healthNow is what GET /health answers now.
 func (r *Router) healthNow() Health {
 	h := r.health.report()
-	return Health{OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started}
+	return Health{OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started, StripsOwnHeaders: true}
 }
 
 // maxAge reads how old an account's usage can be before POST /refresh probes

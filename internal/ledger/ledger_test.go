@@ -146,6 +146,47 @@ func TestALineHoldsNothingShapedLikeAToken(t *testing.T) {
 	}
 }
 
+func TestATokenIsHiddenBeforeItsTextIsCut(t *testing.T) {
+	// token is shaped like a Claude token, though it's none, its body running
+	// on well past its prefix.
+	token := "sk-ant-oat01-" + strings.Repeat("fake_", 18)
+	project := strings.Repeat("project-", 15)
+	tests := []struct {
+		name string
+		line ledger.Line
+		// want is the text as the line holds it.
+		want string
+	}{
+		{
+			name: "a directory cut from its front, past the token's prefix",
+			line: ledger.Line{Dir: "~/Code/" + token + "/" + project},
+			want: `"dir":"~/Code/[redacted]/` + project + `"`,
+		},
+		{
+			name: "a text cut at its end, past the token's prefix",
+			line: ledger.Line{Agent: strings.Repeat("a", 150) + " " + token},
+			want: `"agent":"` + strings.Repeat("a", 150) + ` [redacted]"`,
+		},
+		{
+			name: "a text cut at its end, as the token's prefix ends",
+			line: ledger.Line{Agent: strings.Repeat("a", 192) + " " + token},
+			want: `"agent":"` + strings.Repeat("a", 192) + ` [redact"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.line.At, tt.line.Request, tt.line.Kind = now, "1", ledger.KindMessage
+
+			write(t, dir, &tt.line)
+			got := readDay(t, dir, now)
+			if !strings.Contains(got, tt.want) || strings.Contains(got, "sk-ant-") || strings.Contains(got, "fake_") {
+				t.Errorf("the ledger holds\n%s\nwant it to hold %s, and nothing of the token", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestALineThatCantBeWrittenIsLoggedOnce(t *testing.T) {
 	log := logstest.Capture(t)
 	dir := t.TempDir()

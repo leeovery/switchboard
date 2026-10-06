@@ -3,6 +3,7 @@ package launch_test
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -458,6 +459,29 @@ func TestRunTellsTheRouterTheDirectoryClaudeCodeStartsIn(t *testing.T) {
 				t.Errorf("the router reads the directory sent as %q as %q, want %q", sent, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRunTellsARouterFromBeforeNoDirectory(t *testing.T) {
+	// The health of a router from before it took every X-Switchboard- header
+	// off what it sends upstream, as it answers: it took off the pin alone.
+	var older router.Health
+	if err := json.Unmarshal([]byte(`{"ok": true, "listen": "`+proxyAddr+`", "version": "0.1.0", "pid": 4242}`), &older); err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Dir: ~/Code/elsewhere")
+	h.launcher.Dir = project
+
+	if err := h.launcher.Run(t.Context(), route(&fakeRouter{health: older}, "side"), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	want := map[string]string{
+		"ANTHROPIC_BASE_URL":       "http://" + proxyAddr,
+		"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
+		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side",
+	}
+	if env := h.environment(t); !maps.Equal(env, want) {
+		t.Errorf("started with the environment\n%q\nwant\n%q: routed and pinned, the router told no directory, which it would send on", env, want)
 	}
 }
 
@@ -1010,7 +1034,7 @@ func (r *fakeRouter) Health(ctx context.Context) (router.Health, error) {
 
 // healthy answers as a healthy router does.
 func healthy() *fakeRouter {
-	return &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr, PID: 4242}}
+	return &fakeRouter{health: router.Health{OK: true, Listen: proxyAddr, PID: 4242, StripsOwnHeaders: true}}
 }
 
 // notRunning answers as a router's client does when no router is listening.

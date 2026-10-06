@@ -147,7 +147,7 @@ func TestAnIgnoredPinIsWarnedOfOnceForEachSession(t *testing.T) {
 	}
 }
 
-func TestTheDirectoryARequestNamesNeverGoesUpstream(t *testing.T) {
+func TestSwitchboardsOwnHeadersNeverGoUpstream(t *testing.T) {
 	tests := []struct {
 		name string
 		path string
@@ -161,8 +161,11 @@ func TestTheDirectoryARequestNamesNeverGoesUpstream(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			up := newUpstream(t, answerOK)
 			proxy := serveProxy(t, newRouter(t, up.URL))
+			// The directory, and a header of a newer run's, which this router
+			// doesn't know.
+			header := with(with(claudeCode(workToken), router.DirHeader, "~/Code/caf%C3%A9"), "X-Switchboard-Anything", "a newer run's")
 
-			readAll(t, send(t, http.MethodPost, proxy+tt.path, with(claudeCode(workToken), router.DirHeader, "~/Code/caf%C3%A9"), strings.NewReader(messages)))
+			readAll(t, send(t, http.MethodPost, proxy+tt.path, header, strings.NewReader(messages)))
 			checkHeader(t, up.only(t), tt.want)
 		})
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 // What a request asked, as a line's Kind gives it.
@@ -49,8 +50,8 @@ type Line struct {
 	Request string `json:"request"`
 	Kind    string `json:"kind"`
 	// Session is the id of the session the request belongs to, Dir the
-	// directory the session's claude was started in, as run tells the
-	// router, and Model the model it asked for.
+	// directory run started claude in, as it tells the router, and Model the
+	// model it asked for.
 	Session string `json:"session,omitempty"`
 	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
@@ -182,7 +183,7 @@ func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
 	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
-	w.Dir = prose.TruncateBytesFront(l.Dir, textMost)
+	w.Dir = cutFront(l.Dir)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = nil
 	for _, t := range l.Tried[:min(len(l.Tried), listMost)] {
@@ -223,9 +224,17 @@ func (a Answer) written() Answer {
 	return a
 }
 
-// cut is s cut to textMost bytes, at the end of a character.
+// cut is s cut to textMost bytes, at the end of a character, once anything
+// shaped like a token in it is hidden, so no cut works on a token: hiding one
+// goes by its prefix, which a cut through it could part from the rest.
 func cut(s string) string {
-	return prose.TruncateBytes(s, textMost)
+	return prose.TruncateBytes(redact.Text(s), textMost)
+}
+
+// cutFront is s cut as cut cuts it, but from its front, an ellipsis standing
+// for what's cut.
+func cutFront(s string) string {
+	return prose.TruncateBytesFront(redact.Text(s), textMost)
 }
 
 // cutAll returns the first listMost of texts, each cut, as a list of its own:

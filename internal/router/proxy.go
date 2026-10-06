@@ -26,13 +26,17 @@ import (
 )
 
 // The headers run tells the router of a session through, setting them in
-// ANTHROPIC_CUSTOM_HEADERS. Neither goes upstream.
+// ANTHROPIC_CUSTOM_HEADERS. None goes upstream: the router takes every header
+// named with ownPrefix off a request going upstream, whatever follows it, so
+// one a newer run sends never reaches the API.
 const (
+	// ownPrefix begins the name of each header of switchboard's own.
+	ownPrefix = "X-Switchboard-"
 	// PinHeader pins a request to an account, by id, as run --account asks.
-	PinHeader = "X-Switchboard-Account"
-	// DirHeader names the directory the session's claude was started in, as
-	// EncodeDir encodes it, for the request ledger.
-	DirHeader = "X-Switchboard-Dir"
+	PinHeader = ownPrefix + "Account"
+	// DirHeader names the directory run started claude in, as EncodeDir
+	// encodes it, for the request ledger.
+	DirHeader = ownPrefix + "Dir"
 )
 
 const (
@@ -372,8 +376,17 @@ func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 	// the query, so the upstream gets it as the client sent it.
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(p.upstream)
-	pr.Out.Header.Del(PinHeader)
-	pr.Out.Header.Del(DirHeader)
+	stripOwn(pr.Out.Header)
+}
+
+// stripOwn takes each header of switchboard's own off h, by its prefix,
+// whatever its case.
+func stripOwn(h http.Header) {
+	for name := range h {
+		if len(name) >= len(ownPrefix) && strings.EqualFold(name[:len(ownPrefix)], ownPrefix) {
+			delete(h, name)
+		}
+	}
 }
 
 // countable narrows the encodings a request's Accept-Encoding offers to
