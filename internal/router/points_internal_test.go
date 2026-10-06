@@ -263,7 +263,7 @@ func TestGETHistoryGivesEveryAccountConfiguredInOrderInUTC(t *testing.T) {
 func TestAWindowsReadingsComeOnceEachFromTheDaysAroundItsSpan(t *testing.T) {
 	clock := &testClock{}
 	r, dir := newChartedRouter(t, clock)
-	date := func(t time.Time, offset int) string { return t.Local().AddDate(0, 0, offset).Format(historyDay) }
+	date := func(t time.Time, offset int) string { return t.Local().AddDate(0, 0, offset).Format(time.DateOnly) }
 	read := func(u float64) reading { return lineOf("work", using(week, u), weekStarted.Add(time.Hour)) }
 	// Files named for the days around the week's span, as a change of time
 	// zone can name them, hold readings of other days.
@@ -291,62 +291,6 @@ func TestAWindowsReadingsComeOnceEachFromTheDaysAroundItsSpan(t *testing.T) {
 	}
 	if want := []float64{0.1, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6}; !slices.Equal(uses, want) || len(got) != 1 {
 		t.Errorf("read the uses %v of %d accounts, want work's alone, %v: those of the days from the one before the week started to the one after now, each once, in the order they came", uses, len(got), want)
-	}
-}
-
-func TestTheHistorysFilesArentReadWhilePrunedNorPrunedWhileRead(t *testing.T) {
-	tests := []struct {
-		name string
-		// hold holds the history's files as one at work on them does,
-		// returning what lets them go, and run does what must wait for that.
-		hold func(h *history) (release func())
-		run  func(h *history)
-	}{
-		{
-			name: "a read waits for pruning",
-			hold: func(h *history) func() {
-				h.files.Lock()
-				return h.files.Unlock
-			},
-			run: func(h *history) { h.windowReadings("7d", []string{"work"}, weekStarted, chartedAt) },
-		},
-		{
-			name: "reading back as the router starts waits for pruning",
-			hold: func(h *history) func() {
-				h.files.Lock()
-				return h.files.Unlock
-			},
-			run: func(h *history) {
-				for range h.readBack(chartedAt) {
-				}
-			},
-		},
-		{
-			name: "pruning waits for a read",
-			hold: func(h *history) func() {
-				h.files.RLock()
-				return h.files.RUnlock
-			},
-			run: func(h *history) { h.prune() },
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r, _ := newChartedRouter(t, &testClock{now: chartedAt})
-			release := tt.hold(r.history)
-			done := make(chan struct{})
-			go func() {
-				defer close(done)
-				tt.run(r.history)
-			}()
-			select {
-			case <-done:
-				t.Error("it went ahead while the files were held, want it to wait")
-			case <-time.After(50 * time.Millisecond):
-			}
-			release()
-			<-done
-		})
 	}
 }
 
@@ -413,7 +357,7 @@ func at13(minute int) time.Time {
 // local day's, as the router does.
 func writeLines(t *testing.T, h *history, lines ...reading) {
 	t.Helper()
-	if err := h.append(lines); err != nil {
+	if err := h.files.Append(h.lines(lines)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -426,7 +370,7 @@ func compressLines(t *testing.T, dir string, lines ...reading) {
 	t.Helper()
 	byDay := make(map[string][]reading)
 	for _, l := range lines {
-		date := l.At.Local().Format(historyDay)
+		date := l.At.Local().Format(time.DateOnly)
 		byDay[date] = append(byDay[date], l)
 	}
 	for date, day := range byDay {
