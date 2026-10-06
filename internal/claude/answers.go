@@ -18,8 +18,9 @@ import (
 
 const (
 	// maxEventLine is the longest line of an answer's event stream that's
-	// counted: none the Messages API streams comes near it, and counting
-	// stops at one longer.
+	// read, its line ending included: a longer one, as a server tool's
+	// result given whole as its block starts can be, is passed over without
+	// being held, and the lines after it read.
 	maxEventLine = 1 << 20
 	// maxMessage is the most of an answer that isn't streamed that's read for
 	// its usage.
@@ -29,8 +30,9 @@ const (
 )
 
 // toolCalls are the kinds of block that call a tool, by its name: the
-// client's tools, and those the API runs itself.
-var toolCalls = []string{"tool_use", "server_tool_use"}
+// client's tools, those the API runs itself, and those of the MCP servers its
+// connector calls.
+var toolCalls = []string{"tool_use", "server_tool_use", "mcp_tool_use"}
 
 // Count reads an answer of the Messages API's, by its header, and its body,
 // decoded, as far as it needs, by its content type: a stream of events,
@@ -40,8 +42,8 @@ var toolCalls = []string{"tool_use", "server_tool_use"}
 // for an answer cut short, an error, or an answer of another kind, such as a
 // count of tokens; and what the request ledger keeps of the answer: from its
 // header, Anthropic's id for it and its usage headers, and from its body, the
-// model it named, why it stopped, its blocks, the tools it called, its error
-// and its closing usage, as the API gave it.
+// model that served it, why it stopped, its blocks, the tools it called, its
+// error and its closing usage, as the API gave it.
 func (Provider) Count(h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply) {
 	var t tally
 	media, _, _ := mime.ParseMediaType(h.Get("Content-Type"))
@@ -57,36 +59,48 @@ func (Provider) Count(h http.Header, body io.Reader, chars func(int)) (*quota.To
 }
 
 // event is what counting needs of one of the Messages API's stream events:
-// its type; the model its message names, and the usage its message starts
-// with, or brings up to date; the block it starts; what it adds to a block,
-// or why the message stopped; and the error it ends in.
+// its type, the usage its message starts with, or brings up to date, and
+// what it adds to a block; and what the request ledger alone reads of it,
+// each read as a request's setting is, so one of another type than the API
+// gives costs the counting nothing: the model its message names, the block
+// it starts, why the message stopped, and the error it ends in.
 type event struct {
 	Type    string `json:"type"`
 	Message struct {
-		Model string `json:"model"`
-		Usage usage  `json:"usage"`
+		Model setting[string] `json:"model"`
+		Usage usage           `json:"usage"`
 	} `json:"message"`
-	ContentBlock block        `json:"content_block"`
-	Delta        delta        `json:"delta"`
-	Usage        usage        `json:"usage"`
-	Error        ledger.Error `json:"error"`
+	ContentBlock setting[block]        `json:"content_block"`
+	Delta        delta                 `json:"delta"`
+	Usage        usage                 `json:"usage"`
+	Error        setting[ledger.Error] `json:"error"`
 }
 
-// block is a block of an answer, by its kind, and the tool it calls, by
-// name, where it calls one.
+// block is a block of an answer: its kind; the tool it calls, by name, where
+// it calls one; and, of a fallback, what it hands the answer off to. The name,
+// and what's handed off to, are read as a request's setting is, so a block
+// that gives either as another type is counted all the same.
 type block struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
+	Type string           `json:"type"`
+	Name setting[string]  `json:"name"`
+	To   setting[handoff] `json:"to"`
+}
+
+// handoff is what a fallback hands an answer off to: the model that goes on
+// with it.
+type handoff struct {
+	Model string `json:"model"`
 }
 
 // delta is what an event adds to a block of the answer: text, thinking, or a
-// piece of the JSON of a tool's input; or, of the message, why it stopped.
+// piece of the JSON of a tool's input; or, of the message, why it stopped,
+// which the request ledger alone reads, as a request's setting is read.
 type delta struct {
-	Type        string `json:"type"`
-	Text        string `json:"text"`
-	Thinking    string `json:"thinking"`
-	PartialJSON string `json:"partial_json"`
-	StopReason  string `json:"stop_reason"`
+	Type        string          `json:"type"`
+	Text        string          `json:"text"`
+	Thinking    string          `json:"thinking"`
+	PartialJSON string          `json:"partial_json"`
+	StopReason  setting[string] `json:"stop_reason"`
 }
 
 // chars is how many characters d adds to what the answer writes: of its text,
@@ -147,8 +161,7 @@ type tally struct {
 
 // events reads a stream of the Messages API's events, as Count does.
 func (t *tally) events(body io.Reader, chars func(int)) {
-	lines := bufio.NewScanner(body)
-	lines.Buffer(nil, maxEventLine)
+	lines := eventLines(body)
 	for lines.Scan() {
 		data, ok := bytes.CutPrefix(lines.Bytes(), []byte("data:"))
 		if !ok {
@@ -158,6 +171,32 @@ func (t *tally) events(body io.Reader, chars func(int)) {
 			chars(t.chars)
 		}
 	}
+}
+
+// eventLines returns a scanner of the lines of body, an event stream, split
+// as bufio.ScanLines splits them, but for each longer than maxEventLine, the
+// most it holds: where a scanner would stop for good at such a line, it
+// passes over it, a buffer at a time, and scans on.
+func eventLines(body io.Reader) *bufio.Scanner {
+	lines := bufio.NewScanner(body)
+	lines.Buffer(nil, maxEventLine)
+	passing := false
+	lines.Split(func(data []byte, atEOF bool) (int, []byte, error) {
+		if !passing {
+			advance, line, err := bufio.ScanLines(data, atEOF)
+			if advance > 0 || len(data) < maxEventLine {
+				return advance, line, err
+			}
+			passing = true
+		}
+		end := bytes.IndexByte(data, '\n')
+		if end < 0 {
+			return len(data), nil, nil
+		}
+		passing = false
+		return end + 1, nil, nil
+	})
+	return lines
 }
 
 // take takes in an event's data, and reports whether it brought characters
@@ -170,53 +209,57 @@ func (t *tally) take(data []byte) bool {
 	}
 	switch e.Type {
 	case "message_start":
-		t.answer.Model = e.Message.Model
+		t.answer.Model = e.Message.Model.read
 		t.usage.update(e.Message.Usage)
 	case "content_block_start":
-		t.held(e.ContentBlock)
+		t.held(e.ContentBlock.read)
 	case "content_block_delta":
 		n := e.Delta.chars()
 		t.chars += n
 		return n > 0
 	case "message_delta":
-		t.answer.Stop = cmp.Or(e.Delta.StopReason, t.answer.Stop)
+		t.answer.Stop = cmp.Or(e.Delta.StopReason.read, t.answer.Stop)
 		t.usage.update(e.Usage)
 		t.closed = t.closed || e.Usage != nil
 	case "error":
-		t.answer.Error = e.Error
+		t.answer.Error = e.Error.read
 	}
 	return false
 }
 
 // message reads a message the Messages API answered with whole, as Count
-// does, or the error it answered with.
+// does, or the error it answered with: what the request ledger alone reads
+// of it is read as a request's setting is, as of an event, each of its
+// blocks on its own.
 func (t *tally) message(body io.Reader) {
 	var message struct {
-		Type       string       `json:"type"`
-		Model      string       `json:"model"`
-		StopReason string       `json:"stop_reason"`
-		Content    []block      `json:"content"`
-		Usage      usage        `json:"usage"`
-		Error      ledger.Error `json:"error"`
+		Type       string                    `json:"type"`
+		Model      setting[string]           `json:"model"`
+		StopReason setting[string]           `json:"stop_reason"`
+		Content    setting[[]setting[block]] `json:"content"`
+		Usage      usage                     `json:"usage"`
+		Error      setting[ledger.Error]     `json:"error"`
 	}
 	if json.NewDecoder(io.LimitReader(body, maxMessage)).Decode(&message) != nil {
 		return
 	}
 	switch message.Type {
 	case "message":
-		t.answer.Model, t.answer.Stop = message.Model, message.StopReason
-		for _, b := range message.Content {
-			t.held(b)
+		t.answer.Model, t.answer.Stop = message.Model.read, message.StopReason.read
+		for _, b := range message.Content.read {
+			t.held(b.read)
 		}
 		t.usage.update(message.Usage)
 		t.closed = message.Usage != nil
 	case "error":
-		t.answer.Error = message.Error
+		t.answer.Error = message.Error.read
 	}
 }
 
 // held notes a block the answer holds, and the tool it calls, by name, where
-// it calls one.
+// it calls one. The model a fallback hands the answer off to, where it gives
+// one, is the answer's from then on: the one a stream's start named is the
+// one that handed it off.
 func (t *tally) held(b block) {
 	if b.Type == "" {
 		return
@@ -225,8 +268,11 @@ func (t *tally) held(b block) {
 		t.answer.Blocks = make(map[string]int)
 	}
 	t.answer.Blocks[b.Type]++
-	if slices.Contains(toolCalls, b.Type) {
-		t.answer.Tools = append(t.answer.Tools, b.Name)
+	switch {
+	case slices.Contains(toolCalls, b.Type):
+		t.answer.Tools = append(t.answer.Tools, b.Name.read)
+	case b.Type == "fallback":
+		t.answer.Model = cmp.Or(b.To.read.Model, t.answer.Model)
 	}
 }
 

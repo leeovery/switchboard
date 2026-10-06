@@ -159,9 +159,9 @@ type Reply struct {
 }
 
 // Answer is what an answer told of itself: Anthropic's id for it, the model
-// it named, why it stopped, how many blocks of each kind it held, the tools
-// it called, by name alone, and its error, each left out where it didn't
-// give it.
+// that served it, why it stopped, how many blocks of each kind it held, the
+// tools it called, by name alone, and its error, each left out where it
+// didn't give it.
 type Answer struct {
 	ID     string         `json:"id,omitempty"`
 	Model  string         `json:"model,omitempty"`

@@ -3,6 +3,7 @@ package dayfile
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -180,6 +181,74 @@ func TestLinesAreAppendedToThePlainFilesOfTheirDays(t *testing.T) {
 		if info.Mode() != mode {
 			t.Errorf("%s is %v, want %v", filepath.Base(path), info.Mode(), mode)
 		}
+	}
+}
+
+func TestAnAppendStartsALineOfItsOwnAfterOneCutShort(t *testing.T) {
+	const appended = `{"n":3}`
+	// asJSON is a line as the text it holds, where it's JSON, as a line written
+	// whole is.
+	asJSON := func(line []byte) (string, bool) {
+		return string(line), json.Valid(line)
+	}
+	tests := []struct {
+		name string
+		// held is what the day's plain file holds before the append, and
+		// wantHeld what it holds after.
+		held, wantHeld string
+		// wantRead are the lines read back after the append, and wantUnread
+		// how many lines weren't.
+		wantRead   []string
+		wantUnread int
+	}{
+		{
+			name:       "a line cut short, ended first, and passed over in reading",
+			held:       linesOf(`{"n":1}`) + `{"n":`,
+			wantHeld:   linesOf(`{"n":1}`, `{"n":`, appended),
+			wantRead:   []string{`{"n":1}`, appended},
+			wantUnread: 1,
+		},
+		{
+			name:     "a line cut short of its line ending alone, ended first, and read",
+			held:     linesOf(`{"n":1}`) + `{"n":2}`,
+			wantHeld: linesOf(`{"n":1}`, `{"n":2}`, appended),
+			wantRead: []string{`{"n":1}`, `{"n":2}`, appended},
+		},
+		{
+			name:     "whole lines, after which it starts",
+			held:     linesOf(`{"n":1}`),
+			wantHeld: linesOf(`{"n":1}`, appended),
+			wantRead: []string{`{"n":1}`, appended},
+		},
+		{
+			name:     "an empty file, where it starts",
+			wantHeld: linesOf(appended),
+			wantRead: []string{appended},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := requestLedger(t.TempDir())
+			date := dateOf(start)
+			writeDay(t, f, plainFile(date), tt.held)
+			lines := make(Lines)
+			lines.Add(start, []byte(appended))
+
+			if err := f.Append(lines); err != nil {
+				t.Fatalf("Append() = %v", err)
+			}
+			if got := heldIn(t, f, plainFile(date)); got != tt.wantHeld {
+				t.Errorf("the day's plain file holds\n%s\nwant\n%s", got, tt.wantHeld)
+			}
+			var read []string
+			unread := Read(f, []string{date}, asJSON, func(line string) bool {
+				read = append(read, line)
+				return true
+			})
+			if !slices.Equal(read, tt.wantRead) || unread != tt.wantUnread {
+				t.Errorf("read %q, %d unread; want %q, %d unread", read, unread, tt.wantRead, tt.wantUnread)
+			}
+		})
 	}
 }
 

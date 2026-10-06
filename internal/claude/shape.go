@@ -94,6 +94,9 @@ func (*entry) UnmarshalJSON([]byte) error {
 // setting is a setting a request's body gives, read where it's what the API
 // takes: one given as null, or as a value of another type, which the API
 // would refuse, is passed over, failing nothing else of the body's reading.
+// What the request ledger alone reads of an answer is read as settings are,
+// so a field of another type than the API gives fails nothing of the
+// answer's counting.
 type setting[T any] struct {
 	// read is the setting's value, the zero value where it isn't given.
 	read  T
