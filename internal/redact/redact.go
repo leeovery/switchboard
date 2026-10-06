@@ -14,9 +14,11 @@ import (
 // Placeholder stands in for each secret hidden.
 const Placeholder = "[redacted]"
 
-// tokenShaped matches Claude API keys and OAuth tokens, which all begin
-// sk-ant-.
-var tokenShaped = regexp.MustCompile(`sk-ant-[A-Za-z0-9_-]+`)
+// tokenPrefix begins every Claude API key and OAuth token.
+const tokenPrefix = "sk-ant-"
+
+// tokenShaped matches Claude API keys and OAuth tokens.
+var tokenShaped = regexp.MustCompile(tokenPrefix + `[A-Za-z0-9_-]+`)
 
 // HoldsToken reports whether text holds anything shaped like a Claude token.
 func HoldsToken(text string) bool {
@@ -30,6 +32,11 @@ func Text(text string, secrets ...string) string {
 		if secret != "" {
 			text = strings.ReplaceAll(text, secret, Placeholder)
 		}
+	}
+	// Searching by the pattern allocates, however long the text, and almost
+	// none holds a token.
+	if !strings.Contains(text, tokenPrefix) {
+		return text
 	}
 	return tokenShaped.ReplaceAllString(text, Placeholder)
 }

@@ -19,9 +19,14 @@ const (
 	defaultUpstream = "https://api.anthropic.com"
 )
 
-// DefaultKeep is how long the readings history is kept where the config
-// doesn't say: two weeks.
-const DefaultKeep = 14 * 24 * time.Hour
+// How long the readings history and the request ledger's lines are kept
+// where the config doesn't say.
+const (
+	// DefaultHistoryKeep keeps the readings history two weeks.
+	DefaultHistoryKeep = 14 * 24 * time.Hour
+	// DefaultLedgerKeep keeps the request ledger's lines 90 days.
+	DefaultLedgerKeep = 90 * 24 * time.Hour
+)
 
 // Example is a small valid config, for showing someone who doesn't have one yet.
 const Example = `# One [[account]] per Claude subscription. Each account's token, made with
@@ -53,6 +58,7 @@ type Config struct {
 	Prime         Prime
 	Notifications Notifications
 	History       History
+	Ledger        Ledger
 }
 
 // Account is one Claude subscription.
@@ -150,6 +156,13 @@ type History struct {
 	Keep time.Duration
 }
 
+// Ledger says how long the request ledger's lines are kept.
+type Ledger struct {
+	// Keep is how long a day's file of the ledger's lines is kept once its
+	// day has ended: a whole number of days.
+	Keep time.Duration
+}
+
 // file is the config file as it's written, before its defaults are filled in.
 type file struct {
 	Listen        string        `toml:"listen"`
@@ -157,7 +170,8 @@ type file struct {
 	Accounts      []fileAccount `toml:"account"`
 	Prime         filePrime     `toml:"prime"`
 	Notifications Notifications `toml:"notifications"`
-	History       fileHistory   `toml:"history"`
+	History       fileKeep      `toml:"history"`
+	Ledger        fileKeep      `toml:"ledger"`
 }
 
 // fileAccount is an [[account]] table as it's written.
@@ -173,8 +187,9 @@ type filePrime struct {
 	Day string `toml:"day"`
 }
 
-// fileHistory is the [history] table as it's written.
-type fileHistory struct {
+// fileKeep is a table that says how long something is kept, [history] or
+// [ledger], as it's written.
+type fileKeep struct {
 	// Keep is nil when the table doesn't give one.
 	Keep *string `toml:"keep"`
 }
@@ -231,7 +246,8 @@ func (f file) check(path string, meta toml.MetaData) (*Config, error) {
 // them.
 func (f file) config(undecoded []toml.Key) (*Config, error) {
 	day, dayErr := ParseDay(f.Prime.Day)
-	keep, keepErr := parseKeep(f.History.Keep)
+	historyKeep, historyErr := parseKeep("history.keep", f.History.Keep, DefaultHistoryKeep)
+	ledgerKeep, ledgerErr := parseKeep("ledger.keep", f.Ledger.Keep, DefaultLedgerKeep)
 	err := errors.Join(
 		checkKeys(undecoded),
 		checkListen(f.Listen),
@@ -239,7 +255,8 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		checkAccounts(f.Accounts),
 		dayErr,
 		checkWarning(f.Notifications.Warning),
-		keepErr,
+		historyErr,
+		ledgerErr,
 	)
 	if err != nil {
 		return nil, err
@@ -250,7 +267,8 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		Accounts:      resolve(f.Accounts),
 		Prime:         Prime{Day: day},
 		Notifications: f.Notifications,
-		History:       History{Keep: keep},
+		History:       History{Keep: historyKeep},
+		Ledger:        Ledger{Keep: ledgerKeep},
 	}, nil
 }
 

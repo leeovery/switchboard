@@ -1,6 +1,7 @@
 package claude_test
 
 import (
+	"encoding/json"
 	"math"
 	"net/http"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
@@ -59,6 +61,34 @@ func TestProviderSession(t *testing.T) {
 	h.Set("x-claude-code-session-id", "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e")
 	if got, want := (claude.Provider{}).Session(h), "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e"; got != want {
 		t.Errorf("Session() = %q, want %q", got, want)
+	}
+}
+
+func TestProviderBetas(t *testing.T) {
+	tests := []struct {
+		name   string
+		header http.Header
+		want   []string
+	}{
+		{name: "none without the header", header: http.Header{}},
+		{name: "one", header: http.Header{"Anthropic-Beta": {"oauth-2025-04-20"}}, want: []string{"oauth-2025-04-20"}},
+		{
+			name:   "a list, trimmed, in its order",
+			header: http.Header{"Anthropic-Beta": {"oauth-2025-04-20, context-1m-2025-08-07 ,interleaved-thinking-2025-05-14"}},
+			want:   []string{"oauth-2025-04-20", "context-1m-2025-08-07", "interleaved-thinking-2025-05-14"},
+		},
+		{
+			name:   "a list over several lines, its empty entries passed over",
+			header: http.Header{"Anthropic-Beta": {"oauth-2025-04-20,,", " ", "context-1m-2025-08-07"}},
+			want:   []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (claude.Provider{}).Betas(tt.header); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Betas() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -116,11 +146,95 @@ func TestProviderAsks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model, check := (claude.Provider{}).Asks([]byte(tt.body))
+			model, check, _ := (claude.Provider{}).Asks([]byte(tt.body))
 			if model != tt.wantModel || check != tt.wantCheck {
 				t.Errorf("Asks(%s) = %q, %v, want %q, %v", tt.body, model, check, tt.wantModel, tt.wantCheck)
 			}
 		})
+	}
+}
+
+func TestProviderAsksTheShapeOfARequest(t *testing.T) {
+	// secret is shaped like a token, as an MCP server's can be, though it's
+	// none.
+	const secret = "sk-ant-oat01-fake_token-shaped"
+	tests := []struct {
+		name string
+		body string
+		want ledger.Shape
+	}{
+		{
+			name: "a request deep into a session, with every setting known",
+			body: `{"model":"claude-opus-5-5","max_tokens":32000,` +
+				`"messages":[{"role":"user","content":"hello"},{"role":"assistant","content":[{"type":"text","text":"hi"}]},{"role":"user","content":"more"}],` +
+				`"system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"The environment."}],` +
+				`"tools":[{"name":"Bash","input_schema":{}},{"name":"Read","input_schema":{}}],` +
+				`"thinking":{"type":"enabled","budget_tokens":31999,"display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}},` +
+				`"stream":true,"tool_choice":{"type":"auto","disable_parallel_tool_use":true},"temperature":0.7,"top_k":40,"top_p":0.95,"service_tier":"auto",` +
+				`"output_config":{"effort":"high","format":{"type":"json_schema","schema":{"description":"` + secret + `"}},"task_budget":{"type":"tokens","total":64000}},` +
+				`"speed":"fast","inference_geo":"us",` +
+				`"context_management":{"edits":[{"type":"clear_tool_uses_20250919","trigger":{"type":"input_tokens","value":100000},"exclude_tools":["` + secret + `"]},` +
+				`{"type":"compact_20260112"}]},` +
+				`"metadata":{"user_id":"user_device_account"},"mcp_servers":[{"name":"notes","authorization_token":"` + secret + `"}]}`,
+			want: ledger.Shape{Messages: 3, System: 2, Tools: 2, MaxTokens: new(int64(32000)),
+				Thinking: ledger.Thinking{Type: "enabled", BudgetTokens: new(int64(31999)), Display: "summarized"},
+				Stream:   new(true), ToolChoice: ledger.ToolChoice{Type: "auto"}, Temperature: new(0.7), TopK: new(int64(40)), TopP: new(0.95),
+				ServiceTier: "auto", OutputConfig: ledger.OutputConfig{Effort: "high"}, Speed: "fast", InferenceGeo: "us",
+				ContextManagement: ledger.ContextManagement{Edits: []string{"clear_tool_uses_20250919", "compact_20260112"}}},
+		},
+		{
+			name: "a system prompt given as a string, not streamed",
+			body: `{"model":"claude-opus-5-5","max_tokens":1024,"system":"You are Claude Code.","messages":[{"role":"user","content":"hello"}],"stream":false}`,
+			want: ledger.Shape{Messages: 1, System: 1, MaxTokens: new(int64(1024)), Stream: new(false)},
+		},
+		{
+			name: "a system prompt whose texts hold what structures a list",
+			body: `{"model":"claude-opus-5-5","system":[{"type":"text","text":"a [list], {of} \"quoted\" things\\"},{"type":"text","text":"]},{\\\"\\\\"}],"messages":[]}`,
+			want: ledger.Shape{System: 2},
+		},
+		{
+			name: "lists given empty, and settings at zero",
+			body: `{"model":"claude-opus-5-5","max_tokens":0,"system":[ ],"messages":[],"tools":[],"temperature":0,"top_k":0,"top_p":0,"context_management":{"edits":[]}}`,
+			want: ledger.Shape{MaxTokens: new(int64(0)), Temperature: new(0.0), TopK: new(int64(0)), TopP: new(0.0)},
+		},
+		{
+			name: "settings given as null",
+			body: `{"model":"claude-opus-5-5","max_tokens":null,"system":null,"messages":null,"thinking":null,"stream":null,"tool_choice":null,"temperature":null,` +
+				`"top_k":null,"top_p":null,"service_tier":null,"output_config":null,"speed":null,"inference_geo":null,"context_management":null}`,
+		},
+		{
+			name: "settings and lists of types the API wouldn't take",
+			body: `{"model":"claude-opus-5-5","max_tokens":"lots","messages":"hello","tools":{"name":"Bash"},` +
+				`"thinking":"on","stream":"yes","tool_choice":"auto","temperature":"hot","top_k":"forty","top_p":"most","service_tier":1,` +
+				`"output_config":"high","speed":1,"inference_geo":["us"],"context_management":{"edits":["clear_tool_uses_20250919"]}}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model, _, got := (claude.Provider{}).Asks([]byte(tt.body))
+			tt.want.Bytes = len(tt.body)
+			if model != "claude-opus-5-5" || !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Asks() = %q, %+v, want claude-opus-5-5, %+v", model, got, tt.want)
+			}
+			kept, err := json.Marshal(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, unknown := range []string{secret, "user_device_account", "block_binding", "disable_parallel_tool_use", "json_schema", "task_budget",
+				"trigger", "exclude_tools", "Bash", "hello", "You are"} {
+				if strings.Contains(string(kept), unknown) {
+					t.Errorf("the shape holds %s, want nothing of %q", kept, unknown)
+				}
+			}
+		})
+	}
+}
+
+func TestProviderAsksNoShapeOfABodyThatIsntARequest(t *testing.T) {
+	for _, body := range []string{`model=claude-opus-5-5`, ``, `["claude-opus-5-5"]`, `"claude-opus-5-5"`, `{"model":"claude-opus-5-5",`} {
+		if model, check, shape := (claude.Provider{}).Asks([]byte(body)); model != "" || check || !reflect.DeepEqual(shape, ledger.Shape{}) {
+			t.Errorf("Asks(%s) = %q, %v, %+v, want nothing read", body, model, check, shape)
+		}
 	}
 }
 

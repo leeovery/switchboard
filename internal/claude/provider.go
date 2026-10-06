@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
@@ -49,23 +50,41 @@ func (Provider) Session(h http.Header) string {
 	return h.Get(SessionHeader)
 }
 
+// betaHeader lists the features a request asks the API for beyond its
+// version, separated by commas.
+const betaHeader = "Anthropic-Beta"
+
+// Betas returns the features a request's header asks the API for beyond its
+// version, in the order its anthropic-beta header lists them.
+func (Provider) Betas(h http.Header) []string {
+	var betas []string
+	for _, listed := range h.Values(betaHeader) {
+		for beta := range strings.SplitSeq(listed, ",") {
+			if beta = strings.TrimSpace(beta); beta != "" {
+				betas = append(betas, beta)
+			}
+		}
+	}
+	return betas
+}
+
 // quotaCheck is what Claude Code's quota check asks, in its one message.
 const quotaCheck = "quota"
 
 // Asks reads a messages request's body for the model it asks for, or "" when
-// the body doesn't say, and whether it's Claude Code's quota check: one
-// message, quota, answered with a token at most, which Claude Code sends as it
-// starts. The body is read whole once, as it can run to megabytes; only one
+// the body doesn't say; whether it's Claude Code's quota check: one message,
+// quota, answered with a token at most, which Claude Code sends as it starts;
+// and its shape, as the request ledger keeps it, the zero Shape where the body
+// isn't a JSON object. The body is read whole once, as it can run to
+// megabytes, its lists counted without their entries being read; only one
 // asking for a token at most is read again, for its message.
-func (Provider) Asks(body []byte) (model string, check bool) {
-	var req struct {
-		Model     string          `json:"model"`
-		MaxTokens json.RawMessage `json:"max_tokens"`
+func (Provider) Asks(body []byte) (model string, check bool, shape ledger.Shape) {
+	var req asked
+	if !readAsked(body, &req) {
+		return "", false, ledger.Shape{}
 	}
-	if err := json.Unmarshal(body, &req); err != nil {
-		return "", false
-	}
-	return req.Model, string(req.MaxTokens) == "1" && asksOnly(body, quotaCheck)
+	check = req.MaxTokens.given && req.MaxTokens.read == 1 && asksOnly(body, quotaCheck)
+	return req.Model, check, req.shape(len(body))
 }
 
 // asksOnly reports whether a messages request's body has one message, asking

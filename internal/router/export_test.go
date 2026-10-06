@@ -1,10 +1,21 @@
 package router
 
-import "net/http"
+import (
+	"net/http"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/ledger"
+)
 
 // NotificationQueue is how many events can wait for notifications to deal
 // with them, for tests that fill the queue.
 const NotificationQueue = queueSize
+
+// LedgerLines returns the lines the request ledger's plain files in dir hold,
+// for tests that run a router.
+func LedgerLines(t testing.TB, dir string) []ledger.Line {
+	return ledgerLines(t, dir)
+}
 
 // SetChooser has the router choose accounts with c, for tests that choose
 // them themselves.

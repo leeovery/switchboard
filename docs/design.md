@@ -1466,18 +1466,22 @@ first day a router that has it runs, so nothing before then is in it.
   - `account`: the account whose answer the client got, by its id. `reason`: why that account was
     chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
     limit`). `from`: the account the request's session was on before, where the request moved it.
-    `tried`: the accounts it went out on before, and why each was left, as `[{"account":
-    "personal", "why": "hit its limit"}]`, where there were any.
+    `tried`: the accounts it went out on that couldn't serve it, in the order tried, and why each
+    was left, as `[{"account": "personal", "why": "hit its limit"}]`, where there were any: the
+    last may be the account whose answer the client got, where none was left to try after it.
   - `status`: the status the client got, 0 where it went away before an answer. `canceled`: true
     where it went away before the end. `attempts`: how many times it went upstream, 0 where the
     router answered it itself.
   - `first_ms` and `total_ms`: how long after it arrived its answer's first byte came, and its end.
-    `first_ms` is left out where no answer came.
+    `first_ms` is left out where the client got no answer of the upstream's, as where the router
+    answered it itself.
   - `agent` and `betas`: Claude Code's user agent, which carries its version, and the features its
     `anthropic-beta` header asked for, some of which change what a request costs.
   - `shape`: the request's size in bytes; how many messages, system blocks and tools it carried, as
     counts; and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`,
-    `tool_choice`'s type, `temperature` and `service_tier`. A field it doesn't know isn't kept, as
+    `tool_choice`'s type, `temperature`, `top_k`, `top_p`, `service_tier`, `output_config`'s
+    `effort`, `speed`, `inference_geo`, and the types of `context_management`'s edits, nothing of
+    their parameters. A field it doesn't know isn't kept, nor a setting's field it doesn't know, as
     one may carry a secret, as an MCP server's token does. The router reads the shape in the pass
     over the body it already makes for the model and the quota check, so it costs a request next to
     nothing.
@@ -2419,7 +2423,7 @@ why.
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text `switchboard status` prints, redesigned to match milestone 5's dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
-| Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
+| Three things the router keeps that grow without bound, each only when something rare happens, and a restart's request stream that can end before its last events | open: small fixes, any time | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |

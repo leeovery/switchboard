@@ -58,6 +58,7 @@ func (r *Router) run(ctx context.Context) error {
 	// alongside would have failed by here.
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
 	r.openHistory()
+	r.ledger.open(filepath.Join(r.cfg.StateDir, ledgerDirName))
 	return r.serve(ctx, ls)
 }
 
@@ -141,9 +142,9 @@ func listen(addr string) (net.Listener, error) {
 // serve serves the proxy and the control API until ctx ends, either fails,
 // or the router restarts itself, probing each account nothing has been read
 // of in the meantime, priming the accounts on the schedule, looking after
-// itself, keeping the state file, the readings history and what has happened
-// lately, and posting notifications, then shuts both down, and restarting,
-// replaces itself, handing their listeners over.
+// itself, keeping the state file, the readings history, the request ledger
+// and what has happened lately, and posting notifications, then shuts both
+// down, and restarting, replaces itself, handing their listeners over.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -159,11 +160,13 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 		looked.Go(func() { r.primer.run(looking) })
 	}
 	// The requests still in flight as the router stops change what's to be
-	// saved, and what's to be told of, so keeping and notifying outlast ctx.
+	// saved, and what's to be told of, and each has its line in the ledger,
+	// so keeping, writing and notifying outlast ctx.
 	background, stopBackground := context.WithCancel(context.WithoutCancel(ctx))
 	var running sync.WaitGroup
 	running.Go(func() { r.file.keep(background) })
 	running.Go(func() { r.history.run(background) })
+	running.Go(func() { r.ledger.run(background) })
 	running.Go(func() { r.recent.run(background) })
 	if r.notifications != nil {
 		running.Go(func() { r.notifications.run(background) })

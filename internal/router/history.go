@@ -109,9 +109,9 @@ type history struct {
 }
 
 // newHistory returns a history kept as settings say, by now's clock: a zero
-// Keep keeps a day's file for config.DefaultKeep.
+// Keep keeps a day's file for config.DefaultHistoryKeep.
 func newHistory(settings config.History, now func() time.Time) *history {
-	return &history{now: now, keep: cmp.Or(settings.Keep, config.DefaultKeep)}
+	return &history{now: now, keep: cmp.Or(settings.Keep, config.DefaultHistoryKeep)}
 }
 
 // open has the history kept in dir from now on.

@@ -22,6 +22,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -487,9 +488,9 @@ type slowCounting struct {
 	claude.Provider
 }
 
-func (p slowCounting) Count(contentType string, body io.Reader, chars func(int)) (quota.Tokens, bool) {
+func (p slowCounting) Count(h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply) {
 	time.Sleep(time.Second)
-	return p.Provider.Count(contentType, body, chars)
+	return p.Provider.Count(h, body, chars)
 }
 
 func TestASessionIsToldOfAsStartedAsTheFirstAnswerOfSuccessComes(t *testing.T) {
@@ -615,17 +616,19 @@ func lines(events []StreamEvent) string {
 }
 
 // streamed answers with a stream of events, its pieces each coming after the
-// pause given.
+// pause given, cut off should the client go, as the transport cuts off the
+// answer to a request whose context ends.
 func streamed(pause time.Duration, pieces ...string) answer {
 	return func(r *http.Request) *http.Response {
 		resp := respond(r, http.StatusOK, http.Header{"Content-Type": {"text/event-stream"}}, "")
-		resp.Body, resp.ContentLength = io.NopCloser(&paced{pause: pause, pieces: slices.Clone(pieces)}), -1
+		resp.Body, resp.ContentLength = io.NopCloser(&paced{ctx: r.Context(), pause: pause, pieces: slices.Clone(pieces)}), -1
 		return resp
 	}
 }
 
-// paced reads pieces, each after the pause given.
+// paced reads pieces, each after the pause given, failing once ctx ends.
 type paced struct {
+	ctx    context.Context
 	pause  time.Duration
 	pieces []string
 }
@@ -634,7 +637,9 @@ func (p *paced) Read(b []byte) (int, error) {
 	if len(p.pieces) == 0 {
 		return 0, io.EOF
 	}
-	time.Sleep(p.pause)
+	if err := sleep(p.ctx, p.pause); err != nil {
+		return 0, err
+	}
 	n := copy(b, p.pieces[0])
 	if p.pieces[0] = p.pieces[0][n:]; p.pieces[0] == "" {
 		p.pieces = p.pieces[1:]
