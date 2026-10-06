@@ -26,3 +26,26 @@ Milestone 5's dashboard needs half of this: its request stream, `GET /stream` (s
 Control API), reads each answer's closing token counts as it passes, to show them live on the
 Sessions view and the cards' backs. A ledger would write the same events down, a line a request, so
 the reading lands with milestone 5 and the ledger is what's left.
+
+## Settled, 5 October 2026
+
+The dashboard's redesign gives the ledger its first readers: a History tab, of the past year by
+day, week and model, with tokens as ccusage reports them; an Accounts tab, of what each account
+did and was worth at API prices; and a session's own page, of its requests. Most of what they
+show is this ledger's. The owner agreed how it's kept:
+
+- **A file a day, a line a request,** as JSON, written as the readings history is: queued off the
+  request path for a goroutine of its own. Its queue is longer than the history's 1,024, as a
+  line dropped is a request the History tab never counts.
+- **A rollup a day beside it,** per account and model version: requests, tokens by kind, worth at
+  API prices, sessions, moves, limits reached and each window's peak. It's written once the day
+  has closed, on the hourly round that compresses and removes the readings history's days;
+  today's is kept in memory. Views over
+  months read the rollups, and a session's page reads its own days' lines.
+- **No database.** The queries are known before they're asked, and SQLite would bring a large
+  dependency and migrations for what the rollups answer.
+- **A benchmark of the proxy path** against an `httptest` upstream, before the ledger's writing
+  joins it. There's none today, and the router's cost on a request is judged only by reading
+  the code.
+- **Agents read it** through read commands with `--json`, sharing the one data layer the
+  dashboard draws from, as `status --json` does today.
