@@ -119,7 +119,7 @@ func TestProviderCountsAMessageAnsweredWhole(t *testing.T) {
 		{
 			name:        "a message",
 			contentType: "application/json",
-			body:        `{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"text","text":"Hi"}],"usage":{"input_tokens":3,"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"output_tokens":120}}`,
+			body:        claudetest.Message,
 			wantTokens:  claudetest.AnswerTokens,
 			wantOK:      true,
 		},
