@@ -1785,8 +1785,8 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
-| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, lines cut short and damaged files included |
-| `internal/ledger` | The request ledger: its lines, the queue and goroutine that write them, the days' summaries, reading lines and summaries back, and the price table and the worth it gives |
+| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, lines cut short and damaged files included; and the queue and goroutine that write to them, so noting a line never waits |
+| `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, reading lines and summaries back, and the price table and the worth it gives |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
@@ -2286,8 +2286,8 @@ early as it can:
 
 1. **A benchmark of the proxy path:** a streamed answer from an `httptest` upstream through the
    proxy, timed and its allocations counted, before anything joins the path.
-2. **`internal/dayfile`:** the readings history's files a day, taken out of `internal/router`
-   unchanged, for the ledger to share.
+2. **`internal/dayfile`:** the readings history's files a day, and the queue and goroutine that
+   write them, taken out of `internal/router`, what they do unchanged, for the ledger to share.
 3. **The lines:** `[ledger] keep`; the ledger's queue, goroutine and files; the line each routed
    request hands it as it ends: its shape, read with its model, and its answer's usage, blocks,
    tools and limits, read as the answer passes; and the benchmark taken again, with a body the size
