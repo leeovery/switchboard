@@ -28,7 +28,12 @@ const (
 	Overloaded = "event: error\n" + `data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}` + "\n\n"
 )
 
-// AnswerTokens are the tokens MessageStart and MessageDelta give together.
+// Message is an answer the Messages API gives whole, not streamed: a message,
+// whose usage gives AnswerTokens.
+const Message = `{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"text","text":"Hello, world"}],"model":"claude-opus-5-5","stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":3,"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"output_tokens":120}}`
+
+// AnswerTokens are the tokens MessageStart and MessageDelta give together, and
+// Message gives.
 var AnswerTokens = quota.Tokens{Input: 3, Output: 120, CacheRead: 40000, CacheWrite: 512}
 
 // The thinking and the tool's input of the answer AnswerPieces streams.

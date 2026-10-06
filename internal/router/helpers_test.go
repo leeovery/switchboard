@@ -568,7 +568,7 @@ func unnamed(events []router.Event) []router.Event {
 
 // shortTempDir returns a directory of the test's own with a path short enough
 // to hold a unix socket: t.TempDir's can be too long on macOS.
-func shortTempDir(t *testing.T) string {
+func shortTempDir(t testing.TB) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "sb")
 	if err != nil {

@@ -435,7 +435,7 @@ func TestRunRefusesAControlSocketPathTooLong(t *testing.T) {
 
 // runConfig is testConfig with a free address to listen on and a state
 // directory short enough for the control socket.
-func runConfig(t *testing.T, upstream string) router.Config {
+func runConfig(t testing.TB, upstream string) router.Config {
 	t.Helper()
 	cfg := testConfig(upstream)
 	cfg.Listen = freeAddress(t)
@@ -444,7 +444,7 @@ func runConfig(t *testing.T, upstream string) router.Config {
 }
 
 // freeAddress returns a loopback address whose port nothing listens on.
-func freeAddress(t *testing.T) string {
+func freeAddress(t testing.TB) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -457,7 +457,7 @@ func freeAddress(t *testing.T) string {
 // runRouter runs a router with cfg, returning once its control socket answers.
 // It runs until the test calls the stop it returns, which returns what Run
 // did, or until the test ends.
-func runRouter(t *testing.T, cfg router.Config) (stop func() error) {
+func runRouter(t testing.TB, cfg router.Config) (stop func() error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	var err error
@@ -499,7 +499,7 @@ func waitForStatus(t *testing.T, path string, done func(status.Document) bool) s
 }
 
 // waitUntil waits a few seconds at most for ready to report true.
-func waitUntil(t *testing.T, what string, ready func() bool) {
+func waitUntil(t testing.TB, what string, ready func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for !ready() {
