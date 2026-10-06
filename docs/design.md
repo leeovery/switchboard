@@ -676,8 +676,9 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
 
-The plain text `requests` and `history` print is a first cut, to be designed with their owner as
-`status`'s is (see Backlog); agents read their `--json`.
+`requests` and `history` are proposed names, not yet chosen, to settle before milestone 6 builds
+them. The plain text they print is a first cut, to be designed with their owner as `status`'s is
+(see Backlog); agents read their `--json`.
 
 A command that needs the router fails without it, saying `the router isn't running: start it
 with switchboard service install (or switchboard serve)`. Any notice a command gives on stderr,
@@ -1447,11 +1448,13 @@ first day a router that has it runs, so nothing before then is in it.
 
 - **A line a request:** each request the proxy routes, whether it went upstream or the router
   answered it itself, as when no account has room; not those passed through, nor the router's
-  probes and primes, which the readings history notes. The line is written as the router finishes
+  probes and primes, which the readings history notes. It keeps everything about the request but
+  its content, as a day not recorded can't be recorded after: how the router handled it, the
+  request's shape, and everything the API said back. The line is written as the router finishes
   with the request, when it logs it `routed` (see Logging), as one JSON object:
 
   ```json
-  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "tokens": {"input": 12, "output": 845, "cache_read": 182340, "cache_write": 3120, "cache_write_1h": 3120}, "stop": "tool_use"}
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
   - `at`: when it arrived, in UTC, to the millisecond.
@@ -1460,8 +1463,7 @@ first day a router that has it runs, so nothing before then is in it.
   - `kind`: `message`, a request that spends quota; `check`, Claude Code's quota check (see
     Choosing an account); or `count`, a token count, which spends nothing.
   - `session`: Claude Code's session id, left out where a request carries none. `model`: the model
-    it asked for. Each is cut to 200 bytes, as the request stream cuts them. `served_model`: the
-    model the answer named, only where it named another.
+    it asked for. Each is cut to 200 bytes, as the request stream cuts them.
   - `account`: the account whose answer the client got, by its id. `reason`: why that account was
     chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
     limit`). `from`: the account the request's session was on before, where the request moved it.
@@ -1472,15 +1474,32 @@ first day a router that has it runs, so nothing before then is in it.
     router answered it itself.
   - `first_ms` and `total_ms`: how long after it arrived its answer's first byte came, and its end.
     `first_ms` is left out where no answer came.
-  - `tokens`: the closing usage's counts, as the request stream's `done` gives them, with
-    `cache_write_1h`, the part of `cache_write` cached for an hour, the rest being cached for five
-    minutes, as the two cost differently. Left out where the answer gave none, as an error, a count
-    or an answer cut short gives none.
-  - `stop`: why the answer ended (`end_turn`, `tool_use`, `max_tokens`), where it said.
+  - `agent` and `betas`: Claude Code's user agent, which carries its version, and the features its
+    `anthropic-beta` header asked for, some of which change what a request costs.
+  - `shape`: the request's size in bytes; how many messages, system blocks and tools it carried, as
+    counts; and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`,
+    `tool_choice`'s type, `temperature` and `service_tier`. A field it doesn't know isn't kept, as
+    one may carry a secret, as an MCP server's token does. The router reads the shape in the pass
+    over the body it already makes for the model and the quota check, so it costs a request next to
+    nothing.
+  - `answer`: what came back, of the answer the client got: Anthropic's id for it, from its
+    `request-id` header; the model it named; why it stopped (`end_turn`, `tool_use`,
+    `max_tokens`); how many blocks of each kind it held; the tools it called, by name alone; and, of
+    an error, its type and message, cut to 200 bytes. Each is left out where the answer didn't give
+    it.
+  - `usage`: the answer's closing usage, as the API gave it, field for field, so whatever it counts
+    is kept as it is: cache writes for five minutes and for an hour, which cost differently, web
+    searches, the service tier, and anything it counts later. Left out where the answer gave none,
+    as an error, a count or an answer cut short gives none.
+  - `limits`: the answer's `anthropic-ratelimit-unified-*` headers, their prefix taken off, their
+    values as given: each window's use, reset and status as the answer left them. Beside the
+    request's usage, they say how many tokens a point of a window is worth.
 
-  An account appears by its id alone, never by a token or a label. Nothing of a prompt or an answer
-  is written, and no header but the session's. Fields may be added to a line, never renamed, and a
-  reader passes over those it doesn't know.
+  Never written: the messages, the system prompt, the tools' definitions, inputs and results, or
+  anything else of the conversation; `metadata.user_id`, which carries a device's id and an
+  account's; and any header but those named here, a token's never. An account appears by its id
+  alone, never by a token or a label. Fields may be added to a line, never renamed, and a reader
+  passes over those it doesn't know.
 - **Writing never holds a request up.** The request hands its line to a queue of 8,192 lines at
   most, longer than the readings history's, as a line dropped is a request History never counts,
   and goes on. A goroutine of the ledger's own writes the lines to the day's file, as the readings
@@ -1499,11 +1518,14 @@ first day a router that has it runs, so nothing before then is in it.
   stopped as the day ended, is summarised by the next round that finds its lines. Views over weeks
   and months read the summaries; today, and any day not yet summarised, is summarised from its
   lines as it's read.
-- **Worth** is what tokens would have cost through the API, priced from a table built into
-  switchboard. The table holds, per model, the price of input, output, cache reads, and cache writes
-  for five minutes and for an hour, and the date its prices were current. Worth is worked out as
-  it's read and never stored, so a release with new prices prices the whole ledger afresh. A model
-  the table doesn't know has no worth, and is shown as unpriced.
+- **Worth** is what a request would have cost through the API, priced from a table built into
+  switchboard: each model's prices of input, output, cache reads, and cache writes for five minutes
+  and for an hour, the rates a long request pays where a beta asks for them, and whatever else its
+  usage counts that's charged, such as web searches, each price with the day it took effect. So a
+  request can be priced as at its own day or at today's prices, and the views price at today's
+  unless their design says otherwise. Worth is worked out as it's read and never stored, so a
+  release with new prices prices the whole ledger afresh. A model the table doesn't know has no
+  worth, and is shown as unpriced.
 - **Reading needs no router.** The dashboard and the read commands read the ledger's files where
   they lie, through one package, `internal/ledger`. A line that doesn't read as one, as one cut
   short, is passed over, and a damaged compressed file is read up to the damage, as the readings
@@ -2020,7 +2042,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work"}`) or clear one session's own pin, answering as `/sessions/{id}` does. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false}`) or clear (`?force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | The requests as they happen, for the dashboard's Sessions, its cards' backs and its hourglasses: held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, model, account}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, and `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got. It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write, cache_write_1h}`, `cache_write_1h` the part of `cache_write` cached for an hour, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, or a 401 to a token replaced since, which go out again on the same account, are neither. A request the router knows for Claude Code's quota check carries `check: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes, which a restart does after its drain, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes |
+| `GET /stream` | The requests as they happen, for the dashboard's Sessions, its cards' backs and its hourglasses: held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, model, account}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, and `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got. It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, or a 401 to a token replaced since, which go out again on the same account, are neither. A request the router knows for Claude Code's quota check carries `check: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes, which a restart does after its drain, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
 
@@ -2264,8 +2286,9 @@ early as it can:
 2. **`internal/dayfile`:** the readings history's files a day, taken out of `internal/router`
    unchanged, for the ledger to share.
 3. **The lines:** `[ledger] keep`; the ledger's queue, goroutine and files; the line each routed
-   request hands it as it ends; the answer's hour-long cache writes, why it stopped and the model it
-   named, read with its closing usage; and the benchmark taken again.
+   request hands it as it ends: its shape, read with its model, and its answer's usage, blocks,
+   tools and limits, read as the answer passes; and the benchmark taken again, with a body the size
+   of a long session's.
 4. **The summaries,** written on the hourly round for each day that has ended, and kept.
 5. **Reading:** `internal/ledger`'s readers, the price table and worth, `requests` and `history`,
    and the skill telling agents of them.
