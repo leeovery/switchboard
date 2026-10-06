@@ -358,7 +358,13 @@ func TestARestartedRouterStillTakesAReplacedTokenForItsAccounts(t *testing.T) {
 // post posts a messages request to url on work's token, and returns the
 // status and body it's answered with, or what went wrong.
 func post(url string) string {
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(messages))
+	return postAsking(url, messages)
+}
+
+// postAsking posts a messages request whose body is asked to url, as post
+// does.
+func postAsking(url, asked string) string {
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(asked))
 	if err != nil {
 		return err.Error()
 	}
