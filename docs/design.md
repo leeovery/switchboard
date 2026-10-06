@@ -2423,7 +2423,7 @@ why.
 | A reserve spent as a last resort, when no account has room outside one | next, a fast follow | [reserve-last-resort](../ideas/2026-10-03--reserve-last-resort.md) |
 | The plain text `switchboard status` prints, redesigned to match milestone 5's dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
-| Three things the router keeps that grow without bound, each only when something rare happens | open: small fixes, any time | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
+| Three things the router keeps that grow without bound, each only when something rare happens, and a restart's request stream that can end before its last events | open: small fixes, any time | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
