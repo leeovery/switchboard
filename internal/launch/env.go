@@ -90,16 +90,32 @@ func (e environ) startedAt(pid int, now time.Time) string {
 // from within, goes: what this launch pins is the only pin. Any other header
 // stays.
 func (e environ) pinnedTo(account string) environ {
+	return e.withHeader(router.PinHeader, account)
+}
+
+// workingIn returns the environment with Claude Code's custom headers telling
+// the router the directory it was started in, dir, or none for "". A
+// directory the environment names already, such as a session's that this one
+// is started from within, goes: what this launch tells is the only directory.
+// Any other header stays.
+func (e environ) workingIn(dir string) environ {
+	return e.withHeader(router.DirHeader, router.EncodeDir(dir))
+}
+
+// withHeader returns the environment with Claude Code's custom headers
+// holding the header key with value, in place of any line of it they held,
+// or without it for "". Any other header stays.
+func (e environ) withHeader(key, value string) environ {
 	var headers []string
 	for line := range strings.Lines(e.get(claude.CustomHeadersEnv)) {
 		line = strings.TrimRight(line, "\r\n")
 		name, _, _ := strings.Cut(line, ":")
-		if strings.TrimSpace(line) != "" && !strings.EqualFold(strings.TrimSpace(name), router.PinHeader) {
+		if strings.TrimSpace(line) != "" && !strings.EqualFold(strings.TrimSpace(name), key) {
 			headers = append(headers, line)
 		}
 	}
-	if account != "" {
-		headers = append(headers, router.PinHeader+": "+account)
+	if value != "" {
+		headers = append(headers, key+": "+value)
 	}
 	if len(headers) == 0 {
 		return e.without(claude.CustomHeadersEnv)

@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"errors"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -28,21 +29,21 @@ func TestRun(t *testing.T) {
 			args:        []string{"run", "--account", "side", "--", "--print", "a prompt"},
 			wantArgv:    []string{"claude", "--print", "a prompt"},
 			wantToken:   "test-token-work",
-			wantHeaders: "X-Trace: on\nX-Switchboard-Account: side",
+			wantHeaders: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
 		},
 		{
 			name:        "on the primary's token",
 			args:        []string{"run", "--", "--resume"},
 			wantArgv:    []string{"claude", "--resume"},
 			wantToken:   "test-token-work",
-			wantHeaders: "X-Trace: on",
+			wantHeaders: "X-Trace: on\nX-Switchboard-Dir: ~/Code/project",
 		},
 		{
 			name:        "without arguments",
 			args:        []string{"run"},
 			wantArgv:    []string{"claude"},
 			wantToken:   "test-token-work",
-			wantHeaders: "X-Trace: on",
+			wantHeaders: "X-Trace: on\nX-Switchboard-Dir: ~/Code/project",
 		},
 	}
 	for _, tt := range tests {
@@ -87,6 +88,22 @@ func TestRunGoesWhereTheRouterListensWhateverTheConfigSays(t *testing.T) {
 	}
 	if got, want := handed.only(t).env["ANTHROPIC_BASE_URL"], "http://"+routerListens; got != want {
 		t.Errorf("handed over with ANTHROPIC_BASE_URL %q, want %q, where the router listens", got, want)
+	}
+}
+
+func TestRunWithoutAWorkingDirectory(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/elsewhere"})
+	srv.start(t)
+	// The directory it was started in, removed since.
+	srv.deps.Getwd = func() (string, error) { return "", errors.New("getwd: no such file or directory") }
+	handed := recordHandOffs(t, &srv.deps)
+
+	if got := run(t, srv.deps, "run"); got != (result{}) {
+		t.Errorf("switchboard run = %+v, want exit status 0 and no output", got)
+	}
+	want := map[string]string{"ANTHROPIC_BASE_URL": "http://" + srv.listen}
+	if env := handed.only(t).only("ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS"); !maps.Equal(env, want) {
+		t.Errorf("handed over with\n%q\nwant\n%q, routed and telling the router no directory", env, want)
 	}
 }
 
@@ -320,7 +337,7 @@ func TestRunStartsClaudeCodesLocalSubcommandsAsIfSwitchboardWerentThere(t *testi
 			if !tt.local {
 				want["ANTHROPIC_BASE_URL"] = "http://" + srv.listen
 				want["CLAUDE_CODE_OAUTH_TOKEN"] = "test-token-work"
-				delete(want, "ANTHROPIC_CUSTOM_HEADERS")
+				want["ANTHROPIC_CUSTOM_HEADERS"] = "X-Switchboard-Dir: ~/Code/project"
 			}
 			if !maps.Equal(got.env, want) {
 				t.Errorf("handed over with\n%q\nwant\n%q", got.env, want)
@@ -399,7 +416,11 @@ func TestRunByTheNameClaude(t *testing.T) {
 			if want := append([]string{"claude"}, tt.args...); got.path != handed.claude || !slices.Equal(got.argv, want) {
 				t.Errorf("handed over to %s as %q, want %s as %q", got.path, got.argv, handed.claude, want)
 			}
-			want := map[string]string{"ANTHROPIC_BASE_URL": "http://" + srv.listen, "CLAUDE_CODE_OAUTH_TOKEN": "test-token-work"}
+			want := map[string]string{
+				"ANTHROPIC_BASE_URL":       "http://" + srv.listen,
+				"CLAUDE_CODE_OAUTH_TOKEN":  "test-token-work",
+				"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/project",
+			}
 			if env := got.only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_CUSTOM_HEADERS"); !maps.Equal(env, want) {
 				t.Errorf("handed over with\n%q\nwant\n%q, routed and pinned to no account", env, want)
 			}

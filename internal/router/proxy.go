@@ -25,9 +25,15 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-// PinHeader pins a request to an account, by id: run --account sets it
-// through ANTHROPIC_CUSTOM_HEADERS. It never goes upstream.
-const PinHeader = "X-Switchboard-Account"
+// The headers run tells the router of a session through, setting them in
+// ANTHROPIC_CUSTOM_HEADERS. Neither goes upstream.
+const (
+	// PinHeader pins a request to an account, by id, as run --account asks.
+	PinHeader = "X-Switchboard-Account"
+	// DirHeader names the directory the session's claude was started in, as
+	// EncodeDir encodes it, for the request ledger.
+	DirHeader = "X-Switchboard-Dir"
+)
 
 const (
 	// maxBody caps the body of a routed request, which is held in memory.
@@ -367,6 +373,7 @@ func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(p.upstream)
 	pr.Out.Header.Del(PinHeader)
+	pr.Out.Header.Del(DirHeader)
 }
 
 // countable narrows the encodings a request's Accept-Encoding offers to

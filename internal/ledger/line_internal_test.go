@@ -12,11 +12,11 @@ import (
 func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	long := strings.Repeat("☃", textMost)
 	longs := slices.Repeat([]string{long}, 2*listMost)
-	got := (&Line{Session: long, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost),
+	got := (&Line{Session: long, Dir: long, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost),
 		Shape:  Shape{ServiceTier: long, OutputConfig: OutputConfig{Effort: long}, ContextManagement: ContextManagement{Edits: longs}},
 		Answer: Answer{Error: Error{Type: "overloaded_error", Message: long}}}).written()
 	cut := strings.Repeat("☃", textMost/len("☃"))
-	for name, text := range map[string]string{"a session's id": got.Session, "a service tier": got.Shape.ServiceTier,
+	for name, text := range map[string]string{"a session's id": got.Session, "a directory": got.Dir, "a service tier": got.Shape.ServiceTier,
 		"an effort": got.Shape.OutputConfig.Effort, "an error's message": got.Answer.Error.Message} {
 		if text != cut {
 			t.Errorf("%s of %d bytes is written as %d, want %d: cut to %d bytes at the end of a character", name, len(long), len(text), len(cut), textMost)
@@ -86,7 +86,7 @@ func longest() *Line {
 	}
 	usage := `{"x":"` + strings.Repeat("<", usageMost-len(`{"x":""}`)) + `"}`
 	return &Line{
-		At: time.Now(), Request: text, Kind: text, Session: text, Model: text, Account: text, Reason: text, From: text,
+		At: time.Now(), Request: text, Kind: text, Session: text, Dir: text, Model: text, Account: text, Reason: text, From: text,
 		Tried: slices.Repeat([]Tried{{Account: text, Why: text}}, 2*listMost), Agent: text, Betas: texts,
 		Shape: Shape{Thinking: Thinking{Type: text, Display: text}, ToolChoice: ToolChoice{Type: text}, ServiceTier: text,
 			OutputConfig: OutputConfig{Effort: text}, Speed: text, InferenceGeo: text, ContextManagement: ContextManagement{Edits: texts}},

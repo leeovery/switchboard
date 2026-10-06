@@ -48,9 +48,11 @@ type Line struct {
 	// KindCount.
 	Request string `json:"request"`
 	Kind    string `json:"kind"`
-	// Session is the id of the session the request belongs to, and Model the
-	// model it asked for.
+	// Session is the id of the session the request belongs to, Dir the
+	// directory the session's claude was started in, as run tells the
+	// router, and Model the model it asked for.
 	Session string `json:"session,omitempty"`
+	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Account is the account whose answer the client got, none where the
 	// router answered it itself, and Reason why it was chosen, as the
@@ -178,7 +180,7 @@ type Error struct {
 func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
-	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
+	w.Request, w.Kind, w.Session, w.Dir, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Dir), cut(l.Model)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = nil
 	for _, t := range l.Tried[:min(len(l.Tried), listMost)] {

@@ -25,6 +25,7 @@ func main() {
 		Environ:       os.Environ,
 		Args:          os.Args,
 		HomeDir:       os.UserHomeDir,
+		Getwd:         os.Getwd,
 		Executable:    os.Executable,
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion(os.Getenv, os.UserHomeDir, os.Executable),

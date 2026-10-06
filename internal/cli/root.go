@@ -42,6 +42,9 @@ type Deps struct {
 	// itself.
 	Args    []string
 	HomeDir func() (string, error)
+	// Getwd returns the working directory, as os.Getwd does: the one run
+	// starts Claude Code in, which it tells the router of.
+	Getwd func() (string, error)
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes
 	// over as it looks for claude.

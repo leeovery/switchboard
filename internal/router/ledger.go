@@ -60,6 +60,7 @@ func (p *proxy) line(ex *exchange, h http.Header, took time.Duration, canceled b
 		Request:  ex.id,
 		Kind:     ex.kind(),
 		Session:  ex.req.Session,
+		Dir:      DecodeDir(h.Get(DirHeader)),
 		Model:    ex.req.Model,
 		Account:  cmp.Or(ex.answered, ex.account.ID),
 		Reason:   ex.reason,

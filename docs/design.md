@@ -1453,7 +1453,7 @@ first day a router that has it runs, so nothing before then is in it.
   with the request, when it logs it `routed` (see Logging), as one JSON object:
 
   ```json
-  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
   - `at`: when it arrived, in UTC, to the millisecond.
@@ -1461,8 +1461,13 @@ first day a router that has it runs, so nothing before then is in it.
     while the router runs but not across restarts.
   - `kind`: `message`, a request that spends quota; `check`, Claude Code's quota check (see
     Choosing an account); or `count`, a token count, which spends nothing.
-  - `session`: Claude Code's session id, left out where a request carries none. `model`: the model
-    it asked for. Each is cut to 200 bytes, as the request stream cuts them.
+  - `session`: Claude Code's session id, left out where a request carries none. `dir`: the
+    directory the session's `claude` was started in, as `run` tells the router (see Launching), the
+    home directory at its start shown as `~`, as `~/Code/api`; left out where a request names none,
+    as one from a `claude` that `run` didn't start doesn't. It's the directory `claude` was started
+    in, which a session doesn't keep: one resumed elsewhere carries the new one from then on.
+    `model`: the model it asked for. Each is cut to 200 bytes, as the request stream cuts a
+    session's id and a model's.
   - `account`: the account whose answer the client got, by its id. `reason`: why that account was
     chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
     limit`). `from`: the account the request's session was on before, where the request moved it.
@@ -1783,7 +1788,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 
 | Package | Owns |
 |---|---|
-| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
+| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, working directory, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
 | `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text to diff with a frame's (`--print`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot and the eye to judge against the final page (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
@@ -2022,6 +2027,13 @@ fails as it is; one that parses has every problem reported at once:
   account, and notes it at debug after, until the account can be sent on again. The router keeps
   a thousand sessions of an account, and a thousand accounts, told of at most, forgetting them past
   that, and the log warns of each once more.
+- `X-Switchboard-Dir: <dir>`, set by `run` through `ANTHROPIC_CUSTOM_HEADERS`, names the directory
+  the session's `claude` was started in, for the request ledger. Its value is percent-encoded where
+  a header can't carry it as it is, and nowhere else: a control character, such as a newline,
+  which would end the header's line; each byte of a character past ASCII; a space at either end,
+  which would be trimmed off; and a percent sign. One that doesn't decode is passed over, and the
+  request's line names no directory. It is stripped before the request goes upstream, as the pin
+  header is, routed or passed through, so a user's directory never reaches the API.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
   its answer in, to count it for the request stream (see Control API): gzip, deflate and identity,
   in the order the client gave them, or identity where it offered none of those. A request passed
@@ -2118,13 +2130,17 @@ Each account:
   says it listens, not where the config says, which may have changed since,
   `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the conversation goes to,
   or, while the primary's isn't usable, `--account`'s, else the first account's with a usable token,
-  and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set.
+  and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set. The
+  directory header is added too, naming the directory `run` started in, which Claude Code starts in
+  as well, the home directory at its start shown as `~`, as `~/Code/api`, unless `run` can't read
+  it, as when it's been removed since (see Proxy rules).
 - **Direct:** otherwise it connects directly, on `--account`'s token, else the primary's, else the
-  first account's with a usable token, without the base URL or the pin, saying why in one line on
-  stderr: `switchboard: the router isn't running — connecting directly on work · Work`. Either way,
-  and with `--direct`, a pin inherited from the environment, as from a session this one is started
-  within, goes: what this launch pins is the only pin. `--direct` removes the token and the base
-  URL, so Claude Code uses its own login.
+  first account's with a usable token, without the base URL, the pin or the directory, and says why
+  in a line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
+  Either way, and with `--direct`, a pin or a directory inherited from the environment, as from a
+  session this one is started within, goes: what this launch pins is the only pin, and the directory
+  it names the only directory. `--direct` removes the token and the base URL, so Claude Code uses
+  its own login.
 - **Never in the way:** switchboard never stands between the user and `claude`. When it can't take
   part at all, as when it can't read its config, can't locate its state directory, or no account has
   a usable token, `run` starts `claude` as if switchboard weren't there, environment and arguments

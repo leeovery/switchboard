@@ -1,6 +1,7 @@
 package launch_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -35,6 +36,10 @@ const (
 	proxyAddr = "127.0.0.1:4848"
 	// unhealthy is why an unhealthy router says it is.
 	unhealthy = "5 of the 8 requests in the last 5 minutes failed"
+	// homeDir is the user's home directory, and project a directory in it
+	// that Claude Code starts in.
+	homeDir = "/home/tester"
+	project = homeDir + "/Code/project"
 )
 
 // launched is when, by the wall clock, the launcher starts claude.
@@ -70,6 +75,7 @@ func route(r launch.Router, account string) launch.Route {
 func TestRunThroughAHealthyRouter(t *testing.T) {
 	path := t.TempDir()
 	h := newHarness(t, "HOME=/home/tester", "PATH="+path, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on")
+	h.launcher.Dir = project
 	args := []string{"--print", "a prompt", "--account", "work", "", "--", "--direct"}
 
 	if err := h.launcher.Run(t.Context(), route(healthy(), "side"), args); err != nil {
@@ -85,7 +91,7 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 		"PATH":                     path,
 		"ANTHROPIC_BASE_URL":       "http://" + proxyAddr,
 		"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
-		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side",
+		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
 		t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
@@ -262,7 +268,7 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 		"HOME=/home/tester",
 		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
 		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
-		"ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Account: side",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere",
 	}
 	tests := []struct {
 		name      string
@@ -306,6 +312,7 @@ func TestRunWithoutAHealthyRouter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t, inherited...)
+			h.launcher.Dir = project
 
 			if err := h.launcher.Run(t.Context(), route(tt.router, tt.account), []string{"--resume"}); err != nil {
 				t.Fatalf("Run() error = %v", err)
@@ -356,6 +363,8 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 		// headers are those the environment gives Claude Code, "" for none.
 		headers string
 		account string
+		// dir is the directory Claude Code starts in, "" where it isn't known.
+		dir string
 		// want are those Claude Code starts with, "" for none.
 		want string
 	}{
@@ -363,8 +372,22 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 		{name: "none, pinned", account: "side", want: "X-Switchboard-Account: side"},
 		{name: "others, unpinned", headers: "X-Trace: on\nX-Team: core", want: "X-Trace: on\nX-Team: core"},
 		{name: "others, pinned", headers: "X-Trace: on\nX-Team: core", account: "side", want: "X-Trace: on\nX-Team: core\nX-Switchboard-Account: side"},
+		{
+			name:    "others, pinned, in a directory",
+			headers: "X-Trace: on\nX-Team: core",
+			account: "side",
+			dir:     project,
+			want:    "X-Trace: on\nX-Team: core\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+		},
 		{name: "a pin inherited, unpinned", headers: "X-Switchboard-Account: work"},
 		{name: "a pin inherited among others, pinned", headers: "x-switchboard-account : work\r\nX-Trace: on\n\n", account: "side", want: "X-Trace: on\nX-Switchboard-Account: side"},
+		{name: "a directory inherited, in none known", headers: "X-Switchboard-Dir: ~/Code/elsewhere"},
+		{
+			name:    "a directory inherited among others, in another",
+			headers: "x-switchboard-dir : ~/Code/elsewhere\r\nX-Trace: on\n\n",
+			dir:     project,
+			want:    "X-Trace: on\nX-Switchboard-Dir: ~/Code/project",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -373,6 +396,7 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 				environ = append(environ, "ANTHROPIC_CUSTOM_HEADERS="+tt.headers)
 			}
 			h := newHarness(t, environ...)
+			h.launcher.Dir = tt.dir
 
 			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
@@ -380,6 +404,58 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 			got, set := h.environment(t)["ANTHROPIC_CUSTOM_HEADERS"]
 			if got != tt.want || set != (tt.want != "") {
 				t.Errorf("started with ANTHROPIC_CUSTOM_HEADERS %q (set: %v), want %q", got, set, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunTellsTheRouterTheDirectoryClaudeCodeStartsIn(t *testing.T) {
+	tests := []struct {
+		name string
+		// dir is the directory Claude Code starts in, and home the user's home
+		// directory, each "" where it isn't known.
+		dir, home string
+		// want is the directory the router reads, "" for none, and wantSent
+		// the header's value, where it isn't want.
+		want, wantSent string
+	}{
+		{name: "within home, from there", dir: project, home: homeDir, want: "~/Code/project"},
+		{name: "home itself", dir: homeDir, home: homeDir, want: "~"},
+		{name: "within a home given with a slash at its end", dir: project, home: homeDir + "/", want: "~/Code/project"},
+		{name: "outside home, as it is", dir: "/srv/project", home: homeDir, want: "/srv/project"},
+		{name: "beside home, its name starting as home's does, as it is", dir: homeDir + "-old/project", home: homeDir, want: homeDir + "-old/project"},
+		{name: "without a home directory, as it is", dir: project, want: project},
+		{name: "without a working directory, none", home: homeDir},
+		{name: "without either, none"},
+		{name: "with a space", dir: homeDir + "/Code/my project", home: homeDir, want: "~/Code/my project"},
+		{name: "ending in a space, which a header would lose", dir: project + " ", home: homeDir, want: "~/Code/project ", wantSent: "~/Code/project%20"},
+		{
+			name:     "with a newline, a percent sign and characters past ASCII",
+			dir:      homeDir + "/Code/café\n100% ☃",
+			home:     homeDir,
+			want:     "~/Code/café\n100% ☃",
+			wantSent: "~/Code/caf%C3%A9%0A100%25 %E2%98%83",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.launcher.Dir, h.launcher.Home = tt.dir, tt.home
+
+			if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			headers, set := h.environment(t)["ANTHROPIC_CUSTOM_HEADERS"]
+			var want string
+			if tt.want != "" {
+				want = "X-Switchboard-Dir: " + cmp.Or(tt.wantSent, tt.want)
+			}
+			if headers != want || set != (want != "") {
+				t.Errorf("started with ANTHROPIC_CUSTOM_HEADERS %q (set: %v), want %q", headers, set, want)
+			}
+			sent := strings.TrimPrefix(headers, "X-Switchboard-Dir: ")
+			if got := router.DecodeDir(sent); got != tt.want {
+				t.Errorf("the router reads the directory sent as %q as %q, want %q", sent, got, tt.want)
 			}
 		})
 	}
@@ -515,8 +591,9 @@ func TestDirectStartsClaudeCodeOnItsOwnLogin(t *testing.T) {
 		"HOME=/home/tester",
 		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
 		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
-		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side\nX-Trace: on",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere\nX-Trace: on",
 	)
+	h.launcher.Dir = project
 
 	if err := h.launcher.Direct([]string{"--print", "a prompt"}); err != nil {
 		t.Fatalf("Direct() error = %v", err)
@@ -978,7 +1055,9 @@ type harness struct {
 	stderr              strings.Builder
 }
 
-// newHarness returns a harness whose launches start from environ.
+// newHarness returns a harness whose launches start from environ, for a user
+// whose home is homeDir, in a working directory not known unless a test gives
+// one.
 func newHarness(t *testing.T, environ ...string) *harness {
 	t.Helper()
 	dir := t.TempDir()
@@ -988,6 +1067,7 @@ func newHarness(t *testing.T, environ ...string) *harness {
 	}
 	h.launcher = launch.Launcher{
 		Environ:      environ,
+		Home:         homeDir,
 		InstallPaths: []string{h.claude},
 		Executable:   func() (string, error) { return h.switchboard, nil },
 		PID:          pid,

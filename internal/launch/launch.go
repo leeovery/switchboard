@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -41,6 +42,12 @@ type Launcher struct {
 	// Environ is the environment Claude Code starts from, as os.Environ
 	// gives it, and whose PATH it's looked for on.
 	Environ []string
+	// Dir is the directory Claude Code starts in, as os.Getwd gives it, and
+	// Home the user's home directory, as os.UserHomeDir does, each "" where
+	// it isn't known: through the router, Claude Code's requests tell it Dir,
+	// from Home where it's within it, as ~/Code/api.
+	Dir  string
+	Home string
 	// InstallPaths are where Claude Code's installers put it, tried in order
 	// when it isn't on PATH.
 	InstallPaths []string
@@ -77,15 +84,16 @@ type Route struct {
 
 // Run starts Claude Code with args in this process's place. While the router
 // is healthy, Claude Code sends its requests there, to the address the router
-// says its proxy listens on, whatever the config says, its conversation
-// pinned when an account is, on the primary's token, whichever account the
-// conversation goes to: what isn't the conversation goes out on Claude Code's
-// own token, and so lands on the primary. Otherwise it sends them straight to
-// the API, on the pinned account's token, else the primary's, and Stderr
-// hears why. Either way, failing those, it starts on the first account's with
-// a usable token, and with none, Unaided. A pin that can't be kept, to an
-// account not configured or without a usable token, fails: it's the command
-// line's mistake. Run returns only when Claude Code couldn't start.
+// says its proxy listens on, whatever the config says, telling it the
+// directory Claude Code starts in, its conversation pinned when an account
+// is, on the primary's token, whichever account the conversation goes to:
+// what isn't the conversation goes out on Claude Code's own token, and so
+// lands on the primary. Otherwise it sends them straight to the API, on the
+// pinned account's token, else the primary's, and Stderr hears why. Either
+// way, failing those, it starts on the first account's with a usable token,
+// and with none, Unaided. A pin that can't be kept, to an account not
+// configured or without a usable token, fails: it's the command line's
+// mistake. Run returns only when Claude Code couldn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -102,10 +110,10 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
-		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account)
+		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.shownDir())
 		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
 	} else {
-		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("")
+		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")
 		logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "account", c.account.ID, "chosen", c.why, "claude", path)
 		Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	}
@@ -121,7 +129,7 @@ func (l Launcher) Direct(args []string) error {
 		return err
 	}
 	logger.Info("starting claude", "mode", "own login", "claude", path)
-	return l.exec(path, args, environ(l.Environ).without(claude.TokenEnv, claude.BaseURLEnv).pinnedTo(""))
+	return l.exec(path, args, environ(l.Environ).without(claude.TokenEnv, claude.BaseURLEnv).pinnedTo("").workingIn(""))
 }
 
 // Local starts Claude Code with args, which run one of its local
@@ -227,6 +235,18 @@ func (l Launcher) find() (string, error) {
 		logger.Info("started again in place of the claude it started; looking past it", "claude", after)
 	}
 	return claude.FindAfter(after, env.get("PATH"), l.InstallPaths, l.Executable)
+}
+
+// shownDir returns Dir as the router is told it: within Home, from there, as
+// ~/Code/api, and anywhere else as it is.
+func (l Launcher) shownDir() string {
+	if l.Home == "" {
+		return l.Dir
+	}
+	if rel, err := filepath.Rel(l.Home, l.Dir); err == nil && filepath.IsLocal(rel) {
+		return filepath.Join("~", rel)
+	}
+	return l.Dir
 }
 
 // How the router can answer its health check, as the log names it.
