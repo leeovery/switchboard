@@ -676,9 +676,8 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `version` | Print the version, as `--version` does |
 | `help [command]` | List the commands, or print a command's help, as `-h` does |
 
-`requests` and `history` are proposed names, not yet chosen, to settle before milestone 6 builds
-them. The plain text they print is a first cut, to be designed with their owner as `status`'s is
-(see Backlog); agents read their `--json`.
+The plain text `requests` and `history` print is a first cut, to be designed with their owner as
+`status`'s is (see Backlog); agents read their `--json`.
 
 A command that needs the router fails without it, saying `the router isn't running: start it
 with switchboard service install (or switchboard serve)`. Any notice a command gives on stderr,
@@ -1494,6 +1493,10 @@ first day a router that has it runs, so nothing before then is in it.
   - `limits`: the answer's `anthropic-ratelimit-unified-*` headers, their prefix taken off, their
     values as given: each window's use, reset and status as the answer left them. Beside the
     request's usage, they say how many tokens a point of a window is worth.
+
+  What's kept can be trimmed, or kept for less time, or packed tighter, once the views that read it
+  are designed; what isn't kept can never be added for the days gone by. So it keeps all of this
+  until then.
 
   Never written: the messages, the system prompt, the tools' definitions, inputs and results, or
   anything else of the conversation; `metadata.user_id`, which carries a device's id and an
