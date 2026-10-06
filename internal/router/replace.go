@@ -59,10 +59,10 @@ func (r *Router) hold(ls listeners) *handover.Held {
 }
 
 // drainHandingOver stops the proxy taking requests, giving those in flight
-// DrainTimeout to finish while the control API answers, so a session
-// launched meanwhile sends its requests to the proxy's socket, held open,
-// where they wait for the router this one becomes; then closes the control
-// API, and returns held, to hand over. Told to stop meanwhile, as by a
+// their time to finish, as drain does, while the control API answers, so a
+// session launched meanwhile sends its requests to the proxy's socket, held
+// open, where they wait for the router this one becomes; then closes the
+// control API, and returns held, to hand over. Told to stop meanwhile, as by a
 // signal, it stops as at one after all: the sockets held close, so no
 // request waits on one nothing will take up, its control socket is removed,
 // and then the control API goes, so a launcher that finds the router gone
@@ -72,7 +72,7 @@ func (r *Router) drainHandingOver(ctx context.Context, control, proxy *http.Serv
 	refuse(proxy)
 	drained := make(chan struct{})
 	go func() {
-		drain(proxy)
+		r.drain(proxy)
 		close(drained)
 	}()
 	select {

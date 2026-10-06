@@ -389,10 +389,11 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   notification of them. The client still gets the 502.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
-  be read 400, neither going upstream nor counting towards the router's health. Replay only
-  happens before response headers have been sent; a failure mid-stream is passed through and
-  Claude Code retries. Nor is a request that couldn't reach the upstream at all replayed
-  elsewhere: that isn't the account's fault. Claude Code gets a 502 and retries.
+  be read 400, neither going upstream nor counting towards the router's health, though each has
+  its line in the request ledger (see The request ledger). Replay only happens before response
+  headers have been sent; a failure mid-stream is passed through and Claude Code retries. Nor is
+  a request that couldn't reach the upstream at all replayed elsewhere: that isn't the account's
+  fault. Claude Code gets a 502 and retries.
 - **Uploaded files (pending):** Claude Code uploads files on its own token, the primary's. Should a
   conversation request turn out to refer to one by id, which the artifact check will show (see
   Checks owed), such a request is to go to the primary, the only account that can read the file.
@@ -1446,17 +1447,19 @@ back through it, as agents do through `requests` and `history` (see Commands). I
 first day a router that has it runs, so nothing before then is in it.
 
 - **A line a request:** each request the proxy routes, whether it went upstream or the router
-  answered it itself, as when no account has room; not those passed through, nor the router's
-  probes and primes, which the readings history notes. It keeps everything about the request but
-  its content, as a day not recorded can't be recorded after: how the router handled it, the
+  answered it itself, as when no account has room, or its body is over 64 MiB or can't be read
+  (see Requests that need special handling); not those passed through, nor the router's probes
+  and primes, which the readings history notes. It keeps everything about the request but its
+  content, as a day not recorded can't be recorded after: how the router handled it, the
   request's shape, and everything the API said back. The line is written as the router finishes
-  with the request, when it logs it `routed` (see Logging), as one JSON object:
+  with the request, when it logs it `routed` (see Logging), or refuses its body, as one JSON
+  object:
 
   ```json
   {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
-  - `at`: when it arrived, in UTC, to the millisecond.
+  - `at`: when it arrived, before its body was read, in UTC, to the millisecond.
   - `request`: the router's id for it, as its `routed` line and the request stream give it, unique
     while the router runs but not across restarts.
   - `kind`: `message`, a request that spends quota; `check`, Claude Code's quota check (see
@@ -1473,18 +1476,25 @@ first day a router that has it runs, so nothing before then is in it.
     cut to 200 bytes once anything shaped like a token in it is hidden: a session's id and a
     model's at their end, as the request stream cuts them, and a directory at its start, `…`
     standing for what's cut, so it keeps its own name.
-  - `account`: the account whose answer the client got, by its id. `reason`: why that account was
-    chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
-    limit`). `from`: the account the request's session was on before, where the request moved it.
+  - `account`: the account whose answer the client got, by its id. `reason` and `from` say how
+    that account was chosen: `reason` why, as the `routed` line gives it (`sticky`, `new`,
+    `pinned`, `moved: personal hit its limit`), and `from` the account the request's session was
+    on before, where the request moved it and the move stands: a request every account refused
+    takes its moves back, unless another request of the session has been routed since (see
+    Requests that need special handling). Where the client got an answer held back, the 429 of the
+    first account whose limit the request reached, as every account after it refused the request,
+    they're as the request went out on that account, while the `routed` line gives the last
+    account's; the moves after it are in `tried`.
     `tried`: the accounts it went out on that couldn't serve it, in the order tried, and why each
     was left, as `[{"account": "personal", "why": "hit its limit"}]`, where there were any: the
-    last may be the account whose answer the client got, where none was left to try after it.
+    account whose answer the client got may be among them, the last, where none was left to try
+    after it, or the one whose answer was held back.
   - `status`: the status the client got, 0 where it went away before an answer. `canceled`: true
     where it went away before the end. `attempts`: how many times it went upstream, 0 where the
     router answered it itself.
-  - `first_ms` and `total_ms`: how long after it arrived its answer's first byte came, and its end.
-    `first_ms` is left out where the client got no answer of the upstream's, as where the router
-    answered it itself.
+  - `first_ms` and `total_ms`: how long after it arrived its answer's first byte passed on to the
+    client, and its end. `first_ms` is left out where the client got no answer of the upstream's,
+    as where the router answered it itself.
   - `agent` and `betas`: Claude Code's user agent, which carries its version, and the features its
     `anthropic-beta` header asked for, some of which change what a request costs.
   - `shape`: the request's size in bytes; how many messages, system blocks and tools it carried, as
@@ -1508,6 +1518,12 @@ first day a router that has it runs, so nothing before then is in it.
     values as given: each window's use, reset and status as the answer left them. Beside the
     request's usage, they say how many tokens a point of a window is worth.
 
+  Of an answer whose body the router couldn't read as it passed, one in an encoding it can't
+  decode, or one it fell over 4 MiB behind reading, only what the header gives is kept: `answer`'s
+  id, and `limits`. Of a request whose body couldn't be read, the line holds what the router knows
+  without it: no `model`, `account` or `shape`, `reason` empty, and `kind` a `count` where its path
+  spends nothing, else a `message`.
+
   What's kept can be trimmed, or kept for less time, or packed tighter, once the views that read it
   are designed; what isn't kept can never be added for the days gone by. So it keeps all of this
   until then.
@@ -1522,8 +1538,11 @@ first day a router that has it runs, so nothing before then is in it.
   and goes on. A goroutine of the ledger's own writes the lines to the day's file, as the readings
   history writes its own (see Files). A line past the queue's end is dropped, logged once until the
   queue catches up; a write that fails is logged once until one succeeds, and its lines go
-  unwritten. A benchmark of the proxy path, taken before the ledger joins it and again after, shows
-  what the ledger costs a request (see Milestones).
+  unwritten. As the router stops, the goroutine writes what's queued once the requests in flight
+  have finished: those still going after their 30 seconds are cut off, and get 5 seconds more to
+  unwind, their lines with them; the lines of any still in flight then go unwritten, the log
+  warning how many. A benchmark of the proxy path, taken before the ledger joins it and again
+  after, shows what the ledger costs a request (see Milestones).
 - **A summary a day:** once a day has ended, on the hourly round that compresses and prunes the
   files, the router writes the day's summary from the day's lines and the day's readings history.
   For each account, by model, it holds the requests that went upstream, those the router answered
@@ -1609,8 +1628,10 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   directory can't be made private, that it can't be written, once until it can be (`can't write the
   request ledger`), that lines were dropped from it for its falling behind, once until it catches up
   (`request ledger fell behind`), that a request's line can't be put as JSON, once, a file that
-  can't be read or was read short, as the readings history's are warned of, and a file that couldn't
-  be compressed, pruned or summarised.
+  can't be read or was read short, as the readings history's are warned of, a file that couldn't
+  be compressed, pruned or summarised, and that the router stopped with requests still in flight,
+  whose lines go unwritten, saying how many (`requests still in flight as the router stops; their
+  lines go unwritten`).
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with

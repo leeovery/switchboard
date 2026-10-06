@@ -308,7 +308,8 @@ func respond(r *http.Request, status int, h http.Header, body string) *http.Resp
 // it over a network, as those whose clock is synctest's can't: it answers
 // each request, by the token it carries, with the account's next answer, the
 // last answering every request after, failing where the answer is none, and
-// notes the account each went out on.
+// notes the account each went out on. An answer that waits holds up no
+// other.
 type scriptedUpstream struct {
 	mu       sync.Mutex
 	answers  map[string][]answer
@@ -322,18 +323,24 @@ func scripted(work, side answer) *scriptedUpstream {
 
 func (u *scriptedUpstream) RoundTrip(r *http.Request) (*http.Response, error) {
 	_ = r.Body.Close()
+	if resp := u.next(r)(r); resp != nil {
+		return resp, nil
+	}
+	return nil, errors.New("dial tcp: connection refused")
+}
+
+// next returns the answer to r, by the token it carries, noting the account
+// it went out on.
+func (u *scriptedUpstream) next(r *http.Request) answer {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	u.accounts = append(u.accounts, map[string]string{workToken: "work", sideToken: "side"}[token])
+	u.accounts = append(u.accounts, map[string]string{workToken: "work", personalToken: "personal", sideToken: "side"}[token])
 	answers := u.answers[token]
 	if len(answers) > 1 {
 		u.answers[token] = answers[1:]
 	}
-	if resp := answers[0](r); resp != nil {
-		return resp, nil
-	}
-	return nil, errors.New("dial tcp: connection refused")
+	return answers[0]
 }
 
 // sent returns the account each request went out on, in order.

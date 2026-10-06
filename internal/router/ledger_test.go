@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -11,7 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
@@ -152,4 +156,43 @@ func TestTheLedgerHoldsTheLineOfARequestFinishedAsTheRouterStops(t *testing.T) {
 	if len(lines) != 1 || lines[0].Status != http.StatusOK {
 		t.Errorf("once the router stopped, the ledger holds %+v, want the line of the request it finished", lines)
 	}
+}
+
+func TestTheLedgerHoldsTheLineOfARequestTheRouterCutsOffAsItStops(t *testing.T) {
+	// The upstream begins its answer, and holds the rest until the request is
+	// cut off, once the drain's time has passed. Counting the answer then
+	// takes a while to finish, as on a loaded machine, so the request is
+	// still unwinding as the drain ends.
+	up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, claudetest.MessageStart)
+		_ = http.NewResponseController(w).Flush()
+		<-r.Context().Done()
+	})
+	cfg := runConfig(t, up.URL)
+	cfg.Provider, cfg.DrainFor = slowToFinish{}, 50*time.Millisecond
+	stop := runRouter(t, cfg)
+	if resp := send(t, http.MethodPost, "http://"+cfg.Listen+"/v1/messages", claudeCode(workToken), strings.NewReader(messages)); resp.StatusCode != http.StatusOK {
+		t.Fatalf("the answer began %d, want 200", resp.StatusCode)
+	}
+
+	if err := stop(); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	lines := router.LedgerLines(t, filepath.Join(cfg.StateDir, "ledger"))
+	if len(lines) != 1 || lines[0].Status != http.StatusOK || !lines[0].Canceled {
+		t.Errorf("once the router stopped, the ledger holds %+v, want the line of the request it cut off", lines)
+	}
+}
+
+// slowToFinish is Claude's provider, but for taking a while to finish counting
+// an answer once its body has ended.
+type slowToFinish struct {
+	claude.Provider
+}
+
+func (p slowToFinish) Count(h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply) {
+	tokens, reply := p.Provider.Count(h, body, chars)
+	time.Sleep(200 * time.Millisecond)
+	return tokens, reply
 }

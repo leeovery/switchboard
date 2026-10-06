@@ -56,12 +56,12 @@ type Line struct {
 	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Account is the account whose answer the client got, none where the
-	// router answered it itself, and Reason why it was chosen, as the
-	// routed line gives it.
+	// router answered it itself, and Reason why it was chosen, in the words
+	// the routed line uses.
 	Account string `json:"account,omitempty"`
 	Reason  string `json:"reason"`
 	// From is the account the request's session was on before, where the
-	// request moved it.
+	// request moved it, and the move stands.
 	From string `json:"from,omitempty"`
 	// Tried are the accounts the request went out on that couldn't serve
 	// it, in the order tried.
@@ -74,7 +74,8 @@ type Line struct {
 	// router answered it itself.
 	Attempts int `json:"attempts"`
 	// FirstMS is how long after the request arrived its answer's first byte
-	// came, nil where none came, and TotalMS its end, in milliseconds.
+	// passed on to the client, nil where none did, and TotalMS its end, in
+	// milliseconds.
 	FirstMS *int64 `json:"first_ms,omitempty"`
 	TotalMS int64  `json:"total_ms"`
 	// Agent is the client's user agent, and Betas the features its request
@@ -82,7 +83,8 @@ type Line struct {
 	// request costs.
 	Agent string   `json:"agent,omitempty"`
 	Betas []string `json:"betas,omitempty"`
-	// Shape is the request's shape, zero where its body isn't a request.
+	// Shape is the request's shape, zero where its body isn't a request, or
+	// couldn't be read.
 	Shape Shape `json:"shape,omitzero"`
 	// Reply is what came back, of the answer the client got.
 	Reply

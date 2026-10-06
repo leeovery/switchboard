@@ -708,7 +708,7 @@ func (c *fixedChooser) Choose(_ context.Context, req router.Request) router.Choi
 // remembers no session.
 func (c *fixedChooser) Answered(router.Request, string, string) {}
 
-func (c *fixedChooser) Forget(router.Request) string { return "" }
+func (c *fixedChooser) Forget(router.Request) (string, bool) { return "", false }
 
 func (c *fixedChooser) requests() []router.Request {
 	c.mu.Lock()

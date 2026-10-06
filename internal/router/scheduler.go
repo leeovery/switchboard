@@ -66,7 +66,7 @@ func (s *scheduler) Answered(req Request, account, reason string) {
 	s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason})
 }
 
-func (s *scheduler) Forget(req Request) string {
+func (s *scheduler) Forget(req Request) (string, bool) {
 	back, ok := s.sessions.forget(req)
 	switch {
 	case !ok:
@@ -75,7 +75,7 @@ func (s *scheduler) Forget(req Request) string {
 	default:
 		logger.Info("session back where it was before its request", "id", req.ID, "session", status.ShortID(req.Session), "model", req.Model, "account", back)
 	}
-	return back
+	return back, ok
 }
 
 // decide chooses on what's known now, and returns the situation the choice

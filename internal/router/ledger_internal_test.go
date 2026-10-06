@@ -5,11 +5,13 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -19,7 +21,9 @@ import (
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 // The user agent and betas of the requests the ledger's tests send, as
@@ -32,9 +36,7 @@ const (
 func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 	// quotaCheck is Claude Code's quota check, on Claude Haiku.
 	const quotaCheck = `{"model":"` + haiku + `","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`
-	asked := ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Model: opus, Account: "work", Reason: reasonSticky,
-		Status: http.StatusOK, Attempts: 1, Agent: testAgent, Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
-		Shape: ledger.Shape{Bytes: len(opusAsked), MaxTokens: new(int64(1))}}
+	asked := stickyLine()
 	// answered is what the answer AnswerPieces streams tells of itself, and
 	// its usage, which Message's is too.
 	answered := ledger.Reply{Answer: ledger.Answer{Model: opus, Stop: "end_turn"},
@@ -46,6 +48,8 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 	limits := map[string]string{"status": "allowed", "5h-utilization": "0.23"}
 	// unreadable is an answer encoded as the router can't decode.
 	const unreadable = "\x1b\x2c\x00\xf8 brotli, notionally"
+	// overflowing is a streamed answer longer than can wait to be counted.
+	overflowing := claudetest.MessageStart + strings.Repeat(claudetest.TextDelta(strings.Repeat("x", 1000)), tapMost/1000) + claudetest.MessageEnd
 	tests := []struct {
 		name string
 		// path is the request's, /v1/messages unless it says, and body its
@@ -53,6 +57,9 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 		path, body, session string
 		// work and side are the answers of each, in turn.
 		work, side []answer
+		// late is how long the counting of an answer takes to start, if it's
+		// late.
+		late time.Duration
 		// goneAfter is when the client goes, if it does.
 		goneAfter time.Duration
 		want      ledger.Line
@@ -73,6 +80,30 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 				l.FirstMS, l.Reply = ms(0), answered
 				l.Answer.Blocks = map[string]int{"text": 1}
 			}),
+		},
+		{
+			name:    "a message answered whole, its counting a second late, its first byte when it passed",
+			session: "one",
+			work:    []answer{messageWhole},
+			late:    time.Second,
+			want: edited(asked, func(l *ledger.Line) {
+				l.FirstMS, l.Reply = ms(0), answered
+				l.Answer.Blocks = map[string]int{"text": 1}
+			}),
+		},
+		{
+			name:    "a streamed answer, its counting late past its first byte, which a second on passed",
+			session: "one",
+			work:    []answer{streamed(time.Second, claudetest.AnswerPieces("Hello")...)},
+			late:    2500 * time.Millisecond,
+			want:    edited(asked, func(l *ledger.Line) { l.FirstMS, l.TotalMS, l.Reply = ms(1000), 6000, answered }),
+		},
+		{
+			name:    "an answer its counting fell too far behind to count, its header read alone",
+			session: "one",
+			work:    []answer{answeredAs(limited, overflowing)},
+			late:    time.Second,
+			want:    edited(asked, func(l *ledger.Line) { l.FirstMS, l.Answer.ID, l.Limits = ms(0), "req_011CTest", limits }),
 		},
 		{
 			name:    "an answer whose header gives its id and limits, which called a tool",
@@ -99,6 +130,16 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 			want: edited(asked, func(l *ledger.Line) {
 				l.Account, l.Reason, l.From, l.Attempts, l.FirstMS = "side", "moved: work hit its limit", "work", 2, ms(0)
 				l.Tried = []ledger.Tried{{Account: "work", Why: whyLimit}}
+			}),
+		},
+		{
+			name:    "a limit reached, then a refusal on the account it went to, the limit's 429 the client's, as work was picked",
+			session: "one",
+			work:    []answer{limitHit},
+			side:    []answer{forbidden},
+			want: edited(asked, func(l *ledger.Line) {
+				l.Status, l.Attempts, l.FirstMS, l.Limits = http.StatusTooManyRequests, 2, ms(0), map[string]string{"status": "rejected"}
+				l.Tried = []ledger.Tried{{Account: "work", Why: whyLimit}, {Account: "side", Why: whyRefused}}
 			}),
 		},
 		{
@@ -161,6 +202,9 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 				r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 				r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: tt.work, sideToken: tt.side}}
+				if tt.late > 0 {
+					r.proxy.provider = slowCounting{late: tt.late}
+				}
 				lines := keepingLedger(t, r)
 
 				rec := routeAs(clientGoing(t, tt.goneAfter), r, cmp.Or(tt.path, "/v1/messages"), tt.session, cmp.Or(tt.body, opusAsked))
@@ -210,6 +254,145 @@ func TestTheLedgerHoldsALineOfARequestTheRouterAnswersItself(t *testing.T) {
 	})
 }
 
+func TestALineOfAnAnswerHeldBackIsOfItsAccountAsItWasPicked(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Personal has a token too. The session is on work, and side's quota
+		// needs using sooner than personal's.
+		r := newTestRouterReading(t, at(start), &stubProber{}, tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken}.Read)
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("personal", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+		// Work refuses the request, which moves to side, at its limit, then to
+		// personal, which refuses it too: side's 429 is the client's.
+		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: {forbidden}, sideToken: {limitHit}, personalToken: {forbidden}}}
+		lines := keepingLedger(t, r)
+
+		if rec := routeAs(t.Context(), r, "/v1/messages", "one", opusAsked); rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("answered %d, want side's 429", rec.Code)
+		}
+		want := edited(stickyLine(), func(l *ledger.Line) {
+			l.Account, l.Reason, l.From = "side", "moved: work was refused", "work"
+			l.Tried = []ledger.Tried{{Account: "work", Why: whyRefused}, {Account: "side", Why: whyLimit}, {Account: "personal", Why: whyRefused}}
+			l.Status, l.Attempts, l.FirstMS, l.Limits = http.StatusTooManyRequests, 3, ms(0), map[string]string{"status": "rejected"}
+		})
+		checkLines(t, lines(), want)
+	})
+}
+
+func TestALineKeepsAMoveAnotherRequestOfItsSessionStayedOn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newTestRouter(t, at(start), &stubProber{})
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+		// Work refuses the first request, which moves the session to side,
+		// where the request is held until the second, which stays there, has
+		// been served; then side refuses it too.
+		release := make(chan struct{})
+		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: {forbidden}, sideToken: {heldUntil(release, forbidden), served}}}
+		lines := keepingLedger(t, r)
+
+		answered := make(chan int, 1)
+		go func() { answered <- routeAs(t.Context(), r, "/v1/messages", "one", opusAsked).Code }()
+		synctest.Wait()
+		second := routeAs(t.Context(), r, "/v1/messages", "one", opusAsked).Code
+		close(release)
+		if first := <-answered; first != http.StatusBadGateway || second != http.StatusOK {
+			t.Fatalf("the requests were answered %d, then %d, want side's 200 for the second, then a 502 for the first, refused on every account", second, first)
+		}
+		stayed := edited(stickyLine(), func(l *ledger.Line) { l.Account, l.FirstMS = "side", ms(0) })
+		refused := edited(stickyLine(), func(l *ledger.Line) {
+			l.Account, l.Reason, l.From = "side", "moved: work was refused", "work"
+			l.Tried = []ledger.Tried{{Account: "work", Why: whyRefused}, {Account: "side", Why: whyRefused}}
+			l.Status, l.Attempts = http.StatusBadGateway, 2
+		})
+		checkLines(t, lines(), stayed, refused)
+	})
+}
+
+func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
+	betas := []string{"oauth-2025-04-20", "context-1m-2025-08-07"}
+	tests := []struct {
+		name string
+		path string
+		// body is the request's body, as its client, whose context is ctx,
+		// sends it.
+		body func(ctx context.Context) io.Reader
+		// goneAfter is when the client goes, if it does.
+		goneAfter time.Duration
+		want      ledger.Line
+	}{
+		{
+			name: "a message whose body is over its cap",
+			path: "/v1/messages",
+			body: func(context.Context) io.Reader { return io.LimitReader(zeros{}, maxBody+1) },
+			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project",
+				Status: http.StatusRequestEntityTooLarge, Agent: testAgent, Betas: betas},
+		},
+		{
+			name: "a count of tokens whose client went a second into sending its body",
+			path: "/v1/messages/count_tokens",
+			body: func(ctx context.Context) io.Reader {
+				return &paced{ctx: ctx, pause: 2 * time.Second, pieces: []string{opusAsked}}
+			},
+			goneAfter: time.Second,
+			want: ledger.Line{At: start, Kind: ledger.KindCount, Session: "one", Dir: "~/Code/project",
+				Status: http.StatusBadRequest, Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				r := newTestRouter(t, at(start), &stubProber{})
+				upstream := scripted(served, served)
+				r.proxy.transport = upstream
+				reader := joined(t, r)
+				written := keepingLedger(t, r)
+				client := clientGoing(t, tt.goneAfter)
+				req := claudeCodeAsks(client, tt.path, "one", tt.body(client))
+				req.Header.Set(DirHeader, "~/Code/project")
+
+				rec := httptest.NewRecorder()
+				r.Proxy().ServeHTTP(rec, req)
+				if rec.Code != tt.want.Status {
+					t.Errorf("answered %d, want %d", rec.Code, tt.want.Status)
+				}
+				checkLines(t, written(), tt.want)
+				if sent := upstream.sent(); len(sent) > 0 {
+					t.Errorf("the request went out on %q, want none", sent)
+				}
+				if told := heard(reader); len(told) > 0 {
+					t.Errorf("the stream told of %+v, want nothing: the request never went upstream", told)
+				}
+				if got := r.health.report().Requests; got != 0 {
+					t.Errorf("the router's health counts %d requests, want none: a body refused says nothing of the router", got)
+				}
+				if !log.Has("level=WARN", `msg="request refused: body unread"`, "path="+tt.path) || log.Has("msg=routed") {
+					t.Errorf("log reads\n%s\nwant the request refused, as ever, and no routed line", log)
+				}
+			})
+		})
+	}
+}
+
+func TestALinesAtIsWhenItsRequestArrivedThoughItsBodyCameLater(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		began := time.Now().UTC()
+		r := newTestRouter(t, time.Now, &stubProber{})
+		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, began)
+		r.proxy.transport = scripted(served, served)
+		lines := keepingLedger(t, r)
+		// The request's body comes a second after its header.
+		req := claudeCodeAsks(t.Context(), "/v1/messages", "one", &paced{ctx: t.Context(), pause: time.Second, pieces: []string{opusAsked}})
+
+		r.Proxy().ServeHTTP(httptest.NewRecorder(), req)
+		want := edited(stickyLine(), func(l *ledger.Line) { l.At, l.FirstMS, l.TotalMS = began, ms(1000), 1000 })
+		checkLines(t, lines(), want)
+	})
+}
+
 // messageWhole answers with a message whole, not streamed.
 func messageWhole(r *http.Request) *http.Response {
 	return respond(r, http.StatusOK, http.Header{"Content-Type": {"application/json"}}, claudetest.Message)
@@ -234,6 +417,31 @@ func countAnswered(r *http.Request) *http.Response {
 	return respond(r, http.StatusOK, http.Header{"Content-Type": {"application/json"}}, `{"input_tokens":1234}`)
 }
 
+// heldUntil answers as then does, once release closes.
+func heldUntil(release <-chan struct{}, then answer) answer {
+	return func(r *http.Request) *http.Response {
+		<-release
+		return then(r)
+	}
+}
+
+// zeros reads as endless zero bytes.
+type zeros struct{}
+
+func (zeros) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
+}
+
+// stickyLine is the line of a request routeAs sends, of session one, asking
+// opusAsked, answered on work, where its session sticks: what else befalls a
+// request, a test edits in.
+func stickyLine() ledger.Line {
+	return ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Model: opus, Account: "work", Reason: reasonSticky,
+		Status: http.StatusOK, Attempts: 1, Agent: testAgent, Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
+		Shape: ledger.Shape{Bytes: len(opusAsked), MaxTokens: new(int64(1))}}
+}
+
 // edited returns line as change edits it.
 func edited(line ledger.Line, change func(*ledger.Line)) ledger.Line {
 	change(&line)
@@ -249,14 +457,21 @@ func ms(n int64) *int64 {
 // body, of session, on work's token, as Claude Code sends one, from a client
 // whose context is ctx, and returns what it answered.
 func routeAs(ctx context.Context, r *Router, path, session, body string) *httptest.ResponseRecorder {
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	r.Proxy().ServeHTTP(rec, claudeCodeAsks(ctx, path, session, strings.NewReader(body)))
+	return rec
+}
+
+// claudeCodeAsks is a request to path, whose body body reads, of session, on
+// work's token, as Claude Code sends one, from a client whose context is
+// ctx.
+func claudeCodeAsks(ctx context.Context, path, session string, body io.Reader) *http.Request {
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, body)
 	req.Header.Set("Authorization", "Bearer "+workToken)
 	req.Header.Set(claude.SessionHeader, session)
 	req.Header.Set("User-Agent", testAgent)
 	req.Header.Set("Anthropic-Beta", testBetas)
-	rec := httptest.NewRecorder()
-	r.Proxy().ServeHTTP(rec, req)
-	return rec
+	return req
 }
 
 // keepingLedger has the router keep its request ledger in a directory of the
@@ -309,16 +524,19 @@ func ledgerLines(t testing.TB, dir string) []ledger.Line {
 	return lines
 }
 
-// checkLines checks the ledger holds the one line want, but for the request's
-// id, which counts up from a random start.
-func checkLines(t *testing.T, got []ledger.Line, want ledger.Line) {
+// checkLines checks the ledger holds the lines want, in order, but for their
+// requests' ids, which count up from a random start.
+func checkLines(t *testing.T, got []ledger.Line, want ...ledger.Line) {
 	t.Helper()
-	if len(got) != 1 {
-		t.Fatalf("the ledger holds %d lines, want 1:\n%s", len(got), showLines(got))
+	if len(got) != len(want) {
+		t.Fatalf("the ledger holds %d lines, want %d:\n%s", len(got), len(want), showLines(got))
 	}
-	want.Request = got[0].Request
-	if want.Request == "" || !reflect.DeepEqual(got[0], want) {
-		t.Errorf("the ledger holds\n%s\nwant\n%s", showLines(got), showLines([]ledger.Line{want}))
+	for i := range want {
+		want[i].Request = got[i].Request
+	}
+	unnamed := slices.ContainsFunc(got, func(l ledger.Line) bool { return l.Request == "" })
+	if unnamed || !reflect.DeepEqual(got, want) {
+		t.Errorf("the ledger holds\n%s\nwant\n%s", showLines(got), showLines(want))
 	}
 }
 

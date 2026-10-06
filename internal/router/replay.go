@@ -76,10 +76,11 @@ type replay struct {
 }
 
 // heldAnswer is an answer held back from the client, its body read whole, so
-// the client can still have it, and the account that gave it.
+// the client can still have it, and the account that gave it, as it was
+// picked when the request went out on it.
 type heldAnswer struct {
-	account string
-	resp    *http.Response
+	pick
+	resp *http.Response
 }
 
 func (rp *replay) RoundTrip(out *http.Request) (*http.Response, error) {
@@ -226,23 +227,25 @@ func (rp *replay) limitReached(ctx context.Context, resp *http.Response, rejecte
 	}
 	logger.Warn(news, "id", rp.ex.id, "account", reached.Account, "windows", strings.Join(reached.Windows, ","), "until", reached.Until)
 	rp.p.emit(reached)
+	limited := rp.ex.picked()
 	if !rp.moveOn(ctx, whyLimit) {
 		return resp, false, nil
 	}
-	rp.holdBack(reached.Account, resp)
+	rp.holdBack(limited, resp)
 	return nil, true, nil
 }
 
 // holdBack keeps the answer of the first account whose limit the request
-// reached, with the account's id, should no other account serve the request:
-// it's why. Any other, and one whose body can't be kept whole, it discards.
-func (rp *replay) holdBack(account string, resp *http.Response) {
+// reached, with the account, as it was picked, should no other account serve
+// the request: it's why. Any other, and one whose body can't be kept whole,
+// it discards.
+func (rp *replay) holdBack(limited pick, resp *http.Response) {
 	if rp.limit != nil {
 		discard(resp)
 		return
 	}
 	if held, ok := hold(resp); ok {
-		rp.limit = &heldAnswer{account: account, resp: held}
+		rp.limit = &heldAnswer{pick: limited, resp: held}
 	}
 }
 
@@ -284,7 +287,7 @@ func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quot
 		return nil, true, nil
 	case rp.limit != nil:
 		logger.Info("answering with the limit reached before", "id", rp.ex.id, "account", rp.limit.account)
-		rp.ex.answered = rp.limit.account
+		rp.ex.answered = rp.limit.pick
 		return rp.limit.resp, false, nil
 	}
 	rp.takeBack()
@@ -297,14 +300,18 @@ func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quot
 // session, which goes back where it was, as the request stream is told, and
 // the bars it placed on its model family, each told of as it lifts. A bar on
 // an account's token stands, as it says something of the account, and so
-// does a bar another request placed, and a move another request of the
-// session made since.
+// does a bar another request placed; and so do the session's moves, the
+// request's own among them, once another request of the session has been
+// routed since.
 func (rp *replay) takeBack() {
 	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused }) {
 		return
 	}
-	rp.ex.from = ""
-	if back := rp.p.chooser.Forget(rp.ex.req); back != "" && back != rp.ex.account.ID {
+	back, forgot := rp.p.chooser.Forget(rp.ex.req)
+	if forgot {
+		rp.ex.from = ""
+	}
+	if back != "" && back != rp.ex.account.ID {
 		rp.p.tellMoved(rp.ex, rp.ex.account.ID, back, reasonBack)
 	}
 	lifted := rp.p.state.takeBack(rp.ex.id)
