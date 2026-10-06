@@ -36,6 +36,9 @@ type Provider interface {
 	// Session returns the id of the session a request belongs to, or "" when
 	// it doesn't say.
 	Session(h http.Header) string
+	// Betas returns the features a request's header asks the API for beyond
+	// its version, some of which change what a request costs.
+	Betas(h http.Header) []string
 	// Asks reads a request's body for the model it asks for, or "" when it
 	// doesn't say, and whether it's the client's quota check: a request that
 	// asks nothing of the model, but spends a token to see the account has
@@ -113,8 +116,11 @@ type Config struct {
 	Notifier      Notifier
 	Notifications config.Notifications
 	// History says how long the readings history is kept: a zero Keep keeps
-	// it for config.DefaultKeep.
+	// it for config.DefaultHistoryKeep.
 	History config.History
+	// Ledger says how long the request ledger's lines are kept: a zero Keep
+	// keeps them for config.DefaultLedgerKeep.
+	Ledger config.Ledger
 	// Listen is the proxy's address, and StateDir the directory its control
 	// socket and state file go in: only Run uses them.
 	Listen   string
@@ -176,9 +182,10 @@ func (c Config) notifying() bool {
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
 // the router's own health, what has happened lately, the request stream of
-// what befalls each request as it happens, the control API that reports on it
-// all, the desktop notifications of what befalls the accounts, and its
-// upkeep, which keeps it in step with what it was started from.
+// what befalls each request as it happens, the request ledger of each once
+// it's done, the control API that reports on it all, the desktop
+// notifications of what befalls the accounts, and its upkeep, which keeps it
+// in step with what it was started from.
 type Router struct {
 	cfg      Config
 	upstream *url.URL
@@ -192,9 +199,10 @@ type Router struct {
 	stream *stream
 	// file keeps what should outlast the router, once Run has loaded it.
 	file *stateFile
-	// history keeps each account's readings as they change, once Run has
-	// opened it.
+	// history keeps each account's readings as they change, and ledger each
+	// routed request's line, once Run has opened them.
 	history *history
+	ledger  *requestLedger
 	probes  *probes
 	health  *health
 	proxy   *proxy
@@ -243,6 +251,7 @@ func New(cfg Config) (*Router, error) {
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
 	stream := newStream(cfg.Now)
+	requests := newRequestLedger(cfg.Ledger, cfg.Now)
 	transport := newPool()
 	awake := &wakes{now: clock, woke: func() {
 		transport.renew()
@@ -258,6 +267,7 @@ func New(cfg Config) (*Router, error) {
 		stream:   stream,
 		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
 		history:  history,
+		ledger:   requests,
 		probes:   probes,
 		health:   health,
 		proxy: &proxy{
@@ -272,6 +282,7 @@ func New(cfg Config) (*Router, error) {
 			health:         health,
 			emit:           emit,
 			stream:         stream,
+			ledger:         requests,
 			now:            cfg.Now,
 			errorLog:       logs.StdLogger("router", slog.LevelWarn),
 		},

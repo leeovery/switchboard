@@ -615,17 +615,19 @@ func lines(events []StreamEvent) string {
 }
 
 // streamed answers with a stream of events, its pieces each coming after the
-// pause given.
+// pause given, cut off should the client go, as the transport cuts off the
+// answer to a request whose context ends.
 func streamed(pause time.Duration, pieces ...string) answer {
 	return func(r *http.Request) *http.Response {
 		resp := respond(r, http.StatusOK, http.Header{"Content-Type": {"text/event-stream"}}, "")
-		resp.Body, resp.ContentLength = io.NopCloser(&paced{pause: pause, pieces: slices.Clone(pieces)}), -1
+		resp.Body, resp.ContentLength = io.NopCloser(&paced{ctx: r.Context(), pause: pause, pieces: slices.Clone(pieces)}), -1
 		return resp
 	}
 }
 
-// paced reads pieces, each after the pause given.
+// paced reads pieces, each after the pause given, failing once ctx ends.
 type paced struct {
+	ctx    context.Context
 	pause  time.Duration
 	pieces []string
 }
@@ -634,7 +636,9 @@ func (p *paced) Read(b []byte) (int, error) {
 	if len(p.pieces) == 0 {
 		return 0, io.EOF
 	}
-	time.Sleep(p.pause)
+	if err := sleep(p.ctx, p.pause); err != nil {
+		return 0, err
+	}
 	n := copy(b, p.pieces[0])
 	if p.pieces[0] = p.pieces[0][n:]; p.pieces[0] == "" {
 		p.pieces = p.pieces[1:]

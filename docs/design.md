@@ -1466,13 +1466,15 @@ first day a router that has it runs, so nothing before then is in it.
   - `account`: the account whose answer the client got, by its id. `reason`: why that account was
     chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
     limit`). `from`: the account the request's session was on before, where the request moved it.
-    `tried`: the accounts it went out on before, and why each was left, as `[{"account":
-    "personal", "why": "hit its limit"}]`, where there were any.
+    `tried`: the accounts it went out on that couldn't serve it, in the order tried, and why each
+    was left, as `[{"account": "personal", "why": "hit its limit"}]`, where there were any: the
+    last may be the account whose answer the client got, where none was left to try after it.
   - `status`: the status the client got, 0 where it went away before an answer. `canceled`: true
     where it went away before the end. `attempts`: how many times it went upstream, 0 where the
     router answered it itself.
   - `first_ms` and `total_ms`: how long after it arrived its answer's first byte came, and its end.
-    `first_ms` is left out where no answer came.
+    `first_ms` is left out where the client got no answer of the upstream's, as where the router
+    answered it itself.
   - `agent` and `betas`: Claude Code's user agent, which carries its version, and the features its
     `anthropic-beta` header asked for, some of which change what a request costs.
   - `shape`: the request's size in bytes; how many messages, system blocks and tools it carried, as

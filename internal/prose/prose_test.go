@@ -42,3 +42,25 @@ func TestTruncate(t *testing.T) {
 		}
 	}
 }
+
+func TestTruncateBytes(t *testing.T) {
+	tests := []struct {
+		s    string
+		n    int
+		want string
+	}{
+		{s: "0b5c6f2e-7d41-4a3b", n: 8, want: "0b5c6f2e"},
+		{s: "0b5c6f2e", n: 8, want: "0b5c6f2e"},
+		{s: "short", n: 8, want: "short"},
+		{s: "", n: 8, want: ""},
+		{s: "☃☃☃", n: 6, want: "☃☃"},
+		{s: "☃☃☃", n: 5, want: "☃"},
+		{s: "☃☃☃", n: 2, want: ""},
+		{s: "anything", n: 0, want: ""},
+	}
+	for _, tt := range tests {
+		if got := prose.TruncateBytes(tt.s, tt.n); got != tt.want {
+			t.Errorf("TruncateBytes(%q, %d) = %q, want %q", tt.s, tt.n, got, tt.want)
+		}
+	}
+}

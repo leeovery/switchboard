@@ -41,6 +41,11 @@ type tap struct {
 	ended chan StreamEvent
 	told  chan struct{}
 
+	// firstAt is when the counting read the answer's first byte, zero while
+	// it hasn't. Only the counting touches it until it has told of the
+	// request's end.
+	firstAt time.Time
+
 	mu sync.Mutex
 	// kept is what has passed since the counting last took it.
 	kept []byte
@@ -142,6 +147,16 @@ func (t *tap) gaveUp() bool {
 	return t.lost
 }
 
+// firstMS is how long after started the answer's first byte came, in
+// milliseconds, or nil when none came. The counting must have told of the
+// request's end.
+func (t *tap) firstMS(started time.Time) *int64 {
+	if t.firstAt.IsZero() {
+		return nil
+	}
+	return new(t.firstAt.Sub(started).Milliseconds())
+}
+
 // end hands over the stream's done event of the request, which has ended,
 // and waits for the counting to tell of it, once it has counted what it has
 // of the body, which has all passed: so a request's end is told of before
@@ -153,15 +168,18 @@ func (t *tap) end(done StreamEvent) {
 }
 
 // count counts the answer for the request stream s as its body passes: it
-// tells of its first byte, as first, and of the characters of text, thinking
-// and tools' input as they come, as the provider counts them, the body
-// decoded from the encoding given, of the content type given. Once the
-// request has ended, it tells of its done, with the tokens the answer's
-// closing usage gives, and its characters in all, unless the counting gave
-// the answer up.
+// tells of its first byte, as first, noting when it came, and of the
+// characters of text, thinking and tools' input as they come, as the
+// provider counts them, the body decoded from the encoding given, of the
+// content type given. Once the request has ended, it tells of its done, with
+// the tokens the answer's closing usage gives, and its characters in all,
+// unless the counting gave the answer up.
 func (t *tap) count(s *stream, provider Provider, first StreamEvent, encoding, contentType string) {
 	defer close(t.told)
-	passed := &passed{tap: t, first: func() { s.publish(first) }}
+	passed := &passed{tap: t, first: func() {
+		t.firstAt = time.Now()
+		s.publish(first)
+	}}
 	chars := 0
 	tokens, counted, err := tally(provider, passed, encoding, contentType, func(n int) {
 		chars = n

@@ -87,6 +87,7 @@ func (a *app) serve(ctx context.Context) error {
 		Notifier:      a.Notifier,
 		Notifications: cfg.Notifications,
 		History:       cfg.History,
+		Ledger:        cfg.Ledger,
 		Listen:        cfg.Listen,
 		StateDir:      stateDir,
 		ConfigFile:    configFile,

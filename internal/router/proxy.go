@@ -18,8 +18,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -59,8 +59,10 @@ type proxy struct {
 	chooser        Chooser
 	health         *health
 	emit           func(Event)
-	// stream tells of what befalls each routed request as it happens.
+	// stream tells of what befalls each routed request as it happens, and
+	// ledger keeps a line of each once it's done.
 	stream *stream
+	ledger *requestLedger
 	now    func() time.Time
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
@@ -82,6 +84,10 @@ type exchange struct {
 	// one the request went out on last: the first whose limit the request
 	// reached, its answer held back, where every account after refused it.
 	answered string
+	// from is the account a routed request's session was on before the
+	// request moved it: "" while it hasn't, and once its moves are taken
+	// back.
+	from string
 	// id is a routed request's own while it runs, which ties its lines in the
 	// log together, and its events in the request stream.
 	id      string
@@ -299,9 +305,11 @@ func (p *proxy) next(ctx context.Context, req Request) (account, Choice, bool) {
 
 // moved tells the request stream of the move of a routed request's session
 // from the account given to the one the request now goes out on, as the
-// chooser made it choosing that account: none when from is "".
+// chooser made it choosing that account, and notes the account the request
+// moved the session from first: none when from is "".
 func (p *proxy) moved(ex *exchange, from string) {
 	if from != "" {
+		ex.from = cmp.Or(ex.from, from)
 		p.tellMoved(ex, from, ex.account.ID, ex.reason)
 	}
 }
@@ -444,12 +452,15 @@ func (ex *exchange) identity(r *http.Request) []any {
 }
 
 // done notes a routed request once it's done: in the log, in the request
-// stream, once it went upstream, and, once it was answered, in the router's
-// health. A new session whose request wasn't answered with success, the
-// chooser forgets, unless another request of it has been routed since.
+// stream, once it went upstream, in the request ledger, once its answer is
+// counted, and, once it was answered, in the router's health. A new session
+// whose request wasn't answered with success, the chooser forgets, unless
+// another request of it has been routed since.
 func (p *proxy) done(r *http.Request, ex *exchange) {
-	p.logRouted(r, ex)
+	took, canceled := time.Since(ex.started), r.Context().Err() != nil
+	p.logRouted(ex, took, canceled)
 	p.ended(ex)
+	p.ledger.note(p.line(ex, r.Header, took, canceled))
 	if ex.newSession && !ex.succeeded() {
 		p.chooser.Forget(ex.req)
 	}
@@ -496,20 +507,13 @@ const boundedMost = 200
 
 // bounded is s cut to boundedMost bytes at most, at the end of a character.
 func bounded(s string) string {
-	if len(s) <= boundedMost {
-		return s
-	}
-	cut := boundedMost
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut]
+	return prose.TruncateBytes(s, boundedMost)
 }
 
-// logRouted notes a routed request once it's done, how many times it went
-// upstream when that was more than once, and whether its client went away
-// before then.
-func (p *proxy) logRouted(r *http.Request, ex *exchange) {
+// logRouted notes a routed request once it's done, as long after it arrived
+// as took, how many times it went upstream when that was more than once, and
+// whether its client went away before then, as canceled says.
+func (p *proxy) logRouted(ex *exchange, took time.Duration, canceled bool) {
 	attrs := []any{
 		"id", ex.id,
 		"session", status.ShortID(ex.req.Session),
@@ -521,8 +525,8 @@ func (p *proxy) logRouted(r *http.Request, ex *exchange) {
 	if ex.attempts > 1 {
 		attrs = append(attrs, "attempts", ex.attempts)
 	}
-	attrs = append(attrs, "duration", time.Since(ex.started).Round(time.Millisecond))
-	if r.Context().Err() != nil {
+	attrs = append(attrs, "duration", took.Round(time.Millisecond))
+	if canceled {
 		attrs = append(attrs, "canceled", true)
 	}
 	logger.Info("routed", attrs...)

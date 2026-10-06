@@ -1,0 +1,105 @@
+package router
+
+import (
+	"cmp"
+	"context"
+	"net/http"
+	"sync/atomic"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
+)
+
+// ledgerDirName is the request ledger's directory in the state directory.
+const ledgerDirName = "ledger"
+
+// requestLedger is the request ledger, as the router keeps it: a line for
+// each routed request, noted as the request ends, which run's goroutine
+// writes once Run has opened it in the state directory, kept as long as the
+// config says. Noting a line never holds a request up: one noted before the
+// ledger is opened, or past its queue's end, is dropped.
+type requestLedger struct {
+	keep time.Duration
+	now  func() time.Time
+	// opened is the ledger once it's opened, nil before.
+	opened atomic.Pointer[ledger.Ledger]
+}
+
+// newRequestLedger returns a request ledger kept as settings say, by now's
+// clock: a zero Keep keeps a day's lines for config.DefaultLedgerKeep.
+func newRequestLedger(settings config.Ledger, now func() time.Time) *requestLedger {
+	return &requestLedger{keep: cmp.Or(settings.Keep, config.DefaultLedgerKeep), now: now}
+}
+
+// open has the ledger kept in dir from now on.
+func (l *requestLedger) open(dir string) {
+	l.opened.Store(ledger.Open(dir, l.keep, l.now, logger))
+}
+
+// note queues a request's line for run to write. It never waits.
+func (l *requestLedger) note(line *ledger.Line) {
+	if opened := l.opened.Load(); opened != nil {
+		opened.Note(line)
+	}
+}
+
+// run writes the lines queued, and keeps the ledger's files, until ctx ends,
+// when it writes what's still queued. The ledger must be open.
+func (l *requestLedger) run(ctx context.Context) {
+	l.opened.Load().Run(ctx)
+}
+
+// line is the request ledger's line of the routed request ex, once it's
+// done, as long after it arrived as took, its client gone before its end
+// where canceled is set, and h its header. The answer's counting is done
+// with it.
+func (p *proxy) line(ex *exchange, h http.Header, took time.Duration, canceled bool) *ledger.Line {
+	line := &ledger.Line{
+		At:       ex.arrived,
+		Request:  ex.id,
+		Kind:     ex.kind(),
+		Session:  ex.req.Session,
+		Model:    ex.req.Model,
+		Account:  cmp.Or(ex.answered, ex.account.ID),
+		Reason:   ex.reason,
+		From:     ex.from,
+		Tried:    tried(ex.req.Tried),
+		Status:   ex.status,
+		Canceled: canceled,
+		Attempts: ex.attempts,
+		TotalMS:  took.Milliseconds(),
+		Agent:    h.Get("User-Agent"),
+		Betas:    p.provider.Betas(h),
+	}
+	if ex.tap != nil {
+		line.FirstMS = ex.tap.firstMS(ex.started)
+	}
+	return line
+}
+
+// kind is what the routed request asked, as the request ledger has it: a
+// count of tokens, sent to a path that spends no quota; the client's quota
+// check; else a message.
+func (ex *exchange) kind() string {
+	switch {
+	case !ex.spends:
+		return ledger.KindCount
+	case ex.req.Check:
+		return ledger.KindCheck
+	}
+	return ledger.KindMessage
+}
+
+// tried returns the accounts a request went out on that couldn't serve it,
+// and why, as the request ledger has them.
+func tried(attempts []Attempt) []ledger.Tried {
+	if len(attempts) == 0 {
+		return nil
+	}
+	t := make([]ledger.Tried, len(attempts))
+	for i, a := range attempts {
+		t[i] = ledger.Tried{Account: a.Account, Why: a.Why}
+	}
+	return t
+}

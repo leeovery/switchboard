@@ -49,6 +49,24 @@ func (Provider) Session(h http.Header) string {
 	return h.Get(SessionHeader)
 }
 
+// betaHeader lists the features a request asks the API for beyond its
+// version, separated by commas.
+const betaHeader = "Anthropic-Beta"
+
+// Betas returns the features a request's header asks the API for beyond its
+// version, in the order its anthropic-beta header lists them.
+func (Provider) Betas(h http.Header) []string {
+	var betas []string
+	for _, listed := range h.Values(betaHeader) {
+		for beta := range strings.SplitSeq(listed, ",") {
+			if beta = strings.TrimSpace(beta); beta != "" {
+				betas = append(betas, beta)
+			}
+		}
+	}
+	return betas
+}
+
 // quotaCheck is what Claude Code's quota check asks, in its one message.
 const quotaCheck = "quota"
 

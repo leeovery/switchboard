@@ -62,6 +62,34 @@ func TestProviderSession(t *testing.T) {
 	}
 }
 
+func TestProviderBetas(t *testing.T) {
+	tests := []struct {
+		name   string
+		header http.Header
+		want   []string
+	}{
+		{name: "none without the header", header: http.Header{}},
+		{name: "one", header: http.Header{"Anthropic-Beta": {"oauth-2025-04-20"}}, want: []string{"oauth-2025-04-20"}},
+		{
+			name:   "a list, trimmed, in its order",
+			header: http.Header{"Anthropic-Beta": {"oauth-2025-04-20, context-1m-2025-08-07 ,interleaved-thinking-2025-05-14"}},
+			want:   []string{"oauth-2025-04-20", "context-1m-2025-08-07", "interleaved-thinking-2025-05-14"},
+		},
+		{
+			name:   "a list over several lines, its empty entries passed over",
+			header: http.Header{"Anthropic-Beta": {"oauth-2025-04-20,,", " ", "context-1m-2025-08-07"}},
+			want:   []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (claude.Provider{}).Betas(tt.header); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Betas() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProviderAsks(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -273,18 +273,20 @@ func checkWarning(warning float64) error {
 	return fmt.Errorf("notifications.warning %v: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none", warning)
 }
 
-// parseKeep reads how long the readings history is kept as [history] gives
-// it: a whole number of days, <n>d, from 8d, a week and a day, which the
-// dashboard's chart of the week needs, to 400d, a year with room to spare.
-// None given is DefaultKeep.
-func parseKeep(given *string) (time.Duration, error) {
+// parseKeep reads how long something is kept as the config's key gives it,
+// history.keep or ledger.keep: a whole number of days, <n>d, from 8d, a week
+// and a day, which the dashboard's chart of the week needs, to 400d, a year
+// with room to spare. None given is byDefault, which a key given wrong is
+// told of as an example.
+func parseKeep(key string, given *string, byDefault time.Duration) (time.Duration, error) {
+	const day = 24 * time.Hour
 	if given == nil {
-		return DefaultKeep, nil
+		return byDefault, nil
 	}
 	digits, inDays := strings.CutSuffix(*given, "d")
 	days, err := strconv.ParseUint(digits, 10, 64)
 	if !inDays || err != nil || days < 8 || days > 400 {
-		return 0, wrongValue("history.keep", *given, "must be a whole number of days from 8d, a week and a day, to 400d, such as 14d")
+		return 0, wrongValue(key, *given, fmt.Sprintf("must be a whole number of days from 8d, a week and a day, to 400d, such as %dd", byDefault/day))
 	}
-	return time.Duration(days) * 24 * time.Hour, nil
+	return time.Duration(days) * day, nil
 }
