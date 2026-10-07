@@ -389,11 +389,12 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   notification of them. The client still gets the 502.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
-  be read 400, neither going upstream nor counting towards the router's health, though each has
-  its line in the request ledger (see The request ledger). Replay only happens before response
-  headers have been sent; a failure mid-stream is passed through and Claude Code retries. Nor is
-  a request that couldn't reach the upstream at all replayed elsewhere: that isn't the account's
-  fault. Claude Code gets a 502 and retries.
+  be read 400, each while its client is still there to answer, neither going upstream nor
+  counting towards the router's health, though each has its line in the request ledger (see The
+  request ledger). Replay only happens before response headers have been sent; a failure
+  mid-stream is passed through and Claude Code retries. Nor is a request that couldn't reach the
+  upstream at all replayed elsewhere: that isn't the account's fault. Claude Code gets a 502 and
+  retries.
 - **Uploaded files (pending):** Claude Code uploads files on its own token, the primary's. Should a
   conversation request turn out to refer to one by id, which the artifact check will show (see
   Checks owed), such a request is to go to the primary, the only account that can read the file.
@@ -1489,8 +1490,10 @@ first day a router that has it runs, so nothing before then is in it.
     was left, as `[{"account": "personal", "why": "hit its limit"}]`, where there were any: the
     account whose answer the client got may be among them, the last, where none was left to try
     after it, or the one whose answer was held back.
-  - `status`: the status the client got, 0 where it went away before an answer. `canceled`: true
-    where it went away before the end. `attempts`: how many times it went upstream, 0 where the
+  - `status`: the status the client got, 0 where the request ended before an answer. `canceled`:
+    true where its client went away before its end. `cut_off`: true where the router cut it off as
+    it stopped, once the 30 seconds it gives requests in flight had passed; `canceled` is then
+    false, as the client didn't go. `attempts`: how many times it went upstream, 0 where the
     router answered it itself.
   - `first_ms` and `total_ms`: how long after it arrived its answer's first byte passed on to the
     client, and its end. `first_ms` is left out where the client got no answer of the upstream's,
@@ -1542,11 +1545,12 @@ first day a router that has it runs, so nothing before then is in it.
   and goes on. A goroutine of the ledger's own writes the lines to the day's file, as the readings
   history writes its own (see Files). A line past the queue's end is dropped, logged once until the
   queue catches up; a write that fails is logged once until one succeeds, and its lines go
-  unwritten. As the router stops, the goroutine writes what's queued once the requests in flight
+  unwritten. As the router stops, the goroutine writes what's queued once the requests it routes
   have finished: those still going after their 30 seconds are cut off, and get 5 seconds more to
-  unwind, their lines with them; the lines of any still in flight then go unwritten, the log
-  warning how many. A benchmark of the proxy path, taken before the ledger joins it and again
-  after, shows what the ledger costs a request (see Milestones).
+  unwind, each until its line is noted; the lines of any still in flight then go unwritten, the
+  log warning how many. Those passed through, which have no lines, aren't waited for. A benchmark
+  of the proxy path, taken before the ledger joins it and again after, shows what the ledger costs
+  a request (see Milestones).
 - **A summary a day:** once a day has ended, on the hourly round that compresses and prunes the
   files, the router writes the day's summary from the day's lines and the day's readings history.
   For each account, by model, it holds the requests that went upstream, those the router answered
@@ -1633,9 +1637,9 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   request ledger`), that lines were dropped from it for its falling behind, once until it catches up
   (`request ledger fell behind`), that a request's line can't be put as JSON, once, a file that
   can't be read or was read short, as the readings history's are warned of, a file that couldn't
-  be compressed, pruned or summarised, and that the router stopped with requests still in flight,
-  whose lines go unwritten, saying how many (`requests still in flight as the router stops; their
-  lines go unwritten`).
+  be compressed, pruned or summarised, and that the router stopped with requests it routed still in
+  flight, whose lines go unwritten, saying how many (`requests still in flight as the router stops;
+  their lines go unwritten`).
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -1766,10 +1770,11 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, run
   by hand, `…: run switchboard serve again to take it up`; and the dashboard's heading, `restart due
   (config changed)`. `service restart` asks the router to restart now (`POST /restart`): it gives
-  its requests in flight up to 30 seconds, answering on the control socket meanwhile, so a
-  `claude` started then is routed, its requests waiting on the proxy's socket for the router it
-  becomes, then replaces itself in place, or, as it says as it takes the request when it can't,
-  as not knowing its binary, exits for launchd to start it again (see Launching).
+  its requests in flight up to 30 seconds, and those it cuts off then up to 5 more to unwind,
+  answering on the control socket meanwhile, so a `claude` started then is routed, its requests
+  waiting on the proxy's socket for the router it becomes, then replaces itself in place, or, as
+  it says as it takes the request when it can't, as not knowing its binary, exits for launchd to
+  start it again (see Launching).
 - As it starts, the router brings the installed skill up to date (see The skill), and makes the
   tokens directory private when it's there.
 
@@ -2225,7 +2230,8 @@ Each account:
 - **The service:** `service install` reads the config first, as the router will, and fails on one it
   can't read, rather than leave launchd restarting a router that can't start. It writes the
   LaunchAgent (`RunAtLoad`, `KeepAlive`, output to `launchd.log`, and an `ExitTimeOut` of 45
-  seconds, over the 30 the router gives requests in flight as it stops) to run this binary by the
+  seconds: the 30 the router gives requests in flight as it stops, 5 for those it cuts off to
+  unwind, 3 for its last notifications to post, and 7 to save its state) to run this binary by the
   path it was run by, so a Homebrew link stays the link an upgrade moves on, with `serve`, any
   `--config` given, made absolute, and any `--log-level`. It refuses a temporary build, such as `go
   run`'s, judged by where the binary's links lead. It carries `XDG_CONFIG_HOME`, `XDG_STATE_HOME`,

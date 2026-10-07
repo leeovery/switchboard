@@ -51,11 +51,10 @@ func (l *requestLedger) run(ctx context.Context) {
 }
 
 // line is the request ledger's line of the routed request ex, once it's
-// done, as long after it arrived as took, its client gone before its end
-// where canceled is set, and h its header: its account, reason and from
-// those of the account whose answer the client got, as it was picked. The
-// answer's counting is done with it.
-func (p *proxy) line(ex *exchange, h http.Header, took time.Duration, canceled bool) *ledger.Line {
+// done, as f finished it, h its header: its account, reason and from those
+// of the account whose answer the client got, as it was picked. The answer's
+// counting is done with it.
+func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 	answering := ex.answering()
 	line := &ledger.Line{
 		At:       ex.arrived,
@@ -69,9 +68,10 @@ func (p *proxy) line(ex *exchange, h http.Header, took time.Duration, canceled b
 		From:     answering.from,
 		Tried:    tried(ex.req.Tried),
 		Status:   ex.status,
-		Canceled: canceled,
+		Canceled: f.canceled,
+		CutOff:   f.cutOff,
 		Attempts: ex.attempts,
-		TotalMS:  took.Milliseconds(),
+		TotalMS:  f.took.Milliseconds(),
 		Agent:    h.Get("User-Agent"),
 		Betas:    p.provider.Betas(h),
 		Shape:    ex.shape,

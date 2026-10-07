@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -134,6 +135,75 @@ func TestARouterToldToStopAsItRestartsLeavesNothingToConnectToAsItsControlAPIGoe
 	if found.socket {
 		t.Error("the control socket was there as the control API went, want it removed first: a launcher connecting to it as it closes can be left hanging")
 	}
+}
+
+func TestARouterRestartingInPlaceAnswersOnItsControlSocketWhileTheRequestsItCutOffUnwind(t *testing.T) {
+	logstest.Capture(t)
+	dir, err := os.MkdirTemp("", "sb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	r := newTestRouter(t, at(start), &stubProber{})
+	r.cfg.DrainFor = 50 * time.Millisecond
+	upstream := &unwinding{sent: make(chan struct{}), cutOff: make(chan struct{}), release: make(chan struct{})}
+	r.proxy.transport = upstream
+	proxy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	control, err := net.Listen("unix", SocketPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := handover.Hold(map[string]net.Listener{proxyListener: proxy, controlListener: control})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(held.Close)
+	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
+	var serving sync.WaitGroup
+	serving.Go(func() { _ = proxySrv.Serve(proxy) })
+	serving.Go(func() { _ = controlSrv.Serve(control) })
+	go func() {
+		req, err := http.NewRequest(http.MethodPost, "http://"+proxy.Addr().String()+"/v1/messages", strings.NewReader(opusAsked))
+		if err != nil {
+			return
+		}
+		req.Header.Set("Authorization", "Bearer "+workToken)
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	<-upstream.sent
+
+	handed := make(chan *handover.Held, 1)
+	go func() { handed <- r.drainHandingOver(t.Context(), controlSrv, proxySrv, held) }()
+	<-upstream.cutOff
+	if _, err := NewClient(SocketPath(dir)).Health(t.Context()); err != nil {
+		t.Errorf("Health() = %v while the request cut off unwinds, want the router answering: a claude launched meanwhile would go unrouted", err)
+	}
+	close(upstream.release)
+	if <-handed == nil {
+		t.Error("drainHandingOver returned no listeners, want those held, to hand over")
+	}
+	serving.Wait()
+}
+
+// unwinding is an upstream that holds the request sent to it until its
+// context ends, as when the router cuts it off, then gives it up once
+// release closes, telling of the request as it's sent, and as it's cut off.
+type unwinding struct {
+	sent, cutOff, release chan struct{}
+}
+
+func (u *unwinding) RoundTrip(r *http.Request) (*http.Response, error) {
+	_ = r.Body.Close()
+	close(u.sent)
+	<-r.Context().Done()
+	close(u.cutOff)
+	<-u.release
+	return nil, r.Context().Err()
 }
 
 // hooked is a listener that does first as it's closed, then closes.

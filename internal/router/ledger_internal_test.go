@@ -133,6 +133,16 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 			}),
 		},
 		{
+			name:    "a new session's request, moved off side at its limit, then failing on work, the session forgotten with its moves",
+			session: "new",
+			side:    []answer{limitHit},
+			work:    []answer{serverError},
+			want: edited(asked, func(l *ledger.Line) {
+				l.Session, l.Reason, l.Status, l.Attempts, l.FirstMS = "new", "moved: side hit its limit", http.StatusInternalServerError, 2, ms(0)
+				l.Tried = []ledger.Tried{{Account: "side", Why: whyLimit}}
+			}),
+		},
+		{
 			name:    "a limit reached, then a refusal on the account it went to, the limit's 429 the client's, as work was picked",
 			session: "one",
 			work:    []answer{limitHit},
@@ -255,29 +265,43 @@ func TestTheLedgerHoldsALineOfARequestTheRouterAnswersItself(t *testing.T) {
 }
 
 func TestALineOfAnAnswerHeldBackIsOfItsAccountAsItWasPicked(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		// Personal has a token too. The session is on work, and side's quota
-		// needs using sooner than personal's.
-		r := newTestRouterReading(t, at(start), &stubProber{}, tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken}.Read)
-		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
-		r.state.record("personal", []quota.Window{session, laterWeek}, r.state.mark())
-		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
-		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
-		// Work refuses the request, which moves to side, at its limit, then to
-		// personal, which refuses it too: side's 429 is the client's.
-		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: {forbidden}, sideToken: {limitHit}, personalToken: {forbidden}}}
-		lines := keepingLedger(t, r)
-
-		if rec := routeAs(t.Context(), r, "/v1/messages", "one", opusAsked); rec.Code != http.StatusTooManyRequests {
-			t.Fatalf("answered %d, want side's 429", rec.Code)
-		}
-		want := edited(stickyLine(), func(l *ledger.Line) {
-			l.Account, l.Reason, l.From = "side", "moved: work was refused", "work"
-			l.Tried = []ledger.Tried{{Account: "work", Why: whyRefused}, {Account: "side", Why: whyLimit}, {Account: "personal", Why: whyRefused}}
-			l.Status, l.Attempts, l.FirstMS, l.Limits = http.StatusTooManyRequests, 3, ms(0), map[string]string{"status": "rejected"}
-		})
-		checkLines(t, lines(), want)
+	// Work refuses the request, which moves to side, at its limit, then to
+	// personal, which refuses it too: side's 429 is the client's.
+	held := edited(stickyLine(), func(l *ledger.Line) {
+		l.Account, l.Reason = "side", "moved: work was refused"
+		l.Tried = []ledger.Tried{{Account: "work", Why: whyRefused}, {Account: "side", Why: whyLimit}, {Account: "personal", Why: whyRefused}}
+		l.Status, l.Attempts, l.FirstMS, l.Limits = http.StatusTooManyRequests, 3, ms(0), map[string]string{"status": "rejected"}
 	})
+	tests := []struct {
+		name    string
+		session string
+		want    ledger.Line
+	}{
+		{name: "of a session on work, whose move to side stands", session: "one", want: edited(held, func(l *ledger.Line) { l.From = "work" })},
+		{name: "of a new session, forgotten with its moves", session: "new", want: edited(held, func(l *ledger.Line) { l.Session = "new" })},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				// Personal has a token too. Session one is on work. Work's quota
+				// needs using soonest, so a new session goes there, then side's.
+				r := newTestRouterReading(t, at(start), &stubProber{}, tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken}.Read)
+				soonestWeek := soonWeek
+				soonestWeek.ResetsAt = start.Add(12 * time.Hour)
+				r.state.record("work", []quota.Window{session, soonestWeek}, r.state.mark())
+				r.state.record("personal", []quota.Window{session, laterWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+				r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{workToken: {forbidden}, sideToken: {limitHit}, personalToken: {forbidden}}}
+				lines := keepingLedger(t, r)
+
+				if rec := routeAs(t.Context(), r, "/v1/messages", tt.session, opusAsked); rec.Code != http.StatusTooManyRequests {
+					t.Fatalf("answered %d, want side's 429", rec.Code)
+				}
+				checkLines(t, lines(), tt.want)
+			})
+		})
+	}
 }
 
 func TestALineKeepsAMoveAnotherRequestOfItsSessionStayedOn(t *testing.T) {
@@ -319,9 +343,12 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 		// body is the request's body, as its client, whose context is ctx,
 		// sends it.
 		body func(ctx context.Context) io.Reader
-		// goneAfter is when the client goes, if it does.
-		goneAfter time.Duration
-		want      ledger.Line
+		// endsAfter is when the request's context ends, if it does: as its
+		// client goes, or, where cuttingOff is set, as the router, stopping,
+		// cuts it off.
+		endsAfter  time.Duration
+		cuttingOff bool
+		want       ledger.Line
 	}{
 		{
 			name: "a message whose body is over its cap",
@@ -331,14 +358,25 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				Status: http.StatusRequestEntityTooLarge, Agent: testAgent, Betas: betas},
 		},
 		{
-			name: "a count of tokens whose client went a second into sending its body",
+			name: "a count of tokens whose client went a second into sending its body, before an answer",
 			path: "/v1/messages/count_tokens",
 			body: func(ctx context.Context) io.Reader {
 				return &paced{ctx: ctx, pause: 2 * time.Second, pieces: []string{opusAsked}}
 			},
-			goneAfter: time.Second,
+			endsAfter: time.Second,
 			want: ledger.Line{At: start, Kind: ledger.KindCount, Session: "one", Dir: "~/Code/project",
-				Status: http.StatusBadRequest, Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
+				Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
+		},
+		{
+			name: "a message whose body was still coming as the router cut it off, before an answer",
+			path: "/v1/messages",
+			body: func(ctx context.Context) io.Reader {
+				return &paced{ctx: ctx, pause: 2 * time.Second, pieces: []string{opusAsked}}
+			},
+			endsAfter:  time.Second,
+			cuttingOff: true,
+			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project",
+				CutOff: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
 		},
 	}
 	for _, tt := range tests {
@@ -346,31 +384,37 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				log := logstest.Capture(t)
 				r := newTestRouter(t, at(start), &stubProber{})
+				r.proxy.cuttingOff.Store(tt.cuttingOff)
 				upstream := scripted(served, served)
 				r.proxy.transport = upstream
 				reader := joined(t, r)
 				written := keepingLedger(t, r)
-				client := clientGoing(t, tt.goneAfter)
+				client := clientGoing(t, tt.endsAfter)
 				req := claudeCodeAsks(client, tt.path, "one", tt.body(client))
 				req.Header.Set(DirHeader, "~/Code/project")
 
 				rec := httptest.NewRecorder()
 				r.Proxy().ServeHTTP(rec, req)
-				if rec.Code != tt.want.Status {
-					t.Errorf("answered %d, want %d", rec.Code, tt.want.Status)
+				answered := 0
+				if rec.Body.Len() > 0 {
+					answered = rec.Code
 				}
-				checkLines(t, written(), tt.want)
+				if answered != tt.want.Status {
+					t.Errorf("answered %d, want %d, none where there's no one to answer", answered, tt.want.Status)
+				}
+				got := written()
+				checkLines(t, got, tt.want)
 				if sent := upstream.sent(); len(sent) > 0 {
 					t.Errorf("the request went out on %q, want none", sent)
 				}
 				if told := heard(reader); len(told) > 0 {
 					t.Errorf("the stream told of %+v, want nothing: the request never went upstream", told)
 				}
-				if got := r.health.report().Requests; got != 0 {
-					t.Errorf("the router's health counts %d requests, want none: a body refused says nothing of the router", got)
+				if counted := r.health.report().Requests; counted != 0 {
+					t.Errorf("the router's health counts %d requests, want none: a body refused says nothing of the router", counted)
 				}
-				if !log.Has("level=WARN", `msg="request refused: body unread"`, "path="+tt.path) || log.Has("msg=routed") {
-					t.Errorf("log reads\n%s\nwant the request refused, as ever, and no routed line", log)
+				if !log.Has("level=WARN", `msg="request refused: body unread"`, "id="+got[0].Request, "path="+tt.path) || log.Has("msg=routed") {
+					t.Errorf("log reads\n%s\nwant the request refused, by its id, and no routed line", log)
 				}
 			})
 		})
@@ -421,6 +465,17 @@ func countAnswered(r *http.Request) *http.Response {
 func heldUntil(release <-chan struct{}, then answer) answer {
 	return func(r *http.Request) *http.Response {
 		<-release
+		return then(r)
+	}
+}
+
+// after answers as then does, once d has passed, or not at all, should the
+// request's context end first.
+func after(d time.Duration, then answer) answer {
+	return func(r *http.Request) *http.Response {
+		if sleep(r.Context(), d) != nil {
+			return nil
+		}
 		return then(r)
 	}
 }

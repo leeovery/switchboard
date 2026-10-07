@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 )
@@ -159,6 +160,7 @@ func TestTheLedgerHoldsTheLineOfARequestFinishedAsTheRouterStops(t *testing.T) {
 }
 
 func TestTheLedgerHoldsTheLineOfARequestTheRouterCutsOffAsItStops(t *testing.T) {
+	log := logstest.Capture(t)
 	// The upstream begins its answer, and holds the rest until the request is
 	// cut off, once the drain's time has passed. Counting the answer then
 	// takes a while to finish, as on a loaded machine, so the request is
@@ -180,8 +182,11 @@ func TestTheLedgerHoldsTheLineOfARequestTheRouterCutsOffAsItStops(t *testing.T) 
 		t.Fatalf("Run() = %v", err)
 	}
 	lines := router.LedgerLines(t, filepath.Join(cfg.StateDir, "ledger"))
-	if len(lines) != 1 || lines[0].Status != http.StatusOK || !lines[0].Canceled {
-		t.Errorf("once the router stopped, the ledger holds %+v, want the line of the request it cut off", lines)
+	if len(lines) != 1 || lines[0].Status != http.StatusOK || !lines[0].CutOff || lines[0].Canceled {
+		t.Errorf("once the router stopped, the ledger holds %+v, want the line of the request it cut off, not canceled: its client stayed", lines)
+	}
+	if !log.Has("level=INFO", "msg=routed", "status=200", "cut_off=true") || log.Has("canceled=true") {
+		t.Errorf("log reads\n%s\nwant the request routed, and cut off, not canceled", log)
 	}
 }
 

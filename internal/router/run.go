@@ -21,10 +21,15 @@ const (
 	// DrainTimeout is how long requests in flight get to finish once the
 	// router is stopping. They can be long streams.
 	DrainTimeout = 30 * time.Second
-	// unwindTimeout is how long the requests the drain cuts off get to
-	// finish as they unwind, once the servers are down, before what they
-	// change is no longer kept, written or told of.
+	// unwindTimeout is how long the routed requests the drain cuts off get to
+	// finish as they unwind, before what they change is no longer kept,
+	// written or told of.
 	unwindTimeout = 5 * time.Second
+	// StopTimeout is the longest a stopping router waits on what's still
+	// going: its requests in flight, those it cuts off as they unwind, and its
+	// last notifications as they post. Saving what it keeps takes a moment
+	// after.
+	StopTimeout = DrainTimeout + unwindTimeout + finishWait
 	// readHeaderTimeout bounds how long a client takes to send a request's
 	// headers. Nothing bounds a response: it streams for as long as it takes.
 	readHeaderTimeout = 10 * time.Second
@@ -39,8 +44,8 @@ const (
 // as cfg.Exec says, or else returns nil, for launchd to start it again. It
 // fails when another router already answers there, or when it can't listen.
 // On its way out it stops taking requests, gives those in flight up to 30
-// seconds to finish, and those it cuts off then up to 5 more to unwind, saves
-// its state, and removes the socket, but for one it hands over.
+// seconds to finish, and the routed ones it cuts off then up to 5 more to
+// unwind, saves its state, and removes the socket, but for one it hands over.
 func Run(ctx context.Context, cfg Config) error {
 	r, err := New(cfg)
 	if err != nil {
@@ -195,7 +200,6 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 		r.shutdown(controlSrv, proxySrv)
 	}
 	serving.Wait()
-	r.awaitInFlight()
 	stopBackground()
 	running.Wait()
 	logger.Info("stopped")
@@ -240,27 +244,31 @@ func refuse(proxy *http.Server) {
 }
 
 // drain stops the proxy taking requests, giving those in flight DrainTimeout
-// to finish, or as long as the config says, and cuts off any still going
-// then, which closes their connections but leaves them to unwind.
+// to finish, or as long as the config says. It then cuts off any still going,
+// which closes their connections but leaves them to unwind, and waits for
+// the routed ones among them, as awaitUnwinding does.
 func (r *Router) drain(proxy *http.Server) {
 	within := cmp.Or(r.cfg.DrainFor, DrainTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), within)
 	defer cancel()
-	if err := proxy.Shutdown(ctx); err != nil {
-		logger.Warn("cut off requests still in flight", "after", within)
-		_ = proxy.Close()
+	if proxy.Shutdown(ctx) == nil {
+		return
 	}
+	logger.Warn("cut off requests still in flight", "after", within)
+	r.proxy.cuttingOff.Store(true)
+	_ = proxy.Close()
+	r.awaitUnwinding()
 }
 
-// awaitInFlight waits up to unwindTimeout for the proxy's requests still in
-// flight once its server is down, as those the drain cut off unwind, so what
-// they change is kept and told of, and their lines written, before that
-// stops. Should the time pass first, it warns how many are left.
-func (r *Router) awaitInFlight() {
+// awaitUnwinding waits up to unwindTimeout for the routed requests still in
+// flight, as those the drain cut off unwind, each until its line is noted,
+// so what they change is kept and told of, and their lines written, before
+// that stops. Should the time pass first, it warns how many are left.
+func (r *Router) awaitUnwinding() {
 	select {
-	case <-r.inFlight.quiet():
+	case <-r.proxy.routing.quiet():
 	case <-time.After(unwindTimeout):
-		logger.Warn("requests still in flight as the router stops; their lines go unwritten", "requests", r.inFlight.requests(), "after", unwindTimeout)
+		logger.Warn("requests still in flight as the router stops; their lines go unwritten", "requests", r.proxy.routing.requests(), "after", unwindTimeout)
 	}
 }
 

@@ -289,6 +289,7 @@ func New(cfg Config) (*Router, error) {
 			emit:           emit,
 			stream:         stream,
 			ledger:         requests,
+			routing:        newInFlight(),
 			now:            cfg.Now,
 			errorLog:       logs.StdLogger("router", slog.LevelWarn),
 		},

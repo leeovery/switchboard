@@ -309,7 +309,7 @@ func (rp *replay) takeBack() {
 	}
 	back, forgot := rp.p.chooser.Forget(rp.ex.req)
 	if forgot {
-		rp.ex.from = ""
+		rp.ex.unmoved()
 	}
 	if back != "" && back != rp.ex.account.ID {
 		rp.p.tellMoved(rp.ex, rp.ex.account.ID, back, reasonBack)

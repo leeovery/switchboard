@@ -12,11 +12,16 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 )
 
-// exitTimeout is how long launchd gives the router to stop before it kills
-// it: the time the router gives requests in flight to finish, and time after
-// for those it cut off to unwind, and to save its state and post what's due.
-// launchd's own default, 20 seconds, is shorter than the first alone.
-const exitTimeout = router.DrainTimeout + 15*time.Second
+const (
+	// exitTimeout is how long launchd gives the router to stop before it kills
+	// it: the longest its stop waits on what's still going, and saveMargin
+	// after. launchd's own default, 20 seconds, is shorter than the drain
+	// alone.
+	exitTimeout = router.StopTimeout + saveMargin
+	// saveMargin is what a stopping router has, past the longest it waits, to
+	// save its state and write the request ledger's last lines.
+	saveMargin = 7 * time.Second
+)
 
 // carried are the variables the service is given as they're set where it's
 // installed, so it finds its config and its state where the CLI does, and
