@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/readings"
 )
 
 const (
@@ -72,7 +74,7 @@ func (r *Router) run(ctx context.Context) error {
 	// alongside would have failed by here.
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
 	r.openHistory()
-	r.ledger.open(filepath.Join(r.cfg.StateDir, ledgerDirName), r.history.readings)
+	r.ledger.open(ledger.Dir(r.cfg.StateDir), r.history.readings)
 	return r.serve(ctx, ls)
 }
 
@@ -80,7 +82,7 @@ func (r *Router) run(ctx context.Context) error {
 // on, and takes up the readings it holds of the last half hour, so the
 // recent rates outlast the router's restart.
 func (r *Router) openHistory() {
-	r.history.open(filepath.Join(r.cfg.StateDir, historyDirName))
+	r.history.open(readings.Dir(r.cfg.StateDir))
 	kept := r.state.seed(r.history.readBack(r.cfg.Now()))
 	logger.Info("took up the readings history", "readings", kept)
 }

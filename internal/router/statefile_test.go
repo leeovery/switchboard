@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -118,7 +119,7 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	saved := newTestFile(clock.read, testAccounts())
 	saved.load(path)
 	models := map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}}
-	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil, saved.state.mark(), fromProbe)
+	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil, saved.state.mark(), readings.FromProbe)
 	clock.now = start
 	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
 	saved.state.learn(opus, []quota.Window{session, week})

@@ -23,6 +23,22 @@ func TestList(t *testing.T) {
 	}
 }
 
+func TestACountIsAsBriefAsARowHasRoomFor(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "0"}, {n: 999, want: "999"}, {n: 1000, want: "1.0k"}, {n: 1234, want: "1.2k"},
+		{n: 9949, want: "9.9k"}, {n: 9950, want: "10k"}, {n: 34567, want: "35k"}, {n: 999499, want: "999k"},
+		{n: 999500, want: "1.0M"}, {n: 1234567, want: "1.2M"},
+	}
+	for _, tt := range tests {
+		if got := prose.Count(tt.n); got != tt.want {
+			t.Errorf("Count(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		s    string

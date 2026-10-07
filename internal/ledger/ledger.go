@@ -3,7 +3,8 @@
 // about the request but its content, in files a day, as internal/dayfile
 // keeps them: requests-<date>.jsonl, compressed two days after its day ends,
 // and removed once its day is past keeping; and a summary of each day once it
-// has ended, day-<date>.json beside them, kept for good.
+// has ended, day-<date>.json beside them, kept for good. A Reader reads them
+// back where they lie, with no router, and a Table prices what they hold.
 package ledger
 
 import (
@@ -22,6 +23,8 @@ import (
 )
 
 const (
+	// dirName is the ledger's directory in the state directory.
+	dirName = "ledger"
 	// queue is how many lines can wait to be written: past that, they're
 	// dropped rather than hold a request up. It's eight times the readings
 	// history's, as a line dropped is a request never counted.
@@ -36,16 +39,33 @@ const (
 	summariseAfter = time.Hour
 )
 
+// Dir is the ledger's directory in the state directory stateDir.
+func Dir(stateDir string) string {
+	return filepath.Join(stateDir, dirName)
+}
+
+// filesIn are the ledger's files of lines in dir, what can't be done with
+// them logged to logger.
+func filesIn(dir string, logger *slog.Logger) *dayfile.Files {
+	return &dayfile.Files{Dir: dir, Prefix: "requests", Name: "request ledger", LineMax: lineMax, Logger: logger}
+}
+
+// summaryFile is where the ledger in dir keeps the summary of the local day
+// with the given date.
+func summaryFile(dir, date string) string {
+	return filepath.Join(dir, "day-"+date+".json")
+}
+
 // Ledger writes the lines noted to it to its files, on Run's goroutine, and
 // keeps them as long as it was opened to: noting a line never waits, as a
 // dayfile.Writer says. A line is written as JSON, filed under the local day
 // its request arrived on, and never holds anything shaped like a token. On
 // its writer's round, it summarises each day that has ended.
 type Ledger struct {
-	writer   *dayfile.Writer[*Line]
-	files    *dayfile.Files
-	readings Readings
-	logger   *slog.Logger
+	writer  *dayfile.Writer[*Line]
+	files   *dayfile.Files
+	history Readings
+	logger  *slog.Logger
 	// unwritable is set once a line couldn't be put as JSON, which is logged
 	// once. Only Run's goroutine touches it.
 	unwritable bool
@@ -53,13 +73,9 @@ type Ledger struct {
 
 // Open returns the ledger in dir, which keeps a day's lines for keep once the
 // day has ended, by now's clock, and summarises its days with the readings
-// readings gives, logging what can't be done with them to logger.
-func Open(dir string, keep time.Duration, now func() time.Time, readings Readings, logger *slog.Logger) *Ledger {
-	l := &Ledger{
-		files:    &dayfile.Files{Dir: dir, Prefix: "requests", Name: "request ledger", LineMax: lineMax, Logger: logger},
-		readings: readings,
-		logger:   logger,
-	}
+// history gives, logging what can't be done with them to logger.
+func Open(dir string, keep time.Duration, now func() time.Time, history Readings, logger *slog.Logger) *Ledger {
+	l := &Ledger{files: filesIn(dir, logger), history: history, logger: logger}
 	l.writer = dayfile.NewWriter(l.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.summarise})
 	return l
 }
@@ -102,7 +118,7 @@ func (l *Ledger) lines(line *Line) dayfile.Lines {
 // round.
 func (l *Ledger) summarise(now time.Time) {
 	for _, date := range l.files.Ended(now, summariseAfter) {
-		path := filepath.Join(l.files.Dir, "day-"+date+".json")
+		path := summaryFile(l.files.Dir, date)
 		if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -117,11 +133,7 @@ func (l *Ledger) summarise(now time.Time) {
 // couldn't be read, where any couldn't. A day none of whose lines read, as
 // one whose file can't be read for now, is left for a round that finds them.
 func (l *Ledger) writeSummary(date, path string) error {
-	unread := 0
-	lines := func(yield func(Line) bool) {
-		unread = dayfile.Read(l.files, []string{date}, lineIn, yield)
-	}
-	summary, err := Summarise(date, lines, l.readings)
+	summary, unread, err := summariseDay(l.files, date, l.history)
 	if err != nil || summary.requests() == 0 {
 		return err
 	}
@@ -137,6 +149,17 @@ func (l *Ledger) writeSummary(date, path string) error {
 	}
 	l.logger.Info("summarised a day of the request ledger", "day", date, "requests", summary.requests())
 	return nil
+}
+
+// summariseDay returns the summary of the local day with the given date from
+// its lines in files and the readings history gives, and how many of the
+// lines couldn't be read.
+func summariseDay(files *dayfile.Files, date string, history Readings) (summary Summary, unread int, err error) {
+	lines := func(yield func(Line) bool) {
+		unread = dayfile.Read(files, []string{date}, lineIn, yield)
+	}
+	summary, err = Summarise(date, lines, history)
+	return summary, unread, err
 }
 
 // lineIn returns the line a line of the ledger holds, reporting false for one

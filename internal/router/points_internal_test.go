@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 )
 
 // chartedAt is the time GET /history is asked at in tests: a Monday, 14:00
@@ -115,15 +116,15 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 		query string
 		// taken are the readings the router takes in of work, in order, and
 		// lines those its history's files hold.
-		taken []reading
-		lines []reading
+		taken []readings.Reading
+		lines []readings.Reading
 		want  AccountHistory
 	}{
 		{
 			name:  "reset by hand, from when it started again",
 			query: "window=5h&step=10m",
-			taken: []reading{lineOf("work", using(session, 0.6), at13(30)), lineOf("work", using(session, 0.05), at13(40))},
-			lines: []reading{
+			taken: []readings.Reading{lineOf("work", using(session, 0.6), at13(30)), lineOf("work", using(session, 0.05), at13(40))},
+			lines: []readings.Reading{
 				lineOf("work", using(session, 0.5), at13(20)),
 				lineOf("work", using(session, 0.6), at13(30)),
 				lineOf("work", using(session, 0.05), at13(40)),
@@ -137,35 +138,35 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 		{
 			name:  "none of a session that has lapsed",
 			query: "window=5h&step=10m",
-			taken: []reading{lineOf("work", using(lapsed, 0.4), at13(0).Add(-time.Hour))},
-			lines: []reading{lineOf("work", using(lapsed, 0.4), at13(0).Add(-time.Hour))},
+			taken: []readings.Reading{lineOf("work", using(lapsed, 0.4), at13(0).Add(-time.Hour))},
+			lines: []readings.Reading{lineOf("work", using(lapsed, 0.4), at13(0).Add(-time.Hour))},
 			want:  AccountHistory{ID: "work"},
 		},
 		{
 			name:  "none of a window read without a reset",
 			query: "window=5h&step=10m",
-			taken: []reading{lineOf("work", using(noReset, 0.4), at13(30))},
-			lines: []reading{lineOf("work", using(noReset, 0.4), at13(30))},
+			taken: []readings.Reading{lineOf("work", using(noReset, 0.4), at13(30))},
+			lines: []readings.Reading{lineOf("work", using(noReset, 0.4), at13(30))},
 			want:  AccountHistory{ID: "work"},
 		},
 		{
 			name:  "none of a week past its reset",
 			query: "window=7d&step=1h",
-			taken: []reading{lineOf("work", using(passed, 0.4), at13(0))},
-			lines: []reading{lineOf("work", using(passed, 0.4), at13(0))},
+			taken: []readings.Reading{lineOf("work", using(passed, 0.4), at13(0))},
+			lines: []readings.Reading{lineOf("work", using(passed, 0.4), at13(0))},
 			want:  AccountHistory{ID: "work"},
 		},
 		{
 			name:  "none of a window never read",
 			query: "window=5h&step=10m",
-			lines: []reading{lineOf("work", using(session, 0.4), at13(30))},
+			lines: []readings.Reading{lineOf("work", using(session, 0.4), at13(30))},
 			want:  AccountHistory{ID: "work"},
 		},
 		{
 			name:  "nothing of an earlier window, nor from before the window started",
 			query: "window=5h&step=10m",
-			taken: []reading{lineOf("work", using(session, 0.2), at13(50))},
-			lines: []reading{
+			taken: []readings.Reading{lineOf("work", using(session, 0.2), at13(50))},
+			lines: []readings.Reading{
 				lineOf("work", using(previous, 0.7), at13(0).Add(-30*time.Minute)),
 				lineOf("work", using(noReset, 0.8), at13(5)),
 				lineOf("work", using(previous, 0.9), at13(15)),
@@ -186,7 +187,7 @@ func TestGETHistoryPlacesEachWindowAsItRunsNow(t *testing.T) {
 			r, _ := newChartedRouter(t, clock)
 			writeLines(t, r.history, tt.lines...)
 			for _, taken := range tt.taken {
-				readAs(r, clock, taken.Account, taken.At, taken.window())
+				readAs(r, clock, taken.Account, taken.At, taken.Window())
 			}
 			clock.now = chartedAt
 
@@ -264,7 +265,7 @@ func TestAWindowsReadingsComeOnceEachFromTheDaysAroundItsSpan(t *testing.T) {
 	clock := &testClock{}
 	r, dir := newChartedRouter(t, clock)
 	date := func(t time.Time, offset int) string { return t.Local().AddDate(0, 0, offset).Format(time.DateOnly) }
-	read := func(u float64) reading { return lineOf("work", using(week, u), weekStarted.Add(time.Hour)) }
+	read := func(u float64) readings.Reading { return lineOf("work", using(week, u), weekStarted.Add(time.Hour)) }
 	// Files named for the days around the week's span, as a change of time
 	// zone can name them, hold readings of other days.
 	writeDay(t, dir, plainFile(date(weekStarted, -2)), linesOf(t, read(0.05)))
@@ -344,8 +345,8 @@ func using(w quota.Window, u float64) quota.Window {
 
 // lineOf is the history's line of w, a window of the account with the given
 // id, as an answer read it at at.
-func lineOf(id string, w quota.Window, at time.Time) reading {
-	return readingsOf(id, []quota.Window{w}, at.UTC(), fromAnswer)[0]
+func lineOf(id string, w quota.Window, at time.Time) readings.Reading {
+	return readings.Of(id, []quota.Window{w}, at.UTC(), readings.FromAnswer)[0]
 }
 
 // at13 is the given minute past 13:00 on chartedAt's day.
@@ -355,7 +356,7 @@ func at13(minute int) time.Time {
 
 // writeLines appends lines to the plain files of the history h, each to its
 // local day's, as the router does.
-func writeLines(t *testing.T, h *history, lines ...reading) {
+func writeLines(t *testing.T, h *history, lines ...readings.Reading) {
 	t.Helper()
 	if err := h.files.Append(h.lines(lines)); err != nil {
 		t.Fatal(err)
@@ -366,9 +367,9 @@ func writeLines(t *testing.T, h *history, lines ...reading) {
 // each local day's to its own, as a member of their own after any the file
 // holds, as compressing their plain files would: where the time zone puts the
 // lines of two calls on one day, it holds both.
-func compressLines(t *testing.T, dir string, lines ...reading) {
+func compressLines(t *testing.T, dir string, lines ...readings.Reading) {
 	t.Helper()
-	byDay := make(map[string][]reading)
+	byDay := make(map[string][]readings.Reading)
 	for _, l := range lines {
 		date := l.At.Local().Format(time.DateOnly)
 		byDay[date] = append(byDay[date], l)

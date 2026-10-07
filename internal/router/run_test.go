@@ -346,9 +346,9 @@ func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
 	summary := filepath.Join(cfg.StateDir, "ledger", "day-"+date+".json")
 
 	runRouter(t, cfg)
-	waitUntil(t, "the router summarises yesterday", func() bool {
-		_, err := os.Stat(summary)
-		return err == nil
+	// The day is noted summarised once its summary is written.
+	waitUntil(t, "the router notes it summarised yesterday", func() bool {
+		return log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "component=router", "day="+date, "requests=1")
 	})
 	data, err := os.ReadFile(summary)
 	if err != nil {
@@ -358,9 +358,6 @@ func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
 		`"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.4}}]}` + "\n"
 	if string(data) != want {
 		t.Errorf("yesterday's summary is\n%s\nwant its request, and its window's highest use from the readings history\n%s", data, want)
-	}
-	if !log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "component=router", "day="+date, "requests=1") {
-		t.Errorf("log reads\n%s\nwant yesterday summarised noted", log)
 	}
 }
 

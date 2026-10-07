@@ -1042,22 +1042,6 @@ func TestARequestIsInFlightWhileItAsksStreamsOrIsThrottled(t *testing.T) {
 	}
 }
 
-func TestTokensAreCountedAsBrieflyAsARowHasRoomFor(t *testing.T) {
-	tests := []struct {
-		n    int
-		want string
-	}{
-		{n: 0, want: "0"}, {n: 999, want: "999"}, {n: 1000, want: "1.0k"}, {n: 1234, want: "1.2k"},
-		{n: 9949, want: "9.9k"}, {n: 9950, want: "10k"}, {n: 34567, want: "35k"}, {n: 999499, want: "999k"},
-		{n: 999500, want: "1.0M"}, {n: 1234567, want: "1.2M"},
-	}
-	for _, tt := range tests {
-		if got := tokens(tt.n); got != tt.want {
-			t.Errorf("tokens(%d) = %q, want %q", tt.n, got, tt.want)
-		}
-	}
-}
-
 func TestABackAndACallRoundWhenItWasLastSeenAlike(t *testing.T) {
 	for ago := time.Minute; ago <= time.Hour; ago += 7 * time.Second {
 		if back, call := lapsed(now.Add(-ago), now), seenAgo(now, now.Add(-ago)); back != call {

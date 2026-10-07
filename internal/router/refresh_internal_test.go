@@ -14,6 +14,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -71,7 +72,7 @@ func TestRefreshProbesOnlyTheAccountsOlderThanAsked(t *testing.T) {
 			maxAge: "30m",
 			before: func(r *Router, clock *testClock) {
 				clock.now = start.Add(-30 * time.Second)
-				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), r.state.mark(), fromProbe)
+				r.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), r.state.mark(), readings.FromProbe)
 			},
 			want: map[string]int{workToken: 1},
 		},

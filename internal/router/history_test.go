@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -76,15 +76,15 @@ func historyOf(dir string, t time.Time) string {
 }
 
 // workRead is work's session as an answer read it at at, at u of its use.
-func workRead(at time.Time, u float64) reading {
-	return reading{At: at.UTC(), Account: "work", Window: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: fromAnswer}
+func workRead(at time.Time, u float64) readings.Reading {
+	return readings.Reading{At: at.UTC(), Account: "work", Key: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: readings.FromAnswer}
 }
 
-// linesOf returns readings as the history's lines.
-func linesOf(t *testing.T, readings ...reading) string {
+// linesOf returns read as the history's lines.
+func linesOf(t *testing.T, read ...readings.Reading) string {
 	t.Helper()
 	var lines strings.Builder
-	for _, r := range readings {
+	for _, r := range read {
 		line, err := json.Marshal(r)
 		if err != nil {
 			t.Fatal(err)
@@ -150,8 +150,8 @@ func TestTheHistoryHoldsEachReadingThatChangesAWindow(t *testing.T) {
 	busier := session
 	busier.Utilization = 0.31
 	s.record("work", []quota.Window{busier, week}, s.mark())
-	s.recordProbe("side", probed(nil, session), nil, s.mark(), fromProbe)
-	s.recordProbe("side", probed(nil, session, week), nil, s.mark(), fromPrime)
+	s.recordProbe("side", probed(nil, session), nil, s.mark(), readings.FromProbe)
+	s.recordProbe("side", probed(nil, session, week), nil, s.mark(), readings.FromPrime)
 	stop()
 
 	data, err := os.ReadFile(historyOf(dir, start))
@@ -279,7 +279,7 @@ func TestAQuietAccountStaysQuietAcrossARestart(t *testing.T) {
 	h.open(dir)
 	s := newTestState(&testClock{now: now})
 	s.usage["work"].windows["5h"] = session
-	lines := []reading{{At: start, Account: "work", Window: "5h", Utilization: session.Utilization, ResetsAt: session.ResetsAt, Source: fromAnswer}}
+	lines := []readings.Reading{{At: start, Account: "work", Key: "5h", Utilization: session.Utilization, ResetsAt: session.ResetsAt, Source: readings.FromAnswer}}
 	writeLines(t, h, lines...)
 
 	s.seed(h.readBack(now))
@@ -300,8 +300,8 @@ func TestARiseAcrossAGapInTheHistoryIsSpreadOverItAfterARestart(t *testing.T) {
 	busier.Utilization = 0.43
 	s.usage["work"].windows["5h"] = busier
 	writeLines(t, h,
-		reading{At: start, Account: "work", Window: "5h", Utilization: 0.23, ResetsAt: session.ResetsAt, Source: fromAnswer},
-		reading{At: now.Add(-time.Minute), Account: "work", Window: "5h", Utilization: 0.43, ResetsAt: session.ResetsAt, Source: fromProbe},
+		readings.Reading{At: start, Account: "work", Key: "5h", Utilization: 0.23, ResetsAt: session.ResetsAt, Source: readings.FromAnswer},
+		readings.Reading{At: now.Add(-time.Minute), Account: "work", Key: "5h", Utilization: 0.43, ResetsAt: session.ResetsAt, Source: readings.FromProbe},
 	)
 
 	s.seed(h.readBack(now))
@@ -316,70 +316,70 @@ func TestReadingBackTakesTheTwoNewestDays(t *testing.T) {
 	// written the day's compressed file, before it removed its plain one, which
 	// holds the last two of these. Read twice, they'd fall back from 0.45 to
 	// 0.3, as a reset by hand does.
-	stopped := []reading{workRead(now.Add(-240*time.Hour), 0.2), workRead(now.Add(-239*time.Hour), 0.3), workRead(now.Add(-238*time.Hour), 0.45)}
+	stopped := []readings.Reading{workRead(now.Add(-240*time.Hour), 0.2), workRead(now.Add(-239*time.Hour), 0.3), workRead(now.Add(-238*time.Hour), 0.45)}
 	tests := []struct {
 		name string
 		// files are the readings each of the history's files holds.
-		files map[dayFile][]reading
-		want  []reading
+		files map[dayFile][]readings.Reading
+		want  []readings.Reading
 	}{
 		{
 			name: "yesterday's and today's, across midnight",
-			files: map[dayFile][]reading{
+			files: map[dayFile][]readings.Reading{
 				plainFile("2026-09-27"): {workRead(now.Add(-26*time.Hour), 0.1)},
 				plainFile("2026-09-28"): {workRead(now.Add(-20*time.Minute), 0.2)},
 				plainFile("2026-09-29"): {workRead(now.Add(-5*time.Minute), 0.3)},
 			},
-			want: []reading{workRead(now.Add(-20*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
+			want: []readings.Reading{workRead(now.Add(-20*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
 		},
 		{
 			name: "named for a day the clock hasn't come to, as after a change of time zone",
-			files: map[dayFile][]reading{
+			files: map[dayFile][]readings.Reading{
 				plainFile("2026-09-28"): {workRead(now.Add(-40*time.Minute), 0.1)},
 				plainFile("2026-09-29"): {workRead(now.Add(-20*time.Minute), 0.2)},
 				plainFile("2026-09-30"): {workRead(now.Add(-5*time.Minute), 0.3)},
 			},
-			want: []reading{workRead(now.Add(-20*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
+			want: []readings.Reading{workRead(now.Add(-20*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
 		},
 		{
 			name: "compressed, as when the router restarts days after the last reading it wrote",
-			files: map[dayFile][]reading{
+			files: map[dayFile][]readings.Reading{
 				compressedFile("2026-09-17"): {workRead(now.Add(-12*24*time.Hour), 0.1)},
 				compressedFile("2026-09-18"): {workRead(now.Add(-11*24*time.Hour), 0.2)},
 				compressedFile("2026-09-19"): {workRead(now.Add(-10*24*time.Hour), 0.3)},
 			},
-			want: []reading{workRead(now.Add(-11*24*time.Hour), 0.2), workRead(now.Add(-10*24*time.Hour), 0.3)},
+			want: []readings.Reading{workRead(now.Add(-11*24*time.Hour), 0.2), workRead(now.Add(-10*24*time.Hour), 0.3)},
 		},
 		{
 			name: "a day's compressed lines before its plain file's, as when the clock was set back to it",
-			files: map[dayFile][]reading{
+			files: map[dayFile][]readings.Reading{
 				plainFile("2026-09-27"):      {workRead(now.Add(-26*time.Hour), 0.05)},
 				plainFile("2026-09-28"):      {workRead(now.Add(-20*time.Minute), 0.1)},
 				compressedFile("2026-09-29"): {workRead(now.Add(-8*time.Minute), 0.2)},
 				plainFile("2026-09-29"):      {workRead(now.Add(-5*time.Minute), 0.3)},
 			},
-			want: []reading{workRead(now.Add(-20*time.Minute), 0.1), workRead(now.Add(-8*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
+			want: []readings.Reading{workRead(now.Add(-20*time.Minute), 0.1), workRead(now.Add(-8*time.Minute), 0.2), workRead(now.Add(-5*time.Minute), 0.3)},
 		},
 		{
 			name: "a day's lines once, when its compressed file ends with its plain file's, as after the router stopped compressing it",
-			files: map[dayFile][]reading{
+			files: map[dayFile][]readings.Reading{
 				plainFile("2026-09-18"):      {workRead(now.Add(-264*time.Hour), 0.1)},
 				compressedFile("2026-09-19"): stopped,
 				plainFile("2026-09-19"):      stopped[1:],
 			},
-			want: append([]reading{workRead(now.Add(-264*time.Hour), 0.1)}, stopped...),
+			want: append([]readings.Reading{workRead(now.Add(-264*time.Hour), 0.1)}, stopped...),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			for f, readings := range tt.files {
-				writeDay(t, dir, f, linesOf(t, readings...))
+			for f, read := range tt.files {
+				writeDay(t, dir, f, linesOf(t, read...))
 			}
 			h := newHistory(config.History{}, at(now))
 			h.open(dir)
 
-			if got := slices.Collect(h.readBack(now)); !slices.EqualFunc(got, tt.want, func(a, b reading) bool { return a.At.Equal(b.At) && a.Utilization == b.Utilization }) {
+			if got := slices.Collect(h.readBack(now)); !slices.EqualFunc(got, tt.want, func(a, b readings.Reading) bool { return a.At.Equal(b.At) && a.Utilization == b.Utilization }) {
 				t.Errorf("readBack() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -403,13 +403,8 @@ func TestTheHistoryGivesTheLedgerTheReadingsOfATime(t *testing.T) {
 	}
 	h.open(dir)
 	got := slices.Collect(h.readings(from, to))
-	want := []ledger.Reading{
-		{At: first.At, Account: "work", Window: quota.Window{Key: "5h", Utilization: 0.2, ResetsAt: session.ResetsAt}},
-		{At: last.At, Account: "work", Window: quota.Window{Key: "5h", Utilization: 0.3, ResetsAt: session.ResetsAt}},
-	}
-	if !slices.EqualFunc(got, want, func(a, b ledger.Reading) bool {
-		return a.At.Equal(b.At) && a.Account == b.Account && a.Window.Key == b.Window.Key && a.Window.Utilization == b.Window.Utilization &&
-			a.Window.ResetsAt.Equal(b.Window.ResetsAt) && a.Window.Status == b.Window.Status
+	if want := []readings.Reading{first, last}; !slices.EqualFunc(got, want, func(a, b readings.Reading) bool {
+		return a.At.Equal(b.At) && a.Account == b.Account && a.Window() == b.Window()
 	}) {
 		t.Errorf("readings() = %+v, want %+v: those of the time asked for, in the order they came, whatever day's file they're in", got, want)
 	}
@@ -423,7 +418,7 @@ func TestReadingBackSkipsALineTooLongToHoldAlone(t *testing.T) {
 			strconv.FormatFloat(u, 'f', -1, 64) + `,"pad":"` + strings.Repeat("x", pad) + `","source":"answer"}`
 		return []byte(line + "\n")
 	}
-	data := slices.Concat(lineAt(0.1, 0), lineAt(0.2, historyLineMax), lineAt(0.3, 0))
+	data := slices.Concat(lineAt(0.1, 0), lineAt(0.2, 4096), lineAt(0.3, 0))
 	if err := os.WriteFile(historyOf(dir, start), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -446,16 +441,16 @@ func TestTakingUpADaysHistoryKeepsWhatTheTrailsNeedAlone(t *testing.T) {
 	h.open(dir)
 	// Work's session, read every half minute for the day before, rising a
 	// little each time, in a window that resets after now.
-	var readings []reading
+	var taken []readings.Reading
 	for i := range 2880 {
-		readings = append(readings, reading{
-			At: start.Add(time.Duration(i) * 30 * time.Second), Account: "work", Window: "5h",
-			Utilization: float64(i) / 10000, ResetsAt: now.Add(time.Hour), Source: fromAnswer,
+		taken = append(taken, readings.Reading{
+			At: start.Add(time.Duration(i) * 30 * time.Second), Account: "work", Key: "5h",
+			Utilization: float64(i) / 10000, ResetsAt: now.Add(time.Hour), Source: readings.FromAnswer,
 		})
 	}
-	writeLines(t, h, readings...)
+	writeLines(t, h, taken...)
 	s := newTestState(&testClock{now: now})
-	s.usage["work"].windows["5h"] = quota.Window{Key: "5h", Utilization: readings[len(readings)-1].Utilization, ResetsAt: now.Add(time.Hour)}
+	s.usage["work"].windows["5h"] = quota.Window{Key: "5h", Utilization: taken[len(taken)-1].Utilization, ResetsAt: now.Add(time.Hour)}
 
 	s.seed(h.readBack(now))
 	if got := len(s.usage["work"].trails["5h"]); got > 61 {
@@ -577,7 +572,7 @@ func TestWhatTheHistoryCantDoIsLoggedAsTheRoutersReadingsHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.open(filepath.Join(blocker, "history"))
-	one := readingsOf("work", []quota.Window{session}, start, fromAnswer)
+	one := readings.Of("work", []quota.Window{session}, start, readings.FromAnswer)
 	for range historyQueue + 1 {
 		h.note(one)
 	}
@@ -603,10 +598,10 @@ func TestAReadingTheHistoryCantHoldIsLoggedOnce(t *testing.T) {
 	dir := t.TempDir()
 	h := newHistory(config.History{}, at(start))
 	h.open(dir)
-	bad := reading{At: start, Account: "work", Window: "5h", Utilization: math.NaN(), Source: fromAnswer}
-	good := readingsOf("work", []quota.Window{session}, start, fromAnswer)
+	bad := readings.Reading{At: start, Account: "work", Key: "5h", Utilization: math.NaN(), Source: readings.FromAnswer}
+	good := readings.Of("work", []quota.Window{session}, start, readings.FromAnswer)
 
-	writeLines(t, h, append([]reading{bad}, good...)...)
+	writeLines(t, h, append([]readings.Reading{bad}, good...)...)
 	writeLines(t, h, bad)
 	if got := len(linesWith(log, "readings history can't hold a reading")); got != 1 {
 		t.Errorf("log reads\n%s\nwant the reading it can't hold noted once", log)
@@ -648,7 +643,7 @@ func TestAHistoryNotYetOpenedTakesNothing(t *testing.T) {
 	dir := t.TempDir()
 	h := newHistory(config.History{}, at(start))
 
-	h.note(readingsOf("work", []quota.Window{session}, start, fromAnswer))
+	h.note(readings.Of("work", []quota.Window{session}, start, readings.FromAnswer))
 	h.open(dir)
 	keeping(t, h)()
 	if _, err := os.Stat(historyOf(dir, start)); !errors.Is(err, fs.ErrNotExist) {

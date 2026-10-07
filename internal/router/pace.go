@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -40,22 +41,21 @@ func (t trails) note(held, kept quota.Window, at time.Time) {
 	t[kept.Key] = readings
 }
 
-// seed takes up, as the router starts, the readings the readings history
-// holds, in the order they were read, into the trails of the accounts
-// configured, as though they'd come in as read then: the history holds each
-// change of a window's use, so its trail, baseline included, is as it was,
-// and its recent rate outlasts a restart. A window whose reading, as the
-// state file kept it, has another reset than its readings last read, as when
-// it has reset since, keeps none of them. It returns how many the trails
-// keep.
-func (s *state) seed(readings iter.Seq[reading]) int {
+// seed takes up, as the router starts, the readings history gives, in the
+// order they were read, into the trails of the accounts configured, as though
+// they'd come in as read then: the readings history holds each change of a
+// window's use, so its trail, baseline included, is as it was, and its recent
+// rate outlasts a restart. A window whose reading, as the state file kept it,
+// has another reset than its readings last read, as when it has reset since,
+// keeps none of them. It returns how many the trails keep.
+func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	type trailOf struct{ account, window string }
 	last := make(map[trailOf]quota.Window)
-	for r := range readings {
+	for r := range history {
 		if u, configured := s.usage[r.Account]; configured {
-			of, w := trailOf{r.Account, r.Window}, r.window()
+			of, w := trailOf{r.Account, r.Key}, r.Window()
 			u.trails.note(last[of], w, r.At)
 			last[of] = w
 		}

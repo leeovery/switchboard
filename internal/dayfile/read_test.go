@@ -241,6 +241,18 @@ func TestDatesTakeInTheLocalDayEitherSide(t *testing.T) {
 	}
 }
 
+func TestASpanIsTheLocalDaysFromTheFirstToTheLast(t *testing.T) {
+	first := time.Date(2026, 9, 28, 23, 30, 0, 0, time.Local)
+	last := time.Date(2026, 9, 30, 0, 30, 0, 0, time.Local)
+
+	if got, want := Span(first.UTC(), last.UTC()), []string{"2026-09-28", "2026-09-29", "2026-09-30"}; !slices.Equal(got, want) {
+		t.Errorf("Span() = %q, want %q: the local days from first's to last's, both included", got, want)
+	}
+	if got := Span(last, first); len(got) > 0 {
+		t.Errorf("Span() of a last before the first = %q, want none", got)
+	}
+}
+
 func TestADamagedCompressedFileGivesTheLinesBeforeTheDamage(t *testing.T) {
 	yesterday := compressedFile("2026-09-28")
 	first, second := linesOf("the first line"), linesOf("the second line")

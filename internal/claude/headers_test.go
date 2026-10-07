@@ -10,6 +10,14 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
+func TestAWindowIsNamedByItsLabelOrElseItsKey(t *testing.T) {
+	for key, want := range map[string]string{"5h": "Session", "7d": "Week", "7d_oi": "Fable week", "7d_new": "7d_new"} {
+		if got := claude.WindowLabel(key); got != want {
+			t.Errorf("WindowLabel(%q) = %q, want %q", key, got, want)
+		}
+	}
+}
+
 func TestParseWindows(t *testing.T) {
 	sessionReset := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
 	weekReset := time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC)

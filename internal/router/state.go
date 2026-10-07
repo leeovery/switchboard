@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prime"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -207,7 +208,7 @@ type state struct {
 	// reads, for the readings history: it mustn't block, nor call s. New has
 	// it the router's history's, which drops what it hears until Run opens
 	// it; newState's hears nothing.
-	history func([]reading)
+	history func([]readings.Reading)
 	// moments counts the moments marked.
 	moments atomic.Uint64
 
@@ -229,7 +230,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		now:      now,
 		changed:  changed,
 		readOff:  readOff,
-		history:  func([]reading) {},
+		history:  func([]readings.Reading) {},
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
 	}
@@ -262,7 +263,7 @@ func (s *state) record(id string, windows []quota.Window, sent moment) {
 	if took {
 		s.readOff()
 	}
-	s.history(readingsOf(id, changed, at, fromAnswer))
+	s.history(readings.Of(id, changed, at, readings.FromAnswer))
 }
 
 // admitted notes that the upstream answered a request on the account, sent
@@ -277,7 +278,7 @@ func (s *state) admitted(id string, sent moment) {
 // prime or not, as from says: its usage and which models reported each
 // window, and whether a request of it was answered with success, or why it
 // read nothing.
-func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from source) {
+func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -292,7 +293,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	}
 	u.failures = slices.Clone(probed.Failures)
 	changed, news := u.take(probed.Windows, at, sent, s.mark())
-	s.history(readingsOf(id, changed, at, from))
+	s.history(readings.Of(id, changed, at, from))
 	for key, models := range probed.Models {
 		for _, model := range models {
 			news = s.see(key, model) || news

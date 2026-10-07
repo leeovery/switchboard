@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/quota"
 )
 
 // now is the time by the clock in tests: a Tuesday, 13:12 UTC.
@@ -199,6 +200,30 @@ func TestALineThatCantBeWrittenIsLoggedOnce(t *testing.T) {
 	}
 	if n := strings.Count(log.String(), `msg="request ledger can't hold a line; it goes unwritten"`); n != 1 || !log.Has("level=WARN", "request=1") {
 		t.Errorf("log reads\n%s\nwant the first line that couldn't be written warned of, once", log)
+	}
+}
+
+func TestTheTokensAreThoseTheUsageCounts(t *testing.T) {
+	tests := []struct {
+		name  string
+		usage json.RawMessage
+		want  quota.Tokens
+		given bool
+	}{
+		{name: "of each kind", usage: json.RawMessage(`{"input_tokens":12,"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
+			`"output_tokens":845,"service_tier":"standard"}`), want: quota.Tokens{Input: 12, CacheWrite: 3120, CacheRead: 182340, Output: 845}, given: true},
+		{name: "none", usage: nil},
+		{name: "of a usage that isn't one", usage: json.RawMessage(`[12]`)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, given := (ledger.Reply{Usage: tt.usage}).Tokens(); got != tt.want || given != tt.given {
+				t.Errorf("a reply's Tokens() = %+v, %v, want %+v, %v", got, given, tt.want, tt.given)
+			}
+			if got := (ledger.ModelDay{Usage: tt.usage}).Tokens(); got != tt.want {
+				t.Errorf("a model's day's Tokens() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

@@ -1,0 +1,291 @@
+package ledger
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"slices"
+	"strings"
+)
+
+// Picodollars are an amount of US dollars, in millionths of a millionth of a
+// dollar: fine enough that every price Anthropic gives a million tokens, to
+// the cent, prices a token whole, and so does US-only inference's tenth more,
+// so a worth is exact, never rounded.
+type Picodollars int64
+
+// perMTok is a token's price, given as Anthropic gives it: dollars a million
+// tokens.
+func perMTok(dollars float64) Picodollars {
+	return Picodollars(math.Round(dollars * 1e6))
+}
+
+// perThousand is the price of one of something, given as dollars a thousand,
+// as Anthropic gives a web search's.
+func perThousand(dollars float64) Picodollars {
+	return Picodollars(math.Round(dollars * 1e9))
+}
+
+const (
+	// dollar and cent are how many picodollars each is.
+	dollar Picodollars = 1_000_000_000_000
+	cent               = dollar / 100
+)
+
+// Cents shows the amount to the nearest cent, as "$412.53".
+func (p Picodollars) Cents() string {
+	cents := (p.abs() + cent/2) / cent
+	return fmt.Sprintf("%s$%d.%02d", p.sign(), cents/100, cents%100)
+}
+
+// MarshalJSON gives the amount in dollars, exactly, as 412.532118.
+func (p Picodollars) MarshalJSON() ([]byte, error) {
+	dollars := fmt.Sprintf("%s%d", p.sign(), p.abs()/dollar)
+	if part := p.abs() % dollar; part > 0 {
+		dollars += strings.TrimRight(fmt.Sprintf(".%012d", part), "0")
+	}
+	return []byte(dollars), nil
+}
+
+// abs is the amount without its sign.
+func (p Picodollars) abs() Picodollars {
+	return max(p, -p)
+}
+
+// sign is the amount's sign, as it's written: "-" for less than none.
+func (p Picodollars) sign() string {
+	if p < 0 {
+		return "-"
+	}
+	return ""
+}
+
+// Prices are a model's prices from the day they took effect: what each count
+// its usage holds costs, as Anthropic's pricing page gives them.
+type Prices struct {
+	// From is the date of the day they took effect, as 2026-09-22.
+	From string
+	// Input, CacheWrite5m, CacheWrite1h, CacheRead and Output are a token's
+	// prices: of input, of writing the prompt cache for five minutes and for
+	// an hour, of reading it, and of output.
+	Input, CacheWrite5m, CacheWrite1h, CacheRead, Output Picodollars
+	// WebSearch is a web search's.
+	WebSearch Picodollars
+	// USOnlyPercent is what a token costs where a request asks for US-only
+	// inference, as a percentage of its price: 0 where the model doesn't offer
+	// it.
+	USOnlyPercent int64
+}
+
+// Model is a model the price table knows: the ids requests ask for it by, and
+// its prices, each from the day they took effect, oldest first.
+type Model struct {
+	IDs    []string
+	Prices []Prices
+}
+
+// Table is a table of models' prices, as Anthropic's pricing page gave them
+// on the day AsOf names.
+type Table struct {
+	// AsOf is the date of the day the prices were read, as 2026-10-07.
+	AsOf   string
+	Models []Model
+}
+
+// Worth is what a usage would have cost through the API: Cost, of what its
+// prices charge for; and Unpriced, the paths of the counts it holds that they
+// can't price, as a server tool's the table doesn't know, which Cost leaves
+// out rather than guess at.
+type Worth struct {
+	Cost     Picodollars
+	Unpriced []string
+}
+
+// Worth returns what usage, of a request for the model with the given id that
+// asked for its inference to run in the geo given, "" where it asked for
+// none, would have cost through the API at the prices in effect on the local
+// day with the given date. It reports false for a model the table doesn't
+// know, or a geo it doesn't price the model in: never zero.
+func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Worth, bool) {
+	prices, ok := t.prices(model, date)
+	if ok {
+		prices, ok = prices.in(geo)
+	}
+	if !ok {
+		return Worth{}, false
+	}
+	held := make(counts)
+	held.add(usage)
+	return prices.worth(held), true
+}
+
+// Request returns what the line's request would have cost through the API at
+// the prices in effect on the local day with the given date, as Worth says.
+func (t Table) Request(l *Line, date string) (Worth, bool) {
+	return t.Worth(l.Model, l.Shape.InferenceGeo, l.Usage, date)
+}
+
+// prices returns the prices of the model with the given id in effect on the
+// local day with the given date: those that took effect last, on it or
+// before; or, on a day before any did, the first, which the model launched
+// with, as nothing priced it before them. It reports false for a model the
+// table doesn't know.
+func (t Table) prices(model, date string) (Prices, bool) {
+	i := slices.IndexFunc(t.Models, func(m Model) bool { return slices.Contains(m.IDs, model) })
+	if i < 0 || len(t.Models[i].Prices) == 0 {
+		return Prices{}, false
+	}
+	all := t.Models[i].Prices
+	in := all[0]
+	for _, p := range all[1:] {
+		if p.From <= date {
+			in = p
+		}
+	}
+	return in, true
+}
+
+// in returns the prices of a request that asked for its inference to run in
+// the geo given: as they are for none, or "global", and each token's raised
+// for US-only inference, "us", where the model offers it. It reports false
+// for a geo they don't price.
+func (p Prices) in(geo string) (Prices, bool) {
+	switch {
+	case geo == "" || geo == "global":
+		return p, true
+	case geo == "us" && p.USOnlyPercent > 0:
+		raise := func(price Picodollars) Picodollars { return price * Picodollars(p.USOnlyPercent) / 100 }
+		p.Input, p.CacheWrite5m, p.CacheWrite1h = raise(p.Input), raise(p.CacheWrite5m), raise(p.CacheWrite1h)
+		p.CacheRead, p.Output = raise(p.CacheRead), raise(p.Output)
+		return p, true
+	}
+	return Prices{}, false
+}
+
+const (
+	// cacheWrites is the path of the count of the prompt cache's writes as a
+	// whole, which the counts within cacheTTLs break down by how long each
+	// write lasts.
+	cacheWrites = "cache_creation_input_tokens"
+	cacheTTLs   = "cache_creation"
+)
+
+// uncharged are the counts a usage holds that cost nothing of their own, by
+// their paths, or the paths they're within, ending in a dot: web fetches,
+// which the API charges nothing for beyond their tokens; the part of the
+// output its thinking was; and the turns of the model asked for, as an
+// answer's iterations give them, whose counts the usage's own sum.
+var uncharged = []string{"server_tool_use.web_fetch_requests", "output_tokens_details.", "iterations.message."}
+
+// charge returns what each of the count at path costs at p, reporting false
+// for a count p doesn't charge for.
+func (p Prices) charge(path string) (Picodollars, bool) {
+	switch path {
+	case "input_tokens":
+		return p.Input, true
+	case cacheTTLs + ".ephemeral_5m_input_tokens":
+		return p.CacheWrite5m, true
+	case cacheTTLs + ".ephemeral_1h_input_tokens":
+		return p.CacheWrite1h, true
+	case "cache_read_input_tokens":
+		return p.CacheRead, true
+	case "output_tokens":
+		return p.Output, true
+	case "server_tool_use.web_search_requests":
+		return p.WebSearch, true
+	}
+	return 0, false
+}
+
+// worth returns what usage, as counts, costs at p: each count p charges for
+// at its price, the prompt cache's writes as how long each lasts breaks them
+// down. Any other count but one of none is unpriced, unless it costs nothing
+// of its own, as uncharged says, or it's the cache's writes as a whole, as
+// far as they're broken down: those beyond may have lasted either long.
+func (p Prices) worth(usage counts) Worth {
+	var w Worth
+	brokenDown := usage.total(cacheTTLs)
+	usage.each("", func(path string, n int64) {
+		switch price, charged := p.charge(path); {
+		case charged:
+			w.Cost += Picodollars(n) * price
+		case n != 0 && !free(path) && (path != cacheWrites || n > brokenDown):
+			w.Unpriced = append(w.Unpriced, path)
+		}
+	})
+	slices.Sort(w.Unpriced)
+	return w
+}
+
+// free reports whether the count at path costs nothing of its own, as
+// uncharged says.
+func free(path string) bool {
+	return slices.ContainsFunc(uncharged, func(within string) bool {
+		return path == within || strings.HasSuffix(within, ".") && strings.HasPrefix(path, within)
+	})
+}
+
+// each calls f with each count c holds, by its path, its name after those
+// it's within, each followed by a dot, after prefix.
+func (c counts) each(prefix string, f func(path string, n int64)) {
+	for name, v := range c {
+		switch v := v.(type) {
+		case int64:
+			f(prefix+name, v)
+		case counts:
+			v.each(prefix+name+".", f)
+		}
+	}
+}
+
+// total is the sum of the counts c holds directly within name.
+func (c counts) total(name string) int64 {
+	within, _ := c[name].(counts)
+	var sum int64
+	for _, v := range within {
+		n, _ := v.(int64)
+		sum += n
+	}
+	return sum
+}
+
+// Priced is a day's summary with what each model's requests were worth, as
+// history gives it: worked out as it's read, never written.
+type Priced struct {
+	Summary
+	Accounts []PricedAccount `json:"accounts,omitempty"`
+}
+
+// PricedAccount is an account's day, its models' priced.
+type PricedAccount struct {
+	AccountDay
+	Models []PricedModel `json:"models,omitempty"`
+}
+
+// PricedModel is a model's day on an account, with what its requests would
+// have cost through the API: none where the model is unpriced, as one the
+// table doesn't know; and the paths of the counts in its usage the worth
+// leaves out, as they can't be priced.
+type PricedModel struct {
+	ModelDay
+	Worth    *Picodollars `json:"worth,omitempty"`
+	Unpriced []string     `json:"unpriced,omitempty"`
+}
+
+// Priced returns the summary priced at the prices in effect on the local day
+// with the given date.
+func (t Table) Priced(s Summary, date string) Priced {
+	priced := Priced{Summary: s}
+	for _, a := range s.Accounts {
+		account := PricedAccount{AccountDay: a}
+		for _, m := range a.Models {
+			model := PricedModel{ModelDay: m}
+			if w, ok := t.Worth(m.Model, m.InferenceGeo, m.Usage, date); ok {
+				model.Worth, model.Unpriced = &w.Cost, w.Unpriced
+			}
+			account.Models = append(account.Models, model)
+		}
+		priced.Accounts = append(priced.Accounts, account)
+	}
+	return priced
+}

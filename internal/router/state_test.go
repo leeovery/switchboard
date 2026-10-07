@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -409,8 +410,8 @@ func TestRecordOfStaleWindowsLeavesTheAccountAsItWas(t *testing.T) {
 	lastWeek := week
 	lastWeek.Utilization, lastWeek.ResetsAt = 1, week.ResetsAt.Add(-7*24*time.Hour)
 	sent := s.mark()
-	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil, s.mark(), fromProbe)
-	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), fromProbe)
+	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}}, nil, s.mark(), readings.FromProbe)
+	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
 	clock.now = start.Add(time.Minute)
 
 	s.record("work", []quota.Window{lastWeek}, sent)
@@ -440,12 +441,12 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 		return account
 	}
 
-	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"), s.mark(), fromProbe)
+	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"), s.mark(), readings.FromProbe)
 	if got := work(); got.Error != "HTTP 401 · Invalid bearer token" || !got.FetchedAt.IsZero() {
 		t.Errorf("after a failed probe, work reads %+v, want the probe's error and nothing read", got)
 	}
 
-	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown}}, nil, s.mark(), fromProbe)
+	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown}}, nil, s.mark(), readings.FromProbe)
 	want := status.Account{
 		ID: "work", Label: "Work", TokenSet: true, FetchedAt: start,
 		Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown},
@@ -460,7 +461,7 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 		t.Errorf("once the Fable week is read, failures = %+v, want only %+v", got, opusDown)
 	}
 
-	s.recordProbe("work", quota.Probe{}, errors.New("dial tcp: connection refused"), s.mark(), fromProbe)
+	s.recordProbe("work", quota.Probe{}, errors.New("dial tcp: connection refused"), s.mark(), readings.FromProbe)
 	if got := work(); got.Error != "dial tcp: connection refused" || len(got.Windows) != 3 || got.FetchedAt != clock.now {
 		t.Errorf("after another failed probe, work reads %+v, want its error beside the windows last read", got)
 	}
@@ -709,8 +710,12 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 	}{
 		{name: "a reading off an answer", change: func(s *state, _ moment) { s.record("side", []quota.Window{session}, s.mark()) }, wantReadOff: 1},
 		{name: "a stale reading, which changes nothing", change: func(s *state, earlier moment) { s.record("work", []quota.Window{lastWeek}, earlier) }},
-		{name: "a probe that read", change: func(s *state, _ moment) { s.recordProbe("side", probed(nil, session), nil, s.mark(), fromProbe) }, want: 1},
-		{name: "a probe that failed", change: func(s *state, _ moment) { s.recordProbe("side", quota.Probe{}, overloaded, s.mark(), fromProbe) }},
+		{name: "a probe that read", change: func(s *state, _ moment) {
+			s.recordProbe("side", probed(nil, session), nil, s.mark(), readings.FromProbe)
+		}, want: 1},
+		{name: "a probe that failed", change: func(s *state, _ moment) {
+			s.recordProbe("side", quota.Probe{}, overloaded, s.mark(), readings.FromProbe)
+		}},
 		{name: "a window seen on a family anew", change: func(s *state, _ moment) { s.learn(fable, []quota.Window{week}) }, want: 1},
 		{name: "a window seen on its family before", change: func(s *state, _ moment) { s.learn(opus, []quota.Window{week}) }},
 		{name: "a refusal, which isn't kept", change: func(s *state, _ moment) { s.refuse("work", http.StatusUnauthorized, someRequest) }},
@@ -845,9 +850,11 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 	for range 8 {
 		wg.Go(func() { s.record("work", []quota.Window{session, week}, s.mark()) })
 		wg.Go(func() { s.learn(opus, []quota.Window{session, week}) })
-		wg.Go(func() { s.recordProbe("side", quota.Probe{Windows: []quota.Window{session}}, nil, s.mark(), fromProbe) })
 		wg.Go(func() {
-			s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), fromProbe)
+			s.recordProbe("side", quota.Probe{Windows: []quota.Window{session}}, nil, s.mark(), readings.FromProbe)
+		})
+		wg.Go(func() {
+			s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
 		})
 		wg.Go(func() { _ = s.document() })
 		wg.Go(func() { _ = s.view(opus, start).room("work") })

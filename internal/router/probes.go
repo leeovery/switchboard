@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 )
 
 const (
@@ -131,13 +132,13 @@ func (p *probes) told(r *run) report {
 
 // sourceOf is where what the probe r reads comes from: a prime, once a prime
 // has started it or shared it, else a probe.
-func (p *probes) sourceOf(r *run) source {
+func (p *probes) sourceOf(r *run) readings.Source {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if r.priming {
-		return fromPrime
+		return readings.FromPrime
 	}
-	return fromProbe
+	return readings.FromProbe
 }
 
 // await probes the accounts as start does, and waits for those probes to end
