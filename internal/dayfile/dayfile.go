@@ -114,7 +114,8 @@ func dayIn(date string, loc *time.Location) (start, end time.Time, ok bool) {
 // days before it for days less than none, in t's time zone: at its first
 // instant, its midnight, unless the clocks went forward over that, as they do
 // at midnight in some zones as summer time starts, when it starts as they
-// went forward.
+// went forward; and at the first of its midnights where they went back over
+// it, so it came twice.
 func DayStart(t time.Time, days int) time.Time {
 	y, m, d := noon(t).AddDate(0, 0, days).Date()
 	start := time.Date(y, m, d, 0, 0, 0, 0, t.Location())
@@ -122,6 +123,15 @@ func DayStart(t time.Time, days int) time.Time {
 		// time.Date puts a midnight the clocks went forward over in the hour
 		// before it, the day before's: the next zone begins with the day.
 		_, start = start.ZoneBounds()
+	}
+	// time.Date picks the second of two midnights, east of UTC: where the
+	// zone before had reached the day as it ended, the day began in it.
+	began, _ := start.ZoneBounds()
+	before := began.Add(-time.Nanosecond)
+	if by, bm, bd := before.Date(); by == y && bm == m && bd == d {
+		_, was := before.Zone()
+		_, is := start.Zone()
+		start = start.Add(time.Duration(is-was) * time.Second)
 	}
 	return start
 }

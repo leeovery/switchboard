@@ -209,6 +209,51 @@ func TestADayStartsAtItsFirstInstantWhereTheClocksGoForwardAtMidnight(t *testing
 	}
 }
 
+func TestADayStartsAtTheFirstOfItsMidnightsWhereTheClocksGoBackOverIt(t *testing.T) {
+	tests := []struct {
+		zone string
+		// date is of a day the clocks went back over the midnight it starts
+		// at, in a zone ahead of UTC, so the midnight came twice, first at
+		// first; and before is of the day before it.
+		date, before string
+		first        time.Time
+	}{
+		{zone: "Asia/Gaza", date: "2020-10-24", before: "2020-10-23", first: time.Date(2020, 10, 23, 21, 0, 0, 0, time.UTC)},
+		{zone: "Asia/Amman", date: "2020-10-30", before: "2020-10-29", first: time.Date(2020, 10, 29, 21, 0, 0, 0, time.UTC)},
+		{zone: "Antarctica/Casey", date: "2023-03-09", before: "2023-03-08", first: time.Date(2023, 3, 8, 13, 0, 0, 0, time.UTC)},
+		{zone: "Antarctica/Vostok", date: "2023-12-18", before: "2023-12-17", first: time.Date(2023, 12, 17, 17, 0, 0, 0, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.zone, func(t *testing.T) {
+			loc, err := time.LoadLocation(tt.zone)
+			if err != nil {
+				t.Fatalf("load %s: %v", tt.zone, err)
+			}
+			day, _ := time.Parse(time.DateOnly, tt.date)
+			y, m, d := day.Date()
+			nextMidnight := time.Date(y, m, d+1, 0, 0, 0, 0, loc)
+
+			start, end, ok := dayIn(tt.date, loc)
+			if !ok || !start.Equal(tt.first) || !end.Equal(nextMidnight) {
+				t.Errorf("the day of %s starts at %v and ends at %v (%v), want its first midnight, %v, and %v", tt.date, start, end, ok, tt.first.In(loc), nextMidnight)
+			}
+			if _, beforeEnd, _ := dayIn(tt.before, loc); !beforeEnd.Equal(tt.first) {
+				t.Errorf("the day before ends at %v, want the day's first midnight, %v", beforeEnd, tt.first.In(loc))
+			}
+			// Each instant of the day, those before its second midnight among
+			// them, starts there.
+			for _, within := range []time.Time{tt.first, tt.first.Add(30 * time.Minute), tt.first.Add(11 * time.Hour), nextMidnight.Add(-time.Nanosecond)} {
+				if got := DayStart(within.In(loc), 0); !got.Equal(tt.first) {
+					t.Errorf("DayStart(%v, 0) = %v, want %v", within.In(loc), got, tt.first.In(loc))
+				}
+			}
+			if got := DayStart(nextMidnight, -1); !got.Equal(tt.first) {
+				t.Errorf("DayStart(%v, -1) = %v, want %v", nextMidnight, got, tt.first.In(loc))
+			}
+		})
+	}
+}
+
 func TestADayEndsAtTheNextOnesStartWhereTheClocksGoBackAtMidnight(t *testing.T) {
 	santiago, err := time.LoadLocation("America/Santiago")
 	if err != nil {

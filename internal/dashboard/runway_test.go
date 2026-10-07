@@ -354,6 +354,34 @@ func TestTheWeeksAxisTicksTheQuartersOfItsFirstDayToo(t *testing.T) {
 	}
 }
 
+func TestTheWeeksAxisTicksEachDaysStartAndNoQuarterBeforeItWhereTheClocksGoForwardAtMidnight(t *testing.T) {
+	santiago, err := time.LoadLocation("America/Santiago")
+	if err != nil {
+		t.Fatalf("load America/Santiago: %v", err)
+	}
+	// Chile's clocks went from 00:00 to 01:00 on Sunday 6 September 2026: a
+	// week of hours, from noon on the 4th.
+	tl := timelineOf(Week, time.Date(2026, 9, 5, 12, 0, 0, 0, santiago), 168)
+	c := newCanvas(168, 2)
+	weekdays(c, tl, 0, 0)
+	at := func(day, hour int) time.Time { return time.Date(2026, 9, day, hour, 0, 0, 0, santiago) }
+	tests := []struct {
+		name string
+		at   time.Time
+		want string
+	}{
+		{name: "the 6th's start, as the clocks went forward", at: at(6, 1), want: "┬"},
+		{name: "the hour before it, the 5th's last", at: at(5, 23), want: " "},
+		{name: "the 6th's first quarter", at: at(6, 6), want: "╵"},
+		{name: "the 7th's start", at: at(7, 0), want: "┬"},
+	}
+	for _, tt := range tests {
+		if got := c.at(tl.column(tt.at), 1).glyph; got != tt.want {
+			t.Errorf("%s, %v, in column %d, is ticked %q, want %q", tt.name, tt.at, tl.column(tt.at), got, tt.want)
+		}
+	}
+}
+
 func TestTheStripsFewWithRoomFillItsLowestEighth(t *testing.T) {
 	cells := make([][]room, 40)
 	for i := range cells {

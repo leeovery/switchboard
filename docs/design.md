@@ -822,8 +822,9 @@ A card, top to bottom:
   leaving off the rate's words first, then cutting the verb to `→ out ~`, then the date, its
   weekday left off within a day of now; and a countdown to a time just passed reads `now`. Under
   them its chart (see Charts), and under that its axis: the 5-hour window's start, `now` and its
-  reset; or the week's days, a tick in the column each midnight falls in, `╵Tue ╵Wed ╵Thu`, a lone
-  `╵` where the day's name doesn't fit, today's picked out.
+  reset; or the week's days, a tick in the column each midnight falls in, or the instant the clocks
+  went forward over it, `╵Tue ╵Wed ╵Thu`, a lone `╵` where the day's name doesn't fit, today's
+  picked out.
 - **The other windows**, a line each, in the status document's order, shortest first: the name, a
   bar, the use and where it's heading: `Week ██████┃███▋╎░ 34% → 87%`, where it's heading turning
   `accent.attention` within 10 points of the floor it runs out at; `→ out Fri` in `accent.attention`
@@ -1937,7 +1938,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
-| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included; the days themselves, each from its first instant, where the clocks go forward at midnight too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too |
+| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included; the days themselves, each from its first instant, where the clocks go forward over its midnight, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read, and the price table and the worth it gives |
 | `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |

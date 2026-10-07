@@ -275,7 +275,8 @@ func weekdays(c *canvas, tl timeline, x, y int) {
 
 // quarters ticks the quarters of the days over the timeline from x along
 // row y, faint, the first day's among them, which starts before the
-// timeline, but at midnight, which its day's own tick marks.
+// timeline, but each fourth, the midnight, which its day's own tick marks:
+// time.Date puts one the clocks went forward over in the hour before.
 func quarters(c *canvas, tl timeline, x, y int) {
 	from := tl.start
 	for i := 1; ; i++ {
@@ -284,7 +285,7 @@ func quarters(c *canvas, tl timeline, x, y int) {
 		switch {
 		case col >= tl.columns:
 			return
-		case col >= 0 && at.Hour() != 0:
+		case col >= 0 && i%4 != 0:
 			c.text(x+col, y, "╵", faintInk)
 		}
 	}
