@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -204,6 +205,34 @@ func TestTheFilesArePrunedOnANewDayWithNothingToWrite(t *testing.T) {
 		synctest.Wait()
 		if holdsDay(f, old) {
 			t.Error("the day's file stayed on the day after start's, want it pruned though nothing was written")
+		}
+	})
+}
+
+func TestAWriterMakesItsRoundAsItStartsAndEveryHourAfterBeforePruning(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := readingsHistory(t.TempDir())
+		// A day long past keeping, which the first round's pruning removes.
+		old := dateOf(start.Local().AddDate(0, 0, -30))
+		writeDay(t, f, plainFile(old), linesOf("old"))
+		began := time.Now()
+		var rounds []time.Time
+		var held []bool
+		w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
+			Round: func(now time.Time) {
+				rounds = append(rounds, now)
+				held = append(held, holdsDay(f, old))
+			}})
+		stop := running(t, w)
+
+		time.Sleep(2*pruneLook + time.Minute)
+		synctest.Wait()
+		stop()
+		if want := []time.Time{start, start.Add(pruneLook), start.Add(2 * pruneLook)}; !slices.EqualFunc(rounds, want, time.Time.Equal) {
+			t.Errorf("rounds were made at %v, want %v: as the writer started, and every %v after", rounds, want, pruneLook)
+		}
+		if want := []bool{true, false, false}; !slices.Equal(held, want) {
+			t.Errorf("the day past keeping was there for each round = %v, want %v: the first round made before the pruning it went at", held, want)
 		}
 	})
 }

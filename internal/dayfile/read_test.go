@@ -165,6 +165,33 @@ func TestNewestTakesTheNewestDaysByTheirFilesNames(t *testing.T) {
 	}
 }
 
+func TestEndedTakesTheDaysThatEndedAsLongAgoAsAsked(t *testing.T) {
+	now := time.Date(2026, 9, 28, 0, 30, 0, 0, time.Local)
+	f := readingsHistory(t.TempDir())
+	// Days long done, compressed and plain; yesterday's, which ended half an
+	// hour before now; today's; and a day after tomorrow's, as a clock once set
+	// ahead names one.
+	for _, file := range []dayFile{compressedFile("2026-09-20"), compressedFile("2026-09-26"), plainFile("2026-09-26"), plainFile("2026-09-27"),
+		plainFile("2026-09-28"), plainFile("2026-09-30")} {
+		writeDay(t, f, file, linesOf("a"))
+	}
+	if err := os.WriteFile(f.path(plainFile("2026-09-25"))+".tmp", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		ago  time.Duration
+		want []string
+	}{
+		{ago: 0, want: []string{"2026-09-20", "2026-09-26", "2026-09-27"}},
+		{ago: time.Hour, want: []string{"2026-09-20", "2026-09-26"}},
+	}
+	for _, tt := range tests {
+		if got := f.Ended(now, tt.ago); !slices.Equal(got, tt.want) {
+			t.Errorf("Ended(%v) = %q, want %q: each day once, oldest first, that ended %v or more before", tt.ago, got, tt.want, tt.ago)
+		}
+	}
+}
+
 func TestFilesOfADayAfterTomorrowAreKeptButNotAmongTheNewest(t *testing.T) {
 	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.Local)
 	f := readingsHistory(t.TempDir())

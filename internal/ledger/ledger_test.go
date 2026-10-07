@@ -206,18 +206,36 @@ func TestALineThatCantBeWrittenIsLoggedOnce(t *testing.T) {
 // it has written every one it can.
 func write(t *testing.T, dir string, lines ...*ledger.Line) {
 	t.Helper()
-	l := ledger.Open(dir, 90*24*time.Hour, func() time.Time { return now }, logs.For("router"))
+	writeAt(t, dir, now, noReadings, lines...)
+}
+
+// writeAt has a ledger kept in dir, by a clock stopped at at, its days
+// summarised with readings, note lines, and returns once it has written every
+// one it can, as a router started at at and stopped at once has it.
+func writeAt(t *testing.T, dir string, at time.Time, readings ledger.Readings, lines ...*ledger.Line) {
+	t.Helper()
+	l := ledger.Open(dir, 90*24*time.Hour, func() time.Time { return at }, readings, logs.For("router"))
+	stop := running(t, l)
+	for _, line := range lines {
+		l.Note(line)
+	}
+	stop()
+}
+
+// running has l write the lines noted to it, and keep its files, and
+// returns what stops it, once it has written every line noted before.
+func running(t *testing.T, l *ledger.Ledger) (stop func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		l.Run(ctx)
 		close(done)
 	}()
-	for _, line := range lines {
-		l.Note(line)
+	return func() {
+		cancel()
+		<-done
 	}
-	cancel()
-	<-done
 }
 
 // dayFile is the ledger's plain file in dir of the local day at falls on.

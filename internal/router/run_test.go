@@ -319,6 +319,51 @@ func TestTheRouterKeepsItsReadingsHistoryInItsStateDirectory(t *testing.T) {
 	}
 }
 
+func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
+	log := logstest.Capture(t)
+	cfg := runConfig(t, "http://127.0.0.1:1")
+	// Yesterday, a request on work, and the reading of work's session its
+	// answer gave, which the router kept as it routed it before it stopped.
+	y, m, d := now.Local().Date()
+	noon := time.Date(y, m, d-1, 12, 0, 0, 0, time.Local)
+	date := noon.Format(time.DateOnly)
+	kept := map[string]string{
+		filepath.Join("ledger", "requests-"+date+".jsonl"): `{"at":"` + noon.UTC().Format(time.RFC3339) + `","request":"3f2a91c4","kind":"message",` +
+			`"session":"` + sessionID + `","model":"` + opus + `","account":"work","reason":"sticky","status":200,"attempts":1,"total_ms":1000,` +
+			`"usage":{"input_tokens":10,"output_tokens":20,"service_tier":"standard"}}` + "\n",
+		filepath.Join("history", "readings-"+date+".jsonl"): `{"at":"` + noon.UTC().Format(time.RFC3339) + `","account":"work","window":"5h",` +
+			`"utilization":0.4,"resets_at":"` + noon.Add(5*time.Hour).UTC().Format(time.RFC3339) + `","status":"allowed","source":"answer"}` + "\n",
+	}
+	for name, lines := range kept {
+		path := filepath.Join(cfg.StateDir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(lines), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	summary := filepath.Join(cfg.StateDir, "ledger", "day-"+date+".json")
+
+	runRouter(t, cfg)
+	waitUntil(t, "the router summarises yesterday", func() bool {
+		_, err := os.Stat(summary)
+		return err == nil
+	})
+	data, err := os.ReadFile(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"version":1,"day":"` + date + `","accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,` +
+		`"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.4}}]}` + "\n"
+	if string(data) != want {
+		t.Errorf("yesterday's summary is\n%s\nwant its request, and its window's highest use from the readings history\n%s", data, want)
+	}
+	if !log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "component=router", "day="+date, "requests=1") {
+		t.Errorf("log reads\n%s\nwant yesterday summarised noted", log)
+	}
+}
+
 func TestARestartedRouterStillTakesAReplacedTokenForItsAccounts(t *testing.T) {
 	const renewed = "test-token-work-renewed"
 	up := newAccountsAPI(t)

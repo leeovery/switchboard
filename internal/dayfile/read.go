@@ -17,6 +17,20 @@ import (
 // dates the files' names give, but for those of a day after tomorrow: a file
 // of one was named by a clock set ahead.
 func (f *Files) Newest(now time.Time, n int) []string {
+	dates := f.dates(func(day time.Time) bool { return !afterTomorrow(day, now) })
+	return dates[max(len(dates)-n, 0):]
+}
+
+// Ended returns the dates of the days the files hold lines of that ended at
+// least ago before now, oldest first, by the dates the files' names give.
+func (f *Files) Ended(now time.Time, ago time.Duration) []string {
+	return f.dates(func(day time.Time) bool { return now.Sub(endOf(day)) >= ago })
+}
+
+// dates returns the dates of the local days the files are of, each once,
+// oldest first, but for those whose day, by its start, keep reports false
+// of.
+func (f *Files) dates(keep func(day time.Time) bool) []string {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	entries, err := os.ReadDir(f.Dir)
@@ -28,13 +42,12 @@ func (f *Files) Newest(now time.Time, n int) []string {
 	}
 	var dates []string
 	for _, e := range entries {
-		if file, day, ok := f.named(e.Name()); ok && !afterTomorrow(day, now) {
+		if file, day, ok := f.named(e.Name()); ok && keep(day) {
 			dates = append(dates, file.date)
 		}
 	}
 	slices.Sort(dates)
-	dates = slices.Compact(dates)
-	return dates[max(len(dates)-n, 0):]
+	return slices.Compact(dates)
 }
 
 // afterTomorrow reports whether day, a local day as named gives it, is after

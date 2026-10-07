@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
@@ -172,6 +173,24 @@ func (h *history) readBack(now time.Time) iter.Seq[reading] {
 		if unread > 0 {
 			logger.Warn("readings history lines unread", "lines", unread)
 		}
+	}
+}
+
+// readings returns the readings the history holds of times from from up to
+// to, one at a time, in the order they came, as the request ledger summarises
+// a day with them: none before the history is opened. It holds the files
+// from pruning and compressing while it reads them.
+func (h *history) readings(from, to time.Time) iter.Seq[ledger.Reading] {
+	return func(yield func(ledger.Reading) bool) {
+		if !h.opened.Load() {
+			return
+		}
+		dayfile.Read(h.files, dayfile.Dates(from, to), readingIn, func(r reading) bool {
+			if r.At.Before(from) || !r.At.Before(to) {
+				return true
+			}
+			return yield(ledger.Reading{At: r.At, Account: r.Account, Window: r.window()})
+		})
 	}
 }
 
