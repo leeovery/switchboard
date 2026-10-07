@@ -55,7 +55,7 @@ switchboard serve).
 			case session != "" && refresh:
 				return errors.New("--session asks after one session, not the accounts, so it takes no --refresh")
 			}
-			return cobra.NoArgs(cmd, args)
+			return noArgs(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if session != "" {

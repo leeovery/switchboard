@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -637,6 +638,73 @@ func TestAPrimeIsKeptInTheHistoryAsAPrime(t *testing.T) {
 // linesWith returns the lines of the log that hold text.
 func linesWith(log *logstest.Log, text string) []string {
 	return slices.DeleteFunc(log.Lines(), func(line string) bool { return !strings.Contains(line, text) })
+}
+
+func TestTheHistoryHasTheLedgerSummariseTheDaysThatEndedBeforeItPrunesTheirReadings(t *testing.T) {
+	// day is a day of a request on work, and of the reading of work's session
+	// its answer gave; by after it has ended as long ago as the history keeps
+	// a day's readings, and more.
+	day := time.Date(2026, 9, 8, 10, 0, 0, 0, time.Local)
+	after := day.AddDate(0, 0, 20)
+	tests := []struct {
+		name string
+		// from is when the history's writer starts, and wake, where it's
+		// given, when it next writes, with no round between, as after a sleep.
+		from, wake time.Time
+	}{
+		{name: "as the history's writer starts, as the router does after the day", from: after},
+		{name: "as the history's first write after a sleep comes", from: day.Add(2 * time.Hour), wake: after},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clock := &testClock{now: tt.from}
+				r := newTestRouter(t, clock.read, &stubProber{})
+				state := t.TempDir()
+				ledgerDir, historyDir := ledger.Dir(state), readings.Dir(state)
+				for _, dir := range []string{ledgerDir, historyDir} {
+					if err := os.MkdirAll(dir, 0o700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				line, err := json.Marshal(ledger.Line{At: day.UTC(), Request: "3f2a91c4", Kind: ledger.KindMessage, Session: "one", Model: opus,
+					Account: "work", Reason: "sticky", Status: 200, Attempts: 1, Usage: json.RawMessage(`{"input_tokens":10}`)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				date := day.Format(time.DateOnly)
+				if err := os.WriteFile(filepath.Join(ledgerDir, "requests-"+date+".jsonl"), append(line, '\n'), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				read := readings.Reading{At: day.UTC(), Account: "work", Key: "5h", Utilization: 0.4, ResetsAt: day.Add(5 * time.Hour).UTC(),
+					Status: quota.StatusAllowed, Source: readings.FromAnswer}
+				writeDay(t, historyDir, plainFile(date), linesOf(t, read))
+				r.history.open(historyDir)
+				r.ledger.open(ledgerDir, r.history.readings)
+
+				stop := keeping(t, r.history)
+				synctest.Wait()
+				if !tt.wake.IsZero() {
+					clock.now = tt.wake
+					r.history.note(readings.Of("work", []quota.Window{session}, tt.wake, readings.FromProbe))
+					synctest.Wait()
+				}
+				stop()
+				if holdsDay(historyDir, date) {
+					t.Fatal("the day's readings are kept, want them pruned, as the day is past keeping")
+				}
+				// The ledger's own round, as it starts, summarises the day if the
+				// history didn't have it summarised.
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+				r.ledger.run(ctx)
+				summary, err := os.ReadFile(filepath.Join(ledgerDir, "day-"+date+".json"))
+				if err != nil || !strings.Contains(string(summary), `"highest":{"5h":0.4}`) {
+					t.Errorf("the day's summary is %s (%v), want it with its session's highest use, from the readings history before they were pruned", summary, err)
+				}
+			})
+		})
+	}
 }
 
 func TestAHistoryNotYetOpenedTakesNothing(t *testing.T) {

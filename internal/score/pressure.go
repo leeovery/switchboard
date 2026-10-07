@@ -50,7 +50,7 @@ func PaceOf(w quota.Window, readings []Reading, now time.Time) (Pace, bool) {
 	if rate, since, ok := RecentRate(w, readings, now); ok {
 		return Pace{Rate: rate, Recent: true, Since: since}, true
 	}
-	if hasReset(w, now) {
+	if w.ResetBy(now) {
 		return Pace{}, false
 	}
 	rate, ok := averageRate(w, now)
@@ -85,7 +85,7 @@ func Lately(readings []Reading, now time.Time) []Reading {
 // when none reaches that far back, and once w has reset since it was read.
 func RecentRate(w quota.Window, readings []Reading, now time.Time) (rate float64, since time.Time, ok bool) {
 	lately := Lately(readings, now)
-	if len(lately) == 0 || hasReset(w, now) {
+	if len(lately) == 0 || w.ResetBy(now) {
 		return 0, time.Time{}, false
 	}
 	from, last := lately[0], lately[len(lately)-1]
@@ -152,7 +152,7 @@ type Pressure struct {
 func (p Policy) PressureOf(c Candidate, now time.Time) Pressure {
 	w, ok := find(c.Windows, p.Pressure)
 	room := 1 - c.Reserve - w.Utilization
-	if !ok || c.Rate <= 0 || room <= Tolerance || spent(w) || w.ResetsAt.IsZero() || hasReset(w, now) {
+	if !ok || c.Rate <= 0 || room <= Tolerance || spent(w) || w.ResetsAt.IsZero() || w.ResetBy(now) {
 		return Pressure{}
 	}
 	at := now.Add(inHours(room / c.Rate))

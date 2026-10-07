@@ -38,7 +38,7 @@ refused; run by hand, it logs that a restart is due.
 
 It logs to the router's log, and to the terminal when it runs in one.
 --log-level overrides SWITCHBOARD_LOG_LEVEL.`,
-		Args:        cobra.NoArgs,
+		Args:        noArgs,
 		Annotations: map[string]string{roleAnnotation: string(logs.RoleRouter)},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.serve(cmd.Context())

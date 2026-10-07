@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"iter"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,7 +15,6 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -75,7 +72,7 @@ func (a *app) ledgerArgs(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
-	return cobra.NoArgs(cmd, args)
+	return noArgs(cmd, args)
 }
 
 // ledgerReader returns a reader of the request ledger in the state directory,
@@ -99,58 +96,51 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	if err != nil {
 		return err
 	}
-	session := ""
+	lines := reader.Lines(from)
 	if opts.session != "" {
-		if session, err = sessionAmong(reader.Lines(from), opts.session); err != nil {
+		if lines, err = sessionLines(lines, opts.session); err != nil {
 			return err
 		}
 	}
-	kept := keptLines(reader.Lines(from), session, opts.account)
+	lines = accountLines(lines, opts.account)
 	if opts.asJSON {
-		return writeLines(out, kept)
+		return writeLines(out, lines)
 	}
-	return writeRequests(out, kept, from, now)
+	return writeRequests(out, lines, from, now)
 }
 
-// keptLines returns those of lines of the session and the account with the
-// given ids, each "" to keep any.
-func keptLines(lines iter.Seq[ledger.Held], session, account string) iter.Seq[ledger.Held] {
+// sessionLines returns those of lines of the session given names among
+// theirs, as sessionNamed says. It reads lines once, holding those of each
+// session whose id given starts until it's known which session given names.
+func sessionLines(lines iter.Seq[ledger.Held], given string) (iter.Seq[ledger.Held], error) {
+	var held []ledger.Held
+	for h := range lines {
+		if strings.HasPrefix(h.Session, given) {
+			held = append(held, h)
+		}
+	}
+	id, err := sessionNamed(given, held,
+		func(h ledger.Held) string { return h.Session },
+		func(h ledger.Held) string { return status.Clean(h.Session) })
+	if err != nil {
+		return nil, err
+	}
+	return slices.Values(slices.DeleteFunc(held, func(h ledger.Held) bool { return h.Session != id })), nil
+}
+
+// accountLines returns those of lines of the account with the given id, or
+// every one for "".
+func accountLines(lines iter.Seq[ledger.Held], account string) iter.Seq[ledger.Held] {
+	if account == "" {
+		return lines
+	}
 	return func(yield func(ledger.Held) bool) {
 		for h := range lines {
-			if (session == "" || h.Session == session) && (account == "" || h.Account == account) && !yield(h) {
+			if h.Account == account && !yield(h) {
 				return
 			}
 		}
 	}
-}
-
-// sessionAmong returns the id of the session given names among those of
-// lines: its id, or as much of it as is unique among them. Given one that
-// starts none of their ids, it returns it as it is, which keeps no line. It
-// fails, listing them, when given starts the ids of several.
-func sessionAmong(lines iter.Seq[ledger.Held], given string) (string, error) {
-	matches := make(map[string]bool)
-	for h := range lines {
-		switch {
-		case h.Session == given:
-			return given, nil
-		case strings.HasPrefix(h.Session, given):
-			matches[h.Session] = true
-		}
-	}
-	ids := slices.Sorted(maps.Keys(matches))
-	switch len(ids) {
-	case 0:
-		return given, nil
-	case 1:
-		return ids[0], nil
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "session %s could be any of these, so give more of its id:", status.Clean(redact.Text(given)))
-	for _, id := range ids {
-		fmt.Fprintf(&b, "\n  %s", status.Clean(id))
-	}
-	return "", errors.New(b.String())
 }
 
 // writeLines writes each of lines as the ledger holds it, a line each.
@@ -226,14 +216,15 @@ func tokensIn(t quota.Tokens) int {
 }
 
 // took says how long a request took, from its milliseconds, as briefly as a
-// row has room for: "812ms", "14.2s", or "2m3s".
+// row has room for: "812ms", "14.2s", or "2m3s", each form for what rounds
+// to it, so 59.95 seconds is "1m0s".
 func took(ms int64) string {
 	d := time.Duration(ms) * time.Millisecond
-	switch {
+	switch tenths := d.Round(100 * time.Millisecond); {
 	case d < time.Second:
 		return strconv.FormatInt(ms, 10) + "ms"
-	case d < time.Minute:
-		return strconv.FormatFloat(d.Seconds(), 'f', 1, 64) + "s"
+	case tenths < time.Minute:
+		return strconv.FormatFloat(tenths.Seconds(), 'f', 1, 64) + "s"
 	}
 	return d.Round(time.Second).String()
 }

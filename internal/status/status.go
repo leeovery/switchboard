@@ -472,7 +472,7 @@ type RunOut struct {
 // so it stays put while the document does rather than moving with the clock;
 // and nowhere once the window has reset since.
 func (d Document) Project(a Account, w quota.Window, now time.Time) Heading {
-	if !w.ResetsAt.IsZero() && !w.ResetsAt.After(now) {
+	if w.ResetBy(now) {
 		return Heading{}
 	}
 	return a.Project(w, d.readAt(now))

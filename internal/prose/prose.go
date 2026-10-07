@@ -9,20 +9,26 @@ import (
 	"unicode/utf8"
 )
 
+// countUnits are the units Count counts in from a thousand, each a thousand
+// of the one before.
+var countUnits = []string{"k", "M", "B"}
+
 // Count counts n, as of tokens, as briefly as a row has room for: as it is
-// under a thousand, then in thousands, to a tenth under ten thousand, as
-// "1.2k", or whole, as "34k", then in millions, as "1.2M".
+// under a thousand, then in thousands, millions or billions, the least it
+// rounds to under a thousand of, or billions past them, to a tenth under ten,
+// as "1.2k" or "9.9M", or whole, as "34k" or "120M".
 func Count(n int) string {
-	switch thousands := float64(n) / 1000; {
-	case n < 1000:
+	if n < 1000 {
 		return fmt.Sprint(n)
-	case thousands < 9.95:
-		return fmt.Sprintf("%.1fk", thousands)
-	case thousands < 999.5:
-		return fmt.Sprintf("%.0fk", thousands)
-	default:
-		return fmt.Sprintf("%.1fM", thousands/1000)
 	}
+	of, unit := float64(n)/1000, 0
+	for of >= 999.5 && unit < len(countUnits)-1 {
+		of, unit = of/1000, unit+1
+	}
+	if of < 9.95 {
+		return fmt.Sprintf("%.1f%s", of, countUnits[unit])
+	}
+	return fmt.Sprintf("%.0f%s", of, countUnits[unit])
 }
 
 // List runs items together as a list: "a", "a and b", "a, b and c", or ""

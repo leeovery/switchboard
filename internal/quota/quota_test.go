@@ -71,6 +71,28 @@ func TestWindowSpan(t *testing.T) {
 	}
 }
 
+func TestWindowResetBy(t *testing.T) {
+	resets := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		w    quota.Window
+		at   time.Time
+		want bool
+	}{
+		{name: "before its reset", w: quota.Window{Key: "5h", ResetsAt: resets}, at: resets.Add(-time.Second)},
+		{name: "at its reset", w: quota.Window{Key: "5h", ResetsAt: resets}, at: resets, want: true},
+		{name: "after its reset", w: quota.Window{Key: "5h", ResetsAt: resets}, at: resets.Add(time.Hour), want: true},
+		{name: "never, read without a reset", w: quota.Window{Key: "5h"}, at: resets},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.w.ResetBy(tt.at); got != tt.want {
+				t.Errorf("ResetBy(%v) = %v, want %v", tt.at, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSort(t *testing.T) {
 	windows := windowsWithKeys("zeta", "7d_oi", "7d", "alpha", "1d", "5h", "12h", "7d_opus")
 

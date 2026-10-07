@@ -107,6 +107,23 @@ func TestBetweenGivesTheReadingsOfATimeWhateverDaysFileTheyreIn(t *testing.T) {
 	}
 }
 
+func TestBetweenGivesTheReadingsInTheOrderTheyWereReadAcrossTheDaysFiles(t *testing.T) {
+	from := time.Date(2026, 9, 27, 0, 0, 0, 0, time.Local)
+	to := from.AddDate(0, 0, 1)
+	dir := t.TempDir()
+	// A change of time zone files readings under the date beside their own:
+	// two of the 27th's under the 28th, each day's file in the order written.
+	at := func(hour, minute int) time.Time { return time.Date(2026, 9, 27, hour, minute, 0, 0, time.Local) }
+	first, second, third, fourth := workRead(at(10, 0), 0.2), workRead(at(12, 0), 0.3), workRead(at(14, 0), 0.4), workRead(at(15, 30), 0.5)
+	writeDay(t, dir, "readings-2026-09-27.jsonl", []byte(linesOf(t, first, third)))
+	writeDay(t, dir, "readings-2026-09-28.jsonl", []byte(linesOf(t, second, fourth)))
+
+	got := slices.Collect(readings.Between(readings.Files(dir, logs.For("cli")), from, to))
+	if want := []readings.Reading{first, second, third, fourth}; !slices.EqualFunc(got, want, sameReading) {
+		t.Errorf("Between() = %+v, want %+v: in the order they were read, whichever day's file each is in", got, want)
+	}
+}
+
 func TestBetweenStopsWhenAskedTo(t *testing.T) {
 	dir := t.TempDir()
 	at := time.Date(2026, 9, 27, 12, 0, 0, 0, time.Local)

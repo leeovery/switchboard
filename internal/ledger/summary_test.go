@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"iter"
 	"os"
@@ -115,14 +116,14 @@ func TestASummaryHoldsEachAccountsRequestsByModel(t *testing.T) {
 	}
 
 	got := string(summaryJSON(t, noReadings, lines...))
-	want := `{"version":1,"day":"2026-10-05","accounts":[` +
-		`{"models":[{"upstream":0,"unsent":1,"checks":0,"counts":0,"sessions":1},` +
-		`{"model":"claude-opus-5-5","upstream":0,"unsent":1,"checks":0,"counts":0,"sessions":1}],"sessions":2,"moved_on":0,"moved_off":0},` +
-		`{"account":"side","models":[{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,` +
+	want := `{"version":1,"day":"2026-10-05","lines":8,"accounts":[` +
+		`{"models":[{"upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1},` +
+		`{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1}],"sessions":2,"moved_on":0,"moved_off":0},` +
+		`{"account":"side","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,` +
 		`"usage":{"input_tokens":5,"output_tokens":50}}],"sessions":1,"moved_on":0,"moved_off":0},` +
-		`{"account":"work","models":[{"model":"claude-haiku-4-5","upstream":0,"unsent":0,"checks":1,"counts":0,"sessions":0,` +
+		`{"account":"work","models":[{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,` +
 		`"usage":{"input_tokens":8,"output_tokens":1}},` +
-		`{"model":"claude-opus-5-5","upstream":3,"unsent":0,"checks":0,"counts":1,"sessions":1,` +
+		`{"model":"claude-opus-5-5","upstream":3,"no_usage":1,"unsent":0,"checks":0,"counts":1,"sessions":1,` +
 		`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,` +
 		`"cache_read_input_tokens":367800,"input_tokens":15,"output_tokens":965,"server_tool_use":{"web_search_requests":2}}}],` +
 		`"sessions":1,"moved_on":0,"moved_off":0}]}`
@@ -140,11 +141,11 @@ func TestASummaryKeepsApartAModelsRequestsThatAskedForAnotherInferenceGeo(t *tes
 		{At: on(0, 9, 1), Request: "5", Kind: ledger.KindMessage, Session: "one", Model: haiku, Account: "work", Reason: "sticky", Status: 200, Attempts: 1}}
 
 	got := string(summaryJSON(t, noReadings, lines...))
-	want := `{"version":1,"day":"2026-10-05","accounts":[{"account":"work","models":[` +
-		`{"model":"claude-haiku-4-5","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1},` +
-		`{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}},` +
-		`{"model":"claude-opus-5-5","inference_geo":"global","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}},` +
-		`{"model":"claude-opus-5-5","inference_geo":"us","upstream":2,"unsent":0,"checks":0,"counts":0,"sessions":2,"usage":{"input_tokens":20,"output_tokens":40}}],` +
+	want := `{"version":1,"day":"2026-10-05","lines":5,"accounts":[{"account":"work","models":[` +
+		`{"model":"claude-haiku-4-5","upstream":1,"no_usage":1,"unsent":0,"checks":0,"counts":0,"sessions":1},` +
+		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}},` +
+		`{"model":"claude-opus-5-5","inference_geo":"global","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}},` +
+		`{"model":"claude-opus-5-5","inference_geo":"us","upstream":2,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":2,"usage":{"input_tokens":20,"output_tokens":40}}],` +
 		`"sessions":2,"moved_on":0,"moved_off":0}]}`
 	if got != want {
 		t.Errorf("the summary is\n%s\nwant\n%s: a model's requests kept apart by the inference geo they asked for, none first", got, want)
@@ -163,7 +164,7 @@ func TestASummarySumsAnAnswersIterationsByType(t *testing.T) {
 	}
 
 	got := string(summaryJSON(t, noReadings, lines...))
-	want := `{"version":1,"day":"2026-10-05","accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":2,"unsent":0,"checks":0,` +
+	want := `{"version":1,"day":"2026-10-05","lines":2,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":2,"no_usage":0,"unsent":0,"checks":0,` +
 		`"counts":0,"sessions":1,"usage":{"input_tokens":40,"iterations":{"advisor_message":{"input_tokens":823,"output_tokens":1612},` +
 		`"message":{"input_tokens":40,"output_tokens":14}},"output_tokens":14}}],"sessions":1,"moved_on":0,"moved_off":0}]}`
 	if got != want {
@@ -172,13 +173,15 @@ func TestASummarySumsAnAnswersIterationsByType(t *testing.T) {
 }
 
 func TestASummaryHoldsTheSessionsMovedOntoAndOffEachAccount(t *testing.T) {
+	answer := usage(`{"input_tokens":10,"output_tokens":20}`)
 	moved := func(request, session, from, to string) ledger.Line {
 		return ledger.Line{At: on(0, 12, 0), Request: request, Kind: ledger.KindMessage, Session: session, Model: opus, Account: to,
-			Reason: "moved: " + from + " hit its limit", From: from, Status: 200, Attempts: 2}
+			Reason: "moved: " + from + " hit its limit", From: from, Status: 200, Attempts: 2, Usage: answer}
 	}
 	lines := []ledger.Line{
 		moved("1", "one", "work", "side"),
-		{At: on(0, 12, 1), Request: "2", Kind: ledger.KindMessage, Session: "one", Model: opus, Account: "side", Reason: "sticky", Status: 200, Attempts: 1},
+		{At: on(0, 12, 1), Request: "2", Kind: ledger.KindMessage, Session: "one", Model: opus, Account: "side", Reason: "sticky", Status: 200, Attempts: 1,
+			Usage: answer},
 		// The session's other model's requests, which moved it again.
 		moved("3", "one", "work", "side"),
 		moved("4", "two", "side", "work"),
@@ -186,11 +189,12 @@ func TestASummaryHoldsTheSessionsMovedOntoAndOffEachAccount(t *testing.T) {
 		moved("5", "three", "gone", "personal"),
 	}
 	onOpus := func(upstream int) []ledger.ModelDay {
-		return []ledger.ModelDay{{Model: opus, Upstream: upstream, Sessions: 1}}
+		return []ledger.ModelDay{{Model: opus, Upstream: upstream, Sessions: 1,
+			Usage: usage(fmt.Sprintf(`{"input_tokens":%d,"output_tokens":%d}`, 10*upstream, 20*upstream))}}
 	}
 
 	got := summarised(t, noReadings, lines...)
-	want := ledger.Summary{Version: 1, Day: date, Accounts: []ledger.AccountDay{
+	want := ledger.Summary{Version: 1, Day: date, Lines: 5, Accounts: []ledger.AccountDay{
 		{Account: "gone", MovedOff: 1},
 		{Account: "personal", Models: onOpus(1), Sessions: 1, MovedOn: 1},
 		{Account: "side", Models: onOpus(3), Sessions: 1, MovedOn: 1, MovedOff: 1},
@@ -268,10 +272,9 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := summarised(t, readingsOf(tt.readings...))
-			want := ledger.Summary{Version: 1, Day: date, Accounts: []ledger.AccountDay{{Account: "work", Highest: tt.want}}}
-			if !reflect.DeepEqual(got, want) {
-				t.Errorf("the summary is\n%+v\nwant\n%+v", got, want)
+			got := summarised(t, readingsOf(tt.readings...), asked("1", on(0, 9, 0)))
+			if len(got.Accounts) != 1 || !reflect.DeepEqual(got.Accounts[0].Highest, tt.want) {
+				t.Errorf("the summary is\n%+v\nwant work's windows' highest use %v", got, tt.want)
 			}
 		})
 	}
@@ -332,7 +335,7 @@ func TestASummaryHoldsTheLimitsEachAccountReached(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := summarised(t, readingsOf(tt.readings...))
+			got := summarised(t, readingsOf(tt.readings...), asked("1", on(0, 9, 0)))
 			if len(got.Accounts) != 1 || !slices.EqualFunc(got.Accounts[0].Limits, tt.want, sameLimit) {
 				t.Errorf("the summary is\n%+v\nwant work's limits %+v", got, tt.want)
 			}
@@ -353,13 +356,54 @@ func TestASummaryAsksForTheReadingsOfItsDayAndTheWeekBefore(t *testing.T) {
 		return noReadings(f, t)
 	}
 
-	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line(nil)), history); err != nil {
+	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), history); err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}
 	// A week, as long as the longest window runs, before the day's start.
 	weekBefore := on(0, 0, 0).Add(-7 * 24 * time.Hour)
 	if !from.Equal(weekBefore) || !to.Equal(on(1, 0, 0)) {
 		t.Errorf("asked for the readings from %v to %v, want from a week before the day's start to its end, %v to %v", from, to, weekBefore, on(1, 0, 0))
+	}
+}
+
+func TestADayOfNoRequestsIsASummaryOfNoAccounts(t *testing.T) {
+	asked := false
+	history := func(from, to time.Time) iter.Seq[readings.Reading] {
+		asked = true
+		return readingsOf(workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusRejected))(from, to)
+	}
+
+	got := string(summaryJSON(t, history))
+	if want := `{"version":1,"day":"2026-10-05","lines":0}`; got != want || asked {
+		t.Errorf("the summary of a day of no requests is %s, the readings asked for = %v; want %s, and none asked for", got, asked, want)
+	}
+}
+
+func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
+	upstream := func(request string, edit func(l *ledger.Line)) ledger.Line {
+		l := asked(request, on(0, 9, 0))
+		l.Usage = nil
+		edit(&l)
+		return l
+	}
+	lines := []ledger.Line{
+		asked("1", on(0, 9, 0)),
+		upstream("2", func(l *ledger.Line) { l.Canceled = true }),
+		upstream("3", func(l *ledger.Line) { l.CutOff = true }),
+		upstream("4", func(l *ledger.Line) { l.Status, l.Answer.Error = 529, ledger.Error{Type: "overloaded_error"} }),
+		// None of these is counted in upstream: one the router answered itself,
+		// a count of tokens, and a quota check.
+		upstream("5", func(l *ledger.Line) { l.Attempts, l.Status = 0, 429 }),
+		upstream("6", func(l *ledger.Line) { l.Kind = ledger.KindCount }),
+		upstream("7", func(l *ledger.Line) { l.Kind, l.Canceled = ledger.KindCheck, true }),
+	}
+
+	got := summarised(t, noReadings, lines...)
+	if len(got.Accounts) != 1 || len(got.Accounts[0].Models) != 1 {
+		t.Fatalf("the summary is %+v, want work's requests of one model", got)
+	}
+	if m := got.Accounts[0].Models[0]; m.Upstream != 4 || m.NoUsage != 3 || m.Tokens() != (quota.Tokens{Input: 10, Output: 20}) {
+		t.Errorf("work's day of %s is %+v, want 4 requests upstream, the 3 whose answers gave no usage counted, and the usage of the one that gave it", opus, m)
 	}
 }
 
@@ -376,12 +420,21 @@ func asked(request string, at time.Time) ledger.Line {
 		Status: 200, Attempts: 1, TotalMS: 1000, Usage: usage(`{"input_tokens":10,"output_tokens":20}`)}
 }
 
+// summaryOf is the summary of the day with the given date of as many of the
+// requests asked makes as requests says, made from as many lines as lines
+// says, and of the windows' highest use, highest, as its JSON gives it, where
+// it's given.
+func summaryOf(date string, requests, lines int, highest string) string {
+	return fmt.Sprintf(`{"version":1,"day":"%s","lines":%d,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":%d,"no_usage":0,`+
+		`"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":%d,"output_tokens":%d}}],"sessions":1,"moved_on":0,"moved_off":0%s}]}`,
+		date, lines, requests, 10*requests, 20*requests, highest)
+}
+
 // summaryOfTwo is the summary the ledger writes of the summaries' day, of two
 // of the requests asked makes, and of the windows' highest use, highest, as
 // its JSON gives it, where it's given.
 func summaryOfTwo(highest string) string {
-	return `{"version":1,"day":"2026-10-05","accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":2,"unsent":0,"checks":0,` +
-		`"counts":0,"sessions":1,"usage":{"input_tokens":20,"output_tokens":40}}],"sessions":1,"moved_on":0,"moved_off":0` + highest + `}]}` + "\n"
+	return summaryOf(date, 2, 2, highest) + "\n"
 }
 
 // holdLines adds lines, as the ledger writes them, to its plain file in dir
@@ -470,7 +523,7 @@ func TestADayIsSummarisedOnTheFirstRoundAnHourAfterItEndsAndTodayNever(t *testin
 	})
 }
 
-func TestADayIsSummarisedOnceNeverAgain(t *testing.T) {
+func TestADaysSummaryIsWrittenAgainAsLinesComeToBeFiledUnderIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
 		dir := t.TempDir()
@@ -480,19 +533,198 @@ func TestADayIsSummarisedOnceNeverAgain(t *testing.T) {
 		defer stop()
 
 		synctest.Wait()
+		if got, want := heldSummary(t, dir, date), summaryOfTwo(""); got != want {
+			t.Fatalf("the day's summary is\n%s\nwant\n%s", got, want)
+		}
 		// A line filed under the day after it was summarised, as of a request
-		// in flight past its summary.
+		// in flight past the hour the day is given.
 		holdLines(t, dir, date, asked("3", on(0, 23, 59)))
+		time.Sleep(time.Hour)
+		synctest.Wait()
+		if got, want := heldSummary(t, dir, date), summaryOf(date, 3, 3, "")+"\n"; got != want {
+			t.Errorf("at the round after the line came, the day's summary is\n%s\nwant it written again, of its three requests\n%s", got, want)
+		}
 		time.Sleep(3 * time.Hour)
 		synctest.Wait()
 		stop()
-		if got, want := heldSummary(t, dir, date), summaryOfTwo(""); got != want {
-			t.Errorf("the day's summary is\n%s\nwant it as first written, of its two requests\n%s", got, want)
-		}
-		if summarised := strings.Count(log.String(), `msg="summarised a day of the request ledger"`); summarised != 1 {
-			t.Errorf("log reads\n%s\nwant the day summarised once", log)
+		if summarised := strings.Count(log.String(), `msg="summarised a day of the request ledger"`); summarised != 2 {
+			t.Errorf("log reads\n%s\nwant the day summarised twice: as it ended, and as a line came to be filed under it, and not while its lines stayed as they were", log)
 		}
 	})
+}
+
+func TestADaysSummaryMadeFromMoreLinesThanItsFilesHoldNowStands(t *testing.T) {
+	dir := t.TempDir()
+	// The day's summary, made from three lines; its files hold two now, a
+	// line lost since to damage, and the readings history its highest use
+	// came from is pruned.
+	held := summaryOf(date, 3, 3, `,"highest":{"5h":0.9}`) + "\n"
+	writeFile(t, dir, "day-"+date+".json", []byte(held))
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+
+	writeAt(t, dir, on(1, 10, 0), noReadings)
+	if got := heldSummary(t, dir, date); got != held {
+		t.Errorf("the day's summary is\n%s\nwant it as it was, made from more lines than its files hold now\n%s", got, held)
+	}
+}
+
+func TestADayOneOfWhoseFilesCantBeOpenedIsLeftForALaterRound(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		dir := t.TempDir()
+		// The day's compressed file reads, but not the plain file beside it,
+		// which holds a line added since, as after the clock was set back to
+		// the day, as the first round comes.
+		compressed, err := json.Marshal(asked("1", on(0, 9, 0)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, dir, "requests-"+date+".jsonl.gz", gzipped(t, string(compressed)+"\n"))
+		holdLines(t, dir, date, asked("2", on(0, 10, 0)))
+		plain := filepath.Join(dir, "requests-"+date+".jsonl")
+		if err := os.Chmod(plain, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		l := ledger.Open(dir, 90*24*time.Hour, clockFrom(on(3, 9, 0)), noReadings, logs.For("router"))
+		stop := running(t, l)
+		defer stop()
+
+		synctest.Wait()
+		if got := heldSummary(t, dir, date); got != "" {
+			t.Fatalf("the day was summarised as one of its files couldn't be opened, as\n%s\nwant it left for a round that reads it whole", got)
+		}
+		if !log.Has("level=WARN", `msg="can't summarise the request ledger"`, "day="+date, "requests-"+date+".jsonl") {
+			t.Errorf("log reads\n%s\nwant the day that can't be summarised warned of, naming the file that can't be opened", log)
+		}
+		if err := os.Chmod(plain, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Hour)
+		synctest.Wait()
+		stop()
+		if got, want := heldSummary(t, dir, date), summaryOfTwo(""); got != want {
+			t.Errorf("at the round after, the day's summary is\n%s\nwant\n%s", got, want)
+		}
+	})
+}
+
+func TestADayOfNoLineThatReadsIsSummarisedOnceUntilALineComesThatDoes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		dir := t.TempDir()
+		// A day whose only line was torn as it was written.
+		const torn = "2026-10-04"
+		writeFile(t, dir, "requests-"+torn+".jsonl", []byte(`{"at":"2026-10-04T09:00:00Z","requ`))
+		l := ledger.Open(dir, 90*24*time.Hour, clockFrom(on(1, 9, 0)), noReadings, logs.For("router"))
+		stop := running(t, l)
+		defer stop()
+
+		synctest.Wait()
+		if got, want := heldSummary(t, dir, torn), `{"version":1,"day":"2026-10-04","lines":1}`+"\n"; got != want {
+			t.Errorf("the day's summary is\n%s\nwant one of no requests, made from its one line\n%s", got, want)
+		}
+		time.Sleep(3 * time.Hour)
+		synctest.Wait()
+		if warned := strings.Count(log.String(), `msg="request ledger lines unread"`); warned != 1 || !log.Has("level=WARN", "day="+torn, "lines=1") {
+			t.Errorf("log reads\n%s\nwant the line that doesn't read warned of once, as the day was summarised, not at each round", log)
+		}
+		// A line of the day, filed under it after its summary, as of a request
+		// in flight past the hour the day is given.
+		late := asked("1", on(-1, 23, 30))
+		l.Note(&late)
+		time.Sleep(time.Hour)
+		synctest.Wait()
+		stop()
+		if got, want := heldSummary(t, dir, torn), summaryOf(torn, 1, 2, "")+"\n"; got != want {
+			t.Errorf("once a line that reads came, the day's summary is\n%s\nwant it written again, of its request\n%s", got, want)
+		}
+	})
+}
+
+func TestASummaryThatCantBeReadIsWarnedOfAtEachRoundUntilItCanBe(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		dir := t.TempDir()
+		holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+		// The day's summary leads nowhere it can be read: a link to itself.
+		summary := summaryFile(dir, date)
+		if err := os.Symlink(filepath.Base(summary), summary); err != nil {
+			t.Fatal(err)
+		}
+		l := ledger.Open(dir, 90*24*time.Hour, clockFrom(on(1, 10, 0)), noReadings, logs.For("router"))
+		stop := running(t, l)
+		defer stop()
+
+		synctest.Wait()
+		time.Sleep(time.Hour)
+		synctest.Wait()
+		if warned := strings.Count(log.String(), `msg="can't summarise the request ledger"`); warned != 2 || !log.Has("level=WARN", "day="+date) {
+			t.Errorf("log reads\n%s\nwant the summary that can't be read warned of at each of the two rounds", log)
+		}
+		if info, err := os.Lstat(summary); err != nil || info.Mode().Type() != fs.ModeSymlink {
+			t.Fatalf("the day's summary is %v (%v), want it left as it was for the round after", info, err)
+		}
+		if err := os.Remove(summary); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Hour)
+		synctest.Wait()
+		stop()
+		if got, want := heldSummary(t, dir, date), summaryOfTwo(""); got != want {
+			t.Errorf("once it could be read, the day's summary is\n%s\nwant\n%s", got, want)
+		}
+	})
+}
+
+func TestASummaryThatDoesntReadAsItsDaysIsSummarisedAgain(t *testing.T) {
+	tests := []struct {
+		name string
+		held string
+	}{
+		{name: "of another day", held: summaryOf("2026-10-04", 2, 2, "")},
+		{name: "of no day", held: `{"version":1,"lines":2}`},
+		{name: "cut short", held: `{"version":1,"day":`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			dir := t.TempDir()
+			holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+			writeFile(t, dir, "day-"+date+".json", []byte(tt.held+"\n"))
+
+			writeAt(t, dir, on(1, 10, 0), noReadings)
+			if got, want := heldSummary(t, dir, date), summaryOfTwo(""); got != want {
+				t.Errorf("the day's summary is\n%s\nwant it written again from its lines\n%s", got, want)
+			}
+			if !log.Has("level=WARN", `msg="can't read the request ledger's summary of a day; summarising it from its lines"`, "day="+date) {
+				t.Errorf("log reads\n%s\nwant the summary that doesn't read as the day's warned of", log)
+			}
+		})
+	}
+}
+
+func TestARoundReadsTheReadingsHistoryOnceForTheDaysItSummarises(t *testing.T) {
+	dir := t.TempDir()
+	for day := range 3 {
+		holdLines(t, dir, on(day, 0, 0).Format(time.DateOnly), asked("1", on(day, 9, 0)))
+	}
+	asked := 0
+	history := func(from, to time.Time) iter.Seq[readings.Reading] {
+		asked++
+		return readingsOf(workRead(on(0, 9, 0), "5h", 0.2, on(0, 13, 0), quota.StatusAllowed),
+			workRead(on(2, 9, 0), "5h", 0.4, on(2, 13, 0), quota.StatusAllowed))(from, to)
+	}
+
+	writeAt(t, dir, on(4, 9, 0), history)
+	for day, highest := range []string{`,"highest":{"5h":0.2}`, "", `,"highest":{"5h":0.4}`} {
+		date := on(day, 0, 0).Format(time.DateOnly)
+		if got, want := heldSummary(t, dir, date), summaryOf(date, 1, 1, highest)+"\n"; got != want {
+			t.Errorf("the summary of %s is\n%s\nwant\n%s", date, got, want)
+		}
+	}
+	if asked != 1 {
+		t.Errorf("the readings history was asked for readings %d times, want once for the three days", asked)
+	}
 }
 
 func TestADayTheRouterWasStoppedAsItEndedIsSummarisedByItsNextRound(t *testing.T) {
@@ -571,53 +803,12 @@ func TestLinesThatDontReadArePassedOverAsADayIsSummarised(t *testing.T) {
 	}
 
 	writeAt(t, dir, on(1, 9, 0), noReadings)
-	if got, want := heldSummary(t, dir, date), summaryOfTwo(""); got != want {
-		t.Errorf("the day's summary is\n%s\nwant it of the two lines that read\n%s", got, want)
+	if got, want := heldSummary(t, dir, date), summaryOf(date, 2, 5, "")+"\n"; got != want {
+		t.Errorf("the day's summary is\n%s\nwant it of the two lines that read, made from all five\n%s", got, want)
 	}
 	if !log.Has("level=WARN", `msg="request ledger lines unread"`, "day="+date, "lines=3") {
 		t.Errorf("log reads\n%s\nwant the three lines that don't read noted", log)
 	}
-}
-
-func TestADayNoneOfWhoseLinesReadIsLeftForARoundThatFindsThem(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		log := logstest.Capture(t)
-		dir := t.TempDir()
-		holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
-		// A day whose only line was torn as it was written.
-		torn := "2026-10-04"
-		if err := os.WriteFile(filepath.Join(dir, "requests-"+torn+".jsonl"), []byte(`{"at":"2026-10-04T09:00:00Z","requ`), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		held := filepath.Join(dir, "requests-"+date+".jsonl")
-		// The day's file can't be read as its first round comes.
-		if err := os.Chmod(held, 0o000); err != nil {
-			t.Fatal(err)
-		}
-		l := ledger.Open(dir, 90*24*time.Hour, clockFrom(on(1, 9, 0)), noReadings, logs.For("router"))
-		stop := running(t, l)
-		defer stop()
-
-		synctest.Wait()
-		if got := heldSummary(t, dir, date); got != "" {
-			t.Fatalf("the day was summarised as its file couldn't be read, as\n%s\nwant it left for a round that reads it", got)
-		}
-		if !log.Has("level=WARN", `msg="can't read the request ledger"`, "file=requests-"+date+".jsonl") {
-			t.Errorf("log reads\n%s\nwant the file that can't be read noted", log)
-		}
-		if err := os.Chmod(held, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(time.Hour)
-		synctest.Wait()
-		stop()
-		if got, want := heldSummary(t, dir, date), summaryOfTwo(""); got != want {
-			t.Errorf("at the round after, the day's summary is\n%s\nwant\n%s", got, want)
-		}
-		if got := heldSummary(t, dir, torn); got != "" {
-			t.Errorf("the day of a torn line alone was summarised, as\n%s\nwant it left, as none of its lines read", got)
-		}
-	})
 }
 
 func TestASummaryThatCantBeWrittenIsLoggedAndWrittenOnALaterRound(t *testing.T) {

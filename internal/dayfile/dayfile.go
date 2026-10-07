@@ -5,9 +5,10 @@
 // removed once its day is past keeping. A file named for a day after
 // tomorrow, as a clock once set ahead names one, stays until its day is past
 // keeping too, and anything else in the directory is left alone. Read reads
-// the files back, either form, passing over what it can't read; a Writer
-// writes to them on a goroutine of its own, so noting what's to be written
-// never waits, and makes a round of them every hour, which what else is kept
+// the files back, either form, oldest first, passing over what it can't read,
+// and ReadDay a day's, saying what it can't; a Writer writes to them on a
+// goroutine of its own, so noting what's to be written never waits, and makes
+// a round of them every hour, and before each prune, which what else is kept
 // of the days, as the request ledger's summaries, can be kept on.
 package dayfile
 
@@ -84,19 +85,44 @@ func dateOf(t time.Time) string {
 }
 
 // Day returns when the local day with the given date, as the files' names
-// give it, starts and ends: at its midnight, and the next day's. It reports
-// false for a date that isn't one.
+// give it, starts and ends: at its first instant, and the next day's, as
+// DayStart gives them. It reports false for a date that isn't one.
 func Day(date string) (start, end time.Time, ok bool) {
-	start, err := time.ParseInLocation(dateLayout, date, time.Local)
+	return dayIn(date, time.Local)
+}
+
+// dayIn returns when the day with the given date starts and ends in loc, as
+// Day says.
+func dayIn(date string, loc *time.Location) (start, end time.Time, ok bool) {
+	// UTC has every date's midnight, so the date parses there as itself.
+	day, err := time.Parse(dateLayout, date)
 	if err != nil {
 		return time.Time{}, time.Time{}, false
 	}
-	return start, endOf(start), true
+	y, m, d := day.Date()
+	noon := time.Date(y, m, d, 12, 0, 0, 0, loc)
+	return DayStart(noon, 0), DayStart(noon, 1), true
+}
+
+// DayStart returns when the day days after the one t falls on starts, or
+// days before it for days less than none, in t's time zone: at its first
+// instant, its midnight, unless the clocks went forward over that, as they do
+// at midnight in some zones as summer time starts, when it starts as they
+// went forward.
+func DayStart(t time.Time, days int) time.Time {
+	y, m, d := noon(t).AddDate(0, 0, days).Date()
+	start := time.Date(y, m, d, 0, 0, 0, 0, t.Location())
+	if start.Day() != d {
+		// time.Date puts a midnight the clocks went forward over in the hour
+		// before it, the day before's: the next zone begins with the day.
+		_, start = start.ZoneBounds()
+	}
+	return start
 }
 
 // endOf returns when the local day that starts at start ends.
 func endOf(start time.Time) time.Time {
-	return start.AddDate(0, 0, 1)
+	return DayStart(start, 1)
 }
 
 // Append appends lines to the plain files of their days, making the

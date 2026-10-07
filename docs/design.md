@@ -666,8 +666,8 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `setup` | Walk through setting up, or what's left of it: see Setup |
 | `status [--session <id>] [--json] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document, which is what an agent reads (see The skill). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--watch [interval]] [--no-notify] [--probe] [--refresh]` | The dashboard. Where stdout isn't a terminal, as in a pipe or Claude Code's Bash tool, it prints the status document instead, as `status --json` does, read as its flags say; `--watch` needs a terminal, and refuses without one. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `r` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. It reads once, so it takes no `--watch` |
-| `requests [--session <id>] [--account <id>] [--since <when>] [--json]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. `--json` prints each line as the ledger holds it, a JSON object a line, fields a later release added included. It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--json]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on, each the ledger holds; a row for each account and model with its requests, tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached and windows' highest use; today's from its lines, as far as it's gone. `--json` prints `{"prices_as_of": "2026-10-07", "days": [{"version": 1, "day": "2026-10-05", "accounts": […]}]}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, and each day's summary as the ledger holds it with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, where there are any (see The request ledger). It reads the ledger's files, so it needs no router |
+| `requests [--session <id>] [--account <id>] [--since <when>] [--json]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), or a duration ago (`3h`, `2d`, a day being 24 hours, `400d` at most), and one still to come is refused. `--json` prints each line as the ledger holds it, a JSON object a line, fields a later release added included. It reads the ledger's files, so it needs no router |
+| `history [--since <when>] [--json]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached and windows' highest use; today's from its lines, as far as it's gone. `--json` prints `{"prices_as_of": "2026-10-07", "days": [{"version": 1, "day": "2026-10-05", "lines": 415, "accounts": […]}]}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, and each day's summary as the ledger holds it, every day asked for, so the last is today's, one of no requests without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files, so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
 | `pin <id>... [--move] [--force]`, `pin auto [--force]` | Set the global pin to the accounts given, replacing any before, or clear it: see Pinning. It needs the router |
@@ -687,7 +687,10 @@ rather than failing, reads `switchboard: …`.
 
 No command quotes a token given where an id goes: `accounts token`, `accounts remove`, `pin`, to an
 account or with `--session`, `status --session` and `run --account` show an id shaped like a token
-as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's name.
+as `[redacted]`, as `accounts add` does as it refuses one, and `logs` a log's name. Nor does a
+command quote one in refusing what else it's given: an argument it takes none of, a flag it doesn't
+know or a value the flag can't take, `usage --watch`'s interval, `--since`'s time, and the file
+`--config` names where there's none.
 
 ## Dashboard
 
@@ -1553,13 +1556,17 @@ first day a router that has it runs, so nothing before then is in it.
   log warning how many. Those passed through, which have no lines, aren't waited for. A benchmark
   of the proxy path, taken before the ledger joins it and again after, shows what the ledger costs
   a request (see Milestones).
-- **A summary a day:** once a day has ended, on the first of the hourly rounds that compress and
-  prune the files an hour or more after, as a request still in flight as the day ends has its line
-  filed under the day once it's done, the router writes the day's summary from the day's lines and
-  the day's readings history, as one JSON object:
+- **A summary a day:** once a day has ended, on the first round an hour or more after, as a
+  request still in flight as the day ends has its line filed under the day once it's done, the
+  router writes the day's summary from the day's lines and the day's readings history, as one JSON
+  object. The rounds are those that compress and prune the ledger's files, every hour and as the
+  first line of a day is written, and the readings history's, each made before its files are
+  pruned: so neither a line nor a reading a summary needs is pruned before its day is summarised,
+  however long the router was stopped, or the Mac asleep, which holds the hourly rounds back. Its
+  object:
 
   ```json
-  {"version": 1, "day": "2026-10-05", "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}]}]}
+  {"version": 1, "day": "2026-10-05", "lines": 415, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}]}]}
   ```
 
   - `version`: the summaries' version, 1 so far. A release that summarises a day otherwise, or
@@ -1567,13 +1574,18 @@ first day a router that has it runs, so nothing before then is in it.
     lines are still kept can be summarised again, and a reader knows what the rest never counted,
     rather than taking it for none.
   - `day`: the local date the day's lines are filed under.
+  - `lines`: how many of the day's lines it was made from, those that didn't read as a line among
+    them, which are warned of as it's made: what the summary is checked against, as below.
   - `accounts`: each account's day, in the order of their ids; one without an `account` holds the
     requests the router answered without one, as when no account had room, or a body couldn't be
-    read. Its `models` are its requests by the model each asked for, one without a `model` holding
-    those whose bodies couldn't be read, in the order of their names: `upstream` counts those that
-    spend quota that went upstream, and `unsent` those the router answered itself, never sending
-    them; `checks` counts Claude Code's quota checks, and `counts` the counts of tokens, however
-    each went; `sessions` counts the sessions they were of, but for the checks', as Claude Code
+    read. A day of no requests has none. Its `models` are its requests by the model each asked
+    for, one without a `model` holding those whose bodies couldn't be read, in the order of their
+    names: `upstream` counts those that spend quota that went upstream, and `no_usage` those of
+    them whose answers gave no usage, as one canceled, cut off or an error gives none, so what
+    they spent is unknown, and their worth unpriced, never taken for none (see Worth); `unsent`
+    counts those the router answered itself, never sending them; `checks` counts Claude Code's
+    quota checks, and `counts` the counts of tokens, however each went; `sessions` counts the
+    sessions they were of, but for the checks', as Claude Code
     sends one as it resumes a session under an id it never uses again; and `usage` is their usage
     summed, field for field as the API gives it, an object's fields within it, and the objects of a
     list that give their types, as an answer's `iterations` do, within it by their types, what
@@ -1590,11 +1602,22 @@ first day a router that has it runs, so nothing before then is in it.
     another status or another window's, one with another reset: when it was read so, and when the
     window was to reset.
 
-  A summary is written once, whole, and kept for good: a year of them runs to a few megabytes.
-  Fields may be added to it, never renamed. A day left without one, as when the router was stopped
-  as the day ended, is summarised by the next round that finds its lines, compressed or not. Views
-  over weeks and months read the summaries; today, and any day not yet summarised, is summarised
-  from its lines as it's read.
+  A summary is written whole, and written again while lines come to be filed under its day: a
+  request in flight past the hour the day is given, a change of time zone, or a clock set ahead and
+  set right again, files a line under a day already summarised, which `requests` lists, and which
+  `history` would never count otherwise. So, at each round, while a day's lines are kept, a day
+  whose files hold more lines than its summary's `lines` is summarised again, over it. None is
+  taken away while they're kept, so fewer means some were lost since, as to a damaged file, and
+  the summary made from more stands; once they're pruned, it's kept for good: a year of them runs
+  to a few megabytes. Fields may be added to it, never renamed. A day left without one, as when
+  the router was stopped as the day ended, is summarised by the next round that finds its lines,
+  compressed or not. A day one of whose files can't be opened isn't summarised from the rest, as
+  that would be taken for the whole day, but left for a later round, as is one whose summary, or
+  lines, can't be read to tell whether it stands, each warned of at each round until it can be;
+  one whose summary doesn't read as the day's, as one of another day, is warned of, and summarised
+  again. A day whose files hold no line that reads is summarised as one of no requests, and again
+  once a line comes that does. Views over weeks and months read the summaries; today, and any day
+  not summarised since lines came to be filed under it, is summarised from its lines as it's read.
 - **Worth** is what a request would have cost through the API, priced from a table built into
   switchboard, read from Anthropic's pricing page on 7 October 2026: each model's prices of input,
   output, cache reads, and cache writes for five minutes and for an hour, each as the page gives
@@ -1615,6 +1638,9 @@ first day a router that has it runs, so nothing before then is in it.
     which the API charges at that model's prices. Web fetches, which cost nothing beyond their
     tokens, the thinking within the output, and the turns of the model asked for, which the usage's
     own counts sum, cost nothing more.
+  - A request that went upstream and spends quota, but whose answer gave no usage, as one
+    canceled, cut off or an error gives none, spent what can't be known: the worth names it
+    unpriced, as `no_usage`, a request's own or a summary's model's day's, never priced as free.
   - Every request the router routes runs at standard speed and the standard service tier, so the
     table holds no other prices: fast mode never reaches the router (see What doesn't go through
     the router), and a subscription's requests are served at the standard tier.
@@ -1627,12 +1653,17 @@ first day a router that has it runs, so nothing before then is in it.
   readings history beside them through `internal/readings`. A line that doesn't read as one, as one
   cut short, is passed over, and a damaged compressed file is read up to the damage, as the
   readings history is read; how many were passed over is logged. Lines are read oldest first, by
-  when each arrived, as a day's are written as their requests end. A day's summary is read as the
-  ledger holds it, never summarised again; today, and any day not yet summarised, is summarised
-  from its lines as it's read, and never written, as summaries are the router's to write. A
-  summary that can't be read is warned of, and its day summarised from its lines, while they're
-  kept; a day of no summary, none of whose lines read, is left out. A session's page reads the
-  lines of its own days; History and Accounts read the summaries.
+  when each arrived, whichever day's file each is in, as a day's are written as their requests
+  end, and a change of time zone files a line under the date beside its own, never further:
+  ordering them holds a day or two of them at a time, and so does ordering the readings history's.
+  A day's summary is read as the ledger holds it while it stands: its lines are pruned, or number
+  no more than its `lines`, or can't be counted, which is warned of. Today, and any day not
+  summarised since lines came to be filed under it, is summarised from its lines as it's read, the
+  readings history read once for them all, and never written, as summaries are the router's to
+  write. A summary that can't be read, or doesn't read as its day's, as one of another day, is
+  warned of, and its day summarised from its lines, while they're kept. Every day asked for is
+  given, so the last is today, one of no requests as a summary of no accounts. A session's page
+  reads the lines of its own days; History and Accounts read the summaries.
 
 ## Logging
 
@@ -1689,17 +1720,19 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   `GET /history` reads them again and again; a file that couldn't be compressed (`can't compress
   the readings history`); and a file, or the directory, that couldn't be pruned (`can't prune the
   readings history`). Of the request ledger (see The request ledger): at `info`, each day it
-  summarises (`summarised a day of the request ledger`, with the day and its requests), and that
-  it's written again after failing (`writing the request ledger again`); at `warn`, that its
-  directory can't be made private, that it can't be written, once until it can be (`can't write the
-  request ledger`), that lines were dropped from it for its falling behind, once until it catches up
-  (`request ledger fell behind`), that a request's line can't be put as JSON, once, a file that
-  can't be read or was read short, as the readings history's are warned of, how many of a day's
-  lines couldn't be read as a line as it was summarised (`request ledger lines unread`), a file that
-  couldn't be compressed or pruned, a day that couldn't be summarised, at each round until it can
-  be (`can't summarise the request ledger`), and that the router stopped with requests it routed
-  still in flight, whose lines go unwritten, saying how many (`requests still in flight as the
-  router stops; their lines go unwritten`).
+  summarises, and summarises again (`summarised a day of the request ledger`, with the day and its
+  requests), and that it's written again after failing (`writing the request ledger again`); at
+  `warn`, that its directory can't be made private, that it can't be written, once until it can be
+  (`can't write the request ledger`), that lines were dropped from it for its falling behind, once
+  until it catches up (`request ledger fell behind`), that a request's line can't be put as JSON,
+  once, a file that can't be read or was read short, as the readings history's are warned of, how
+  many of a day's lines couldn't be read as a line as it was summarised (`request ledger lines
+  unread`), a summary that doesn't read as its day's, which is summarised again (`can't read the
+  request ledger's summary of a day; summarising it from its lines`), a file that couldn't be
+  compressed or pruned, a day that couldn't be summarised, as one of its files, or its summary,
+  can't be read, at each round until it can be (`can't summarise the request ledger`), and that the
+  router stopped with requests it routed still in flight, whose lines go unwritten, saying how many
+  (`requests still in flight as the router stops; their lines go unwritten`).
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -1890,9 +1923,9 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
-| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, lines cut short and damaged files included; and the queue and goroutine that write to them, so noting a line never waits, with the hourly round they're kept on, which what else is kept of a day, as the request ledger's summaries, is kept on too |
-| `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, reading lines and summaries back, with no router, today and the days not yet summarised summarised as they're read, and the price table and the worth it gives |
-| `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time |
+| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included; the days themselves, each from its first instant, where the clocks go forward at midnight too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too |
+| `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read, and the price table and the worth it gives |
+| `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's and the readings history's files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
@@ -1983,7 +2016,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   or `prime`. An account appears by its id alone: never a token or a label. Fields may be added
   to a line, never renamed, and a reader passes over those it doesn't know. The router removes a
   day's file once its day ended as long ago as `[history] keep` says, 14 days unless it's set (see
-  Config), as it starts and on each day after, and leaves anything else in the directory alone. A
+  Config), as it starts and on each day after, as that day's first reading is written or its first
+  hourly round comes, whichever is first, having first had the request ledger summarise the days
+  that have ended, while their readings are there (see The request ledger), and leaves anything
+  else in the directory alone. A
   file named for a day after tomorrow, as a clock once set ahead names one, stays, as the clock may
   be the one that's wrong, set back, and a clock set back must never delete real history: every
   read passes it over until its date comes round, and it's removed, as any other, once its day is
@@ -1995,8 +2031,10 @@ hiding it behind the provider would take a wider interface than it's worth:
   day than the clock's, but for a day after tomorrow, into each window's recent readings, its
   baseline included (see Choosing an account): the history holds each change of a window's use, so
   they are as they were, but for when each level was last read again, which it takes as its line's
-  time, and the recent rates outlast the restart. It reads them a line at a time, keeping what the
-  recent readings need alone. A window quiet since before the older of the two has no baseline to
+  time, and the recent rates outlast the restart. It reads them in the order they were read,
+  whichever day's file each is in, holding a day or two of them at a time to order them, as every
+  read of the history does, and keeps what the recent readings need alone. A window quiet since
+  before the older of the two has no baseline to
   take up. It passes over a line that doesn't read as a reading, as one cut short, or one over
   4 KiB, which no reading makes and which it skips without holding, one of an account no longer
   configured, and those of a window that has reset since, as `state.json` has it. A reading that
@@ -2004,19 +2042,21 @@ hiding it behind the provider would take a wider interface than it's worth:
   is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of
   them would otherwise run to hundreds of megabytes; the router reads either form back, as it starts
   and for `GET /history`, which the dashboard's charts draw from (see Control API), and so do the
-  request ledger's readers, as they summarise a day not yet summarised (see The request ledger). A
-  day whose compressed file already ends with its plain file's lines, as when the router stopped
-  between writing the one and removing the other, is read from the compressed file alone. A file
-  that can't be read is passed over, and one damaged, as a compressed file cut short, read up to the
-  damage, each warned of once, until it reads to its end again (see Logging). A line cut short at a
+  request ledger's readers, as they summarise a day (see The request ledger). A day whose
+  compressed file already ends with its plain file's lines, as when the router stopped between
+  writing the one and removing the other, is read from the compressed file alone. A file gone
+  between the listing of its day's files and its opening, as when the router compressed the day
+  meanwhile, has them listed and opened again, once. A file that can't be read is passed over, and
+  one damaged, as a compressed file cut short, read up to the damage, each warned of once, until it
+  reads to its end again (see Logging). A line cut short at a
   file's end, as a crash or a power cut partway through a write leaves one, is ended before more
   lines follow it, whether appended or compressed after it, so the next starts a line of its own.
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
   and `day-<local date>.json`, a day's summary, each 0600 (see The request ledger). The lines are
   appended, compressed and removed as the readings history's are, by the same rules, but kept as
   long as `[ledger] keep` says, 90 days unless it's set (see Config). A day's summary is written
-  whole, beside where it goes and renamed into place, and never removed. The router leaves anything
-  else in the directory alone.
+  whole, beside where it goes and renamed into place, written again while lines come to be filed
+  under its day, and never removed. The router leaves anything else in the directory alone.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, the view it
   shows, the featured window and the chart style, written whole by the dashboard alone, never by
   hand (see Themes).

@@ -145,7 +145,7 @@ func urgency(k Kind) int {
 // its reading says nothing, and with no room left, it's Exhausted.
 func settled(w quota.Window, now time.Time) (Projection, bool) {
 	switch {
-	case hasReset(w, now):
+	case w.ResetBy(now):
 		return Projection{}, true
 	case spent(w):
 		return Projection{Kind: Exhausted, At: w.ResetsAt}, true
@@ -167,12 +167,6 @@ func heading(w quota.Window, rate float64, now time.Time) Projection {
 // fraction is how much of length d makes up, from 0 to 1.
 func fraction(d, length time.Duration) float64 {
 	return min(max(float64(d)/float64(length), 0), 1)
-}
-
-// hasReset reports whether w has reset by now. Its reading is then stale:
-// the window has started afresh.
-func hasReset(w quota.Window, now time.Time) bool {
-	return !w.ResetsAt.IsZero() && !w.ResetsAt.After(now)
 }
 
 // spent reports whether w's reading leaves no room: it's used up, or the

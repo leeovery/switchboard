@@ -120,7 +120,7 @@ func (a heldWindow) history(written []readings.Reading, step time.Duration, now 
 // window, whose reset, where they give one, is at or before start.
 func sinceStart(read []readings.Reading, start time.Time) []readings.Reading {
 	read = slices.DeleteFunc(read, func(r readings.Reading) bool {
-		return r.At.Before(start) || !r.ResetsAt.IsZero() && !r.ResetsAt.After(start)
+		return r.At.Before(start) || r.Window().ResetBy(start)
 	})
 	slices.SortStableFunc(read, func(a, b readings.Reading) int { return a.At.Compare(b.At) })
 	return read

@@ -273,20 +273,34 @@ func checkWarning(warning float64) error {
 	return fmt.Errorf("notifications.warning %v: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none", warning)
 }
 
+// MostDays is the most days a count of them, as ParseDays reads one, may
+// give, wherever it's given: a year with room to spare.
+const MostDays = 400
+
+// ParseDays reads a count of days, <n>d, as 14d: a whole number, with no
+// sign. It reports false for any other text. A count can be more days than a
+// time.Duration holds, so its reader bounds it, MostDays at most.
+func ParseDays(given string) (uint64, bool) {
+	digits, inDays := strings.CutSuffix(given, "d")
+	days, err := strconv.ParseUint(digits, 10, 64)
+	if !inDays || err != nil {
+		return 0, false
+	}
+	return days, true
+}
+
 // parseKeep reads how long something is kept as the config's key gives it,
-// history.keep or ledger.keep: a whole number of days, <n>d, from 8d, a week
-// and a day, which the dashboard's chart of the week needs, to 400d, a year
-// with room to spare. None given is byDefault, which a key given wrong is
-// told of as an example.
+// history.keep or ledger.keep: a count of days, from 8d, a week and a day,
+// which the dashboard's chart of the week needs, to MostDays. None given is
+// byDefault, which a key given wrong is told of as an example.
 func parseKeep(key string, given *string, byDefault time.Duration) (time.Duration, error) {
 	const day = 24 * time.Hour
 	if given == nil {
 		return byDefault, nil
 	}
-	digits, inDays := strings.CutSuffix(*given, "d")
-	days, err := strconv.ParseUint(digits, 10, 64)
-	if !inDays || err != nil || days < 8 || days > 400 {
-		return 0, wrongValue(key, *given, fmt.Sprintf("must be a whole number of days from 8d, a week and a day, to 400d, such as %dd", byDefault/day))
+	days, ok := ParseDays(*given)
+	if !ok || days < 8 || days > MostDays {
+		return 0, wrongValue(key, *given, fmt.Sprintf("must be a whole number of days from 8d, a week and a day, to %dd, such as %dd", MostDays, byDefault/day))
 	}
 	return time.Duration(days) * day, nil
 }

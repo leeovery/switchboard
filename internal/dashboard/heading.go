@@ -405,7 +405,7 @@ func roomOf(a status.Account, key string, now time.Time) float64 {
 	switch {
 	case !ok:
 		return 0
-	case !w.ResetsAt.IsZero() && !w.ResetsAt.After(now):
+	case w.ResetBy(now):
 		return 1
 	default:
 		return min(max(1-w.Utilization, 0), 1)

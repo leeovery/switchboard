@@ -16,12 +16,49 @@ func asText(line []byte) (string, bool) {
 	return string(line), true
 }
 
+// untimed is the time of a line read as text: none, so the lines keep the
+// order they came in.
+func untimed(string) time.Time {
+	return time.Time{}
+}
+
+// timed is a line of the tests that gives its time, as "<RFC 3339 time>
+// <text>".
+type timed struct {
+	at   time.Time
+	text string
+}
+
+// timedLine returns text as a line timed at at.
+func timedLine(at time.Time, text string) string {
+	return at.UTC().Format(time.RFC3339) + " " + text
+}
+
+// asTimed returns the timed line a line holds, reporting false for one that
+// gives no time.
+func asTimed(line []byte) (timed, bool) {
+	stamp, text, ok := strings.Cut(string(line), " ")
+	at, err := time.Parse(time.RFC3339, stamp)
+	return timed{at: at, text: text}, ok && err == nil
+}
+
+// readTimed returns the texts of the timed lines f holds of the local days
+// with the given dates, as Read gives them.
+func readTimed(f *Files, dates ...string) []string {
+	var texts []string
+	Read(f, dates, asTimed, func(l timed) time.Time { return l.at }, func(l timed) bool {
+		texts = append(texts, l.text)
+		return true
+	})
+	return texts
+}
+
 // readJSON returns the lines f holds of the local days with the given dates
 // that are JSON, as a line written whole is and one cut short isn't, as Read
 // gives them, and how many lines weren't.
 func readJSON(f *Files, dates ...string) (lines []string, unread int) {
 	asJSON := func(line []byte) (string, bool) { return string(line), json.Valid(line) }
-	unread = Read(f, dates, asJSON, func(line string) bool {
+	unread = Read(f, dates, asJSON, untimed, func(line string) bool {
 		lines = append(lines, line)
 		return true
 	})
@@ -32,7 +69,7 @@ func readJSON(f *Files, dates ...string) (lines []string, unread int) {
 // as Read gives them.
 func readAll(f *Files, dates ...string) []string {
 	var lines []string
-	Read(f, dates, asText, func(line string) bool {
+	Read(f, dates, asText, untimed, func(line string) bool {
 		lines = append(lines, line)
 		return true
 	})
@@ -92,6 +129,79 @@ func TestReadGivesEachDaysLinesOnceInTheOrderTheyCame(t *testing.T) {
 	}
 }
 
+func TestReadGivesTheLinesOldestFirstWhicheverDaysFileTheyreIn(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	at := func(day, hour, minute int) time.Time { return time.Date(2026, 9, day, hour, minute, 0, 0, time.Local) }
+	// A change of time zone files a line under the date beside its own: the
+	// 27th's file holds one of the 28th, as after a move west, and the 28th's
+	// one of the 27th, as after a move east, and the 29th's one of the 28th.
+	writeDay(t, f, plainFile("2026-09-27"), linesOf(timedLine(at(27, 22, 0), "a"), timedLine(at(28, 0, 30), "d")))
+	writeDay(t, f, plainFile("2026-09-28"), linesOf(timedLine(at(27, 23, 0), "b"), timedLine(at(28, 0, 10), "c"), timedLine(at(28, 12, 0), "e")))
+	writeDay(t, f, compressedFile("2026-09-29"), linesOf(timedLine(at(28, 23, 30), "f"), timedLine(at(29, 8, 0), "g")))
+
+	if got, want := readTimed(f, "2026-09-27", "2026-09-28", "2026-09-29"), []string{"a", "b", "c", "d", "e", "f", "g"}; !slices.Equal(got, want) {
+		t.Errorf("read %q, want %q: oldest first, whichever day's file each is in", got, want)
+	}
+}
+
+func TestReadHandsALineOnOnceNoLaterDaysFileCanHoldOneBeforeIt(t *testing.T) {
+	log := logstest.Capture(t)
+	f := readingsHistory(t.TempDir())
+	writeDay(t, f, plainFile("2026-09-27"), linesOf(timedLine(time.Date(2026, 9, 27, 9, 0, 0, 0, time.Local), "first")))
+	writeDay(t, f, plainFile("2026-09-28"), linesOf(timedLine(time.Date(2026, 9, 28, 9, 0, 0, 0, time.Local), "second")))
+	// A file a read that has had enough by then has no need to open.
+	if err := os.WriteFile(f.path(plainFile("2026-09-29")), []byte("{}\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	Read(f, []string{"2026-09-27", "2026-09-28", "2026-09-29"}, asTimed, func(l timed) time.Time { return l.at }, func(l timed) bool {
+		got = append(got, l.text)
+		return false
+	})
+	if !slices.Equal(got, []string{"first"}) || log.Has(`msg="can't read the readings history"`) {
+		t.Errorf("read %q, logging\n%s\nwant the first line handed on once the next day's file was read, and the day after's never opened", got, log)
+	}
+}
+
+func TestADayCompressedOnceItsFilesWereListedIsListedAgain(t *testing.T) {
+	const date = "2026-09-25"
+	tests := []struct {
+		name string
+		// compressed are the lines the day's compressed file holds before it's
+		// compressed again, if any.
+		compressed []string
+	}{
+		{name: "its plain file alone"},
+		{name: "its plain file after its compressed one, as when the clock was set back to the day", compressed: []string{"zero"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := requestLedger(t.TempDir())
+			if tt.compressed != nil {
+				writeDay(t, f, compressedFile(date), linesOf(tt.compressed...))
+			}
+			writeDay(t, f, plainFile(date), linesOf("one", "two"))
+			listed := f.dayFiles(date)
+			// Another process, a router, compresses the day once it was listed,
+			// before its files are opened.
+			if err := requestLedger(f.Dir).compress(date); err != nil {
+				t.Fatal(err)
+			}
+
+			opened, failed := f.openListed(date, listed)
+			var got []string
+			readOpened(f, opened, asText, func(line string) bool {
+				got = append(got, line)
+				return true
+			})
+			if want := append(slices.Clone(tt.compressed), "one", "two"); !slices.Equal(got, want) || len(failed) > 0 {
+				t.Errorf("read %q, failing %+v, want the day's lines %q, each once, from its files as listed again", got, failed, want)
+			}
+		})
+	}
+}
+
 func TestReadPassesOverWhatDecodeMakesNothingOf(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	writeDay(t, f, plainFile("2026-09-28"), linesOf("one", "?", "", "two", "?"))
@@ -100,7 +210,7 @@ func TestReadPassesOverWhatDecodeMakesNothingOf(t *testing.T) {
 	}
 
 	var got []string
-	unread := Read(f, []string{"2026-09-28"}, answers, func(line string) bool {
+	unread := Read(f, []string{"2026-09-28"}, answers, untimed, func(line string) bool {
 		got = append(got, line)
 		return true
 	})
@@ -115,7 +225,7 @@ func TestReadStopsOnceTakeHasEnough(t *testing.T) {
 	writeDay(t, f, plainFile("2026-09-28"), linesOf("four"))
 
 	var got []string
-	Read(f, []string{"2026-09-27", "2026-09-28"}, asText, func(line string) bool {
+	Read(f, []string{"2026-09-27", "2026-09-28"}, asText, untimed, func(line string) bool {
 		got = append(got, line)
 		return line != "two"
 	})
@@ -131,7 +241,7 @@ func TestALineLongerThanLineMaxIsSkippedWithoutBeingHeld(t *testing.T) {
 	writeDay(t, f, plainFile("2026-09-28"), linesOf("fifteen bytes..", "sixteen bytes...", "short", strings.Repeat("x", 100)))
 
 	var got []string
-	unread := Read(f, []string{"2026-09-28"}, asText, func(line string) bool {
+	unread := Read(f, []string{"2026-09-28"}, asText, untimed, func(line string) bool {
 		got = append(got, line)
 		return true
 	})

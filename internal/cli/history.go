@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -47,8 +48,9 @@ so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
 
-With --json, print each day's summary as the ledger holds it, each model's
-worth in US dollars added, for an agent or a script to read.`,
+With --json, print each day's summary as the ledger holds it, every day, so
+the last is today's, each model's worth in US dollars added, and what it
+leaves unpriced, for an agent or a script to read.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.history(cmd.OutOrStdout(), given, asJSON)
@@ -82,27 +84,57 @@ func (a *app) history(out io.Writer, given string, asJSON bool) error {
 	return writeHistory(out, days, from, now)
 }
 
-// writeHistory writes days as history's text, a table a day, then the date of
-// the prices they're worth at; or says there were none since from.
+// writeHistory writes days as history's text, a table a day of those with
+// requests, then the date of the prices they're worth at; or says there were
+// none since from. Given a day whose date isn't one, it fails, writing
+// nothing.
 func writeHistory(out io.Writer, days []ledger.Priced, from, now time.Time) error {
-	if len(days) == 0 {
+	tables, err := historyTables(days, now)
+	if err != nil {
+		return err
+	}
+	if len(tables) == 0 {
 		_, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout))
 		return err
 	}
-	for i, day := range days {
-		if err := historyTable(day, now).write(out, now, i == 0); err != nil {
+	asOf, _, ok := dayfile.Day(ledger.Pricing.AsOf)
+	if !ok {
+		return fmt.Errorf("the prices are as of %q, which isn't a date", ledger.Pricing.AsOf)
+	}
+	for i, table := range tables {
+		if err := table.write(out, now, i == 0); err != nil {
 			return err
 		}
 	}
-	asOf, _, _ := dayfile.Day(ledger.Pricing.AsOf)
-	_, err := fmt.Fprintf(out, "\nworth is what they'd have cost through the API, at its prices as of %s\n", asOf.Format("2 Jan 2006"))
+	_, err = fmt.Fprintf(out, "\nworth is what they'd have cost through the API, at its prices as of %s\n", asOf.Format("2 Jan 2006"))
 	return err
 }
 
+// historyTables are the tables of those of days with requests, as
+// historyTable makes each.
+func historyTables(days []ledger.Priced, now time.Time) ([]dayTable, error) {
+	var tables []dayTable
+	for _, day := range days {
+		if len(day.Accounts) == 0 {
+			continue
+		}
+		table, err := historyTable(day, now)
+		if err != nil {
+			return nil, err
+		}
+		tables = append(tables, table)
+	}
+	return tables, nil
+}
+
 // historyTable is the day's table: a row for each account's model, the
-// account named on its first, and a note of each account's.
-func historyTable(day ledger.Priced, now time.Time) dayTable {
-	start, _ := time.ParseInLocation(time.DateOnly, day.Day, now.Location())
+// account named on its first, and a note of each account's. It fails for a
+// day whose date isn't one, which the ledger's reader never gives.
+func historyTable(day ledger.Priced, now time.Time) (dayTable, error) {
+	start, _, ok := dayfile.Day(day.Day)
+	if !ok {
+		return dayTable{}, fmt.Errorf("a summary in the ledger is of %q, which isn't a date", redact.Text(day.Day))
+	}
 	table := dayTable{day: start}
 	for _, a := range day.Accounts {
 		for i, m := range a.Models {
@@ -118,7 +150,7 @@ func historyTable(day ledger.Priced, now time.Time) dayTable {
 			table.notes = append(table.notes, note)
 		}
 	}
-	return table
+	return table, nil
 }
 
 // accountName names the account with the given id, cleaned: "no account" for

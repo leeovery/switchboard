@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"iter"
 	"log/slog"
-	"os"
 	"slices"
 	"time"
 
@@ -16,13 +15,11 @@ import (
 
 // Reader reads the request ledger back where it lies, in the state directory,
 // with no router: its lines, and its days' summaries, today's and those of
-// the days not yet summarised summarised from their lines, with the readings
-// history beside them, as they're read.
+// the days not summarised since lines came to be filed under them summarised
+// from their lines, with the readings history beside them, as they're read.
 type Reader struct {
-	files   *dayfile.Files
-	history Readings
-	now     func() time.Time
-	logger  *slog.Logger
+	days days
+	now  func() time.Time
 }
 
 // NewReader returns a reader of the ledger in the state directory stateDir,
@@ -30,10 +27,12 @@ type Reader struct {
 func NewReader(stateDir string, now func() time.Time, logger *slog.Logger) *Reader {
 	history := readings.Files(readings.Dir(stateDir), logger)
 	return &Reader{
-		files:   filesIn(Dir(stateDir), logger),
-		history: func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
-		now:     now,
-		logger:  logger,
+		days: days{
+			files:   filesIn(Dir(stateDir), logger),
+			history: func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
+			logger:  logger,
+		},
+		now: now,
 	}
 }
 
@@ -45,35 +44,26 @@ type Held struct {
 }
 
 // Lines returns the lines of the requests that arrived from from on, until
-// now, oldest first, whichever day's file each is in, plain or compressed. A
-// line that doesn't read as one, as one cut short, is passed over, and a
-// damaged compressed file read up to the damage, as dayfile.Read says: how
-// many lines couldn't be read is logged.
+// now, oldest first, by when each arrived, whichever day's file each is in,
+// plain or compressed, as dayfile.Read reads them: a day's are written as
+// their requests end, which a long one does after others that arrived later.
+// A line that doesn't read as one, as one cut short, is passed over, and a
+// damaged compressed file read up to the damage: how many lines couldn't be
+// read is logged.
 func (r *Reader) Lines(from time.Time) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := r.now()
-		unread := 0
-		defer func() {
-			if unread > 0 {
-				r.logger.Warn("request ledger lines unread", "lines", unread)
-			}
-		}()
-		for _, date := range dayfile.Dates(from, now) {
-			var day []Held
-			unread += dayfile.Read(r.files, []string{date}, heldIn, func(h Held) bool {
-				if !h.At.Before(from) && !h.At.After(now) {
-					day = append(day, h)
-				}
+		unread := dayfile.Read(r.days.files, dayfile.Dates(from, now), heldIn, arrived, func(h Held) bool {
+			switch {
+			case h.At.After(now):
+				return false
+			case h.At.Before(from):
 				return true
-			})
-			// A day's lines are written as their requests end, which a long one
-			// does after others that arrived later.
-			slices.SortStableFunc(day, func(a, b Held) int { return a.At.Compare(b.At) })
-			for _, h := range day {
-				if !yield(h) {
-					return
-				}
 			}
+			return yield(h)
+		})
+		if unread > 0 {
+			r.days.logger.Warn("request ledger lines unread", "lines", unread)
 		}
 	}
 }
@@ -88,51 +78,68 @@ func heldIn(data []byte) (Held, bool) {
 	return Held{Line: line, JSON: slices.Clone(data)}, true
 }
 
+// arrived is when the request h holds the line of arrived.
+func arrived(h Held) time.Time {
+	return h.At
+}
+
 // Days returns the summaries of the local days from from's to today's, oldest
-// first, of each day the ledger holds: the summary it holds of the day, as
-// it's held, never summarised again; else, as of today, as far as it has gone,
-// and any day not yet summarised, the day summarised from its lines and the
-// readings history, as they're read. A day of no summary none of whose lines
-// read is left out.
+// first, every one of them, so the last is today's: the summary the ledger
+// holds of a day, as it's held, where it stands, as stands says; else the
+// day summarised from its lines and the readings history, as they're read,
+// as of today as far as it has gone, the history read once for them all. A
+// day of no requests is a summary of no accounts.
 func (r *Reader) Days(from time.Time) []Summary {
-	var days []Summary
-	for _, date := range dayfile.Span(from, r.now()) {
-		if summary, ok := r.day(date); ok {
-			days = append(days, summary)
+	dates := dayfile.Span(from, r.now())
+	days := make([]Summary, len(dates))
+	var unsummarised []int
+	for i, date := range dates {
+		if held, ok := r.standing(date); ok {
+			days[i] = held
+		} else {
+			unsummarised = append(unsummarised, i)
 		}
+	}
+	if len(unsummarised) == 0 {
+		return days
+	}
+	_, until, _ := dayfile.Day(dates[unsummarised[len(unsummarised)-1]])
+	history := readOnce(r.days.history, until)
+	for _, i := range unsummarised {
+		days[i] = r.summarised(dates[i], history)
 	}
 	return days
 }
 
-// day returns the summary of the local day with the given date, as Days gives
-// it, reporting false for a day it leaves out.
-func (r *Reader) day(date string) (Summary, bool) {
-	if summary, ok := r.held(date); ok {
-		return summary, true
+// standing returns the summary the ledger holds of the local day with the
+// given date, reporting false where the day is to be summarised from its
+// lines: the ledger holds no summary of it, or one that can't be read as the
+// day's, which is warned of, or one that doesn't stand. One whose lines can't
+// be counted to tell is taken as it's held, which is warned of too.
+func (r *Reader) standing(date string) (Summary, bool) {
+	held, err := r.days.held(date)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return Summary{}, false
+	case err != nil:
+		r.days.logger.Warn("can't read the request ledger's summary of a day; summarising it from its lines", "day", date, "error", err)
+		return Summary{}, false
 	}
-	summary, unread, err := summariseDay(r.files, date, r.history)
-	if unread > 0 {
-		r.logger.Warn("request ledger lines unread", "day", date, "lines", unread)
+	stands, err := r.days.stands(held)
+	if err != nil {
+		r.days.logger.Warn("can't read the request ledger", "day", date, "error", err)
+		return held, true
 	}
-	return summary, err == nil && summary.requests() > 0
+	return held, stands
 }
 
-// held returns the summary the ledger holds of the local day with the given
-// date, reporting false where it holds none, or one that can't be read, which
-// is warned of: the day is summarised from its lines instead, as far as
-// they're kept.
-func (r *Reader) held(date string) (Summary, bool) {
-	data, err := os.ReadFile(summaryFile(r.files.Dir, date))
-	if errors.Is(err, fs.ErrNotExist) {
-		return Summary{}, false
+// summarised returns the summary of the local day with the given date from
+// its lines and history: of those of its files that can be read, where one
+// can't, which is warned of.
+func (r *Reader) summarised(date string, history Readings) Summary {
+	summary, err := r.days.summarise(date, history)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		r.days.logger.Warn("can't read the request ledger", "day", date, "error", err)
 	}
-	var summary Summary
-	if err == nil {
-		err = json.Unmarshal(data, &summary)
-	}
-	if err != nil {
-		r.logger.Warn("can't read the request ledger's summary of a day; summarising it from its lines", "day", date, "error", err)
-		return Summary{}, false
-	}
-	return summary, true
+	return summary
 }

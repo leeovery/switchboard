@@ -24,7 +24,7 @@ is the primary; priming; the service; the claude link; and the skill; then
 show usage. Each step says what's done already, and does only what isn't, so
 setup is safe to run again. It asks as it goes, so it needs a terminal:
 without one, it says which command takes each step alone.`,
-		Args: cobra.NoArgs,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.setup(cmd)
 		},

@@ -95,11 +95,17 @@ type Table struct {
 // Worth is what a usage would have cost through the API: Cost, of what its
 // prices charge for; and Unpriced, the paths of the counts it holds that they
 // can't price, as a server tool's the table doesn't know, which Cost leaves
-// out rather than guess at.
+// out rather than guess at, and noUsage where requests it's of went upstream
+// without usage.
 type Worth struct {
 	Cost     Picodollars
 	Unpriced []string
 }
+
+// noUsage is what a worth names among the counts it leaves unpriced where
+// requests it's of went upstream but their answers gave no usage, as a
+// summary's no_usage counts them: what they spent is unknown.
+const noUsage = "no_usage"
 
 // Worth returns what usage, of a request for the model with the given id that
 // asked for its inference to run in the geo given, "" where it asked for
@@ -120,9 +126,22 @@ func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Wor
 }
 
 // Request returns what the line's request would have cost through the API at
-// the prices in effect on the local day with the given date, as Worth says.
+// the prices in effect on the local day with the given date, as Worth says:
+// one that went upstream whose answer gave no usage unpriced, never free.
 func (t Table) Request(l *Line, date string) (Worth, bool) {
-	return t.Worth(l.Model, l.Shape.InferenceGeo, l.Usage, date)
+	return t.worth(l.Model, l.Shape.InferenceGeo, l.Usage, l.unmetered(), date)
+}
+
+// worth returns what usage would have cost, as Worth says, naming noUsage
+// among what it leaves unpriced where unmetered says requests it's of went
+// upstream without usage.
+func (t Table) worth(model, geo string, usage json.RawMessage, unmetered bool, date string) (Worth, bool) {
+	w, ok := t.Worth(model, geo, usage, date)
+	if ok && unmetered {
+		w.Unpriced = append(w.Unpriced, noUsage)
+		slices.Sort(w.Unpriced)
+	}
+	return w, ok
 }
 
 // prices returns the prices of the model with the given id in effect on the
@@ -265,7 +284,8 @@ type PricedAccount struct {
 // PricedModel is a model's day on an account, with what its requests would
 // have cost through the API: none where the model is unpriced, as one the
 // table doesn't know; and the paths of the counts in its usage the worth
-// leaves out, as they can't be priced.
+// leaves out, as they can't be priced, no_usage among them where some of its
+// requests went upstream without usage.
 type PricedModel struct {
 	ModelDay
 	Worth    *Picodollars `json:"worth,omitempty"`
@@ -280,7 +300,7 @@ func (t Table) Priced(s Summary, date string) Priced {
 		account := PricedAccount{AccountDay: a}
 		for _, m := range a.Models {
 			model := PricedModel{ModelDay: m}
-			if w, ok := t.Worth(m.Model, m.InferenceGeo, m.Usage, date); ok {
+			if w, ok := t.worth(m.Model, m.InferenceGeo, m.Usage, m.NoUsage > 0, date); ok {
 				model.Worth, model.Unpriced = &w.Cost, w.Unpriced
 			}
 			account.Models = append(account.Models, model)

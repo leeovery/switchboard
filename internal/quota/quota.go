@@ -58,6 +58,13 @@ func (w Window) Span() (time.Time, time.Duration, bool) {
 	return start, w.ResetsAt.Sub(start), true
 }
 
+// ResetBy reports whether the window had reset by t, as its reading said it
+// would: it gives a reset, at t or before. Its reading is stale from then:
+// the window has started afresh.
+func (w Window) ResetBy(t time.Time) bool {
+	return !w.ResetsAt.IsZero() && !w.ResetsAt.After(t)
+}
+
 // Failure is a window the provider expected to read but couldn't. Reporting it
 // keeps a broken read distinct from an account that has no such window.
 type Failure struct {
