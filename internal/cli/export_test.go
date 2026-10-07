@@ -19,3 +19,7 @@ var Took = took
 // WriteHistory is how history writes its days, for tests of days the ledger
 // never gives it.
 var WriteHistory = writeHistory
+
+// Since is when --since's value starts, for tests of the furthest back it
+// reaches, a span of days too long to read the ledger over in a test.
+var Since = since

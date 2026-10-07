@@ -187,9 +187,9 @@ func TestTheHistoryKeepsADaysFilesAsLongAsTheConfigSays(t *testing.T) {
 		// days is how many days a day's files are kept once it has ended.
 		days int
 	}{
-		{name: "two weeks where it doesn't say", days: 14},
+		{name: "400 days where it doesn't say", days: 400},
 		{name: "a week and a day", keep: 8 * day, days: 8},
-		{name: "400 days", keep: 400 * day, days: 400},
+		{name: "a thousand days", keep: 1000 * day, days: 1000},
 	}
 	today := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
 	dateOf := func(back int) string { return today.AddDate(0, 0, -back).Format(time.DateOnly) }
@@ -645,7 +645,7 @@ func TestTheHistoryHasTheLedgerSummariseTheDaysThatEndedBeforeItPrunesTheirReadi
 	// its answer gave; by after it has ended as long ago as the history keeps
 	// a day's readings, and more.
 	day := time.Date(2026, 9, 8, 10, 0, 0, 0, time.Local)
-	after := day.AddDate(0, 0, 20)
+	after := day.Add(config.DefaultHistoryKeep).AddDate(0, 0, 6)
 	tests := []struct {
 		name string
 		// from is when the history's writer starts, and wake, where it's

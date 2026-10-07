@@ -22,8 +22,7 @@ import (
 var start = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 
 // twoWeeks is how long the tests' files are kept from the end of their day,
-// where a test doesn't say: as long as the readings history keeps its own
-// unless its config says.
+// where a test doesn't say.
 const twoWeeks = 14 * 24 * time.Hour
 
 // testLogger is what the tests' files log through.
@@ -331,6 +330,36 @@ func TestADaysFilesGoOnceItsDayEndedAsLongAgoAsTheyreKept(t *testing.T) {
 			for back, stays := range kept {
 				if held := holdsDay(f, dated(back)); held != stays {
 					t.Errorf("the day %d days back is kept = %v, want %v: a day's files go %d days after it ends", back, held, stays, days)
+				}
+			}
+		})
+	}
+}
+
+func TestADaysFilesKeptForeverAreCompressedButNeverGo(t *testing.T) {
+	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
+	today := dateOf(now)
+	// Today's, then days done with: one, one past the keep the config gives
+	// unless it says, and one that ended longer ago than a time.Duration
+	// holds.
+	dates := []string{today, dateOf(now.AddDate(0, 0, -3)), dateOf(now.AddDate(0, 0, -401)), "0001-01-01"}
+	for _, files := range []func(dir string) *Files{readingsHistory, requestLedger} {
+		f := files(t.TempDir())
+		t.Run(f.Name, func(t *testing.T) {
+			for _, date := range dates {
+				writeDay(t, f, plainFile(date), linesOf(date))
+			}
+
+			f.prune(now, Forever)
+			for _, date := range dates {
+				file := compressedFile(date)
+				if date == today {
+					file = plainFile(date)
+				}
+				if !holdsDay(f, date) {
+					t.Errorf("the day of %s went, want every day kept forever", date)
+				} else if got := heldIn(t, f, file); got != linesOf(date) {
+					t.Errorf("%s holds %q, want the day's lines %q", file.name(f.Prefix), got, linesOf(date))
 				}
 			}
 		})

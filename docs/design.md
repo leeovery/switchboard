@@ -666,7 +666,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `setup` | Walk through setting up, or what's left of it: see Setup |
 | `status [--session <id>] [--json] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. `--json` prints the status document, which is what an agent reads (see The skill). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--watch [interval]] [--no-notify] [--probe] [--refresh]` | The dashboard. Where stdout isn't a terminal, as in a pipe or Claude Code's Bash tool, it prints the status document instead, as `status --json` does, read as its flags say; `--watch` needs a terminal, and refuses without one. `-w`, `--watch` keeps it on screen, reading every interval (30m unless given, 5m at the least; a duration such as `15m`, or a number of minutes). `--no-notify` has a watch post no notifications. It reads the router while it runs; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `r` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. It reads once, so it takes no `--watch` |
-| `requests [--session <id>] [--account <id>] [--since <when>] [--json]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), or a duration ago (`3h`, `2d`, a day being 24 hours, `400d` at most), and one still to come is refused. `--json` prints each line as the ledger holds it, a JSON object a line, fields a later release added included. It reads the ledger's files, so it needs no router |
+| `requests [--session <id>] [--account <id>] [--since <when>] [--json]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), or a duration ago (`3h`, `2d`, a day being 24 hours, `106751d` at most, the most days a duration holds), and one still to come is refused. `--json` prints each line as the ledger holds it, a JSON object a line, fields a later release added included. It reads the ledger's files, so it needs no router |
 | `history [--since <when>] [--json]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached and windows' highest use; today's from its lines, as far as it's gone. `--json` prints `{"prices_as_of": "2026-10-07", "days": [{"version": 1, "day": "2026-10-05", "lines": 415, "accounts": […]}]}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, and each day's summary as the ledger holds it, every day asked for, so the last is today's, one of no requests without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files, so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
@@ -2015,11 +2015,11 @@ hiding it behind the provider would take a wider interface than it's worth:
   them, and `source` where it came from: `answer`, off the answer to a routed request; `probe`;
   or `prime`. An account appears by its id alone: never a token or a label. Fields may be added
   to a line, never renamed, and a reader passes over those it doesn't know. The router removes a
-  day's file once its day ended as long ago as `[history] keep` says, 14 days unless it's set (see
-  Config), as it starts and on each day after, as that day's first reading is written or its first
-  hourly round comes, whichever is first, having first had the request ledger summarise the days
-  that have ended, while their readings are there (see The request ledger), and leaves anything
-  else in the directory alone. A
+  day's file once its day ended as long ago as `[history] keep` says, 400 days unless it's set, and
+  never where it says `forever` (see Config), as it starts and on each day after, as that day's
+  first reading is written or its first hourly round comes, whichever is first, having first had
+  the request ledger summarise the days that have ended, while their readings are there (see The
+  request ledger), and leaves anything else in the directory alone. A
   file named for a day after tomorrow, as a clock once set ahead names one, stays, as the clock may
   be the one that's wrong, set back, and a clock set back must never delete real history: every
   read passes it over until its date comes round, and it's removed, as any other, once its day is
@@ -2054,9 +2054,10 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
   and `day-<local date>.json`, a day's summary, each 0600 (see The request ledger). The lines are
   appended, compressed and removed as the readings history's are, by the same rules, but kept as
-  long as `[ledger] keep` says, 90 days unless it's set (see Config). A day's summary is written
-  whole, beside where it goes and renamed into place, written again while lines come to be filed
-  under its day, and never removed. The router leaves anything else in the directory alone.
+  long as `[ledger] keep` says, 400 days unless it's set, or for good where it says `forever` (see
+  Config). A day's summary is written whole, beside where it goes and renamed into place, written
+  again while lines come to be filed under its day, and never removed. The router leaves anything
+  else in the directory alone.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, the view it
   shows, the featured window and the chart style, written whole by the dashboard alone, never by
   hand (see Themes).
@@ -2110,10 +2111,10 @@ warning = 0.9    # a window passing this share of its limit; 0 turns it off
 moves   = false  # every other session move, such as after an idle hour or by pin
 
 [history]                          # optional: the readings history
-keep = "14d"                       # how long the readings history is kept, from 8d to 400d
+keep = "400d"                      # how long the readings history is kept: 8d or more, or "forever"
 
 [ledger]                           # optional: the request ledger
-keep = "90d"                       # how long each request's line is kept, from 8d to 400d; the days' summaries are kept for good
+keep = "400d"                      # how long each request's line is kept: 8d or more, or "forever"; the days' summaries are kept for good
 ```
 
 The accounts keep their file order, which is their order everywhere they're shown, and the order
@@ -2140,9 +2141,12 @@ fails as it is; one that parses has every problem reported at once:
 - **`[prime]`**: `day` is two times of day, `HH:MM`, joined by `-`, and not the same time twice.
 - **`[notifications]`**: each key defaults as shown. `warning` is 0, or more than 0 and less than
   1.
-- **`[history]`**: `keep` is a whole number of days, `<n>d`, from `8d`, a week and a day, which the
-  week's chart needs, to `400d`, a year with room to spare.
-- **`[ledger]`**: `keep` is as `[history]`'s is, from `8d` to `400d`.
+- **`[history]`**: `keep` is a whole number of days, `<n>d`, `8d` or more, as the week's chart and a
+  day's summary need a week and a day; or `forever`, which never removes a day's file. A count of
+  more days than a duration holds, past `106751d`, some 292 years, is `forever` in effect, and read
+  as it: refused, it would turn away a choice that's the user's to make, and counted as a duration,
+  it would wrap round, to a keep that can remove every day at once.
+- **`[ledger]`**: `keep` is as `[history]`'s is: `8d` or more, or `forever`.
 - **No error quotes a token:** one that quotes a value, of `listen`, `upstream` or `prime.day`, an
   unknown key's name, or the key a file that isn't TOML fails at, such as one without a value or
   given twice, shows anything in it shaped like a token as `[redacted]`, and an unknown key's value

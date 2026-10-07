@@ -220,7 +220,7 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                  140ms
 `},
 		{name: "from days ago", args: []string{"--since", "2d"}, want: requestsFromThe6th},
-		{name: "from the most days ago", args: []string{"--since", "400d"}, want: everyRequest},
+		{name: "from a thousand days ago", args: []string{"--since", "1000d"}, want: everyRequest},
 		{name: "a session's, by as much of its id as is unique", args: []string{"--session", "5b0e7"}, want: `Wed 7 Oct 2026, so far
   09:01:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    140ms
@@ -323,10 +323,11 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 		{since: "0h", want: `Error: --since "0h" isn't a day`},
 		{since: "-2d", want: `Error: --since "-2d" isn't a day`},
 		{since: "+2d", want: `Error: --since "+2d" isn't a day`},
-		{since: "401d", want: "Error: --since 401d is more than 400d: give a day, as 2026-10-01, to start further back"},
-		{since: "213504d", want: "Error: --since 213504d is more than 400d"},
-		{since: "999999d", want: "Error: --since 999999d is more than 400d"},
-		{since: "99999999999999999999d", want: `Error: --since "99999999999999999999d" isn't a day`},
+		{since: "106752d", want: "Error: --since 106752d is more than 106751d: give a day, as 2026-10-01, to start further back"},
+		{since: "213504d", want: "Error: --since 213504d is more than 106751d"},
+		{since: "999999d", want: "Error: --since 999999d is more than 106751d"},
+		{since: "99999999999999999999d", want: "Error: --since 99999999999999999999d is more than 106751d"},
+		{since: "99999999999999999999.5d", want: `Error: --since "99999999999999999999.5d" isn't a day`},
 		{since: "23:00", want: "Error: --since 23:00 is still to come"},
 		{since: "2026-10-08", want: "Error: --since 2026-10-08 is still to come"},
 		{since: "", want: `Error: --since "" isn't a day`},
@@ -338,6 +339,13 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 				t.Errorf("switchboard %s --since %q = %+v, want exit status 1, the usage, and %q", command, tt.since, got, tt.want)
 			}
 		}
+	}
+}
+
+func TestSinceReachesBackTheMostDaysADurationHolds(t *testing.T) {
+	from, err := cli.Since("106751d", ledgerNow)
+	if want := ledgerNow.Add(-106751 * 24 * time.Hour); err != nil || !from.Equal(want) {
+		t.Errorf("--since 106751d at %v starts at %v (%v), want %v", ledgerNow, from, err, want)
 	}
 }
 

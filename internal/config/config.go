@@ -22,10 +22,12 @@ const (
 // How long the readings history and the request ledger's lines are kept
 // where the config doesn't say.
 const (
-	// DefaultHistoryKeep keeps the readings history two weeks.
-	DefaultHistoryKeep = 14 * 24 * time.Hour
-	// DefaultLedgerKeep keeps the request ledger's lines 90 days.
-	DefaultLedgerKeep = 90 * 24 * time.Hour
+	// DefaultHistoryKeep keeps the readings history 400 days, a year with
+	// room to spare.
+	DefaultHistoryKeep = 400 * 24 * time.Hour
+	// DefaultLedgerKeep keeps the request ledger's lines 400 days, a year
+	// with room to spare.
+	DefaultLedgerKeep = 400 * 24 * time.Hour
 )
 
 // Example is a small valid config, for showing someone who doesn't have one yet.
@@ -152,14 +154,16 @@ var defaultNotifications = Notifications{Limits: true, Room: true, Warning: 0.9}
 // History says how long the readings history is kept.
 type History struct {
 	// Keep is how long a day's file of the history is kept once its day has
-	// ended: a whole number of days.
+	// ended: a whole number of days, or dayfile.Forever, which keeps every
+	// day's.
 	Keep time.Duration
 }
 
 // Ledger says how long the request ledger's lines are kept.
 type Ledger struct {
 	// Keep is how long a day's file of the ledger's lines is kept once its
-	// day has ended: a whole number of days.
+	// day has ended: a whole number of days, or dayfile.Forever, which keeps
+	// every day's.
 	Keep time.Duration
 }
 
