@@ -7,7 +7,8 @@
 // keeping too, and anything else in the directory is left alone. Read reads
 // the files back, either form, passing over what it can't read; a Writer
 // writes to them on a goroutine of its own, so noting what's to be written
-// never waits.
+// never waits, and makes a round of them every hour, which what else is kept
+// of the days, as the request ledger's summaries, can be kept on.
 package dayfile
 
 import (
@@ -80,6 +81,22 @@ func (l Lines) Add(at time.Time, line []byte) {
 // it.
 func dateOf(t time.Time) string {
 	return t.Local().Format(dateLayout)
+}
+
+// Day returns when the local day with the given date, as the files' names
+// give it, starts and ends: at its midnight, and the next day's. It reports
+// false for a date that isn't one.
+func Day(date string) (start, end time.Time, ok bool) {
+	start, err := time.ParseInLocation(dateLayout, date, time.Local)
+	if err != nil {
+		return time.Time{}, time.Time{}, false
+	}
+	return start, endOf(start), true
+}
+
+// endOf returns when the local day that starts at start ends.
+func endOf(start time.Time) time.Time {
+	return start.AddDate(0, 0, 1)
 }
 
 // Append appends lines to the plain files of their days, making the
@@ -194,8 +211,8 @@ func (f *Files) named(name string) (dayFile, time.Time, bool) {
 	if !ok || !dated {
 		return dayFile{}, time.Time{}, false
 	}
-	day, err := time.ParseInLocation(dateLayout, date, time.Local)
-	if err != nil {
+	day, _, ok := Day(date)
+	if !ok {
 		return dayFile{}, time.Time{}, false
 	}
 	return dayFile{date: date, compressed: compressed}, day, true
@@ -228,7 +245,7 @@ func (f *Files) prune(now time.Time, keep time.Duration) {
 // be the one that's wrong, set back, and Newest passes such a file over
 // meanwhile. What it can't do is logged, and left to the next prune.
 func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration) {
-	switch ended := now.Sub(day.AddDate(0, 0, 1)); {
+	switch ended := now.Sub(endOf(day)); {
 	case ended >= keep:
 		if err := os.Remove(f.path(file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			f.Logger.Warn("can't prune the "+f.Name, "file", file.name(f.Prefix), "error", err)

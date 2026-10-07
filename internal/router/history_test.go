@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -382,6 +383,35 @@ func TestReadingBackTakesTheTwoNewestDays(t *testing.T) {
 				t.Errorf("readBack() = %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTheHistoryGivesTheLedgerTheReadingsOfATime(t *testing.T) {
+	from := time.Date(2026, 9, 27, 0, 0, 0, 0, time.Local)
+	to := from.AddDate(0, 0, 1)
+	dir := t.TempDir()
+	// The day's readings, and those either side of it, the first of the day
+	// filed under the day before, as after a change of time zone.
+	before, first, last, after := workRead(from.Add(-time.Minute), 0.1), workRead(from, 0.2), workRead(to.Add(-time.Minute), 0.3), workRead(to, 0.4)
+	writeDay(t, dir, plainFile("2026-09-26"), linesOf(t, before, first))
+	writeDay(t, dir, plainFile("2026-09-27"), linesOf(t, last))
+	writeDay(t, dir, plainFile("2026-09-28"), linesOf(t, after))
+	h := newHistory(config.History{}, at(start))
+
+	if got := slices.Collect(h.readings(from, to)); len(got) > 0 {
+		t.Errorf("before the history was opened, readings() = %+v, want none", got)
+	}
+	h.open(dir)
+	got := slices.Collect(h.readings(from, to))
+	want := []ledger.Reading{
+		{At: first.At, Account: "work", Window: quota.Window{Key: "5h", Utilization: 0.2, ResetsAt: session.ResetsAt}},
+		{At: last.At, Account: "work", Window: quota.Window{Key: "5h", Utilization: 0.3, ResetsAt: session.ResetsAt}},
+	}
+	if !slices.EqualFunc(got, want, func(a, b ledger.Reading) bool {
+		return a.At.Equal(b.At) && a.Account == b.Account && a.Window.Key == b.Window.Key && a.Window.Utilization == b.Window.Utilization &&
+			a.Window.ResetsAt.Equal(b.Window.ResetsAt) && a.Window.Status == b.Window.Status
+	}) {
+		t.Errorf("readings() = %+v, want %+v: those of the time asked for, in the order they came, whatever day's file they're in", got, want)
 	}
 }
 

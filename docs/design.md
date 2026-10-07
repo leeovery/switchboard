@@ -1553,17 +1553,43 @@ first day a router that has it runs, so nothing before then is in it.
   log warning how many. Those passed through, which have no lines, aren't waited for. A benchmark
   of the proxy path, taken before the ledger joins it and again after, shows what the ledger costs
   a request (see Milestones).
-- **A summary a day:** once a day has ended, on the hourly round that compresses and prunes the
-  files, the router writes the day's summary from the day's lines and the day's readings history.
-  For each account, by model, it holds the requests that went upstream, those the router answered
-  itself, the checks, the counts, the tokens of each kind, and the sessions. For the account as a
-  whole it holds the sessions, the sessions moved onto it and off it, each window's highest use that
-  day, counting the use it began the day at unless the window has reset since, and the limits it
-  reached, each a window's status turning `rejected`. A summary is written once, whole, and kept for
-  good: a year of them runs to a few megabytes. A day left without one, as when the router was
-  stopped as the day ended, is summarised by the next round that finds its lines. Views over weeks
-  and months read the summaries; today, and any day not yet summarised, is summarised from its
-  lines as it's read.
+- **A summary a day:** once a day has ended, on the first of the hourly rounds that compress and
+  prune the files an hour or more after, as a request still in flight as the day ends has its line
+  filed under the day once it's done, the router writes the day's summary from the day's lines and
+  the day's readings history, as one JSON object:
+
+  ```json
+  {"version": 1, "day": "2026-10-05", "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}]}]}
+  ```
+
+  - `version`: the summaries' version, 1 so far. A release that summarises a day otherwise, or
+    keeps more of it, writes another, so the summaries written before it can be told: those whose
+    lines are still kept can be summarised again, and a reader knows what the rest never counted,
+    rather than taking it for none.
+  - `day`: the local date the day's lines are filed under.
+  - `accounts`: each account's day, in the order of their ids; one without an `account` holds the
+    requests the router answered without one, as when no account had room, or a body couldn't be
+    read. Its `models` are its requests by the model each asked for, one without a `model` holding
+    those whose bodies couldn't be read: `upstream` counts those that spend quota that went
+    upstream, and `unsent` those the router answered itself, never sending them; `checks` counts
+    Claude Code's quota checks, and `counts` the counts of tokens, however each went; `sessions`
+    counts the sessions they were of, but for the checks', as Claude Code sends one as it resumes a
+    session under an id it never uses again; and `usage` is their usage summed, field for field as
+    the API gives it, an object's fields within it, what isn't a count, as the service tier, left
+    out.
+  - Of the account as a whole: `sessions`, counted as its models' are; `moved_on` and `moved_off`,
+    the sessions its requests moved onto it and off it, as their lines' `from` says; `highest`,
+    each window's highest use that day, by its key, counting the use it began the day at, as the
+    last reading of it in the week before gave it, unless the window had reset by then; and
+    `limits`, the limits it reached, each a window's status turning `rejected` that day, from
+    another status or another window's, one with another reset: when it was read so, and when the
+    window was to reset.
+
+  A summary is written once, whole, and kept for good: a year of them runs to a few megabytes.
+  Fields may be added to it, never renamed. A day left without one, as when the router was stopped
+  as the day ended, is summarised by the next round that finds its lines, compressed or not. Views
+  over weeks and months read the summaries; today, and any day not yet summarised, is summarised
+  from its lines as it's read.
 - **Worth** is what a request would have cost through the API, priced from a table built into
   switchboard: each model's prices of input, output, cache reads, and cache writes for five minutes
   and for an hour, the rates a long request pays where a beta asks for them, and whatever else its
@@ -1638,10 +1664,12 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   directory can't be made private, that it can't be written, once until it can be (`can't write the
   request ledger`), that lines were dropped from it for its falling behind, once until it catches up
   (`request ledger fell behind`), that a request's line can't be put as JSON, once, a file that
-  can't be read or was read short, as the readings history's are warned of, a file that couldn't
-  be compressed, pruned or summarised, and that the router stopped with requests it routed still in
-  flight, whose lines go unwritten, saying how many (`requests still in flight as the router stops;
-  their lines go unwritten`).
+  can't be read or was read short, as the readings history's are warned of, how many of a day's
+  lines couldn't be read as a line as it was summarised (`request ledger lines unread`), a file that
+  couldn't be compressed or pruned, a day that couldn't be summarised, at each round until it can
+  be (`can't summarise the request ledger`), and that the router stopped with requests it routed
+  still in flight, whose lines go unwritten, saying how many (`requests still in flight as the
+  router stops; their lines go unwritten`).
 - **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
@@ -1831,7 +1859,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
 | `internal/tokens` | The token files: reading them, checking their ownership and mode, writing them, and keeping their directory private. `tokens/tokenstest` stands in for the token files, for tests |
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
-| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, lines cut short and damaged files included; and the queue and goroutine that write to them, so noting a line never waits |
+| `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, lines cut short and damaged files included; and the queue and goroutine that write to them, so noting a line never waits, with the hourly round they're kept on, which what else is kept of a day, as the request ledger's summaries, is kept on too |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, reading lines and summaries back, and the price table and the worth it gives |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's and the readings history's files are read back and an answer's stream of events is counted |
@@ -1844,7 +1872,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dashboard/watch` | Watch mode (Bubble Tea): when to read the router or probe, the history and the request stream, its keys, the focus, flipping and selection, scrolling, easing the bars and animating the cords, the theme picker, and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, picking the light or dark half by the terminal's background, and the preferences file |
 | `internal/capture` | The capture harness's fixtures, each a moment of the dashboard: the frames' sample accounts and sessions, a fake router serving them, with its history and request stream, and the real watch model built through `watch.New` with every seam faked, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, preferences or tokens. Imported by `cmd/capturetool` alone |
-| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the readings history, each routed request's line handed to the request ledger, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
+| `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, the readings history, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, asked a line at a time at a terminal, the `claude` link in switchboard's bin directory among them, and the line that puts that directory on `PATH` |
@@ -2360,7 +2388,8 @@ early as it can:
    request hands it as it ends: its shape, read with its model, and its answer's usage, blocks,
    tools and limits, read as the answer passes; and the benchmark taken again, with a body the size
    of a long session's.
-4. **The summaries,** written on the hourly round for each day that has ended, and kept.
+4. **The summaries,** written on the hourly round for each day that ended an hour or more before,
+   and kept.
 5. **Reading:** `internal/ledger`'s readers, the price table and worth, `requests` and `history`,
    and the skill telling agents of them.
 

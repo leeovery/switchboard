@@ -17,8 +17,9 @@ const ledgerDirName = "ledger"
 // requestLedger is the request ledger, as the router keeps it: a line for
 // each routed request, noted as the request ends, which run's goroutine
 // writes once Run has opened it in the state directory, kept as long as the
-// config says. Noting a line never holds a request up: one noted before the
-// ledger is opened, or past its queue's end, is dropped.
+// config says, and a summary of each day once it has ended, made with the
+// readings history. Noting a line never holds a request up: one noted before
+// the ledger is opened, or past its queue's end, is dropped.
 type requestLedger struct {
 	keep time.Duration
 	now  func() time.Time
@@ -32,9 +33,10 @@ func newRequestLedger(settings config.Ledger, now func() time.Time) *requestLedg
 	return &requestLedger{keep: cmp.Or(settings.Keep, config.DefaultLedgerKeep), now: now}
 }
 
-// open has the ledger kept in dir from now on.
-func (l *requestLedger) open(dir string) {
-	l.opened.Store(ledger.Open(dir, l.keep, l.now, logger))
+// open has the ledger kept in dir from now on, its days summarised with the
+// readings readings gives.
+func (l *requestLedger) open(dir string, readings ledger.Readings) {
+	l.opened.Store(ledger.Open(dir, l.keep, l.now, readings, logger))
 }
 
 // note queues a request's line for run to write. It never waits.

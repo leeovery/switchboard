@@ -151,6 +151,18 @@ func TestADaysFilesAreNamedForItsDate(t *testing.T) {
 	}
 }
 
+func TestADaysDateGivesWhenItStartsAndEnds(t *testing.T) {
+	start, end, ok := Day("2026-09-28")
+	if !ok || !start.Equal(time.Date(2026, 9, 28, 0, 0, 0, 0, time.Local)) || !end.Equal(time.Date(2026, 9, 29, 0, 0, 0, 0, time.Local)) {
+		t.Errorf("Day(2026-09-28) = %v, %v, %v; want its local midnight and the next day's", start, end, ok)
+	}
+	for _, date := range []string{"2026-9-28", "2026-09-31", "soon", ""} {
+		if _, _, ok := Day(date); ok {
+			t.Errorf("Day(%q) reports a day, want none: it isn't a date", date)
+		}
+	}
+}
+
 func TestLinesAreAppendedToThePlainFilesOfTheirDays(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "history")
 	f := readingsHistory(dir)

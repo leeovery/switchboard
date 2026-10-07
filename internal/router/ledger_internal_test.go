@@ -674,7 +674,7 @@ func claudeCodeAsks(ctx context.Context, path, session string, body io.Reader) *
 func keepingLedger(t *testing.T, r *Router) (lines func() []ledger.Line) {
 	t.Helper()
 	dir := t.TempDir()
-	r.ledger.open(dir)
+	r.ledger.open(dir, r.history.readings)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {

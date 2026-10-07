@@ -72,7 +72,7 @@ func (r *Router) run(ctx context.Context) error {
 	// alongside would have failed by here.
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
 	r.openHistory()
-	r.ledger.open(filepath.Join(r.cfg.StateDir, ledgerDirName))
+	r.ledger.open(filepath.Join(r.cfg.StateDir, ledgerDirName), r.history.readings)
 	return r.serve(ctx, ls)
 }
 
