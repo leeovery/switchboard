@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 // What a request asked, as a line's Kind gives it.
@@ -48,9 +49,11 @@ type Line struct {
 	// KindCount.
 	Request string `json:"request"`
 	Kind    string `json:"kind"`
-	// Session is the id of the session the request belongs to, and Model the
+	// Session is the id of the session the request belongs to, Dir the
+	// directory run started claude in, as it tells the router, and Model the
 	// model it asked for.
 	Session string `json:"session,omitempty"`
+	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Account is the account whose answer the client got, none where the
 	// router answered it itself, and Reason why it was chosen, as the
@@ -173,12 +176,14 @@ type Error struct {
 }
 
 // written returns the line as it's written: at in UTC, to the millisecond,
-// each of its texts cut to textMost bytes, and each of its lists and counts
-// to its most, so no line runs past lineMax.
+// each of its texts cut to textMost bytes, a directory from its front, so it
+// keeps its own name, and each of its lists and counts to its most, so no
+// line runs past lineMax.
 func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
 	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
+	w.Dir = cutFront(l.Dir)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = nil
 	for _, t := range l.Tried[:min(len(l.Tried), listMost)] {
@@ -219,9 +224,17 @@ func (a Answer) written() Answer {
 	return a
 }
 
-// cut is s cut to textMost bytes, at the end of a character.
+// cut is s cut to textMost bytes, at the end of a character, once anything
+// shaped like a token in it is hidden, so no cut works on a token: hiding one
+// goes by its prefix, which a cut through it could part from the rest.
 func cut(s string) string {
-	return prose.TruncateBytes(s, textMost)
+	return prose.TruncateBytes(redact.Text(s), textMost)
+}
+
+// cutFront is s cut as cut cuts it, but from its front, an ellipsis standing
+// for what's cut.
+func cutFront(s string) string {
+	return prose.TruncateBytesFront(redact.Text(s), textMost)
 }
 
 // cutAll returns the first listMost of texts, each cut, as a list of its own:

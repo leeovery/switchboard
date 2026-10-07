@@ -36,3 +36,23 @@ func TruncateBytes(s string, n int) string {
 	}
 	return s[:n]
 }
+
+// ellipsis stands for what TruncateBytesFront cuts.
+const ellipsis = "…"
+
+// TruncateBytesFront keeps as much of the end of s as n bytes hold with an
+// ellipsis ahead of it, standing for what's cut, starting at the start of a
+// character: s as it is where it fits, and "" where the ellipsis doesn't.
+func TruncateBytesFront(s string, n int) string {
+	switch {
+	case len(s) <= n:
+		return s
+	case n < len(ellipsis):
+		return ""
+	}
+	start := len(s) - (n - len(ellipsis))
+	for start < len(s) && !utf8.RuneStart(s[start]) {
+		start++
+	}
+	return ellipsis + s[start:]
+}

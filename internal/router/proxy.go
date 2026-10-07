@@ -25,9 +25,19 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-// PinHeader pins a request to an account, by id: run --account sets it
-// through ANTHROPIC_CUSTOM_HEADERS. It never goes upstream.
-const PinHeader = "X-Switchboard-Account"
+// The headers run tells the router of a session through, setting them in
+// ANTHROPIC_CUSTOM_HEADERS. None goes upstream: the router takes every header
+// named with ownPrefix off a request going upstream, whatever follows it, so
+// one a newer run sends never reaches the API.
+const (
+	// ownPrefix begins the name of each header of switchboard's own.
+	ownPrefix = "X-Switchboard-"
+	// PinHeader pins a request to an account, by id, as run --account asks.
+	PinHeader = ownPrefix + "Account"
+	// DirHeader names the directory run started claude in, as EncodeDir
+	// encodes it, for the request ledger.
+	DirHeader = ownPrefix + "Dir"
+)
 
 const (
 	// maxBody caps the body of a routed request, which is held in memory.
@@ -366,7 +376,17 @@ func (p *proxy) rewrite(pr *httputil.ProxyRequest) {
 	// the query, so the upstream gets it as the client sent it.
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(p.upstream)
-	pr.Out.Header.Del(PinHeader)
+	stripOwn(pr.Out.Header)
+}
+
+// stripOwn takes each header of switchboard's own off h, by its prefix,
+// whatever its case.
+func stripOwn(h http.Header) {
+	for name := range h {
+		if len(name) >= len(ownPrefix) && strings.EqualFold(name[:len(ownPrefix)], ownPrefix) {
+			delete(h, name)
+		}
+	}
 }
 
 // countable narrows the encodings a request's Accept-Encoding offers to

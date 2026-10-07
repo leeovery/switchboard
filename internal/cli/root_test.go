@@ -396,16 +396,17 @@ const testClaudeVersion = "2.1.300"
 const testPID = 5150
 
 // testDeps gives commands env as their whole environment, home as their home
-// directory, a stopped clock, a fixed Claude Code version and a notifier that
-// posts nothing, so no test reads the real ones, runs the real claude or
-// posts a notification. The switchboard binary can't be found, so nor can
-// claude, which is found past it, and starting a program or running launchctl
-// fails, unless a test says otherwise; the system is macOS, for the user the
-// test runs as, who owns the token files it writes. Watch, Hidden, Terminal
-// and Background are the real ones: a test's output and input are never a
-// terminal, so Watch fails before it would take one over, Hidden finds none
-// to read, usage prints the status document, unless a test says otherwise,
-// and no terminal is asked its background.
+// directory, its Code/project as their working directory, a stopped clock, a
+// fixed Claude Code version and a notifier that posts nothing, so no test
+// reads the real ones, runs the real claude or posts a notification. The
+// switchboard binary can't be found, so nor can claude, which is found past
+// it, and starting a program or running launchctl fails, unless a test says
+// otherwise; the system is macOS, for the user the test runs as, who owns the
+// token files it writes. Watch, Hidden, Terminal and Background are the real
+// ones: a test's output and input are never a terminal, so Watch fails before
+// it would take one over, Hidden finds none to read, usage prints the status
+// document, unless a test says otherwise, and no terminal is asked its
+// background.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },
@@ -417,6 +418,7 @@ func testDeps(env map[string]string, home string) cli.Deps {
 			return environ
 		},
 		HomeDir:       func() (string, error) { return home, nil },
+		Getwd:         func() (string, error) { return filepath.Join(home, "Code", "project"), nil },
 		Executable:    func() (string, error) { return "", errors.New("no test knows its switchboard binary") },
 		Now:           func() time.Time { return testNow },
 		ClaudeVersion: func() string { return testClaudeVersion },

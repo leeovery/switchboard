@@ -1453,7 +1453,7 @@ first day a router that has it runs, so nothing before then is in it.
   with the request, when it logs it `routed` (see Logging), as one JSON object:
 
   ```json
-  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
   - `at`: when it arrived, in UTC, to the millisecond.
@@ -1461,8 +1461,18 @@ first day a router that has it runs, so nothing before then is in it.
     while the router runs but not across restarts.
   - `kind`: `message`, a request that spends quota; `check`, Claude Code's quota check (see
     Choosing an account); or `count`, a token count, which spends nothing.
-  - `session`: Claude Code's session id, left out where a request carries none. `model`: the model
-    it asked for. Each is cut to 200 bytes, as the request stream cuts them.
+  - `session`: Claude Code's session id, left out where a request carries none. `dir`: the
+    directory `run` started `claude` in, as it tells the router (see Launching), the home directory
+    at its start shown as `~`, as `~/Code/api`; left out where a request names none. A `claude`
+    started within a session other than through `run`, such as the Agent SDK's bundled CLI in a
+    script the session runs, or the real `claude` run by its path, inherits the session's
+    environment, and with it the headers `run` set: its lines carry the directory of the session it
+    was started within, as its requests carry that session's pin; the router can't tell the
+    difference. It's the directory `claude` was started in, which a session doesn't keep: one
+    resumed elsewhere carries the new one from then on. `model`: the model it asked for. Each is
+    cut to 200 bytes once anything shaped like a token in it is hidden: a session's id and a
+    model's at their end, as the request stream cuts them, and a directory at its start, `…`
+    standing for what's cut, so it keeps its own name.
   - `account`: the account whose answer the client got, by its id. `reason`: why that account was
     chosen, as the `routed` line gives it (`sticky`, `new`, `pinned`, `moved: personal hit its
     limit`). `from`: the account the request's session was on before, where the request moved it.
@@ -1783,7 +1793,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 
 | Package | Owns |
 |---|---|
-| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
+| `cmd/switchboard` | `main`: builds the command tree from the real system (environment, clock, home, working directory, `claude`'s version, launchd, notifications, the terminal) and exits with its status. Run by the name `claude`, it hands every argument to `run` |
 | `cmd/capturetool` | The capture harness's program, never a switchboard command: draws a fixture of `internal/capture` by its name, full screen until `q`, or once, as text to diff with a frame's (`--print`), in a built-in theme or a `.theme` file given by its path (`--theme`), for `vhs` to screenshot and the eye to judge against the final page (see Files). Its import guard fails should anything `cmd/switchboard` builds import `internal/capture` |
 | `internal/cli` | Cobra commands. Thin: parse flags, call the packages below, print |
 | `internal/config` | Locating, parsing and validating the config file, and editing it: adding and removing accounts, and setting the primary and the priming day; and locating the state directory, and switchboard's bin directory |
@@ -2008,24 +2018,34 @@ fails as it is; one that parses has every problem reported at once:
   **and** its bearer token is one of the configured accounts' tokens, which Claude Code's, the
   primary's, is, or one an account had before the router took up another, or one of an account
   removed from the config, which counts as the primary's, for 7 days after (see Accounts and
-  tokens): an account without a usable token has none that counts. Anything else
-  passes through untouched: batches, whose ids belong to one account, stay on it, and a local
-  process that doesn't already hold a token can't borrow one.
+  tokens): an account without a usable token has none that counts. Anything else passes through
+  untouched but for switchboard's own headers (below), so batches, whose ids belong to one
+  account, stay on it, and a local process that doesn't already hold a token can't borrow one.
 - A token an account had before is known by its SHA-256 hash, which a request's token is hashed
   and compared with in constant time, as the current tokens are. A request carrying one is the
   account's, and goes out on the account's current token, as every routed request does. One
   carrying a token of an account removed is the primary's: the primary is its client account,
   which it falls back to when no account has room.
+- Every header of switchboard's own, named `X-Switchboard-…`, is taken off a request going
+  upstream, routed or passed through, by that prefix, whatever follows it, so none reaches the
+  API: the pin and the directory, below, and any a newer `run` sends that this router doesn't
+  know. The health check says so (see Control API), and `run` tells the directory only to a
+  router that says it: one from before took the pin off alone, by its name.
 - `X-Switchboard-Account: <id>`, set by `run --account` through `ANTHROPIC_CUSTOM_HEADERS`, pins
-  that session. It is stripped before the request goes upstream. One naming an account that isn't
-  configured, or has no token, is ignored, and the log warns of it once for each session and
-  account, and notes it at debug after, until the account can be sent on again. The router keeps
-  a thousand sessions of an account, and a thousand accounts, told of at most, forgetting them past
-  that, and the log warns of each once more.
+  that session. One naming an account that isn't configured, or has no token, is ignored, and the
+  log warns of it once for each session and account, and notes it at debug after, until the
+  account can be sent on again. The router keeps a thousand sessions of an account, and a thousand
+  accounts, told of at most, forgetting them past that, and the log warns of each once more.
+- `X-Switchboard-Dir: <dir>`, set by `run` through `ANTHROPIC_CUSTOM_HEADERS`, names the directory
+  `run` started `claude` in, for the request ledger. Its value is percent-encoded where a header
+  can't carry it as it is, and nowhere else: a control character, such as a newline, which would
+  end the header's line; each byte of a character past ASCII; a space at either end, which would
+  be trimmed off; and a percent sign. One that doesn't decode is passed over, and the request's
+  line names no directory.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
   its answer in, to count it for the request stream (see Control API): gzip, deflate and identity,
   in the order the client gave them, or identity where it offered none of those. A request passed
-  through goes as it came.
+  through keeps the encodings it offered.
 - The session key is `X-Claude-Code-Session-Id` plus the request's model. A request without the
   header is never remembered, and but for a launch pin it carries, is decided afresh every time,
   as a new session's is.
@@ -2042,7 +2062,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | `{ok, reason, listen, version, pid, started_at}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `run` sends sessions to a router that answers `ok` and gives `listen`; `usage` and `status` read the document of any router that answers at all |
+| `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that answers `ok` and gives `listen`, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage` and `status` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it: see below |
 | `GET /sessions/{id}` | For statuslines: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
@@ -2118,21 +2138,28 @@ Each account:
   says it listens, not where the config says, which may have changed since,
   `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever account the conversation goes to,
   or, while the primary's isn't usable, `--account`'s, else the first account's with a usable token,
-  and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set.
+  and with `--account`, the pin header added to any `ANTHROPIC_CUSTOM_HEADERS` already set. The
+  directory header is added too, naming the directory `run` started in, which Claude Code starts in
+  as well, the home directory at its start shown as `~`, as `~/Code/api`, unless `run` can't read
+  it, as when it's been removed since, or the router's health doesn't say `strips_own_headers`: a
+  router from before, which took the pin off alone and would send the directory on to the API,
+  serves on after an upgrade until it restarts in place, at a moment with no request in flight,
+  and one run by hand with `serve` until it's run again (see Proxy rules).
 - **Direct:** otherwise it connects directly, on `--account`'s token, else the primary's, else the
-  first account's with a usable token, without the base URL or the pin, saying why in one line on
-  stderr: `switchboard: the router isn't running — connecting directly on work · Work`. Either way,
-  and with `--direct`, a pin inherited from the environment, as from a session this one is started
-  within, goes: what this launch pins is the only pin. `--direct` removes the token and the base
-  URL, so Claude Code uses its own login.
+  first account's with a usable token, without the base URL, the pin or the directory, and says why
+  in a line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
+  Either way, and with `--direct`, a pin or a directory inherited from the environment, as from a
+  session this one is started within, goes: what this launch pins is the only pin, and the directory
+  it names the only directory. `--direct` removes the token and the base URL, so Claude Code uses
+  its own login.
 - **Never in the way:** switchboard never stands between the user and `claude`. When it can't take
   part at all, as when it can't read its config, can't locate its state directory, or no account has
   a usable token, `run` starts `claude` as if switchboard weren't there, environment and arguments
   untouched but for the mark every `claude` it starts carries (see Finding the real `claude`), an
-  inherited pin included, saying why in one line on stderr: `switchboard: couldn't read the config
-  (…) — starting claude without it`. `run` fails only when `claude` can't be found or can't start,
-  or on a misused command line, such as `--account` naming an account that isn't configured, or has
-  no usable token.
+  inherited pin or directory included, saying why in one line on stderr: `switchboard: couldn't
+  read the config (…) — starting claude without it`. `run` fails only when `claude` can't be found
+  or can't start, or on a misused command line, such as `--account` naming an account that isn't
+  configured, or has no usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.
   So `run`, and with it `claude`, starts Claude Code as if switchboard weren't there, environment
@@ -2144,11 +2171,11 @@ Each account:
   `mcp`, `plugin`, `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway` look after
   Claude Code on this machine, or set up its login, and switchboard has no part in them. When the
   first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
-  environment and arguments untouched but for that mark, an inherited pin included, and says
-  nothing; the log notes it at debug. `--direct` still starts it on Claude Code's own login. Only
-  the first argument counts: `claude -p doctor` is a prompt. Everything else goes through `run` as
-  any session does, background sessions (`claude --bg`), `agents`, `attach`, `respawn` and
-  `ultrareview` among them. `internal/claude` keeps the list.
+  environment and arguments untouched but for that mark, an inherited pin or directory included,
+  and says nothing; the log notes it at debug. `--direct` still starts it on Claude Code's own
+  login. Only the first argument counts: `claude -p doctor` is a prompt. Everything else goes
+  through `run` as any session does, background sessions (`claude --bg`), `agents`, `attach`,
+  `respawn` and `ultrareview` among them. `internal/claude` keeps the list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
   be run, passing over any `claude` that's switchboard, which would start it again: one that

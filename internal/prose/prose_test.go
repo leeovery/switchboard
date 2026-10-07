@@ -64,3 +64,28 @@ func TestTruncateBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestTruncateBytesFront(t *testing.T) {
+	tests := []struct {
+		s    string
+		n    int
+		want string
+	}{
+		{s: "~/Code/clients/project", n: 11, want: "…/project"},
+		{s: "~/Code/clients/project", n: 12, want: "…s/project"},
+		{s: "~/Code/project", n: 14, want: "~/Code/project"},
+		{s: "short", n: 8, want: "short"},
+		{s: "", n: 8, want: ""},
+		{s: "☃☃☃", n: 6, want: "…☃"},
+		{s: "☃☃☃", n: 8, want: "…☃"},
+		{s: "☃☃☃", n: 5, want: "…"},
+		{s: "☃☃☃", n: 3, want: "…"},
+		{s: "☃☃☃", n: 2, want: ""},
+		{s: "anything", n: 0, want: ""},
+	}
+	for _, tt := range tests {
+		if got := prose.TruncateBytesFront(tt.s, tt.n); got != tt.want {
+			t.Errorf("TruncateBytesFront(%q, %d) = %q, want %q", tt.s, tt.n, got, tt.want)
+		}
+	}
+}

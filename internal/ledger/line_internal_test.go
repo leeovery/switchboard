@@ -12,7 +12,8 @@ import (
 func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	long := strings.Repeat("☃", textMost)
 	longs := slices.Repeat([]string{long}, 2*listMost)
-	got := (&Line{Session: long, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost),
+	dir := "~/" + long + "/project"
+	got := (&Line{Session: long, Dir: dir, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*listMost),
 		Shape:  Shape{ServiceTier: long, OutputConfig: OutputConfig{Effort: long}, ContextManagement: ContextManagement{Edits: longs}},
 		Answer: Answer{Error: Error{Type: "overloaded_error", Message: long}}}).written()
 	cut := strings.Repeat("☃", textMost/len("☃"))
@@ -29,6 +30,9 @@ func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	}
 	if len(got.Tried) != listMost || got.Tried[0] != (Tried{Account: cut, Why: cut}) {
 		t.Errorf("%d accounts tried are written as %d, the first's %d and %d bytes, want %d, each cut", 2*listMost, len(got.Tried), len(got.Tried[0].Account), len(got.Tried[0].Why), listMost)
+	}
+	if want := "…" + strings.Repeat("☃", (textMost-len("…/project"))/len("☃")) + "/project"; got.Dir != want {
+		t.Errorf("a directory of %d bytes is written as %q, want %q: its end, its own name, in %d bytes, an ellipsis for the rest", len(dir), got.Dir, want, textMost)
 	}
 }
 
@@ -86,7 +90,7 @@ func longest() *Line {
 	}
 	usage := `{"x":"` + strings.Repeat("<", usageMost-len(`{"x":""}`)) + `"}`
 	return &Line{
-		At: time.Now(), Request: text, Kind: text, Session: text, Model: text, Account: text, Reason: text, From: text,
+		At: time.Now(), Request: text, Kind: text, Session: text, Dir: text, Model: text, Account: text, Reason: text, From: text,
 		Tried: slices.Repeat([]Tried{{Account: text, Why: text}}, 2*listMost), Agent: text, Betas: texts,
 		Shape: Shape{Thinking: Thinking{Type: text, Display: text}, ToolChoice: ToolChoice{Type: text}, ServiceTier: text,
 			OutputConfig: OutputConfig{Effort: text}, Speed: text, InferenceGeo: text, ContextManagement: ContextManagement{Edits: texts}},

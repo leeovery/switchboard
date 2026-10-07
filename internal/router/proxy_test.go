@@ -147,6 +147,30 @@ func TestAnIgnoredPinIsWarnedOfOnceForEachSession(t *testing.T) {
 	}
 }
 
+func TestSwitchboardsOwnHeadersNeverGoUpstream(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		// want is the header the upstream should get.
+		want http.Header
+	}{
+		{name: "routed", path: "/v1/messages", want: routedOn(workToken)},
+		{name: "passed through", path: "/v1/files", want: claudeCode(workToken)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			up := newUpstream(t, answerOK)
+			proxy := serveProxy(t, newRouter(t, up.URL))
+			// The directory, and a header of a newer run's, which this router
+			// doesn't know.
+			header := with(with(claudeCode(workToken), router.DirHeader, "~/Code/caf%C3%A9"), "X-Switchboard-Anything", "a newer run's")
+
+			readAll(t, send(t, http.MethodPost, proxy+tt.path, header, strings.NewReader(messages)))
+			checkHeader(t, up.only(t), tt.want)
+		})
+	}
+}
+
 func TestRequestsNotRoutedPassThroughUntouched(t *testing.T) {
 	tests := []struct {
 		name   string

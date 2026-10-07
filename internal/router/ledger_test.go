@@ -73,6 +73,36 @@ func TestRunKeepsALineOfEachRoutedRequestInTheLedger(t *testing.T) {
 	}
 }
 
+func TestTheLedgerHoldsTheDirectoryARequestsSessionWasStartedIn(t *testing.T) {
+	tests := []struct {
+		name string
+		// sent is the request's directory header, "" for none.
+		sent string
+		want string
+	}{
+		{name: "none"},
+		{name: "as it was sent", sent: "~/Code/my project", want: "~/Code/my project"},
+		{name: "encoded", sent: "~/Code/caf%C3%A9%0A100%25%20", want: "~/Code/café\n100% "},
+		{name: "one that doesn't decode, passed over", sent: "~/Code/100%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			up := newUpstream(t, answerOK)
+			cfg := runConfig(t, up.URL)
+			stop := runRouter(t, cfg)
+
+			readAll(t, send(t, http.MethodPost, "http://"+cfg.Listen+"/v1/messages", with(claudeCode(workToken), router.DirHeader, tt.sent), strings.NewReader(messages)))
+			if err := stop(); err != nil {
+				t.Fatalf("Run() = %v", err)
+			}
+			lines := router.LedgerLines(t, filepath.Join(cfg.StateDir, "ledger"))
+			if len(lines) != 1 || lines[0].Dir != tt.want {
+				t.Errorf("the ledger holds %+v, want the request's line, its directory %q", lines, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheLedgerHoldsTheShapeOfALongSessionsRequest(t *testing.T) {
 	up := newUpstream(t, answerOK)
 	cfg := runConfig(t, up.URL)
