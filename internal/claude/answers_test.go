@@ -1,6 +1,8 @@
 package claude_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -98,18 +100,11 @@ func TestProviderCountsAStreamedAnswer(t *testing.T) {
 			wantChars:  []int{4},
 			wantTokens: &claudetest.AnswerTokens,
 		},
-		{
-			name: "a model and a stop reason of other types than the API gives, which cost the counting nothing",
-			events: []string{strings.Replace(start, `"model":"claude-opus-5-5"`, `"model":{"id":"claude-opus-5-5"}`, 1), text("Hi"),
-				strings.Replace(usage, `"stop_reason":"end_turn"`, `"stop_reason":{"type":"end_turn"}`, 1)},
-			wantChars:  []int{2},
-			wantTokens: &claudetest.AnswerTokens,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var told []int
-			body := iotest.HalfReader(strings.NewReader(strings.Join(tt.events, "")))
+			body := iotest.HalfReader(gunzipped(t, strings.Join(tt.events, "")))
 			if tt.broken != nil {
 				body = io.MultiReader(body, iotest.ErrReader(tt.broken))
 			}
@@ -141,24 +136,6 @@ func TestProviderCountsAMessageAnsweredWhole(t *testing.T) {
 			name:        "an error",
 			contentType: "application/json",
 			body:        `{"type":"error","error":{"type":"rate_limit_error","message":"Error"}}`,
-		},
-		{
-			name:        "a message whose model isn't text, which costs its usage nothing",
-			contentType: "application/json",
-			body:        strings.Replace(claudetest.Message, `"model":"claude-opus-5-5"`, `"model":{"id":"claude-opus-5-5"}`, 1),
-			wantTokens:  &claudetest.AnswerTokens,
-		},
-		{
-			name:        "a message whose content isn't a list, which costs its usage nothing",
-			contentType: "application/json",
-			body:        strings.Replace(claudetest.Message, `"content":[{"type":"text","text":"Hello, world"}]`, `"content":"Hello, world"`, 1),
-			wantTokens:  &claudetest.AnswerTokens,
-		},
-		{
-			name:        "a message whose stop reason isn't text, which costs its usage nothing",
-			contentType: "application/json",
-			body:        strings.Replace(claudetest.Message, `"stop_reason":"end_turn"`, `"stop_reason":{"type":"end_turn"}`, 1),
-			wantTokens:  &claudetest.AnswerTokens,
 		},
 		{name: "a count of tokens, which spends none", contentType: "application/json", body: `{"input_tokens":1234}`},
 		{name: "a message without its usage", contentType: "application/json", body: `{"type":"message","content":[]}`},
@@ -197,25 +174,18 @@ func TestProviderReadsAnAnswerForTheLedger(t *testing.T) {
 	const closing = "event: message_delta\n" + `data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},` +
 		`"usage":{"input_tokens":null,"output_tokens":845,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":512},` +
 		`"server_tool_use":{"web_search_requests":1},"iterations_seen":7}}` + "\n\n"
-	// closed is the usage an answer that closing closes ends with, and ended
-	// the usage of one that claudetest.MessageEnd ends.
+	// closed is the usage an answer that closing closes ends with.
 	closed := json.RawMessage(`{"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":512},"cache_creation_input_tokens":512,` +
 		`"cache_read_input_tokens":40000,"input_tokens":3,"iterations_seen":7,"output_tokens":845,"server_tool_use":{"web_search_requests":1}}`)
-	ended := json.RawMessage(`{"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"input_tokens":3,"output_tokens":120}`)
-	// started is the event that starts a block of a streamed answer, the block
-	// as given.
-	started := func(block string) string {
-		return "event: content_block_start\n" + `data: {"type":"content_block_start","index":0,"content_block":` + block + "}\n\n"
-	}
 	// fetched starts the block of a web fetch's result, given whole, as the
 	// API gives one: a PDF, base64-encoded, in a line over 1 MiB.
-	fetched := started(`{"type":"web_fetch_tool_result","tool_use_id":"srvtoolu_test","content":{"type":"web_fetch_result",` +
+	fetched := claudetest.BlockStarting(`{"type":"web_fetch_tool_result","tool_use_id":"srvtoolu_test","content":{"type":"web_fetch_result",` +
 		`"url":"https://example.com/paper.pdf","content":{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"` +
 		strings.Repeat("JVBERi0xLjcK", 100_000) + `"}}}}`)
 	// fallback starts the block that marks where the API's server-side
 	// fallback hands a streamed answer off from one model to the next.
 	fallback := func(from, to string) string {
-		return started(`{"type":"fallback","from":{"model":"` + from + `"},"to":{"model":"` + to + `"}}`)
+		return claudetest.BlockStarting(`{"type":"fallback","from":{"model":"` + from + `"},"to":{"model":"` + to + `"}}`)
 	}
 	tests := []struct {
 		name       string
@@ -262,7 +232,7 @@ func TestProviderReadsAnAnswerForTheLedger(t *testing.T) {
 			want: ledger.Reply{
 				Answer: ledger.Answer{Model: "claude-opus-5-5", Stop: "end_turn",
 					Blocks: map[string]int{"mcp_tool_use": 1, "mcp_tool_result": 1, "text": 1}, Tools: []string{"search_docs"}},
-				Usage: ended,
+				Usage: claudetest.AnswerUsage,
 			},
 		},
 		{
@@ -275,27 +245,28 @@ func TestProviderReadsAnAnswerForTheLedger(t *testing.T) {
 			wantTokens: &claudetest.AnswerTokens,
 			want: ledger.Reply{
 				Answer: ledger.Answer{Model: "claude-sonnet-5-5", Stop: "end_turn", Blocks: map[string]int{"text": 3, "fallback": 2}},
-				Usage:  ended,
+				Usage:  claudetest.AnswerUsage,
 			},
 		},
 		{
 			name:   "a streamed answer whose model isn't text, read but for it",
 			header: typed("text/event-stream"),
-			body: strings.Replace(claudetest.MessageStart, `"model":"claude-opus-5-5"`, `"model":{"id":"claude-opus-5-5"}`, 1) +
+			body: swapped(t, claudetest.MessageStart, `"model":"claude-opus-5-5"`, `"model":{"id":"claude-opus-5-5"}`) +
 				claudetest.BlockStart("text", "") + claudetest.TextDelta("Hi") + claudetest.MessageEnd,
 			wantTokens: &claudetest.AnswerTokens,
-			want:       ledger.Reply{Answer: ledger.Answer{Stop: "end_turn", Blocks: map[string]int{"text": 1}}, Usage: ended},
+			want:       ledger.Reply{Answer: ledger.Answer{Stop: "end_turn", Blocks: map[string]int{"text": 1}}, Usage: claudetest.AnswerUsage},
 		},
 		{
 			name:   "a streamed answer whose blocks and stop reason aren't what the API gives, read but for them",
 			header: typed("text/event-stream"),
-			body: claudetest.MessageStart + started(`"text"`) + started(`{"type":"tool_use","id":"toolu_test","name":{"tool":"Read"},"input":{}}`) +
-				started(`{"type":"fallback","from":{"model":"claude-opus-5-5"},"to":"claude-opus-5"}`) +
-				strings.Replace(claudetest.MessageDelta, `"stop_reason":"end_turn"`, `"stop_reason":{"type":"end_turn"}`, 1),
+			body: claudetest.MessageStart + claudetest.BlockStarting(`"text"`) +
+				claudetest.BlockStarting(`{"type":"tool_use","id":"toolu_test","name":{"tool":"Read"},"input":{}}`) +
+				claudetest.BlockStarting(`{"type":"fallback","from":{"model":"claude-opus-5-5"},"to":"claude-opus-5"}`) +
+				swapped(t, claudetest.MessageDelta, `"stop_reason":"end_turn"`, `"stop_reason":{"type":"end_turn"}`),
 			wantTokens: &claudetest.AnswerTokens,
 			want: ledger.Reply{
 				Answer: ledger.Answer{Model: "claude-opus-5-5", Blocks: map[string]int{"tool_use": 1, "fallback": 1}, Tools: []string{""}},
-				Usage:  ended,
+				Usage:  claudetest.AnswerUsage,
 			},
 		},
 		{
@@ -325,9 +296,9 @@ func TestProviderReadsAnAnswerForTheLedger(t *testing.T) {
 		{
 			name:       "a message answered whole whose content isn't a list, read but for it",
 			header:     typed("application/json"),
-			body:       strings.Replace(claudetest.Message, `"content":[{"type":"text","text":"Hello, world"}]`, `"content":"Hello, world"`, 1),
+			body:       swapped(t, claudetest.Message, `"content":[{"type":"text","text":"Hello, world"}]`, `"content":"Hello, world"`),
 			wantTokens: &claudetest.AnswerTokens,
-			want:       ledger.Reply{Answer: ledger.Answer{Model: "claude-opus-5-5", Stop: "end_turn"}, Usage: ended},
+			want:       ledger.Reply{Answer: ledger.Answer{Model: "claude-opus-5-5", Stop: "end_turn"}, Usage: claudetest.AnswerUsage},
 		},
 		{
 			name:   "an error answered whole",
@@ -372,6 +343,36 @@ func TestProviderReadsAnAnswerForTheLedger(t *testing.T) {
 			}
 		})
 	}
+}
+
+// gunzipped returns a reader of text as the router decodes an answer it asked
+// for in gzip: compressed, then decompressed, its last data coming with its
+// end.
+func gunzipped(t *testing.T, text string) io.Reader {
+	t.Helper()
+	var compressed bytes.Buffer
+	w := gzip.NewWriter(&compressed)
+	if _, err := io.WriteString(w, text); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := gzip.NewReader(&compressed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return decoded
+}
+
+// swapped is s with old swapped for with, failing t where s doesn't hold old,
+// so a fixture's change can't leave a test swapping nothing.
+func swapped(t *testing.T, s, old, with string) string {
+	t.Helper()
+	if !strings.Contains(s, old) {
+		t.Fatalf("%q holds no %q to swap", s, old)
+	}
+	return strings.Replace(s, old, with, 1)
 }
 
 // textOfLine is the text whose delta, as claudetest.TextDelta streams it, has

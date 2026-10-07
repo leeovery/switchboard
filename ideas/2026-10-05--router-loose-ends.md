@@ -35,11 +35,3 @@ only when something rare happens.
   and decoded, to tell whether it ends with them already, then compresses them as a gzip member held
   whole: about 50 MB at peak, for the request ledger, on a day of some 28,000 requests. A fix:
   stream the plain file into the gzip member, checking the compressed file's tail as it goes.
-- **A line cut short can still be compressed as it is.** An append ends a line cut short before
-  it writes, but a plain file left ending in one, and never appended to again, is compressed with
-  it, so its gzip member ends partway through a line. Should its day be written again, as only a
-  clock set back to it does, the next member's first line runs on from it once the two are read
-  as one, and neither reads. A fix: end the line as `compress` writes the member, which means
-  `plainCompressed`, the check that the compressed file already ends with the plain lines, has to
-  allow for the line ending added, or a router stopped between writing the one and removing the
-  other compresses the lines twice.

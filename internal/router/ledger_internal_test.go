@@ -39,8 +39,7 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 	asked := stickyLine()
 	// answered is what the answer AnswerPieces streams tells of itself, and
 	// its usage, which Message's is too.
-	answered := ledger.Reply{Answer: ledger.Answer{Model: opus, Stop: "end_turn"},
-		Usage: json.RawMessage(`{"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"input_tokens":3,"output_tokens":120}`)}
+	answered := ledger.Reply{Answer: ledger.Answer{Model: opus, Stop: "end_turn"}, Usage: claudetest.AnswerUsage}
 	// limited is an answer's header as the API gives it, its id and its usage
 	// headers, of a stream of events; and the limits a line has of them.
 	limited := http.Header{"Content-Type": {"text/event-stream"}, "Request-Id": {"req_011CTest"},

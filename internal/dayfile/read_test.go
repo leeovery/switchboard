@@ -1,6 +1,7 @@
 package dayfile
 
 import (
+	"encoding/json"
 	"os"
 	"slices"
 	"strings"
@@ -13,6 +14,18 @@ import (
 // asText is a line as the text it holds, which every line reads as.
 func asText(line []byte) (string, bool) {
 	return string(line), true
+}
+
+// readJSON returns the lines f holds of the local days with the given dates
+// that are JSON, as a line written whole is and one cut short isn't, as Read
+// gives them, and how many lines weren't.
+func readJSON(f *Files, dates ...string) (lines []string, unread int) {
+	asJSON := func(line []byte) (string, bool) { return string(line), json.Valid(line) }
+	unread = Read(f, dates, asJSON, func(line string) bool {
+		lines = append(lines, line)
+		return true
+	})
+	return lines, unread
 }
 
 // readAll returns the lines f holds of the local days with the given dates,

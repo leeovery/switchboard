@@ -118,19 +118,24 @@ func appendLines(path string, lines []byte) error {
 }
 
 // endCutShort ends the line file ends in, opened to read and append, where
-// it's cut short: the file holds something, and its last byte isn't a line
-// ending.
+// it's cut short, as cutShort says.
 func endCutShort(file *os.File) error {
 	info, err := file.Stat()
 	if err != nil || info.Size() == 0 {
 		return err
 	}
 	var last [1]byte
-	if _, err := file.ReadAt(last[:], info.Size()-1); err != nil || last[0] == '\n' {
+	if _, err := file.ReadAt(last[:], info.Size()-1); err != nil || !cutShort(last[:]) {
 		return err
 	}
 	_, err = file.Write([]byte{'\n'})
 	return err
+}
+
+// cutShort reports whether lines end in a line cut short: they hold
+// something, and their last byte isn't a line ending.
+func cutShort(lines []byte) bool {
+	return len(lines) > 0 && lines[len(lines)-1] != '\n'
 }
 
 // makePrivate makes the files' directory, when it isn't there, and makes it
@@ -236,16 +241,17 @@ func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration) {
 
 // compress moves the lines of the plain file of the local day with the given
 // date into the day's compressed file: it writes that afresh, whole, as the
-// one there, if any, followed by the lines as a gzip member of their own, and
-// then removes the plain file. Lines compressed already, as plainCompressed
-// says, aren't added again. One that fails leaves the plain file.
+// one there, if any, followed by the lines as adding gives them, a gzip member
+// of their own, and then removes the plain file. Lines compressed already, as
+// plainCompressed says, aren't added again. One that fails leaves the plain
+// file.
 func (f *Files) compress(date string) error {
 	held, err := f.readDay(date)
 	if err != nil {
 		return err
 	}
 	if !held.plainCompressed() {
-		member, err := gzipped(held.plain)
+		member, err := gzipped(held.adding())
 		if err != nil {
 			return err
 		}
@@ -285,6 +291,18 @@ func (f *Files) readDay(date string) (dayHeld, error) {
 // file, before it removed the plain one.
 func (d dayHeld) plainCompressed() bool {
 	return bytes.HasSuffix(d.compressed, d.plain)
+}
+
+// adding returns the lines compressing the day adds to its compressed file:
+// the plain file's, after a line ending where the compressed file's lines end
+// in one cut short, so the first of them starts a line of its own. The
+// compressed file's lines still end with the plain file's then, as
+// plainCompressed looks for.
+func (d dayHeld) adding() []byte {
+	if cutShort(d.compressed) {
+		return append([]byte{'\n'}, d.plain...)
+	}
+	return d.plain
 }
 
 // readCompressed returns what the compressed file at path holds, as it's

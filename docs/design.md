@@ -1832,6 +1832,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dayfile` | Files a day of JSON lines, as the readings history and the request ledger keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, lines cut short and damaged files included; and the queue and goroutine that write to them, so noting a line never waits |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, reading lines and summaries back, and the price table and the worth it gives |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
+| `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's and the readings history's files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, a window's rate of use, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
@@ -1944,9 +1945,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   compressed file already ends with its plain file's lines, as when the router stopped between
   writing the one and removing the other, is read from the compressed file alone. A file that can't
   be read is passed over, and one damaged, as a compressed file cut short, read up to the damage,
-  each warned of once, until it reads to its end again (see Logging). A file left ending in a line
-  cut short, as a crash or a power cut partway through a write leaves one, has that line ended
-  before more are appended, so the next starts a line of its own.
+  each warned of once, until it reads to its end again (see Logging). A line cut short at a file's
+  end, as a crash or a power cut partway through a write leaves one, is ended before more lines
+  follow it, whether appended or compressed after it, so the next starts a line of its own.
 - **Request ledger:** `<state dir>/ledger/`, 0700: `requests-<local date>.jsonl`, a line a request,
   and `day-<local date>.json`, a day's summary, each 0600 (see The request ledger). The lines are
   appended, compressed and removed as the readings history's are, by the same rules, but kept as

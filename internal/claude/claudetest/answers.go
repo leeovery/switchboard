@@ -36,6 +36,11 @@ const Message = `{"id":"msg_test","type":"message","role":"assistant","content":
 // Message gives.
 var AnswerTokens = quota.Tokens{Input: 3, Output: 120, CacheRead: 40000, CacheWrite: 512}
 
+// AnswerUsage is the usage MessageStart and MessageDelta give together, and
+// Message gives, as the request ledger keeps it: field for field, in the
+// order of the fields' names.
+var AnswerUsage = json.RawMessage(`{"cache_creation_input_tokens":512,"cache_read_input_tokens":40000,"input_tokens":3,"output_tokens":120}`)
+
 // The thinking and the tool's input of the answer AnswerPieces streams.
 const (
 	answerThinking = "Let me think."
@@ -50,7 +55,13 @@ func BlockStart(kind, tool string) string {
 	if tool != "" {
 		block += `,"id":"toolu_test","name":"` + tool + `","input":{}`
 	}
-	return "event: content_block_start\n" + `data: {"type":"content_block_start","index":0,"content_block":` + block + "}}\n\n"
+	return BlockStarting(block + "}")
+}
+
+// BlockStarting is the event that starts a block of a streamed answer, the
+// block given as its JSON, as it is.
+func BlockStarting(block string) string {
+	return "event: content_block_start\n" + `data: {"type":"content_block_start","index":0,"content_block":` + block + "}\n\n"
 }
 
 // TextDelta is the event that adds text to a streamed answer. The text goes

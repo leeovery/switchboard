@@ -35,7 +35,14 @@ type asked struct {
 // object. A field of a type the API wouldn't take is left unread, as a list
 // that isn't one, and the rest read all the same.
 func readAsked(body []byte, req *asked) bool {
-	err := json.Unmarshal(body, req)
+	return objectRead(json.Unmarshal(body, req))
+}
+
+// objectRead reports whether err, from decoding a JSON object into a struct,
+// leaves the object read: err is nil, or says a field of it was of another
+// type than the struct's, which leaves that field unread and the rest read.
+// A value that isn't an object, or isn't JSON, isn't read.
+func objectRead(err error) bool {
 	mistyped, ok := errors.AsType[*json.UnmarshalTypeError](err)
 	return err == nil || ok && mistyped.Field != ""
 }
@@ -94,9 +101,6 @@ func (*entry) UnmarshalJSON([]byte) error {
 // setting is a setting a request's body gives, read where it's what the API
 // takes: one given as null, or as a value of another type, which the API
 // would refuse, is passed over, failing nothing else of the body's reading.
-// What the request ledger alone reads of an answer is read as settings are,
-// so a field of another type than the API gives fails nothing of the
-// answer's counting.
 type setting[T any] struct {
 	// read is the setting's value, the zero value where it isn't given.
 	read  T
