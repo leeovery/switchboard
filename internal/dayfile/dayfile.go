@@ -112,28 +112,51 @@ func dayIn(date string, loc *time.Location) (start, end time.Time, ok bool) {
 
 // DayStart returns when the day days after the one t falls on starts, or
 // days before it for days less than none, in t's time zone: at its first
-// instant, its midnight, unless the clocks went forward over that, as they do
-// at midnight in some zones as summer time starts, when it starts as they
-// went forward; and at the first of its midnights where they went back over
-// it, so it came twice.
+// instant, when the clocks first read its midnight, as firstRead says, or
+// went forward over it, as they do at midnight in some zones as summer time
+// starts.
 func DayStart(t time.Time, days int) time.Time {
 	y, m, d := noon(t).AddDate(0, 0, days).Date()
-	start := time.Date(y, m, d, 0, 0, 0, 0, t.Location())
-	if start.Day() != d {
-		// time.Date puts a midnight the clocks went forward over in the hour
-		// before it, the day before's: the next zone begins with the day.
-		_, start = start.ZoneBounds()
+	return firstRead(y, m, d, 0, 0, t.Location())
+}
+
+// TimeOfDay returns when, on the day t falls on, in t's time zone, the clocks
+// first read hour:minute, as firstRead says, or went forward over it.
+func TimeOfDay(t time.Time, hour, minute int) time.Time {
+	y, m, d := t.Date()
+	return firstRead(y, m, d, hour, minute, t.Location())
+}
+
+// firstRead returns the instant the clocks in loc first read the given date
+// at hour:minute: the first of two, where they went back over it, so it came
+// twice; and where they went forward over it, the instant they did.
+func firstRead(y int, m time.Month, d, hour, minute int, loc *time.Location) time.Time {
+	asked := time.Date(y, m, d, hour, minute, 0, 0, time.UTC)
+	t := time.Date(y, m, d, hour, minute, 0, 0, loc)
+	began, ended := t.ZoneBounds()
+	switch read := reading(t); {
+	case read.Before(asked):
+		// time.Date puts a time the clocks went forward over in the zone
+		// before, west of UTC, which ended as they did.
+		return ended
+	case read.After(asked):
+		// East of UTC, it puts it in the zone after, which began as they did.
+		return began
 	}
-	// time.Date picks the second of two midnights, east of UTC: where the
-	// zone before had reached the day as it ended, the day began in it.
-	began, _ := start.ZoneBounds()
-	before := began.Add(-time.Nanosecond)
-	if by, bm, bd := before.Date(); by == y && bm == m && bd == d {
+	// time.Date picks the second of two such times, east of UTC: where the
+	// zone before had read it as it ended, it read it first.
+	if before := began.Add(-time.Nanosecond); !reading(before).Before(asked) {
 		_, was := before.Zone()
-		_, is := start.Zone()
-		start = start.Add(time.Duration(is-was) * time.Second)
+		return asked.Add(-time.Duration(was) * time.Second).In(loc)
 	}
-	return start
+	return t
+}
+
+// reading is what the clocks read at t, in its time zone, as a time in UTC,
+// where every date and time of day comes once.
+func reading(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
 }
 
 // endOf returns when the local day that starts at start ends.

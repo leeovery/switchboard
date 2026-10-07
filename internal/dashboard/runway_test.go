@@ -382,6 +382,54 @@ func TestTheWeeksAxisTicksEachDaysStartAndNoQuarterBeforeItWhereTheClocksGoForwa
 	}
 }
 
+func TestTheDaysAxisNamesEachDayAtItsStartWhereTheClocksChangeOverMidnight(t *testing.T) {
+	tests := []struct {
+		name, zone string
+		// now is the time by the clock, in the zone; and want, by the time
+		// each falls in, the labels over the ticks, a tick where it's "".
+		now  time.Time
+		want map[time.Time]string
+	}{
+		{
+			name: "the clocks went forward over it, as Chile's did on Sunday 6 September 2026",
+			zone: "America/Santiago", now: time.Date(2026, 9, 6, 2, 30, 0, 0, time.UTC),
+			// The day starts at 01:00, as the clocks went forward from 00:00.
+			want: map[time.Time]string{time.Date(2026, 9, 6, 3, 0, 0, 0, time.UTC): "", time.Date(2026, 9, 6, 4, 0, 0, 0, time.UTC): "Sun",
+				time.Date(2026, 9, 6, 5, 0, 0, 0, time.UTC): "02:00"},
+		},
+		{
+			name: "the clocks went back over it, as Gaza's did on Saturday 24 October 2020",
+			zone: "Asia/Gaza", now: time.Date(2020, 10, 23, 20, 30, 0, 0, time.UTC),
+			// The day starts at the first midnight, the clocks reading 00:00
+			// again an hour on.
+			want: map[time.Time]string{time.Date(2020, 10, 23, 20, 0, 0, 0, time.UTC): "", time.Date(2020, 10, 23, 21, 0, 0, 0, time.UTC): "Sat",
+				time.Date(2020, 10, 23, 22, 0, 0, 0, time.UTC): "00:00"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loc, err := time.LoadLocation(tt.zone)
+			if err != nil {
+				t.Fatalf("load %s: %v", tt.zone, err)
+			}
+			tl := timelineOf(Day, tt.now.In(loc), 136)
+			c := newCanvas(136, 2)
+
+			hours(c, tl, 0, 0)
+			for at, label := range tt.want {
+				col := tl.column(at)
+				got := ""
+				for i := range len(label) {
+					got += c.at(col+i, 0).glyph
+				}
+				if tick := c.at(col, 1).glyph; tick != "┬" || got != label {
+					t.Errorf("at %v, in column %d, the axis reads %q over %q, want %q over a tick", at.In(loc), col, got, tick, label)
+				}
+			}
+		})
+	}
+}
+
 func TestTheStripsFewWithRoomFillItsLowestEighth(t *testing.T) {
 	cells := make([][]room, 40)
 	for i := range cells {

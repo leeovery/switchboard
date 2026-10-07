@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -224,28 +225,47 @@ func (tl timeline) apart(cells int) int {
 
 // hours draws the day's hours over its timeline from x along row y, and
 // their ticks along the rule under them: a tick on the hours as far apart as
-// tickCells asks; and on the hours as far apart as labelCells asks, a tick
-// too, and over it, where it fits, the hour, as 16:00, muted, or at
-// midnight, the day it starts, as Fri, picked out.
+// tickCells asks, and on the hours as far apart as labelCells asks, a tick
+// too, and over it, where it fits, the hour, as 16:00, muted, none on an
+// hour the clocks went forward over; and on each day's start, as
+// dayfile.DayStart gives it, its midnight or wherever the clocks put it, a
+// tick, and over it, where it fits, the day it starts, as Fri, picked out.
 func hours(c *canvas, tl timeline, x, y int) {
 	ticks, labels := tl.apart(tickCells), tl.apart(labelCells)
 	from := tl.start
 	for i := 0; ; i++ {
+		hour := (from.Hour() + i) % 24
 		t := time.Date(from.Year(), from.Month(), from.Day(), from.Hour()+i, 0, 0, 0, from.Location())
-		col, hour := tl.column(t), t.Hour()
-		switch {
-		case col >= tl.columns:
-			return
-		case col < 0 || hour%ticks != 0 && hour%labels != 0:
+		col := tl.column(t)
+		if col >= tl.columns {
+			break
+		}
+		if col < 0 || t.Hour() != hour || t.Equal(dayfile.DayStart(t, 0)) || hour%ticks != 0 && hour%labels != 0 {
 			continue
 		}
 		c.text(x+col, y+1, "┬", borderInk)
-		label := line{{t.Format("15:04"), mutedInk}}
-		if hour == 0 {
-			label = line{{t.Format("Mon"), strongInk}}
-		}
-		if hour%labels == 0 && col+label.width() <= tl.columns {
+		if label := (line{{t.Format("15:04"), mutedInk}}); hour%labels == 0 && col+label.width() <= tl.columns {
 			c.line(x+col, y, label)
+		}
+	}
+	dayStarts(c, tl, x, y)
+}
+
+// dayStarts ticks the start of each day over the timeline from x along the
+// rule on row y+1, as hours says, and names it over the tick on row y, where
+// that fits.
+func dayStarts(c *canvas, tl timeline, x, y int) {
+	for at := dayfile.DayStart(tl.start, 0); ; at = dayfile.DayStart(at, 1) {
+		col := tl.column(at)
+		switch {
+		case col >= tl.columns:
+			return
+		case col < 0:
+			continue
+		}
+		c.text(x+col, y+1, "┬", borderInk)
+		if name := (line{{at.Format("Mon"), strongInk}}); col+name.width() <= tl.columns {
+			c.line(x+col, y, name)
 		}
 	}
 }

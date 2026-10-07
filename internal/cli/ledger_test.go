@@ -339,6 +339,33 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 	}
 }
 
+func TestSinceATimeTodayIsWhenTheClocksFirstReadItThatDay(t *testing.T) {
+	tests := []struct {
+		name, zone string
+		// now is the time by the clock, in the zone, and want when --since
+		// 00:00 starts, in UTC.
+		now  [3]int
+		want time.Time
+	}{
+		{name: "as the clocks went forward over midnight", zone: "America/Santiago", now: [3]int{2026, 9, 6}, want: time.Date(2026, 9, 6, 4, 0, 0, 0, time.UTC)},
+		{name: "at the first of a midnight that came twice", zone: "Asia/Gaza", now: [3]int{2020, 10, 24}, want: time.Date(2020, 10, 23, 21, 0, 0, 0, time.UTC)},
+		{name: "at midnight", zone: "America/Santiago", now: [3]int{2026, 9, 7}, want: time.Date(2026, 9, 7, 3, 0, 0, 0, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loc, err := time.LoadLocation(tt.zone)
+			if err != nil {
+				t.Fatalf("load %s: %v", tt.zone, err)
+			}
+			now := time.Date(tt.now[0], time.Month(tt.now[1]), tt.now[2], 10, 0, 0, 0, loc)
+
+			if got, err := cli.Since("00:00", now); err != nil || !got.Equal(tt.want) {
+				t.Errorf("--since 00:00 at %v starts at %v (%v), want %v, the day's first instant, never the day before", now, got.In(loc), err, tt.want.In(loc))
+			}
+		})
+	}
+}
+
 // historyFromThe6th is what history prints of the 6th and today.
 const historyFromThe6th = `Tue 6 Oct 2026
   side  claude-opus-5-5  1 request  20k tokens  1 session  $0.02

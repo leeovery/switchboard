@@ -32,7 +32,9 @@ func sinceOr(given string, now, fallback time.Time) (time.Time, error) {
 }
 
 // startOf returns when given starts at now: a local day, as 2026-10-01, at
-// its start; a time of the local day now falls on, as 14:00; or how long
+// its start; a time of the day now falls on, in now's time zone, as 14:00,
+// when the clocks first read it that day, or went forward over it, as
+// dayfile.TimeOfDay says, so 00:00 is the day's first instant; or how long
 // before now, more than none, a count of days, as 2d, a day being 24 hours,
 // or a duration, as 3h or 90m. A count of more days than a duration holds,
 // config.MostDays, is read as that many: a read of the ledger starts at its
@@ -42,8 +44,7 @@ func startOf(given string, now time.Time) (time.Time, error) {
 		return start, nil
 	}
 	if at, err := time.Parse("15:04", given); err == nil {
-		y, m, d := now.Local().Date()
-		return time.Date(y, m, d, at.Hour(), at.Minute(), 0, 0, time.Local), nil
+		return dayfile.TimeOfDay(now, at.Hour(), at.Minute()), nil
 	}
 	if days, ok := config.ParseDays(given); ok && days > 0 {
 		return now.Add(-time.Duration(min(days, config.MostDays)) * 24 * time.Hour), nil
