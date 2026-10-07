@@ -2466,7 +2466,7 @@ leaves nothing to connect to.
 
 `status`'s text follows, designed with its owner first (see Backlog).
 
-**6. The request ledger — next.** The redesigned dashboard's History and Accounts tabs, and a
+**6. The request ledger — done.** The redesigned dashboard's History and Accounts tabs, and a
 session's page, look back on requests nothing records yet, and every day the ledger isn't recording
 is a day History will never show; so the ledger comes first, ahead of the dashboard it feeds (see
 The request ledger). A pull request a stage, each merged as it's ready, so the ledger records as
@@ -2486,6 +2486,14 @@ early as it can:
    `internal/router` into `internal/readings`, so a reader summarises today without the router; the
    price table and worth, and the summaries keeping apart what US-only inference prices otherwise;
    `requests` and `history`; and the skill telling agents of them.
+
+**7. The dashboard redesigned — next.** Its design is being settled area by area with its owner,
+each signed off with frames and a spec: the usage view, the Overview, Accounts, History, the
+routing pickers, a session's page and the Log so far; then Sessions and Runway. Building starts
+once the whole design is signed off, as an implementation plan of its own. Before it's released, a
+review of everything it and the request ledger changed for costs that grow with time or with what's
+kept, each measured against a year of heavy use: the kind of cost a round's recount of every kept
+day was until it learned to look only at the days whose lines changed.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
