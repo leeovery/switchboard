@@ -221,7 +221,7 @@ func (s *Service) Uninstall(ctx context.Context) (removed bool, err error) {
 // Restart has the router restart, reading the config and the tokens afresh,
 // and returns the answer of the router it becomes, or nil when none answers
 // in time. A router that answers is asked to restart: it finishes the
-// requests in flight, within router.DrainTimeout, then replaces itself with
+// requests in flight, within router.StopTimeout, then replaces itself with
 // its binary, in the process it runs in, or, as it says when it can't, exits
 // for launchd to start it again. One that can't be asked, as one from before
 // routers restarted when asked can't, is sent SIGTERM, and stops as it does

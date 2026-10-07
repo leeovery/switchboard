@@ -183,6 +183,64 @@ func TestLinesAreAppendedToThePlainFilesOfTheirDays(t *testing.T) {
 	}
 }
 
+func TestAnAppendStartsALineOfItsOwnAfterOneCutShort(t *testing.T) {
+	const appended = `{"n":3}`
+	tests := []struct {
+		name string
+		// held is what the day's plain file holds before the append, and
+		// wantHeld what it holds after.
+		held, wantHeld string
+		// wantRead are the lines read back after the append, and wantUnread
+		// how many lines weren't.
+		wantRead   []string
+		wantUnread int
+	}{
+		{
+			name:       "a line cut short, ended first, and passed over in reading",
+			held:       linesOf(`{"n":1}`) + `{"n":`,
+			wantHeld:   linesOf(`{"n":1}`, `{"n":`, appended),
+			wantRead:   []string{`{"n":1}`, appended},
+			wantUnread: 1,
+		},
+		{
+			name:     "a line cut short of its line ending alone, ended first, and read",
+			held:     linesOf(`{"n":1}`) + `{"n":2}`,
+			wantHeld: linesOf(`{"n":1}`, `{"n":2}`, appended),
+			wantRead: []string{`{"n":1}`, `{"n":2}`, appended},
+		},
+		{
+			name:     "whole lines, after which it starts",
+			held:     linesOf(`{"n":1}`),
+			wantHeld: linesOf(`{"n":1}`, appended),
+			wantRead: []string{`{"n":1}`, appended},
+		},
+		{
+			name:     "an empty file, where it starts",
+			wantHeld: linesOf(appended),
+			wantRead: []string{appended},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := requestLedger(t.TempDir())
+			date := dateOf(start)
+			writeDay(t, f, plainFile(date), tt.held)
+			lines := make(Lines)
+			lines.Add(start, []byte(appended))
+
+			if err := f.Append(lines); err != nil {
+				t.Fatalf("Append() = %v", err)
+			}
+			if got := heldIn(t, f, plainFile(date)); got != tt.wantHeld {
+				t.Errorf("the day's plain file holds\n%s\nwant\n%s", got, tt.wantHeld)
+			}
+			if read, unread := readJSON(f, date); !slices.Equal(read, tt.wantRead) || unread != tt.wantUnread {
+				t.Errorf("read %q, %d unread; want %q, %d unread", read, unread, tt.wantRead, tt.wantUnread)
+			}
+		})
+	}
+}
+
 func TestADaysFilesGoOnceItsDayEndedAsLongAgoAsTheyreKept(t *testing.T) {
 	const day = 24 * time.Hour
 	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
@@ -287,14 +345,24 @@ func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
 	day := time.Date(2026, 9, 25, 12, 0, 0, 0, time.Local)
 	date := day.Format(time.DateOnly)
 	older, newer := linesOf("nine"), linesOf("ten")
+	// torn is older and a line cut short after them.
+	torn := older + "elev"
 	tests := []struct {
 		name string
-		// members are those the day's compressed file holds already.
+		// members are those the day's compressed file holds already, and want
+		// the lines it holds once the day's compressed.
 		members []string
+		want    string
 	}{
-		{name: "after its lines, as when the clock was set back to the day", members: []string{older}},
-		{name: "not again when it ends with them, as when a writer stopped before the plain file went", members: []string{older, newer}},
-		{name: "not again when the last of its lines are them", members: []string{older + newer}},
+		{name: "after its lines, as when the clock was set back to the day", members: []string{older}, want: older + newer},
+		{name: "not again when it ends with them, as when a writer stopped before the plain file went", members: []string{older, newer}, want: older + newer},
+		{name: "not again when the last of its lines are them", members: []string{older + newer}, want: older + newer},
+		{name: "after a line ending, where its lines end in one cut short", members: []string{torn}, want: torn + "\n" + newer},
+		{
+			name:    "not again when it ends with them after that line ending, as when a writer stopped before the plain file went",
+			members: []string{torn, "\n" + newer},
+			want:    torn + "\n" + newer,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -304,13 +372,39 @@ func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
 
 			// Days on, wherever the clocks changed between.
 			f.prune(day.AddDate(0, 0, 4), twoWeeks)
-			if got := heldIn(t, f, compressedFile(date)); got != older+newer {
-				t.Errorf("the day's compressed file holds\n%s\nwant its lines, older first, each once\n%s", got, older+newer)
+			if got := heldIn(t, f, compressedFile(date)); got != tt.want {
+				t.Errorf("the day's compressed file holds\n%s\nwant its lines, older first, each once\n%s", got, tt.want)
 			}
 			if _, err := os.Stat(f.path(plainFile(date))); !errors.Is(err, fs.ErrNotExist) {
 				t.Errorf("the day's plain file is there (%v), want it gone", err)
 			}
 		})
+	}
+}
+
+func TestALineCutShortIsCompressedAsItIsAndTheLinesCompressedAfterItRead(t *testing.T) {
+	day := time.Date(2026, 9, 25, 12, 0, 0, 0, time.Local)
+	date := day.Format(time.DateOnly)
+	torn := linesOf(`{"n":1}`) + `{"n":`
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, plainFile(date), torn)
+	// Days on, wherever the clocks changed between.
+	later := day.AddDate(0, 0, 4)
+
+	f.prune(later, twoWeeks)
+	if got := heldIn(t, f, compressedFile(date)); got != torn {
+		t.Errorf("the day's compressed file holds %q, want its lines as they were, the one cut short too: %q", got, torn)
+	}
+	// The clock set back to the day, a line is written to it again, and then
+	// compressed in turn.
+	lines := make(Lines)
+	lines.Add(day, []byte(`{"n":3}`))
+	if err := f.Append(lines); err != nil {
+		t.Fatalf("Append() = %v", err)
+	}
+	f.prune(later, twoWeeks)
+	if read, unread := readJSON(f, date); !slices.Equal(read, []string{`{"n":1}`, `{"n":3}`}) || unread != 1 {
+		t.Errorf(`read %q, %d unread; want {"n":1} and {"n":3}, and the line cut short alone unread`, read, unread)
 	}
 }
 

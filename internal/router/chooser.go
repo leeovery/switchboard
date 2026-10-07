@@ -31,9 +31,9 @@ type Chooser interface {
 	// which is remembered once a request is answered with success, or when
 	// req was refused on every account it went out on. An account chosen for
 	// another request of the session since stands. It returns the account
-	// the session is back on, "" when it has none, or one chosen since
-	// stands.
-	Forget(req Request) string
+	// the session is back on, "" when it has none, and reports whether it
+	// took the accounts back: not when one chosen since stands.
+	Forget(req Request) (string, bool)
 }
 
 // Request is what the router knows of a routed request when it chooses the

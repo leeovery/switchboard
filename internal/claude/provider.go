@@ -75,9 +75,9 @@ const quotaCheck = "quota"
 // the body doesn't say; whether it's Claude Code's quota check: one message,
 // quota, answered with a token at most, which Claude Code sends as it starts;
 // and its shape, as the request ledger keeps it, the zero Shape where the body
-// isn't a JSON object. The body is read whole once, as it can run to
-// megabytes, its lists counted without their entries being read; only one
-// asking for a token at most is read again, for its message.
+// is neither a JSON object nor null. The body is read whole once, as it can
+// run to megabytes, its lists counted without their entries being read; only
+// one asking for a token at most is read again, for its message.
 func (Provider) Asks(body []byte) (model string, check bool, shape ledger.Shape) {
 	var req asked
 	if !readAsked(body, &req) {

@@ -512,7 +512,7 @@ func TestBodyOverTheCapGives413(t *testing.T) {
 	const limit = 64 << 20
 	up := newUpstream(t, answerOK)
 	proxy := serveProxy(t, newRouter(t, up.URL))
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, proxy+"/v1/messages", io.LimitReader(zeros{}, limit+1))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, proxy+"/v1/messages", io.LimitReader(router.Zeros{}, limit+1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,14 +531,6 @@ func TestBodyOverTheCapGives413(t *testing.T) {
 	if n := up.count(); n > 0 {
 		t.Errorf("upstream received %d requests, want none", n)
 	}
-}
-
-// zeros reads as endless zero bytes.
-type zeros struct{}
-
-func (zeros) Read(p []byte) (int, error) {
-	clear(p)
-	return len(p), nil
 }
 
 // checkAPIError checks body is an error as the API shapes them, of the type
@@ -708,7 +700,7 @@ func (c *fixedChooser) Choose(_ context.Context, req router.Request) router.Choi
 // remembers no session.
 func (c *fixedChooser) Answered(router.Request, string, string) {}
 
-func (c *fixedChooser) Forget(router.Request) string { return "" }
+func (c *fixedChooser) Forget(router.Request) (string, bool) { return "", false }
 
 func (c *fixedChooser) requests() []router.Request {
 	c.mu.Lock()

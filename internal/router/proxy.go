@@ -74,7 +74,10 @@ type proxy struct {
 	// ledger keeps a line of each once it's done.
 	stream *stream
 	ledger *requestLedger
-	now    func() time.Time
+	// routing counts the routed requests in flight, each until its line is
+	// noted, which the router waits for as it stops.
+	routing *inFlight
+	now     func() time.Time
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger
@@ -93,10 +96,11 @@ type exchange struct {
 	reason  string
 	// shape is a routed request's shape, as the request ledger keeps it.
 	shape ledger.Shape
-	// answered is the account whose answer the client has, when it isn't the
-	// one the request went out on last: the first whose limit the request
-	// reached, its answer held back, where every account after refused it.
-	answered string
+	// answered is the account whose answer the client has, as it was picked,
+	// when it isn't the one the request went out on last: the first whose
+	// limit the request reached, its answer held back, where every account
+	// after refused it. It's zero while it is.
+	answered pick
 	// from is the account a routed request's session was on before the
 	// request moved it: "" while it hasn't, and once its moves are taken
 	// back.
@@ -127,6 +131,27 @@ type exchange struct {
 
 func (ex *exchange) routed() bool {
 	return ex.account.ID != ""
+}
+
+// pick is an account a routed request went out on, by its id, and how it was
+// picked: why, and the account the request had moved its session from by
+// then, "" where it hadn't.
+type pick struct {
+	account, reason, from string
+}
+
+// picked is the account the routed request goes out on now, as it was picked.
+func (ex *exchange) picked() pick {
+	return pick{account: ex.account.ID, reason: ex.reason, from: ex.from}
+}
+
+// answering is the account whose answer the client has, or is to have, as it
+// was picked.
+func (ex *exchange) answering() pick {
+	if ex.answered.account != "" {
+		return ex.answered
+	}
+	return ex.picked()
 }
 
 // succeeded reports whether the client was answered with success.
@@ -162,15 +187,19 @@ func (p *proxy) routable(r *http.Request) (account, bool) {
 // route sends a request on the account the chooser picks for it, and on
 // others while that one can't serve it. When the chooser picks none, as only
 // accounts held back by their reserves are left, the router answers as the
-// upstream would at a limit.
+// upstream would at a limit. The request counts as routing until its line is
+// noted, but for one that upgrades its connection.
 func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
-	started := time.Now()
+	if !upgrades(r) {
+		p.routing.begin()
+		defer p.routing.end()
+	}
+	ex := &exchange{id: newID(), started: time.Now(), arrived: p.now(), spends: p.provider.Spends(r.URL.Path)}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	if err != nil {
-		refuseBody(w, r, err)
+		p.unread(w, r, ex, err)
 		return
 	}
-	ex := &exchange{id: newID(), started: started, arrived: p.now(), spends: p.provider.Spends(r.URL.Path)}
 	ex.req, ex.shape = p.request(r, body, ex, client)
 	choice := p.chooser.Choose(r.Context(), ex.req)
 	ex.newSession = choice.New
@@ -475,22 +504,69 @@ func (ex *exchange) identity(r *http.Request) []any {
 	return []any{"method", r.Method, "path", r.URL.Path}
 }
 
-// done notes a routed request once it's done: in the log, in the request
-// stream, once it went upstream, in the request ledger, once its answer is
-// counted, and, once it was answered, in the router's health. A new session
-// whose request wasn't answered with success, the chooser forgets, unless
-// another request of it has been routed since.
+// done notes a routed request once it's done: in the request stream, once it
+// went upstream; in the log and the request ledger, once its answer is
+// counted, as the request finished by then, as the router can cut it off
+// meanwhile, stopping, though its time is taken before; and, once it was
+// answered, in the router's health. A new session whose request wasn't
+// answered with success, the chooser forgets first, so the line is of what
+// stands.
 func (p *proxy) done(r *http.Request, ex *exchange) {
-	took, canceled := time.Since(ex.started), r.Context().Err() != nil
-	p.logRouted(ex, took, canceled)
+	took := time.Since(ex.started)
 	p.ended(ex)
-	p.ledger.note(p.line(ex, r.Header, took, canceled))
+	f := finishing(r, took)
+	p.logRouted(ex, f)
 	if ex.newSession && !ex.succeeded() {
-		p.chooser.Forget(ex.req)
+		p.forget(ex)
 	}
+	p.ledger.note(p.line(ex, r.Header, f))
 	if ex.status != 0 {
 		p.health.record(ex.arrived, ex.failed)
 	}
+}
+
+// forget has the chooser forget the accounts chosen for the routed request
+// ex, as Chooser's Forget says, and returns the account its session is back
+// on, "" when it has none, or one chosen since stands. Where the chooser took
+// the request's moves back, the request moved its session from no account,
+// not even as it went out on the account whose answer was held back for it.
+func (p *proxy) forget(ex *exchange) string {
+	back, forgot := p.chooser.Forget(ex.req)
+	if forgot {
+		ex.from, ex.answered.from = "", ""
+	}
+	return back
+}
+
+// finish is how a routed request finished: as long after it arrived as took,
+// and, where it ended early, cut off by the router as it stopped, or
+// canceled, its client gone.
+type finish struct {
+	took             time.Duration
+	cutOff, canceled bool
+}
+
+// finishing returns how the routed request r finished, as long after it
+// arrived as took: where its context has ended, what ended it first, as its
+// cause says.
+func finishing(r *http.Request, took time.Duration) finish {
+	f := finish{took: took}
+	if r.Context().Err() != nil {
+		f.cutOff = errors.Is(context.Cause(r.Context()), errCutOff)
+		f.canceled = !f.cutOff
+	}
+	return f
+}
+
+// attrs are the log's attributes of how f ended early, where it did.
+func (f finish) attrs() []any {
+	switch {
+	case f.cutOff:
+		return []any{"cut_off", true}
+	case f.canceled:
+		return []any{"canceled", true}
+	}
+	return nil
 }
 
 // ended tells the request stream of a routed request that went upstream
@@ -519,7 +595,7 @@ func (ex *exchange) event(kind string) StreamEvent {
 		Attempt: ex.attempts,
 		Session: bounded(ex.req.Session),
 		Model:   bounded(ex.req.Model),
-		Account: cmp.Or(ex.answered, ex.account.ID),
+		Account: ex.answering().account,
 		Check:   ex.req.Check,
 	}
 }
@@ -534,10 +610,10 @@ func bounded(s string) string {
 	return prose.TruncateBytes(s, boundedMost)
 }
 
-// logRouted notes a routed request once it's done, as long after it arrived
-// as took, how many times it went upstream when that was more than once, and
-// whether its client went away before then, as canceled says.
-func (p *proxy) logRouted(ex *exchange, took time.Duration, canceled bool) {
+// logRouted notes a routed request once it's done, as f finished it: how long
+// after it arrived, how many times it went upstream when that was more than
+// once, and whether it was cut off, or its client went away, before its end.
+func (p *proxy) logRouted(ex *exchange, f finish) {
 	attrs := []any{
 		"id", ex.id,
 		"session", status.ShortID(ex.req.Session),
@@ -549,23 +625,28 @@ func (p *proxy) logRouted(ex *exchange, took time.Duration, canceled bool) {
 	if ex.attempts > 1 {
 		attrs = append(attrs, "attempts", ex.attempts)
 	}
-	attrs = append(attrs, "duration", took.Round(time.Millisecond))
-	if canceled {
-		attrs = append(attrs, "canceled", true)
-	}
-	logger.Info("routed", attrs...)
+	attrs = append(attrs, "duration", f.took.Round(time.Millisecond))
+	logger.Info("routed", append(attrs, f.attrs()...)...)
 }
 
-// refuseBody answers a routed request whose body couldn't be read in full: 413
-// when it's over the cap.
-func refuseBody(w http.ResponseWriter, r *http.Request, err error) {
-	logger.Warn("request refused: body unread", "method", r.Method, "path", r.URL.Path, "error", err)
+// unread answers the routed request ex, whose body couldn't be read in full:
+// 413 when it's over the cap, else 400, shaped as the API shapes its errors,
+// whoever is left to read it, as a client that closed its side of the
+// connection still reads. It logs the refusal, as the request finished, and
+// notes the request's line in the request ledger, of what's known of it
+// without the body: of no account, as the router answered it, and no shape.
+func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
+	f := finishing(r, time.Since(ex.started))
+	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
+	ex.req.Session = p.provider.Session(r.Header)
+	ex.status = http.StatusBadRequest
+	kind, message := "invalid_request_error", "switchboard: couldn't read the request body"
 	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
-		writeError(w, http.StatusRequestEntityTooLarge, "request_too_large",
-			fmt.Sprintf("switchboard: the request body is over its limit of %d MiB", maxBody>>20))
-		return
+		ex.status, kind, message = http.StatusRequestEntityTooLarge, "request_too_large",
+			fmt.Sprintf("switchboard: the request body is over its limit of %d MiB", maxBody>>20)
 	}
-	writeError(w, http.StatusBadRequest, "invalid_request_error", "switchboard: couldn't read the request body")
+	writeError(w, ex.status, kind, message)
+	p.ledger.note(p.line(ex, r.Header, f))
 }
 
 // apiError is an error shaped as the API shapes its own, so Claude Code shows

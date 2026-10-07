@@ -56,25 +56,30 @@ type Line struct {
 	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Account is the account whose answer the client got, none where the
-	// router answered it itself, and Reason why it was chosen, as the
-	// routed line gives it.
+	// router answered it itself, and Reason why it was chosen, in the words
+	// the routed line uses.
 	Account string `json:"account,omitempty"`
 	Reason  string `json:"reason"`
 	// From is the account the request's session was on before, where the
-	// request moved it.
+	// request moved it, and the move stands.
 	From string `json:"from,omitempty"`
 	// Tried are the accounts the request went out on that couldn't serve
 	// it, in the order tried.
 	Tried []Tried `json:"tried,omitempty"`
-	// Status is what the client was answered, 0 where it went away before an
-	// answer, and Canceled is set where it went away before the end.
+	// Status is what the request was answered, 0 where it ended before an
+	// answer came: the router answers a body it can't read whoever is left to
+	// read it, but nothing else once the request has ended. Canceled is set
+	// where its client went away before its end, and CutOff where the router
+	// cut it off as it stopped, never both.
 	Status   int  `json:"status"`
 	Canceled bool `json:"canceled,omitzero"`
+	CutOff   bool `json:"cut_off,omitzero"`
 	// Attempts is how many times the request went upstream, 0 where the
 	// router answered it itself.
 	Attempts int `json:"attempts"`
 	// FirstMS is how long after the request arrived its answer's first byte
-	// came, nil where none came, and TotalMS its end, in milliseconds.
+	// passed on to the client, nil where none did, and TotalMS its end, in
+	// milliseconds.
 	FirstMS *int64 `json:"first_ms,omitempty"`
 	TotalMS int64  `json:"total_ms"`
 	// Agent is the client's user agent, and Betas the features its request
@@ -82,7 +87,8 @@ type Line struct {
 	// request costs.
 	Agent string   `json:"agent,omitempty"`
 	Betas []string `json:"betas,omitempty"`
-	// Shape is the request's shape, zero where its body isn't a request.
+	// Shape is the request's shape, zero where its body isn't a request, or
+	// couldn't be read.
 	Shape Shape `json:"shape,omitzero"`
 	// Reply is what came back, of the answer the client got.
 	Reply
@@ -157,9 +163,9 @@ type Reply struct {
 }
 
 // Answer is what an answer told of itself: Anthropic's id for it, the model
-// it named, why it stopped, how many blocks of each kind it held, the tools
-// it called, by name alone, and its error, each left out where it didn't
-// give it.
+// that served it, why it stopped, how many blocks of each kind it held, the
+// tools it called, by name alone, and its error, each left out where it
+// didn't give it.
 type Answer struct {
 	ID     string         `json:"id,omitempty"`
 	Model  string         `json:"model,omitempty"`

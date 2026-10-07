@@ -467,7 +467,7 @@ func TestARequestsEndIsToldOfBeforeItsHandlerReturns(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		r := newTestRouter(t, time.Now, &stubProber{})
 		assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
-		r.proxy.provider = slowCounting{}
+		r.proxy.provider = slowCounting{late: time.Second}
 		r.proxy.transport = scripted(streamed(0, claudetest.AnswerPieces("Hello")...), served)
 		reader := joined(t, r)
 
@@ -482,14 +482,15 @@ func TestARequestsEndIsToldOfBeforeItsHandlerReturns(t *testing.T) {
 	})
 }
 
-// slowCounting is Claude's provider, but for taking a second to start
-// counting an answer.
+// slowCounting is Claude's provider, but for taking a while, late, to start
+// counting an answer, as on a loaded machine.
 type slowCounting struct {
 	claude.Provider
+	late time.Duration
 }
 
 func (p slowCounting) Count(h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply) {
-	time.Sleep(time.Second)
+	time.Sleep(p.late)
 	return p.Provider.Count(h, body, chars)
 }
 

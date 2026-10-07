@@ -42,11 +42,13 @@ type tap struct {
 	ended chan StreamEvent
 	told  chan struct{}
 
-	// firstAt is when the counting read the answer's first byte, zero while
-	// it hasn't, and reply what it read of the answer for the request ledger.
-	// Only the counting touches them until it has told of the request's end.
+	// firstAt is when the answer's first byte passed on to the client, zero
+	// while none has. Only the handler's goroutine, which reads the body,
+	// touches it.
 	firstAt time.Time
-	reply   ledger.Reply
+	// reply is what the counting read of the answer for the request ledger.
+	// Only the counting touches it until it has told of the request's end.
+	reply ledger.Reply
 
 	mu sync.Mutex
 	// kept is what has passed since the counting last took it.
@@ -76,6 +78,9 @@ func (p *proxy) count(ex *exchange, resp *http.Response) {
 func (t *tap) Read(p []byte) (int, error) {
 	n, err := t.body.Read(p)
 	if n > 0 {
+		if t.firstAt.IsZero() {
+			t.firstAt = time.Now()
+		}
 		t.pass(p[:n])
 	}
 	return n, err
@@ -152,9 +157,8 @@ func (t *tap) gaveUp() bool {
 	return t.lost
 }
 
-// firstMS is how long after started the answer's first byte came, in
-// milliseconds, or nil when none came. The counting must have told of the
-// request's end.
+// firstMS is how long after started the answer's first byte passed on to the
+// client, in milliseconds, or nil when none did.
 func (t *tap) firstMS(started time.Time) *int64 {
 	if t.firstAt.IsZero() {
 		return nil
@@ -173,19 +177,17 @@ func (t *tap) end(done StreamEvent) {
 }
 
 // count counts the answer, whose header is h, for the request stream s as
-// its body passes: it tells of its first byte, as first, noting when it
-// came, and of the characters of text, thinking and tools' input as they
-// come, as the provider counts them, the body decoded from the encoding h
-// names. Once the request has ended, it tells of its done, with the tokens
-// the answer's closing usage gives, and its characters in all, and keeps what
-// the provider read of the answer for the request ledger, unless the
-// counting gave the answer up.
+// its body passes: it tells of its first byte, as first, and of the
+// characters of text, thinking and tools' input as they come, as the
+// provider counts them, the body decoded from the encoding h names. Once the
+// request has ended, it tells of its done, with the tokens the answer's
+// closing usage gives, and its characters in all, and keeps what the
+// provider read of the answer for the request ledger. Should the counting
+// have given the answer up, it read only part of the body: done tells of no
+// counts, and the ledger keeps what the provider reads of the header alone.
 func (t *tap) count(s *stream, provider Provider, first StreamEvent, h http.Header) {
 	defer close(t.told)
-	passed := &passed{tap: t, first: func() {
-		t.firstAt = time.Now()
-		s.publish(first)
-	}}
+	passed := &passed{tap: t, first: func() { s.publish(first) }}
 	chars := 0
 	tokens, reply, err := tally(provider, h, passed, func(n int) {
 		chars = n
@@ -196,10 +198,12 @@ func (t *tap) count(s *stream, provider Provider, first StreamEvent, h http.Head
 	}
 	_, _ = io.Copy(io.Discard, passed)
 	done := <-t.ended
-	if !t.gaveUp() {
+	if t.gaveUp() {
+		_, reply = countOf(provider, h, http.NoBody, func(int) {})
+	} else {
 		done.Chars, done.Tokens = chars, tokens
-		t.reply = reply
 	}
+	t.reply = reply
 	s.publish(done)
 }
 
@@ -209,7 +213,19 @@ func (t *tap) count(s *stream, provider Provider, first StreamEvent, h http.Head
 // closing usage gives, nil when none came, and what the request ledger keeps
 // of the answer. A body that can't be decoded is left unread, the provider
 // reading the header alone, and why it can't be is returned.
-func tally(provider Provider, h http.Header, body io.Reader, chars func(int)) (tokens *quota.Tokens, reply ledger.Reply, err error) {
+func tally(provider Provider, h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply, error) {
+	decoded, err := decode(body, h.Get("Content-Encoding"))
+	if err != nil {
+		decoded = http.NoBody
+	}
+	tokens, reply := countOf(provider, h, decoded, chars)
+	return tokens, reply, err
+}
+
+// countOf is what provider counts of an answer, by its header, h, and its
+// body, decoded, as Provider's Count says, telling chars as it goes: none of
+// it, should the counting fail.
+func countOf(provider Provider, h http.Header, body io.Reader, chars func(int)) (tokens *quota.Tokens, reply ledger.Reply) {
 	// Counting runs on every answer, so a fault in it costs that answer's
 	// counts alone, never the router.
 	defer func() {
@@ -218,12 +234,7 @@ func tally(provider Provider, h http.Header, body io.Reader, chars func(int)) (t
 			tokens, reply = nil, ledger.Reply{}
 		}
 	}()
-	decoded, err := decode(body, h.Get("Content-Encoding"))
-	if err != nil {
-		decoded = http.NoBody
-	}
-	tokens, reply = provider.Count(h, decoded, chars)
-	return tokens, reply, err
+	return provider.Count(h, body, chars)
 }
 
 // decode returns body decoded from the encoding an answer's Content-Encoding

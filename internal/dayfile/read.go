@@ -1,8 +1,6 @@
 package dayfile
 
 import (
-	"bufio"
-	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
@@ -11,6 +9,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/linescan"
 )
 
 // Newest returns the dates of the n newest days at now, oldest first, by the
@@ -141,9 +141,9 @@ func (f *Files) has(file dayFile) bool {
 
 // readFile hands take each line the file holds, in order, without its line
 // ending, until take reports false, and returns how many of its lines were
-// longer than LineMax, which are skipped without being held, and whether take
-// wanted more. A file that can't be read, or is damaged, is warned of as Read
-// says.
+// too long to hold, as LineMax says, which are skipped without being held,
+// and whether take wanted more. A file that can't be read, or is damaged, is
+// warned of as Read says.
 func (f *Files) readFile(file dayFile, take func(line []byte) bool) (long int, more bool) {
 	src, err := f.open(file)
 	if err != nil {
@@ -153,28 +153,18 @@ func (f *Files) readFile(file dayFile, take func(line []byte) bool) (long int, m
 		return 0, true
 	}
 	defer func() { _ = src.Close() }()
-	lines := bufio.NewReaderSize(src, f.LineMax)
-	for {
-		line, err := lines.ReadSlice('\n')
-		if errors.Is(err, bufio.ErrBufferFull) {
-			long++
-			if err = skipLine(lines); err == nil {
-				continue
-			}
-			line = nil
-		}
-		if len(line) > 0 && !take(bytes.TrimSuffix(line, []byte("\n"))) {
-			return long, false
-		}
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				f.warned.forget(file.name(f.Prefix))
-			} else {
-				f.warn(f.Name+" read short", file, err)
-			}
-			return long, true
+	lines := linescan.New(src, f.LineMax)
+	for lines.Scan() {
+		if !take(lines.Bytes()) {
+			return lines.Long(), false
 		}
 	}
+	if err := lines.Err(); err != nil {
+		f.warn(f.Name+" read short", file, err)
+	} else {
+		f.warned.forget(file.name(f.Prefix))
+	}
+	return lines.Long(), true
 }
 
 // open opens the file to read the lines it holds: through gzip when it's
@@ -199,16 +189,6 @@ func (f *Files) open(file dayFile) (io.ReadCloser, error) {
 type readCloser struct {
 	io.Reader
 	io.Closer
-}
-
-// skipLine reads past the rest of a line too long to hold, reporting why it
-// stopped short of the line's end, if it did.
-func skipLine(lines *bufio.Reader) error {
-	for {
-		if _, err := lines.ReadSlice('\n'); !errors.Is(err, bufio.ErrBufferFull) {
-			return err
-		}
-	}
 }
 
 // warn logs msg of the file, saying why, the first time a read of it fails

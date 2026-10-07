@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bufio"
 	"bytes"
 	"cmp"
 	"encoding/json"
@@ -13,13 +12,15 @@ import (
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/linescan"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
 const (
-	// maxEventLine is the longest line of an answer's event stream that's
-	// counted: none the Messages API streams comes near it, and counting
-	// stops at one longer.
+	// maxEventLine is how much of a line of an answer's event stream is read
+	// at most, its line ending included: a line that runs to it without its
+	// ending, as a server tool's result given whole as its block starts can,
+	// is passed over without being held, and the lines after it read.
 	maxEventLine = 1 << 20
 	// maxMessage is the most of an answer that isn't streamed that's read for
 	// its usage.
@@ -29,8 +30,9 @@ const (
 )
 
 // toolCalls are the kinds of block that call a tool, by its name: the
-// client's tools, and those the API runs itself.
-var toolCalls = []string{"tool_use", "server_tool_use"}
+// client's tools, those the API runs itself, and those of the MCP servers its
+// connector calls.
+var toolCalls = []string{"tool_use", "server_tool_use", "mcp_tool_use"}
 
 // Count reads an answer of the Messages API's, by its header, and its body,
 // decoded, as far as it needs, by its content type: a stream of events,
@@ -40,8 +42,8 @@ var toolCalls = []string{"tool_use", "server_tool_use"}
 // for an answer cut short, an error, or an answer of another kind, such as a
 // count of tokens; and what the request ledger keeps of the answer: from its
 // header, Anthropic's id for it and its usage headers, and from its body, the
-// model it named, why it stopped, its blocks, the tools it called, its error
-// and its closing usage, as the API gave it.
+// model that served it, why it stopped, its blocks, the tools it called, its
+// error and its closing usage, as the API gave it.
 func (Provider) Count(h http.Header, body io.Reader, chars func(int)) (*quota.Tokens, ledger.Reply) {
 	var t tally
 	media, _, _ := mime.ParseMediaType(h.Get("Content-Type"))
@@ -72,11 +74,18 @@ type event struct {
 	Error        ledger.Error `json:"error"`
 }
 
-// block is a block of an answer, by its kind, and the tool it calls, by
-// name, where it calls one.
+// block is a block of an answer: its kind; the tool it calls, by name, where
+// it calls one; and, of a fallback, what it hands the answer off to.
 type block struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
+	Type string  `json:"type"`
+	Name string  `json:"name"`
+	To   handoff `json:"to"`
+}
+
+// handoff is what a fallback hands an answer off to: the model that goes on
+// with it.
+type handoff struct {
+	Model string `json:"model"`
 }
 
 // delta is what an event adds to a block of the answer: text, thinking, or a
@@ -147,8 +156,7 @@ type tally struct {
 
 // events reads a stream of the Messages API's events, as Count does.
 func (t *tally) events(body io.Reader, chars func(int)) {
-	lines := bufio.NewScanner(body)
-	lines.Buffer(nil, maxEventLine)
+	lines := linescan.New(body, maxEventLine)
 	for lines.Scan() {
 		data, ok := bytes.CutPrefix(lines.Bytes(), []byte("data:"))
 		if !ok {
@@ -162,10 +170,11 @@ func (t *tally) events(body io.Reader, chars func(int)) {
 
 // take takes in an event's data, and reports whether it brought characters
 // of the answer's text, thinking or tools' input. Data that isn't an event is
-// passed over.
+// passed over, and a field of an event of another type than the API gives is
+// left unread, the rest of the event read all the same.
 func (t *tally) take(data []byte) bool {
 	var e event
-	if json.Unmarshal(data, &e) != nil {
+	if !objectRead(json.Unmarshal(data, &e)) {
 		return false
 	}
 	switch e.Type {
@@ -189,7 +198,8 @@ func (t *tally) take(data []byte) bool {
 }
 
 // message reads a message the Messages API answered with whole, as Count
-// does, or the error it answered with.
+// does, or the error it answered with: a field of another type than the API
+// gives is left unread, the rest read all the same.
 func (t *tally) message(body io.Reader) {
 	var message struct {
 		Type       string       `json:"type"`
@@ -199,7 +209,7 @@ func (t *tally) message(body io.Reader) {
 		Usage      usage        `json:"usage"`
 		Error      ledger.Error `json:"error"`
 	}
-	if json.NewDecoder(io.LimitReader(body, maxMessage)).Decode(&message) != nil {
+	if !objectRead(json.NewDecoder(io.LimitReader(body, maxMessage)).Decode(&message)) {
 		return
 	}
 	switch message.Type {
@@ -216,7 +226,9 @@ func (t *tally) message(body io.Reader) {
 }
 
 // held notes a block the answer holds, and the tool it calls, by name, where
-// it calls one.
+// it calls one. The model a fallback hands the answer off to, where it gives
+// one, is the answer's from then on: the one a stream's start named is the
+// one that handed it off.
 func (t *tally) held(b block) {
 	if b.Type == "" {
 		return
@@ -225,8 +237,11 @@ func (t *tally) held(b block) {
 		t.answer.Blocks = make(map[string]int)
 	}
 	t.answer.Blocks[b.Type]++
-	if slices.Contains(toolCalls, b.Type) {
+	switch {
+	case slices.Contains(toolCalls, b.Type):
 		t.answer.Tools = append(t.answer.Tools, b.Name)
+	case b.Type == "fallback":
+		t.answer.Model = cmp.Or(b.To.Model, t.answer.Model)
 	}
 }
 

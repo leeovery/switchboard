@@ -21,16 +21,22 @@ func newInFlight() *inFlight {
 }
 
 // count returns h, counting each request it serves while it's in flight, but
-// for one that upgrades its connection, such as to a WebSocket, which can
-// stay open for as long as its session runs.
+// for one that upgrades its connection.
 func (f *inFlight) count(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Upgrade") == "" {
+		if !upgrades(r) {
 			f.begin()
 			defer f.end()
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+// upgrades reports whether r upgrades its connection, such as to a
+// WebSocket, which can stay open for as long as its session runs, and which
+// closing the server leaves open: so it never counts as in flight.
+func upgrades(r *http.Request) bool {
+	return r.Header.Get("Upgrade") != ""
 }
 
 func (f *inFlight) begin() {
