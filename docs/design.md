@@ -389,12 +389,12 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   notification of them. The client still gets the 502.
 - **Replay:** request bodies, up to 64 MiB, are buffered so they can be replayed. A routed
   request whose body is larger is answered 413 (`request_too_large`), and one whose body can't
-  be read 400, each while its client is still there to answer, neither going upstream nor
-  counting towards the router's health, though each has its line in the request ledger (see The
-  request ledger). Replay only happens before response headers have been sent; a failure
-  mid-stream is passed through and Claude Code retries. Nor is a request that couldn't reach the
-  upstream at all replayed elsewhere: that isn't the account's fault. Claude Code gets a 502 and
-  retries.
+  be read 400, whoever is left to read it, as a client that closed its side of the connection
+  still reads, neither going upstream nor counting towards the router's health, though each has
+  its line in the request ledger (see The request ledger). Replay only happens before response
+  headers have been sent; a failure mid-stream is passed through and Claude Code retries. Nor is
+  a request that couldn't reach the upstream at all replayed elsewhere: that isn't the account's
+  fault. Claude Code gets a 502 and retries.
 - **Uploaded files (pending):** Claude Code uploads files on its own token, the primary's. Should a
   conversation request turn out to refer to one by id, which the artifact check will show (see
   Checks owed), such a request is to go to the primary, the only account that can read the file.
@@ -1490,11 +1490,13 @@ first day a router that has it runs, so nothing before then is in it.
     was left, as `[{"account": "personal", "why": "hit its limit"}]`, where there were any: the
     account whose answer the client got may be among them, the last, where none was left to try
     after it, or the one whose answer was held back.
-  - `status`: the status the client got, 0 where the request ended before an answer. `canceled`:
-    true where its client went away before its end. `cut_off`: true where the router cut it off as
-    it stopped, once the 30 seconds it gives requests in flight had passed; `canceled` is then
-    false, as the client didn't go. `attempts`: how many times it went upstream, 0 where the
-    router answered it itself.
+  - `status`: the status it was answered with, 0 where it ended before an answer came: the router
+    answers a body it can't read whoever is left to read it, 400 or 413, but nothing else once a
+    request has ended. `canceled`: true where its client went away before its end. `cut_off`:
+    true where the router cut it off as it stopped, once the 30 seconds it gives requests in
+    flight had passed; `canceled` is then false, as the client didn't go. Whichever came first is
+    the one given. `attempts`: how many times it went upstream, 0 where the router answered it
+    itself.
   - `first_ms` and `total_ms`: how long after it arrived its answer's first byte passed on to the
     client, and its end. `first_ms` is left out where the client got no answer of the upstream's,
     as where the router answered it itself.
@@ -2104,7 +2106,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's Sessions, its cards' backs and its hourglasses: held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, model, account}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, and `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got. It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, or a 401 to a token replaced since, which go out again on the same account, are neither. A request the router knows for Claude Code's quota check carries `check: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes, which a restart does after its drain, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The watch asks every interval, and a minute after a window on screen resets |
-| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
+| `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, and while its config file doesn't make a valid config, which it couldn't start again from |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the
 standard library's plain 404 or 405. Times are given in UTC.
@@ -2247,26 +2249,27 @@ Each account:
   until then (`5: Input/output error`), so `install` tries bootstrapping 5 times, half a second
   apart, before it fails as the last try did. `uninstall` boots it out when loaded and removes the
   plist. `restart`, with a router answering, asks it to restart (`POST /restart`): it finishes its
-  requests in flight, within 30 seconds, then replaces itself in place, keeping its process, or,
-  as it says when it can't, exits for launchd to start it again (see The router looking after
-  itself). `restart` says which first, `the router is finishing its requests in flight, then it
-  restarts in place`, or `…, then launchd starts it again`, then waits up to 50 seconds, the 45
-  launchd would give the router to stop and 5 to start, for a router other than the one that took
-  the request, as it answered it, to answer: one that restarted in place, keeping its process id,
-  is told from the one before by when it started, and a router that restarted by itself just
-  before it was asked is the one waited on to restart again, not taken for the one after. A
-  router that refuses, as one run by hand, or whose config file doesn't make a valid config, which
-  it couldn't start again from, fails `restart`, saying why. One that can't be asked, as one from
-  before routers restarted when asked, which answers `POST /restart` 404, or one that doesn't
-  answer it, has launchd send it SIGTERM (`launchctl kill`): it stops as at any signal, finishing
-  its requests in flight, and launchd, keeping the service alive, starts it again, `restart`
-  saying `…, then launchd starts it again`, and waiting as long. With none answering, there's
-  nothing to finish, and `restart` is `launchctl kickstart -k`, waiting up to 5 seconds. Without
-  the service loaded, `restart` is an error saying so. `status` reports the plist, whether launchd
-  has it loaded, and the router's health. When no router answers in time, `install` and `restart`
-  fail, the LaunchAgent in place, pointing to `switchboard logs router` and `launchd.log` for why.
-  Each run of `launchctl` is cut off after 10 seconds, but a bootout, which waits for the router to
-  stop, after 55: the 45 and 10 more. Any other failure of `launchctl` is an error that quotes it.
+  requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, then
+  replaces itself in place, keeping its process, or, as it says when it can't, exits for launchd
+  to start it again (see The router looking after itself). `restart` says which first, `the
+  router is finishing its requests in flight, then it restarts in place`, or `…, then launchd
+  starts it again`, then waits up to 50 seconds, the 45 launchd would give the router to stop and
+  5 to start, for a router other than the one that took the request, as it answered it, to
+  answer: one that restarted in place, keeping its process id, is told from the one before by
+  when it started, and a router that restarted by itself just before it was asked is the one
+  waited on to restart again, not taken for the one after. A router that refuses, as one run by
+  hand, or whose config file doesn't make a valid config, which it couldn't start again from,
+  fails `restart`, saying why. One that can't be asked, as one from before routers restarted when
+  asked, which answers `POST /restart` 404, or one that doesn't answer it, has launchd send it
+  SIGTERM (`launchctl kill`): it stops as at any signal, finishing its requests in flight, and
+  launchd, keeping the service alive, starts it again, `restart` saying `…, then launchd starts it
+  again`, and waiting as long. With none answering, there's nothing to finish, and `restart` is
+  `launchctl kickstart -k`, waiting up to 5 seconds. Without the service loaded, `restart` is an
+  error saying so. `status` reports the plist, whether launchd has it loaded, and the router's
+  health. When no router answers in time, `install` and `restart` fail, the LaunchAgent in place,
+  pointing to `switchboard logs router` and `launchd.log` for why. Each run of `launchctl` is cut
+  off after 10 seconds, but a bootout, which waits for the router to stop, after 55: the 45 and 10
+  more. Any other failure of `launchctl` is an error that quotes it.
 
 ## Milestones
 

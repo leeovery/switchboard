@@ -69,8 +69,8 @@ func (r *Router) hold(ls listeners) *handover.Held {
 // launcher that finds the router gone finds nothing on its proxy's address
 // either, and connects directly; it returns nil once the requests in flight
 // have finished.
-func (r *Router) drainHandingOver(ctx context.Context, control, proxy *http.Server, held *handover.Held) *handover.Held {
-	refuse(proxy)
+func (r *Router) drainHandingOver(ctx context.Context, control *http.Server, proxy proxyServer, held *handover.Held) *handover.Held {
+	refuse(proxy.Server)
 	drained := make(chan struct{})
 	go func() {
 		r.drain(proxy)

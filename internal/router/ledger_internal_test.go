@@ -6,12 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -59,9 +61,10 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 		// late is how long the counting of an answer takes to start, if it's
 		// late.
 		late time.Duration
-		// goneAfter is when the client goes, if it does.
-		goneAfter time.Duration
-		want      ledger.Line
+		// goneAfter is when the client goes, if it does, and cutAfter when the
+		// router cuts the request off as it stops, if it does.
+		goneAfter, cutAfter time.Duration
+		want                ledger.Line
 		// wantAnswer is the answer the client gets, where it matters.
 		wantAnswer string
 	}{
@@ -200,6 +203,29 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 			goneAfter: time.Second,
 			want:      edited(asked, func(l *ledger.Line) { l.Status, l.Canceled, l.TotalMS = 0, true, 1000 }),
 		},
+		{
+			name:     "a message answered whole, cut off as the router stopped while its counting finished",
+			session:  "one",
+			work:     []answer{messageWhole},
+			late:     time.Second,
+			cutAfter: 500 * time.Millisecond,
+			want: edited(asked, func(l *ledger.Line) {
+				l.CutOff, l.FirstMS, l.Reply = true, ms(0), answered
+				l.Answer.Blocks = map[string]int{"text": 1}
+			}),
+		},
+		{
+			name:      "a message answered whole, its client gone while its counting finished, then cut off as the router stopped",
+			session:   "one",
+			work:      []answer{messageWhole},
+			late:      time.Second,
+			goneAfter: 300 * time.Millisecond,
+			cutAfter:  600 * time.Millisecond,
+			want: edited(asked, func(l *ledger.Line) {
+				l.Canceled, l.FirstMS, l.Reply = true, ms(0), answered
+				l.Answer.Blocks = map[string]int{"text": 1}
+			}),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -215,8 +241,9 @@ func TestTheLedgerHoldsALineOfEachRoutedRequest(t *testing.T) {
 					r.proxy.provider = slowCounting{late: tt.late}
 				}
 				lines := keepingLedger(t, r)
+				client := cutOffAfter(t, clientGoing(t, tt.goneAfter), tt.cutAfter)
 
-				rec := routeAs(clientGoing(t, tt.goneAfter), r, cmp.Or(tt.path, "/v1/messages"), tt.session, cmp.Or(tt.body, opusAsked))
+				rec := routeAs(client, r, cmp.Or(tt.path, "/v1/messages"), tt.session, cmp.Or(tt.body, opusAsked))
 				if tt.wantAnswer != "" && rec.Body.String() != tt.wantAnswer {
 					t.Errorf("the client got %q, want the answer as it came, %q", rec.Body.String(), tt.wantAnswer)
 				}
@@ -342,12 +369,10 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 		// body is the request's body, as its client, whose context is ctx,
 		// sends it.
 		body func(ctx context.Context) io.Reader
-		// endsAfter is when the request's context ends, if it does: as its
-		// client goes, or, where cuttingOff is set, as the router, stopping,
-		// cuts it off.
-		endsAfter  time.Duration
-		cuttingOff bool
-		want       ledger.Line
+		// goneAfter is when the client goes, if it does, and cutAfter when the
+		// router cuts the request off as it stops, if it does.
+		goneAfter, cutAfter time.Duration
+		want                ledger.Line
 	}{
 		{
 			name: "a message whose body is over its cap",
@@ -357,25 +382,24 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				Status: http.StatusRequestEntityTooLarge, Agent: testAgent, Betas: betas},
 		},
 		{
-			name: "a count of tokens whose client went a second into sending its body, before an answer",
+			name: "a count of tokens whose client went a second into sending its body",
 			path: "/v1/messages/count_tokens",
 			body: func(ctx context.Context) io.Reader {
 				return &paced{ctx: ctx, pause: 2 * time.Second, pieces: []string{opusAsked}}
 			},
-			endsAfter: time.Second,
+			goneAfter: time.Second,
 			want: ledger.Line{At: start, Kind: ledger.KindCount, Session: "one", Dir: "~/Code/project",
-				Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
+				Status: http.StatusBadRequest, Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
 		},
 		{
-			name: "a message whose body was still coming as the router cut it off, before an answer",
+			name: "a message whose body was still coming as the router cut it off",
 			path: "/v1/messages",
 			body: func(ctx context.Context) io.Reader {
 				return &paced{ctx: ctx, pause: 2 * time.Second, pieces: []string{opusAsked}}
 			},
-			endsAfter:  time.Second,
-			cuttingOff: true,
+			cutAfter: time.Second,
 			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project",
-				CutOff: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
+				Status: http.StatusBadRequest, CutOff: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
 		},
 	}
 	for _, tt := range tests {
@@ -383,23 +407,18 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				log := logstest.Capture(t)
 				r := newTestRouter(t, at(start), &stubProber{})
-				r.proxy.cuttingOff.Store(tt.cuttingOff)
 				upstream := scripted(served, served)
 				r.proxy.transport = upstream
 				reader := joined(t, r)
 				written := keepingLedger(t, r)
-				client := clientGoing(t, tt.endsAfter)
+				client := cutOffAfter(t, clientGoing(t, tt.goneAfter), tt.cutAfter)
 				req := claudeCodeAsks(client, tt.path, "one", tt.body(client))
 				req.Header.Set(DirHeader, "~/Code/project")
 
 				rec := httptest.NewRecorder()
 				r.Proxy().ServeHTTP(rec, req)
-				answered := 0
-				if rec.Body.Len() > 0 {
-					answered = rec.Code
-				}
-				if answered != tt.want.Status {
-					t.Errorf("answered %d, want %d, none where there's no one to answer", answered, tt.want.Status)
+				if rec.Code != tt.want.Status {
+					t.Errorf("answered %d, want %d, whoever is left to read it", rec.Code, tt.want.Status)
 				}
 				got := written()
 				checkLines(t, got, tt.want)
@@ -412,12 +431,133 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				if counted := r.health.report().Requests; counted != 0 {
 					t.Errorf("the router's health counts %d requests, want none: a body refused says nothing of the router", counted)
 				}
-				if !log.Has("level=WARN", `msg="request refused: body unread"`, "id="+got[0].Request, "path="+tt.path) || log.Has("msg=routed") {
+				refused := []string{"level=WARN", `msg="request refused: body unread"`, "id=" + got[0].Request, "path=" + tt.path}
+				if !log.Has(refused...) || log.Has("msg=routed") {
 					t.Errorf("log reads\n%s\nwant the request refused, by its id, and no routed line", log)
+				}
+				for finish, want := range map[string]bool{"canceled=true": tt.want.Canceled, "cut_off=true": tt.want.CutOff} {
+					if log.Has(append(refused, finish)...) != want {
+						t.Errorf("log reads\n%s\nwant %s on the refusal: %v", log, finish, want)
+					}
 				}
 			})
 		})
 	}
+}
+
+func TestABodyTheRouterCantReadIsAnsweredWhoeverIsLeftToReadIt(t *testing.T) {
+	tests := []struct {
+		name string
+		// framing is the header that frames the request's body, of which the
+		// client sends body, then does as then does, where it's given.
+		framing string
+		body    io.Reader
+		then    func(*net.TCPConn) error
+		// stop is set where the router stops as the client waits, cutting the
+		// request off.
+		stop bool
+		// wantAnswer is the status of the answer that comes back on the wire,
+		// 0 for none, and wantError the type of the error it gives.
+		wantAnswer int
+		wantError  string
+		// want is the line's status, and how the request finished.
+		want ledger.Line
+	}{
+		{
+			name: "a body over the cap", framing: "Content-Length: " + strconv.Itoa(maxBody+1), body: io.LimitReader(zeros{}, maxBody+1),
+			wantAnswer: http.StatusRequestEntityTooLarge, wantError: "request_too_large",
+			want: ledger.Line{Status: http.StatusRequestEntityTooLarge},
+		},
+		{
+			name: "a body framed wrong, its client still there", framing: "Transfer-Encoding: chunked", body: strings.NewReader("not a chunk's size\r\n"),
+			wantAnswer: http.StatusBadRequest, wantError: "invalid_request_error",
+			want: ledger.Line{Status: http.StatusBadRequest},
+		},
+		{
+			name: "a client gone mid-body", framing: "Content-Length: 100", body: strings.NewReader("ten bytes."), then: (*net.TCPConn).Close,
+			want: ledger.Line{Status: http.StatusBadRequest, Canceled: true},
+		},
+		{
+			name: "a client that closed its side mid-body, still reading", framing: "Content-Length: 100", body: strings.NewReader("ten bytes."),
+			then:       (*net.TCPConn).CloseWrite,
+			wantAnswer: http.StatusBadRequest, wantError: "invalid_request_error",
+			want: ledger.Line{Status: http.StatusBadRequest, Canceled: true},
+		},
+		{
+			name: "a body still coming as the router stops", framing: "Content-Length: 100", body: strings.NewReader("ten bytes."), stop: true,
+			want: ledger.Line{Status: http.StatusBadRequest, CutOff: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			r := newTestRouter(t, at(start), &stubProber{})
+			r.cfg.DrainFor = 50 * time.Millisecond
+			lines := keepingLedger(t, r)
+			srv := newProxyServer(r.Proxy())
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			served := make(chan struct{})
+			go func() {
+				_ = srv.Serve(ln)
+				close(served)
+			}()
+			conn, err := net.DialTCP("tcp", nil, ln.Addr().(*net.TCPAddr))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = conn.Close() })
+			answers := bufio.NewReader(conn)
+			// The client sends the body once the router asks for it, as
+			// Expect: 100-continue has it, so the router is reading it as the
+			// client goes on.
+			header := "POST /v1/messages HTTP/1.1\r\nHost: switchboard\r\nAuthorization: Bearer " + workToken + "\r\nExpect: 100-continue\r\n" + tt.framing + "\r\n\r\n"
+			if _, err := io.WriteString(conn, header); err != nil {
+				t.Fatal(err)
+			}
+			if asked, err := http.ReadResponse(answers, nil); err != nil || asked.StatusCode != http.StatusContinue {
+				t.Fatalf("the router answered the header with %v (%v), want it asking for the body", asked, err)
+			}
+			if _, err := io.Copy(conn, tt.body); err != nil {
+				t.Fatal(err)
+			}
+			if tt.then != nil {
+				if err := tt.then(conn); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.stop {
+				r.drain(srv)
+			}
+
+			if status, kind := answerOn(answers); status != tt.wantAnswer || kind != tt.wantError {
+				t.Errorf("the client read %d, its error %q, want %d, %q", status, kind, tt.wantAnswer, tt.wantError)
+			}
+			_ = srv.Shutdown(t.Context())
+			<-served
+			got := lines()
+			if len(got) != 1 || got[0].Status != tt.want.Status || got[0].Canceled != tt.want.Canceled || got[0].CutOff != tt.want.CutOff {
+				t.Errorf("the ledger holds\n%s\nwant the request's line, its status %d, canceled %v, cut off %v",
+					showLines(got), tt.want.Status, tt.want.Canceled, tt.want.CutOff)
+			}
+		})
+	}
+}
+
+// answerOn reads the answer that comes back on a connection: its status, and
+// the type of the error its body gives; 0 where none comes, as when the
+// connection has closed.
+func answerOn(answers *bufio.Reader) (int, string) {
+	resp, err := http.ReadResponse(answers, nil)
+	if err != nil {
+		return 0, ""
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var body apiError
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	return resp.StatusCode, body.Error.Type
 }
 
 func TestALinesAtIsWhenItsRequestArrivedThoughItsBodyCameLater(t *testing.T) {

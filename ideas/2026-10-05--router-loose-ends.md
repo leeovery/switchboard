@@ -30,6 +30,15 @@ only when something rare happens.
   last ones. `TestTheRequestStreamTellsOfTheRequestsARestartFinishes` failed once this way at a
   load average near 100, and passed 30 times alone. A fix: as the stream closes, write what's
   queued for each reader before ending its response.
+- **A restart in place leaves its control socket unanswered as it finishes stopping.**
+  `drainHandingOver` (`internal/router/replace.go`) closes the control API once the drain is done,
+  and only then does `serve` stop its background: the notifications' finishing, up to
+  `finishWait`, the history's and the ledger's last lines, and the state file's save; then come the
+  `exec` and the new router's start. All the while, the control socket held to hand over takes
+  connections nothing answers yet, so a `claude` started then can miss the half second `run` gives
+  the router to answer, and run its whole session unrouted. It predates the ledger; the drain's
+  wait for the requests it cuts off, moved inside the drain, narrowed it. A fix: on the handover
+  path, stop the background before the control API closes.
 - **Compressing a day's file holds the whole day in memory.** `compress`
   (`internal/dayfile/dayfile.go`) reads the day's plain lines whole, and its compressed file, whole
   and decoded, to tell whether it ends with them already, then compresses them as a gzip member held

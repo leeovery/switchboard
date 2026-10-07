@@ -372,6 +372,18 @@ func clientGoing(t *testing.T, d time.Duration) context.Context {
 	return ctx
 }
 
+// cutOffAfter returns the context of a request of the client whose context is
+// ctx, which the router cuts off after d, as it stops, unless it has ended
+// first: never where d is zero.
+func cutOffAfter(t *testing.T, ctx context.Context, d time.Duration) context.Context {
+	ctx, cut := context.WithCancelCause(ctx)
+	t.Cleanup(func() { cut(nil) })
+	if d > 0 {
+		time.AfterFunc(d, func() { cut(errCutOff) })
+	}
+	return ctx
+}
+
 // route has the router's proxy route a messages request of session on work's
 // token, and returns what it answered.
 func route(ctx context.Context, r *Router, session string) *httptest.ResponseRecorder {

@@ -307,11 +307,7 @@ func (rp *replay) takeBack() {
 	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused }) {
 		return
 	}
-	back, forgot := rp.p.chooser.Forget(rp.ex.req)
-	if forgot {
-		rp.ex.unmoved()
-	}
-	if back != "" && back != rp.ex.account.ID {
+	if back := rp.p.forget(rp.ex); back != "" && back != rp.ex.account.ID {
 		rp.p.tellMoved(rp.ex, rp.ex.account.ID, back, reasonBack)
 	}
 	lifted := rp.p.state.takeBack(rp.ex.id)

@@ -175,7 +175,7 @@ type Config struct {
 	// zone's file. Zero means every 3 seconds.
 	WatchEvery time.Duration
 	// DrainFor is how long requests in flight get to finish once Run's
-	// router is stopping, before it cuts them off. Zero means DrainTimeout.
+	// router is stopping, before it cuts them off. Zero means 30 seconds.
 	DrainFor time.Duration
 }
 

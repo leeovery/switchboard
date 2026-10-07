@@ -66,9 +66,11 @@ type Line struct {
 	// Tried are the accounts the request went out on that couldn't serve
 	// it, in the order tried.
 	Tried []Tried `json:"tried,omitempty"`
-	// Status is what the client was answered, 0 where the request ended before
-	// an answer: Canceled is set where its client went away before its end,
-	// and CutOff where the router cut it off as it stopped, never both.
+	// Status is what the request was answered, 0 where it ended before an
+	// answer came: the router answers a body it can't read whoever is left to
+	// read it, but nothing else once the request has ended. Canceled is set
+	// where its client went away before its end, and CutOff where the router
+	// cut it off as it stopped, never both.
 	Status   int  `json:"status"`
 	Canceled bool `json:"canceled,omitzero"`
 	CutOff   bool `json:"cut_off,omitzero"`

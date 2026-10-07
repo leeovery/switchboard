@@ -18,22 +18,26 @@ import (
 )
 
 const (
-	// DrainTimeout is how long requests in flight get to finish once the
+	// drainTimeout is how long requests in flight get to finish once the
 	// router is stopping. They can be long streams.
-	DrainTimeout = 30 * time.Second
+	drainTimeout = 30 * time.Second
 	// unwindTimeout is how long the routed requests the drain cuts off get to
 	// finish as they unwind, before what they change is no longer kept,
 	// written or told of.
 	unwindTimeout = 5 * time.Second
 	// StopTimeout is the longest a stopping router waits on what's still
-	// going: its requests in flight, those it cuts off as they unwind, and its
-	// last notifications as they post. Saving what it keeps takes a moment
-	// after.
-	StopTimeout = DrainTimeout + unwindTimeout + finishWait
+	// going, restarting in place or not: its requests in flight, those it
+	// cuts off as they unwind, and its last notifications as they post.
+	// Saving what it keeps takes a moment after.
+	StopTimeout = drainTimeout + unwindTimeout + finishWait
 	// readHeaderTimeout bounds how long a client takes to send a request's
 	// headers. Nothing bounds a response: it streams for as long as it takes.
 	readHeaderTimeout = 10 * time.Second
 )
+
+// errCutOff is the cause a request's context ends with as the router cuts it
+// off, stopping once the drain's time has passed.
+var errCutOff = errors.New("cut off as the router stopped")
 
 // Run builds a router and serves until ctx ends: the proxy on cfg.Listen, and
 // the control API on a socket in cfg.StateDir, where it keeps its state file
@@ -156,10 +160,10 @@ func listen(addr string) (net.Listener, error) {
 // and what has happened lately, and posting notifications, then shuts both
 // down, and restarting, replaces itself, handing their listeners over.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
-	proxySrv, controlSrv := newServer(r.Proxy()), newServer(r.Control())
+	proxySrv, controlSrv := newProxyServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
 	failed := make(chan error, 2)
-	serving.Go(func() { failed <- serveOn(proxySrv, ls.proxy) })
+	serving.Go(func() { failed <- serveOn(proxySrv.Server, ls.proxy) })
 	serving.Go(func() { failed <- serveOn(controlSrv, ls.control) })
 	r.logStart(ls.proxy.Addr(), ls.control.Addr())
 	r.probes.start(r.accounts.sendable(), r.state.unread)
@@ -217,6 +221,29 @@ func newServer(h http.Handler) *http.Server {
 	}
 }
 
+// proxyServer is the server the proxy's requests come in on, each request's
+// context derived from one cut ends.
+type proxyServer struct {
+	*http.Server
+	cut context.CancelCauseFunc
+}
+
+// newProxyServer returns the server the proxy, h, takes its requests on.
+func newProxyServer(h http.Handler) proxyServer {
+	requests, cut := context.WithCancelCause(context.Background())
+	srv := newServer(h)
+	srv.BaseContext = func(net.Listener) context.Context { return requests }
+	return proxyServer{Server: srv, cut: cut}
+}
+
+// cutOff cuts off the requests still in flight: their contexts end, errCutOff
+// their cause, before their connections close, which leaves them to unwind.
+// A request whose context ended first, as its client went, keeps that cause.
+func (s proxyServer) cutOff() {
+	s.cut(errCutOff)
+	_ = s.Close()
+}
+
 // serveOn serves srv on ln until it's shut down, which isn't a failure.
 func serveOn(srv *http.Server, ln net.Listener) error {
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
@@ -229,7 +256,7 @@ func serveOn(srv *http.Server, ln net.Listener) error {
 // so a launcher that checks the router's health finds it gone and connects
 // directly, and its listener's closing removes the socket. The proxy's
 // requests in flight get their time to finish, as drain gives it.
-func (r *Router) shutdown(control, proxy *http.Server) {
+func (r *Router) shutdown(control *http.Server, proxy proxyServer) {
 	_ = control.Close()
 	r.drain(proxy)
 }
@@ -243,20 +270,19 @@ func refuse(proxy *http.Server) {
 	_ = proxy.Shutdown(expired)
 }
 
-// drain stops the proxy taking requests, giving those in flight DrainTimeout
+// drain stops the proxy taking requests, giving those in flight drainTimeout
 // to finish, or as long as the config says. It then cuts off any still going,
-// which closes their connections but leaves them to unwind, and waits for
-// the routed ones among them, as awaitUnwinding does.
-func (r *Router) drain(proxy *http.Server) {
-	within := cmp.Or(r.cfg.DrainFor, DrainTimeout)
+// as cutOff does, and waits for the routed ones among them to unwind, as
+// awaitUnwinding does.
+func (r *Router) drain(proxy proxyServer) {
+	within := cmp.Or(r.cfg.DrainFor, drainTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), within)
 	defer cancel()
 	if proxy.Shutdown(ctx) == nil {
 		return
 	}
 	logger.Warn("cut off requests still in flight", "after", within)
-	r.proxy.cuttingOff.Store(true)
-	_ = proxy.Close()
+	proxy.cutOff()
 	r.awaitUnwinding()
 }
 

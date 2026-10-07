@@ -164,7 +164,8 @@ func TestTheLedgerHoldsTheLineOfARequestTheRouterCutsOffAsItStops(t *testing.T) 
 	// The upstream begins its answer, and holds the rest until the request is
 	// cut off, once the drain's time has passed. Counting the answer then
 	// takes a while to finish, as on a loaded machine, so the request is
-	// still unwinding as the drain ends.
+	// still unwinding once its connection has closed: the drain waits for it,
+	// its line with it, before the router stops writing.
 	up := newUpstream(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.WriteString(w, claudetest.MessageStart)
