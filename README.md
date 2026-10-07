@@ -419,7 +419,7 @@ switchboard history [--since <when>] [--json]
 | Flag | Description |
 |---|---|
 | `--since <when>` | start on the day of a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`, `106751d` at most) |
-| `--json` | print `{"prices_as_of", "days"}`: the day the prices were read, and each day's summary as the ledger holds it, every day asked for, today's last, one without requests without `accounts`, each model's `worth` in US dollars added, and `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back |
+| `--json` | print `{"prices_as_of", "days"}`: the day the prices were read, and each day's summary as the ledger holds it, every day asked for since the ledger began, today's last, one without requests without `accounts`, each model's `worth` in US dollars added, and `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back |
 
 ```bash
 switchboard history --since 7d

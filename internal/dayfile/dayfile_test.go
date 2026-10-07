@@ -147,6 +147,9 @@ func TestADaysFilesAreNamedForItsDate(t *testing.T) {
 		if ok && (file.name(f.Prefix) != tt.name || !day.Equal(time.Date(2026, 9, 28, 0, 0, 0, 0, time.Local))) {
 			t.Errorf("named(%q) names %q, of %v; want it named as it is, of 28 September", tt.name, file.name(f.Prefix), day)
 		}
+		if date, ok := f.DateOf(tt.name); date != tt.want.date || ok != (tt.want != dayFile{}) {
+			t.Errorf("DateOf(%q) = %q, %v; want %q", tt.name, date, ok, tt.want.date)
+		}
 	}
 }
 

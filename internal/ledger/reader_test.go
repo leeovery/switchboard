@@ -175,14 +175,74 @@ func summariesJSON(t *testing.T, summaries []ledger.Summary) []string {
 
 func TestDaysAreEveryDayOfTheRangeTodaysLast(t *testing.T) {
 	state, dir, _ := stateDirs(t)
-	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
 	// A day whose only line was torn as it was written.
 	writeFile(t, dir, "requests-2026-10-06.jsonl", []byte(`{"at":"2026-10-06T09:00:00Z","requ`))
 
 	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(-1, 15, 0)))
-	want := []string{noRequests("2026-10-04", 0), summaryOf(date, 1, 1, ""), noRequests("2026-10-06", 1), noRequests("2026-10-07", 0)}
+	want := []string{summaryOf("2026-10-04", 1, 1, ""), noRequests(date, 0), noRequests("2026-10-06", 1), noRequests("2026-10-07", 0)}
 	if !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: every day from the 4th's to today's, a day of no requests a summary of no accounts", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestDaysStartAtTheFirstTheLedgerHolds(t *testing.T) {
+	today := on(2, 12, 0)
+	tests := []struct {
+		name string
+		// lay lays the ledger out in dir.
+		lay  func(t *testing.T, dir string)
+		from time.Time
+		// want are the dates of the days given.
+		want []string
+	}{
+		{
+			name: "its first file of lines's, from a day before",
+			lay:  func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-06", asked("1", on(1, 9, 0))) },
+			from: on(-30, 0, 0),
+			want: []string{"2026-10-06", "2026-10-07"},
+		},
+		{
+			name: "its first summary's, the lines of its day pruned",
+			lay: func(t *testing.T, dir string) {
+				writeFile(t, dir, "day-2026-10-04.json", []byte(summaryOf("2026-10-04", 1, 1, "")+"\n"))
+				holdLines(t, dir, "2026-10-06", asked("1", on(1, 9, 0)))
+			},
+			from: on(-30, 0, 0),
+			want: []string{"2026-10-04", date, "2026-10-06", "2026-10-07"},
+		},
+		{
+			name: "the day asked for, after the ledger's first",
+			lay:  func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0))) },
+			from: on(1, 15, 0),
+			want: []string{"2026-10-06", "2026-10-07"},
+		},
+		{
+			name: "today alone, the ledger holding no day",
+			lay:  func(t *testing.T, dir string) { writeFile(t, dir, "notes.txt", nil) },
+			from: on(-30, 0, 0),
+			want: []string{"2026-10-07"},
+		},
+		{
+			name: "today alone, the ledger holding none before the day after tomorrow, as a clock once set ahead names one",
+			lay:  func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-09", asked("1", on(4, 9, 0))) },
+			from: on(-30, 0, 0),
+			want: []string{"2026-10-07"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state, dir, _ := stateDirs(t)
+			tt.lay(t, dir)
+
+			var got []string
+			for _, s := range readerAt(state, today).Days(tt.from) {
+				got = append(got, s.Day)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("Days() are of %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -223,6 +283,42 @@ func TestDaysAreReadFromTheirSummariesWhileTheyStand(t *testing.T) {
 		if held := heldSummary(t, dir, date); held != "" {
 			t.Errorf("the ledger holds a summary of %s, as\n%s\nwant none written by reading it", date, held)
 		}
+	}
+}
+
+func TestALedgerThatCantBeListedIsReadFromTheStartAskedFor(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, "2026-10-06", asked("1", on(1, 9, 0)))
+	// Its files can be opened by name, but not listed.
+	if err := os.Chmod(dir, 0o300); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	var got []string
+	for _, s := range readerAt(state, on(2, 12, 0)).Days(on(0, 0, 0)) {
+		got = append(got, s.Day)
+	}
+	if want := []string{date, "2026-10-06", "2026-10-07"}; !slices.Equal(got, want) {
+		t.Errorf("Days() are of %q, want %q: every day asked for, as the first the ledger holds can't be told", got, want)
+	}
+	if !log.Has("level=WARN", `msg="can't read the request ledger"`, "dir="+dir) {
+		t.Errorf("log reads\n%s\nwant the ledger that can't be listed warned of", log)
+	}
+}
+
+func TestDaysOpenNoFileOfADayWhoseLinesHaventChangedSinceItsSummary(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+	writeAt(t, dir, on(1, 10, 0), noReadings)
+	unopenable(t, dir)
+
+	got := summariesJSON(t, readerAt(state, on(1, 12, 0)).Days(on(0, 0, 0)))
+	if want := []string{summaryOf(date, 2, 2, ""), noRequests("2026-10-06", 0)}; !slices.Equal(got, want) || opened(log) != 0 {
+		t.Errorf("log reads\n%s\nDays() =\n%s\nwant\n%s: the 5th's summary as it's held, its file unopened, as its lines haven't changed since",
+			log, strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

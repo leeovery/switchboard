@@ -234,6 +234,14 @@ func (f *Files) path(file dayFile) string {
 	return filepath.Join(f.Dir, file.name(f.Prefix))
 }
 
+// DateOf returns the date of the local day the file with the given name holds
+// the lines of, as its name gives it, reporting false for a name that isn't
+// one of the files'.
+func (f *Files) DateOf(name string) (string, bool) {
+	file, _, ok := f.named(name)
+	return file.date, ok
+}
+
 // named returns the file with the given name, and the local day it holds,
 // reporting false for a name that isn't one of the files'.
 func (f *Files) named(name string) (dayFile, time.Time, bool) {

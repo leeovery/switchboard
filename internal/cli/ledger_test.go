@@ -220,7 +220,7 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                  140ms
 `},
 		{name: "from days ago", args: []string{"--since", "2d"}, want: requestsFromThe6th},
-		{name: "from a thousand days ago", args: []string{"--since", "1000d"}, want: everyRequest},
+		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: everyRequest},
 		{name: "a session's, by as much of its id as is unique", args: []string{"--session", "5b0e7"}, want: `Wed 7 Oct 2026, so far
   09:01:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    140ms
@@ -339,13 +339,6 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 				t.Errorf("switchboard %s --since %q = %+v, want exit status 1, the usage, and %q", command, tt.since, got, tt.want)
 			}
 		}
-	}
-}
-
-func TestSinceReachesBackTheMostDaysADurationHolds(t *testing.T) {
-	from, err := cli.Since("106751d", ledgerNow)
-	if want := ledgerNow.Add(-106751 * 24 * time.Hour); err != nil || !from.Equal(want) {
-		t.Errorf("--since 106751d at %v starts at %v (%v), want %v", ledgerNow, from, err, want)
 	}
 }
 
@@ -505,16 +498,49 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || got.stderr != "" || doc.PricesAsOf != "2026-10-07" {
 		t.Fatalf("switchboard history --json = %+v (%v), want the days, priced as of 2026-10-07", got, err)
 	}
-	var days, want []string
-	for i, day := range doc.Days {
+	var days []string
+	for _, day := range doc.Days {
 		var compact bytes.Buffer
 		if err := json.Compact(&compact, day); err != nil {
 			t.Fatal(err)
 		}
 		days = append(days, compact.String())
-		want = append(want, `{"version":1,"day":"`+ledgerNow.AddDate(0, 0, i-29).Format(time.DateOnly)+`","lines":0}`)
 	}
-	if len(days) != 30 || !slices.Equal(days, want) {
-		t.Errorf("switchboard history --json printed the days\n%s\nwant each of the last 30, today's last, each of no requests", strings.Join(days, "\n"))
+	if want := []string{`{"version":1,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
+	}
+}
+
+func TestHistoryJSONGivesNoDayBeforeTheLedgerBegan(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{name: "the last 30 days, from the first the ledger holds", want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
+		{name: "from a day before the first it holds", args: []string{"--since", "2026-09-01"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
+		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
+		{name: "from a day after its first", args: []string{"--since", "2026-10-06"}, want: []string{"2026-10-06", "2026-10-07"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := run(t, deps, append([]string{"history", "--json"}, tt.args...)...)
+			var doc struct {
+				Days []struct {
+					Day string `json:"day"`
+				} `json:"days"`
+			}
+			if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+				t.Fatalf("switchboard history --json %s = %+v (%v), want the days", strings.Join(tt.args, " "), got, err)
+			}
+			var days []string
+			for _, day := range doc.Days {
+				days = append(days, day.Day)
+			}
+			if !slices.Equal(days, tt.want) {
+				t.Errorf("switchboard history --json %s gave the days %q, want %q", strings.Join(tt.args, " "), days, tt.want)
+			}
+		})
 	}
 }
