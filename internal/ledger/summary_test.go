@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 )
 
 // date is the date of the local day the summaries' tests summarise, a Monday.
@@ -36,12 +37,12 @@ func on(days, hour, minute int) time.Time {
 	return time.Date(2026, 10, 5+days, hour, minute, 0, 0, time.Local)
 }
 
-// readingsOf gives readings as the readings history does: those of the times
+// readingsOf gives read as the readings history does: those of the times
 // asked for, in the order they came.
-func readingsOf(readings ...ledger.Reading) ledger.Readings {
-	return func(from, to time.Time) iter.Seq[ledger.Reading] {
-		return func(yield func(ledger.Reading) bool) {
-			for _, r := range readings {
+func readingsOf(read ...readings.Reading) ledger.Readings {
+	return func(from, to time.Time) iter.Seq[readings.Reading] {
+		return func(yield func(readings.Reading) bool) {
+			for _, r := range read {
 				if !r.At.Before(from) && r.At.Before(to) && !yield(r) {
 					return
 				}
@@ -51,14 +52,14 @@ func readingsOf(readings ...ledger.Reading) ledger.Readings {
 }
 
 // noReadings gives no readings, as a readings history that holds none.
-func noReadings(time.Time, time.Time) iter.Seq[ledger.Reading] {
-	return func(func(ledger.Reading) bool) {}
+func noReadings(time.Time, time.Time) iter.Seq[readings.Reading] {
+	return func(func(readings.Reading) bool) {}
 }
 
 // workRead is work's window with the given key read at at, at u of its use,
 // resetting at resets, with the status given.
-func workRead(at time.Time, key string, u float64, resets time.Time, status quota.Status) ledger.Reading {
-	return ledger.Reading{At: at, Account: "work", Window: quota.Window{Key: key, Utilization: u, ResetsAt: resets, Status: status}}
+func workRead(at time.Time, key string, u float64, resets time.Time, status quota.Status) readings.Reading {
+	return readings.Reading{At: at, Account: "work", Key: key, Utilization: u, ResetsAt: resets, Status: status, Source: readings.FromAnswer}
 }
 
 // usage is a usage as the API gives it.
@@ -130,6 +131,46 @@ func TestASummaryHoldsEachAccountsRequestsByModel(t *testing.T) {
 	}
 }
 
+func TestASummaryKeepsApartAModelsRequestsThatAskedForAnotherInferenceGeo(t *testing.T) {
+	asking := func(request, session, geo string) ledger.Line {
+		return ledger.Line{At: on(0, 9, 0), Request: request, Kind: ledger.KindMessage, Session: session, Model: opus, Account: "work", Reason: "sticky",
+			Status: 200, Attempts: 1, Shape: ledger.Shape{InferenceGeo: geo}, Usage: usage(`{"input_tokens":10,"output_tokens":20}`)}
+	}
+	lines := []ledger.Line{asking("1", "one", "us"), asking("2", "one", ""), asking("3", "two", "us"), asking("4", "two", "global"),
+		{At: on(0, 9, 1), Request: "5", Kind: ledger.KindMessage, Session: "one", Model: haiku, Account: "work", Reason: "sticky", Status: 200, Attempts: 1}}
+
+	got := string(summaryJSON(t, noReadings, lines...))
+	want := `{"version":1,"day":"2026-10-05","accounts":[{"account":"work","models":[` +
+		`{"model":"claude-haiku-4-5","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1},` +
+		`{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}},` +
+		`{"model":"claude-opus-5-5","inference_geo":"global","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}},` +
+		`{"model":"claude-opus-5-5","inference_geo":"us","upstream":2,"unsent":0,"checks":0,"counts":0,"sessions":2,"usage":{"input_tokens":20,"output_tokens":40}}],` +
+		`"sessions":2,"moved_on":0,"moved_off":0}]}`
+	if got != want {
+		t.Errorf("the summary is\n%s\nwant\n%s: a model's requests kept apart by the inference geo they asked for, none first", got, want)
+	}
+}
+
+func TestASummarySumsAnAnswersIterationsByType(t *testing.T) {
+	answered := func(request, iterations string) ledger.Line {
+		return ledger.Line{At: on(0, 9, 0), Request: request, Kind: ledger.KindMessage, Session: "one", Model: opus, Account: "work", Reason: "sticky",
+			Status: 200, Attempts: 1, Usage: usage(`{"input_tokens":20,"output_tokens":7,"iterations":` + iterations + `,"service_tier":"standard"}`)}
+	}
+	lines := []ledger.Line{
+		answered("1", `[{"type":"message","input_tokens":8,"output_tokens":3},{"type":"message","input_tokens":12,"output_tokens":4}]`),
+		answered("2", `[{"type":"message","input_tokens":20,"output_tokens":7},`+
+			`{"type":"advisor_message","model":"claude-opus-5","input_tokens":823,"output_tokens":1612},{"untyped":1},"text"]`),
+	}
+
+	got := string(summaryJSON(t, noReadings, lines...))
+	want := `{"version":1,"day":"2026-10-05","accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":2,"unsent":0,"checks":0,` +
+		`"counts":0,"sessions":1,"usage":{"input_tokens":40,"iterations":{"advisor_message":{"input_tokens":823,"output_tokens":1612},` +
+		`"message":{"input_tokens":40,"output_tokens":14}},"output_tokens":14}}],"sessions":1,"moved_on":0,"moved_off":0}]}`
+	if got != want {
+		t.Errorf("the summary is\n%s\nwant\n%s: the iterations' counts summed by their types, what gives none passed over", got, want)
+	}
+}
+
 func TestASummaryHoldsTheSessionsMovedOntoAndOffEachAccount(t *testing.T) {
 	moved := func(request, session, from, to string) ledger.Line {
 		return ledger.Line{At: on(0, 12, 0), Request: request, Kind: ledger.KindMessage, Session: session, Model: opus, Account: to,
@@ -163,12 +204,12 @@ func TestASummaryHoldsTheSessionsMovedOntoAndOffEachAccount(t *testing.T) {
 func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 	tests := []struct {
 		name     string
-		readings []ledger.Reading
+		readings []readings.Reading
 		want     map[string]float64
 	}{
 		{
 			name: "the highest the day read",
-			readings: []ledger.Reading{
+			readings: []readings.Reading{
 				workRead(on(0, 9, 0), "5h", 0.2, on(0, 13, 0), quota.StatusAllowed),
 				workRead(on(0, 10, 0), "5h", 0.5, on(0, 13, 0), quota.StatusAllowed),
 				workRead(on(0, 14, 0), "5h", 0.3, on(0, 18, 0), quota.StatusAllowed),
@@ -177,7 +218,7 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 		},
 		{
 			name: "the use the window began the day at, higher than it read after it reset that day",
-			readings: []ledger.Reading{
+			readings: []readings.Reading{
 				workRead(on(-1, 22, 0), "5h", 0.8, on(0, 2, 0), quota.StatusAllowed),
 				workRead(on(0, 3, 0), "5h", 0.1, on(0, 8, 0), quota.StatusAllowed),
 				workRead(on(0, 6, 0), "5h", 0.5, on(0, 8, 0), quota.StatusAllowed),
@@ -186,7 +227,7 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 		},
 		{
 			name: "not the use read before the day, as the window had reset by the time it began",
-			readings: []ledger.Reading{
+			readings: []readings.Reading{
 				workRead(on(-1, 18, 0), "5h", 0.9, on(-1, 23, 0), quota.StatusAllowed),
 				workRead(on(0, 10, 0), "5h", 0.2, on(0, 15, 0), quota.StatusAllowed),
 			},
@@ -194,7 +235,7 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 		},
 		{
 			name: "the use the window began the day at, of one read days before and not since",
-			readings: []ledger.Reading{
+			readings: []readings.Reading{
 				workRead(on(-3, 12, 0), "7d", 0.41, on(2, 10, 0), quota.StatusAllowed),
 				workRead(on(0, 10, 0), "5h", 0.2, on(0, 15, 0), quota.StatusAllowed),
 			},
@@ -202,7 +243,7 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 		},
 		{
 			name: "the use the window last read before the day, after it was reset by hand",
-			readings: []ledger.Reading{
+			readings: []readings.Reading{
 				workRead(on(-2, 12, 0), "7d", 0.5, on(2, 10, 0), quota.StatusAllowed),
 				workRead(on(-1, 16, 0), "7d", 0, on(2, 10, 0), quota.StatusAllowed),
 			},
@@ -210,7 +251,7 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 		},
 		{
 			name: "none of a window that began the day empty and wasn't read that day",
-			readings: []ledger.Reading{
+			readings: []readings.Reading{
 				workRead(on(-1, 9, 0), "5h", 0.6, on(-1, 13, 0), quota.StatusAllowed),
 				workRead(on(0, 10, 0), "7d", 0.3, on(2, 10, 0), quota.StatusAllowed),
 			},
@@ -218,7 +259,7 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 		},
 		{
 			name: "none read after the day",
-			readings: []ledger.Reading{
+			readings: []readings.Reading{
 				workRead(on(0, 23, 0), "5h", 0.2, on(1, 3, 0), quota.StatusAllowed),
 				workRead(on(1, 0, 0), "5h", 0.9, on(1, 3, 0), quota.StatusAllowed),
 			},
@@ -237,10 +278,10 @@ func TestASummaryHoldsEachWindowsHighestUse(t *testing.T) {
 }
 
 func TestASummaryHoldsTheLimitsEachAccountReached(t *testing.T) {
-	rejected := func(at time.Time, resets time.Time) ledger.Reading {
+	rejected := func(at time.Time, resets time.Time) readings.Reading {
 		return workRead(at, "5h", 1, resets, quota.StatusRejected)
 	}
-	allowed := func(at time.Time, u float64, resets time.Time) ledger.Reading {
+	allowed := func(at time.Time, u float64, resets time.Time) readings.Reading {
 		return workRead(at, "5h", u, resets, quota.StatusAllowed)
 	}
 	reached := func(at, resets time.Time) ledger.Limit {
@@ -248,44 +289,44 @@ func TestASummaryHoldsTheLimitsEachAccountReached(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
-		readings []ledger.Reading
+		readings []readings.Reading
 		want     []ledger.Limit
 	}{
 		{
 			name:     "a window's status turning rejected",
-			readings: []ledger.Reading{allowed(on(0, 15, 0), 0.9, on(0, 18, 10)), rejected(on(0, 15, 37), on(0, 18, 10))},
+			readings: []readings.Reading{allowed(on(0, 15, 0), 0.9, on(0, 18, 10)), rejected(on(0, 15, 37), on(0, 18, 10))},
 			want:     []ledger.Limit{reached(on(0, 15, 37), on(0, 18, 10))},
 		},
 		{
 			name: "once, rejected again while the limit holds",
-			readings: []ledger.Reading{allowed(on(0, 15, 0), 0.9, on(0, 18, 10)), rejected(on(0, 15, 37), on(0, 18, 10)),
+			readings: []readings.Reading{allowed(on(0, 15, 0), 0.9, on(0, 18, 10)), rejected(on(0, 15, 37), on(0, 18, 10)),
 				rejected(on(0, 16, 0), on(0, 18, 10))},
 			want: []ledger.Limit{reached(on(0, 15, 37), on(0, 18, 10))},
 		},
 		{
 			name: "again, in the window after its reset",
-			readings: []ledger.Reading{rejected(on(0, 15, 37), on(0, 18, 10)), allowed(on(0, 18, 20), 0.05, on(0, 23, 20)),
+			readings: []readings.Reading{rejected(on(0, 15, 37), on(0, 18, 10)), allowed(on(0, 18, 20), 0.05, on(0, 23, 20)),
 				rejected(on(0, 22, 0), on(0, 23, 20))},
 			want: []ledger.Limit{reached(on(0, 15, 37), on(0, 18, 10)), reached(on(0, 22, 0), on(0, 23, 20))},
 		},
 		{
 			name:     "again, in the window after its reset, nothing read between",
-			readings: []ledger.Reading{rejected(on(0, 15, 37), on(0, 18, 10)), rejected(on(0, 22, 0), on(0, 23, 20))},
+			readings: []readings.Reading{rejected(on(0, 15, 37), on(0, 18, 10)), rejected(on(0, 22, 0), on(0, 23, 20))},
 			want:     []ledger.Limit{reached(on(0, 15, 37), on(0, 18, 10)), reached(on(0, 22, 0), on(0, 23, 20))},
 		},
 		{
 			name: "again, once the window was reset by hand",
-			readings: []ledger.Reading{rejected(on(0, 15, 37), on(0, 18, 10)), allowed(on(0, 16, 0), 0, on(0, 18, 10)),
+			readings: []readings.Reading{rejected(on(0, 15, 37), on(0, 18, 10)), allowed(on(0, 16, 0), 0, on(0, 18, 10)),
 				rejected(on(0, 17, 30), on(0, 18, 10))},
 			want: []ledger.Limit{reached(on(0, 15, 37), on(0, 18, 10)), reached(on(0, 17, 30), on(0, 18, 10))},
 		},
 		{
 			name:     "none the day began with",
-			readings: []ledger.Reading{rejected(on(-1, 22, 0), on(0, 2, 0)), rejected(on(0, 1, 0), on(0, 2, 0))},
+			readings: []readings.Reading{rejected(on(-1, 22, 0), on(0, 2, 0)), rejected(on(0, 1, 0), on(0, 2, 0))},
 		},
 		{
 			name:     "one reached in the day, once a limit before it had reset by the day's start",
-			readings: []ledger.Reading{rejected(on(-1, 18, 0), on(-1, 23, 0)), rejected(on(0, 10, 0), on(0, 12, 0))},
+			readings: []readings.Reading{rejected(on(-1, 18, 0), on(-1, 23, 0)), rejected(on(0, 10, 0), on(0, 12, 0))},
 			want:     []ledger.Limit{reached(on(0, 10, 0), on(0, 12, 0))},
 		},
 	}
@@ -307,12 +348,12 @@ func sameLimit(a, b ledger.Limit) bool {
 
 func TestASummaryAsksForTheReadingsOfItsDayAndTheWeekBefore(t *testing.T) {
 	var from, to time.Time
-	readings := func(f, t time.Time) iter.Seq[ledger.Reading] {
+	history := func(f, t time.Time) iter.Seq[readings.Reading] {
 		from, to = f, t
 		return noReadings(f, t)
 	}
 
-	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line(nil)), readings); err != nil {
+	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line(nil)), history); err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}
 	// A week, as long as the longest window runs, before the day's start.

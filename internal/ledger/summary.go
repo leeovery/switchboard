@@ -2,15 +2,18 @@ package ledger
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"iter"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 )
 
 const (
@@ -65,8 +68,12 @@ type AccountDay struct {
 // the sessions they were of, and their usage.
 type ModelDay struct {
 	// Model is the model the requests asked for, left out of those whose
-	// bodies couldn't be read.
-	Model string `json:"model,omitempty"`
+	// bodies couldn't be read, and InferenceGeo where they asked for their
+	// inference to run, as their shapes give it, left out where they didn't:
+	// requests of a model that asked for another geo are a day of their own,
+	// as US-only inference costs more.
+	Model        string `json:"model,omitempty"`
+	InferenceGeo string `json:"inference_geo,omitempty"`
 	// Upstream counts the requests that spend quota that went upstream, and
 	// Unsent those the router answered itself, never sending them; Checks
 	// counts Claude Code's quota checks, and Counts the counts of tokens,
@@ -78,9 +85,16 @@ type ModelDay struct {
 	// Sessions counts the sessions the requests were of, as counted says.
 	Sessions int `json:"sessions"`
 	// Usage is the requests' usage, summed field for field as the API gives
-	// it, an object's fields within it: what isn't a count, as the service
-	// tier, is left out.
+	// it, an object's fields within it, and a list's objects by their types,
+	// as an answer's iterations give theirs: what isn't a count, as the
+	// service tier, is left out.
 	Usage json.RawMessage `json:"usage,omitempty"`
+}
+
+// Tokens returns the tokens the requests' usage counts, summed.
+func (m ModelDay) Tokens() quota.Tokens {
+	tokens, _ := tokensIn(m.Usage)
+	return tokens
 }
 
 // Limit is a limit an account reached, a window's status turning rejected:
@@ -92,24 +106,16 @@ type Limit struct {
 	ResetsAt time.Time `json:"resets_at,omitzero"`
 }
 
-// Reading is a window of an account as the readings history holds it, read
-// at At, when its reading changed.
-type Reading struct {
-	At      time.Time
-	Account string
-	Window  quota.Window
-}
-
 // Readings returns the readings the readings history holds of times from
 // from up to to, in the order they came.
-type Readings func(from, to time.Time) iter.Seq[Reading]
+type Readings func(from, to time.Time) iter.Seq[readings.Reading]
 
 // Summarise returns the summary of the local day with the given date, as the
 // ledger's files are named for it, from the day's lines, and the readings
-// readings gives of the day and the week before it, the last of each
-// window's before the day saying the use it began the day at. It fails for a
-// date that isn't one.
-func Summarise(date string, lines iter.Seq[Line], readings Readings) (Summary, error) {
+// history gives of the day and the week before it, the last of each window's
+// before the day saying the use it began the day at. It fails for a date
+// that isn't one.
+func Summarise(date string, lines iter.Seq[Line], history Readings) (Summary, error) {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
 		return Summary{}, fmt.Errorf("summarise %q: not a date", date)
@@ -118,7 +124,7 @@ func Summarise(date string, lines iter.Seq[Line], readings Readings) (Summary, e
 	for line := range lines {
 		t.line(&line)
 	}
-	t.readings(readings(start.Add(-readingsBefore), end), start)
+	t.readings(history(start.Add(-readingsBefore), end), start)
 	return t.summary(date), nil
 }
 
@@ -128,10 +134,22 @@ type tally map[string]*accountTally
 
 // accountTally is an account's day as it's summarised.
 type accountTally struct {
-	models                      map[string]*modelTally
+	models                      map[modelKey]*modelTally
 	sessions, movedOn, movedOff sessions
 	highest                     map[string]float64
 	limits                      []Limit
+}
+
+// modelKey names a model's requests on an account as a summary keeps them
+// apart: by the model they asked for, and the inference geo they asked for,
+// as US-only inference prices them otherwise.
+type modelKey struct {
+	model, geo string
+}
+
+// keyOf names the model's requests on an account that l is one of.
+func keyOf(l *Line) modelKey {
+	return modelKey{model: l.Model, geo: l.Shape.InferenceGeo}
 }
 
 // modelTally is a model's day on an account as it's summarised: its requests
@@ -148,20 +166,20 @@ func (t tally) account(id string) *accountTally {
 	if a, ok := t[id]; ok {
 		return a
 	}
-	a := &accountTally{models: make(map[string]*modelTally), sessions: make(sessions), movedOn: make(sessions),
+	a := &accountTally{models: make(map[modelKey]*modelTally), sessions: make(sessions), movedOn: make(sessions),
 		movedOff: make(sessions), highest: make(map[string]float64)}
 	t[id] = a
 	return a
 }
 
-// model returns the tally of the model with the given name, starting it
+// model returns the tally of the model's requests key names, starting it
 // where there's none yet.
-func (a *accountTally) model(name string) *modelTally {
-	if m, ok := a.models[name]; ok {
+func (a *accountTally) model(key modelKey) *modelTally {
+	if m, ok := a.models[key]; ok {
 		return m
 	}
-	m := &modelTally{day: ModelDay{Model: name}, sessions: make(sessions), usage: make(counts)}
-	a.models[name] = m
+	m := &modelTally{day: ModelDay{Model: key.model, InferenceGeo: key.geo}, sessions: make(sessions), usage: make(counts)}
+	a.models[key] = m
 	return m
 }
 
@@ -170,7 +188,7 @@ func (a *accountTally) model(name string) *modelTally {
 // moved it.
 func (t tally) line(l *Line) {
 	a := t.account(l.Account)
-	a.model(l.Model).line(l)
+	a.model(keyOf(l)).line(l)
 	a.sessions.add(l.counted())
 	if l.From != "" {
 		a.movedOn.add(l.Session)
@@ -206,15 +224,15 @@ func (l *Line) counted() string {
 }
 
 // readings tallies each window's highest use on the day that starts at start,
-// and the limits reached on it, from readings, those of the day and the week
-// before it, in the order they came: the last of a window's before the day
-// is the use it began the day at, unless it had reset by then.
-func (t tally) readings(readings iter.Seq[Reading], start time.Time) {
+// and the limits reached on it, from the readings history gives, those of the
+// day and the week before it, in the order they came: the last of a window's
+// before the day is the use it began the day at, unless it had reset by then.
+func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
 	last := make(map[accountWindow]quota.Window)
-	var day []Reading
-	for r := range readings {
+	var day []readings.Reading
+	for r := range history {
 		if r.At.Before(start) {
-			last[windowOf(r)] = r.Window
+			last[windowOf(r)] = r.Window()
 			continue
 		}
 		day = append(day, r)
@@ -224,12 +242,12 @@ func (t tally) readings(readings iter.Seq[Reading], start time.Time) {
 		t.account(w.account).peak(began)
 	}
 	for _, r := range day {
-		a, w := t.account(r.Account), windowOf(r)
-		a.peak(r.Window)
-		if turned(last[w], r.Window) {
-			a.limits = append(a.limits, Limit{Window: r.Window.Key, At: r.At.UTC(), ResetsAt: r.Window.ResetsAt.UTC()})
+		a, w, read := t.account(r.Account), windowOf(r), r.Window()
+		a.peak(read)
+		if turned(last[w], read) {
+			a.limits = append(a.limits, Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()})
 		}
-		last[w] = r.Window
+		last[w] = read
 	}
 }
 
@@ -239,8 +257,8 @@ type accountWindow struct {
 }
 
 // windowOf names the window r is a reading of.
-func windowOf(r Reading) accountWindow {
-	return accountWindow{account: r.Account, key: r.Window.Key}
+func windowOf(r readings.Reading) accountWindow {
+	return accountWindow{account: r.Account, key: r.Key}
 }
 
 // resetBy reports whether the window read w had reset by t, as its reading
@@ -277,10 +295,16 @@ func (t tally) summary(date string) Summary {
 func (a *accountTally) summary(id string) AccountDay {
 	day := AccountDay{Account: id, Sessions: len(a.sessions), MovedOn: len(a.movedOn), MovedOff: len(a.movedOff),
 		Highest: a.highest, Limits: a.limits}
-	for _, name := range slices.Sorted(maps.Keys(a.models)) {
-		day.Models = append(day.Models, a.models[name].summary())
+	for _, key := range slices.SortedFunc(maps.Keys(a.models), byModel) {
+		day.Models = append(day.Models, a.models[key].summary())
 	}
 	return day
+}
+
+// byModel orders the keys of a model's requests by the model's name, then by
+// the inference geo they asked for, none first.
+func byModel(a, b modelKey) int {
+	return cmp.Or(strings.Compare(a.model, b.model), strings.Compare(a.geo, b.geo))
 }
 
 // summary returns the model's day on the account.
@@ -316,12 +340,14 @@ func (s sessions) add(id string) {
 }
 
 // counts are the counts usage, as the API gives it, holds, summed by their
-// names, an object's within it, as the API nests them.
+// names, an object's within it, as the API nests them, and a list's objects'
+// within their types.
 type counts map[string]any
 
-// add adds the counts usage holds to c: each whole number by its name, and
-// each object's within it. What else it holds, as the service tier, is left
-// out, as is usage that isn't an object.
+// add adds the counts usage holds to c: each whole number by its name, each
+// object's within it, and the objects of a list that give their types, as an
+// answer's iterations do, within it by their types. What else it holds, as
+// the service tier, is left out, as is usage that isn't an object.
 func (c counts) add(usage json.RawMessage) {
 	decoder := json.NewDecoder(bytes.NewReader(usage))
 	decoder.UseNumber()
@@ -341,12 +367,31 @@ func (c counts) addFields(fields map[string]any) {
 				c[name] = sum + n
 			}
 		case map[string]any:
-			within, ok := c[name].(counts)
-			if !ok {
-				within = make(counts)
-				c[name] = within
-			}
-			within.addFields(v)
+			c.within(name).addFields(v)
+		case []any:
+			c.within(name).addTyped(v)
 		}
 	}
+}
+
+// addTyped adds the counts of each object of list that gives its type to c,
+// within the type, as addFields adds an object's.
+func (c counts) addTyped(list []any) {
+	for _, item := range list {
+		fields, _ := item.(map[string]any)
+		if kind, ok := fields["type"].(string); ok {
+			c.within(kind).addFields(fields)
+		}
+	}
+}
+
+// within returns the counts c holds within name, starting them where there
+// are none yet.
+func (c counts) within(name string) counts {
+	within, ok := c[name].(counts)
+	if !ok {
+		within = make(counts)
+		c[name] = within
+	}
+	return within
 }

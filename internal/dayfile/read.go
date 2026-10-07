@@ -64,6 +64,12 @@ func Dates(from, to time.Time) []string {
 	return datesFrom(noon(from.Local()).AddDate(0, 0, -1), noon(to.Local()).AddDate(0, 0, 1))
 }
 
+// Span returns the dates of the local days from first's to last's, oldest
+// first, as the files' names give them: none where last's comes before.
+func Span(first, last time.Time) []string {
+	return datesFrom(first.Local(), last.Local())
+}
+
 // datesFrom returns the dates, as dateLayout lays them out, of the days from
 // first's to last's, in first's time zone. It steps a day at a time from
 // noon: where the clocks change at midnight, a step from midnight would land

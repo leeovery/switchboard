@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 5 -->
+<!-- switchboard skill version: 6 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -28,6 +28,14 @@ Claude subscriptions, which it calls accounts.
   every one of them is out, and only then to the others. Add `--move` to move running sessions
   there too, or `--session <id>` to pin that one session alone to one account.
   `switchboard pin auto` goes back to routing.
+- To look back at requests, run `switchboard requests --json`, a JSON object a line for each of
+  today's, as the router's request ledger holds it: its session, model and account, why it went
+  there, its status, and the usage the API gave. `--session <id>` and `--account <id>` narrow it,
+  and `--since` reaches back to a day, a time today or a while ago: `2026-10-01`, `14:00`, `2d`.
+- To look back over days, run `switchboard history --json`: each of the last 30, each account's
+  requests by model, with their usage, sessions and `worth`, what they'd have cost through the
+  API, in US dollars; and each account's moves, the limits it reached and its windows' highest
+  use. Both read the ledger's files, so they work without the router.
 - To read the router's log, which says why each request went to its account, run
   `switchboard logs`.
 

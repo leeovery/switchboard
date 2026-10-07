@@ -1,10 +1,10 @@
 package dashboard
 
 import (
-	"fmt"
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -175,27 +175,11 @@ func (m Move) event() status.Event {
 	return status.Event{Kind: status.EventMoved, At: m.At, Session: m.Seat.Session, Model: m.Seat.Model, From: m.From, To: m.To, Reason: m.Reason}
 }
 
-// tokens counts n tokens as briefly as a row has room for: as it is under a
-// thousand, then in thousands, to a tenth under ten thousand, as "1.2k", or
-// whole, as "34k", then in millions, as "1.2M".
-func tokens(n int) string {
-	switch thousands := float64(n) / 1000; {
-	case n < 1000:
-		return fmt.Sprint(n)
-	case thousands < 9.95:
-		return fmt.Sprintf("%.1fk", thousands)
-	case thousands < 999.5:
-		return fmt.Sprintf("%.0fk", thousands)
-	default:
-		return fmt.Sprintf("%.1fM", thousands/1000)
-	}
-}
-
 // streamed says how many tokens the call's answer has streamed, as in "↓
 // ~1.2k", the tilde marking an estimate.
 func (c Call) streamed() string {
 	if c.Exact {
-		return "↓ " + tokens(c.Tokens)
+		return "↓ " + prose.Count(c.Tokens)
 	}
-	return "↓ ~" + tokens(c.Tokens)
+	return "↓ ~" + prose.Count(c.Tokens)
 }

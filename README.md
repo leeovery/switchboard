@@ -85,7 +85,7 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
 - **Pins.** `switchboard pin` sends new sessions to one account, or to the best of several, or moves running ones there; `pin --session` pins one running session; `switchboard run --account` pins a session as it starts. Every pin yields at a limit rather than failing. See [`pin`](#pin).
 - **State that outlasts restarts.** The router keeps each session's account, the pins and each account's last readings in `state.json`, so a restart doesn't scatter sessions or need a probe.
 - **A readings history.** The router appends each reading that changes how a window of an account reads, and nothing when nothing moved, to a file a day in the state directory's `history/`, kept for 14 days, or as long as [`[history]`](#history-keys) says: a JSON line each, `{"at", "account", "window", "utilization", "resets_at", "status", "source"}`, `source` saying whether it came off an answer, a probe or a prime, and the account by its id alone. It's there for you to look back at how the accounts were used; fields may be added to a line, never renamed. A day's file, `readings-<date>.jsonl`, is compressed to `readings-<date>.jsonl.gz`, which `gzip -dc` reads, once its day ended two days ago. As it starts, the router takes up the readings of its two newest days, so the recent rates outlast a restart. It never stands in routing's way: a line it can't write goes unwritten, logged once.
-- **A request ledger.** The router appends a line for each request it routes, as it finishes with it, whether it went upstream or the router answered it itself, to a file a day in the state directory's `ledger/`, kept for 90 days, or as long as [`[ledger]`](#ledger-keys) says: a JSON line each, `{"at", "request", "kind", "session", "dir", "model", "account", "reason", "from", "tried", "status", "canceled", "cut_off", "attempts", "first_ms", "total_ms", "agent", "betas", "shape", "answer", "usage", "limits"}`, `request` the router's id for it, as its routed line in the log gives it, `kind` saying whether it was a message, Claude Code's quota check or a count of tokens, `dir` the directory `run` started Claude Code in, your home shown as `~`, which `run` tells the router in a header the API never sees, and which a `claude` started within that session other than through `run` carries too, `account` the account whose answer the client got, by its id alone, `canceled` set where the client went away before the end, `cut_off` where the router cut the request off as it stopped, and `shape` the request's size, how many messages, system blocks and tools it carried, and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`, `tool_choice`'s type, `temperature`, `top_k`, `top_p`, `service_tier`, `output_config`'s `effort`, `speed`, `inference_geo`, and the types of `context_management`'s edits. Of the answer the client got, `answer` holds Anthropic's id for it, the model that served it, why it stopped, how many blocks of each kind it held, the tools it called, by name, and an error's type and message; `usage` its closing usage, as the API gave it, field for field; and `limits` its `anthropic-ratelimit-unified-*` headers, the prefix taken off. It keeps everything about a request but its content: never its messages, its system prompt or its tools, its metadata's ids, a setting or header the line doesn't name, or anything shaped like a token. Fields may be added to a line, never renamed. A day's file, `requests-<date>.jsonl`, is compressed to `requests-<date>.jsonl.gz` once its day ended two days ago, as the history's are. It never holds a request up: the lines wait, 8,192 at most, for a goroutine of their own to write them, and a line it can't write goes unwritten, logged once. An hour after each day ends, giving the requests still in flight then time to end, the router summarises it beside its lines, in `day-<date>.json`, kept for good: `{"version", "day", "accounts"}`, each account's requests by model, counted by how each went, with their sessions and their usage summed field for field, and of the account as a whole its sessions, those moved onto it and off it, each window's highest use that day, from the history, and the limits it reached, each a window turning `rejected`. A day that ended while the router was stopped is summarised as it starts again.
+- **A request ledger.** The router appends a line for each request it routes, as it finishes with it, whether it went upstream or the router answered it itself, to a file a day in the state directory's `ledger/`, kept for 90 days, or as long as [`[ledger]`](#ledger-keys) says: a JSON line each, `{"at", "request", "kind", "session", "dir", "model", "account", "reason", "from", "tried", "status", "canceled", "cut_off", "attempts", "first_ms", "total_ms", "agent", "betas", "shape", "answer", "usage", "limits"}`, `request` the router's id for it, as its routed line in the log gives it, `kind` saying whether it was a message, Claude Code's quota check or a count of tokens, `dir` the directory `run` started Claude Code in, your home shown as `~`, which `run` tells the router in a header the API never sees, and which a `claude` started within that session other than through `run` carries too, `account` the account whose answer the client got, by its id alone, `canceled` set where the client went away before the end, `cut_off` where the router cut the request off as it stopped, and `shape` the request's size, how many messages, system blocks and tools it carried, and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`, `tool_choice`'s type, `temperature`, `top_k`, `top_p`, `service_tier`, `output_config`'s `effort`, `speed`, `inference_geo`, and the types of `context_management`'s edits. Of the answer the client got, `answer` holds Anthropic's id for it, the model that served it, why it stopped, how many blocks of each kind it held, the tools it called, by name, and an error's type and message; `usage` its closing usage, as the API gave it, field for field; and `limits` its `anthropic-ratelimit-unified-*` headers, the prefix taken off. It keeps everything about a request but its content: never its messages, its system prompt or its tools, its metadata's ids, a setting or header the line doesn't name, or anything shaped like a token. Fields may be added to a line, never renamed. A day's file, `requests-<date>.jsonl`, is compressed to `requests-<date>.jsonl.gz` once its day ended two days ago, as the history's are. It never holds a request up: the lines wait, 8,192 at most, for a goroutine of their own to write them, and a line it can't write goes unwritten, logged once. An hour after each day ends, giving the requests still in flight then time to end, the router summarises it beside its lines, in `day-<date>.json`, kept for good: `{"version", "day", "accounts"}`, each account's requests by model, counted by how each went, with their sessions and their usage summed field for field, and of the account as a whole its sessions, those moved onto it and off it, each window's highest use that day, from the history, and the limits it reached, each a window turning `rejected`. A day that ended while the router was stopped is summarised as it starts again. [`requests`](#requests) and [`history`](#history) read it all back, with or without the router.
 - **Looking after itself.** The router takes up a change to a token file as it comes, and a token file caught empty while it's rewritten doesn't cost its account its token. Once your Mac wakes, it sends the requests it routes upstream on fresh connections, as a sleep can leave those it kept dead; probes go out on connections of their own, each given 5 seconds. The service's router restarts itself, once no request is in flight, when its config changes, `brew upgrade` replaces it or your Mac's time zone changes, so `accounts add`, an edit by hand, an upgrade and a new time zone all take effect without a command; a router started by hand with `serve` logs that a restart is due instead. It restarts in place, running its new binary in the same process and handing it the sockets it listens on, so a request made meanwhile waits a moment rather than being refused, and launchd isn't asked to start an upgraded binary afresh, which macOS has been seen to refuse, where it lets the router run it in place, as the first such upgrade showed. With many long sessions, a moment with no request in flight can be hours coming: `switchboard status` and the dashboard say while a restart is due, and `switchboard service restart` has it now. See [`serve`](#serve).
 
 ### The primary
@@ -382,6 +382,48 @@ switchboard logs [router|cli] [-n <lines>] [-f] [--path]
 switchboard logs -f              # follow the router: a line per request, with its account and why
 switchboard logs cli -n 200
 switchboard logs router --path
+```
+
+### Looking back
+
+Both read the [request ledger](#how-it-works)'s files where they lie, so neither needs the router. Their plain text is a first cut; agents read their `--json`.
+
+#### `requests`
+
+The ledger's requests: today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long it took.
+
+```bash
+switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json]
+```
+
+| Flag | Description |
+|---|---|
+| `--session <id>` | keep that session's requests, named by its id, or as much of it as is unique among the sessions read |
+| `--account <id>` | keep that account's requests |
+| `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
+| `--json` | print each line as the ledger holds it, a JSON object a line |
+
+```bash
+switchboard requests --since 14:00
+switchboard requests --session 18bb --json | jq '.usage'
+```
+
+#### `history`
+
+The ledger's days: the last 30, unless `--since` says otherwise, a row for each account and model with its requests, tokens, sessions and worth, what they'd have cost through the API at the prices switchboard carries, read from Anthropic's pricing page; then each account's sessions, moves, limits reached and windows' highest use. Today's is summed up from its lines, as far as it has gone. A model the price table doesn't know shows as unpriced, never free.
+
+```bash
+switchboard history [--since <when>] [--json]
+```
+
+| Flag | Description |
+|---|---|
+| `--since <when>` | start on the day of a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
+| `--json` | print `{"prices_as_of", "days"}`: the day the prices were read, and each day's summary as the ledger holds it, each model's `worth` in US dollars added |
+
+```bash
+switchboard history --since 7d
+switchboard history --json | jq '.days[-1]'   # today's, as far as it has gone
 ```
 
 ### Plumbing

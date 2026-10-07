@@ -89,7 +89,7 @@ func parseWindow(key string, fields map[string]string) (quota.Window, bool) {
 	}
 	return quota.Window{
 		Key:         key,
-		Label:       windowLabel(key),
+		Label:       WindowLabel(key),
 		Utilization: utilization,
 		ResetsAt:    parseReset(fields["reset"]),
 		Status:      quota.Status(fields["status"]),
@@ -105,7 +105,9 @@ func parseReset(value string) time.Time {
 	return time.Unix(seconds, 0).UTC()
 }
 
-func windowLabel(key string) string {
+// WindowLabel is the human name of the window Claude reports by the key
+// given, as Session is 5h's: the key itself for one it doesn't name.
+func WindowLabel(key string) string {
 	if label, ok := windowLabels[key]; ok {
 		return label
 	}

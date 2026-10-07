@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
@@ -160,6 +161,30 @@ type Reply struct {
 	// Limits are the answer's anthropic-ratelimit-unified-* headers, by
 	// their names, the prefix taken off, and their values as given.
 	Limits map[string]string `json:"limits,omitempty"`
+}
+
+// Tokens returns the tokens the reply's usage counts, reporting false where
+// the answer gave none.
+func (r Reply) Tokens() (quota.Tokens, bool) {
+	return tokensIn(r.Usage)
+}
+
+// usageTokens is what a usage counts of tokens, by the API's names for them.
+type usageTokens struct {
+	Input      int `json:"input_tokens"`
+	CacheWrite int `json:"cache_creation_input_tokens"`
+	CacheRead  int `json:"cache_read_input_tokens"`
+	Output     int `json:"output_tokens"`
+}
+
+// tokensIn returns the tokens usage counts, reporting false where it gives
+// none, as it doesn't where it's no object.
+func tokensIn(usage json.RawMessage) (quota.Tokens, bool) {
+	var t usageTokens
+	if json.Unmarshal(usage, &t) != nil {
+		return quota.Tokens{}, false
+	}
+	return quota.Tokens{Input: t.Input, Output: t.Output, CacheRead: t.CacheRead, CacheWrite: t.CacheWrite}, true
 }
 
 // Answer is what an answer told of itself: Anthropic's id for it, the model

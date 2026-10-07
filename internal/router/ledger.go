@@ -11,9 +11,6 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// ledgerDirName is the request ledger's directory in the state directory.
-const ledgerDirName = "ledger"
-
 // requestLedger is the request ledger, as the router keeps it: a line for
 // each routed request, noted as the request ends, which run's goroutine
 // writes once Run has opened it in the state directory, kept as long as the
