@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 )
@@ -273,34 +275,48 @@ func checkWarning(warning float64) error {
 	return fmt.Errorf("notifications.warning %v: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none", warning)
 }
 
-// MostDays is the most days a count of them, as ParseDays reads one, may
-// give, wherever it's given: a year with room to spare.
-const MostDays = 400
+// MostDays is the most whole days a time.Duration holds, some 292 years: a
+// count of more, as ParseDays reads one, is longer than any duration.
+const MostDays = uint64(math.MaxInt64 / (24 * time.Hour))
+
+// daysPattern is a count of days, as ParseDays reads one: a whole number, its
+// digits alone, then d.
+var daysPattern = regexp.MustCompile(`^([0-9]+)d$`)
 
 // ParseDays reads a count of days, <n>d, as 14d: a whole number, with no
-// sign. It reports false for any other text. A count can be more days than a
-// time.Duration holds, so its reader bounds it, MostDays at most.
+// sign. It reports false for any other text. A count past MostDays is more
+// days than a time.Duration holds, which its reader must allow for; one past
+// what a uint64 holds reads as the most it holds.
 func ParseDays(given string) (uint64, bool) {
-	digits, inDays := strings.CutSuffix(given, "d")
-	days, err := strconv.ParseUint(digits, 10, 64)
-	if !inDays || err != nil {
+	count := daysPattern.FindStringSubmatch(given)
+	if count == nil {
 		return 0, false
+	}
+	days, err := strconv.ParseUint(count[1], 10, 64)
+	if err != nil {
+		// Digits alone fail only past what a uint64 holds.
+		return math.MaxUint64, true
 	}
 	return days, true
 }
 
 // parseKeep reads how long something is kept as the config's key gives it,
 // history.keep or ledger.keep: a count of days, from 8d, a week and a day,
-// which the dashboard's chart of the week needs, to MostDays. None given is
-// byDefault, which a key given wrong is told of as an example.
+// which the dashboard's chart of the week and a day's summary need; or
+// forever, dayfile.Forever, which keeps every day. A count of more than
+// MostDays, which no duration holds, is forever in effect, and read as it.
+// None given is byDefault, which a key given wrong is told of as an example.
 func parseKeep(key string, given *string, byDefault time.Duration) (time.Duration, error) {
 	const day = 24 * time.Hour
 	if given == nil {
 		return byDefault, nil
 	}
 	days, ok := ParseDays(*given)
-	if !ok || days < 8 || days > MostDays {
-		return 0, wrongValue(key, *given, fmt.Sprintf("must be a whole number of days from 8d, a week and a day, to %dd, such as %dd", MostDays, byDefault/day))
+	switch {
+	case *given == "forever" || ok && days > MostDays:
+		return dayfile.Forever, nil
+	case !ok || days < 8:
+		return 0, wrongValue(key, *given, fmt.Sprintf("must be a whole number of days from 8d, a week and a day, or forever, such as %dd", byDefault/day))
 	}
 	return time.Duration(days) * day, nil
 }

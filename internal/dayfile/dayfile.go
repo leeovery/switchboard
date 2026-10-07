@@ -2,14 +2,15 @@
 // request ledger keep theirs, in a directory of their own: a plain file each
 // local day, <prefix>-<date>.jsonl, which lines are appended to, compressed,
 // as <prefix>-<date>.jsonl.gz, once its day ended two days before, and
-// removed once its day is past keeping. A file named for a day after
-// tomorrow, as a clock once set ahead names one, stays until its day is past
-// keeping too, and anything else in the directory is left alone. Read reads
-// the files back, either form, oldest first, passing over what it can't read,
-// and ReadDay a day's, saying what it can't; a Writer writes to them on a
-// goroutine of its own, so noting what's to be written never waits, and makes
-// a round of them every hour, and before each prune, which what else is kept
-// of the days, as the request ledger's summaries, can be kept on.
+// removed once its day is past keeping, which it never is when they're kept
+// Forever. A file named for a day after tomorrow, as a clock once set ahead
+// names one, stays until its day is past keeping too, and anything else in
+// the directory is left alone. Read reads the files back, either form, oldest
+// first, passing over what it can't read, and ReadDay a day's, saying what it
+// can't; a Writer writes to them on a goroutine of its own, so noting what's
+// to be written never waits, and makes a round of them every hour, and before
+// each prune, which what else is kept of the days, as the request ledger's
+// summaries, can be kept on.
 package dayfile
 
 import (
@@ -20,6 +21,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +39,10 @@ const (
 	// to plain files, and read back from them, in the normal run of things.
 	compressAfter = 48 * time.Hour
 )
+
+// Forever, as how long the files are kept, keeps every day's, however long
+// ago the day ended: it's the longest a time.Duration holds.
+const Forever time.Duration = math.MaxInt64
 
 // Files are the files a day of one kind of line, in a directory, by the
 // prefix their names begin with: what can't be done with them is logged
@@ -228,6 +234,14 @@ func (f *Files) path(file dayFile) string {
 	return filepath.Join(f.Dir, file.name(f.Prefix))
 }
 
+// DateOf returns the date of the local day the file with the given name holds
+// the lines of, as its name gives it, reporting false for a name that isn't
+// one of the files'.
+func (f *Files) DateOf(name string) (string, bool) {
+	file, _, ok := f.named(name)
+	return file.date, ok
+}
+
 // named returns the file with the given name, and the local day it holds,
 // reporting false for a name that isn't one of the files'.
 func (f *Files) named(name string) (dayFile, time.Time, bool) {
@@ -245,8 +259,8 @@ func (f *Files) named(name string) (dayFile, time.Time, bool) {
 }
 
 // prune removes the files past keeping at now, those of days that ended keep
-// or more before, and compresses those of the days done with, as tend says,
-// leaving anything else in the directory alone.
+// or more before, none when keep is Forever, and compresses those of the days
+// done with, as tend says, leaving anything else in the directory alone.
 func (f *Files) prune(now time.Time, keep time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -265,14 +279,17 @@ func (f *Files) prune(now time.Time, keep time.Duration) {
 }
 
 // tend removes the file, of the local day given, once the day ended keep or
-// more before now, and compresses it, a plain file, once the day ended two
-// days or more before now. A file of a day after tomorrow, as a clock once
-// set ahead names one, stays until its day is past keeping too: the clock may
-// be the one that's wrong, set back, and Newest passes such a file over
-// meanwhile. What it can't do is logged, and left to the next prune.
+// more before now, never when keep is Forever, and compresses it, a plain
+// file, once the day ended two days or more before now. A file of a day after
+// tomorrow, as a clock once set ahead names one, stays until its day is past
+// keeping too: the clock may be the one that's wrong, set back, and Newest
+// passes such a file over meanwhile. What it can't do is logged, and left to
+// the next prune.
 func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration) {
 	switch ended := now.Sub(endOf(day)); {
-	case ended >= keep:
+	// Sub gives Forever itself for a day that ended longer ago than a
+	// duration holds.
+	case keep != Forever && ended >= keep:
 		if err := os.Remove(f.path(file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			f.Logger.Warn("can't prune the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}

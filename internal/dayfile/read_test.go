@@ -2,6 +2,8 @@ package dayfile
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -299,6 +301,50 @@ func TestEndedTakesTheDaysThatEndedAsLongAgoAsAsked(t *testing.T) {
 		if got := f.Ended(now, tt.ago); !slices.Equal(got, tt.want) {
 			t.Errorf("Ended(%v) = %q, want %q: each day once, oldest first, that ended %v or more before", tt.ago, got, tt.want, tt.ago)
 		}
+	}
+}
+
+func TestADaysLinesLastChangedAsItsPlainFileWasModifiedElseItsCompressedFile(t *testing.T) {
+	const date = "2026-09-25"
+	// The compressed file was written after the plain file was last appended
+	// to, as when the clock was set back to the day once it was compressed.
+	plainAt, compressedAt := start.Add(-time.Hour), start
+	tests := []struct {
+		name  string
+		files []dayFile
+		want  time.Time
+	}{
+		{name: "its plain file's, of one alone", files: []dayFile{plainFile(date)}, want: plainAt},
+		{name: "its compressed file's, of one alone", files: []dayFile{compressedFile(date)}, want: compressedAt},
+		{name: "its plain file's, though its compressed one is later", files: []dayFile{plainFile(date), compressedFile(date)}, want: plainAt},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := readingsHistory(t.TempDir())
+			for _, file := range tt.files {
+				writeDay(t, f, file, linesOf("a"))
+				at := plainAt
+				if file.compressed {
+					at = compressedAt
+				}
+				if err := os.Chtimes(f.path(file), time.Time{}, at); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if got, err := f.Modified(date); err != nil || !got.Equal(tt.want) {
+				t.Errorf("Modified() = %v, %v; want %v", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestADayWithNoFilesHasNoTimeItsLinesLastChanged(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	writeDay(t, f, plainFile("2026-09-26"), linesOf("a"))
+
+	if got, err := f.Modified("2026-09-25"); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Modified() = %v, %v; want an error matching fs.ErrNotExist", got, err)
 	}
 }
 

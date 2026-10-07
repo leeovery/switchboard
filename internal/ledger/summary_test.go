@@ -553,6 +553,137 @@ func TestADaysSummaryIsWrittenAgainAsLinesComeToBeFiledUnderIt(t *testing.T) {
 	})
 }
 
+// unopenable has the ledger's files of lines in dir open to no one until the
+// test ends, so a round that opens one warns that it can't.
+func unopenable(t *testing.T, dir string) {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join(dir, "requests-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
+		if err := os.Chmod(file, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(file, 0o600) })
+	}
+}
+
+// opened counts the ledger's files of lines the rounds logged to log have
+// opened since unopenable had them open to no one, each warned of as one
+// that can't be.
+func opened(log *logstest.Log) int {
+	return strings.Count(log.String(), "permission denied")
+}
+
+func TestARoundOpensNoFileOfADayWhoseLinesHaventChangedSinceItsSummary(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	// Three days of lines, the oldest compressed.
+	writeFile(t, dir, "requests-2026-10-03.jsonl.gz", gzipped(t, jsonOf(t, asked("1", on(-2, 9, 0)))+"\n"))
+	holdLines(t, dir, "2026-10-04", asked("2", on(-1, 9, 0)))
+	holdLines(t, dir, date, asked("3", on(0, 9, 0)))
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, noReadings, logs.For("router"))
+	l.SummariseEnded(on(1, 10, 0))
+	unopenable(t, dir)
+
+	l.SummariseEnded(on(1, 11, 0))
+	if n := opened(log); n != 0 {
+		t.Errorf("log reads\n%s\nthe round opened %d of the days' files, want none: no day's lines changed since it was summarised", log, n)
+	}
+	// A line comes to be filed under the 5th, as of a request in flight past
+	// the hour the day is given.
+	plain := filepath.Join(dir, "requests-"+date+".jsonl")
+	if err := os.Chmod(plain, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	holdLines(t, dir, date, asked("4", on(0, 23, 59)))
+	l.SummariseEnded(on(1, 12, 0))
+	if got, want := heldSummary(t, dir, date), summaryOf(date, 2, 2, "")+"\n"; got != want || opened(log) != 0 {
+		t.Errorf("log reads\n%s\nthe 5th's summary is\n%s\nwant it written again, of its two requests, from its file alone\n%s", log, got, want)
+	}
+	unopenable(t, dir)
+	l.SummariseEnded(on(1, 13, 0))
+	if n := opened(log); n != 0 {
+		t.Errorf("log reads\n%s\nthe round after opened %d of the days' files, want none: the 5th was summarised as its lines last changed", log, n)
+	}
+}
+
+func TestASummaryFoundToStandByCountingItsDaysLinesIsStampedSoTheNextRoundOpensNone(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay lays the day's files and its summary out in dir, as a round
+		// finds them.
+		lay func(t *testing.T, dir string)
+	}{
+		{
+			name: "one written before summaries were stamped",
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+				writeFile(t, dir, "day-"+date+".json", []byte(summaryOfTwo("")))
+			},
+		},
+		{
+			name: "one whose day's lines were compressed since",
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+				writeAt(t, dir, on(3, 9, 0), noReadings)
+			},
+		},
+		{
+			name: "one made from more lines than its day's files hold now",
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+				writeFile(t, dir, "day-"+date+".json", []byte(summaryOf(date, 3, 3, "")+"\n"))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			dir := t.TempDir()
+			tt.lay(t, dir)
+			held := heldSummary(t, dir, date)
+			l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(3, 10, 0) }, noReadings, logs.For("router"))
+
+			l.SummariseEnded(on(3, 10, 0))
+			if got := heldSummary(t, dir, date); got != held {
+				t.Errorf("the day's summary is\n%s\nwant it as it was, as it stands\n%s", got, held)
+			}
+			unopenable(t, dir)
+			l.SummariseEnded(on(3, 11, 0))
+			if n := opened(log); n != 0 {
+				t.Errorf("log reads\n%s\nthe round after opened %d of the day's files, want none: the summary was stamped as its lines were counted", log, n)
+			}
+		})
+	}
+}
+
+func TestALineFiledUnderACompressedDayAfterTheClockWasSetBackIsSummarised(t *testing.T) {
+	dir := t.TempDir()
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+	// The router summarises the day, and compresses it two days on, and a
+	// round after stamps its summary as the compressed file was written.
+	writeAt(t, dir, on(3, 9, 0), noReadings)
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(3, 10, 0) }, noReadings, logs.For("router"))
+	l.SummariseEnded(on(3, 10, 0))
+	compressed, err := os.Stat(filepath.Join(dir, "requests-"+date+".jsonl.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The clock set back to the day, a line is filed under it, in a plain
+	// file of its own, modified, by that clock, before the compressed file.
+	holdLines(t, dir, date, asked("3", on(0, 11, 0)))
+	if err := os.Chtimes(filepath.Join(dir, "requests-"+date+".jsonl"), time.Time{}, compressed.ModTime().Add(-48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	l.SummariseEnded(on(3, 11, 0))
+	if got, want := heldSummary(t, dir, date), summaryOf(date, 3, 3, "")+"\n"; got != want {
+		t.Errorf("the day's summary is\n%s\nwant it written again, of its three requests\n%s", got, want)
+	}
+}
+
 func TestADaysSummaryMadeFromMoreLinesThanItsFilesHoldNowStands(t *testing.T) {
 	dir := t.TempDir()
 	// The day's summary, made from three lines; its files hold two now, a

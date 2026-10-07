@@ -147,6 +147,28 @@ func (f *Files) Count(date string) (int, error) {
 	return lines, err
 }
 
+// Modified returns when the lines of the local day with the given date last
+// changed, by a look at its files that reads none of them: when its plain
+// file was last modified, or its compressed file, where it has no plain
+// file. Lines are only ever appended to the plain file, and compressing the
+// day writes them into the compressed file anew, removing the plain one, so
+// the time changes as the lines do. It fails with fs.ErrNotExist where the
+// day has neither.
+func (f *Files) Modified(date string) (time.Time, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	for _, file := range []dayFile{plainFile(date), compressedFile(date)} {
+		info, err := os.Stat(f.path(file))
+		switch {
+		case err == nil:
+			return info.ModTime(), nil
+		case !errors.Is(err, fs.ErrNotExist):
+			return time.Time{}, err
+		}
+	}
+	return time.Time{}, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
+}
+
 // readOpened hands take each line the files opened hold that decode makes a
 // T of, in order, until take reports false, and returns how many lines they
 // hold, as far as it read, and how many of those were unread. It closes the

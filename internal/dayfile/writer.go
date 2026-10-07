@@ -15,7 +15,8 @@ type WriterOptions struct {
 	// Queue is how many of what's noted can wait to be written: past that,
 	// what's noted is dropped rather than wait.
 	Queue int
-	// Keep is how long a day's files are kept, from the end of its day.
+	// Keep is how long a day's files are kept, from the end of its day:
+	// Forever keeps every day's.
 	Keep time.Duration
 	// Now reads the clock the days go by.
 	Now func() time.Time

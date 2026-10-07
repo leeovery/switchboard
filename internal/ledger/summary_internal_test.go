@@ -6,8 +6,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
 )
+
+func TestASummaryThatCantBeStampedIsWarnedOf(t *testing.T) {
+	log := logstest.Capture(t)
+	logger := logs.For("router")
+	d := days{files: filesIn(t.TempDir(), logger), logger: logger}
+
+	// There's no summary of the day to stamp, as when it was removed once
+	// written.
+	d.stamp("2026-10-05", time.Date(2026, 10, 5, 23, 59, 0, 0, time.Local))
+	want := []string{"level=WARN", `msg="can't stamp the request ledger's summary of a day; its lines are counted again at the next round"`, "day=2026-10-05"}
+	if !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant the summary that couldn't be stamped warned of: a line with %q", log, want)
+	}
+}
 
 func TestReadingsReadOnceGiveThoseOfAnyTimesBetweenAsTheHistoryWould(t *testing.T) {
 	start := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)

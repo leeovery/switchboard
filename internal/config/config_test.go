@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 func TestLoad(t *testing.T) {
@@ -85,8 +87,8 @@ label = "Personal"
 			{ID: "personal", Label: "Personal"},
 		},
 		Notifications: config.Notifications{Limits: true, Room: true, Warning: 0.9},
-		History:       config.History{Keep: 14 * 24 * time.Hour},
-		Ledger:        config.Ledger{Keep: 90 * 24 * time.Hour},
+		History:       config.History{Keep: 400 * 24 * time.Hour},
+		Ledger:        config.Ledger{Keep: 400 * 24 * time.Hour},
 	}
 
 	got, err := config.Load(path)
@@ -320,13 +322,14 @@ var keeps = []struct {
 	byDefault time.Duration
 	kept      func(*config.Config) time.Duration
 }{
-	{table: "history", byDefault: 14 * 24 * time.Hour, kept: func(cfg *config.Config) time.Duration { return cfg.History.Keep }},
-	{table: "ledger", byDefault: 90 * 24 * time.Hour, kept: func(cfg *config.Config) time.Duration { return cfg.Ledger.Keep }},
+	{table: "history", byDefault: 400 * 24 * time.Hour, kept: func(cfg *config.Config) time.Duration { return cfg.History.Keep }},
+	{table: "ledger", byDefault: 400 * 24 * time.Hour, kept: func(cfg *config.Config) time.Duration { return cfg.Ledger.Keep }},
 }
 
 func TestLoadHowLongTheHistoryAndTheLedgerAreKept(t *testing.T) {
 	const day = 24 * time.Hour
 	for _, kept := range keeps {
+		keep := func(given string) string { return "[" + kept.table + "]\nkeep = \"" + given + "\"\n" }
 		tests := []struct {
 			name   string
 			config string
@@ -334,8 +337,12 @@ func TestLoadHowLongTheHistoryAndTheLedgerAreKept(t *testing.T) {
 		}{
 			{name: "its default without the table", want: kept.byDefault},
 			{name: "its default with the table empty", config: "[" + kept.table + "]\n", want: kept.byDefault},
-			{name: "a week and a day, the least", config: "[" + kept.table + "]\nkeep = \"8d\"\n", want: 8 * day},
-			{name: "400 days, the most", config: "[" + kept.table + "]\nkeep = \"400d\"\n", want: 400 * day},
+			{name: "a week and a day, the least", config: keep("8d"), want: 8 * day},
+			{name: "a thousand days", config: keep("1000d"), want: 1000 * day},
+			{name: "the most days a duration holds", config: keep("106751d"), want: 106751 * day},
+			{name: "forever", config: keep("forever"), want: dayfile.Forever},
+			{name: "forever, given more days than a duration holds", config: keep("106752d"), want: dayfile.Forever},
+			{name: "forever, given more days than a count holds", config: keep("99999999999999999999d"), want: dayfile.Forever},
 			{name: "as an inline table", config: kept.table + " = { keep = \"30d\" }\n", want: 30 * day},
 		}
 		t.Run(kept.table, func(t *testing.T) {
@@ -360,7 +367,7 @@ func TestLoadReportsAKeepThatIsntOne(t *testing.T) {
 		given string
 	}{
 		{name: "short of a week and a day", given: "7d"},
-		{name: "past 400 days", given: "401d"},
+		{name: "none", given: "0d"},
 		{name: "without its unit", given: "14"},
 		{name: "in weeks", given: "2w"},
 		{name: "without a number", given: "d"},
@@ -368,7 +375,8 @@ func TestLoadReportsAKeepThatIsntOne(t *testing.T) {
 		{name: "with a sign", given: "+9d"},
 		{name: "with its unit in capitals", given: "14D"},
 		{name: "with a space", given: " 14d"},
-		{name: "too great to be a number", given: "99999999999999999999d"},
+		{name: "a fraction too great to be a count", given: "99999999999999999999.5d"},
+		{name: "forever in capitals", given: "Forever"},
 		{name: "given empty", given: ""},
 	}
 	for _, kept := range keeps {
@@ -378,7 +386,7 @@ func TestLoadReportsAKeepThatIsntOne(t *testing.T) {
 					path := writeConfig(t, "["+kept.table+"]\nkeep = \""+tt.given+"\"\n"+accountTOML("work"))
 
 					_, err := config.Load(path)
-					want := []string{fmt.Sprintf("%s.keep %q: must be a whole number of days from 8d, a week and a day, to 400d, such as %dd",
+					want := []string{fmt.Sprintf("%s.keep %q: must be a whole number of days from 8d, a week and a day, or forever, such as %dd",
 						kept.table, tt.given, kept.byDefault/(24*time.Hour))}
 					if got := problems(t, path, err); !slices.Equal(got, want) {
 						t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -399,13 +407,23 @@ func TestParseDaysReadsAWholeNumberOfDays(t *testing.T) {
 		{given: "0d", want: 0, ok: true},
 		{given: "014d", want: 14, ok: true},
 		{given: "401d", want: 401, ok: true},
+		{given: "18446744073709551615d", want: math.MaxUint64, ok: true},
+		{given: "18446744073709551616d", want: math.MaxUint64, ok: true},
+		{given: "99999999999999999999d", want: math.MaxUint64, ok: true},
 		{given: "+2d"}, {given: "-2d"}, {given: "14"}, {given: "d"}, {given: "14D"}, {given: " 14d"}, {given: "2w"}, {given: "1.5d"},
-		{given: "99999999999999999999d"}, {given: ""},
+		{given: "14dd"}, {given: "99999999999999999999.5d"}, {given: "99999999999999999999 d"}, {given: ""},
 	}
 	for _, tt := range tests {
 		if got, ok := config.ParseDays(tt.given); got != tt.want || ok != tt.ok {
 			t.Errorf("ParseDays(%q) = %d, %v, want %d, %v", tt.given, got, ok, tt.want, tt.ok)
 		}
+	}
+}
+
+func TestMostDaysIsTheMostWholeDaysADurationHolds(t *testing.T) {
+	const day = 24 * time.Hour
+	if most := time.Duration(config.MostDays) * day; most <= 0 || math.MaxInt64-most >= day {
+		t.Errorf("MostDays = %d, %v long; want the most whole days a time.Duration holds", config.MostDays, most)
 	}
 }
 
@@ -477,7 +495,7 @@ func TestLoadReportsProblems(t *testing.T) {
 		return fmt.Sprintf("prime.day %q: must be two times of day, HH:MM, joined by -, such as 08:00-23:00", given)
 	}
 	keep := func(key, given, example string) string {
-		return fmt.Sprintf("%s %q: must be a whole number of days from 8d, a week and a day, to 400d, such as %s", key, given, example)
+		return fmt.Sprintf("%s %q: must be a whole number of days from 8d, a week and a day, or forever, such as %s", key, given, example)
 	}
 	const tokenEnv = `unknown key "account.token_env": tokens now live in files, at <state dir>/tokens/<id>, ` +
 		"the state dir being $XDG_STATE_HOME/switchboard, else ~/.local/state/switchboard"
@@ -775,7 +793,7 @@ func TestLoadReportsProblems(t *testing.T) {
 				"\n[prime]\nday = \"23:00-23:00\"\n" +
 				"\n[notifications]\nwarning = 1\n" +
 				"\n[history]\nkeep = \"7d\"\n" +
-				"\n[ledger]\nkeep = \"401d\"\n",
+				"\n[ledger]\nkeep = \"1y\"\n",
 			want: []string{
 				`unknown key "verbose"`,
 				tokenEnv,
@@ -787,8 +805,8 @@ func TestLoadReportsProblems(t *testing.T) {
 				`primary is set on account "work" and account "work": only one account can be the primary, the one the browser and the Claude apps use`,
 				`prime.day "23:00-23:00": must end at another time than it starts; an end before the start is past midnight`,
 				"notifications.warning 1: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none",
-				keep("history.keep", "7d", "14d"),
-				keep("ledger.keep", "401d", "90d"),
+				keep("history.keep", "7d", "400d"),
+				keep("ledger.keep", "1y", "400d"),
 			},
 		},
 	}
@@ -833,8 +851,8 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		`listen "[redacted]": must be host:port, such as 127.0.0.1:4747 or [::1]:4747`,
 		`upstream "[redacted]": must be an absolute http or https URL, such as https://api.anthropic.com`,
 		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
-		`history.keep "[redacted]": must be a whole number of days from 8d, a week and a day, to 400d, such as 14d`,
-		`ledger.keep "[redacted]": must be a whole number of days from 8d, a week and a day, to 400d, such as 90d`,
+		`history.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
+		`ledger.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
 	}
 	if got := problems(t, path, err); !slices.Equal(got, want) {
 		t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
