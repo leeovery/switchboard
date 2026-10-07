@@ -265,13 +265,13 @@ func TestAWindowsReadingsComeOnceEachFromTheDaysAroundItsSpan(t *testing.T) {
 	clock := &testClock{}
 	r, dir := newChartedRouter(t, clock)
 	date := func(t time.Time, offset int) string { return t.Local().AddDate(0, 0, offset).Format(time.DateOnly) }
-	read := func(u float64) readings.Reading { return lineOf("work", using(week, u), weekStarted.Add(time.Hour)) }
+	read := func(u float64, at time.Time) readings.Reading { return lineOf("work", using(week, u), at) }
 	// Files named for the days around the week's span, as a change of time
-	// zone can name them, hold readings of other days.
-	writeDay(t, dir, plainFile(date(weekStarted, -2)), linesOf(t, read(0.05)))
-	writeDay(t, dir, plainFile(date(weekStarted, -1)), linesOf(t, read(0.1)))
-	writeDay(t, dir, plainFile(date(chartedAt, 1)), linesOf(t, read(0.6)))
-	writeDay(t, dir, plainFile(date(chartedAt, 2)), linesOf(t, read(0.65)))
+	// zone can name them, hold readings of the days beside them.
+	writeDay(t, dir, plainFile(date(weekStarted, -2)), linesOf(t, read(0.05, weekStarted.Add(-24*time.Hour))))
+	writeDay(t, dir, plainFile(date(weekStarted, -1)), linesOf(t, read(0.1, weekStarted.Add(time.Hour))))
+	writeDay(t, dir, plainFile(date(chartedAt, 1)), linesOf(t, read(0.6, chartedAt.Add(-30*time.Minute))))
+	writeDay(t, dir, plainFile(date(chartedAt, 2)), linesOf(t, read(0.65, chartedAt.Add(24*time.Hour))))
 	noon := func(day int, minute int) time.Time { return time.Date(2026, 9, day, 12, minute, 0, 0, time.UTC) }
 	compressLines(t, dir, lineOf("work", using(week, 0.35), noon(26, 0)), lineOf("work", using(week, 0.4), noon(26, 5)))
 	// The router stopped compressing the day after, before its plain file

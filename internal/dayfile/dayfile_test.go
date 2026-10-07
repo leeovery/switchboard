@@ -163,6 +163,63 @@ func TestADaysDateGivesWhenItStartsAndEnds(t *testing.T) {
 	}
 }
 
+func TestADayStartsAtItsFirstInstantWhereTheClocksGoForwardAtMidnight(t *testing.T) {
+	tests := []struct {
+		zone string
+		// date is of a day the clocks went forward at its midnight, from
+		// 00:00 to 01:00, and before of the day before it.
+		date, before string
+	}{
+		{zone: "America/Santiago", date: "2026-09-06", before: "2026-09-05"},
+		{zone: "America/Havana", date: "2026-03-08", before: "2026-03-07"},
+		{zone: "Atlantic/Azores", date: "2026-03-29", before: "2026-03-28"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.zone, func(t *testing.T) {
+			loc, err := time.LoadLocation(tt.zone)
+			if err != nil {
+				t.Fatalf("load %s: %v", tt.zone, err)
+			}
+			day, _ := time.Parse(time.DateOnly, tt.date)
+			y, m, d := day.Date()
+			forward, nextMidnight := time.Date(y, m, d, 1, 0, 0, 0, loc), time.Date(y, m, d+1, 0, 0, 0, 0, loc)
+
+			start, end, ok := dayIn(tt.date, loc)
+			if !ok || !start.Equal(forward) || !end.Equal(nextMidnight) {
+				t.Errorf("the day of %s starts at %v and ends at %v (%v), want %v, as the clocks went forward, and %v", tt.date, start, end, ok, forward, nextMidnight)
+			}
+			beforeStart, beforeEnd, _ := dayIn(tt.before, loc)
+			if !beforeStart.Equal(time.Date(y, m, d-1, 0, 0, 0, 0, loc)) || !beforeEnd.Equal(forward) {
+				t.Errorf("the day before starts at %v and ends at %v, want its midnight, and %v, as the clocks went forward", beforeStart, beforeEnd, forward)
+			}
+			for _, within := range []time.Time{forward, forward.Add(11 * time.Hour), nextMidnight.Add(-time.Nanosecond)} {
+				if got := DayStart(within, 0); !got.Equal(forward) {
+					t.Errorf("DayStart(%v, 0) = %v, want %v", within, got, forward)
+				}
+			}
+			if got := DayStart(beforeStart, 1); !got.Equal(forward) {
+				t.Errorf("DayStart(%v, 1) = %v, want %v", beforeStart, got, forward)
+			}
+			if got := DayStart(nextMidnight, -1); !got.Equal(forward) {
+				t.Errorf("DayStart(%v, -1) = %v, want %v", nextMidnight, got, forward)
+			}
+		})
+	}
+}
+
+func TestADayEndsAtTheNextOnesStartWhereTheClocksGoBackAtMidnight(t *testing.T) {
+	santiago, err := time.LoadLocation("America/Santiago")
+	if err != nil {
+		t.Fatalf("load America/Santiago: %v", err)
+	}
+	// Chile's clocks went back from 00:00 on 5 April 2026 to 23:00 on the 4th,
+	// which ran 25 hours.
+	start, end, ok := dayIn("2026-04-04", santiago)
+	if !ok || !start.Equal(time.Date(2026, 4, 4, 0, 0, 0, 0, santiago)) || end.Sub(start) != 25*time.Hour {
+		t.Errorf("the 4th runs from %v to %v (%v), want from its midnight for 25 hours", start, end, ok)
+	}
+}
+
 func TestLinesAreAppendedToThePlainFilesOfTheirDays(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "history")
 	f := readingsHistory(dir)

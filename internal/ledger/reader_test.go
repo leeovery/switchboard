@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -138,12 +139,24 @@ func TestReadingLinesStopsWhenAsked(t *testing.T) {
 	}
 }
 
-// summaryOfOne is the summary of the day with the given date of one request
-// asked makes, and of the windows' highest use, highest, as its JSON gives
-// it, where it's given.
-func summaryOfOne(date, highest string) string {
-	return `{"version":1,"day":"` + date + `","accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,` +
-		`"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"moved_on":0,"moved_off":0` + highest + `}]}`
+func TestLinesAreReadBackOldestFirstWhicheverDaysFileTheyreIn(t *testing.T) {
+	state, dir, _ := stateDirs(t)
+	// After a move east, a line of the 5th's evening is filed under the 6th,
+	// and after one back west, one of the 6th's first hour under the 5th.
+	first, second, third, fourth := asked("1", on(0, 22, 0)), asked("2", on(0, 23, 0)), asked("3", on(1, 0, 30)), asked("4", on(1, 9, 0))
+	holdLines(t, dir, date, first, third)
+	holdLines(t, dir, "2026-10-06", second, fourth)
+
+	got := heldJSON(slices.Collect(readerAt(state, on(1, 12, 0)).Lines(on(0, 0, 0))))
+	if want := []string{jsonOf(t, first), jsonOf(t, second), jsonOf(t, third), jsonOf(t, fourth)}; !slices.Equal(got, want) {
+		t.Errorf("Lines() =\n%s\nwant\n%s: oldest first, whichever day's file each is in", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// noRequests is the summary of the day with the given date of no requests,
+// made from as many lines as lines says.
+func noRequests(date string, lines int) string {
+	return fmt.Sprintf(`{"version":1,"day":"%s","lines":%d}`, date, lines)
 }
 
 // summariesJSON returns each of summaries as JSON.
@@ -160,57 +173,107 @@ func summariesJSON(t *testing.T, summaries []ledger.Summary) []string {
 	return all
 }
 
-func TestDaysAreReadFromTheirSummariesOrSummarisedFromTheirLines(t *testing.T) {
+func TestDaysAreEveryDayOfTheRangeTodaysLast(t *testing.T) {
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	// A day whose only line was torn as it was written.
+	writeFile(t, dir, "requests-2026-10-06.jsonl", []byte(`{"at":"2026-10-06T09:00:00Z","requ`))
+
+	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(-1, 15, 0)))
+	want := []string{noRequests("2026-10-04", 0), summaryOf(date, 1, 1, ""), noRequests("2026-10-06", 1), noRequests("2026-10-07", 0)}
+	if !slices.Equal(got, want) {
+		t.Errorf("Days() =\n%s\nwant\n%s: every day from the 4th's to today's, a day of no requests a summary of no accounts", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestDaysAreReadFromTheirSummariesWhileTheyStand(t *testing.T) {
 	state, dir, history := stateDirs(t)
 	// The 3rd's lines are gone, its summary kept for good.
-	keptAlone := `{"version":1,"day":"2026-10-03","accounts":[{"account":"side","models":[{"model":"claude-opus-5-5","upstream":7,"unsent":0,` +
-		`"checks":0,"counts":0,"sessions":2}],"sessions":2,"moved_on":0,"moved_off":0}]}`
+	keptAlone := `{"version":1,"day":"2026-10-03","lines":7,"accounts":[{"account":"side","models":[{"model":"claude-opus-5-5","upstream":7,"no_usage":0,` +
+		`"unsent":0,"checks":0,"counts":0,"sessions":2}],"sessions":2,"moved_on":0,"moved_off":0}]}`
 	writeFile(t, dir, "day-2026-10-03.json", []byte(keptAlone+"\n"))
-	// The 5th's summary, as written, before a line was filed under the day.
-	summarised := summaryOfOne(date, "")
-	writeFile(t, dir, "day-2026-10-05.json", []byte(summarised+"\n"))
-	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 23, 59)))
+	// The 4th's summary, made from the line it holds, and one more since lost
+	// to damage, with the highest use the readings history gave as it was
+	// summarised, since pruned.
+	standing := summaryOf("2026-10-04", 2, 2, `,"highest":{"5h":0.9}`)
+	writeFile(t, dir, "day-2026-10-04.json", []byte(standing+"\n"))
+	holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+	// The 5th's summary, written before a line came to be filed under the day.
+	written := summaryOf(date, 1, 1, "") + "\n"
+	writeFile(t, dir, "day-2026-10-05.json", []byte(written))
+	holdLines(t, dir, date, asked("2", on(0, 9, 0)), asked("3", on(0, 23, 59)))
 	// The 6th, not yet summarised, as when the router was stopped as it ended,
 	// and today.
-	holdLines(t, dir, "2026-10-06", asked("3", on(1, 10, 0)))
-	holdLines(t, dir, "2026-10-07", asked("4", on(2, 9, 0)))
+	holdLines(t, dir, "2026-10-06", asked("4", on(1, 10, 0)))
+	holdLines(t, dir, "2026-10-07", asked("5", on(2, 9, 0)))
 	writeFile(t, history, "readings-2026-10-06.jsonl", []byte(readingJSON(t, workRead(on(1, 10, 0), "5h", 0.2, on(1, 14, 0), quota.StatusAllowed))+"\n"))
 	writeFile(t, history, "readings-2026-10-07.jsonl", []byte(readingJSON(t, workRead(on(2, 9, 0), "5h", 0.35, on(2, 13, 0), quota.StatusAllowed))+"\n"))
 
 	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(-2, 15, 0)))
-	want := []string{keptAlone, summarised, summaryOfOne("2026-10-06", `,"highest":{"5h":0.2}`), summaryOfOne("2026-10-07", `,"highest":{"5h":0.35}`)}
+	want := []string{keptAlone, standing, summaryOf(date, 2, 2, ""), summaryOf("2026-10-06", 1, 1, `,"highest":{"5h":0.2}`),
+		summaryOf("2026-10-07", 1, 1, `,"highest":{"5h":0.35}`)}
 	if !slices.Equal(got, want) {
-		t.Errorf("Days() =\n%s\nwant\n%s: a day's summary as it's held, never summarised again, the days without one summarised as they're read, "+
-			"a day of nothing left out", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		t.Errorf("Days() =\n%s\nwant\n%s: a day's summary as it's held while its lines are no more than it was made from, or pruned, and the others "+
+			"summarised from their lines as they're read", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	for _, date := range []string{"2026-10-04", "2026-10-06", "2026-10-07"} {
+	if held := heldSummary(t, dir, date); held != written {
+		t.Errorf("the ledger holds the 5th's summary as\n%s\nwant it as it was\n%s", held, written)
+	}
+	for _, date := range []string{"2026-10-06", "2026-10-07"} {
 		if held := heldSummary(t, dir, date); held != "" {
 			t.Errorf("the ledger holds a summary of %s, as\n%s\nwant none written by reading it", date, held)
 		}
 	}
 }
 
-func TestADayWhoseSummaryCantBeReadIsSummarisedFromItsLines(t *testing.T) {
-	log := logstest.Capture(t)
-	state, dir, _ := stateDirs(t)
-	writeFile(t, dir, "day-2026-10-05.json", []byte(`{"version":1,"day":`))
-	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
-
-	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(0, 0, 0)))
-	if want := []string{summaryOfOne(date, "")}; !slices.Equal(got, want) {
-		t.Errorf("Days() = %q, want %q", got, want)
+func TestADayWhoseSummaryCantBeReadAsItsOwnIsSummarisedFromItsLines(t *testing.T) {
+	tests := []struct {
+		name string
+		held string
+	}{
+		{name: "cut short", held: `{"version":1,"day":`},
+		{name: "of another day", held: summaryOf("2026-10-04", 1, 1, "")},
+		{name: "of no day", held: `{"version":1,"lines":1}`},
 	}
-	if !log.Has("level=WARN", `msg="can't read the request ledger's summary of a day; summarising it from its lines"`, "day="+date) {
-		t.Errorf("log reads\n%s\nwant the summary that can't be read warned of", log)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, _ := stateDirs(t)
+			writeFile(t, dir, "day-2026-10-05.json", []byte(tt.held))
+			holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+
+			got := summariesJSON(t, readerAt(state, on(0, 12, 0)).Days(on(0, 0, 0)))
+			if want := []string{summaryOf(date, 1, 1, "")}; !slices.Equal(got, want) {
+				t.Errorf("Days() = %q, want %q", got, want)
+			}
+			if !log.Has("level=WARN", `msg="can't read the request ledger's summary of a day; summarising it from its lines"`, "day="+date) {
+				t.Errorf("log reads\n%s\nwant the summary that can't be read as the day's warned of", log)
+			}
+		})
 	}
 }
 
-func TestADayNoneOfWhoseLinesReadIsLeftOut(t *testing.T) {
-	state, dir, _ := stateDirs(t)
-	writeFile(t, dir, "requests-2026-10-05.jsonl", []byte(`{"at":"2026-10-05T09:00:00Z","requ`))
+func TestADayIsSummarisedWithItsReadingsInTheOrderTheyWereRead(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	// A change of time zone files a reading under the date beside its own:
+	// the 3rd's file holds the last of work's session before the day, and the
+	// 6th's the first of the two its week was read rejected at that day.
+	resets, weekResets := on(0, 3, 0), on(2, 10, 0)
+	for name, read := range map[string]readings.Reading{
+		"readings-2026-10-03.jsonl": workRead(on(-1, 23, 0), "5h", 0.8, resets, quota.StatusAllowed),
+		"readings-2026-10-04.jsonl": workRead(on(-1, 22, 0), "5h", 0.3, resets, quota.StatusAllowed),
+		"readings-2026-10-05.jsonl": workRead(on(0, 15, 0), "7d", 1, weekResets, quota.StatusRejected),
+		"readings-2026-10-06.jsonl": workRead(on(0, 14, 0), "7d", 1, weekResets, quota.StatusRejected),
+	} {
+		writeFile(t, history, name, []byte(readingJSON(t, read)+"\n"))
+	}
 
-	if got := readerAt(state, on(1, 12, 0)).Days(on(0, 0, 0)); len(got) > 0 {
-		t.Errorf("Days() = %+v, want none: the day's only line is torn", got)
+	got := summariesJSON(t, readerAt(state, on(0, 18, 0)).Days(on(0, 0, 0)))
+	limit := `{"window":"7d","at":"` + on(0, 14, 0).UTC().Format(time.RFC3339) + `","resets_at":"` + weekResets.UTC().Format(time.RFC3339) + `"}`
+	if want := []string{summaryOf(date, 1, 1, `,"highest":{"5h":0.8,"7d":1},"limits":[`+limit+`]`)}; !slices.Equal(got, want) {
+		t.Errorf("Days() =\n%s\nwant\n%s: the use work's session began the day at, as its last reading before it read, and its week's limit as first read",
+			strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

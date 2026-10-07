@@ -273,12 +273,14 @@ func TestAnAmountIsShownToTheCentAndGivenInDollarsExactly(t *testing.T) {
 }
 
 func TestASummaryIsPricedModelByModel(t *testing.T) {
-	summary := ledger.Summary{Version: 1, Day: date, Accounts: []ledger.AccountDay{
+	summary := ledger.Summary{Version: 1, Day: date, Lines: 9, Accounts: []ledger.AccountDay{
 		{Account: "work", Sessions: 2, Models: []ledger.ModelDay{
 			{Model: "claude-opus-5-5", Upstream: 2, Sessions: 1, Usage: usage(`{"input_tokens":1000,"output_tokens":100}`)},
 			{Model: "claude-opus-5-5", InferenceGeo: "us", Upstream: 1, Sessions: 1, Usage: usage(`{"input_tokens":1000,"output_tokens":100}`)},
 			{Model: "claude-opus-9", Upstream: 1, Sessions: 1, Usage: usage(`{"input_tokens":1000}`)},
 			{Model: "claude-haiku-4-5", Checks: 1, Usage: usage(`{"input_tokens":8,"output_tokens":1,"server_tool_use":{"code_execution_requests":1}}`)},
+			{Model: "claude-sonnet-5-5", Upstream: 2, NoUsage: 1, Sessions: 1, Usage: usage(`{"input_tokens":1000,"output_tokens":100}`)},
+			{Model: "claude-fable-5", Upstream: 1, NoUsage: 1, Sessions: 1},
 		}},
 		{Models: []ledger.ModelDay{{Unsent: 1, Sessions: 1}}, Sessions: 1},
 	}}
@@ -287,15 +289,44 @@ func TestASummaryIsPricedModelByModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"version":1,"day":"2026-10-05","accounts":[` +
+	want := `{"version":1,"day":"2026-10-05","lines":9,"accounts":[` +
 		`{"account":"work","sessions":2,"moved_on":0,"moved_off":0,"models":[` +
-		`{"model":"claude-opus-5-5","upstream":2,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.006},` +
-		`{"model":"claude-opus-5-5","inference_geo":"us","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.0066},` +
-		`{"model":"claude-opus-9","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000}},` +
-		`{"model":"claude-haiku-4-5","upstream":0,"unsent":0,"checks":1,"counts":0,"sessions":0,` +
-		`"usage":{"input_tokens":8,"output_tokens":1,"server_tool_use":{"code_execution_requests":1}},"worth":0.000013,"unpriced":["server_tool_use.code_execution_requests"]}]},` +
-		`{"sessions":1,"moved_on":0,"moved_off":0,"models":[{"upstream":0,"unsent":1,"checks":0,"counts":0,"sessions":1}]}]}`
+		`{"model":"claude-opus-5-5","upstream":2,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.006},` +
+		`{"model":"claude-opus-5-5","inference_geo":"us","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,` +
+		`"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.0066},` +
+		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000}},` +
+		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,` +
+		`"usage":{"input_tokens":8,"output_tokens":1,"server_tool_use":{"code_execution_requests":1}},"worth":0.000013,"unpriced":["server_tool_use.code_execution_requests"]},` +
+		`{"model":"claude-sonnet-5-5","upstream":2,"no_usage":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},` +
+		`"worth":0.003,"unpriced":["no_usage"]},` +
+		`{"model":"claude-fable-5","upstream":1,"no_usage":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"worth":0,"unpriced":["no_usage"]}]},` +
+		`{"sessions":1,"moved_on":0,"moved_off":0,"models":[{"upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1}]}]}`
 	if string(got) != want {
-		t.Errorf("the priced summary is\n%s\nwant\n%s: each model's worth beside it, none where the model is unpriced", got, want)
+		t.Errorf("the priced summary is\n%s\nwant\n%s: each model's worth beside it, none where the model is unpriced, and the requests that went "+
+			"upstream without usage named unpriced, never free", got, want)
+	}
+}
+
+func TestARequestThatWentUpstreamWithoutUsageIsUnpricedNeverFree(t *testing.T) {
+	answered := asked("1", on(0, 9, 0))
+	tests := []struct {
+		name string
+		edit func(l *ledger.Line)
+		want ledger.Worth
+	}{
+		{name: "one whose answer gave its usage", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}},
+		{name: "one cut short", edit: func(l *ledger.Line) { l.Usage, l.CutOff = nil, true }, want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "one the API answered with an error", edit: func(l *ledger.Line) { l.Usage, l.Status = nil, 529 }, want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "one the router answered itself", edit: func(l *ledger.Line) { l.Usage, l.Attempts, l.Status = nil, 0, 429 }},
+		{name: "a count of tokens, which spends nothing", edit: func(l *ledger.Line) { l.Usage, l.Kind = nil, ledger.KindCount }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line := answered
+			tt.edit(&line)
+			if got, ok := ledger.Pricing.Request(&line, today); !ok || got.Cost != tt.want.Cost || !slices.Equal(got.Unpriced, tt.want.Unpriced) {
+				t.Errorf("Request() = %+v, %v, want %+v", got, ok, tt.want)
+			}
+		})
 	}
 }

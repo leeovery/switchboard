@@ -97,19 +97,34 @@ func Files(dir string, logger *slog.Logger) *dayfile.Files {
 }
 
 // Between returns the readings files hold of times from from up to to, one at
-// a time, in the order they came, whatever day's file they're in: those of the
-// local days from the day before from's to the day after to's, as
-// dayfile.Dates gives them, as a change of time zone can file a reading under
-// a day beside its own. A line that doesn't read as a reading that can be is
-// passed over. It holds the files from pruning and compressing while it reads
-// them.
+// a time, as Read gives them: those of the local days from the day before
+// from's to the day after to's, as dayfile.Dates gives them, as a change of
+// time zone can file a reading under a day beside its own. It holds the files
+// from pruning and compressing while it reads them.
 func Between(files *dayfile.Files, from, to time.Time) iter.Seq[Reading] {
 	return func(yield func(Reading) bool) {
-		dayfile.Read(files, dayfile.Dates(from, to), In, func(r Reading) bool {
-			if r.At.Before(from) || !r.At.Before(to) {
+		Read(files, dayfile.Dates(from, to), func(r Reading) bool {
+			switch {
+			case !r.At.Before(to):
+				return false
+			case r.At.Before(from):
 				return true
 			}
 			return yield(r)
 		})
 	}
+}
+
+// Read hands take each reading the files of the local days with the given
+// dates, oldest first, hold, in the order they were read, whatever day's file
+// each is in, as dayfile.Read reads them, until take reports false, and
+// returns how many of their lines were unread: too long to hold, or not a
+// reading that can be taken up, which are passed over.
+func Read(files *dayfile.Files, dates []string, take func(Reading) bool) (unread int) {
+	return dayfile.Read(files, dates, In, readAt, take)
+}
+
+// readAt is when r was read.
+func readAt(r Reading) time.Time {
+	return r.At
 }

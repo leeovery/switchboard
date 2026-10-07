@@ -88,7 +88,7 @@ func (p Policy) AsOf(windows []quota.Window, now time.Time) []quota.Window {
 // lapsed reports whether w has lapsed at now: it's the window a request
 // starts, and it has reset since it was read.
 func (p Policy) lapsed(w quota.Window, now time.Time) bool {
-	return w.Key == p.Started && hasReset(w, now)
+	return w.Key == p.Started && w.ResetBy(now)
 }
 
 // Candidate is an account Pick can choose.
@@ -110,7 +110,7 @@ type Candidate struct {
 // windows isn't available: nothing is known about it.
 func Available(windows []quota.Window, reserve float64, applies func(key string) bool, now time.Time) bool {
 	return len(windows) > 0 && !slices.ContainsFunc(windows, func(w quota.Window) bool {
-		return applies(w.Key) && (spent(w) || atReserve(w, reserve)) && !hasReset(w, now)
+		return applies(w.Key) && (spent(w) || atReserve(w, reserve)) && !w.ResetBy(now)
 	})
 }
 
@@ -120,7 +120,7 @@ func Available(windows []quota.Window, reserve float64, applies func(key string)
 func AtReserve(windows []quota.Window, reserve float64, now time.Time) []string {
 	var keys []string
 	for _, w := range windows {
-		if atReserve(w, reserve) && !hasReset(w, now) {
+		if atReserve(w, reserve) && !w.ResetBy(now) {
 			keys = append(keys, w.Key)
 		}
 	}
@@ -136,7 +136,7 @@ func LetGo(windows []quota.Window, reserve float64, applies func(key string) boo
 	var last time.Time
 	for _, w := range windows {
 		switch {
-		case !applies(w.Key) || !atReserve(w, reserve) || hasReset(w, now):
+		case !applies(w.Key) || !atReserve(w, reserve) || w.ResetBy(now):
 		case w.ResetsAt.IsZero():
 			return time.Time{}, false
 		case w.ResetsAt.After(last):
@@ -165,7 +165,7 @@ func (p Policy) Perishability(windows []quota.Window, reserve float64, now time.
 	}
 	room := 1 - reserve
 	remaining, until := room-w.Utilization, w.ResetsAt.Sub(now)
-	if hasReset(w, now) {
+	if w.ResetBy(now) {
 		remaining, until = room, length
 	}
 	return min(max(remaining, 0), room) / max(until, minUntilReset).Hours(), true
@@ -309,7 +309,7 @@ func shortestUse(windows []quota.Window, applies func(string) bool, now time.Tim
 		return 0
 	}
 	shortest := slices.MinFunc(applicable, quota.Compare)
-	if hasReset(shortest, now) {
+	if shortest.ResetBy(now) {
 		return 0
 	}
 	return shortest.Utilization

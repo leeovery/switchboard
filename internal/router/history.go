@@ -33,6 +33,11 @@ type history struct {
 	now func() time.Time
 	// keep is how long a day's file is kept, from the end of its day.
 	keep time.Duration
+	// round, where it's given, is called on each of the writer's rounds,
+	// before the history's files are pruned: the request ledger summarises
+	// on it the days that have ended, while the readings their summaries
+	// need are still there.
+	round func(now time.Time)
 	// files are the history's files, and writer what writes the readings
 	// noted to them: both are made as the history is opened, once the router
 	// has its state directory, before run starts.
@@ -53,7 +58,7 @@ func newHistory(settings config.History, now func() time.Time) *history {
 // open has the history kept in dir from now on.
 func (h *history) open(dir string) {
 	h.files = readings.Files(dir, logger)
-	h.writer = dayfile.NewWriter(h.files, h.lines, dayfile.WriterOptions{Queue: historyQueue, Keep: h.keep, Now: h.now, Items: "readings"})
+	h.writer = dayfile.NewWriter(h.files, h.lines, dayfile.WriterOptions{Queue: historyQueue, Keep: h.keep, Now: h.now, Items: "readings", Round: h.round})
 	h.opened.Store(true)
 }
 
@@ -93,17 +98,17 @@ func (h *history) lines(taken []readings.Reading) dayfile.Lines {
 }
 
 // readBack returns the readings the history's two newest days hold, taken at
-// or before now, one at a time, in the order they came: each day's after the
-// older's, as dayfile.Read reads them. The newest days are by the dates the
-// files' names give, as a change of time zone can put today's file under
-// another date than the clock's, but for those of a day after tomorrow. A
-// window's readings since the half hour before now, and its baseline before
-// that, are among them unless it has been quiet since before the older day,
-// and then it has no recent rate to go by. A line that doesn't read as a
-// reading that can be is left out.
+// or before now, one at a time, in the order they were read, whichever day's
+// file each is in, as readings.Read reads them. The newest days are by the
+// dates the files' names give, as a change of time zone can put today's file
+// under another date than the clock's, but for those of a day after
+// tomorrow. A window's readings since the half hour before now, and its
+// baseline before that, are among them unless it has been quiet since before
+// the older day, and then it has no recent rate to go by. A line that doesn't
+// read as a reading that can be is left out.
 func (h *history) readBack(now time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
-		unread := dayfile.Read(h.files, h.files.Newest(now, 2), readings.In, func(r readings.Reading) bool {
+		unread := readings.Read(h.files, h.files.Newest(now, 2), func(r readings.Reading) bool {
 			return r.At.After(now) || yield(r)
 		})
 		if unread > 0 {
@@ -124,16 +129,16 @@ func (h *history) readings(from, to time.Time) iter.Seq[readings.Reading] {
 
 // windowReadings returns the readings the history holds of the window with
 // the given key, of the accounts with the given ids, by account, in the order
-// they came: those of the local days from the day before from's to the day
-// after to's, as dayfile.Dates gives them. It holds the files from pruning
-// and compressing while it reads them, and reads none for no account, or
-// before the history is opened.
+// they were read: those of the local days from the day before from's to the
+// day after to's, as dayfile.Dates gives them. It holds the files from
+// pruning and compressing while it reads them, and reads none for no account,
+// or before the history is opened.
 func (h *history) windowReadings(key string, ids []string, from, to time.Time) map[string][]readings.Reading {
 	if len(ids) == 0 || !h.opened.Load() {
 		return nil
 	}
 	read := make(map[string][]readings.Reading)
-	dayfile.Read(h.files, dayfile.Dates(from, to), readings.In, func(r readings.Reading) bool {
+	readings.Read(h.files, dayfile.Dates(from, to), func(r readings.Reading) bool {
 		if r.Key == key && slices.Contains(ids, r.Account) {
 			read[r.Account] = append(read[r.Account], r)
 		}

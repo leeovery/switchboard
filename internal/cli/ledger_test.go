@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -75,7 +76,7 @@ var fixtureLines = map[string][]ledger.Line{
 
 // heldSummary is the summary the ledger holds of the 4th, as the router wrote
 // it.
-const heldSummary = `{"version":1,"day":"2026-10-04","accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"unsent":0,` +
+const heldSummary = `{"version":1,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
 	`"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},` +
 	`"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,"input_tokens":12,"output_tokens":845}}],"sessions":1,` +
 	`"moved_on":0,"moved_off":0,"highest":{"5h":0.5}}]}`
@@ -310,10 +311,11 @@ const historyFromThe6th = `Tue 6 Oct 2026
 
 ` + historyOfToday
 
-// historyOfToday is what history prints of today, the prices last.
+// historyOfToday is what history prints of today, the prices last: side's
+// request, canceled, gave no usage, so its worth isn't known.
 const historyOfToday = `Wed 7 Oct 2026, so far
   no account  claude-opus-5-5   1 request   0 tokens     1 session    $0.00
-  side        claude-opus-5-5   1 request   0 tokens     1 session    $0.00
+  side        claude-opus-5-5   1 request   0 tokens     1 session    $0.00, part unpriced
   work        claude-haiku-4-5  1 request   9 tokens     no sessions  $0.00
               claude-opus-5-5   2 requests  186k tokens  1 session    $0.08
               claude-opus-9     1 request   110 tokens   1 session    unpriced
@@ -359,25 +361,28 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	}
 	limit := fixtureReadings[1]
 	want := `{"prices_as_of":"2026-10-07","days":[` +
-		`{"version":1,"day":"2026-10-04","accounts":[{"account":"work","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.5},` +
-		`"models":[{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
+		`{"version":1,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.5},` +
+		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}]},` +
-		`{"version":1,"day":"2026-10-06","accounts":[{"account":"side","sessions":1,"moved_on":1,"moved_off":0,"highest":{"5h":0.1},` +
-		`"models":[{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_read_input_tokens":20000,` +
+		`{"version":1,"day":"2026-10-05","lines":0},` +
+		`{"version":1,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"moved_on":1,"moved_off":0,"highest":{"5h":0.1},` +
+		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_read_input_tokens":20000,` +
 		`"input_tokens":5,"output_tokens":50,"server_tool_use":{"web_search_requests":1}},"worth":0.01502}]},` +
 		`{"account":"work","sessions":0,"moved_on":0,"moved_off":1,"highest":{"5h":1},"limits":[{"window":"5h","at":"` +
 		limit.At.UTC().Format(time.RFC3339) + `","resets_at":"` + limit.ResetsAt.UTC().Format(time.RFC3339) + `"}]}]},` +
-		`{"version":1,"day":"2026-10-07","accounts":[` +
-		`{"sessions":1,"moved_on":0,"moved_off":0,"models":[{"model":"claude-opus-5-5","upstream":0,"unsent":1,"checks":0,"counts":0,"sessions":1,"worth":0}]},` +
-		`{"account":"side","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"models":[{"model":"claude-opus-5-5","upstream":1,"unsent":0,` +
-		`"checks":0,"counts":0,"sessions":1,"worth":0}]},` +
+		`{"version":1,"day":"2026-10-07","lines":6,"accounts":[` +
+		`{"sessions":1,"moved_on":0,"moved_off":0,"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1,` +
+		`"worth":0}]},` +
+		`{"account":"side","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,` +
+		`"checks":0,"counts":0,"sessions":1,"worth":0,"unpriced":["no_usage"]}]},` +
 		`{"account":"work","sessions":2,"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},"models":[` +
-		`{"model":"claude-haiku-4-5","upstream":0,"unsent":0,"checks":1,"counts":0,"sessions":0,"usage":{"input_tokens":8,"output_tokens":1},"worth":0.000013},` +
-		`{"model":"claude-opus-5-5","upstream":1,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +
+		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,"usage":{"input_tokens":8,"output_tokens":1},` +
+		`"worth":0.000013},` +
+		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376},` +
-		`{"model":"claude-opus-9","upstream":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}]}]}`
+		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}]}]}`
 	if compact.String() != want {
 		t.Errorf("switchboard history --json printed\n%s\nwant\n%s", compact.String(), want)
 	}
@@ -415,11 +420,31 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		{args: []string{"requests"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
 		{args: []string{"requests", "--json"}},
 		{args: []string{"history"}, want: "no requests since Tue 8 Sep 2026\n"},
-		{args: []string{"history", "--json"}, want: "{\n  \"prices_as_of\": \"2026-10-07\",\n  \"days\": []\n}\n"},
 	}
 	for _, tt := range tests {
 		if got := run(t, deps, tt.args...); got != (result{stdout: tt.want}) {
 			t.Errorf("switchboard %s = %+v, want it to print\n%s", strings.Join(tt.args, " "), got, tt.want)
 		}
+	}
+
+	got := run(t, deps, "history", "--json")
+	var doc struct {
+		PricesAsOf string            `json:"prices_as_of"`
+		Days       []json.RawMessage `json:"days"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || got.stderr != "" || doc.PricesAsOf != "2026-10-07" {
+		t.Fatalf("switchboard history --json = %+v (%v), want the days, priced as of 2026-10-07", got, err)
+	}
+	var days, want []string
+	for i, day := range doc.Days {
+		var compact bytes.Buffer
+		if err := json.Compact(&compact, day); err != nil {
+			t.Fatal(err)
+		}
+		days = append(days, compact.String())
+		want = append(want, `{"version":1,"day":"`+ledgerNow.AddDate(0, 0, i-29).Format(time.DateOnly)+`","lines":0}`)
+	}
+	if len(days) != 30 || !slices.Equal(days, want) {
+		t.Errorf("switchboard history --json printed the days\n%s\nwant each of the last 30, today's last, each of no requests", strings.Join(days, "\n"))
 	}
 }

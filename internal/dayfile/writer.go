@@ -30,12 +30,13 @@ type WriterOptions struct {
 }
 
 // Writer writes what's noted to it to its files, on Run's goroutine, and
-// keeps them, making its round as Run starts and every pruneLook after, and
-// pruning them on the first round, or write, of each day. Noting never
-// waits: what's noted queues for Run, and what's past the queue's end is
-// dropped, logged once until a write succeeds. A write that fails is logged,
-// once until one succeeds, and what it held goes unwritten. T is what's
-// noted at a time, as a taking in of readings.
+// keeps them, making its round as Run starts, every pruneLook after, and as
+// the first write of a day comes, pruning them on the first round of each
+// day, after its Round. Noting never waits: what's noted queues for Run, and
+// what's past the queue's end is dropped, logged once until a write
+// succeeds. A write that fails is logged, once until one succeeds, and what
+// it held goes unwritten. T is what's noted at a time, as a taking in of
+// readings.
 type Writer[T any] struct {
 	files   *Files
 	linesOf func(T) Lines
@@ -94,12 +95,23 @@ func (w *Writer[T]) Run(ctx context.Context) {
 }
 
 // round has the Writer's Round, where it has one, keep what it keeps of the
-// files' days, then prunes the files on a day they haven't been pruned on.
+// files' days, then prunes the files on a day they haven't been pruned on,
+// noting the day it did: no prune comes but after the Round.
 func (w *Writer[T]) round() {
+	now := w.now()
 	if w.onRound != nil {
-		w.onRound(w.now())
+		w.onRound(now)
 	}
-	w.pruneDaily()
+	if !w.prunedOn(now) {
+		w.pruned = dateOf(now)
+		w.files.prune(now, w.keep)
+	}
+}
+
+// prunedOn reports whether the files have been pruned on the local day now
+// falls on.
+func (w *Writer[T]) prunedOn(now time.Time) bool {
+	return dateOf(now) == w.pruned
 }
 
 // drain writes what's still queued.
@@ -114,10 +126,14 @@ func (w *Writer[T]) drain() {
 	}
 }
 
-// write appends v's lines to the files, pruning first on a day they haven't
-// been pruned on, and logging a failure once until a write succeeds.
+// write appends v's lines to the files, logging a failure once until a write
+// succeeds. On a day the files haven't been pruned on, it makes its round
+// first: a sleep holds the hourly round back, so a day's first write can come
+// before it.
 func (w *Writer[T]) write(v T) {
-	w.pruneDaily()
+	if !w.prunedOn(w.now()) {
+		w.round()
+	}
 	err := w.files.Append(w.linesOf(v))
 	switch {
 	case err != nil && !w.failing:
@@ -129,18 +145,4 @@ func (w *Writer[T]) write(v T) {
 	if err == nil {
 		w.dropping.Store(false)
 	}
-}
-
-// pruneDaily prunes the files on a day they haven't been pruned on.
-func (w *Writer[T]) pruneDaily() {
-	if dateOf(w.now()) != w.pruned {
-		w.prune()
-	}
-}
-
-// prune prunes the files at the clock's now, noting the day it did.
-func (w *Writer[T]) prune() {
-	now := w.now()
-	w.pruned = dateOf(now)
-	w.files.prune(now, w.keep)
 }

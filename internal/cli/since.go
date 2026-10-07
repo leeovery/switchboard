@@ -64,8 +64,8 @@ func agoOf(given string) (time.Duration, bool) {
 	return ago, err == nil && ago > 0
 }
 
-// startOfDay returns when the local day now falls on began, days before.
+// startOfDay returns when the local day days before the one now falls on
+// began, as dayfile.DayStart says.
 func startOfDay(now time.Time, days int) time.Time {
-	y, m, d := now.Local().Date()
-	return time.Date(y, m, d-days, 0, 0, 0, 0, time.Local)
+	return dayfile.DayStart(now.Local(), -days)
 }

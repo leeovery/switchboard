@@ -163,7 +163,7 @@ func TestTheFilesArePrunedOnTheFirstWriteOfANewDay(t *testing.T) {
 	clock := &testClock{now: start}
 	f := readingsHistory(t.TempDir())
 	w := testWriter(f, clock.read, 1)
-	w.prune()
+	w.round()
 	// Its day ended 13 days before start's, so it goes on the day after.
 	old := dateOf(start.Local().AddDate(0, 0, -14))
 	writeDay(t, f, plainFile(old), linesOf("old"))
@@ -235,6 +235,32 @@ func TestAWriterMakesItsRoundAsItStartsAndEveryHourAfterBeforePruning(t *testing
 			t.Errorf("the day past keeping was there for each round = %v, want %v: the first round made before the pruning it went at", held, want)
 		}
 	})
+}
+
+func TestTheFirstWriteOfANewDayMakesTheRoundBeforeItPrunes(t *testing.T) {
+	clock := &testClock{now: start}
+	f := readingsHistory(t.TempDir())
+	// A day whose files go once they're pruned a day on.
+	old := dateOf(start.Local().AddDate(0, 0, -14))
+	writeDay(t, f, plainFile(old), linesOf("old"))
+	var rounds []time.Time
+	var held []bool
+	w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: clock.read, Items: "readings", Round: func(now time.Time) {
+		rounds = append(rounds, now)
+		held = append(held, holdsDay(f, old))
+	}})
+	w.round()
+
+	// A day on, the first write comes before the hourly round, as after a
+	// sleep, which holds that back.
+	clock.now = start.Add(24 * time.Hour)
+	w.write(noted{at: clock.now, text: "one"})
+	if want := []time.Time{start, clock.now}; !slices.EqualFunc(rounds, want, time.Time.Equal) || !slices.Equal(held, []bool{true, true}) {
+		t.Errorf("rounds were made at %v, the day past keeping there for each = %v; want %v, the second as the write came, before the prune", rounds, held, want)
+	}
+	if holdsDay(f, old) {
+		t.Error("the day past keeping stayed, want it pruned with the day's first write")
+	}
 }
 
 func TestWhatsLoggedNamesTheFilesAndWhatTheyHold(t *testing.T) {

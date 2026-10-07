@@ -30,15 +30,22 @@ const (
 )
 
 // Summary is a day of the ledger, summarised from its lines and the readings
-// history: written once its day has ended, and kept for good. Fields may be
-// added to it, never renamed; Version says which a summary was written with.
+// history: written once its day has ended, written again while lines come to
+// be filed under the day, and kept for good once they're pruned. Fields may
+// be added to it, never renamed; Version says which a summary was written
+// with.
 type Summary struct {
 	Version int `json:"version"`
 	// Day is the local day's date, as the ledger's files are named for it.
 	Day string `json:"day"`
+	// Lines counts the day's lines the summary was made from, those that
+	// didn't read as a line among them: while they're kept, a day whose files
+	// come to hold more of them is summarised again.
+	Lines int `json:"lines"`
 	// Accounts are the accounts' days, in the order of their ids: one of no
 	// account holds the requests the router answered without one, as when no
-	// account had room, or a request's body couldn't be read.
+	// account had room, or a request's body couldn't be read. A day of no
+	// requests has none.
 	Accounts []AccountDay `json:"accounts,omitempty"`
 }
 
@@ -75,10 +82,12 @@ type ModelDay struct {
 	Model        string `json:"model,omitempty"`
 	InferenceGeo string `json:"inference_geo,omitempty"`
 	// Upstream counts the requests that spend quota that went upstream, and
-	// Unsent those the router answered itself, never sending them; Checks
-	// counts Claude Code's quota checks, and Counts the counts of tokens,
-	// however each went.
+	// NoUsage those of them whose answers gave no usage, as one cut short or
+	// an error gives none, so what they spent is unknown; Unsent counts those
+	// the router answered itself, never sending them; Checks counts Claude
+	// Code's quota checks, and Counts the counts of tokens, however each went.
 	Upstream int `json:"upstream"`
+	NoUsage  int `json:"no_usage"`
 	Unsent   int `json:"unsent"`
 	Checks   int `json:"checks"`
 	Counts   int `json:"counts"`
@@ -107,25 +116,57 @@ type Limit struct {
 }
 
 // Readings returns the readings the readings history holds of times from
-// from up to to, in the order they came.
+// from up to to, in the order they were read.
 type Readings func(from, to time.Time) iter.Seq[readings.Reading]
+
+// readOnce returns Readings that read history once, the first time they're
+// asked, from the time first asked for to until, and give those of any times
+// between from what they read, as summarising several days, oldest first,
+// would read each one's week before again otherwise. Those of times before
+// what they read, or after until, are read afresh.
+func readOnce(history Readings, until time.Time) Readings {
+	var read []readings.Reading
+	var since time.Time
+	asked := false
+	return func(from, to time.Time) iter.Seq[readings.Reading] {
+		if !asked {
+			read, since, asked = slices.Collect(history(from, until)), from, true
+		}
+		if from.Before(since) || to.After(until) {
+			return history(from, to)
+		}
+		first, _ := slices.BinarySearchFunc(read, from, readAt)
+		last, _ := slices.BinarySearchFunc(read, to, readAt)
+		return slices.Values(read[first:max(first, last)])
+	}
+}
+
+// readAt compares when r was read with t.
+func readAt(r readings.Reading, t time.Time) int {
+	return r.At.Compare(t)
+}
 
 // Summarise returns the summary of the local day with the given date, as the
 // ledger's files are named for it, from the day's lines, and the readings
 // history gives of the day and the week before it, the last of each window's
-// before the day saying the use it began the day at. It fails for a date
-// that isn't one.
+// before the day saying the use it began the day at. A day of no lines is
+// one of no accounts, the history asked for nothing: its readings tell of
+// the accounts beside the day's requests alone. It fails for a date that
+// isn't one.
 func Summarise(date string, lines iter.Seq[Line], history Readings) (Summary, error) {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
 		return Summary{}, fmt.Errorf("summarise %q: not a date", date)
 	}
-	t := make(tally)
+	t, n := make(tally), 0
 	for line := range lines {
 		t.line(&line)
+		n++
 	}
-	t.readings(history(start.Add(-readingsBefore), end), start)
-	return t.summary(date), nil
+	if n > 0 {
+		t.readings(history(start.Add(-readingsBefore), end), start)
+	}
+	return t.summary(date, n), nil
 }
 
 // tally is a day as it's summarised: each account's, by its id, "" for the
@@ -206,6 +247,9 @@ func (m *modelTally) line(l *Line) {
 		m.day.Counts++
 	case l.Attempts > 0:
 		m.day.Upstream++
+		if l.unmetered() {
+			m.day.NoUsage++
+		}
 	default:
 		m.day.Unsent++
 	}
@@ -237,7 +281,7 @@ func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
 		}
 		day = append(day, r)
 	}
-	maps.DeleteFunc(last, func(_ accountWindow, w quota.Window) bool { return resetBy(w, start) })
+	maps.DeleteFunc(last, func(_ accountWindow, w quota.Window) bool { return w.ResetBy(start) })
 	for w, began := range last {
 		t.account(w.account).peak(began)
 	}
@@ -261,12 +305,6 @@ func windowOf(r readings.Reading) accountWindow {
 	return accountWindow{account: r.Account, key: r.Key}
 }
 
-// resetBy reports whether the window read w had reset by t, as its reading
-// said it would.
-func resetBy(w quota.Window, t time.Time) bool {
-	return !w.ResetsAt.IsZero() && !w.ResetsAt.After(t)
-}
-
 // turned reports whether a window read w, read was before, has turned
 // rejected: it's rejected, and wasn't, or was read as another window, one
 // with another reset, or not read at all.
@@ -282,9 +320,10 @@ func (a *accountTally) peak(w quota.Window) {
 	}
 }
 
-// summary returns the day with the given date as its summary.
-func (t tally) summary(date string) Summary {
-	s := Summary{Version: summaryVersion, Day: date}
+// summary returns the day with the given date as its summary, made from the
+// number of lines given.
+func (t tally) summary(date string, lines int) Summary {
+	s := Summary{Version: summaryVersion, Day: date, Lines: lines}
 	for _, id := range slices.Sorted(maps.Keys(t)) {
 		s.Accounts = append(s.Accounts, t[id].summary(id))
 	}

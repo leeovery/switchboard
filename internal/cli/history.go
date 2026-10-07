@@ -47,8 +47,9 @@ so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
 
-With --json, print each day's summary as the ledger holds it, each model's
-worth in US dollars added, for an agent or a script to read.`,
+With --json, print each day's summary as the ledger holds it, every day, so
+the last is today's, each model's worth in US dollars added, and what it
+leaves unpriced, for an agent or a script to read.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.history(cmd.OutOrStdout(), given, asJSON)
@@ -82,9 +83,11 @@ func (a *app) history(out io.Writer, given string, asJSON bool) error {
 	return writeHistory(out, days, from, now)
 }
 
-// writeHistory writes days as history's text, a table a day, then the date of
-// the prices they're worth at; or says there were none since from.
+// writeHistory writes days as history's text, a table a day of those with
+// requests, then the date of the prices they're worth at; or says there were
+// none since from.
 func writeHistory(out io.Writer, days []ledger.Priced, from, now time.Time) error {
+	days = slices.DeleteFunc(days, func(day ledger.Priced) bool { return len(day.Accounts) == 0 })
 	if len(days) == 0 {
 		_, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout))
 		return err
@@ -102,7 +105,7 @@ func writeHistory(out io.Writer, days []ledger.Priced, from, now time.Time) erro
 // historyTable is the day's table: a row for each account's model, the
 // account named on its first, and a note of each account's.
 func historyTable(day ledger.Priced, now time.Time) dayTable {
-	start, _ := time.ParseInLocation(time.DateOnly, day.Day, now.Location())
+	start, _, _ := dayfile.Day(day.Day)
 	table := dayTable{day: start}
 	for _, a := range day.Accounts {
 		for i, m := range a.Models {
