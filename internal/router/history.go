@@ -108,9 +108,7 @@ func (h *history) lines(taken []readings.Reading) dayfile.Lines {
 // read as a reading that can be is left out.
 func (h *history) readBack(now time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
-		unread := readings.Read(h.files, h.files.Newest(now, 2), func(r readings.Reading) bool {
-			return r.At.After(now) || yield(r)
-		})
+		unread := readings.Read(h.files, h.files.Newest(now, 2), func(r readings.Reading) bool { return !r.At.After(now) }, yield)
 		if unread > 0 {
 			logger.Warn("readings history lines unread", "lines", unread)
 		}
@@ -138,11 +136,10 @@ func (h *history) windowReadings(key string, ids []string, from, to time.Time) m
 		return nil
 	}
 	read := make(map[string][]readings.Reading)
-	readings.Read(h.files, dayfile.Dates(from, to), func(r readings.Reading) bool {
-		if r.Key == key && slices.Contains(ids, r.Account) {
+	readings.Read(h.files, dayfile.Dates(from, to), func(r readings.Reading) bool { return r.Key == key && slices.Contains(ids, r.Account) },
+		func(r readings.Reading) bool {
 			read[r.Account] = append(read[r.Account], r)
-		}
-		return true
-	})
+			return true
+		})
 	return read
 }

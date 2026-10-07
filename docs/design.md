@@ -1664,7 +1664,9 @@ first day a router that has it runs, so nothing before then is in it.
   readings history is read; how many were passed over is logged. Lines are read oldest first, by
   when each arrived, whichever day's file each is in, as a day's are written as their requests
   end, and a change of time zone files a line under the date beside its own, never further:
-  ordering them holds a day or two of them at a time, and so does ordering the readings history's.
+  ordering them holds a day or two of those asked for at a time, a line of another time, as one of
+  the day before the first asked for, whose file is read for those filed under it, passed over as
+  it's read, never held; and so does ordering the readings history's.
   A day's summary is read as the ledger holds it while it stands: its lines are pruned, or are as
   its stamp says, or number no more than its `lines`, or can't be counted, which is warned of.
   Today, and any day not summarised since lines came to be filed under it, is summarised from its
@@ -2047,8 +2049,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   baseline included (see Choosing an account): the history holds each change of a window's use, so
   they are as they were, but for when each level was last read again, which it takes as its line's
   time, and the recent rates outlast the restart. It reads them in the order they were read,
-  whichever day's file each is in, holding a day or two of them at a time to order them, as every
-  read of the history does, and keeps what the recent readings need alone. A window quiet since
+  whichever day's file each is in, holding a day or two of those it asks for at a time to order
+  them, one of another time, or another window, passed over as it's read, as every read of the
+  history does, and keeps what the recent readings need alone. A window quiet since
   before the older of the two has no baseline to
   take up. It passes over a line that doesn't read as a reading, as one cut short, or one over
   4 KiB, which no reading makes and which it skips without holding, one of an account no longer
@@ -2057,11 +2060,13 @@ hiding it behind the provider would take a wider interface than it's worth:
   is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of
   them would otherwise run to hundreds of megabytes; the router reads either form back, as it starts
   and for `GET /history`, which the dashboard's charts draw from (see Control API), and so do the
-  request ledger's readers, as they summarise a day (see The request ledger). A day whose
-  compressed file already ends with its plain file's lines, as when the router stopped between
-  writing the one and removing the other, is read from the compressed file alone. A file gone
-  between the listing of its day's files and its opening, as when the router compressed the day
-  meanwhile, has them listed and opened again, once. A file that can't be read is passed over, and
+  request ledger's readers, as they summarise a day (see The request ledger). A day's plain file
+  is opened before its compressed file, and what the two hold is told from the files opened:
+  compressing a day writes its compressed file before it removes the plain one, so a day another
+  process compresses as they're opened is read whole, each line once. A day whose compressed file
+  already ends with its plain file's lines, as when the router compressed the day between the two
+  openings, or stopped between writing the one and removing the other, is read from the compressed
+  file alone. A file that can't be read is passed over, and
   one damaged, as a compressed file cut short, read up to the damage, each warned of once, until it
   reads to its end again (see Logging). A line cut short at a
   file's end, as a crash or a power cut partway through a write leaves one, is ended before more

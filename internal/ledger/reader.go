@@ -47,23 +47,17 @@ type Held struct {
 
 // Lines returns the lines of the requests that arrived from from on, until
 // now, oldest first, by when each arrived, whichever day's file each is in,
-// plain or compressed, as dayfile.Read reads them: a day's are written as
-// their requests end, which a long one does after others that arrived later.
-// It reads the days from where start says. A line that doesn't read as one,
-// as one cut short, is passed over, and a damaged compressed file read up to
-// the damage: how many lines couldn't be read is logged.
+// plain or compressed, as dayfile.Read reads them, holding none of another
+// time: a day's are written as their requests end, which a long one does
+// after others that arrived later. It reads the days from where start says.
+// A line that doesn't read as one, as one cut short, is passed over, and a
+// damaged compressed file read up to the damage: how many lines couldn't be
+// read is logged.
 func (r *Reader) Lines(from time.Time) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := r.now()
-		unread := dayfile.Read(r.days.files, dayfile.Dates(r.days.start(from, now), now), heldIn, arrived, func(h Held) bool {
-			switch {
-			case h.At.After(now):
-				return false
-			case h.At.Before(from):
-				return true
-			}
-			return yield(h)
-		})
+		within := func(h Held) bool { return !h.At.Before(from) && !h.At.After(now) }
+		unread := dayfile.Read(r.days.files, dayfile.Dates(r.days.start(from, now), now), heldIn, arrived, within, yield)
 		if unread > 0 {
 			r.days.logger.Warn("request ledger lines unread", "lines", unread)
 		}
