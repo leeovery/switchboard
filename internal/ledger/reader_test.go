@@ -159,7 +159,8 @@ func noRequests(date string, lines int) string {
 	return fmt.Sprintf(`{"version":1,"day":"%s","lines":%d}`, date, lines)
 }
 
-// summariesJSON returns each of summaries as JSON.
+// summariesJSON returns each of summaries as JSON, but for the sizes of its
+// day's files a summary is marked with.
 func summariesJSON(t *testing.T, summaries []ledger.Summary) []string {
 	t.Helper()
 	var all []string
@@ -168,7 +169,7 @@ func summariesJSON(t *testing.T, summaries []ledger.Summary) []string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		all = append(all, string(data))
+		all = append(all, unmarked(string(data)))
 	}
 	return all
 }
@@ -313,7 +314,7 @@ func TestDaysOpenNoFileOfADayWhoseLinesHaventChangedSinceItsSummary(t *testing.T
 	state, dir, _ := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
 	writeAt(t, dir, on(1, 10, 0), noReadings)
-	unopenable(t, dir)
+	unopenable(t, dir, "requests-*")
 
 	got := summariesJSON(t, readerAt(state, on(1, 12, 0)).Days(on(0, 0, 0)))
 	if want := []string{summaryOf(date, 2, 2, ""), noRequests("2026-10-06", 0)}; !slices.Equal(got, want) || opened(log) != 0 {

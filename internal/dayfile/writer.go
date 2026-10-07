@@ -28,24 +28,31 @@ type WriterOptions struct {
 	// else is kept of the files' days is kept on it, while their lines are
 	// still there.
 	Round func(now time.Time)
+	// Pruning, where it's given, is called with the clock's now just before
+	// each prune of the files, once a day, on Run's goroutine: what's kept of
+	// other days that needs the files' lines, as the request ledger's
+	// summaries need the readings history's, is kept on it, while they're
+	// still there, and needn't be on every round.
+	Pruning func(now time.Time)
 }
 
 // Writer writes what's noted to it to its files, on Run's goroutine, and
 // keeps them, making its round as Run starts, every pruneLook after, and as
 // the first write of a day comes, pruning them on the first round of each
-// day, after its Round. Noting never waits: what's noted queues for Run, and
-// what's past the queue's end is dropped, logged once until a write
-// succeeds. A write that fails is logged, once until one succeeds, and what
-// it held goes unwritten. T is what's noted at a time, as a taking in of
-// readings.
+// day, after its Round and its Pruning. Noting never waits: what's noted
+// queues for Run, and what's past the queue's end is dropped, logged once
+// until a write succeeds. A write that fails is logged, once until one
+// succeeds, and what it held goes unwritten. T is what's noted at a time, as
+// a taking in of readings.
 type Writer[T any] struct {
-	files   *Files
-	linesOf func(T) Lines
-	keep    time.Duration
-	now     func() time.Time
-	items   string
-	onRound func(now time.Time)
-	queue   chan T
+	files     *Files
+	linesOf   func(T) Lines
+	keep      time.Duration
+	now       func() time.Time
+	items     string
+	onRound   func(now time.Time)
+	onPruning func(now time.Time)
+	queue     chan T
 	// dropping is set once what's noted is dropped for the queue being full,
 	// until a write succeeds.
 	dropping atomic.Bool
@@ -59,7 +66,8 @@ type Writer[T any] struct {
 // NewWriter returns a Writer of files, which writes each thing noted to it as
 // the lines linesOf returns of it, as opts say.
 func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *Writer[T] {
-	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, queue: make(chan T, opts.Queue)}
+	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, onPruning: opts.Pruning,
+		queue: make(chan T, opts.Queue)}
 }
 
 // Note queues v for Run to write. It never waits: with the queue full, v is
@@ -97,16 +105,21 @@ func (w *Writer[T]) Run(ctx context.Context) {
 
 // round has the Writer's Round, where it has one, keep what it keeps of the
 // files' days, then prunes the files on a day they haven't been pruned on,
-// noting the day it did: no prune comes but after the Round.
+// noting the day it did, after its Pruning, where it has one: no prune comes
+// but after both.
 func (w *Writer[T]) round() {
 	now := w.now()
 	if w.onRound != nil {
 		w.onRound(now)
 	}
-	if !w.prunedOn(now) {
-		w.pruned = dateOf(now)
-		w.files.prune(now, w.keep)
+	if w.prunedOn(now) {
+		return
 	}
+	if w.onPruning != nil {
+		w.onPruning(now)
+	}
+	w.pruned = dateOf(now)
+	w.files.prune(now, w.keep)
 }
 
 // prunedOn reports whether the files have been pruned on the local day now

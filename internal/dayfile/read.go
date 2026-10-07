@@ -151,26 +151,51 @@ func (f *Files) Count(date string) (int, error) {
 	return lines, err
 }
 
-// Modified returns when the lines of the local day with the given date last
-// changed, by a look at its files that reads none of them: when its plain
-// file was last modified, or its compressed file, where it has no plain
-// file. Lines are only ever appended to the plain file, and compressing the
-// day writes them into the compressed file anew, removing the plain one, so
-// the time changes as the lines do. It fails with fs.ErrNotExist where the
-// day has neither.
-func (f *Files) Modified(date string) (time.Time, error) {
+// DayStat is a look at the files of a local day that reads none of them: how
+// many bytes its plain file and its compressed file hold, none of one that
+// isn't there, and when the compressed file was last modified, never where
+// it isn't there. Lines are only ever appended to the plain file, which
+// grows with each, and compressing the day writes them into the compressed
+// file anew, longer, removing the plain file: so the sizes change as the
+// day's lines do, however coarsely the file system keeps its times.
+type DayStat struct {
+	PlainSize, CompressedSize int64
+	CompressedModified        time.Time
+}
+
+// Stat returns a look at the files of the local day with the given date, as
+// DayStat says, failing with fs.ErrNotExist where the day has neither.
+func (f *Files) Stat(date string) (DayStat, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	for _, file := range []dayFile{plainFile(date), compressedFile(date)} {
-		info, err := os.Stat(f.path(file))
-		switch {
-		case err == nil:
-			return info.ModTime(), nil
-		case !errors.Is(err, fs.ErrNotExist):
-			return time.Time{}, err
-		}
+	plain, err := f.stat(plainFile(date))
+	if err != nil {
+		return DayStat{}, err
 	}
-	return time.Time{}, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
+	compressed, err := f.stat(compressedFile(date))
+	switch {
+	case err != nil:
+		return DayStat{}, err
+	case plain == nil && compressed == nil:
+		return DayStat{}, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
+	}
+	var s DayStat
+	if plain != nil {
+		s.PlainSize = plain.Size()
+	}
+	if compressed != nil {
+		s.CompressedSize, s.CompressedModified = compressed.Size(), compressed.ModTime()
+	}
+	return s, nil
+}
+
+// stat returns a look at file: nil where it isn't there.
+func (f *Files) stat(file dayFile) (fs.FileInfo, error) {
+	info, err := os.Stat(f.path(file))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return info, err
 }
 
 // readOpened hands take each line the files opened hold that decode makes a

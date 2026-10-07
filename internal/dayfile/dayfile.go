@@ -10,7 +10,7 @@
 // can't; a Writer writes to them on a goroutine of its own, so noting what's
 // to be written never waits, and makes a round of them every hour, and before
 // each prune, which what else is kept of the days, as the request ledger's
-// summaries, can be kept on.
+// summaries, can be kept on, on every round, or just before each prune.
 package dayfile
 
 import (

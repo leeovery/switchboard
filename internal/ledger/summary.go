@@ -42,11 +42,28 @@ type Summary struct {
 	// didn't read as a line among them: while they're kept, a day whose files
 	// come to hold more of them is summarised again.
 	Lines int `json:"lines"`
+	// Bytes are the sizes of the day's files as the summary was made from
+	// them, or last found to hold no more lines than it was made from: a day
+	// whose files are still of them is never read to tell whether it stands.
+	// A summary made as it's read, never written, has none.
+	Bytes Bytes `json:"bytes,omitzero"`
 	// Accounts are the accounts' days, in the order of their ids: one of no
 	// account holds the requests the router answered without one, as when no
 	// account had room, or a request's body couldn't be read. A day of no
 	// requests has none.
 	Accounts []AccountDay `json:"accounts,omitempty"`
+}
+
+// Bytes are how many bytes a day's files hold: its plain file, which lines
+// are appended to, and its compressed file, none of one that isn't there.
+type Bytes struct {
+	Plain      int64 `json:"plain"`
+	Compressed int64 `json:"compressed"`
+}
+
+// bytesOf is the sizes of a day's files, as stat looks at them.
+func bytesOf(stat dayfile.DayStat) Bytes {
+	return Bytes{Plain: stat.PlainSize, Compressed: stat.CompressedSize}
 }
 
 // AccountDay is an account's day: its requests, by the model each asked for,
@@ -119,31 +136,78 @@ type Limit struct {
 // from up to to, in the order they were read.
 type Readings func(from, to time.Time) iter.Seq[readings.Reading]
 
-// readOnce returns Readings that read history once, the first time they're
-// asked, from the time first asked for to until, and give those of any times
-// between from what they read, as summarising several days, oldest first,
-// would read each one's week before again otherwise. Those of times before
-// what they read, or after until, are read afresh.
-func readOnce(history Readings, until time.Time) Readings {
-	var read []readings.Reading
-	var since time.Time
-	asked := false
-	return func(from, to time.Time) iter.Seq[readings.Reading] {
-		if !asked {
-			read, since, asked = slices.Collect(history(from, until)), from, true
+// readAhead returns Readings that read history ahead, once, up to until, as
+// days summarised oldest first ask for theirs, each the readings of its day
+// and the week before: an ask gives those of the times asked for, reading on
+// as far as it needs, and lets go of those before them, which no later ask
+// wants, so what's held is a week and a day of them, never what's between
+// days far apart. An ask that starts after the last one asked for ended
+// starts the read again from it, rather than read the readings between, as
+// one of times before those held, or after until, does. stop ends the read.
+// Until then, the read holds the history's files from pruning, as
+// readings.Between does as it reads: the router's readings history prunes
+// only after it has the ledger summarise, which waits for any summarising
+// under way, as SummariseEnded's lock has it, so it never waits on a read.
+func readAhead(history Readings, until time.Time) (ahead Readings, stop func()) {
+	a := &readingsAhead{history: history, until: until}
+	return a.readings, a.stop
+}
+
+// readingsAhead is the readings history, read ahead as readAhead says.
+type readingsAhead struct {
+	history Readings
+	until   time.Time
+	// next and end are the read's, once it's started.
+	next func() (readings.Reading, bool)
+	end  func()
+	// held are the readings read of times from since on, oldest first, the
+	// last of them the first at or after asked, the end of the last ask,
+	// unless the read is done: every reading before it is among them.
+	held          []readings.Reading
+	since, asked  time.Time
+	done, started bool
+}
+
+// readings gives the readings of times from from up to to, as readAhead
+// says.
+func (a *readingsAhead) readings(from, to time.Time) iter.Seq[readings.Reading] {
+	if !a.started || from.Before(a.since) || from.After(a.asked) || to.After(a.until) {
+		a.start(from, to)
+	}
+	a.held, a.since, a.asked = a.held[firstAt(a.held, from):], from, to
+	for !a.done && (len(a.held) == 0 || a.held[len(a.held)-1].At.Before(to)) {
+		r, ok := a.next()
+		if ok {
+			a.held = append(a.held, r)
 		}
-		if from.Before(since) || to.After(until) {
-			return history(from, to)
-		}
-		first, _ := slices.BinarySearchFunc(read, from, readAt)
-		last, _ := slices.BinarySearchFunc(read, to, readAt)
-		return slices.Values(read[first:max(first, last)])
+		a.done = !ok
+	}
+	return slices.Values(a.held[:firstAt(a.held, to)])
+}
+
+// start starts the read again, from from, up to until, or to where that's
+// later.
+func (a *readingsAhead) start(from, to time.Time) {
+	a.stop()
+	if to.After(a.until) {
+		a.until = to
+	}
+	a.next, a.end = iter.Pull(a.history(from, a.until))
+	a.held, a.since, a.asked, a.done, a.started = nil, from, from, false, true
+}
+
+// stop ends the read, where it's started.
+func (a *readingsAhead) stop() {
+	if a.started {
+		a.end()
 	}
 }
 
-// readAt compares when r was read with t.
-func readAt(r readings.Reading, t time.Time) int {
-	return r.At.Compare(t)
+// firstAt returns the index of the first of read, oldest first, read at or
+// after t.
+func firstAt(read []readings.Reading, t time.Time) int {
+	i, _ := slices.BinarySearchFunc(read, t, func(r readings.Reading, t time.Time) int { return r.At.Compare(t) })
+	return i
 }
 
 // Summarise returns the summary of the local day with the given date, as the
@@ -154,9 +218,20 @@ func readAt(r readings.Reading, t time.Time) int {
 // the accounts beside the day's requests alone. It fails for a date that
 // isn't one.
 func Summarise(date string, lines iter.Seq[Line], history Readings) (Summary, error) {
+	t, n, err := tallied(date, lines, history)
+	if err != nil {
+		return Summary{}, err
+	}
+	return t.summary(date, n), nil
+}
+
+// tallied returns the local day with the given date as it's summarised, as
+// Summarise says, and how many lines it was handed. It fails for a date that
+// isn't one.
+func tallied(date string, lines iter.Seq[Line], history Readings) (tally, int, error) {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
-		return Summary{}, fmt.Errorf("summarise %q: not a date", date)
+		return nil, 0, fmt.Errorf("summarise %q: not a date", date)
 	}
 	t, n := make(tally), 0
 	for line := range lines {
@@ -166,19 +241,21 @@ func Summarise(date string, lines iter.Seq[Line], history Readings) (Summary, er
 	if n > 0 {
 		t.readings(history(start.Add(-readingsBefore), end), start)
 	}
-	return t.summary(date, n), nil
+	return t, n, nil
 }
 
 // tally is a day as it's summarised: each account's, by its id, "" for the
 // requests no account answered.
 type tally map[string]*accountTally
 
-// accountTally is an account's day as it's summarised.
+// accountTally is an account's day as it's summarised: limits are the limits
+// it reached, in the order it reached them, and firstRead those of them read
+// first, as readings says.
 type accountTally struct {
 	models                      map[modelKey]*modelTally
 	sessions, movedOn, movedOff sessions
 	highest                     map[string]float64
-	limits                      []Limit
+	limits, firstRead           []Limit
 }
 
 // modelKey names a model's requests on an account as a summary keeps them
@@ -271,6 +348,8 @@ func (l *Line) counted() string {
 // and the limits reached on it, from the readings history gives, those of the
 // day and the week before it, in the order they came: the last of a window's
 // before the day is the use it began the day at, unless it had reset by then.
+// A limit is read first where no reading of its window came before it, in
+// the day or the week before.
 func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
 	last := make(map[accountWindow]quota.Window)
 	var day []readings.Reading
@@ -281,6 +360,10 @@ func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
 		}
 		day = append(day, r)
 	}
+	seen := make(map[accountWindow]bool, len(last))
+	for w := range last {
+		seen[w] = true
+	}
 	maps.DeleteFunc(last, func(_ accountWindow, w quota.Window) bool { return w.ResetBy(start) })
 	for w, began := range last {
 		t.account(w.account).peak(began)
@@ -289,9 +372,18 @@ func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
 		a, w, read := t.account(r.Account), windowOf(r), r.Window()
 		a.peak(read)
 		if turned(last[w], read) {
-			a.limits = append(a.limits, Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()})
+			a.reached(Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()}, !seen[w])
 		}
-		last[w] = read
+		last[w], seen[w] = read, true
+	}
+}
+
+// reached tallies l, a limit the account reached, read first, where first
+// says so.
+func (a *accountTally) reached(l Limit, first bool) {
+	a.limits = append(a.limits, l)
+	if first {
+		a.firstRead = append(a.firstRead, l)
 	}
 }
 

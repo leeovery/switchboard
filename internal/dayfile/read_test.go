@@ -374,47 +374,49 @@ func TestEndedTakesTheDaysThatEndedAsLongAgoAsAsked(t *testing.T) {
 	}
 }
 
-func TestADaysLinesLastChangedAsItsPlainFileWasModifiedElseItsCompressedFile(t *testing.T) {
+func TestADaysStatGivesItsFilesSizesAndWhenItsCompressedFileWasModified(t *testing.T) {
 	const date = "2026-09-25"
-	// The compressed file was written after the plain file was last appended
-	// to, as when the clock was set back to the day once it was compressed.
-	plainAt, compressedAt := start.Add(-time.Hour), start
+	plain, compressed := linesOf("one", "two"), gzipOf(t, linesOf("zero"))
 	tests := []struct {
 		name  string
 		files []dayFile
-		want  time.Time
+		want  DayStat
 	}{
-		{name: "its plain file's, of one alone", files: []dayFile{plainFile(date)}, want: plainAt},
-		{name: "its compressed file's, of one alone", files: []dayFile{compressedFile(date)}, want: compressedAt},
-		{name: "its plain file's, though its compressed one is later", files: []dayFile{plainFile(date), compressedFile(date)}, want: plainAt},
+		{name: "of a plain file alone", files: []dayFile{plainFile(date)}, want: DayStat{PlainSize: int64(len(plain))}},
+		{name: "of a compressed file alone", files: []dayFile{compressedFile(date)}, want: DayStat{CompressedSize: int64(len(compressed)), CompressedModified: start}},
+		{name: "of both", files: []dayFile{plainFile(date), compressedFile(date)},
+			want: DayStat{PlainSize: int64(len(plain)), CompressedSize: int64(len(compressed)), CompressedModified: start}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := readingsHistory(t.TempDir())
 			for _, file := range tt.files {
-				writeDay(t, f, file, linesOf("a"))
-				at := plainAt
+				data := []byte(plain)
 				if file.compressed {
-					at = compressedAt
+					data = compressed
 				}
-				if err := os.Chtimes(f.path(file), time.Time{}, at); err != nil {
+				if err := os.WriteFile(f.path(file), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chtimes(f.path(file), time.Time{}, start); err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			if got, err := f.Modified(date); err != nil || !got.Equal(tt.want) {
-				t.Errorf("Modified() = %v, %v; want %v", got, err, tt.want)
+			if got, err := f.Stat(date); err != nil || got.PlainSize != tt.want.PlainSize || got.CompressedSize != tt.want.CompressedSize ||
+				!got.CompressedModified.Equal(tt.want.CompressedModified) {
+				t.Errorf("Stat() = %+v, %v; want %+v", got, err, tt.want)
 			}
 		})
 	}
 }
 
-func TestADayWithNoFilesHasNoTimeItsLinesLastChanged(t *testing.T) {
+func TestADayWithNoFilesHasNoStat(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	writeDay(t, f, plainFile("2026-09-26"), linesOf("a"))
 
-	if got, err := f.Modified("2026-09-25"); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("Modified() = %v, %v; want an error matching fs.ErrNotExist", got, err)
+	if got, err := f.Stat("2026-09-25"); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Stat() = %+v, %v; want an error matching fs.ErrNotExist", got, err)
 	}
 }
 

@@ -51,7 +51,7 @@ func (l *requestLedger) run(ctx context.Context) {
 
 // summariseEnded has the ledger, once it's opened, summarise the days that
 // have ended at now, as ledger.Ledger.SummariseEnded says: the readings
-// history's writer has it do so before each of its rounds' prunes, so no
+// history's writer has it do so just before each prune of its files, so no
 // reading a summary needs goes before its day is summarised.
 func (l *requestLedger) summariseEnded(now time.Time) {
 	if opened := l.opened.Load(); opened != nil {
