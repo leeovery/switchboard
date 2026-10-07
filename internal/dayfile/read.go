@@ -141,9 +141,9 @@ func (f *Files) has(file dayFile) bool {
 
 // readFile hands take each line the file holds, in order, without its line
 // ending, until take reports false, and returns how many of its lines were
-// longer than LineMax, which are skipped without being held, and whether take
-// wanted more. A file that can't be read, or is damaged, is warned of as Read
-// says.
+// too long to hold, as LineMax says, which are skipped without being held,
+// and whether take wanted more. A file that can't be read, or is damaged, is
+// warned of as Read says.
 func (f *Files) readFile(file dayFile, take func(line []byte) bool) (long int, more bool) {
 	src, err := f.open(file)
 	if err != nil {

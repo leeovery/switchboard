@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	// maxEventLine is the longest line of an answer's event stream that's
-	// read, its line ending included: a longer one, as a server tool's
-	// result given whole as its block starts can be, is passed over without
-	// being held, and the lines after it read.
+	// maxEventLine is how much of a line of an answer's event stream is read
+	// at most, its line ending included: a line that runs to it without its
+	// ending, as a server tool's result given whole as its block starts can,
+	// is passed over without being held, and the lines after it read.
 	maxEventLine = 1 << 20
 	// maxMessage is the most of an answer that isn't streamed that's read for
 	// its usage.

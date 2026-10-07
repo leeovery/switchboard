@@ -1,9 +1,9 @@
 // Package linescan reads text a line at a time, as bufio.Scanner does, but
-// holds a line only as far as the most it's given: a longer line is passed
-// over, without being held, and counted, and the lines after it read, where a
-// bufio.Scanner stops at one for good. The request ledger's and the readings
-// history's files are read back this way, and an answer's stream of events
-// is counted.
+// holds a line only as far as the most it's given: a line that runs to the
+// most without its ending is passed over, without being held, and counted,
+// and the lines after it read, where a bufio.Scanner stops at one for good.
+// The request ledger's and the readings history's files are read back this
+// way, and an answer's stream of events is counted.
 package linescan
 
 import (
@@ -24,8 +24,9 @@ type Scanner struct {
 }
 
 // New returns a Scanner of the lines r gives, which holds as much of a line
-// as most bytes, its line ending included. It holds a few kilobytes to start,
-// and more only as a line needs them.
+// as most bytes, its line ending included: a line that runs to most bytes
+// without its ending, the last of what's read included, is too long to hold.
+// It holds a few kilobytes to start, and more only as a line needs them.
 func New(r io.Reader, most int) *Scanner {
 	s := &Scanner{lines: bufio.NewScanner(r), most: most}
 	s.lines.Buffer(nil, most)
@@ -57,10 +58,12 @@ func (s *Scanner) Long() int {
 
 // split splits data, what the scanner holds, into lines as bufio.ScanLines
 // does, but for one too long to hold: once the scanner holds most bytes of a
-// line without its end, the line is passed over to its end, and what follows
-// it split in the same call, as a scanner that has read to the end splits no
-// more after a call that gives no line, and a decompressed stream's last data
-// comes with its end.
+// line without its ending, the line is passed over to its end, and what
+// follows it split in the same call, as a scanner that has read to the end
+// splits no more after a call that gives no line, and a decompressed
+// stream's last data comes with its end. ScanLines gives the last of what's
+// read as a line, ended or not: one that runs to most bytes without its
+// ending is too long all the same, however the end of what's read came.
 func (s *Scanner) split(data []byte, atEOF bool) (int, []byte, error) {
 	passed := 0
 	if s.passing {
@@ -72,7 +75,7 @@ func (s *Scanner) split(data []byte, atEOF bool) (int, []byte, error) {
 	}
 	rest := data[passed:]
 	advance, line, err := bufio.ScanLines(rest, atEOF)
-	if advance == 0 && len(rest) >= s.most {
+	if ended := advance > 0 && rest[advance-1] == '\n'; !ended && len(rest) >= s.most {
 		s.passing = true
 		s.long++
 		return len(data), nil, nil

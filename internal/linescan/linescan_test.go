@@ -5,6 +5,8 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -40,6 +42,22 @@ func gzipped(t *testing.T, text string) []byte {
 	return member.Bytes()
 }
 
+// fileOf returns a file holding text, opened to read, failing t where it
+// can't be: it's closed as t ends.
+func fileOf(t *testing.T, text string) io.Reader {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "lines")
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = file.Close() })
+	return file
+}
+
 func TestScanReadsEachLinePassingOverThoseTooLongToHold(t *testing.T) {
 	long := strings.Repeat("x", 100)
 	tests := []struct {
@@ -73,9 +91,16 @@ func TestScanReadsEachLinePassingOverThoseTooLongToHold(t *testing.T) {
 			wantLong: 2,
 		},
 		{name: "a line too long last, without its ending", text: "a\n" + long, want: []string{"a"}, wantLong: 1},
+		{
+			name: "a line a byte short of the most last, without its ending",
+			text: "a\n" + strings.Repeat("x", most-1),
+			want: []string{"a", strings.Repeat("x", most-1)},
+		},
+		{name: "a line of the most last, without its ending", text: "a\n" + strings.Repeat("x", most), want: []string{"a"}, wantLong: 1},
 	}
 	// readers give the text as one reader or another does: whole, a byte at a
-	// time, with its last data its end, as a decompressing reader gives a
+	// time, from a file, each giving the end of the text on a read of its own;
+	// or with its last data its end, as a decompressing reader gives a
 	// stream's last, or decompressed.
 	readers := []struct {
 		name string
@@ -83,6 +108,7 @@ func TestScanReadsEachLinePassingOverThoseTooLongToHold(t *testing.T) {
 	}{
 		{name: "whole", of: func(_ *testing.T, text string) io.Reader { return strings.NewReader(text) }},
 		{name: "a byte at a time", of: func(_ *testing.T, text string) io.Reader { return iotest.OneByteReader(strings.NewReader(text)) }},
+		{name: "from a file", of: fileOf},
 		{name: "its last data with its end", of: func(_ *testing.T, text string) io.Reader { return iotest.DataErrReader(strings.NewReader(text)) }},
 		{
 			name: "decompressed",

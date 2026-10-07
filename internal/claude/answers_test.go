@@ -100,6 +100,13 @@ func TestProviderCountsAStreamedAnswer(t *testing.T) {
 			wantChars:  []int{4},
 			wantTokens: &claudetest.AnswerTokens,
 		},
+		{
+			name: "a model and a stop reason of other types than the API gives, which cost the counting nothing",
+			events: []string{swapped(t, start, `"model":"claude-opus-5-5"`, `"model":{"id":"claude-opus-5-5"}`), text("Hi"),
+				swapped(t, usage, `"stop_reason":"end_turn"`, `"stop_reason":{"type":"end_turn"}`), stop},
+			wantChars:  []int{2},
+			wantTokens: &claudetest.AnswerTokens,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

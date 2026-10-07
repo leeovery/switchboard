@@ -49,8 +49,9 @@ type Files struct {
 	// Name is what they're called in what's logged of them, as "readings
 	// history".
 	Name string
-	// LineMax is the longest line read back, its line ending included: a
-	// longer one is skipped without being held.
+	// LineMax is how much of a line is read back at most, its line ending
+	// included: a line that runs to it without its ending, a file's last
+	// included, is skipped without being held.
 	LineMax int
 	// Logger logs what can't be done with them.
 	Logger *slog.Logger

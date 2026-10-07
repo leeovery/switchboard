@@ -31,17 +31,23 @@ type asked struct {
 	ContextManagement setting[contextManagement]   `json:"context_management"`
 }
 
-// readAsked reads body into req, reporting false where it isn't a JSON
-// object. A field of a type the API wouldn't take is left unread, as a list
-// that isn't one, and the rest read all the same.
+// readAsked reads body into req, reporting false where it's neither a JSON
+// object nor null, as objectRead says. A field of a type the API wouldn't
+// take is left unread, as a list that isn't one, and the rest read all the
+// same.
 func readAsked(body []byte, req *asked) bool {
 	return objectRead(json.Unmarshal(body, req))
 }
 
-// objectRead reports whether err, from decoding a JSON object into a struct,
-// leaves the object read: err is nil, or says a field of it was of another
-// type than the struct's, which leaves that field unread and the rest read.
-// A value that isn't an object, or isn't JSON, isn't read.
+// objectRead reports whether err, from decoding a JSON value into a struct,
+// leaves the struct read: err is nil, or says a field was of another type
+// than the struct's, naming it, which leaves that field unread and the rest
+// read. That's so of a field of a plain type, as an answer's are: a field of
+// a type that decodes itself, as time.Time does, can fail the decode with an
+// error that names no field, as for text that isn't a time, so such a type
+// must leave a value it can't take unread itself, as setting does. JSON null
+// reads as an object with no fields; any other value that isn't an object,
+// or isn't JSON, isn't read.
 func objectRead(err error) bool {
 	mistyped, ok := errors.AsType[*json.UnmarshalTypeError](err)
 	return err == nil || ok && mistyped.Field != ""
