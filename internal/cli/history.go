@@ -48,9 +48,10 @@ so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
 
-With --json, print each day's summary as the ledger holds it, every day since
-the ledger began, so the last is today's, each model's worth in US dollars
-added, and what it leaves unpriced, for an agent or a script to read.`,
+With --json, print the summaries of the days asked for, as the ledger holds
+them, from the first it holds, so the last is today's, each model's worth in
+US dollars added, and what it leaves unpriced, for an agent or a script to
+read.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.history(cmd.OutOrStdout(), given, asJSON)

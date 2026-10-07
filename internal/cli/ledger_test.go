@@ -221,6 +221,7 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 `},
 		{name: "from days ago", args: []string{"--since", "2d"}, want: requestsFromThe6th},
 		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: everyRequest},
+		{name: "from more days ago than a duration holds", args: []string{"--since", "99999999999999999999d"}, want: everyRequest},
 		{name: "a session's, by as much of its id as is unique", args: []string{"--session", "5b0e7"}, want: `Wed 7 Oct 2026, so far
   09:01:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    140ms
@@ -323,10 +324,6 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 		{since: "0h", want: `Error: --since "0h" isn't a day`},
 		{since: "-2d", want: `Error: --since "-2d" isn't a day`},
 		{since: "+2d", want: `Error: --since "+2d" isn't a day`},
-		{since: "106752d", want: "Error: --since 106752d is more than 106751d: give a day, as 2026-10-01, to start further back"},
-		{since: "213504d", want: "Error: --since 213504d is more than 106751d"},
-		{since: "999999d", want: "Error: --since 999999d is more than 106751d"},
-		{since: "99999999999999999999d", want: "Error: --since 99999999999999999999d is more than 106751d"},
 		{since: "99999999999999999999.5d", want: `Error: --since "99999999999999999999.5d" isn't a day`},
 		{since: "23:00", want: "Error: --since 23:00 is still to come"},
 		{since: "2026-10-08", want: "Error: --since 2026-10-08 is still to come"},
@@ -511,6 +508,15 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 	}
 }
 
+func TestHistoryHelpSaysWhichDaysItsJSONGives(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "history", "--help")
+	help := strings.Join(strings.Fields(got.stdout), " ")
+	want := "With --json, print the summaries of the days asked for, as the ledger holds them, from the first it holds, so the last is today's"
+	if got.code != 0 || !strings.Contains(help, want) || strings.Contains(help, "every day since the ledger began") {
+		t.Errorf("switchboard history --help = %+v, want help saying %q: the last 30 days, or --since's, not every day the ledger holds", got, want)
+	}
+}
+
 func TestHistoryJSONGivesNoDayBeforeTheLedgerBegan(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	tests := []struct {
@@ -521,6 +527,7 @@ func TestHistoryJSONGivesNoDayBeforeTheLedgerBegan(t *testing.T) {
 		{name: "the last 30 days, from the first the ledger holds", want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
 		{name: "from a day before the first it holds", args: []string{"--since", "2026-09-01"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
 		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
+		{name: "from more days ago than a duration holds", args: []string{"--since", "106752d"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
 		{name: "from a day after its first", args: []string{"--since", "2026-10-06"}, want: []string{"2026-10-06", "2026-10-07"}},
 	}
 	for _, tt := range tests {
