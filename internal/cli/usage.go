@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 const (
@@ -128,7 +129,7 @@ func (o *usageOptions) parseArgs(_ *cobra.Command, args []string) error {
 	case o.refresh && o.watch:
 		return errors.New("--refresh reads once, so it takes no --watch: in a watch, r refreshes")
 	case len(args) > 0 && !o.watch:
-		return fmt.Errorf("unexpected argument %q: only --watch takes an interval", args[0])
+		return fmt.Errorf("unexpected argument %q: only --watch takes an interval", redact.Text(args[0]))
 	case len(args) > 1:
 		return fmt.Errorf("--watch takes one interval, not %d", len(args))
 	case len(args) == 1:
@@ -150,7 +151,7 @@ func parseInterval(s string) (time.Duration, error) {
 	}
 	switch {
 	case err != nil:
-		return 0, fmt.Errorf("invalid interval %q: give a duration, such as 15m or 1h, or a number of minutes", s)
+		return 0, fmt.Errorf("invalid interval %q: give a duration, such as 15m or 1h, or a number of minutes", redact.Text(s))
 	case interval < minInterval:
 		return 0, fmt.Errorf("interval %s is too short: the shortest is %dm", s, minInterval/time.Minute)
 	}

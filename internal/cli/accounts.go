@@ -39,7 +39,7 @@ token switchboard can use, or why not, and what would put it right.
 
 accounts add, token and remove register an account, replace its token, and
 remove it.`,
-		Args: cobra.NoArgs,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := a.loadConfig()
 			if err != nil {

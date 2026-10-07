@@ -389,6 +389,26 @@ func TestLoadReportsAKeepThatIsntOne(t *testing.T) {
 	}
 }
 
+func TestParseDaysReadsAWholeNumberOfDays(t *testing.T) {
+	tests := []struct {
+		given string
+		want  uint64
+		ok    bool
+	}{
+		{given: "14d", want: 14, ok: true},
+		{given: "0d", want: 0, ok: true},
+		{given: "014d", want: 14, ok: true},
+		{given: "401d", want: 401, ok: true},
+		{given: "+2d"}, {given: "-2d"}, {given: "14"}, {given: "d"}, {given: "14D"}, {given: " 14d"}, {given: "2w"}, {given: "1.5d"},
+		{given: "99999999999999999999d"}, {given: ""},
+	}
+	for _, tt := range tests {
+		if got, ok := config.ParseDays(tt.given); got != tt.want || ok != tt.ok {
+			t.Errorf("ParseDays(%q) = %d, %v, want %d, %v", tt.given, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
 func TestExampleIsValid(t *testing.T) {
 	cfg, err := config.Load(writeConfig(t, config.Example))
 	if err != nil {

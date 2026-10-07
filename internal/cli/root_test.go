@@ -177,6 +177,41 @@ func TestCommandsNeverEchoATokenGivenAsAnID(t *testing.T) {
 	}
 }
 
+func TestCommandsNeverEchoATokenGivenAsAnArgument(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	var lines [][]string
+	for _, command := range commandLines(cli.NewRootCommand(deps)) {
+		for _, given := range []string{tokenShaped, "--" + tokenShaped, "-" + tokenShaped} {
+			lines = append(lines, append(slices.Clip(command), given))
+		}
+	}
+	lines = append(lines,
+		[]string{"requests", "--json=" + tokenShaped},
+		[]string{"logs", "-n", tokenShaped},
+		[]string{"serve", "--log-level", tokenShaped},
+		[]string{"service", "install", "--log-level", tokenShaped},
+		[]string{"usage", "--watch", tokenShaped},
+		[]string{"status", "--config", tokenShaped},
+	)
+	for _, line := range lines {
+		got := run(t, deps, line...)
+		if got.code != 1 || strings.Contains(got.stdout+got.stderr, "sk-ant-") {
+			t.Errorf("switchboard %s = %+v, want it refused, the token hidden", strings.ReplaceAll(strings.Join(line, " "), tokenShaped, "<a token>"), got)
+		}
+	}
+}
+
+// commandLines are the command lines that name each of cmd's subcommands, and
+// theirs, switchboard's own name left out.
+func commandLines(cmd *cobra.Command) [][]string {
+	var lines [][]string
+	for _, sub := range cmd.Commands() {
+		lines = append(lines, strings.Fields(sub.CommandPath())[1:])
+		lines = append(lines, commandLines(sub)...)
+	}
+	return lines
+}
+
 func TestCommandsLogOnlyToTheirLog(t *testing.T) {
 	// Both runs share a state directory, and so the token files, which the
 	// document names.

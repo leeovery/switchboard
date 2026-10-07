@@ -189,6 +189,18 @@ const todaysRequests = `Wed 7 Oct 2026, so far
   12:00:00  5b0e7c1a  claude-opus-5-5   work  200                             140ms
 `
 
+// requestsFromThe6th is what requests prints of the 6th's lines and today's.
+const requestsFromThe6th = `Tue 6 Oct 2026
+  22:15:00  5b0e9d33  claude-opus-5-5  side  200  20k in, 50 out  3.1s
+
+` + todaysRequests
+
+// everyRequest is what requests prints of every line the ledger holds.
+const everyRequest = `Sun 4 Oct 2026
+  09:00:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
+
+` + requestsFromThe6th
+
 func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	tests := []struct {
@@ -197,13 +209,7 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 		want string
 	}{
 		{name: "today's, unless told otherwise", want: todaysRequests},
-		{name: "from the start of a day, under each day's", args: []string{"--since", "2026-10-04"}, want: `Sun 4 Oct 2026
-  09:00:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
-
-Tue 6 Oct 2026
-  22:15:00  5b0e9d33  claude-opus-5-5  side  200  20k in, 50 out  3.1s
-
-` + todaysRequests},
+		{name: "from the start of a day, under each day's", args: []string{"--since", "2026-10-04"}, want: everyRequest},
 		{name: "from a time today", args: []string{"--since", "10:00"}, want: `Wed 7 Oct 2026, so far
   10:00:00  5b0e9d33  claude-opus-5-5  side  200 canceled                  2.0s
   11:00:00  18bb2c41  claude-opus-9    work  200           100 in, 10 out  950ms
@@ -213,10 +219,8 @@ Tue 6 Oct 2026
   11:00:00  18bb2c41  claude-opus-9    work  200  100 in, 10 out  950ms
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                  140ms
 `},
-		{name: "from days ago", args: []string{"--since", "2d"}, want: `Tue 6 Oct 2026
-  22:15:00  5b0e9d33  claude-opus-5-5  side  200  20k in, 50 out  3.1s
-
-` + todaysRequests},
+		{name: "from days ago", args: []string{"--since", "2d"}, want: requestsFromThe6th},
+		{name: "from the most days ago", args: []string{"--since", "400d"}, want: everyRequest},
 		{name: "a session's, by as much of its id as is unique", args: []string{"--session", "5b0e7"}, want: `Wed 7 Oct 2026, so far
   09:01:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    140ms
@@ -279,6 +283,35 @@ func TestRequestsOfASessionAsMuchOfWhoseIdIsGivenAsStartsSeveralFails(t *testing
 	}
 }
 
+func TestRequestsOfASessionReadTheLedgerOnce(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	appendStateFile(t, ledger.Dir(stateDir(t, deps)), "requests-2026-10-07.jsonl", []byte("not a line\n"))
+
+	if got := run(t, deps, "requests", "--session", "5b0e7"); got.code != 0 {
+		t.Fatalf("switchboard requests --session 5b0e7 = %+v, want exit status 0", got)
+	}
+	log := readLog(t, deps, "cli.log")
+	if n := strings.Count(log, `msg="request ledger lines unread"`); n != 1 {
+		t.Errorf("cli.log reads\n%s\nwant the line that doesn't read warned of once, as the ledger is read once, not %d times", log, n)
+	}
+}
+
+func TestHowLongARequestTookIsAsBriefAsARowHasRoomFor(t *testing.T) {
+	tests := []struct {
+		ms   int64
+		want string
+	}{
+		{ms: 0, want: "0ms"}, {ms: 999, want: "999ms"}, {ms: 1000, want: "1.0s"}, {ms: 14230, want: "14.2s"},
+		{ms: 59949, want: "59.9s"}, {ms: 59950, want: "1m0s"}, {ms: 59999, want: "1m0s"}, {ms: 60000, want: "1m0s"},
+		{ms: 60499, want: "1m0s"}, {ms: 60500, want: "1m1s"}, {ms: 3599499, want: "59m59s"}, {ms: 3599500, want: "1h0m0s"},
+	}
+	for _, tt := range tests {
+		if got := cli.Took(tt.ms); got != tt.want {
+			t.Errorf("Took(%d) = %q, want %q", tt.ms, got, tt.want)
+		}
+	}
+}
+
 func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	tests := []struct {
@@ -289,6 +322,11 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 		{since: "2026-13-01", want: `Error: --since "2026-13-01" isn't a day`},
 		{since: "0h", want: `Error: --since "0h" isn't a day`},
 		{since: "-2d", want: `Error: --since "-2d" isn't a day`},
+		{since: "+2d", want: `Error: --since "+2d" isn't a day`},
+		{since: "401d", want: "Error: --since 401d is more than 400d: give a day, as 2026-10-01, to start further back"},
+		{since: "213504d", want: "Error: --since 213504d is more than 400d"},
+		{since: "999999d", want: "Error: --since 999999d is more than 400d"},
+		{since: "99999999999999999999d", want: `Error: --since "99999999999999999999d" isn't a day`},
 		{since: "23:00", want: "Error: --since 23:00 is still to come"},
 		{since: "2026-10-08", want: "Error: --since 2026-10-08 is still to come"},
 		{since: "", want: `Error: --since "" isn't a day`},
@@ -388,6 +426,20 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	}
 }
 
+func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
+	work := ledger.PricedAccount{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-5-5", Upstream: 1, Sessions: 1}}}
+	days := []ledger.Priced{
+		{Version: 1, Day: "2026-10-06", Lines: 1, Accounts: []ledger.PricedAccount{work}},
+		{Version: 1, Day: "2026-13-45", Lines: 1, Accounts: []ledger.PricedAccount{work}},
+	}
+
+	var out bytes.Buffer
+	err := cli.WriteHistory(&out, days, october(6, 0, 0, 0), ledgerNow)
+	if err == nil || !strings.Contains(err.Error(), `"2026-13-45"`) || out.Len() > 0 {
+		t.Errorf("history of a summary of 2026-13-45 printed\n%s(%v)\nwant nothing printed, and the summary's day reported", out.String(), err)
+	}
+}
+
 func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	tests := []struct {
@@ -403,9 +455,19 @@ func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 		}
 	}
 	for _, command := range []string{"requests", "history"} {
-		got := run(t, deps, command, "--since", tokenShaped)
-		if want := `Error: --since "[redacted]" isn't a day`; got.code != 1 || !strings.Contains(got.stderr, want) || strings.Contains(got.stdout+got.stderr, "sk-ant-") {
-			t.Errorf("switchboard %s --since <a token> = %+v, want it refused as %s, the token hidden", command, got, want)
+		refusals := []struct {
+			name string
+			args []string
+			want string
+		}{
+			{name: "--since <a token>", args: []string{"--since", tokenShaped}, want: `Error: --since "[redacted]" isn't a day`},
+			{name: "<a token>", args: []string{tokenShaped}, want: `Error: unknown command "[redacted]" for "switchboard ` + command + `"`},
+		}
+		for _, tt := range refusals {
+			got := run(t, deps, append([]string{command}, tt.args...)...)
+			if got.code != 1 || !strings.Contains(got.stderr, tt.want) || strings.Contains(got.stdout+got.stderr, "sk-ant-") {
+				t.Errorf("switchboard %s %s = %+v, want it refused as %s, the token hidden", command, tt.name, got, tt.want)
+			}
 		}
 	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/service"
 	"github.com/leeovery/switchboard/internal/status"
@@ -126,6 +127,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
+	root.SetFlagErrorFunc(hideTokens)
 	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a), newServiceCommand(a),
 		newVersionCommand())
@@ -168,6 +170,21 @@ func Execute(root *cobra.Command) int {
 // interruptedStatus is the exit status of a command the user interrupted:
 // 128 and the number of SIGINT, the signal an interrupt sends.
 const interruptedStatus = 130
+
+// hideTokens is err, a mistake Cobra found in a command line, which quotes
+// what it was given, with anything in it shaped like a token hidden.
+func hideTokens(_ *cobra.Command, err error) error {
+	if err == nil || !redact.HoldsToken(err.Error()) {
+		return err
+	}
+	return errors.New(redact.Text(err.Error()))
+}
+
+// noArgs refuses any argument, as cobra.NoArgs does, hiding anything shaped
+// like a token in the one it quotes.
+func noArgs(cmd *cobra.Command, args []string) error {
+	return hideTokens(cmd, cobra.NoArgs(cmd, args))
+}
 
 // expected is a failure that's an everyday answer rather than trouble, such
 // as a statusline polling after a session the router isn't running for. The
@@ -295,7 +312,7 @@ func (a *app) loadConfigAt(path string) (*config.Config, error) {
 	cfg, err := config.Load(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		example := strings.TrimSuffix(config.Example, "\n")
-		return nil, fmt.Errorf("no config file at %s\n\nCreate one like this:\n\n%s", path, example)
+		return nil, fmt.Errorf("no config file at %s\n\nCreate one like this:\n\n%s", redact.Text(path), example)
 	}
 	if err != nil {
 		return nil, err

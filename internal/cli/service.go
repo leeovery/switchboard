@@ -22,7 +22,7 @@ func newServiceCommand(a *app) *cobra.Command {
 		Long: `Manage the LaunchAgent that keeps the router running on macOS: launchd starts
 switchboard serve at login, and again whenever it stops.`,
 		// Runnable, so a mistyped subcommand is an error rather than help.
-		Args: cobra.NoArgs,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -46,7 +46,7 @@ install. It logs at the level --log-level gives, else SWITCHBOARD_LOG_LEVEL's.
 The router reads the accounts' tokens from their files, as the CLI does, so it
 needs none of the shell's environment. Install warns when no account has a
 usable token, as the router would have nothing to route to.`,
-		Args: cobra.NoArgs,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			opts := service.InstallOptions{LogLevel: levelFlag{&logLevel}.String()}
 			return a.installService(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), opts)
@@ -61,7 +61,7 @@ func newServiceUninstallCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall",
 		Short: "Stop the router, and remove the LaunchAgent",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.uninstallService(cmd.Context(), cmd.OutOrStdout())
 		},
@@ -79,7 +79,7 @@ restart waits for the new one to answer. A router from before routers
 restarted when asked stops as it does at a signal, and launchd starts it
 again. With no router answering, there's nothing to finish, and launchd
 starts the service afresh at once.`,
-		Args: cobra.NoArgs,
+		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.restartService(cmd.Context(), cmd.OutOrStdout())
 		},
@@ -90,7 +90,7 @@ func newServiceStatusCommand(a *app) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show whether the LaunchAgent is installed and loaded, and the router's health",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.serviceStatus(cmd.Context(), cmd.OutOrStdout())
 		},

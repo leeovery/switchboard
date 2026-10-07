@@ -140,7 +140,7 @@ The full design, including the cache facts it rests on, is in [docs/design.md](d
 
 ## Commands
 
-Every command takes `--config <file>`, naming the config file in place of the one switchboard finds (see [Configuration](#configuration)), and `-h`, `--help`. `switchboard --version`, `-v` and [`switchboard version`](#version) print the version. A command that needs the router fails without it, saying how to start it. No command repeats a token pasted where an account's or a session's id goes: it shows as `[redacted]`.
+Every command takes `--config <file>`, naming the config file in place of the one switchboard finds (see [Configuration](#configuration)), and `-h`, `--help`. `switchboard --version`, `-v` and [`switchboard version`](#version) print the version. A command that needs the router fails without it, saying how to start it. No command repeats a token pasted where an account's or a session's id goes, nor in refusing an argument or a flag's value: it shows as `[redacted]`.
 
 ### Everyday
 
@@ -400,7 +400,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json]
 |---|---|
 | `--session <id>` | keep that session's requests, named by its id, or as much of it as is unique among the sessions read |
 | `--account <id>` | keep that account's requests |
-| `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
+| `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`, `400d` at most) |
 | `--json` | print each line as the ledger holds it, a JSON object a line |
 
 ```bash
@@ -418,7 +418,7 @@ switchboard history [--since <when>] [--json]
 
 | Flag | Description |
 |---|---|
-| `--since <when>` | start on the day of a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
+| `--since <when>` | start on the day of a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`, `400d` at most) |
 | `--json` | print `{"prices_as_of", "days"}`: the day the prices were read, and each day's summary as the ledger holds it, every day asked for, today's last, one without requests without `accounts`, each model's `worth` in US dollars added, and `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back |
 
 ```bash

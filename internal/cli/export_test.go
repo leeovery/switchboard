@@ -11,3 +11,11 @@ var ReadUnseen = readUnseen
 // AskBackground is how TerminalBackground asks a terminal its background,
 // given the terminal, for tests of how it asks, and what it hears.
 var AskBackground = askBackground
+
+// Took is how requests says how long a request took, for tests of each form
+// it takes.
+var Took = took
+
+// WriteHistory is how history writes its days, for tests of days the ledger
+// never gives it.
+var WriteHistory = writeHistory
