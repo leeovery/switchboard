@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-10-07
+
+✨ Added
+- Request ledger — the router writes one JSON line per routed request (session, directory, model, account, why it was chosen, status, timings, request shape, answer, token usage and rate-limit headers) to a file a day under `ledger/`, never holding message content or tokens.
+- `[ledger] keep = "90d"` config key sets how long the ledger's day files are kept; they're compressed after two days.
+- `switchboard run` tells the router which directory Claude Code started in, shown with `~` for your home, so ledger lines carry it.
+
+🔧 Changed
+- The router strips every `X-Switchboard-…` header before sending a request upstream, so the API never sees one, including those a newer `run` sends.
+- Stopping or restarting the router now cuts off requests still running after 30 seconds and gives them 5 more to unwind, so their ledger lines and state changes are kept.
+- Dashboard themes and docs no longer reference Portal.
+
+🐛 Fixed
+- A request whose body can't be read now gets a proper error and a ledger line, instead of going unrecorded.
+- Answers with an overlong event line no longer stop token counting for the rest of the stream.
+- A day file left ending in a half-written line is closed off before new lines are appended, so neither line is lost.
+
 ## [0.1.0] - 2026-10-03
 
 ✨ Added
