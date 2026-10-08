@@ -245,6 +245,28 @@ func TestADayCompressedAsItsFilesAreOpenedIsReadOnceWhole(t *testing.T) {
 	}
 }
 
+func TestADayCompressedBetweenItsFilesOpeningsIsReadWhole(t *testing.T) {
+	const date = "2026-09-25"
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, compressedFile(date), linesOf("zero"))
+	writeDay(t, f, plainFile(date), linesOf("one", "two"))
+	// Another process, a router, compresses the day once the first of its
+	// files is opened, before the second is.
+	compressed := false
+	f.opened = func(dayFile) {
+		if !compressed {
+			compressed = true
+			if err := requestLedger(f.Dir).compress(date); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	if got, want := readAll(f, date), []string{"zero", "one", "two"}; !slices.Equal(got, want) {
+		t.Errorf("read %q, want the day's lines %q, each once", got, want)
+	}
+}
+
 func TestReadNeverHoldsALineKeepPassesOver(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	at := func(day, hour int) time.Time { return time.Date(2026, 9, day, hour, 0, 0, 0, time.Local) }
@@ -521,6 +543,24 @@ func TestADamagedCompressedFileGivesTheLinesBeforeTheDamage(t *testing.T) {
 				t.Errorf("log reads\n%s\nwant the damage noted, a line with %q", log, tt.log)
 			}
 		})
+	}
+}
+
+func TestAPlainFileThatReadsShortBesideACompressedOneIsWarnedOfAndReadAsFarAsItGoes(t *testing.T) {
+	log := logstest.Capture(t)
+	const date = "2026-09-25"
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, compressedFile(date), linesOf("zero"))
+	// The plain file opens, but fails as it's read, as a directory does.
+	if err := os.Mkdir(f.path(plainFile(date)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := readAll(f, date); !slices.Equal(got, []string{"zero"}) {
+		t.Errorf("read %q, want the compressed file's line", got)
+	}
+	if want := []string{"level=WARN", `msg="request ledger read short"`, "file=" + plainFile(date).name(f.Prefix)}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant the plain file that read short warned of, a line with %q", log, want)
 	}
 }
 

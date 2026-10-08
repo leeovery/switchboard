@@ -71,6 +71,10 @@ type Files struct {
 	// warned holds the files a read has warned of, as files that can't be
 	// read or read short, so each is warned of once until it reads again.
 	warned filesWarned
+	// opened, where it's set, is called as each of a day's files is opened
+	// to be read, before the next is: another process may compress the day
+	// between the two, as tests do there.
+	opened func(dayFile)
 }
 
 // Lines are lines to append to the files, by the date of the local day each

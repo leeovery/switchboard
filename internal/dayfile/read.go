@@ -321,6 +321,9 @@ func (f *Files) openDay(date string) (opened []openFile, failed []fileError) {
 // there, which is no failure.
 func (f *Files) openOne(file dayFile, failed []fileError) (*openFile, []fileError) {
 	src, err := f.open(file)
+	if f.opened != nil {
+		f.opened(file)
+	}
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil, failed
@@ -339,7 +342,8 @@ func (f *Files) openOne(file dayFile, failed []fileError) (*openFile, []fileErro
 // stopped once it had written the compressed file, before it removed the
 // plain one. To tell, it reads the two whole, from the files opened, so it
 // tells of the lines they give, and each gives them again as it was read,
-// ending as its read did.
+// ending as its read did. A plain file that reads short is read as far as it
+// goes, which tells nothing of what it holds.
 func dayOpened(plain, compressed *openFile) []openFile {
 	switch {
 	case plain == nil && compressed == nil:
@@ -350,7 +354,7 @@ func dayOpened(plain, compressed *openFile) []openFile {
 		return []openFile{*compressed}
 	}
 	plainLines, compressedLines := readWhole(plain), readWhole(compressed)
-	if (dayHeld{plain: plainLines.lines, compressed: compressedLines.lines}).plainCompressed() {
+	if plainLines.err == nil && (dayHeld{plain: plainLines.lines, compressed: compressedLines.lines}).plainCompressed() {
 		return []openFile{compressedLines.file()}
 	}
 	return []openFile{compressedLines.file(), plainLines.file()}
