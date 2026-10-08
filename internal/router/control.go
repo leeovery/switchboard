@@ -354,23 +354,27 @@ func (r *Router) session(id string) (status.Session, error) {
 		return status.Session{}, unknownSession(id)
 	}
 	s.Account, _ = r.Status().Account(s.Assignments[0].Account)
-	return r.named(s), nil
+	return r.described(s, r.stream.doing()), nil
 }
 
 // running reports the sessions routed in the last hour, the one seen last
 // first, each as session does but for its account's status.
 func (r *Router) running() []status.Session {
 	listed := r.sessions.running(r.cfg.Now())
+	doing := r.stream.doing()
 	for i, s := range listed {
-		listed[i] = r.named(s)
+		listed[i] = r.described(s, doing)
 	}
 	return listed
 }
 
-// named is s with the family of each of its models, as the provider names it.
-func (r *Router) named(s status.Session) status.Session {
+// described is s with the family of each of its models, as the provider
+// names it, and what a request of each in flight is doing, as doing, the
+// stream's, has it.
+func (r *Router) described(s status.Session, doing map[key]string) status.Session {
 	for i, a := range s.Assignments {
 		s.Assignments[i].Family = r.cfg.Provider.Family(a.Model)
+		s.Assignments[i].InFlight = doing[key{session: s.ID, model: a.Model}]
 	}
 	return s
 }

@@ -35,6 +35,15 @@ const (
 	ReasonPinYields = "pin yields: "
 )
 
+// What a request of an assignment's model in flight is doing, as an
+// Assignment's InFlight gives it.
+const (
+	// Asking is a request waiting for its answer's first byte.
+	Asking = "asking"
+	// Answering is a request whose answer streams to it.
+	Answering = "answering"
+)
+
 // Session is what the router says of a Claude Code session, as GET
 // /sessions/{id} answers: its own pin, and the account each of its models'
 // requests go to.
@@ -58,6 +67,13 @@ type Assignment struct {
 	// requests against windows.
 	Family  string `json:"family,omitempty"`
 	Account string `json:"account"`
+	// Dir is the directory the session's last request of the model to name
+	// one was started in, as the request ledger gives it: "" while none has.
+	Dir string `json:"dir,omitempty"`
+	// InFlight is what a request of the model in flight is doing: Answering
+	// while an answer streams to one, else Asking while one waits for its
+	// answer's first byte, and "" while none is in flight.
+	InFlight string `json:"in_flight,omitempty"`
 	// Pinned is set when the session's own pin put it on the account.
 	Pinned bool `json:"pinned"`
 	// Yielded is set while the session's own pin has yielded, the account it

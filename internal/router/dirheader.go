@@ -2,8 +2,11 @@ package router
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/leeovery/switchboard/internal/ledger"
 )
 
 // EncodeDir returns dir as DirHeader carries it, percent-encoding what a
@@ -24,6 +27,12 @@ func EncodeDir(dir string) string {
 		}
 	}
 	return b.String()
+}
+
+// dirOf returns the directory a request's header h names, in the form the
+// request ledger gives it: "" for none.
+func dirOf(h http.Header) string {
+	return ledger.LineDir(DecodeDir(h.Get(DirHeader)))
 }
 
 // DecodeDir returns the directory a DirHeader value names, as EncodeDir

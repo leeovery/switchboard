@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // The kinds of event the request stream tells of, as a StreamEvent's Kind
@@ -69,8 +70,11 @@ type StreamEvent struct {
 	Request string `json:"request"`
 	Attempt int    `json:"attempt,omitzero"`
 	// Session and Model are the session the request belongs to and the model
-	// it asks for, either "" when it doesn't say, each cut to 200 bytes.
+	// it asks for, either "" when it doesn't say, each cut to 200 bytes, and
+	// Dir the directory the session was started in, as the request ledger
+	// gives it, "" when the request doesn't say.
 	Session string `json:"session,omitempty"`
+	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Account is the account the request goes out on, or went out on last,
 	// or, once the client has an answer, the one it came from; and of a
@@ -130,10 +134,12 @@ type stream struct {
 
 // flight is a request in flight, as the stream keeps it: the inflight event
 // that tells of it as it stands, its Chars those its answer has streamed so
-// far, and told those last told of.
+// far, told those last told of, and of its session and model in full, which
+// the event may cut.
 type flight struct {
 	StreamEvent
 	told int
+	of   key
 }
 
 // streamReader is a reader of the stream, and the events it's yet to take:
@@ -147,25 +153,38 @@ func newStream(now func() time.Time) *stream {
 }
 
 // publish tells every reader of e, as happening now, and keeps the request
-// in flight as e leaves it.
+// in flight as e leaves it. A request going upstream, sent tells of.
 func (s *stream) publish(e StreamEvent) {
+	s.publishOf(e, key{})
+}
+
+// sent tells every reader of e, a request going upstream, as publish does:
+// of names its session and model in full.
+func (s *stream) sent(e StreamEvent, of key) {
+	s.publishOf(e, of)
+}
+
+// publishOf tells every reader of e, as happening now, and keeps the request
+// in flight as e leaves it: of names, in full, the session and model of a
+// request going upstream.
+func (s *stream) publishOf(e StreamEvent, of key) {
 	s.mu.Lock()
 	e.At = s.now().UTC()
-	s.keep(e)
+	s.keep(e, of)
 	behind := s.tell(e)
 	s.mu.Unlock()
 	noteBehind(behind)
 }
 
 // keep keeps the request e tells of as e leaves it: in flight from each time
-// it goes upstream until it's done, with the last verdict told of its answer
-// there, on the account whose answer the client has once it has one. s.mu
-// must be held.
-func (s *stream) keep(e StreamEvent) {
+// it goes upstream until it's done, of naming its session and model in full,
+// with the last verdict told of its answer there, on the account whose answer
+// the client has once it has one. s.mu must be held.
+func (s *stream) keep(e StreamEvent, of key) {
 	f, ok := s.flying[e.Request]
 	switch {
 	case e.Kind == StreamSent:
-		sent := &flight{StreamEvent: e}
+		sent := &flight{StreamEvent: e, of: of}
 		sent.Kind, sent.SentAt = StreamInFlight, e.At
 		s.flying[e.Request] = sent
 	case e.Kind == StreamDone:
@@ -242,6 +261,26 @@ func (s *stream) join() ([]StreamEvent, *streamReader) {
 		s.startPacing()
 	}
 	return inFlight, r
+}
+
+// doing returns what the requests in flight are doing, by the session and
+// model they're of, as an assignment's InFlight gives it: status.Answering
+// where an answer streams to any of them, else status.Asking. The client's
+// quota checks, which are no session's work, are left out.
+func (s *stream) doing() map[key]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	doing := make(map[key]string, len(s.flying))
+	for _, f := range s.flying {
+		switch {
+		case f.Check:
+		case !f.FirstAt.IsZero():
+			doing[f.of] = status.Answering
+		case doing[f.of] == "":
+			doing[f.of] = status.Asking
+		}
+	}
+	return doing
 }
 
 // startPacing starts telling of the progress of the requests' answers, as
