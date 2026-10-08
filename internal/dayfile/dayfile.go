@@ -1,15 +1,16 @@
-// Package dayfile keeps files a day of lines, as the readings history and the
-// request ledger keep theirs, in a directory of their own: a plain file each
-// local day, <prefix>-<date>.jsonl, which lines are appended to, compressed,
-// as <prefix>-<date>.jsonl.gz, once its day ended two days before, and
-// removed once its day is past keeping, which it never is when they're kept
-// Forever. A file named for a day after tomorrow, as a clock once set ahead
-// names one, stays until its day is past keeping too, and anything else in
-// the directory is left alone. Read reads the files back, either form, oldest
-// first, passing over what it can't read, and ReadDay a day's, saying what it
-// can't; a Writer writes to them on a goroutine of its own, so noting what's
-// to be written never waits, and makes a round of them every hour, and before
-// each prune, which what else is kept of the days, as the request ledger's
+// Package dayfile keeps files a day of lines, as the readings history, the
+// request ledger and the router's events keep theirs, in a directory of their
+// own: a plain file each local day, <prefix>-<date>.jsonl, which lines are
+// appended to, compressed, as <prefix>-<date>.jsonl.gz, once its day ended
+// two days before, and removed once its day is past keeping, which it never
+// is when they're kept Forever. A file named for a day after tomorrow, as a
+// clock once set ahead names one, stays until its day is past keeping too, and
+// anything else in the directory is left alone. Read reads the files back,
+// either form, oldest first, passing over what it can't read, ReadFiled as
+// they were filed, a day at a time, and ReadDay a day's, saying what it can't;
+// a Writer writes to them on a goroutine of its own, so noting what's to be
+// written never waits, and makes a round of them every hour, and before each
+// prune, which what else is kept of the days, as the request ledger's
 // summaries, can be kept on, on every round, or just before each prune.
 package dayfile
 

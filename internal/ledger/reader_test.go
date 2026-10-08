@@ -412,6 +412,39 @@ func TestADayIsSummarisedWithItsReadingsInTheOrderTheyWereRead(t *testing.T) {
 	}
 }
 
+func TestTheLedgerPassesOverTheRoutersEventsBesideIt(t *testing.T) {
+	state, dir, _ := stateDirs(t)
+	// One past the ledger's keeping, and one of a day done with, which its
+	// round would remove and compress were they its own.
+	pruned, done := now.AddDate(0, 0, -100).Local().Format(time.DateOnly), now.AddDate(0, 0, -3).Local().Format(time.DateOnly)
+	files := map[string][]byte{}
+	for _, date := range []string{pruned, done} {
+		name := "events-" + date + ".jsonl"
+		files[name] = []byte(`{"id":1,"at":"` + date + `T09:00:00Z","kind":"limit","account":"work","run":"2026-06-01T08:00:00Z"}` + "\n")
+		writeFile(t, dir, name, files[name])
+	}
+
+	writeAt(t, dir, now, noReadings)
+
+	for name, want := range files {
+		if got, err := os.ReadFile(filepath.Join(dir, name)); err != nil || !bytes.Equal(got, want) {
+			t.Errorf("%s holds %q, %v; want it as it was", name, got, err)
+		}
+	}
+	for _, date := range []string{pruned, done} {
+		if _, err := os.Stat(filepath.Join(dir, "day-"+date+".json")); err == nil {
+			t.Errorf("the ledger summarised %s, a day it holds only the router's events of", date)
+		}
+	}
+	reader := readerAt(state, now)
+	if days := reader.Days(now.AddDate(0, 0, -200)); len(days) != 1 || days[0].Day != now.Local().Format(time.DateOnly) {
+		t.Errorf("Days() are %d, want today's alone, the ledger holding no day of its own", len(days))
+	}
+	for held := range reader.Lines(now.AddDate(0, 0, -200)) {
+		t.Errorf("Lines() gave %s, want none", held.JSON)
+	}
+}
+
 // readingJSON returns r as the readings history writes it.
 func readingJSON(t *testing.T, r readings.Reading) string {
 	t.Helper()

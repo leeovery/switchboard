@@ -626,3 +626,96 @@ func TestADamagedFileIsWarnedOfOnceUntilItReads(t *testing.T) {
 		})
 	}
 }
+
+// traceFiled returns what ReadFiled hands on of the files f holds of the local
+// days with the given dates, as JSON, each line as "line <text>", and each day
+// read as "day <date>", and how many lines weren't JSON.
+func traceFiled(f *Files, dates ...string) (got []string, unread int) {
+	asJSON := func(line []byte) (string, bool) { return string(line), json.Valid(line) }
+	unread = ReadFiled(f, dates, asJSON, func(line string) bool {
+		got = append(got, "line "+line)
+		return true
+	}, func(date string) bool {
+		got = append(got, "day "+date)
+		return true
+	})
+	return got, unread
+}
+
+func TestReadFiledGivesEachDaysLinesAsTheyWereFiledADayAtATime(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	// The 28th's files hold a line of a time days before the 27th's, which
+	// ReadFiled hands on where it was filed, not by its time.
+	writeDay(t, f, plainFile("2026-09-27"), linesOf(`"27th"`))
+	writeDay(t, f, compressedFile("2026-09-28"), linesOf(`"28th, compressed"`))
+	writeDay(t, f, plainFile("2026-09-28"), linesOf(`"20th, filed on the 28th"`, `"28th, after"`))
+	writeDay(t, f, plainFile("2026-09-30"), linesOf(`"30th"`))
+
+	got, unread := traceFiled(f, "2026-09-27", "2026-09-28", "2026-09-29", "2026-09-30")
+	want := []string{
+		`line "27th"`, "day 2026-09-27",
+		`line "28th, compressed"`, `line "20th, filed on the 28th"`, `line "28th, after"`, "day 2026-09-28",
+		"day 2026-09-29",
+		`line "30th"`, "day 2026-09-30",
+	}
+	if !slices.Equal(got, want) || unread != 0 {
+		t.Errorf("read %q, %d unread, want %q, none unread: each day's lines as filed, each day read in turn, one without files included", got, unread, want)
+	}
+}
+
+func TestReadFiledStopsOnceEitherHasEnough(t *testing.T) {
+	tests := []struct {
+		name string
+		// last is what's last wanted: a line, as "line <text>", or a day, as
+		// "day <date>".
+		last string
+		want []string
+	}{
+		{name: "take", last: "line 1", want: []string{"line 1"}},
+		{name: "read", last: "day 2026-09-27", want: []string{"line 1", "line 2", "day 2026-09-27"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			f := readingsHistory(t.TempDir())
+			writeDay(t, f, plainFile("2026-09-27"), linesOf("1", "2"))
+			// A file a read that has had enough by then has no need to open.
+			if err := os.WriteFile(f.path(plainFile("2026-09-28")), []byte("3\n"), 0o000); err != nil {
+				t.Fatal(err)
+			}
+
+			var got []string
+			handed := func(s string) bool {
+				got = append(got, s)
+				return s != tt.last
+			}
+			ReadFiled(f, []string{"2026-09-27", "2026-09-28"}, asText,
+				func(line string) bool { return handed("line " + line) },
+				func(date string) bool { return handed("day " + date) })
+			if !slices.Equal(got, tt.want) || log.Has(`msg="can't read the readings history"`) {
+				t.Errorf("read %q, logging\n%s\nwant %q, and the next day's file never opened", got, log, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadFiledCountsWhatDoesntReadAndReadsADamagedFileUpToTheDamage(t *testing.T) {
+	log := logstest.Capture(t)
+	f := readingsHistory(t.TempDir())
+	yesterday := compressedFile("2026-09-28")
+	damaged := append(gzipOf(t, linesOf(`"before"`)), gzipOf(t, linesOf(`"after"`))[:5]...)
+	if err := os.WriteFile(f.path(yesterday), damaged, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeDay(t, f, plainFile("2026-09-29"), linesOf("not JSON", `"today"`))
+
+	for range 3 {
+		got, unread := traceFiled(f, "2026-09-28", "2026-09-29")
+		if want := []string{`line "before"`, "day 2026-09-28", `line "today"`, "day 2026-09-29"}; !slices.Equal(got, want) || unread != 1 {
+			t.Fatalf("read %q, %d unread, want %q, one unread", got, unread, want)
+		}
+	}
+	if warned := linesWith(log, "file="+yesterday.name(f.Prefix)); len(warned) != 1 || !strings.Contains(warned[0], `msg="readings history read short"`) {
+		t.Errorf("log reads\n%s\nwant the damaged file warned of once, however often it's read", log)
+	}
+}
