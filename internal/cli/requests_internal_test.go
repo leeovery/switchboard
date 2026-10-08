@@ -28,7 +28,7 @@ func TestRequestsOfASessionHoldTheLinesOfOneSessionAtMost(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newSessionMatch(whole)
+			s := newSessionHold(whole)
 			for i, session := range tt.sessions {
 				s.add(ledger.Held{Request: strconv.Itoa(i), Session: session})
 			}

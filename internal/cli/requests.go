@@ -6,7 +6,6 @@ import (
 	"iter"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -111,66 +110,44 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 
 // sessionLines returns those of lines of the session given names among
 // theirs, as sessionNamed says. It reads lines once, holding the lines of
-// one session at most, as sessionMatch does.
+// one session at most, as sessionHold does.
 func sessionLines(lines iter.Seq[ledger.Held], given string) (iter.Seq[ledger.Held], error) {
-	s := newSessionMatch(given)
+	s := newSessionHold(given)
 	for h := range lines {
 		s.add(h)
 	}
-	if _, err := sessionNamed(given, s.ids, func(id string) string { return id }, status.Clean); err != nil {
-		return nil, err
+	if _, ok := s.named(); !ok {
+		return nil, several(given, s.ids, status.Clean)
 	}
 	return slices.Values(s.held), nil
 }
 
-// sessionMatch is what's held, as lines are read, of the sessions whose ids
-// given starts: their ids, in the order they came, and the lines of the one
-// session that's wanted, as far as the ids so far tell, as wanted says, so
-// they're those of the session given names once every line is read.
-type sessionMatch struct {
-	given   string
-	seen    map[string]bool
-	ids     []string
+// sessionHold holds, as lines are read, the lines of the session given
+// names among theirs so far, as naming says: those of one session at most,
+// those of the session given names once every line is read.
+type sessionHold struct {
+	*naming
 	holding string
 	held    []ledger.Held
 }
 
-// newSessionMatch returns what's held of the sessions given starts the ids
-// of, before any line is read.
-func newSessionMatch(given string) *sessionMatch {
-	return &sessionMatch{given: given, seen: make(map[string]bool)}
+// newSessionHold returns a hold of the lines of the session given names,
+// before any line is read.
+func newSessionHold(given string) *sessionHold {
+	return &sessionHold{naming: newNaming(given)}
 }
 
-// add takes the line h in, holding it where it's of the session wanted, and
-// letting go of the lines held where that's no longer the session they're
-// of.
-func (s *sessionMatch) add(h ledger.Held) {
-	if !strings.HasPrefix(h.Session, s.given) {
-		return
-	}
-	if !s.seen[h.Session] {
-		s.seen[h.Session] = true
-		s.ids = append(s.ids, h.Session)
-	}
-	if wanted := s.wanted(); wanted != s.holding {
-		s.holding, s.held = wanted, nil
+// add takes the line h in, holding it where it's of the session named so
+// far, and letting go of those held where that's no longer the session
+// they're of.
+func (s *sessionHold) add(h ledger.Held) {
+	s.note(h.Session)
+	if id, _ := s.named(); id != s.holding {
+		s.holding, s.held = id, nil
 	}
 	if h.Session == s.holding {
 		s.held = append(s.held, h)
 	}
-}
-
-// wanted is the session whose lines are wanted, as far as the ids so far
-// tell: the one given names whole, once a line of it comes; else the one
-// alone whose id it starts; and none where it starts several.
-func (s *sessionMatch) wanted() string {
-	switch {
-	case s.seen[s.given]:
-		return s.given
-	case len(s.ids) == 1:
-		return s.ids[0]
-	}
-	return ""
 }
 
 // accountLines returns those of lines of the account with the given id, or
