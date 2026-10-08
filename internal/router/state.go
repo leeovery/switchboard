@@ -46,6 +46,11 @@ type usage struct {
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
+	// extra is the account's extra usage, as the answer or probe to give it
+	// whose request was sent last left it, at extraSent: the state file's
+	// counts as sent before every moment.
+	extra     quota.ExtraUsage
+	extraSent moment
 	// refused are the upstream's refusals of the account's token, which hold
 	// back every request.
 	refused refusals
@@ -266,6 +271,27 @@ func (s *state) record(id string, windows []quota.Window, sent moment) {
 	s.history(readings.Of(id, changed, at, readings.FromAnswer))
 }
 
+// recordExtra takes in an account's extra usage, off the answer to a request
+// sent at sent, as takeExtra does.
+func (s *state) recordExtra(id string, extra quota.ExtraUsage, sent moment) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.usage[id].takeExtra(extra, sent) {
+		s.readOff()
+	}
+}
+
+// takeExtra takes in extra usage off the answer to a request, or a probe,
+// sent at sent, and reports whether it did: it does where any of it was
+// given, and no request sent later has given it already.
+func (u *usage) takeExtra(extra quota.ExtraUsage, sent moment) bool {
+	if !extra.Given() || sent < u.extraSent {
+		return false
+	}
+	u.extra, u.extraSent = extra, sent
+	return true
+}
+
 // admitted notes that the upstream answered a request on the account, sent
 // at sent, with success, which lifts the account's limit as admits says.
 func (s *state) admitted(id string, sent moment) {
@@ -275,9 +301,9 @@ func (s *state) admitted(id string, sent moment) {
 }
 
 // recordProbe takes in what probing an account, from sent on, found, as a
-// prime or not, as from says: its usage and which models reported each
-// window, and whether a request of it was answered with success, or why it
-// read nothing.
+// prime or not, as from says: its usage, its extra usage among it, and which
+// models reported each window, and whether a request of it was answered with
+// success, or why it read nothing.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -293,6 +319,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	}
 	u.failures = slices.Clone(probed.Failures)
 	changed, news := u.take(probed.Windows, at, sent, s.mark())
+	news = u.takeExtra(probed.Extra, sent) || news
 	s.history(readings.Of(id, changed, at, from))
 	for key, models := range probed.Models {
 		for _, model := range models {
@@ -980,7 +1007,7 @@ func (u *usage) status(a account, policy score.Policy, now time.Time) status.Acc
 	}
 	st.TokenSet = true
 	st.FetchedAt = u.updated
-	st.Windows = u.latest()
+	st.Windows, st.Extra = u.latest(), u.extra
 	st = st.AsOf(policy, now)
 	st.Failures = slices.Clone(u.failures)
 	st.Error = u.probeErr
@@ -1025,15 +1052,15 @@ func (u *usage) current(policy score.Policy, now time.Time) []quota.Window {
 }
 
 // saved is what the state file keeps of the accounts' usage: each account's
-// windows as last read, and when, and the model families each window has been
-// reported on.
+// windows as last read, and when, and its extra usage, and the model families
+// each window has been reported on.
 func (s *state) saved() savedUsage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string)}
 	for id, u := range s.usage {
-		if len(u.windows) > 0 {
-			saved.Readings[id] = savedReading{ReadAt: u.updated, Windows: u.latest()}
+		if len(u.windows) > 0 || u.extra.Given() {
+			saved.Readings[id] = savedReading{ReadAt: u.updated, Windows: u.latest(), Extra: u.extra}
 		}
 	}
 	for key, families := range s.seen {
@@ -1057,7 +1084,7 @@ func (s *state) recall(saved savedUsage) (dropped bool) {
 		for _, w := range reading.Windows {
 			u.windows[w.Key] = w
 		}
-		u.updated = reading.ReadAt.UTC()
+		u.updated, u.extra = reading.ReadAt.UTC(), reading.Extra
 	}
 	for key, families := range saved.WindowFamilies {
 		for _, family := range families {

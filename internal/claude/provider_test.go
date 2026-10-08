@@ -527,8 +527,14 @@ func TestProviderUsage(t *testing.T) {
 		"anthropic-ratelimit-unified-5h-utilization", "0.23",
 		"anthropic-ratelimit-unified-5h-reset", "1790619000",
 		"anthropic-ratelimit-unified-5h-status", "allowed",
+		"anthropic-ratelimit-unified-overage-status", "rejected",
+		"anthropic-ratelimit-unified-overage-utilization", "0",
+		"anthropic-ratelimit-unified-overage-reset", "1790619000",
 	)
-	want := []quota.Window{session}
+	want := quota.Usage{
+		Windows: []quota.Window{session},
+		Extra:   quota.ExtraUsage{Status: quota.StatusRejected, Utilization: new(0.0), ResetsAt: session.ResetsAt},
+	}
 	if got := (claude.Provider{}).Usage(h); !reflect.DeepEqual(got, want) {
 		t.Errorf("Usage() =\n%+v\nwant\n%+v", got, want)
 	}

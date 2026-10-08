@@ -1,6 +1,7 @@
-// Package claude is the Claude provider. It reads an account's usage windows
-// off the rate-limit headers the API sends with every response, and probes
-// for them when there's no traffic to read them from.
+// Package claude is the Claude provider. It reads an account's usage, its
+// windows and its extra usage, off the rate-limit headers the API sends with
+// every response, and probes for them when there's no traffic to read them
+// from.
 package claude
 
 import (
@@ -62,11 +63,12 @@ type Prober struct {
 	Timeout time.Duration
 }
 
-// reading is what probing one family found: the windows its model reported,
-// or why none did, and whether its request was answered with success.
+// reading is what probing one family found: the usage its model reported,
+// its windows and its extra usage, or why none did, and whether its request
+// was answered with success.
 type reading struct {
 	model    string
-	windows  []quota.Window
+	usage    quota.Usage
 	admitted bool
 	err      error
 }
@@ -98,13 +100,17 @@ func (p *Prober) probeFamily(ctx context.Context, token string, f family) readin
 	return r
 }
 
-// combine merges readings, which are in families' order, into an account's usage.
+// combine merges readings, which are in families' order, into an account's
+// usage, its extra usage the first that gives any.
 func combine(readings []reading) (quota.Probe, error) {
 	probe := quota.Probe{Models: make(map[string][]string)}
 	for _, r := range readings {
-		probe.Windows = quota.MergeMax(probe.Windows, r.windows)
+		probe.Windows = quota.MergeMax(probe.Windows, r.usage.Windows)
+		if !probe.Extra.Given() {
+			probe.Extra = r.usage.Extra
+		}
 		probe.Admitted = probe.Admitted || r.admitted
-		for _, w := range r.windows {
+		for _, w := range r.usage.Windows {
 			probe.Models[w.Key] = append(probe.Models[w.Key], r.model)
 		}
 	}
@@ -130,44 +136,44 @@ func hasWindow(windows []quota.Window, key string) bool {
 // probe: its token, answering 401, or the request, answering 403.
 func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.Window, error) {
 	r := p.read(ctx, token, model)
-	return r.windows, r.err
+	return r.usage.Windows, r.err
 }
 
 // read probes model as ProbeModel does, and says what it read, and whether
 // the request was answered with success.
 func (p *Prober) read(ctx context.Context, token, model string) reading {
-	windows, status, err := p.probeModel(ctx, token, model)
+	usage, status, err := p.probeModel(ctx, token, model)
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
 		return reading{model: model, err: &probeError{text: redact.Text(err.Error(), token), status: status}}
 	}
-	return reading{model: model, windows: windows, admitted: status >= 200 && status < 300}
+	return reading{model: model, usage: usage, admitted: status >= 200 && status < 300}
 }
 
-// probeModel returns the windows the response to the probe reports, and its
-// status, or the status of a response that reports none, which is 0 when
-// there's no response.
-func (p *Prober) probeModel(ctx context.Context, token, model string) ([]quota.Window, int, error) {
+// probeModel returns the usage the response to the probe reports, its
+// windows and its extra usage, and its status, or the status of a response
+// that reports no window, which is 0 when there's no response.
+func (p *Prober) probeModel(ctx context.Context, token, model string) (quota.Usage, int, error) {
 	timeout := cmp.Or(p.Timeout, defaultTimeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := p.newRequest(ctx, token, model)
 	if err != nil {
-		return nil, 0, err
+		return quota.Usage{}, 0, err
 	}
 	resp, err := probeClient.Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, 0, fmt.Errorf("timed out after %s", timeout)
+			return quota.Usage{}, 0, fmt.Errorf("timed out after %s", timeout)
 		}
-		return nil, 0, err
+		return quota.Usage{}, 0, err
 	}
 	defer drainAndClose(resp.Body)
-	if windows := ParseWindows(resp.Header); len(windows) > 0 {
-		return windows, resp.StatusCode, nil
+	if usage := ParseUsage(resp.Header); len(usage.Windows) > 0 {
+		return usage, resp.StatusCode, nil
 	}
-	return nil, resp.StatusCode, errors.New(noUsageReason(resp, token))
+	return quota.Usage{}, resp.StatusCode, errors.New(noUsageReason(resp, token))
 }
 
 // probeError is why a probe read no usage, never holding the token.

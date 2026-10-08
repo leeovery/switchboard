@@ -53,8 +53,9 @@ type Provider interface {
 	// the account that produced it, so a session on the model moved to
 	// another account carries on without its earlier reasoning.
 	ThinkingBound(model string) bool
-	// Usage reads the usage windows a response's headers report.
-	Usage(h http.Header) []quota.Window
+	// Usage reads the usage a response's headers report: the account's
+	// windows, and its extra usage.
+	Usage(h http.Header) quota.Usage
 	// Classify says what a response, by its status and headers, says of the
 	// account the request went out on: whether its limit is reached, it's
 	// throttled or its token refused, or the response is the client's as it

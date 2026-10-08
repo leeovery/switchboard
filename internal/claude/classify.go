@@ -75,12 +75,12 @@ func carriesUsage(h http.Header) bool {
 // claim's; else the latest of the rejected windows' resets, as the account has
 // room only once each has reset; else zero.
 func limitReached(h http.Header) (rejected []string, until time.Time, reached bool) {
-	for key, fields := range windowFields(h) {
-		if quota.Status(fields["status"]) != quota.StatusRejected {
+	for key, f := range windowFields(h) {
+		if quota.Status(f.status) != quota.StatusRejected {
 			continue
 		}
 		rejected = append(rejected, key)
-		if reset := parseReset(fields["reset"]); reset.After(until) {
+		if reset := parseReset(f.reset); reset.After(until) {
 			until = reset
 		}
 	}

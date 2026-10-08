@@ -121,9 +121,13 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if windows := rp.p.provider.Usage(resp.Header); len(windows) > 0 {
-		rp.p.state.record(ex.account.ID, windows, rp.when)
-		rp.p.state.learn(ex.req.Model, windows)
+	usage := rp.p.provider.Usage(resp.Header)
+	if len(usage.Windows) > 0 {
+		rp.p.state.record(ex.account.ID, usage.Windows, rp.when)
+		rp.p.state.learn(ex.req.Model, usage.Windows)
+	}
+	if usage.Extra.Given() {
+		rp.p.state.recordExtra(ex.account.ID, usage.Extra, rp.when)
 	}
 	if ex.spends && succeeded(resp.StatusCode) {
 		rp.p.state.admitted(ex.account.ID, rp.when)

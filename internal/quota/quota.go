@@ -78,8 +78,31 @@ type Failure struct {
 // Usage is one reading of an account's quota.
 type Usage struct {
 	// Windows are in Sort's order.
-	Windows  []Window  `json:"windows,omitempty"`
-	Failures []Failure `json:"failures,omitempty"`
+	Windows []Window `json:"windows,omitempty"`
+	// Extra is the account's extra usage: zero where the reading didn't give
+	// it.
+	Extra    ExtraUsage `json:"extra_usage,omitzero"`
+	Failures []Failure  `json:"failures,omitempty"`
+}
+
+// ExtraUsage is how an account stands for extra usage, which serves its
+// requests past its limit, and bills for them, as a provider reports it. It
+// isn't a window. Each field is zero where the provider didn't give it, or
+// gave it unreadably.
+type ExtraUsage struct {
+	// Status is the provider's verdict, as given: extra usage is on while it
+	// isn't StatusRejected.
+	Status Status `json:"status,omitempty"`
+	// Utilization is the fraction of it used: nil where it wasn't given, as
+	// none used is 0.
+	Utilization *float64 `json:"utilization,omitempty"`
+	// ResetsAt is when its period resets.
+	ResetsAt time.Time `json:"resets_at,omitzero"`
+}
+
+// Given reports whether any of e was given.
+func (e ExtraUsage) Given() bool {
+	return e != ExtraUsage{}
 }
 
 // Probe is what probing an account read: its usage, and which models'
