@@ -18,6 +18,7 @@ the dashboard, where the status document only ever gains fields.
 Next up after the 5-hour pressure work; to be designed with its owner before anything is built.
 
 **The dashboard's part is taken up:** designed with its owner in Paper over five rounds and signed
-off on 2 October 2026 as milestone 5, in the design's Dashboard section. What's left here is
-`status`'s text: to be redesigned to match the new dashboard, its words the cards' and its order the
-heading's, designed with its owner before it's built.
+off on 2 October 2026 as milestone 5, then redesigned as milestone 7, in the design's Dashboard
+section. What's left here is the plain text the data verbs print on a terminal: `status`'s; the
+first cuts of `requests` and `history`, which exist; and those of `sessions` and `events`, which
+milestone 7's stage 3 adds: all to be redesigned in the dashboard's words, with its owner.
