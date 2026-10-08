@@ -123,7 +123,7 @@ func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing
 	want := []router.Event{
 		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "rescored after 2h idle"},
 		router.LimitReached{Account: "work", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Limit: 1},
-		router.Moved{Session: "one", Model: sonnet, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
+		router.Moved{Session: "one", Model: sonnet, From: "work", To: "side", Reason: "moved: work hit its limit", Held: router.HeldByLimit, Limit: 1},
 	}
 	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v", got, want)

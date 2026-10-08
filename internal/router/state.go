@@ -506,18 +506,6 @@ func (u *usage) lift() {
 	u.limited = limit{}
 }
 
-// limitHolding returns the identity of the limit of the account with the
-// given id that holds back a request of model at now, or 0 when none does.
-func (s *state) limitHolding(id, model string, now time.Time) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	u, ok := s.usage[id]
-	if !ok || !u.limited.holds(now, s.counting(model)) {
-		return 0
-	}
-	return u.limited.id
-}
-
 // sinceReset returns windows, those a limit reached as the answer to a request
 // sent at sent names, but those read reset by hand, as they now stand, off the
 // answer to a request sent after it, as fromBeforeReset has a reading of them:
@@ -677,33 +665,33 @@ func (u *usage) primeFailed(policy score.Policy) bool {
 // view returns what a choice of account for a request of model knows at now:
 // every account with a token, as it stands, with its reserve and the pace its
 // pressure window is being used at, which windows count the request, which
-// accounts have no room for it whatever their windows read, and which of
-// those refused it lately. It notes in the log how the accounts' reserves hold
-// them back, as noteReserves says.
+// accounts have no room for it whatever their windows read, which of those
+// refused it lately, and which limits hold it back on the others. It notes in
+// the log how the accounts' reserves hold them back, as noteReserves says.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.noteReserves(now)
 	family, applies := s.family(model), s.counting(model)
-	var (
-		candidates      []score.Candidate
-		barred, refused []string
-	)
+	v := view{policy: s.policy, now: now, applies: applies, limited: make(map[string]int)}
 	for _, a := range s.accounts {
 		if !a.hasToken() {
 			continue
 		}
 		u := s.usage[a.ID]
 		pace, _ := u.pace(s.policy, now)
-		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve, Rate: pace.Rate})
+		v.candidates = append(v.candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve, Rate: pace.Rate})
 		if u.barred(now, family, applies) {
-			barred = append(barred, a.ID)
+			v.barred = append(v.barred, a.ID)
 		}
 		if u.refuses(now, family) {
-			refused = append(refused, a.ID)
+			v.refused = append(v.refused, a.ID)
+		}
+		if u.limited.holds(now, applies) {
+			v.limited[a.ID] = u.limited.id
 		}
 	}
-	return view{policy: s.policy, now: now, candidates: candidates, applies: applies, barred: barred, refused: refused}
+	return v
 }
 
 // noteReserves notes in the log, as it finds the accounts at now, each window
@@ -970,16 +958,26 @@ func (s *state) standings(now time.Time) standings {
 // standing is how the account stands at now. Its quota leaves it no room for
 // a request of any model while a limit holds such requests back, or while a
 // window every model shares is spent, or has reached the account's reserve,
-// as last read, and hasn't reset since.
+// as last read, and hasn't reset since; and those are the windows that hold
+// it back, the limit's first.
 func (u *usage) standing(a account, policy score.Policy, now time.Time) standing {
 	limited := u.limited.holds(now, policy.IsShared)
 	st := u.status(a, policy, now)
-	return standing{
+	s := standing{
 		Account: st,
 		quota:   !limited && score.Available(st.Windows, a.Reserve, policy.IsShared, now),
 		known:   limited || len(st.Windows) > 0,
 		refused: u.refused.inForce(now),
 	}
+	if limited {
+		s.held = slices.Clone(u.limited.windows)
+	}
+	for _, w := range st.Windows {
+		if !score.Available([]quota.Window{w}, a.Reserve, policy.IsShared, now) {
+			s.held = withEach(s.held, w.Key)
+		}
+	}
+	return s
 }
 
 // status is the account as configured, with its usage as last read, standing

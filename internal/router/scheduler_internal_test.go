@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"net/http"
@@ -600,7 +601,7 @@ func TestMovesAreLogged(t *testing.T) {
 	}
 }
 
-func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
+func TestAMoveSaysWhatHeldItsRequestBack(t *testing.T) {
 	// fableAlone has work reach a limit in the Fable week, which holds back
 	// Fable's requests alone.
 	fableAlone := func(s *state) {
@@ -610,14 +611,17 @@ func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
 	tests := []struct {
 		name string
 		// hold holds work back from the session's Opus request, which moves
-		// it to side.
+		// it to side, for reason, "moved: work has no room" when it's "", work
+		// keeping a tenth of every window back as its reserve.
 		hold      func(s *state)
+		reason    string
+		wantHeld  Hold
 		wantLimit int
 	}{
 		{
-			name:      "its limit, in a window every model shares",
-			hold:      func(s *state) { s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) },
-			wantLimit: 1,
+			name:     "its limit, in a window every model shares",
+			hold:     func(s *state) { s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) },
+			wantHeld: HeldByLimit, wantLimit: 1,
 		},
 		{
 			name: "the second of its limits, the first in the Fable week",
@@ -625,17 +629,41 @@ func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
 				fableAlone(s)
 				s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark())
 			},
-			wantLimit: 2,
+			wantHeld: HeldByLimit, wantLimit: 2,
 		},
 		{
-			name: "but a refusal of its token, while its limit holds back Fable alone",
+			name: "its limit, though its token is refused too",
+			hold: func(s *state) {
+				s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark())
+				s.refuse("work", http.StatusUnauthorized, someRequest)
+			},
+			wantHeld: HeldByLimit, wantLimit: 1,
+		},
+		{
+			name: "a refusal of its token, while its limit holds back Fable alone",
 			hold: func(s *state) {
 				fableAlone(s)
 				s.refuse("work", http.StatusUnauthorized, someRequest)
 			},
+			wantHeld: HeldByRefusal,
 		},
 		{
-			name: "but its session spent, while its limit holds back Fable alone",
+			name:     "a refusal of Opus on it",
+			hold:     func(s *state) { s.forbid("work", "opus", http.StatusForbidden, someRequest) },
+			wantHeld: HeldByRefusal,
+		},
+		{
+			name: "its reserve",
+			hold: func(s *state) {
+				reserved := session
+				reserved.Utilization = 0.95
+				s.record("work", []quota.Window{reserved, soonWeek}, s.mark())
+			},
+			reason:   "moved: work is at its reserve",
+			wantHeld: HeldByReserve,
+		},
+		{
+			name: "nothing but its session spent, while its limit holds back Fable alone",
 			hold: func(s *state) {
 				fableAlone(s)
 				spent := session
@@ -647,8 +675,10 @@ func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var heard []Event
+			reserving := slices.Clone(testConfigured)
+			reserving[0].Reserve = 0.1
 			r, err := New(Config{
-				Accounts: testConfigured,
+				Accounts: reserving,
 				Token:    testTokens.Read,
 				Upstream: "http://127.0.0.1:1",
 				Provider: claude.Provider{},
@@ -666,9 +696,9 @@ func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
 			tt.hold(r.state)
 
 			choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"})
-			want := Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work has no room", Limit: tt.wantLimit}
+			want := Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: cmp.Or(tt.reason, "moved: work has no room"), Held: tt.wantHeld, Limit: tt.wantLimit}
 			if !reflect.DeepEqual(heard, []Event{want}) {
-				t.Errorf("events = %+v, want %+v: the move naming the limit that held its request back, if one did", heard, want)
+				t.Errorf("events = %+v, want %+v: the move saying what held its request back, and which limit, if one did", heard, want)
 			}
 		})
 	}
