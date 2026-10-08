@@ -84,17 +84,23 @@ const (
 	EventStarted = "started"
 	// EventPressure is an account coming under pressure.
 	EventPressure = "pressure"
+	// EventCap is a window of an account reaching its reserve, so the
+	// router's own choices pass the account over, with the sessions the cap
+	// moved.
+	EventCap = "cap"
 	// EventLimit is an account reaching its limit, with the sessions the
 	// limit moved.
 	EventLimit = "limit"
 	// EventMoved is a session's requests of a model moving to another
 	// account.
 	EventMoved = "moved"
-	// EventRefused is the upstream refusing requests on an account.
+	// EventRefused is the upstream refusing requests on an account, with the
+	// sessions the refusal moved.
 	EventRefused = "refused"
 	// EventPrimed is a prime starting an account's window.
 	EventPrimed = "primed"
-	// EventRoom is an account whose quota ran out having room again.
+	// EventRoom is an account that could take no request, at its limit or its
+	// cap, having room again.
 	EventRoom = "room"
 	// EventPin is routing set by hand: the global pin, or a session's own.
 	EventPin = "pin"
@@ -117,8 +123,8 @@ type Event struct {
 	// Kind says what happened, such as EventLimit.
 	Kind string `json:"kind"`
 	// Account is the account it befell: the one a session started on, or that
-	// came under pressure, reached its limit, was refused, was primed or has
-	// room again. Of a pin, the first of the global pin's Accounts, or the one
+	// came under pressure, reached its cap or its limit, was refused, was
+	// primed or has room again. Of a pin, the first of the global pin's Accounts, or the one
 	// a session's own pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
 	// Accounts are the accounts the global pin names, in the order
@@ -130,22 +136,26 @@ type Event struct {
 	Session string `json:"session,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// From and To are the accounts a session moved from and to. To is where
-	// the sessions a limit moved went, too, when they all went to one.
+	// the sessions a limit, a cap or a refusal moved went, too, when they all
+	// went to one.
 	From string `json:"from,omitempty"`
 	To   string `json:"to,omitempty"`
 	// Reason says why: why a session went to its account, as the router's log
 	// has it, why a restart is due, or why the router turned unhealthy.
 	Reason string `json:"reason,omitempty"`
 	// Windows are the keys of the windows it's of: those a limit was reached
-	// in, the one a prime started, or the one under pressure.
+	// in, those at a cap's reserve, the one a prime started, the one under
+	// pressure, or those that held back an account that has room again.
 	Windows []string `json:"windows,omitempty"`
-	// Until is when a limit lifts, a refusal ends, a window a prime started
-	// resets, or a window under pressure runs out.
+	// Until is when a limit lifts, the last of a cap's windows resets, a
+	// refusal ends, a window a prime started resets, or a window under
+	// pressure runs out.
 	Until time.Time `json:"until,omitzero"`
 	// Since is when the rate an account came under pressure at is measured
 	// from, when it's its recent rate.
 	Since time.Time `json:"since,omitzero"`
-	// Count is how many sessions a limit moved.
+	// Count is how many sessions a limit, a cap or a refusal moved while it
+	// held, each once.
 	Count int `json:"count,omitzero"`
 	// Limit is, of a limit's event, the limit's identity, as the account's
 	// Limit gives it while it holds; and of a move's, the id of the limit's
@@ -153,6 +163,12 @@ type Event struct {
 	// zero for a move it doesn't count. It's zero for an event of any other
 	// kind.
 	Limit int `json:"limit,omitzero"`
+	// ForcedBy is, of a move's, the id of the event it's counted in, as one
+	// of the sessions it moved: a limit's, a cap's or a refusal's; zero for a
+	// move none counts.
+	ForcedBy int `json:"forced_by,omitzero"`
+	// Reserve is, of a cap's, the account's reserve as the cap came.
+	Reserve float64 `json:"reserve,omitzero"`
 	// Status is the upstream's answer refusing requests, and Family, for a
 	// request refused alone, the model family the refusal holds back.
 	Status int    `json:"status,omitzero"`

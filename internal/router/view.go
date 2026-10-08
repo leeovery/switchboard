@@ -24,6 +24,9 @@ type view struct {
 	// refused are the accounts, of those barred, that refused the request
 	// lately, by id: they'd only refuse it again.
 	refused []string
+	// limited holds, by id, the identity of the limit that holds the request
+	// back on each account, of those barred, where a limit does.
+	limited map[string]int
 	// spending are the accounts, by id, whose reserve the request may spend,
 	// as a pin names them: a pin is the user's, and runs its account to its
 	// limit, where the reserve holds back the router's own choices.
@@ -121,6 +124,23 @@ func (v view) reserved(id string) bool {
 	c, ok := v.candidate(id)
 	return ok && !slices.Contains(v.barred, id) && len(c.Windows) > 0 &&
 		score.Available(c.Windows, 0, v.applies, v.now) && !score.Available(c.Windows, c.Reserve, v.applies, v.now)
+}
+
+// holding returns what holds the request back on the account with the given
+// id, and the identity of the limit, where that's what does: a limit it
+// reached, else its refusing the request lately, else its reserve alone. It
+// returns zero where the account can take the request, and where only its
+// windows leave it no room.
+func (v view) holding(id string) (Hold, int) {
+	switch limit, limited := v.limited[id]; {
+	case limited:
+		return HeldByLimit, limit
+	case slices.Contains(v.refused, id):
+		return HeldByRefusal, 0
+	case v.reserved(id):
+		return HeldByReserve, 0
+	}
+	return 0, 0
 }
 
 // letGo reports whether any account is held back from the request by its

@@ -900,7 +900,7 @@ func forced(session, from, to string) Moved {
 
 // forcedModel is forced, for requests of the model given.
 func forcedModel(session, model, from, to string) Moved {
-	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Limit: 1}
+	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Held: HeldByLimit, Limit: 1}
 }
 
 // forcedBy is forced, by the limit with the identity given.

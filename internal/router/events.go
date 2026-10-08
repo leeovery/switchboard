@@ -42,19 +42,36 @@ type LimitReached struct {
 }
 
 // Moved is a session's requests of a model moving to another account, and
-// why, as the routed line's reason says. Limit is the identity of the limit
-// that held the request back on From, as LimitReached gives it, where that's
-// why the session moved: zero for a move by choice, as after an idle hour or
-// by pin, and for one that had to be for anything else, as From's reserve or
-// a refusal.
+// why, as the routed line's reason says. Held is what held the request back
+// on From, as the choice that moved the session found it, where From couldn't
+// take it: zero where it could, for a move by choice, as by pin, and where
+// only From's windows left it no room, with no limit reached. Limit is the
+// identity of the limit that held the request back, as LimitReached gives
+// it, where Held is HeldByLimit, and zero otherwise.
 type Moved struct {
 	Session string
 	Model   string
 	From    string
 	To      string
 	Reason  string
+	Held    Hold
 	Limit   int
 }
+
+// Hold is what held a request back on an account it couldn't go out on,
+// which forces a session there to move: zero for nothing.
+type Hold int
+
+const (
+	// HeldByLimit is a limit the account reached.
+	HeldByLimit Hold = iota + 1
+	// HeldByReserve is the account's reserve, which its windows have
+	// reached: the account is at its cap.
+	HeldByReserve
+	// HeldByRefusal is the upstream refusing the account's token, or the
+	// request's model family on it.
+	HeldByRefusal
+)
 
 // Refused is the upstream refusing the request with the id Request on an
 // account, answering with Status: its token, which holds back every request,
@@ -150,11 +167,10 @@ func hearing(listeners ...func(Event)) func(Event) {
 }
 
 // limitMoves is a limit an account reached, as each time it's reached again
-// while it holds joins it, and the sessions it has moved, each once, with the
-// accounts they went to, each once, in the order they came.
+// while it holds joins it, and the sessions it has moved.
 type limitMoves struct {
 	LimitReached
-	sessions, to []string
+	moves
 }
 
 func newLimitMoves(e LimitReached) *limitMoves {
@@ -168,21 +184,41 @@ func newLimitMoves(e LimitReached) *limitMoves {
 // it reached again, so it holds until the latest it's told of. It reports
 // whether that changed the limit.
 func (m *limitMoves) join(e LimitReached) bool {
-	windows := len(m.Windows)
-	for _, key := range e.Windows {
-		if !slices.Contains(m.Windows, key) {
-			m.Windows = append(m.Windows, key)
-		}
-	}
-	until := m.Until
-	m.Until = score.Later(m.Until, e.Until)
-	return len(m.Windows) != windows || !m.Until.Equal(until)
+	var changed bool
+	m.Windows, m.Until, changed = widen(m.Windows, m.Until, e.Windows, e.Until)
+	return changed
 }
 
-// add takes in a session the limit moved to the account with the id to,
-// reporting whether it changed what the limit's event gives: how many
+// widen returns windows with each of more that isn't among them after them,
+// and the later of until and later, reporting whether that changed either:
+// what holds an account back, reached again while it holds, in more windows
+// perhaps, and till later.
+func widen(windows []string, until time.Time, more []string, later time.Time) ([]string, time.Time, bool) {
+	had, was := len(windows), until
+	windows, until = withEach(windows, more...), score.Later(until, later)
+	return windows, until, len(windows) != had || !until.Equal(was)
+}
+
+// withEach returns keys with each of more that isn't among them after them.
+func withEach(keys []string, more ...string) []string {
+	for _, key := range more {
+		if !slices.Contains(keys, key) {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// moves are the sessions a limit, a cap or a refusal has moved, each once,
+// with the accounts they went to, each once, in the order they came.
+type moves struct {
+	sessions, to []string
+}
+
+// add takes in a session moved to the account with the id to, reporting
+// whether it changed what the event of what moved it gives: how many
 // sessions it moved, or where they went.
-func (m *limitMoves) add(session, to string) bool {
+func (m *moves) add(session, to string) bool {
 	count, went := m.moved()
 	if !slices.Contains(m.sessions, session) {
 		m.sessions = append(m.sessions, session)
@@ -194,9 +230,9 @@ func (m *limitMoves) add(session, to string) bool {
 	return nowCount != count || nowWent != went
 }
 
-// moved returns how many sessions the limit has moved, and the account they
-// went to when they all went to one, "" otherwise.
-func (m *limitMoves) moved() (count int, to string) {
+// moved returns how many sessions have moved, and the account they went to
+// when they all went to one, "" otherwise.
+func (m *moves) moved() (count int, to string) {
 	if len(m.to) == 1 {
 		to = m.to[0]
 	}

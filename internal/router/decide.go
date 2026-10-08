@@ -69,6 +69,12 @@ type decision struct {
 	// when that isn't known.
 	reserved bool
 	back     time.Time
+	// held is what holds the request back on the session's account, where
+	// the choice moves the session off it, and limit the identity of the
+	// limit, where that's what does, as view's holding says: what forces the
+	// move.
+	held  Hold
+	limit int
 }
 
 // decide chooses the account a request goes out on, in this order, room
@@ -94,19 +100,24 @@ type decision struct {
 //     A request tried already goes out on none.
 //
 // A choice that passing over those under pressure changed says so, naming
-// the account passed over, after why it was made.
+// the account passed over, after why it was made; and one that moves the
+// session off its account says what held the request back there, if
+// anything did.
 func decide(s situation) decision {
+	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	d := s.choose()
 	if d.passedOver != "" {
 		d.reason += ", " + d.passedOver + " under pressure"
+	}
+	if s.assigned && d.account != s.current.Account {
+		d.held, d.limit = s.accounts.holding(s.current.Account)
 	}
 	return d
 }
 
 // choose chooses as decide does, but for saying which account a choice passed
-// over for pressure.
+// over for pressure, and what held the request back on the session's.
 func (s situation) choose() decision {
-	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	pin := s.req.Pin
 	switch {
 	case pin == "":

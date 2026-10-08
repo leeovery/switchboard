@@ -226,9 +226,9 @@ func TestALimitIsToldOfWithTheSessionsItMovedAndWhereTheyWent(t *testing.T) {
 	}
 	doc := waitForStatus(t, control, func(doc status.Document) bool { return len(doc.Events) == 7 })
 	want := []status.Event{
-		{ID: 7, At: now, Kind: status.EventMoved, Session: "two", Model: haiku, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4},
-		{ID: 6, At: now, Kind: status.EventMoved, Session: "two", Model: opus, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4},
-		{ID: 5, At: now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 4},
+		{ID: 7, At: now, Kind: status.EventMoved, Session: "two", Model: haiku, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4, ForcedBy: 4},
+		{ID: 6, At: now, Kind: status.EventMoved, Session: "two", Model: opus, From: "work", To: "side", Reason: "moved: work has no room", Limit: 4, ForcedBy: 4},
+		{ID: 5, At: now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 4, ForcedBy: 4},
 		{ID: 4, At: now, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: sessionSpent.ResetsAt, Count: 2, Limit: 1},
 		{ID: 3, At: now, Kind: status.EventStarted, Account: "work", Session: "two", Model: haiku, Reason: "new"},
 		{ID: 2, At: now, Kind: status.EventStarted, Account: "work", Session: "two", Model: opus, Reason: "new"},

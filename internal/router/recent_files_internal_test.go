@@ -121,13 +121,28 @@ func TestAnEventIsFiledAgainAsItChangesAndReadBackAsItLastStands(t *testing.T) {
 			versions: map[int]int{1: 2},
 		},
 		{
-			name: "several refusals lifting early at once",
+			name: "a token's refusal renewed while it holds, as it's joined, then lifting early",
 			heard: []Event{
 				Refused{Account: "work", Status: http.StatusUnauthorized, Until: until},
-				Refused{Account: "work", Status: http.StatusUnauthorized, Until: until},
+				Refused{Account: "work", Status: http.StatusUnauthorized, Until: until.Add(time.Minute)},
 				RefusalLifted{Account: "work"},
 			},
-			versions: map[int]int{1: 2, 2: 2},
+			versions: map[int]int{1: 3},
+		},
+		{
+			name:     "a refusal renewed while it holds, changing nothing",
+			heard:    []Event{refused("work", someRequest), refused("work", "e5f6a7b8")},
+			versions: map[int]int{1: 1},
+		},
+		{
+			name:     "a refusal counting a move after it",
+			heard:    []Event{refused("work", someRequest), refusedOff("one", opus, "side")},
+			versions: map[int]int{1: 2, 2: 1},
+		},
+		{
+			name:     "a move counted once its refusal is told",
+			heard:    []Event{refusedOff("one", opus, "side"), refused("work", someRequest)},
+			versions: map[int]int{1: 2, 2: 1},
 		},
 		{
 			name:     "another request's refusal lifting, changing nothing",
@@ -220,11 +235,12 @@ func fileEvents(t *testing.T, r *recent) *eventFiles {
 }
 
 // read stops the filing, once it has written what's noted, and returns the
-// events read back, each as it last stands.
+// events read back, each as it last stands: those of the ten days from the day
+// before start.
 func (f *eventFiles) read() []events.Line {
 	f.stop()
-	reader := events.NewReader(f.stateDir, at(start.Add(day)), logger)
-	return slices.Collect(reader.Between(start.Add(-day), start.Add(day)))
+	reader := events.NewReader(f.stateDir, at(start.Add(10*day)), logger)
+	return slices.Collect(reader.Between(start.Add(-day), start.Add(10*day)))
 }
 
 // versions returns how many lines the files hold of each event, by its id,
