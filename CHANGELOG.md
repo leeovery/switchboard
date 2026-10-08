@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-10-08
+
+✨ Added
+- `switchboard requests` lists the routed requests from the request ledger — filter by session or account, start from a day, a time or "3h ago", and read it as JSON.
+- `switchboard history` shows each day by account and model with requests, tokens, sessions, moves, limits reached and highest window use.
+- `history` prices every model's usage at Anthropic's API rates, shown as "worth" in US dollars — models the price table doesn't know show as unpriced, never free.
+- The router writes a summary of each finished day beside the ledger's lines, kept for good even after the lines are pruned.
+- `keep = "forever"` for `[history]` and `[ledger]` — a day's files are never removed.
+- The skill teaches Claude about `requests` and `history`, so agents can look back at past use.
+
+🔧 Changed
+- The readings history and the request ledger now keep 400 days by default, up from 14 and 90.
+- `keep` accepts any number of days from `8d`, no longer capped at `400d`.
+- Token counts show in millions and billions as well as thousands.
+- Day boundaries follow the local clocks, including days that begin or skip hours when summer time starts, in the dashboard's charts and in the new commands.
+
+🐛 Fixed
+- A token pasted as a command, a flag value or an argument is shown as `[redacted]` in error messages instead of being repeated.
+- A day's files compressed while being read no longer lose lines.
+
 ## [0.1.1] - 2026-10-07
 
 ✨ Added
