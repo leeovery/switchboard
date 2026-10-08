@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -75,13 +76,19 @@ func (a *app) ledgerArgs(cmd *cobra.Command, args []string) error {
 }
 
 // ledgerReader returns a reader of the request ledger in the state directory,
-// by the commands' clock.
+// by the commands' clock, which summarises days with the caps of the accounts
+// configured. It fails without a config, as every command that reads one
+// does.
 func (a *app) ledgerReader() (*ledger.Reader, error) {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return nil, err
+	}
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		return nil, err
 	}
-	return ledger.NewReader(dir, a.Now, logger), nil
+	return ledger.NewReader(dir, a.Now, ledger.CapsOf(cfg.Accounts, claude.SharedWindows), logger), nil
 }
 
 // requests prints the ledger's lines as opts ask.

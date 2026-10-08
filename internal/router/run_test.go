@@ -327,8 +327,11 @@ func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
 	y, m, d := now.Local().Date()
 	today := time.Date(y, m, d, 12, 0, 0, 0, time.Local)
 	cfg.Now = func() time.Time { return today }
+	// Work keeps 60% of each window in reserve, its cap at 40%.
+	cfg.Accounts[0].Reserve = 0.6
 	// Yesterday, a request on work, and the reading of work's session its
-	// answer gave, which the router kept as it routed it before it stopped.
+	// answer gave, which the router kept as it routed it before it stopped:
+	// at its cap from then until the session reset.
 	noon := today.AddDate(0, 0, -1)
 	date := noon.Format(time.DateOnly)
 	lines := filepath.Join("ledger", "requests-"+date+".jsonl")
@@ -359,12 +362,15 @@ func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"version":1,"day":"` + date + `","lines":1,"bytes":{"plain":` + strconv.Itoa(len(kept[lines])) + `,"compressed":0},` +
+	want := `{"version":2,"day":"` + date + `","lines":1,"bytes":{"plain":` + strconv.Itoa(len(kept[lines])) + `,"compressed":0},` +
 		`"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,` +
-		`"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"moved_on":0,"moved_off":0,` +
-		`"highest":{"5h":0.4}}]}` + "\n"
+		`"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"session_ids":["` + sessionID + `"],` +
+		`"moved_on":0,"moved_off":0,"highest":{"5h":0.4},"rise":{"5h":0.4},` +
+		`"resets":[{"window":"5h","at":"` + noon.Add(5*time.Hour).UTC().Format(time.RFC3339) + `","before":0.4}],` +
+		`"minutes_at_cap":300,"minutes_at_limit":0}]}` + "\n"
 	if string(data) != want {
-		t.Errorf("yesterday's summary is\n%s\nwant its request, and its window's highest use from the readings history, marked with its file's size\n%s", data, want)
+		t.Errorf("yesterday's summary is\n%s\nwant its request, and its window's use from the readings history, its time at its cap by its "+
+			"reserve as configured, marked with its file's size\n%s", data, want)
 	}
 }
 

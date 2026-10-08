@@ -254,3 +254,25 @@ func TestAWindowStartedAgainRunsFromThen(t *testing.T) {
 func sameProjection(a, b score.Projection) bool {
 	return a.Kind == b.Kind && math.Abs(a.AtReset-b.AtReset) < 1e-9 && a.At.Equal(b.At)
 }
+
+func TestResetByHand(t *testing.T) {
+	held := session(0.3, time.Hour)
+	tests := []struct {
+		name string
+		kept quota.Window
+		want bool
+	}{
+		{name: "ten points lower, its reset the same, allowing for rounding", kept: session(0.2, time.Hour), want: true},
+		{name: "emptied, its reset the same", kept: session(0, time.Hour), want: true},
+		{name: "nine points lower is noise", kept: session(0.21, time.Hour)},
+		{name: "higher", kept: session(0.5, time.Hour)},
+		{name: "emptied, with another reset, a new window", kept: session(0, -4*time.Hour)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := score.ResetByHand(held, tt.kept); got != tt.want {
+				t.Errorf("ResetByHand(%+v, %+v) = %v, want %v", held, tt.kept, got, tt.want)
+			}
+		})
+	}
+}

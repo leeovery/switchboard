@@ -110,7 +110,7 @@ type Candidate struct {
 // windows isn't available: nothing is known about it.
 func Available(windows []quota.Window, reserve float64, applies func(key string) bool, now time.Time) bool {
 	return len(windows) > 0 && !slices.ContainsFunc(windows, func(w quota.Window) bool {
-		return applies(w.Key) && (spent(w) || atReserve(w, reserve)) && !w.ResetBy(now)
+		return applies(w.Key) && (Spent(w) || HeldByReserve(w, reserve)) && !w.ResetBy(now)
 	})
 }
 
@@ -120,7 +120,7 @@ func Available(windows []quota.Window, reserve float64, applies func(key string)
 func AtReserve(windows []quota.Window, reserve float64, now time.Time) []string {
 	var keys []string
 	for _, w := range windows {
-		if atReserve(w, reserve) && !w.ResetBy(now) {
+		if HeldByReserve(w, reserve) && !w.ResetBy(now) {
 			keys = append(keys, w.Key)
 		}
 	}
@@ -136,7 +136,7 @@ func LetGo(windows []quota.Window, reserve float64, applies func(key string) boo
 	var last time.Time
 	for _, w := range windows {
 		switch {
-		case !applies(w.Key) || !atReserve(w, reserve) || w.ResetBy(now):
+		case !applies(w.Key) || !HeldByReserve(w, reserve) || w.ResetBy(now):
 		case w.ResetsAt.IsZero():
 			return time.Time{}, false
 		case w.ResetsAt.After(last):

@@ -21,8 +21,10 @@ const (
 	// release that summarises a day otherwise, or keeps more of it, writes
 	// another, and so tells the summaries written before it: those whose lines
 	// are still kept can be summarised again, and a reader knows what the
-	// others never counted, rather than taking it for none.
-	summaryVersion = 1
+	// others never counted, rather than taking it for none. Version 2 added
+	// each account's session ids, rises, resets and minutes at its cap and at
+	// a limit.
+	summaryVersion = 2
 	// readingsBefore is how far before a day the readings that say the use
 	// each window began it at are looked for: a week, the longest a window
 	// runs, so a window read before then has reset since.
@@ -68,7 +70,13 @@ func bytesOf(stat dayfile.DayStat) Bytes {
 
 // AccountDay is an account's day: its requests, by the model each asked for,
 // and, of the account as a whole, its sessions, those moved onto it and off
-// it, each window's highest use, and the limits it reached.
+// it, each window's highest use, how far it rose and when it reset, the
+// limits it reached, and the minutes it spent at its cap and at a limit.
+//
+// Those a summary of version 2 added, SessionIDs, Rise, Resets,
+// MinutesAtCap and MinutesAtLimit, are nil where they were never read, as of
+// a summary of version 1, or an account a summary made since kept as one of
+// those gave it; a summary of version 2 gives none of them as empty, or 0.
 type AccountDay struct {
 	// Account is the account's id, left out of the requests no account
 	// answered.
@@ -77,15 +85,28 @@ type AccountDay struct {
 	// order of their names.
 	Models []ModelDay `json:"models,omitempty"`
 	// Sessions counts the sessions its requests were of, as counted says,
-	// and MovedOn and MovedOff those its requests moved onto it, and off it.
-	Sessions int `json:"sessions"`
-	MovedOn  int `json:"moved_on"`
-	MovedOff int `json:"moved_off"`
+	// and SessionIDs are their ids, in order, each once, so a span of days,
+	// or every account, counts a session once. MovedOn and MovedOff count
+	// those its requests moved onto it, and off it.
+	Sessions   int      `json:"sessions"`
+	SessionIDs []string `json:"session_ids,omitzero"`
+	MovedOn    int      `json:"moved_on"`
+	MovedOff   int      `json:"moved_off"`
 	// Highest is each window's highest use that day, by its key: the use it
 	// began the day at among it, unless the window had reset by then.
 	Highest map[string]float64 `json:"highest,omitempty"`
+	// Rise is how far each window's use rose that day, by its key: the points
+	// of it the day used, as windowDay says.
+	Rise map[string]float64 `json:"rise,omitzero"`
+	// Resets are the resets of its windows the readings history saw that day,
+	// in the order they came.
+	Resets []Reset `json:"resets,omitzero"`
 	// Limits are the limits the account reached, in the order it reached them.
 	Limits []Limit `json:"limits,omitempty"`
+	// MinutesAtCap and MinutesAtLimit are the minutes of the day it spent at
+	// its cap, and at a limit, as minutesAt says.
+	MinutesAtCap   *int `json:"minutes_at_cap,omitzero"`
+	MinutesAtLimit *int `json:"minutes_at_limit,omitzero"`
 	// ReadBefore are the windows the readings history read in the week
 	// before the day, by their keys, in their order, as the summary was made:
 	// what tells a summary made again, as Summarise says, that a limit it
@@ -135,6 +156,16 @@ type Limit struct {
 	Window   string    `json:"window"`
 	At       time.Time `json:"at"`
 	ResetsAt time.Time `json:"resets_at,omitzero"`
+}
+
+// Reset is a reset of an account's window the readings history saw: its
+// window's key; when it reset, its reset time where it was read, or when the
+// reading that showed it reset by hand came; and its use as last read before
+// it, Before, so a week's peak is the Before of the reset that ended it.
+type Reset struct {
+	Window string    `json:"window"`
+	At     time.Time `json:"at"`
+	Before float64   `json:"before"`
 }
 
 // Readings returns the readings the readings history holds of times from
@@ -229,8 +260,11 @@ func firstAt(read []readings.Reading, t time.Time) int {
 // window it finds no reading of before it, in the day or the week before,
 // only where held read none of it in the week before either: the readings
 // history may since have pruned the one held read, which would have said the
-// limit held already. It fails for a date that isn't one.
-func Summarise(date string, lines iter.Seq[Line], history Readings, held *Summary) (Summary, error) {
+// limit held already. The day is summarised as of asOf, as far as it has gone
+// where it hasn't ended, as today hasn't: its windows' resets, and the
+// minutes its accounts spent at their caps, as caps gives them, and at a
+// limit, go no further. It fails for a date that isn't one.
+func Summarise(date string, lines iter.Seq[Line], history Readings, held *Summary, caps Caps, asOf time.Time) (Summary, error) {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
 		return Summary{}, fmt.Errorf("summarise %q: not a date", date)
@@ -241,9 +275,13 @@ func Summarise(date string, lines iter.Seq[Line], history Readings, held *Summar
 		n++
 	}
 	if n > 0 {
-		t.readings(history(start.Add(-readingsBefore), end), start, held.readBefore)
+		until := end
+		if asOf.Before(end) {
+			until = asOf
+		}
+		t.readings(history(start.Add(-readingsBefore), end), start, until, held.readBefore)
 	}
-	return t.summary(date, n), nil
+	return t.summary(date, n, caps), nil
 }
 
 // readBefore reports whether the summary, where there is one, was made with a
@@ -265,13 +303,15 @@ func (s *Summary) readBefore(w accountWindow) bool {
 type tally map[string]*accountTally
 
 // accountTally is an account's day as it's summarised: readBefore holds the
-// windows read in the week before it.
+// windows read in the week before it, and windows how each window read went
+// through it, by its key.
 type accountTally struct {
 	models                      map[modelKey]*modelTally
 	sessions, movedOn, movedOff sessions
 	highest                     map[string]float64
 	limits                      []Limit
 	readBefore                  map[string]bool
+	windows                     map[string]*windowDay
 }
 
 // modelKey names a model's requests on an account as a summary keeps them
@@ -301,7 +341,8 @@ func (t tally) account(id string) *accountTally {
 		return a
 	}
 	a := &accountTally{models: make(map[modelKey]*modelTally), sessions: make(sessions), movedOn: make(sessions),
-		movedOff: make(sessions), highest: make(map[string]float64), readBefore: make(map[string]bool)}
+		movedOff: make(sessions), highest: make(map[string]float64), readBefore: make(map[string]bool),
+		windows: make(map[string]*windowDay)}
 	t[id] = a
 	return a
 }
@@ -367,8 +408,9 @@ func (l *Line) counted() string {
 // A limit whose window no reading came before, in the day or the week before,
 // is tallied only where readBefore, of the summary it's to replace, reports
 // that window wasn't read before either, as Summarise says. The windows read
-// in the week before are noted on those of their accounts the day tallies.
-func (t tally) readings(history iter.Seq[readings.Reading], start time.Time, readBefore func(accountWindow) bool) {
+// in the week before are noted on those of their accounts the day tallies,
+// and how each window went through the day until until, as windows says.
+func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Time, readBefore func(accountWindow) bool) {
 	last := make(map[accountWindow]quota.Window)
 	var day []readings.Reading
 	for r := range history {
@@ -384,6 +426,7 @@ func (t tally) readings(history iter.Seq[readings.Reading], start time.Time, rea
 	}
 	seen := maps.Clone(before)
 	maps.DeleteFunc(last, func(_ accountWindow, w quota.Window) bool { return w.ResetBy(start) })
+	carried := maps.Clone(last)
 	for w, began := range last {
 		t.account(w.account).peak(began)
 	}
@@ -398,6 +441,41 @@ func (t tally) readings(history iter.Seq[readings.Reading], start time.Time, rea
 	for w := range before {
 		if a, ok := t[w.account]; ok {
 			a.readBefore[w.key] = true
+		}
+	}
+	t.windows(before, carried, day, start, until)
+}
+
+// windows tallies how each window went through the day that starts at start,
+// until until, as windowDay says, on those of their accounts the day
+// tallies: from the reading carried, the last of the week before the day,
+// where it hadn't reset by then, else from nothing, where it was read before
+// the day, as before says, then through the day's readings, in the order
+// they came.
+func (t tally) windows(before map[accountWindow]bool, carried map[accountWindow]quota.Window, day []readings.Reading, start, until time.Time) {
+	days := make(map[accountWindow]*windowDay)
+	of := func(w accountWindow) *windowDay {
+		d, ok := days[w]
+		if !ok {
+			d = &windowDay{key: w.key, start: start, until: until}
+			days[w] = d
+		}
+		return d
+	}
+	for w := range before {
+		if began, ok := carried[w]; ok {
+			of(w).carry(began)
+		} else {
+			of(w).afresh()
+		}
+	}
+	for _, r := range day {
+		of(windowOf(r)).take(r.Window(), r.At)
+	}
+	for w, d := range days {
+		if a, ok := t[w.account]; ok && d.read {
+			d.end()
+			a.windows[w.key] = d
 		}
 	}
 }
@@ -428,19 +506,22 @@ func (a *accountTally) peak(w quota.Window) {
 }
 
 // summary returns the day with the given date as its summary, made from the
-// number of lines given.
-func (t tally) summary(date string, lines int) Summary {
+// number of lines given, its accounts' caps as caps gives them.
+func (t tally) summary(date string, lines int, caps Caps) Summary {
 	s := Summary{Version: summaryVersion, Day: date, Lines: lines}
 	for _, id := range slices.Sorted(maps.Keys(t)) {
-		s.Accounts = append(s.Accounts, t[id].summary(id))
+		s.Accounts = append(s.Accounts, t[id].summary(id, caps))
 	}
 	return s
 }
 
-// summary returns the account's day, its id the one given.
-func (a *accountTally) summary(id string) AccountDay {
-	day := AccountDay{Account: id, Sessions: len(a.sessions), MovedOn: len(a.movedOn), MovedOff: len(a.movedOff),
-		Highest: a.highest, Limits: a.limits, ReadBefore: slices.Sorted(maps.Keys(a.readBefore))}
+// summary returns the account's day, its id the one given, and its cap as
+// caps gives it.
+func (a *accountTally) summary(id string, caps Caps) AccountDay {
+	atCap, atLimit := minutesAt(a.windows, caps.Reserves[id], caps.Shared)
+	day := AccountDay{Account: id, Sessions: len(a.sessions), SessionIDs: a.sessions.ids(), MovedOn: len(a.movedOn),
+		MovedOff: len(a.movedOff), Highest: a.highest, Rise: risesOf(a.windows), Resets: resetsOf(a.windows), Limits: a.limits,
+		MinutesAtCap: &atCap, MinutesAtLimit: &atLimit, ReadBefore: slices.Sorted(maps.Keys(a.readBefore))}
 	for _, key := range slices.SortedFunc(maps.Keys(a.models), byModel) {
 		day.Models = append(day.Models, a.models[key].summary())
 	}
@@ -483,6 +564,14 @@ func (s sessions) add(id string) {
 	if id != "" {
 		s[id] = true
 	}
+}
+
+// ids returns the sessions' ids, in order: empty, never nil, where there are
+// none, as a summary tells none from never read.
+func (s sessions) ids() []string {
+	ids := slices.AppendSeq(make([]string, 0, len(s)), maps.Keys(s))
+	slices.Sort(ids)
+	return ids
 }
 
 // counts are the counts usage, as the API gives it, holds, summed by their

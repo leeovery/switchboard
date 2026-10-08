@@ -773,7 +773,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 		}
 		if outcome == counted {
 			kept = startedAgain(held, kept, at)
-			if resetByHand(held, kept) {
+			if score.ResetByHand(held, kept) {
 				u.resetBy[w.Key] = sent
 			}
 			u.windows[w.Key], u.taken[w.Key] = kept, taken
@@ -869,31 +869,17 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	}
 }
 
-// handReset is how far a window's use must fall, its reset kept, for the
-// reading taken as current to show it started again, as a reset made by hand
-// starts it, emptying it: a smaller dip, as a 429 reading a point below the
-// use read just before, is noise, and the window runs on.
-const handReset = 0.10
-
-// resetByHand reports whether kept, the reading a window now stands as, shows
-// it reset by hand since held, the one it stood as before: its reset is the
-// same, and its use has fallen by handReset at least, allowing for rounding,
-// as 0.3 less 0.2 reads a hair under 0.1.
-func resetByHand(held, kept quota.Window) bool {
-	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-score.Tolerance
-}
-
 // startedAgain returns kept, the reading a window now stands as, taken in at
 // a time, held being the one it stood as before, with when the window started
 // again, as far as that's known: at, when kept shows it reset by hand since
-// held, as resetByHand says; held's, while kept goes on from held, a smaller
-// dip included; and none for a new window, which runs a whole length before
-// its reset.
+// held, as score.ResetByHand says; held's, while kept goes on from held, a
+// smaller dip included; and none for a new window, which runs a whole length
+// before its reset.
 func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 	switch {
 	case kept.ResetsAt.IsZero() || !kept.ResetsAt.Equal(held.ResetsAt):
 		kept.RestartedAt = time.Time{}
-	case resetByHand(held, kept):
+	case score.ResetByHand(held, kept):
 		kept.RestartedAt = at
 	default:
 		kept.RestartedAt = held.RestartedAt

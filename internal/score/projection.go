@@ -147,7 +147,7 @@ func settled(w quota.Window, now time.Time) (Projection, bool) {
 	switch {
 	case w.ResetBy(now):
 		return Projection{}, true
-	case spent(w):
+	case Spent(w):
 		return Projection{Kind: Exhausted, At: w.ResetsAt}, true
 	}
 	return Projection{}, false
@@ -169,15 +169,29 @@ func fraction(d, length time.Duration) float64 {
 	return min(max(float64(d)/float64(length), 0), 1)
 }
 
-// spent reports whether w's reading leaves no room: it's used up, or the
+// Spent reports whether w's reading leaves no room: it's used up, or the
 // provider refuses it.
-func spent(w quota.Window) bool {
+func Spent(w quota.Window) bool {
 	return w.Utilization >= 1 || w.Status == quota.StatusRejected
 }
 
-// atReserve reports whether w's reading has reached the reserve, the share of
-// the window left unused, and nothing else holds it back: 1 − reserve of it is
-// used, but it isn't spent. Without a reserve, nothing reaches it.
-func atReserve(w quota.Window, reserve float64) bool {
-	return reserve > 0 && w.Utilization >= 1-reserve-Tolerance && !spent(w)
+// HeldByReserve reports whether w's reading has reached the reserve, the
+// share of the window left unused, and nothing else holds it back: 1 − reserve
+// of it is used, but it isn't spent. Without a reserve, nothing reaches it.
+func HeldByReserve(w quota.Window, reserve float64) bool {
+	return reserve > 0 && w.Utilization >= 1-reserve-Tolerance && !Spent(w)
+}
+
+// handReset is how far a window's use must fall, its reset kept, for the
+// reading taken as current to show it started again, as a reset made by hand
+// starts it, emptying it: a smaller dip, as a 429 reading a point below the
+// use read just before, is noise, and the window runs on.
+const handReset = 0.10
+
+// ResetByHand reports whether kept, the reading a window now stands as, shows
+// it reset by hand since held, the one it stood as before: its reset is the
+// same, and its use has fallen by handReset at least, allowing for rounding,
+// as 0.3 less 0.2 reads a hair under 0.1.
+func ResetByHand(held, kept quota.Window) bool {
+	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-Tolerance
 }

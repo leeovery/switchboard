@@ -17,9 +17,10 @@ import (
 // more filed since, its requests are the more of the two summaries', fewer
 // than there were. Its lines are as many as the more of the two were made
 // from, and as its requests where those are more, as the lines lost were
-// held's. Each window's highest use is held's where that's higher, and
-// held's limits, and the windows it read in the week before, are among its
-// own, as the readings they came from may have been pruned since.
+// held's. Each window's highest use, and its rise, is held's where that's
+// higher, as are the minutes at its cap and at a limit; and held's limits,
+// resets, session ids and the windows it read in the week before are among
+// its own, as the readings they came from may have been pruned since.
 func (s Summary) knowing(held Summary) Summary {
 	s.Accounts = knowingAll(s.Accounts, held.Accounts, func(a AccountDay) string { return a.Account }, AccountDay.knowing, strings.Compare)
 	s.Lines = max(s.Lines, held.Lines, s.requests())
@@ -29,26 +30,79 @@ func (s Summary) knowing(held Summary) Summary {
 // knowing returns a, an account's day summarised afresh, knowing no less
 // than held, its day as summarised before, as Summary.knowing says.
 func (a AccountDay) knowing(held AccountDay) AccountDay {
-	a.Sessions, a.MovedOn, a.MovedOff = max(a.Sessions, held.Sessions), max(a.MovedOn, held.MovedOn), max(a.MovedOff, held.MovedOff)
-	for key, u := range held.Highest {
-		if highest, ok := a.Highest[key]; !ok || u > highest {
-			if a.Highest == nil {
-				a.Highest = make(map[string]float64)
-			}
-			a.Highest[key] = u
-		}
-	}
+	a.SessionIDs = together(a.SessionIDs, held.SessionIDs)
+	a.Sessions = max(a.Sessions, held.Sessions, len(a.SessionIDs))
+	a.MovedOn, a.MovedOff = max(a.MovedOn, held.MovedOn), max(a.MovedOff, held.MovedOff)
+	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)
 	for _, l := range held.Limits {
 		if !slices.ContainsFunc(a.Limits, l.same) {
 			a.Limits = append(a.Limits, l)
 		}
 	}
 	slices.SortStableFunc(a.Limits, func(x, y Limit) int { return x.At.Compare(y.At) })
-	a.ReadBefore = append(a.ReadBefore, held.ReadBefore...)
-	slices.Sort(a.ReadBefore)
-	a.ReadBefore = slices.Compact(a.ReadBefore)
+	a.Resets = resetsKnowing(a.Resets, held.Resets)
+	a.MinutesAtCap, a.MinutesAtLimit = more(a.MinutesAtCap, held.MinutesAtCap), more(a.MinutesAtLimit, held.MinutesAtLimit)
+	a.ReadBefore = together(a.ReadBefore, held.ReadBefore)
 	a.Models = knowingAll(a.Models, held.Models, ModelDay.key, ModelDay.knowing, byModel)
 	return a
+}
+
+// together returns the ids of ids and held together, in order, each once:
+// nil only where both are.
+func together(ids, held []string) []string {
+	if ids == nil && held == nil {
+		return nil
+	}
+	all := append(append(make([]string, 0, len(ids)+len(held)), ids...), held...)
+	slices.Sort(all)
+	return slices.Compact(all)
+}
+
+// higher returns each of uses, by its key, held's where that's higher, those
+// of keys uses lacks among them: nil only where both are.
+func higher(uses, held map[string]float64) map[string]float64 {
+	if uses == nil && held == nil {
+		return nil
+	}
+	all := maps.Clone(uses)
+	if all == nil {
+		all = make(map[string]float64, len(held))
+	}
+	for key, u := range held {
+		if have, ok := all[key]; !ok || u > have {
+			all[key] = u
+		}
+	}
+	return all
+}
+
+// resetsKnowing returns resets, summarised afresh, with held's, those
+// summarised before, among them, in the order they came: a reset of one
+// window at one time is the same reset, its use before it the higher of the
+// two. It's nil only where both are.
+func resetsKnowing(resets, held []Reset) []Reset {
+	if resets == nil && held == nil {
+		return nil
+	}
+	resets = append([]Reset{}, resets...)
+	for _, h := range held {
+		if i := slices.IndexFunc(resets, h.same); i >= 0 {
+			resets[i].Before = max(resets[i].Before, h.Before)
+		} else {
+			resets = append(resets, h)
+		}
+	}
+	slices.SortFunc(resets, byWhen)
+	return resets
+}
+
+// more returns the more of n and held, where they're known: nil only where
+// both are.
+func more(n, held *int) *int {
+	if n == nil || held != nil && *held > *n {
+		return held
+	}
+	return n
 }
 
 // knowing returns m, a model's day on an account summarised afresh, knowing
@@ -76,6 +130,11 @@ func (m ModelDay) key() modelKey {
 // one time, to reset at one time.
 func (l Limit) same(other Limit) bool {
 	return l.Window == other.Window && l.At.Equal(other.At) && l.ResetsAt.Equal(other.ResetsAt)
+}
+
+// same reports whether r and other are one reset: of one window, at one time.
+func (r Reset) same(other Reset) bool {
+	return r.Window == other.Window && r.At.Equal(other.At)
 }
 
 // knowingAll returns days, summarised afresh, as they replace held, those

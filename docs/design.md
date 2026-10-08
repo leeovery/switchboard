@@ -4221,20 +4221,21 @@ from the first day a router that has it runs, so nothing before then is in it.
   limit held already. So one read first where the summary before read no readings, as of a day whose
   only line was torn, or while the history couldn't be read, is kept.
 
-  A round counts a day's lines only where its files have changed since its summary was marked:
-  the summary holds their sizes, as `bytes`, and its modification time, its stamp, is set to when
-  the day's compressed file was last modified, as they were when it was made, or last counted and
-  found to stand. The stamp holds the summary's version too: a day whose summary is of an older
-  version is read, and summarised again from its lines while they're kept, once, on the first round
-  under the new version. A day with no plain file, whose compressed file still gives that time,
-  costs a look at its files and its summary's, reading none of them: compressing a day writes its
-  compressed file anew, once a day at most. That look reads no summary, so it takes one damaged in
-  place, or of another day, as by a restore or a copy that keeps its time, as it stands; what reads
-  it, a reader, or a round that must, warns of it, and summarises its day from its lines, while
-  they're kept. Any other has its summary read, and its lines counted only where its files' sizes
-  differ from those it holds: lines are only ever appended to the plain file, which grows with each,
-  however coarsely the file system keeps its times: one that keeps whole seconds, as HFS+ does,
-  gives a line appended within the second the file was last modified in no time of its own. A
+  A round counts a day's lines only where its files have changed since its summary was marked: the
+  summary holds their sizes, as `bytes`, and its modification time, its stamp, is set to when the
+  day's compressed file was last modified, as they were when it was made, or last counted and found
+  to stand. The stamp holds the summary's version too, a second later than that time for each
+  version past the first, which a file system that keeps whole seconds keeps: a day whose summary is
+  of an older version is read, and summarised again from its lines while they're kept, once, on the
+  first round under the new version. A day with no plain file, whose compressed file still gives
+  that time, costs a look at its files and its summary's, reading none of them: compressing a day
+  writes its compressed file anew, once a day at most. That look reads no summary, so it takes one
+  damaged in place, or of another day, as by a restore or a copy that keeps its time, as it stands;
+  what reads it, a reader, or a round that must, warns of it, and summarises its day from its lines,
+  while they're kept. Any other has its summary read, and its lines counted only where its files'
+  sizes differ from those it holds: lines are only ever appended to the plain file, which grows with
+  each, however coarsely the file system keeps its times: one that keeps whole seconds, as HFS+
+  does, gives a line appended within the second the file was last modified in no time of its own. A
   summary found to stand where they differ is marked afresh: its `bytes` alone are rewritten, every
   other field kept as it's written, those a later release added among them, so a release before it
   never drops them from a summary that keeps that release's version. Read whole, a year of heavy
@@ -4755,8 +4756,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   Config). A day's summary is written whole, beside where it goes and renamed into place, written
   again while lines come to be filed under its day, and never removed; it holds the sizes of its
   day's files, and its modification time is its stamp, when the day's compressed file was last
-  modified, which a round checks before it reads it, or counts the day's lines (see The request
-  ledger). The router leaves anything else in the directory alone.
+  modified, a second later for each version of the summaries past the first, which a round checks
+  before it reads it, or counts the day's lines (see The request ledger). The router leaves
+  anything else in the directory alone.
 - **Events:** `<state dir>/ledger/events-<local date>.jsonl`, the router's events, kept across
   restarts, a file a day beside the request ledger's, and kept as long: see The router's events.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, and what its

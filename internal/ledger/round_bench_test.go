@@ -43,7 +43,7 @@ func BenchmarkARoundOverAYearOfHeavyDays(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return now }, noReadings, logs.For("router"))
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return now }, noReadings, caps, logs.For("router"))
 
 	for b.Loop() {
 		l.SummariseEnded(now)

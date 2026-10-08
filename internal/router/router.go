@@ -262,7 +262,7 @@ func New(cfg Config) (*Router, error) {
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
 	stream := newStream(cfg.Now)
-	requests := newRequestLedger(cfg.Ledger, cfg.Now)
+	requests := newRequestLedger(cfg.Ledger, ledger.CapsOf(cfg.Accounts, cfg.Policy.Shared), cfg.Now)
 	history.pruning = requests.summariseEnded
 	transport := newPool()
 	awake := &wakes{now: clock, woke: func() {
