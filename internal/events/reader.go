@@ -11,9 +11,10 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// changesFor is how many days after it began an event can change, and be
-// filed again: a week's limit ends by its reset.
-const changesFor = 8
+// ChangesFor is how many days after it began an event can change, and be
+// filed again: a week's limit ends by its reset. The router changes none
+// later, and a reader looks no further on for an event's versions.
+const ChangesFor = 8
 
 // Reader reads the router's events back where they lie, in the request
 // ledger's directory of the state directory, with no router.
@@ -34,9 +35,9 @@ func NewReader(stateDir string, now func() time.Time, logger *slog.Logger) *Read
 // event's versions are merged by its run and id, the last line read winning:
 // the days are read oldest first, each day's lines in the order they were
 // filed, plain or compressed, as dayfile.ReadFiled reads them. A version is
-// filed under the day it's written on, as late as changesFor days after its
+// filed under the day it's written on, as late as ChangesFor days after its
 // event, so a day's events are read from its own file and the next
-// changesFor days', and a day either side, as a change of time zone files a
+// ChangesFor days', and a day either side, as a change of time zone files a
 // line under a day beside its own; and each event is handed on once no file
 // left to read can hold a version of it, so what's held is never more than
 // those days' events. A line that doesn't read as an event is passed over,
@@ -44,7 +45,7 @@ func NewReader(stateDir string, now func() time.Time, logger *slog.Logger) *Read
 // is logged.
 func (r *Reader) Between(from, to time.Time) iter.Seq[Line] {
 	return func(yield func(Line) bool) {
-		last := to.AddDate(0, 0, changesFor)
+		last := to.AddDate(0, 0, ChangesFor)
 		if now := r.now(); now.Before(last) {
 			last = now
 		}
@@ -99,14 +100,14 @@ func (m *merge) hold(line Line) bool {
 // dayRead hands on the events settled once the local day with the given date
 // is read, and reports whether yield wants more. A later day's file is
 // written from the day after's start, less a day for a change of time zone,
-// so it holds no version of an event that happened changesFor days before
+// so it holds no version of an event that happened ChangesFor days before
 // the day's start.
 func (m *merge) dayRead(date string) bool {
 	start, _, ok := dayfile.Day(date)
 	if !ok {
 		return true
 	}
-	m.settled = dayfile.DayStart(start, -changesFor)
+	m.settled = dayfile.DayStart(start, -ChangesFor)
 	return m.handOn(func(line Line) bool { return line.At.Before(m.settled) })
 }
 

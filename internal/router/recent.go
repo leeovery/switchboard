@@ -99,9 +99,9 @@ func (h *happening) mark() {
 }
 
 // changes reports whether the event can still change at now: it began no
-// more than changesFor before.
+// more than events.ChangesFor days before.
 func (h *happening) changes(now time.Time) bool {
-	return now.Sub(h.At) <= changesFor
+	return !now.After(h.At.AddDate(0, 0, events.ChangesFor))
 }
 
 // event is the happening as the status document gives it, a copy.

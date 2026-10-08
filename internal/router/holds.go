@@ -8,11 +8,6 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// changesFor is how long after it began an event can change, and be filed
-// again: the events' readers look no further on for its versions, as a
-// week's limit ends by its reset.
-const changesFor = 8 * 24 * time.Hour
-
 // capped is how an account stood at its reserve as last looked at: the
 // windows its reserve held back, none when it held back none, and the id of
 // its cap's event while the cap holds, 0 where none was told, as for an

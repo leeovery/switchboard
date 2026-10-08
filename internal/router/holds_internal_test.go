@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -168,6 +169,7 @@ func TestAMoveWaitsForItsCapNoLongerThanTheLookAfterIt(t *testing.T) {
 
 func TestARefusalRenewedWhileItHoldsJoinsItsEvent(t *testing.T) {
 	first := Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Request: someRequest}
+	eightDays := events.ChangesFor * 24 * time.Hour
 	tests := []struct {
 		name string
 		// holds is how long the first refusal holds from start, as renewals
@@ -182,8 +184,8 @@ func TestARefusalRenewedWhileItHoldsJoinsItsEvent(t *testing.T) {
 		joins bool
 	}{
 		{name: "of the same account, status and family, while it holds", holds: refusedFor, after: time.Minute, again: same, joins: true},
-		{name: "eight days after its event began", holds: changesFor + refusedFor, after: changesFor, again: same, joins: true},
-		{name: "but more than eight days after, though it holds", holds: changesFor + refusedFor, after: changesFor + time.Minute, again: same},
+		{name: "eight days after its event began", holds: eightDays + refusedFor, after: eightDays, again: same, joins: true},
+		{name: "but more than eight days after, though it holds", holds: eightDays + refusedFor, after: eightDays + time.Minute, again: same},
 		{name: "but once it has ended", holds: refusedFor, after: refusedFor, again: same},
 		{name: "but once it has lifted early", holds: refusedFor, lifted: true, after: time.Minute, again: same},
 		{name: "but of another family", holds: refusedFor, after: time.Minute, again: func(r Refused) Refused { r.Family = "haiku"; return r }},
