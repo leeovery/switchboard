@@ -437,9 +437,9 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`{"version":1,"day":"2026-10-07","lines":6,"accounts":[` +
 		`{"sessions":1,"moved_on":0,"moved_off":0,"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1,` +
 		`"worth":0}]},` +
-		`{"account":"side","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,` +
+		`{"account":"side","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"read_before":["5h"],"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,` +
 		`"checks":0,"counts":0,"sessions":1,"worth":0,"unpriced":["no_usage"]}]},` +
-		`{"account":"work","sessions":2,"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},"models":[` +
+		`{"account":"work","sessions":2,"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},"read_before":["5h"],"models":[` +
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,"usage":{"input_tokens":8,"output_tokens":1},` +
 		`"worth":0.000013},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +

@@ -132,29 +132,23 @@ func arrived(h Held) time.Time {
 // says; else the day summarised from its lines and the readings history, as
 // they're read, as of today as far as it has gone, knowing no less than any
 // summary held of it, as knowing says, the history read ahead for them all,
-// as readAhead says. A day of no requests is a summary of no accounts.
+// as readingAhead says. A day of no requests is a summary of no accounts.
 func (r *Reader) Days(from time.Time) []Summary {
 	now := r.now()
 	dates := dayfile.Span(r.days.start(from, now), now)
 	days := make([]Summary, len(dates))
-	var due []int
-	held := make([]*Summary, len(dates))
+	var due []dueDay
+	var at []int
 	for i, date := range dates {
 		summary, stands := r.standing(date)
 		if stands {
 			days[i] = *summary
 			continue
 		}
-		held[i], due = summary, append(due, i)
+		due, at = append(due, dueDay{date: date, held: summary}), append(at, i)
 	}
-	if len(due) == 0 {
-		return days
-	}
-	_, until, _ := dayfile.Day(dates[due[len(due)-1]])
-	history, stop := readAhead(r.days.history, until)
-	defer stop()
-	for _, i := range due {
-		days[i] = r.summarised(dueDay{date: dates[i], held: held[i]}, history)
+	for k, summary := range readingAhead(r.days.history, due, r.summarised) {
+		days[at[k]] = summary
 	}
 	return days
 }
@@ -162,11 +156,12 @@ func (r *Reader) Days(from time.Time) []Summary {
 // standing returns the summary the ledger holds of the local day with the
 // given date, reporting false where the day is to be summarised from its
 // lines: the ledger holds no summary of it, or one that can't be read as the
-// day's, which is warned of, both nil; or one that doesn't stand, as stands
-// says, given for the day's summary from its lines to know no less. One that
-// can't be told to stand, as its day's files can't be looked at or its lines
-// counted, is taken as it's held, which is warned of too. It marks no
-// summary, as summaries are the router's to write.
+// day's, as one damaged or of another day, which is warned of, both nil; or
+// one that doesn't stand, as stands says, after a look at the day's files as
+// glance gives it, given for the day's summary from its lines to know no
+// less. One that can't be told to stand, as its day's files can't be looked
+// at or its lines counted, is taken as it's held, which is warned of too. It
+// marks no summary, as summaries are the router's to write.
 func (r *Reader) standing(date string) (*Summary, bool) {
 	held, err := r.days.held(date)
 	switch {
@@ -176,28 +171,15 @@ func (r *Reader) standing(date string) (*Summary, bool) {
 		r.days.logger.Warn("can't read the request ledger's summary of a day; summarising it from its lines", "day", date, "error", err)
 		return nil, false
 	}
-	stands, err := r.stands(held)
+	stat, stands, err := r.days.glance(date, held.stamp)
+	if err == nil && !stands {
+		stands, err = r.days.stands(held.Summary, stat)
+	}
 	if err != nil {
 		r.days.logger.Warn("can't read the request ledger", "day", date, "error", err)
 		return &held.Summary, true
 	}
 	return &held.Summary, stands
-}
-
-// stands reports whether held stands, its day's files looked at afresh: at
-// once, none of them read, where they're pruned, or unchanged since it was
-// marked, as unchanged says; else as days.stands says.
-func (r *Reader) stands(held stamped) (bool, error) {
-	stat, err := r.days.files.Stat(held.Day)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return true, nil
-	case err != nil:
-		return false, err
-	case unchanged(stat, held.stamp):
-		return true, nil
-	}
-	return r.days.stands(held.Summary, stat)
 }
 
 // summarised returns the summary of the day due from its lines and history,

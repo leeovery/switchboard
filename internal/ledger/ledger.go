@@ -11,6 +11,7 @@
 package ledger
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,6 +21,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -135,13 +137,14 @@ func (l *Ledger) lines(line *Line) dayfile.Lines {
 
 // SummariseEnded summarises each day whose lines the ledger holds that ended
 // summariseAfter or more before now, and has no summary that stands, as
-// standing says, the readings history read ahead for them all, as readAhead
-// says: the summary knows no less than any it replaces, as knowing says, and
-// is written whole, the user's alone, over any there, and marked, as mark
-// says. A day that can't be summarised, as one of its files can't be opened,
-// which a summary of it in part would be taken for whole, is logged, and left
-// to the next round. It's safe to call from any goroutine: the readings
-// history's writer calls it before it prunes the readings the summaries need.
+// standing says, the readings history read ahead for them all, as
+// readingAhead says: the summary knows no less than any it replaces, as
+// knowing says, and is written whole, the user's alone, over any there, and
+// marked, as mark says. A day that can't be summarised, as one of its files
+// can't be opened, which a summary of it in part would be taken for whole, is
+// logged, and left to the next round. It's safe to call from any goroutine:
+// the readings history's writer calls it before it prunes the readings the
+// summaries need.
 func (l *Ledger) SummariseEnded(now time.Time) {
 	l.summarising.Lock()
 	defer l.summarising.Unlock()
@@ -153,15 +156,9 @@ func (l *Ledger) SummariseEnded(now time.Time) {
 			due = append(due, dueDay{date: date, held: held})
 		}
 	}
-	if len(due) == 0 {
-		return
-	}
-	_, until, _ := dayfile.Day(due[len(due)-1].date)
-	history, stop := readAhead(l.days.history, until)
-	defer stop()
-	for _, day := range due {
-		if err := l.writeSummary(day, history); err != nil {
-			l.days.logger.Warn("can't summarise the request ledger", "day", day.date, "error", err)
+	for i, err := range readingAhead(l.days.history, due, l.writeSummary) {
+		if err != nil {
+			l.days.logger.Warn("can't summarise the request ledger", "day", due[i].date, "error", err)
 		}
 	}
 }
@@ -210,18 +207,19 @@ type days struct {
 // read as the day's.
 var errNotTheDaysSummary = errors.New("not the day's summary")
 
-// stamped is a summary the ledger holds, with its stamp: its file's
-// modification time, which mark sets to when the day's compressed file was
-// last modified, as the summary was marked.
+// stamped is a summary the ledger holds, as it reads, and as it's written,
+// with its stamp: its file's modification time, which mark sets to when the
+// day's compressed file was last modified, as the summary was marked.
 type stamped struct {
 	Summary
-	stamp time.Time
+	written []byte
+	stamp   time.Time
 }
 
 // held returns the summary the ledger holds of the local day with the given
 // date, with its stamp, failing with fs.ErrNotExist where it holds none, and
 // with errNotTheDaysSummary where what it holds doesn't read as the day's, as
-// one whose day is another's.
+// one cut short, or whose day is another's.
 func (d days) held(date string) (stamped, error) {
 	data, stamp, err := readStamped(summaryFile(d.files.Dir, date))
 	if err != nil {
@@ -234,7 +232,7 @@ func (d days) held(date string) (stamped, error) {
 	if summary.Day != date {
 		return stamped{}, fmt.Errorf("%w: it's of %q", errNotTheDaysSummary, summary.Day)
 	}
-	return stamped{Summary: summary, stamp: stamp}, nil
+	return stamped{Summary: summary, written: data, stamp: stamp}, nil
 }
 
 // readStamped returns what the file at path holds, and when it was last
@@ -259,10 +257,11 @@ func readStamped(path string) ([]byte, time.Time, error) {
 // the summary held where it doesn't, for the one that replaces it to know no
 // less: none where it holds none, or one that doesn't read as the day's,
 // which is warned of, so the day is summarised from its lines alone. A look
-// at the summary's file and the day's files, which reads none of them, tells
-// of most days, as unchanged says: the summary is read only where it can't.
-// It fails where the summary can't be read, or the day's lines counted, to
-// tell.
+// at the summary's file and the day's files, as glance gives it, reading
+// none of them, tells of most days: the summary is read only where it can't,
+// so one damaged in place, its file keeping its stamp, stands until a read
+// of it tells. It fails where the summary can't be read, or the day's lines
+// counted, to tell.
 func (d days) standing(date string) (stands bool, held *Summary, err error) {
 	info, err := os.Stat(summaryFile(d.files.Dir, date))
 	switch {
@@ -271,14 +270,9 @@ func (d days) standing(date string) (stands bool, held *Summary, err error) {
 	case err != nil:
 		return false, nil, err
 	}
-	stat, err := d.files.Stat(date)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return true, nil, nil
-	case err != nil:
-		return false, nil, err
-	case unchanged(stat, info.ModTime()):
-		return true, nil, nil
+	stat, stands, err := d.glance(date, info.ModTime())
+	if stands || err != nil {
+		return stands, nil, err
 	}
 	h, err := d.held(date)
 	switch {
@@ -291,9 +285,25 @@ func (d days) standing(date string) (stands bool, held *Summary, err error) {
 		return false, nil, err
 	}
 	if stands, err = d.stands(h.Summary, stat); stands {
-		d.remark(h.Summary, stat)
+		d.remark(h, stat)
 	}
 	return stands, &h.Summary, err
+}
+
+// glance looks at the files of the local day with the given date, reading
+// none of them, for whether the day's summary, stamped at stamp, stands
+// without a read of it: the day's lines are pruned, or its files are as they
+// were when the summary was marked, as unchanged says. stat is the look,
+// where the day has files.
+func (d days) glance(date string, stamp time.Time) (stat dayfile.DayStat, stands bool, err error) {
+	stat, err = d.files.Stat(date)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return stat, true, nil
+	case err != nil:
+		return stat, false, err
+	}
+	return stat, unchanged(stat, stamp), nil
 }
 
 // stands reports whether held, a summary the ledger holds, stands, its day's
@@ -351,26 +361,110 @@ func (d days) mark(summary Summary, stat dayfile.DayStat) error {
 	if err != nil {
 		return err
 	}
-	if err := atomicfile.Write(summaryFile(d.files.Dir, summary.Day), append(data, '\n'), 0o600); err != nil {
+	return d.write(summary.Day, data, stat)
+}
+
+// remark marks held, which stands, afresh with stat, where its day's files
+// changed since it was marked, as when its day was compressed, so its lines
+// aren't counted again: it rewrites its bytes alone, every other field as
+// it's written, those a later release added among them, so a release before
+// that one never drops them from a summary of that release's version; and
+// stamps it, where they didn't change, so the next look needn't read it. One
+// that can't be marked is warned of, and its lines are counted again at the
+// next round.
+func (d days) remark(held stamped, stat dayfile.DayStat) {
+	if marked(held.Summary, stat) {
+		d.stamp(held.Day, stat.CompressedModified)
+		return
+	}
+	data, err := rebytes(held.written, bytesOf(stat))
+	if err == nil {
+		err = d.write(held.Day, data, stat)
+	}
+	if err != nil {
+		d.logger.Warn("can't mark the request ledger's summary of a day; its lines are counted again at the next round", "day", held.Day, "error", err)
+	}
+}
+
+// write writes data, a summary of the local day with the given date, as its
+// summary, whole, the user's alone, over any there, stamped as stat gives
+// it.
+func (d days) write(date string, data []byte, stat dayfile.DayStat) error {
+	if err := atomicfile.Write(summaryFile(d.files.Dir, date), append(data, '\n'), 0o600); err != nil {
 		return err
 	}
-	d.stamp(summary.Day, stat.CompressedModified)
+	d.stamp(date, stat.CompressedModified)
 	return nil
 }
 
-// remark marks summary, which stands, afresh with stat, where its day's files
-// changed since it was marked, as when its day was compressed, so its lines
-// aren't counted again; and stamps it, where they didn't, so the next look
-// needn't read it. One that can't be marked is warned of, and its lines are
-// counted again at the next round.
-func (d days) remark(summary Summary, stat dayfile.DayStat) {
-	if marked(summary, stat) {
-		d.stamp(summary.Day, stat.CompressedModified)
-		return
+// rebytes returns summary, as it's written, with b as its bytes: in place of
+// those it holds, or after its lines, where it holds none, every other field
+// as it's written, in its order.
+func rebytes(summary []byte, b Bytes) ([]byte, error) {
+	fields, err := fieldsOf(summary)
+	if err != nil {
+		return nil, err
 	}
-	if err := d.mark(summary, stat); err != nil {
-		d.logger.Warn("can't mark the request ledger's summary of a day; its lines are counted again at the next round", "day", summary.Day, "error", err)
+	value, err := json.Marshal(b)
+	if err != nil {
+		return nil, err
 	}
+	i := slices.IndexFunc(fields, func(f field) bool { return f.name == "bytes" })
+	if i < 0 {
+		i = slices.IndexFunc(fields, func(f field) bool { return f.name == "lines" }) + 1
+		fields = slices.Insert(fields, i, field{name: "bytes"})
+	}
+	fields[i].value = value
+	return objectOf(fields), nil
+}
+
+// field is a field of a JSON object: its name, and its value, as it's
+// written.
+type field struct {
+	name  string
+	value json.RawMessage
+}
+
+// fieldsOf returns the fields of object, a JSON object, in its order.
+func fieldsOf(object []byte) ([]field, error) {
+	dec := json.NewDecoder(bytes.NewReader(object))
+	open, err := dec.Token()
+	switch {
+	case err != nil:
+		return nil, err
+	case open != json.Delim('{'):
+		return nil, errNotAnObject
+	}
+	var fields []field
+	for dec.More() {
+		name, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		f := field{name: name.(string)}
+		if err := dec.Decode(&f.value); err != nil {
+			return nil, err
+		}
+		fields = append(fields, f)
+	}
+	return fields, nil
+}
+
+// errNotAnObject is the error of JSON that isn't an object.
+var errNotAnObject = errors.New("not an object")
+
+// objectOf returns fields as a JSON object, in their order.
+func objectOf(fields []field) []byte {
+	object := []byte{'{'}
+	for i, f := range fields {
+		if i > 0 {
+			object = append(object, ',')
+		}
+		// A string always marshals.
+		name, _ := json.Marshal(f.name)
+		object = append(append(append(object, name...), ':'), f.value...)
+	}
+	return append(object, '}')
 }
 
 // stamp sets the modification time of the summary of the local day with the
@@ -394,19 +488,20 @@ func (d days) stamp(date string, at time.Time) {
 func (d days) summarise(date string, held *Summary, history Readings) (Summary, error) {
 	var lines, unread int
 	var read error
-	t, _, err := tallied(date, func(yield func(Line) bool) {
+	summary, err := Summarise(date, func(yield func(Line) bool) {
 		lines, unread, read = dayfile.ReadDay(d.files, date, lineIn, yield)
-	}, history)
+	}, history, held)
 	if err != nil {
 		return Summary{}, err
 	}
 	if unread > 0 {
 		d.logger.Warn("request ledger lines unread", "day", date, "lines", unread)
 	}
-	if held == nil {
-		return t.summary(date, lines), read
+	summary.Lines = lines
+	if held != nil {
+		summary = summary.knowing(*held)
 	}
-	return t.knowing(date, lines, *held), read
+	return summary, read
 }
 
 // lineIn returns the line a line of the ledger holds, reporting false for one

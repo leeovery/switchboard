@@ -86,6 +86,11 @@ type AccountDay struct {
 	Highest map[string]float64 `json:"highest,omitempty"`
 	// Limits are the limits the account reached, in the order it reached them.
 	Limits []Limit `json:"limits,omitempty"`
+	// ReadBefore are the windows the readings history read in the week
+	// before the day, by their keys, in their order, as the summary was made:
+	// what tells a summary made again, as Summarise says, that a limit it
+	// finds no reading before was read before once.
+	ReadBefore []string `json:"read_before,omitempty"`
 }
 
 // ModelDay is a model's day on an account: its requests, by how each went,
@@ -136,71 +141,75 @@ type Limit struct {
 // from up to to, in the order they were read.
 type Readings func(from, to time.Time) iter.Seq[readings.Reading]
 
-// readAhead returns Readings that read history ahead, once, up to until, as
-// days summarised oldest first ask for theirs, each the readings of its day
-// and the week before: an ask gives those of the times asked for, reading on
-// as far as it needs, and lets go of those before them, which no later ask
-// wants, so what's held is a week and a day of them, never what's between
-// days far apart. An ask that starts after the last one asked for ended
-// starts the read again from it, rather than read the readings between, as
-// one of times before those held, or after until, does. stop ends the read.
-// Until then, the read holds the history's files from pruning, as
-// readings.Between does as it reads: the router's readings history prunes
-// only after it has the ledger summarise, which waits for any summarising
-// under way, as SummariseEnded's lock has it, so it never waits on a read.
-func readAhead(history Readings, until time.Time) (ahead Readings, stop func()) {
-	a := &readingsAhead{history: history, until: until}
-	return a.readings, a.stop
-}
-
-// readingsAhead is the readings history, read ahead as readAhead says.
-type readingsAhead struct {
-	history Readings
-	until   time.Time
-	// next and end are the read's, once it's started.
-	next func() (readings.Reading, bool)
-	end  func()
-	// held are the readings read of times from since on, oldest first, the
-	// last of them the first at or after asked, the end of the last ask,
-	// unless the read is done: every reading before it is among them.
-	held          []readings.Reading
-	since, asked  time.Time
-	done, started bool
-}
-
-// readings gives the readings of times from from up to to, as readAhead
-// says.
-func (a *readingsAhead) readings(from, to time.Time) iter.Seq[readings.Reading] {
-	if !a.started || from.Before(a.since) || from.After(a.asked) || to.After(a.until) {
-		a.start(from, to)
+// readingAhead returns what each makes of every one of the days due, given
+// oldest first, with the readings history read ahead for them: once for each
+// run of them, as runOf says, so a read never takes in the readings between
+// days far apart, and holds a week and a day of them at most, as ahead says.
+// Each run's read holds the history's files from pruning until its days are
+// made, as readings.Between does as it reads: the router's readings history
+// prunes only once it has had the ledger summarise, which waits for any
+// summarising under way, as SummariseEnded's lock has it, so it never waits
+// on a read.
+func readingAhead[T any](history Readings, due []dueDay, each func(dueDay, Readings) T) []T {
+	made := make([]T, 0, len(due))
+	for len(due) > 0 {
+		run := due[:runOf(due)]
+		made = append(made, readRun(history, run, each)...)
+		due = due[len(run):]
 	}
-	a.held, a.since, a.asked = a.held[firstAt(a.held, from):], from, to
-	for !a.done && (len(a.held) == 0 || a.held[len(a.held)-1].At.Before(to)) {
-		r, ok := a.next()
-		if ok {
-			a.held = append(a.held, r)
+	return made
+}
+
+// readRun returns what each makes of every day of run, a run of days due, as
+// runOf gives it, with the history read once for them all, from the week
+// before the first to the end of the last.
+func readRun[T any](history Readings, run []dueDay, each func(dueDay, Readings) T) []T {
+	start, _, _ := dayfile.Day(run[0].date)
+	_, end, _ := dayfile.Day(run[len(run)-1].date)
+	next, stop := iter.Pull(history(start.Add(-readingsBefore), end))
+	defer stop()
+	read := &ahead{next: next}
+	made := make([]T, len(run))
+	for i, day := range run {
+		made[i] = each(day, read.readings)
+	}
+	return made
+}
+
+// runOf returns how many of the days due, oldest first, from the first on,
+// are a run: the week before each starts no later than the day before it
+// ends, so a read of the one's readings goes on into the next's.
+func runOf(due []dueDay) int {
+	n := 1
+	for ; n < len(due); n++ {
+		_, before, _ := dayfile.Day(due[n-1].date)
+		if start, _, _ := dayfile.Day(due[n].date); start.Add(-readingsBefore).After(before) {
+			break
 		}
-		a.done = !ok
+	}
+	return n
+}
+
+// ahead is the readings of a run of days, as next gives them, oldest first,
+// read ahead as the days ask for theirs, oldest first: each ask gives those
+// of the times asked for, reading on as far as it needs, and lets go of those
+// before them, which no later ask wants. held are those read and kept.
+type ahead struct {
+	next func() (readings.Reading, bool)
+	held []readings.Reading
+}
+
+// readings gives the readings of times from from up to to, as ahead says.
+func (a *ahead) readings(from, to time.Time) iter.Seq[readings.Reading] {
+	a.held = a.held[firstAt(a.held, from):]
+	for len(a.held) == 0 || a.held[len(a.held)-1].At.Before(to) {
+		r, ok := a.next()
+		if !ok {
+			break
+		}
+		a.held = append(a.held, r)
 	}
 	return slices.Values(a.held[:firstAt(a.held, to)])
-}
-
-// start starts the read again, from from, up to until, or to where that's
-// later.
-func (a *readingsAhead) start(from, to time.Time) {
-	a.stop()
-	if to.After(a.until) {
-		a.until = to
-	}
-	a.next, a.end = iter.Pull(a.history(from, a.until))
-	a.held, a.since, a.asked, a.done, a.started = nil, from, from, false, true
-}
-
-// stop ends the read, where it's started.
-func (a *readingsAhead) stop() {
-	if a.started {
-		a.end()
-	}
 }
 
 // firstAt returns the index of the first of read, oldest first, read at or
@@ -211,27 +220,20 @@ func firstAt(read []readings.Reading, t time.Time) int {
 }
 
 // Summarise returns the summary of the local day with the given date, as the
-// ledger's files are named for it, from the day's lines, and the readings
-// history gives of the day and the week before it, the last of each window's
-// before the day saying the use it began the day at. A day of no lines is
-// one of no accounts, the history asked for nothing: its readings tell of
-// the accounts beside the day's requests alone. It fails for a date that
-// isn't one.
-func Summarise(date string, lines iter.Seq[Line], history Readings) (Summary, error) {
-	t, n, err := tallied(date, lines, history)
-	if err != nil {
-		return Summary{}, err
-	}
-	return t.summary(date, n), nil
-}
-
-// tallied returns the local day with the given date as it's summarised, as
-// Summarise says, and how many lines it was handed. It fails for a date that
-// isn't one.
-func tallied(date string, lines iter.Seq[Line], history Readings) (tally, int, error) {
+// ledger's files are named for it, made from the lines given, and the
+// readings history gives of the day and the week before it, the last of each
+// window's before the day saying the use it began the day at. A day of no
+// lines is one of no accounts, the history asked for nothing: its readings
+// tell of the accounts beside the day's requests alone. A summary to replace
+// held, where it's given, the day's summary before, takes a limit whose
+// window it finds no reading of before it, in the day or the week before,
+// only where held read none of it in the week before either: the readings
+// history may since have pruned the one held read, which would have said the
+// limit held already. It fails for a date that isn't one.
+func Summarise(date string, lines iter.Seq[Line], history Readings, held *Summary) (Summary, error) {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
-		return nil, 0, fmt.Errorf("summarise %q: not a date", date)
+		return Summary{}, fmt.Errorf("summarise %q: not a date", date)
 	}
 	t, n := make(tally), 0
 	for line := range lines {
@@ -239,23 +241,37 @@ func tallied(date string, lines iter.Seq[Line], history Readings) (tally, int, e
 		n++
 	}
 	if n > 0 {
-		t.readings(history(start.Add(-readingsBefore), end), start)
+		t.readings(history(start.Add(-readingsBefore), end), start, held.readBefore)
 	}
-	return t, n, nil
+	return t.summary(date, n), nil
+}
+
+// readBefore reports whether the summary, where there is one, was made with a
+// reading of the window w names in the week before its day.
+func (s *Summary) readBefore(w accountWindow) bool {
+	if s == nil {
+		return false
+	}
+	for _, a := range s.Accounts {
+		if a.Account == w.account {
+			return slices.Contains(a.ReadBefore, w.key)
+		}
+	}
+	return false
 }
 
 // tally is a day as it's summarised: each account's, by its id, "" for the
 // requests no account answered.
 type tally map[string]*accountTally
 
-// accountTally is an account's day as it's summarised: limits are the limits
-// it reached, in the order it reached them, and firstRead those of them read
-// first, as readings says.
+// accountTally is an account's day as it's summarised: readBefore holds the
+// windows read in the week before it.
 type accountTally struct {
 	models                      map[modelKey]*modelTally
 	sessions, movedOn, movedOff sessions
 	highest                     map[string]float64
-	limits, firstRead           []Limit
+	limits                      []Limit
+	readBefore                  map[string]bool
 }
 
 // modelKey names a model's requests on an account as a summary keeps them
@@ -285,7 +301,7 @@ func (t tally) account(id string) *accountTally {
 		return a
 	}
 	a := &accountTally{models: make(map[modelKey]*modelTally), sessions: make(sessions), movedOn: make(sessions),
-		movedOff: make(sessions), highest: make(map[string]float64)}
+		movedOff: make(sessions), highest: make(map[string]float64), readBefore: make(map[string]bool)}
 	t[id] = a
 	return a
 }
@@ -348,9 +364,11 @@ func (l *Line) counted() string {
 // and the limits reached on it, from the readings history gives, those of the
 // day and the week before it, in the order they came: the last of a window's
 // before the day is the use it began the day at, unless it had reset by then.
-// A limit is read first where no reading of its window came before it, in
-// the day or the week before.
-func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
+// A limit whose window no reading came before, in the day or the week before,
+// is tallied only where readBefore, of the summary it's to replace, reports
+// that window wasn't read before either, as Summarise says. The windows read
+// in the week before are noted on those of their accounts the day tallies.
+func (t tally) readings(history iter.Seq[readings.Reading], start time.Time, readBefore func(accountWindow) bool) {
 	last := make(map[accountWindow]quota.Window)
 	var day []readings.Reading
 	for r := range history {
@@ -360,10 +378,11 @@ func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
 		}
 		day = append(day, r)
 	}
-	seen := make(map[accountWindow]bool, len(last))
+	before := make(map[accountWindow]bool, len(last))
 	for w := range last {
-		seen[w] = true
+		before[w] = true
 	}
+	seen := maps.Clone(before)
 	maps.DeleteFunc(last, func(_ accountWindow, w quota.Window) bool { return w.ResetBy(start) })
 	for w, began := range last {
 		t.account(w.account).peak(began)
@@ -371,19 +390,15 @@ func (t tally) readings(history iter.Seq[readings.Reading], start time.Time) {
 	for _, r := range day {
 		a, w, read := t.account(r.Account), windowOf(r), r.Window()
 		a.peak(read)
-		if turned(last[w], read) {
-			a.reached(Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()}, !seen[w])
+		if turned(last[w], read) && (seen[w] || !readBefore(w)) {
+			a.limits = append(a.limits, Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()})
 		}
 		last[w], seen[w] = read, true
 	}
-}
-
-// reached tallies l, a limit the account reached, read first, where first
-// says so.
-func (a *accountTally) reached(l Limit, first bool) {
-	a.limits = append(a.limits, l)
-	if first {
-		a.firstRead = append(a.firstRead, l)
+	for w := range before {
+		if a, ok := t[w.account]; ok {
+			a.readBefore[w.key] = true
+		}
 	}
 }
 
@@ -425,7 +440,7 @@ func (t tally) summary(date string, lines int) Summary {
 // summary returns the account's day, its id the one given.
 func (a *accountTally) summary(id string) AccountDay {
 	day := AccountDay{Account: id, Sessions: len(a.sessions), MovedOn: len(a.movedOn), MovedOff: len(a.movedOff),
-		Highest: a.highest, Limits: a.limits}
+		Highest: a.highest, Limits: a.limits, ReadBefore: slices.Sorted(maps.Keys(a.readBefore))}
 	for _, key := range slices.SortedFunc(maps.Keys(a.models), byModel) {
 		day.Models = append(day.Models, a.models[key].summary())
 	}

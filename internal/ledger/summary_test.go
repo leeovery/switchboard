@@ -85,7 +85,7 @@ func summarised(t *testing.T, readings ledger.Readings, lines ...ledger.Line) le
 // it's written.
 func summaryJSON(t *testing.T, readings ledger.Readings, lines ...ledger.Line) []byte {
 	t.Helper()
-	s, err := ledger.Summarise(date, slices.Values(lines), readings)
+	s, err := ledger.Summarise(date, slices.Values(lines), readings, nil)
 	if err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}
@@ -357,7 +357,7 @@ func TestASummaryAsksForTheReadingsOfItsDayAndTheWeekBefore(t *testing.T) {
 		return noReadings(f, t)
 	}
 
-	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), history); err != nil {
+	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), history, nil); err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}
 	// A week, as long as the longest window runs, before the day's start.
@@ -409,7 +409,7 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 }
 
 func TestADateThatIsntOneIsntSummarised(t *testing.T) {
-	if _, err := ledger.Summarise("2026-10-32", slices.Values([]ledger.Line(nil)), noReadings); err == nil {
+	if _, err := ledger.Summarise("2026-10-32", slices.Values([]ledger.Line(nil)), noReadings, nil); err == nil {
 		t.Error("Summarise() of 2026-10-32 succeeded, want it to fail: it isn't a date")
 	}
 }
@@ -705,6 +705,27 @@ func TestASummaryFoundToStandByCountingItsDaysLinesIsStampedSoTheNextRoundOpensN
 	}
 }
 
+func TestASummaryMarkedAfreshAsItStandsKeepsEveryFieldItHolds(t *testing.T) {
+	dir := t.TempDir()
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+	// The day's summary, written by a later release, of a field this one
+	// doesn't know, before its day's files were marked.
+	held := strings.TrimSuffix(summaryOf(date, 2, 2, ""), "}") + `,"later":{"kept":[1,2]}}`
+	writeFile(t, dir, "day-"+date+".json", []byte(held+"\n"))
+
+	writeAt(t, dir, on(1, 10, 0), noReadings)
+	data, err := os.ReadFile(summaryFile(dir, date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizes := dayBytes(t, dir, date)
+	marked := fmt.Sprintf(`{"version":1,"day":"%s","lines":2,"bytes":{"plain":%d,"compressed":%d},`, date, sizes.Plain, sizes.Compressed) +
+		strings.TrimPrefix(held, fmt.Sprintf(`{"version":1,"day":"%s","lines":2,`, date)) + "\n"
+	if string(data) != marked {
+		t.Errorf("the day's summary is\n%s\nwant it as it was, marked with its day's files' sizes alone, every field it held kept\n%s", data, marked)
+	}
+}
+
 func TestALineFiledUnderACompressedDayAfterTheClockWasSetBackIsSummarised(t *testing.T) {
 	dir := t.TempDir()
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
@@ -798,49 +819,67 @@ func TestALineAppendedWithinTheTickADaysFileWasLastModifiedInIsSummarised(t *tes
 
 func TestADaySummarisedAgainKnowsNoLessThanTheSummaryItReplaces(t *testing.T) {
 	limitAt, resets := on(0, 9, 30), on(0, 13, 0)
-	reached := `{"window":"5h","at":"` + limitAt.UTC().Format(time.RFC3339) + `","resets_at":"` + resets.UTC().Format(time.RFC3339) + `"}`
+	reached := `,"limits":[{"window":"5h","at":"` + limitAt.UTC().Format(time.RFC3339) + `","resets_at":"` + resets.UTC().Format(time.RFC3339) + `"}]`
+	rejected := workRead(limitAt, "5h", 1, resets, quota.StatusRejected)
+	// twoLines are the day's two requests' lines, and aTornLine the line of
+	// a day whose only line was torn as it was written.
+	twoLines := func(t *testing.T, dir string) {
+		holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+	}
+	aTornLine := func(t *testing.T, dir string) {
+		writeFile(t, dir, "requests-"+date+".jsonl", []byte(`{"at":"2026-10-05T09:00:00Z","requ`+"\n"))
+	}
 	tests := []struct {
 		name string
+		// lay lays the day's lines out in dir as it's first summarised.
+		lay func(t *testing.T, dir string)
 		// then and now are the readings the readings history holds as the day
 		// is summarised, and as it's summarised again.
 		then, now []readings.Reading
-		// highest is the summary's windows' highest use, and limits, its
-		// limits, as its JSON gives them, where it gives them.
-		highest, limits string
+		// requests and lines are the summary's requests and lines, and
+		// readings what it holds of the readings, as its JSON gives them.
+		requests, lines int
+		readings        string
 	}{
 		{
-			name:    "its windows' highest use and its limits, the readings they came from pruned since",
-			then:    []readings.Reading{workRead(on(0, 9, 0), "5h", 0.9, resets, quota.StatusAllowed), workRead(limitAt, "5h", 1, resets, quota.StatusRejected)},
-			highest: `"5h":1`, limits: reached,
+			name: "its windows' highest use and its limits, the readings they came from pruned since", lay: twoLines,
+			then:     []readings.Reading{workRead(on(0, 9, 0), "5h", 0.9, resets, quota.StatusAllowed), rejected},
+			requests: 3, lines: 3, readings: `,"highest":{"5h":1}` + reached,
 		},
 		{
-			name: "no limit read first, the reading before it pruned since",
+			name: "no limit read first, the reading before it pruned since", lay: twoLines,
 			then: []readings.Reading{workRead(on(-1, 23, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected), workRead(on(0, 1, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected)},
-			now:  []readings.Reading{workRead(on(0, 1, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected)}, highest: `"5h":1`,
+			now:  []readings.Reading{workRead(on(0, 1, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected)}, requests: 3, lines: 3,
+			readings: `,"highest":{"5h":1},"read_before":["5h"]`,
 		},
 		{
-			name: "a limit read first it held, the reading before it pruned since",
-			then: []readings.Reading{workRead(on(-3, 9, 0), "5h", 0.5, on(-3, 13, 0), quota.StatusAllowed), workRead(limitAt, "5h", 1, resets, quota.StatusRejected)},
-			now:  []readings.Reading{workRead(limitAt, "5h", 1, resets, quota.StatusRejected)}, highest: `"5h":1`, limits: reached,
+			name: "a limit read first it held, the reading before it pruned since", lay: twoLines,
+			then:     []readings.Reading{workRead(on(-3, 9, 0), "5h", 0.5, on(-3, 13, 0), quota.StatusAllowed), rejected},
+			now:      []readings.Reading{rejected},
+			requests: 3, lines: 3, readings: `,"highest":{"5h":1}` + reached + `,"read_before":["5h"]`,
+		},
+		{
+			name: "a limit read first, the summary it replaces read no readings, its day's one line torn", lay: aTornLine,
+			then: []readings.Reading{rejected}, now: []readings.Reading{rejected}, requests: 1, lines: 2, readings: `,"highest":{"5h":1}` + reached,
+		},
+		{
+			name: "a limit read first, the summary it replaces read no readings, the history's files unreadable then", lay: twoLines,
+			now: []readings.Reading{rejected}, requests: 3, lines: 3, readings: `,"highest":{"5h":1}` + reached,
 		},
 	}
 	for _, tt := range tests {
 		for _, by := range []string{"the router", "a reader"} {
 			t.Run(tt.name+", by "+by, func(t *testing.T) {
 				state, dir, _ := stateDirs(t)
-				holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+				tt.lay(t, dir)
 				writeAt(t, dir, on(1, 10, 0), readingsOf(tt.then...))
 				// A line comes to be filed under the day, as of a request in
 				// flight past the hour the day is given.
 				holdLines(t, dir, date, asked("3", on(0, 23, 59)))
 
 				got := summaryAgain(t, by, state, dir, on(1, 11, 0), tt.now)
-				readings := `,"highest":{` + tt.highest + `}`
-				if tt.limits != "" {
-					readings += `,"limits":[` + tt.limits + `]`
-				}
-				if want := summaryOf(date, 3, 3, readings); got != want {
-					t.Errorf("the day's summary is\n%s\nwant it of its three requests, knowing what the one it replaces did of the readings\n%s", got, want)
+				if want := summaryOf(date, tt.requests, tt.lines, tt.readings); got != want {
+					t.Errorf("the day's summary is\n%s\nwant it of its requests, knowing what the one it replaces did of the readings\n%s", got, want)
 				}
 			})
 		}
@@ -874,10 +913,12 @@ func TestADaySummarisedAgainCountsNoLessThanTheSummaryItReplacesWhereLinesWereLo
 			model := func(name string) string {
 				return `{"model":"` + name + `","upstream":3,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":30,"output_tokens":60}}`
 			}
-			want := `{"version":1,"day":"2026-10-05","lines":4,"accounts":[{"account":"work","models":[` + model(haiku) + `,` + model(opus) + `],` +
+			// Its files hold four lines now, of its six requests.
+			want := `{"version":1,"day":"2026-10-05","lines":6,"accounts":[{"account":"work","models":[` + model(haiku) + `,` + model(opus) + `],` +
 				`"sessions":2,"moved_on":0,"moved_off":0}]}`
 			if got != want {
-				t.Errorf("the day's summary is\n%s\nwant its three requests of %s it held still, and the three of %s filed since\n%s", got, opus, haiku, want)
+				t.Errorf("the day's summary is\n%s\nwant its three requests of %s it held still, and the three of %s filed since, made from no fewer lines\n%s",
+					got, opus, haiku, want)
 			}
 		})
 	}
@@ -1083,7 +1124,7 @@ func TestARoundReadsTheReadingsHistoryOnceForTheDaysItSummarises(t *testing.T) {
 	}
 
 	writeAt(t, dir, on(4, 9, 0), history)
-	for day, highest := range []string{`,"highest":{"5h":0.2}`, "", `,"highest":{"5h":0.4}`} {
+	for day, highest := range []string{`,"highest":{"5h":0.2}`, `,"read_before":["5h"]`, `,"highest":{"5h":0.4},"read_before":["5h"]`} {
 		date := on(day, 0, 0).Format(time.DateOnly)
 		if got, want := heldSummary(t, dir, date), summaryOf(date, 1, 1, highest)+"\n"; got != want {
 			t.Errorf("the summary of %s is\n%s\nwant\n%s", date, got, want)

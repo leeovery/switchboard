@@ -7,36 +7,22 @@ import (
 	"strings"
 )
 
-// knowing returns the day with the given date as its summary, made from the
-// number of lines given, as it replaces held, the day's summary before, so
-// it knows no less, as Summary.knowing says: but for the limits it reached
-// that were read first, as readings says, which are its own only where held
-// has them. The readings history prunes the readings of a day past keeping,
-// whatever the ledger keeps, and a clock moved can leave it short of them,
-// so a summary made again may find a limit's window without the reading
-// before it that it had then: read first, it would be taken for a limit
-// reached, though it held already.
-func (t tally) knowing(date string, lines int, held Summary) Summary {
-	s := t.summary(date, lines)
-	for i, a := range s.Accounts {
-		first := t[a.Account].firstRead
-		s.Accounts[i].Limits = slices.DeleteFunc(a.Limits, func(l Limit) bool { return slices.ContainsFunc(first, l.same) })
-	}
-	return s.knowing(held)
-}
-
 // knowing returns s, a day summarised afresh, as it replaces held, the day's
 // summary before, so it knows no less. Every count is held's where that's
 // more, as a line can't be taken away while the day's are kept, so fewer
 // means some were lost since, as to a damaged file: so are a model's
-// requests and usage, an account's sessions and moves, and the lines it was
-// made from; and the accounts and models held that the lines no longer give
-// are kept. Each window's highest use is held's where that's higher, and
-// held's limits are among its own, as the readings they came from may have
-// been pruned since.
+// requests and usage, and an account's sessions and moves; and the accounts
+// and models held that the lines no longer give are kept. Which lines were
+// lost can't be told, so where some of a model's were lost and as many or
+// more filed since, its requests are the more of the two summaries', fewer
+// than there were. Its lines are as many as the more of the two were made
+// from, and as its requests where those are more, as the lines lost were
+// held's. Each window's highest use is held's where that's higher, and
+// held's limits, and the windows it read in the week before, are among its
+// own, as the readings they came from may have been pruned since.
 func (s Summary) knowing(held Summary) Summary {
-	s.Lines = max(s.Lines, held.Lines)
 	s.Accounts = knowingAll(s.Accounts, held.Accounts, func(a AccountDay) string { return a.Account }, AccountDay.knowing, strings.Compare)
+	s.Lines = max(s.Lines, held.Lines, s.requests())
 	return s
 }
 
@@ -58,6 +44,9 @@ func (a AccountDay) knowing(held AccountDay) AccountDay {
 		}
 	}
 	slices.SortStableFunc(a.Limits, func(x, y Limit) int { return x.At.Compare(y.At) })
+	a.ReadBefore = append(a.ReadBefore, held.ReadBefore...)
+	slices.Sort(a.ReadBefore)
+	a.ReadBefore = slices.Compact(a.ReadBefore)
 	a.Models = knowingAll(a.Models, held.Models, ModelDay.key, ModelDay.knowing, byModel)
 	return a
 }

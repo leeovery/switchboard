@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -60,28 +61,32 @@ func (a *asking) readings(from, to time.Time) iter.Seq[readings.Reading] {
 	}
 }
 
-func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeAsTheHistoryWould(t *testing.T) {
-	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	day := func(n int) time.Time { return start.AddDate(0, 0, n) }
-	history := &asking{held: hourly(start, 60*24)}
-	read, stop := readAhead(history.readings, day(40))
-	defer stop()
-
-	// Days 10 to 14, oldest first, each asking for its readings and the week
-	// before's, then day 30, well after.
+func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeOnceForEachRunOfDays(t *testing.T) {
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.Local)
+	day := func(n int) time.Time { return dayfile.DayStart(start, n) }
+	history := &asking{held: hourly(start.Add(-time.Hour), 61*24)}
+	var due []dueDay
+	// Days 10 to 14, then day 30, well after them.
 	for _, n := range []int{10, 11, 12, 13, 14, 30} {
-		from, to := day(n-7), day(n+1)
-		if got, want := slices.Collect(read(from, to)), between(history.held, from, to); !slices.Equal(got, want) {
-			t.Errorf("day %d: gave %d readings, want the %d the history holds of its day and the week before", n, len(got), len(want))
+		due = append(due, dueDay{date: day(n).Format(time.DateOnly)})
+	}
+
+	got := readingAhead(history.readings, due, func(d dueDay, read Readings) []readings.Reading {
+		from, to, _ := dayfile.Day(d.date)
+		return slices.Collect(read(from.Add(-readingsBefore), to))
+	})
+	for i, d := range due {
+		from, to, _ := dayfile.Day(d.date)
+		if want := between(history.held, from.Add(-readingsBefore), to); !slices.Equal(got[i], want) {
+			t.Errorf("%s: gave %d readings, want the %d the history holds of the day and the week before", d.date, len(got[i]), len(want))
 		}
 	}
-	if want := [][2]time.Time{{day(3), day(40)}, {day(23), day(40)}}; !slices.Equal(history.asked, want) {
-		t.Errorf("the history was asked for the readings of %v, want %v: once for the days together, and again for the day well after them", history.asked, want)
+	runs := [][2]time.Time{{day(10).Add(-readingsBefore), day(15)}, {day(30).Add(-readingsBefore), day(31)}}
+	if !slices.Equal(history.asked, runs) {
+		t.Errorf("the history was asked for the readings of %v, want %v: once for the days together, and again for the day well after them", history.asked, runs)
 	}
-	// Up to the first of day 15's, then from the week before day 30 to the
-	// first of day 31's.
-	if want := (15-3)*24 + 1 + (31-23)*24 + 1; history.given != want {
-		t.Errorf("the history gave %d readings, want %d: none between the days asked for", history.given, want)
+	if want := len(between(history.held, runs[0][0], runs[0][1])) + len(between(history.held, runs[1][0], runs[1][1])); history.given != want {
+		t.Errorf("the history gave %d readings, want %d: none between the runs of days", history.given, want)
 	}
 }
 
@@ -89,30 +94,14 @@ func TestReadingsReadAheadHoldAWeekAndADayOfThemAtMost(t *testing.T) {
 	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	day := func(n int) time.Time { return start.AddDate(0, 0, n) }
 	history := &asking{held: hourly(start, 60*24)}
-	a := &readingsAhead{history: history.readings, until: day(60)}
-	defer a.stop()
+	next, stop := iter.Pull(history.readings(day(0), day(60)))
+	defer stop()
+	a := &ahead{next: next}
 
 	for n := 7; n < 59; n++ {
 		a.readings(day(n-7), day(n+1))
 		if most := 8*24 + 1; len(a.held) > most {
 			t.Fatalf("asked for day %d, it holds %d readings, want %d at most: a week and a day's, and the first after", n, len(a.held), most)
 		}
-	}
-}
-
-func TestReadingsReadAheadReadAfreshThoseOfTimesBeforeOrAfterWhatTheyRead(t *testing.T) {
-	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	day := func(n int) time.Time { return start.AddDate(0, 0, n) }
-	history := &asking{held: hourly(start, 60*24)}
-	read, stop := readAhead(history.readings, day(20))
-	defer stop()
-
-	for _, ask := range [][2]time.Time{{day(10), day(12)}, {day(5), day(8)}, {day(18), day(25)}} {
-		if got, want := slices.Collect(read(ask[0], ask[1])), between(history.held, ask[0], ask[1]); !slices.Equal(got, want) {
-			t.Errorf("asked for %v, gave %d readings, want the %d the history holds of them", ask, len(got), len(want))
-		}
-	}
-	if want := [][2]time.Time{{day(10), day(20)}, {day(5), day(20)}, {day(18), day(25)}}; !slices.Equal(history.asked, want) {
-		t.Errorf("the history was asked for the readings of %v, want %v", history.asked, want)
 	}
 }
