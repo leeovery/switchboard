@@ -1174,6 +1174,8 @@ func TestDocumentJSON(t *testing.T) {
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
 				Events: []status.Event{
+					{ID: 7, At: generated, Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true, By: "cli"},
+					{ID: 6, At: generated, Kind: status.EventAuto, Account: "side", Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", By: "dashboard"},
 					{ID: 5, At: generated, Kind: status.EventMoved, Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 3},
 					{ID: 4, At: generated, Kind: status.EventPressure, Account: "side", Windows: []string{"5h"}, Until: generated.Add(2 * time.Hour), Since: generated.Add(-30 * time.Minute)},
 					{ID: 3, At: generated.Add(-time.Minute), Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: generated.Add(time.Hour), Count: 2},
@@ -1191,6 +1193,27 @@ func TestDocumentJSON(t *testing.T) {
     "failures": 0
   },
   "events": [
+    {
+      "id": 7,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "pin",
+      "account": "work",
+      "accounts": [
+        "work",
+        "side"
+      ],
+      "move": true,
+      "force": true,
+      "by": "cli"
+    },
+    {
+      "id": 6,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "auto",
+      "account": "side",
+      "session": "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e",
+      "by": "dashboard"
+    },
     {
       "id": 5,
       "at": "2026-09-28T13:12:00Z",

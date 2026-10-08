@@ -103,7 +103,7 @@ func (h happening) event() status.Event {
 		e.Account, e.Windows, e.Until, e.Limit = h.limit.Account, h.limit.Windows, h.limit.Until, h.limit.Limit
 		e.Count, e.To = h.limit.moved()
 	}
-	e.Windows = slices.Clone(e.Windows)
+	e.Windows, e.Accounts = slices.Clone(e.Windows), slices.Clone(e.Accounts)
 	return e
 }
 
@@ -137,6 +137,10 @@ func (r *recent) take(e Event, now time.Time) {
 		r.add(status.Event{Kind: status.EventPrimed, Account: e.Account, Windows: []string{e.Window}, Until: e.ResetsAt}, now)
 	case RestartDue:
 		r.add(status.Event{Kind: status.EventRestart, Reason: e.Reason}, now)
+	case Pinned:
+		r.add(status.Event{Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Move: e.Move, Force: e.Force, By: string(e.By)}, now)
+	case Unpinned:
+		r.add(status.Event{Kind: status.EventAuto, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Force: e.Force, By: string(e.By)}, now)
 	}
 }
 

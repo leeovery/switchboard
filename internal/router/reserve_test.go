@@ -105,7 +105,7 @@ func TestAPinSpendsItsAccountsReserve(t *testing.T) {
 		t.Errorf("the document says of work's reserve %q, want it spent by the pin", doc.Reserved(work))
 	}
 
-	if _, err := client.Unpin(t.Context(), false); err != nil {
+	if _, err := client.Unpin(t.Context(), false, ""); err != nil {
 		t.Fatalf("Unpin() error = %v", err)
 	}
 	if got := r.ask(t, "one", opus, ""); got != "side" {

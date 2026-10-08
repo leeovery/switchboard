@@ -271,8 +271,10 @@ func TestASessionsOwnPin(t *testing.T) {
 			s := newSessions(at(start), unkept, unkept)
 			assign(s, key{session: "one", model: opus}, tt.launched[0], decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 			assign(s, key{session: "one", model: haiku}, tt.launched[1], decision{account: "work", reason: reasonNew}, start)
-			if tt.given != nil && !s.pinSession("one", *tt.given) {
-				t.Fatal("pinSession() = false, want the session found")
+			if tt.given != nil {
+				if _, seen := s.pinSession("one", *tt.given); !seen {
+					t.Fatal("pinSession() = false, want the session found")
+				}
 			}
 
 			if got, _ := s.session("one"); got.Pin != tt.want {
@@ -366,11 +368,29 @@ func TestASessionsAssignmentsSayWhetherItsOwnPinYieldedAndWhenItWasGiven(t *test
 func TestASessionNeverSeenIsGivenNoPin(t *testing.T) {
 	var changes changeCount
 	s := newSessions(at(start), changes.hear, unkept)
-	if s.pinSession("nope", "side") {
-		t.Error("pinSession() of a session never seen = true, want false")
+	if was, seen := s.pinSession("nope", "side"); seen || was != "" {
+		t.Errorf("pinSession() of a session never seen = %q, %v, want no pin, and false", was, seen)
 	}
 	if len(s.own) > 0 || changes > 0 {
 		t.Errorf("sessions' pins = %+v, and %d changes to save, want none, and nothing to save", s.own, changes)
+	}
+}
+
+func TestPinningASessionSaysWhatItsOwnPinWas(t *testing.T) {
+	s := newSessions(at(start), unkept, unkept)
+	assign(s, key{session: "one", model: opus}, "work", decision{account: "work", reason: reasonNew}, start)
+	steps := []struct {
+		pin, wantWas string
+	}{
+		{pin: "side", wantWas: "work"},
+		{pin: "", wantWas: "side"},
+		{pin: "", wantWas: ""},
+		{pin: "work", wantWas: ""},
+	}
+	for _, step := range steps {
+		if was, seen := s.pinSession("one", step.pin); !seen || was != step.wantWas {
+			t.Errorf("pinSession(%q) = %q, %v, want %q, the session's own pin before, the one it was launched with first, and true", step.pin, was, seen, step.wantWas)
+		}
 	}
 }
 

@@ -96,6 +96,11 @@ const (
 	EventPrimed = "primed"
 	// EventRoom is an account whose quota ran out having room again.
 	EventRoom = "room"
+	// EventPin is routing set by hand: the global pin, or a session's own.
+	EventPin = "pin"
+	// EventAuto is routing given back to the router: the global pin cleared,
+	// or a session's own.
+	EventAuto = "auto"
 	// EventRestart is a restart falling due.
 	EventRestart = "restart"
 	// EventHealth is the router turning unhealthy, or healthy again.
@@ -113,10 +118,15 @@ type Event struct {
 	Kind string `json:"kind"`
 	// Account is the account it befell: the one a session started on, or that
 	// came under pressure, reached its limit, was refused, was primed or has
-	// room again.
+	// room again. Of a pin, the first of the global pin's Accounts, or the one
+	// a session's own pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
+	// Accounts are the accounts the global pin names, in the order
+	// configured, as it's set or cleared.
+	Accounts []string `json:"accounts,omitempty"`
 	// Session and Model are the session that started or moved, and the model
-	// whose requests did.
+	// whose requests did; Session is the one whose own pin was set or
+	// cleared, too.
 	Session string `json:"session,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// From and To are the accounts a session moved from and to. To is where
@@ -147,6 +157,14 @@ type Event struct {
 	// request refused alone, the model family the refusal holds back.
 	Status int    `json:"status,omitzero"`
 	Family string `json:"family,omitempty"`
+	// Move and Force are, of a global pin set, that it moves the running
+	// sessions too, and that it cleared every session's own pin; Force is the
+	// latter of a global pin cleared, too.
+	Move  bool `json:"move,omitzero"`
+	Force bool `json:"force,omitzero"`
+	// By says who set or cleared a pin, such as "cli": "" where what did
+	// didn't say.
+	By string `json:"by,omitempty"`
 }
 
 // Fallback is why a document was built by probing though the router was

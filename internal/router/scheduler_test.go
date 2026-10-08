@@ -186,7 +186,11 @@ func TestTheGlobalPin(t *testing.T) {
 		t.Errorf("once the pin moves sessions, the running session went to %s, want side", got)
 	}
 	waitForLine(t, log, "level=INFO", "msg=moved", "session=running", "from=work", "to=side", `reason="moved by pin"`)
-	want := []router.Event{router.Moved{Session: "running", Model: opus, From: "work", To: "side", Reason: "moved by pin"}}
+	want := []router.Event{
+		router.Pinned{Accounts: []string{"side"}, Account: "side"},
+		router.Pinned{Accounts: []string{"side"}, Account: "side", Move: true},
+		router.Moved{Session: "running", Model: opus, From: "work", To: "side", Reason: "moved by pin"},
+	}
 	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 		t.Errorf("events = %+v, want %+v: work could still take the request", got, want)
 	}
@@ -205,7 +209,7 @@ func TestTheGlobalPin(t *testing.T) {
 		}
 	}
 
-	if doc, err := client.Unpin(t.Context(), false); err != nil || !doc.Pin.IsZero() {
+	if doc, err := client.Unpin(t.Context(), false, ""); err != nil || !doc.Pin.IsZero() {
 		t.Fatalf("Unpin() = pin %+v, %v, want none", doc.Pin, err)
 	}
 	if got := r.ask(t, "after", opus, ""); got != "work" {
@@ -279,7 +283,7 @@ func TestAPinGivenWhileASessionRunsMovesItOnItsNextRequest(t *testing.T) {
 				t.Fatalf("the session went to %s, want work", got)
 			}
 
-			got, err := client.PinSession(t.Context(), "one", "side")
+			got, err := client.PinSession(t.Context(), "one", "side", "")
 			if err != nil || got.Pin != "side" {
 				t.Fatalf("PinSession() = %+v, %v, want the session, pinned to side", got, err)
 			}
@@ -290,7 +294,10 @@ func TestAPinGivenWhileASessionRunsMovesItOnItsNextRequest(t *testing.T) {
 			}
 			waitForLine(t, log, "level=INFO", `msg="pinned session"`, "session=one", "account=side")
 			waitForLine(t, log, "msg=routed", "session=one", "account=side", "reason=pinned")
-			want := []router.Event{router.Moved{Session: "one", Model: tt.model, From: "work", To: "side", Reason: "pinned"}}
+			want := []router.Event{
+				router.Pinned{Account: "side", Session: "one"},
+				router.Moved{Session: "one", Model: tt.model, From: "work", To: "side", Reason: "pinned"},
+			}
 			if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
 				t.Errorf("events = %+v, want %+v", got, want)
 			}
@@ -313,7 +320,7 @@ func TestASessionsPinClearedWhileItRunsPassesOverTheOneItWasLaunchedWith(t *test
 		t.Fatalf("the session went to %s, want work, its pin", got)
 	}
 
-	got, err := client.UnpinSession(t.Context(), "one")
+	got, err := client.UnpinSession(t.Context(), "one", "")
 	if err != nil || got.Pin != "" {
 		t.Fatalf("UnpinSession() = %+v, %v, want the session, without a pin", got, err)
 	}
@@ -361,7 +368,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			name: "unpinning",
 			force: func(t *testing.T, client *router.Client) status.Document {
 				pinning(t, client, router.PinRequest{Accounts: []string{"work"}})
-				doc, err := client.Unpin(t.Context(), true)
+				doc, err := client.Unpin(t.Context(), true, "")
 				if err != nil {
 					t.Fatalf("Unpin() error = %v", err)
 				}
@@ -382,7 +389,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			r.readsAs(sideToken, session, weekOf(0.5, 5*24*time.Hour))
 			r.ask(t, "launched", opus, "side")
 			r.ask(t, "given", opus, "")
-			if _, err := client.PinSession(t.Context(), "given", "side"); err != nil {
+			if _, err := client.PinSession(t.Context(), "given", "side", ""); err != nil {
 				t.Fatalf("PinSession() error = %v", err)
 			}
 			if got := r.ask(t, "given", opus, ""); got != "side" {

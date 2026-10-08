@@ -103,18 +103,19 @@ func (c *Client) Session(ctx context.Context, id string) (status.Session, error)
 // id to the account with the given id from its next request on, passing over
 // the pin the session was launched with. It returns the session as that
 // leaves it, and fails with ErrUnknownSession for a session the router hasn't
-// seen, and saying why for an account the router can't send requests on.
-func (c *Client) PinSession(ctx context.Context, id, account string) (status.Session, error) {
-	return c.session(ctx, http.MethodPost, id, "/pin", sessionPinRequest{Account: account})
+// seen, and saying why for an account the router can't send requests on. By
+// says who asks.
+func (c *Client) PinSession(ctx context.Context, id, account string, by By) (status.Session, error) {
+	return c.session(ctx, http.MethodPost, id, "/pin", sessionPinRequest{Account: account, By: by})
 }
 
 // UnpinSession has the router clear the own pin of the session with the
 // given id, the one it was launched with included, so the session is routed
 // like any other from its next request. It returns the session as that
 // leaves it, and fails with ErrUnknownSession for a session the router hasn't
-// seen.
-func (c *Client) UnpinSession(ctx context.Context, id string) (status.Session, error) {
-	return c.session(ctx, http.MethodDelete, id, "/pin", nil)
+// seen. By says who asks.
+func (c *Client) UnpinSession(ctx context.Context, id string, by By) (status.Session, error) {
+	return c.session(ctx, http.MethodDelete, id, "/pin"+unpinQuery(by, false), nil)
 }
 
 // session sends the router a request for path under the session with the
@@ -145,7 +146,8 @@ func unknownSession(id string) error {
 // status document as pinning leaves it, and fails, saying why, for an account
 // the router can't send requests on. A pin of one account names it as Account
 // too, as a router from before pins named several reads a pin: one still
-// running once an upgrade has replaced it, until it restarts.
+// running once an upgrade has replaced it, until it restarts. By says who
+// asks.
 func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error) {
 	if len(p.Accounts) == 1 {
 		p.Account = p.Accounts[0]
@@ -157,15 +159,27 @@ func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error)
 
 // Unpin has the router route every session on its merits again, but for
 // those with pins of their own, whose pins force clears too. It returns the
-// status document as unpinning leaves it.
-func (c *Client) Unpin(ctx context.Context, force bool) (status.Document, error) {
-	path := "/pin"
-	if force {
-		path += "?force=true"
-	}
+// status document as unpinning leaves it. By says who asks.
+func (c *Client) Unpin(ctx context.Context, force bool, by By) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, clientTimeout, http.MethodDelete, path, nil, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodDelete, "/pin"+unpinQuery(by, force), nil, &doc)
 	return doc, err
+}
+
+// unpinQuery is the query clearing a pin takes: who asks, and whether every
+// session's own pin is cleared too, each left out where it's not given.
+func unpinQuery(by By, force bool) string {
+	query := url.Values{}
+	if by != "" {
+		query.Set("by", string(by))
+	}
+	if force {
+		query.Set("force", "true")
+	}
+	if len(query) == 0 {
+		return ""
+	}
+	return "?" + query.Encode()
 }
 
 // Refresh has the router probe the accounts it hasn't read for longer than

@@ -288,11 +288,17 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"work", "side"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
 		t.Errorf("once pinned, the router's pin = %+v, want %+v", got, want)
 	}
+	if e := srv.told(t); e.Kind != status.EventPin || e.By != "dashboard" {
+		t.Errorf("once pinned, the router told of %+v, want a pin by the dashboard", e)
+	}
 	if err := cfg.Source.Unpin(t.Context()); err != nil {
 		t.Fatalf("Unpin() error = %v", err)
 	}
 	if got := srv.status(t).Pin; !got.IsZero() {
 		t.Errorf("once unpinned, the router's pin = %+v, want none", got)
+	}
+	if e := srv.told(t); e.Kind != status.EventAuto || e.By != "dashboard" {
+		t.Errorf("once unpinned, the router told of %+v, want an auto by the dashboard", e)
 	}
 	history, err := cfg.Source.History(t.Context(), "7d", 30*time.Minute)
 	if err != nil || history.Window != "7d" || history.Step != "30m0s" || len(history.Accounts) != 3 {
@@ -337,6 +343,9 @@ func TestUsageWatchPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	if got := srv.session(t, sessionOne).Pin; got != "side" {
 		t.Errorf("once pinned, the session's own pin = %q, want side", got)
 	}
+	if e := srv.told(t); e.Kind != status.EventPin || e.Session != sessionOne || e.By != "dashboard" {
+		t.Errorf("once pinned, the router told of %+v, want the session's pin by the dashboard", e)
+	}
 	if err := cfg.Source.PinSession(t.Context(), sessionOne, "personal"); err == nil || !strings.Contains(err.Error(), "personal") {
 		t.Errorf("PinSession() to an account without a usable token error = %v, want the router to say why", err)
 	}
@@ -345,6 +354,9 @@ func TestUsageWatchPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	}
 	if got := srv.session(t, sessionOne).Pin; got != "" {
 		t.Errorf("once unpinned, the session's own pin = %q, want none", got)
+	}
+	if e := srv.told(t); e.Kind != status.EventAuto || e.Session != sessionOne || e.By != "dashboard" {
+		t.Errorf("once unpinned, the router told of %+v, want the session's auto by the dashboard", e)
 	}
 	if !srv.status(t).Pin.IsZero() {
 		t.Errorf("the router's pin = %+v, want none: a session's pin is its own", srv.status(t).Pin)

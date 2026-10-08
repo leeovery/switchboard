@@ -73,6 +73,31 @@ func TestEachEventAsTheDocumentGivesIt(t *testing.T) {
 			event: RestartDue{Reason: "upgraded"},
 			want:  status.Event{Kind: status.EventRestart, Reason: "upgraded"},
 		},
+		{
+			name:  "the global pin set, moving and forcing, by the pin command",
+			event: Pinned{Accounts: []string{"work", "side"}, Account: "work", Move: true, Force: true, By: ByCLI},
+			want:  status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true, By: "cli"},
+		},
+		{
+			name:  "the global pin set by what doesn't say",
+			event: Pinned{Accounts: []string{"side"}, Account: "side"},
+			want:  status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}},
+		},
+		{
+			name:  "a session's own pin set by the dashboard",
+			event: Pinned{Account: "side", Session: "0b5c6f2e", By: ByDashboard},
+			want:  status.Event{Kind: status.EventPin, Account: "side", Session: "0b5c6f2e", By: "dashboard"},
+		},
+		{
+			name:  "the global pin cleared, forcing, by the pin command",
+			event: Unpinned{Accounts: []string{"work", "side"}, Force: true, By: ByCLI},
+			want:  status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side"}, Force: true, By: "cli"},
+		},
+		{
+			name:  "a session's own pin cleared by the dashboard",
+			event: Unpinned{Account: "work", Session: "0b5c6f2e", By: ByDashboard},
+			want:  status.Event{Kind: status.EventAuto, Account: "work", Session: "0b5c6f2e", By: "dashboard"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,13 +139,20 @@ func TestTheEventsGivenAreACopy(t *testing.T) {
 	r := newTestRecent(&testClock{now: start})
 	r.hear(Primed{Account: "side", Window: "5h", ResetsAt: start.Add(5 * time.Hour)})
 	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
+	r.hear(Pinned{Accounts: []string{"work", "side"}, Account: "work"})
 
 	given := r.events()
 	for i := range given {
-		given[i].Windows[0] = "7d"
+		if len(given[i].Windows) > 0 {
+			given[i].Windows[0] = "7d"
+		}
+		if len(given[i].Accounts) > 0 {
+			given[i].Accounts[0] = "personal"
+		}
 	}
 	r.hear(LimitReached{Account: "work", Windows: []string{"7d_oi", "5h"}, Until: start.Add(time.Hour), Limit: 1, Again: true})
 	want := []status.Event{
+		{ID: 3, At: start, Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}},
 		{ID: 2, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d_oi"}, Until: start.Add(time.Hour), Limit: 1},
 		{ID: 1, At: start, Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: start.Add(5 * time.Hour)},
 	}

@@ -297,17 +297,20 @@ func (s *sessions) unpin(force bool) (was status.Pin, cleared int) {
 
 // pinSession gives the session with the given id its own pin to account from
 // now on, passing over the one it was launched with, or, where account is "",
-// clears its own pin, the one it was launched with included. It reports
+// clears its own pin, the one it was launched with included. It returns the
+// account the session's own pin named before, "" for none, and reports
 // false, and does nothing, for a session never seen.
-func (s *sessions) pinSession(id, account string) bool {
+func (s *sessions) pinSession(id, account string) (was string, seen bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.seen(id) {
-		return false
+	entries, seen := s.entries()[id]
+	if !seen {
+		return "", false
 	}
+	was, _ = s.pinOf(id, entries[0].assignment)
 	s.own[id] = ownPin{Account: account, Since: s.now().UTC()}
 	s.changed()
-	return true
+	return was, true
 }
 
 // session reports what the router says of the session with the given id,

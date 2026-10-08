@@ -9,8 +9,8 @@ import (
 
 // Event is news from the router that something outside it may want to act
 // on, such as by notifying the user: SessionStarted, LimitReached, Moved,
-// Refused, RefusalLifted, HealthChanged, Primed or RestartDue. Config.Events
-// hears each as it happens.
+// Refused, RefusalLifted, HealthChanged, Primed, RestartDue, Pinned or
+// Unpinned. Config.Events hears each as it happens.
 type Event interface {
 	event()
 }
@@ -102,6 +102,31 @@ type RestartDue struct {
 	Reason string
 }
 
+// Pinned is routing set by hand: where Session is "", the global pin, to
+// Accounts, in the order configured, Account the first of them, moving the
+// running sessions too where Move is set, and having cleared every session's
+// own pin where Force is; else that session's own pin, to Account. By says
+// who set it.
+type Pinned struct {
+	Accounts    []string
+	Account     string
+	Session     string
+	Move, Force bool
+	By          By
+}
+
+// Unpinned is routing given back to the router: where Session is "", the
+// global pin cleared, which named Accounts, none when only Force cleared
+// anything, with every session's own pin where Force is set; else that
+// session's own pin cleared, which named Account. By says who cleared it.
+type Unpinned struct {
+	Accounts []string
+	Account  string
+	Session  string
+	Force    bool
+	By       By
+}
+
 func (SessionStarted) event() {}
 func (LimitReached) event()   {}
 func (Moved) event()          {}
@@ -110,6 +135,8 @@ func (RefusalLifted) event()  {}
 func (HealthChanged) event()  {}
 func (Primed) event()         {}
 func (RestartDue) event()     {}
+func (Pinned) event()         {}
+func (Unpinned) event()       {}
 
 // hearing returns what hears each event with every one of listeners that
 // isn't nil, in turn.

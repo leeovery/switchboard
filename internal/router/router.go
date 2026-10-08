@@ -199,8 +199,10 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
-	// recent keeps the router's newest events.
+	// recent keeps the router's newest events, and emit tells each of them
+	// to whatever hears them.
 	recent *recent
+	emit   func(Event)
 	// stream tells its readers of what befalls each routed request as it
 	// happens.
 	stream *stream
@@ -274,6 +276,7 @@ func New(cfg Config) (*Router, error) {
 		state:    state,
 		sessions: sessions,
 		recent:   recent,
+		emit:     emit,
 		stream:   stream,
 		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
 		history:  history,

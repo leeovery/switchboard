@@ -42,6 +42,52 @@ func TestRunFilesItsEventsBesideTheLedger(t *testing.T) {
 	}
 }
 
+func TestRunFilesEachPinSetAndCleared(t *testing.T) {
+	up := newUpstream(t, answerOK)
+	cfg := runConfig(t, up.URL)
+	stop := runRouter(t, cfg)
+	client := router.NewClient(router.SocketPath(cfg.StateDir))
+	health, err := client.Health(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	readAll(t, send(t, http.MethodPost, "http://"+cfg.Listen+"/v1/messages", with(claudeCode(workToken), "X-Claude-Code-Session-Id", sessionID), strings.NewReader(messages)))
+	waitForStatus(t, router.SocketPath(cfg.StateDir), func(doc status.Document) bool { return len(doc.Events) == 1 })
+
+	if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side", "work"}, Move: true, By: router.ByCLI}); err != nil {
+		t.Fatalf("Pin() error = %v", err)
+	}
+	if _, err := client.PinSession(t.Context(), sessionID, "side", router.ByDashboard); err != nil {
+		t.Fatalf("PinSession() error = %v", err)
+	}
+	if _, err := client.UnpinSession(t.Context(), sessionID, router.ByDashboard); err != nil {
+		t.Fatalf("UnpinSession() error = %v", err)
+	}
+	doc, err := client.Unpin(t.Context(), true, "")
+	if err != nil {
+		t.Fatalf("Unpin() error = %v", err)
+	}
+	if err := stop(); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	told := []status.Event{
+		{ID: 5, At: now, Kind: status.EventAuto, Accounts: []string{"work", "side"}, Force: true},
+		{ID: 4, At: now, Kind: status.EventAuto, Account: "side", Session: sessionID, By: "dashboard"},
+		{ID: 3, At: now, Kind: status.EventPin, Account: "side", Session: sessionID, By: "dashboard"},
+		{ID: 2, At: now, Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, By: "cli"},
+	}
+	if len(doc.Events) != 5 || !reflect.DeepEqual(doc.Events[:4], told) {
+		t.Errorf("GET /status gives the events\n%+v\nwant, after the session started,\n%+v", doc.Events, told)
+	}
+	var want []events.Line
+	for _, e := range slices.Backward(doc.Events) {
+		want = append(want, events.Line{Event: e, Run: health.StartedAt})
+	}
+	if got := readEvents(cfg.StateDir); !reflect.DeepEqual(got, want) {
+		t.Errorf("the events filed read back as\n%+v\nwant\n%+v: each as the document gives it", got, want)
+	}
+}
+
 func TestTwoRunsEventsAreReadBackApart(t *testing.T) {
 	up := newUpstream(t, answerOK)
 	cfg := runConfig(t, up.URL)

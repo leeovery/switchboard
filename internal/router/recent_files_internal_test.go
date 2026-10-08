@@ -35,6 +35,10 @@ func TestEachEventIsFiledAsTheDocumentGivesIt(t *testing.T) {
 		HealthChanged{Reason: "5 of the 5 requests in the last 5 minutes failed"},
 		Primed{Account: "side", Window: "5h", ResetsAt: until},
 		RestartDue{Reason: "upgraded"},
+		Pinned{Accounts: []string{"work", "side"}, Account: "work", Move: true, Force: true, By: ByCLI},
+		Pinned{Account: "side", Session: "0b5c6f2e", By: ByDashboard},
+		Unpinned{Accounts: []string{"work", "side"}, Force: true, By: ByCLI},
+		Unpinned{Account: "side", Session: "0b5c6f2e", By: ByDashboard},
 	} {
 		r.hear(e)
 	}
@@ -57,7 +61,7 @@ func TestEachEventIsFiledAsTheDocumentGivesIt(t *testing.T) {
 	for _, line := range got {
 		kinds = append(kinds, line.Kind)
 	}
-	for _, kind := range []string{status.EventStarted, status.EventLimit, status.EventMoved, status.EventRefused, status.EventHealth, status.EventPrimed, status.EventRestart, status.EventPressure, status.EventRoom} {
+	for _, kind := range []string{status.EventStarted, status.EventLimit, status.EventMoved, status.EventRefused, status.EventHealth, status.EventPrimed, status.EventRestart, status.EventPressure, status.EventRoom, status.EventPin, status.EventAuto} {
 		if !slices.Contains(kinds, kind) {
 			t.Errorf("the files hold the kinds %q, want one of %s", kinds, kind)
 		}

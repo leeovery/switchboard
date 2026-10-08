@@ -103,16 +103,39 @@ type Restart struct {
 	InPlace bool `json:"in_place"`
 }
 
+// By says who set or cleared a pin, for the event the router tells it as:
+// ByCLI or ByDashboard, or "" where it doesn't say, as a switchboard from
+// before doesn't.
+type By string
+
+const (
+	// ByCLI is the pin command.
+	ByCLI By = "cli"
+	// ByDashboard is the dashboard's routing card.
+	ByDashboard By = "dashboard"
+)
+
+// check fails, saying what to give, for anyone but ByCLI, ByDashboard or no
+// one.
+func (b By) check() error {
+	switch b {
+	case "", ByCLI, ByDashboard:
+		return nil
+	}
+	return fmt.Errorf("by is %s or %s, not %q", ByCLI, ByDashboard, redact.Text(string(b)))
+}
+
 // PinRequest is what POST /pin takes: the accounts every new session goes to
 // the best of; whether every running session on another account moves there
-// too, on its next request; and whether every session's own pin is cleared,
-// the one it was launched with included. Account names one account more, as
-// a switchboard from before pins named several asks.
+// too, on its next request; whether every session's own pin is cleared, the
+// one it was launched with included; and who asks. Account names one account
+// more, as a switchboard from before pins named several asks.
 type PinRequest struct {
 	Accounts []string `json:"accounts"`
 	Account  string   `json:"account,omitempty"`
 	Move     bool     `json:"move"`
 	Force    bool     `json:"force"`
+	By       By       `json:"by,omitempty"`
 }
 
 // ids returns the ids of the accounts the request names, as it names them.
@@ -124,9 +147,10 @@ func (p PinRequest) ids() []string {
 }
 
 // sessionPinRequest is what POST /sessions/{id}/pin takes: the account the
-// session's requests go to from its next request on.
+// session's requests go to from its next request on, and who asks.
 type sessionPinRequest struct {
 	Account string `json:"account"`
+	By      By     `json:"by,omitempty"`
 }
 
 // refreshRequest is what POST /refresh takes: how old an account's usage can
@@ -193,11 +217,15 @@ func (r *Router) Control() http.Handler {
 			return
 		}
 		id := req.PathValue("id")
-		r.answerSession(w, id, r.pinSession(id, pin.Account))
+		r.answerSession(w, id, r.pinSession(id, pin.Account, pin.By))
 	})
 	mux.HandleFunc("DELETE /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		id := req.PathValue("id")
-		r.answerSession(w, id, r.unpinSession(id))
+		by, err := byAsked(req)
+		if err == nil {
+			err = r.unpinSession(id, by)
+		}
+		r.answerSession(w, id, err)
 	})
 	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin PinRequest
@@ -217,7 +245,12 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		r.unpin(force)
+		by, err := byAsked(req)
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		r.unpin(force, by)
 		writeJSON(w, r.Status())
 	})
 	mux.HandleFunc("POST /refresh", func(w http.ResponseWriter, req *http.Request) {
@@ -327,6 +360,14 @@ func forceAsked(req *http.Request) (bool, error) {
 	return force, nil
 }
 
+// byAsked reads who DELETE /pin or /sessions/{id}/pin says asks, as ?by=
+// gives it, failing, saying what to give, for anyone but ByCLI or
+// ByDashboard.
+func byAsked(req *http.Request) (By, error) {
+	by := By(req.URL.Query().Get("by"))
+	return by, by.check()
+}
+
 // answerSession answers as GET /sessions/{id} does, with the session as it
 // stands, unless err, from what was asked of the session, says why not: 404
 // for a session the router hasn't seen, else 400.
@@ -377,9 +418,13 @@ func (r *Router) named(s status.Session) status.Session {
 
 // pin sends every new session to the best of the accounts the request names,
 // with Move, every running session on another account too, and with Force,
-// clears every session's own pin. It fails, saying why, for no account, or
-// for one nothing can go out on.
+// clears every session's own pin, telling it as Pinned. It fails, saying why,
+// for anyone asking but ByCLI or ByDashboard, for no account, or for one
+// nothing can go out on, and then tells nothing.
 func (r *Router) pin(p PinRequest) error {
+	if err := p.By.check(); err != nil {
+		return err
+	}
 	ids, err := r.pinnableAll(p.ids())
 	if err != nil {
 		return err
@@ -390,12 +435,14 @@ func (r *Router) pin(p PinRequest) error {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
 	}
 	logger.Info("pinned", attrs...)
+	r.emit(Pinned{Accounts: ids, Account: ids[0], Move: p.Move, Force: p.Force, By: p.By})
 	return nil
 }
 
 // unpin clears the global pin, so every session is routed on its merits but
-// for those with pins of their own, and with force, clears theirs too.
-func (r *Router) unpin(force bool) {
+// for those with pins of their own, and with force, clears theirs too,
+// telling it as Unpinned unless it cleared nothing.
+func (r *Router) unpin(force bool, by By) {
 	was, cleared := r.sessions.unpin(force)
 	accounts := strings.Join(was.Accounts, ",")
 	switch {
@@ -404,32 +451,45 @@ func (r *Router) unpin(force bool) {
 	case !was.IsZero():
 		logger.Info("unpinned", "accounts", accounts)
 	}
+	if !was.IsZero() || cleared > 0 {
+		r.emit(Unpinned{Accounts: was.Accounts, Force: force, By: by})
+	}
 }
 
 // pinSession sends the requests of the session with the given id to the
 // account with the given id from its next request on, passing over the pin it
-// was launched with. It fails, saying why, for an account nothing can go out
-// on, and with ErrUnknownSession for a session the router hasn't seen.
-func (r *Router) pinSession(id, account string) error {
+// was launched with, telling it as Pinned. It fails, saying why, for anyone
+// asking but ByCLI or ByDashboard, or for an account nothing can go out on,
+// and with ErrUnknownSession for a session the router hasn't seen, and then
+// tells nothing.
+func (r *Router) pinSession(id, account string, by By) error {
+	if err := by.check(); err != nil {
+		return err
+	}
 	if err := r.pinnable(account); err != nil {
 		return err
 	}
-	if !r.sessions.pinSession(id, account) {
+	if _, seen := r.sessions.pinSession(id, account); !seen {
 		return unknownSession(id)
 	}
 	logger.Info("pinned session", "session", status.ShortID(id), "account", account)
+	r.emit(Pinned{Account: account, Session: id, By: by})
 	return nil
 }
 
 // unpinSession clears the own pin of the session with the given id, the one
 // it was launched with included, so it's routed like any other from its next
-// request. It fails with ErrUnknownSession for a session the router hasn't
-// seen.
-func (r *Router) unpinSession(id string) error {
-	if !r.sessions.pinSession(id, "") {
+// request, telling it as Unpinned unless it had none. It fails with
+// ErrUnknownSession for a session the router hasn't seen.
+func (r *Router) unpinSession(id string, by By) error {
+	was, seen := r.sessions.pinSession(id, "")
+	if !seen {
 		return unknownSession(id)
 	}
 	logger.Info("unpinned session", "session", status.ShortID(id))
+	if was != "" {
+		r.emit(Unpinned{Account: was, Session: id, By: by})
+	}
 	return nil
 }
 
