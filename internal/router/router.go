@@ -258,7 +258,7 @@ func New(cfg Config) (*Router, error) {
 	inFlight := newInFlight()
 	stream := newStream(cfg.Now)
 	requests := newRequestLedger(cfg.Ledger, cfg.Now)
-	history.round = requests.summariseEnded
+	history.pruning = requests.summariseEnded
 	transport := newPool()
 	awake := &wakes{now: clock, woke: func() {
 		transport.renew()

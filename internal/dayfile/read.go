@@ -1,6 +1,8 @@
 package dayfile
 
 import (
+	"bytes"
+	"cmp"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -90,20 +92,22 @@ func noon(t time.Time) time.Time {
 }
 
 // Read hands take each line the files of the local days with the given
-// dates, given oldest first, hold that decode makes a T of, oldest first by
-// the time at gives it, whichever day's file it's in, until take reports
-// false, and returns how many of the lines were unread: too long to hold, or
-// made nothing of. decode is handed each line without its line ending, and
-// mustn't keep it. A change of time zone files a line under a date beside its
-// own, never further, so ordering them holds no more than a day or two of
-// them at a time. A file that can't be read holds none, which is warned of,
-// and one damaged, as a compressed file cut short, the lines before the
-// damage, which is warned of too: each once until it reads to its end again,
-// as filesWarned says. The files are read as openDay opens them.
-func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), at func(T) time.Time, take func(T) bool) (unread int) {
+// dates, given oldest first, hold that decode makes a T of, and keep reports
+// true of, oldest first by the time at gives it, whichever day's file it's
+// in, until take reports false, and returns how many of the lines were
+// unread: too long to hold, or made nothing of. decode is handed each line
+// without its line ending, and mustn't keep it; a line keep reports false of
+// is passed over as it's read, never held. A change of time zone files a
+// line under a date beside its own, never further, so ordering them holds no
+// more than a day or two of them at a time. A file that can't be read holds
+// none, which is warned of, and one damaged, as a compressed file cut short,
+// the lines before the damage, which is warned of too: each once until it
+// reads to its end again, as filesWarned says. The files are read as openDay
+// opens them.
+func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), at func(T) time.Time, keep, take func(T) bool) (unread int) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	lines := inOrder[T]{at: at, take: take}
+	lines := inOrder[T]{at: at, keep: keep, take: take}
 	for _, date := range dates {
 		opened, failed := f.openDay(date)
 		for _, e := range failed {
@@ -147,26 +151,51 @@ func (f *Files) Count(date string) (int, error) {
 	return lines, err
 }
 
-// Modified returns when the lines of the local day with the given date last
-// changed, by a look at its files that reads none of them: when its plain
-// file was last modified, or its compressed file, where it has no plain
-// file. Lines are only ever appended to the plain file, and compressing the
-// day writes them into the compressed file anew, removing the plain one, so
-// the time changes as the lines do. It fails with fs.ErrNotExist where the
-// day has neither.
-func (f *Files) Modified(date string) (time.Time, error) {
+// DayStat is a look at the files of a local day that reads none of them: how
+// many bytes its plain file and its compressed file hold, none of one that
+// isn't there, and when the compressed file was last modified, never where
+// it isn't there. Lines are only ever appended to the plain file, which
+// grows with each, and compressing the day writes them into the compressed
+// file anew, longer, removing the plain file: so the sizes change as the
+// day's lines do, however coarsely the file system keeps its times.
+type DayStat struct {
+	PlainSize, CompressedSize int64
+	CompressedModified        time.Time
+}
+
+// Stat returns a look at the files of the local day with the given date, as
+// DayStat says, failing with fs.ErrNotExist where the day has neither.
+func (f *Files) Stat(date string) (DayStat, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	for _, file := range []dayFile{plainFile(date), compressedFile(date)} {
-		info, err := os.Stat(f.path(file))
-		switch {
-		case err == nil:
-			return info.ModTime(), nil
-		case !errors.Is(err, fs.ErrNotExist):
-			return time.Time{}, err
-		}
+	plain, err := f.stat(plainFile(date))
+	if err != nil {
+		return DayStat{}, err
 	}
-	return time.Time{}, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
+	compressed, err := f.stat(compressedFile(date))
+	switch {
+	case err != nil:
+		return DayStat{}, err
+	case plain == nil && compressed == nil:
+		return DayStat{}, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
+	}
+	var s DayStat
+	if plain != nil {
+		s.PlainSize = plain.Size()
+	}
+	if compressed != nil {
+		s.CompressedSize, s.CompressedModified = compressed.Size(), compressed.ModTime()
+	}
+	return s, nil
+}
+
+// stat returns a look at file: nil where it isn't there.
+func (f *Files) stat(file dayFile) (fs.FileInfo, error) {
+	info, err := os.Stat(f.path(file))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return info, err
 }
 
 // readOpened hands take each line the files opened hold that decode makes a
@@ -215,17 +244,19 @@ func (f *Files) readFile(file openFile, take func(line []byte) bool) (handed, lo
 	return handed, lines.Long(), true
 }
 
-// inOrder hands on what's read, oldest first by the time at gives each, once
-// nothing read after it can come before it.
+// inOrder hands on what's read that keep reports true of, oldest first by the
+// time at gives each, once nothing read after it can come before it.
 type inOrder[T any] struct {
-	at   func(T) time.Time
-	take func(T) bool
-	held []T
+	at         func(T) time.Time
+	keep, take func(T) bool
+	held       []T
 }
 
-// hold holds v until it can be handed on.
+// hold holds v until it can be handed on, where it's kept.
 func (o *inOrder[T]) hold(v T) bool {
-	o.held = append(o.held, v)
+	if o.keep(v) {
+		o.held = append(o.held, v)
+	}
 	return true
 }
 
@@ -260,35 +291,6 @@ func (o *inOrder[T]) sort() {
 	slices.SortStableFunc(o.held, func(a, b T) int { return o.at(a).Compare(o.at(b)) })
 }
 
-// dayFiles returns those of the files of the local day with the given date
-// that hold its lines, in the order the lines came: its compressed file, then
-// its plain one, which holds those added since the day was compressed, as
-// after the clock was set back to it; but the compressed file alone when the
-// plain file's lines are compressed already, as plainCompressed says. When
-// the two can't be read to tell, both are read.
-func (f *Files) dayFiles(date string) []dayFile {
-	plain, compressed := plainFile(date), compressedFile(date)
-	switch hasPlain, hasCompressed := f.has(plain), f.has(compressed); {
-	case hasPlain && hasCompressed:
-		if held, err := f.readDay(date); err == nil && held.plainCompressed() {
-			return []dayFile{compressed}
-		}
-		return []dayFile{compressed, plain}
-	case hasCompressed:
-		return []dayFile{compressed}
-	case hasPlain:
-		return []dayFile{plain}
-	}
-	return nil
-}
-
-// has reports whether the file is there, or may be: one that can't be looked
-// at is opened, for the opening to say why it can't be.
-func (f *Files) has(file dayFile) bool {
-	_, err := os.Stat(f.path(file))
-	return !errors.Is(err, fs.ErrNotExist)
-}
-
 // openFile is one of a day's files, opened to read the lines it holds.
 type openFile struct {
 	dayFile
@@ -301,45 +303,91 @@ type fileError struct {
 	err  error
 }
 
-// gone reports whether the file wasn't there to be opened.
-func (e fileError) gone() bool {
-	return errors.Is(e.err, fs.ErrNotExist)
-}
-
 // openDay opens the files of the local day with the given date that hold its
-// lines, in the order the lines came, as dayFiles lists them, as openListed
-// does.
+// lines, in the order the lines came, as opened gives them, and says why each
+// that's there but couldn't be opened couldn't be. It opens the plain file
+// first: compressing the day writes the compressed file before it removes the
+// plain one, and a file once opened reads as it was, whatever becomes of it
+// after, so whenever another process compresses the day meanwhile, the
+// compressed file opened after holds every line the plain file opened before
+// doesn't, and no line is missed.
 func (f *Files) openDay(date string) (opened []openFile, failed []fileError) {
-	return f.openListed(date, f.dayFiles(date))
+	plain, failed := f.openOne(plainFile(date), failed)
+	compressed, failed := f.openOne(compressedFile(date), failed)
+	return dayOpened(plain, compressed), failed
 }
 
-// openListed opens the files listed of the local day with the given date:
-// those it opened, in order, and why each other couldn't be. One gone by the
-// time it's opened, as when another process compressed the day once it was
-// listed, has the day's files listed and opened again, once, so none of its
-// lines is missed, nor read twice; one gone then is passed over. A file once
-// opened reads as it was, whatever becomes of it after.
-func (f *Files) openListed(date string, listed []dayFile) (opened []openFile, failed []fileError) {
-	opened, failed = f.openAll(listed)
-	if slices.ContainsFunc(failed, fileError.gone) {
-		closeAll(opened)
-		opened, failed = f.openAll(f.dayFiles(date))
+// openOne opens file, adding why it couldn't be to failed: nil where it isn't
+// there, which is no failure.
+func (f *Files) openOne(file dayFile, failed []fileError) (*openFile, []fileError) {
+	src, err := f.open(file)
+	if f.opened != nil {
+		f.opened(file)
 	}
-	return opened, slices.DeleteFunc(failed, fileError.gone)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, failed
+	case err != nil:
+		return nil, append(failed, fileError{file: file, err: err})
+	}
+	return &openFile{dayFile: file, ReadCloser: src}, failed
 }
 
-// openAll opens each of files: those it opened, in order, and why each other
-// couldn't be.
-func (f *Files) openAll(files []dayFile) (opened []openFile, failed []fileError) {
-	for _, file := range files {
-		src, err := f.open(file)
-		if err != nil {
-			failed = append(failed, fileError{file: file, err: err})
-			continue
-		}
-		opened = append(opened, openFile{dayFile: file, ReadCloser: src})
+// dayOpened returns the files of a day opened, plain and compressed, either
+// nil where it isn't there, in the order its lines came: the compressed
+// file, then the plain one, which holds those added since the day was
+// compressed, as after the clock was set back to it; but the compressed file
+// alone where it ends with the plain file's lines, as plainCompressed says,
+// as when the day was compressed between the files' openings, or a writer
+// stopped once it had written the compressed file, before it removed the
+// plain one. To tell, it reads the two whole, from the files opened, so it
+// tells of the lines they give, and each gives them again as it was read,
+// ending as its read did. A plain file that reads short is read as far as it
+// goes, which tells nothing of what it holds.
+func dayOpened(plain, compressed *openFile) []openFile {
+	switch {
+	case plain == nil && compressed == nil:
+		return nil
+	case compressed == nil:
+		return []openFile{*plain}
+	case plain == nil:
+		return []openFile{*compressed}
 	}
-	return opened, failed
+	plainLines, compressedLines := readWhole(plain), readWhole(compressed)
+	if plainLines.err == nil && (dayHeld{plain: plainLines.lines, compressed: compressedLines.lines}).plainCompressed() {
+		return []openFile{compressedLines.file()}
+	}
+	return []openFile{compressedLines.file(), plainLines.file()}
+}
+
+// wholeFile is one of a day's files, read whole: the lines it gave, and why
+// its read ended short, if it did.
+type wholeFile struct {
+	dayFile
+	lines []byte
+	err   error
+}
+
+// readWhole reads file whole, and closes it.
+func readWhole(file *openFile) wholeFile {
+	lines, err := io.ReadAll(file)
+	_ = file.Close()
+	return wholeFile{dayFile: file.dayFile, lines: lines, err: err}
+}
+
+// file is the file read whole, as one opened that gives its lines again,
+// ending as its read did.
+func (w wholeFile) file() openFile {
+	return openFile{dayFile: w.dayFile, ReadCloser: io.NopCloser(io.MultiReader(bytes.NewReader(w.lines), ended{w.err}))}
+}
+
+// ended is the end of a read: err, or io.EOF where it ended well.
+type ended struct {
+	err error
+}
+
+func (e ended) Read([]byte) (int, error) {
+	return 0, cmp.Or(e.err, io.EOF)
 }
 
 // closeAll closes files.

@@ -237,6 +237,40 @@ func TestAWriterMakesItsRoundAsItStartsAndEveryHourAfterBeforePruning(t *testing
 	})
 }
 
+func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := readingsHistory(t.TempDir())
+		// A day long past keeping, which the first prune removes.
+		old := dateOf(start.Local().AddDate(0, 0, -30))
+		writeDay(t, f, plainFile(old), linesOf("old"))
+		began := time.Now()
+		rounds := 0
+		var prunings []string
+		var held []bool
+		w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
+			Round: func(time.Time) { rounds++ },
+			Pruning: func(now time.Time) {
+				prunings = append(prunings, dateOf(now))
+				held = append(held, holdsDay(f, old))
+			}})
+		stop := running(t, w)
+		tomorrow := DayStart(start.Local(), 1)
+
+		// Rounds every pruneLook into the day after start's, the clocks
+		// changing by an hour on the way, it may be.
+		time.Sleep(tomorrow.Sub(start) + time.Minute + 2*pruneLook)
+		synctest.Wait()
+		stop()
+		if want := []string{dateOf(start), dateOf(tomorrow)}; !slices.Equal(prunings, want) || !slices.Equal(held, []bool{true, false}) {
+			t.Errorf("the writer's Pruning came on %q, the day past keeping there for each = %v; want on %q alone, the first before the prune it went at",
+				prunings, held, want)
+		}
+		if rounds <= len(prunings) {
+			t.Errorf("the writer made %d rounds, want one every %v, more than its prunes", rounds, pruneLook)
+		}
+	})
+}
+
 func TestTheFirstWriteOfANewDayMakesTheRoundBeforeItPrunes(t *testing.T) {
 	clock := &testClock{now: start}
 	f := readingsHistory(t.TempDir())

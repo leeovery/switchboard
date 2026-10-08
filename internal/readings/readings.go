@@ -103,25 +103,18 @@ func Files(dir string, logger *slog.Logger) *dayfile.Files {
 // from pruning and compressing while it reads them.
 func Between(files *dayfile.Files, from, to time.Time) iter.Seq[Reading] {
 	return func(yield func(Reading) bool) {
-		Read(files, dayfile.Dates(from, to), func(r Reading) bool {
-			switch {
-			case !r.At.Before(to):
-				return false
-			case r.At.Before(from):
-				return true
-			}
-			return yield(r)
-		})
+		Read(files, dayfile.Dates(from, to), func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield)
 	}
 }
 
 // Read hands take each reading the files of the local days with the given
-// dates, oldest first, hold, in the order they were read, whatever day's file
-// each is in, as dayfile.Read reads them, until take reports false, and
-// returns how many of their lines were unread: too long to hold, or not a
-// reading that can be taken up, which are passed over.
-func Read(files *dayfile.Files, dates []string, take func(Reading) bool) (unread int) {
-	return dayfile.Read(files, dates, In, readAt, take)
+// dates, oldest first, hold that keep reports true of, in the order they
+// were read, whatever day's file each is in, as dayfile.Read reads them,
+// until take reports false, and returns how many of their lines were unread:
+// too long to hold, or not a reading that can be taken up, which are passed
+// over.
+func Read(files *dayfile.Files, dates []string, keep, take func(Reading) bool) (unread int) {
+	return dayfile.Read(files, dates, In, readAt, keep, take)
 }
 
 // readAt is when r was read.

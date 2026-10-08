@@ -707,6 +707,26 @@ func TestTheHistoryHasTheLedgerSummariseTheDaysThatEndedBeforeItPrunesTheirReadi
 	}
 }
 
+func TestTheHistoryHasTheLedgerSummariseOnlyBeforeItPrunes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		began := time.Now()
+		h := newHistory(config.History{}, func() time.Time { return start.Add(time.Since(began)) })
+		var asked []string
+		h.pruning = func(now time.Time) { asked = append(asked, now.Local().Format(time.DateOnly)) }
+		h.open(t.TempDir())
+		stop := keeping(t, h)
+		y, m, d := start.Local().Date()
+
+		// Rounds every hour into the day after start's.
+		time.Sleep(time.Date(y, m, d+1, 2, 0, 0, 0, time.Local).Sub(start))
+		synctest.Wait()
+		stop()
+		if want := []string{start.Local().Format(time.DateOnly), time.Date(y, m, d+1, 0, 0, 0, 0, time.Local).Format(time.DateOnly)}; !slices.Equal(asked, want) {
+			t.Errorf("the history had the ledger summarise on %q, want on %q alone: as it pruned, as it started and on the day after, not at each of its rounds", asked, want)
+		}
+	})
+}
+
 func TestAHistoryNotYetOpenedTakesNothing(t *testing.T) {
 	dir := t.TempDir()
 	h := newHistory(config.History{}, at(start))

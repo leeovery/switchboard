@@ -159,7 +159,8 @@ func noRequests(date string, lines int) string {
 	return fmt.Sprintf(`{"version":1,"day":"%s","lines":%d}`, date, lines)
 }
 
-// summariesJSON returns each of summaries as JSON.
+// summariesJSON returns each of summaries as JSON, but for the sizes of its
+// day's files a summary is marked with.
 func summariesJSON(t *testing.T, summaries []ledger.Summary) []string {
 	t.Helper()
 	var all []string
@@ -168,7 +169,7 @@ func summariesJSON(t *testing.T, summaries []ledger.Summary) []string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		all = append(all, string(data))
+		all = append(all, unmarked(string(data)))
 	}
 	return all
 }
@@ -271,7 +272,7 @@ func TestDaysAreReadFromTheirSummariesWhileTheyStand(t *testing.T) {
 
 	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(-2, 15, 0)))
 	want := []string{keptAlone, standing, summaryOf(date, 2, 2, ""), summaryOf("2026-10-06", 1, 1, `,"highest":{"5h":0.2}`),
-		summaryOf("2026-10-07", 1, 1, `,"highest":{"5h":0.35}`)}
+		summaryOf("2026-10-07", 1, 1, `,"highest":{"5h":0.35},"read_before":["5h"]`)}
 	if !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: a day's summary as it's held while its lines are no more than it was made from, or pruned, and the others "+
 			"summarised from their lines as they're read", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -313,7 +314,7 @@ func TestDaysOpenNoFileOfADayWhoseLinesHaventChangedSinceItsSummary(t *testing.T
 	state, dir, _ := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
 	writeAt(t, dir, on(1, 10, 0), noReadings)
-	unopenable(t, dir)
+	unopenable(t, dir, "requests-*")
 
 	got := summariesJSON(t, readerAt(state, on(1, 12, 0)).Days(on(0, 0, 0)))
 	if want := []string{summaryOf(date, 2, 2, ""), noRequests("2026-10-06", 0)}; !slices.Equal(got, want) || opened(log) != 0 {
@@ -349,6 +350,44 @@ func TestADayWhoseSummaryCantBeReadAsItsOwnIsSummarisedFromItsLines(t *testing.T
 	}
 }
 
+func TestASummaryDamagedInPlaceIsWarnedOfAsItsReadAndItsDaySummarisedFromItsLines(t *testing.T) {
+	tests := []struct {
+		name string
+		held string
+	}{
+		{name: "cut short", held: `{"version":1,"day":`},
+		{name: "of another day", held: summaryOf("2026-10-04", 9, 9, "")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, _ := stateDirs(t)
+			// The day's lines, compressed, and its summary, marked, then
+			// damaged in place, as a restore or a copy that keeps its time
+			// leaves it, which a look at it and its day's files can't tell.
+			writeFile(t, dir, "requests-"+date+".jsonl.gz", gzipped(t, jsonOf(t, asked("1", on(0, 9, 0)))+"\n"))
+			writeAt(t, dir, on(3, 10, 0), noReadings)
+			summary := summaryFile(dir, date)
+			info, err := os.Stat(summary)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, dir, "day-"+date+".json", []byte(tt.held))
+			if err := os.Chtimes(summary, time.Time{}, info.ModTime()); err != nil {
+				t.Fatal(err)
+			}
+
+			got := summariesJSON(t, readerAt(state, on(3, 11, 0)).Days(on(0, 0, 0))[:1])
+			if want := []string{summaryOf(date, 1, 1, "")}; !slices.Equal(got, want) {
+				t.Errorf("Days() = %q, want the day summarised from its lines %q", got, want)
+			}
+			if !log.Has("level=WARN", `msg="can't read the request ledger's summary of a day; summarising it from its lines"`, "day="+date) {
+				t.Errorf("log reads\n%s\nwant the damaged summary warned of", log)
+			}
+		})
+	}
+}
+
 func TestADayIsSummarisedWithItsReadingsInTheOrderTheyWereRead(t *testing.T) {
 	state, dir, history := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
@@ -367,7 +406,7 @@ func TestADayIsSummarisedWithItsReadingsInTheOrderTheyWereRead(t *testing.T) {
 
 	got := summariesJSON(t, readerAt(state, on(0, 18, 0)).Days(on(0, 0, 0)))
 	limit := `{"window":"7d","at":"` + on(0, 14, 0).UTC().Format(time.RFC3339) + `","resets_at":"` + weekResets.UTC().Format(time.RFC3339) + `"}`
-	if want := []string{summaryOf(date, 1, 1, `,"highest":{"5h":0.8,"7d":1},"limits":[`+limit+`]`)}; !slices.Equal(got, want) {
+	if want := []string{summaryOf(date, 1, 1, `,"highest":{"5h":0.8,"7d":1},"limits":[`+limit+`],"read_before":["5h"]`)}; !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: the use work's session began the day at, as its last reading before it read, and its week's limit as first read",
 			strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}

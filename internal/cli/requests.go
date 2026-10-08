@@ -6,7 +6,6 @@ import (
 	"iter"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -110,22 +109,45 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 }
 
 // sessionLines returns those of lines of the session given names among
-// theirs, as sessionNamed says. It reads lines once, holding those of each
-// session whose id given starts until it's known which session given names.
+// theirs, as sessionNamed says. It reads lines once, holding the lines of
+// one session at most, as sessionHold does.
 func sessionLines(lines iter.Seq[ledger.Held], given string) (iter.Seq[ledger.Held], error) {
-	var held []ledger.Held
+	s := newSessionHold(given)
 	for h := range lines {
-		if strings.HasPrefix(h.Session, given) {
-			held = append(held, h)
-		}
+		s.add(h)
 	}
-	id, err := sessionNamed(given, held,
-		func(h ledger.Held) string { return h.Session },
-		func(h ledger.Held) string { return status.Clean(h.Session) })
-	if err != nil {
-		return nil, err
+	if _, ok := s.named(); !ok {
+		return nil, several(given, s.ids, status.Clean)
 	}
-	return slices.Values(slices.DeleteFunc(held, func(h ledger.Held) bool { return h.Session != id })), nil
+	return slices.Values(s.held), nil
+}
+
+// sessionHold holds, as lines are read, the lines of the session given
+// names among theirs so far, as naming says: those of one session at most,
+// those of the session given names once every line is read.
+type sessionHold struct {
+	*naming
+	holding string
+	held    []ledger.Held
+}
+
+// newSessionHold returns a hold of the lines of the session given names,
+// before any line is read.
+func newSessionHold(given string) *sessionHold {
+	return &sessionHold{naming: newNaming(given)}
+}
+
+// add takes the line h in, holding it where it's of the session named so
+// far, and letting go of those held where that's no longer the session
+// they're of.
+func (s *sessionHold) add(h ledger.Held) {
+	s.note(h.Session)
+	if id, _ := s.named(); id != s.holding {
+		s.holding, s.held = id, nil
+	}
+	if h.Session == s.holding {
+		s.held = append(s.held, h)
+	}
 }
 
 // accountLines returns those of lines of the account with the given id, or

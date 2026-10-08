@@ -44,3 +44,8 @@ only when something rare happens.
   and decoded, to tell whether it ends with them already, then compresses them as a gzip member held
   whole: about 50 MB at peak, for the request ledger, on a day of some 28,000 requests. A fix:
   stream the plain file into the gzip member, checking the compressed file's tail as it goes.
+
+## Found in the request ledger's third review, 7 October 2026
+
+- **A crash mid-compress, then a line appended,** has the next `compress` add the plain lines again.
+- **`requests` decodes the day before its span** for lines filed under it, then drops them: CPU only.

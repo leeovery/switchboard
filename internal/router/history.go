@@ -33,11 +33,11 @@ type history struct {
 	now func() time.Time
 	// keep is how long a day's file is kept, from the end of its day.
 	keep time.Duration
-	// round, where it's given, is called on each of the writer's rounds,
-	// before the history's files are pruned: the request ledger summarises
-	// on it the days that have ended, while the readings their summaries
-	// need are still there.
-	round func(now time.Time)
+	// pruning, where it's given, is called just before each prune of the
+	// history's files, once a day: the request ledger summarises on it the
+	// days that have ended, while the readings their summaries need are
+	// still there.
+	pruning func(now time.Time)
 	// files are the history's files, and writer what writes the readings
 	// noted to them: both are made as the history is opened, once the router
 	// has its state directory, before run starts.
@@ -58,7 +58,7 @@ func newHistory(settings config.History, now func() time.Time) *history {
 // open has the history kept in dir from now on.
 func (h *history) open(dir string) {
 	h.files = readings.Files(dir, logger)
-	h.writer = dayfile.NewWriter(h.files, h.lines, dayfile.WriterOptions{Queue: historyQueue, Keep: h.keep, Now: h.now, Items: "readings", Round: h.round})
+	h.writer = dayfile.NewWriter(h.files, h.lines, dayfile.WriterOptions{Queue: historyQueue, Keep: h.keep, Now: h.now, Items: "readings", Pruning: h.pruning})
 	h.opened.Store(true)
 }
 
@@ -108,9 +108,7 @@ func (h *history) lines(taken []readings.Reading) dayfile.Lines {
 // read as a reading that can be is left out.
 func (h *history) readBack(now time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
-		unread := readings.Read(h.files, h.files.Newest(now, 2), func(r readings.Reading) bool {
-			return r.At.After(now) || yield(r)
-		})
+		unread := readings.Read(h.files, h.files.Newest(now, 2), func(r readings.Reading) bool { return !r.At.After(now) }, yield)
 		if unread > 0 {
 			logger.Warn("readings history lines unread", "lines", unread)
 		}
@@ -138,11 +136,10 @@ func (h *history) windowReadings(key string, ids []string, from, to time.Time) m
 		return nil
 	}
 	read := make(map[string][]readings.Reading)
-	readings.Read(h.files, dayfile.Dates(from, to), func(r readings.Reading) bool {
-		if r.Key == key && slices.Contains(ids, r.Account) {
+	readings.Read(h.files, dayfile.Dates(from, to), func(r readings.Reading) bool { return r.Key == key && slices.Contains(ids, r.Account) },
+		func(r readings.Reading) bool {
 			read[r.Account] = append(read[r.Account], r)
-		}
-		return true
-	})
+			return true
+		})
 	return read
 }

@@ -292,11 +292,9 @@ func ParseDays(given string) (uint64, bool) {
 	if count == nil {
 		return 0, false
 	}
-	days, err := strconv.ParseUint(count[1], 10, 64)
-	if err != nil {
-		// Digits alone fail only past what a uint64 holds.
-		return math.MaxUint64, true
-	}
+	// Digits alone fail only past what a uint64 holds, which ParseUint gives
+	// as the most it holds.
+	days, _ := strconv.ParseUint(count[1], 10, 64)
 	return days, true
 }
 

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -53,17 +54,17 @@ type timeline struct {
 }
 
 // timelineOf is the span's timeline at now across columns cells: the day,
-// from the hour before now, its start on the ten minutes, so that where a
-// column is dayStep, the hours fall where columns start; or the week, from a
-// day before now.
+// from the hour before now, its start on the ten minutes since its day's
+// start, as dayfile.DayStart gives it, so that where a column is dayStep, the
+// hours fall where columns start; or the week, from a day before now.
 func timelineOf(s Span, now time.Time, columns int) timeline {
 	across := time.Duration(max(columns, 1))
 	if s == Week {
 		return timeline{start: now.Add(-weekBefore), step: weekSpan / across, columns: columns, now: now}
 	}
 	from := now.Add(-dayBefore)
-	midnight := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, from.Location())
-	start := midnight.Add(from.Sub(midnight).Truncate(dayStep))
+	dayStart := dayfile.DayStart(from, 0)
+	start := dayStart.Add(from.Sub(dayStart).Truncate(dayStep))
 	return timeline{start: start, step: dayColumns * dayStep / across, columns: columns, now: now}
 }
 

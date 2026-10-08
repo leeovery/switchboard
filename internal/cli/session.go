@@ -40,27 +40,65 @@ func (a *app) findSession(ctx context.Context, client *router.Client, given stri
 // it starts, in the order they first come, a line each as line gives it,
 // when it starts several.
 func sessionNamed[S any](given string, sessions []S, id, line func(S) string) (string, error) {
+	n := newNaming(given)
 	var matches []S
-	listed := make(map[string]bool)
 	for _, s := range sessions {
-		switch sid := id(s); {
-		case sid == given:
-			return given, nil
-		case strings.HasPrefix(sid, given) && !listed[sid]:
-			listed[sid] = true
+		if n.note(id(s)) {
 			matches = append(matches, s)
 		}
 	}
-	switch len(matches) {
-	case 0:
-		return given, nil
-	case 1:
-		return id(matches[0]), nil
+	if named, ok := n.named(); ok {
+		return named, nil
 	}
+	return "", several(given, matches, line)
+}
+
+// naming is what's known, as sessions come, of the session given names among
+// them: the ids of those whose ids it starts, each once, in the order they
+// came.
+type naming struct {
+	given string
+	seen  map[string]bool
+	ids   []string
+}
+
+// newNaming returns what's known of the session given names before any
+// session comes.
+func newNaming(given string) *naming {
+	return &naming{given: given, seen: make(map[string]bool)}
+}
+
+// note notes the session with the given id, reporting whether given starts
+// it, and it hadn't come before.
+func (n *naming) note(id string) bool {
+	if n.seen[id] || !strings.HasPrefix(id, n.given) {
+		return false
+	}
+	n.seen[id] = true
+	n.ids = append(n.ids, id)
+	return true
+}
+
+// named returns the id of the session given names among those noted: given,
+// where it's one of their ids whole, or starts none of them; else the one
+// alone it starts; and false where it starts several.
+func (n *naming) named() (string, bool) {
+	switch {
+	case n.seen[n.given] || len(n.ids) == 0:
+		return n.given, true
+	case len(n.ids) == 1:
+		return n.ids[0], true
+	}
+	return "", false
+}
+
+// several is the error of given starting the ids of several sessions, listing
+// them, in the order they came, a line each as line gives it.
+func several[S any](given string, sessions []S, line func(S) string) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "session %s could be any of these, so give more of its id:", status.Clean(redact.Text(given)))
-	for _, s := range matches {
+	for _, s := range sessions {
 		fmt.Fprintf(&b, "\n  %s", line(s))
 	}
-	return "", errors.New(b.String())
+	return errors.New(b.String())
 }

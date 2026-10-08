@@ -221,6 +221,7 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 `},
 		{name: "from days ago", args: []string{"--since", "2d"}, want: requestsFromThe6th},
 		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: everyRequest},
+		{name: "from more days ago than a duration holds", args: []string{"--since", "99999999999999999999d"}, want: everyRequest},
 		{name: "a session's, by as much of its id as is unique", args: []string{"--session", "5b0e7"}, want: `Wed 7 Oct 2026, so far
   09:01:00  5b0e7c1a  claude-opus-5-5  work  200  185k in, 845 out  14.2s
   12:00:00  5b0e7c1a  claude-opus-5-5  work  200                    140ms
@@ -323,10 +324,6 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 		{since: "0h", want: `Error: --since "0h" isn't a day`},
 		{since: "-2d", want: `Error: --since "-2d" isn't a day`},
 		{since: "+2d", want: `Error: --since "+2d" isn't a day`},
-		{since: "106752d", want: "Error: --since 106752d is more than 106751d: give a day, as 2026-10-01, to start further back"},
-		{since: "213504d", want: "Error: --since 213504d is more than 106751d"},
-		{since: "999999d", want: "Error: --since 999999d is more than 106751d"},
-		{since: "99999999999999999999d", want: "Error: --since 99999999999999999999d is more than 106751d"},
 		{since: "99999999999999999999.5d", want: `Error: --since "99999999999999999999.5d" isn't a day`},
 		{since: "23:00", want: "Error: --since 23:00 is still to come"},
 		{since: "2026-10-08", want: "Error: --since 2026-10-08 is still to come"},
@@ -339,6 +336,33 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 				t.Errorf("switchboard %s --since %q = %+v, want exit status 1, the usage, and %q", command, tt.since, got, tt.want)
 			}
 		}
+	}
+}
+
+func TestSinceATimeTodayIsWhenTheClocksFirstReadItThatDay(t *testing.T) {
+	tests := []struct {
+		name, zone string
+		// now is the time by the clock, in the zone, and want when --since
+		// 00:00 starts, in UTC.
+		now  [3]int
+		want time.Time
+	}{
+		{name: "as the clocks went forward over midnight", zone: "America/Santiago", now: [3]int{2026, 9, 6}, want: time.Date(2026, 9, 6, 4, 0, 0, 0, time.UTC)},
+		{name: "at the first of a midnight that came twice", zone: "Asia/Gaza", now: [3]int{2020, 10, 24}, want: time.Date(2020, 10, 23, 21, 0, 0, 0, time.UTC)},
+		{name: "at midnight", zone: "America/Santiago", now: [3]int{2026, 9, 7}, want: time.Date(2026, 9, 7, 3, 0, 0, 0, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loc, err := time.LoadLocation(tt.zone)
+			if err != nil {
+				t.Fatalf("load %s: %v", tt.zone, err)
+			}
+			now := time.Date(tt.now[0], time.Month(tt.now[1]), tt.now[2], 10, 0, 0, 0, loc)
+
+			if got, err := cli.Since("00:00", now); err != nil || !got.Equal(tt.want) {
+				t.Errorf("--since 00:00 at %v starts at %v (%v), want %v, the day's first instant, never the day before", now, got.In(loc), err, tt.want.In(loc))
+			}
+		})
 	}
 }
 
@@ -413,9 +437,9 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`{"version":1,"day":"2026-10-07","lines":6,"accounts":[` +
 		`{"sessions":1,"moved_on":0,"moved_off":0,"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1,` +
 		`"worth":0}]},` +
-		`{"account":"side","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,` +
+		`{"account":"side","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"read_before":["5h"],"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,` +
 		`"checks":0,"counts":0,"sessions":1,"worth":0,"unpriced":["no_usage"]}]},` +
-		`{"account":"work","sessions":2,"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},"models":[` +
+		`{"account":"work","sessions":2,"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},"read_before":["5h"],"models":[` +
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,"usage":{"input_tokens":8,"output_tokens":1},` +
 		`"worth":0.000013},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +
@@ -511,6 +535,15 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 	}
 }
 
+func TestHistoryHelpSaysWhichDaysItsJSONGives(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "history", "--help")
+	help := strings.Join(strings.Fields(got.stdout), " ")
+	want := "With --json, print the summaries of the days asked for, as the ledger holds them, from the first it holds, so the last is today's"
+	if got.code != 0 || !strings.Contains(help, want) || strings.Contains(help, "every day since the ledger began") {
+		t.Errorf("switchboard history --help = %+v, want help saying %q: the last 30 days, or --since's, not every day the ledger holds", got, want)
+	}
+}
+
 func TestHistoryJSONGivesNoDayBeforeTheLedgerBegan(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	tests := []struct {
@@ -521,6 +554,7 @@ func TestHistoryJSONGivesNoDayBeforeTheLedgerBegan(t *testing.T) {
 		{name: "the last 30 days, from the first the ledger holds", want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
 		{name: "from a day before the first it holds", args: []string{"--since", "2026-09-01"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
 		{name: "from the most days ago", args: []string{"--since", "106751d"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
+		{name: "from more days ago than a duration holds", args: []string{"--since", "106752d"}, want: []string{"2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"}},
 		{name: "from a day after its first", args: []string{"--since", "2026-10-06"}, want: []string{"2026-10-06", "2026-10-07"}},
 	}
 	for _, tt := range tests {

@@ -24,6 +24,11 @@ func untimed(string) time.Time {
 	return time.Time{}
 }
 
+// every keeps every line read.
+func every[T any](T) bool {
+	return true
+}
+
 // timed is a line of the tests that gives its time, as "<RFC 3339 time>
 // <text>".
 type timed struct {
@@ -48,7 +53,7 @@ func asTimed(line []byte) (timed, bool) {
 // with the given dates, as Read gives them.
 func readTimed(f *Files, dates ...string) []string {
 	var texts []string
-	Read(f, dates, asTimed, func(l timed) time.Time { return l.at }, func(l timed) bool {
+	Read(f, dates, asTimed, func(l timed) time.Time { return l.at }, every[timed], func(l timed) bool {
 		texts = append(texts, l.text)
 		return true
 	})
@@ -60,7 +65,7 @@ func readTimed(f *Files, dates ...string) []string {
 // gives them, and how many lines weren't.
 func readJSON(f *Files, dates ...string) (lines []string, unread int) {
 	asJSON := func(line []byte) (string, bool) { return string(line), json.Valid(line) }
-	unread = Read(f, dates, asJSON, untimed, func(line string) bool {
+	unread = Read(f, dates, asJSON, untimed, every[string], func(line string) bool {
 		lines = append(lines, line)
 		return true
 	})
@@ -71,7 +76,7 @@ func readJSON(f *Files, dates ...string) (lines []string, unread int) {
 // as Read gives them.
 func readAll(f *Files, dates ...string) []string {
 	var lines []string
-	Read(f, dates, asText, untimed, func(line string) bool {
+	Read(f, dates, asText, untimed, every[string], func(line string) bool {
 		lines = append(lines, line)
 		return true
 	})
@@ -157,7 +162,7 @@ func TestReadHandsALineOnOnceNoLaterDaysFileCanHoldOneBeforeIt(t *testing.T) {
 	}
 
 	var got []string
-	Read(f, []string{"2026-09-27", "2026-09-28", "2026-09-29"}, asTimed, func(l timed) time.Time { return l.at }, func(l timed) bool {
+	Read(f, []string{"2026-09-27", "2026-09-28", "2026-09-29"}, asTimed, func(l timed) time.Time { return l.at }, every[timed], func(l timed) bool {
 		got = append(got, l.text)
 		return false
 	})
@@ -166,16 +171,49 @@ func TestReadHandsALineOnOnceNoLaterDaysFileCanHoldOneBeforeIt(t *testing.T) {
 	}
 }
 
-func TestADayCompressedOnceItsFilesWereListedIsListedAgain(t *testing.T) {
+func TestADayCompressedAsItsFilesAreOpenedIsReadOnceWhole(t *testing.T) {
 	const date = "2026-09-25"
+	// compressing has another process, a router, compress the day: wholly,
+	// or only so far as writing its compressed file, as one stopped before it
+	// removed the plain file.
+	compressing := map[string]func(t *testing.T, f *Files){
+		"compressed": func(t *testing.T, f *Files) {
+			if err := requestLedger(f.Dir).compress(date); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"written": func(t *testing.T, f *Files) {
+			held, err := f.readDay(date)
+			if err != nil {
+				t.Fatal(err)
+			}
+			member, err := gzipped(held.adding())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(f.path(compressedFile(date)), append(held.written, member...), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
 	tests := []struct {
 		name string
 		// compressed are the lines the day's compressed file holds before it's
 		// compressed again, if any.
 		compressed []string
+		// before and between are how the day is compressed before its files
+		// are opened, and between the plain file's opening and the compressed
+		// file's, if it is.
+		before, between string
 	}{
-		{name: "its plain file alone"},
-		{name: "its plain file after its compressed one, as when the clock was set back to the day", compressed: []string{"zero"}},
+		{name: "compressed between the openings", between: "compressed"},
+		{name: "its compressed file written between the openings", between: "written"},
+		{name: "compressed before the openings", before: "compressed"},
+		{name: "its compressed file written before the openings", before: "written"},
+		{name: "compressed between the openings, as it was once before, and the clock set back to it", compressed: []string{"zero"}, between: "compressed"},
+		{name: "its compressed file written between the openings, as it was once before, and the clock set back to it", compressed: []string{"zero"},
+			between: "written"},
+		{name: "not compressed, as it was once before, and the clock set back to it", compressed: []string{"zero"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -184,23 +222,77 @@ func TestADayCompressedOnceItsFilesWereListedIsListedAgain(t *testing.T) {
 				writeDay(t, f, compressedFile(date), linesOf(tt.compressed...))
 			}
 			writeDay(t, f, plainFile(date), linesOf("one", "two"))
-			listed := f.dayFiles(date)
-			// Another process, a router, compresses the day once it was listed,
-			// before its files are opened.
-			if err := requestLedger(f.Dir).compress(date); err != nil {
-				t.Fatal(err)
+			if compress := compressing[tt.before]; compress != nil {
+				compress(t, f)
 			}
 
-			opened, failed := f.openListed(date, listed)
+			// The day's files opened as openDay opens them, the plain file
+			// first.
+			plain, failed := f.openOne(plainFile(date), nil)
+			if compress := compressing[tt.between]; compress != nil {
+				compress(t, f)
+			}
+			compressed, failed := f.openOne(compressedFile(date), failed)
 			var got []string
-			readOpened(f, opened, asText, func(line string) bool {
+			readOpened(f, dayOpened(plain, compressed), asText, func(line string) bool {
 				got = append(got, line)
 				return true
 			})
 			if want := append(slices.Clone(tt.compressed), "one", "two"); !slices.Equal(got, want) || len(failed) > 0 {
-				t.Errorf("read %q, failing %+v, want the day's lines %q, each once, from its files as listed again", got, failed, want)
+				t.Errorf("read %q, failing %+v, want the day's lines %q, each once", got, failed, want)
 			}
 		})
+	}
+}
+
+func TestADayCompressedBetweenItsFilesOpeningsIsReadWhole(t *testing.T) {
+	const date = "2026-09-25"
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, compressedFile(date), linesOf("zero"))
+	writeDay(t, f, plainFile(date), linesOf("one", "two"))
+	// Another process, a router, compresses the day once the first of its
+	// files is opened, before the second is.
+	compressed := false
+	f.opened = func(dayFile) {
+		if !compressed {
+			compressed = true
+			if err := requestLedger(f.Dir).compress(date); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	if got, want := readAll(f, date), []string{"zero", "one", "two"}; !slices.Equal(got, want) {
+		t.Errorf("read %q, want the day's lines %q, each once", got, want)
+	}
+}
+
+func TestReadNeverHoldsALineKeepPassesOver(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	at := func(day, hour int) time.Time { return time.Date(2026, 9, day, hour, 0, 0, 0, time.Local) }
+	// The 27th's file, of the day before the one asked for, holds a line of
+	// the 28th, as after a move west, and the 28th's one of the 29th.
+	writeDay(t, f, plainFile("2026-09-27"), linesOf(timedLine(at(27, 9), "the 27th's"), timedLine(at(28, 0), "the 28th's, filed under the 27th")))
+	writeDay(t, f, plainFile("2026-09-28"), linesOf(timedLine(at(28, 9), "the 28th's"), timedLine(at(29, 1), "the 29th's")))
+	from, to := at(28, 0), at(29, 0)
+
+	var held, got []string
+	ordered := func(l timed) time.Time {
+		if !slices.Contains(held, l.text) {
+			held = append(held, l.text)
+		}
+		return l.at
+	}
+	within := func(l timed) bool { return !l.at.Before(from) && l.at.Before(to) }
+	Read(f, []string{"2026-09-27", "2026-09-28", "2026-09-29"}, asTimed, ordered, within, func(l timed) bool {
+		got = append(got, l.text)
+		return true
+	})
+	if want := []string{"the 28th's, filed under the 27th", "the 28th's"}; !slices.Equal(got, want) {
+		t.Errorf("read %q, want %q: the lines of the 28th alone, whichever day's file each is in", got, want)
+	}
+	if slices.Contains(held, "the 27th's") || slices.Contains(held, "the 29th's") {
+		t.Errorf("the lines held to be ordered were %q, want none keep passes over", held)
 	}
 }
 
@@ -212,7 +304,7 @@ func TestReadPassesOverWhatDecodeMakesNothingOf(t *testing.T) {
 	}
 
 	var got []string
-	unread := Read(f, []string{"2026-09-28"}, answers, untimed, func(line string) bool {
+	unread := Read(f, []string{"2026-09-28"}, answers, untimed, every[string], func(line string) bool {
 		got = append(got, line)
 		return true
 	})
@@ -227,7 +319,7 @@ func TestReadStopsOnceTakeHasEnough(t *testing.T) {
 	writeDay(t, f, plainFile("2026-09-28"), linesOf("four"))
 
 	var got []string
-	Read(f, []string{"2026-09-27", "2026-09-28"}, asText, untimed, func(line string) bool {
+	Read(f, []string{"2026-09-27", "2026-09-28"}, asText, untimed, every[string], func(line string) bool {
 		got = append(got, line)
 		return line != "two"
 	})
@@ -243,7 +335,7 @@ func TestALineLongerThanLineMaxIsSkippedWithoutBeingHeld(t *testing.T) {
 	writeDay(t, f, plainFile("2026-09-28"), linesOf("fifteen bytes..", "sixteen bytes...", "short", strings.Repeat("x", 100)))
 
 	var got []string
-	unread := Read(f, []string{"2026-09-28"}, asText, untimed, func(line string) bool {
+	unread := Read(f, []string{"2026-09-28"}, asText, untimed, every[string], func(line string) bool {
 		got = append(got, line)
 		return true
 	})
@@ -304,47 +396,49 @@ func TestEndedTakesTheDaysThatEndedAsLongAgoAsAsked(t *testing.T) {
 	}
 }
 
-func TestADaysLinesLastChangedAsItsPlainFileWasModifiedElseItsCompressedFile(t *testing.T) {
+func TestADaysStatGivesItsFilesSizesAndWhenItsCompressedFileWasModified(t *testing.T) {
 	const date = "2026-09-25"
-	// The compressed file was written after the plain file was last appended
-	// to, as when the clock was set back to the day once it was compressed.
-	plainAt, compressedAt := start.Add(-time.Hour), start
+	plain, compressed := linesOf("one", "two"), gzipOf(t, linesOf("zero"))
 	tests := []struct {
 		name  string
 		files []dayFile
-		want  time.Time
+		want  DayStat
 	}{
-		{name: "its plain file's, of one alone", files: []dayFile{plainFile(date)}, want: plainAt},
-		{name: "its compressed file's, of one alone", files: []dayFile{compressedFile(date)}, want: compressedAt},
-		{name: "its plain file's, though its compressed one is later", files: []dayFile{plainFile(date), compressedFile(date)}, want: plainAt},
+		{name: "of a plain file alone", files: []dayFile{plainFile(date)}, want: DayStat{PlainSize: int64(len(plain))}},
+		{name: "of a compressed file alone", files: []dayFile{compressedFile(date)}, want: DayStat{CompressedSize: int64(len(compressed)), CompressedModified: start}},
+		{name: "of both", files: []dayFile{plainFile(date), compressedFile(date)},
+			want: DayStat{PlainSize: int64(len(plain)), CompressedSize: int64(len(compressed)), CompressedModified: start}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := readingsHistory(t.TempDir())
 			for _, file := range tt.files {
-				writeDay(t, f, file, linesOf("a"))
-				at := plainAt
+				data := []byte(plain)
 				if file.compressed {
-					at = compressedAt
+					data = compressed
 				}
-				if err := os.Chtimes(f.path(file), time.Time{}, at); err != nil {
+				if err := os.WriteFile(f.path(file), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chtimes(f.path(file), time.Time{}, start); err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			if got, err := f.Modified(date); err != nil || !got.Equal(tt.want) {
-				t.Errorf("Modified() = %v, %v; want %v", got, err, tt.want)
+			if got, err := f.Stat(date); err != nil || got.PlainSize != tt.want.PlainSize || got.CompressedSize != tt.want.CompressedSize ||
+				!got.CompressedModified.Equal(tt.want.CompressedModified) {
+				t.Errorf("Stat() = %+v, %v; want %+v", got, err, tt.want)
 			}
 		})
 	}
 }
 
-func TestADayWithNoFilesHasNoTimeItsLinesLastChanged(t *testing.T) {
+func TestADayWithNoFilesHasNoStat(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	writeDay(t, f, plainFile("2026-09-26"), linesOf("a"))
 
-	if got, err := f.Modified("2026-09-25"); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("Modified() = %v, %v; want an error matching fs.ErrNotExist", got, err)
+	if got, err := f.Stat("2026-09-25"); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Stat() = %+v, %v; want an error matching fs.ErrNotExist", got, err)
 	}
 }
 
@@ -449,6 +543,24 @@ func TestADamagedCompressedFileGivesTheLinesBeforeTheDamage(t *testing.T) {
 				t.Errorf("log reads\n%s\nwant the damage noted, a line with %q", log, tt.log)
 			}
 		})
+	}
+}
+
+func TestAPlainFileThatReadsShortBesideACompressedOneIsWarnedOfAndReadAsFarAsItGoes(t *testing.T) {
+	log := logstest.Capture(t)
+	const date = "2026-09-25"
+	f := requestLedger(t.TempDir())
+	writeDay(t, f, compressedFile(date), linesOf("zero"))
+	// The plain file opens, but fails as it's read, as a directory does.
+	if err := os.Mkdir(f.path(plainFile(date)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := readAll(f, date); !slices.Equal(got, []string{"zero"}) {
+		t.Errorf("read %q, want the compressed file's line", got)
+	}
+	if want := []string{"level=WARN", `msg="request ledger read short"`, "file=" + plainFile(date).name(f.Prefix)}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant the plain file that read short warned of, a line with %q", log, want)
 	}
 }
 

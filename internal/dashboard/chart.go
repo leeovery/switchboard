@@ -1,12 +1,14 @@
 package dashboard
 
 import (
+	"iter"
 	"math"
 	"slices"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -407,18 +409,19 @@ type midnight struct {
 }
 
 // midnights are the midnights after start and before end, in now's time
-// zone, each in the column column puts it in, of those before width, its
-// name showing where it's dayCells clear of the last shown, and what shows
-// it, cells wide from its column, fits within width.
+// zone, each the start of its day, as dayStarts gives it, in the column
+// column puts it in, of those before width, its name showing where it's
+// dayCells clear of the last shown, and what shows it, cells wide from its
+// column, fits within width.
 func midnights(start, end, now time.Time, column func(time.Time) int, width, cells int) []midnight {
 	loc := now.Location()
-	first, today := start.In(loc), now.In(loc).Format(time.DateOnly)
+	today := now.In(loc).Format(time.DateOnly)
 	var all []midnight
 	last := -dayCells
-	for at := time.Date(first.Year(), first.Month(), first.Day()+1, 0, 0, 0, 0, loc); at.Before(end); at = at.AddDate(0, 0, 1) {
+	for at := range dayStarts(start.In(loc), 1) {
 		col := column(at)
 		switch {
-		case col >= width:
+		case !at.Before(end) || col >= width:
 			return all
 		case col < 0:
 			continue
@@ -430,6 +433,16 @@ func midnights(start, end, now time.Time, column func(time.Time) int, width, cel
 		all = append(all, m)
 	}
 	return all
+}
+
+// dayStarts are the starts of the days in t's time zone, as
+// dayfile.DayStart gives them, from the one days after the day t falls on,
+// one after another, for as long as they're asked for.
+func dayStarts(t time.Time, days int) iter.Seq[time.Time] {
+	return func(yield func(time.Time) bool) {
+		for at := dayfile.DayStart(t, days); yield(at); at = dayfile.DayStart(at, 1) {
+		}
+	}
 }
 
 // dots is braille drawn over a chart rows tall: each cell's dots, two

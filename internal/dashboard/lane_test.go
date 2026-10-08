@@ -61,6 +61,20 @@ func TestTheTimelineOfEachSpan(t *testing.T) {
 	}
 }
 
+func TestTheDaysTimelineStartsOnTheTenMinutesBeforeAnHourBeforeNowWhereMidnightCameTwice(t *testing.T) {
+	gaza, err := time.LoadLocation("Asia/Gaza")
+	if err != nil {
+		t.Fatalf("load Asia/Gaza: %v", err)
+	}
+	// Gaza's clocks went back from 01:00 to 00:00 on 24 October 2020: now
+	// is 00:25 the second time, so the hour before it is 00:25 the first.
+	now := time.Date(2020, 10, 23, 22, 25, 0, 0, time.UTC).In(gaza)
+
+	if got, want := timelineOf(Day, now, 136).start, time.Date(2020, 10, 23, 21, 20, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("the day's timeline starts at %v, want %v: the hour before now, taken back to its ten-minute mark", got, want.In(gaza))
+	}
+}
+
 func TestATimelinesColumnsStandForTheirMiddlesButNowsForNow(t *testing.T) {
 	tl := timelineOf(Day, now, 136)
 	for _, tt := range []struct {

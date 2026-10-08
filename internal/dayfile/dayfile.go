@@ -10,7 +10,7 @@
 // can't; a Writer writes to them on a goroutine of its own, so noting what's
 // to be written never waits, and makes a round of them every hour, and before
 // each prune, which what else is kept of the days, as the request ledger's
-// summaries, can be kept on.
+// summaries, can be kept on, on every round, or just before each prune.
 package dayfile
 
 import (
@@ -71,6 +71,10 @@ type Files struct {
 	// warned holds the files a read has warned of, as files that can't be
 	// read or read short, so each is warned of once until it reads again.
 	warned filesWarned
+	// opened, where it's set, is called as each of a day's files is opened
+	// to be read, before the next is: another process may compress the day
+	// between the two, as tests do there.
+	opened func(dayFile)
 }
 
 // Lines are lines to append to the files, by the date of the local day each
@@ -112,18 +116,51 @@ func dayIn(date string, loc *time.Location) (start, end time.Time, ok bool) {
 
 // DayStart returns when the day days after the one t falls on starts, or
 // days before it for days less than none, in t's time zone: at its first
-// instant, its midnight, unless the clocks went forward over that, as they do
-// at midnight in some zones as summer time starts, when it starts as they
-// went forward.
+// instant, when the clocks first read its midnight, as firstRead says, or
+// went forward over it, as they do at midnight in some zones as summer time
+// starts.
 func DayStart(t time.Time, days int) time.Time {
 	y, m, d := noon(t).AddDate(0, 0, days).Date()
-	start := time.Date(y, m, d, 0, 0, 0, 0, t.Location())
-	if start.Day() != d {
-		// time.Date puts a midnight the clocks went forward over in the hour
-		// before it, the day before's: the next zone begins with the day.
-		_, start = start.ZoneBounds()
+	return firstRead(y, m, d, 0, 0, t.Location())
+}
+
+// TimeOfDay returns when, on the day t falls on, in t's time zone, the clocks
+// first read hour:minute, as firstRead says, or went forward over it.
+func TimeOfDay(t time.Time, hour, minute int) time.Time {
+	y, m, d := t.Date()
+	return firstRead(y, m, d, hour, minute, t.Location())
+}
+
+// firstRead returns the instant the clocks in loc first read the given date
+// at hour:minute: the first of two, where they went back over it, so it came
+// twice; and where they went forward over it, the instant they did.
+func firstRead(y int, m time.Month, d, hour, minute int, loc *time.Location) time.Time {
+	asked := time.Date(y, m, d, hour, minute, 0, 0, time.UTC)
+	t := time.Date(y, m, d, hour, minute, 0, 0, loc)
+	began, ended := t.ZoneBounds()
+	switch read := reading(t); {
+	case read.Before(asked):
+		// time.Date puts a time the clocks went forward over in the zone
+		// before, west of UTC, which ended as they did.
+		return ended
+	case read.After(asked):
+		// East of UTC, it puts it in the zone after, which began as they did.
+		return began
 	}
-	return start
+	// time.Date picks the second of two such times, east of UTC: where the
+	// zone before had read it as it ended, it read it first.
+	if before := began.Add(-time.Nanosecond); !reading(before).Before(asked) {
+		_, was := before.Zone()
+		return asked.Add(-time.Duration(was) * time.Second).In(loc)
+	}
+	return t
+}
+
+// reading is what the clocks read at t, in its time zone, as a time in UTC,
+// where every date and time of day comes once.
+func reading(t time.Time) time.Time {
+	y, m, d := t.Date()
+	return time.Date(y, m, d, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
 }
 
 // endOf returns when the local day that starts at start ends.

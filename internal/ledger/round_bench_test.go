@@ -31,8 +31,8 @@ func BenchmarkARoundOverAYearOfHeavyDays(b *testing.B) {
 		if err := os.WriteFile(compressed, day, 0o600); err != nil {
 			b.Fatal(err)
 		}
-		summary := filepath.Join(dir, "day-"+date+".json")
-		if err := os.WriteFile(summary, fmt.Appendf(nil, `{"version":1,"day":"%s","lines":%d}`+"\n", date, lines), 0o600); err != nil {
+		summary := summaryFile(dir, date)
+		if err := os.WriteFile(summary, []byte(noRequests(date, lines)+"\n"), 0o600); err != nil {
 			b.Fatal(err)
 		}
 		info, err := os.Stat(compressed)

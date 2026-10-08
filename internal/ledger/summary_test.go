@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -84,7 +85,7 @@ func summarised(t *testing.T, readings ledger.Readings, lines ...ledger.Line) le
 // it's written.
 func summaryJSON(t *testing.T, readings ledger.Readings, lines ...ledger.Line) []byte {
 	t.Helper()
-	s, err := ledger.Summarise(date, slices.Values(lines), readings)
+	s, err := ledger.Summarise(date, slices.Values(lines), readings, nil)
 	if err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}
@@ -356,7 +357,7 @@ func TestASummaryAsksForTheReadingsOfItsDayAndTheWeekBefore(t *testing.T) {
 		return noReadings(f, t)
 	}
 
-	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), history); err != nil {
+	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), history, nil); err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}
 	// A week, as long as the longest window runs, before the day's start.
@@ -408,7 +409,7 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 }
 
 func TestADateThatIsntOneIsntSummarised(t *testing.T) {
-	if _, err := ledger.Summarise("2026-10-32", slices.Values([]ledger.Line(nil)), noReadings); err == nil {
+	if _, err := ledger.Summarise("2026-10-32", slices.Values([]ledger.Line(nil)), noReadings, nil); err == nil {
 		t.Error("Summarise() of 2026-10-32 succeeded, want it to fail: it isn't a date")
 	}
 }
@@ -468,7 +469,8 @@ func summaryFile(dir, date string) string {
 }
 
 // heldSummary returns the summary the ledger in dir holds of the local day
-// with the given date, as it's written: "" where it holds none.
+// with the given date, as it's written, but for the sizes of the day's files
+// it's marked with, its bytes, as unmarked gives it: "" where it holds none.
 func heldSummary(t *testing.T, dir, date string) string {
 	t.Helper()
 	data, err := os.ReadFile(summaryFile(dir, date))
@@ -478,7 +480,50 @@ func heldSummary(t *testing.T, dir, date string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(data)
+	return unmarked(string(data))
+}
+
+// marking is the sizes of a day's files a summary is marked with, as it's
+// written.
+var marking = regexp.MustCompile(`,"bytes":\{"plain":\d+,"compressed":\d+\}`)
+
+// unmarked is a summary, as it's written, but for the sizes of its day's
+// files it's marked with.
+func unmarked(summary string) string {
+	return marking.ReplaceAllString(summary, "")
+}
+
+// heldBytes returns the sizes of the day's files the summary the ledger in
+// dir holds of the local day with the given date is marked with.
+func heldBytes(t *testing.T, dir, date string) ledger.Bytes {
+	t.Helper()
+	data, err := os.ReadFile(summaryFile(dir, date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var held ledger.Summary
+	if err := json.Unmarshal(data, &held); err != nil {
+		t.Fatal(err)
+	}
+	return held.Bytes
+}
+
+// dayBytes returns the sizes of the ledger's files in dir of the local day
+// with the given date, none of one that isn't there.
+func dayBytes(t *testing.T, dir, date string) ledger.Bytes {
+	t.Helper()
+	var sizes ledger.Bytes
+	for name, size := range map[string]*int64{"requests-" + date + ".jsonl": &sizes.Plain, "requests-" + date + ".jsonl.gz": &sizes.Compressed} {
+		info, err := os.Stat(filepath.Join(dir, name))
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+		case err != nil:
+			t.Fatal(err)
+		default:
+			*size = info.Size()
+		}
+	}
+	return sizes
 }
 
 // clockFrom returns a clock that reads from as a synctest bubble's time
@@ -553,11 +598,12 @@ func TestADaysSummaryIsWrittenAgainAsLinesComeToBeFiledUnderIt(t *testing.T) {
 	})
 }
 
-// unopenable has the ledger's files of lines in dir open to no one until the
-// test ends, so a round that opens one warns that it can't.
-func unopenable(t *testing.T, dir string) {
+// unopenable has the ledger's files in dir whose names match pattern, as
+// "requests-*" its files of lines, open to no one until the test ends, so a
+// round that opens one warns that it can't.
+func unopenable(t *testing.T, dir, pattern string) {
 	t.Helper()
-	files, err := filepath.Glob(filepath.Join(dir, "requests-*"))
+	files, err := filepath.Glob(filepath.Join(dir, pattern))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,7 +631,7 @@ func TestARoundOpensNoFileOfADayWhoseLinesHaventChangedSinceItsSummary(t *testin
 	holdLines(t, dir, date, asked("3", on(0, 9, 0)))
 	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, noReadings, logs.For("router"))
 	l.SummariseEnded(on(1, 10, 0))
-	unopenable(t, dir)
+	unopenable(t, dir, "requests-*")
 
 	l.SummariseEnded(on(1, 11, 0))
 	if n := opened(log); n != 0 {
@@ -602,7 +648,7 @@ func TestARoundOpensNoFileOfADayWhoseLinesHaventChangedSinceItsSummary(t *testin
 	if got, want := heldSummary(t, dir, date), summaryOf(date, 2, 2, "")+"\n"; got != want || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nthe 5th's summary is\n%s\nwant it written again, of its two requests, from its file alone\n%s", log, got, want)
 	}
-	unopenable(t, dir)
+	unopenable(t, dir, "requests-*")
 	l.SummariseEnded(on(1, 13, 0))
 	if n := opened(log); n != 0 {
 		t.Errorf("log reads\n%s\nthe round after opened %d of the days' files, want none: the 5th was summarised as its lines last changed", log, n)
@@ -650,12 +696,33 @@ func TestASummaryFoundToStandByCountingItsDaysLinesIsStampedSoTheNextRoundOpensN
 			if got := heldSummary(t, dir, date); got != held {
 				t.Errorf("the day's summary is\n%s\nwant it as it was, as it stands\n%s", got, held)
 			}
-			unopenable(t, dir)
+			unopenable(t, dir, "requests-*")
 			l.SummariseEnded(on(3, 11, 0))
 			if n := opened(log); n != 0 {
 				t.Errorf("log reads\n%s\nthe round after opened %d of the day's files, want none: the summary was stamped as its lines were counted", log, n)
 			}
 		})
+	}
+}
+
+func TestASummaryMarkedAfreshAsItStandsKeepsEveryFieldItHolds(t *testing.T) {
+	dir := t.TempDir()
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+	// The day's summary, written by a later release, of a field this one
+	// doesn't know, before its day's files were marked.
+	held := strings.TrimSuffix(summaryOf(date, 2, 2, ""), "}") + `,"later":{"kept":[1,2]}}`
+	writeFile(t, dir, "day-"+date+".json", []byte(held+"\n"))
+
+	writeAt(t, dir, on(1, 10, 0), noReadings)
+	data, err := os.ReadFile(summaryFile(dir, date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizes := dayBytes(t, dir, date)
+	marked := fmt.Sprintf(`{"version":1,"day":"%s","lines":2,"bytes":{"plain":%d,"compressed":%d},`, date, sizes.Plain, sizes.Compressed) +
+		strings.TrimPrefix(held, fmt.Sprintf(`{"version":1,"day":"%s","lines":2,`, date)) + "\n"
+	if string(data) != marked {
+		t.Errorf("the day's summary is\n%s\nwant it as it was, marked with its day's files' sizes alone, every field it held kept\n%s", data, marked)
 	}
 }
 
@@ -696,6 +763,216 @@ func TestADaysSummaryMadeFromMoreLinesThanItsFilesHoldNowStands(t *testing.T) {
 	writeAt(t, dir, on(1, 10, 0), noReadings)
 	if got := heldSummary(t, dir, date); got != held {
 		t.Errorf("the day's summary is\n%s\nwant it as it was, made from more lines than its files hold now\n%s", got, held)
+	}
+}
+
+func TestARoundReadsNoSummaryOfADayWhoseFilesHaventChangedSinceItWasMarked(t *testing.T) {
+	log := logstest.Capture(t)
+	dir := t.TempDir()
+	// Days long done, compressed.
+	for back := range 3 {
+		date := on(-back, 0, 0).Format(time.DateOnly)
+		writeFile(t, dir, "requests-"+date+".jsonl.gz", gzipped(t, jsonOf(t, asked("1", on(-back, 9, 0)))+"\n"))
+	}
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, noReadings, logs.For("router"))
+	l.SummariseEnded(on(1, 10, 0))
+	// The summaries can't be read, so a round that reads one warns that it
+	// can't.
+	unopenable(t, dir, "day-*")
+
+	l.SummariseEnded(on(1, 11, 0))
+	if n := opened(log); n != 0 {
+		t.Errorf("log reads\n%s\nthe round read %d of the days' summaries, want none: a look at them, and their days' files, tells they stand", log, n)
+	}
+}
+
+func TestALineAppendedWithinTheTickADaysFileWasLastModifiedInIsSummarised(t *testing.T) {
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "requests-"+date+".jsonl")
+	// tick is when the day's file was last modified, to the second, as a file
+	// system that keeps whole seconds keeps it, as HFS+ does.
+	tick := on(1, 0, 30)
+	lastModifiedIn := func() {
+		t.Helper()
+		if err := os.Chtimes(plain, time.Time{}, tick); err != nil {
+			t.Fatal(err)
+		}
+	}
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+	lastModifiedIn()
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, noReadings, logs.For("router"))
+	l.SummariseEnded(on(1, 10, 0))
+	// A line comes to be filed under the day, as of a request in flight past
+	// the hour the day is given, within the second the file was last
+	// modified in.
+	holdLines(t, dir, date, asked("3", on(0, 23, 59)))
+	lastModifiedIn()
+
+	l.SummariseEnded(on(1, 11, 0))
+	if got, want := heldSummary(t, dir, date), summaryOf(date, 3, 3, "")+"\n"; got != want {
+		t.Errorf("the day's summary is\n%s\nwant it written again, of its three requests\n%s", got, want)
+	}
+	if got, want := heldBytes(t, dir, date), dayBytes(t, dir, date); got != want {
+		t.Errorf("the day's summary is marked with %+v, want its files' sizes, %+v", got, want)
+	}
+}
+
+func TestADaySummarisedAgainKnowsNoLessThanTheSummaryItReplaces(t *testing.T) {
+	limitAt, resets := on(0, 9, 30), on(0, 13, 0)
+	reached := `,"limits":[{"window":"5h","at":"` + limitAt.UTC().Format(time.RFC3339) + `","resets_at":"` + resets.UTC().Format(time.RFC3339) + `"}]`
+	rejected := workRead(limitAt, "5h", 1, resets, quota.StatusRejected)
+	// twoLines are the day's two requests' lines, and aTornLine the line of
+	// a day whose only line was torn as it was written.
+	twoLines := func(t *testing.T, dir string) {
+		holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+	}
+	aTornLine := func(t *testing.T, dir string) {
+		writeFile(t, dir, "requests-"+date+".jsonl", []byte(`{"at":"2026-10-05T09:00:00Z","requ`+"\n"))
+	}
+	tests := []struct {
+		name string
+		// lay lays the day's lines out in dir as it's first summarised.
+		lay func(t *testing.T, dir string)
+		// then and now are the readings the readings history holds as the day
+		// is summarised, and as it's summarised again.
+		then, now []readings.Reading
+		// requests and lines are the summary's requests and lines, and
+		// readings what it holds of the readings, as its JSON gives them.
+		requests, lines int
+		readings        string
+	}{
+		{
+			name: "its windows' highest use and its limits, the readings they came from pruned since", lay: twoLines,
+			then:     []readings.Reading{workRead(on(0, 9, 0), "5h", 0.9, resets, quota.StatusAllowed), rejected},
+			requests: 3, lines: 3, readings: `,"highest":{"5h":1}` + reached,
+		},
+		{
+			name: "no limit read first, the reading before it pruned since", lay: twoLines,
+			then: []readings.Reading{workRead(on(-1, 23, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected), workRead(on(0, 1, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected)},
+			now:  []readings.Reading{workRead(on(0, 1, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected)}, requests: 3, lines: 3,
+			readings: `,"highest":{"5h":1},"read_before":["5h"]`,
+		},
+		{
+			name: "a limit read first it held, the reading before it pruned since", lay: twoLines,
+			then:     []readings.Reading{workRead(on(-3, 9, 0), "5h", 0.5, on(-3, 13, 0), quota.StatusAllowed), rejected},
+			now:      []readings.Reading{rejected},
+			requests: 3, lines: 3, readings: `,"highest":{"5h":1}` + reached + `,"read_before":["5h"]`,
+		},
+		{
+			name: "a limit read first, the summary it replaces read no readings, its day's one line torn", lay: aTornLine,
+			then: []readings.Reading{rejected}, now: []readings.Reading{rejected}, requests: 1, lines: 2, readings: `,"highest":{"5h":1}` + reached,
+		},
+		{
+			name: "a limit read first, the summary it replaces read no readings, the history's files unreadable then", lay: twoLines,
+			now: []readings.Reading{rejected}, requests: 3, lines: 3, readings: `,"highest":{"5h":1}` + reached,
+		},
+	}
+	for _, tt := range tests {
+		for _, by := range []string{"the router", "a reader"} {
+			t.Run(tt.name+", by "+by, func(t *testing.T) {
+				state, dir, _ := stateDirs(t)
+				tt.lay(t, dir)
+				writeAt(t, dir, on(1, 10, 0), readingsOf(tt.then...))
+				// A line comes to be filed under the day, as of a request in
+				// flight past the hour the day is given.
+				holdLines(t, dir, date, asked("3", on(0, 23, 59)))
+
+				got := summaryAgain(t, by, state, dir, on(1, 11, 0), tt.now)
+				if want := summaryOf(date, tt.requests, tt.lines, tt.readings); got != want {
+					t.Errorf("the day's summary is\n%s\nwant it of its requests, knowing what the one it replaces did of the readings\n%s", got, want)
+				}
+			})
+		}
+	}
+}
+
+func TestADaySummarisedAgainCountsNoLessThanTheSummaryItReplacesWhereLinesWereLostSince(t *testing.T) {
+	inHaiku := func(request string, at time.Time) ledger.Line {
+		l := asked(request, at)
+		l.Model, l.Session = haiku, "two"
+		return l
+	}
+	for _, by := range []string{"the router", "a reader"} {
+		t.Run("by "+by, func(t *testing.T) {
+			state, dir, _ := stateDirs(t)
+			// The day's lines, compressed, a member for each of two goes, and
+			// its summary, of its three requests.
+			writeFile(t, dir, "requests-"+date+".jsonl.gz", gzipped(t, jsonOf(t, asked("1", on(0, 9, 0)))+"\n",
+				jsonOf(t, asked("2", on(0, 10, 0)))+"\n"+jsonOf(t, asked("3", on(0, 11, 0)))+"\n"))
+			writeAt(t, dir, on(3, 10, 0), noReadings)
+			// The compressed file damaged since, its second member lost, and
+			// three lines filed under the day after, as after the clock was set
+			// back to it.
+			compressed := filepath.Join(dir, "requests-"+date+".jsonl.gz")
+			if err := os.WriteFile(compressed, append(gzipped(t, jsonOf(t, asked("1", on(0, 9, 0)))+"\n"), gzipped(t, "lost\n")[:5]...), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			holdLines(t, dir, date, inHaiku("4", on(0, 12, 0)), inHaiku("5", on(0, 12, 1)), inHaiku("6", on(0, 12, 2)))
+
+			got := summaryAgain(t, by, state, dir, on(3, 11, 0), nil)
+			model := func(name string) string {
+				return `{"model":"` + name + `","upstream":3,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":30,"output_tokens":60}}`
+			}
+			// Its files hold four lines now, of its six requests.
+			want := `{"version":1,"day":"2026-10-05","lines":6,"accounts":[{"account":"work","models":[` + model(haiku) + `,` + model(opus) + `],` +
+				`"sessions":2,"moved_on":0,"moved_off":0}]}`
+			if got != want {
+				t.Errorf("the day's summary is\n%s\nwant its three requests of %s it held still, and the three of %s filed since, made from no fewer lines\n%s",
+					got, opus, haiku, want)
+			}
+		})
+	}
+}
+
+// summaryAgain returns the summary of the summaries' day in the ledger in
+// dir, in the state directory state, summarised again at at, with the
+// readings held, by the router's round, as it writes it, or by a reader of
+// the ledger, as Days gives it, the readings in the readings history's
+// files: but for the sizes of the day's files it's marked with.
+func summaryAgain(t *testing.T, by, state, dir string, at time.Time, held []readings.Reading) string {
+	t.Helper()
+	if by == "the router" {
+		writeAt(t, dir, at, readingsOf(held...))
+		return strings.TrimSuffix(heldSummary(t, dir, date), "\n")
+	}
+	for _, r := range held {
+		writeFile(t, readings.Dir(state), "readings-"+r.At.Local().Format(time.DateOnly)+".jsonl", []byte(readingJSON(t, r)+"\n"))
+	}
+	return summariesJSON(t, readerAt(state, at).Days(on(0, 0, 0))[:1])[0]
+}
+
+func TestARoundReadsTheReadingsOfEachDayItSummarisesAndTheWeekBeforeAlone(t *testing.T) {
+	dir := t.TempDir()
+	// A day stuck unsummarised since, as one of its files couldn't be opened
+	// until now, a month before yesterday, and yesterday.
+	old, yesterday := on(-30, 0, 0), on(0, 0, 0)
+	holdLines(t, dir, old.Format(time.DateOnly), asked("1", on(-30, 9, 0)))
+	holdLines(t, dir, date, asked("2", on(0, 9, 0)))
+	var held []readings.Reading
+	for at := old.AddDate(0, 0, -7); at.Before(on(1, 0, 0)); at = at.Add(time.Hour) {
+		held = append(held, workRead(at, "5h", 0.1, at.Add(5*time.Hour), quota.StatusAllowed))
+	}
+	given := 0
+	history := func(from, to time.Time) iter.Seq[readings.Reading] {
+		return func(yield func(readings.Reading) bool) {
+			for r := range readingsOf(held...)(from, to) {
+				given++
+				if !yield(r) {
+					return
+				}
+			}
+		}
+	}
+
+	writeAt(t, dir, on(1, 10, 0), history)
+	for _, day := range []time.Time{old, yesterday} {
+		if heldSummary(t, dir, day.Format(time.DateOnly)) == "" {
+			t.Fatalf("no summary of %s", day.Format(time.DateOnly))
+		}
+	}
+	// Each day's and its week before's, up to the first after the day's end.
+	if most := 2 * (8*24 + 1); given > most {
+		t.Errorf("the readings history gave %d readings, want %d at most: those of each day and the week before it, none of the month between", given, most)
 	}
 }
 
@@ -847,7 +1124,7 @@ func TestARoundReadsTheReadingsHistoryOnceForTheDaysItSummarises(t *testing.T) {
 	}
 
 	writeAt(t, dir, on(4, 9, 0), history)
-	for day, highest := range []string{`,"highest":{"5h":0.2}`, "", `,"highest":{"5h":0.4}`} {
+	for day, highest := range []string{`,"highest":{"5h":0.2}`, `,"read_before":["5h"]`, `,"highest":{"5h":0.4},"read_before":["5h"]`} {
 		date := on(day, 0, 0).Format(time.DateOnly)
 		if got, want := heldSummary(t, dir, date), summaryOf(date, 1, 1, highest)+"\n"; got != want {
 			t.Errorf("the summary of %s is\n%s\nwant\n%s", date, got, want)
