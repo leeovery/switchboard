@@ -77,6 +77,10 @@ func bytesOf(stat dayfile.DayStat) Bytes {
 // MinutesAtCap and MinutesAtLimit, are nil where they were never read, as of
 // a summary of version 1, or an account a summary made since kept as one of
 // those gave it; a summary of version 2 gives none of them as empty, or 0.
+// Rise, Resets and the minutes are never read, too, of an account the
+// readings history held none of the windows of, in the day or the week
+// before it, as when it pruned them before the day was summarised, as its
+// keep is its own: what they'd have said is unknown, not none.
 type AccountDay struct {
 	// Account is the account's id, left out of the requests no account
 	// answered.
@@ -304,7 +308,8 @@ type tally map[string]*accountTally
 
 // accountTally is an account's day as it's summarised: readBefore holds the
 // windows read in the week before it, and windows how each window read went
-// through it, by its key.
+// through it, by its key; read is set once the readings history gives a
+// reading of any of its windows, in the day or the week before it.
 type accountTally struct {
 	models                      map[modelKey]*modelTally
 	sessions, movedOn, movedOff sessions
@@ -312,6 +317,7 @@ type accountTally struct {
 	limits                      []Limit
 	readBefore                  map[string]bool
 	windows                     map[string]*windowDay
+	read                        bool
 }
 
 // modelKey names a model's requests on an account as a summary keeps them
@@ -436,11 +442,11 @@ func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Ti
 		if turned(last[w], read) && (seen[w] || !readBefore(w)) {
 			a.limits = append(a.limits, Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()})
 		}
-		last[w], seen[w] = read, true
+		last[w], seen[w], a.read = read, true, true
 	}
 	for w := range before {
 		if a, ok := t[w.account]; ok {
-			a.readBefore[w.key] = true
+			a.readBefore[w.key], a.read = true, true
 		}
 	}
 	t.windows(before, carried, day, start, until)
@@ -516,12 +522,15 @@ func (t tally) summary(date string, lines int, caps Caps) Summary {
 }
 
 // summary returns the account's day, its id the one given, and its cap as
-// caps gives it.
+// caps gives it: its windows' rises, resets and minutes never read where the
+// readings history held none of them, as AccountDay says.
 func (a *accountTally) summary(id string, caps Caps) AccountDay {
-	atCap, atLimit := minutesAt(a.windows, caps.Reserves[id], caps.Shared)
 	day := AccountDay{Account: id, Sessions: len(a.sessions), SessionIDs: a.sessions.ids(), MovedOn: len(a.movedOn),
-		MovedOff: len(a.movedOff), Highest: a.highest, Rise: risesOf(a.windows), Resets: resetsOf(a.windows), Limits: a.limits,
-		MinutesAtCap: &atCap, MinutesAtLimit: &atLimit, ReadBefore: slices.Sorted(maps.Keys(a.readBefore))}
+		MovedOff: len(a.movedOff), Highest: a.highest, Limits: a.limits, ReadBefore: slices.Sorted(maps.Keys(a.readBefore))}
+	if a.read {
+		atCap, atLimit := minutesAt(a.windows, caps.Reserves[id], caps.Shared)
+		day.Rise, day.Resets, day.MinutesAtCap, day.MinutesAtLimit = risesOf(a.windows), resetsOf(a.windows), &atCap, &atLimit
+	}
 	for _, key := range slices.SortedFunc(maps.Keys(a.models), byModel) {
 		day.Models = append(day.Models, a.models[key].summary())
 	}

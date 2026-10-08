@@ -442,9 +442,6 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
-	// none is what an account's day holds of its windows where nothing of
-	// them was read.
-	const none = `"rise":{},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0`
 	want := `{"prices_as_of":"2026-10-07","days":[` +
 		`{"version":2,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
@@ -462,7 +459,9 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
 		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}]},` +
 		`{"version":2,"day":"2026-10-07","lines":6,"accounts":[` +
-		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` + none + `,` +
+		// The requests no account answered, of no window the readings
+		// history held.
+		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1,"worth":0}]},` +
 		`{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"rise":{"5h":0.05},` +
 		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],` +

@@ -4191,6 +4191,9 @@ from the first day a router that has it runs, so nothing before then is in it.
       took it away, its reset, or the day's end, a minute at both counting as at a limit. The cap is
       the config's as the summary is made, as the readings history keeps none. Windows of a model's
       own, as Fable's week, hold back only that model, and count toward neither.
+    - Of an account the readings history held none of the windows of, in the day or the week
+      before it, as once it has pruned them, its keep being its own, `rise`, `resets` and the
+      minutes are left out, as never read, never as none.
 
   A summary is written whole, and written again while lines come to be filed under its day: a
   request in flight past the hour the day is given, a change of time zone, or a clock set ahead and

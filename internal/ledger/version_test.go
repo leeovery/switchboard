@@ -89,9 +89,12 @@ func TestADaySummarisedUnderVersionOneIsSummarisedAgainOnceWhileItsLinesAreKept(
 			markVersionOne(t, dir)
 			l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(3, 10, 0) }, noReadings, caps, logs.For("router"))
 
+			// The readings history holds none of the day's readings any longer,
+			// pruned by a keep shorter than the ledger's.
 			l.SummariseEnded(on(3, 10, 0))
 			if got, want := heldSummary(t, dir, date), summaryOfTwo(windowsRead{highest: `{"5h":0.9}`}); got != want {
-				t.Fatalf("the day's summary is\n%s\nwant it summarised again from its lines, as version 2, knowing what the one before did\n%s", got, want)
+				t.Fatalf("the day's summary is\n%s\nwant it summarised again from its lines, as version 2, knowing what the one before did, "+
+					"its windows' rises, resets and minutes never read, rather than none\n%s", got, want)
 			}
 			wholeSeconds(t, summaryFile(dir, date))
 			for _, pattern := range tt.unread {

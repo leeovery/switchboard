@@ -94,6 +94,39 @@ func TestASummaryHoldsTheIdsOfTheSessionsEachAccountCounts(t *testing.T) {
 	}
 }
 
+func TestAnAccountTheReadingsHistoryHeldNoWindowOfHasItsWindowsNeverRead(t *testing.T) {
+	onSide := asked("2", on(0, 10, 0))
+	onSide.Account, onSide.Session = "side", "two"
+	tests := []struct {
+		name     string
+		readings []readings.Reading
+		// read are the accounts whose windows the history held, which the
+		// summary holds the rises, resets and minutes of.
+		read []string
+	}{
+		{name: "none, of a day of no readings at all, as when they were pruned before it was summarised"},
+		{name: "only the one whose windows were read, of two", readings: []readings.Reading{allowed(on(0, 10, 0), "5h", 0.3, on(0, 14, 0))}, read: []string{"work"}},
+		{name: "one whose windows were read in the week before alone", readings: []readings.Reading{allowed(on(-3, 10, 0), "5h", 0.3, on(-3, 14, 0))},
+			read: []string{"work"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := summarised(t, readingsOf(tt.readings...), asked("1", on(0, 9, 0)), onSide)
+			if len(got.Accounts) != 2 {
+				t.Fatalf("the summary is %+v, want work's day and side's", got)
+			}
+			for _, a := range got.Accounts {
+				read := a.Rise != nil && a.Resets != nil && a.MinutesAtCap != nil && a.MinutesAtLimit != nil
+				neverRead := a.Rise == nil && a.Resets == nil && a.MinutesAtCap == nil && a.MinutesAtLimit == nil
+				if want := slices.Contains(tt.read, a.Account); want && !read || !want && !neverRead || a.SessionIDs == nil {
+					t.Errorf("%s's day is %+v; want its windows' rises, resets and minutes read: %v, else left out, never read, not none, "+
+						"and its session ids given as ever", a.Account, a, want)
+				}
+			}
+		})
+	}
+}
+
 func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -369,14 +402,14 @@ func TestADaySummarisedAgainKnowsNoLessOfItsSessionsAndWindows(t *testing.T) {
 	limitAt, resets := on(0, 11, 30), on(0, 13, 0)
 	// The summary it replaces: of a session since lost with its lines, and
 	// windows read higher, and longer, by readings since pruned.
-	held := strings.Replace(summaryOf(date, 2, 2, windowsRead{highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
+	held := strings.Replace(summaryOf(date, 2, 2, windowsRead{read: true, highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
 		resets: `[` + resetJSON("7d", on(0, 8, 0), 0.5) + `,` + resetJSON("5h", resets, 0.95) + `]`, atCap: 30, atLimit: 60}),
 		`"session_ids":["one"]`, `"session_ids":["held"]`, 1)
 	// What the readings give now: the session rose to 30%, and was refused
 	// from 11:30 to its reset.
 	now := []readings.Reading{allowed(on(0, 10, 0), "5h", 0.3, resets), rejected(limitAt, "5h", 0.3, resets)}
 	limit := `[{"window":"5h","at":"` + limitAt.UTC().Format(time.RFC3339) + `","resets_at":"` + resets.UTC().Format(time.RFC3339) + `"}]`
-	want := strings.Replace(summaryOf(date, 3, 3, windowsRead{highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
+	want := strings.Replace(summaryOf(date, 3, 3, windowsRead{read: true, highest: `{"5h":0.95}`, rise: `{"5h":0.9,"7d_oi":0.2}`,
 		resets: `[` + resetJSON("7d", on(0, 8, 0), 0.5) + `,` + resetJSON("5h", resets, 0.95) + `]`, limits: limit, atCap: 30, atLimit: 90}),
 		`"sessions":1,"session_ids":["one"]`, `"sessions":2,"session_ids":["held","one"]`, 1)
 	for _, by := range []string{"the router", "a reader"} {

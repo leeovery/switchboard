@@ -466,10 +466,13 @@ func versionOne(date string, requests, lines int, highest string) string {
 
 // windowsRead is what a summary of an account's day holds of the readings
 // history, each as its JSON gives it: its windows' highest use, and the
-// limits it reached, left out where they're ""; their rises and resets, none
-// where they're ""; the minutes it spent at its cap and at a limit; and the
-// windows it read in the week before, left out where they're "".
+// limits it reached, left out where they're ""; where read is set, as the
+// history held any of its windows, their rises and resets, none where
+// they're "", and the minutes it spent at its cap and at a limit, else none
+// of them, never read; and the windows it read in the week before, left out
+// where they're "".
 type windowsRead struct {
+	read                          bool
 	highest, rise, resets, limits string
 	atCap, atLimit                int
 	before                        string
@@ -482,12 +485,10 @@ func resetJSON(key string, at time.Time, before float64) string {
 }
 
 // unread is a, an account's day in a summary of version 2, as it's read
-// back, its sessions those with the given ids, and nothing read of its
+// back, its sessions those with the given ids, and nothing ever read of its
 // windows.
 func unread(a ledger.AccountDay, sessions ...string) ledger.AccountDay {
-	none := 0
-	a.SessionIDs, a.Rise, a.Resets = append([]string{}, sessions...), map[string]float64{}, []ledger.Reset{}
-	a.MinutesAtCap, a.MinutesAtLimit = &none, &none
+	a.SessionIDs = append([]string{}, sessions...)
 	return a
 }
 
@@ -502,6 +503,9 @@ func (read windowsRead) json() string {
 			return ""
 		}
 		return `,"` + name + `":` + value
+	}
+	if !read.read {
+		return field("highest", read.highest, "") + field("limits", read.limits, "") + field("read_before", read.before, "")
 	}
 	return field("highest", read.highest, "") + field("rise", read.rise, "{}") + field("resets", read.resets, "[]") +
 		field("limits", read.limits, "") + fmt.Sprintf(`,"minutes_at_cap":%d,"minutes_at_limit":%d`, read.atCap, read.atLimit) +
@@ -624,7 +628,7 @@ func TestADayIsSummarisedOnTheFirstRoundAnHourAfterItEndsAndTodayNever(t *testin
 		synctest.Wait()
 		stop()
 		// The window began within the day, and reset at 13:00.
-		read := windowsRead{highest: `{"5h":0.25}`, rise: `{"5h":0.25}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.25) + `]`}
+		read := windowsRead{read: true, highest: `{"5h":0.25}`, rise: `{"5h":0.25}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.25) + `]`}
 		if got, want := heldSummary(t, dir, date), summaryOfTwo(read); got != want {
 			t.Errorf("an hour on, the day's summary is\n%s\nwant\n%s", got, want)
 		}
@@ -828,7 +832,7 @@ func TestADaysSummaryMadeFromMoreLinesThanItsFilesHoldNowStands(t *testing.T) {
 	// The day's summary, made from three lines; its files hold two now, a
 	// line lost since to damage, and the readings history its highest use
 	// came from is pruned.
-	held := summaryOf(date, 3, 3, windowsRead{highest: `{"5h":0.9}`, rise: `{"5h":0.4}`}) + "\n"
+	held := summaryOf(date, 3, 3, windowsRead{read: true, highest: `{"5h":0.9}`, rise: `{"5h":0.4}`}) + "\n"
 	writeFile(t, dir, "day-"+date+".json", []byte(held))
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
 
@@ -895,7 +899,7 @@ func TestADaySummarisedAgainKnowsNoLessThanTheSummaryItReplaces(t *testing.T) {
 	rejected := workRead(limitAt, "5h", 1, resets, quota.StatusRejected)
 	// The window's run to its reset at 13:00, from its start within the day,
 	// at its limit from 09:30.
-	limited := windowsRead{highest: `{"5h":1}`, rise: `{"5h":1}`, resets: `[` + resetJSON("5h", resets, 1) + `]`, limits: reached, atLimit: 210}
+	limited := windowsRead{read: true, highest: `{"5h":1}`, rise: `{"5h":1}`, resets: `[` + resetJSON("5h", resets, 1) + `]`, limits: reached, atLimit: 210}
 	withBefore := func(read windowsRead) windowsRead {
 		read.before = `["5h"]`
 		return read
@@ -931,7 +935,7 @@ func TestADaySummarisedAgainKnowsNoLessThanTheSummaryItReplaces(t *testing.T) {
 			now:  []readings.Reading{workRead(on(0, 1, 0), "5h", 1, on(0, 2, 0), quota.StatusRejected)}, requests: 3, lines: 3,
 			// At its limit from the day's start, as the reading carried into it
 			// read, to its reset at 02:00.
-			readings: windowsRead{highest: `{"5h":1}`, rise: `{"5h":0}`, resets: `[` + resetJSON("5h", on(0, 2, 0), 1) + `]`, atLimit: 120, before: `["5h"]`},
+			readings: windowsRead{read: true, highest: `{"5h":1}`, rise: `{"5h":0}`, resets: `[` + resetJSON("5h", on(0, 2, 0), 1) + `]`, atLimit: 120, before: `["5h"]`},
 		},
 		{
 			name: "a limit read first it held, the reading before it pruned since", lay: twoLines,
@@ -1206,9 +1210,9 @@ func TestARoundReadsTheReadingsHistoryOnceForTheDaysItSummarises(t *testing.T) {
 
 	writeAt(t, dir, on(4, 9, 0), history)
 	read := []windowsRead{
-		{highest: `{"5h":0.2}`, rise: `{"5h":0.2}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.2) + `]`},
-		{before: `["5h"]`},
-		{highest: `{"5h":0.4}`, rise: `{"5h":0.4}`, resets: `[` + resetJSON("5h", on(2, 13, 0), 0.4) + `]`, before: `["5h"]`},
+		{read: true, highest: `{"5h":0.2}`, rise: `{"5h":0.2}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.2) + `]`},
+		{read: true, before: `["5h"]`},
+		{read: true, highest: `{"5h":0.4}`, rise: `{"5h":0.4}`, resets: `[` + resetJSON("5h", on(2, 13, 0), 0.4) + `]`, before: `["5h"]`},
 	}
 	for day, read := range read {
 		date := on(day, 0, 0).Format(time.DateOnly)

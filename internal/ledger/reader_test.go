@@ -256,7 +256,7 @@ func TestDaysAreReadFromTheirSummariesWhileTheyStand(t *testing.T) {
 	// The 4th's summary, made from the line it holds, and one more since lost
 	// to damage, with the highest use the readings history gave as it was
 	// summarised, since pruned.
-	standing := summaryOf("2026-10-04", 2, 2, windowsRead{highest: `{"5h":0.9}`, rise: `{"5h":0.5}`})
+	standing := summaryOf("2026-10-04", 2, 2, windowsRead{read: true, highest: `{"5h":0.9}`, rise: `{"5h":0.5}`})
 	writeFile(t, dir, "day-2026-10-04.json", []byte(standing+"\n"))
 	holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
 	// The 5th's summary, written before a line came to be filed under the day.
@@ -273,8 +273,8 @@ func TestDaysAreReadFromTheirSummariesWhileTheyStand(t *testing.T) {
 	got := summariesJSON(t, readerAt(state, on(2, 12, 0)).Days(on(-2, 15, 0)))
 	// Today's session, read at 09:00, resets at 13:00, after now.
 	want := []string{keptAlone, standing, summaryOf(date, 2, 2, windowsRead{}),
-		summaryOf("2026-10-06", 1, 1, windowsRead{highest: `{"5h":0.2}`, rise: `{"5h":0.2}`, resets: `[` + resetJSON("5h", on(1, 14, 0), 0.2) + `]`}),
-		summaryOf("2026-10-07", 1, 1, windowsRead{highest: `{"5h":0.35}`, rise: `{"5h":0.35}`, before: `["5h"]`})}
+		summaryOf("2026-10-06", 1, 1, windowsRead{read: true, highest: `{"5h":0.2}`, rise: `{"5h":0.2}`, resets: `[` + resetJSON("5h", on(1, 14, 0), 0.2) + `]`}),
+		summaryOf("2026-10-07", 1, 1, windowsRead{read: true, highest: `{"5h":0.35}`, rise: `{"5h":0.35}`, before: `["5h"]`})}
 	if !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: a day's summary as it's held while its lines are no more than it was made from, or pruned, and the others "+
 			"summarised from their lines as they're read", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -410,7 +410,7 @@ func TestADayIsSummarisedWithItsReadingsInTheOrderTheyWereRead(t *testing.T) {
 	limit := `{"window":"7d","at":"` + on(0, 14, 0).UTC().Format(time.RFC3339) + `","resets_at":"` + weekResets.UTC().Format(time.RFC3339) + `"}`
 	// Work's session reset at 03:00; its week, first read at its limit, at
 	// it until now, 18:00.
-	read := windowsRead{highest: `{"5h":0.8,"7d":1}`, rise: `{"5h":0,"7d":0}`, resets: `[` + resetJSON("5h", resets, 0.8) + `]`,
+	read := windowsRead{read: true, highest: `{"5h":0.8,"7d":1}`, rise: `{"5h":0,"7d":0}`, resets: `[` + resetJSON("5h", resets, 0.8) + `]`,
 		limits: `[` + limit + `]`, atLimit: 240, before: `["5h"]`}
 	if want := []string{summaryOf(date, 1, 1, read)}; !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: the use work's session began the day at, as its last reading before it read, and its week's limit as first read",
