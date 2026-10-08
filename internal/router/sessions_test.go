@@ -49,6 +49,7 @@ func TestRememberTellsAnAssignmentUsedAgainFromAChange(t *testing.T) {
 		{name: "used again as it was", req: req, d: stay, wantUsed: 1},
 		{name: "moved", req: req, d: decision{account: "side", reason: "moved: work hit its limit"}, wantChanged: 1},
 		{name: "its pin changed", req: Request{Session: "one", Model: opus, Pin: "work"}, d: stay, wantChanged: 1},
+		{name: "its directory named", req: Request{Session: "one", Model: opus, Dir: "~/Code/api"}, d: stay, wantChanged: 1},
 		{name: "chosen again, for another reason", req: req, d: decision{account: "work", reason: "rescored after 1h"}, wantChanged: 1},
 	}
 	for _, tt := range tests {

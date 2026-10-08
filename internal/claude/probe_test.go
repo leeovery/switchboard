@@ -239,6 +239,9 @@ func TestProbe(t *testing.T) {
 	spentFableWeek := fableWeek
 	spentFableWeek.Utilization, spentFableWeek.Status = 1, quota.StatusRejected
 	overloaded := apiError(529, "Overloaded")
+	extraReset := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	extraOff := quota.ExtraUsage{Status: quota.StatusRejected, Utilization: new(0.0), ResetsAt: extraReset}
+	extraOn := quota.ExtraUsage{Status: quota.StatusAllowed, Utilization: new(0.4), ResetsAt: extraReset}
 	tests := []struct {
 		name      string
 		replies   map[string]reply
@@ -335,6 +338,46 @@ func TestProbe(t *testing.T) {
 				map[string][]string{"5h": {fable}, "7d": {fable}, "7d_oi": {fable}},
 			),
 			wantAsked: []string{haiku, fable},
+		},
+		{
+			name: "extra usage read with the windows, the base family's first",
+			replies: map[string]reply{
+				haiku: withUsage(http.StatusOK, session, week).withExtra(extraOff),
+				fable: withUsage(http.StatusOK, session, week, fableWeek).withExtra(extraOn),
+			},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}, Extra: extraOff},
+				map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			),
+			wantAsked: []string{haiku, fable},
+		},
+		{
+			name: "extra usage from the family that gives it",
+			replies: map[string]reply{
+				haiku: withUsage(http.StatusOK, session, week),
+				fable: withUsage(http.StatusOK, session, week, fableWeek).withExtra(extraOn),
+			},
+			want: probed(
+				quota.Usage{Windows: []quota.Window{session, week, fableWeek}, Extra: extraOn},
+				map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}},
+			),
+			wantAsked: []string{haiku, fable},
+		},
+		{
+			name: "extra usage of a family that read no window left out",
+			replies: map[string]reply{
+				haiku:      withUsage(http.StatusOK, session, week),
+				fable:      apiError(http.StatusNotFound, "model: claude-fable-5-1").withExtra(extraOn),
+				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
+			},
+			want: probed(
+				quota.Usage{
+					Windows:  []quota.Window{session, week},
+					Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 404 · model: claude-fable-5"}},
+				},
+				map[string][]string{"5h": {haiku}, "7d": {haiku}},
+			),
+			wantAsked: []string{haiku, fable, fableOlder},
 		},
 		{
 			name: "every family failing, with the base family's error",
@@ -494,6 +537,17 @@ func withUsage(status int, windows ...quota.Window) reply {
 		h.Set(prefix+"status", string(w.Status))
 	}
 	return reply{status: status, header: h, body: `{"type":"message"}`}
+}
+
+// withExtra returns the reply with its headers carrying extra usage too.
+func (r reply) withExtra(e quota.ExtraUsage) reply {
+	h := http.Header{}
+	maps.Copy(h, r.header)
+	h.Set("anthropic-ratelimit-unified-overage-status", string(e.Status))
+	h.Set("anthropic-ratelimit-unified-overage-utilization", strconv.FormatFloat(*e.Utilization, 'f', -1, 64))
+	h.Set("anthropic-ratelimit-unified-overage-reset", strconv.FormatInt(e.ResetsAt.Unix(), 10))
+	r.header = h
+	return r
 }
 
 // apiError returns a reply without usage headers, whose body is the API's

@@ -73,7 +73,7 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		Request:  ex.id,
 		Kind:     ex.kind(),
 		Session:  ex.req.Session,
-		Dir:      DecodeDir(h.Get(DirHeader)),
+		Dir:      ex.req.Dir,
 		Model:    ex.req.Model,
 		Account:  answering.account,
 		Reason:   answering.reason,

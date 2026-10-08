@@ -221,7 +221,7 @@ func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
 	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
-	w.Dir = cutFront(l.Dir)
+	w.Dir = LineDir(l.Dir)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = nil
 	for _, t := range l.Tried[:min(len(l.Tried), listMost)] {
@@ -269,10 +269,11 @@ func cut(s string) string {
 	return prose.TruncateBytes(redact.Text(s), textMost)
 }
 
-// cutFront is s cut as cut cuts it, but from its front, an ellipsis standing
-// for what's cut.
-func cutFront(s string) string {
-	return prose.TruncateBytesFront(redact.Text(s), textMost)
+// LineDir is the directory dir as a line gives it: cut as cut cuts a text,
+// but from its front, an ellipsis standing for what's cut, so it keeps its
+// own name. The router's sessions and request stream give a directory so too.
+func LineDir(dir string) string {
+	return prose.TruncateBytesFront(redact.Text(dir), textMost)
 }
 
 // cutAll returns the first listMost of texts, each cut, as a list of its own:

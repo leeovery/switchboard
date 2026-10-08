@@ -208,6 +208,74 @@ func TestJSON(t *testing.T) {
 	}
 }
 
+func TestExtraUsageJSON(t *testing.T) {
+	reset := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		usage quota.Usage
+		want  string
+	}{
+		{
+			name:  "every field given",
+			usage: quota.Usage{Extra: quota.ExtraUsage{Status: quota.StatusAllowed, Utilization: new(0.42), ResetsAt: reset}},
+			want:  `{"extra_usage":{"status":"allowed","utilization":0.42,"resets_at":"2026-10-01T00:00:00Z"}}`,
+		},
+		{
+			name:  "none used, given",
+			usage: quota.Usage{Extra: quota.ExtraUsage{Utilization: new(0.0)}},
+			want:  `{"extra_usage":{"utilization":0}}`,
+		},
+		{
+			name:  "its status alone",
+			usage: quota.Usage{Extra: quota.ExtraUsage{Status: quota.StatusRejected}},
+			want:  `{"extra_usage":{"status":"rejected"}}`,
+		},
+		{
+			name:  "none given, left out",
+			usage: quota.Usage{Windows: []quota.Window{{Key: "5h", Label: "Session"}}},
+			want:  `{"windows":[{"key":"5h","label":"Session","utilization":0}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := json.Marshal(tt.usage)
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			if string(got) != tt.want {
+				t.Errorf("Marshal() =\n%s\nwant\n%s", got, tt.want)
+			}
+			var back quota.Usage
+			if err := json.Unmarshal(got, &back); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if !reflect.DeepEqual(back, tt.usage) {
+				t.Errorf("Unmarshal(Marshal()) = %+v, want %+v", back, tt.usage)
+			}
+		})
+	}
+}
+
+func TestExtraUsageGiven(t *testing.T) {
+	tests := []struct {
+		name  string
+		extra quota.ExtraUsage
+		want  bool
+	}{
+		{name: "none", extra: quota.ExtraUsage{}, want: false},
+		{name: "its status", extra: quota.ExtraUsage{Status: quota.StatusRejected}, want: true},
+		{name: "its utilization, none used", extra: quota.ExtraUsage{Utilization: new(0.0)}, want: true},
+		{name: "its reset", extra: quota.ExtraUsage{ResetsAt: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.extra.Given(); got != tt.want {
+				t.Errorf("Given() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func windowsWithKeys(keys ...string) []quota.Window {
 	windows := make([]quota.Window, 0, len(keys))
 	for _, key := range keys {
