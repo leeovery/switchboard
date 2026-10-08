@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
@@ -74,8 +75,17 @@ func (r *Router) run(ctx context.Context) error {
 	// alongside would have failed by here.
 	r.file.load(filepath.Join(r.cfg.StateDir, stateFileName))
 	r.openHistory()
-	r.ledger.open(ledger.Dir(r.cfg.StateDir), r.history.readings)
+	r.openLedger(ledger.Dir(r.cfg.StateDir))
 	return r.serve(ctx, ls)
+}
+
+// openLedger keeps the request ledger in dir from now on, and the router's
+// events beside it, as long as the ledger's lines, those heard before filed
+// as they now stand.
+func (r *Router) openLedger(dir string) {
+	r.ledger.open(dir, r.history.readings)
+	r.eventFiles = events.Open(dir, r.ledger.keep, r.cfg.Now, logger)
+	r.recent.fileTo(r.eventFiles, r.started)
 }
 
 // openHistory keeps the readings history in the state directory from now
@@ -159,8 +169,9 @@ func listen(addr string) (net.Listener, error) {
 // or the router restarts itself, probing each account nothing has been read
 // of in the meantime, priming the accounts on the schedule, looking after
 // itself, keeping the state file, the readings history, the request ledger
-// and what has happened lately, and posting notifications, then shuts both
-// down, and restarting, replaces itself, handing their listeners over.
+// and what has happened lately, filing its events, and posting
+// notifications, then shuts both down, writes what's left to write, and
+// restarting, replaces itself, handing their listeners over.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newProxyServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -187,6 +198,11 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	if r.notifications != nil {
 		running.Go(func() { r.notifications.run(background) })
 	}
+	// What recent keeps is filed until everything else has stopped, as its
+	// last look can still tell of an event.
+	filing, stopFiling := context.WithCancel(context.WithoutCancel(ctx))
+	var filed sync.WaitGroup
+	filed.Go(func() { r.eventFiles.Run(filing) })
 
 	var err error
 	var held *handover.Held
@@ -208,6 +224,8 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	serving.Wait()
 	stopBackground()
 	running.Wait()
+	stopFiling()
+	filed.Wait()
 	logger.Info("stopped")
 	if held != nil {
 		r.replace(ctx, held)

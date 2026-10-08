@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -205,13 +206,15 @@ type Router struct {
 	stream *stream
 	// file keeps what should outlast the router, once Run has loaded it.
 	file *stateFile
-	// history keeps each account's readings as they change, and ledger each
-	// routed request's line, once Run has opened them.
-	history *history
-	ledger  *requestLedger
-	probes  *probes
-	health  *health
-	proxy   *proxy
+	// history keeps each account's readings as they change, ledger each
+	// routed request's line, and eventFiles each version of the events
+	// recent keeps, once Run has opened them.
+	history    *history
+	ledger     *requestLedger
+	eventFiles *events.Writer
+	probes     *probes
+	health     *health
+	proxy      *proxy
 	// primer is nil when priming is off.
 	primer *primer
 	// inFlight counts the proxy's requests in flight.

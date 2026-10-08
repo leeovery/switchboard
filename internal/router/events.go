@@ -138,22 +138,40 @@ func newLimitMoves(e LimitReached) *limitMoves {
 
 // join takes in the limit reached again while it holds: in other windows,
 // perhaps, and until later. The news of a limit can come after the news of
-// it reached again, so it holds until the latest it's told of.
-func (m *limitMoves) join(e LimitReached) {
+// it reached again, so it holds until the latest it's told of. It reports
+// whether that changed the limit.
+func (m *limitMoves) join(e LimitReached) bool {
+	windows := len(m.Windows)
 	for _, key := range e.Windows {
 		if !slices.Contains(m.Windows, key) {
 			m.Windows = append(m.Windows, key)
 		}
 	}
+	until := m.Until
 	m.Until = score.Later(m.Until, e.Until)
+	return len(m.Windows) != windows || !m.Until.Equal(until)
 }
 
-// add takes in a session the limit moved to the account with the id to.
-func (m *limitMoves) add(session, to string) {
+// add takes in a session the limit moved to the account with the id to,
+// reporting whether it changed what the limit's event gives: how many
+// sessions it moved, or where they went.
+func (m *limitMoves) add(session, to string) bool {
+	count, went := m.moved()
 	if !slices.Contains(m.sessions, session) {
 		m.sessions = append(m.sessions, session)
 	}
 	if !slices.Contains(m.to, to) {
 		m.to = append(m.to, to)
 	}
+	nowCount, nowWent := m.moved()
+	return nowCount != count || nowWent != went
+}
+
+// moved returns how many sessions the limit has moved, and the account they
+// went to when they all went to one, "" otherwise.
+func (m *limitMoves) moved() (count int, to string) {
+	if len(m.to) == 1 {
+		to = m.to[0]
+	}
+	return len(m.sessions), to
 }

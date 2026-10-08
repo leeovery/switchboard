@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -16,8 +17,10 @@ const maxEvents = 50
 // recent keeps what has happened lately, for the router's status document:
 // its newest maxEvents events, in memory alone, so a restart starts them
 // afresh, each with an id one more than the event's before it, from 1 as the
-// router starts. It's kept whatever the notifications are set to. It hears
-// the router's events without ever holding the router up, and looks at the
+// router starts. It's kept whatever the notifications are set to. Once it's
+// given the events' files, it files each event as it's kept, and again, whole,
+// as it changes, those kept before then filed as they then stand. It hears the
+// router's events without ever holding the router up, and looks at the
 // accounts every lookEvery, and after each event it hears, for what no event
 // tells of: an account coming under pressure, and one having room again; and
 // has the router's health judged as it looks, so a turn is told of within a
@@ -39,6 +42,10 @@ type recent struct {
 	// newest.
 	kept []happening
 	last int
+	// files is where the events are filed, nil until fileTo gives it, as
+	// told by the router that started at started.
+	files   *events.Writer
+	started time.Time
 	// limits holds, by account, the identity of the newest of its limits
 	// heard of, so the news of a limit heard of before, whose event is no
 	// longer kept, is told from that of one yet to be.
@@ -71,12 +78,20 @@ func newRecent(state *state, sessions *sessions, now func() time.Time) *recent {
 // stand, which gives the event its windows, when it lifts, and the sessions
 // it moved; for a move a limit forced, before that limit is heard of, the
 // limit's identity, which it waits for to be counted in; and for a
-// refusal's, the id of the request refused.
+// refusal's, the id of the request refused. It's marked from when it's kept,
+// or changes, until it's filed as it then stands.
 type happening struct {
 	status.Event
-	limit *limitMoves
-	waits int
-	by    string
+	limit  *limitMoves
+	waits  int
+	by     string
+	marked bool
+}
+
+// mark marks the happening as changed, for it to be filed again once the
+// change is done.
+func (h *happening) mark() {
+	h.marked = true
 }
 
 // event is the happening as the status document gives it, a copy: a limit's
@@ -86,10 +101,7 @@ func (h happening) event() status.Event {
 	e := h.Event
 	if h.limit != nil {
 		e.Account, e.Windows, e.Until, e.Limit = h.limit.Account, h.limit.Windows, h.limit.Until, h.limit.Limit
-		e.Count = len(h.limit.sessions)
-		if len(h.limit.to) == 1 {
-			e.To = h.limit.to[0]
-		}
+		e.Count, e.To = h.limit.moved()
 	}
 	e.Windows = slices.Clone(e.Windows)
 	return e
@@ -99,9 +111,7 @@ func (h happening) event() status.Event {
 // nudges run to look at the accounts again, never waiting for it.
 func (r *recent) hear(e Event) {
 	now := r.now().UTC()
-	r.mu.Lock()
-	r.take(e, now)
-	r.mu.Unlock()
+	r.change(func() { r.take(e, now) })
 	select {
 	case r.nudge <- struct{}{}:
 	default:
@@ -138,7 +148,9 @@ func (r *recent) take(e Event, now time.Time) {
 // event is no longer kept, is dropped.
 func (r *recent) reached(e LimitReached, now time.Time) {
 	if h, ok := r.limitEvent(e.Limit); ok {
-		h.limit.join(e)
+		if h.limit.join(e) {
+			h.mark()
+		}
 		return
 	}
 	if e.Limit <= r.limits[e.Account] {
@@ -149,6 +161,7 @@ func (r *recent) reached(e LimitReached, now time.Time) {
 	for i := range r.kept {
 		if move := &r.kept[i]; move.waits == e.Limit {
 			move.waits, move.Limit = 0, event.ID
+			move.mark()
 			event.limit.add(move.Session, move.To)
 		}
 	}
@@ -160,7 +173,9 @@ func (r *recent) reached(e LimitReached, now time.Time) {
 func (r *recent) moved(e Moved, now time.Time) {
 	move := happening{Kind: status.EventMoved, Session: bounded(e.Session), Model: bounded(e.Model), From: e.From, To: e.To, Reason: e.Reason}
 	if h, ok := r.limitEvent(e.Limit); ok {
-		h.limit.add(move.Session, move.To)
+		if h.limit.add(move.Session, move.To) {
+			h.mark()
+		}
 		move.Limit = h.ID
 	} else if e.Limit > r.limits[e.From] {
 		move.waits = e.Limit
@@ -176,6 +191,7 @@ func (r *recent) lifted(e RefusalLifted, now time.Time) {
 		if h.Kind == status.EventRefused && h.Account == e.Account && h.Family == e.Family &&
 			(e.Family == "" || h.by == e.Request) && h.Until.After(now) {
 			h.Until = now
+			h.mark()
 		}
 	}
 }
@@ -196,17 +212,48 @@ func (r *recent) add(e status.Event, now time.Time) {
 	r.keep(happening{Event: e}, now)
 }
 
-// keep keeps a happening at now as the newest, with the next id, and drops
-// the oldest once more than maxEvents are kept, returning the happening as
-// it's kept. r.mu must be held.
+// keep keeps a happening at now as the newest, with the next id, marked to
+// be filed, and drops the oldest once more than maxEvents are kept,
+// returning the happening as it's kept. r.mu must be held.
 func (r *recent) keep(h happening, now time.Time) *happening {
 	r.last++
 	h.ID, h.At = r.last, now
+	h.mark()
 	r.kept = append(r.kept, h)
 	if len(r.kept) > maxEvents {
 		r.kept = slices.Delete(r.kept, 0, len(r.kept)-maxEvents)
 	}
 	return &r.kept[len(r.kept)-1]
+}
+
+// change makes a change to the events kept, with r.mu held, then files each
+// event the change marked, as it then stands, so an event's versions are
+// filed in the order they're made.
+func (r *recent) change(do func()) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	do()
+	r.fileMarked()
+}
+
+// fileTo has the events filed to files from now on, as told by the router
+// that started at started, filing at once those kept before, as they stand.
+func (r *recent) fileTo(files *events.Writer, started time.Time) {
+	r.change(func() { r.files, r.started = files, started.UTC() })
+}
+
+// fileMarked files each event kept that's marked, as it stands, and clears
+// its mark, once there are files to file them to. r.mu must be held.
+func (r *recent) fileMarked() {
+	if r.files == nil {
+		return
+	}
+	for i := range r.kept {
+		if h := &r.kept[i]; h.marked {
+			r.files.Note(events.Line{Event: h.event(), Run: r.started})
+			h.marked = false
+		}
+	}
 }
 
 // events returns the events kept, the newest first.
@@ -245,11 +292,11 @@ func (r *recent) look() {
 	now := r.now()
 	accounts, _ := r.state.statuses(now, r.sessions.globalPin().Accounts)
 	news := r.news(accounts, r.state.standings(now))
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, e := range news {
-		r.add(e, now.UTC())
-	}
+	r.change(func() {
+		for _, e := range news {
+			r.add(e, now.UTC())
+		}
+	})
 }
 
 // news returns the events the accounts, as they stand, call for since they
