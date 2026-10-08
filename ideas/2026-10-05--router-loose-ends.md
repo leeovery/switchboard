@@ -58,3 +58,7 @@ only when something rare happens.
   test's timers fall on the same instants of synctest's clock, the save a second after a change
   and the session used every second, and the order goroutines woken at one instant run in isn't
   fixed. A fix: move the uses off the save's instants, or wait for the save before each.
+- **`GET /sessions/{id}` groups every session to report one.** `sessions.session` calls
+  `s.entries()`, which groups and sorts the assignments of every session in the last hour, to
+  report the one asked for, and statuslines ask for it often. A fix: gather that one session's
+  entries alone, sorted by `byUse`, as `lastUsed` finds its newest.
