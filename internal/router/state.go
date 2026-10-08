@@ -673,7 +673,7 @@ func (s *state) view(model string, now time.Time) view {
 	defer s.mu.Unlock()
 	s.noteReserves(now)
 	family, applies := s.family(model), s.counting(model)
-	v := view{policy: s.policy, now: now, applies: applies, limited: make(map[string]int)}
+	v := view{policy: s.policy, now: now, applies: applies}
 	for _, a := range s.accounts {
 		if !a.hasToken() {
 			continue
@@ -688,6 +688,9 @@ func (s *state) view(model string, now time.Time) view {
 			v.refused = append(v.refused, a.ID)
 		}
 		if u.limited.holds(now, applies) {
+			if v.limited == nil {
+				v.limited = make(map[string]int)
+			}
 			v.limited[a.ID] = u.limited.id
 		}
 	}

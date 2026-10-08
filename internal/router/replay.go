@@ -116,7 +116,7 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 	rp.sent = ex.account.token()
 	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
 	rp.when = rp.p.state.mark()
-	rp.p.stream.sent(ex.event(StreamSent), ex.req.key())
+	rp.p.stream.publishOf(ex.event(StreamSent), ex.req.key())
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
 		return nil, err

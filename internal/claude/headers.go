@@ -134,7 +134,10 @@ func parseWindow(key string, f fields) (quota.Window, bool) {
 func parseExtra(f fields) quota.ExtraUsage {
 	extra := quota.ExtraUsage{Status: quota.Status(f.status), ResetsAt: parseReset(f.reset)}
 	if utilization, ok := parseFraction(f.utilization); ok {
-		extra.Utilization = &utilization
+		// Copied, so the heap allocation its address costs, which escape
+		// analysis puts at the variable's declaration, comes only with a value.
+		used := utilization
+		extra.Utilization = &used
 	}
 	return extra
 }
@@ -142,6 +145,9 @@ func parseExtra(f fields) quota.ExtraUsage {
 // parseFraction reads a fraction used, reporting false when it's missing, or
 // isn't a finite number (which JSON couldn't carry).
 func parseFraction(value string) (float64, bool) {
+	if value == "" {
+		return 0, false
+	}
 	fraction, err := strconv.ParseFloat(value, 64)
 	if err != nil || math.IsNaN(fraction) || math.IsInf(fraction, 0) {
 		return 0, false
@@ -150,7 +156,13 @@ func parseFraction(value string) (float64, bool) {
 }
 
 // parseReset reads a time given in Unix seconds, returning zero when it can't.
+// A missing value, as every answer without extra usage gives its overage, is
+// passed over before strconv, which allocates the error that fails it, on
+// every answer's path.
 func parseReset(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
 	seconds, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return time.Time{}

@@ -153,15 +153,10 @@ func newStream(now func() time.Time) *stream {
 }
 
 // publish tells every reader of e, as happening now, and keeps the request
-// in flight as e leaves it. A request going upstream, sent tells of.
+// in flight as e leaves it. A request going upstream is told of through
+// publishOf, which names its session and model in full.
 func (s *stream) publish(e StreamEvent) {
 	s.publishOf(e, key{})
-}
-
-// sent tells every reader of e, a request going upstream, as publish does:
-// of names its session and model in full.
-func (s *stream) sent(e StreamEvent, of key) {
-	s.publishOf(e, of)
 }
 
 // publishOf tells every reader of e, as happening now, and keeps the request

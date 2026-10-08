@@ -410,7 +410,7 @@ func TestDoingSaysWhatEachSessionAndModelsRequestsInFlightAreDoing(t *testing.T)
 	one, two := key{session: long + "1", model: opus}, key{session: long + "2", model: opus}
 	sent := func(request string, of key, check bool) func() {
 		return func() {
-			s.sent(StreamEvent{Kind: StreamSent, Request: request, Session: bounded(of.session), Model: of.model, Check: check}, of)
+			s.publishOf(StreamEvent{Kind: StreamSent, Request: request, Session: bounded(of.session), Model: of.model, Check: check}, of)
 		}
 	}
 	publish := func(kind string, requests ...string) func() {
