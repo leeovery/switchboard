@@ -309,11 +309,11 @@ func (s *sessions) unpin(force bool) (was status.Pin, cleared int) {
 func (s *sessions) pinSession(id, account string) (was string, seen bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	entries, seen := s.entries()[id]
+	last, seen := s.lastUsed(id)
 	if !seen {
 		return "", false
 	}
-	was, _ = s.pinOf(id, entries[0].assignment)
+	was, _ = s.pinOf(id, last)
 	s.own[id] = ownPin{Account: account, Since: s.now().UTC()}
 	s.changed()
 	return was, true
@@ -403,11 +403,28 @@ func (s *sessions) entries() map[string][]entry {
 		bySession[k.session] = append(bySession[k.session], entry{model: k.model, assignment: a})
 	}
 	for _, entries := range bySession {
-		slices.SortFunc(entries, func(a, b entry) int {
-			return cmp.Or(b.LastSeen.Compare(a.LastSeen), cmp.Compare(a.model, b.model))
-		})
+		slices.SortFunc(entries, byUse)
 	}
 	return bySession
+}
+
+// lastUsed returns the assignment the session with the given id used last,
+// the first of its entries, reporting false for a session never seen. s.mu
+// must be held.
+func (s *sessions) lastUsed(id string) (assignment, bool) {
+	var last entry
+	seen := false
+	for k, a := range s.assignments {
+		if e := (entry{model: k.model, assignment: a}); k.session == id && (!seen || byUse(e, last) < 0) {
+			last, seen = e, true
+		}
+	}
+	return last.assignment, seen
+}
+
+// byUse orders a session's entries the one used last first, then by model.
+func byUse(a, b entry) int {
+	return cmp.Or(b.LastSeen.Compare(a.LastSeen), cmp.Compare(a.model, b.model))
 }
 
 // report is what the router says at now of the session with the given id,

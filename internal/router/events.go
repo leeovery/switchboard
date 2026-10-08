@@ -43,11 +43,13 @@ type LimitReached struct {
 
 // Moved is a session's requests of a model moving to another account, and
 // why, as the routed line's reason says. Held is what held the request back
-// on From, as the choice that moved the session found it, where From couldn't
-// take it: zero where it could, for a move by choice, as by pin, and where
-// only From's windows left it no room, with no limit reached. Limit is the
-// identity of the limit that held the request back, as LimitReached gives
-// it, where Held is HeldByLimit, and zero otherwise.
+// on From, as the choice that moved the session found it, where the session
+// had to leave From as it couldn't take the request, its own pin yielding
+// from it included: zero for a move by choice, as by pin or after an idle
+// hour, whatever held From back, and where only From's windows left it no
+// room, with no limit reached. Limit is the identity of the limit that held
+// the request back, as LimitReached gives it, where Held is HeldByLimit, and
+// zero otherwise.
 type Moved struct {
 	Session string
 	Model   string
@@ -181,12 +183,9 @@ func newLimitMoves(e LimitReached) *limitMoves {
 
 // join takes in the limit reached again while it holds: in other windows,
 // perhaps, and until later. The news of a limit can come after the news of
-// it reached again, so it holds until the latest it's told of. It reports
-// whether that changed the limit.
-func (m *limitMoves) join(e LimitReached) bool {
-	var changed bool
-	m.Windows, m.Until, changed = widen(m.Windows, m.Until, e.Windows, e.Until)
-	return changed
+// it reached again, so it holds until the latest it's told of.
+func (m *limitMoves) join(e LimitReached) {
+	m.Windows, m.Until, _ = widen(m.Windows, m.Until, e.Windows, e.Until)
 }
 
 // widen returns windows with each of more that isn't among them after them,

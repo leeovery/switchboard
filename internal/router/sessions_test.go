@@ -395,6 +395,31 @@ func TestPinningASessionSaysWhatItsOwnPinWas(t *testing.T) {
 	}
 }
 
+func TestPinningASessionSaysThePinItsRequestsUsedLastCarried(t *testing.T) {
+	tests := []struct {
+		name string
+		// haikuSeen is when the session's Haiku requests, launched pinned to
+		// side, were last routed: its Opus requests, pinned to work, were at
+		// start.
+		haikuSeen time.Time
+		want      string
+	}{
+		{name: "its Haiku requests', used last", haikuSeen: start.Add(time.Minute), want: "side"},
+		{name: "its Opus requests', used last", haikuSeen: start.Add(-time.Minute), want: "work"},
+		{name: "of two used together, the first model's", haikuSeen: start, want: "side"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newSessions(at(start), unkept, unkept)
+			assign(s, key{session: "one", model: opus}, "work", decision{account: "work", reason: reasonNew}, start)
+			assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonNew}, tt.haikuSeen)
+			if was, seen := s.pinSession("one", ""); !seen || was != tt.want {
+				t.Errorf("pinSession() = %q, %v, want %q, the pin of the requests used last, and true", was, seen, tt.want)
+			}
+		})
+	}
+}
+
 func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testing.T) {
 	s := newSessions(at(start), unkept, unkept)
 	remember := func(session, model, account string, lastSeen time.Time) {
