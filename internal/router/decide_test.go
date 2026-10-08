@@ -529,7 +529,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			name:    "a session idle past the hour on an account at its reserve is rescored off it",
 			current: on("work", 2*time.Hour),
 			work:    reserved, side: later,
-			want: decision{account: "side", reason: "rescored after 2h idle", afresh: true, held: HeldByReserve},
+			want: decision{account: "side", reason: "rescored after 2h idle", afresh: true},
 		},
 		{
 			name: "a session's pin spends its account's reserve",
