@@ -73,6 +73,31 @@ func TestEachEventAsTheDocumentGivesIt(t *testing.T) {
 			event: RestartDue{Reason: "upgraded"},
 			want:  status.Event{Kind: status.EventRestart, Reason: "upgraded"},
 		},
+		{
+			name:  "the global pin set, moving and forcing, by the pin command",
+			event: Pinned{Accounts: []string{"work", "side"}, Account: "work", Move: true, Force: true, By: ByCLI},
+			want:  status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true, By: "cli"},
+		},
+		{
+			name:  "the global pin set by what doesn't say",
+			event: Pinned{Accounts: []string{"side"}, Account: "side"},
+			want:  status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}},
+		},
+		{
+			name:  "a session's own pin set by the dashboard",
+			event: Pinned{Account: "side", Session: "0b5c6f2e", By: ByDashboard},
+			want:  status.Event{Kind: status.EventPin, Account: "side", Session: "0b5c6f2e", By: "dashboard"},
+		},
+		{
+			name:  "the global pin cleared, forcing, by the pin command",
+			event: Unpinned{Accounts: []string{"work", "side"}, Force: true, By: ByCLI},
+			want:  status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side"}, Force: true, By: "cli"},
+		},
+		{
+			name:  "a session's own pin cleared by the dashboard",
+			event: Unpinned{Account: "work", Session: "0b5c6f2e", By: ByDashboard},
+			want:  status.Event{Kind: status.EventAuto, Account: "work", Session: "0b5c6f2e", By: "dashboard"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,13 +139,20 @@ func TestTheEventsGivenAreACopy(t *testing.T) {
 	r := newTestRecent(&testClock{now: start})
 	r.hear(Primed{Account: "side", Window: "5h", ResetsAt: start.Add(5 * time.Hour)})
 	r.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
+	r.hear(Pinned{Accounts: []string{"work", "side"}, Account: "work"})
 
 	given := r.events()
 	for i := range given {
-		given[i].Windows[0] = "7d"
+		if len(given[i].Windows) > 0 {
+			given[i].Windows[0] = "7d"
+		}
+		if len(given[i].Accounts) > 0 {
+			given[i].Accounts[0] = "personal"
+		}
 	}
 	r.hear(LimitReached{Account: "work", Windows: []string{"7d_oi", "5h"}, Until: start.Add(time.Hour), Limit: 1, Again: true})
 	want := []status.Event{
+		{ID: 3, At: start, Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}},
 		{ID: 2, At: start, Kind: status.EventLimit, Account: "work", Windows: []string{"5h", "7d_oi"}, Until: start.Add(time.Hour), Limit: 1},
 		{ID: 1, At: start, Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: start.Add(5 * time.Hour)},
 	}
@@ -155,7 +187,7 @@ func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 		},
 		{
 			name:  "but a move off it the limit didn't hold back, as at its reserve",
-			moves: []Moved{{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work is at its reserve"}},
+			moves: []Moved{{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work is at its reserve", Held: HeldByReserve}},
 		},
 		{
 			name:  "but a move another limit forced",
@@ -181,7 +213,7 @@ func TestALimitsEventCountsTheSessionsItMoved(t *testing.T) {
 			for i, m := range tt.moves {
 				want := status.Event{ID: 2 + i, At: start, Kind: status.EventMoved, Session: m.Session, Model: m.Model, From: m.From, To: m.To, Reason: m.Reason}
 				if tt.counted {
-					want.Limit = 1
+					want.Limit, want.ForcedBy = 1, 1
 				}
 				if moved := got[len(got)-2-i]; !reflect.DeepEqual(moved, want) {
 					t.Errorf("move %d's event = %+v, want %+v", i+1, moved, want)
@@ -203,7 +235,7 @@ func TestALimitReachedAgainJoinsItsEventInPlace(t *testing.T) {
 	r.hear(forced("one", "work", "side"))
 
 	want := []status.Event{
-		{ID: 3, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
+		{ID: 3, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1, ForcedBy: 1},
 		{ID: 2, At: start, Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}, Until: start.Add(2 * time.Hour), Limit: 2},
 		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"}, Until: start.Add(2 * 24 * time.Hour), Count: 1, Limit: 1},
 	}
@@ -264,9 +296,9 @@ func TestALimitsNewsJoinsItsEventWhateverOrderItComesIn(t *testing.T) {
 	r.hear(forcedBy(2, "one", "work", "side"))
 
 	want := []status.Event{
-		{ID: 4, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
+		{ID: 4, At: clock.now, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1, ForcedBy: 1},
 		{ID: 3, At: start, Kind: status.EventMoved, Session: "three", Model: opus, From: "side", To: "work", Reason: "moved: side hit its limit"},
-		{ID: 2, At: start, Kind: status.EventMoved, Session: "two", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1},
+		{ID: 2, At: start, Kind: status.EventMoved, Session: "two", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 1, ForcedBy: 1},
 		{ID: 1, At: start, Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h", "7d"}, Until: start.Add(2 * time.Hour), Count: 2, Limit: 2},
 	}
 	if got := r.events(); !reflect.DeepEqual(got, want) {
@@ -287,8 +319,11 @@ func TestARefusalsEventEndsAsItLifts(t *testing.T) {
 	until := start.Add(refusedFor)
 	r.hear(Refused{Account: "work", Status: http.StatusUnauthorized, Until: until, Request: first})
 	r.hear(Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: until, Request: first})
-	r.hear(Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: until, Request: second})
 	r.hear(Refused{Account: "side", Status: http.StatusForbidden, Family: "opus", Until: until, Request: second})
+	// The second request is refused Opus on work a minute on, which joins
+	// work's refusal of Opus, holding it till later.
+	clock.now = start.Add(time.Minute)
+	r.hear(Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: clock.now.Add(refusedFor), Request: second})
 
 	// Work goes out on another token two minutes on, and the second request
 	// is refused on every account it went out on a minute later.
@@ -302,13 +337,19 @@ func TestARefusalsEventEndsAsItLifts(t *testing.T) {
 	r.hear(RefusalLifted{Account: "work"})
 
 	want := []status.Event{
-		{ID: 4, At: start, Kind: status.EventRefused, Account: "side", Until: start.Add(3 * time.Minute), Status: http.StatusForbidden, Family: "opus"},
-		{ID: 3, At: start, Kind: status.EventRefused, Account: "work", Until: start.Add(3 * time.Minute), Status: http.StatusForbidden, Family: "opus"},
+		{ID: 3, At: start, Kind: status.EventRefused, Account: "side", Until: start.Add(3 * time.Minute), Status: http.StatusForbidden, Family: "opus"},
 		{ID: 2, At: start, Kind: status.EventRefused, Account: "work", Until: until, Status: http.StatusForbidden, Family: "opus"},
 		{ID: 1, At: start, Kind: status.EventRefused, Account: "work", Until: start.Add(2 * time.Minute), Status: http.StatusUnauthorized},
 	}
 	if got := r.events(); !reflect.DeepEqual(got, want) {
-		t.Errorf("events() =\n%+v\nwant\n%+v: each refusal that lifted ending as it did, and the first request's refusal of Opus standing", got, want)
+		t.Errorf("events() =\n%+v\nwant\n%+v: each refusal that lifted ending as it did, and work's of Opus brought forward to the first request's, which stands", got, want)
+	}
+
+	// The first request is refused on every account it went out on too.
+	clock.now = start.Add(4 * time.Minute)
+	r.hear(RefusalLifted{Account: "work", Family: "opus", Request: first})
+	if got := r.events()[1]; got.ID != 2 || !got.Until.Equal(clock.now) {
+		t.Errorf("work's refusal of Opus = %+v, want it ending at %v, as the last of the requests it joined lifts", got, clock.now)
 	}
 }
 
@@ -598,8 +639,14 @@ type recording struct {
 
 func newRecording(t *testing.T) *recording {
 	t.Helper()
+	return newRecordingOf(t, testConfigured)
+}
+
+// newRecordingOf is newRecording, of the accounts configured.
+func newRecordingOf(t *testing.T, configured []config.Account) *recording {
+	t.Helper()
 	now := func() time.Time { return time.Now().UTC() }
-	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
+	s := newState(resolve(configured, testTokens.Read), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
 	return &recording{t: t, state: s, r: newRecent(s, newSessions(now, unkept, unkept), now), began: now()}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/router"
 )
 
 func BenchmarkProxyStreamed(b *testing.B) {
@@ -28,7 +29,7 @@ func BenchmarkProxyLongSession(b *testing.B) {
 }
 
 // benchmarkProxy times a messages request whose body is asked, as Claude
-// Code sends one on a session under way, going through a running router's
+// Code sends one on a session under way, started by run in a directory, going through a running router's
 // proxy to an upstream that reads it whole and answers it as answer does,
 // reporting the account's usage in its headers as the API does, and back to a
 // client that reads the answer whole, which is to be body.
@@ -48,12 +49,13 @@ func benchmarkProxy(b *testing.B, asked string, answer http.HandlerFunc, body st
 	cfg.Prober = readingEvery(session, week)
 	runRouter(b, cfg)
 	proxy := "http://" + cfg.Listen + "/v1/messages"
+	header := with(claudeCode(workToken), router.DirHeader, router.EncodeDir("~/Code/project"))
 	// The session's first request, which chooses its account, goes untimed.
-	postAsking(proxy, asked)
+	postAsking(proxy, asked, header)
 	want := "200 " + body
 	b.ReportAllocs()
 	for b.Loop() {
-		if got := postAsking(proxy, asked); got != want {
+		if got := postAsking(proxy, asked, header); got != want {
 			b.Fatalf("the proxy answered %q, want %q", got, want)
 		}
 	}

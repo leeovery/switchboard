@@ -73,9 +73,9 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 
 // startsAfresh reports whether kept, the reading a window now stands as, starts
 // it afresh from held, as it stood before: kept has another reset, a new
-// window, or shows it reset by hand, as resetByHand says.
+// window, or shows it reset by hand, as score.ResetByHand says.
 func startsAfresh(held, kept quota.Window) bool {
-	return !kept.ResetsAt.Equal(held.ResetsAt) || resetByHand(held, kept)
+	return !kept.ResetsAt.Equal(held.ResetsAt) || score.ResetByHand(held, kept)
 }
 
 // pace returns how fast the account's pressure window, as policy names it, is

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -53,8 +54,9 @@ type Provider interface {
 	// the account that produced it, so a session on the model moved to
 	// another account carries on without its earlier reasoning.
 	ThinkingBound(model string) bool
-	// Usage reads the usage windows a response's headers report.
-	Usage(h http.Header) []quota.Window
+	// Usage reads the usage a response's headers report: the account's
+	// windows, and its extra usage.
+	Usage(h http.Header) quota.Usage
 	// Classify says what a response, by its status and headers, says of the
 	// account the request went out on: whether its limit is reached, it's
 	// throttled or its token refused, or the response is the client's as it
@@ -198,20 +200,24 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
-	// recent keeps the router's newest events.
+	// recent keeps the router's newest events, and emit tells each of them
+	// to whatever hears them.
 	recent *recent
+	emit   func(Event)
 	// stream tells its readers of what befalls each routed request as it
 	// happens.
 	stream *stream
 	// file keeps what should outlast the router, once Run has loaded it.
 	file *stateFile
-	// history keeps each account's readings as they change, and ledger each
-	// routed request's line, once Run has opened them.
-	history *history
-	ledger  *requestLedger
-	probes  *probes
-	health  *health
-	proxy   *proxy
+	// history keeps each account's readings as they change, ledger each
+	// routed request's line, and eventFiles each version of the events
+	// recent keeps, once Run has opened them.
+	history    *history
+	ledger     *requestLedger
+	eventFiles *events.Writer
+	probes     *probes
+	health     *health
+	proxy      *proxy
 	// primer is nil when priming is off.
 	primer *primer
 	// inFlight counts the proxy's requests in flight.
@@ -257,7 +263,7 @@ func New(cfg Config) (*Router, error) {
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
 	inFlight := newInFlight()
 	stream := newStream(cfg.Now)
-	requests := newRequestLedger(cfg.Ledger, cfg.Now)
+	requests := newRequestLedger(cfg.Ledger, ledger.CapsOf(cfg.Accounts, cfg.Policy.Shared), cfg.Now)
 	history.pruning = requests.summariseEnded
 	transport := newPool()
 	awake := &wakes{now: clock, woke: func() {
@@ -271,6 +277,7 @@ func New(cfg Config) (*Router, error) {
 		state:    state,
 		sessions: sessions,
 		recent:   recent,
+		emit:     emit,
 		stream:   stream,
 		file:     newStateFile(cfg.Now, changes, sessions, accounts, state),
 		history:  history,

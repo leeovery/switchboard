@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -76,10 +77,25 @@ var fixtureLines = map[string][]ledger.Line{
 
 // heldSummary is the summary the ledger holds of the 4th, as the router wrote
 // it.
-const heldSummary = `{"version":1,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
+const heldSummary = `{"version":2,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
 	`"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},` +
 	`"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,"input_tokens":12,"output_tokens":845}}],"sessions":1,` +
-	`"moved_on":0,"moved_off":0,"highest":{"5h":0.5}}]}`
+	`"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0}]}`
+
+// ledgerConfig is the config the ledger's tests run with: work, keeping a
+// tenth of every window in reserve, and side.
+const ledgerConfig = "[[account]]\nid = \"work\"\nreserve = 0.1\n\n[[account]]\nid = \"side\"\n"
+
+// configure writes ledgerConfig where commands run with deps find their
+// config.
+func configure(t *testing.T, deps cli.Deps) {
+	t.Helper()
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(ledgerConfig))
+}
 
 // fixtureReadings are the readings history's readings in the ledger's tests:
 // work reaching its session's limit on the 6th, its window reset by the next
@@ -94,12 +110,13 @@ var fixtureReadings = []readings.Reading{
 }
 
 // ledgerDeps are deps whose state directory holds the ledger's tests' lines,
-// summary and readings, by a clock stopped at ledgerNow, and the JSON of each
-// line written, by its request's id.
+// summary and readings, by a clock stopped at ledgerNow, configured as
+// ledgerConfig says, and the JSON of each line written, by its request's id.
 func ledgerDeps(t *testing.T) (cli.Deps, map[string]string) {
 	t.Helper()
 	deps := testDeps(nil, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
+	configure(t, deps)
 	state := stateDir(t, deps)
 	dir, history := ledger.Dir(state), readings.Dir(state)
 	written := make(map[string]string)
@@ -422,24 +439,35 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"prices_as_of\"") {
 		t.Fatalf("switchboard history --json = %+v (%v), want indented JSON", got, err)
 	}
-	limit := fixtureReadings[1]
+	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
+	// at is t as the JSON gives it.
+	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"prices_as_of":"2026-10-07","days":[` +
-		`{"version":1,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.5},` +
+		`{"version":2,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}]},` +
-		`{"version":1,"day":"2026-10-05","lines":0},` +
-		`{"version":1,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"moved_on":1,"moved_off":0,"highest":{"5h":0.1},` +
+		`{"version":2,"day":"2026-10-05","lines":0},` +
+		`{"version":2,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_read_input_tokens":20000,` +
 		`"input_tokens":5,"output_tokens":50,"server_tool_use":{"web_search_requests":1}},"worth":0.01502}]},` +
-		`{"account":"work","sessions":0,"moved_on":0,"moved_off":1,"highest":{"5h":1},"limits":[{"window":"5h","at":"` +
-		limit.At.UTC().Format(time.RFC3339) + `","resets_at":"` + limit.ResetsAt.UTC().Format(time.RFC3339) + `"}]}]},` +
-		`{"version":1,"day":"2026-10-07","lines":6,"accounts":[` +
-		`{"sessions":1,"moved_on":0,"moved_off":0,"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1,` +
-		`"worth":0}]},` +
-		`{"account":"side","sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"read_before":["5h"],"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,` +
-		`"checks":0,"counts":0,"sessions":1,"worth":0,"unpriced":["no_usage"]}]},` +
-		`{"account":"work","sessions":2,"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},"read_before":["5h"],"models":[` +
+		// Work at its cap, by its reserve, from 21:00, and at its limit from
+		// 22:14 to its session's reset.
+		`{"account":"work","sessions":0,"session_ids":[],"moved_on":0,"moved_off":1,"highest":{"5h":1},"rise":{"5h":1},` +
+		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
+		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}]},` +
+		`{"version":2,"day":"2026-10-07","lines":6,"accounts":[` +
+		// The requests no account answered, of no window the readings
+		// history held.
+		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` +
+		`"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,"sessions":1,"worth":0}]},` +
+		`{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"rise":{"5h":0.05},` +
+		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],` +
+		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"worth":0,"unpriced":["no_usage"]}]},` +
+		`{"account":"work","sessions":2,"session_ids":["` + sessionC + `","` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},` +
+		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"models":[` +
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,"usage":{"input_tokens":8,"output_tokens":1},` +
 		`"worth":0.000013},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +
@@ -500,6 +528,7 @@ func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
+	configure(t, deps)
 	tests := []struct {
 		args []string
 		want string
@@ -530,8 +559,26 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		}
 		days = append(days, compact.String())
 	}
-	if want := []string{`{"version":1,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+	if want := []string{`{"version":2,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
 		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
+	}
+}
+
+func TestTheLedgersCommandsNeedAConfig(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range []string{"requests", "history"} {
+		got := run(t, deps, command)
+		if want := "Error: no config file at " + path + "\n"; got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, want) {
+			t.Errorf("switchboard %s = %+v, want it to fail, printing nothing, as %q: a summary counts the accounts' minutes at their caps by their reserves",
+				command, got, want)
+		}
 	}
 }
 

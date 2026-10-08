@@ -14,10 +14,12 @@ import (
 // limitsPrefix begins the name of each of the usage headers, lowercased.
 const limitsPrefix = "anthropic-ratelimit-unified-"
 
-// windowHeader matches a lowercased usage header: its window key, then its field.
-var windowHeader = regexp.MustCompile(`^` + limitsPrefix + `(.+)-(utilization|reset|status)$`)
+// usageHeader matches a lowercased usage header: its window key, then its
+// field.
+var usageHeader = regexp.MustCompile(`^` + limitsPrefix + `(.+)-(utilization|reset|status)$`)
 
-// overageKey names the extra-usage state, which the headers report like a window.
+// overageKey names extra usage, which the headers report like a window,
+// though it isn't one.
 const overageKey = "overage"
 
 // windowLabels are the human names of the windows Claude reports.
@@ -29,19 +31,23 @@ var windowLabels = map[string]string{
 	"7d_sonnet": "Sonnet week",
 }
 
-// ParseWindows reads the usage windows off a Claude API response's headers,
-// in quota.Sort's order. It takes every window the headers report rather than
-// a fixed list, so a new cap shows up without a code change. A window without
-// a readable utilization is dropped.
-func ParseWindows(h http.Header) []quota.Window {
-	var windows []quota.Window
-	for key, fields := range windowFields(h) {
-		if w, ok := parseWindow(key, fields); ok {
-			windows = append(windows, w)
+// ParseUsage reads an account's usage off a Claude API response's headers:
+// its windows, in quota.Sort's order, and its extra usage. It takes every
+// window the headers report rather than a fixed list, so a new cap shows up
+// without a code change. A window without a readable utilization is dropped,
+// and a field of extra usage missing or unreadable is left zero, the rest
+// read all the same.
+func ParseUsage(h http.Header) quota.Usage {
+	windows, overage := usageFields(h)
+	var usage quota.Usage
+	for key, f := range windows {
+		if w, ok := parseWindow(key, f); ok {
+			usage.Windows = append(usage.Windows, w)
 		}
 	}
-	quota.Sort(windows)
-	return windows
+	quota.Sort(usage.Windows)
+	usage.Extra = parseExtra(overage)
+	return usage
 }
 
 // limitsOf returns each of the usage headers h holds, by its name lowercased,
@@ -63,41 +69,100 @@ func limitsOf(h http.Header) map[string]string {
 	return limits
 }
 
-// windowFields groups the usage headers by window key, then by field.
-func windowFields(h http.Header) map[string]map[string]string {
-	windows := make(map[string]map[string]string)
+// fields are the usage headers of a window, or of extra usage, as given.
+type fields struct {
+	utilization, reset, status string
+}
+
+// set sets the field named to value.
+func (f *fields) set(field, value string) {
+	switch field {
+	case "utilization":
+		f.utilization = value
+	case "reset":
+		f.reset = value
+	case "status":
+		f.status = value
+	}
+}
+
+// usageFields groups the usage headers: the windows' by key, and extra
+// usage's.
+func usageFields(h http.Header) (windows map[string]fields, overage fields) {
+	windows = make(map[string]fields)
 	for name, values := range h {
-		m := windowHeader.FindStringSubmatch(strings.ToLower(name))
-		if m == nil || m[1] == overageKey || len(values) == 0 {
+		m := usageHeader.FindStringSubmatch(strings.ToLower(name))
+		if m == nil || len(values) == 0 {
 			continue
 		}
 		key, field := m[1], m[2]
-		if windows[key] == nil {
-			windows[key] = make(map[string]string)
+		if key == overageKey {
+			overage.set(field, values[0])
+			continue
 		}
-		windows[key][field] = values[0]
+		f := windows[key]
+		f.set(field, values[0])
+		windows[key] = f
 	}
+	return windows, overage
+}
+
+// windowFields groups the windows' usage headers by key.
+func windowFields(h http.Header) map[string]fields {
+	windows, _ := usageFields(h)
 	return windows
 }
 
-// parseWindow reports false when the window's utilization is missing, or isn't
-// a finite number (which JSON couldn't carry).
-func parseWindow(key string, fields map[string]string) (quota.Window, bool) {
-	utilization, err := strconv.ParseFloat(fields["utilization"], 64)
-	if err != nil || math.IsNaN(utilization) || math.IsInf(utilization, 0) {
+// parseWindow reports false when the window's utilization is missing, or
+// can't be read, as parseFraction says.
+func parseWindow(key string, f fields) (quota.Window, bool) {
+	utilization, ok := parseFraction(f.utilization)
+	if !ok {
 		return quota.Window{}, false
 	}
 	return quota.Window{
 		Key:         key,
 		Label:       WindowLabel(key),
 		Utilization: utilization,
-		ResetsAt:    parseReset(fields["reset"]),
-		Status:      quota.Status(fields["status"]),
+		ResetsAt:    parseReset(f.reset),
+		Status:      quota.Status(f.status),
 	}, true
 }
 
+// parseExtra reads extra usage's fields, leaving out each that's missing or
+// can't be read.
+func parseExtra(f fields) quota.ExtraUsage {
+	extra := quota.ExtraUsage{Status: quota.Status(f.status), ResetsAt: parseReset(f.reset)}
+	if utilization, ok := parseFraction(f.utilization); ok {
+		// Copied, so the heap allocation its address costs, which escape
+		// analysis puts at the variable's declaration, comes only with a value.
+		used := utilization
+		extra.Utilization = &used
+	}
+	return extra
+}
+
+// parseFraction reads a fraction used, reporting false when it's missing, or
+// isn't a finite number (which JSON couldn't carry).
+func parseFraction(value string) (float64, bool) {
+	if value == "" {
+		return 0, false
+	}
+	fraction, err := strconv.ParseFloat(value, 64)
+	if err != nil || math.IsNaN(fraction) || math.IsInf(fraction, 0) {
+		return 0, false
+	}
+	return fraction, true
+}
+
 // parseReset reads a time given in Unix seconds, returning zero when it can't.
+// A missing value, as every answer without extra usage gives its overage, is
+// passed over before strconv, which allocates the error that fails it, on
+// every answer's path.
 func parseReset(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
 	seconds, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return time.Time{}

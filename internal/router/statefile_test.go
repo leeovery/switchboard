@@ -34,7 +34,7 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
-	assign(s, key{session: "two", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start.Add(-time.Minute))
+	assignFor(s, Request{Session: "two", Model: opus, Pin: "work", Dir: "~/Code/api"}, decision{account: "work", reason: reasonPinned}, start.Add(-time.Minute))
 	s.pinSession("one", "work")
 	s.pinSession("two", "")
 	saved.save()
@@ -83,6 +83,7 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
       "model": "claude-opus-5-5",
       "account": "work",
       "pin": "work",
+      "dir": "~/Code/api",
       "reason": "pinned",
       "assigned_at": "2026-09-28T13:11:00Z",
       "last_seen": "2026-09-28T13:11:00Z"
@@ -312,6 +313,27 @@ func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
 	}
 	if !log.Has("level=INFO", `msg="loaded state"`, "assignments=1", "pin=side", "readings=0") {
 		t.Errorf("log reads\n%s\nwant the state loaded, without readings", log)
+	}
+}
+
+func TestAStateFileFromBeforeDirectoriesLoadsItsAssignmentsWithNone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	before := `{
+  "version": 1,
+  "sessions": [
+    {"session": "one", "model": "claude-opus-5-5", "account": "work", "reason": "new", "assigned_at": "2026-09-28T12:12:00Z", "last_seen": "2026-09-28T13:11:00Z"}
+  ]
+}
+`
+	if err := os.WriteFile(path, []byte(before), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := newTestFile(at(start), testAccounts())
+
+	f.load(path)
+	got, ok := f.sessions.session("one")
+	if !ok || len(got.Assignments) != 1 || got.Assignments[0].Account != "work" || got.Assignments[0].Dir != "" {
+		t.Errorf("loaded %+v (seen: %v), want the session on work, naming no directory", got, ok)
 	}
 }
 

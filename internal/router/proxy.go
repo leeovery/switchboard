@@ -214,16 +214,17 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 }
 
 // request is what the chooser is to know of a routed request, whose body is
-// body, sent by client's token: its session, its model and whether the
-// model's thinking is bound to its account, whether it's the client's quota
-// check, and its pin; and the request's shape, which the provider reads in
-// the same pass over the body.
+// body, sent by client's token: its session and the directory it was started
+// in, its model and whether the model's thinking is bound to its account,
+// whether it's the client's quota check, and its pin; and the request's
+// shape, which the provider reads in the same pass over the body.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
 	model, check, shape := p.provider.Asks(body)
 	session := p.provider.Session(r.Header)
 	return Request{
 		ID:      ex.id,
 		Session: session,
+		Dir:     dirOf(r.Header),
 		Model:   model,
 		Check:   check,
 		Bound:   p.provider.ThinkingBound(model),
@@ -587,13 +588,15 @@ func (p *proxy) ended(ex *exchange) {
 
 // event returns the request stream's event of the kind given of a routed
 // request, as it stands: on the account whose answer the client has, once
-// it has one, its session and model cut short where they run too long.
+// it has one, its session and model cut short where they run too long, and
+// its directory as the request ledger gives it.
 func (ex *exchange) event(kind string) StreamEvent {
 	return StreamEvent{
 		Kind:    kind,
 		Request: ex.id,
 		Attempt: ex.attempts,
 		Session: bounded(ex.req.Session),
+		Dir:     ex.req.Dir,
 		Model:   bounded(ex.req.Model),
 		Account: ex.answering().account,
 		Check:   ex.req.Check,
@@ -638,7 +641,7 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	f := finishing(r, time.Since(ex.started))
 	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
-	ex.req.Session = p.provider.Session(r.Header)
+	ex.req.Session, ex.req.Dir = p.provider.Session(r.Header), dirOf(r.Header)
 	ex.status = http.StatusBadRequest
 	kind, message := "invalid_request_error", "switchboard: couldn't read the request body"
 	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {

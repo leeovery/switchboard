@@ -15,25 +15,28 @@ import (
 // each routed request, noted as the request ends, which run's goroutine
 // writes once Run has opened it in the state directory, kept as long as the
 // config says, and a summary of each day once it has ended, made with the
-// readings history. Noting a line never holds a request up: one noted before
-// the ledger is opened, or past its queue's end, is dropped.
+// readings history and the accounts' caps. Noting a line never holds a
+// request up: one noted before the ledger is opened, or past its queue's end,
+// is dropped.
 type requestLedger struct {
 	keep time.Duration
+	caps ledger.Caps
 	now  func() time.Time
 	// opened is the ledger once it's opened, nil before.
 	opened atomic.Pointer[ledger.Ledger]
 }
 
-// newRequestLedger returns a request ledger kept as settings say, by now's
-// clock: a zero Keep keeps a day's lines for config.DefaultLedgerKeep.
-func newRequestLedger(settings config.Ledger, now func() time.Time) *requestLedger {
-	return &requestLedger{keep: cmp.Or(settings.Keep, config.DefaultLedgerKeep), now: now}
+// newRequestLedger returns a request ledger kept as settings say, its days
+// summarised with the accounts' caps as caps gives them, by now's clock: a
+// zero Keep keeps a day's lines for config.DefaultLedgerKeep.
+func newRequestLedger(settings config.Ledger, caps ledger.Caps, now func() time.Time) *requestLedger {
+	return &requestLedger{keep: cmp.Or(settings.Keep, config.DefaultLedgerKeep), caps: caps, now: now}
 }
 
 // open has the ledger kept in dir from now on, its days summarised with the
 // readings readings gives.
 func (l *requestLedger) open(dir string, readings ledger.Readings) {
-	l.opened.Store(ledger.Open(dir, l.keep, l.now, readings, logger))
+	l.opened.Store(ledger.Open(dir, l.keep, l.now, readings, l.caps, logger))
 }
 
 // note queues a request's line for run to write. It never waits.
@@ -70,7 +73,7 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		Request:  ex.id,
 		Kind:     ex.kind(),
 		Session:  ex.req.Session,
-		Dir:      DecodeDir(h.Get(DirHeader)),
+		Dir:      ex.req.Dir,
 		Model:    ex.req.Model,
 		Account:  answering.account,
 		Reason:   answering.reason,

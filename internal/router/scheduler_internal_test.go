@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"net/http"
@@ -600,7 +601,7 @@ func TestMovesAreLogged(t *testing.T) {
 	}
 }
 
-func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
+func TestAMoveSaysWhatHeldItsRequestBack(t *testing.T) {
 	// fableAlone has work reach a limit in the Fable week, which holds back
 	// Fable's requests alone.
 	fableAlone := func(s *state) {
@@ -610,14 +611,17 @@ func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
 	tests := []struct {
 		name string
 		// hold holds work back from the session's Opus request, which moves
-		// it to side.
+		// it to side, for reason, "moved: work has no room" when it's "", work
+		// keeping a tenth of every window back as its reserve.
 		hold      func(s *state)
+		reason    string
+		wantHeld  Hold
 		wantLimit int
 	}{
 		{
-			name:      "its limit, in a window every model shares",
-			hold:      func(s *state) { s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) },
-			wantLimit: 1,
+			name:     "its limit, in a window every model shares",
+			hold:     func(s *state) { s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) },
+			wantHeld: HeldByLimit, wantLimit: 1,
 		},
 		{
 			name: "the second of its limits, the first in the Fable week",
@@ -625,17 +629,41 @@ func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
 				fableAlone(s)
 				s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark())
 			},
-			wantLimit: 2,
+			wantHeld: HeldByLimit, wantLimit: 2,
 		},
 		{
-			name: "but a refusal of its token, while its limit holds back Fable alone",
+			name: "its limit, though its token is refused too",
+			hold: func(s *state) {
+				s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark())
+				s.refuse("work", http.StatusUnauthorized, someRequest)
+			},
+			wantHeld: HeldByLimit, wantLimit: 1,
+		},
+		{
+			name: "a refusal of its token, while its limit holds back Fable alone",
 			hold: func(s *state) {
 				fableAlone(s)
 				s.refuse("work", http.StatusUnauthorized, someRequest)
 			},
+			wantHeld: HeldByRefusal,
 		},
 		{
-			name: "but its session spent, while its limit holds back Fable alone",
+			name:     "a refusal of Opus on it",
+			hold:     func(s *state) { s.forbid("work", "opus", http.StatusForbidden, someRequest) },
+			wantHeld: HeldByRefusal,
+		},
+		{
+			name: "its reserve",
+			hold: func(s *state) {
+				reserved := session
+				reserved.Utilization = 0.95
+				s.record("work", []quota.Window{reserved, soonWeek}, s.mark())
+			},
+			reason:   "moved: work is at its reserve",
+			wantHeld: HeldByReserve,
+		},
+		{
+			name: "nothing but its session spent, while its limit holds back Fable alone",
 			hold: func(s *state) {
 				fableAlone(s)
 				spent := session
@@ -646,30 +674,124 @@ func TestAMoveNamesTheLimitThatHeldItsRequestBack(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var heard []Event
-			r, err := New(Config{
-				Accounts: testConfigured,
-				Token:    testTokens.Read,
-				Upstream: "http://127.0.0.1:1",
-				Provider: claude.Provider{},
-				Prober:   &stubProber{},
-				Policy:   testPolicy,
-				Now:      at(start),
-				Events:   func(e Event) { heard = append(heard, e) },
-			})
-			if err != nil {
-				t.Fatalf("New() error = %v", err)
-			}
-			r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
-			r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+			r, heard := newReserving(t)
 			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 			tt.hold(r.state)
 
 			choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"})
-			want := Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work has no room", Limit: tt.wantLimit}
-			if !reflect.DeepEqual(heard, []Event{want}) {
-				t.Errorf("events = %+v, want %+v: the move naming the limit that held its request back, if one did", heard, want)
+			want := Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: cmp.Or(tt.reason, "moved: work has no room"), Held: tt.wantHeld, Limit: tt.wantLimit}
+			if !reflect.DeepEqual(*heard, []Event{want}) {
+				t.Errorf("events = %+v, want %+v: the move saying what held its request back, and which limit, if one did", *heard, want)
 			}
 		})
 	}
+}
+
+func TestOnlyAMoveTheSessionHadToMakeSaysWhatHeldItsRequestBack(t *testing.T) {
+	holds := []struct {
+		name string
+		// hold holds work back from the session's Opus request, as held and
+		// limit say.
+		hold  func(s *state)
+		held  Hold
+		limit int
+	}{
+		{
+			name: "its limit",
+			hold: func(s *state) { s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark()) },
+			held: HeldByLimit, limit: 1,
+		},
+		{
+			name: "a refusal of its token",
+			hold: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest) },
+			held: HeldByRefusal,
+		},
+		{
+			name: "its reserve",
+			hold: func(s *state) {
+				reserved := session
+				reserved.Utilization = 0.95
+				s.record("work", []quota.Window{reserved, soonWeek}, s.mark())
+			},
+			held: HeldByReserve,
+		},
+	}
+	moves := []struct {
+		name string
+		// idle is how long the session has idled on work; launched is the pin
+		// it was launched with, which its requests carry; own is the pin it's
+		// given while it runs; and global is the global pin.
+		idle     time.Duration
+		launched string
+		own      string
+		global   status.Pin
+		// forced is set where the session has to leave work.
+		forced bool
+	}{
+		{name: "as work can't take its request", idle: time.Minute, forced: true},
+		{name: "as its own pin to work yields", idle: time.Minute, launched: "work", forced: true},
+		{name: "as its own pin to work yields, its cache cold", idle: 2 * time.Hour, launched: "work", forced: true},
+		{name: "but by the global pin, which moves it", idle: time.Minute, global: status.Pin{Accounts: []string{"side"}, Since: start, Move: true}},
+		{name: "but by its own pin", idle: time.Minute, own: "side"},
+		{name: "but rescored after its idle hours", idle: 2 * time.Hour},
+	}
+	for _, h := range holds {
+		for _, m := range moves {
+			if m.launched == "work" && h.held == HeldByReserve {
+				// A session's own pin spends its account's reserve, so it
+				// yields at its limit or a refusal alone.
+				continue
+			}
+			t.Run(h.name+", "+m.name, func(t *testing.T) {
+				r, heard := newReserving(t)
+				assign(r.sessions, key{session: "one", model: opus}, m.launched, decision{account: "work", reason: reasonNew}, start.Add(-m.idle))
+				if m.own != "" {
+					r.sessions.pinSession("one", m.own)
+				}
+				if len(m.global.Accounts) > 0 {
+					r.sessions.setPin(m.global, false)
+				}
+				h.hold(r.state)
+
+				choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Pin: m.launched, Client: "work"})
+				want := Moved{Session: "one", Model: opus, From: "work", To: "side"}
+				if m.forced {
+					want.Held, want.Limit = h.held, h.limit
+				}
+				if len(*heard) != 1 {
+					t.Fatalf("events = %+v, want the session's move alone", *heard)
+				}
+				got, _ := (*heard)[0].(Moved)
+				if got.Reason == "" || got.From != want.From || got.To != want.To || got.Held != want.Held || got.Limit != want.Limit {
+					t.Errorf("events = %+v, want the move from work to side, held back by %d and limit %d", got, want.Held, want.Limit)
+				}
+			})
+		}
+	}
+}
+
+// newReserving returns a router of testConfigured at start, work keeping a
+// tenth of every window back as its reserve, and its quota needing using
+// before side's, with the events it tells, as it tells them.
+func newReserving(t *testing.T) (*Router, *[]Event) {
+	t.Helper()
+	var heard []Event
+	reserving := slices.Clone(testConfigured)
+	reserving[0].Reserve = 0.1
+	r, err := New(Config{
+		Accounts: reserving,
+		Token:    testTokens.Read,
+		Upstream: "http://127.0.0.1:1",
+		Provider: claude.Provider{},
+		Prober:   &stubProber{},
+		Policy:   testPolicy,
+		Now:      at(start),
+		Events:   func(e Event) { heard = append(heard, e) },
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	r.state.record("work", []quota.Window{session, soonWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
+	return r, &heard
 }

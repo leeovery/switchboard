@@ -239,7 +239,7 @@ func write(t *testing.T, dir string, lines ...*ledger.Line) {
 // one it can, as a router started at at and stopped at once has it.
 func writeAt(t *testing.T, dir string, at time.Time, readings ledger.Readings, lines ...*ledger.Line) {
 	t.Helper()
-	l := ledger.Open(dir, 90*24*time.Hour, func() time.Time { return at }, readings, logs.For("router"))
+	l := ledger.Open(dir, 90*24*time.Hour, func() time.Time { return at }, readings, caps, logs.For("router"))
 	stop := running(t, l)
 	for _, line := range lines {
 		l.Note(line)

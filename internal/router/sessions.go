@@ -33,6 +33,9 @@ type assignment struct {
 	// Pin is the account the session's own pin named when the session was
 	// last routed, or "" when it named none.
 	Pin string `json:"pin,omitempty"`
+	// Dir is the directory the session's last request to name one was
+	// started in, as the request ledger gives it, or "" while none has.
+	Dir string `json:"dir,omitempty"`
 	// Reason says why the session went to its account.
 	Reason     string    `json:"reason"`
 	AssignedAt time.Time `json:"assigned_at"`
@@ -61,9 +64,9 @@ func (a assignment) same(b assignment) bool {
 }
 
 // usedAgain reports whether a is b used again, and nothing more: the same
-// assignment, with the same pin and reason.
+// assignment, with the same pin, directory and reason.
 func (a assignment) usedAgain(b assignment) bool {
-	return a.same(b) && a.Pin == b.Pin && a.Reason == b.Reason
+	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Reason == b.Reason
 }
 
 // inUTC is the assignment with its times in UTC.
@@ -83,6 +86,7 @@ func (e entry) export() status.Assignment {
 	return status.Assignment{
 		Model:      e.model,
 		Account:    e.Account,
+		Dir:        e.Dir,
 		Pinned:     e.Pin != "" && e.Pin == e.Account,
 		Reason:     e.Reason,
 		AssignedAt: e.AssignedAt,
@@ -175,10 +179,11 @@ func (s *sessions) lookup(k key) found {
 }
 
 // remember notes that req went where d says at now, carrying its pin as its
-// session's own, unless the assignment of its session and model has changed
-// since req's choice found it as was, zero for none: another request of the
-// session moved it meanwhile, and that newer assignment stands. It returns
-// the assignment it found, and reports whether it noted the request.
+// session's own, and its directory, should it name one, unless the assignment
+// of its session and model has changed since req's choice found it as was,
+// zero for none: another request of the session moved it meanwhile, and that
+// newer assignment stands. It returns the assignment it found, and reports
+// whether it noted the request.
 func (s *sessions) remember(req Request, was assignment, d decision, now time.Time) (assignment, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -201,6 +206,7 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 		a.Reason = d.reason
 	}
 	a.Pin, a.LastSeen, a.by = req.Pin, now, req.ID
+	a.Dir = cmp.Or(req.Dir, a.Dir)
 	s.assignments[k] = a.inUTC()
 	if a.usedAgain(found) {
 		s.usedAgain()
@@ -297,17 +303,20 @@ func (s *sessions) unpin(force bool) (was status.Pin, cleared int) {
 
 // pinSession gives the session with the given id its own pin to account from
 // now on, passing over the one it was launched with, or, where account is "",
-// clears its own pin, the one it was launched with included. It reports
+// clears its own pin, the one it was launched with included. It returns the
+// account the session's own pin named before, "" for none, and reports
 // false, and does nothing, for a session never seen.
-func (s *sessions) pinSession(id, account string) bool {
+func (s *sessions) pinSession(id, account string) (was string, seen bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.seen(id) {
-		return false
+	last, seen := s.lastUsed(id)
+	if !seen {
+		return "", false
 	}
+	was, _ = s.pinOf(id, last)
 	s.own[id] = ownPin{Account: account, Since: s.now().UTC()}
 	s.changed()
-	return true
+	return was, true
 }
 
 // session reports what the router says of the session with the given id,
@@ -394,11 +403,28 @@ func (s *sessions) entries() map[string][]entry {
 		bySession[k.session] = append(bySession[k.session], entry{model: k.model, assignment: a})
 	}
 	for _, entries := range bySession {
-		slices.SortFunc(entries, func(a, b entry) int {
-			return cmp.Or(b.LastSeen.Compare(a.LastSeen), cmp.Compare(a.model, b.model))
-		})
+		slices.SortFunc(entries, byUse)
 	}
 	return bySession
+}
+
+// lastUsed returns the assignment the session with the given id used last,
+// the first of its entries, reporting false for a session never seen. s.mu
+// must be held.
+func (s *sessions) lastUsed(id string) (assignment, bool) {
+	var last entry
+	seen := false
+	for k, a := range s.assignments {
+		if e := (entry{model: k.model, assignment: a}); k.session == id && (!seen || byUse(e, last) < 0) {
+			last, seen = e, true
+		}
+	}
+	return last.assignment, seen
+}
+
+// byUse orders a session's entries the one used last first, then by model.
+func byUse(a, b entry) int {
+	return cmp.Or(b.LastSeen.Compare(a.LastSeen), cmp.Compare(a.model, b.model))
 }
 
 // report is what the router says at now of the session with the given id,

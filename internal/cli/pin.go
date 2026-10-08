@@ -112,12 +112,12 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 	case opts.session != "":
 		return a.pinSession(ctx, client, opts.session, accounts[0])
 	case isAuto(accounts[0]):
-		if _, err := client.Unpin(ctx, opts.force); err != nil {
+		if _, err := client.Unpin(ctx, opts.force, router.ByCLI); err != nil {
 			return "", err
 		}
 		return forced("routing automatically", opts.force), nil
 	}
-	doc, err := client.Pin(ctx, router.PinRequest{Accounts: accounts, Move: opts.move, Force: opts.force})
+	doc, err := client.Pin(ctx, router.PinRequest{Accounts: accounts, Move: opts.move, Force: opts.force, By: router.ByCLI})
 	if err != nil {
 		return "", err
 	}
@@ -133,12 +133,12 @@ func (a *app) pinSession(ctx context.Context, client *router.Client, given, acco
 	}
 	session := "session " + status.ShortID(status.Clean(id))
 	if isAuto(account) {
-		if _, err := client.UnpinSession(ctx, id); err != nil {
+		if _, err := client.UnpinSession(ctx, id, router.ByCLI); err != nil {
 			return "", err
 		}
 		return session + " is routed automatically from its next request", nil
 	}
-	if _, err := client.PinSession(ctx, id, account); err != nil {
+	if _, err := client.PinSession(ctx, id, account, router.ByCLI); err != nil {
 		return "", err
 	}
 	return session + " goes to " + account + " from its next request", nil

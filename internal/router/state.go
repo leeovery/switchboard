@@ -46,6 +46,11 @@ type usage struct {
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
+	// extra is the account's extra usage, as the answer or probe to give it
+	// whose request was sent last left it, at extraSent: the state file's
+	// counts as sent before every moment.
+	extra     quota.ExtraUsage
+	extraSent moment
 	// refused are the upstream's refusals of the account's token, which hold
 	// back every request.
 	refused refusals
@@ -266,6 +271,27 @@ func (s *state) record(id string, windows []quota.Window, sent moment) {
 	s.history(readings.Of(id, changed, at, readings.FromAnswer))
 }
 
+// recordExtra takes in an account's extra usage, off the answer to a request
+// sent at sent, as takeExtra does.
+func (s *state) recordExtra(id string, extra quota.ExtraUsage, sent moment) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.usage[id].takeExtra(extra, sent) {
+		s.readOff()
+	}
+}
+
+// takeExtra takes in extra usage off the answer to a request, or a probe,
+// sent at sent, and reports whether it did: it does where any of it was
+// given, and no request sent later has given it already.
+func (u *usage) takeExtra(extra quota.ExtraUsage, sent moment) bool {
+	if !extra.Given() || sent < u.extraSent {
+		return false
+	}
+	u.extra, u.extraSent = extra, sent
+	return true
+}
+
 // admitted notes that the upstream answered a request on the account, sent
 // at sent, with success, which lifts the account's limit as admits says.
 func (s *state) admitted(id string, sent moment) {
@@ -275,9 +301,9 @@ func (s *state) admitted(id string, sent moment) {
 }
 
 // recordProbe takes in what probing an account, from sent on, found, as a
-// prime or not, as from says: its usage and which models reported each
-// window, and whether a request of it was answered with success, or why it
-// read nothing.
+// prime or not, as from says: its usage, its extra usage among it, and which
+// models reported each window, and whether a request of it was answered with
+// success, or why it read nothing.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -293,6 +319,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	}
 	u.failures = slices.Clone(probed.Failures)
 	changed, news := u.take(probed.Windows, at, sent, s.mark())
+	news = u.takeExtra(probed.Extra, sent) || news
 	s.history(readings.Of(id, changed, at, from))
 	for key, models := range probed.Models {
 		for _, model := range models {
@@ -479,18 +506,6 @@ func (u *usage) lift() {
 	u.limited = limit{}
 }
 
-// limitHolding returns the identity of the limit of the account with the
-// given id that holds back a request of model at now, or 0 when none does.
-func (s *state) limitHolding(id, model string, now time.Time) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	u, ok := s.usage[id]
-	if !ok || !u.limited.holds(now, s.counting(model)) {
-		return 0
-	}
-	return u.limited.id
-}
-
 // sinceReset returns windows, those a limit reached as the answer to a request
 // sent at sent names, but those read reset by hand, as they now stand, off the
 // answer to a request sent after it, as fromBeforeReset has a reading of them:
@@ -650,33 +665,36 @@ func (u *usage) primeFailed(policy score.Policy) bool {
 // view returns what a choice of account for a request of model knows at now:
 // every account with a token, as it stands, with its reserve and the pace its
 // pressure window is being used at, which windows count the request, which
-// accounts have no room for it whatever their windows read, and which of
-// those refused it lately. It notes in the log how the accounts' reserves hold
-// them back, as noteReserves says.
+// accounts have no room for it whatever their windows read, which of those
+// refused it lately, and which limits hold it back on the others. It notes in
+// the log how the accounts' reserves hold them back, as noteReserves says.
 func (s *state) view(model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.noteReserves(now)
 	family, applies := s.family(model), s.counting(model)
-	var (
-		candidates      []score.Candidate
-		barred, refused []string
-	)
+	v := view{policy: s.policy, now: now, applies: applies}
 	for _, a := range s.accounts {
 		if !a.hasToken() {
 			continue
 		}
 		u := s.usage[a.ID]
 		pace, _ := u.pace(s.policy, now)
-		candidates = append(candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve, Rate: pace.Rate})
+		v.candidates = append(v.candidates, score.Candidate{ID: a.ID, Windows: u.current(s.policy, now), Reserve: a.Reserve, Rate: pace.Rate})
 		if u.barred(now, family, applies) {
-			barred = append(barred, a.ID)
+			v.barred = append(v.barred, a.ID)
 		}
 		if u.refuses(now, family) {
-			refused = append(refused, a.ID)
+			v.refused = append(v.refused, a.ID)
+		}
+		if u.limited.holds(now, applies) {
+			if v.limited == nil {
+				v.limited = make(map[string]int)
+			}
+			v.limited[a.ID] = u.limited.id
 		}
 	}
-	return view{policy: s.policy, now: now, candidates: candidates, applies: applies, barred: barred, refused: refused}
+	return v
 }
 
 // noteReserves notes in the log, as it finds the accounts at now, each window
@@ -773,7 +791,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 		}
 		if outcome == counted {
 			kept = startedAgain(held, kept, at)
-			if resetByHand(held, kept) {
+			if score.ResetByHand(held, kept) {
 				u.resetBy[w.Key] = sent
 			}
 			u.windows[w.Key], u.taken[w.Key] = kept, taken
@@ -869,31 +887,17 @@ func mergeLater(held, w quota.Window, after bool) (quota.Window, fate) {
 	}
 }
 
-// handReset is how far a window's use must fall, its reset kept, for the
-// reading taken as current to show it started again, as a reset made by hand
-// starts it, emptying it: a smaller dip, as a 429 reading a point below the
-// use read just before, is noise, and the window runs on.
-const handReset = 0.10
-
-// resetByHand reports whether kept, the reading a window now stands as, shows
-// it reset by hand since held, the one it stood as before: its reset is the
-// same, and its use has fallen by handReset at least, allowing for rounding,
-// as 0.3 less 0.2 reads a hair under 0.1.
-func resetByHand(held, kept quota.Window) bool {
-	return kept.ResetsAt.Equal(held.ResetsAt) && held.Utilization-kept.Utilization >= handReset-score.Tolerance
-}
-
 // startedAgain returns kept, the reading a window now stands as, taken in at
 // a time, held being the one it stood as before, with when the window started
 // again, as far as that's known: at, when kept shows it reset by hand since
-// held, as resetByHand says; held's, while kept goes on from held, a smaller
-// dip included; and none for a new window, which runs a whole length before
-// its reset.
+// held, as score.ResetByHand says; held's, while kept goes on from held, a
+// smaller dip included; and none for a new window, which runs a whole length
+// before its reset.
 func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 	switch {
 	case kept.ResetsAt.IsZero() || !kept.ResetsAt.Equal(held.ResetsAt):
 		kept.RestartedAt = time.Time{}
-	case resetByHand(held, kept):
+	case score.ResetByHand(held, kept):
 		kept.RestartedAt = at
 	default:
 		kept.RestartedAt = held.RestartedAt
@@ -957,16 +961,26 @@ func (s *state) standings(now time.Time) standings {
 // standing is how the account stands at now. Its quota leaves it no room for
 // a request of any model while a limit holds such requests back, or while a
 // window every model shares is spent, or has reached the account's reserve,
-// as last read, and hasn't reset since.
+// as last read, and hasn't reset since; and those are the windows that hold
+// it back, the limit's first.
 func (u *usage) standing(a account, policy score.Policy, now time.Time) standing {
 	limited := u.limited.holds(now, policy.IsShared)
 	st := u.status(a, policy, now)
-	return standing{
+	s := standing{
 		Account: st,
 		quota:   !limited && score.Available(st.Windows, a.Reserve, policy.IsShared, now),
 		known:   limited || len(st.Windows) > 0,
 		refused: u.refused.inForce(now),
 	}
+	if limited {
+		s.held = slices.Clone(u.limited.windows)
+	}
+	for _, w := range st.Windows {
+		if !score.Available([]quota.Window{w}, a.Reserve, policy.IsShared, now) {
+			s.held = withEach(s.held, w.Key)
+		}
+	}
+	return s
 }
 
 // status is the account as configured, with its usage as last read, standing
@@ -980,7 +994,7 @@ func (u *usage) status(a account, policy score.Policy, now time.Time) status.Acc
 	}
 	st.TokenSet = true
 	st.FetchedAt = u.updated
-	st.Windows = u.latest()
+	st.Windows, st.Extra = u.latest(), u.extra
 	st = st.AsOf(policy, now)
 	st.Failures = slices.Clone(u.failures)
 	st.Error = u.probeErr
@@ -1025,15 +1039,15 @@ func (u *usage) current(policy score.Policy, now time.Time) []quota.Window {
 }
 
 // saved is what the state file keeps of the accounts' usage: each account's
-// windows as last read, and when, and the model families each window has been
-// reported on.
+// windows as last read, and when, and its extra usage, and the model families
+// each window has been reported on.
 func (s *state) saved() savedUsage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string)}
 	for id, u := range s.usage {
-		if len(u.windows) > 0 {
-			saved.Readings[id] = savedReading{ReadAt: u.updated, Windows: u.latest()}
+		if len(u.windows) > 0 || u.extra.Given() {
+			saved.Readings[id] = savedReading{ReadAt: u.updated, Windows: u.latest(), Extra: u.extra}
 		}
 	}
 	for key, families := range s.seen {
@@ -1057,7 +1071,7 @@ func (s *state) recall(saved savedUsage) (dropped bool) {
 		for _, w := range reading.Windows {
 			u.windows[w.Key] = w
 		}
-		u.updated = reading.ReadAt.UTC()
+		u.updated, u.extra = reading.ReadAt.UTC(), reading.Extra
 	}
 	for key, families := range saved.WindowFamilies {
 		for _, family := range families {

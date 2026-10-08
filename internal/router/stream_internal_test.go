@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -398,6 +399,48 @@ func TestAReaderThatFallsBehindIsDropped(t *testing.T) {
 	s.publish(StreamEvent{Kind: StreamDone, Request: "r", Attempt: 1})
 	if e := <-keeping.events; e.Kind != StreamDone {
 		t.Errorf("the reader that kept up was told of %+v, want the request done: it reads on", e)
+	}
+}
+
+func TestDoingSaysWhatEachSessionAndModelsRequestsInFlightAreDoing(t *testing.T) {
+	s := newStream(at(start))
+	// one and two are sessions whose ids differ only past what an event
+	// gives of them.
+	long := strings.Repeat("s", 300)
+	one, two := key{session: long + "1", model: opus}, key{session: long + "2", model: opus}
+	sent := func(request string, of key, check bool) func() {
+		return func() {
+			s.publishOf(StreamEvent{Kind: StreamSent, Request: request, Session: bounded(of.session), Model: of.model, Check: check}, of)
+		}
+	}
+	publish := func(kind string, requests ...string) func() {
+		return func() {
+			for _, request := range requests {
+				s.publish(StreamEvent{Kind: kind, Request: request})
+			}
+		}
+	}
+	steps := []struct {
+		name string
+		do   func()
+		want map[key]string
+	}{
+		{name: "none in flight", do: func() {}, want: map[key]string{}},
+		{name: "one's request sent", do: sent("a", one, false), want: map[key]string{one: status.Asking}},
+		{name: "another of one's sent", do: sent("b", one, false), want: map[key]string{one: status.Asking}},
+		{name: "the other's answer begun", do: publish(StreamFirst, "b"), want: map[key]string{one: status.Answering}},
+		{name: "two's request sent", do: sent("c", two, false), want: map[key]string{one: status.Answering, two: status.Asking}},
+		{name: "a quota check of one's sent", do: sent("q", one, true), want: map[key]string{one: status.Answering, two: status.Asking}},
+		{name: "the answering one done", do: publish(StreamDone, "b"), want: map[key]string{one: status.Asking, two: status.Asking}},
+		{name: "one's answer begun", do: publish(StreamFirst, "a"), want: map[key]string{one: status.Answering, two: status.Asking}},
+		{name: "one's sent again", do: sent("a", one, false), want: map[key]string{one: status.Asking, two: status.Asking}},
+		{name: "every one done", do: publish(StreamDone, "a", "c", "q"), want: map[key]string{}},
+	}
+	for _, step := range steps {
+		step.do()
+		if got := s.doing(); !maps.Equal(got, step.want) {
+			t.Errorf("%s: doing() = %v, want %v", step.name, got, step.want)
+		}
 	}
 }
 

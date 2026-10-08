@@ -4191,6 +4191,9 @@ from the first day a router that has it runs, so nothing before then is in it.
       took it away, its reset, or the day's end, a minute at both counting as at a limit. The cap is
       the config's as the summary is made, as the readings history keeps none. Windows of a model's
       own, as Fable's week, hold back only that model, and count toward neither.
+    - Of an account the readings history held none of the windows of, in the day or the week
+      before it, as once it has pruned them, its keep being its own, `rise`, `resets` and the
+      minutes are left out, as never read, never as none.
 
   A summary is written whole, and written again while lines come to be filed under its day: a
   request in flight past the hour the day is given, a change of time zone, or a clock set ahead and
@@ -4221,20 +4224,21 @@ from the first day a router that has it runs, so nothing before then is in it.
   limit held already. So one read first where the summary before read no readings, as of a day whose
   only line was torn, or while the history couldn't be read, is kept.
 
-  A round counts a day's lines only where its files have changed since its summary was marked:
-  the summary holds their sizes, as `bytes`, and its modification time, its stamp, is set to when
-  the day's compressed file was last modified, as they were when it was made, or last counted and
-  found to stand. The stamp holds the summary's version too: a day whose summary is of an older
-  version is read, and summarised again from its lines while they're kept, once, on the first round
-  under the new version. A day with no plain file, whose compressed file still gives that time,
-  costs a look at its files and its summary's, reading none of them: compressing a day writes its
-  compressed file anew, once a day at most. That look reads no summary, so it takes one damaged in
-  place, or of another day, as by a restore or a copy that keeps its time, as it stands; what reads
-  it, a reader, or a round that must, warns of it, and summarises its day from its lines, while
-  they're kept. Any other has its summary read, and its lines counted only where its files' sizes
-  differ from those it holds: lines are only ever appended to the plain file, which grows with each,
-  however coarsely the file system keeps its times: one that keeps whole seconds, as HFS+ does,
-  gives a line appended within the second the file was last modified in no time of its own. A
+  A round counts a day's lines only where its files have changed since its summary was marked: the
+  summary holds their sizes, as `bytes`, and its modification time, its stamp, is set to when the
+  day's compressed file was last modified, as they were when it was made, or last counted and found
+  to stand. The stamp holds the summary's version too, a second later than that time for each
+  version past the first, which a file system that keeps whole seconds keeps: a day whose summary is
+  of an older version is read, and summarised again from its lines while they're kept, once, on the
+  first round under the new version. A day with no plain file, whose compressed file still gives
+  that time, costs a look at its files and its summary's, reading none of them: compressing a day
+  writes its compressed file anew, once a day at most. That look reads no summary, so it takes one
+  damaged in place, or of another day, as by a restore or a copy that keeps its time, as it stands;
+  what reads it, a reader, or a round that must, warns of it, and summarises its day from its lines,
+  while they're kept. Any other has its summary read, and its lines counted only where its files'
+  sizes differ from those it holds: lines are only ever appended to the plain file, which grows with
+  each, however coarsely the file system keeps its times: one that keeps whole seconds, as HFS+
+  does, gives a line appended within the second the file was last modified in no time of its own. A
   summary found to stand where they differ is marked afresh: its `bytes` alone are rewritten, every
   other field kept as it's written, those a later release added among them, so a release before it
   never drops them from a summary that keeps that release's version. Read whole, a year of heavy
@@ -4755,8 +4759,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   Config). A day's summary is written whole, beside where it goes and renamed into place, written
   again while lines come to be filed under its day, and never removed; it holds the sizes of its
   day's files, and its modification time is its stamp, when the day's compressed file was last
-  modified, which a round checks before it reads it, or counts the day's lines (see The request
-  ledger). The router leaves anything else in the directory alone.
+  modified, a second later for each version of the summaries past the first, which a round checks
+  before it reads it, or counts the day's lines (see The request ledger). The router leaves
+  anything else in the directory alone.
 - **Events:** `<state dir>/ledger/events-<local date>.jsonl`, the router's events, kept across
   restarts, a file a day beside the request ledger's, and kept as long: see The router's events.
 - **Preferences:** `<state dir>/prefs.json`: the dashboard's theme or pair of themes, and what its
@@ -5584,6 +5589,7 @@ why.
 | History's Days in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |
 | TOON for the data verbs' long tables, beside their JSON | later, after milestone 7 | [toon-tables](../ideas/2026-10-08--toon-tables.md) |
 | A faster gate before a release's tag | later, once the redesign ships | [faster-release-gate](../ideas/2026-10-08--faster-release-gate.md) |
+| Spending extra usage: a way to say carry on, and be billed, once every account is at its limit | later | [spending-extra-usage](../ideas/2026-10-08--spending-extra-usage.md) |
 | A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
 | Other agents than Claude Code | deferred | [other-agents](../ideas/2026-09-30--other-agents.md) |
 | Prompt-cache keep-warm | parked | [prompt-cache-keep-warm](../ideas/2026-09-30--prompt-cache-keep-warm.md) |

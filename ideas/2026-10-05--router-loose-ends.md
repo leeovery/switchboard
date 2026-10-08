@@ -49,3 +49,16 @@ only when something rare happens.
 
 - **A crash mid-compress, then a line appended,** has the next `compress` add the plain lines again.
 - **`requests` decodes the day before its span** for lines filed under it, then drops them: CPU only.
+
+## Found while building milestone 7's stage 1, 8 October 2026
+
+- **`TestAnAssignmentUsedAgainIsSavedOnceAMinute` failed once** at a load average near 10: the
+  state file was written once more than it wants while the session was used again. It passed 48
+  times since on the stage, and 40 times on main, so no change of the stage's is to blame. The
+  test's timers fall on the same instants of synctest's clock, the save a second after a change
+  and the session used every second, and the order goroutines woken at one instant run in isn't
+  fixed. A fix: move the uses off the save's instants, or wait for the save before each.
+- **`GET /sessions/{id}` groups every session to report one.** `sessions.session` calls
+  `s.entries()`, which groups and sorts the assignments of every session in the last hour, to
+  report the one asked for, and statuslines ask for it often. A fix: gather that one session's
+  entries alone, sorted by `byUse`, as `lastUsed` finds its newest.

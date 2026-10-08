@@ -21,11 +21,13 @@ const maxMessage = 100
 
 // standing is how an account stands, as notifications judge it: its status;
 // whether its quota leaves it room for a request of any model, which is known
-// once its usage has been read or a limit has barred it; and whether its
-// token was refused too lately for anything to go out on it.
+// once its usage has been read or a limit has barred it, and the keys of the
+// windows that leave it none, where it has none; and whether its token was
+// refused too lately for anything to go out on it.
 type standing struct {
 	status.Account
 	quota, known, refused bool
+	held                  []string
 }
 
 // windowLabel names the account's window with the given key by its label, or

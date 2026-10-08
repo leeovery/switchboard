@@ -127,10 +127,10 @@ func (Provider) Family(model string) string {
 	return model
 }
 
-// Usage reads the usage windows off a response's headers, as ParseWindows
-// does.
-func (Provider) Usage(h http.Header) []quota.Window {
-	return ParseWindows(h)
+// Usage reads the account's usage off a response's headers, its windows and
+// its extra usage, as ParseUsage does.
+func (Provider) Usage(h http.Header) quota.Usage {
+	return ParseUsage(h)
 }
 
 // ErrorMessage returns the message of the API error a response's body holds,

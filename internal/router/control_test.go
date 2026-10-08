@@ -1,16 +1,20 @@
 package router_test
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -120,11 +124,11 @@ func TestClientPin(t *testing.T) {
 			if got := rt.Status().Pin; !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("once pinned, the router's pin = %+v, want %+v", got, tt.want)
 			}
-			doc, err = client.Unpin(t.Context(), false)
+			doc, err = client.Unpin(t.Context(), false, "")
 			if err != nil || !doc.Pin.IsZero() || len(doc.Accounts) != 3 {
 				t.Errorf("Unpin() = %+v, %v, want the status document, without a pin", doc, err)
 			}
-			if _, err := client.Unpin(t.Context(), false); err != nil {
+			if _, err := client.Unpin(t.Context(), false, ""); err != nil {
 				t.Errorf("Unpin() without a pin: %v, want nil", err)
 			}
 		})
@@ -256,8 +260,8 @@ func TestClientPinRefusesAnAccountNothingCanGoOutOn(t *testing.T) {
 			if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: tt.accounts}); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Pin() error = %v, want %q", err, tt.wantErr)
 			}
-			if got := rt.Status().Pin; !got.IsZero() {
-				t.Errorf("the router's pin = %+v, want none", got)
+			if got := rt.Status(); !got.Pin.IsZero() || len(got.Events) > 0 {
+				t.Errorf("the router's pin = %+v, and its events %+v, want none, and nothing told", got.Pin, got.Events)
 			}
 		})
 	}
@@ -465,7 +469,7 @@ func TestClientPinSession(t *testing.T) {
 	client := router.NewClient(serveControl(t, r.rt))
 	r.ask(t, sessionID, opus, "work")
 
-	got, err := client.PinSession(t.Context(), sessionID, "side")
+	got, err := client.PinSession(t.Context(), sessionID, "side", "")
 	want := status.Session{
 		ID:          sessionID,
 		Pin:         "side",
@@ -476,7 +480,7 @@ func TestClientPinSession(t *testing.T) {
 		t.Errorf("PinSession() =\n%+v, %v\nwant the session as it stands, pinned to side, its next request yet to move it\n%+v", got, err, want)
 	}
 
-	got, err = client.UnpinSession(t.Context(), sessionID)
+	got, err = client.UnpinSession(t.Context(), sessionID, "")
 	want.Pin, want.Assignments[0].PinnedAt = "", time.Time{}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("UnpinSession() =\n%+v, %v\nwant the session as it stands, with no pin of its own\n%+v", got, err, want)
@@ -494,7 +498,7 @@ func TestClientPinSessionRefuses(t *testing.T) {
 		{
 			name: "a session never seen, pinned",
 			pin: func(ctx context.Context, c *router.Client) error {
-				_, err := c.PinSession(ctx, "nope", "side")
+				_, err := c.PinSession(ctx, "nope", "side", "")
 				return err
 			},
 			wantErr:     "the router hasn't seen session nope",
@@ -503,7 +507,7 @@ func TestClientPinSessionRefuses(t *testing.T) {
 		{
 			name: "a session never seen, unpinned",
 			pin: func(ctx context.Context, c *router.Client) error {
-				_, err := c.UnpinSession(ctx, "nope")
+				_, err := c.UnpinSession(ctx, "nope", "")
 				return err
 			},
 			wantErr:     "the router hasn't seen session nope",
@@ -512,7 +516,7 @@ func TestClientPinSessionRefuses(t *testing.T) {
 		{
 			name: "an account there's none of",
 			pin: func(ctx context.Context, c *router.Client) error {
-				_, err := c.PinSession(ctx, sessionID, "nope")
+				_, err := c.PinSession(ctx, sessionID, "nope", "")
 				return err
 			},
 			wantErr: `there's no account "nope": pin work or side`,
@@ -520,7 +524,7 @@ func TestClientPinSessionRefuses(t *testing.T) {
 		{
 			name: "an account without a usable token",
 			pin: func(ctx context.Context, c *router.Client) error {
-				_, err := c.PinSession(ctx, sessionID, "personal")
+				_, err := c.PinSession(ctx, sessionID, "personal", "")
 				return err
 			},
 			wantErr: "account personal has no usable token, so nothing can go out on it: " + personalMissing,
@@ -528,7 +532,7 @@ func TestClientPinSessionRefuses(t *testing.T) {
 		{
 			name: "no account",
 			pin: func(ctx context.Context, c *router.Client) error {
-				_, err := c.PinSession(ctx, sessionID, "")
+				_, err := c.PinSession(ctx, sessionID, "", "")
 				return err
 			},
 			wantErr: `give the account to pin, such as {"account": "work"}`,
@@ -549,8 +553,224 @@ func TestClientPinSessionRefuses(t *testing.T) {
 			if got, err := client.Session(t.Context(), sessionID); err != nil || got.Pin != "" {
 				t.Errorf("the session is %+v (%v), want it without a pin, as it was", got, err)
 			}
+			if events := r.rt.Status().Events; len(events) != 1 || events[0].Kind != status.EventStarted {
+				t.Errorf("the router's events are %+v, want the session started alone: nothing told", events)
+			}
 		})
 	}
+}
+
+func TestPinningIsToldAsAnEventSayingWhoAsked(t *testing.T) {
+	requests := []struct {
+		name string
+		// pinned pins the router to work and side first.
+		pinned       bool
+		method, path string
+		body         map[string]any
+		want         status.Event
+	}{
+		{
+			name:   "the global pin set",
+			method: http.MethodPost,
+			path:   "/pin",
+			body:   map[string]any{"accounts": []string{"side", "work"}, "move": true, "force": true},
+			want:   status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true},
+		},
+		{
+			name:   "the global pin set to one account, as a switchboard from before asks",
+			method: http.MethodPost,
+			path:   "/pin",
+			body:   map[string]any{"account": "side"},
+			want:   status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}},
+		},
+		{
+			name:   "the global pin cleared",
+			pinned: true,
+			method: http.MethodDelete,
+			path:   "/pin",
+			want:   status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side"}},
+		},
+		{
+			name:   "the global pin cleared, with every session's own",
+			pinned: true,
+			method: http.MethodDelete,
+			path:   "/pin?force=true",
+			want:   status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side"}, Force: true},
+		},
+		{
+			name:   "a session's own pin set",
+			method: http.MethodPost,
+			path:   "/sessions/" + sessionID + "/pin",
+			body:   map[string]any{"account": "side"},
+			want:   status.Event{Kind: status.EventPin, Account: "side", Session: sessionID},
+		},
+		{
+			name:   "a session's own pin cleared",
+			method: http.MethodDelete,
+			path:   "/sessions/" + sessionID + "/pin",
+			want:   status.Event{Kind: status.EventAuto, Account: "work", Session: sessionID},
+		},
+	}
+	for _, rq := range requests {
+		for _, by := range []string{"", "cli", "dashboard"} {
+			t.Run(rq.name+", by "+cmp.Or(by, "no one"), func(t *testing.T) {
+				r := newRouted(t)
+				r.readsAs(workToken, session, week)
+				r.readsAs(sideToken, session, week)
+				r.ask(t, sessionID, opus, "work")
+				if rq.pinned {
+					askControl(t, r.rt, http.MethodPost, "/pin", map[string]any{"accounts": []string{"work", "side"}})
+				}
+				path, body := rq.path, rq.body
+				switch {
+				case by != "" && body != nil:
+					body = maps.Clone(body)
+					body["by"] = by
+				case by != "":
+					path = askedBy(path, by)
+				}
+
+				if rec := askControl(t, r.rt, rq.method, path, body); rec.Code != http.StatusOK {
+					t.Fatalf("%s %s answered %d %s, want 200", rq.method, path, rec.Code, rec.Body)
+				}
+				want := rq.want
+				want.At, want.By = now, by
+				got := r.rt.Status().Events[0]
+				got.ID = 0
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("%s %s %v is told as\n%+v\nwant\n%+v", rq.method, path, body, got, want)
+				}
+			})
+		}
+	}
+}
+
+func TestPinningIsHeardAsTheRoutersEvents(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, week)
+	r.readsAs(sideToken, session, week)
+	client := router.NewClient(serveControl(t, r.rt))
+	r.ask(t, sessionID, opus, "")
+
+	if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side", "work"}, Move: true, Force: true, By: router.ByCLI}); err != nil {
+		t.Fatalf("Pin() error = %v", err)
+	}
+	if _, err := client.PinSession(t.Context(), sessionID, "side", router.ByDashboard); err != nil {
+		t.Fatalf("PinSession() error = %v", err)
+	}
+	if _, err := client.UnpinSession(t.Context(), sessionID, router.ByDashboard); err != nil {
+		t.Fatalf("UnpinSession() error = %v", err)
+	}
+	if _, err := client.Unpin(t.Context(), true, router.ByCLI); err != nil {
+		t.Fatalf("Unpin() error = %v", err)
+	}
+	want := []router.Event{
+		router.Pinned{Accounts: []string{"work", "side"}, Account: "work", Move: true, Force: true, By: router.ByCLI},
+		router.Pinned{Account: "side", Session: sessionID, By: router.ByDashboard},
+		router.Unpinned{Account: "side", Session: sessionID, By: router.ByDashboard},
+		router.Unpinned{Accounts: []string{"work", "side"}, Force: true, By: router.ByCLI},
+	}
+	if got := slices.DeleteFunc(r.events.heard(), isStart); !reflect.DeepEqual(got, want) {
+		t.Errorf("the router's events heard are\n%+v\nwant\n%+v: each pin set and cleared, saying who asked, as the client says", got, want)
+	}
+}
+
+func TestPinningByAnyoneElseIsRefused(t *testing.T) {
+	requests := []struct {
+		method, path string
+		body         map[string]any
+	}{
+		{method: http.MethodPost, path: "/pin", body: map[string]any{"accounts": []string{"work"}, "by": "someone"}},
+		{method: http.MethodDelete, path: "/pin?by=someone"},
+		{method: http.MethodDelete, path: "/pin?force=true&by=someone"},
+		{method: http.MethodPost, path: "/sessions/" + sessionID + "/pin", body: map[string]any{"account": "side", "by": "someone"}},
+		{method: http.MethodDelete, path: "/sessions/" + sessionID + "/pin?by=someone"},
+	}
+	for _, rq := range requests {
+		t.Run(rq.method+" "+rq.path, func(t *testing.T) {
+			r := newRouted(t)
+			r.readsAs(workToken, session, week)
+			r.readsAs(sideToken, session, week)
+			r.ask(t, sessionID, opus, "work")
+			askControl(t, r.rt, http.MethodPost, "/pin", map[string]any{"accounts": []string{"side"}})
+			before := r.rt.Status()
+
+			rec := askControl(t, r.rt, rq.method, rq.path, rq.body)
+			want, _ := json.Marshal(map[string]string{"error": `by is cli or dashboard, not "someone"`})
+			if got := rec.Body.String(); rec.Code != http.StatusBadRequest || got != string(want)+"\n" {
+				t.Errorf("%s %s %v answered %d %s, want 400 %s", rq.method, rq.path, rq.body, rec.Code, got, want)
+			}
+			after := r.rt.Status()
+			if !reflect.DeepEqual(after.Pin, before.Pin) || !reflect.DeepEqual(after.Events, before.Events) {
+				t.Errorf("once refused, the router's pin is %+v and its events\n%+v\nwant them as they were, %+v and\n%+v", after.Pin, after.Events, before.Pin, before.Events)
+			}
+			if got, err := router.NewClient(serveControl(t, r.rt)).Session(t.Context(), sessionID); err != nil || got.Pin != "work" {
+				t.Errorf("once refused, the session is %+v (%v), want it pinned to work, as it was", got, err)
+			}
+		})
+	}
+}
+
+func TestClearingAPinIsToldOnlyWhereItClearsOne(t *testing.T) {
+	tests := []struct {
+		name string
+		// launched is the pin the session was launched with, "" for none.
+		launched string
+		path     string
+		// want are the events told after the session started, none for nil.
+		want []status.Event
+	}{
+		{name: "the global pin, without one", path: "/pin"},
+		{name: "the global pin, with every session's own, without any", path: "/pin?force=true"},
+		{name: "a session's own pin, without one", path: "/sessions/" + sessionID + "/pin"},
+		{
+			name:     "the global pin, without one, with every session's own, one among them",
+			launched: "work",
+			path:     "/pin?force=true",
+			want:     []status.Event{{ID: 2, At: now, Kind: status.EventAuto, Force: true}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRouted(t)
+			r.readsAs(workToken, session, week)
+			r.ask(t, sessionID, opus, tt.launched)
+
+			if rec := askControl(t, r.rt, http.MethodDelete, tt.path, nil); rec.Code != http.StatusOK {
+				t.Fatalf("DELETE %s answered %d %s, want 200", tt.path, rec.Code, rec.Body)
+			}
+			events := r.rt.Status().Events
+			if got := events[:len(events)-1]; len(got) != len(tt.want) || (len(got) > 0 && !reflect.DeepEqual(got, tt.want)) {
+				t.Errorf("DELETE %s is told as %+v, want %+v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// askedBy is the path, asking as by says, as ?by= gives it, beside any query
+// it has.
+func askedBy(path, by string) string {
+	if strings.Contains(path, "?") {
+		return path + "&by=" + by
+	}
+	return path + "?by=" + by
+}
+
+// askControl sends the router's control API a request, with body as JSON
+// unless it's nil, and returns its answer.
+func askControl(t *testing.T, rt *router.Router, method, path string, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	var content io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content = bytes.NewReader(data)
+	}
+	rec := httptest.NewRecorder()
+	rt.Control().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), method, path, content))
+	return rec
 }
 
 func TestClientHistory(t *testing.T) {
@@ -627,16 +847,16 @@ func TestClientWithoutARouter(t *testing.T) {
 			if _, err := client.Sessions(t.Context()); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Sessions() error = %v, want ErrNotRunning", err)
 			}
-			if _, err := client.PinSession(t.Context(), sessionID, "side"); !errors.Is(err, router.ErrNotRunning) {
+			if _, err := client.PinSession(t.Context(), sessionID, "side", ""); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("PinSession() error = %v, want ErrNotRunning", err)
 			}
-			if _, err := client.UnpinSession(t.Context(), sessionID); !errors.Is(err, router.ErrNotRunning) {
+			if _, err := client.UnpinSession(t.Context(), sessionID, ""); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("UnpinSession() error = %v, want ErrNotRunning", err)
 			}
 			if _, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side"}}); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Pin() error = %v, want ErrNotRunning", err)
 			}
-			if _, err := client.Unpin(t.Context(), false); !errors.Is(err, router.ErrNotRunning) {
+			if _, err := client.Unpin(t.Context(), false, ""); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Unpin() error = %v, want ErrNotRunning", err)
 			}
 			if _, err := client.Refresh(t.Context(), time.Minute); !errors.Is(err, router.ErrNotRunning) {

@@ -25,13 +25,15 @@ type Reader struct {
 }
 
 // NewReader returns a reader of the ledger in the state directory stateDir,
-// by now's clock, what it can't read logged to logger.
-func NewReader(stateDir string, now func() time.Time, logger *slog.Logger) *Reader {
+// by now's clock, which summarises days with the accounts' caps as caps gives
+// them, what it can't read logged to logger.
+func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Logger) *Reader {
 	history := readings.Files(readings.Dir(stateDir), logger)
 	return &Reader{
 		days: days{
 			files:   filesIn(Dir(stateDir), logger),
 			history: func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
+			caps:    caps,
 			logger:  logger,
 		},
 		now: now,
@@ -145,7 +147,7 @@ func (r *Reader) Days(from time.Time) []Summary {
 			days[i] = *summary
 			continue
 		}
-		due, at = append(due, dueDay{date: date, held: summary}), append(at, i)
+		due, at = append(due, dueDay{date: date, held: summary, asOf: now}), append(at, i)
 	}
 	for k, summary := range readingAhead(r.days.history, due, r.summarised) {
 		days[at[k]] = summary
@@ -187,7 +189,7 @@ func (r *Reader) standing(date string) (*Summary, bool) {
 // says: of those of its files that can be read, where one can't, which is
 // warned of.
 func (r *Reader) summarised(day dueDay, history Readings) Summary {
-	summary, err := r.days.summarise(day.date, day.held, history)
+	summary, err := r.days.summarise(day, history)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		r.days.logger.Warn("can't read the request ledger", "day", day.date, "error", err)
 	}

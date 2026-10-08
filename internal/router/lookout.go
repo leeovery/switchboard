@@ -44,7 +44,7 @@ func newLookout(room bool, warning float64) *lookout {
 func (l *lookout) look(accounts standings) []notify.Notice {
 	var due []notify.Notice
 	for _, s := range accounts {
-		if l.short.roomAgain(s) && l.room {
+		if _, again := l.short.roomAgain(s); again && l.room {
 			due = append(due, notify.RoomAgain(s.Account))
 		}
 		for _, w := range l.passed(s) {
@@ -55,26 +55,28 @@ func (l *lookout) look(accounts standings) []notify.Notice {
 }
 
 // ranOut holds, by id, the accounts whose quota ran out and that haven't had
-// room since.
-type ranOut map[string]bool
+// room since, each with the keys of the windows that have held it back
+// meanwhile, each once.
+type ranOut map[string][]string
 
 // roomAgain reports whether the account's quota ran out since it last had
-// room, and it has room now: its quota is back, and its token isn't refused.
-// A refusal isn't the quota running out, so one lifting says nothing of its
-// own, which a revoked token would otherwise say each time the router tried
-// it again.
-func (r ranOut) roomAgain(s standing) bool {
+// room, and it has room now: its quota is back, and its token isn't refused;
+// and returns the windows that held it back meanwhile. A refusal isn't the
+// quota running out, so one lifting says nothing of its own, which a revoked
+// token would otherwise say each time the router tried it again.
+func (r ranOut) roomAgain(s standing) ([]string, bool) {
+	held, ran := r[s.ID]
 	switch {
 	case !s.known:
-		return false
+		return nil, false
 	case !s.quota:
-		r[s.ID] = true
-		return false
-	case s.refused || !r[s.ID]:
-		return false
+		r[s.ID] = withEach(held, s.held...)
+		return nil, false
+	case s.refused || !ran:
+		return nil, false
 	}
 	delete(r, s.ID)
-	return true
+	return held, true
 }
 
 // passed returns the account's windows that have passed the warning since

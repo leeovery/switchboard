@@ -115,7 +115,8 @@ type savedAssignment struct {
 
 // savedUsage is what the state file holds of the accounts' usage.
 type savedUsage struct {
-	// Readings are each account's windows as last read, by the account's id.
+	// Readings are each account's windows and extra usage as last read, by
+	// the account's id.
 	Readings map[string]savedReading `json:"readings,omitempty"`
 	// WindowFamilies are the model families whose requests each window has
 	// been reported on, by the window's key, which says which requests it
@@ -123,10 +124,12 @@ type savedUsage struct {
 	WindowFamilies map[string][]string `json:"window_families,omitempty"`
 }
 
-// savedReading is an account's windows as last read, and when.
+// savedReading is an account's windows as last read, and when, and its extra
+// usage.
 type savedReading struct {
-	ReadAt  time.Time      `json:"read_at"`
-	Windows []quota.Window `json:"windows"`
+	ReadAt  time.Time        `json:"read_at"`
+	Windows []quota.Window   `json:"windows"`
+	Extra   quota.ExtraUsage `json:"extra_usage,omitzero"`
 }
 
 // load takes in the state file at path, as the router starts, and keeps in it

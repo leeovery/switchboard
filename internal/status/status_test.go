@@ -1174,7 +1174,12 @@ func TestDocumentJSON(t *testing.T) {
 				Source:      status.SourceRouter,
 				Router:      status.Health{Healthy: true},
 				Events: []status.Event{
-					{ID: 5, At: generated, Kind: status.EventMoved, Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 3},
+					{ID: 10, At: generated, Kind: status.EventRoom, Account: "side", Windows: []string{"5h"}},
+					{ID: 9, At: generated, Kind: status.EventMoved, Session: "7f3a1c2e-0b5c-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", From: "side", To: "work", Reason: "moved: side is at its reserve", ForcedBy: 8},
+					{ID: 8, At: generated, Kind: status.EventCap, Account: "side", To: "work", Windows: []string{"5h", "7d"}, Until: generated.Add(3 * time.Hour), Count: 1, Reserve: 0.05},
+					{ID: 7, At: generated, Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true, By: "cli"},
+					{ID: 6, At: generated, Kind: status.EventAuto, Account: "side", Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", By: "dashboard"},
+					{ID: 5, At: generated, Kind: status.EventMoved, Session: "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e", Model: "claude-opus-5-5", From: "work", To: "side", Reason: "moved: work hit its limit", Limit: 3, ForcedBy: 3},
 					{ID: 4, At: generated, Kind: status.EventPressure, Account: "side", Windows: []string{"5h"}, Until: generated.Add(2 * time.Hour), Since: generated.Add(-30 * time.Minute)},
 					{ID: 3, At: generated.Add(-time.Minute), Kind: status.EventLimit, Account: "work", To: "side", Windows: []string{"5h"}, Until: generated.Add(time.Hour), Count: 2},
 					{ID: 2, At: generated.Add(-2 * time.Minute), Kind: status.EventRefused, Account: "work", Until: generated.Add(8 * time.Minute), Status: 403, Family: "opus"},
@@ -1192,6 +1197,61 @@ func TestDocumentJSON(t *testing.T) {
   },
   "events": [
     {
+      "id": 10,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "room",
+      "account": "side",
+      "windows": [
+        "5h"
+      ]
+    },
+    {
+      "id": 9,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "moved",
+      "session": "7f3a1c2e-0b5c-4a3b-9c8e-1f2a3b4c5d6e",
+      "model": "claude-opus-5-5",
+      "from": "side",
+      "to": "work",
+      "reason": "moved: side is at its reserve",
+      "forced_by": 8
+    },
+    {
+      "id": 8,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "cap",
+      "account": "side",
+      "to": "work",
+      "windows": [
+        "5h",
+        "7d"
+      ],
+      "until": "2026-09-28T16:12:00Z",
+      "count": 1,
+      "reserve": 0.05
+    },
+    {
+      "id": 7,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "pin",
+      "account": "work",
+      "accounts": [
+        "work",
+        "side"
+      ],
+      "move": true,
+      "force": true,
+      "by": "cli"
+    },
+    {
+      "id": 6,
+      "at": "2026-09-28T13:12:00Z",
+      "kind": "auto",
+      "account": "side",
+      "session": "0b5c6f2e-7d41-4a3b-9c8e-1f2a3b4c5d6e",
+      "by": "dashboard"
+    },
+    {
       "id": 5,
       "at": "2026-09-28T13:12:00Z",
       "kind": "moved",
@@ -1200,7 +1260,8 @@ func TestDocumentJSON(t *testing.T) {
       "from": "work",
       "to": "side",
       "reason": "moved: work hit its limit",
-      "limit": 3
+      "limit": 3,
+      "forced_by": 3
     },
     {
       "id": 4,

@@ -69,6 +69,13 @@ type decision struct {
 	// when that isn't known.
 	reserved bool
 	back     time.Time
+	// held is what holds the request back on the session's account, where
+	// the choice has to move the session off it, as it can't take the
+	// request, and limit the identity of the limit, where that's what does,
+	// as view's holding says: what forces the move. A move by choice, as by
+	// pin or after the session's idle hour, carries none.
+	held  Hold
+	limit int
 }
 
 // decide chooses the account a request goes out on, in this order, room
@@ -94,8 +101,11 @@ type decision struct {
 //     A request tried already goes out on none.
 //
 // A choice that passing over those under pressure changed says so, naming
-// the account passed over, after why it was made.
+// the account passed over, after why it was made; and one that has to move
+// the session off its account, as it can't take the request, says what held
+// the request back there, as forcedOff does.
 func decide(s situation) decision {
+	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	d := s.choose()
 	if d.passedOver != "" {
 		d.reason += ", " + d.passedOver + " under pressure"
@@ -104,9 +114,9 @@ func decide(s situation) decision {
 }
 
 // choose chooses as decide does, but for saying which account a choice passed
-// over for pressure.
+// over for pressure. A session whose own pin yields from the account it's on
+// has to leave it, however its cache stands, as its pin would keep it there.
 func (s situation) choose() decision {
-	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	pin := s.req.Pin
 	switch {
 	case pin == "":
@@ -119,6 +129,19 @@ func (s situation) choose() decision {
 	d := s.unpinned()
 	if !d.noRoom {
 		d.reason = status.ReasonPinYields + pin + " " + s.unable(pin)
+	}
+	if s.assigned && s.current.Account == pin {
+		d = s.forcedOff(d)
+	}
+	return d
+}
+
+// forcedOff returns d, a choice that has to leave the session's account, as
+// it can't take the request, with what held the request back there, where d
+// moves the session off it.
+func (s situation) forcedOff(d decision) decision {
+	if d.account != s.current.Account {
+		d.held, d.limit = s.accounts.holding(s.current.Account)
 	}
 	return d
 }
@@ -180,10 +203,20 @@ func (s situation) keep() decision {
 }
 
 // afresh chooses the account of a new session, of one that can move at no
-// cost, or of one whose account has no room: among the global pin's accounts
-// while one has room, else among every account.
+// cost, or of one whose account has no room, which has to leave it: among the
+// global pin's accounts while one has room, else among every account.
 func (s situation) afresh() decision {
-	reason, preferred := s.why()
+	reason, preferred, forced := s.why()
+	d := s.best(reason, preferred)
+	if forced {
+		return s.forcedOff(d)
+	}
+	return d
+}
+
+// best chooses the account a request chosen afresh goes to, for reason,
+// keeping to preferred unless another is well ahead, as afresh says.
+func (s situation) best(reason, preferred string) decision {
 	if c, ok := s.pinned(preferred); ok {
 		return chosen(c, reasonGlobalPin)
 	}
@@ -217,19 +250,21 @@ func (s situation) pinned(preferred string) (score.Choice, bool) {
 	return score.Choice{ID: s.pin.Accounts[i]}, true
 }
 
-// why says why the account is being chosen afresh, and which account the
-// choice prefers: a session that has idled keeps to its own when another is
-// only a little ahead, so near-equal accounts don't trade places.
-func (s situation) why() (reason, preferred string) {
+// why says why the account is being chosen afresh, which account the choice
+// prefers, and whether the session has to leave its own: a session that has
+// idled keeps to its own when another is only a little ahead, so near-equal
+// accounts don't trade places, and moves by choice; one that hasn't is chosen
+// afresh as its account can't take the request.
+func (s situation) why() (reason, preferred string, forced bool) {
 	switch {
 	case s.req.Session == "":
-		return reasonUnsessioned, ""
+		return reasonUnsessioned, "", false
 	case !s.assigned:
-		return reasonNew, ""
+		return reasonNew, "", false
 	case s.movesFree():
-		return "rescored after " + status.Countdown(s.current.LastSeen, s.now) + " idle", s.current.Account
+		return "rescored after " + status.Countdown(s.current.LastSeen, s.now) + " idle", s.current.Account, false
 	default:
-		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account), ""
+		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account), "", true
 	}
 }
 

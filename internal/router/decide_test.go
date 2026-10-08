@@ -523,7 +523,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			name:    "a session on an account at its reserve moves, as at a limit",
 			current: on("work", 5*time.Minute),
 			work:    reserved, side: later,
-			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true},
+			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true, held: HeldByReserve},
 		},
 		{
 			name:    "a session idle past the hour on an account at its reserve is rescored off it",
@@ -568,7 +568,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			global:  status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour)},
 			current: on("work", 5*time.Minute),
 			work:    reserved, side: later,
-			want: decision{account: "side", reason: "pinned (global)", afresh: true},
+			want: decision{account: "side", reason: "pinned (global)", afresh: true, held: HeldByReserve},
 		},
 		{
 			name: "with no candidate, a request passes over an account held back by its reserve alone",
@@ -580,14 +580,14 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			bound:   true,
 			current: on("work", 5*time.Minute),
 			work:    reserved, side: later,
-			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true},
+			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true, held: HeldByReserve},
 		},
 		{
 			name:    "a session whose thinking is bound moves off an account at its reserve for the reserve, not for idling",
 			bound:   true,
 			current: on("work", 2*time.Hour),
 			work:    reserved, side: later,
-			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true},
+			want: decision{account: "side", reason: "moved: work is at its reserve", afresh: true, held: HeldByReserve},
 		},
 	}
 	for _, tt := range tests {
@@ -973,13 +973,16 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 		// refused are the accounts that refused the request lately.
 		refused []string
 		want    string
+		// held is what the session's move off its account says held its
+		// request back there.
+		held Hold
 	}{
 		{name: "the session's account", current: "side", want: "side"},
 		{name: "the client's, for a new session", want: "work"},
-		{name: "the client's, when the session's refused the request", current: "side", refused: []string{"side"}, want: "work"},
-		{name: "another, when the client's refused it too", current: "side", refused: []string{"side", "work"}, want: "spare"},
+		{name: "the client's, when the session's refused the request", current: "side", refused: []string{"side"}, want: "work", held: HeldByRefusal},
+		{name: "another, when the client's refused it too", current: "side", refused: []string{"side", "work"}, want: "spare", held: HeldByRefusal},
 		{name: "another, for a new session whose client's refused it", refused: []string{"work"}, want: "side"},
-		{name: "the client's, when every one refused it", current: "side", refused: []string{"work", "side", "spare"}, want: "work"},
+		{name: "the client's, when every one refused it", current: "side", refused: []string{"work", "side", "spare"}, want: "work", held: HeldByRefusal},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -998,7 +1001,7 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 			if tt.current != "" {
 				s.current, s.assigned = *on(tt.current, 5*time.Minute), true
 			}
-			want := decision{account: tt.want, reason: reasonNoRoom, afresh: true, noRoom: true}
+			want := decision{account: tt.want, reason: reasonNoRoom, afresh: true, noRoom: true, held: tt.held}
 			if got := decide(s); got != want {
 				t.Errorf("decide() = %+v, want %+v", got, want)
 			}

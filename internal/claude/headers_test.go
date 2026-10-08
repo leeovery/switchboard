@@ -1,6 +1,7 @@
 package claude_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"reflect"
 	"testing"
@@ -18,7 +19,7 @@ func TestAWindowIsNamedByItsLabelOrElseItsKey(t *testing.T) {
 	}
 }
 
-func TestParseWindows(t *testing.T) {
+func TestParseUsageReadsTheWindows(t *testing.T) {
 	sessionReset := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
 	weekReset := time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC)
 	tests := []struct {
@@ -75,7 +76,7 @@ func TestParseWindows(t *testing.T) {
 			},
 		},
 		{
-			name: "overage ignored, and the headers that aren't windows",
+			name: "extra usage never a window, nor the headers that aren't windows",
 			header: header(
 				"anthropic-ratelimit-unified-overage-utilization", "0.5",
 				"anthropic-ratelimit-unified-overage-reset", "1790619000",
@@ -133,11 +134,160 @@ func TestParseWindows(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := claude.ParseWindows(tt.header); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ParseWindows() =\n%+v\nwant\n%+v", got, tt.want)
+			if got := claude.ParseUsage(tt.header).Windows; !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ParseUsage().Windows =\n%+v\nwant\n%+v", got, tt.want)
 			}
 		})
 	}
+}
+
+func TestParseUsageReadsExtraUsage(t *testing.T) {
+	reset := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
+	tests := []struct {
+		name   string
+		header http.Header
+		want   quota.ExtraUsage
+	}{
+		{
+			name: "every field given",
+			header: header(
+				"anthropic-ratelimit-unified-overage-status", "allowed_warning",
+				"anthropic-ratelimit-unified-overage-utilization", "0.42",
+				"anthropic-ratelimit-unified-overage-reset", "1790619000",
+			),
+			want: quota.ExtraUsage{Status: quota.StatusAllowedWarning, Utilization: new(0.42), ResetsAt: reset},
+		},
+		{
+			name: "none used, which is given",
+			header: header(
+				"anthropic-ratelimit-unified-overage-status", "allowed",
+				"anthropic-ratelimit-unified-overage-utilization", "0",
+			),
+			want: quota.ExtraUsage{Status: quota.StatusAllowed, Utilization: new(0.0)},
+		},
+		{
+			name:   "the status alone, as an account without extra usage gives it",
+			header: header("anthropic-ratelimit-unified-overage-status", "rejected"),
+			want:   quota.ExtraUsage{Status: quota.StatusRejected},
+		},
+		{
+			name:   "the utilization alone",
+			header: header("anthropic-ratelimit-unified-overage-utilization", "1.25"),
+			want:   quota.ExtraUsage{Utilization: new(1.25)},
+		},
+		{
+			name:   "the reset alone",
+			header: header("anthropic-ratelimit-unified-overage-reset", "1790619000"),
+			want:   quota.ExtraUsage{ResetsAt: reset},
+		},
+		{
+			name:   "a status as given, though no window's is so",
+			header: header("anthropic-ratelimit-unified-overage-status", "paused"),
+			want:   quota.ExtraUsage{Status: "paused"},
+		},
+		{
+			name: "an unreadable utilization left out, the rest read",
+			header: header(
+				"anthropic-ratelimit-unified-overage-status", "allowed",
+				"anthropic-ratelimit-unified-overage-utilization", "high",
+				"anthropic-ratelimit-unified-overage-reset", "1790619000",
+			),
+			want: quota.ExtraUsage{Status: quota.StatusAllowed, ResetsAt: reset},
+		},
+		{
+			name:   "a utilization that isn't finite left out",
+			header: header("anthropic-ratelimit-unified-overage-utilization", "NaN"),
+			want:   quota.ExtraUsage{},
+		},
+		{
+			name:   "an infinite utilization left out",
+			header: header("anthropic-ratelimit-unified-overage-utilization", "+Inf"),
+			want:   quota.ExtraUsage{},
+		},
+		{
+			name: "an unreadable reset left out, the rest read",
+			header: header(
+				"anthropic-ratelimit-unified-overage-status", "allowed",
+				"anthropic-ratelimit-unified-overage-utilization", "0.42",
+				"anthropic-ratelimit-unified-overage-reset", "tomorrow",
+			),
+			want: quota.ExtraUsage{Status: quota.StatusAllowed, Utilization: new(0.42)},
+		},
+		{
+			name:   "a reset in a form the windows' never come in left out",
+			header: header("anthropic-ratelimit-unified-overage-reset", "2026-09-28T18:10:00Z"),
+			want:   quota.ExtraUsage{},
+		},
+		{
+			name: "empty fields left out",
+			header: header(
+				"anthropic-ratelimit-unified-overage-status", "",
+				"anthropic-ratelimit-unified-overage-utilization", "",
+				"anthropic-ratelimit-unified-overage-reset", "",
+			),
+			want: quota.ExtraUsage{},
+		},
+		{
+			name: "mixed-case header names",
+			header: http.Header{
+				"ANTHROPIC-RATELIMIT-UNIFIED-OVERAGE-STATUS":      {"allowed"},
+				"Anthropic-Ratelimit-Unified-Overage-Utilization": {"0.42"},
+				"anthropic-ratelimit-unified-OVERAGE-reset":       {"1790619000"},
+			},
+			want: quota.ExtraUsage{Status: quota.StatusAllowed, Utilization: new(0.42), ResetsAt: reset},
+		},
+		{
+			name: "the headers that aren't its fields passed over",
+			header: header(
+				"anthropic-ratelimit-unified-overage-disabled-reason", "out_of_credits",
+				"anthropic-ratelimit-unified-status", "rejected",
+				"anthropic-ratelimit-unified-reset", "1790619000",
+				"anthropic-ratelimit-unified-5h-utilization", "0.23",
+				"anthropic-ratelimit-unified-5h-status", "allowed",
+			),
+			want: quota.ExtraUsage{},
+		},
+		{
+			name:   "no usage headers",
+			header: header("content-type", "application/json"),
+			want:   quota.ExtraUsage{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := claude.ParseUsage(tt.header).Extra; !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ParseUsage().Extra = %s, want %s", extraText(got), extraText(tt.want))
+			}
+		})
+	}
+}
+
+func TestExtraUsageUnreadableNeverFailsTheWindows(t *testing.T) {
+	got := claude.ParseUsage(header(
+		"anthropic-ratelimit-unified-overage-status", "",
+		"anthropic-ratelimit-unified-overage-utilization", "high",
+		"anthropic-ratelimit-unified-overage-reset", "tomorrow",
+		"anthropic-ratelimit-unified-5h-utilization", "0.23",
+		"anthropic-ratelimit-unified-5h-reset", "1790619000",
+		"anthropic-ratelimit-unified-5h-status", "allowed",
+	))
+	want := quota.Usage{Windows: []quota.Window{{
+		Key: "5h", Label: "Session", Utilization: 0.23,
+		ResetsAt: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), Status: quota.StatusAllowed,
+	}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ParseUsage() = %+v, want %+v", got, want)
+	}
+}
+
+// extraText gives extra usage as JSON, its utilization's value rather than
+// its address.
+func extraText(e quota.ExtraUsage) string {
+	data, err := json.Marshal(e)
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
 }
 
 // header builds a response header from name, value pairs.

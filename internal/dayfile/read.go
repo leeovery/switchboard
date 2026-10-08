@@ -108,20 +108,53 @@ func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), a
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	lines := inOrder[T]{at: at, keep: keep, take: take}
+	unread, more := readFiled(f, dates, decode, lines.hold, func(date string) bool {
+		// A later date's file holds no line of a day before this one.
+		start, _, ok := Day(date)
+		return !ok || lines.handOn(start)
+	})
+	if more {
+		lines.handOnAll()
+	}
+	return unread
+}
+
+// ReadFiled hands take each line the files of the local days with the given
+// dates hold that decode makes a T of, a day at a time, in the order the dates
+// are given, and each day's lines in the order they came, as ReadDay hands
+// them, whatever time they give; and calls read with each day's date once its
+// lines are handed on. It goes until take or read reports false, and returns
+// how many of the lines were unread, as Read says. It's for lines that a day's
+// file can hold of any time before its day, which Read's ordering would hand
+// on too early. A file that can't be read, or is damaged, is warned of as Read
+// says, and the files are read as openDay opens them.
+func ReadFiled[T any](f *Files, dates []string, decode func(line []byte) (T, bool), take func(T) bool, read func(date string) bool) (unread int) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	unread, _ = readFiled(f, dates, decode, take, read)
+	return unread
+}
+
+// readFiled reads the days as ReadFiled says, its caller holding the files
+// from pruning, and reports whether take and read wanted more.
+func readFiled[T any](f *Files, dates []string, decode func(line []byte) (T, bool), take func(T) bool, read func(date string) bool) (unread int, more bool) {
+	taking := func(v T) bool {
+		more = take(v)
+		return more
+	}
 	for _, date := range dates {
 		opened, failed := f.openDay(date)
 		for _, e := range failed {
 			f.warn("can't read the "+f.Name, e.file, e.err)
 		}
-		_, skipped := readOpened(f, opened, decode, lines.hold)
+		more = true
+		_, skipped := readOpened(f, opened, decode, taking)
 		unread += skipped
-		// A later date's file holds no line of a day before this one.
-		if start, _, ok := Day(date); ok && !lines.handOn(start) {
-			return unread
+		if !more || !read(date) {
+			return unread, false
 		}
 	}
-	lines.handOnAll()
-	return unread
+	return unread, true
 }
 
 // ReadDay hands take each line the files of the local day with the given

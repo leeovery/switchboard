@@ -152,7 +152,7 @@ func (s usageSource) Pin(ctx context.Context, accounts []string, move bool) erro
 	if s.router == nil {
 		return errRouterDown
 	}
-	_, err := s.router.Pin(ctx, router.PinRequest{Accounts: accounts, Move: move})
+	_, err := s.router.Pin(ctx, router.PinRequest{Accounts: accounts, Move: move, By: router.ByDashboard})
 	return fromRouter(err)
 }
 
@@ -161,7 +161,7 @@ func (s usageSource) Unpin(ctx context.Context) error {
 	if s.router == nil {
 		return errRouterDown
 	}
-	_, err := s.router.Unpin(ctx, false)
+	_, err := s.router.Unpin(ctx, false, router.ByDashboard)
 	return fromRouter(err)
 }
 
@@ -172,7 +172,7 @@ func (s usageSource) PinSession(ctx context.Context, session, account string) er
 	if s.router == nil {
 		return errRouterDown
 	}
-	_, err := s.router.PinSession(ctx, session, account)
+	_, err := s.router.PinSession(ctx, session, account, router.ByDashboard)
 	return fromRouter(err)
 }
 
@@ -182,7 +182,7 @@ func (s usageSource) UnpinSession(ctx context.Context, session string) error {
 	if s.router == nil {
 		return errRouterDown
 	}
-	_, err := s.router.UnpinSession(ctx, session)
+	_, err := s.router.UnpinSession(ctx, session, router.ByDashboard)
 	return fromRouter(err)
 }
 

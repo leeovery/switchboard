@@ -80,6 +80,13 @@ func TestPin(t *testing.T) {
 		if doc := srv.status(t); !reflect.DeepEqual(doc.Pin, tt.wantPin) {
 			t.Errorf("after switchboard %s, the router's pin = %+v, want %+v", strings.Join(tt.args, " "), doc.Pin, tt.wantPin)
 		}
+		wantKind := status.EventAuto
+		if !tt.wantPin.IsZero() {
+			wantKind = status.EventPin
+		}
+		if e := srv.told(t); e.Kind != wantKind || e.By != "cli" {
+			t.Errorf("after switchboard %s, the router told of %+v, want a %s event by cli", strings.Join(tt.args, " "), e, wantKind)
+		}
 	}
 }
 
@@ -225,6 +232,13 @@ func TestPinSession(t *testing.T) {
 		if session := srv.session(t, sessionThree); session.Pin != tt.wantPin {
 			t.Errorf("after switchboard %s, the session's pin = %q, want %q", strings.Join(tt.args, " "), session.Pin, tt.wantPin)
 		}
+		wantKind := status.EventAuto
+		if tt.wantPin != "" {
+			wantKind = status.EventPin
+		}
+		if e := srv.told(t); e.Kind != wantKind || e.Session != sessionThree || e.By != "cli" {
+			t.Errorf("after switchboard %s, the router told of %+v, want a %s event of session %s by cli", strings.Join(tt.args, " "), e, wantKind, sessionThree)
+		}
 	}
 	if doc := srv.status(t); !doc.Pin.IsZero() {
 		t.Errorf("the router's pin = %+v, want none: a session's pin is its own", doc.Pin)
@@ -347,6 +361,17 @@ func (s *serveSetup) status(t *testing.T) status.Document {
 		t.Fatalf("Status() error = %v", err)
 	}
 	return doc
+}
+
+// told returns the router's newest event, failing the test when it has told
+// of none.
+func (s *serveSetup) told(t *testing.T) status.Event {
+	t.Helper()
+	events := s.status(t).Events
+	if len(events) == 0 {
+		t.Fatal("the router has told of no event")
+	}
+	return events[0]
 }
 
 // session returns what the router says of the session with the given id.

@@ -671,6 +671,10 @@ func TestNotificationsQueueTheEventsTheyTellOfAlone(t *testing.T) {
 			HealthChanged{Reason: "5 of the 5 requests in the last 5 minutes failed"},
 			Primed{Account: "work", Window: "5h", ResetsAt: start.Add(5 * time.Hour)},
 			RestartDue{Reason: "upgraded"},
+			Pinned{Accounts: []string{"work"}, Account: "work", By: ByCLI},
+			Unpinned{Accounts: []string{"work"}, By: ByCLI},
+			Pinned{Account: "side", Session: "one", By: ByDashboard},
+			Unpinned{Account: "side", Session: "one", By: ByDashboard},
 		} {
 			n.hear(e)
 		}
@@ -896,7 +900,7 @@ func forced(session, from, to string) Moved {
 
 // forcedModel is forced, for requests of the model given.
 func forcedModel(session, model, from, to string) Moved {
-	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Limit: 1}
+	return Moved{Session: session, Model: model, From: from, To: to, Reason: "moved: " + from + " hit its limit", Held: HeldByLimit, Limit: 1}
 }
 
 // forcedBy is forced, by the limit with the identity given.
