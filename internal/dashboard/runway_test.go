@@ -393,17 +393,24 @@ func TestTheDaysAxisNamesEachDayAtItsStartWhereTheClocksChangeOverMidnight(t *te
 		{
 			name: "the clocks went forward over it, as Chile's did on Sunday 6 September 2026",
 			zone: "America/Santiago", now: time.Date(2026, 9, 6, 2, 30, 0, 0, time.UTC),
-			// The day starts at 01:00, as the clocks went forward from 00:00.
+			// The day starts at 01:00, as the clocks went forward from 00:00,
+			// and 02:00 is ticked but not labelled, an hour from its name.
 			want: map[time.Time]string{time.Date(2026, 9, 6, 3, 0, 0, 0, time.UTC): "", time.Date(2026, 9, 6, 4, 0, 0, 0, time.UTC): "Sun",
-				time.Date(2026, 9, 6, 5, 0, 0, 0, time.UTC): "02:00"},
+				time.Date(2026, 9, 6, 5, 0, 0, 0, time.UTC): ""},
 		},
 		{
 			name: "the clocks went back over it, as Gaza's did on Saturday 24 October 2020",
 			zone: "Asia/Gaza", now: time.Date(2020, 10, 23, 20, 30, 0, 0, time.UTC),
 			// The day starts at the first midnight, the clocks reading 00:00
-			// again an hour on.
+			// again an hour on, ticked but not labelled, an hour from its name.
 			want: map[time.Time]string{time.Date(2020, 10, 23, 20, 0, 0, 0, time.UTC): "", time.Date(2020, 10, 23, 21, 0, 0, 0, time.UTC): "Sat",
-				time.Date(2020, 10, 23, 22, 0, 0, 0, time.UTC): "00:00"},
+				time.Date(2020, 10, 23, 22, 0, 0, 0, time.UTC): ""},
+		},
+		{
+			name: "the clocks went forward half an hour, as Lord Howe's did on Sunday 4 October 2026",
+			zone: "Australia/Lord_Howe", now: time.Date(2026, 10, 3, 16, 0, 0, 0, time.UTC),
+			// From 02:00 to 02:30: no tick for an hour the clocks never read.
+			want: map[time.Time]string{time.Date(2026, 10, 3, 15, 30, 0, 0, time.UTC): "-", time.Date(2026, 10, 3, 16, 0, 0, 0, time.UTC): ""},
 		},
 	}
 	for _, tt := range tests {
@@ -416,18 +423,46 @@ func TestTheDaysAxisNamesEachDayAtItsStartWhereTheClocksChangeOverMidnight(t *te
 			c := newCanvas(136, 2)
 
 			hours(c, tl, 0, 0)
-			for at, label := range tt.want {
+			for at, want := range tt.want {
 				col := tl.column(at)
-				got := ""
-				for i := range len(label) {
-					got += c.at(col+i, 0).glyph
+				got, tick := labelAt(c, col), c.at(col, 1).glyph
+				switch {
+				case want == "-" && (tick != " " || got != ""):
+					t.Errorf("at %v, in column %d, the axis reads %q over %q, want nothing", at.In(loc), col, got, tick)
+				case want != "-" && (tick != "┬" || got != want):
+					t.Errorf("at %v, in column %d, the axis reads %q over %q, want %q over a tick", at.In(loc), col, got, tick, want)
 				}
-				if tick := c.at(col, 1).glyph; tick != "┬" || got != label {
-					t.Errorf("at %v, in column %d, the axis reads %q over %q, want %q over a tick", at.In(loc), col, got, tick, label)
-				}
+			}
+			if cols := labelColumns(c, 136); slices.ContainsFunc(cols[min(1, len(cols)):], func(col int) bool {
+				i := slices.Index(cols, col)
+				return col-cols[i-1] < labelCells
+			}) {
+				t.Errorf("the labels start in columns %v, want them %d apart at least", cols, labelCells)
 			}
 		})
 	}
+}
+
+// labelAt is the label on the canvas's top row that starts in column col:
+// none where that's blank.
+func labelAt(c *canvas, col int) string {
+	var label strings.Builder
+	for ; col < c.width && c.at(col, 0).glyph != " "; col++ {
+		label.WriteString(c.at(col, 0).glyph)
+	}
+	return label.String()
+}
+
+// labelColumns are the columns the labels on the canvas's top row start in,
+// width cells wide.
+func labelColumns(c *canvas, width int) []int {
+	var cols []int
+	for col := range width {
+		if c.at(col, 0).glyph != " " && (col == 0 || c.at(col-1, 0).glyph == " ") {
+			cols = append(cols, col)
+		}
+	}
+	return cols
 }
 
 func TestTheStripsFewWithRoomFillItsLowestEighth(t *testing.T) {

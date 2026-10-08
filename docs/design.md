@@ -1135,19 +1135,20 @@ last stop, where none has; with none read, it draws nothing.
 - **The day**, by default: from the hour before now, taken back to its ten-minute mark, for 22
   hours and 40 minutes, across the width the labels leave: 136 columns of 10 minutes at 160
   columns, the minutes a column scaling with the lanes' width. The hours run along the top, ticked
-  at least 3 cells apart and labelled at least 10 apart, an hour the clocks went forward over left
-  out, and a day's start, its midnight, or wherever the clocks put it, ticked and labelled with its
-  weekday: where they went forward over midnight, the hour they went forward to, and where they
-  went back over it, the first of its two; `now` and its column are picked out in `bg.subtle`, and
-  the past dimmed. A lane is thick, `▆`, where the account can take a session; `▆` in
-  `accent.attention` where it can but is heading to run out, from now until the last time it runs
-  out before a reset; and a thin line, `─` in `state.destructive`, where it can't. The 5-hour
-  window, its limit, and its week running out all count, and over the day a refusal of every
-  request too: an account's room is all of them. A limit's stretch starts at the router's event of
-  it, and a hold whose start isn't known runs from before the timeline.
-  An account without a usable token has no room all along; so has one whose usage can't be read,
-  its words saying why, as `can't read it · timed out`, and one not yet read is left blank, each
-  even while a router limit holds it, which its card shows instead.
+  at least 3 cells apart and labelled at least 10 apart, an hour the clocks never read, as they
+  went forward over it, by an hour or by half of one, left out, and a day's start, its midnight,
+  or wherever the clocks put it, ticked and labelled with its weekday, an hour's label that would
+  come within 10 of it left off: where they went forward over midnight, the day starts at the
+  hour they went forward to, and where they went back over it, at the first of its two; `now` and
+  its column are picked out in `bg.subtle`, and the past dimmed. A lane is thick, `▆`, where the
+  account can take a session; `▆` in `accent.attention` where it can but is heading to run out,
+  from now until the last time it runs out before a reset; and a thin line, `─` in
+  `state.destructive`, where it can't. The 5-hour window, its limit, and its week running out all
+  count, and over the day a refusal of every request too: an account's room is all of them. A
+  limit's stretch starts at the router's event of it, and a hold whose start isn't known runs from
+  before the timeline. An account without a usable token has no room all along; so has one whose
+  usage can't be read, its words saying why, as `can't read it · timed out`, and one not yet read
+  is left blank, each even while a router limit holds it, which its card shows instead.
 - **Words where it changes**, on the line under the lane, where each stretch without room starts:
   `runs out ~16:05 · back 17:10, as it resets`; `reaches its reserve ~15:45 · back 17:10, as it
   resets`, or already there, `at its reserve · back 17:10, as it resets`; `limit reached 14:12 ·
