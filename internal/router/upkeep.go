@@ -50,6 +50,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 					emit(lifted)
 				}
 			},
+			gained: state.tokenGained,
 		},
 		restarts: newRestarts(cfg.ConfigFile, cfg.Binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit),
 		wakes:    wakes,

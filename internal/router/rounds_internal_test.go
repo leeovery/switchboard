@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 // errUnreadable is why a test's probe read nothing.
@@ -143,19 +145,8 @@ func TestTheRoundsProbeALapsedAccountOnlyWhereTheWindowItStartsResetsBeforeItsPr
 }
 
 func TestTheRoundsProbeAnAccountFiveMinutesBeforeEachWeekOfItsResets(t *testing.T) {
-	// Side's slot is 06:40, and its session, which ran till 01:00, has lapsed.
-	lapsed := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 1, 0).UTC()}
-	resetting := func(w quota.Window, at time.Time) quota.Window {
-		w.ResetsAt = at.UTC()
-		return w
-	}
-	weekEnding, fableEnding := resetting(week, onDay(1, 5, 0)), resetting(fableWeek, onDay(1, 5, 0))
-	readAt := func(at time.Time, windows ...quota.Window) step {
-		return func(r *Router, clock *testClock) {
-			clock.now = at
-			r.state.record("side", windows, r.state.mark())
-		}
-	}
+	// Side's slot is 06:40, and its session has lapsed.
+	lapsed, weekEnding, fableEnding := lapsedAtOne, endingAtFive(week), endingAtFive(fableWeek)
 	tests := []struct {
 		name string
 		// windows are side's as read at 04:45, and before what else befalls
@@ -170,20 +161,38 @@ func TestTheRoundsProbeAnAccountFiveMinutesBeforeEachWeekOfItsResets(t *testing.
 		{
 			name:    "its week read within those five minutes",
 			windows: []quota.Window{lapsed, weekEnding, fableWeek},
-			before:  []step{readAt(onDay(1, 4, 56), lapsed, weekEnding)},
+			before:  []step{sideReadAt(onDay(1, 4, 56), lapsed, weekEnding)},
 			at:      onDay(1, 4, 58),
 		},
 		{
-			name:    "a probe that read nothing ended half a minute ago",
+			name:    "a probe that read nothing within those five minutes, its week's one attempt",
 			windows: []quota.Window{lapsed, weekEnding, fableWeek},
-			before:  []step{unreadAt(onDay(1, 4, 57).Add(30 * time.Second))},
+			before:  []step{unreadAt(onDay(1, 4, 56))},
 			at:      onDay(1, 4, 58),
 		},
 		{
-			name:    "a probe that read nothing ended a minute ago",
-			windows: []quota.Window{lapsed, weekEnding, fableWeek},
-			before:  []step{unreadAt(onDay(1, 4, 57))},
+			name:    "a probe within those five minutes that read the rest, not its Fable week, its one attempt",
+			windows: []quota.Window{lapsed, week, fableEnding},
+			before:  []step{probeReadAt(onDay(1, 4, 56), lapsed, week)},
 			at:      onDay(1, 4, 58),
+		},
+		{
+			name:    "a probe that read it just before those five minutes, ended half a minute ago",
+			windows: []quota.Window{lapsed, weekEnding, fableWeek},
+			before:  []step{probeReadAt(onDay(1, 4, 54).Add(30*time.Second), lapsed, weekEnding, fableWeek)},
+			at:      onDay(1, 4, 55),
+		},
+		{
+			name:    "probes that read nothing since it was read, backing off still",
+			windows: []quota.Window{lapsed, weekEnding, fableWeek},
+			before:  []step{unreadAt(onDay(1, 4, 46)), unreadAt(onDay(1, 4, 50)), unreadAt(onDay(1, 4, 53))},
+			at:      onDay(1, 4, 56),
+		},
+		{
+			name:    "probes that read nothing since it was read, their backoff passed",
+			windows: []quota.Window{lapsed, weekEnding, fableWeek},
+			before:  []step{unreadAt(onDay(1, 4, 46)), unreadAt(onDay(1, 4, 47))},
+			at:      onDay(1, 4, 55),
 			want:    true,
 		},
 		{
@@ -198,19 +207,19 @@ func TestTheRoundsProbeAnAccountFiveMinutesBeforeEachWeekOfItsResets(t *testing.
 		{
 			name:    "its account read within those five minutes by an answer that doesn't count its Fable week",
 			windows: []quota.Window{lapsed, week, fableEnding},
-			before:  []step{readAt(onDay(1, 4, 56), lapsed, week)},
+			before:  []step{sideReadAt(onDay(1, 4, 56), lapsed, week)},
 			at:      onDay(1, 4, 58),
 			want:    true,
 		},
 		{
 			name:    "its Fable week read within those five minutes",
 			windows: []quota.Window{lapsed, week, fableEnding},
-			before:  []step{readAt(onDay(1, 4, 56), fableEnding)},
+			before:  []step{sideReadAt(onDay(1, 4, 56), fableEnding)},
 			at:      onDay(1, 4, 58),
 		},
 		{
 			name:    "five minutes before its session resets, a window of no more than a day",
-			windows: []quota.Window{resetting(lapsed, onDay(1, 5, 0)), week, fableWeek},
+			windows: []quota.Window{endingAtFive(lapsed), week, fableWeek},
 			at:      onDay(1, 4, 55),
 		},
 	}
@@ -218,7 +227,7 @@ func TestTheRoundsProbeAnAccountFiveMinutesBeforeEachWeekOfItsResets(t *testing.
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{}
 			r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
-			readAt(onDay(1, 4, 45), tt.windows...)(r, clock)
+			sideReadAt(onDay(1, 4, 45), tt.windows...)(r, clock)
 			for _, s := range tt.before {
 				s(r, clock)
 			}
@@ -366,6 +375,205 @@ func TestAProbeBeforeAWeekResetsThatStartsALapsedWindowShiftsItsSlot(t *testing.
 			t.Errorf("work next primed at %v, want %v: as the session that probe started resets", got, want)
 		}
 	})
+}
+
+func TestTheRoundsAskAfterThePrimeOnlyWhereItMatters(t *testing.T) {
+	running := quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 6, 0).UTC()}
+	tests := []struct {
+		name string
+		// windows are side's as read at read, and at when it's asked of.
+		windows  []quota.Window
+		read, at time.Time
+		want     bool
+	}{
+		{name: "read lately", windows: []quota.Window{lapsedAtOne, week}, read: onDay(1, 1, 50), at: onDay(1, 2, 0)},
+		{name: "idle, its session running", windows: []quota.Window{running, week}, read: onDay(1, 1, 0), at: onDay(1, 2, 0)},
+		{name: "idle, its week about to reset", windows: []quota.Window{lapsedAtOne, endingAtFive(week)}, read: onDay(1, 1, 0), at: onDay(1, 4, 56)},
+		{name: "idle, its session lapsed", windows: []quota.Window{lapsedAtOne, week}, read: onDay(1, 1, 0), at: onDay(1, 2, 0), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{}
+			r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
+			sideReadAt(tt.read, tt.windows...)(r, clock)
+			clock.now = tt.at
+			asked := false
+			r.state.rounding(func(string, time.Time) bool { asked = true; return true })("side", tt.at)
+			if asked != tt.want {
+				t.Errorf("asked after side's prime = %v, want %v: only for an idle account a probe would start a window on", asked, tt.want)
+			}
+		})
+	}
+}
+
+func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
+	tests := []struct {
+		name string
+		// takeUp has side take up another token, or its own again.
+		takeUp func(r *Router, files *changingFiles)
+	}{
+		{
+			name: "replaced, as the router looks at the token files",
+			takeUp: func(r *Router, files *changingFiles) {
+				files.set(tokenstest.Files{"work": workToken, "side": renewedToken})
+				r.upkeep.tokens.look()
+			},
+		},
+		{
+			name: "replaced, as the upstream refuses the token a request went out on",
+			takeUp: func(r *Router, files *changingFiles) {
+				files.set(tokenstest.Files{"work": workToken, "side": renewedToken})
+				side, _ := r.accounts.byID("side")
+				(&replay{p: r.proxy, ex: &exchange{account: side}, sent: side.token()}).renewed()
+			},
+		},
+		{
+			name: "its own back, once its file held none",
+			takeUp: func(r *Router, files *changingFiles) {
+				files.set(tokenstest.Files{"work": workToken})
+				r.upkeep.tokens.look()
+				r.upkeep.tokens.look()
+				files.set(testTokens)
+				r.upkeep.tokens.look()
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			files := &changingFiles{files: testTokens}
+			r := newTestRouterReading(t, clock.read, &stubProber{}, files.read)
+			// Read 40 minutes ago, side's probes have read nothing since,
+			// three in a row, the last three minutes ago: it waits eight.
+			for _, s := range []step{answered(40 * time.Minute), unread(20 * time.Minute), unread(10 * time.Minute), unread(3 * time.Minute)} {
+				s(r, clock)
+			}
+			clock.now = start
+			due := r.state.rounding(r.rounds.clears)
+			if due("side", start) {
+				t.Fatal("side due on the rounds before its token changed, want it backing off")
+			}
+
+			tt.takeUp(r, files)
+			if !due("side", start) {
+				t.Error("side not due on the rounds, want it probed afresh on the token it goes out on now")
+			}
+			if side, _ := r.Status().Account("side"); side.Error != "" {
+				t.Errorf("side's error reads %q, want none: it was the token before's", side.Error)
+			}
+		})
+	}
+}
+
+func TestAWeekTheLastAnswerDidntCarryIsProbedBeforeItResetsAfterARestart(t *testing.T) {
+	tests := []struct {
+		name string
+		// windows are side's as read at 04:45, and answered those an answer
+		// read at 04:56.
+		windows, answered []quota.Window
+		// unkept has the state file keep no window's read time, as a router
+		// from before kept them.
+		unkept bool
+		want   bool
+	}{
+		{
+			name:     "its Fable week, which an Opus answer doesn't carry",
+			windows:  []quota.Window{lapsedAtOne, week, endingAtFive(fableWeek)},
+			answered: []quota.Window{lapsedAtOne, week},
+			want:     true,
+		},
+		{
+			name:     "its week, which the answer carried",
+			windows:  []quota.Window{lapsedAtOne, endingAtFive(week), fableWeek},
+			answered: []quota.Window{lapsedAtOne, endingAtFive(week)},
+		},
+		{
+			name:     "its week, which the answer carried, as a router from before kept it",
+			windows:  []quota.Window{lapsedAtOne, endingAtFive(week), fableWeek},
+			answered: []quota.Window{lapsedAtOne, endingAtFive(week)},
+			unkept:   true,
+			want:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{}
+			before := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
+			sideReadAt(onDay(1, 4, 45), tt.windows...)(before, clock)
+			sideReadAt(onDay(1, 4, 56), tt.answered...)(before, clock)
+			data, err := json.Marshal(before.state.saved())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var kept savedUsage
+			if err := json.Unmarshal(data, &kept); err != nil {
+				t.Fatal(err)
+			}
+			if tt.unkept {
+				for id, reading := range kept.Readings {
+					reading.WindowsReadAt = nil
+					kept.Readings[id] = reading
+				}
+			}
+
+			// The router restarts at 04:57, the week resetting at 05:00.
+			clock.now = onDay(1, 4, 57)
+			after := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
+			after.state.recall(kept)
+			if due := after.state.rounding(after.rounds.clears)("side", clock.now); due != tt.want {
+				t.Errorf("side due on the router's rounds after the restart = %v, want %v", due, tt.want)
+			}
+		})
+	}
+}
+
+func TestAReadingThatDoesntCountIsNoReadOfItsWeek(t *testing.T) {
+	clock := &testClock{now: onDay(1, 4, 40)}
+	r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
+	// A request goes out at 04:40, its answer slow; one sent after it is
+	// answered at 04:45.
+	slow := r.state.mark()
+	weekEnding := endingAtFive(week)
+	sideReadAt(onDay(1, 4, 45), lapsedAtOne, weekEnding)(r, clock)
+	// At 04:56 the slow answer comes, reading the week as it was before.
+	clock.now = onDay(1, 4, 56)
+	earlier := weekEnding
+	earlier.Utilization -= 0.1
+	r.state.record("side", []quota.Window{earlier}, slow)
+	clock.now = onDay(1, 4, 58)
+
+	if got, _ := r.Status().Account("side"); got.Windows[1].Utilization != weekEnding.Utilization {
+		t.Fatalf("side's week reads %v, want %v: the slow answer's reading outweighed", got.Windows[1].Utilization, weekEnding.Utilization)
+	}
+	if !r.state.rounding(r.rounds.clears)("side", clock.now) {
+		t.Error("side not due on the router's rounds, want it probed before its week resets: the slow answer's reading of it didn't count")
+	}
+}
+
+// lapsedAtOne is side's session as read in the tests of its weeks: it ran
+// till 01:00, and has lapsed since. Side's slot is 06:40.
+var lapsedAtOne = quota.Window{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: onDay(1, 1, 0).UTC()}
+
+// endingAtFive is w resetting at 05:00.
+func endingAtFive(w quota.Window) quota.Window {
+	w.ResetsAt = onDay(1, 5, 0).UTC()
+	return w
+}
+
+// sideReadAt has an answer read side's windows at a time.
+func sideReadAt(at time.Time, windows ...quota.Window) step {
+	return func(r *Router, clock *testClock) {
+		clock.now = at
+		r.state.record("side", windows, r.state.mark())
+	}
+}
+
+// probeReadAt has a probe of side read its windows at a time.
+func probeReadAt(at time.Time, windows ...quota.Window) step {
+	return func(r *Router, clock *testClock) {
+		clock.now = at
+		r.state.recordProbe("side", probed(nil, windows...), nil, r.state.mark(), readings.FromProbe)
+	}
 }
 
 // step readies the router's state for a test, on the clock it moves as it

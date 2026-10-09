@@ -561,23 +561,29 @@ accounts:
   While its day of priming runs, its prime is due at once, and reads it. Without priming, no slot
   is due, so it's probed, and its windows run back to back. An account that can take no request
   anyway is probed at any hour, its window lapsed or not, as the rules above allow, so a reset made
-  by hand that lifts its limit is seen within the half hour.
+  by hand that lifts its limit is seen within the half hour, though the window that probe starts may
+  still be running at its prime once the limit lifts: reading it comes before priming.
 - **Before a week resets:** each account is probed 5 minutes before each of its windows longer than
   a day resets, the week every model shares and a model's own week, whatever the priming schedule,
   its 5-hour window lapsed or not, unless something read that window within those 5 minutes, so a
   week's last use is read before it goes. An answer reads only the windows its model counts, so a
-  model's own week is probed though its account is in use on other models. The reset is the one its
-  last reading gave, which a reset made by hand keeps; one passed since it was read has its next a
-  week on. Where the probe starts a lapsed 5-hour window, priming makes no amends: the account's
-  prime is skipped, as for a window already running at its slot, and its schedule settles back by
-  itself.
+  model's own week is probed though its account is in use on other models. A probe of the account
+  within those 5 minutes is the week's one attempt, whether it read the week or not, as when its
+  model family's request fails, and one whose probes keep reading nothing waits out its backoff
+  there too (below). When each window was last read outlasts a restart in `state.json`; one a router
+  from before kept without it counts as unread. The reset is the one its last reading gave, which a
+  reset made by hand keeps; one passed since it was read has its next a week on. Where the probe
+  starts a lapsed 5-hour window, priming makes no amends: the account's prime is skipped, as for a
+  window already running at its slot, and its schedule settles back by itself.
 - **What comes first:** routing, then the accuracy of what's read, then priming, best effort, last.
   Probing never touches routing: the rounds are on no request's path.
 - **One probe serves every reason due at once,** and the rounds share the probes choices and
   `POST /refresh` make, as those share theirs: an account whose probe ended, read or not, waits a
   minute for the next. One whose probe read nothing is probed again on the rounds 2 minutes on,
   then 4, doubling to the half hour, while it can't be read, as the dashboard backs off. One whose
-  token is refused isn't probed on the rounds while it's so, nor one without a usable token.
+  token is refused isn't probed on the rounds while it's so, nor one without a usable token. One
+  that goes out on another token, or has a usable one again, starts afresh: how its probes went on
+  the token before says nothing of this one, so neither their error nor their backoff holds.
 - **Asleep:** the router looks at least once a minute, as a timer's clock stops while the Mac
   sleeps, so a probe missed while it slept goes out within a minute of its waking; one due before a
   week's reset that has passed meanwhile is lost with it, and the half hour's probe reads the
@@ -4738,14 +4744,15 @@ hiding it behind the provider would take a wider interface than it's worth:
   `XDG_DATA_HOME` is ignored, as the XDG spec says.
 - **State:** `$XDG_STATE_HOME/switchboard/`, else `~/.local/state/switchboard/`. Holds `state.json`
   (the global pin, session assignments and the pins sessions were given while they ran, and each
-  account's last readings, with the model families each window has been seen to count, and when a
-  window started again, as its reading's `restarted_at`, so a restart doesn't scatter sessions or
-  need a probe, and the hashes of every configured account's tokens, with a usable token or not:
-  see Accounts and tokens), `control.sock`, `tokens/`, `logs/`, `history/` and `ledger/`.
-  `state.json` is versioned, the version changing only when a router couldn't read what another
-  wrote: an older file, without readings, loads as having none, one whose readings lack
-  `restarted_at` as windows that run a whole length before their resets, which a router from
-  before, ignoring the field, takes them all for, and a pin that names its account
+  account's last readings, with the model families each window has been seen to count, when each
+  window was last read, and when a window started again, as its reading's `restarted_at`, so a
+  restart doesn't scatter sessions or need a probe, and the hashes of every configured account's
+  tokens, with a usable token or not: see Accounts and tokens), `control.sock`, `tokens/`, `logs/`,
+  `history/` and `ledger/`. `state.json` is versioned, the version changing only when a router
+  couldn't read what another wrote: an older file, without readings, loads as having none, one
+  whose readings lack `restarted_at` as windows that run a whole length before their resets, which
+  a router from before, ignoring the field, takes them all for, one whose readings lack when each
+  window was read as windows unread (see The router's rounds), and a pin that names its account
   alone, as pins did before they named several, as a pin to that one. It's rewritten whole (written
   beside it, synced, and renamed over it) a second after a change and on the way out, but once a
   minute at most while its only changes are those every request makes: its session's assignment used

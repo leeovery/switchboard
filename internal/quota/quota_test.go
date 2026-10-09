@@ -11,6 +11,27 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
+func TestMultiDay(t *testing.T) {
+	tests := []struct {
+		key  string
+		want bool
+	}{
+		{key: "7d", want: true},
+		{key: "7d_oi", want: true},
+		{key: "2d", want: true},
+		{key: "48h", want: true},
+		{key: "1d"},
+		{key: "24h"},
+		{key: "5h"},
+		{key: "overage"},
+	}
+	for _, tt := range tests {
+		if got := quota.MultiDay(tt.key); got != tt.want {
+			t.Errorf("MultiDay(%q) = %v, want %v", tt.key, got, tt.want)
+		}
+	}
+}
+
 func TestLength(t *testing.T) {
 	tests := []struct {
 		key    string

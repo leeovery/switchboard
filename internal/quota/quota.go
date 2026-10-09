@@ -197,13 +197,25 @@ func Length(key string) (time.Duration, bool) {
 	}
 	unit := time.Hour
 	if m[2] == "d" {
-		unit = 24 * time.Hour
+		unit = Day
 	}
 	n, err := strconv.ParseInt(m[1], 10, 64)
 	if err != nil || n > int64(math.MaxInt64/unit) {
 		return 0, false
 	}
 	return time.Duration(n) * unit, true
+}
+
+// Day is how long a day runs: a window longer is counted in days, as a week
+// is.
+const Day = 24 * time.Hour
+
+// MultiDay reports whether the window named key lasts longer than a Day, as a
+// week does, its length read as Length reads it. A key that doesn't give its
+// length isn't.
+func MultiDay(key string) bool {
+	length, ok := Length(key)
+	return ok && length > Day
 }
 
 // Sort orders windows shortest first, then by key, with windows whose length

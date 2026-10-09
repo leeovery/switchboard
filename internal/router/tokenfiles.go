@@ -23,8 +23,9 @@ type tokenFiles struct {
 	// changed, and sendable that the accounts requests can go out on have.
 	kept, sendable func()
 	// replaced hears of each account, by id, that goes out on another token
-	// from now on.
-	replaced func(id string)
+	// from now on, and gained of each that has a usable token again, or for
+	// the first time.
+	replaced, gained func(id string)
 }
 
 // look reads every account's token file again, and takes up what each
@@ -38,6 +39,9 @@ func (f *tokenFiles) look() {
 		r.log(a.ID, err)
 		if r.replaced {
 			f.replaced(a.ID)
+		}
+		if r.gained {
+			f.gained(a.ID)
 		}
 		kept = kept || r.replaced || r.gained || r.lost
 		sendable = sendable || r.gained || r.lost

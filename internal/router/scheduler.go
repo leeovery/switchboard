@@ -14,6 +14,8 @@ const (
 	// recheckWait bounds how long a choice that found no account with room
 	// waits for those it probes again.
 	recheckWait = 5 * time.Second
+	// beforeChoosing is what a choice's probes are for, as the log tells it.
+	beforeChoosing = "before choosing"
 )
 
 // scheduler is the router's Chooser. It keeps each session's requests of a
@@ -36,7 +38,7 @@ type scheduler struct {
 
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d, on := s.decide(req)
-	if d.afresh && s.probes.await(ctx, s.accounts.sendable(), s.state.due, probeWait) {
+	if d.afresh && s.probes.await(ctx, s.accounts.sendable(), s.state.due, probeWait, beforeChoosing) {
 		d, on = s.decide(req)
 	}
 	if d.noRoom && s.recheck(ctx, req) {
@@ -121,7 +123,7 @@ func (s *scheduler) recheck(ctx context.Context, req Request) bool {
 		return false
 	}
 	logger.Warn("no account has room; probing again", "accounts", accountsOf(underway))
-	s.probes.wait(ctx, underway, recheckWait)
+	s.probes.wait(ctx, underway, recheckWait, beforeChoosing)
 	return true
 }
 

@@ -13,9 +13,6 @@ const (
 	// than a day resets that the router's rounds probe it, so the window's
 	// last use is read before it goes.
 	beforeWeekReset = 5 * time.Minute
-	// fullDay is how long a day runs: a window longer is read before it
-	// resets.
-	fullDay = 24 * time.Hour
 	// firstRetry is how soon the router's rounds probe an account again once
 	// a probe of it has read nothing, the wait doubling with each such probe
 	// in a row, to unreadFor, as the dashboard backs off while an account
@@ -29,6 +26,8 @@ const (
 	// roundWait bounds how long the router waits for the probes it sends on
 	// its rounds to end before it looks again.
 	roundWait = 10 * time.Second
+	// onItsRounds is what the rounds' probes are for, as the log tells it.
+	onItsRounds = "on its rounds"
 )
 
 // rounds are the router's own probes of the accounts it can send on, around
@@ -74,33 +73,17 @@ func (r *rounds) run(ctx context.Context) {
 // rounding says, and waits for those probes, roundWait at most, or until ctx
 // ends.
 func (r *rounds) look(ctx context.Context) {
-	underway := r.probes.start(r.accounts.sendable(), r.state.rounding(r.clears))
-	if len(underway) == 0 {
-		return
-	}
-	started := time.Now()
-	switch settle(ctx, underway, roundWait) {
-	case settled:
-		logger.Debug("probed on its rounds", "accounts", accountsOf(underway), "duration", time.Since(started).Round(time.Millisecond))
-	case timedOut:
-		logger.Debug("stopped waiting for probes on its rounds", "accounts", accountsOf(underway), "after", roundWait)
-	}
+	r.probes.await(ctx, r.accounts.sendable(), r.state.rounding(r.clears), roundWait, onItsRounds)
 }
 
 // retryAfter is how long the router's rounds wait after a probe of an
 // account ended before they probe it again: reprobeAfter, as every probe
 // does; or, after misses probes in a row that read nothing, firstRetry,
-// doubled for each but the first, to unreadFor.
+// doubled for each but the first, to unreadFor: four doublings take it past
+// that, so none goes further.
 func retryAfter(misses int) time.Duration {
 	if misses == 0 {
 		return reprobeAfter
 	}
-	wait := firstRetry
-	for range misses - 1 {
-		if wait >= unreadFor {
-			break
-		}
-		wait *= 2
-	}
-	return min(wait, unreadFor)
+	return min(firstRetry<<min(misses-1, 4), unreadFor)
 }

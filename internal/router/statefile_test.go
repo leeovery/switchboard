@@ -124,6 +124,8 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	clock.now = start
 	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
 	saved.state.learn(opus, []quota.Window{session, week})
+	// An Opus answer reads side's session and week, not its Fable week.
+	saved.state.record("side", []quota.Window{session, week}, saved.state.mark())
 	saved.save()
 
 	loaded := newTestFile(at(start), testAccounts())
@@ -132,6 +134,9 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 		got := loaded.state.usage[id]
 		if !maps.Equal(got.windows, u.windows) || !got.updated.Equal(u.updated) {
 			t.Errorf("%s loaded as read at %v, %+v; want what was saved: read at %v, %+v", id, got.updated, got.windows, u.updated, u.windows)
+		}
+		if !maps.Equal(got.readAt, u.readAt) {
+			t.Errorf("%s loaded its windows as read at %v, want what was saved: %v", id, got.readAt, u.readAt)
 		}
 	}
 	if !reflect.DeepEqual(loaded.state.seen, saved.state.seen) {
@@ -157,7 +162,7 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
   },
   "readings": {
     "side": {
-      "read_at": "2026-09-28T12:12:00Z",
+      "read_at": "2026-09-28T13:12:00Z",
       "windows": [
         {
           "key": "5h",
@@ -180,7 +185,12 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
           "resets_at": "2026-10-04T01:10:00Z",
           "status": "allowed"
         }
-      ]
+      ],
+      "windows_read_at": {
+        "5h": "2026-09-28T13:12:00Z",
+        "7d": "2026-09-28T13:12:00Z",
+        "7d_oi": "2026-09-28T12:12:00Z"
+      }
     },
     "work": {
       "read_at": "2026-09-28T13:12:00Z",
@@ -199,7 +209,11 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
           "resets_at": "2026-10-02T21:00:00Z",
           "status": "allowed_warning"
         }
-      ]
+      ],
+      "windows_read_at": {
+        "5h": "2026-09-28T13:12:00Z",
+        "7d": "2026-09-28T13:12:00Z"
+      }
     }
   },
   "window_families": {
