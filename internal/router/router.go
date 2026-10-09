@@ -328,7 +328,9 @@ func (r *Router) Proxy() http.Handler {
 // Status reports every account's usage as the router knows it, with how many
 // sessions each has, and all have, the best account to use next, the priming
 // schedule, with when it next primes each account, the global pin, the
-// router's own health, a restart it has due, and what has happened lately.
+// router's own health, a restart it has due, what has happened lately, and,
+// worked out of all that once it's set, as WorkedOut says, each window's even
+// pace and allowance, the pool and what's coming up.
 func (r *Router) Status() status.Document {
 	now := r.cfg.Now()
 	pin := r.sessions.globalPin()
@@ -345,5 +347,5 @@ func (r *Router) Status() status.Document {
 	for i, a := range doc.Accounts {
 		doc.Accounts[i].Sessions = byAccount[a.ID]
 	}
-	return doc
+	return doc.WorkedOut(r.cfg.Policy)
 }

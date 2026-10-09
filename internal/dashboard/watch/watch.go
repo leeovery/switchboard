@@ -517,11 +517,13 @@ func logRead(msg fetchedMsg, next time.Time) {
 		"read", strings.Join(read, ","), "failed", strings.Join(failed, ","), "next", next)
 }
 
-// show puts the document a read found at now on screen, with the sessions
-// the router listed, Sessions' calls keeping the order they ran in, each
-// move they show done no longer re-patching them; or where it couldn't list
-// them, those it listed last, while the router that listed them answers, as
-// a router restarted or replaced lists its own; and none while probing. It
+// show puts the document a read found at now on screen, with what's worked
+// out of it, as WorkedOut says, which a router from before it gave that
+// gives none of; with the sessions the router listed, Sessions' calls
+// keeping the order they ran in, each move they show done no longer
+// re-patching them; or where it couldn't list them, those it listed last,
+// while the router that listed them answers, as a router restarted or
+// replaced lists its own; and none while probing. It
 // posts what the change calls for, unless the router is there to post its
 // own, as nothing is to be told twice; follows the router as it goes and
 // comes back; notes the events new to it, and the readings it gives; asks
@@ -530,7 +532,7 @@ func logRead(msg fetchedMsg, next time.Time) {
 // cards flipped and the selection where they still are; and eases the bars
 // to it from where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
-	doc := msg.doc
+	doc := msg.doc.WorkedOut(m.cfg.Policy)
 	var post, asked tea.Cmd
 	if !routed(doc) {
 		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))

@@ -1,10 +1,11 @@
 // Package score judges accounts by their usage windows: which have lapsed,
 // how far through each window they are, how fast it's being used and where
-// its use is heading, whether an account can take a request, within its
-// limits or within its reserve, whether it's under pressure, how urgently its
-// quota needs using, and which account to use next. Every
-// function is pure and is handed the clock. None knows a provider's windows
-// by name: a Policy names the ones that matter.
+// its use is heading, what can be spent of it and still last to its reset,
+// whether an account can take a request, within its limits or within its
+// reserve, whether it's under pressure, how urgently its quota needs using,
+// and which account to use next. Every function is pure and is handed the
+// clock. None knows a provider's windows by name: a Policy names the ones
+// that matter.
 package score
 
 import (
@@ -65,7 +66,7 @@ func (p Policy) IsShared(key string) bool {
 func (p Policy) Lapsed(windows []quota.Window, now time.Time) []string {
 	var keys []string
 	for _, w := range windows {
-		if p.lapsed(w, now) {
+		if p.HasLapsed(w, now) {
 			keys = append(keys, w.Key)
 		}
 	}
@@ -78,16 +79,16 @@ func (p Policy) Lapsed(windows []quota.Window, now time.Time) []string {
 func (p Policy) AsOf(windows []quota.Window, now time.Time) []quota.Window {
 	standing := slices.Clone(windows)
 	for i, w := range standing {
-		if p.lapsed(w, now) {
+		if p.HasLapsed(w, now) {
 			standing[i] = quota.Window{Key: w.Key, Label: w.Label}
 		}
 	}
 	return standing
 }
 
-// lapsed reports whether w has lapsed at now: it's the window a request
+// HasLapsed reports whether w has lapsed at now: it's the window a request
 // starts, and it has reset since it was read.
-func (p Policy) lapsed(w quota.Window, now time.Time) bool {
+func (p Policy) HasLapsed(w quota.Window, now time.Time) bool {
 	return w.Key == p.Started && w.ResetBy(now)
 }
 

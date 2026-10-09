@@ -40,7 +40,30 @@ type Window struct {
 	// it runs from then until its reset. Zero when it runs a whole length
 	// before its reset, as a window does, and a provider never says.
 	RestartedAt time.Time `json:"restarted_at,omitzero"`
+	// Pace and Allowance are what the status document works out of the window
+	// as of when it was built, and a provider never says: its even pace,
+	// where even use would have put its use, nil where it isn't running or
+	// its reset isn't known; and what can be spent of it and still last to
+	// its reset, zero where nothing can.
+	Pace      *float64  `json:"pace,omitempty"`
+	Allowance Allowance `json:"allowance,omitzero"`
 }
+
+// Allowance is what can be spent of a window and still last to its reset:
+// Share of it each Per, or, with Per empty, as its reset comes within one,
+// Share of it in all.
+type Allowance struct {
+	Share float64 `json:"share"`
+	// Per is PerHour or PerDay.
+	Per string `json:"per,omitempty"`
+}
+
+// The spans an allowance is given over: an hour for a window of a day or
+// less, and a day for a longer one.
+const (
+	PerHour = "hour"
+	PerDay  = "day"
+)
 
 // Span returns when the window began and how long it runs until it resets:
 // from a whole length before its reset, or from when it started again, where

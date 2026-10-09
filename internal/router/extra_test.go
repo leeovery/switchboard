@@ -50,7 +50,7 @@ func TestExtraUsageIsReadOffAnswers(t *testing.T) {
 		if !reflect.DeepEqual(side.Extra, step.want) {
 			t.Errorf("%s: side reads extra usage %s, want %s", step.name, extraText(side.Extra), extraText(step.want))
 		}
-		if want := []quota.Window{session, week}; !reflect.DeepEqual(side.Windows, want) {
+		if want := []quota.Window{session, week}; !reflect.DeepEqual(asRead(side.Windows), want) {
 			t.Errorf("%s: side reads windows %+v, want %+v: extra usage is never a window", step.name, side.Windows, want)
 		}
 	}
@@ -76,7 +76,7 @@ func TestExtraUsageIsReadOffProbes(t *testing.T) {
 		if !reflect.DeepEqual(a.Extra, wantExtra) {
 			t.Errorf("once probed, %s reads extra usage %s, want %s", id, extraText(a.Extra), extraText(wantExtra))
 		}
-		if wantWindows := []quota.Window{session, week}; a.TokenSet && !reflect.DeepEqual(a.Windows, wantWindows) {
+		if wantWindows := []quota.Window{session, week}; a.TokenSet && !reflect.DeepEqual(asRead(a.Windows), wantWindows) {
 			t.Errorf("once probed, %s reads windows %+v, want %+v: extra usage is never a window", id, a.Windows, wantWindows)
 		}
 	}

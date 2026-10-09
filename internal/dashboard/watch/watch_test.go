@@ -454,9 +454,10 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 	}
 }
 
-// calmScreen is the screen of calm read at now, its windows used as trails
-// says, as a terminal of the size given shows it without colour, probing,
-// with nothing more to say.
+// calmScreen is the screen of calm read at now, with what the watch works
+// out of it as it takes it in, its windows used as trails says, as a
+// terminal of the size given shows it without colour, probing, with nothing
+// more to say.
 func calmScreen(size Size, now time.Time, trails dashboard.History) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
@@ -467,5 +468,5 @@ func calmScreen(size Size, now time.Time, trails dashboard.History) string {
 		},
 		Status: "read 0s ago · next 13:42",
 		Policy: policy,
-	}.Draw(calm(), now), "\n")
+	}.Draw(calm().WorkedOut(policy), now), "\n")
 }
