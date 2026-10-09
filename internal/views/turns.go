@@ -65,9 +65,10 @@ func (t Turn) Thread() int {
 //
 // A request is on its turn's main thread where its thread length is at least
 // the main thread's last, and the turn ends at an answer on it whose stop
-// Ends, or at one its client canceled; a side request ends nothing. The request after a turn's end starts the next, its main thread
-// afresh, so a conversation compacted or cleared starts a turn short. A
-// request whose thread length is unknown, its body unread, is on no thread.
+// Ends, or at one its client canceled; a side request ends nothing. The
+// request after a turn's end starts the next, its main thread afresh, so a
+// conversation compacted or cleared starts a turn short. A request whose
+// thread length is unknown, its body unread, is on no thread.
 func Turns(lines []ledger.Line) []Turn {
 	var t teller
 	for _, line := range lines {
