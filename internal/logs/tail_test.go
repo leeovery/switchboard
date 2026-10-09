@@ -238,3 +238,15 @@ func (b *syncBuffer) waitFor(t *testing.T, want string) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+func TestAFollowerPollsEveryIntervalGivenOrElseEveryHalfSecond(t *testing.T) {
+	for _, tt := range []struct{ given, want time.Duration }{
+		{given: 5 * time.Millisecond, want: 5 * time.Millisecond},
+		{given: 0, want: 500 * time.Millisecond},
+		{given: -time.Second, want: 500 * time.Millisecond},
+	} {
+		if got := logs.PollEvery(tt.given); got != tt.want {
+			t.Errorf("PollEvery(%v) = %v, want %v", tt.given, got, tt.want)
+		}
+	}
+}

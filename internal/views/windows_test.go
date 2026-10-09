@@ -29,12 +29,12 @@ func (h historyOf) Between(from, to time.Time) iter.Seq[readings.Reading] {
 // the given id, at the local time on the day with the given date, at the
 // clock given, its use the one given, from an answer.
 func reading(id, key, date, clock string, use float64) readings.Reading {
-	return readings.Reading{At: at(date, clock).UTC(), Account: id, Key: key, Utilization: use, Status: quota.StatusAllowed, Source: readings.FromAnswer}
+	return readings.Reading{At: onAt(date, clock).UTC(), Account: id, Key: key, Utilization: use, Status: quota.StatusAllowed, Source: readings.FromAnswer}
 }
 
 func TestWindowsAreEachAccountsWindowsReadingsOverTheDaysAskedFor(t *testing.T) {
 	limit := reading("work", "5h", "2026-10-06", "22:14", 1)
-	limit.Status, limit.ResetsAt = quota.StatusRejected, at("2026-10-06", "23:10").UTC()
+	limit.Status, limit.ResetsAt = quota.StatusRejected, onAt("2026-10-06", "23:10").UTC()
 	probed := reading("side", "7d_oi", "2026-10-07", "08:00", 0.2)
 	probed.Source, probed.Status = readings.FromProbe, ""
 	history := historyOf{
@@ -53,7 +53,7 @@ func TestWindowsAreEachAccountsWindowsReadingsOverTheDaysAskedFor(t *testing.T) 
 	// from; the configured accounts in the config's order, and then the
 	// one no longer configured; each account's windows in quota's order;
 	// each window's readings in the order they were read.
-	got := views.NewWindows(history, accounts, at("2026-10-06", "14:00"), now)
+	got := views.NewWindows(history, accounts, onAt("2026-10-06", "14:00"), now)
 	want := `{"windows":[` +
 		`{"account":"work","window":"5h","readings":[{"at":"` + utc("2026-10-06", "21:00") + `","utilization":0.9,"status":"allowed","source":"answer"},` +
 		`{"at":"` + utc("2026-10-06", "22:14") + `","utilization":1,"resets_at":"` + utc("2026-10-06", "23:10") + `","status":"rejected","source":"answer"}]},` +
@@ -76,5 +76,5 @@ func TestWindowsOfAnEmptyHistoryAreNone(t *testing.T) {
 // utc is the local time on the day with the given date, at the clock given,
 // in UTC, as the readings history writes it.
 func utc(date, clock string) string {
-	return at(date, clock).UTC().Format(time.RFC3339)
+	return onAt(date, clock).UTC().Format(time.RFC3339)
 }

@@ -199,25 +199,10 @@ func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
 // writeRequests writes lines as requests' text, a table a day, a row each,
 // times in now's time zone, or says there were none since from.
 func writeRequests(out io.Writer, lines iter.Seq[ledger.Held], from, now time.Time) error {
-	day, first := dayTable{}, true
-	for h := range lines {
-		at := h.At.In(now.Location())
-		if len(day.rows) > 0 && !day.of(at) {
-			if err := day.write(out, now, first); err != nil {
-				return err
-			}
-			day.rows, first = nil, false
-		}
-		if len(day.rows) == 0 {
-			day.day = at
-		}
-		day.rows = append(day.rows, requestRow(&h, at))
-	}
-	if len(day.rows) == 0 {
-		_, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout+" 15:04"))
-		return err
-	}
-	return day.write(out, now, first)
+	at := func(h ledger.Held) time.Time { return h.At }
+	row := func(h ledger.Held, at time.Time) []string { return requestRow(&h, at) }
+	_, err := writeDays(out, lines, at, row, "requests", from, now)
+	return err
 }
 
 // requestRow is the row of the request h holds, which arrived at at: its

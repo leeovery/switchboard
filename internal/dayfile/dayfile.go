@@ -87,13 +87,13 @@ type Lines map[string][]byte
 // Add files line, which holds no line ending, under the local day at falls
 // on.
 func (l Lines) Add(at time.Time, line []byte) {
-	date := dateOf(at)
+	date := DateOf(at)
 	l[date] = append(append(l[date], line...), '\n')
 }
 
-// dateOf is the date of the local day t falls on, as the files' names give
+// DateOf is the date of the local day t falls on, as the files' names give
 // it.
-func dateOf(t time.Time) string {
+func DateOf(t time.Time) string {
 	return t.Local().Format(dateLayout)
 }
 

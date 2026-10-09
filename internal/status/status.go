@@ -73,8 +73,14 @@ type Document struct {
 	Sessions int `json:"sessions,omitzero"`
 	// Events are what has happened lately, as the router tells of it, the
 	// newest first: none in a document that isn't the router's.
-	Events   []Event   `json:"events,omitempty"`
-	Accounts []Account `json:"accounts"`
+	Events []Event `json:"events,omitempty"`
+	// Pool is the accounts new sessions can go to now, taken as one: zero
+	// with one account, whose own windows say the same.
+	Pool Pool `json:"pool,omitzero"`
+	// ComingUp is what's coming to the accounts after the document was
+	// built, soonest first.
+	ComingUp []Upcoming `json:"coming_up,omitempty"`
+	Accounts []Account  `json:"accounts"`
 }
 
 // The kinds of event the router tells of, as an Event's Kind says.
@@ -202,6 +208,18 @@ type Health struct {
 	// Reason says why the router is unhealthy; empty while it's healthy.
 	Reason string `json:"reason,omitempty"`
 }
+
+// Why a restart falls due, as a Restart's Reason, and a restart's event's,
+// give it.
+const (
+	// RestartForConfig is the config file changed, into another valid config.
+	RestartForConfig = "config changed"
+	// RestartForUpgrade is the binary leading to another file than the one
+	// running, as after an upgrade.
+	RestartForUpgrade = "upgraded"
+	// RestartForZone is the system's time zone changed.
+	RestartForZone = "time zone changed"
+)
 
 // Restart is a restart the router has due, having found what it was started
 // from changed, such as its config file. The service's router restarts
@@ -410,8 +428,9 @@ type Collector struct {
 
 // Collect probes every account that has a usable token, all at once, and
 // reports them in the order given, as they stand once read, along with the
-// best of them, and the priming schedule over them. An account without one
-// isn't probed: its status says why, and what would put it right.
+// best of them, the priming schedule over them, and what's worked out of
+// them, as WorkedOut says. An account without one isn't probed: its status
+// says why, and what would put it right.
 func (c Collector) Collect(ctx context.Context, accounts []config.Account) Document {
 	statuses := make([]Account, len(accounts))
 	var usable []string
@@ -443,7 +462,7 @@ func (c Collector) Collect(ctx context.Context, accounts []config.Account) Docum
 	if schedule, ok := prime.New(c.Prime.Day, usable, c.Policy); ok {
 		doc.Prime = Priming(schedule)
 	}
-	return doc
+	return doc.WorkedOut(c.Policy)
 }
 
 // Configured is an account's status as the config gives it, before anything
@@ -524,13 +543,9 @@ func (d Document) readAt(now time.Time) time.Time {
 // says, reaches its floor, which is its reserve, where that would hold the
 // account back, as ReserveHolds says, else its limit.
 func (d Document) RunsOut(a Account, w quota.Window, now time.Time) (RunOut, bool) {
-	out := RunOut{Heading: d.Project(a, w, now)}
-	floor := 1.0
-	if out.Reserve = d.ReserveHolds(a); out.Reserve {
-		floor = 1 - a.Reserve
-	}
+	out := RunOut{Heading: d.Project(a, w, now), Reserve: d.ReserveHolds(a)}
 	var ok bool
-	out.At, ok = score.Reaches(w, out.Projection, floor, d.readAt(now))
+	out.At, ok = score.Reaches(w, out.Projection, d.Floor(a), d.readAt(now))
 	return out, ok
 }
 
@@ -618,7 +633,13 @@ func choose(policy score.Policy, accounts []Account, pinned []string, now time.T
 // every request, as policy says which windows every model shares.
 func (a Account) shut(now time.Time, policy score.Policy) bool {
 	limited := a.Limit.Holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
-	return limited || a.Refused.Holds(now) && a.Refused.Family == ""
+	return limited || a.TokenRefused(now)
+}
+
+// TokenRefused reports whether the upstream refuses the account's token at
+// now, holding back every request, rather than a model family's alone.
+func (a Account) TokenRefused(now time.Time) bool {
+	return a.Refused.Holds(now) && a.Refused.Family == ""
 }
 
 // choosePinned is the account of those given, pinned and with a usable

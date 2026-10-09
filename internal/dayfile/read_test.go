@@ -567,11 +567,11 @@ func TestAPlainFileThatReadsShortBesideACompressedOneIsWarnedOfAndReadAsFarAsItG
 func TestAFileThatCantBeReadIsLogged(t *testing.T) {
 	log := logstest.Capture(t)
 	f := readingsHistory(t.TempDir())
-	if err := os.WriteFile(f.path(plainFile(dateOf(start))), []byte("{}\n"), 0o000); err != nil {
+	if err := os.WriteFile(f.path(plainFile(DateOf(start))), []byte("{}\n"), 0o000); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := readAll(f, dateOf(start)); len(got) != 0 {
+	if got := readAll(f, DateOf(start)); len(got) != 0 {
 		t.Errorf("read %q, want none", got)
 	}
 	if !log.Has("level=WARN", `msg="can't read the readings history"`) {

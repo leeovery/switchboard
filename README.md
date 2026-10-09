@@ -347,7 +347,7 @@ switchboard service status
 
 Every account's usage as text: each window's utilization, when it resets and where it's heading; what holds an account back, such as a limit it reached or its reserve, and whether it's under pressure, with the rate it goes by (`under pressure: runs out ~18:21 at Session's rate over the last 30 min, before its reset at 20:10`); the sessions routed in the last hour, a line each, with the account each of its models goes to; the priming schedule; the best account to use next; and last, where the usage came from, with the router's health, and under it, a restart the router has due, with how to have it now. It reads the router while it runs, else probes each account. When the `claude` a shell runs from `PATH` isn't switchboard, the first line says so.
 
-Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead.
+Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead: every account's windows, each with its even pace, where even use would have put it by now, and its allowance, what can be spent of it an hour or a day and still last to its reset; the pool, the room new sessions can go to, summed across its accounts; and what's coming up, each limit or cap lifting, window running out or resetting, and prime, soonest first.
 
 ```bash
 switchboard status [--json | --pretty] [--probe] [-r]
@@ -391,7 +391,7 @@ switchboard logs router --path
 
 ### Looking back
 
-Both read the [request ledger](#how-it-works)'s files where they lie, so neither needs the router. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
+`requests` and `history` read the [request ledger](#how-it-works)'s files where they lie, and `events` the files the router keeps its events in beside them, so none needs the router. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
 
 #### `requests`
 
@@ -440,6 +440,26 @@ switchboard history --since 7d
 switchboard history --json | jq '.days[-1]'      # today's, as far as it has gone
 switchboard history --json | jq '.capacity'      # whether there are as many accounts as the use needs
 switchboard history --windows --since 14:00      # today's readings of every window
+```
+
+#### `events`
+
+What the router decided and noticed: sessions started and moved, accounts under pressure, at their caps and limits, refused, primed and open again, pins set and cleared, restarts falling due and the router's health. Today's, unless `--since` reaches further back, oldest first, under the day each happened on, each once, as it last stood, a line each with the time, the session's id cut short, if it's of one, the kind, the account and what happened. Its files outlast a restart, so it looks back across them.
+
+```bash
+switchboard events [--since <when>] [-f] [--json | --pretty]
+```
+
+| Flag | Description |
+|---|---|
+| `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
+| `-f, --follow` | then go on printing a line each time the router files one, a changed event again, whole, until interrupted |
+| `--json` | print each event as the router files it, a JSON object a line, with its `run` and `id`, as it does off a terminal anyway, even on one: of an event printed again, the last line is how it stands |
+| `--pretty` | print the text, as it does on a terminal, even off one |
+
+```bash
+switchboard events --since 2d
+switchboard events -f --json | jq 'select(.kind == "limit")'
 ```
 
 ### Plumbing

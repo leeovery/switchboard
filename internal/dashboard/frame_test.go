@@ -65,21 +65,22 @@ func threeRouted() status.Document {
 }
 
 // routerDoc is the healthy router's document of the accounts, with as many
-// sessions, new ones going to best.
+// sessions, new ones going to best, with what's worked out of it, as the
+// dashboard is given it.
 func routerDoc(best string, sessions int, accounts ...status.Account) status.Document {
 	return status.Document{
 		GeneratedAt: now.UTC(), Source: status.SourceRouter, Best: best, Router: status.Health{Healthy: true},
 		Sessions: sessions, Accounts: accounts,
-	}
+	}.WorkedOut(claudeLike)
 }
 
 // probed is a document of the accounts built by probing, the router not
-// running.
+// running, with what's worked out of it, as the dashboard is given it.
 func probed(accounts ...status.Account) status.Document {
 	return status.Document{
 		GeneratedAt: now.UTC(), Source: status.SourceProbe, Fallback: status.Fallback{Router: status.RouterNotRunning},
 		Accounts: accounts,
-	}
+	}.WorkedOut(claudeLike)
 }
 
 // frameOf is a frame of a terminal the size given, as text alone, listing a
@@ -165,7 +166,7 @@ func TestOneAccountUnder150ColumnsHasCOMINGUPUnderItsCardBeforeRECENT(t *testing
 	if coming < 0 || recent < coming {
 		t.Fatalf("rows are\n%s\nwant COMING UP, then RECENT", strings.Join(rows, "\n"))
 	}
-	if got, want := rows[coming], " COMING UP   14:42  work runs out at its pace"; !strings.HasPrefix(got, want) {
+	if got, want := rows[coming], " COMING UP   14:42      work runs out at its pace"; !strings.HasPrefix(got, want) {
 		t.Errorf("COMING UP reads %q, want %q, the strips' lines in one column", got, want)
 	}
 	if got, want := rows[recent], " RECENT      13:08  ● work has room again"; got != want {

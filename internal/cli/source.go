@@ -58,9 +58,12 @@ func (s usageSource) Read(ctx context.Context, r status.Read) (status.Document, 
 
 // fromRouter reads the router's document, having the router probe the
 // accounts it hasn't read for refresh first, when that's more than zero, and
-// its health check's answer. It reports false, and why when the router was
-// asked, when the router isn't to be asked, doesn't answer its health check
-// in time, or doesn't give its document.
+// its health check's answer. What's worked out of the document, as
+// WorkedOut says, is worked out as it's read, as a router from before it
+// gave that, still running between an upgrade and its restart, gives none.
+// It reports false, and why when the router was asked, when the router isn't
+// to be asked, doesn't answer its health check in time, or doesn't give its
+// document.
 func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (status.Document, router.Health, status.Fallback, bool) {
 	switch {
 	case !s.ask:
@@ -77,7 +80,7 @@ func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (sta
 		return status.Document{}, router.Health{}, fallbackFrom(err), false
 	}
 	logger.Debug("read the router", "refresh", refresh, "healthy", doc.Router.Healthy)
-	return doc, health, status.Fallback{}, true
+	return doc.WorkedOut(claude.Policy), health, status.Fallback{}, true
 }
 
 // answers asks the router's health check, giving it launch.AskTimeout, as

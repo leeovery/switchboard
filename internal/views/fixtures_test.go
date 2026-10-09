@@ -72,9 +72,9 @@ func day(date string, accounts ...ledger.AccountDay) ledger.Summary {
 	return ledger.Summary{Version: 2, Day: date, Accounts: accounts}
 }
 
-// at is the local time on the day with the given date, at the clock given,
+// onAt is the local time on the day with the given date, at the clock given,
 // as 10:00.
-func at(date, clock string) time.Time {
+func onAt(date, clock string) time.Time {
 	t, err := time.ParseInLocation(time.DateOnly+" 15:04", date+" "+clock, time.Local)
 	if err != nil {
 		panic(err)
@@ -86,13 +86,13 @@ func at(date, clock string) time.Time {
 // day with the given date, at the clock given, its use as last read before
 // it the one given.
 func reset(key, date, clock string, before float64) ledger.Reset {
-	return ledger.Reset{Window: key, At: at(date, clock).UTC(), Before: before}
+	return ledger.Reset{Window: key, At: onAt(date, clock).UTC(), Before: before}
 }
 
 // limit is a limit of the window with the given key reached at the local
 // time on the day with the given date, at the clock given.
 func limit(key, date, clock string) ledger.Limit {
-	return ledger.Limit{Window: key, At: at(date, clock).UTC()}
+	return ledger.Limit{Window: key, At: onAt(date, clock).UTC()}
 }
 
 // account is an account's day, of the models' days given.
