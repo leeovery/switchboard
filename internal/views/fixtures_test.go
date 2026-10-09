@@ -72,6 +72,29 @@ func day(date string, accounts ...ledger.AccountDay) ledger.Summary {
 	return ledger.Summary{Version: 2, Day: date, Accounts: accounts}
 }
 
+// at is the local time on the day with the given date, at the clock given,
+// as 10:00.
+func at(date, clock string) time.Time {
+	t, err := time.ParseInLocation(time.DateOnly+" 15:04", date+" "+clock, time.Local)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+// reset is a reset of the window with the given key at the local time on the
+// day with the given date, at the clock given, its use as last read before
+// it the one given.
+func reset(key, date, clock string, before float64) ledger.Reset {
+	return ledger.Reset{Window: key, At: at(date, clock).UTC(), Before: before}
+}
+
+// limit is a limit of the window with the given key reached at the local
+// time on the day with the given date, at the clock given.
+func limit(key, date, clock string) ledger.Limit {
+	return ledger.Limit{Window: key, At: at(date, clock).UTC()}
+}
+
 // account is an account's day, of the models' days given.
 func account(id string, models ...ledger.ModelDay) ledger.AccountDay {
 	return ledger.AccountDay{Account: id, Models: models}
@@ -99,7 +122,8 @@ var accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: 
 
 // input is what the views' tests build a History from: the days given, from
 // the first day's, by the built-in price table, with accounts configured,
-// the weeks starting on Monday.
+// the weeks starting on Monday, and the accounts' weeks those of the window
+// 7d.
 func input(days []ledger.Summary) views.HistoryInput {
 	from := now
 	if len(days) > 0 {
@@ -107,7 +131,7 @@ func input(days []ledger.Summary) views.HistoryInput {
 	}
 	return views.HistoryInput{
 		Ledger: ledgerOf(days), From: from, Now: now, Prices: ledger.Pricing,
-		Accounts: accounts, WeekStarts: time.Monday, Family: family,
+		Accounts: accounts, WeekStarts: time.Monday, WeekWindow: "7d", Family: family,
 	}
 }
 

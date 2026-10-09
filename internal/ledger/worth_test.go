@@ -250,24 +250,26 @@ func TestWhatThePricesCantPriceIsLeftUnpricedNotGuessed(t *testing.T) {
 	}
 }
 
-func TestAnAmountIsShownToTheCentAndGivenInDollarsExactly(t *testing.T) {
+func TestAnAmountIsShownToTheCentOrTheDollarAndGivenInDollarsExactly(t *testing.T) {
 	tests := []struct {
-		amount ledger.Picodollars
-		cents  string
-		json   string
+		amount         ledger.Picodollars
+		cents, dollars string
+		json           string
 	}{
-		{amount: 0, cents: "$0.00", json: "0"},
-		{amount: 1, cents: "$0.00", json: "0.000000000001"},
-		{amount: dollars(0.004999), cents: "$0.00", json: "0.004999"},
-		{amount: dollars(0.005), cents: "$0.01", json: "0.005"},
-		{amount: dollars(412.532118), cents: "$412.53", json: "412.532118"},
-		{amount: dollars(12), cents: "$12.00", json: "12"},
-		{amount: -dollars(1.25), cents: "-$1.25", json: "-1.25"},
+		{amount: 0, cents: "$0.00", dollars: "$0", json: "0"},
+		{amount: 1, cents: "$0.00", dollars: "$0", json: "0.000000000001"},
+		{amount: dollars(0.004999), cents: "$0.00", dollars: "$0", json: "0.004999"},
+		{amount: dollars(0.005), cents: "$0.01", dollars: "$0", json: "0.005"},
+		{amount: dollars(46.153846), cents: "$46.15", dollars: "$46", json: "46.153846"},
+		{amount: dollars(412.532118), cents: "$412.53", dollars: "$413", json: "412.532118"},
+		{amount: dollars(12), cents: "$12.00", dollars: "$12", json: "12"},
+		{amount: -dollars(1.5), cents: "-$1.50", dollars: "-$2", json: "-1.5"},
 	}
 	for _, tt := range tests {
 		got, err := json.Marshal(tt.amount)
-		if tt.amount.Cents() != tt.cents || err != nil || string(got) != tt.json {
-			t.Errorf("%d picodollars shows as %s and is given as %s (%v), want %s and %s", tt.amount, tt.amount.Cents(), got, err, tt.cents, tt.json)
+		if tt.amount.Cents() != tt.cents || tt.amount.Dollars() != tt.dollars || err != nil || string(got) != tt.json {
+			t.Errorf("%d picodollars shows as %s and %s and is given as %s (%v), want %s, %s and %s",
+				tt.amount, tt.amount.Cents(), tt.amount.Dollars(), got, err, tt.cents, tt.dollars, tt.json)
 		}
 	}
 }

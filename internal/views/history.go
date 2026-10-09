@@ -12,13 +12,17 @@ import (
 
 // History is what History's views and Accounts' build over the days asked
 // for, block by block, each oldest first, as history prints them: the days,
-// Year's grid, BY MONTH's rows, Tokens' weeks and the accounts' plans.
+// Year's grid, BY MONTH's rows, Weeks' weeks, Tokens' weeks, the accounts'
+// totals and plans, and Weeks' verdicts.
 type History struct {
-	Days   []Day       `json:"days"`
-	Year   Year        `json:"year"`
-	Months []Month     `json:"months"`
-	Tokens []TokenWeek `json:"tokens"`
-	Plans  []PlanCost  `json:"plans"`
+	Days     []Day       `json:"days"`
+	Year     Year        `json:"year"`
+	Months   []Month     `json:"months"`
+	Weeks    []Week      `json:"weeks"`
+	Tokens   []TokenWeek `json:"tokens"`
+	Totals   Totals      `json:"totals"`
+	Plans    []PlanCost  `json:"plans"`
+	Capacity Capacity    `json:"capacity"`
 }
 
 // HistoryInput is what a History is built from.
@@ -36,6 +40,10 @@ type HistoryInput struct {
 	Accounts config.Accounts
 	// WeekStarts is the day the calendar's weeks start on.
 	WeekStarts time.Weekday
+	// WeekWindow is the key of the window a week long every model shares,
+	// as internal/claude names it: the accounts' own weeks, which Weeks
+	// counts, are its.
+	WeekWindow string
 	// Family reads a model's family from its id, as internal/claude does,
 	// for a model the version table doesn't name.
 	Family func(model string) string
@@ -48,13 +56,29 @@ func NewHistory(in HistoryInput) History {
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
 	days := pricedDays(in.Ledger.Days(in.From), in.Prices, today, v)
+	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(days, in.Accounts)
 	return History{
-		Days:   days,
-		Year:   yearOf(days),
-		Months: monthsOf(days, p, v, today),
-		Tokens: tokensOf(days, p, v, in.WeekStarts),
-		Plans:  plansOf(days, p, from.Format(time.DateOnly), askedShare(from, to, in.WeekStarts)),
+		Days:     days,
+		Year:     yearOf(days),
+		Months:   monthsOf(days, p, v, today),
+		Weeks:    weeksOf(placed, in.Accounts),
+		Tokens:   tokensOf(days, p, v, in.WeekStarts),
+		Totals:   totalsOf(days, in.Accounts, v),
+		Plans:    plansOf(days, p, from.Format(time.DateOnly), askedShare(from, to, in.WeekStarts)),
+		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 	}
+}
+
+// wholeWeek reports whether a calendar week, by its first day's date, is
+// whole among days, which run to today, this week the one with the first day
+// given: begun on their first day or after, and over.
+func wholeWeek(days []Day, this time.Time) func(week string) bool {
+	current := this.Format(time.DateOnly)
+	first := current
+	if len(days) > 0 {
+		first = days[0].Day
+	}
+	return func(week string) bool { return week >= first && week < current }
 }
 
 // Day is a day of the ledger as Days draws it: its summary as the ledger

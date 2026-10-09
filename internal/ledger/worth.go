@@ -43,6 +43,11 @@ func (p Picodollars) Cents() string {
 	return fmt.Sprintf("%s$%d.%02d", p.sign(), cents/100, cents%100)
 }
 
+// Dollars shows the amount to the nearest dollar, as "$413".
+func (p Picodollars) Dollars() string {
+	return fmt.Sprintf("%s$%d", p.sign(), (p.abs()+dollar/2)/dollar)
+}
+
 // MarshalJSON gives the amount in dollars, exactly, as 412.532118.
 func (p Picodollars) MarshalJSON() ([]byte, error) {
 	dollars := fmt.Sprintf("%s%d", p.sign(), p.abs()/dollar)

@@ -31,6 +31,18 @@ func Count(n int) string {
 	return fmt.Sprintf("%.0f%s", of, countUnits[unit])
 }
 
+// numberWords are the numbers Number words, from none to ten.
+var numberWords = []string{"none", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"}
+
+// Number words n as a sentence counts things: a word to ten, as "three" or
+// "none", then figures, as "11".
+func Number(n int) string {
+	if n >= 0 && n < len(numberWords) {
+		return numberWords[n]
+	}
+	return fmt.Sprint(n)
+}
+
 // List runs items together as a list: "a", "a and b", "a, b and c", or ""
 // for none.
 func List(items []string) string {

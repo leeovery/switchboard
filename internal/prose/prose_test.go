@@ -23,6 +23,20 @@ func TestList(t *testing.T) {
 	}
 }
 
+func TestANumberIsAWordToTenThenFigures(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "none"}, {n: 1, want: "one"}, {n: 3, want: "three"}, {n: 10, want: "ten"}, {n: 11, want: "11"}, {n: 120, want: "120"},
+	}
+	for _, tt := range tests {
+		if got := prose.Number(tt.n); got != tt.want {
+			t.Errorf("Number(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func TestACountIsAsBriefAsARowHasRoomFor(t *testing.T) {
 	tests := []struct {
 		n    int
