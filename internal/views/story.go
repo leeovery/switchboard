@@ -27,8 +27,9 @@ func (d day) holds(t time.Time) bool {
 
 // story is what a session's lines tell, taken in oldest first, as add takes
 // them: its first and last request, the directory it last named, its last
-// request whose answer gave usage, its requests on the day and their worth,
-// and each move a request of it made.
+// request whose answer gave usage, and its last such turn of its own
+// conversation, its requests on the day and their worth, and each move a
+// request of it made.
 type story struct {
 	prices ledger.Table
 	day    day
@@ -36,9 +37,13 @@ type story struct {
 	first, last *ledger.Line
 	dir         string
 	used        *ledger.Line
-	requests    int
-	worth       worthSum
-	moves       []move
+	usedMain    *ledger.Line
+	// classed is set once a request of it says its class, as a Claude Code
+	// and a router that tell prompts apart have each say.
+	classed  bool
+	requests int
+	worth    worthSum
+	moves    []move
 	// lastOf is each model's last request so far, by its id: a move of the
 	// model's comes after it.
 	lastOf map[string]*ledger.Line
@@ -70,8 +75,12 @@ func (s *story) add(l *ledger.Line) {
 	if l.Dir != "" {
 		s.dir = l.Dir
 	}
+	s.classed = s.classed || l.Class != ""
 	if _, ok := l.Tokens(); ok {
 		s.used = l
+		if l.Class == ledger.ClassMain {
+			s.usedMain = l
+		}
 	}
 	if s.day.holds(l.At) {
 		s.requests++
@@ -123,15 +132,23 @@ func (s *story) movedOnto(account string) *Move {
 }
 
 // moveCost returns what moving the session now would cost, as Routing by
-// hand says: its last request's whole prompt written again, as
-// ledger.Table.Rewrite prices it, idle for as long as idle says. It reports
-// false where that isn't known, and where the session has idled longer than
-// its cache lasts, which it would write again on its next request anyway.
+// hand says: the whole prompt of the last turn of its own conversation whose
+// answer gave usage written again, as ledger.Table.Rewrite prices it, idle
+// for as long as idle says, so a side request, as a title, never stands in for
+// its conversation. Of a session none of whose requests says its class, as
+// from a Claude Code or a router from before they did, it's its last request
+// whose answer gave usage. It reports false where that isn't known, and where
+// the session has idled longer than its cache lasts, which it would write
+// again on its next request anyway.
 func (s *story) moveCost(idle time.Duration) (ledger.Picodollars, bool) {
-	if s.used == nil || idle > s.used.CacheLife() {
+	prompt := s.used
+	if s.classed {
+		prompt = s.usedMain
+	}
+	if prompt == nil || idle > prompt.CacheLife() {
 		return 0, false
 	}
-	return s.prices.Rewrite(s.used, s.day.date)
+	return s.prices.Rewrite(prompt, s.day.date)
 }
 
 // worthSum sums requests' worth exactly, and names, once each, the counts

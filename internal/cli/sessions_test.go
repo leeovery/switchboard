@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -164,9 +165,9 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"moved: work is at its reserve"}],"move_cost":0.80808,` +
 		`"started":"` + at(october(7, 10, 15, 0)) + `","requests":2,"worth":0.07608,` +
 		`"moved":{"at":"` + at(october(7, 11, 0, 0)) + `","from":"work","reason":"moved: work is at its reserve","cost":0.008}},` +
-		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","model":"claude-opus-9","running":false,"ended":"` + at(october(7, 8, 30, 0)) + `",` +
+		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
 		`"started":"` + at(october(7, 8, 0, 0)) + `","requests":2,"worth":0.03804,"unpriced":["input_tokens","output_tokens"]}],` +
-		`"today":{"sessions":3,"requests":5,"worth":0.15216}}`
+		`"today":{"sessions":3,"requests":5,"worth":0.15216,"unpriced":["input_tokens","output_tokens"]}}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "sessions")
@@ -200,7 +201,7 @@ today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 	var list struct {
 		Sessions []struct {
 			Session  string          `json:"session"`
-			Running  bool            `json:"running"`
+			Running  json.RawMessage `json:"running"`
 			LastSeen json.RawMessage `json:"last_seen"`
 			Models   json.RawMessage `json:"models"`
 			MoveCost json.RawMessage `json:"move_cost"`
@@ -211,7 +212,7 @@ today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 		t.Fatalf("switchboard sessions --json = %+v (%v), want three sessions, and the notice", got, err)
 	}
 	for _, s := range list.Sessions {
-		if s.Running || s.LastSeen != nil || s.Models != nil || s.MoveCost != nil || s.Ended == "" {
+		if s.Running != nil || s.LastSeen != nil || s.Models != nil || s.MoveCost != nil || s.Ended == "" {
 			t.Errorf("without the router, session %s is %+v, want it ended, with nothing the router says", s.Session, s)
 		}
 	}
@@ -233,5 +234,19 @@ func TestSessionsNeedsNeitherTheRouterNorTheLedger(t *testing.T) {
 	want := `{"generated_at":"` + ledgerNow.UTC().Format(time.RFC3339) + `","prices_as_of":"2026-10-07","sessions":[],"today":{"sessions":0,"requests":0,"worth":0}}`
 	if compact.String() != want {
 		t.Errorf("switchboard sessions --json printed\n%s\nwant\n%s", compact.String(), want)
+	}
+}
+
+func TestSessionsFailsWithoutAStateDirectory(t *testing.T) {
+	path := writeConfig(t, ledgerConfig)
+	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
+	deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
+	for _, form := range append(prettyForms(), jsonForms()...) {
+		t.Run(form.name, func(t *testing.T) {
+			got := form.run(t, deps, "sessions")
+			if want := (result{stderr: "Error: locate state directory: no home directory\n", code: 1}); got != want {
+				t.Errorf("switchboard sessions %s = %+v, want %+v", strings.Join(form.args, " "), got, want)
+			}
+		})
 	}
 }

@@ -35,8 +35,8 @@ type ListedSession struct {
 	// ended, its last request's.
 	Account string `json:"account,omitempty"`
 	Model   string `json:"model,omitempty"`
-	// Running is set while the router lists it.
-	Running bool `json:"running"`
+	// Running is set while the router lists it, and left out otherwise.
+	Running bool `json:"running,omitempty"`
 	// LastSeen, Models, State and MoveCost are of one running alone:
 	// when the router last saw it; each of its models, the account it goes
 	// to now and why; what its requests in flight are doing, status.Answering
@@ -83,11 +83,13 @@ type Move struct {
 }
 
 // SessionsToday sums the List's sessions: how many there are, their requests
-// today, and what those would have cost through the API.
+// today, and what those would have cost through the API, Unpriced naming the
+// counts any session's worth leaves out.
 type SessionsToday struct {
 	Sessions int                `json:"sessions"`
 	Requests int                `json:"requests"`
 	Worth    ledger.Picodollars `json:"worth"`
+	Unpriced []string           `json:"unpriced,omitempty"`
 }
 
 // SessionSources are what the List is built from.
@@ -123,6 +125,7 @@ func ListSessions(src SessionSources) SessionList {
 		stories[id] = sessionStory(src.Ledger, id, src.Prices, today)
 	}
 	list := SessionList{GeneratedAt: src.Now.UTC(), PricesAsOf: src.Prices.AsOf, Sessions: []ListedSession{}}
+	var worth worthSum
 	for _, id := range ids {
 		s := stories[id]
 		listed := listedFrom(id, s)
@@ -132,9 +135,9 @@ func ListSessions(src SessionSources) SessionList {
 		listed.Moved = s.movedOnto(listed.Account)
 		list.Sessions = append(list.Sessions, listed)
 		list.Today.Requests += listed.Requests
-		list.Today.Worth += listed.Worth
+		worth.add(ledger.Worth{Cost: listed.Worth, Unpriced: listed.Unpriced})
 	}
-	list.Today.Sessions = len(list.Sessions)
+	list.Today.Sessions, list.Today.Worth, list.Today.Unpriced = len(list.Sessions), worth.cost, worth.unpriced
 	slices.SortFunc(list.Sessions, inListOrder)
 	return list
 }

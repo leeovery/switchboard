@@ -51,10 +51,14 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) 
 	if err != nil {
 		return err
 	}
+	readers, err := a.newStateReaders(cfg)
+	if err != nil {
+		return err
+	}
 	now := a.Now()
 	list := views.ListSessions(views.SessionSources{
 		Running: a.routedSessions(ctx, errOut),
-		Ledger:  a.stateReadersOrNone(cfg).ledger,
+		Ledger:  readers.ledger,
 		Prices:  pricing(cfg),
 		Now:     now,
 	})
@@ -179,11 +183,11 @@ func worthSaid(s views.ListedSession) string {
 	return s.Worth.Cents() + "+"
 }
 
-// todaysWorth says what the List's sessions' requests today were worth, as
-// worthSaid says a session's, "+" after it where any leaves some unpriced.
+// todaysWorth says what the List's sessions' requests today were worth, to
+// the cent, "+" after it where it leaves some unpriced.
 func todaysWorth(list views.SessionList) string {
 	worth := list.Today.Worth.Cents()
-	if slices.ContainsFunc(list.Sessions, func(s views.ListedSession) bool { return len(s.Unpriced) > 0 }) {
+	if len(list.Today.Unpriced) > 0 {
 		worth += "+"
 	}
 	return worth

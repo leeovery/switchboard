@@ -215,7 +215,8 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			Session: early, Dir: "~/Code/web", Account: "work", Model: opus, Ended: utc(october(7, 11, 0)), Started: utc(october(7, 8, 0)),
 			Requests: 3, Worth: micro(hourWorth), Unpriced: []string{"input_tokens", "no_usage", "output_tokens"},
 		},
-	}, Today: views.SessionsToday{Sessions: 5, Requests: 10, Worth: micro(5*hourWorth + smallWorth + 2*hourWorth)}}
+	}, Today: views.SessionsToday{Sessions: 5, Requests: 10, Worth: micro(5*hourWorth + smallWorth + 2*hourWorth),
+		Unpriced: []string{"input_tokens", "no_usage", "output_tokens"}}}
 	assertList(t, got, want)
 }
 
@@ -238,7 +239,8 @@ func TestWithoutTheRouterTheListHoldsTodaysSessionsAsEnded(t *testing.T) {
 	if older := got.Sessions[3]; !older.Started.Equal(october(6, 22, 0)) || older.Requests != 1 {
 		t.Errorf("without the router, older is %+v, want it started yesterday, with today's one request", older)
 	}
-	if want := (views.SessionsToday{Sessions: 4, Requests: 10, Worth: micro(7*hourWorth + smallWorth)}); got.Today != want {
+	want := views.SessionsToday{Sessions: 4, Requests: 10, Worth: micro(7*hourWorth + smallWorth), Unpriced: []string{"input_tokens", "no_usage", "output_tokens"}}
+	if !reflect.DeepEqual(got.Today, want) {
 		t.Errorf("without the router, today sums to %+v, want %+v", got.Today, want)
 	}
 }
@@ -272,6 +274,58 @@ func TestAMovesCostIsLeftOutWhereTheSessionsCacheWouldHaveRunOut(t *testing.T) {
 			running := []status.Session{{ID: mover, Assignments: []status.Assignment{
 				{Model: opus, Account: "work", Reason: "new", InFlight: tt.inFlight, LastSeen: seen},
 			}}}
+			got := views.ListSessions(views.SessionSources{Running: running, Ledger: l, Prices: ledger.Pricing, Now: now})
+			if len(got.Sessions) != 1 || !reflect.DeepEqual(got.Sessions[0].MoveCost, tt.want) {
+				t.Errorf("the List holds %+v, want one session, its move cost %v", got.Sessions, amount(tt.want))
+			}
+		})
+	}
+}
+
+// of returns l, a request of the class given, as its client's headers say.
+func of(class string, l ledger.Line) ledger.Line {
+	l.Class = class
+	return l
+}
+
+func TestAMovesCostIsOfTheSessionsOwnConversation(t *testing.T) {
+	// A title's request of Claude Haiku 4.5: its prompt of 100 tokens written
+	// again for an hour.
+	const titleRewrite = 100 * 2
+	tests := []struct {
+		name  string
+		lines []ledger.Line
+		want  *ledger.Picodollars
+	}{
+		{
+			name: "its last turn's, a side request after it",
+			lines: []ledger.Line{of("main", line(mover, opus, "work", "new", october(7, 13, 0), hourUsage)),
+				of("auxiliary", line(mover, haiku, "work", "new", october(7, 13, 10), smallUsage))},
+			want: cost(hourRewrite),
+		},
+		{
+			name: "its last turn whose answer gave usage",
+			lines: []ledger.Line{of("main", line(mover, opus, "work", "new", october(7, 12, 50), hourUsage)),
+				of("auxiliary", line(mover, haiku, "work", "new", october(7, 13, 0), smallUsage)),
+				of("main", line(mover, opus, "work", "sticky", october(7, 13, 5), ""))},
+			want: cost(hourRewrite),
+		},
+		{
+			name: "none, where no turn of its own gave usage",
+			lines: []ledger.Line{of("subagent", line(mover, opus, "work", "new", october(7, 13, 0), hourUsage)),
+				line(mover, haiku, "work", "new", october(7, 13, 10), smallUsage)},
+		},
+		{
+			name: "its last request's, where none says its class",
+			lines: []ledger.Line{line(mover, opus, "work", "new", october(7, 13, 0), hourUsage),
+				line(mover, haiku, "work", "new", october(7, 13, 10), smallUsage)},
+			want: cost(titleRewrite),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			running := []status.Session{{ID: mover, Assignments: []status.Assignment{{Model: opus, Account: "work", Reason: "sticky", LastSeen: now}}}}
+			l := fakeLedger{now: now, lines: tt.lines}
 			got := views.ListSessions(views.SessionSources{Running: running, Ledger: l, Prices: ledger.Pricing, Now: now})
 			if len(got.Sessions) != 1 || !reflect.DeepEqual(got.Sessions[0].MoveCost, tt.want) {
 				t.Errorf("the List holds %+v, want one session, its move cost %v", got.Sessions, amount(tt.want))
