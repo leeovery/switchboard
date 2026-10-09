@@ -28,15 +28,19 @@ type Reader struct {
 // by now's clock, which summarises days with the accounts' caps as caps gives
 // them, what it can't read logged to logger.
 func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Logger) *Reader {
+	return &Reader{days: daysIn(stateDir, caps, logger), now: now}
+}
+
+// daysIn returns the ledger's days in the state directory stateDir, as they
+// lie, summarised with the readings history beside them and the accounts'
+// caps as caps gives them, what can't be read of them logged to logger.
+func daysIn(stateDir string, caps Caps, logger *slog.Logger) days {
 	history := readings.Files(readings.Dir(stateDir), logger)
-	return &Reader{
-		days: days{
-			files:   filesIn(Dir(stateDir), logger),
-			history: func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
-			caps:    caps,
-			logger:  logger,
-		},
-		now: now,
+	return days{
+		files:   filesIn(Dir(stateDir), logger),
+		history: func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
+		caps:    caps,
+		logger:  logger,
 	}
 }
 
@@ -165,12 +169,8 @@ func (r *Reader) Days(from time.Time) []Summary {
 // at or its lines counted, is taken as it's held, which is warned of too. It
 // marks no summary, as summaries are the router's to write.
 func (r *Reader) standing(date string) (*Summary, bool) {
-	held, err := r.days.held(date)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil, false
-	case err != nil:
-		r.days.logger.Warn("can't read the request ledger's summary of a day; summarising it from its lines", "day", date, "error", err)
+	held, ok := r.days.readable(date)
+	if !ok {
 		return nil, false
 	}
 	stat, stands, err := r.days.glance(date, held.stamp)
@@ -182,6 +182,23 @@ func (r *Reader) standing(date string) (*Summary, bool) {
 		return &held.Summary, true
 	}
 	return &held.Summary, stands
+}
+
+// readable returns the summary the ledger holds of the local day with the
+// given date, with its stamp, as held gives it, reporting false where the day
+// is to be summarised from its lines: the ledger holds no summary of it, or
+// one that can't be read as the day's, as one damaged or of another day,
+// which is warned of.
+func (d days) readable(date string) (stamped, bool) {
+	held, err := d.held(date)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return stamped{}, false
+	case err != nil:
+		d.logger.Warn("can't read the request ledger's summary of a day; summarising it from its lines", "day", date, "error", err)
+		return stamped{}, false
+	}
+	return held, true
 }
 
 // summarised returns the summary of the day due from its lines and history,

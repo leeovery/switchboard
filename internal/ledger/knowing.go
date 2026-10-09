@@ -27,6 +27,17 @@ func (s Summary) knowing(held Summary) Summary {
 	return s
 }
 
+// made returns s, a day summarised from its lines, made from as many as its
+// files hold, as lines counts them, knowing no less than held, the day's
+// summary before, where there's one, as knowing says.
+func (s Summary) made(lines int, held *Summary) Summary {
+	s.Lines = lines
+	if held != nil {
+		return s.knowing(*held)
+	}
+	return s
+}
+
 // knowing returns a, an account's day summarised afresh, knowing no less
 // than held, its day as summarised before, as Summary.knowing says.
 func (a AccountDay) knowing(held AccountDay) AccountDay {

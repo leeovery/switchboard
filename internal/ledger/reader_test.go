@@ -57,7 +57,7 @@ func writeFile(t *testing.T, dir, name string, data []byte) {
 }
 
 // gzipped returns texts compressed, a gzip member each, one after another.
-func gzipped(t *testing.T, texts ...string) []byte {
+func gzipped(t testing.TB, texts ...string) []byte {
 	t.Helper()
 	var data bytes.Buffer
 	for _, text := range texts {
@@ -452,7 +452,7 @@ func TestTheLedgerPassesOverTheRoutersEventsBesideIt(t *testing.T) {
 }
 
 // readingJSON returns r as the readings history writes it.
-func readingJSON(t *testing.T, r readings.Reading) string {
+func readingJSON(t testing.TB, r readings.Reading) string {
 	t.Helper()
 	data, err := json.Marshal(r)
 	if err != nil {

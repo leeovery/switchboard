@@ -7,7 +7,8 @@
 // filed under the day, knowing no less each time, and kept for good, marked
 // with the day's files as they were, so a day untouched since is never read
 // again to tell. A Reader reads them back where they lie, with no router,
-// from the first day the ledger holds, and a Table prices what they hold.
+// from the first day the ledger holds, a Follower as they grow, for one who
+// looks at them again and again, and a Table prices what they hold.
 package ledger
 
 import (
@@ -327,11 +328,8 @@ func (d days) glance(date string, stamp time.Time) (stat dayfile.DayStat, stands
 // once, as a summary of this version. It fails where the lines can't be
 // counted, as when one of the day's files can't be opened.
 func (d days) stands(held Summary, stat dayfile.DayStat) (bool, error) {
-	if held.Version < summaryVersion {
-		return false, nil
-	}
-	if marked(held, stat) {
-		return true, nil
+	if stands, told := standsUncounted(held, stat); told {
+		return stands, nil
 	}
 	lines, err := d.files.Count(held.Day)
 	switch {
@@ -341,6 +339,20 @@ func (d days) stands(held Summary, stat dayfile.DayStat) (bool, error) {
 		return false, err
 	}
 	return lines <= held.Lines, nil
+}
+
+// standsUncounted reports whether held, a summary the ledger holds, stands,
+// its day's files as stat looks at them, without its day's lines counted to
+// tell, and whether that tells, as stands says: one of an older version than
+// the ledger writes doesn't, and one marked with them does.
+func standsUncounted(held Summary, stat dayfile.DayStat) (stands, told bool) {
+	switch {
+	case held.Version < summaryVersion:
+		return false, true
+	case marked(held, stat):
+		return true, true
+	}
+	return false, false
 }
 
 // marked reports whether a day's files, as stat looks at them, are as they
@@ -523,11 +535,7 @@ func (d days) summarise(day dueDay, history Readings) (Summary, error) {
 	if unread > 0 {
 		d.logger.Warn("request ledger lines unread", "day", day.date, "lines", unread)
 	}
-	summary.Lines = lines
-	if day.held != nil {
-		summary = summary.knowing(*day.held)
-	}
-	return summary, read
+	return summary.made(lines, day.held), read
 }
 
 // lineIn returns the line a line of the ledger holds, reporting false for one

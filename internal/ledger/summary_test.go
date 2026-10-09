@@ -514,7 +514,7 @@ func (read windowsRead) json() string {
 
 // holdLines adds lines, as the ledger writes them, to its plain file in dir
 // of the local day with the given date.
-func holdLines(t *testing.T, dir, date string, lines ...ledger.Line) {
+func holdLines(t testing.TB, dir, date string, lines ...ledger.Line) {
 	t.Helper()
 	var data []byte
 	for _, line := range lines {

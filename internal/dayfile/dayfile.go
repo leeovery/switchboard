@@ -7,11 +7,13 @@
 // clock once set ahead names one, stays until its day is past keeping too, and
 // anything else in the directory is left alone. Read reads the files back,
 // either form, oldest first, passing over what it can't read, ReadFiled as
-// they were filed, a day at a time, and ReadDay a day's, saying what it can't;
-// a Writer writes to them on a goroutine of its own, so noting what's to be
-// written never waits, and makes a round of them every hour, and before each
-// prune, which what else is kept of the days, as the request ledger's
-// summaries, can be kept on, on every round, or just before each prune.
+// they were filed, a day at a time, and ReadDay a day's, saying what it can't,
+// and a Tail a day's as they grow, reading only what they gained since its
+// last read; a Writer writes to them on a goroutine of its own, so noting
+// what's to be written never waits, and makes a round of them every hour, and
+// before each prune, which what else is kept of the days, as the request
+// ledger's summaries, can be kept on, on every round, or just before each
+// prune.
 package dayfile
 
 import (
