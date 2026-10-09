@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -35,17 +36,31 @@ const (
 type Line struct {
 	status.Event
 	Run time.Time `json:"run"`
+	// JSON is the line as it was filed, any field a later release added to it
+	// included, of a line read from the files: nil of one made otherwise.
+	JSON json.RawMessage `json:"-"`
 }
 
-// In returns the line a line of the files holds, reporting false for one that
-// doesn't read as an event: one that isn't JSON, or has no run, id, at or
-// kind. Fields it doesn't know are passed over.
+// In returns the line a line of the files holds, its JSON as filed among it,
+// reporting false for one that doesn't read as an event: one that isn't
+// JSON, or has no run, id, at or kind. Fields it doesn't know are passed
+// over.
 func In(data []byte) (Line, bool) {
 	var line Line
 	if json.Unmarshal(data, &line) != nil || !line.valid() {
 		return Line{}, false
 	}
+	line.JSON = slices.Clone(data)
 	return line, true
+}
+
+// Filed returns the line as the router files it: as it was filed, where it
+// was read from the files, else made JSON as the router makes it.
+func (l Line) Filed() ([]byte, error) {
+	if l.JSON != nil {
+		return l.JSON, nil
+	}
+	return json.Marshal(l)
 }
 
 // valid reports whether the line names an event: its run, its id, which

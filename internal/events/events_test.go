@@ -147,6 +147,19 @@ func TestALineIsAnEventAsTheStatusDocumentGivesItWithItsRun(t *testing.T) {
 	}
 }
 
+func TestALineIsFiledAsItWasReadALaterReleasesFieldsIncluded(t *testing.T) {
+	made := limit(firstRun, 7, september(10, 9, 0), 2)
+	if got, err := made.Filed(); err != nil || string(got) != jsonOf(t, made) {
+		t.Errorf("a line made, not read, is filed as\n%s (%v)\nwant\n%s", got, err, jsonOf(t, made))
+	}
+
+	filed := `{"a_later_field":{"kept":true},` + strings.TrimPrefix(jsonOf(t, made), "{")
+	read, ok := events.In([]byte(filed))
+	if got, err := read.Filed(); !ok || err != nil || string(got) != filed {
+		t.Errorf("In(%s) is filed as\n%s (%v, %v)\nwant it as it was read", filed, got, ok, err)
+	}
+}
+
 func TestALineThatDoesntReadAsAnEventIsPassedOver(t *testing.T) {
 	whole := jsonOf(t, limit(firstRun, 7, september(10, 9, 0), 2))
 	without := func(field string) string {

@@ -236,11 +236,15 @@ func fileEvents(t *testing.T, r *recent) *eventFiles {
 
 // read stops the filing, once it has written what's noted, and returns the
 // events read back, each as it last stands: those of the ten days from the day
-// before start.
+// before start, as lines made are, without the JSON each was filed as.
 func (f *eventFiles) read() []events.Line {
 	f.stop()
 	reader := events.NewReader(f.stateDir, at(start.Add(10*day)), logger)
-	return slices.Collect(reader.Between(start.Add(-day), start.Add(10*day)))
+	lines := slices.Collect(reader.Between(start.Add(-day), start.Add(10*day)))
+	for i := range lines {
+		lines[i].JSON = nil
+	}
+	return lines
 }
 
 // versions returns how many lines the files hold of each event, by its id,

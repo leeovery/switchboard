@@ -171,6 +171,25 @@ func TestLinesThatDontReadAreCountedAndPassedOver(t *testing.T) {
 	}
 }
 
+func TestAnEventIsReadAsItsLastVersionWasFiled(t *testing.T) {
+	first, last := limit(firstRun, 1, september(10, 9, 0), 1), limit(firstRun, 1, september(10, 9, 0), 2)
+	lastFiled := `{"a_later_field":true,` + strings.TrimPrefix(jsonOf(t, last), "{")
+	state := t.TempDir()
+	fileDays(t, state, filed{day: 10, lines: []string{jsonOf(t, first)}}, filed{day: 11, lines: []string{lastFiled}})
+
+	var got []string
+	for line := range events.NewReader(state, func() time.Time { return now }, logs.For("cli")).Between(september(10, 0, 0), september(11, 0, 0)) {
+		data, err := line.Filed()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, string(data))
+	}
+	if want := []string{lastFiled}; !slices.Equal(got, want) {
+		t.Errorf("read\n%s\nwant the last version as it was filed, its later field included\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 func TestADamagedCompressedFileIsReadUpToTheDamage(t *testing.T) {
 	log := logstest.Capture(t)
 	a, b := limit(firstRun, 1, september(10, 9, 0), 1), limit(firstRun, 2, september(11, 9, 0), 1)

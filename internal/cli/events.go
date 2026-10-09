@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"iter"
@@ -112,7 +111,8 @@ func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(windowInProse)}
 }
 
-// eventsJSON prints each event as the router files it, a JSON object a line.
+// eventsJSON prints each event as the router files it, a JSON object a line,
+// fields a later release added included.
 type eventsJSON struct {
 	out io.Writer
 }
@@ -127,7 +127,7 @@ func (p eventsJSON) list(lines iter.Seq[events.Line], _, _ time.Time) error {
 }
 
 func (p eventsJSON) follow(line events.Line) error {
-	data, err := json.Marshal(line)
+	data, err := line.Filed()
 	if err != nil {
 		return fmt.Errorf("print an event: %w", err)
 	}

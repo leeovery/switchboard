@@ -83,11 +83,25 @@ func eventsDeps(t *testing.T) cli.Deps {
 // rewriting the file, as a follower reads on from where it last ended.
 func fileEvent(t *testing.T, deps cli.Deps, date string, line events.Line) {
 	t.Helper()
+	fileLines(t, deps, date, eventJSON(t, line))
+}
+
+// fileLines appends lines, each with its line ending, to the router's events'
+// file of the local day with the given date, as fileEvent does.
+func fileLines(t *testing.T, deps cli.Deps, date, lines string) {
+	t.Helper()
 	dir := ledger.Dir(stateDir(t, deps))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	appendTo(t, filepath.Join(dir, "events-"+date+".jsonl"), eventJSON(t, line))
+	appendTo(t, filepath.Join(dir, "events-"+date+".jsonl"), lines)
+}
+
+// withALaterField is the JSON of lines, each a line, with a field no release
+// before a later one knows added to each.
+func withALaterField(lines string) string {
+	return strings.ReplaceAll("\n"+lines, "\n{", `
+{"a_later_field":{"kept":true},`)[1:]
 }
 
 // eventJSON is line's JSON, as the router files it, its times in UTC, and a
@@ -212,6 +226,23 @@ func follow(t *testing.T, deps cli.Deps, form printForm, args ...string) (*syncB
 	return stdout, func() (int, string) {
 		cancel()
 		return <-code, stderr.String()
+	}
+}
+
+func TestEventsJSONKeepsTheFieldsALaterReleaseAdded(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow }
+	listed := withALaterField(eventJSON(t, sessionStarted, workPressed))
+	fileLines(t, deps, "2026-10-07", listed)
+	stdout, interrupt := follow(t, deps, offATerminal, "events", "-f")
+
+	stdout.waitFor(t, listed)
+	followed := withALaterField(eventJSON(t, pinned))
+	fileLines(t, deps, "2026-10-07", followed)
+	stdout.waitFor(t, listed+followed)
+
+	if code, stderr := interrupt(); code != 0 || stderr != "" {
+		t.Errorf("switchboard events -f exited %d, printing %q on stderr, once interrupted; want 0 and nothing", code, stderr)
 	}
 }
 
