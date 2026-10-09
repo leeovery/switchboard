@@ -50,10 +50,10 @@ func BenchmarkARoundOverAYearOfHeavyDays(b *testing.B) {
 	}
 }
 
-// heavyLine is the format of a line of a heavy day: its time, request's id,
-// session, timings, size, answer's id, blocks and usage given, then its
-// limits.
-const heavyLine = `{"at":"2026-10-06T%02d:%02d:%02d.%03dZ","request":"%08x","kind":"message","session":"%s","dir":"~/Code/project",` +
+// heavyLine is the format of a line of a heavy day: its date and time,
+// request's id, session, timings, size, answer's id, blocks and usage given,
+// then its limits.
+const heavyLine = `{"at":"%sT%02d:%02d:%02d.%03dZ","request":"%08x","kind":"message","session":"%s","dir":"~/Code/project",` +
 	`"model":"claude-opus-5-5","account":"work","reason":"sticky","status":200,"attempts":1,"first_ms":%d,"total_ms":%d,` +
 	`"agent":"claude-cli/2.1.0 (external, sdk-cli)","betas":["claude-code-20250219","context-1m-2025-08-07","interleaved-thinking-2025-05-14",` +
 	`"fine-grained-tool-streaming-2025-05-14","context-management-2025-06-27"],"shape":{"bytes":%d,"messages":%d,"system":3,"tools":31,` +
@@ -64,11 +64,26 @@ const heavyLine = `{"at":"2026-10-06T%02d:%02d:%02d.%03dZ","request":"%08x","kin
 	`"output_tokens":%d,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard"},"limits":{"status":"allowed",` +
 	`"fallback-percentage":"0.5","overage-status":"rejected","overage-disabled-reason":"org_level_disabled",%s}}` + "\n"
 
-// heavyDay returns a day of n of the ledger's lines, compressed, each of a
-// long session's requests, as a heavy day's are: some 1.9 KB apiece, of 40
-// sessions, their ids, timings and counts varied, the windows' use rising
-// through the day, and the same every run.
+// heavyDay returns a day of n of the ledger's lines, compressed, as
+// heavyLines gives them of 6 October 2026.
 func heavyDay(b *testing.B, n int) []byte {
+	b.Helper()
+	var day bytes.Buffer
+	w := gzip.NewWriter(&day)
+	if _, err := w.Write(heavyLines(b, "2026-10-06", n)); err != nil {
+		b.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		b.Fatal(err)
+	}
+	return day.Bytes()
+}
+
+// heavyLines returns n of the ledger's lines of the day with the given date,
+// each of a long session's requests, as a heavy day's are: some 1.9 KB
+// apiece, of 40 sessions, their ids, timings and counts varied, the windows'
+// use rising through the day, and the same every run.
+func heavyLines(b *testing.B, date string, n int) []byte {
 	b.Helper()
 	random := rand.New(rand.NewPCG(1, 2))
 	sessions := make([]string, 40)
@@ -76,16 +91,12 @@ func heavyDay(b *testing.B, n int) []byte {
 		sessions[i] = fmt.Sprintf("%016x%016x", random.Uint64(), random.Uint64())
 	}
 	var day bytes.Buffer
-	w := gzip.NewWriter(&day)
 	for i := range n {
-		if _, err := fmt.Fprintf(w, heavyLine, i/680%24, i/11%60, i%60, random.IntN(1000), random.Uint32(), sessions[random.IntN(len(sessions))],
+		if _, err := fmt.Fprintf(&day, heavyLine, date, i/680%24, i/11%60, i%60, random.IntN(1000), random.Uint32(), sessions[random.IntN(len(sessions))],
 			random.IntN(5000), random.IntN(90000), random.IntN(900000), random.IntN(400), random.Uint64(), random.IntN(4)+1, random.IntN(100),
 			random.IntN(20000), random.IntN(400000), random.IntN(20000), random.IntN(8000), limitsOf(i)); err != nil {
 			b.Fatal(err)
 		}
-	}
-	if err := w.Close(); err != nil {
-		b.Fatal(err)
 	}
 	return day.Bytes()
 }

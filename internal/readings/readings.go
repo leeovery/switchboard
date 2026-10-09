@@ -3,7 +3,7 @@
 // status, in files a day in a directory of the state directory, as
 // internal/dayfile keeps them, and reading them back. The router writes the
 // history and takes it up as it starts, and the request ledger summarises its
-// days with it, whether or not the router runs.
+// days with it, whether or not the router runs, a Day's as it grows.
 package readings
 
 import (
