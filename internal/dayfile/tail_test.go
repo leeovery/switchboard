@@ -1,10 +1,13 @@
 package dayfile
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -240,6 +243,67 @@ func TestATailOfAFileThatCantBeOpenedIsWarnedOfOnceAndReadAfreshOnceItCanBe(t *t
 	}
 	if want := []string{`{"n":1}`, `{"n":2}`}; !tail.read() || !slices.Equal(tail.lines(), want) || tail.afresh != 4 {
 		t.Errorf("once the file can be opened, the tail holds %q, read afresh %d times; want %q, read afresh at each read", tail.lines(), tail.afresh, want)
+	}
+}
+
+// errBadSector is the error of a read of a part of a disk that can't be read.
+var errBadSector = errors.New("bad sector")
+
+// badSector reads data as a file holding it reads, but for any part of it
+// from from up to to, which fails.
+type badSector struct {
+	data     []byte
+	from, to int64
+}
+
+func (b badSector) ReadAt(p []byte, off int64) (int, error) {
+	if off < b.to && off+int64(len(p)) > b.from {
+		return 0, errBadSector
+	}
+	return bytes.NewReader(b.data).ReadAt(p, off)
+}
+
+// numbered returns lines of JSON numbered from from up to to.
+func numbered(from, to int) string {
+	var texts []string
+	for n := from; n < to; n++ {
+		texts = append(texts, `{"n":`+strconv.Itoa(n)+`}`)
+	}
+	return linesOf(texts...)
+}
+
+func TestATailThatReadsShortReadsAfreshNextTime(t *testing.T) {
+	log := logstest.Capture(t)
+	const date = "2026-09-25"
+	f := requestLedger(t.TempDir())
+	appendTo(t, f, plainFile(date), numbered(0, 10))
+	tail := tailOf(f, date)
+	tail.read()
+	ended := tail.tail.end
+	// Lines enough that the end of the last is far past the part that fails.
+	appendTo(t, f, plainFile(date), numbered(10, 4000))
+	data, err := os.ReadFile(f.path(plainFile(date)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(f.path(plainFile(date)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reading on fails partway through what the file gained, as at a bad
+	// sector of a disk.
+	failing := badSector{data: data, from: ended + 2*lookBack, to: ended + 2*lookBack + 1}
+	if tail.tail.follow(failing, info, func(line string) { tail.held = append(tail.held, line) }) {
+		t.Fatal("follow() = true, want false: it read short")
+	}
+	if !log.Has("level=WARN", `msg="request ledger read short"`, `error="bad sector"`) {
+		t.Errorf("log reads\n%s\nwant the read that failed warned of", log)
+	}
+	tail.read()
+	if want, _, _ := wholeDay(f, date); !slices.Equal(tail.lines(), want) || tail.afresh != 2 {
+		t.Errorf("the next read holds %d lines, read afresh %d times; want the day's %d, read afresh again, none passed over", len(tail.lines()),
+			tail.afresh, len(want))
 	}
 }
 

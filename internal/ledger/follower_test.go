@@ -228,7 +228,7 @@ func TestAFollowerGivesWhatAWholeReadGivesAsTheLedgerGrows(t *testing.T) {
 	compressFile(t, dir, "requests-2026-10-02.jsonl")
 	summariseAt(dir, history, on(-1, 3, 0))
 	holdLines(t, dir, "2026-10-04", askedBy("e", "one", on(-1, 9, 0)), askedBy("f", "two", on(-1, 22, 0)))
-	holdLines(t, dir, date, askedBy("g", "one", on(0, 9, 0)), askedBy("h", "two", on(0, 9, 30)))
+	holdLines(t, dir, date, askedBy("g", "one", on(0, 9, 0)), askedBy("h", "two", on(0, 9, 20)))
 
 	from := on(-10, 0, 0)
 	steps := []struct {
@@ -290,6 +290,11 @@ func TestAFollowerGivesWhatAWholeReadGivesAsTheLedgerGrows(t *testing.T) {
 			do:   func(t *testing.T) { holdLines(t, dir, "2026-10-04", askedBy("p", "one", on(-1, 23, 58))) },
 		},
 		{name: "yesterday's summary written again", at: on(0, 13, 10), do: func(*testing.T) { summariseAt(dir, history, on(0, 13, 10)) }},
+		{
+			name: "a line of today's filed under the day after, as after a change of time zone",
+			at:   on(0, 13, 20),
+			do:   func(t *testing.T) { holdLines(t, dir, "2026-10-06", askedBy("v", "one", on(0, 9, 30))) },
+		},
 		{
 			name: "midnight passed, a request in flight as it did filed under the day before",
 			at:   on(1, 0, 10),
@@ -500,6 +505,89 @@ func TestAPastDaysSummaryIsHeldUntilItsStampOrItsDaysFilesChange(t *testing.T) {
 		if got, want := fullJSON(t, follower.Days(on(0, 0, 0))), fullJSON(t, readerAt(state, clock.at).Days(on(0, 0, 0))); !slices.Equal(got, want) {
 			t.Errorf("%s: Days() =\n%s\nwant it read again\n%s", tt.name, strings.Join(got, "\n"), strings.Join(want, "\n"))
 		}
+	}
+}
+
+func TestASessionsLinesFiledUnderTheDayAfterTodaysAreRead(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay lays the ledger out in dir.
+		lay func(t *testing.T, dir string)
+	}{
+		{
+			name: "one of today's filed under the day after, as after a change of time zone",
+			lay: func(t *testing.T, dir string) {
+				holdLines(t, dir, date, askedBy("1", "one", on(0, 9, 0)))
+				holdLines(t, dir, "2026-10-06", askedBy("2", "one", on(0, 9, 30)))
+			},
+		},
+		{
+			name: "the ledger's only file the day after's, as a clock once set ahead names one, holding one of today's",
+			lay:  func(t *testing.T, dir string) { holdLines(t, dir, "2026-10-06", askedBy("1", "one", on(0, 9, 30))) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state, dir, _ := stateDirs(t)
+			tt.lay(t, dir)
+			at := on(0, 12, 0)
+
+			got, want := heldJSON(slices.Collect(followerOf(state, &testClock{at: at}, caps).Session("one"))), wholeSession(state, "one", at)
+			if !slices.Equal(got, want) || len(want) == 0 {
+				t.Errorf("Session() =\n%s\nwant\n%s, as a whole read gives", strings.Join(got, "\n"), strings.Join(want, "\n"))
+			}
+		})
+	}
+}
+
+func TestTheFirstDayTheLedgerHoldsIsHeldUntilItsDirectoryChanges(t *testing.T) {
+	at := on(0, 12, 0)
+	tests := []struct {
+		name string
+		// changed is when the ledger's directory last changed; held, whether
+		// its listing is held; and days, how many days the next read gives,
+		// from the first it holds where it's held, or every one asked for, as
+		// it can't be listed again.
+		changed time.Time
+		held    bool
+		days    int
+	}{
+		{name: "changed a second and more before it was listed", changed: at.Add(-time.Hour), held: true, days: 2},
+		{
+			name:    "changed in the second it was listed in, as a file system that keeps whole seconds can't tell from one changed after",
+			changed: at,
+			days:    6,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, _ := stateDirs(t)
+			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+			if err := os.Chtimes(dir, time.Time{}, tt.changed); err != nil {
+				t.Fatal(err)
+			}
+			follower := followerOf(state, &testClock{at: at}, caps)
+			follower.Days(on(-5, 0, 0))
+			// Its files can be opened by name, but it can't be listed again.
+			if err := os.Chmod(dir, 0o300); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+			days := follower.Days(on(-5, 0, 0))
+			if listed := log.Has(`msg="can't read the request ledger"`, "dir="+dir); listed == tt.held || len(days) != tt.days {
+				t.Errorf("log reads\n%s\nDays() gave %d days; want %d, the listing held %v", log, len(days), tt.days, tt.held)
+			}
+
+			// A file named for a day added changes the directory, which is
+			// listed again.
+			holdLines(t, dir, "2026-10-03", asked("0", on(-2, 9, 0)))
+			follower.Days(on(-5, 0, 0))
+			if !log.Has(`msg="can't read the request ledger"`, "dir="+dir) {
+				t.Errorf("log reads\n%s\nwant the directory, changed, listed again", log)
+			}
+		})
 	}
 }
 
