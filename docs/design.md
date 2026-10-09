@@ -4054,13 +4054,15 @@ from the first day a router that has it runs, so nothing before then is in it.
   - `agent` and `betas`: Claude Code's user agent, which carries its version, and the features its
     `anthropic-beta` header asked for, some of which change what a request costs.
   - `prompt`, `class`, `agent_id`, `parent_agent_id`, `agent_type`, `compaction`, `compacted` and
-    `tool_ms`: what Claude Code's headers say of the request, as `run` has it send them (see
-    Launching), each left out where it carries none; Claude Code's gateway guide documents them.
+    `tool_ms`: what Claude Code's headers say of the request, each left out where it carries none;
+    Claude Code's gateway guide documents them. It sends a base URL the agents' ids always, and the
+    rest as `run` has it send them (see Launching).
     `prompt`: the id of the prompt it serves, the same on every request serving one prompt,
     including the turns of the subagents that prompt starts. `class`: what kind of request it is,
     `main`, a turn of the session's own conversation, `subagent`, `workflow`, `compaction` or
     `auxiliary`, a side request such as a title, a classifier or a summary. `agent_id`: the
-    subagent that sent it, and `parent_agent_id` the one that started that, where agents nest.
+    subagent that sent it, and `parent_agent_id` the one that started that, where agents nest, by
+    Claude Code's ids for them: random for a subagent, from its name for a member of an agent team.
     `agent_type`: a built-in agent's name, as `Explore`, or `custom`, `teammate` or `fork`, never a
     name the user chose. `compaction`: what started the compaction it is, `auto`, `manual` or
     `reactive`; `compacted`, the same, on the first request of the conversation after one.
@@ -5179,9 +5181,10 @@ verbs).
   serves on after an upgrade until it restarts in place, at a moment with no request in flight,
   and one run by hand with `serve` until it's run again (see Proxy rules). It sets
   `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a base URL the headers it
-  sends the API directly: the prompt each request serves, its class and its agent, which the
+  sends the API directly, the prompt each request serves and its class among them, which the
   router records (see The request ledger); but where the environment sets it already, as to `0`,
-  which turns them off, it's left as it is (settled in the plan).
+  which turns them off, it's left as it is, though not where it's set empty, which Claude Code
+  reads as unset (settled in the plan).
 - **Direct:** otherwise it connects directly, on `--account`'s token, else the primary's, else the
   first account's with a usable token, without the base URL, the pin or the directory, and says why
   in a line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
@@ -5616,6 +5619,7 @@ why.
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens, and a restart's request stream that can end before its last events | open: small fixes, any time | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
+| What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | OAuth logins in place of setup tokens, kept fresh | later | [oauth-logins](../ideas/2026-09-30--oauth-logins.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
