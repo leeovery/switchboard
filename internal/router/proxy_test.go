@@ -377,6 +377,7 @@ func TestUsageIsReadOffResponses(t *testing.T) {
 			}
 			doc := rt.Status()
 			side, _ := doc.Account("side")
+			side.Windows = asRead(side.Windows)
 			want := status.Account{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: tt.windows, Limit: tt.wantLimit}
 			if !reflect.DeepEqual(side, want) {
 				t.Errorf("side, which served the request, reads\n%+v\nwant\n%+v", side, want)

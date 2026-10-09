@@ -25,6 +25,10 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 	reserved.Reserve = 0.1
 	pinned := routerDoc("work", 0, reserved)
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
+	capped := readAccount("capped", sessionOf(0.2, 2*time.Hour), weekOf(0.95, 2*day))
+	capped.Reserve = 0.1
+	modelCapped := readAccount("fable", sessionOf(0.2, 2*time.Hour), weekOf(0.3, 3*day), windowOf("7d_oi", "Fable week", 0.95, 2*day))
+	modelCapped.Reserve = 0.1
 	tests := []struct {
 		name  string
 		doc   status.Document
@@ -32,14 +36,17 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 		want  []string
 	}{
 		{
-			name: "the frames': a limit lifting, a session running out, and resetting, and a week running out",
+			name: "the frames': a limit lifting, a session running out, and resetting, a week running out, and every week resetting",
 			doc:  threeRouted(),
 			want: []string{
 				"14:12 personal back from its limit",
 				"14:42 work runs out at its pace",
 				"16:12 work's session resets",
 				"17:12 side's session resets",
+				"Thu 13:12 personal's week resets",
+				"Fri 13:12 work's week resets",
 				"Fri 14:39 side's week runs out at its pace",
+				"Sat 13:12 side's week resets",
 			},
 		},
 		{
@@ -50,45 +57,63 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 				"13:50 spare is primed",
 				"15:12 a's session resets",
 				"03:12 a is primed",
+				"Sun 13:12 spare's week resets",
 			},
 		},
 		{
 			name:  "nothing that's passed, nor a prime the document doesn't time",
 			doc:   routerDoc("a", 0, readAccount("a", sessionOf(0.1, -time.Minute)), pastLimit),
 			slots: []status.Slot{{Account: "a", At: "03:50"}},
-			want:  []string{"14:12 over's session resets"},
+			want:  []string{"14:12 over's session resets", "Thu 13:12 over's week resets"},
 		},
 		{
 			name: "a limit on a model's own window, which leaves the session running",
 			doc:  routerDoc("fable", 0, fable),
-			want: []string{"15:12 fable's session resets", "Fri 13:12 fable back from its Fable week limit"},
+			want: []string{"15:12 fable's session resets", "Thu 13:12 fable's week resets", "Fri 13:12 fable back from its Fable week limit"},
 		},
 		{
 			name: "an account its reserve holds back, reaching it before its limit",
 			doc:  routerDoc("work", 0, reserved),
-			want: []string{"14:20 work reaches its reserve", "16:12 work's session resets"},
+			want: []string{"14:20 work reaches its cap", "16:12 work's session resets", "Fri 13:12 work's week resets"},
 		},
 		{
 			name: "an account a pin names, its reserve not holding it back",
 			doc:  pinned,
-			want: []string{"14:42 work runs out at its pace", "16:12 work's session resets"},
+			want: []string{"14:42 work runs out at its pace", "16:12 work's session resets", "Fri 13:12 work's week resets"},
 		},
 		{
 			name: "a window other than the session running out, named",
 			doc:  routerDoc("client", 0, running),
-			want: []string{"16:12 client's session resets", "Wed 06:20 client's week runs out at its pace"},
+			want: []string{"16:12 client's session resets", "Wed 06:20 client's week runs out at its pace", "Thu 13:12 client's week resets"},
 		},
 		{
 			name: "a window read spent, without the router, back as it resets",
 			doc:  probed(spent, limitedAccount("held")),
-			want: []string{"14:12 held back from its limit", "16:12 spent's session resets", "Wed 13:12 spent back from its Fable week limit"},
+			want: []string{
+				"14:12 held back from its limit",
+				"16:12 spent's session resets",
+				"Wed 13:12 spent back from its Fable week limit",
+				"Thu 13:12 spent's week resets",
+				"Thu 13:12 held's week resets",
+			},
+		},
+		{
+			name: "an account back from its cap as its week resets",
+			doc:  routerDoc("capped", 0, capped),
+			want: []string{"15:12 capped's session resets", "Wed 13:12 capped back from its cap"},
+		},
+		{
+			name: "an account back from the cap on a model's own week",
+			doc:  routerDoc("fable", 0, modelCapped),
+			want: []string{"15:12 fable's session resets", "Wed 13:12 fable back from its Fable week cap", "Thu 13:12 fable's week resets"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
+			doc := tt.doc
+			doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
 			var got []string
-			for _, h := range upcoming(tt.doc, now, claudeLike) {
+			for _, h := range upcoming(doc.WorkedOut(claudeLike), now, claudeLike) {
 				got = append(got, status.When(now, h.at)+" "+h.name+h.what)
 			}
 			if !slices.Equal(got, tt.want) {
@@ -98,22 +123,43 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 	}
 }
 
+func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
+	doc := routerDoc("work", 0, readAccount("work", sessionOf(0.1, 2*time.Hour)))
+	doc.ComingUp = []status.Upcoming{
+		{At: now.Add(-time.Minute).UTC(), Account: "work", Kind: status.UpcomingReset, Window: "7d"},
+		{At: now.UTC(), Account: "work", Kind: status.UpcomingPrime},
+		{At: now.Add(time.Hour).UTC(), Account: "work", Kind: "later", Window: "5h"},
+		{At: now.Add(2 * time.Hour).UTC(), Account: "work", Kind: status.UpcomingReset, Window: "5h"},
+	}
+	var got []string
+	for _, h := range upcoming(doc, now, claudeLike) {
+		got = append(got, status.When(now, h.at)+" "+h.name+h.what)
+	}
+	if want := []string{"15:12 work's session resets"}; !slices.Equal(got, want) {
+		t.Errorf("upcoming() = %q, want %q: what the document gives, after now, of the kinds it knows", got, want)
+	}
+}
+
 func TestCOMINGUPsInks(t *testing.T) {
 	doc := threeRouted()
 	doc.Prime = status.Prime{Slots: []status.Slot{{Account: "side", Next: now.Add(time.Minute)}}}
 	reserved := pressedAccount("client")
 	reserved.Reserve = 0.1
-	doc.Accounts = append(doc.Accounts, reserved, readAccount("lab", sessionOf(0.1, 3*time.Hour), weekOf(0.7, 3*day)))
+	capped := readAccount("capped", sessionOf(0.2, 2*time.Hour), weekOf(0.95, 2*day))
+	capped.Reserve = 0.1
+	doc.Accounts = append(doc.Accounts, reserved, readAccount("lab", sessionOf(0.1, 3*time.Hour), weekOf(0.7, 3*day)), capped)
 	want := map[string]theme.Token{
 		" is primed":                   theme.AccentPrimary,
 		" back from its limit":         theme.TextMuted,
+		" back from its cap":           theme.TextMuted,
 		" runs out at its pace":        theme.AccentAttention,
-		" reaches its reserve":         theme.AccentAttention,
+		" reaches its cap":             theme.AccentAttention,
 		"'s week runs out at its pace": theme.AccentAttention,
 		"'s session resets":            theme.TextMuted,
+		"'s week resets":               theme.TextMuted,
 	}
 	seen := map[string]bool{}
-	for _, h := range upcoming(doc, now, claudeLike) {
+	for _, h := range upcoming(doc.WorkedOut(claudeLike), now, claudeLike) {
 		seen[h.what] = true
 		if h.ink.token != want[h.what] {
 			t.Errorf("%q is in %v, want %v", h.what, h.ink.token, want[h.what])

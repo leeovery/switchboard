@@ -55,9 +55,12 @@ func TestCollect(t *testing.T) {
 			{ID: "personal", Label: "Personal", TokenSet: false, Error: tokenstest.Missing("personal").Error()},
 			{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 		},
-	}
+	}.WorkedOut(policy)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Collect() =\n%+v\nwant\n%+v", got, want)
+	}
+	if session := got.Accounts[0].Windows[0]; session.Pace == nil || session.Allowance.Per != quota.PerHour || len(got.Pool.Windows) != 2 || len(got.ComingUp) == 0 {
+		t.Errorf("Collect() = %+v, want the session's even pace and allowance, the pool's windows and what's coming up worked out", got)
 	}
 	if got, want := prober.probed(), []string{"test-token-side", "test-token-work"}; !slices.Equal(got, want) {
 		t.Errorf("probed tokens %q, want %q", got, want)
@@ -703,6 +706,128 @@ func TestDocumentJSON(t *testing.T) {
       "label": "Personal",
       "token_set": false,
       "error": "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"
+    }
+  ]
+}`,
+		},
+		{
+			name: "with what's worked out of it: each window's even pace and allowance, the pool and what's coming up",
+			doc: status.Document{
+				GeneratedAt: generated,
+				Source:      status.SourceRouter,
+				Pool: status.Pool{Accounts: []string{"work", "side"}, Pinned: true, Windows: []status.PoolWindow{
+					{Key: "5h", Label: "Session", Room: 1.5, Used: 0.25, Pace: new(0.4)},
+					{Key: "7d", Label: "Week", Room: 0.3333333333333333, Used: 0.8333333333333334},
+				}},
+				ComingUp: []status.Upcoming{
+					{At: generated.Add(time.Minute), Account: "side", Kind: status.UpcomingPrime},
+					{At: generated.Add(time.Hour), Account: "work", Kind: status.UpcomingBack},
+					{At: generated.Add(2 * time.Hour), Account: "side", Kind: status.UpcomingRunsOut, Window: "5h", Cap: true},
+					{At: generated.Add(3 * time.Hour), Account: "work", Kind: status.UpcomingReset, Window: "7d"},
+					{At: generated.Add(4 * time.Hour), Account: "side", Kind: status.UpcomingBack, Window: "7d_oi", Cap: true},
+				},
+				Accounts: []status.Account{{
+					ID: "work", Label: "Work", TokenSet: true, FetchedAt: generated,
+					Windows: []quota.Window{
+						{Key: "5h", Label: "Session", Utilization: 0.4, ResetsAt: generated.Add(5 * time.Hour), Pace: new(0.0), Allowance: quota.Allowance{Share: 0.12}},
+						{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: generated.Add(48 * time.Hour), Pace: new(0.7142857142857143), Allowance: quota.Allowance{Share: 0.25, Per: quota.PerDay}},
+						{Key: "7d_oi", Label: "Fable week", Utilization: 1, ResetsAt: generated.Add(48 * time.Hour), Pace: new(0.7142857142857143)},
+					},
+				}},
+			},
+			want: `{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "pool": {
+    "accounts": [
+      "work",
+      "side"
+    ],
+    "pinned": true,
+    "windows": [
+      {
+        "key": "5h",
+        "label": "Session",
+        "room": 1.5,
+        "used": 0.25,
+        "pace": 0.4
+      },
+      {
+        "key": "7d",
+        "label": "Week",
+        "room": 0.3333333333333333,
+        "used": 0.8333333333333334
+      }
+    ]
+  },
+  "coming_up": [
+    {
+      "at": "2026-09-28T13:13:00Z",
+      "account": "side",
+      "kind": "prime"
+    },
+    {
+      "at": "2026-09-28T14:12:00Z",
+      "account": "work",
+      "kind": "back"
+    },
+    {
+      "at": "2026-09-28T15:12:00Z",
+      "account": "side",
+      "kind": "runs_out",
+      "window": "5h",
+      "cap": true
+    },
+    {
+      "at": "2026-09-28T16:12:00Z",
+      "account": "work",
+      "kind": "reset",
+      "window": "7d"
+    },
+    {
+      "at": "2026-09-28T17:12:00Z",
+      "account": "side",
+      "kind": "back",
+      "window": "7d_oi",
+      "cap": true
+    }
+  ],
+  "accounts": [
+    {
+      "id": "work",
+      "label": "Work",
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "5h",
+          "label": "Session",
+          "utilization": 0.4,
+          "resets_at": "2026-09-28T18:12:00Z",
+          "pace": 0,
+          "allowance": {
+            "share": 0.12
+          }
+        },
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.5,
+          "resets_at": "2026-09-30T13:12:00Z",
+          "pace": 0.7142857142857143,
+          "allowance": {
+            "share": 0.25,
+            "per": "day"
+          }
+        },
+        {
+          "key": "7d_oi",
+          "label": "Fable week",
+          "utilization": 1,
+          "resets_at": "2026-09-30T13:12:00Z",
+          "pace": 0.7142857142857143
+        }
+      ]
     }
   ]
 }`,
@@ -1375,6 +1500,21 @@ func TestADocumentWithoutEventsSaysNothingOfThem(t *testing.T) {
 		got, err := json.Marshal(status.Document{Source: status.SourceRouter, Events: events})
 		if err != nil || strings.Contains(string(got), `"events"`) {
 			t.Errorf("Marshal() with events %#v = %s, %v, want no events", events, got, err)
+		}
+	}
+}
+
+func TestADocumentWithNothingWorkedOutSaysNothingOfIt(t *testing.T) {
+	doc := status.Document{Source: status.SourceRouter, ComingUp: []status.Upcoming{}, Accounts: []status.Account{{
+		ID: "work", Label: "Work", TokenSet: true, Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.4}},
+	}}}
+	got, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{`"pool"`, `"coming_up"`, `"pace"`, `"allowance"`} {
+		if strings.Contains(string(got), field) {
+			t.Errorf("Marshal() = %s, want no %s", got, field)
 		}
 	}
 }

@@ -258,7 +258,7 @@ func TestServiceRestartOfARouterFromBeforeRoutersRestartedWhenAsked(t *testing.T
 	// 4242.
 	var pid atomic.Int64
 	pid.Store(100)
-	serveHealth(t, s.srv.socket(), &pid)
+	serveRouter(t, s.srv.socket(), &pid, nil)
 	launchctl := s.srv.deps.Launchctl
 	s.srv.deps.Launchctl = func(ctx context.Context, args ...string) ([]byte, error) {
 		if args[0] == "kill" {
@@ -356,10 +356,11 @@ func newServiceSetup(t *testing.T) *serviceSetup {
 	return &serviceSetup{srv: srv, launchd: launchd, binary: binary, plist: plist}
 }
 
-// serveHealth answers health checks on the socket at path until the test
-// ends, as a healthy router does whose process id pid holds, and one from
-// before routers restarted when asked: it knows nothing else.
-func serveHealth(t *testing.T, path string, pid *atomic.Int64) {
+// serveRouter answers health checks on the socket at path until the test
+// ends, as a healthy router does whose process id pid holds, and each
+// pattern of handlers as its handler does: a router from before, which knows
+// nothing else, as one from before routers restarted when asked.
+func serveRouter(t *testing.T, path string, pid *atomic.Int64, handlers map[string]http.HandlerFunc) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
@@ -372,6 +373,9 @@ func serveHealth(t *testing.T, path string, pid *atomic.Int64) {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(router.Health{OK: true, Listen: "127.0.0.1:4747", PID: int(pid.Load())})
 	})
+	for pattern, handler := range handlers {
+		mux.HandleFunc(pattern, handler)
+	}
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })

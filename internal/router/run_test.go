@@ -62,6 +62,9 @@ func TestRun(t *testing.T) {
 		{ID: "personal", Label: "Personal", Error: personalMissing},
 		{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
 	}
+	for i := range probed.Accounts {
+		probed.Accounts[i].Windows = asRead(probed.Accounts[i].Windows)
+	}
 	if !reflect.DeepEqual(probed.Accounts, want) {
 		t.Errorf("once probed, the accounts read\n%+v\nwant\n%+v", probed.Accounts, want)
 	}
@@ -262,6 +265,7 @@ func TestARestartedRouterProbesOnlyTheAccountsItHasNoReadingOf(t *testing.T) {
 	// What each account read is the question here, not how fast it's used.
 	for i := range doc.Accounts {
 		doc.Accounts[i].Pressure, doc.Accounts[i].Rates = status.Pressure{}, nil
+		doc.Accounts[i].Windows = asRead(doc.Accounts[i].Windows)
 	}
 	if !reflect.DeepEqual(doc.Accounts, want) {
 		t.Errorf("after the restart, the accounts read\n%+v\nwant\n%+v: side's session lapsed, its week as read", doc.Accounts, want)

@@ -59,7 +59,7 @@ func TestARejectionReadBelowTheUseLastReadBarsItsAccount(t *testing.T) {
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("the request went to %s last, want side, work having rejected it", got)
 	}
-	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(work.Windows[0], rejected) {
+	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(asRead(work.Windows)[0], rejected) {
 		t.Fatalf("work's session reads %+v, want %+v: the 429's reading", work.Windows[0], rejected)
 	}
 	checkLimit(t, r.rt, "work", status.Limit{ID: 1, Windows: []string{"5h"}, Until: session.ResetsAt})

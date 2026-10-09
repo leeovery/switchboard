@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -84,7 +85,7 @@ func TestClientStatus(t *testing.T) {
 			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true},
 		},
-	}
+	}.WorkedOut(claude.Policy)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Status() =\n%+v\nwant\n%+v", got, want)
 	}
@@ -325,7 +326,7 @@ func TestClientRefresh(t *testing.T) {
 			{ID: "personal", Label: "Personal", Error: personalMissing},
 			{ID: "side", Label: "Side", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}},
 		},
-	}
+	}.WorkedOut(claude.Policy)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Refresh() =\n%+v\nwant the document with what the probes read\n%+v", got, want)
 	}
@@ -367,6 +368,37 @@ func TestRefreshTakesHowOldUsageCanBe(t *testing.T) {
 	}
 }
 
+func TestTheRoutersDocumentIsWorkedOutOnceItsPinIsSet(t *testing.T) {
+	cfg := testConfig("http://127.0.0.1:1")
+	cfg.Prober = readingEvery(session, week)
+	client := router.NewClient(serveControl(t, newRouterFrom(t, cfg)))
+	if _, err := client.Refresh(t.Context(), time.Minute); err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+
+	doc, err := client.Pin(t.Context(), router.PinRequest{Accounts: []string{"side"}})
+	if err != nil {
+		t.Fatalf("Pin() error = %v", err)
+	}
+	if want := []string{"side"}; !slices.Equal(doc.Pool.Accounts, want) || !doc.Pool.Pinned || len(doc.Pool.Windows) != 2 {
+		t.Errorf("Pin() gave the pool %+v, want side's alone, pinned, with its two windows", doc.Pool)
+	}
+	if want := (status.Upcoming{At: session.ResetsAt, Account: "work", Kind: status.UpcomingReset, Window: "5h"}); !slices.Contains(doc.ComingUp, want) {
+		t.Errorf("Pin() gave what's coming up as %+v, want work's session resetting among it, %+v", doc.ComingUp, want)
+	}
+	if work, _ := doc.Account("work"); work.Windows[0].Pace == nil || work.Windows[0].Allowance == (quota.Allowance{}) {
+		t.Errorf("Pin() gave work's windows as %+v, want each with its even pace and allowance", work.Windows)
+	}
+	bare := doc
+	bare.Pool, bare.ComingUp, bare.Accounts = status.Pool{}, nil, slices.Clone(doc.Accounts)
+	for i := range bare.Accounts {
+		bare.Accounts[i].Windows = asRead(bare.Accounts[i].Windows)
+	}
+	if again := bare.WorkedOut(claude.Policy); !reflect.DeepEqual(again, doc) {
+		t.Errorf("Pin() gave\n%+v\nwant what its own fields work out to\n%+v", doc, again)
+	}
+}
+
 func TestClientSession(t *testing.T) {
 	r := newRouted(t)
 	r.readsAs(workToken, session, week)
@@ -390,6 +422,10 @@ func TestClientSession(t *testing.T) {
 		},
 		Account: status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: later, Windows: []quota.Window{session, week}, Sessions: 1},
 	}
+	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(got.Account, work) || work.Windows[0].Pace == nil {
+		t.Errorf("Session() gave the account\n%+v\nwant it as the status document has it, its windows' even pace and allowance among it,\n%+v", got.Account, work)
+	}
+	got.Account.Windows = asRead(got.Account.Windows)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Session() =\n%+v\nwant, the pin its last request carried, and the account of the model used last,\n%+v", got, want)
 	}
@@ -476,12 +512,14 @@ func TestClientPinSession(t *testing.T) {
 		Assignments: []status.Assignment{{Model: opus, Family: "opus", Account: "work", Pinned: true, PinnedAt: now, Reason: "pinned", AssignedAt: now, LastSeen: now}},
 		Account:     status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Sessions: 1},
 	}
+	got.Account.Windows = asRead(got.Account.Windows)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("PinSession() =\n%+v, %v\nwant the session as it stands, pinned to side, its next request yet to move it\n%+v", got, err, want)
 	}
 
 	got, err = client.UnpinSession(t.Context(), sessionID, "")
 	want.Pin, want.Assignments[0].PinnedAt = "", time.Time{}
+	got.Account.Windows = asRead(got.Account.Windows)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("UnpinSession() =\n%+v, %v\nwant the session as it stands, with no pin of its own\n%+v", got, err, want)
 	}

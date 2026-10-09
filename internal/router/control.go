@@ -394,7 +394,7 @@ func (r *Router) session(id string) (status.Session, error) {
 	if !ok {
 		return status.Session{}, unknownSession(id)
 	}
-	s.Account, _ = r.Status().Account(s.Assignments[0].Account)
+	s.Account = r.accountStatus(s.Assignments[0].Account)
 	return r.described(s, r.stream.doing()), nil
 }
 

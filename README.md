@@ -347,7 +347,7 @@ switchboard service status
 
 Every account's usage as text: each window's utilization, when it resets and where it's heading; what holds an account back, such as a limit it reached or its reserve, and whether it's under pressure, with the rate it goes by (`under pressure: runs out ~18:21 at Session's rate over the last 30 min, before its reset at 20:10`); the sessions routed in the last hour, a line each, with the account each of its models goes to; the priming schedule; the best account to use next; and last, where the usage came from, with the router's health, and under it, a restart the router has due, with how to have it now. It reads the router while it runs, else probes each account. When the `claude` a shell runs from `PATH` isn't switchboard, the first line says so.
 
-Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead.
+Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead: every account's windows, each with its even pace, where even use would have put it by now, and its allowance, what can be spent of it an hour or a day and still last to its reset; the pool, the room new sessions can go to, summed across its accounts; and what's coming up, each limit or cap lifting, window running out or resetting, and prime, soonest first.
 
 ```bash
 switchboard status [--json | --pretty] [--probe] [-r]
