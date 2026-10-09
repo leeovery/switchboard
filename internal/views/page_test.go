@@ -57,6 +57,12 @@ func mainOn(prompt string, at time.Time, stop string) ledger.Line {
 	return stopped(stop, took(time.Minute, serving(prompt, ledger.ClassMain, line(paged, opus, "side", "sticky", at, hourUsage))))
 }
 
+// onAccount returns l, its request answered on the account given.
+func onAccount(account string, l ledger.Line) ledger.Line {
+	l.Account = account
+	return l
+}
+
 // subagent is a request of paged's subagent with the given id on work, of
 // Claude Haiku 4.5, serving prompt, as its client names it, arriving at at
 // and taking a minute; started by the subagent parent, where it's given.
@@ -108,7 +114,7 @@ func runningOn(account string) *status.Session {
 }
 
 func TestATurnIsAPromptAndEveryRequestThatServesIt(t *testing.T) {
-	sideOnly, both := []string{"side"}, []string{"side", "work"}
+	sideOnly := []string{"side"}
 	tests := []struct {
 		name    string
 		lines   []ledger.Line
@@ -127,22 +133,22 @@ func TestATurnIsAPromptAndEveryRequestThatServesIt(t *testing.T) {
 			want:  []turnSaid{{2, local(10, 1, 0), local(10, 4, 0), 2, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 		{
-			name: "a subagent counts in the turn of the prompt that started it, whatever prompts come meanwhile, never keeping it going",
+			name: "a subagent counts in the turn of the prompt that started it, whatever prompts come meanwhile, never keeping it going, nor moving it, on another account",
 			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), subagent("a1", "", p1, local(10, 1, 0)), mainOn(p2, local(10, 5, 0), "end_turn"),
 				subagent("a1", "", p2, local(10, 6, 0)), subagent("a1", "", p2, local(10, 20, 0))},
-			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 4, both}},
+			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 4, sideOnly}},
 		},
 		{
 			name: "a nested subagent counts in the turn of the prompt its first request names",
 			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), subagent("a1", "", p1, local(10, 1, 0)), subagent("a2", "a1", p1, local(10, 2, 0)),
 				mainOn(p2, local(10, 5, 0), "end_turn"), subagent("a2", "a1", p2, local(10, 6, 0))},
-			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 4, both}},
+			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 4, sideOnly}},
 		},
 		{
 			name: "a compaction, and a side request, count in the turn of the prompt they name",
 			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "end_turn"), took(time.Minute, serving(p1, "compaction", line(paged, opus, "side", "sticky", local(10, 1, 0), hourUsage))),
 				mainOn(p2, local(10, 5, 0), "end_turn"), took(time.Minute, serving(p2, "auxiliary", line(paged, haiku, "work", "sticky", local(10, 5, 30), smallUsage)))},
-			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 2, both}, {1, local(10, 0, 0), local(10, 1, 0), 2, sideOnly}},
+			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 2, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 2, sideOnly}},
 		},
 		{
 			name:  "a request that names no prompt is in no turn",
@@ -176,7 +182,7 @@ func TestATurnIsAPromptAndEveryRequestThatServesIt(t *testing.T) {
 			name:    "the newest of a running session ended with its last answer, its subagent's still calling a tool",
 			lines:   []ledger.Line{mainOn(p1, local(10, 0, 0), "end_turn"), stopped("tool_use", subagent("a1", "", p1, local(10, 1, 0)))},
 			running: true,
-			want:    []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 2, both}},
+			want:    []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 2, sideOnly}},
 		},
 		{
 			name:  "the newest of a session ended, whatever its last answer",
@@ -184,7 +190,13 @@ func TestATurnIsAPromptAndEveryRequestThatServesIt(t *testing.T) {
 			want:  []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 		{
-			name:  "one with no request of its own conversation ending with its last request",
+			name: "its own conversation on each account it went to, in the order it did, where it moved",
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), subagent("a1", "", p1, local(10, 1, 0)),
+				movedFrom("side", onAccount("personal", mainOn(p1, local(10, 2, 0), "end_turn")))},
+			want: []turnSaid{{1, local(10, 0, 0), local(10, 3, 0), 3, []string{"side", "personal"}}},
+		},
+		{
+			name:  "one with no request of its own conversation ending with its last request, on the accounts its requests went to",
 			lines: []ledger.Line{subagent("a1", "", p1, local(10, 0, 0)), subagent("a1", "", p1, local(10, 3, 0))},
 			want:  []turnSaid{{1, local(10, 0, 0), local(10, 4, 0), 2, []string{"work"}}},
 		},
@@ -225,7 +237,7 @@ func TestATurnCountsItsToolsTokensWorthAndAccounts(t *testing.T) {
 		Turn: 1, Started: utc(local(10, 0, 0)), Ended: utc(local(10, 3, 0)), Requests: 3,
 		Tools: []views.ToolCalls{{Tool: "Bash", Times: 2}, {Tool: "Read", Times: 2}, {Tool: "Grep", Times: 1}},
 		Read:  100000, Written: 1000, Out: 500 + 10 + 10, Worth: micro(hourWorth + smallWorth),
-		Unpriced: []string{"input_tokens", "output_tokens"}, Accounts: []string{"side", "work"},
+		Unpriced: []string{"input_tokens", "output_tokens"}, Accounts: []string{"side"},
 	}}
 	if got := pageOf(t, lines, nil).Turns; !reflect.DeepEqual(got, want) {
 		t.Errorf("the turns are\n%+v\nwant\n%+v", got, want)

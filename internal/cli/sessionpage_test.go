@@ -108,12 +108,12 @@ const pageText = `session 5e6f9d33  ~/Code/web
 idle 2m  ·  on side since 09:12, rescored after 15h 7m idle: side had the most room  ·  started yesterday 16:40 · resumed 09:12
 opus-5-5 → side   haiku-4-5 → work
 
-work  yesterday 16:40 – 09:13  3 requests  ≈ 4 points of its Session · 1 of its Week  $0.08
-side  09:12 – now              2 requests  ≈ 2 points of its Session · 0 of its Week  $0.08
+work  yesterday 16:40 – 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
+side  09:12 – now              2 requests  ≈ 2 points of its 5-hour · 0 of its week  $0.08
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took   requests  tools                      read  written  out   worth  on
-2  09:12            240m…  3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side, work
+2  09:12            240m…  3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side
 1  yesterday 16:40  86m    2         Bash ×2                    200k  2.0k     1.0k  $0.08  work
 `
 
@@ -143,7 +143,7 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 		`{"account":"side","from":` + at(october(7, 9, 12, 0)) + `,"to":` + at(october(7, 9, 20, 0)) + `,"requests":2,"worth":0.07608,"points":{"5h":2,"7d":0}}],` +
 		`"moves":[{"at":` + at(october(7, 9, 12, 0)) + `,"from":"work","to":"side","reason":"rescored after 15h 7m idle","written":1000}],` +
 		`"turns":[{"turn":2,"started":` + at(october(7, 9, 12, 0)) + `,"requests":3,` +
-		`"tools":[{"tool":"Read","times":3},{"tool":"Edit","times":1},{"tool":"Grep","times":1}],"read":200000,"written":2000,"out":1001,"worth":0.076093,"accounts":["side","work"]},` +
+		`"tools":[{"tool":"Read","times":3},{"tool":"Edit","times":1},{"tool":"Grep","times":1}],"read":200000,"written":2000,"out":1001,"worth":0.076093,"accounts":["side"]},` +
 		`{"turn":1,"started":` + at(october(6, 16, 40, 0)) + `,"ended":` + at(october(6, 18, 6, 0)) + `,"requests":2,"tools":[{"tool":"Bash","times":2}],` +
 		`"read":200000,"written":2000,"out":1000,"worth":0.07608,"accounts":["work"]}],` +
 		`"totals":{"turns":2,"requests":5,"from_cache":` + fromCache + `,"worth":0.152173}}`
@@ -196,12 +196,12 @@ func TestASessionsPageWithoutTheRouterIsItsLinesAloneAsEnded(t *testing.T) {
 ended 09:20  ·  ran on work, then side from 09:12: rescored after 15h 7m idle  ·  started yesterday 16:40 · ran 16h 40m
 kept until 10 Nov 2027
 
-work  yesterday 16:40 – 09:13  3 requests  ≈ 4 points of its Session · 1 of its Week  $0.08
-side  09:12 – 09:20            2 requests  ≈ 2 points of its Session · 0 of its Week  $0.08
+work  yesterday 16:40 – 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
+side  09:12 – 09:20            2 requests  ≈ 2 points of its 5-hour · 0 of its week  $0.08
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took  requests  tools                      read  written  out   worth  on
-2  09:12            9m    3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side, work
+2  09:12            9m    3         Read ×3, Edit ×1, Grep ×1  200k  2.0k     1.0k  $0.08  side
 1  yesterday 16:40  86m   2         Bash ×2                    200k  2.0k     1.0k  $0.08  work
 `
 	if got := run(t, deps, "sessions", "5e6f9", "--pretty"); got != (result{stdout: want, stderr: notice}) {
@@ -222,6 +222,22 @@ side  09:12 – 09:20            2 requests  ≈ 2 points of its Session · 0 of
 	}
 	if page.Running != nil || page.LastSeen != nil || page.Models != nil || page.MoveCost != nil || page.Ended == "" || page.KeptUntil != "2027-11-10" {
 		t.Errorf("without the router, its page is %+v, want it ended, kept until 2027-11-10, with nothing the router says", page)
+	}
+}
+
+func TestATurnWhoseConversationMovedReadsAsItsMove(t *testing.T) {
+	lines := []ledger.Line{
+		pagedLine{request: "m1", prompt: "moving", model: "claude-opus-5-5", account: "work", reason: "new", stop: "tool_use", at: october(7, 11, 0, 0), ms: 60000}.line(),
+		pagedLine{request: "m2", prompt: "moving", agent: "a1", model: "claude-haiku-4-5", account: "personal", reason: "new", stop: "end_turn",
+			at: october(7, 11, 1, 0), ms: 30000}.line(),
+		pagedLine{request: "m3", prompt: "moving", model: "claude-opus-5-5", account: "side", reason: "moved: work hit its limit", from: "work", stop: "end_turn",
+			at: october(7, 11, 2, 0), ms: 60000}.line(),
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
+	got := run(t, deps, "sessions", paging, "--pretty")
+	const row = "1  11:00    3m    3                200k  2.0k     1.0k  $0.08  work → side\n"
+	if got.code != 0 || !strings.Contains(got.stdout, row) {
+		t.Errorf("switchboard sessions %s --pretty = %+v, want its turn's row, on its conversation's accounts alone\n%s", paging, got, row)
 	}
 }
 

@@ -35,7 +35,7 @@ func turnsOf(requests []request, running bool) []Turn {
 		}
 		t, ok := byPrompt[prompt]
 		if !ok {
-			t = &turnTally{started: r.At, tools: make(map[string]int), accounts: []string{}}
+			t = &turnTally{started: r.At, tools: make(map[string]int), accounts: []string{}, mainAccounts: []string{}}
 			byPrompt[prompt], tallies = t, append(tallies, t)
 		}
 		t.add(r)
@@ -68,22 +68,23 @@ func promptOf(l *ledger.Line, agents map[string]string) string {
 // first came; its last, and its last of its own conversation; how many there
 // are; how many times each tool was called; the tokens they read from the
 // cache, wrote to it and put out; their worth; and the accounts they went
-// to, in the order they first did.
+// to, and those its own conversation's went to, each in the order they first
+// did.
 type turnTally struct {
-	started            time.Time
-	last, lastMain     *ledger.Line
-	requests           int
-	tools              map[string]int
-	read, written, out int
-	worth              worthSum
-	accounts           []string
+	started                time.Time
+	last, lastMain         *ledger.Line
+	requests               int
+	tools                  map[string]int
+	read, written, out     int
+	worth                  worthSum
+	accounts, mainAccounts []string
 }
 
 // add takes in r, the turn's next request.
 func (t *turnTally) add(r request) {
-	t.last = r.Line
+	t.last, t.accounts = r.Line, withAccount(t.accounts, r.Account)
 	if r.Class == ledger.ClassMain {
-		t.lastMain = r.Line
+		t.lastMain, t.mainAccounts = r.Line, withAccount(t.mainAccounts, r.Account)
 	}
 	t.requests++
 	for _, tool := range r.Answer.Tools {
@@ -91,9 +92,15 @@ func (t *turnTally) add(r request) {
 	}
 	t.read, t.written, t.out = t.read+r.tokens.CacheRead, t.written+r.tokens.CacheWrite, t.out+r.tokens.Output
 	t.worth.add(r.worth)
-	if r.Account != "" && !slices.Contains(t.accounts, r.Account) {
-		t.accounts = append(t.accounts, r.Account)
+}
+
+// withAccount returns accounts with the account with the given id after
+// them, where it's one, and they don't hold it already.
+func withAccount(accounts []string, account string) []string {
+	if account == "" || slices.Contains(accounts, account) {
+		return accounts
 	}
+	return append(accounts, account)
 }
 
 // calling reports whether the turn's last answer of its own conversation
@@ -102,13 +109,17 @@ func (t *turnTally) calling() bool {
 	return t.lastMain != nil && (t.lastMain.Answer.Stop == stopToolUse || t.lastMain.Answer.Stop == stopPauseTurn)
 }
 
-// turn returns the turn, numbered n: ended with the end of its last request
-// of its own conversation, or of its last request where it has none of
-// them, unless it's going, as a subagent still running doesn't keep it so.
+// turn returns the turn, numbered n, following its own conversation: on the
+// accounts its requests went to, and ended with the end of its last one,
+// unless it's going, as a subagent still running doesn't keep it so; or,
+// where it has none of them, following its requests.
 func (t *turnTally) turn(n int, going bool) Turn {
 	turn := Turn{
 		Turn: n, Started: t.started.UTC(), Requests: t.requests, Tools: toolsCalled(t.tools), Read: t.read, Written: t.written, Out: t.out,
 		Worth: t.worth.cost, Unpriced: t.worth.unpriced, Accounts: t.accounts,
+	}
+	if t.lastMain != nil {
+		turn.Accounts = t.mainAccounts
 	}
 	if !going {
 		turn.Ended = ended(cmp.Or(t.lastMain, t.last)).UTC()

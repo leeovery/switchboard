@@ -76,7 +76,10 @@ type SessionMove struct {
 // the tools its answers called, most first; the tokens it read from the
 // cache, wrote to it and put out; what it'd have cost through the API at
 // today's prices, Unpriced naming the counts that leaves out; and the
-// accounts its requests went to, in the order they first did.
+// accounts its own conversation's requests went to, in the order they first
+// did, so a subagent on another account, its model routed apart, doesn't read
+// as a move: those of its requests where it has none of its own
+// conversation.
 type Turn struct {
 	Turn     int                `json:"turn"`
 	Started  time.Time          `json:"started"`

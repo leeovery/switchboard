@@ -251,13 +251,13 @@ func ranOnRows(p views.SessionPage, now time.Time) [][]string {
 }
 
 // pointsSaid says the points of an account's windows a session took, the
-// shortest window first, as "≈ 41 points of its Session · 6 of its Week": ""
-// for none.
+// shortest window first, each named as the views name it, as "≈ 41 points of
+// its 5-hour · 6 of its week": "" for none.
 func pointsSaid(points map[string]int) string {
 	keys := slices.SortedFunc(maps.Keys(points), quota.CompareKeys)
 	said := make([]string, len(keys))
 	for i, key := range keys {
-		of := " of its " + claude.WindowLabel(status.Clean(key))
+		of := " of its " + status.InProse(claude.WindowName(key))
 		switch n := points[key]; {
 		case i > 0:
 			said[i] = strconv.Itoa(n) + of
@@ -309,15 +309,14 @@ func toolsSaid(tools []views.ToolCalls) string {
 	return strings.Join(said, ", ")
 }
 
-// accountsSaid says the accounts a turn's requests went to, in the order
-// they first did, as "work, side": a session's models are routed apart, so
-// its turn needn't have moved for there to be several.
+// accountsSaid says the accounts a turn went to, in the order it did, as the
+// page draws a turn that moved: "work → side".
 func accountsSaid(accounts []string) string {
 	said := make([]string, len(accounts))
 	for i, a := range accounts {
 		said[i] = status.Clean(a)
 	}
-	return strings.Join(said, ", ")
+	return strings.Join(said, " → ")
 }
 
 // turnsCount counts turns in words, as "13 turns" or "1 turn".
