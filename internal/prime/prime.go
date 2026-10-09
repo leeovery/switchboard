@@ -113,15 +113,35 @@ func (s Schedule) Slots() []Slot {
 // be judged, as when it was read without a reset, and may be running, and for
 // an account the schedule doesn't have.
 func (s Schedule) Next(account string, windows []quota.Window, now time.Time) (time.Time, bool) {
-	i := slices.IndexFunc(s.slots, func(slot Slot) bool { return slot.Account == account })
-	if i < 0 {
+	slot, ok := s.slotOf(account)
+	if !ok {
 		return time.Time{}, false
 	}
 	idle, ok := s.idleFrom(windows, now)
 	if !ok {
 		return time.Time{}, false
 	}
-	return s.earliest(s.slots[i], idle), true
+	return s.earliest(slot, idle), true
+}
+
+// Clear reports whether a window the account starts at at, as any request
+// does once its last has lapsed, would reset before the account is next due a
+// prime, its window not running: one started within its length of that would
+// still be running then, and shift the account's slot for the day. An account
+// the schedule doesn't have is clear, as is every account without a schedule.
+func (s Schedule) Clear(account string, at time.Time) bool {
+	slot, ok := s.slotOf(account)
+	return !ok || !s.earliest(slot, at).Before(at.Add(s.length))
+}
+
+// slotOf returns the account's slot, reporting false for an account the
+// schedule doesn't have.
+func (s Schedule) slotOf(account string) (Slot, bool) {
+	i := slices.IndexFunc(s.slots, func(slot Slot) bool { return slot.Account == account })
+	if i < 0 {
+		return Slot{}, false
+	}
+	return s.slots[i], true
 }
 
 // idleFrom returns when, at now or after, the window a request starts, among

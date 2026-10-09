@@ -175,6 +175,67 @@ func TestNext(t *testing.T) {
 	}
 }
 
+func TestClear(t *testing.T) {
+	s, _ := prime.New(daytime, []string{"work", "side"}, policy)
+	// Work's slot is 04:10, side's 06:40, and the day ends at 23:00: a
+	// window started at 01:40 resets at side's slot, before its prime goes.
+	tests := []struct {
+		name     string
+		schedule prime.Schedule
+		account  string
+		at       time.Time
+		want     bool
+	}{
+		{name: "more than five hours before its slot", schedule: s, account: "side", at: at(1, 1, 30), want: true},
+		{name: "five hours before its slot, to the minute", schedule: s, account: "side", at: at(1, 1, 40), want: true},
+		{name: "a minute less than five hours before its slot", schedule: s, account: "side", at: at(1, 1, 41)},
+		{name: "the evening before, within five hours of its slot", schedule: s, account: "work", at: at(1, 23, 30)},
+		{name: "the evening before, more than five hours before its slot", schedule: s, account: "side", at: at(1, 23, 30), want: true},
+		{name: "as its day of priming runs, a prime due at once", schedule: s, account: "work", at: at(1, 12, 0)},
+		{name: "an account it doesn't have", schedule: s, account: "personal", at: at(1, 1, 41), want: true},
+		{name: "without a schedule", account: "side", at: at(1, 1, 41), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.schedule.Clear(tt.account, tt.at); got != tt.want {
+				t.Errorf("Clear() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClearCountsTheHoursElapsedOnADayTheClocksChange(t *testing.T) {
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatalf("load Europe/London: %v", err)
+	}
+	s, _ := prime.New(daytime, []string{"work", "side"}, policy)
+	// Side's slot is 06:40 on the clock.
+	tests := []struct {
+		name string
+		at   time.Time
+		want bool
+	}{
+		{
+			name: "the clocks going forward at 01:00, five hours and more before it on the clock, less elapsed",
+			at:   time.Date(2026, time.March, 29, 0, 45, 0, 0, london),
+		},
+		{
+			// 01:50 comes twice that night: this is the first, still summer time.
+			name: "the clocks going back at 02:00, less than five hours before it on the clock, more elapsed",
+			at:   time.Date(2026, time.October, 25, 0, 50, 0, 0, time.UTC).In(london),
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := s.Clear("side", tt.at); got != tt.want {
+				t.Errorf("Clear() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // justAfter is a few seconds after a reset or a slot at t, when a prime is
 // sent, so the upstream, its clock a little behind, takes it in after it.
 func justAfter(t time.Time) time.Time {
