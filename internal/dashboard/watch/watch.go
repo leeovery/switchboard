@@ -38,17 +38,13 @@ import (
 // say what went wrong.
 var logger = logs.For("watch")
 
-// ErrNoRouter is what a read that doesn't probe fails with when the router
-// doesn't answer.
-var ErrNoRouter = errors.New("the router isn't answering")
-
 // Source is where the dashboard reads the status document: the router, while
 // it answers, else probing every account. It also tells the router where to
 // send sessions, and gives its history.
 type Source interface {
 	// Read reads the document as r asks, and says which router gave it, as
 	// its health check answered: zero for a document built by probing.
-	Read(ctx context.Context, r Read) (status.Document, router.Health, error)
+	Read(ctx context.Context, r status.Read) (status.Document, router.Health, error)
 	// Pin has the router send every new session to the best of the accounts
 	// with the given ids, and with move, every running session on another
 	// account too.
@@ -80,27 +76,9 @@ type Source interface {
 	Stream(ctx context.Context) (<-chan router.StreamEvent, error)
 }
 
-// A Read is what a read of the source asks for.
-type Read struct {
-	// Refresh, when the router answers, has it first probe the accounts it
-	// hasn't read for this long; zero takes its document as it stands.
-	Refresh time.Duration
-	// Probe, when the router doesn't answer, builds the document by probing
-	// every account instead. Without it, such a read fails with ErrNoRouter.
-	Probe bool
-}
-
-// Fresh is the read r asks for, which usage --refresh asks for too: the
-// router first refreshes every account it hasn't read in the last minute, the
-// least it waits between probes of one, and every one that can take no
-// request anyway, or, without the router, every account is probed.
-func Fresh() Read {
-	return Read{Refresh: freshFor, Probe: true}
-}
-
 // full reports whether the read brings every account up to date: the router
 // refreshes those it hasn't read lately, or every account is probed.
-func (r Read) full() bool {
+func full(r status.Read) bool {
 	return r.Probe && r.Refresh > 0
 }
 
@@ -267,7 +245,7 @@ type Model struct {
 // fetchedMsg is what a read that asked for read found, and which router gave
 // it, with the sessions it listed, where listed says it listed them.
 type fetchedMsg struct {
-	read     Read
+	read     status.Read
 	doc      status.Document
 	router   router.Health
 	sessions []status.Session
@@ -444,16 +422,16 @@ func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 }
 
 // read reads the source as r asks, unless a read is under way.
-func (m Model) read(r Read) (Model, tea.Cmd) {
+func (m Model) read(r status.Read) (Model, tea.Cmd) {
 	if m.fetching {
 		return m, nil
 	}
-	m.fetching, m.loud = true, r.full()
+	m.fetching, m.loud = true, full(r)
 	return m, m.fetch(r)
 }
 
 // fetch reads the source as r asks, as fetchFrom reads it.
-func (m Model) fetch(r Read) tea.Cmd {
+func (m Model) fetch(r status.Read) tea.Cmd {
 	ctx, source := m.ctx, m.cfg.Source
 	return func() tea.Msg {
 		return fetchFrom(ctx, source, r)
@@ -463,7 +441,7 @@ func (m Model) fetch(r Read) tea.Cmd {
 // fetchFrom reads the source as r asks, and from a router, the sessions it
 // lists, for the cards' dots and Sessions' calls: a router that can't list
 // them leaves them out.
-func fetchFrom(ctx context.Context, source Source, r Read) fetchedMsg {
+func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
 	if err != nil || !routed(doc) {
@@ -489,7 +467,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	m.fetching, m.loud = false, false
 	var shown tea.Cmd
 	switch {
-	case errors.Is(msg.err, ErrNoRouter):
+	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
 		m = m.lose(now)
 	case msg.err != nil:
@@ -548,7 +526,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	if !routed(doc) {
 		post = m.post(m.readings.alerts(doc, now, m.cfg.Policy, m.cfg.Notifications), probedAsAsked(doc))
 	}
-	ask := routed(doc) && (msg.read.full() || !m.answering() || m.news.another(msg.router))
+	ask := routed(doc) && (full(msg.read) || !m.answering() || m.news.another(msg.router))
 	if routed(doc) {
 		m = m.answeredAgain(msg.router)
 	}

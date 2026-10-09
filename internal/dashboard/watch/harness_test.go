@@ -243,7 +243,7 @@ func (h *harness) refreshesUntil(t time.Time) []time.Time {
 		asked := len(h.source.asked)
 		h.fire(h.lastTick())
 		for _, r := range h.source.asked[asked:] {
-			if r == (Read{Refresh: freshFor}) {
+			if r == (status.Read{Refresh: status.FreshFor}) {
 				refreshed = append(refreshed, h.clock.now)
 			}
 		}
@@ -395,20 +395,20 @@ type fakeSource struct {
 	// reads counts the reads that probed, or failed.
 	reads int
 	// asked lists every read asked for, in turn.
-	asked []Read
+	asked []status.Read
 	// orders lists the orders given, in turn, as "pin work", "pin work,side",
 	// "move work" or "unpin", or of one session, as "pin d28c5e17 to side"
 	// or "unpin d28c5e17".
 	orders []string
 }
 
-func (s *fakeSource) Read(_ context.Context, r Read) (status.Document, router.Health, error) {
+func (s *fakeSource) Read(_ context.Context, r status.Read) (status.Document, router.Health, error) {
 	s.asked = append(s.asked, r)
 	switch {
 	case s.router != nil && !s.probing:
 		return *s.router, s.health, nil
 	case !r.Probe:
-		return status.Document{}, router.Health{}, ErrNoRouter
+		return status.Document{}, router.Health{}, status.ErrNoRouter
 	}
 	s.reads++
 	return s.doc, router.Health{}, s.err
@@ -500,11 +500,11 @@ func (s *fakeSource) order(what string, pin status.Pin) error {
 // looks counts the reads asked for that looked at the router's document as
 // it stood.
 func (s *fakeSource) looks() int {
-	return countReads(s.asked, Read{})
+	return countReads(s.asked, status.Read{})
 }
 
 // countReads counts the reads in asked that asked for r.
-func countReads(asked []Read, r Read) int {
+func countReads(asked []status.Read, r status.Read) int {
 	n := 0
 	for _, a := range asked {
 		if a == r {

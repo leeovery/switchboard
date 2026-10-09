@@ -24,6 +24,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files with what the tests print")
@@ -307,7 +308,7 @@ func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
 	cfg := recordWatch(t, &deps)
 	run(t, deps, "usage", "--watch")
 
-	doc, _, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true})
+	doc, _, err := cfg.Source.Read(t.Context(), status.Read{Probe: true})
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -375,7 +376,7 @@ func TestUsageWatchClaimsTheVersionInstalledAtEachRead(t *testing.T) {
 		mu.Lock()
 		agents = nil
 		mu.Unlock()
-		if _, _, err := cfg.Source.Read(t.Context(), watch.Read{Probe: true}); err != nil {
+		if _, _, err := cfg.Source.Read(t.Context(), status.Read{Probe: true}); err != nil {
 			t.Fatalf("Read() error = %v", err)
 		}
 		mu.Lock()

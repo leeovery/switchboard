@@ -94,7 +94,7 @@ func (t *timeline) at() source {
 }
 
 // Read reads the router's document as it stands now, whatever the read asks.
-func (t *timeline) Read(ctx context.Context, r watch.Read) (status.Document, router.Health, error) {
+func (t *timeline) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
 	return t.at().Read(ctx, r)
 }
 

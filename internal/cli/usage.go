@@ -42,16 +42,6 @@ type usageOptions struct {
 	interval time.Duration
 }
 
-// readOnce is what status and usage ask of the source they read, reading
-// once: with --refresh, the read the dashboard's r asks for, else the
-// document as it stands.
-func readOnce(refresh bool) watch.Read {
-	if refresh {
-		return watch.Fresh()
-	}
-	return watch.Read{Probe: true}
-}
-
 func newUsageCommand(a *app) *cobra.Command {
 	var opts usageOptions
 	cmd := &cobra.Command{

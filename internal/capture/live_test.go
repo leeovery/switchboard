@@ -11,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -21,12 +20,12 @@ func TestTheRouterAnswersAsTheScenarioHasPlayedUpToItsClock(t *testing.T) {
 	c := &testClock{now: s.start}
 	tl := &timeline{scenario: s, now: c.read}
 
-	before, health, err := tl.Read(t.Context(), watch.Read{})
+	before, health, err := tl.Read(t.Context(), status.Read{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.advance(2 * time.Second)
-	after, again, _ := tl.Read(t.Context(), watch.Read{})
+	after, again, _ := tl.Read(t.Context(), status.Read{})
 	sessions, _ := tl.Sessions(t.Context())
 
 	if before.Sessions != 5 || after.Sessions != 6 {
@@ -60,7 +59,7 @@ func TestOrdersAreTakenFromWhenTheyreGiven(t *testing.T) {
 	}
 	c.advance(3 * time.Second)
 
-	doc, _, _ := tl.Read(t.Context(), watch.Read{})
+	doc, _, _ := tl.Read(t.Context(), status.Read{})
 	if !doc.Pin.Has("work") || !doc.Pin.Since.Equal(s.start.Add(time.Second)) || doc.Best != "work" {
 		t.Errorf("the document's pin is %+v, its best %q, want work's, given 1s in, and work", doc.Pin, doc.Best)
 	}
@@ -77,7 +76,7 @@ func TestOrdersAreTakenFromWhenTheyreGiven(t *testing.T) {
 	if err := tl.Unpin(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if doc, _, _ := tl.Read(t.Context(), watch.Read{}); !doc.Pin.IsZero() || doc.Best != "side" {
+	if doc, _, _ := tl.Read(t.Context(), status.Read{}); !doc.Pin.IsZero() || doc.Best != "side" {
 		t.Errorf("unpinned, the document's pin is %+v, its best %q, want none, and side", doc.Pin, doc.Best)
 	}
 }
