@@ -479,6 +479,65 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	}
 }
 
+func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
+	tests := []struct {
+		name   string
+		prices string
+		// worth is what work's requests of Claude Opus 5.5 today are worth,
+		// as the text gives it and as the JSON does.
+		worth, worthJSON string
+	}{
+		{name: "a model's, in place of the table's", prices: "\n[prices.models.claude-opus-5-5]\noutput = 0\n", worth: "$0.06", worthJSON: "0.061476"},
+		{name: "a plan's alone, the models' as the table prices them", prices: "\n[prices.plans]\nmax5x = 90\n", worth: "$0.08", worthJSON: "0.078376"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := ledgerDeps(t)
+			path, err := config.Path(deps.Getenv, deps.HomeDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(ledgerConfig+tt.prices))
+
+			got := run(t, deps, "history", "--since", "10:00")
+			want := strings.Replace(historyOfToday, "$0.08", tt.worth, 1)
+			want = strings.Replace(want, "as of 7 Oct 2026\n", "as of 7 Oct 2026 and the config's\n", 1)
+			if got.stdout != want || got.code != 0 {
+				t.Errorf("switchboard history printed\n%s(%d, %s)\nwant\n%s", got.stdout, got.code, got.stderr, want)
+			}
+
+			got = run(t, deps, "history", "--json", "--since", "10:00")
+			var doc struct {
+				PricesAsOf string `json:"prices_as_of"`
+				Days       []struct {
+					Accounts []struct {
+						Account string `json:"account"`
+						Models  []struct {
+							Model string          `json:"model"`
+							Worth json.RawMessage `json:"worth"`
+						} `json:"models"`
+					} `json:"accounts"`
+				} `json:"days"`
+			}
+			if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || len(doc.Days) != 1 {
+				t.Fatalf("switchboard history --json = %+v (%v), want today", got, err)
+			}
+			var worth string
+			for _, a := range doc.Days[0].Accounts {
+				for _, m := range a.Models {
+					if a.Account == "work" && m.Model == "claude-opus-5-5" {
+						worth = string(m.Worth)
+					}
+				}
+			}
+			if doc.PricesAsOf != "2026-10-07" || worth != tt.worthJSON {
+				t.Errorf("switchboard history --json gives prices as of %s, and work's Claude Opus 5.5 worth %s, want 2026-10-07 and %s",
+					doc.PricesAsOf, worth, tt.worthJSON)
+			}
+		})
+	}
+}
+
 func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
 	work := ledger.PricedAccount{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-5-5", Upstream: 1, Sessions: 1}}}
 	days := []ledger.Priced{
@@ -487,7 +546,7 @@ func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	err := cli.WriteHistory(&out, days, october(6, 0, 0, 0), ledgerNow)
+	err := cli.WriteHistory(&out, days, ledger.Pricing, october(6, 0, 0, 0), ledgerNow)
 	if err == nil || !strings.Contains(err.Error(), `"2026-13-45"`) || out.Len() > 0 {
 		t.Errorf("history of a summary of 2026-13-45 printed\n%s(%v)\nwant nothing printed, and the summary's day reported", out.String(), err)
 	}

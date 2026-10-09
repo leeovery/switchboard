@@ -55,12 +55,17 @@ label = "Personal"
 type Config struct {
 	Listen   string
 	Upstream string
-	Accounts Accounts
+	// WeekStarts is the day the dashboard's calendar weeks start on: the
+	// config's, else Monday.
+	WeekStarts time.Weekday
+	Accounts   Accounts
 	// Prime says when priming starts the accounts' 5-hour windows.
 	Prime         Prime
 	Notifications Notifications
 	History       History
 	Ledger        Ledger
+	// Prices are the config's prices in place of those switchboard carries.
+	Prices Prices
 }
 
 // Account is one Claude subscription.
@@ -74,6 +79,9 @@ type Account struct {
 	// Reserve is the share of every window the router leaves unused on the
 	// account: the config's, else 0.
 	Reserve float64
+	// Plan is the plan the account's subscription is on, one of Plans: ""
+	// where the config doesn't say, as switchboard can't read it.
+	Plan string
 }
 
 // Accounts are the configured accounts, in the config file's order, which is
@@ -171,11 +179,13 @@ type Ledger struct {
 type file struct {
 	Listen        string        `toml:"listen"`
 	Upstream      string        `toml:"upstream"`
+	WeekStarts    string        `toml:"week_starts"`
 	Accounts      []fileAccount `toml:"account"`
 	Prime         filePrime     `toml:"prime"`
 	Notifications Notifications `toml:"notifications"`
 	History       fileKeep      `toml:"history"`
 	Ledger        fileKeep      `toml:"ledger"`
+	Prices        Prices        `toml:"prices"`
 }
 
 // fileAccount is an [[account]] table as it's written.
@@ -184,6 +194,7 @@ type fileAccount struct {
 	Label   string  `toml:"label"`
 	Primary bool    `toml:"primary"`
 	Reserve float64 `toml:"reserve"`
+	Plan    string  `toml:"plan"`
 }
 
 // filePrime is the [prime] table as it's written.
@@ -249,6 +260,7 @@ func (f file) check(path string, meta toml.MetaData) (*Config, error) {
 // or every problem with it together, the keys decoding left unused among
 // them.
 func (f file) config(undecoded []toml.Key) (*Config, error) {
+	weekStarts, weekErr := parseWeekStart(f.WeekStarts)
 	day, dayErr := ParseDay(f.Prime.Day)
 	historyKeep, historyErr := parseKeep("history.keep", f.History.Keep, DefaultHistoryKeep)
 	ledgerKeep, ledgerErr := parseKeep("ledger.keep", f.Ledger.Keep, DefaultLedgerKeep)
@@ -256,11 +268,13 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		checkKeys(undecoded),
 		checkListen(f.Listen),
 		checkUpstream(f.Upstream),
+		weekErr,
 		checkAccounts(f.Accounts),
 		dayErr,
 		checkWarning(f.Notifications.Warning),
 		historyErr,
 		ledgerErr,
+		checkPrices(f.Prices),
 	)
 	if err != nil {
 		return nil, err
@@ -268,11 +282,13 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 	return &Config{
 		Listen:        f.Listen,
 		Upstream:      f.Upstream,
+		WeekStarts:    weekStarts,
 		Accounts:      resolve(f.Accounts),
 		Prime:         Prime{Day: day},
 		Notifications: f.Notifications,
 		History:       History{Keep: historyKeep},
 		Ledger:        Ledger{Keep: ledgerKeep},
+		Prices:        f.Prices,
 	}, nil
 }
 
@@ -281,7 +297,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 func resolve(written []fileAccount) Accounts {
 	accounts := make(Accounts, len(written))
 	for i, w := range written {
-		accounts[i] = Account{ID: w.ID, Label: cmp.Or(w.Label, w.ID), Primary: w.Primary, Reserve: w.Reserve}
+		accounts[i] = Account{ID: w.ID, Label: cmp.Or(w.Label, w.ID), Primary: w.Primary, Reserve: w.Reserve, Plan: w.Plan}
 	}
 	accounts[accounts.primary()].Primary = true
 	return accounts

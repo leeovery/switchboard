@@ -19,19 +19,25 @@ import (
 
 func TestLoad(t *testing.T) {
 	path := writeConfig(t, `
-listen   = "[::1]:9000"
-upstream = "http://127.0.0.1:8080"
+listen      = "[::1]:9000"
+upstream    = "http://127.0.0.1:8080"
+week_starts = "Sunday"
 
 [[account]]
 id      = "work"
 label   = "Work"
 reserve = 0.05
+plan    = "max20x"
 
 [[account]]
 id      = "personal"
 label   = "Personal"
 primary = true
 reserve = 0.2
+
+[[account]]
+id   = "side"
+plan = "pro"
 
 [prime]
 day = "07:30-22:45"
@@ -47,18 +53,41 @@ keep = "30d"
 
 [ledger]
 keep = "120d"
+
+[prices.plans]
+max5x = 90
+pro   = 0
+
+[prices.models.claude-opus-5-5]
+input          = 3.2
+output         = 16
+cache_read     = 0.16
+cache_write_5m = 4
+cache_write_1h = 6.4
+
+[prices.models.claude-test-1]
+output = 12.5
 `)
 	want := &config.Config{
-		Listen:   "[::1]:9000",
-		Upstream: "http://127.0.0.1:8080",
+		Listen:     "[::1]:9000",
+		Upstream:   "http://127.0.0.1:8080",
+		WeekStarts: time.Sunday,
 		Accounts: []config.Account{
-			{ID: "work", Label: "Work", Reserve: 0.05},
+			{ID: "work", Label: "Work", Reserve: 0.05, Plan: "max20x"},
 			{ID: "personal", Label: "Personal", Primary: true, Reserve: 0.2},
+			{ID: "side", Label: "side", Plan: "pro"},
 		},
 		Prime:         config.Prime{Day: config.Day{Start: 7*time.Hour + 30*time.Minute, End: 22*time.Hour + 45*time.Minute}},
 		Notifications: config.Notifications{Room: true, Warning: 0.75, Moves: true},
 		History:       config.History{Keep: 30 * 24 * time.Hour},
 		Ledger:        config.Ledger{Keep: 120 * 24 * time.Hour},
+		Prices: config.Prices{
+			Plans: map[string]float64{"max5x": 90, "pro": 0},
+			Models: map[string]config.ModelPrices{
+				"claude-opus-5-5": {Input: new(3.2), Output: new(16.0), CacheRead: new(0.16), CacheWrite5m: new(4.0), CacheWrite1h: new(6.4)},
+				"claude-test-1":   {Output: new(12.5)},
+			},
+		},
 	}
 
 	got, err := config.Load(path)
@@ -80,8 +109,9 @@ id    = "personal"
 label = "Personal"
 `)
 	want := &config.Config{
-		Listen:   "127.0.0.1:4747",
-		Upstream: "https://api.anthropic.com",
+		Listen:     "127.0.0.1:4747",
+		Upstream:   "https://api.anthropic.com",
+		WeekStarts: time.Monday,
 		Accounts: []config.Account{
 			{ID: "work", Label: "work", Primary: true},
 			{ID: "personal", Label: "Personal"},
@@ -215,6 +245,67 @@ func TestLoadThePrimingDay(t *testing.T) {
 				t.Errorf("Load() primes: %v, want %v", on, want)
 			}
 		})
+	}
+}
+
+func TestLoadTheDayTheWeeksStartOn(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   time.Weekday
+	}{
+		{name: "monday, without one given", want: time.Monday},
+		{name: "monday, given", config: "week_starts = \"monday\"\n", want: time.Monday},
+		{name: "sunday, its name capitalised", config: "week_starts = \"Sunday\"\n", want: time.Sunday},
+		{name: "saturday, in capitals", config: "week_starts = \"SATURDAY\"\n", want: time.Saturday},
+		{name: "wednesday, in mixed case", config: "week_starts = \"wEdNeSdAy\"\n", want: time.Wednesday},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.WeekStarts != tt.want {
+				t.Errorf("Load() starts the weeks on %v, want %v", cfg.WeekStarts, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadEachPlanAnAccountCanBeOn(t *testing.T) {
+	for _, plan := range []string{"pro", "max5x", "max20x"} {
+		cfg, err := config.Load(writeConfig(t, accountTOML("work")+"plan = \""+plan+"\"\n"+accountTOML("side")+"\n[prices.plans]\n"+plan+" = 1\n"))
+		if err != nil {
+			t.Fatalf("Load() of an account on %s error = %v", plan, err)
+		}
+		if cfg.Accounts[0].Plan != plan || cfg.Accounts[1].Plan != "" || cfg.Prices.Plans[plan] != 1 {
+			t.Errorf("Load() has work on %q and side on %q, the plans priced %v, want work on %s, side's plan unknown, and %s priced at $1",
+				cfg.Accounts[0].Plan, cfg.Accounts[1].Plan, cfg.Prices.Plans, plan, plan)
+		}
+	}
+	if !slices.Equal(config.Plans, []string{"pro", "max5x", "max20x"}) {
+		t.Errorf("Plans = %q, want pro, max5x and max20x", config.Plans)
+	}
+}
+
+func TestAModelsPricesAreCompleteWithEveryKindOfTokenGiven(t *testing.T) {
+	every := config.ModelPrices{Input: new(1.0), Output: new(2.0), CacheRead: new(0.0), CacheWrite5m: new(3.0), CacheWrite1h: new(4.0)}
+	if !every.Complete() {
+		t.Errorf("%+v isn't complete, want it to be, a price of 0 among them", every)
+	}
+	for name, without := range map[string]func(*config.ModelPrices){
+		"input":          func(m *config.ModelPrices) { m.Input = nil },
+		"output":         func(m *config.ModelPrices) { m.Output = nil },
+		"cache_read":     func(m *config.ModelPrices) { m.CacheRead = nil },
+		"cache_write_5m": func(m *config.ModelPrices) { m.CacheWrite5m = nil },
+		"cache_write_1h": func(m *config.ModelPrices) { m.CacheWrite1h = nil },
+	} {
+		some := every
+		without(&some)
+		if some.Complete() {
+			t.Errorf("the prices without %s are complete, want them not to be", name)
+		}
 	}
 }
 
@@ -464,6 +555,11 @@ func TestLoadUndecodableFile(t *testing.T) {
 		{name: "a day as a number", config: "prime = { day = 8 }\n"},
 		{name: "a keep as a number", config: "history = { keep = 14 }\n"},
 		{name: "the ledger's keep as a number", config: "ledger = { keep = 90 }\n"},
+		{name: "the week's start as a number", config: "week_starts = 1\n"},
+		{name: "a plan as a number", config: "account = [{ id = \"work\", plan = 5 }]\n"},
+		{name: "a plan's price in words", config: "prices = { plans = { max5x = \"ninety\" } }\n"},
+		{name: "a model's price in words", config: "prices = { models = { claude-opus-5-5 = { input = \"cheap\" } } }\n"},
+		{name: "a model's prices as a number", config: "prices = { models = { claude-opus-5-5 = 3 } }\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -496,6 +592,18 @@ func TestLoadReportsProblems(t *testing.T) {
 	}
 	keep := func(key, given, example string) string {
 		return fmt.Sprintf("%s %q: must be a whole number of days from 8d, a week and a day, or forever, such as %s", key, given, example)
+	}
+	weekStarts := func(given string) string {
+		return fmt.Sprintf("week_starts %q: must be a day of the week, by its name in English, such as monday", given)
+	}
+	plan := func(account, given string) string {
+		return fmt.Sprintf("account %q: plan %q: must be pro, max5x or max20x, the plan the account's subscription is on", account, given)
+	}
+	planPrice := func(plan, given string) string {
+		return fmt.Sprintf("prices.plans.%s %q: must be a number, 0 or more: the plan's price in US dollars a month", plan, given)
+	}
+	modelPrice := func(key, given string) string {
+		return fmt.Sprintf("prices.models.%s %q: must be a number, 0 or more: the price in US dollars a million tokens", key, given)
 	}
 	const tokenEnv = `unknown key "account.token_env": tokens now live in files, at <state dir>/tokens/<id>, ` +
 		"the state dir being $XDG_STATE_HOME/switchboard, else ~/.local/state/switchboard"
@@ -619,6 +727,67 @@ func TestLoadReportsProblems(t *testing.T) {
 			name:   "a day that ends as it starts",
 			config: "[prime]\nday = \"08:00-08:00\"\n" + work,
 			want:   []string{`prime.day "08:00-08:00": must end at another time than it starts; an end before the start is past midnight`},
+		},
+		{name: "a week starting on a day cut short", config: "week_starts = \"mon\"\n" + work, want: []string{weekStarts("mon")}},
+		{name: "a week starting on days", config: "week_starts = \"Sundays\"\n" + work, want: []string{weekStarts("Sundays")}},
+		{name: "a week starting on a day in another language", config: "week_starts = \"lundi\"\n" + work, want: []string{weekStarts("lundi")}},
+		{name: "a week starting on a day's number", config: "week_starts = \"1\"\n" + work, want: []string{weekStarts("1")}},
+		{name: "a week starting on a day with a space", config: "week_starts = \" monday\"\n" + work, want: []string{weekStarts(" monday")}},
+		{name: "a plan the table doesn't know", config: work + "plan = \"max10x\"\n", want: []string{plan("work", "max10x")}},
+		{name: "a plan in another case", config: work + "plan = \"Max5x\"\n", want: []string{plan("work", "Max5x")}},
+		{name: "a plan by the name it's shown by", config: work + accountTOML("side") + "plan = \"Max 20x\"\n", want: []string{plan("side", "Max 20x")}},
+		{
+			name:   "a plan's price below none",
+			config: work + "\n[prices.plans]\nmax5x = -1\n",
+			want:   []string{planPrice("max5x", "-1")},
+		},
+		{
+			name:   "a plan's price that isn't a number",
+			config: work + "\n[prices.plans]\npro = nan\n",
+			want:   []string{planPrice("pro", "NaN")},
+		},
+		{
+			name:   "an endless plan's price",
+			config: work + "\n[prices.plans]\nmax20x = inf\n",
+			want:   []string{planPrice("max20x", "+Inf")},
+		},
+		{
+			name:   "the price of a plan the table doesn't know, its value never quoted",
+			config: work + "\n[prices.plans]\nmax10x = 400\nteam = -1\n",
+			want:   []string{`unknown key "prices.plans.max10x"`, `unknown key "prices.plans.team"`},
+		},
+		{
+			name:   "a model's prices below none, and not a number, each in the config's order",
+			config: work + "\n[prices.models.claude-opus-5-5]\ncache_write_1h = -6.4\ninput = -0.5\noutput = nan\ncache_read = 0.16\ncache_write_5m = -inf\n",
+			want: []string{
+				modelPrice("claude-opus-5-5.input", "-0.5"), modelPrice("claude-opus-5-5.output", "NaN"),
+				modelPrice("claude-opus-5-5.cache_write_5m", "-Inf"), modelPrice("claude-opus-5-5.cache_write_1h", "-6.4"),
+			},
+		},
+		{
+			name:   "an endless price of a model the table doesn't know, by an id that needs quoting",
+			config: work + "\n[prices.models.\"claude-test-1.5\"]\noutput = inf\n",
+			want:   []string{modelPrice(`"claude-test-1.5".output`, "+Inf")},
+		},
+		{
+			name:   "the models' prices, by their ids in order",
+			config: work + "\n[prices.models.claude-sonnet-5]\ninput = -2\n\n[prices.models.claude-haiku-4-5]\ninput = -1\n",
+			want:   []string{modelPrice("claude-haiku-4-5.input", "-1"), modelPrice("claude-sonnet-5.input", "-2")},
+		},
+		{
+			name:   "a kind of token the table doesn't know, its value never quoted",
+			config: work + "\n[prices.models.claude-opus-5-5]\ninput = 3\ncache_write_2h = -1\n",
+			want:   []string{`unknown key "prices.models.claude-opus-5-5.cache_write_2h"`},
+		},
+		{
+			name:   "an unknown table of prices",
+			config: work + "\n[prices.tools]\nweb_search = 10\n",
+			want:   []string{`unknown key "prices.tools"`},
+		},
+		{
+			name:   "an unknown key of prices",
+			config: "[prices]\ncurrency = \"GBP\"\n" + work,
+			want:   []string{`unknown key "prices.currency"`},
 		},
 		{
 			name:   "no accounts",
@@ -786,27 +955,33 @@ func TestLoadReportsProblems(t *testing.T) {
 		},
 		{
 			name: "several problems at once",
-			config: "listen = \"0.0.0.0:4747\"\nupstream = \"api.anthropic.com\"\nverbose = true\n" +
+			config: "listen = \"0.0.0.0:4747\"\nupstream = \"api.anthropic.com\"\nweek_starts = \"someday\"\nverbose = true\n" +
 				work + "primary = true\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n" +
-				"\n[[account]]\nreserve = 2.0\n" +
+				"\n[[account]]\nreserve = 2.0\nplan = \"max\"\n" +
 				accountTOML("work") + "primary = true\n" +
 				"\n[prime]\nday = \"23:00-23:00\"\n" +
 				"\n[notifications]\nwarning = 1\n" +
 				"\n[history]\nkeep = \"7d\"\n" +
-				"\n[ledger]\nkeep = \"1y\"\n",
+				"\n[ledger]\nkeep = \"1y\"\n" +
+				"\n[prices.plans]\nmax5x = -90\n" +
+				"\n[prices.models.claude-opus-5-5]\ninput = -3.2\n",
 			want: []string{
 				`unknown key "verbose"`,
 				tokenEnv,
 				notLoopback("0.0.0.0:4747"),
 				`upstream "api.anthropic.com": must be an absolute http or https URL, such as https://api.anthropic.com`,
+				weekStarts("someday"),
 				"account #2: id is required",
 				"account #2: reserve 2: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1",
+				`account #2: plan "max": must be pro, max5x or max20x, the plan the account's subscription is on`,
 				`duplicate account id "work"`,
 				`primary is set on account "work" and account "work": only one account can be the primary, the one the browser and the Claude apps use`,
 				`prime.day "23:00-23:00": must end at another time than it starts; an end before the start is past midnight`,
 				"notifications.warning 1: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none",
 				keep("history.keep", "7d", "400d"),
 				keep("ledger.keep", "1y", "400d"),
+				planPrice("max5x", "-90"),
+				modelPrice("claude-opus-5-5.input", "-3.2"),
 			},
 		},
 	}
@@ -841,18 +1016,27 @@ func TestLoadNeverQuotesATokenGivenAsAnIDOrALabel(t *testing.T) {
 
 func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 	path := writeConfig(t, "listen = \""+tokenShaped+"\"\nupstream = \""+tokenShaped+"\"\n"+tokenShaped+" = 1\n"+
-		accountTOML("work")+"\n[prime]\nday = \""+tokenShaped+"\"\n"+
+		"week_starts = \""+tokenShaped+"\"\n"+
+		accountTOML("work")+"plan = \""+tokenShaped+"\"\n"+
+		"\n[prime]\nday = \""+tokenShaped+"\"\n"+
 		"\n[history]\nkeep = \""+tokenShaped+"\"\n"+
-		"\n[ledger]\nkeep = \""+tokenShaped+"\"\n")
+		"\n[ledger]\nkeep = \""+tokenShaped+"\"\n"+
+		"\n[prices.plans]\n"+tokenShaped+" = 1\n"+
+		"\n[prices.models."+tokenShaped+"]\ninput = -1\n"+tokenShaped+" = 1\n")
 
 	_, err := config.Load(path)
 	want := []string{
 		`unknown key "[redacted]"`,
+		`unknown key "prices.models.[redacted].[redacted]"`,
 		`listen "[redacted]": must be host:port, such as 127.0.0.1:4747 or [::1]:4747`,
 		`upstream "[redacted]": must be an absolute http or https URL, such as https://api.anthropic.com`,
+		`week_starts "[redacted]": must be a day of the week, by its name in English, such as monday`,
+		`account "work": plan "[redacted]": must be pro, max5x or max20x, the plan the account's subscription is on`,
 		`prime.day "[redacted]": must be two times of day, HH:MM, joined by -, such as 08:00-23:00`,
 		`history.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
 		`ledger.keep "[redacted]": must be a whole number of days from 8d, a week and a day, or forever, such as 400d`,
+		`unknown key "prices.plans.[redacted]"`,
+		`prices.models.[redacted].input "-1": must be a number, 0 or more: the price in US dollars a million tokens`,
 	}
 	if got := problems(t, path, err); !slices.Equal(got, want) {
 		t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

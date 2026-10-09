@@ -65,7 +65,7 @@ read.`,
 // history prints the ledger's days from the one given on, else the last 30,
 // priced at today's prices.
 func (a *app) history(out io.Writer, given string, asJSON bool) error {
-	reader, err := a.ledgerReader()
+	reader, prices, err := a.ledgerReader()
 	if err != nil {
 		return err
 	}
@@ -77,19 +77,18 @@ func (a *app) history(out io.Writer, given string, asJSON bool) error {
 	today := now.Local().Format(time.DateOnly)
 	days := []ledger.Priced{}
 	for _, summary := range reader.Days(from) {
-		days = append(days, ledger.Pricing.Priced(summary, today))
+		days = append(days, prices.Priced(summary, today))
 	}
 	if asJSON {
-		return writeJSON(out, historyDocument{PricesAsOf: ledger.Pricing.AsOf, Days: days})
+		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, Days: days})
 	}
-	return writeHistory(out, days, from, now)
+	return writeHistory(out, days, prices, from, now)
 }
 
 // writeHistory writes days as history's text, a table a day of those with
-// requests, then the date of the prices they're worth at; or says there were
-// none since from. Given a day whose date isn't one, it fails, writing
-// nothing.
-func writeHistory(out io.Writer, days []ledger.Priced, from, now time.Time) error {
+// requests, then which prices they're worth at; or says there were none since
+// from. Given a day whose date isn't one, it fails, writing nothing.
+func writeHistory(out io.Writer, days []ledger.Priced, prices ledger.Table, from, now time.Time) error {
 	tables, err := historyTables(days, now)
 	if err != nil {
 		return err
@@ -98,17 +97,32 @@ func writeHistory(out io.Writer, days []ledger.Priced, from, now time.Time) erro
 		_, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout))
 		return err
 	}
-	asOf, _, ok := dayfile.Day(ledger.Pricing.AsOf)
-	if !ok {
-		return fmt.Errorf("the prices are as of %q, which isn't a date", ledger.Pricing.AsOf)
+	at, err := pricedAt(prices)
+	if err != nil {
+		return err
 	}
 	for i, table := range tables {
 		if err := table.write(out, now, i == 0); err != nil {
 			return err
 		}
 	}
-	_, err = fmt.Fprintf(out, "\nworth is what they'd have cost through the API, at its prices as of %s\n", asOf.Format("2 Jan 2006"))
+	_, err = fmt.Fprintf(out, "\nworth is what they'd have cost through the API, %s\n", at)
 	return err
+}
+
+// pricedAt says which prices worth is at, as "at its prices as of 7 Oct
+// 2026", and the config's, where any of them stand in place of the table's.
+// It fails for a table whose date isn't one.
+func pricedAt(prices ledger.Table) (string, error) {
+	asOf, _, ok := dayfile.Day(prices.AsOf)
+	if !ok {
+		return "", fmt.Errorf("the prices are as of %q, which isn't a date", prices.AsOf)
+	}
+	at := "at its prices as of " + asOf.Format("2 Jan 2006")
+	if prices.Overridden {
+		at += " and the config's"
+	}
+	return at, nil
 }
 
 // historyTables are the tables of those of days with requests, as

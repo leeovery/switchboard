@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -73,9 +74,10 @@ func unknownKey(key string) error {
 }
 
 // wrongValue is the error of the value the config gives key, wrong as why
-// says, which it quotes, anything in it that looks like a token hidden.
+// says, which it quotes, anything in it, or in the key, that looks like a
+// token hidden.
 func wrongValue(key, value, why string) error {
-	return fmt.Errorf("%s %q: %s", key, redact.Text(value), why)
+	return fmt.Errorf("%s %q: %s", redact.Text(key), redact.Text(value), why)
 }
 
 // checkListen keeps the proxy on loopback, at an address: it adds account
@@ -165,7 +167,7 @@ func caseClash(first, id string) error {
 // check reports what's wrong with the account at index i of the file.
 func (a fileAccount) check(i int) error {
 	name := a.name(i)
-	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label), checkReserve(name, a.Reserve))
+	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label), checkReserve(name, a.Reserve), checkPlan(name, a.Plan))
 }
 
 // name identifies the account in errors: by its id, else by its position.
@@ -224,6 +226,14 @@ func checkReserve(account string, reserve float64) error {
 	return fmt.Errorf("%s: reserve %v: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1", account, reserve)
 }
 
+// checkPlan keeps an account's plan one of Plans, or none.
+func checkPlan(account, plan string) error {
+	if plan == "" || slices.Contains(Plans, plan) {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", account, wrongValue("plan", plan, "must be "+planNames()+", the plan the account's subscription is on"))
+}
+
 // checkPrimaries reports more than one account marked primary, naming each.
 func checkPrimaries(accounts []fileAccount) error {
 	var marked []string
@@ -273,6 +283,20 @@ func checkWarning(warning float64) error {
 		return nil
 	}
 	return fmt.Errorf("notifications.warning %v: must be more than 0 and less than 1, the share of a window's limit to warn at, such as 0.9, or 0 to warn of none", warning)
+}
+
+// parseWeekStart reads week_starts: a day of the week, by its name in
+// English, in any case. None given is Monday.
+func parseWeekStart(given string) (time.Weekday, error) {
+	if given == "" {
+		return time.Monday, nil
+	}
+	for day := time.Sunday; day <= time.Saturday; day++ {
+		if strings.EqualFold(given, day.String()) {
+			return day, nil
+		}
+	}
+	return time.Monday, wrongValue("week_starts", given, "must be a day of the week, by its name in English, such as monday")
 }
 
 // MostDays is the most whole days a time.Duration holds, some 292 years: a
