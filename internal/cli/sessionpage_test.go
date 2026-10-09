@@ -246,23 +246,64 @@ func TestATurnWhoseConversationMovedReadsAsItsMove(t *testing.T) {
 
 func TestWhereASessionRunsIsTheMoveOfTheModelItNames(t *testing.T) {
 	lines := []ledger.Line{
-		pagedLine{request: "o1", prompt: "first", model: "claude-opus-5-5", account: "side", reason: "new", stop: "end_turn", at: october(7, 13, 0, 0), ms: 60000}.line(),
+		pagedLine{request: "o1", prompt: "first", model: "claude-opus-5-5", account: "side", reason: "new", stop: "end_turn", at: october(7, 12, 50, 0), ms: 60000}.line(),
 		pagedLine{request: "h1", prompt: "first", agent: "a1", model: "claude-haiku-4-5", account: "work", reason: "new", stop: "end_turn",
 			at: october(7, 13, 1, 0), ms: 30000}.line(),
 		pagedLine{request: "h2", prompt: "first", agent: "a1", model: "claude-haiku-4-5", account: "side", reason: "moved: work hit its limit", from: "work",
 			stop: "end_turn", at: october(7, 13, 5, 0), ms: 30000}.line(),
 	}
 	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
+	// Its subagent's Claude Haiku 4.5, routed last, moved onto side; its
+	// conversation's Claude Opus 5.5 was there from the first.
 	serveSessions(t, deps, []status.Session{{ID: paging, Assignments: []status.Assignment{
-		{Model: "claude-opus-5-5", Account: "side", Reason: "new", LastSeen: october(7, 13, 10, 0).UTC()},
-		{Model: "claude-haiku-4-5", Account: "side", Reason: "moved: work hit its limit", LastSeen: october(7, 13, 5, 0).UTC()},
+		{Model: "claude-haiku-4-5", Account: "side", Reason: "moved: work hit its limit", LastSeen: october(7, 13, 10, 0).UTC()},
+		{Model: "claude-opus-5-5", Account: "side", Reason: "new", LastSeen: october(7, 12, 51, 0).UTC()},
 	}}})
 	got := run(t, deps, "sessions", paging, "--pretty")
-	// Its subagent's Claude Haiku 4.5 moved onto side; its own Claude Opus
-	// 5.5 was there from the first.
-	const want = "\nidle 2m  ·  on side since it started  ·  started 13:00 · 12m\n"
+	const want = "\nidle 2m  ·  on side since it started  ·  started 12:50 · 22m\n"
 	if got.code != 0 || !strings.Contains(got.stdout, want) {
 		t.Errorf("switchboard sessions %s --pretty = %+v, want it to say%s", paging, got, want)
+	}
+}
+
+func TestSessionsReadsEachRequestOnceWhereverItsFiled(t *testing.T) {
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{
+		// Its second request arrived today, filed under yesterday's date, as
+		// after a change of time zone.
+		"2026-10-06": {
+			pagedLine{request: "a", prompt: "first", model: "claude-opus-5-5", account: "work", reason: "new", stop: "end_turn", at: october(6, 22, 0, 0), ms: 60000}.line(),
+			pagedLine{request: "b", prompt: "second", model: "claude-opus-5-5", account: "work", reason: "sticky", stop: "end_turn", at: october(7, 0, 30, 0), ms: 60000}.line(),
+		},
+		// One arrives after now, as after a clock set back; another is filed
+		// under tomorrow's date, as a clock once set ahead files one.
+		"2026-10-07": {
+			pagedLine{request: "c", prompt: "fourth", model: "claude-opus-5-5", account: "personal", reason: "moved: side hit its limit", from: "side",
+				stop: "end_turn", at: october(7, 13, 30, 0), ms: 60000}.line(),
+		},
+		"2026-10-08": {
+			pagedLine{request: "d", prompt: "third", model: "claude-opus-5-5", account: "side", reason: "moved: work hit its limit", from: "work",
+				stop: "end_turn", at: october(7, 9, 0, 0), ms: 60000}.line(),
+		},
+	})
+	var list struct {
+		Sessions []struct {
+			Requests int `json:"requests"`
+		} `json:"sessions"`
+	}
+	got := run(t, deps, "sessions", "--json")
+	if err := json.Unmarshal([]byte(got.stdout), &list); err != nil || len(list.Sessions) != 1 || list.Sessions[0].Requests != 2 {
+		t.Errorf("switchboard sessions --json = %+v (%v), want paging alone, with today's two requests, each once", got, err)
+	}
+	var page struct {
+		Accounts []struct {
+			Account  string `json:"account"`
+			Requests int    `json:"requests"`
+		} `json:"accounts"`
+	}
+	got = run(t, deps, "sessions", "5e6f9", "--json")
+	if err := json.Unmarshal([]byte(got.stdout), &page); err != nil || len(page.Accounts) != 2 || page.Accounts[0].Requests != 2 ||
+		page.Accounts[1].Account != "side" {
+		t.Errorf("switchboard sessions 5e6f9 --json = %+v (%v), want two requests on work, each once, then one on side, none after now", got, err)
 	}
 }
 

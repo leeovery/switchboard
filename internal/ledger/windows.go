@@ -43,20 +43,16 @@ func CapsOf(accounts []config.Account, shared []string) Caps {
 // before the day, where it hadn't reset by the day's start, standing from
 // then.
 //
-// Its climb is how far its use rose, as Climb says: from the use carried
-// into the day, or nothing after a reset, as the window empties. A run whose
-// start is unknown, of a window first read that day, nothing read of it in
-// the week before, begins at the use it was first read at, unless the window
-// began within the day, as its reset and its length say.
+// Its climb is how far its use rose, as Climb says, and which reading it
+// stands at: from the use carried into the day, or nothing after a reset, as
+// the window empties. A run whose start is unknown, of a window first read
+// that day, nothing read of it in the week before, begins at the use it was
+// first read at, unless the window began within the day, as its reset and its
+// length say.
 type windowDay struct {
 	start, until time.Time
 	climb        *Climb
-	// last is the reading the window stands at, from at: read is set once
-	// there's one.
-	last  quota.Window
-	at    time.Time
-	read  bool
-	stood []stood
+	stood        []stood
 }
 
 // newWindowDay returns the window with the given key's day that starts at
@@ -75,8 +71,7 @@ type stood struct {
 // which hadn't reset by the day's start, as the use the window began the day
 // at, standing from the day's start.
 func (d *windowDay) carry(w quota.Window) {
-	d.last, d.at, d.read = w, d.start, true
-	d.climb.Carry(w)
+	d.climb.Carry(w, d.start)
 }
 
 // afresh notes that the window began the day empty: read in the week before,
@@ -85,65 +80,68 @@ func (d *windowDay) afresh() {
 	d.climb.BeginAt(0)
 }
 
+// read reports whether the window's day has a reading it stands at.
+func (d *windowDay) read() bool {
+	return d.climb.read
+}
+
 // take takes w, a reading of the window read at at, in the day, as its climb
-// takes it, and reports whether it did: the reading before it then stands
-// until then, or its reset. Nor does one read from until on say anything of
-// the window.
-func (d *windowDay) take(w quota.Window, at time.Time) bool {
+// takes it: the reading it stood at before stands until then, or its reset.
+// Nor does one read from until on say anything of the window.
+func (d *windowDay) take(w quota.Window, at time.Time) {
 	if !at.Before(d.until) {
-		return false
+		return
 	}
-	if _, ok := d.climb.Take(w, at); !ok {
-		return false
+	last, from, read := d.climb.last, d.climb.at, d.climb.read
+	if _, ok := d.climb.Take(w, at); ok && read {
+		d.stand(last, from, at)
 	}
-	if d.read {
-		d.standUntil(at)
-	}
-	d.last, d.at, d.read = w, at, true
-	return true
 }
 
 // end ends the window's day at until: the reading it stands at stands until
 // then, or until its reset, which ends its run, where that comes first.
 func (d *windowDay) end() {
-	d.standUntil(d.until)
+	d.stand(d.climb.last, d.climb.at, d.until)
 	d.climb.End(d.until)
 }
 
-// standUntil has the reading the window stands at stand until to, or until
+// stand has w, a reading of the window read at from, stand until to, or until
 // its reset, where that comes first.
-func (d *windowDay) standUntil(to time.Time) {
-	if d.last.ResetBy(to) {
-		to = d.last.ResetsAt
+func (d *windowDay) stand(w quota.Window, from, to time.Time) {
+	if w.ResetBy(to) {
+		to = w.ResetsAt
 	}
-	if d.at.Before(to) {
-		d.stood = append(d.stood, stood{from: d.at, to: to, window: d.last})
+	if from.Before(to) {
+		d.stood = append(d.stood, stood{from: from, to: to, window: w})
 	}
 }
 
 // Climb follows a window's use through its readings, taken in the order they
-// were read. Each run of the window, from a reset to the next, climbs from
-// the use it began at to its highest, a reading under that highest, as one
-// taken out of turn gives, climbing it none; the climbs of its runs added
-// together are its rise, the points of the window its readings saw used. A
-// day's summary counts each window's rise so, and a session's page shares
-// each reading's climb out among the requests it came of, so the two never
-// disagree.
+// were read: one rule for how far each reading climbs it. Each run of the
+// window, from a reset to the next, climbs from the use it began at to its
+// highest, a reading under that highest, as one taken out of turn gives,
+// climbing it none; the climbs of its runs added together are its rise. A
+// day's summary climbs each window so through the day's readings, and a
+// session's page through its accounts' answers, sharing each climb out.
 type Climb struct {
 	key string
 	// began gives the use the window's run began at before its first
 	// reading, unless BeginAt or Carry says.
 	began func(first quota.Window) float64
-	// last is the reading taken last, once read is set; top is the highest
-	// use since its run began, once based is set; latest is the latest reset
-	// read.
+	// last is the reading taken last, read at at, once read is set; top is
+	// the highest use since its run began, once based is set; and latest is
+	// the latest reset read.
 	last   quota.Window
+	at     time.Time
 	read   bool
 	top    float64
 	based  bool
 	latest time.Time
 	rise   float64
+	// resets are the resets that ended its runs, and ended each run's reset
+	// as its readings gave it.
 	resets []Reset
+	ended  []time.Time
 }
 
 // NewClimb returns the climb of the window with the given key before any
@@ -163,23 +161,27 @@ func (c *Climb) BeginAt(use float64) {
 	c.top, c.based = use, true
 }
 
-// Carry takes w, the last reading of the window before those followed, as
-// the use its run began at.
-func (c *Climb) Carry(w quota.Window) {
-	c.last, c.read, c.latest = w, true, w.ResetsAt
+// Carry takes w, the last reading of the window before those followed, read
+// at at, as the use its run began at.
+func (c *Climb) Carry(w quota.Window, at time.Time) {
+	c.last, c.at, c.read, c.latest = w, at, true, w.ResetsAt
 	c.BeginAt(w.Utilization)
 }
 
 // Take takes w, the window's next reading, read at at, and returns how far it
 // climbed the window's use above its highest since its run began: a reset
 // between the reading before and w, as resetBetween tells it, ending that
-// run, the next beginning at nothing. It reports false, taking nothing, of a
-// reading that says nothing of the window: one past its own reset as it was
-// read, as an answer that came late gives, the window having started afresh
-// since; or one whose reset is earlier than the latest read, as one taken out
-// of turn, from before a reset, gives.
+// run, the next beginning at nothing. It reports false, taking nothing toward
+// the climb, of a reading that says nothing of the run since: one past its
+// own reset as it was read, as an answer that came late gives, the window
+// having started afresh since; or one whose reset is earlier than the latest
+// read, a reading of an earlier run read late, as late takes it.
 func (c *Climb) Take(w quota.Window, at time.Time) (float64, bool) {
-	if w.ResetBy(at) || !w.ResetsAt.IsZero() && w.ResetsAt.Before(c.latest) {
+	switch {
+	case w.ResetBy(at):
+		return 0, false
+	case !w.ResetsAt.IsZero() && w.ResetsAt.Before(c.latest):
+		c.late(w)
 		return 0, false
 	}
 	if c.read {
@@ -192,11 +194,22 @@ func (c *Climb) Take(w quota.Window, at time.Time) (float64, bool) {
 	}
 	climbed := max(w.Utilization-c.top, 0)
 	c.top, c.rise = max(c.top, w.Utilization), c.rise+climbed
-	c.last, c.read = w, true
+	c.last, c.at, c.read = w, at, true
 	if w.ResetsAt.After(c.latest) {
 		c.latest = w.ResetsAt
 	}
 	return climbed, true
+}
+
+// late takes w, a reading of a run of the window that has reset since, read
+// late, as an answer that began before the reset and ended after it gives
+// one: a true reading of that run, which says nothing of the run since.
+// Where it reads higher than the use that run was last read at, the run's
+// reset takes it as the use before it.
+func (c *Climb) late(w quota.Window) {
+	if i := slices.IndexFunc(c.ended, w.ResetsAt.Equal); i >= 0 {
+		c.resets[i].Before = max(c.resets[i].Before, w.Utilization)
+	}
 }
 
 // End ends the window's climb at until, noting the reset of the reading taken
@@ -217,6 +230,7 @@ func (c *Climb) Rise() float64 {
 // ends the run it was in, the next beginning at nothing.
 func (c *Climb) reset(at time.Time) {
 	c.resets = append(c.resets, Reset{Window: c.key, At: at.UTC(), Before: c.last.Utilization})
+	c.ended = append(c.ended, c.last.ResetsAt)
 	c.top = 0
 }
 

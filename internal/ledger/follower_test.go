@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"iter"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -615,48 +616,66 @@ func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
-func TestTheDaysBeforeOneAreItsDaysSummariesWithoutSummarisingIt(t *testing.T) {
-	log := logstest.Capture(t)
-	state, dir, _ := stateDirs(t)
-	holdLines(t, dir, "2026-10-03", asked("1", on(-2, 9, 0)))
-	holdLines(t, dir, "2026-10-04", asked("2", on(-1, 9, 0)))
-	holdLines(t, dir, date, asked("3", on(0, 9, 0)))
-	at := on(0, 12, 0)
-	follower := followerOf(state, &testClock{at: at}, caps)
-	want := fullJSON(t, readerAt(state, at).Days(on(-2, 0, 0)))[:2]
-	// Today's can't be read, and isn't.
-	unopenable(t, dir, "requests-"+date+"*")
-
-	if got := fullJSON(t, follower.DaysBefore(at)); !slices.Equal(got, want) || opened(log) != 0 {
-		t.Errorf("log reads\n%s\nDaysBefore() =\n%s\nwant\n%s, as a whole read gives them, today's file never opened", log, strings.Join(got, "\n"),
-			strings.Join(want, "\n"))
+// requestsOf returns the ids of lines' requests, in their order.
+func requestsOf(lines []ledger.Line) []string {
+	ids := make([]string, len(lines))
+	for i, l := range lines {
+		ids[i] = l.Request
 	}
-	if got := follower.DaysBefore(on(-2, 12, 0)); len(got) != 0 {
-		t.Errorf("DaysBefore() the first day the ledger holds = %+v, want none", got)
+	return ids
+}
+
+func TestSessionsReadsTodaysAndThoseAskedForEachAsSessionReadsOne(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	holdLines(t, dir, "2026-10-03", askedBy("1", "one", on(-2, 9, 0)), askedBy("2", "old", on(-2, 10, 0)))
+	holdLines(t, dir, "2026-10-04", askedBy("3", "two", on(-1, 9, 0)))
+	// Request 6 arrived today, filed under yesterday's date, as after a
+	// change of time zone.
+	holdLines(t, dir, date, askedBy("4", "one", on(0, 9, 0)), askedBy("5", "two", on(0, 9, 30)), askedBy("6", "two", on(1, 0, 30)))
+	summariseAt(dir, history, on(1, 1, 10))
+	// Request 8 arrives after now, as after a clock set back; 9 is filed
+	// under tomorrow's date, as a clock once set ahead files one.
+	holdLines(t, dir, "2026-10-06", askedBy("7", "one", on(1, 9, 0)), askedBy("8", "one", on(1, 13, 0)))
+	holdLines(t, dir, "2026-10-07", askedBy("9", "three", on(1, 9, 30)))
+	clock := &testClock{at: on(1, 12, 0)}
+	follower := followerOf(state, clock, caps)
+
+	taken := make(map[string]string)
+	got := follower.Sessions([]string{"old"}, func(date string, l ledger.Line) { taken[l.Request] += date })
+	want := map[string][]string{"one": {"1", "4", "7"}, "two": {"3", "5", "6"}, "three": {"9"}, "old": {"2"}}
+	if len(got) != len(want) {
+		t.Errorf("Sessions() read %d sessions, want %d: today's, and old, asked for", len(got), len(want))
+	}
+	for id, requests := range want {
+		if !slices.Equal(requestsOf(got[id]), requests) {
+			t.Errorf("Sessions() gave %s's requests %q, want %q, oldest first, each once", id, requestsOf(got[id]), requests)
+		}
+		var session []ledger.Line
+		for h := range follower.Session(id) {
+			session = append(session, h.Line)
+		}
+		slices.Reverse(session)
+		if !slices.Equal(requestsOf(session), requests) {
+			t.Errorf("Session(%s) gave requests %q, want %q, as Sessions gives them", id, requestsOf(session), requests)
+		}
+	}
+	wantTaken := map[string]string{"1": "2026-10-03", "2": "2026-10-03", "3": "2026-10-04", "4": date, "5": date, "6": date, "7": "2026-10-06", "9": "2026-10-07"}
+	if !maps.Equal(taken, wantTaken) {
+		t.Errorf("Sessions() handed take %v, want each line read that arrived by now once, with its file's date %v", taken, wantTaken)
 	}
 }
 
-func TestADaysLinesAreEverySessionsFiledUnderItInTheOrderTheyCame(t *testing.T) {
+func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
 	log := logstest.Capture(t)
-	state, dir, _ := stateDirs(t)
-	holdLines(t, dir, "2026-10-04", askedBy("1", "one", on(-1, 9, 0)), askedBy("2", "two", on(-1, 9, 30)))
-	compressFile(t, dir, "requests-2026-10-04.jsonl")
-	holdLines(t, dir, date, askedBy("3", "two", on(0, 9, 0)))
-	appendTo(t, dir, "requests-"+date+".jsonl", "not a line\n")
-	holdLines(t, dir, date, askedBy("4", "one", on(0, 8, 0)))
-	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
+	state, dir, history := stateDirs(t)
+	holdLines(t, dir, "2026-10-03", askedBy("1", "one", on(-2, 9, 0)))
+	holdLines(t, dir, "2026-10-04", askedBy("2", "one", on(-1, 9, 0)))
+	summariseAt(dir, history, on(0, 1, 10))
+	unopenable(t, dir, "*2026-10-03*")
+	follower := followerOf(state, &testClock{at: on(1, 12, 0)}, caps)
 
-	for day, want := range map[string][]string{"2026-10-04": {"1", "2"}, date: {"3", "4"}, "2026-10-03": nil} {
-		var got []string
-		for l := range follower.DayLines(day) {
-			got = append(got, l.Request)
-		}
-		if !slices.Equal(got, want) {
-			t.Errorf("DayLines(%s) gave %q, want %q", day, got, want)
-		}
-	}
-	if !log.Has("level=WARN", `msg="request ledger lines unread"`, "day="+date, "lines=1") {
-		t.Errorf("log reads\n%s\nwant the line of %s that doesn't read warned of", log, date)
+	if got := follower.Sessions(nil, nil); len(got) != 0 || opened(log) != 0 {
+		t.Errorf("log reads\n%s\nSessions() = %v, want no session read, nor a day before yesterday opened", log, got)
 	}
 }
 

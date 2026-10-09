@@ -105,8 +105,9 @@ func movedFrom(from string, l ledger.Line) ledger.Line {
 	return l
 }
 
-// fakeLedger is a ledger of lines, oldest first, and of the summaries of the
-// days before now's, which name each day's sessions, read at now.
+// fakeLedger is a ledger of lines, oldest first, each filed under the date
+// of the day it arrived on, and of the summaries of the days before now's,
+// which name each day's sessions, read at now.
 type fakeLedger struct {
 	lines     []ledger.Line
 	summaries []ledger.Summary
@@ -115,11 +116,6 @@ type fakeLedger struct {
 
 func (f fakeLedger) Days(time.Time) []ledger.Summary {
 	return f.summaries
-}
-
-func (f fakeLedger) DaysBefore(t time.Time) []ledger.Summary {
-	date := t.Local().Format(time.DateOnly)
-	return slices.DeleteFunc(slices.Clone(f.summaries), func(s ledger.Summary) bool { return s.Day >= date })
 }
 
 func (f fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
@@ -143,14 +139,42 @@ func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
 	}
 }
 
-func (f fakeLedger) DayLines(date string) iter.Seq[ledger.Line] {
-	return func(yield func(ledger.Line) bool) {
-		for _, l := range f.lines {
-			if l.At.Local().Format(time.DateOnly) == date && !yield(l) {
-				return
-			}
+// Sessions reads as a Follower does: today's files, and those of the days
+// either side, then the days before whose summaries name a session read.
+func (f fakeLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	start := dayfile.DayStart(f.now, 0)
+	wanted := make(map[string]bool)
+	for _, id := range ids {
+		wanted[id] = true
+	}
+	for _, l := range f.lines {
+		if l.Kind == ledger.KindMessage && l.Session != "" && !l.At.Before(start) && !l.At.After(f.now) {
+			wanted[l.Session] = true
 		}
 	}
+	read := make(map[string]bool)
+	for _, date := range dayfile.Dates(f.now, f.now) {
+		read[date] = true
+	}
+	for _, s := range f.summaries {
+		read[s.Day] = read[s.Day] || slices.ContainsFunc(s.Accounts, func(a ledger.AccountDay) bool {
+			return slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
+		})
+	}
+	sessions := make(map[string][]ledger.Line)
+	for _, l := range f.lines {
+		date := l.At.Local().Format(time.DateOnly)
+		if !read[date] || l.At.After(f.now) {
+			continue
+		}
+		if take != nil {
+			take(date, l)
+		}
+		if wanted[l.Session] {
+			sessions[l.Session] = append(sessions[l.Session], l)
+		}
+	}
+	return sessions
 }
 
 // naming is a summary of the day with the given date naming the sessions
@@ -453,12 +477,16 @@ func TestAMoveIsTheOneThatBroughtTheSessionToItsAccountToday(t *testing.T) {
 
 func TestTheListsAccountModelAndMoveAreItsConversations(t *testing.T) {
 	// Its conversation, of Claude Opus 5.5, moved to side; its titles, of
-	// Claude Haiku 4.5, were rescored onto personal after it.
+	// Claude Haiku 4.5, were rescored onto personal after it; and its last
+	// turn the router answered itself, no account having room.
+	unsent := of("main", line(mover, opus, "", "no account has room", october(7, 12, 40), ""))
+	unsent.Status, unsent.Attempts = 429, 0
 	l := fakeLedger{now: now, lines: []ledger.Line{
 		of("main", line(mover, opus, "work", "new", october(7, 11, 0), hourUsage)),
 		of("auxiliary", line(mover, haiku, "work", "new", october(7, 11, 1), smallUsage)),
 		of("main", movedFrom("work", line(mover, opus, "side", "moved: work hit its limit", october(7, 12, 0), hourUsage))),
 		of("auxiliary", movedFrom("work", line(mover, haiku, "personal", "rescored after 1h 29m idle", october(7, 12, 30), smallUsage))),
+		unsent,
 	}}
 	moved := &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "moved: work hit its limit", Cost: cost(hourWrite)}
 	tests := []struct {
@@ -466,9 +494,9 @@ func TestTheListsAccountModelAndMoveAreItsConversations(t *testing.T) {
 		running []status.Session
 	}{
 		{name: "ended, as its last request of its conversation left it"},
-		{name: "running, as the router routes its conversation", running: []status.Session{{ID: mover, Assignments: []status.Assignment{
-			{Model: opus, Account: "side", Reason: "moved: work hit its limit", LastSeen: october(7, 12, 0)},
+		{name: "running, as the router routes its conversation, its titles routed since", running: []status.Session{{ID: mover, Assignments: []status.Assignment{
 			{Model: haiku, Account: "personal", Reason: "rescored after 1h 29m idle", LastSeen: october(7, 12, 30)},
+			{Model: opus, Account: "side", Reason: "moved: work hit its limit", LastSeen: october(7, 12, 0)},
 		}}}},
 	}
 	for _, tt := range tests {
@@ -520,12 +548,11 @@ func TestAMoveOnAnEarlierDayIsntToday(t *testing.T) {
 	}
 }
 
-// readCounts count a ledger's reads: of each day's lines, by its date, of a
-// session's lines, of the days' summaries from a day to today's, and of
-// those before a day.
+// readCounts count a ledger's reads: of sessions' days, as Sessions reads
+// them; of a session's lines; of today's lines; and of the days' summaries
+// from a day to today's.
 type readCounts struct {
-	dayLines                   map[string]int
-	sessions, days, daysBefore int
+	sessionsRead, session, today, days int
 }
 
 // countedLedger is a fakeLedger that counts its reads.
@@ -534,14 +561,19 @@ type countedLedger struct {
 	counts *readCounts
 }
 
-func (c countedLedger) DayLines(date string) iter.Seq[ledger.Line] {
-	c.counts.dayLines[date]++
-	return c.fakeLedger.DayLines(date)
+func (c countedLedger) Sessions(ids []string, take func(string, ledger.Line)) map[string][]ledger.Line {
+	c.counts.sessionsRead++
+	return c.fakeLedger.Sessions(ids, take)
 }
 
 func (c countedLedger) Session(id string) iter.Seq[ledger.Held] {
-	c.counts.sessions++
+	c.counts.session++
 	return c.fakeLedger.Session(id)
+}
+
+func (c countedLedger) Today(mark ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
+	c.counts.today++
+	return c.fakeLedger.Today(mark)
 }
 
 func (c countedLedger) Days(from time.Time) []ledger.Summary {
@@ -549,18 +581,13 @@ func (c countedLedger) Days(from time.Time) []ledger.Summary {
 	return c.fakeLedger.Days(from)
 }
 
-func (c countedLedger) DaysBefore(t time.Time) []ledger.Summary {
-	c.counts.daysBefore++
-	return c.fakeLedger.DaysBefore(t)
-}
-
-func TestTheListReadsEachEarlierDayItNeedsOnceAndNeverSummarisesToday(t *testing.T) {
-	counts := &readCounts{dayLines: make(map[string]int)}
+func TestTheListReadsItsSessionsDaysInOneRead(t *testing.T) {
+	counts := &readCounts{}
 	l := countedLedger{counts: counts, now: now,
-		summaries: []ledger.Summary{naming("2026-10-05", rescored), naming("2026-10-06", older, mover)},
+		summaries: []ledger.Summary{naming("2026-10-04", older), naming("2026-10-05", rescored), naming("2026-10-06", mover)},
 		lines: []ledger.Line{
+			line(older, opus, "work", "new", october(4, 22, 0), hourUsage),
 			line(rescored, opus, "work", "new", october(5, 9, 0), hourUsage),
-			line(older, opus, "work", "new", october(6, 22, 0), hourUsage),
 			line(mover, opus, "work", "new", october(6, 23, 0), hourUsage),
 			line(older, opus, "work", "sticky", october(7, 9, 0), hourUsage),
 			line(mover, opus, "work", "sticky", october(7, 9, 30), hourUsage),
@@ -570,23 +597,11 @@ func TestTheListReadsEachEarlierDayItNeedsOnceAndNeverSummarisesToday(t *testing
 	for _, s := range got.Sessions {
 		started[s.Session] = s.Started
 	}
-	if want := map[string]time.Time{older: utc(october(6, 22, 0)), mover: utc(october(6, 23, 0))}; !maps.Equal(started, want) {
-		t.Errorf("the List's sessions started %v, want %v", started, want)
+	if want := map[string]time.Time{older: utc(october(4, 22, 0)), mover: utc(october(6, 23, 0))}; !maps.Equal(started, want) {
+		t.Errorf("the List's sessions started %v, want %v, those with requests today alone, of whatever day they started", started, want)
 	}
-	if want := (readCounts{dayLines: map[string]int{"2026-10-06": 1}, daysBefore: 1}); !reflect.DeepEqual(*counts, want) {
-		t.Errorf("the List read the ledger %+v, want the days before today's summaries once, yesterday's lines once, the one day "+
-			"before today naming its sessions, and no session's or today's summary", *counts)
-	}
-}
-
-func TestTheListOfNoSessionLooksBackOverNoDay(t *testing.T) {
-	counts := &readCounts{dayLines: make(map[string]int)}
-	l := countedLedger{counts: counts, fakeLedger: summarisedLedger([]ledger.Line{line(older, opus, "work", "new", october(6, 22, 0), hourUsage)})}
-	if got := views.ListSessions(views.SessionSources{Ledger: l, Prices: ledger.Pricing, Now: now}); len(got.Sessions) != 0 {
-		t.Errorf("the List holds %+v, want none", got.Sessions)
-	}
-	if want := (readCounts{dayLines: map[string]int{}}); !reflect.DeepEqual(*counts, want) {
-		t.Errorf("the List read the ledger %+v, want nothing of the days before today, as no session of today's needs them", *counts)
+	if want := (readCounts{sessionsRead: 1}); *counts != want {
+		t.Errorf("the List read the ledger %+v, want its sessions' days in one read, and nothing else", *counts)
 	}
 }
 

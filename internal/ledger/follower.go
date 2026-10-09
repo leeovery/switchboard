@@ -86,25 +86,6 @@ func (f *Follower) Days(from time.Time) []Summary {
 	return f.summariesOf(f.dates(from, now), now)
 }
 
-// DaysBefore returns the summaries of the local days from the first the
-// ledger holds to the one before t's, as Days gives them: none of t's day,
-// so, where it's today, today's isn't summarised from its lines to give it.
-// It gives none where the ledger holds no day before t's, or can't be looked
-// at to tell, which is warned of.
-func (f *Follower) DaysBefore(t time.Time) []Summary {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	now := f.now()
-	first, err := f.firstDay(now)
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			f.days.logger.Warn("can't read the request ledger", "dir", f.days.files.Dir, "error", err)
-		}
-		return nil
-	}
-	return f.summariesOf(dayfile.Span(first, dayfile.DayStart(t.Local(), -1)), now)
-}
-
 // summariesOf returns the summaries of the local days with the given dates,
 // as summaryOf gives them, at now.
 func (f *Follower) summariesOf(dates []string, now time.Time) []Summary {
@@ -527,23 +508,6 @@ func (f *Follower) Session(id string) iter.Seq[Held] {
 	}
 }
 
-// DayLines returns the lines filed under the local day with the given date,
-// in the order they came, as dayfile.ReadDay reads them, whatever session
-// each is of: none of a day pruned, or never written. A line that doesn't read
-// as one is passed over, and how many were is logged, as is a file that can't
-// be read.
-func (f *Follower) DayLines(date string) iter.Seq[Line] {
-	return func(yield func(Line) bool) {
-		_, unread, err := dayfile.ReadDay(f.days.files, date, lineIn, yield)
-		if unread > 0 {
-			f.days.logger.Warn("request ledger lines unread", "day", date, "lines", unread)
-		}
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			f.days.logger.Warn("can't read the request ledger", "day", date, "error", err)
-		}
-	}
-}
-
 // linesDates returns the dates of the local days whose files Reader.Lines
 // reads of every line, at now, as dayfile.Dates gives them: from the day
 // before the first the ledger holds, as firstDay gives it, to the day after
@@ -564,17 +528,17 @@ func (f *Follower) linesDates(now time.Time) []string {
 
 // names reports whether the summary of the local day with the given date,
 // as Days gives it at now, names the session with the given id, as
-// Summary.Names says.
+// Summary.names says.
 func (f *Follower) names(date, id string, now time.Time) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.summaryOf(date, now).Names(id)
+	return f.summaryOf(date, now).names(id)
 }
 
-// Names reports whether the summary names the session with the given id
+// names reports whether the summary names the session with the given id
 // among those its accounts' requests were of, or might: an account's day
 // that never read its sessions' ids, as one of version 1, might name any.
-func (s Summary) Names(id string) bool {
+func (s Summary) names(id string) bool {
 	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool { return a.SessionIDs == nil || slices.Contains(a.SessionIDs, id) })
 }
 

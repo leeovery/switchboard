@@ -201,9 +201,9 @@ const (
 )
 
 // CacheLife returns how long the prompt cache's writes of the reply's usage
-// last: five minutes where every write it breaks down by how long it lasts is
-// a five-minute one, else an hour, as Claude Code has a subscription's last,
-// those it doesn't break down among them. It reports false where the reply
+// last: five minutes where every write is a five-minute one, else an hour, as
+// Claude Code has a subscription's last, writes it doesn't break down by how
+// long they last counting as an hour's. It reports false where the reply
 // wrote nothing to the cache, as one that only read from it, which says
 // nothing of how long its writes last.
 func (r Reply) CacheLife() (time.Duration, bool) {
@@ -211,10 +211,10 @@ func (r Reply) CacheLife() (time.Duration, bool) {
 	written, _ := held[cacheWrites].(int64)
 	ttls, _ := held[cacheTTLs].(counts)
 	short, _ := ttls[shortWrites].(int64)
-	switch broken := held.total(cacheTTLs); {
-	case written == 0 && broken == 0:
+	switch written = max(written, held.total(cacheTTLs)); {
+	case written == 0:
 		return 0, false
-	case short > 0 && short == broken:
+	case short == written:
 		return ShortCache, true
 	}
 	return LongCache, true

@@ -1,7 +1,10 @@
 package views
 
 import (
+	"cmp"
+	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -122,15 +125,59 @@ type PageSources struct {
 	// Routed is the session as the router lists it: nil where it doesn't, as
 	// without the router, or once the session has ended.
 	Routed *status.Session
-	// Ledger reads the session's lines, and those of the accounts it ran on,
-	// on its days.
-	Ledger Ledger
+	// Read holds the session's lines, and the requests of the accounts it
+	// ran on, on its days.
+	Read SessionsRead
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
 	// says: dayfile.Forever keeps them for good.
 	Keep time.Duration
 	Now  time.Time
+}
+
+// SessionsRead is a read of the ledger for a session's page, as ReadSessions
+// reads it: the lines of the sessions it read, by each one's id, oldest
+// first; and every request of an account on each day it read, every
+// session's, by the date of the day whose files hold it, for the points.
+type SessionsRead struct {
+	day      day
+	lines    map[string][]ledger.Line
+	requests map[string][]ledger.Line
+}
+
+// ReadSessions reads, through l, at now, the sessions a page may be of, as
+// the ledger's Sessions reads them: today's, those running gives, as the
+// router lists them, and those with the given ids, as one given in whole,
+// of an earlier day.
+func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
+	read := SessionsRead{day: dayOf(now), requests: make(map[string][]ledger.Line)}
+	read.lines = l.Sessions(append(runningIDs(running), ids...), func(date string, line ledger.Line) {
+		if line.Kind == ledger.KindMessage && line.Account != "" {
+			read.requests[date] = append(read.requests[date], line)
+		}
+	})
+	return read
+}
+
+// Named returns the ids of the sessions one is named among, by as much of its
+// id as is unique: those read with a request today, in the order their first
+// requests today came, then those running gives, as the router lists them,
+// each once.
+func (r SessionsRead) Named(running []status.Session) []string {
+	first := make(map[string]time.Time)
+	for id, lines := range r.lines {
+		if i := slices.IndexFunc(lines, func(l ledger.Line) bool { return isRequest(&l) && r.day.holds(l.At) }); i >= 0 {
+			first[id] = lines[i].At
+		}
+	}
+	ids := slices.SortedFunc(maps.Keys(first), func(a, b string) int { return cmp.Or(first[a].Compare(first[b]), strings.Compare(a, b)) })
+	for _, s := range running {
+		if _, ok := first[s.ID]; !ok && !slices.Contains(ids, s.ID) {
+			ids = append(ids, s.ID)
+		}
+	}
+	return ids
 }
 
 // comeBack is how long a session goes without a request for the next to
@@ -141,17 +188,16 @@ const comeBack = time.Hour
 // SessionPageOf builds the page of the session with the given id from src:
 // what the router says of it, where it lists it, and what every line of it
 // the ledger holds tells, whatever day each is of, with the requests of the
-// accounts it ran on, on its days, for the points it took, as readPage reads
-// them. It reports false where the ledger holds no request of it, and the
-// router doesn't list it.
+// accounts it ran on, on its days, for the points it took, as src's Read
+// holds them. It reports false where the ledger holds no request of it, and
+// the router doesn't list it.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	today := dayOf(src.Now)
-	read := readPage(src.Ledger, id, today)
-	requests := requestsOf(read.own, src.Prices, today.date)
+	requests := requestsOf(src.Read.lines[id], src.Prices, today.date)
 	if len(requests) == 0 && src.Routed == nil {
 		return SessionPage{}, false
 	}
-	s := storyOf(read.own, src.Prices, today)
+	s := storyOf(requests, src.Prices, today)
 	listed := listedFrom(id, s)
 	if src.Routed != nil {
 		listed.run(*src.Routed, s, src.Now)
@@ -167,7 +213,7 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	if !page.Running && s.first != nil {
 		page.KeptUntil, _ = dayfile.KeptUntil(dayOf(s.first.At).date, src.Keep)
 	}
-	points := pointsOf(read.answers, requests)
+	points := pointsOf(src.Read.requests, id, requests)
 	for i := range page.Accounts {
 		page.Accounts[i].Points = points[page.Accounts[i].Account]
 	}
@@ -175,44 +221,19 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	return page, true
 }
 
-// pageRead is what a session's page reads of the ledger: the session's own
-// lines, oldest first, and every request of any session on an account, as
-// answeredOf holds it, by the date of the day it's filed under.
-type pageRead struct {
-	own     []ledger.Line
-	answers map[string][]answered
-}
-
-// readPage reads the days of the session with the given id, those before d
-// that daysNaming gives and d itself, each day's files once.
-func readPage(l Ledger, id string, d day) pageRead {
-	read := pageRead{answers: make(map[string][]answered)}
-	for _, date := range append(daysNaming(l, []string{id}, d), d.date) {
-		for line := range l.DayLines(date) {
-			if line.Session == id {
-				read.own = append(read.own, line)
-			}
-			if line.Kind == ledger.KindMessage && line.Account != "" {
-				read.answers[date] = append(read.answers[date], answeredOf(&line, id))
-			}
-		}
-	}
-	slices.SortStableFunc(read.own, byArrival)
-	return read
-}
-
-// request is a session's request, as its page counts it: its line, what it
-// would have cost through the API, as ledger.Table.Summed gives it, and the
-// tokens its answer's usage counts, none where it gave none.
+// request is a session's request: its line, what it would have cost through
+// the API, as ledger.Table.Summed gives it, and the tokens its answer's usage
+// counts, metered where it gave usage, none where it gave none.
 type request struct {
 	*ledger.Line
-	worth  ledger.Worth
-	tokens quota.Tokens
+	worth   ledger.Worth
+	tokens  quota.Tokens
+	metered bool
 }
 
 // requestsOf returns the requests among lines, a session's, oldest first, as
 // isRequest says, each priced by prices at the local day with the given
-// date.
+// date, once, for its story and its page alike.
 func requestsOf(lines []ledger.Line, prices ledger.Table, date string) []request {
 	var requests []request
 	for i := range lines {
@@ -220,8 +241,8 @@ func requestsOf(lines []ledger.Line, prices ledger.Table, date string) []request
 		if !isRequest(l) {
 			continue
 		}
-		tokens, _ := l.Tokens()
-		requests = append(requests, request{Line: l, worth: prices.Summed(l, date), tokens: tokens})
+		tokens, metered := l.Tokens()
+		requests = append(requests, request{Line: l, worth: prices.Summed(l, date), tokens: tokens, metered: metered})
 	}
 	return requests
 }

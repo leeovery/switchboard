@@ -431,6 +431,9 @@ func TestACachesWritesLastFiveMinutesOnlyWhereEachDoes(t *testing.T) {
 		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":3120,"ephemeral_1h_input_tokens":0}}`, want: 5 * time.Minute},
 		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":3120}}`, want: time.Hour},
 		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":120,"ephemeral_1h_input_tokens":3000}}`, want: time.Hour},
+		// Those it doesn't break down count as an hour's.
+		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":120}}`, want: time.Hour},
+		{usage: `{"cache_creation":{"ephemeral_5m_input_tokens":120}}`, want: 5 * time.Minute},
 		{usage: `{"cache_creation_input_tokens":3120}`, want: time.Hour},
 		// Of these, which wrote nothing, nothing is said.
 		{usage: `{"cache_read_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0}}`},

@@ -109,12 +109,22 @@ func saidOf(turns []views.Turn) []turnSaid {
 // routed, at now, the ledger keeping a day's lines 90 days.
 func pageOf(t *testing.T, lines []ledger.Line, routed *status.Session) views.SessionPage {
 	t.Helper()
-	page, ok := views.SessionPageOf(paged, views.PageSources{Routed: routed, Ledger: summarisedLedger(lines), Prices: ledger.Pricing,
+	page, ok := views.SessionPageOf(paged, views.PageSources{Routed: routed, Read: readOf(summarisedLedger(lines), routed), Prices: ledger.Pricing,
 		Keep: 90 * 24 * time.Hour, Now: now})
 	if !ok {
 		t.Fatalf("SessionPageOf(%s) found no session in %+v", paged, lines)
 	}
 	return page
+}
+
+// readOf is the read of l, at now, for paged's page, the router listing
+// routed, where it's given.
+func readOf(l views.Ledger, routed *status.Session) views.SessionsRead {
+	var running []status.Session
+	if routed != nil {
+		running = []status.Session{*routed}
+	}
+	return views.ReadSessions(l, running, now, paged)
 }
 
 // summarisedLedger is a ledger of lines, oldest first, read at now, whose
@@ -365,11 +375,11 @@ func TestThePointsOfAWindowAreItsRisesSharedOutByTokens(t *testing.T) {
 		{
 			name: "requests running in parallel across a reset, each reading taken as its answer's headers came",
 			lines: []ledger.Line{
-				limited(headersAfter(time.Second, took(30*time.Second, ours(opus, local(13, 50, 0), tokens(100)))), "5h", "0.90", local(14, 0, 0)),
+				limited(headersAfter(time.Second, took(30*time.Second, ours(opus, local(11, 50, 0), tokens(100)))), "5h", "0.90", local(12, 0, 0)),
 				// Read before the reset, it ends after the reading read after
 				// it, which it never climbs on from.
-				limited(headersAfter(time.Second, took(5*time.Minute, ours(haiku, local(13, 58, 0), tokens(100)))), "5h", "0.95", local(14, 0, 0)),
-				limited(headersAfter(time.Second, took(30*time.Second, ours(haiku, local(14, 1, 0), tokens(100)))), "5h", "0.02", local(19, 0, 0)),
+				limited(headersAfter(time.Second, took(5*time.Minute, ours(haiku, local(11, 58, 0), tokens(100)))), "5h", "0.95", local(12, 0, 0)),
+				limited(headersAfter(time.Second, took(30*time.Second, ours(haiku, local(12, 1, 0), tokens(100)))), "5h", "0.02", local(17, 0, 0)),
 			},
 			// 0.05 before the reset, of the first request, ended before it;
 			// the 0.02 after it, from nothing, of none ended since.
@@ -521,7 +531,7 @@ func TestOneEndedIsKeptUntilTheLastDayItsFirstDaysLinesAre(t *testing.T) {
 			if tt.running {
 				routed = runningOn("work")
 			}
-			page, _ := views.SessionPageOf(paged, views.PageSources{Routed: routed, Ledger: summarisedLedger(lines), Prices: ledger.Pricing,
+			page, _ := views.SessionPageOf(paged, views.PageSources{Routed: routed, Read: readOf(summarisedLedger(lines), routed), Prices: ledger.Pricing,
 				Keep: tt.keep, Now: now})
 			if page.KeptUntil != tt.want {
 				t.Errorf("it's kept until %q, want %q", page.KeptUntil, tt.want)
@@ -566,8 +576,14 @@ func TestAMovesCacheRunsFromTheEndOfItsThreadsLastRequest(t *testing.T) {
 		},
 		{
 			name: "run out over an hour after its conversation's last request, a subagent's of the same model since",
-			lines: []ledger.Line{conversation(local(9, 0, 0), hourUsage), subagent("a1", "", p1, local(10, 30, 0)),
-				moving(local(10, 31, 0), hourUsage)},
+			lines: []ledger.Line{conversation(local(9, 0, 0), hourUsage),
+				agentOf("a1", serving(p1, "subagent", line(paged, opus, "work", "sticky", local(10, 30, 0), hourUsage))), moving(local(10, 31, 0), hourUsage)},
+		},
+		{
+			name: "warm within its conversation's hour, a title's five-minute writes since its own thread's",
+			lines: []ledger.Line{conversation(local(10, 0, 0), hourUsage),
+				serving(p1, "auxiliary", line(paged, haiku, "work", "sticky", local(10, 20, 0), fiveMinuteUsage)), moving(local(10, 30, 0), hourUsage)},
+			want: cost(hourWrite),
 		},
 		{
 			name: "run out as its last write to the cache says, its last request only reading from it",
@@ -585,19 +601,66 @@ func TestAMovesCacheRunsFromTheEndOfItsThreadsLastRequest(t *testing.T) {
 	}
 }
 
-func TestAPageReadsEachOfItsDaysOnce(t *testing.T) {
-	counts := &readCounts{dayLines: make(map[string]int)}
+func TestAPageIsBuiltFromOneReadOfItsDays(t *testing.T) {
+	counts := &readCounts{}
 	l := countedLedger{counts: counts, fakeLedger: summarisedLedger([]ledger.Line{
-		limited(line(paged, opus, "work", "new", october(6, 22, 0), hourUsage), "7d", "0.40", october(12, 10, 0)),
-		limited(line(other, opus, "work", "new", october(6, 23, 0), hourUsage), "7d", "0.42", october(12, 10, 0)),
-		limited(line(paged, opus, "work", "sticky", local(9, 0, 0), hourUsage), "7d", "0.44", october(12, 10, 0)),
+		limited(line(paged, opus, "work", "new", october(5, 22, 0), hourUsage), "7d", "0.40", october(12, 10, 0)),
+		limited(line(other, opus, "work", "new", october(5, 23, 0), hourUsage), "7d", "0.42", october(12, 10, 0)),
+		limited(line(paged, opus, "work", "sticky", october(6, 9, 0), hourUsage), "7d", "0.44", october(12, 10, 0)),
 	})}
-	page, ok := views.SessionPageOf(paged, views.PageSources{Ledger: l, Prices: ledger.Pricing, Keep: dayfile.Forever, Now: now})
+	read := views.ReadSessions(l, nil, now, paged)
+	page, ok := views.SessionPageOf(paged, views.PageSources{Read: read, Prices: ledger.Pricing, Keep: dayfile.Forever, Now: now})
 	if !ok || page.Totals.Requests != 2 || len(page.Accounts) != 1 || page.Accounts[0].Points["7d"] != 2 {
-		t.Errorf("SessionPageOf() = %+v, %v, want its two requests, on work, two points of its week, the two of other's between its own", page, ok)
+		t.Errorf("SessionPageOf() = %+v, %v, want its two requests, of an earlier day, on work, two points of its week, the two of other's "+
+			"between its own", page, ok)
 	}
-	if want := (readCounts{dayLines: map[string]int{"2026-10-06": 1, "2026-10-07": 1}, daysBefore: 1}); !reflect.DeepEqual(*counts, want) {
-		t.Errorf("the page read the ledger %+v, want each of its days' lines once, for its own lines and its accounts'", *counts)
+	if want := (readCounts{sessionsRead: 1}); *counts != want {
+		t.Errorf("the page read the ledger %+v, want its days in one read, its own lines and its accounts' alike", *counts)
+	}
+}
+
+// agentOf returns l, a request of the subagent with the given id.
+func agentOf(agent string, l ledger.Line) ledger.Line {
+	l.AgentID = agent
+	return l
+}
+
+func TestAMovesCostIsItsConversationsFirstRequestOnTheAccountItMovedTo(t *testing.T) {
+	// A subagent's own context, written for an hour: 200 tokens.
+	const subagentUsage = `{"input_tokens":10,"cache_creation_input_tokens":200,"cache_creation":{"ephemeral_1h_input_tokens":200},"output_tokens":5}`
+	conversation := func(account string, at time.Time) ledger.Line {
+		return serving(p1, ledger.ClassMain, line(paged, opus, account, "sticky", at, hourUsage))
+	}
+	carrying := movedFrom("work", agentOf("a1", serving(p1, "subagent", line(paged, opus, "side", "moved: work hit its limit", local(10, 1, 0), subagentUsage))))
+	unclassed := movedFrom("work", line(paged, opus, "side", "moved: work hit its limit", local(10, 1, 0), subagentUsage))
+	tests := []struct {
+		name    string
+		lines   []ledger.Line
+		written int
+		want    *ledger.Picodollars
+	}{
+		{
+			name:    "a subagent's first request on the account carrying the move, its conversation's next writing it again",
+			lines:   []ledger.Line{conversation("work", local(10, 0, 0)), carrying, conversation("side", local(10, 2, 0))},
+			written: 1000, want: cost(hourWrite),
+		},
+		{
+			name:  "none, its conversation's next request going elsewhere",
+			lines: []ledger.Line{conversation("work", local(10, 0, 0)), carrying, conversation("personal", local(10, 2, 0))},
+		},
+		{
+			name:    "the request carrying it, where requests don't say their class",
+			lines:   []ledger.Line{line(paged, opus, "work", "sticky", local(10, 0, 0), hourUsage), unclassed},
+			written: 200, want: cost(200 * 8),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			moves := pageOf(t, tt.lines, nil).Moves
+			if len(moves) != 1 || moves[0].Written != tt.written || !reflect.DeepEqual(moves[0].Cost, tt.want) {
+				t.Errorf("the moves are %+v, want one, its writes %d, its cost %v", moves, tt.written, amount(tt.want))
+			}
+		})
 	}
 }
 
@@ -631,7 +694,8 @@ func TestTheRoutersSayJoinsWhatItsLinesTell(t *testing.T) {
 }
 
 func TestASessionTheRouterListsIsOneWithoutLines(t *testing.T) {
-	got, ok := views.SessionPageOf(paged, views.PageSources{Routed: runningOn("side"), Ledger: fakeLedger{now: now}, Prices: ledger.Pricing, Now: now})
+	got, ok := views.SessionPageOf(paged, views.PageSources{Routed: runningOn("side"), Read: readOf(fakeLedger{now: now}, runningOn("side")),
+		Prices: ledger.Pricing, Now: now})
 	want := views.SessionPage{Session: paged, Account: "side", Model: opus, Running: true, LastSeen: utc(now), Models: []views.SessionModel{{Model: opus, Account: "side", Reason: "sticky"}},
 		Accounts: []views.SessionAccount{}, Moves: []views.SessionMove{}, Turns: []views.Turn{}}
 	if !ok || !reflect.DeepEqual(got, want) {
@@ -643,7 +707,7 @@ func TestASessionNeitherTheLedgerNorTheRouterKnowsHasNoPage(t *testing.T) {
 	check := line(paged, haiku, "work", "new", local(9, 0, 0), smallUsage)
 	check.Kind = ledger.KindCheck
 	l := fakeLedger{now: now, lines: []ledger.Line{check, line(other, opus, "work", "new", local(9, 1, 0), hourUsage)}}
-	if _, ok := views.SessionPageOf(paged, views.PageSources{Ledger: l, Prices: ledger.Pricing, Now: now}); ok {
+	if _, ok := views.SessionPageOf(paged, views.PageSources{Read: readOf(l, nil), Prices: ledger.Pricing, Now: now}); ok {
 		t.Error("SessionPageOf() found a session the ledger holds no request of, and the router doesn't list")
 	}
 }

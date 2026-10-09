@@ -11,16 +11,17 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
-// pointsOf returns the points of the windows of the accounts requests, a
-// session's, oldest first, went to that the session took, by account, then
-// by window key, in whole points, an estimate: a window counts its account's
-// whole use, every session's, so each rise in it is shared out by tokens, as
-// sharesOf says, among the requests of the account on the session's days, as
-// answers holds them by the date of each day. The rises between two days
-// apart, with a day between them the session made no request on, are none
-// of its: the requests of that day go unread. A window the account's lines
-// never read has no points.
-func pointsOf(answers map[string][]answered, requests []request) map[string]map[string]int {
+// pointsOf returns the points of the windows of the accounts requests, the
+// session's with the given id, oldest first, went to that the session took,
+// by account, then by window key, in whole points, an estimate: a window
+// counts its account's whole use, every session's, so each rise in it is
+// shared out by tokens, as sharesOf says, among the requests of the account
+// on the days the session made requests on, as byDate holds every account's
+// requests by the date of the day whose files hold them. The rises between
+// two days apart, with a day between them the session made no request on,
+// are none of its: the requests of that day go uncounted. A window the
+// account's lines never read has no points.
+func pointsOf(byDate map[string][]ledger.Line, id string, requests []request) map[string]map[string]int {
 	accounts := make(map[string]bool)
 	for _, r := range requests {
 		if r.Account != "" {
@@ -28,12 +29,12 @@ func pointsOf(answers map[string][]answered, requests []request) map[string]map[
 		}
 	}
 	taken := make(map[string]map[string]float64)
-	for _, run := range runsOf(daysOf(requests)) {
+	for _, run := range runsOf(daysOf(byDate, id)) {
 		byAccount := make(map[string][]answered)
 		for _, date := range run {
-			for _, a := range answers[date] {
-				if accounts[a.account] {
-					byAccount[a.account] = append(byAccount[a.account], a)
+			for i := range byDate[date] {
+				if l := &byDate[date][i]; accounts[l.Account] {
+					byAccount[l.Account] = append(byAccount[l.Account], answeredOf(l, id))
 				}
 			}
 		}
@@ -49,14 +50,17 @@ func pointsOf(answers map[string][]answered, requests []request) map[string]map[
 	return points
 }
 
-// daysOf returns the dates of the local days requests came on, oldest first.
-func daysOf(requests []request) []string {
-	dates := make([]string, len(requests))
-	for i, r := range requests {
-		dates[i] = dayOf(r.At).date
+// daysOf returns the dates of the days byDate holds a request of the session
+// with the given id on, oldest first.
+func daysOf(byDate map[string][]ledger.Line, id string) []string {
+	var dates []string
+	for date, lines := range byDate {
+		if slices.ContainsFunc(lines, func(l ledger.Line) bool { return l.Session == id }) {
+			dates = append(dates, date)
+		}
 	}
 	slices.Sort(dates)
-	return slices.Compact(dates)
+	return dates
 }
 
 // runsOf returns dates, oldest first, in runs of days one after another.
@@ -93,12 +97,11 @@ func share(taken map[string]map[string]float64, answers map[string][]answered) {
 }
 
 // answered is a request of an account, as the rises in its windows' use are
-// shared out: the account; when its answer's headers came, reading its
-// windows, and when it ended; its tokens, every kind counted alike; its
-// model; whether it's of the session whose share is taken; and the windows
-// its answer's limits read.
+// shared out: when its answer's headers came, reading its windows, and when
+// it ended; its tokens, every kind counted alike; its model; whether it's of
+// the session whose share is taken; and the windows its answer's limits
+// read.
 type answered struct {
-	account   string
 	read, end time.Time
 	tokens    int64
 	model     string
@@ -112,7 +115,6 @@ type answered struct {
 func answeredOf(l *ledger.Line, id string) answered {
 	t, _ := l.Tokens()
 	a := answered{
-		account: l.Account,
 		end:     ended(l),
 		tokens:  int64(t.Input + t.Output + t.CacheRead + t.CacheWrite),
 		model:   l.Model,

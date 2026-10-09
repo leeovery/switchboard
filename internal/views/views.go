@@ -20,9 +20,6 @@ import (
 type Ledger interface {
 	// Days gives the summaries of the local days from from's to today's.
 	Days(from time.Time) []ledger.Summary
-	// DaysBefore gives the summaries of the local days the ledger holds
-	// before the one t falls on.
-	DaysBefore(t time.Time) []ledger.Summary
 	// Today gives today's lines read since mark, and the Mark they're read
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of.
@@ -30,9 +27,12 @@ type Ledger interface {
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on.
 	Session(id string) iter.Seq[ledger.Held]
-	// DayLines gives the lines filed under the local day with the given
-	// date, every session's, in the order they came.
-	DayLines(date string) iter.Seq[ledger.Line]
+	// Sessions gives the lines of today's sessions, those with a request
+	// today, and of those with the given ids, that arrived by now, by each
+	// one's id, oldest first, as Session reads one's, each day's files read
+	// once; and hands take, where it's given, each line it reads, of
+	// whichever session, with the date of the day whose files hold it.
+	Sessions(ids []string, take func(date string, l ledger.Line)) map[string][]ledger.Line
 }
 
 // Readings reads the readings history where it lies, with no router, as a

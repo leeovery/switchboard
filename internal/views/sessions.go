@@ -2,6 +2,7 @@ package views
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -107,30 +108,25 @@ type SessionSources struct {
 }
 
 // ListSessions builds the List from src: the sessions the router lists, and
-// those with requests today, a session being the lines of its id, each with
-// what the router says of it and what its lines tell, those of the days
-// before today among them for one the summaries of those days name.
+// those with requests today, each with what the router says of it and what
+// its lines tell, of whatever day, as the ledger's Sessions reads them.
 func ListSessions(src SessionSources) SessionList {
 	today := dayOf(src.Now)
-	todays, _, _ := src.Ledger.Today(ledger.Mark{})
-	stories, ids := storiesOf(todays, src.Prices, today)
+	read := src.Ledger.Sessions(runningIDs(src.Running), nil)
 	routed := make(map[string]status.Session, len(src.Running))
 	for _, s := range src.Running {
 		routed[s.ID] = s
-		if _, ok := stories[s.ID]; !ok {
-			stories[s.ID] = newStory(src.Prices, today)
-			ids = append(ids, s.ID)
-		}
-	}
-	for id, lines := range withTodays(linesBefore(src.Ledger, ids, today), todays) {
-		stories[id] = storyOf(lines, src.Prices, today)
 	}
 	list := SessionList{GeneratedAt: src.Now.UTC(), PricesAsOf: src.Prices.AsOf, Sessions: []ListedSession{}}
 	var worth worthSum
-	for _, id := range ids {
-		s := stories[id]
+	for _, id := range listedIDs(read, src.Running) {
+		s := storyOf(requestsOf(read[id], src.Prices, today.date), src.Prices, today)
+		session, running := routed[id]
+		if !running && s.requests == 0 {
+			continue
+		}
 		listed := listedFrom(id, s)
-		if session, running := routed[id]; running {
+		if running {
 			listed.run(session, s, src.Now)
 		}
 		listed.Moved = s.movedOnto(listed.Model, listed.Account)
@@ -143,117 +139,26 @@ func ListSessions(src SessionSources) SessionList {
 	return list
 }
 
-// SessionsRead returns the ids of the sessions the List reads, those of
-// today's lines that hold a request of one, as isRequest says, then those the
-// router lists, as running gives them, each once, in the order they first
-// came: never one of quota checks or counts of tokens alone.
-func SessionsRead(l Ledger, running []status.Session) []string {
-	todays, _, _ := l.Today(ledger.Mark{})
-	var ids []string
-	seen := make(map[string]bool)
-	read := func(id string) {
-		if !seen[id] {
-			seen[id], ids = true, append(ids, id)
-		}
-	}
-	for i := range todays {
-		if isRequest(&todays[i].Line) {
-			read(todays[i].Session)
-		}
-	}
-	for _, s := range running {
-		read(s.ID)
+// runningIDs returns the ids of the sessions running gives, as the router
+// lists them.
+func runningIDs(running []status.Session) []string {
+	ids := make([]string, len(running))
+	for i, s := range running {
+		ids[i] = s.ID
 	}
 	return ids
 }
 
-// storiesOf returns the story of each session lines, oldest first, hold a
-// request of, by its id, and their ids, in the order their first requests
-// came.
-func storiesOf(lines []ledger.Held, prices ledger.Table, d day) (map[string]*story, []string) {
-	stories := make(map[string]*story)
-	var ids []string
-	for i := range lines {
-		l := &lines[i].Line
-		if !isRequest(l) {
-			continue
-		}
-		s, ok := stories[l.Session]
-		if !ok {
-			s = newStory(prices, d)
-			stories[l.Session], ids = s, append(ids, l.Session)
-		}
-		s.add(l)
-	}
-	return stories, ids
-}
-
-// linesBefore returns the lines of those of the sessions with the given ids
-// that started on a day before d, by session: every line of theirs filed
-// under the days before d that daysNaming gives, each day's files read once.
-func linesBefore(l Ledger, ids []string, d day) map[string][]ledger.Line {
-	lines := make(map[string][]ledger.Line)
-	dates := daysNaming(l, ids, d)
-	if len(dates) == 0 {
-		return lines
-	}
-	wanted := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		wanted[id] = true
-	}
-	for _, date := range dates {
-		for line := range l.DayLines(date) {
-			if wanted[line.Session] {
-				lines[line.Session] = append(lines[line.Session], line)
-			}
+// listedIDs returns the ids of the sessions read and those running gives,
+// each once.
+func listedIDs(read map[string][]ledger.Line, running []status.Session) []string {
+	ids := slices.Collect(maps.Keys(read))
+	for _, s := range running {
+		if _, ok := read[s.ID]; !ok {
+			ids = append(ids, s.ID)
 		}
 	}
-	return lines
-}
-
-// daysNaming returns the dates of the days before d whose summaries name any
-// of the sessions with the given ids among theirs, or might, as
-// ledger.Summary.Names says: none, and no summary read, where no id is given.
-func daysNaming(l Ledger, ids []string, d day) []string {
-	if len(ids) == 0 {
-		return nil
-	}
-	var dates []string
-	for _, summary := range l.DaysBefore(d.start) {
-		if slices.ContainsFunc(ids, summary.Names) {
-			dates = append(dates, summary.Day)
-		}
-	}
-	return dates
-}
-
-// withTodays returns each session's earlier lines with its lines among
-// todays, oldest first, by when each arrived.
-func withTodays(earlier map[string][]ledger.Line, todays []ledger.Held) map[string][]ledger.Line {
-	for i := range todays {
-		if lines, ok := earlier[todays[i].Session]; ok {
-			earlier[todays[i].Session] = append(lines, todays[i].Line)
-		}
-	}
-	for _, lines := range earlier {
-		slices.SortStableFunc(lines, byArrival)
-	}
-	return earlier
-}
-
-// byArrival orders lines by when each request arrived.
-func byArrival(a, b ledger.Line) int {
-	return a.At.Compare(b.At)
-}
-
-// storyOf returns the story lines, a session's, oldest first, tell, its
-// requests on the day d counted and priced by prices.
-func storyOf(lines []ledger.Line, prices ledger.Table, d day) *story {
-	s := newStory(prices, d)
-	for i := range lines {
-		s.add(&lines[i])
-	}
-	return s
+	return ids
 }
 
 // listedFrom returns the session with the given id as its story tells it,
@@ -273,13 +178,17 @@ func listedFrom(id string, s *story) ListedSession {
 	return listed
 }
 
-// run has the session running, as the router says of it at now: its models,
-// the account and model it last routed, its directory, where it names one,
-// what it's doing, and what moving it would cost, its story telling the
-// rest.
+// run has the session running, as the router says of it at now: its models;
+// the account its conversation's model goes to, and that model, as its story
+// tells its conversation's, else as the router last routed it; its
+// directory, where it names one; what it's doing; and what moving it would
+// cost, its story telling the rest.
 func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	l.Running, l.Ended = true, time.Time{}
-	if len(session.Assignments) > 0 {
+	model := s.conversationModel()
+	if i := slices.IndexFunc(session.Assignments, func(a status.Assignment) bool { return a.Model == model }); i >= 0 {
+		l.Account, l.Model = session.Assignments[i].Account, model
+	} else if len(session.Assignments) > 0 {
 		l.Account, l.Model = session.Assignments[0].Account, session.Assignments[0].Model
 	}
 	if i := slices.IndexFunc(session.Assignments, func(a status.Assignment) bool { return a.Dir != "" }); i >= 0 {

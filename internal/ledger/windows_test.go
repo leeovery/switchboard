@@ -205,13 +205,17 @@ func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 	}
 }
 
-func TestAReadingTakenOutOfTurnCountsInNoneOfADaysFields(t *testing.T) {
+func TestAReadingOfARunReadLateCountsTowardThatRunAloneNotTheRiseSince(t *testing.T) {
 	// The third, of a reset earlier than the one read before it, was read
-	// out of turn, from before the window began again, and rejected.
+	// late, from before the window began again at 10:02, and rejected.
 	got := workDay(t, caps, dayDone, allowed(on(0, 10, 0), "5h", 0.1, on(0, 15, 30)), allowed(on(0, 10, 2), "5h", 0.12, on(0, 15, 40)),
 		rejected(on(0, 10, 5), "5h", 0.5, on(0, 15, 30)), allowed(on(0, 10, 8), "5h", 0.14, on(0, 15, 40)))
-	if got.Highest["5h"] != 0.14 || got.Rise["5h"] != 0.24 || len(got.Limits) != 0 {
-		t.Errorf("work's day is %+v, want its session window's highest 0.14, its rise 0.24, and no limit reached", got)
+	limit := ledger.Limit{Window: "5h", At: on(0, 10, 5).UTC(), ResetsAt: on(0, 15, 30).UTC()}
+	if got.Highest["5h"] != 0.5 || got.Rise["5h"] != 0.24 || !slices.Equal(got.Limits, []ledger.Limit{limit}) {
+		t.Errorf("work's day is %+v, want its session window's highest 0.5, its limit reached, and its rise 0.24, none of it from 0.5", got)
+	}
+	if len(got.Resets) == 0 || got.Resets[0].Before != 0.5 {
+		t.Errorf("work's resets are %+v, want the first's use before it 0.5, as read late", got.Resets)
 	}
 }
 

@@ -20,8 +20,10 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// sessionPage prints the page of the session given names, as sessionAmong
-// says, telling errOut where the router can't say whether it runs.
+// sessionPage prints the page of the session given names, telling errOut
+// where the router can't say whether it runs. One read of the ledger gives
+// both the sessions given is named among, as sessionNamed says, and the page:
+// given is read too, as the whole id of a session of an earlier day.
 func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given string, asJSON bool) error {
 	cfg, err := a.loadConfig()
 	if err != nil {
@@ -32,14 +34,15 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 		return err
 	}
 	running := a.routedSessions(ctx, errOut, "showing the session from the ledger alone, as not running")
-	id, err := sessionAmong(given, readers.ledger, running)
+	now := a.Now()
+	read := views.ReadSessions(readers.ledger, running, now, given)
+	id, err := sessionNamed(given, read.Named(running), func(id string) string { return id }, status.Clean)
 	if err != nil {
 		return err
 	}
-	now := a.Now()
 	page, ok := views.SessionPageOf(id, views.PageSources{
 		Routed: listed(running, id),
-		Ledger: readers.ledger,
+		Read:   read,
 		Prices: pricing(cfg),
 		Keep:   cfg.Ledger.Keep,
 		Now:    now,
@@ -51,14 +54,6 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 		return writeJSON(out, page)
 	}
 	return writeSessionPage(out, page, now)
-}
-
-// sessionAmong returns the id of the session given names among those the
-// List reads, as views.SessionsRead gives them, as sessionNamed says: given
-// as it is where it starts none of their ids, as the whole id of a session
-// of an earlier day.
-func sessionAmong(given string, l views.Ledger, running []status.Session) (string, error) {
-	return sessionNamed(given, views.SessionsRead(l, running), func(id string) string { return id }, status.Clean)
 }
 
 // listed returns the session with the given id among those the router lists:
@@ -109,19 +104,20 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 }
 
 // whereRuns says where the session p runs and why, at now: on the account its
-// last-used model goes to, since that model's move that brought it there, as
-// "on side since 14:31, moved from work: work reached its cap"; else since
-// it started, where it was new there, as "on work since it started"; else
-// why the router has it there, as "on work: sticky"; or, of one ended, where
-// it ran, as ranOn says: "" where it ran on no account.
+// conversation's model goes to, as p names them, since that model's move that
+// brought it there, as "on side since 14:31, moved from work: work reached its
+// cap"; else since it started, where it was new there, as "on work since it
+// started"; else why the router has it there, as "on work: sticky"; or, of
+// one ended, where it ran, as ranOn says: "" where it ran on no account.
 func whereRuns(p views.SessionPage, now time.Time) string {
 	if !p.Running {
 		return ranOn(p, now)
 	}
-	if len(p.Models) == 0 {
+	i := slices.IndexFunc(p.Models, func(m views.SessionModel) bool { return m.Model == p.Model })
+	if i < 0 {
 		return ""
 	}
-	on := p.Models[0]
+	on := p.Models[i]
 	where := "on " + status.Clean(on.Account)
 	if m, ok := lastMoveOf(p.Moves, on.Model); ok && m.To == on.Account {
 		return where + " since " + status.Past(now, m.At) + ", " + movedWords(m, now)
