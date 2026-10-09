@@ -28,7 +28,7 @@ type History struct {
 // HistoryInput is what a History is built from.
 type HistoryInput struct {
 	// Ledger gives the days' summaries.
-	Ledger Ledger
+	Ledger LedgerDays
 	// From is when the days asked for start, and Now the time now: they're
 	// the local days from From's to today's, those the ledger holds.
 	From, Now time.Time
@@ -52,7 +52,7 @@ type HistoryInput struct {
 // NewHistory builds the History of the days in asks for.
 func NewHistory(in HistoryInput) History {
 	from, to := dateOf(in.From), dateOf(in.Now)
-	today := to.Format(time.DateOnly)
+	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
 	days := pricedDays(in.Ledger.Days(in.From), in.Prices, today, v)
@@ -60,18 +60,20 @@ func NewHistory(in HistoryInput) History {
 	return History{
 		Days:     days,
 		Year:     yearOf(days),
-		Months:   monthsOf(days, p, v, today),
+		Months:   monthsOf(days, p, v, asked, today),
 		Weeks:    weeksOf(placed, in.Accounts),
-		Tokens:   tokensOf(days, p, v, in.WeekStarts),
+		Tokens:   tokensOf(days, p, v, asked, in.WeekStarts),
 		Totals:   totalsOf(days, in.Accounts, v),
-		Plans:    plansOf(days, p, from.Format(time.DateOnly), askedShare(from, to, in.WeekStarts)),
+		Plans:    plansOf(days, p, asked, askedShare(from, to, in.WeekStarts)),
 		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 	}
 }
 
 // wholeWeek reports whether a calendar week, by its first day's date, is
 // whole among days, which run to today, this week the one with the first day
-// given: begun on their first day or after, and over.
+// given: begun on their first day or after, and over, so its accounts' weeks
+// placed there have each ended by its reset, a week still running being
+// placed under this week.
 func wholeWeek(days []Day, this time.Time) func(week string) bool {
 	current := this.Format(time.DateOnly)
 	first := current

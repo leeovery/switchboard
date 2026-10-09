@@ -52,6 +52,22 @@ func askedShare(from, today time.Time, weekStarts time.Weekday) share {
 	return days(int(today.Sub(from)/(24*time.Hour)) + 1)
 }
 
+// cutShort is the share of a month a period from the day with the date first
+// to the one with the date last is priced at, and the date of the day its
+// price is had on: uncut, as of its first day, unless the days asked for,
+// from the one with the date from, begin part-way through it, when it's its
+// days from then to its end, a day each, as of then. So a period still
+// running is priced to its end, and the day the ledger began recording cuts
+// none short.
+func cutShort(first, last, from string, uncut share) (share, string) {
+	start, startOK := civil(from)
+	end, endOK := civil(last)
+	if from <= first || !startOK || !endOK {
+		return uncut, first
+	}
+	return days(int(end.Sub(start)/(24*time.Hour)) + 1), from
+}
+
 // weekOf is the first day of the week the day falls in, as civil gives it,
 // weeks starting on the day given.
 func weekOf(day time.Time, starts time.Weekday) time.Time {

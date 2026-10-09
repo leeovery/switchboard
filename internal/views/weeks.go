@@ -1,6 +1,8 @@
 package views
 
 import (
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -18,14 +20,17 @@ type Week struct {
 
 // AccountWeek is what an account's own weeks placed under a calendar week
 // give: Peaks, the highest use of each window a week long, by the window's
-// key, of its week placed there, the week still running's so far; and
-// Limits, the limits it reached in its week placed there, by window. Of
+// key, of its week placed there; Open, the keys of those windows whose week
+// placed there is still running, its peak, where it's known, so far; and
+// Limits, the limits it reached in its weeks placed there, by window. Of
 // every account's, All, Peaks are the mean of those of the accounts that
-// have one, and there are no Limits.
+// have one, Open the windows any account's is still running in, and there
+// are no Limits.
 type AccountWeek struct {
 	Account string             `json:"account,omitempty"`
 	All     bool               `json:"all,omitempty"`
 	Peaks   map[string]float64 `json:"peaks,omitempty"`
+	Open    []string           `json:"open,omitempty"`
 	Limits  map[string]int     `json:"limits,omitempty"`
 }
 
@@ -35,20 +40,23 @@ const halfAWeek = 7 * 24 * time.Hour / 2
 
 // weekly tells the accounts' own weeks, and places them as Weeks does: key is
 // that of the window a week long every model shares, the account's week, and
-// length how long it lasts; starts is the day calendar weeks start on; and
-// now is the time now, which a week still running runs to.
+// length how long it lasts; starts is the day calendar weeks start on; now is
+// the time now, which a week still running runs to; and this is this
+// calendar week's first day's date.
 type weekly struct {
 	key    string
 	length time.Duration
 	starts time.Weekday
 	now    time.Time
+	this   string
 }
 
 // weeklyOf is weekly with the account's week the window with the given key,
 // as long as its key says.
 func weeklyOf(key string, starts time.Weekday, now time.Time) weekly {
 	length, _ := quota.Length(key)
-	return weekly{key: key, length: length, starts: starts, now: now}
+	this := weekOf(dateOf(now), starts).Format(time.DateOnly)
+	return weekly{key: key, length: length, starts: starts, now: now, this: this}
 }
 
 // isWeek reports whether the window with the given key is a week long, as
@@ -189,13 +197,17 @@ func resetOn(day ledger.AccountDay, key string) bool {
 	return false
 }
 
-// placedUnder is the first day of the calendar week a week that began at
-// start is placed under, as Weeks places its columns: the one whose first
-// day, by the clock, it began nearest.
-func (w weekly) placedUnder(start time.Time) string {
-	day := dateOf(start)
+// placedUnder is the first day of the calendar week an own week is placed
+// under, as Weeks places its columns: one still running under this week, as
+// Weeks shows this week's so far; else the one whose first day, by the clock,
+// it began nearest.
+func (w weekly) placedUnder(o ownWeek) string {
+	if o.open {
+		return w.this
+	}
+	day := dateOf(o.start)
 	week := weekOf(day, w.starts)
-	hour, minute, second := start.Local().Clock()
+	hour, minute, second := o.start.Local().Clock()
 	into := day.Sub(week) + time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute + time.Duration(second)*time.Second
 	if into >= halfAWeek {
 		week = week.AddDate(0, 0, 7)
@@ -203,24 +215,33 @@ func (w weekly) placedUnder(start time.Time) string {
 	return week.Format(time.DateOnly)
 }
 
+// peak is an account's week's peak of a window, as its own week placed under
+// a calendar week gives it: its use, where known, and whether the week is
+// still running, which leaves its use so far.
+type peak struct {
+	use         millionths
+	known, open bool
+}
+
 // placedWeek is a calendar week, by its first day, with what the configured
 // accounts' own weeks placed under it give, each account's in the config's
 // order: peaks, by window, and limits, by window.
 type placedWeek struct {
 	week   string
-	peaks  []map[string]millionths
+	peaks  []map[string]peak
 	limits []map[string]int
 }
 
-// peak takes use as the peak of the window with the given key of the account
-// with the given index, where it's the highest yet: two of its weeks are
-// placed under one only where one was cut short by hand.
-func (p *placedWeek) peak(account int, key string, use millionths) {
+// place takes o, an own week of the account with the given index, of the
+// window with the given key, as its week placed here: one still running in
+// place of any that's ended, as this week shows it so far, else the higher of
+// two that ended, as only a reset by hand places two under one.
+func (p *placedWeek) place(account int, key string, o ownWeek) {
 	if p.peaks[account] == nil {
-		p.peaks[account] = make(map[string]millionths)
+		p.peaks[account] = make(map[string]peak)
 	}
-	if held, ok := p.peaks[account][key]; !ok || use > held {
-		p.peaks[account][key] = use
+	if held, ok := p.peaks[account][key]; !ok || o.open || !held.open && o.peak > held.use {
+		p.peaks[account][key] = peak{use: o.peak, known: o.known, open: o.open}
 	}
 }
 
@@ -244,7 +265,7 @@ func (w weekly) placedWeeks(days []Day, accounts config.Accounts) []placedWeek {
 	weeks := make([]placedWeek, len(spans))
 	at := make(calendar, len(spans))
 	for i, s := range spans {
-		weeks[i] = placedWeek{week: s.key, peaks: make([]map[string]millionths, len(accounts)), limits: make([]map[string]int, len(accounts))}
+		weeks[i] = placedWeek{week: s.key, peaks: make([]map[string]peak, len(accounts)), limits: make([]map[string]int, len(accounts))}
 		at[s.key] = &weeks[i]
 	}
 	for i, a := range accounts {
@@ -256,13 +277,12 @@ func (w weekly) placedWeeks(days []Day, accounts config.Accounts) []placedWeek {
 	return weeks
 }
 
-// placePeaks places the peaks of the own weeks given, those known, of the
-// account with the given index.
+// placePeaks places the own weeks given of the account with the given index.
 func (w weekly) placePeaks(at calendar, account int, weeks ownWeeks) {
 	for key, list := range weeks {
 		for _, o := range list {
-			if p, ok := at[w.placedUnder(o.start)]; ok && o.known {
-				p.peak(account, key, o.peak)
+			if p, ok := at[w.placedUnder(o)]; ok {
+				p.place(account, key, o)
 			}
 		}
 	}
@@ -278,7 +298,7 @@ func (w weekly) placeLimits(at calendar, account int, weeks ownWeeks, own []ledg
 		for _, l := range d.Limits {
 			week, _ := filed(days[i])
 			if o, ok := weeks.holding(l.Window, w.key, l.At); ok {
-				week = w.placedUnder(o.start)
+				week = w.placedUnder(o)
 			}
 			if p, ok := at[week]; ok {
 				p.limit(account, l.Window)
@@ -311,18 +331,24 @@ func weeksOf(placed []placedWeek, accounts config.Accounts) []Week {
 }
 
 // of is the week as Weeks gives it, its accounts those given: every
-// account's peak of a window the mean of theirs that have one.
+// account's peak of a window the mean of theirs that are known, and still
+// running where any of theirs is.
 func (p placedWeek) of(accounts config.Accounts) Week {
 	week := Week{Week: p.week, Accounts: make([]AccountWeek, 0, len(accounts)+1)}
-	sums, counts := make(map[string]millionths), make(map[string]int)
+	sums, counts, open := make(map[string]millionths), make(map[string]int), make(map[string]peak)
 	for i, a := range accounts {
-		week.Accounts = append(week.Accounts, AccountWeek{Account: a.ID, Peaks: shares(p.peaks[i]), Limits: p.limits[i]})
+		week.Accounts = append(week.Accounts, AccountWeek{Account: a.ID, Peaks: shares(p.peaks[i]), Open: openOf(p.peaks[i]), Limits: p.limits[i]})
 		for key, peak := range p.peaks[i] {
-			sums[key] += peak
-			counts[key]++
+			if peak.known {
+				sums[key] += peak.use
+				counts[key]++
+			}
+			if peak.open {
+				open[key] = peak
+			}
 		}
 	}
-	all := AccountWeek{All: true}
+	all := AccountWeek{All: true, Open: openOf(open)}
 	for key, sum := range sums {
 		if all.Peaks == nil {
 			all.Peaks = make(map[string]float64)
@@ -333,15 +359,29 @@ func (p placedWeek) of(accounts config.Accounts) Week {
 	return week
 }
 
-// shares are uses as shares of their windows, by key: none where there are
-// none.
-func shares(uses map[string]millionths) map[string]float64 {
-	if len(uses) == 0 {
-		return nil
-	}
-	given := make(map[string]float64, len(uses))
-	for key, use := range uses {
-		given[key] = use.share()
+// shares are the peaks known as shares of their windows, by key: none where
+// none is.
+func shares(peaks map[string]peak) map[string]float64 {
+	var given map[string]float64
+	for key, peak := range peaks {
+		if !peak.known {
+			continue
+		}
+		if given == nil {
+			given = make(map[string]float64)
+		}
+		given[key] = peak.use.share()
 	}
 	return given
+}
+
+// openOf are the keys of the windows among peaks whose week is still
+// running, in quota's order: none where none is.
+func openOf(peaks map[string]peak) []string {
+	open := slices.SortedFunc(maps.Keys(peaks), quota.CompareKeys)
+	open = slices.DeleteFunc(open, func(key string) bool { return !peaks[key].open })
+	if len(open) == 0 {
+		return nil
+	}
+	return open
 }

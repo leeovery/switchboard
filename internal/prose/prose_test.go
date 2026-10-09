@@ -37,6 +37,20 @@ func TestANumberIsAWordToTenThenFigures(t *testing.T) {
 	}
 }
 
+func TestACountedNounIsOneOrMany(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "0 weeks"}, {n: 1, want: "1 week"}, {n: 2, want: "2 weeks"}, {n: 11, want: "11 weeks"},
+	}
+	for _, tt := range tests {
+		if got := prose.Counted(tt.n, "week"); got != tt.want {
+			t.Errorf("Counted(%d, week) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func TestACountIsAsBriefAsARowHasRoomFor(t *testing.T) {
 	tests := []struct {
 		n    int

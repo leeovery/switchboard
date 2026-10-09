@@ -25,15 +25,15 @@ const (
 )
 
 // Capacity is Weeks' verdicts over the whole weeks the days span, each
-// replayed alone, as Weeks replays its last seven, those in which some
-// account's week's peak is known: Weeks, how many there are; Short, how many
-// were short, a week some account hit its limit, as the accounts stand;
-// WithOneFewer, how many a replay with an account fewer finds, dropping the
-// one whose loss makes the fewest short, left out with one account; and
-// WithOneMore, how many a replay with one more does. Drop is the account
-// whose loss makes no more short than now, where there's one, and
-// WithTwoFewer, there, how many a replay without it and the one of the rest
-// dropped as it was finds. Verdict is the headline, as Weeks words it.
+// replayed alone, as Weeks replays its last seven, those it can judge, every
+// account's week's peak known in it and its week ended: Weeks, how many there
+// are; Short, how many were short, a week some account hit its limit, as the
+// accounts stand; WithOneFewer, how many a replay with an account fewer
+// finds, dropping the one whose loss makes the fewest short, left out with
+// one account; and WithOneMore, how many a replay with one more does. Verdict
+// is the headline, as Weeks words it. Where it's one more than you need, Drop
+// is that account, and WithTwoFewer, with three accounts or more, how many a
+// replay without it and the one of the rest dropped as it was finds.
 // Accounts are each configured account's verdict, in the config's order,
 // then every account's together.
 type Capacity struct {
@@ -48,12 +48,13 @@ type Capacity struct {
 }
 
 // AccountVerdict is Weeks' verdict on an account, over the whole weeks its
-// week's peak is known in, Weeks: how many it hit its limit in, Limits; the
-// share its weeks had left at their resets, on average, LeftAtReset; and how
-// many the rest would have been short without it, WithoutIt, left out with
-// one account. Of every account together, All, its verdict is Accounts', its
-// limits the weeks some account hit its limit in, and its share left every
-// account's weeks', on average.
+// week's peak is known in, its week ended, Weeks: how many it hit its limit
+// in, Limits; the share its weeks had left at their resets, on average,
+// LeftAtReset; and how many of the weeks Capacity judges the rest would have
+// been short in without it, WithoutIt, left out with one account. Of every
+// account together, All, its verdict is Accounts', over the weeks Capacity
+// judges: its limits the weeks some account hit its limit in, and its share
+// left every account's weeks', on average.
 type AccountVerdict struct {
 	Account     string   `json:"account,omitempty"`
 	All         bool     `json:"all,omitempty"`
@@ -64,43 +65,53 @@ type AccountVerdict struct {
 	WithoutIt   *int     `json:"without_it,omitempty"`
 }
 
-// capacityOf is Capacity over the weeks of placed that whole reports are
+// capacityOf is Capacity over the weeks of placed that isWhole reports are
 // whole, of the accounts given, their plans p, their week the window with the
 // given key.
-func capacityOf(placed []placedWeek, whole func(week string) bool, accounts config.Accounts, p plans, key string) Capacity {
-	r := replayOf(placed, whole, accounts, p, key)
+func capacityOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) Capacity {
+	r := replayOf(placed, isWhole, accounts, p, key)
 	c := Capacity{Weeks: len(r.weeks), Short: r.count(r.shortAsNow), WithOneMore: r.count(r.shortWithOneMore)}
-	several := len(accounts) > 1
-	records, without := make([]record, len(accounts)), make([]int, len(accounts))
+	without := make([]int, len(accounts))
 	for x := range accounts {
-		records[x] = r.recordOf(x)
-		without[x] = r.count(func(week []peak) bool { return r.shortWithout(week, x) })
+		without[x] = r.count(func(week []millionths) bool { return r.shortWithout(week, x) })
 	}
-	if several {
-		fewer := fewest(without, records, -1)
-		c.WithOneFewer = &without[fewer]
-		if c.Weeks > 0 && without[fewer] <= c.Short {
-			c.Drop, c.WithTwoFewer = accounts[fewer].ID, r.withTwoFewer(fewer, records)
-		}
-	}
-	if c.Weeks > 0 {
-		c.Verdict = c.headline()
-	}
+	c.judge(r, accounts, without)
 	c.Accounts = make([]AccountVerdict, 0, len(accounts)+1)
-	var every record
+	several := len(accounts) > 1
 	for x, a := range accounts {
-		v := records[x].verdict(several && without[x] <= c.Short)
+		v := recordOf(placed, isWhole, x, key).verdict(c.Verdict == oneMoreThanYouNeed && without[x] <= c.Short)
 		v.Account = a.ID
 		if several {
 			v.WithoutIt = &without[x]
 		}
 		c.Accounts = append(c.Accounts, v)
-		every.add(records[x])
 	}
-	all := every.together()
+	all := r.together()
 	all.Weeks, all.Limits = c.Weeks, c.Short
 	c.Accounts = append(c.Accounts, all)
 	return c
+}
+
+// judge counts the weeks short with one account fewer, of several, dropping
+// the one whose loss makes the fewest short, by without, then gives the
+// headline; and where that's one more than you need, names that account to
+// drop and, of three or more, counts the weeks short with two fewer.
+func (c *Capacity) judge(r replay, accounts config.Accounts, without []int) {
+	dropped := -1
+	if len(accounts) > 1 {
+		dropped = r.fewest(without, -1)
+		c.WithOneFewer = &without[dropped]
+	}
+	if c.Weeks == 0 {
+		return
+	}
+	if c.Verdict = c.headline(); c.Verdict != oneMoreThanYouNeed {
+		return
+	}
+	c.Drop = accounts[dropped].ID
+	if len(accounts) > 2 {
+		c.WithTwoFewer = r.withTwoFewer(dropped)
+	}
 }
 
 // headline is Weeks' headline: one too few, where now is short on 4 or more
@@ -118,71 +129,46 @@ func (c Capacity) headline() string {
 	return aboutRight
 }
 
-// withTwoFewer is how many weeks a replay with two accounts fewer finds:
-// without the account with index dropped, and the one of the rest whose loss
-// then makes the fewest weeks short, as fewest finds it.
-func (r replay) withTwoFewer(dropped int, records []record) *int {
-	without := make([]int, len(records))
-	for x := range records {
-		if x != dropped {
-			without[x] = r.count(func(week []peak) bool { return r.shortWithout(week, dropped, x) })
-		}
-	}
-	return &without[fewest(without, records, dropped)]
-}
-
-// fewest is the index of the account, but the one with index except, whose
-// loss makes the fewest weeks short, by without, of those that tie the one
-// that used least of its weeks, by their records, and of those the first
-// configured.
-func fewest(without []int, records []record, except int) int {
-	best := -1
-	for x := range without {
-		switch {
-		case x == except:
-		case best < 0, without[x] < without[best], without[x] == without[best] && records[x].usedLess(records[best]):
-			best = x
-		}
-	}
-	return best
-}
-
-// peak is an account's week's peak in a week, where known.
-type peak struct {
-	use   millionths
-	known bool
-}
-
 // replay is the weeks Weeks replays, each account's week's peak in each, in
 // the config's order, and the accounts' sizes in Pros, with that of the plan
 // most of them have, usual.
 type replay struct {
-	weeks [][]peak
+	weeks [][]millionths
 	sizes []int64
 	usual int64
 }
 
-// replayOf is the replay of the weeks of placed that whole reports are whole,
-// and in which some account's week's peak is known, the window with the
-// given key, of the accounts given, sized by their plans p.
-func replayOf(placed []placedWeek, whole func(week string) bool, accounts config.Accounts, p plans, key string) replay {
+// replayOf is the replay of the weeks of placed that isWhole reports are
+// whole and that can be judged, as judged says, the window with the given
+// key, of the accounts given, sized by their plans p.
+func replayOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) replay {
 	r := replay{}
 	r.sizes, r.usual = sizesOf(accounts, p)
 	for _, w := range placed {
-		if !whole(w.week) {
-			continue
-		}
-		week, known := make([]peak, len(accounts)), false
-		for i := range accounts {
-			if use, ok := w.peaks[i][key]; ok {
-				week[i], known = peak{use: use, known: true}, true
-			}
-		}
-		if known {
+		if week, ok := w.judged(len(accounts), key); ok && isWhole(w.week) {
 			r.weeks = append(r.weeks, week)
 		}
 	}
 	return r
+}
+
+// judged is each of the accounts' peaks of the window with the given key in
+// the week, reporting false where any's isn't known, or its week hasn't
+// ended: a week the replay can't judge, rather than one in which that account
+// had no room.
+func (p placedWeek) judged(accounts int, key string) ([]millionths, bool) {
+	if accounts == 0 {
+		return nil, false
+	}
+	week := make([]millionths, accounts)
+	for i := range week {
+		peak, ok := p.peaks[i][key]
+		if !ok || !peak.known || peak.open {
+			return nil, false
+		}
+		week[i] = peak.use
+	}
+	return week, true
 }
 
 // sizesOf are the accounts' sizes in Pros, as the replay weighs them: each
@@ -212,7 +198,7 @@ func sizesOf(accounts config.Accounts, p plans) (sizes []int64, usual int64) {
 }
 
 // count counts the weeks short reports short.
-func (r replay) count(short func(week []peak) bool) int {
+func (r replay) count(short func(week []millionths) bool) int {
 	n := 0
 	for _, week := range r.weeks {
 		if short(week) {
@@ -224,37 +210,25 @@ func (r replay) count(short func(week []peak) bool) int {
 
 // shortAsNow reports whether some account hit its limit in the week, its peak
 // at 100%.
-func (r replay) shortAsNow(week []peak) bool {
-	for _, p := range week {
-		if p.known && p.use >= whole {
-			return true
-		}
-	}
-	return false
+func (r replay) shortAsNow(week []millionths) bool {
+	return slices.ContainsFunc(week, func(use millionths) bool { return use >= whole })
 }
 
 // shortWithout reports whether the week would have been short without the
 // accounts with the indexes dropped: each one's peak times its size is shared
 // among the rest by their sizes, so each of theirs rises by all of that over
-// all their sizes, and it's short where any would reach 100%. Where no other
-// account's peak is known, it's short where those dropped used any of their
-// weeks.
-func (r replay) shortWithout(week []peak, dropped ...int) bool {
+// all their sizes, and it's short where any would reach 100%.
+func (r replay) shortWithout(week []millionths, dropped ...int) bool {
 	var load, room int64
-	for j, p := range week {
-		switch {
-		case !p.known:
-		case slices.Contains(dropped, j):
-			load += int64(p.use) * r.sizes[j]
-		default:
+	for j, use := range week {
+		if slices.Contains(dropped, j) {
+			load += int64(use) * r.sizes[j]
+		} else {
 			room += r.sizes[j]
 		}
 	}
-	if room == 0 {
-		return load > 0
-	}
-	for j, p := range week {
-		if p.known && !slices.Contains(dropped, j) && int64(p.use)*room+load >= int64(whole)*room {
+	for j, use := range week {
+		if !slices.Contains(dropped, j) && int64(use)*room+load >= int64(whole)*room {
 			return true
 		}
 	}
@@ -265,71 +239,108 @@ func (r replay) shortWithout(week []peak, dropped ...int) bool {
 // account more, of the plan most of the accounts have: every peak falls in
 // proportion, the same use over more room, and it's short where any would
 // still reach 100%.
-func (r replay) shortWithOneMore(week []peak) bool {
+func (r replay) shortWithOneMore(week []millionths) bool {
 	var room int64
-	for j, p := range week {
-		if p.known {
-			room += r.sizes[j]
-		}
+	for _, size := range r.sizes {
+		room += size
 	}
-	for _, p := range week {
-		if p.known && int64(p.use)*room >= int64(whole)*(room+r.usual) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(week, func(use millionths) bool { return int64(use)*room >= int64(whole)*(room+r.usual) })
 }
 
-// record is how an account's weeks went, over those its week's peak is known
-// in: what it used of them, their peaks summed, and what they had left at
-// their resets, summed; how many there are, and how many it hit its limit
-// in.
+// withTwoFewer is how many weeks a replay with two accounts fewer finds:
+// without the account with index dropped, and the one of the rest whose loss
+// then makes the fewest weeks short, as fewest finds it.
+func (r replay) withTwoFewer(dropped int) *int {
+	without := make([]int, len(r.sizes))
+	for x := range without {
+		if x != dropped {
+			without[x] = r.count(func(week []millionths) bool { return r.shortWithout(week, dropped, x) })
+		}
+	}
+	return &without[r.fewest(without, dropped)]
+}
+
+// fewest is the index of the account, but the one with index except, whose
+// loss makes the fewest weeks short, by without, of those that tie the one
+// that used least of the weeks replayed, and of those the first configured.
+func (r replay) fewest(without []int, except int) int {
+	best := -1
+	for x := range without {
+		switch {
+		case x == except:
+		case best < 0, without[x] < without[best], without[x] == without[best] && r.used(x) < r.used(best):
+			best = x
+		}
+	}
+	return best
+}
+
+// used is what the account with index x used of the weeks replayed, their
+// peaks summed.
+func (r replay) used(x int) millionths {
+	var used millionths
+	for _, week := range r.weeks {
+		used += week[x]
+	}
+	return used
+}
+
+// together is Accounts' verdict on every account, over the weeks replayed:
+// room to spare together where every account's weeks had a quarter or more
+// left at a reset, on average, else little to spare together; none where no
+// week is replayed.
+func (r replay) together() AccountVerdict {
+	var rec record
+	for _, week := range r.weeks {
+		for _, use := range week {
+			rec.add(use)
+		}
+	}
+	v := AccountVerdict{All: true}
+	if rec.weeks == 0 {
+		return v
+	}
+	share := meanOf(rec.left, rec.weeks)
+	v.LeftAtReset, v.Verdict = &share, littleToSpare
+	if 4*rec.left >= whole*millionths(rec.weeks) {
+		v.Verdict = roomToSpare
+	}
+	return v
+}
+
+// record is how an account's weeks went: what it used of them, their peaks
+// summed, and what they had left at their resets, summed; how many there
+// are, and how many it hit its limit in.
 type record struct {
 	used, left    millionths
 	weeks, limits int
 }
 
-// recordOf is the record of the account with index x.
-func (r replay) recordOf(x int) record {
+// recordOf is the record of the account with index x over the weeks of
+// placed that isWhole reports are whole and in which its week of the window
+// with the given key is known and ended.
+func recordOf(placed []placedWeek, isWhole func(week string) bool, x int, key string) record {
 	var rec record
-	for _, week := range r.weeks {
-		p := week[x]
-		if !p.known {
-			continue
-		}
-		rec.used, rec.left, rec.weeks = rec.used+p.use, rec.left+p.use.left(), rec.weeks+1
-		if p.use >= whole {
-			rec.limits++
+	for _, w := range placed {
+		if peak, ok := w.peaks[x][key]; ok && peak.known && !peak.open && isWhole(w.week) {
+			rec.add(peak.use)
 		}
 	}
 	return rec
 }
 
-// add adds other's weeks to the record's.
-func (rec *record) add(other record) {
-	rec.used += other.used
-	rec.left += other.left
-	rec.weeks += other.weeks
-	rec.limits += other.limits
-}
-
-// usedLess reports whether the record's account used less of its weeks, on
-// average, than other's: one whose use no week knows never does, as its use
-// isn't known.
-func (rec record) usedLess(other record) bool {
-	switch {
-	case rec.weeks == 0:
-		return false
-	case other.weeks == 0:
-		return true
+// add adds a week whose peak was use to the record.
+func (rec *record) add(use millionths) {
+	rec.used, rec.left, rec.weeks = rec.used+use, rec.left+use.left(), rec.weeks+1
+	if use >= whole {
+		rec.limits++
 	}
-	return int64(rec.used)*int64(other.weeks) < int64(other.used)*int64(rec.weeks)
 }
 
 // verdict is Weeks' verdict on the record's account, spared, where the rest
-// would cover it with no more weeks short; none where no week knows its use.
-// The thresholds Weeks gives of 7 weeks hold in proportion to the weeks
-// there are.
+// would cover it with no more weeks short and the headline is one more than
+// you need, so it could go; none where no week knows its use. The thresholds
+// Weeks gives of 7 weeks hold in proportion to the weeks there are.
 func (rec record) verdict(spared bool) AccountVerdict {
 	v := AccountVerdict{Weeks: rec.weeks, Limits: rec.limits}
 	if rec.weeks == 0 {
@@ -349,23 +360,6 @@ func (rec record) verdict(spared bool) AccountVerdict {
 		v.Verdict = plentyToSpare
 	default:
 		v.Verdict = endsWithRoom
-	}
-	return v
-}
-
-// together is Accounts' verdict on every account, the record every account's
-// weeks together: room to spare together where they had a quarter or more
-// left at a reset, on average, else little to spare together; none where no
-// week knows any account's use.
-func (rec record) together() AccountVerdict {
-	v := AccountVerdict{All: true}
-	if rec.weeks == 0 {
-		return v
-	}
-	share := meanOf(rec.left, rec.weeks)
-	v.LeftAtReset, v.Verdict = &share, littleToSpare
-	if 4*rec.left >= whole*millionths(rec.weeks) {
-		v.Verdict = roomToSpare
 	}
 	return v
 }

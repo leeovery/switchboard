@@ -2,6 +2,7 @@ package views
 
 import (
 	"strings"
+	"time"
 )
 
 // monthLayout lays out a month as a Month names it, as 2026-10.
@@ -19,11 +20,13 @@ type Month struct {
 	ByFamily []FamilyWorth  `json:"by_family,omitempty"`
 }
 
-// monthsOf are BY MONTH's rows over days, a month each. A month costs its
-// plans' monthly prices whole, as of its first day, the month the ledger
-// began part-way through among them; the month so far, that of the day with
-// the date today, has no ratio, as it's still running.
-func monthsOf(days []Day, p plans, v versions, today string) []Month {
+// monthsOf are BY MONTH's rows over days, asked for from the day with the
+// date from, a month each. A month costs its plans' monthly prices whole, as
+// of its first day, the month the ledger began part-way through among them,
+// but for one the days asked for begin part-way through, as cutShort says;
+// the month so far, that of the day with the date today, has no ratio, as
+// it's still running.
+func monthsOf(days []Day, p plans, v versions, from, today string) []Month {
 	months := []Month{}
 	for _, s := range spansOf(days, monthKey) {
 		m := Month{Month: s.key}
@@ -35,7 +38,9 @@ func monthsOf(days []Day, p plans, v versions, today string) []Month {
 			}
 		}
 		m.ByFamily = v.byFamily(sums)
-		m.Against = p.against(accountWorths(s.days), s.key+"-01", aMonth)
+		first, _ := civil(s.key + "-01")
+		priced, at := cutShort(s.key+"-01", first.AddDate(0, 1, -1).Format(time.DateOnly), from, aMonth)
+		m.Against = p.against(accountWorths(s.days), at, priced)
 		if strings.HasPrefix(today, s.key+"-") {
 			m.Ratio = nil
 		}

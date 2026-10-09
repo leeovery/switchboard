@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -120,5 +121,54 @@ func TestAPeriodAPlanPriceChangedInCostsItsPriceOnItsFirstDay(t *testing.T) {
 
 	if got, want := jsonOf(t, views.NewHistory(in).Plans[0].Cost), "200"; got != want {
 		t.Errorf("over the last 30 days, a price changed on the second, work's plan cost %s, want %s", got, want)
+	}
+}
+
+func TestAMonthOrWeekTheDaysAskedForBeginPartWayThroughCostsItsDays(t *testing.T) {
+	tests := []struct {
+		name string
+		from string
+		// months and weeks are what BY MONTH's months and Tokens' weeks
+		// cost, work's Max 20x and side's Pro together.
+		months, weeks string
+	}{
+		{
+			// September from the 29th is 2 days at 12/365 of a month, the
+			// week of the 28th 6; October and this week are whole.
+			name: "from a Tuesday at September's end", from: "2026-09-29",
+			months: "14.465753424658 220", weeks: "43.397260273973 50.769230769231",
+		},
+		{
+			// October is whole, from its first day; the week of the 28th
+			// from the Thursday is 4 days.
+			name: "from the first of the month", from: "2026-10-01",
+			months: "220", weeks: "28.931506849315 50.769230769231",
+		},
+		{
+			// A month or week still running is priced to its end: October
+			// from the 6th is 26 days, this week from the Tuesday 6.
+			name: "from part-way through this week and month", from: "2026-10-06",
+			months: "188.054794520548", weeks: "43.397260273973",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input(daysFrom(tt.from))
+			in.From = on(tt.from)
+			history := views.NewHistory(in)
+			var months, weeks []string
+			for _, m := range history.Months {
+				months = append(months, jsonOf(t, m.Cost))
+			}
+			for _, w := range history.Tokens {
+				weeks = append(weeks, jsonOf(t, w.Cost))
+			}
+			if got := strings.Join(months, " "); got != tt.months {
+				t.Errorf("from %s, the months cost %s, want %s", tt.from, got, tt.months)
+			}
+			if got := strings.Join(weeks, " "); got != tt.weeks {
+				t.Errorf("from %s, the weeks cost %s, want %s", tt.from, got, tt.weeks)
+			}
+		})
 	}
 }

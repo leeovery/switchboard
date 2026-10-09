@@ -64,14 +64,17 @@ type ModelTokens struct {
 	Worth
 }
 
-// tokensOf are Tokens' rows over days, a calendar week each, weeks starting
-// on the day given, each costing its plans 12/52 of a month as of its first
-// day, the week so far whole.
-func tokensOf(days []Day, p plans, v versions, weekStarts time.Weekday) []TokenWeek {
+// tokensOf are Tokens' rows over days, asked for from the day with the date
+// from, a calendar week each, weeks starting on the day given, each costing
+// its plans 12/52 of a month as of its first day, the week so far whole, but
+// for one the days asked for begin part-way through, as cutShort says.
+func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Weekday) []TokenWeek {
 	weeks := []TokenWeek{}
 	for _, s := range spansOf(days, weekKey(weekStarts)) {
 		week := tokenWeekOf(s, v)
-		week.Against = p.against(accountWorths(s.days), s.key, aWeek)
+		first, _ := civil(s.key)
+		priced, at := cutShort(s.key, first.AddDate(0, 0, 6).Format(time.DateOnly), from, aWeek)
+		week.Against = p.against(accountWorths(s.days), at, priced)
 		weeks = append(weeks, week)
 	}
 	return weeks

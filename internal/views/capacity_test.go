@@ -85,23 +85,24 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 		},
 		{
 			// Without either, the same 3 weeks are short: side, used less,
-			// is the one to drop. Without both, every week used is short.
+			// is the one to drop. With two accounts, two fewer would leave
+			// none, so it isn't given.
 			name: "a tie in the replay: the account used less is dropped", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 0.6, 1, 0.5, 1, 0.7, 0.4}, "side": {0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.2}},
-			want: `{"weeks":7,"short":3,"with_one_fewer":3,"with_two_fewer":7,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":7,"short":3,"with_one_fewer":3,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
 				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":3,"left_at_reset":0.2571428571428571,"without_it":3},` +
 				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.8,"without_it":3},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":3,"left_at_reset":0.5285714285714286}]}`,
 		},
 		{
 			// Short every week, so one fewer can be no worse: one too few
-			// holds before one more than you need, though side, unused, is
-			// still the one to drop.
+			// holds before one more than you need, and names no account to
+			// drop, nor one that could go.
 			name: "short most weeks, one fewer no worse: one too few", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 1, 1, 1, 1, 1, 1}, "side": {0, 0, 0, 0, 0, 0, 0}},
-			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_two_fewer":7,"with_one_more":0,"drop":"side","verdict":"one too few","accounts":[` +
+			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_one_more":0,"verdict":"one too few","accounts":[` +
 				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
-				`{"account":"side","verdict":"could go","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
+				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":7,"left_at_reset":0.5}]}`,
 		},
 		{
@@ -114,6 +115,17 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":7},` +
 				`{"account":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.4,"without_it":7},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":0,"left_at_reset":0.45}]}`,
+		},
+		{
+			// Side's peaks are known in the last 3 weeks alone: the replay
+			// judges those, rather than taking side to have had no room in
+			// the 4 before, which work's own verdict counts.
+			name: "weeks some account's peak isn't known in", accounts: workAndSide,
+			peaks: map[string][]float64{"work": {1, 1, 1, 1, 0.5, 0.4, 0.3}, "side": {0.2, 0.3, 0.1}},
+			want: `{"weeks":3,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.2571428571428571,"without_it":0},` +
+				`{"account":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":0},` +
+				`{"all":true,"verdict":"room to spare together","weeks":3,"limits":0,"left_at_reset":0.7}]}`,
 		},
 		{
 			name: "one account: none fewer, and none without it", accounts: workAlone,

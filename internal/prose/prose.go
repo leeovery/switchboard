@@ -43,6 +43,15 @@ func Number(n int) string {
 	return fmt.Sprint(n)
 }
 
+// Counted counts n of the thing a noun names, one or many, as "1 week" or
+// "3 weeks": a noun whose plural takes an s, as every one counted does.
+func Counted(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
 // List runs items together as a list: "a", "a and b", "a, b and c", or ""
 // for none.
 func List(items []string) string {

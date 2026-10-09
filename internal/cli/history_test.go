@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // weeksDeps are ledgerDeps whose ledger also holds the summaries of Mondays
@@ -50,9 +51,9 @@ func TestHistoryPrintsEachWeeksPeaksAndWeeksVerdicts(t *testing.T) {
 	// Of three whole weeks, work hit its limit in one; without either
 	// account, the other's peak rising by all of its, as both count as one,
 	// on no plan, that week alone is short, so side, used less, is the one to
-	// drop, and with two fewer, in one more's place, none is left for the
-	// weeks' use. This week's so far is work's highest since Monday's reset,
-	// today's; side's isn't known.
+	// drop; two fewer would leave none, so one more keeps its place. This
+	// week's so far is work's highest since Monday's reset, today's; side's
+	// isn't known.
 	want := `
 Weeks at their peaks  14 Sep  21 Sep  28 Sep  5 Oct
   work                100%    60%     50%     41%…
@@ -60,7 +61,7 @@ Weeks at their peaks  14 Sep  21 Sep  28 Sep  5 Oct
   all accounts        60%     45%     30%     41%…
 
 Weeks: two is one more than you need
-  as now: short on 1 of 3 weeks  ·  with one fewer: short on 1  ·  with two fewer: short on 3
+  as now: short on 1 of 3 weeks  ·  with one fewer: short on 1  ·  with one more: short on none
   work: ends most weeks with room  ·  limit hit 1 of 3 weeks  ·  30% left at a reset, on average  ·  without it, the rest: short on 1
   side: barely used  ·  limit hit 0 of 3 weeks  ·  80% left at a reset, on average  ·  without it, the rest: short on 1
   all accounts: room to spare together  ·  55% left at a reset, on average
@@ -93,8 +94,8 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 			`{"week":"2026-09-14","accounts":[{"account":"work","peaks":{"7d":1}},{"account":"side","peaks":{"7d":0.2}},{"all":true,"peaks":{"7d":0.6}}]},` +
 			`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.6}},{"account":"side","peaks":{"7d":0.3}},{"all":true,"peaks":{"7d":0.45}}]},` +
 			`{"week":"2026-09-28","accounts":[{"account":"work","peaks":{"7d":0.5}},{"account":"side","peaks":{"7d":0.1}},{"all":true,"peaks":{"7d":0.3}}]},` +
-			`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.41},"limits":{"5h":1}},{"account":"side"},{"all":true,"peaks":{"7d":0.41}}]}]`)},
-		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_two_fewer":3,"with_one_more":0,"drop":"side",` +
+			`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.41},"open":["7d"],"limits":{"5h":1}},{"account":"side","open":["7d"]},{"all":true,"peaks":{"7d":0.41},"open":["7d"]}]}]`)},
+		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"side",` +
 			`"verdict":"one more than you need","accounts":[` +
 			`{"account":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.3,"without_it":1},` +
 			`{"account":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":1},` +
@@ -195,6 +196,100 @@ func TestHistoryWindowsSaysSoWhereThereAreNoReadings(t *testing.T) {
 	for _, tt := range tests {
 		if got := run(t, deps, tt.args...); got != (result{stdout: tt.want}) {
 			t.Errorf("switchboard %s = %+v, want it to print\n%s", strings.Join(tt.args, " "), got, tt.want)
+		}
+	}
+}
+
+func TestHistoryOfQuotaChecksAndCountsAloneSaysThereAreNoRequests(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow }
+	configure(t, deps)
+	// Today's lines are work's quota check and its count of tokens alone.
+	var lines bytes.Buffer
+	for _, line := range []ledger.Line{fixtureLines["2026-10-07"][0], fixtureLines["2026-10-07"][5]} {
+		line.At = line.At.UTC()
+		data, err := json.Marshal(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines.Write(append(data, '\n'))
+	}
+	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "requests-2026-10-07.jsonl", lines.Bytes())
+
+	if got, want := run(t, deps, "history", "--pretty", "--since", "10:00"), (result{stdout: "no requests since Wed 7 Oct 2026\n"}); got != want {
+		t.Errorf("switchboard history --pretty = %+v, want %+v", got, want)
+	}
+	// The JSON holds the day as the ledger does, its check and count among it.
+	got := run(t, deps, "history", "--json", "--since", "10:00")
+	var doc struct {
+		Days []struct {
+			Accounts []struct {
+				Models []struct {
+					Upstream, Checks, Counts int
+				} `json:"models"`
+			} `json:"accounts"`
+		} `json:"days"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || len(doc.Days) != 1 || len(doc.Days[0].Accounts) != 1 {
+		t.Fatalf("switchboard history --json = %+v (%v), want today's day, work's alone", got, err)
+	}
+	var checks, counts, upstream int
+	for _, m := range doc.Days[0].Accounts[0].Models {
+		checks, counts, upstream = checks+m.Checks, counts+m.Counts, upstream+m.Upstream
+	}
+	if checks != 1 || counts != 1 || upstream != 0 {
+		t.Errorf("switchboard history --json gives today %d checks, %d counts and %d requests upstream, want 1, 1 and none", checks, counts, upstream)
+	}
+}
+
+// aDayOfARequest is a day of work's, of a request.
+var aDayOfARequest = []views.Day{{Version: 2, Day: "2026-10-07", Accounts: []ledger.PricedAccount{
+	{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-5-5", Upstream: 1}}},
+}}}
+
+func TestHistorysTextOfBlocksNotBuiltAsHistoryBuildsThemWritesWhatTheyGive(t *testing.T) {
+	work, all := views.AccountTotals{Account: "work"}, views.AccountTotals{All: true}
+	tests := []struct {
+		name    string
+		history views.History
+	}{
+		{name: "no blocks"},
+		{name: "totals without plans", history: views.History{Totals: views.Totals{Accounts: []views.AccountTotals{work, all}}}},
+		{name: "totals without every account's", history: views.History{Totals: views.Totals{Accounts: []views.AccountTotals{work}},
+			Plans: []views.PlanCost{{Account: "side"}}}},
+		{name: "weeks whose accounts differ", history: views.History{Weeks: []views.Week{
+			{Week: "2026-09-28", Accounts: []views.AccountWeek{{Account: "work"}, {Account: "side"}, {All: true}}},
+			{Week: "2026-10-05", Accounts: []views.AccountWeek{{All: true, Peaks: map[string]float64{"7d": 0.5}}}},
+		}}},
+		{name: "weeks judged, no account's verdict", history: views.History{Capacity: views.Capacity{Weeks: 2, Verdict: "about right"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.history.Days = aDayOfARequest
+			var out bytes.Buffer
+			if err := cli.WriteHistory(&out, tt.history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil || !strings.Contains(out.String(), "Wed 7 Oct 2026") {
+				t.Errorf("history of %s printed\n%s(%v)\nwant the day, and what the blocks give", tt.name, out.String(), err)
+			}
+		})
+	}
+}
+
+func TestHistorysTextCountsOneAsOne(t *testing.T) {
+	price := ledger.Picodollars(200_000_000_000_000)
+	history := views.History{
+		Days:     aDayOfARequest,
+		Totals:   views.Totals{Accounts: []views.AccountTotals{{Account: "work", LongestRun: 1}, {All: true, LongestRun: 1}}},
+		Plans:    []views.PlanCost{{Account: "work", Plan: "max20x", Price: &price}, {All: true, Price: &price}},
+		Capacity: views.Capacity{Weeks: 1, Verdict: "about right", Accounts: []views.AccountVerdict{{Account: "work", Verdict: "hits its limit most weeks", Weeks: 1, Limits: 1, LeftAtReset: new(0.0)}}},
+	}
+
+	var out bytes.Buffer
+	if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"$200/mo · 1 plan\n", "1 day ", "Weeks: one is about right", "short on none of 1 week  ·", "limit hit 1 of 1 week  ·"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("history printed\n%s\nwant it to say %q", out.String(), want)
 		}
 	}
 }

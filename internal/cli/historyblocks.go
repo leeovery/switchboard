@@ -55,6 +55,9 @@ func writeTotals(out io.Writer, totals views.Totals, plans []views.PlanCost, pri
 		{label: "busiest day", of: func(t views.AccountTotals, _ views.PlanCost) string { return dayText(t.BusiestDay) }},
 		{label: "longest run", of: func(t views.AccountTotals, _ views.PlanCost) string { return runText(t.LongestRun) }},
 	}
+	if len(totals.Accounts) == 0 {
+		return nil
+	}
 	head := []string{"Over these days"}
 	for _, t := range totals.Accounts {
 		head = append(head, entryName(t.Account, t.All))
@@ -62,8 +65,8 @@ func writeTotals(out io.Writer, totals views.Totals, plans []views.PlanCost, pri
 	rows := [][]string{head}
 	for _, f := range figures {
 		row := []string{"  " + f.label}
-		for i, t := range totals.Accounts {
-			row = append(row, f.of(t, plans[i]))
+		for _, t := range totals.Accounts {
+			row = append(row, f.of(t, planOf(plans, t.Account, t.All)))
 		}
 		rows = append(rows, row)
 	}
@@ -82,13 +85,25 @@ func entryName(account string, all bool) string {
 	return status.Clean(account)
 }
 
+// planOf is the plan among plans of the account with the given id, or of
+// every account's: none where plans give none.
+func planOf(plans []views.PlanCost, account string, all bool) views.PlanCost {
+	i := slices.IndexFunc(plans, func(p views.PlanCost) bool { return p.All == all && p.Account == account })
+	if i < 0 {
+		return views.PlanCost{}
+	}
+	return plans[i]
+}
+
 // byModelRows are the rows of each model version every account used, in the
-// version table's order, its share of each one's use.
+// version table's order, its share of each one's use: none where the totals
+// give no every account's.
 func byModelRows(totals views.Totals, prices ledger.Table) [][]string {
-	all := totals.Accounts[len(totals.Accounts)-1].ByModel
-	if len(all) == 0 {
+	i := slices.IndexFunc(totals.Accounts, func(t views.AccountTotals) bool { return t.All })
+	if i < 0 || len(totals.Accounts[i].ByModel) == 0 {
 		return nil
 	}
+	all := totals.Accounts[i].ByModel
 	// The heading's empty cells keep the versions' shares in the columns
 	// above them.
 	rows := [][]string{append([]string{"  by model"}, make([]string, len(totals.Accounts))...)}
@@ -121,7 +136,7 @@ func shareText(shares []views.ModelShare, model string) string {
 // moves".
 func movedText(t views.AccountTotals) string {
 	if t.All {
-		return countOf(t.MovedOn, "move", "moves")
+		return countedOrNone(t.MovedOn, "move")
 	}
 	var moved []string
 	if t.MovedOn > 0 {
@@ -136,15 +151,13 @@ func movedText(t views.AccountTotals) string {
 	return strings.Join(moved, " · ")
 }
 
-// countOf counts n of something, as "1 move" or "4 moves": "none" for none.
-func countOf(n int, one, many string) string {
-	switch n {
-	case 0:
+// countedOrNone counts n of the thing a noun names, as prose.Counted does, as
+// "4 moves": "none" for none.
+func countedOrNone(n int, noun string) string {
+	if n == 0 {
 		return "none"
-	case 1:
-		return "1 " + one
 	}
-	return fmt.Sprintf("%d %s", n, many)
+	return prose.Counted(n, noun)
 }
 
 // limitsText says the limits an account reached, by window, as "Session ×2 ·
@@ -212,16 +225,19 @@ func planText(p views.PlanCost, plans []views.PlanCost, prices ledger.Table) str
 		plan, _ := prices.Plan(p.Plan)
 		return status.Clean(plan.Name) + " · " + monthly
 	}
-	known := 0
+	known, accounts := 0, 0
 	for _, each := range plans {
+		if !each.All {
+			accounts++
+		}
 		if !each.All && each.Plan != "" {
 			known++
 		}
 	}
-	if accounts := len(plans) - 1; known < accounts {
-		return fmt.Sprintf("%s · %d of %d plans", monthly, known, accounts)
+	if known < accounts {
+		return fmt.Sprintf("%s · %d of %s", monthly, known, prose.Counted(accounts, "plan"))
 	}
-	return fmt.Sprintf("%s · %d plans", monthly, known)
+	return monthly + " · " + prose.Counted(known, "plan")
 }
 
 // worthText says what requests were worth, to the cent, and that part of it
@@ -264,12 +280,12 @@ func runText(days int) string {
 	if days == 0 {
 		return dash
 	}
-	return countOf(days, "day", "days")
+	return prose.Counted(days, "day")
 }
 
 // writeWeeks writes each week's peaks, a column a week, by its first day, a
 // row an account's week, then one of each model's own week it has, every
-// account's last, this week's so far marked "…".
+// account's last, the peak so far of a week still running marked "…".
 func writeWeeks(out io.Writer, weeks []views.Week) error {
 	if len(weeks) == 0 {
 		return nil
@@ -279,15 +295,15 @@ func writeWeeks(out io.Writer, weeks []views.Week) error {
 		head = append(head, dayFirst(w.Week))
 	}
 	rows := [][]string{head}
-	for i, entry := range weeks[0].Accounts {
-		for _, key := range peakKeys(weeks, i) {
+	for _, entry := range weeks[0].Accounts {
+		for _, key := range peakKeys(weeks, entry) {
 			label := "  " + entryName(entry.Account, entry.All)
 			if key != claude.WeekWindow {
 				label = "    " + status.Clean(claude.WindowLabel(key))
 			}
 			row := []string{label}
-			for j, w := range weeks {
-				row = append(row, peakText(w.Accounts[i].Peaks, key, j == len(weeks)-1))
+			for _, w := range weeks {
+				row = append(row, peakText(entryOf(w, entry), key))
 			}
 			rows = append(rows, row)
 		}
@@ -298,27 +314,37 @@ func writeWeeks(out io.Writer, weeks []views.Week) error {
 	return writeTable(out, rows)
 }
 
-// peakKeys are the keys of the windows any of weeks gives a peak of for its
-// accounts' entry with the index given, in quota's order: the account's
-// week's at the least.
-func peakKeys(weeks []views.Week, i int) []string {
+// entryOf is the account's entry in the week that's of the same account as
+// the one given, or of every account: none where the week gives none.
+func entryOf(week views.Week, entry views.AccountWeek) views.AccountWeek {
+	i := slices.IndexFunc(week.Accounts, func(a views.AccountWeek) bool { return a.All == entry.All && a.Account == entry.Account })
+	if i < 0 {
+		return views.AccountWeek{}
+	}
+	return week.Accounts[i]
+}
+
+// peakKeys are the keys of the windows any of weeks gives a peak of for the
+// account entry is of, in quota's order: the account's week's at the least.
+func peakKeys(weeks []views.Week, entry views.AccountWeek) []string {
 	keys := map[string]bool{claude.WeekWindow: true}
 	for _, w := range weeks {
-		for key := range w.Accounts[i].Peaks {
+		for key := range entryOf(w, entry).Peaks {
 			keys[key] = true
 		}
 	}
 	return slices.SortedFunc(maps.Keys(keys), quota.CompareKeys)
 }
 
-// peakText says a week's peak of the window with the given key among peaks,
-// as "60%", or "25%…" for this week's so far: a dash where it's not known.
-func peakText(peaks map[string]float64, key string, soFar bool) string {
-	peak, ok := peaks[key]
+// peakText says an account's week's peak of the window with the given key,
+// as "60%", or "25%…" so far, where its week is still running: a dash where
+// it's not known.
+func peakText(entry views.AccountWeek, key string) string {
+	peak, ok := entry.Peaks[key]
 	switch {
 	case !ok:
 		return dash
-	case soFar:
+	case slices.Contains(entry.Open, key):
 		return status.Percent(peak) + "…"
 	}
 	return status.Percent(peak)
@@ -343,8 +369,14 @@ func writeCapacity(out io.Writer, c views.Capacity) error {
 		_, err := fmt.Fprintln(out, "\nWeeks: not enough weeks yet")
 		return err
 	}
+	accounts := 0
+	for _, v := range c.Accounts {
+		if !v.All {
+			accounts++
+		}
+	}
 	lines := []string{
-		"", fmt.Sprintf("Weeks: %s is %s", prose.Number(len(c.Accounts)-1), c.Verdict),
+		"", fmt.Sprintf("Weeks: %s is %s", prose.Number(accounts), c.Verdict),
 		"  " + replayText(c),
 	}
 	for _, v := range c.Accounts {
@@ -363,7 +395,7 @@ func writeCapacity(out io.Writer, c views.Capacity) error {
 // on 3 of 7 weeks  ·  with one fewer: short on 6  ·  with one more: short on
 // none"; or, where one can be dropped, with two fewer in one more's place.
 func replayText(c views.Capacity) string {
-	replays := []string{fmt.Sprintf("as now: short on %s of %d weeks", shortCount(c.Short), c.Weeks)}
+	replays := []string{fmt.Sprintf("as now: short on %s of %s", shortCount(c.Short), prose.Counted(c.Weeks, "week"))}
 	if c.WithOneFewer != nil {
 		replays = append(replays, "with one fewer: short on "+shortCount(*c.WithOneFewer))
 	}
@@ -393,7 +425,7 @@ func verdictText(v views.AccountVerdict) string {
 	}
 	parts := []string{v.Verdict}
 	if !v.All {
-		parts = append(parts, fmt.Sprintf("limit hit %d of %d weeks", v.Limits, v.Weeks))
+		parts = append(parts, fmt.Sprintf("limit hit %d of %s", v.Limits, prose.Counted(v.Weeks, "week")))
 	}
 	parts = append(parts, status.Percent(*v.LeftAtReset)+" left at a reset, on average")
 	if v.WithoutIt != nil {

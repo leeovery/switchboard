@@ -149,8 +149,8 @@ type ModelDay struct {
 
 // Requests counts the requests, as every view and command counts them: the
 // messages, those that went upstream and those the router answered itself.
-// The checks and counts, which spend nothing, are counted apart, never among
-// them.
+// The checks and counts, which spend next to nothing, are counted apart,
+// never among them.
 func (m ModelDay) Requests() int {
 	return m.Upstream + m.Unsent
 }

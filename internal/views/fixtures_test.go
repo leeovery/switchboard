@@ -53,8 +53,14 @@ func (ledgerOf) Session(string) iter.Seq[ledger.Held] { return func(func(ledger.
 // daysFrom are the summaries of each day from the one with the date first
 // to today's, of no requests but those given, by their days.
 func daysFrom(first string, given ...ledger.Summary) []ledger.Summary {
+	return daysTo(first, now, given...)
+}
+
+// daysTo are the summaries of each day from the one with the date first to
+// the one last falls on, as daysFrom gives them.
+func daysTo(first string, last time.Time, given ...ledger.Summary) []ledger.Summary {
 	var days []ledger.Summary
-	for day := on(first); !day.After(now); day = day.AddDate(0, 0, 1) {
+	for day := on(first); !day.After(last); day = day.AddDate(0, 0, 1) {
 		date := day.Format(time.DateOnly)
 		summary := ledger.Summary{Version: 2, Day: date}
 		for _, s := range given {
@@ -120,17 +126,13 @@ func family(model string) string {
 // 20x, side, on Pro, and spare, on a plan not known.
 var accounts = config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "pro"}, {ID: "spare"}}
 
-// input is what the views' tests build a History from: the days given, from
-// the first day's, by the built-in price table, with accounts configured,
-// the weeks starting on Monday, and the accounts' weeks those of the window
-// 7d.
+// input is what the views' tests build a History from: the days given, asked
+// for from a day before the ledger began, so its first day cuts no period
+// short, by the built-in price table, with accounts configured, the weeks
+// starting on Monday, and the accounts' weeks those of the window 7d.
 func input(days []ledger.Summary) views.HistoryInput {
-	from := now
-	if len(days) > 0 {
-		from = on(days[0].Day)
-	}
 	return views.HistoryInput{
-		Ledger: ledgerOf(days), From: from, Now: now, Prices: ledger.Pricing,
+		Ledger: ledgerOf(days), From: on("2026-01-01"), Now: now, Prices: ledger.Pricing,
 		Accounts: accounts, WeekStarts: time.Monday, WeekWindow: "7d", Family: family,
 	}
 }

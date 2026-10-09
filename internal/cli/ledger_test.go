@@ -407,13 +407,13 @@ const historyFromThe6th = `Tue 6 Oct 2026
 
 // historyOfToday is what history prints of today's table: side's request,
 // canceled, gave no usage, so its worth isn't known; and work's quota check
-// and count of tokens are no requests.
+// and count of tokens are no requests, so its Claude Haiku 4.5, of its check
+// alone, has no row.
 const historyOfToday = `Wed 7 Oct 2026, so far
-  no account  claude-opus-5-5   1 request   0 tokens     1 session    $0.00
-  side        claude-opus-5-5   1 request   0 tokens     1 session    $0.00, part unpriced
-  work        claude-haiku-4-5  0 requests  9 tokens     no sessions  $0.00
-              claude-opus-5-5   1 request   186k tokens  1 session    $0.08
-              claude-opus-9     1 request   110 tokens   1 session    unpriced
+  no account  claude-opus-5-5  1 request  0 tokens     1 session  $0.00
+  side        claude-opus-5-5  1 request  0 tokens     1 session  $0.00, part unpriced
+  work        claude-opus-5-5  1 request  186k tokens  1 session  $0.08
+              claude-opus-9    1 request  110 tokens   1 session  unpriced
   side: 1 session  ·  highest: Session 10%
   work: 2 sessions  ·  highest: Session 30%, Week 41%
 `
