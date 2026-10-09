@@ -62,3 +62,12 @@ only when something rare happens.
   `s.entries()`, which groups and sorts the assignments of every session in the last hour, to
   report the one asked for, and statuslines ask for it often. A fix: gather that one session's
   entries alone, sorted by `byUse`, as `lastUsed` finds its newest.
+
+## Found while building milestone 7's stage 2, 9 October 2026
+
+- **`TestTheRequestStreamTellsOfTheRequestsARestartFinishes` failed once,** in a full gate run
+  beside three others: "the stream told of [], want the request it finished done". The first
+  reader's stream closed as the router restarted without telling of the request it finished. It
+  passed 20 times alone since, and in the next full gate, and stage 2 doesn't touch the router's
+  stream. Not yet looked into: what closes that reader's stream before the request's `done` under
+  load.
