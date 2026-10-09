@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-10-09
+
+✨ Added
+- The router now keeps a persistent record of its events across restarts, with a reader that merges each event's versions back together.
+- Usage readings now include extra usage — its status, how much is used and when it resets — and carry it through probes, the state file and the status document.
+- New "cap" events tell when an account reaches its reserve, and the sessions that cap moved are counted on it.
+- Pin and unpin events record who set or cleared routing (CLI or dashboard), for the global pin and for a session's own.
+- Moves forced off an account now name what held the request back — a limit, a reserve or a refusal — and are linked to the event that counted them.
+- "Room again" events list the windows that had held an account back.
+- Day summaries in the request ledger now record session ids, how far each window rose, resets, and the minutes each account spent at its cap and at a limit.
+- Sessions report the directory they were started in and whether a request is asking or answering.
+
+🔧 Changed
+- Refusals that renew while one is in force now join the same event, and moves they forced are counted on it.
+- The `requests` command now needs a config, since it summarises days with each account's caps.
+- Older request-ledger summaries are rebuilt once from their lines, so they gain the new fields.
+
 ## [0.1.2] - 2026-10-08
 
 ✨ Added
