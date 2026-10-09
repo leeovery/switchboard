@@ -1,6 +1,8 @@
 package views
 
 import (
+	"slices"
+
 	"github.com/leeovery/switchboard/internal/config"
 )
 
@@ -29,13 +31,16 @@ const (
 // WithOneFewer, how many a replay with an account fewer finds, dropping the
 // one whose loss makes the fewest short, left out with one account; and
 // WithOneMore, how many a replay with one more does. Drop is the account
-// whose loss makes no more short than now, where there's one. Verdict is the
-// headline, as Weeks words it. Accounts are each configured account's
-// verdict, in the config's order, then every account's together.
+// whose loss makes no more short than now, where there's one, and
+// WithTwoFewer, there, how many a replay without it and the one of the rest
+// dropped as it was finds. Verdict is the headline, as Weeks words it.
+// Accounts are each configured account's verdict, in the config's order,
+// then every account's together.
 type Capacity struct {
 	Weeks        int              `json:"weeks"`
 	Short        int              `json:"short"`
 	WithOneFewer *int             `json:"with_one_fewer,omitempty"`
+	WithTwoFewer *int             `json:"with_two_fewer,omitempty"`
 	WithOneMore  int              `json:"with_one_more"`
 	Drop         string           `json:"drop,omitempty"`
 	Verdict      string           `json:"verdict,omitempty"`
@@ -72,10 +77,10 @@ func capacityOf(placed []placedWeek, whole func(week string) bool, accounts conf
 		without[x] = r.count(func(week []peak) bool { return r.shortWithout(week, x) })
 	}
 	if several {
-		fewest := fewest(without, records)
-		c.WithOneFewer = &without[fewest]
-		if c.Weeks > 0 && without[fewest] <= c.Short {
-			c.Drop = accounts[fewest].ID
+		fewer := fewest(without, records, -1)
+		c.WithOneFewer = &without[fewer]
+		if c.Weeks > 0 && without[fewer] <= c.Short {
+			c.Drop, c.WithTwoFewer = accounts[fewer].ID, r.withTwoFewer(fewer, records)
 		}
 	}
 	if c.Weeks > 0 {
@@ -98,26 +103,44 @@ func capacityOf(placed []placedWeek, whole func(week string) bool, accounts conf
 	return c
 }
 
-// headline is Weeks' headline: one more than you need, where one fewer would
-// be short on no more weeks than now; one too few, where now is short on 4
-// or more of every 7 and one more would halve that; else about right.
+// headline is Weeks' headline: one too few, where now is short on 4 or more
+// of every 7 and one more would halve that; else one more than you need,
+// where one fewer would be short on no more weeks than now; else about
+// right. One too few comes first: where every week is short already, one
+// fewer can't be short on more, so one more than you need would hold too.
 func (c Capacity) headline() string {
 	switch {
-	case c.WithOneFewer != nil && *c.WithOneFewer <= c.Short:
-		return oneMoreThanYouNeed
 	case 7*c.Short >= 4*c.Weeks && 2*c.WithOneMore <= c.Short:
 		return oneTooFew
+	case c.WithOneFewer != nil && *c.WithOneFewer <= c.Short:
+		return oneMoreThanYouNeed
 	}
 	return aboutRight
 }
 
-// fewest is the index of the account whose loss makes the fewest weeks
-// short, by without, of those that tie the one that used least of its
-// weeks, by their records, and of those the first configured.
-func fewest(without []int, records []record) int {
-	best := 0
-	for x := 1; x < len(without); x++ {
-		if without[x] < without[best] || without[x] == without[best] && records[x].usedLess(records[best]) {
+// withTwoFewer is how many weeks a replay with two accounts fewer finds:
+// without the account with index dropped, and the one of the rest whose loss
+// then makes the fewest weeks short, as fewest finds it.
+func (r replay) withTwoFewer(dropped int, records []record) *int {
+	without := make([]int, len(records))
+	for x := range records {
+		if x != dropped {
+			without[x] = r.count(func(week []peak) bool { return r.shortWithout(week, dropped, x) })
+		}
+	}
+	return &without[fewest(without, records, dropped)]
+}
+
+// fewest is the index of the account, but the one with index except, whose
+// loss makes the fewest weeks short, by without, of those that tie the one
+// that used least of its weeks, by their records, and of those the first
+// configured.
+func fewest(without []int, records []record, except int) int {
+	best := -1
+	for x := range without {
+		switch {
+		case x == except:
+		case best < 0, without[x] < without[best], without[x] == without[best] && records[x].usedLess(records[best]):
 			best = x
 		}
 	}
@@ -211,17 +234,19 @@ func (r replay) shortAsNow(week []peak) bool {
 }
 
 // shortWithout reports whether the week would have been short without the
-// account with index x: its peak times its size is shared among the rest by
-// their sizes, so each one's peak rises by that over all their sizes, and
-// it's short where any would reach 100%. Where no other's peak is known, it's
-// short where x used any of its week.
-func (r replay) shortWithout(week []peak, x int) bool {
+// accounts with the indexes dropped: each one's peak times its size is shared
+// among the rest by their sizes, so each of theirs rises by all of that over
+// all their sizes, and it's short where any would reach 100%. Where no other
+// account's peak is known, it's short where those dropped used any of their
+// weeks.
+func (r replay) shortWithout(week []peak, dropped ...int) bool {
 	var load, room int64
-	if week[x].known {
-		load = int64(week[x].use) * r.sizes[x]
-	}
 	for j, p := range week {
-		if j != x && p.known {
+		switch {
+		case !p.known:
+		case slices.Contains(dropped, j):
+			load += int64(p.use) * r.sizes[j]
+		default:
 			room += r.sizes[j]
 		}
 	}
@@ -229,7 +254,7 @@ func (r replay) shortWithout(week []peak, x int) bool {
 		return load > 0
 	}
 	for j, p := range week {
-		if j != x && p.known && int64(p.use)*room+load >= int64(whole)*room {
+		if p.known && !slices.Contains(dropped, j) && int64(p.use)*room+load >= int64(whole)*room {
 			return true
 		}
 	}

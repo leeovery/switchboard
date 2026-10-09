@@ -50,8 +50,9 @@ func TestHistoryPrintsEachWeeksPeaksAndWeeksVerdicts(t *testing.T) {
 	// Of three whole weeks, work hit its limit in one; without either
 	// account, the other's peak rising by all of its, as both count as one,
 	// on no plan, that week alone is short, so side, used less, is the one to
-	// drop. This week's so far is work's highest since Monday's reset, today's;
-	// side's isn't known.
+	// drop, and with two fewer, in one more's place, none is left for the
+	// weeks' use. This week's so far is work's highest since Monday's reset,
+	// today's; side's isn't known.
 	want := `
 Weeks at their peaks  14 Sep  21 Sep  28 Sep  5 Oct
   work                100%    60%     50%     41%…
@@ -59,7 +60,7 @@ Weeks at their peaks  14 Sep  21 Sep  28 Sep  5 Oct
   all accounts        60%     45%     30%     41%…
 
 Weeks: two is one more than you need
-  as now: short on 1 of 3 weeks  ·  with one fewer: short on 1  ·  with one more: short on none
+  as now: short on 1 of 3 weeks  ·  with one fewer: short on 1  ·  with two fewer: short on 3
   work: ends most weeks with room  ·  limit hit 1 of 3 weeks  ·  30% left at a reset, on average  ·  without it, the rest: short on 1
   side: barely used  ·  limit hit 0 of 3 weeks  ·  80% left at a reset, on average  ·  without it, the rest: short on 1
   all accounts: room to spare together  ·  55% left at a reset, on average
@@ -93,7 +94,7 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 			`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.6}},{"account":"side","peaks":{"7d":0.3}},{"all":true,"peaks":{"7d":0.45}}]},` +
 			`{"week":"2026-09-28","accounts":[{"account":"work","peaks":{"7d":0.5}},{"account":"side","peaks":{"7d":0.1}},{"all":true,"peaks":{"7d":0.3}}]},` +
 			`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.41},"limits":{"5h":1}},{"account":"side"},{"all":true,"peaks":{"7d":0.41}}]}]`)},
-		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"side",` +
+		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_two_fewer":3,"with_one_more":0,"drop":"side",` +
 			`"verdict":"one more than you need","accounts":[` +
 			`{"account":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.3,"without_it":1},` +
 			`{"account":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":1},` +

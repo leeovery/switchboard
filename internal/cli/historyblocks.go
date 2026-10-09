@@ -361,13 +361,17 @@ func writeCapacity(out io.Writer, c views.Capacity) error {
 // replayText says how many weeks were short as the accounts stand, with one
 // fewer, where there's more than one, and with one more, as "as now: short
 // on 3 of 7 weeks  ·  with one fewer: short on 6  ·  with one more: short on
-// none".
+// none"; or, where one can be dropped, with two fewer in one more's place.
 func replayText(c views.Capacity) string {
 	replays := []string{fmt.Sprintf("as now: short on %s of %d weeks", shortCount(c.Short), c.Weeks)}
 	if c.WithOneFewer != nil {
 		replays = append(replays, "with one fewer: short on "+shortCount(*c.WithOneFewer))
 	}
-	replays = append(replays, "with one more: short on "+shortCount(c.WithOneMore))
+	if c.WithTwoFewer != nil {
+		replays = append(replays, "with two fewer: short on "+shortCount(*c.WithTwoFewer))
+	} else {
+		replays = append(replays, "with one more: short on "+shortCount(c.WithOneMore))
+	}
 	return strings.Join(replays, status.Separator)
 }
 

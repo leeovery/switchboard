@@ -70,12 +70,14 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 		{
 			// By their plans, 20, 5 and 1 Pros, the rest cover side or
 			// spare: of the two, spare used less, so it's the one to drop.
-			// Spare could go; side, used more than a tenth, is barely used.
+			// Without it, work covers side too, though side can't cover
+			// work. Spare could go; side, used more than a tenth, is barely
+			// used.
 			name:     "one more than you need, by the accounts' plans",
 			accounts: config.Accounts{{ID: "work", Plan: "max20x"}, {ID: "side", Plan: "max5x"}, {ID: "spare", Plan: "pro"}},
 			peaks: map[string][]float64{"work": {0.5, 0.6, 0.4, 0.5, 0.6, 0.5, 0.4}, "side": {0.2, 0.2, 0.3, 0.2, 0.2, 0.3, 0.2},
 				"spare": {0.05, 0.1, 0, 0.05, 0.1, 0.05, 0}},
-			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"spare","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_two_fewer":0,"with_one_more":0,"drop":"spare","verdict":"one more than you need","accounts":[` +
 				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":7},` +
 				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.7714285714285715,"without_it":0},` +
 				`{"account":"spare","verdict":"could go","weeks":7,"limits":0,"left_at_reset":0.95,"without_it":0},` +
@@ -83,20 +85,21 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 		},
 		{
 			// Without either, the same 3 weeks are short: side, used less,
-			// is the one to drop.
+			// is the one to drop. Without both, every week used is short.
 			name: "a tie in the replay: the account used less is dropped", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 0.6, 1, 0.5, 1, 0.7, 0.4}, "side": {0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.2}},
-			want: `{"weeks":7,"short":3,"with_one_fewer":3,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":7,"short":3,"with_one_fewer":3,"with_two_fewer":7,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
 				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":3,"left_at_reset":0.2571428571428571,"without_it":3},` +
 				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.8,"without_it":3},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":3,"left_at_reset":0.5285714285714286}]}`,
 		},
 		{
-			// Short every week, but one fewer is no worse: Weeks' first
-			// headline holds before its second.
-			name: "short most weeks, one fewer no worse", accounts: workAndSide,
+			// Short every week, so one fewer can be no worse: one too few
+			// holds before one more than you need, though side, unused, is
+			// still the one to drop.
+			name: "short most weeks, one fewer no worse: one too few", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 1, 1, 1, 1, 1, 1}, "side": {0, 0, 0, 0, 0, 0, 0}},
-			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
+			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_two_fewer":7,"with_one_more":0,"drop":"side","verdict":"one too few","accounts":[` +
 				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
 				`{"account":"side","verdict":"could go","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":7,"left_at_reset":0.5}]}`,
