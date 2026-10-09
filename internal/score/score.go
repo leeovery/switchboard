@@ -1,10 +1,11 @@
 // Package score judges accounts by their usage windows: which have lapsed,
 // how far through each window they are, how fast it's being used and where
-// its use is heading, whether an account can take a request, within its
-// limits or within its reserve, whether it's under pressure, how urgently its
-// quota needs using, and which account to use next. Every
-// function is pure and is handed the clock. None knows a provider's windows
-// by name: a Policy names the ones that matter.
+// its use is heading, what can be spent of it and still last to its reset,
+// whether an account can take a request, within its limits or within its
+// reserve, whether it's under pressure, how urgently its quota needs using,
+// and which account to use next. Every function is pure and is handed the
+// clock. None knows a provider's windows by name: a Policy names the ones
+// that matter.
 package score
 
 import (

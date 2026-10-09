@@ -73,6 +73,63 @@ func statusDocument(t *testing.T, deps cli.Deps) result {
   },
   "best": "work",
   "primary": "work",
+  "pool": {
+    "accounts": [
+      "work",
+      "personal",
+      "side"
+    ],
+    "windows": [
+      {
+        "key": "5h",
+        "label": "Session",
+        "room": 0.72,
+        "used": 0.76,
+        "pace": 0.006666666666666667
+      },
+      {
+        "key": "7d",
+        "label": "Week",
+        "room": 0.019999999999999907,
+        "used": 0.9933333333333334,
+        "pace": 0.3821428571428571
+      },
+      {
+        "key": "7d_oi",
+        "label": "Fable week",
+        "room": 0,
+        "used": 1,
+        "pace": 0.21448412698412697
+      }
+    ]
+  },
+  "coming_up": [
+    {
+      "at": "2026-09-28T14:34:50.322580645Z",
+      "account": "work",
+      "kind": "runs_out",
+      "window": "7d",
+      "cap": true
+    },
+    {
+      "at": "2026-09-28T18:10:00Z",
+      "account": "work",
+      "kind": "reset",
+      "window": "5h"
+    },
+    {
+      "at": "2026-10-02T21:00:00Z",
+      "account": "work",
+      "kind": "reset",
+      "window": "7d"
+    },
+    {
+      "at": "2026-10-04T01:10:00Z",
+      "account": "work",
+      "kind": "back",
+      "window": "7d_oi"
+    }
+  ],
   "accounts": [
     {
       "id": "work",
@@ -87,21 +144,32 @@ func statusDocument(t *testing.T, deps cli.Deps) result {
           "label": "Session",
           "utilization": 0.23,
           "resets_at": "2026-09-28T18:10:00Z",
-          "status": "allowed"
+          "status": "allowed",
+          "pace": 0.006666666666666667,
+          "allowance": {
+            "share": 0.14496644295302014,
+            "per": "hour"
+          }
         },
         {
           "key": "7d",
           "label": "Week",
           "utilization": 0.93,
           "resets_at": "2026-10-02T21:00:00Z",
-          "status": "allowed_warning"
+          "status": "allowed_warning",
+          "pace": 0.3821428571428571,
+          "allowance": {
+            "share": 0.0046242774566473775,
+            "per": "day"
+          }
         },
         {
           "key": "7d_oi",
           "label": "Fable week",
           "utilization": 1,
           "resets_at": "2026-10-04T01:10:00Z",
-          "status": "rejected"
+          "status": "rejected",
+          "pace": 0.21448412698412697
         }
       ]
     },

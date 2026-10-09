@@ -40,11 +40,8 @@ type standing struct {
 // hold lifts off it, as Lifts says, and not lapsed, as no request can start
 // it then.
 func standingOf(doc status.Document, a status.Account, w quota.Window, now time.Time, policy score.Policy) standing {
-	s := standing{account: a.ID, window: w, heading: doc.Project(a, w, now), floor: 1}
+	s := standing{account: a.ID, window: w, heading: doc.Project(a, w, now), floor: doc.Floor(a)}
 	s.out, s.runsOut = doc.RunsOut(a, w, now)
-	if doc.ReserveHolds(a) {
-		s.floor = 1 - a.Reserve
-	}
 	if held, ok := a.Held(now, policy); ok && held.Holds(w.Key) {
 		s.held, s.back, s.since = true, held.Lifts(w.Key), limitedSince(doc, a, w, now)
 	}

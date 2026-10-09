@@ -54,9 +54,10 @@ func newSource(now time.Time, samples []sample, best string, events ...status.Ev
 	return source{doc: doc, health: health, sessions: sessions, trails: trailsOf(samples, now), now: now}
 }
 
-// Read reads the router's document, whatever the read asks.
+// Read reads the router's document, whatever the read asks, with what's
+// worked out of it, as the router gives it.
 func (s source) Read(context.Context, status.Read) (status.Document, router.Health, error) {
-	return s.doc, s.health, nil
+	return s.doc.WorkedOut(claude.Policy), s.health, nil
 }
 
 // Pin takes the order, and changes nothing.

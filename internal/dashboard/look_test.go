@@ -31,7 +31,7 @@ var claude = score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebre
 // threeAccounts is the router's document of three accounts, their windows
 // heading every way: work, the primary, keeping pace; personal held back by
 // the limit its session reached; and side, where new sessions go, its Fable
-// week used.
+// week used. It has what's worked out of it, as the dashboard is given it.
 func threeAccounts() status.Document {
 	window := func(key, label string, used float64, resetsIn time.Duration) quota.Window {
 		return quota.Window{Key: key, Label: label, Utilization: used, ResetsAt: now.Add(resetsIn).UTC()}
@@ -52,7 +52,7 @@ func threeAccounts() status.Document {
 	}
 	doc.Accounts[0].Primary = true
 	doc.Accounts[1].Limit = status.Limit{Windows: []string{"5h"}, Until: limited.ResetsAt}
-	return doc
+	return doc.WorkedOut(claude)
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
