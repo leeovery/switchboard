@@ -33,6 +33,40 @@ const (
 	// session's own pin sends it, as its account can't take the request,
 	// which account and why following, as in "pin yields: side has no room".
 	ReasonPinYields = "pin yields: "
+	// ReasonSticky is the session's account, kept while its cache there is
+	// warm.
+	ReasonSticky = "sticky"
+	// ReasonBound is the session's account, kept once its cache has gone
+	// cold, as its model's thinking is bound to it.
+	ReasonBound = "bound"
+	// ReasonRescored starts the reason for choosing afresh the account of a
+	// session that idled, as Rescored gives it.
+	ReasonRescored = "rescored after "
+	// ReasonBack is a session going back to the account it was on before a
+	// request every account it went out on refused.
+	ReasonBack = "back where it was before its request"
+)
+
+// rescoredIdle ends the reason Rescored gives.
+const rescoredIdle = " idle"
+
+// Rescored is the reason for choosing afresh the account of a session that
+// idled for as long as idle says, as in "rescored after 15h idle".
+func Rescored(idle string) string {
+	return ReasonRescored + idle + rescoredIdle
+}
+
+// Why an account can't take a request, as the reasons for leaving it, after
+// ReasonMovedOff or ReasonPinYields and the account, give it.
+const (
+	// WhyReserve is an account held back by its reserve alone.
+	WhyReserve = "is at its reserve"
+	// WhyLimit is an account that answered the request with a limit reached.
+	WhyLimit = "hit its limit"
+	// WhyRefused is an account that refused the request.
+	WhyRefused = "was refused"
+	// WhyNoRoom is an account with no room for the request otherwise.
+	WhyNoRoom = "has no room"
 )
 
 // What a request of an assignment's model in flight is doing, as an

@@ -18,8 +18,8 @@ const cacheLife = time.Hour
 const (
 	reasonPinned      = status.ReasonPinned
 	reasonMovedByPin  = status.ReasonMovedByPin
-	reasonSticky      = "sticky"
-	reasonBound       = "bound"
+	reasonSticky      = status.ReasonSticky
+	reasonBound       = status.ReasonBound
 	reasonGlobalPin   = status.ReasonGlobalPin
 	reasonNew         = status.ReasonNew
 	reasonUnsessioned = "unsessioned"
@@ -262,7 +262,7 @@ func (s situation) why() (reason, preferred string, forced bool) {
 	case !s.assigned:
 		return reasonNew, "", false
 	case s.movesFree():
-		return "rescored after " + status.Countdown(s.current.LastSeen, s.now) + " idle", s.current.Account, false
+		return status.Rescored(status.Countdown(s.current.LastSeen, s.now)), s.current.Account, false
 	default:
 		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account), "", true
 	}
@@ -276,9 +276,9 @@ func (s situation) unable(id string) string {
 	case tried:
 		return a.Why
 	case s.accounts.reserved(id):
-		return "is at its reserve"
+		return status.WhyReserve
 	default:
-		return "has no room"
+		return status.WhyNoRoom
 	}
 }
 
