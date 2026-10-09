@@ -11,6 +11,9 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -54,9 +57,9 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     size,
-		Ledger:   fakeLedger{},
-		Readings: fakeReadings{},
-		Events:   fakeEvents{},
+		Ledger:   ledger.NewEmpty(clock.read, ledger.Caps{Shared: claude.SharedWindows}),
+		Readings: readings.Empty{},
+		Events:   events.Empty{},
 	}
 	dressed(&cfg, f.theme, f.colourless)
 	m := watch.New(context.Background(), cfg)

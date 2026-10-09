@@ -63,9 +63,7 @@ func readingsOf(read ...readings.Reading) ledger.Readings {
 }
 
 // noReadings gives no readings, as a readings history that holds none.
-func noReadings(time.Time, time.Time) iter.Seq[readings.Reading] {
-	return func(func(readings.Reading) bool) {}
-}
+var noReadings = readings.Empty{}.Between
 
 // workRead is work's window with the given key read at at, at u of its use,
 // resetting at resets, with the status given.

@@ -38,3 +38,10 @@ func TestAReaderOfAStateDirectoryThatIsntThereReadsNothing(t *testing.T) {
 		t.Errorf("the state directory is there (%v), want it left as it was, not there", err)
 	}
 }
+
+func TestAnEmptyHistoryReadsNothing(t *testing.T) {
+	from := time.Date(2026, 9, 27, 0, 0, 0, 0, time.Local)
+	if got := slices.Collect(readings.Empty{}.Between(from, from.AddDate(0, 0, 1))); len(got) > 0 {
+		t.Errorf("Between() = %+v, want none", got)
+	}
+}

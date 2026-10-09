@@ -2,7 +2,6 @@ package watch
 
 import (
 	"context"
-	"iter"
 	"regexp"
 	"slices"
 	"strings"
@@ -75,7 +74,7 @@ func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
-		Interval: interval, Policy: policy, Size: size, Ledger: fakeLedger{}, Readings: fakeReadings{}, Events: fakeEvents{},
+		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})
 	return h
 }
@@ -529,29 +528,10 @@ func (n *fakeNotifier) Notify(message string) error {
 	return n.err
 }
 
-// fakeLedger reads as a request ledger that holds no line.
-type fakeLedger struct{}
-
-func (fakeLedger) Days(time.Time) []ledger.Summary { return nil }
-
-func (fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
-	return nil, ledger.Mark{}, false
-}
-
-func (fakeLedger) Session(string) iter.Seq[ledger.Held] { return func(func(ledger.Held) bool) {} }
-
-// fakeReadings reads as a readings history that holds no reading.
-type fakeReadings struct{}
-
-func (fakeReadings) Between(time.Time, time.Time) iter.Seq[readings.Reading] {
-	return func(func(readings.Reading) bool) {}
-}
-
-// fakeEvents reads as the router's events where there are none.
-type fakeEvents struct{}
-
-func (fakeEvents) Between(time.Time, time.Time) iter.Seq[events.Line] {
-	return func(func(events.Line) bool) {}
+// emptyLedger reads as a request ledger that holds no line, by the test's
+// clock.
+func (h *harness) emptyLedger() ledger.Empty {
+	return ledger.NewEmpty(h.clock.Now, ledger.Caps{Shared: policy.Shared})
 }
 
 // window is a window resetting a duration after the clock starts.

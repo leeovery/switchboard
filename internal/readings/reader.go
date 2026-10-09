@@ -25,3 +25,12 @@ func NewReader(stateDir string, logger *slog.Logger) *Reader {
 func (r *Reader) Between(from, to time.Time) iter.Seq[Reading] {
 	return Between(r.files, from, to)
 }
+
+// Empty reads as a readings history that holds no reading, with no files to
+// read: for one who reads the history where there's none to find.
+type Empty struct{}
+
+// Between returns no reading.
+func (Empty) Between(time.Time, time.Time) iter.Seq[Reading] {
+	return func(func(Reading) bool) {}
+}

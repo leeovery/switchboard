@@ -11,7 +11,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -591,7 +593,7 @@ func themedHarness(t *testing.T, choice theme.Choice) (*harness, *fakeThemes) {
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Interval: interval, Policy: policy,
 		Size: Size{Width: 150, Height: 50}, Choice: choice, Pair: themes.listing.Pair(choice), Themes: themes,
-		Ledger: fakeLedger{}, Readings: fakeReadings{}, Events: fakeEvents{},
+		Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})
 	return h, themes
 }

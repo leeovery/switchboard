@@ -14,6 +14,9 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -45,9 +48,9 @@ func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, 
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     s.Size,
-		Ledger:   fakeLedger{},
-		Readings: fakeReadings{},
-		Events:   fakeEvents{},
+		Ledger:   ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}),
+		Readings: readings.Empty{},
+		Events:   events.Empty{},
 	}
 	dressed(&cfg, s.theme, s.colourless)
 	return live{Model: watch.New(context.Background(), cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}
