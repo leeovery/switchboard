@@ -3,6 +3,7 @@ package views_test
 import (
 	"encoding/json"
 	"iter"
+	"maps"
 	"reflect"
 	"slices"
 	"testing"
@@ -116,6 +117,11 @@ func (f fakeLedger) Days(time.Time) []ledger.Summary {
 	return f.summaries
 }
 
+func (f fakeLedger) DaysBefore(t time.Time) []ledger.Summary {
+	date := t.Local().Format(time.DateOnly)
+	return slices.DeleteFunc(slices.Clone(f.summaries), func(s ledger.Summary) bool { return s.Day >= date })
+}
+
 func (f fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 	start := dayfile.DayStart(f.now, 0)
 	var today []ledger.Held
@@ -201,8 +207,10 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-10-07", Sessions: []views.ListedSession{
 		{
 			Session: older, Dir: "~/Code/api", Account: "work", Model: opus, Running: true, LastSeen: utc(october(7, 13, 10)),
-			Models:   []views.SessionModel{{Model: opus, Account: "work", Reason: "sticky"}},
-			MoveCost: cost(hourRewrite), Started: utc(october(6, 22, 0)), Requests: 1, Worth: micro(hourWorth),
+			// Its last request ended at 9:00, and its cache with it, however
+			// lately the router saw it.
+			Models:  []views.SessionModel{{Model: opus, Account: "work", Reason: "sticky"}},
+			Started: utc(october(6, 22, 0)), Requests: 1, Worth: micro(hourWorth),
 		},
 		{
 			Session: mover, Dir: "~/Code/cli", Account: "side", Model: opus, Running: true, LastSeen: utc(october(7, 13, 11)),
@@ -284,6 +292,42 @@ func TestAMovesCostIsLeftOutWhereTheSessionsCacheWouldHaveRunOut(t *testing.T) {
 			running := []status.Session{{ID: mover, Assignments: []status.Assignment{
 				{Model: opus, Account: "work", Reason: "new", InFlight: tt.inFlight, LastSeen: seen},
 			}}}
+			got := views.ListSessions(views.SessionSources{Running: running, Ledger: l, Prices: ledger.Pricing, Now: now})
+			if len(got.Sessions) != 1 || !reflect.DeepEqual(got.Sessions[0].MoveCost, tt.want) {
+				t.Errorf("the List holds %+v, want one session, its move cost %v", got.Sessions, amount(tt.want))
+			}
+		})
+	}
+}
+
+func TestAMovesCostIsIdleFromTheEndOfTheRequestItPrices(t *testing.T) {
+	ago := func(d time.Duration) time.Time { return now.Add(-d) }
+	tests := []struct {
+		name string
+		// took is how long the turn it prices took, arriving 70 minutes ago;
+		// flying, the model a request of which is in flight, if any.
+		took   time.Duration
+		flying string
+		want   *ledger.Picodollars
+	}{
+		{name: "over its cache's hour since it ended, a side request of another model since keeping nothing warm"},
+		{name: "within its cache's hour since it ended, though it arrived longer ago", took: 15 * time.Minute, want: cost(hourRewrite)},
+		{name: "over its cache's hour since it ended, another model's request in flight", flying: haiku},
+		{name: "a request of its model in flight", flying: opus, want: cost(hourRewrite)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			turn := of("main", line(mover, opus, "work", "new", ago(70*time.Minute), hourUsage))
+			turn.TotalMS = tt.took.Milliseconds()
+			l := fakeLedger{now: now, lines: []ledger.Line{turn, of("auxiliary", line(mover, haiku, "work", "new", ago(2*time.Minute), smallUsage))}}
+			assignment := func(model string, seen time.Time) status.Assignment {
+				a := status.Assignment{Model: model, Account: "work", Reason: "sticky", LastSeen: seen}
+				if model == tt.flying {
+					a.InFlight = status.Asking
+				}
+				return a
+			}
+			running := []status.Session{{ID: mover, Assignments: []status.Assignment{assignment(haiku, ago(2*time.Minute)), assignment(opus, ago(70*time.Minute))}}}
 			got := views.ListSessions(views.SessionSources{Running: running, Ledger: l, Prices: ledger.Pricing, Now: now})
 			if len(got.Sessions) != 1 || !reflect.DeepEqual(got.Sessions[0].MoveCost, tt.want) {
 				t.Errorf("the List holds %+v, want one session, its move cost %v", got.Sessions, amount(tt.want))
@@ -416,6 +460,58 @@ func TestAMoveOnAnEarlierDayIsntToday(t *testing.T) {
 	got := views.ListSessions(views.SessionSources{Ledger: l, Prices: ledger.Pricing, Now: now})
 	if len(got.Sessions) != 1 || got.Sessions[0].Moved != nil || !got.Sessions[0].Started.Equal(october(6, 23, 0)) || got.Sessions[0].Requests != 1 {
 		t.Errorf("the List holds %+v, want one session, started yesterday, with today's request alone, and no move today", got.Sessions)
+	}
+}
+
+// readCounts count a ledger's reads: of each day's lines, by its date, of a
+// session's lines, and of the days' summaries from a day to today's.
+type readCounts struct {
+	dayLines       map[string]int
+	sessions, days int
+}
+
+// countedLedger is a fakeLedger that counts its reads.
+type countedLedger struct {
+	fakeLedger
+	counts *readCounts
+}
+
+func (c countedLedger) DayLines(date string) iter.Seq[ledger.Line] {
+	c.counts.dayLines[date]++
+	return c.fakeLedger.DayLines(date)
+}
+
+func (c countedLedger) Session(id string) iter.Seq[ledger.Held] {
+	c.counts.sessions++
+	return c.fakeLedger.Session(id)
+}
+
+func (c countedLedger) Days(from time.Time) []ledger.Summary {
+	c.counts.days++
+	return c.fakeLedger.Days(from)
+}
+
+func TestTheListReadsEachEarlierDayItNeedsOnceAndNeverSummarisesToday(t *testing.T) {
+	counts := &readCounts{dayLines: make(map[string]int)}
+	l := countedLedger{counts: counts, now: now,
+		summaries: []ledger.Summary{naming("2026-10-05", rescored), naming("2026-10-06", older, mover)},
+		lines: []ledger.Line{
+			line(rescored, opus, "work", "new", october(5, 9, 0), hourUsage),
+			line(older, opus, "work", "new", october(6, 22, 0), hourUsage),
+			line(mover, opus, "work", "new", october(6, 23, 0), hourUsage),
+			line(older, opus, "work", "sticky", october(7, 9, 0), hourUsage),
+			line(mover, opus, "work", "sticky", october(7, 9, 30), hourUsage),
+		}}
+	got := views.ListSessions(views.SessionSources{Ledger: l, Prices: ledger.Pricing, Now: now})
+	started := make(map[string]time.Time)
+	for _, s := range got.Sessions {
+		started[s.Session] = s.Started
+	}
+	if want := map[string]time.Time{older: utc(october(6, 22, 0)), mover: utc(october(6, 23, 0))}; !maps.Equal(started, want) {
+		t.Errorf("the List's sessions started %v, want %v", started, want)
+	}
+	if want := (readCounts{dayLines: map[string]int{"2026-10-06": 1}}); !reflect.DeepEqual(*counts, want) {
+		t.Errorf("the List read the ledger %+v, want yesterday's lines once, the one day before today naming its sessions, and no session's or today's summary", *counts)
 	}
 }
 

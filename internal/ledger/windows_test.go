@@ -172,6 +172,14 @@ func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 			want: map[string]float64{"7d": 0.1},
 		},
 		{
+			name: "none of a reading of a reset earlier than the latest read, taken out of turn from before it",
+			readings: []readings.Reading{allowed(on(0, 10, 0), "5h", 0.1, on(0, 15, 30)), allowed(on(0, 10, 2), "5h", 0.12, on(0, 15, 40)),
+				allowed(on(0, 10, 5), "5h", 0.5, on(0, 15, 30)), allowed(on(0, 10, 8), "5h", 0.14, on(0, 15, 40))},
+			// 0.1 at its first read, the window having begun within the day;
+			// then 0.12 from nothing, as it began again; then 0.02.
+			want: map[string]float64{"5h": 0.24},
+		},
+		{
 			name:     "none of a window it began the day at, read no more",
 			readings: []readings.Reading{allowed(on(-1, 12, 0), "7d", 0.41, on(3, 10, 0))},
 			want:     map[string]float64{"7d": 0},

@@ -486,7 +486,7 @@ func (t tally) windows(before map[accountWindow]bool, carried map[accountWindow]
 	of := func(w accountWindow) *windowDay {
 		d, ok := days[w]
 		if !ok {
-			d = &windowDay{key: w.key, start: start, until: until}
+			d = &windowDay{start: start, until: until, climb: Climb{key: w.key}}
 			days[w] = d
 		}
 		return d

@@ -34,5 +34,11 @@ func (t Table) VersionName(id string) string {
 	if v, ok := t.Version(id); ok {
 		return v.Name
 	}
+	return ShortModelID(id)
+}
+
+// ShortModelID returns a model's id as the views show it where they name a
+// model by its id: claude- taken off, as opus-5-5.
+func ShortModelID(id string) string {
 	return strings.TrimPrefix(id, "claude-")
 }

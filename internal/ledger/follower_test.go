@@ -615,6 +615,27 @@ func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
+func TestTheDaysBeforeOneAreItsDaysSummariesWithoutSummarisingIt(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, "2026-10-03", asked("1", on(-2, 9, 0)))
+	holdLines(t, dir, "2026-10-04", asked("2", on(-1, 9, 0)))
+	holdLines(t, dir, date, asked("3", on(0, 9, 0)))
+	at := on(0, 12, 0)
+	follower := followerOf(state, &testClock{at: at}, caps)
+	want := fullJSON(t, readerAt(state, at).Days(on(-2, 0, 0)))[:2]
+	// Today's can't be read, and isn't.
+	unopenable(t, dir, "requests-"+date+"*")
+
+	if got := fullJSON(t, follower.DaysBefore(at)); !slices.Equal(got, want) || opened(log) != 0 {
+		t.Errorf("log reads\n%s\nDaysBefore() =\n%s\nwant\n%s, as a whole read gives them, today's file never opened", log, strings.Join(got, "\n"),
+			strings.Join(want, "\n"))
+	}
+	if got := follower.DaysBefore(on(-2, 12, 0)); len(got) != 0 {
+		t.Errorf("DaysBefore() the first day the ledger holds = %+v, want none", got)
+	}
+}
+
 func TestADaysLinesAreEverySessionsFiledUnderItInTheOrderTheyCame(t *testing.T) {
 	log := logstest.Capture(t)
 	state, dir, _ := stateDirs(t)

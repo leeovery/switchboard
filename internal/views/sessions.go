@@ -121,8 +121,8 @@ func ListSessions(src SessionSources) SessionList {
 			ids = append(ids, s.ID)
 		}
 	}
-	for id := range namedBefore(src.Ledger, ids, today) {
-		stories[id] = sessionStory(src.Ledger, id, src.Prices, today)
+	for id, lines := range withTodays(linesBefore(src.Ledger, ids, today), todays) {
+		stories[id] = storyOf(lines, src.Prices, today)
 	}
 	list := SessionList{GeneratedAt: src.Now.UTC(), PricesAsOf: src.Prices.AsOf, Sessions: []ListedSession{}}
 	var worth worthSum
@@ -140,6 +140,30 @@ func ListSessions(src SessionSources) SessionList {
 	list.Today.Sessions, list.Today.Worth, list.Today.Unpriced = len(list.Sessions), worth.cost, worth.unpriced
 	slices.SortFunc(list.Sessions, inListOrder)
 	return list
+}
+
+// SessionsRead returns the ids of the sessions the List reads, those of
+// today's lines that hold a request of one, as isRequest says, then those the
+// router lists, as running gives them, each once, in the order they first
+// came: never one of quota checks or counts of tokens alone.
+func SessionsRead(l Ledger, running []status.Session) []string {
+	todays, _, _ := l.Today(ledger.Mark{})
+	var ids []string
+	seen := make(map[string]bool)
+	read := func(id string) {
+		if !seen[id] {
+			seen[id], ids = true, append(ids, id)
+		}
+	}
+	for i := range todays {
+		if isRequest(&todays[i].Line) {
+			read(todays[i].Session)
+		}
+	}
+	for _, s := range running {
+		read(s.ID)
+	}
+	return ids
 }
 
 // storiesOf returns the story of each session lines, oldest first, hold a
@@ -163,29 +187,49 @@ func storiesOf(lines []ledger.Held, prices ledger.Table, d day) (map[string]*sto
 	return stories, ids
 }
 
-// namedBefore returns those of ids the summaries of the days before d name
-// among their sessions: those that started on an earlier day.
-func namedBefore(l Ledger, ids []string, d day) map[string]bool {
-	named := make(map[string]bool)
-	for _, summary := range l.Days(time.Time{}) {
-		if summary.Day >= d.date {
+// linesBefore returns the lines of those of the sessions with the given ids
+// that started on a day before d, by session: every line of theirs filed
+// under the days before d whose summaries name any of them among their
+// sessions, each day's files read once.
+func linesBefore(l Ledger, ids []string, d day) map[string][]ledger.Line {
+	wanted := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		wanted[id] = true
+	}
+	lines := make(map[string][]ledger.Line)
+	for _, summary := range l.DaysBefore(d.start) {
+		if !names(summary, wanted) {
 			continue
 		}
-		for _, a := range summary.Accounts {
-			for _, id := range a.SessionIDs {
-				if slices.Contains(ids, id) {
-					named[id] = true
-				}
+		for line := range l.DayLines(summary.Day) {
+			if wanted[line.Session] {
+				lines[line.Session] = append(lines[line.Session], line)
 			}
 		}
 	}
-	return named
+	return lines
 }
 
-// sessionStory returns the story of the session with the given id told by
-// every line of it the ledger holds, whatever day each is of.
-func sessionStory(l Ledger, id string, prices ledger.Table, d day) *story {
-	return storyOf(sessionLines(l, id), prices, d)
+// names reports whether the summary names any of the sessions wanted among
+// its accounts' sessions.
+func names(summary ledger.Summary, wanted map[string]bool) bool {
+	return slices.ContainsFunc(summary.Accounts, func(a ledger.AccountDay) bool {
+		return slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
+	})
+}
+
+// withTodays returns each session's earlier lines with its lines among
+// todays, oldest first, by when each arrived.
+func withTodays(earlier map[string][]ledger.Line, todays []ledger.Held) map[string][]ledger.Line {
+	for i := range todays {
+		if lines, ok := earlier[todays[i].Session]; ok {
+			earlier[todays[i].Session] = append(lines, todays[i].Line)
+		}
+	}
+	for _, lines := range earlier {
+		slices.SortStableFunc(lines, func(a, b ledger.Line) int { return a.At.Compare(b.At) })
+	}
+	return earlier
 }
 
 // sessionLines returns every line of the session with the given id the
@@ -239,11 +283,10 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 		l.LastSeen = latest(l.LastSeen, a.LastSeen.UTC())
 		l.State = busier(l.State, a.InFlight)
 	}
-	idle := now.Sub(l.LastSeen)
-	if l.State != "" {
-		idle = 0
+	flying := func(model string) bool {
+		return slices.ContainsFunc(session.Assignments, func(a status.Assignment) bool { return a.Model == model && a.InFlight != "" })
 	}
-	if cost, ok := s.moveCost(idle); ok {
+	if cost, ok := s.moveCost(now, flying); ok {
 		l.MoveCost = &cost
 	}
 }

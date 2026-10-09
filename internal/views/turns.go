@@ -68,8 +68,8 @@ func promptOf(l *ledger.Line, agents map[string]string) string {
 // first came; its last, and its last of its own conversation; how many there
 // are; how many times each tool was called; the tokens they read from the
 // cache, wrote to it and put out; their worth; and the accounts they went
-// to, and those its own conversation's went to, each in the order they first
-// did.
+// to, and those its own conversation's went to, each as withAccount lists
+// them.
 type turnTally struct {
 	started                time.Time
 	last, lastMain         *ledger.Line
@@ -94,10 +94,11 @@ func (t *turnTally) add(r request) {
 	t.worth.add(r.worth)
 }
 
-// withAccount returns accounts with the account with the given id after
-// them, where it's one, and they don't hold it already.
+// withAccount returns accounts, in the order requests went to them, with the
+// account with the given id after them, where it's one, and not the last of
+// them already: one gone back to comes again.
 func withAccount(accounts []string, account string) []string {
-	if account == "" || slices.Contains(accounts, account) {
+	if account == "" || len(accounts) > 0 && accounts[len(accounts)-1] == account {
 		return accounts
 	}
 	return append(accounts, account)

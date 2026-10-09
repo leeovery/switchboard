@@ -53,20 +53,12 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 	return writeSessionPage(out, page, now)
 }
 
-// sessionAmong returns the id of the session given names among those read,
-// those of today's lines and those the router lists, as sessionNamed says:
-// given as it is where it starts none of their ids, as the whole id of a
-// session of an earlier day.
+// sessionAmong returns the id of the session given names among those the
+// List reads, as views.SessionsRead gives them, as sessionNamed says: given
+// as it is where it starts none of their ids, as the whole id of a session
+// of an earlier day.
 func sessionAmong(given string, l views.Ledger, running []status.Session) (string, error) {
-	todays, _, _ := l.Today(ledger.Mark{})
-	ids := make([]string, 0, len(todays)+len(running))
-	for _, h := range todays {
-		ids = append(ids, h.Session)
-	}
-	for _, s := range running {
-		ids = append(ids, s.ID)
-	}
-	return sessionNamed(given, ids, func(id string) string { return id }, status.Clean)
+	return sessionNamed(given, views.SessionsRead(l, running), func(id string) string { return id }, status.Clean)
 }
 
 // listed returns the session with the given id among those the router lists:
@@ -100,7 +92,7 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	fmt.Fprintf(&b, "%s\n%s\n%s\n", heading, strings.Join(doingNow, status.Separator), goesOrKept(p, now))
 	if len(p.Accounts) > 0 {
 		b.WriteString("\n")
-		if err := writeTrimmed(&b, ranOnRows(p, now)); err != nil {
+		if err := writeTable(&b, ranOnRows(p, now)); err != nil {
 			return err
 		}
 	}
@@ -108,7 +100,7 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	fmt.Fprintf(&b, "\n%s%s%s%s%d%% from cache%s%s at API prices\n", turnsCount(t.Turns), status.Separator, requestsCount(t.Requests), status.Separator,
 		int(math.Round(t.FromCache*100)), status.Separator, worthSaid(t.Worth, t.Unpriced))
 	if len(p.Turns) > 0 {
-		if err := writeTrimmed(&b, turnRows(p, now)); err != nil {
+		if err := writeTable(&b, turnRows(p, now)); err != nil {
 			return err
 		}
 	}
@@ -117,10 +109,11 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 }
 
 // whereRuns says where the session p runs and why, at now: on the account its
-// last-used model goes to, since the move that brought it there, as "on side
-// since 14:31, moved from work: work reached its cap", else since it
-// started, as "on work since it started"; or, of one ended, where it ran, as
-// ranOn says: "" where it ran on no account.
+// last-used model goes to, since that model's move that brought it there, as
+// "on side since 14:31, moved from work: work reached its cap"; else since
+// it started, where it was new there, as "on work since it started"; else
+// why the router has it there, as "on work: sticky"; or, of one ended, where
+// it ran, as ranOn says: "" where it ran on no account.
 func whereRuns(p views.SessionPage, now time.Time) string {
 	if !p.Running {
 		return ranOn(p, now)
@@ -130,24 +123,22 @@ func whereRuns(p views.SessionPage, now time.Time) string {
 	}
 	on := p.Models[0]
 	where := "on " + status.Clean(on.Account)
-	if m, ok := lastMoveOnto(p.Moves, on.Account); ok {
+	if m, ok := lastMoveOf(p.Moves, on.Model); ok && m.To == on.Account {
 		return where + " since " + status.Past(now, m.At) + ", " + movedWords(m, now)
 	}
 	words := status.SessionWords(on.Reason, status.Facts{To: on.Account, Now: now}).String()
-	switch {
-	case len(p.Accounts) > 0 && p.Accounts[0].Account != on.Account:
-		return where + ": " + words
-	case on.Reason == status.ReasonNew || words == "":
+	if on.Reason == status.ReasonNew || words == "" {
 		return where + " since it started"
 	}
-	return where + " since it started: " + words
+	return where + ": " + words
 }
 
-// lastMoveOnto returns the last of moves onto the account with the given id,
-// reporting false where none was.
-func lastMoveOnto(moves []views.SessionMove, account string) (views.SessionMove, bool) {
+// lastMoveOf returns the last of moves of the model with the given id,
+// reporting false where none was: a session's models are routed apart, so
+// another's move onto the same account tells nothing of how it came there.
+func lastMoveOf(moves []views.SessionMove, model string) (views.SessionMove, bool) {
 	for _, m := range slices.Backward(moves) {
-		if m.To == account {
+		if m.Model == model {
 			return m, true
 		}
 	}
@@ -206,7 +197,7 @@ func goesOrKept(p views.SessionPage, now time.Time) string {
 	if p.Running {
 		goes := make([]string, len(p.Models))
 		for i, m := range p.Models {
-			goes[i] = shortModel(m.Model) + " → " + status.Clean(m.Account)
+			goes[i] = ledger.ShortModelID(status.Clean(m.Model)) + " → " + status.Clean(m.Account)
 		}
 		return strings.Join(goes, "   ")
 	}
@@ -222,11 +213,6 @@ func goesOrKept(p views.SessionPage, now time.Time) string {
 		layout += " 2006"
 	}
 	return "kept until " + until.Format(layout)
-}
-
-// shortModel is a model's id less its "claude-", cleaned, as "opus-5-5".
-func shortModel(model string) string {
-	return strings.TrimPrefix(status.Clean(model), "claude-")
 }
 
 // ranOnRows are the rows of the accounts the session p ran on, at now: each

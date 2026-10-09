@@ -95,11 +95,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) 
 // it can't ask them, and what it does instead, as what's printed is then the
 // ledger's alone.
 func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead string) []status.Session {
-	client, err := a.routerClient()
-	var sessions []status.Session
-	if err == nil {
-		sessions, err = client.Sessions(ctx)
-	}
+	sessions, err := a.routerSessions(ctx)
 	switch {
 	case errors.Is(err, router.ErrNotRunning):
 		launch.Notice(errOut, "the router isn't running — "+instead)
@@ -107,6 +103,16 @@ func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead stri
 		launch.Warn(errOut, "couldn't ask the router its sessions", err, instead)
 	}
 	return sessions
+}
+
+// routerSessions returns the sessions the router lists, as GET /sessions
+// gives them, failing where it can't ask them.
+func (a *app) routerSessions(ctx context.Context) ([]status.Session, error) {
+	client, err := a.routerClient()
+	if err != nil {
+		return nil, err
+	}
+	return client.Sessions(ctx)
 }
 
 // sessionHeads are the heads of the columns of sessions' text, as the List's.
@@ -123,27 +129,12 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 	for _, s := range list.Sessions {
 		rows = append(rows, sessionRow(s, now))
 	}
-	if err := writeTrimmed(out, rows); err != nil {
+	if err := writeTable(out, rows); err != nil {
 		return err
 	}
 	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", status.SessionCount(list.Today.Sessions), status.Separator,
 		requestsCount(list.Today.Requests), status.Separator, todaysWorth(list))
 	return err
-}
-
-// writeTrimmed writes rows as aligned columns, as writeTable does, each
-// line's trailing spaces trimmed.
-func writeTrimmed(out io.Writer, rows [][]string) error {
-	var table strings.Builder
-	if err := writeTable(&table, rows); err != nil {
-		return err
-	}
-	for row := range strings.Lines(table.String()) {
-		if _, err := fmt.Fprintln(out, strings.TrimRight(row, " \n")); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // sessionRow is a session's row: its mark; its id cut short and its
@@ -159,7 +150,7 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 	if !s.Started.IsZero() {
 		started = status.Past(now, s.Started)
 	}
-	return []string{mark(s), session, orNone(status.Clean(s.Account)), orNone(shortModel(s.Model)),
+	return []string{mark(s), session, orNone(status.Clean(s.Account)), orNone(ledger.ShortModelID(status.Clean(s.Model))),
 		doing(s.State, s.Running, s.LastSeen, s.Ended, now), started, thousands(s.Requests), worthSaid(s.Worth, s.Unpriced), routing(s, now)}
 }
 

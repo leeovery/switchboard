@@ -170,7 +170,7 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 		`"models":[{"model":"claude-opus-5-5","account":"work","reason":"sticky"}],"state":"asking","move_cost":0.80808,` +
 		`"started":"` + at(october(6, 22, 0, 0)) + `","requests":1,"worth":0.03804},` +
 		`{"session":"` + moving + `","dir":"~/Code/cli","account":"side","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 12, 50, 0)) + `",` +
-		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"moved: work is at its reserve"}],"move_cost":0.80808,` +
+		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"moved: work is at its reserve"}],` +
 		`"started":"` + at(october(7, 10, 15, 0)) + `","requests":2,"worth":0.07608,` +
 		`"moved":{"at":"` + at(october(7, 11, 0, 0)) + `","from":"work","reason":"moved: work is at its reserve","cost":0.008}},` +
 		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +

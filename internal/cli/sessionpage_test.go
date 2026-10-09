@@ -85,9 +85,9 @@ func pageLines() map[string][]ledger.Line {
 }
 
 // pagingRouted is paging as the router lists it: its Claude Opus 5.5 rescored
-// onto side, its Claude Haiku 4.5 on work.
+// onto side, and being answered, its Claude Haiku 4.5 on work.
 var pagingRouted = status.Session{ID: paging, Assignments: []status.Assignment{
-	{Model: "claude-opus-5-5", Family: "opus", Account: "side", Dir: "~/Code/web", Reason: "rescored after 15h 7m idle",
+	{Model: "claude-opus-5-5", Family: "opus", Account: "side", Dir: "~/Code/web", Reason: "rescored after 15h 7m idle", InFlight: status.Answering,
 		AssignedAt: october(7, 9, 12, 0).UTC(), LastSeen: october(7, 13, 10, 0).UTC()},
 	{Model: "claude-haiku-4-5", Family: "haiku", Account: "work", Reason: "sticky", AssignedAt: october(6, 22, 0, 0).UTC(), LastSeen: october(7, 9, 13, 0).UTC()},
 }}
@@ -105,7 +105,7 @@ func pageDeps(t *testing.T, routed bool) cli.Deps {
 
 // pageText is what sessions prints of paging's page, the router listing it.
 const pageText = `session 5e6f9d33  ~/Code/web
-idle 2m  ·  on side since 09:12, rescored after 15h 7m idle: side had the most room  ·  started yesterday 16:40 · resumed 09:12
+answering  ·  on side since 09:12, rescored after 15h 7m idle: side had the most room  ·  started yesterday 16:40 · resumed 09:12
 opus-5-5 → side   haiku-4-5 → work
 
 work  yesterday 16:40 – 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
@@ -138,10 +138,10 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 	fromCache := strconv.FormatFloat(400000.0/404048, 'f', -1, 64)
 	want := `{"session":"` + paging + `","dir":"~/Code/web","running":true,"last_seen":` + at(october(7, 13, 10, 0)) + `,` +
 		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"rescored after 15h 7m idle"},{"model":"claude-haiku-4-5","account":"work","reason":"sticky"}],` +
-		`"move_cost":0.80808,"started":` + at(october(6, 16, 40, 0)) + `,"resumed":` + at(october(7, 9, 12, 0)) + `,` +
+		`"state":"answering","move_cost":0.80808,"started":` + at(october(6, 16, 40, 0)) + `,"resumed":` + at(october(7, 9, 12, 0)) + `,` +
 		`"accounts":[{"account":"work","from":` + at(october(6, 16, 40, 0)) + `,"to":` + at(october(7, 9, 13, 0)) + `,"requests":3,"worth":0.076093,"points":{"5h":4,"7d":1}},` +
 		`{"account":"side","from":` + at(october(7, 9, 12, 0)) + `,"to":` + at(october(7, 9, 20, 0)) + `,"requests":2,"worth":0.07608,"points":{"5h":2,"7d":0}}],` +
-		`"moves":[{"at":` + at(october(7, 9, 12, 0)) + `,"from":"work","to":"side","reason":"rescored after 15h 7m idle","written":1000}],` +
+		`"moves":[{"at":` + at(october(7, 9, 12, 0)) + `,"model":"claude-opus-5-5","from":"work","to":"side","reason":"rescored after 15h 7m idle","written":1000}],` +
 		`"turns":[{"turn":2,"started":` + at(october(7, 9, 12, 0)) + `,"requests":3,` +
 		`"tools":[{"tool":"Read","times":3},{"tool":"Edit","times":1},{"tool":"Grep","times":1}],"read":200000,"written":2000,"out":1001,"worth":0.076093,"accounts":["side"]},` +
 		`{"turn":1,"started":` + at(october(6, 16, 40, 0)) + `,"ended":` + at(october(6, 18, 6, 0)) + `,"requests":2,"tools":[{"tool":"Bash","times":2}],` +
@@ -230,14 +230,58 @@ func TestATurnWhoseConversationMovedReadsAsItsMove(t *testing.T) {
 		pagedLine{request: "m1", prompt: "moving", model: "claude-opus-5-5", account: "work", reason: "new", stop: "tool_use", at: october(7, 11, 0, 0), ms: 60000}.line(),
 		pagedLine{request: "m2", prompt: "moving", agent: "a1", model: "claude-haiku-4-5", account: "personal", reason: "new", stop: "end_turn",
 			at: october(7, 11, 1, 0), ms: 30000}.line(),
-		pagedLine{request: "m3", prompt: "moving", model: "claude-opus-5-5", account: "side", reason: "moved: work hit its limit", from: "work", stop: "end_turn",
+		pagedLine{request: "m3", prompt: "moving", model: "claude-opus-5-5", account: "side", reason: "moved: work hit its limit", from: "work", stop: "tool_use",
 			at: october(7, 11, 2, 0), ms: 60000}.line(),
+		pagedLine{request: "m4", prompt: "moving", model: "claude-opus-5-5", account: "work", reason: "moved: side hit its limit", from: "side", stop: "end_turn",
+			at: october(7, 11, 3, 0), ms: 60000}.line(),
 	}
 	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
 	got := run(t, deps, "sessions", paging, "--pretty")
-	const row = "1  11:00    3m    3                200k  2.0k     1.0k  $0.08  work → side\n"
+	const row = "1  11:00    4m    4                300k  3.0k     1.5k  $0.11  work → side → work\n"
 	if got.code != 0 || !strings.Contains(got.stdout, row) {
-		t.Errorf("switchboard sessions %s --pretty = %+v, want its turn's row, on its conversation's accounts alone\n%s", paging, got, row)
+		t.Errorf("switchboard sessions %s --pretty = %+v, want its turn's row, on its conversation's accounts alone, in the order it went to them\n%s",
+			paging, got, row)
+	}
+}
+
+func TestWhereASessionRunsIsTheMoveOfTheModelItNames(t *testing.T) {
+	lines := []ledger.Line{
+		pagedLine{request: "o1", prompt: "first", model: "claude-opus-5-5", account: "side", reason: "new", stop: "end_turn", at: october(7, 13, 0, 0), ms: 60000}.line(),
+		pagedLine{request: "h1", prompt: "first", agent: "a1", model: "claude-haiku-4-5", account: "work", reason: "new", stop: "end_turn",
+			at: october(7, 13, 1, 0), ms: 30000}.line(),
+		pagedLine{request: "h2", prompt: "first", agent: "a1", model: "claude-haiku-4-5", account: "side", reason: "moved: work hit its limit", from: "work",
+			stop: "end_turn", at: october(7, 13, 5, 0), ms: 30000}.line(),
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
+	serveSessions(t, deps, []status.Session{{ID: paging, Assignments: []status.Assignment{
+		{Model: "claude-opus-5-5", Account: "side", Reason: "new", LastSeen: october(7, 13, 10, 0).UTC()},
+		{Model: "claude-haiku-4-5", Account: "side", Reason: "moved: work hit its limit", LastSeen: october(7, 13, 5, 0).UTC()},
+	}}})
+	got := run(t, deps, "sessions", paging, "--pretty")
+	// Its subagent's Claude Haiku 4.5 moved onto side; its own Claude Opus
+	// 5.5 was there from the first.
+	const want = "\nidle 2m  ·  on side since it started  ·  started 13:00 · 12m\n"
+	if got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions %s --pretty = %+v, want it to say%s", paging, got, want)
+	}
+}
+
+func TestASessionIsNamedAmongThoseWithRequestsAlone(t *testing.T) {
+	// checking shares the start of paging's id, and sent a quota check alone.
+	const checking = "5e6f9d34-0006-4a00-8000-000000000006"
+	check := pagedLine{request: "c1", model: "claude-opus-5-5", account: "work", reason: "new", at: october(7, 10, 1, 0), ms: 600}.line()
+	check.Kind, check.Session = ledger.KindCheck, checking
+	lines := []ledger.Line{
+		pagedLine{request: "p1", prompt: "first", model: "claude-opus-5-5", account: "work", reason: "new", stop: "end_turn", at: october(7, 10, 0, 0), ms: 60000}.line(),
+		check,
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
+	got := run(t, deps, "sessions", "5e6f9d3", "--json")
+	var page struct {
+		Session string `json:"session"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &page); err != nil || got.code != 0 || page.Session != paging {
+		t.Errorf("switchboard sessions 5e6f9d3 --json = %+v (%v), want paging's page, a session of a quota check alone never among those named", got, err)
 	}
 }
 

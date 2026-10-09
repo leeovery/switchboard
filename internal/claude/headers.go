@@ -52,14 +52,23 @@ func ParseUsage(h http.Header) quota.Usage {
 }
 
 // LimitWindows returns the windows a request ledger's line gives in its
-// limits, the answer's usage headers as limitsOf kept them, read as
-// ParseUsage reads them off the headers.
+// limits, the answer's usage headers as limitsOf kept them, each by its
+// <key>-utilization, <key>-reset and <key>-status, read as ParseUsage reads
+// them off the headers, in quota.Sort's order.
 func LimitWindows(limits map[string]string) []quota.Window {
-	h := make(http.Header, len(limits))
-	for name, value := range limits {
-		h[limitsPrefix+name] = []string{value}
+	var windows []quota.Window
+	for name, utilization := range limits {
+		key, ok := strings.CutSuffix(name, "-utilization")
+		if !ok || key == overageKey {
+			continue
+		}
+		f := fields{utilization: utilization, reset: limits[key+"-reset"], status: limits[key+"-status"]}
+		if w, ok := parseWindow(key, f); ok {
+			windows = append(windows, w)
+		}
 	}
-	return ParseUsage(h).Windows
+	quota.Sort(windows)
+	return windows
 }
 
 // limitsOf returns each of the usage headers h holds, by its name lowercased,

@@ -105,11 +105,7 @@ func (a *app) running(ctx context.Context, doc status.Document) []status.Session
 	if doc.Source != status.SourceRouter {
 		return nil
 	}
-	client, err := a.routerClient()
-	var sessions []status.Session
-	if err == nil {
-		sessions, err = client.Sessions(ctx)
-	}
+	sessions, err := a.routerSessions(ctx)
 	if err != nil {
 		logger.Warn("can't list the router's sessions", "error", err)
 		return nil

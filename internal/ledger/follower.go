@@ -83,7 +83,31 @@ func (f *Follower) Days(from time.Time) []Summary {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := f.now()
-	dates := f.dates(from, now)
+	return f.summariesOf(f.dates(from, now), now)
+}
+
+// DaysBefore returns the summaries of the local days from the first the
+// ledger holds to the one before t's, as Days gives them: none of t's day,
+// so, where it's today, today's isn't summarised from its lines to give it.
+// It gives none where the ledger holds no day before t's, or can't be looked
+// at to tell, which is warned of.
+func (f *Follower) DaysBefore(t time.Time) []Summary {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := f.now()
+	first, err := f.firstDay(now)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			f.days.logger.Warn("can't read the request ledger", "dir", f.days.files.Dir, "error", err)
+		}
+		return nil
+	}
+	return f.summariesOf(dayfile.Span(first, dayfile.DayStart(t.Local(), -1)), now)
+}
+
+// summariesOf returns the summaries of the local days with the given dates,
+// as summaryOf gives them, at now.
+func (f *Follower) summariesOf(dates []string, now time.Time) []Summary {
 	summaries := make([]Summary, len(dates))
 	for i, date := range dates {
 		summaries[i] = f.summaryOf(date, now)

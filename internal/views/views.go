@@ -20,6 +20,9 @@ import (
 type Ledger interface {
 	// Days gives the summaries of the local days from from's to today's.
 	Days(from time.Time) []ledger.Summary
+	// DaysBefore gives the summaries of the local days the ledger holds
+	// before the one t falls on.
+	DaysBefore(t time.Time) []ledger.Summary
 	// Today gives today's lines read since mark, and the Mark they're read
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of.

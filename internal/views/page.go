@@ -58,11 +58,13 @@ type SessionAccount struct {
 }
 
 // SessionMove is a request's move of its session from one account onto
-// another: when it came, why, as the router gave it, the tokens it wrote to
-// the cache, and what writing its context again there cost, nil where its
-// cache would have run out anyway, or that isn't known.
+// another: when it came, the model it asked for, as a session's models are
+// routed apart, why, as the router gave it, the tokens it wrote to the cache,
+// and what writing its context again there cost, nil where its cache would
+// have run out anyway, or that isn't known.
 type SessionMove struct {
 	At      time.Time           `json:"at"`
+	Model   string              `json:"model"`
 	From    string              `json:"from"`
 	To      string              `json:"to"`
 	Reason  string              `json:"reason"`
@@ -76,10 +78,10 @@ type SessionMove struct {
 // the tools its answers called, most first; the tokens it read from the
 // cache, wrote to it and put out; what it'd have cost through the API at
 // today's prices, Unpriced naming the counts that leaves out; and the
-// accounts its own conversation's requests went to, in the order they first
-// did, so a subagent on another account, its model routed apart, doesn't read
-// as a move: those of its requests where it has none of its own
-// conversation.
+// accounts its own conversation's requests went to, in the order they did,
+// one gone back to coming again, so a subagent on another account, its model
+// routed apart, doesn't read as a move: those of its requests where it has
+// none of its own conversation.
 type Turn struct {
 	Turn     int                `json:"turn"`
 	Started  time.Time          `json:"started"`
@@ -247,7 +249,7 @@ func accountsOf(requests []request) []SessionAccount {
 func movesOf(s *story) []SessionMove {
 	moves := make([]SessionMove, len(s.moves))
 	for i, m := range s.moves {
-		moves[i] = SessionMove{At: m.at.UTC(), From: m.from, To: m.to, Reason: m.reason, Written: m.written, Cost: m.cost}
+		moves[i] = SessionMove{At: m.at.UTC(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Written: m.written, Cost: m.cost}
 	}
 	return moves
 }

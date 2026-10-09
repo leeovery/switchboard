@@ -30,6 +30,11 @@ func (e Empty) Days(time.Time) []Summary {
 	return []Summary{today}
 }
 
+// DaysBefore returns no summary, as the ledger holds no day.
+func (Empty) DaysBefore(time.Time) []Summary {
+	return nil
+}
+
 // Today returns no line, and the Mark it's read to, reporting afresh from the
 // zero Mark alone, as a Follower does where today's lines begin to be given.
 func (Empty) Today(mark Mark) (lines []Held, next Mark, afresh bool) {

@@ -36,6 +36,14 @@ func took(d time.Duration, l ledger.Line) ledger.Line {
 	return l
 }
 
+// headersAfter returns l, its answer's first byte, and its headers with it,
+// passing on the given time after it arrived.
+func headersAfter(d time.Duration, l ledger.Line) ledger.Line {
+	ms := d.Milliseconds()
+	l.FirstMS = &ms
+	return l
+}
+
 // serving returns l, a request of the class given serving the prompt given,
 // as its client's headers say.
 func serving(prompt, class string, l ledger.Line) ledger.Line {
@@ -196,6 +204,13 @@ func TestATurnIsAPromptAndEveryRequestThatServesIt(t *testing.T) {
 			want: []turnSaid{{1, local(10, 0, 0), local(10, 3, 0), 3, []string{"side", "personal"}}},
 		},
 		{
+			name: "its own conversation moved and moved back, each stretch once, in the order it came",
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), mainOn(p1, local(10, 1, 0), "tool_use"),
+				movedFrom("side", onAccount("work", mainOn(p1, local(10, 2, 0), "tool_use"))),
+				movedFrom("work", mainOn(p1, local(10, 3, 0), "tool_use")), mainOn(p1, local(10, 4, 0), "end_turn")},
+			want: []turnSaid{{1, local(10, 0, 0), local(10, 5, 0), 5, []string{"side", "work", "side"}}},
+		},
+		{
 			name:  "one with no request of its own conversation ending with its last request, on the accounts its requests went to",
 			lines: []ledger.Line{subagent("a1", "", p1, local(10, 0, 0)), subagent("a1", "", p1, local(10, 3, 0))},
 			want:  []turnSaid{{1, local(10, 0, 0), local(10, 4, 0), 2, []string{"work"}}},
@@ -328,6 +343,51 @@ func TestThePointsOfAWindowAreItsRisesSharedOutByTokens(t *testing.T) {
 			want: map[string]int{"5h": 5},
 		},
 		{
+			name: "requests running in parallel across a reset, each reading taken as its answer's headers came",
+			lines: []ledger.Line{
+				limited(headersAfter(time.Second, took(30*time.Second, ours(opus, local(13, 50, 0), tokens(100)))), "5h", "0.90", local(14, 0, 0)),
+				// Read before the reset, it ends after the reading read after
+				// it, which it never climbs on from.
+				limited(headersAfter(time.Second, took(5*time.Minute, ours(haiku, local(13, 58, 0), tokens(100)))), "5h", "0.95", local(14, 0, 0)),
+				limited(headersAfter(time.Second, took(30*time.Second, ours(haiku, local(14, 1, 0), tokens(100)))), "5h", "0.02", local(19, 0, 0)),
+			},
+			// 0.05 before the reset, then 0.02 from nothing.
+			want: map[string]int{"5h": 7},
+		},
+		{
+			name: "a lower reading read after a higher one, climbing none, nor counting a rise twice",
+			lines: []ledger.Line{
+				limited(ours(opus, local(10, 0, 0), tokens(100)), "5h", "0.30", fiveHour),
+				limited(theirs(opus, local(10, 1, 0), tokens(100)), "5h", "0.35", fiveHour),
+				// Its headers came late, reading lower than the one before.
+				limited(headersAfter(2*time.Minute, took(150*time.Second, ours(opus, local(10, 0, 30), tokens(100)))), "5h", "0.33", fiveHour),
+				limited(ours(opus, local(10, 4, 0), tokens(100)), "5h", "0.36", fiveHour),
+			},
+			// None of other's 0.05, none from 0.33, and all of 0.01.
+			want: map[string]int{"5h": 1},
+		},
+		{
+			name: "a reset made by hand starting the window afresh, from nothing",
+			lines: []ledger.Line{
+				limited(ours(opus, local(10, 0, 0), tokens(100)), "7d", "0.50", week),
+				limited(ours(opus, local(10, 1, 0), tokens(100)), "7d", "0.52", week),
+				limited(ours(opus, local(10, 2, 0), tokens(100)), "7d", "0.03", week),
+				limited(ours(opus, local(10, 3, 0), tokens(100)), "7d", "0.05", week),
+			},
+			want: map[string]int{"7d": 7},
+		},
+		{
+			name: "none of a reading of a reset earlier than the latest read, taken out of turn from before it",
+			lines: []ledger.Line{
+				limited(ours(opus, local(10, 0, 0), tokens(100)), "5h", "0.10", local(15, 30, 0)),
+				limited(ours(opus, local(10, 1, 0), tokens(100)), "5h", "0.12", local(15, 40, 0)),
+				limited(ours(opus, local(10, 2, 0), tokens(100)), "5h", "0.50", local(15, 30, 0)),
+				limited(ours(opus, local(10, 3, 0), tokens(100)), "5h", "0.14", local(15, 40, 0)),
+			},
+			// 0.12 from nothing as it began again, then 0.02.
+			want: map[string]int{"5h": 14},
+		},
+		{
 			name:  "none of a window never read",
 			lines: []ledger.Line{ours(opus, local(10, 0, 0), tokens(100)), ours(opus, local(10, 1, 0), tokens(100))},
 		},
@@ -443,8 +503,8 @@ func TestEachMoveSaysWhatItWroteAndWhatThatCostWhereTheCacheWouldntHaveRunOut(t 
 		movedFrom("side", line(paged, opus, "work", "rescored after 2h 30m idle", local(12, 0, 0), hourUsage)),
 	}
 	want := []views.SessionMove{
-		{At: utc(local(9, 30, 0)), From: "work", To: "side", Reason: "moved: work hit its limit", Written: 1000, Cost: cost(hourWrite)},
-		{At: utc(local(12, 0, 0)), From: "side", To: "work", Reason: "rescored after 2h 30m idle", Written: 1000},
+		{At: utc(local(9, 30, 0)), Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Written: 1000, Cost: cost(hourWrite)},
+		{At: utc(local(12, 0, 0)), Model: opus, From: "side", To: "work", Reason: "rescored after 2h 30m idle", Written: 1000},
 	}
 	if got := pageOf(t, lines, nil).Moves; !reflect.DeepEqual(got, want) {
 		t.Errorf("the moves are\n%+v\nwant\n%+v", got, want)
@@ -468,7 +528,7 @@ func TestTheRoutersSayJoinsWhatItsLinesTell(t *testing.T) {
 			{Account: "work", From: utc(local(13, 0, 0)), To: utc(local(13, 0, 0)), Requests: 1, Worth: micro(hourWorth)},
 			{Account: "side", From: utc(local(13, 5, 0)), To: utc(local(13, 5, 0)), Requests: 1, Worth: micro(hourWorth)},
 		},
-		Moves: []views.SessionMove{{At: utc(local(13, 5, 0)), From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite)}},
+		Moves: []views.SessionMove{{At: utc(local(13, 5, 0)), Model: opus, From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite)}},
 		Turns: []views.Turn{{Turn: 1, Started: utc(local(13, 0, 0)), Ended: utc(local(13, 5, 0)), Requests: 2, Tools: []views.ToolCalls{},
 			Read: 200000, Written: 2000, Out: 1000, Worth: micro(2 * hourWorth), Accounts: []string{"work", "side"}}},
 		Totals: views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: micro(2 * hourWorth)},

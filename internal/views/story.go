@@ -93,15 +93,16 @@ func (s *story) add(l *ledger.Line) {
 }
 
 // move is a request's move of its session from one account onto another:
-// when it came, the account it left and the one it went to, why, as the
-// router said, the tokens its request wrote to the cache, and what writing
-// its context again on the account it went to cost, nil where that isn't
-// known, or its cache would have run out anyway.
+// when it came, the model it asked for, as a session's models are routed
+// apart, the account it left and the one it went to, why, as the router
+// said, the tokens its request wrote to the cache, and what writing its
+// context again on the account it went to cost, nil where that isn't known,
+// or its cache would have run out anyway.
 type move struct {
-	at               time.Time
-	from, to, reason string
-	written          int
-	cost             *ledger.Picodollars
+	at                      time.Time
+	model, from, to, reason string
+	written                 int
+	cost                    *ledger.Picodollars
 }
 
 // moveOf returns the move l made: its cost its cache write, priced at the
@@ -110,7 +111,7 @@ type move struct {
 // cache last, as the cache would have run out by then anyway.
 func (s *story) moveOf(l *ledger.Line) move {
 	tokens, _ := l.Tokens()
-	m := move{at: l.At, from: l.From, to: l.Account, reason: l.Reason, written: tokens.CacheWrite}
+	m := move{at: l.At, model: l.Model, from: l.From, to: l.Account, reason: l.Reason, written: tokens.CacheWrite}
 	if before := s.lastOf[l.Model]; before != nil && l.At.Sub(before.At) > before.CacheLife() {
 		return m
 	}
@@ -134,21 +135,22 @@ func (s *story) movedOnto(account string) *Move {
 	return &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
 }
 
-// moveCost returns what moving the session now would cost, as Routing by
+// moveCost returns what moving the session at now would cost, as Routing by
 // hand says: the whole prompt of the last turn of its own conversation whose
-// answer gave usage written again, as ledger.Table.Rewrite prices it, idle
-// for as long as idle says, so a side request, as a title, never stands in for
-// its conversation. Of a session none of whose requests says its class, as
-// from a Claude Code or a router from before they did, it's its last request
-// whose answer gave usage. It reports false where that isn't known, and where
-// the session has idled longer than its cache lasts, which it would write
-// again on its next request anyway.
-func (s *story) moveCost(idle time.Duration) (ledger.Picodollars, bool) {
+// answer gave usage written again, as ledger.Table.Rewrite prices it, so a
+// side request, as a title, never stands in for its conversation. Of a
+// session none of whose requests says its class, as from a Claude Code or a
+// router from before they did, it's its last request whose answer gave
+// usage. It reports false where that isn't known, and where the cache of
+// that request has run out since it ended, which the session would write
+// again on its next request anyway: unless flying says a request of its
+// model is in flight, keeping its cache warm.
+func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.Picodollars, bool) {
 	prompt := s.used
 	if s.classed {
 		prompt = s.usedMain
 	}
-	if prompt == nil || idle > prompt.CacheLife() {
+	if prompt == nil || !flying(prompt.Model) && now.Sub(ended(prompt)) > prompt.CacheLife() {
 		return 0, false
 	}
 	return s.prices.Rewrite(prompt, s.day.date)
