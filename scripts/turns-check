@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#
+# Checks how a session's turns are told from its lines, against the request
+# ledger of this machine, in the state directory switchboard finds: it prints
+# counts alone, never an id, a directory, a time or anything else of a
+# request, to paste back where the rule is weighed. Run it by hand; no test
+# or agent runs it.
+set -euo pipefail
+
+repo=$(cd "$(dirname "$0")/.." && pwd -P)
+cd "$repo"
+exec go run ./scripts/turnscheck
