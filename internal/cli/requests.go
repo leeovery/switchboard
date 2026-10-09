@@ -77,23 +77,24 @@ func (a *app) ledgerArgs(cmd *cobra.Command, args []string) error {
 
 // ledgerReader returns a reader of the request ledger in the state directory,
 // by the commands' clock, which summarises days with the caps of the accounts
-// configured. It fails without a config, as every command that reads one
-// does.
-func (a *app) ledgerReader() (*ledger.Reader, error) {
+// configured, and the price table to price what it reads at, the config's
+// prices in place of the table's. It fails without a config, as every
+// command that reads one does.
+func (a *app) ledgerReader() (*ledger.Reader, ledger.Table, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return nil, err
+		return nil, ledger.Table{}, err
 	}
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
-		return nil, err
+		return nil, ledger.Table{}, err
 	}
-	return ledger.NewReader(dir, a.Now, ledger.CapsOf(cfg.Accounts, claude.SharedWindows), logger), nil
+	return ledger.NewReader(dir, a.Now, ledger.CapsOf(cfg.Accounts, claude.SharedWindows), logger), ledger.Pricing.With(cfg.Prices), nil
 }
 
 // requests prints the ledger's lines as opts ask.
 func (a *app) requests(out io.Writer, opts requestsOptions) error {
-	reader, err := a.ledgerReader()
+	reader, _, err := a.ledgerReader()
 	if err != nil {
 		return err
 	}

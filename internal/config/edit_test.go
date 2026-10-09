@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 )
@@ -343,9 +344,107 @@ func TestEditsLoadAsMeant(t *testing.T) {
 	}
 }
 
+// priced is a config that gives the day its weeks start on, each account's
+// plan, and prices of its own.
+const priced = `week_starts = "sunday"
+
+[[account]]
+id   = "work"
+plan = "max20x"  # the work subscription
+
+[[account]]
+id   = "personal"
+plan = "pro"
+
+[prices.plans]
+max5x = 90
+
+[prices.models.claude-opus-5-5]
+input  = 3.2
+output = 16
+`
+
+func TestEditsKeepTheWeeksStartThePlansAndThePrices(t *testing.T) {
+	path := writeConfig(t, priced)
+	wantPrices := config.Prices{
+		Plans:  map[string]float64{"max5x": 90},
+		Models: map[string]config.ModelPrices{"claude-opus-5-5": {Input: new(3.2), Output: new(16.0)}},
+	}
+	steps := []struct {
+		name string
+		edit func(*config.Draft) error
+		want []config.Account
+	}{
+		{
+			name: "add side",
+			edit: func(d *config.Draft) error { return d.AddAccount(config.NewAccount{ID: "side"}) },
+			want: []config.Account{
+				{ID: "work", Label: "work", Primary: true, Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+			},
+		},
+		{
+			name: "make personal the primary",
+			edit: func(d *config.Draft) error { return d.SetPrimary("personal") },
+			want: []config.Account{
+				{ID: "work", Label: "work", Plan: "max20x"}, {ID: "personal", Label: "personal", Primary: true, Plan: "pro"}, {ID: "side", Label: "side"},
+			},
+		},
+		{
+			name: "add spare, the primary",
+			edit: func(d *config.Draft) error { return d.AddAccount(config.NewAccount{ID: "spare", Primary: true}) },
+			want: []config.Account{
+				{ID: "work", Label: "work", Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+				{ID: "spare", Label: "spare", Primary: true},
+			},
+		},
+		{
+			name: "set the priming day",
+			edit: func(d *config.Draft) error { return d.SetPrimeDay("08:00-23:00") },
+			want: []config.Account{
+				{ID: "work", Label: "work", Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+				{ID: "spare", Label: "spare", Primary: true},
+			},
+		},
+		{
+			name: "remove spare, the primary",
+			edit: func(d *config.Draft) error { return d.RemoveAccount("spare") },
+			want: []config.Account{
+				{ID: "work", Label: "work", Primary: true, Plan: "max20x"}, {ID: "personal", Label: "personal", Plan: "pro"}, {ID: "side", Label: "side"},
+			},
+		},
+		{
+			name: "remove work",
+			edit: func(d *config.Draft) error { return d.RemoveAccount("work") },
+			want: []config.Account{{ID: "personal", Label: "personal", Primary: true, Plan: "pro"}, {ID: "side", Label: "side"}},
+		},
+	}
+	for _, step := range steps {
+		draft := edit(t, path)
+		if err := step.edit(draft); err != nil {
+			t.Fatalf("%s: error = %v", step.name, err)
+		}
+		save(t, draft)
+		cfg, err := config.Load(path)
+		if err != nil {
+			t.Fatalf("%s: Load() error = %v", step.name, err)
+		}
+		if !reflect.DeepEqual(cfg.Accounts, config.Accounts(step.want)) || cfg.WeekStarts != time.Sunday || !reflect.DeepEqual(cfg.Prices, wantPrices) {
+			t.Errorf("%s: the config loads with the accounts\n%+v\nweeks from %v and the prices %+v\nwant\n%+v\nweeks from Sunday and the prices %+v",
+				step.name, cfg.Accounts, cfg.WeekStarts, cfg.Prices, step.want, wantPrices)
+		}
+	}
+	text := readFile(t, path)
+	for _, kept := range []string{"week_starts = \"sunday\"\n", "plan = \"pro\"\n", "[prices.plans]\nmax5x = 90\n", "[prices.models.claude-opus-5-5]\ninput  = 3.2\noutput = 16\n"} {
+		if !strings.Contains(text, kept) {
+			t.Errorf("once edited, the config reads\n%s\nwant it to keep\n%s", text, kept)
+		}
+	}
+}
+
 func TestAddingAndRemovingAnAccountLeavesTheConfigAsItWas(t *testing.T) {
 	for _, before := range []string{
 		commented,
+		priced,
 		config.Example,
 		"listen = \"127.0.0.1:4747\"\n\n[[account]]\nid = \"work\"\n\n[notifications]\nmoves = true\n",
 		"[[account]]\nid = \"work\"\n\n[history]\nkeep = \"30d\"\n",

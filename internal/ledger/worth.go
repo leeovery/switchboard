@@ -26,6 +26,11 @@ func perThousand(dollars float64) Picodollars {
 	return Picodollars(math.Round(dollars * 1e9))
 }
 
+// inDollars is an amount, given in dollars, as a plan's price a month is.
+func inDollars(dollars float64) Picodollars {
+	return Picodollars(math.Round(dollars * 1e12))
+}
+
 const (
 	// dollar and cent are how many picodollars each is.
 	dollar Picodollars = 1_000_000_000_000
@@ -84,12 +89,18 @@ type Model struct {
 	Prices []Prices
 }
 
-// Table is a table of models' prices, as Anthropic's pricing page gave them
-// on the day AsOf names.
+// Table is a table of models' and plans' prices, as Anthropic gave them on
+// the day AsOf names, and the version table beside it.
 type Table struct {
 	// AsOf is the date of the day the prices were read, as 2026-10-07.
 	AsOf   string
 	Models []Model
+	Plans  []Plan
+	// Versions name the models' versions, as the views show them.
+	Versions []Version
+	// Overridden is set where the config's prices stand in place of any of
+	// the table's, as With puts them.
+	Overridden bool
 }
 
 // Worth is what a usage would have cost through the API: Cost, of what its
@@ -113,30 +124,31 @@ const noUsage = "no_usage"
 // day with the given date. It reports false for a model the table doesn't
 // know, or a geo it doesn't price the model in: never zero.
 func (t Table) Worth(model, geo string, usage json.RawMessage, date string) (Worth, bool) {
-	prices, ok := t.prices(model, date)
-	if ok {
-		prices, ok = prices.in(geo)
-	}
-	if !ok {
-		return Worth{}, false
-	}
-	held := make(counts)
-	held.add(usage)
-	return prices.worth(held), true
+	return t.counted(model, geo, countsOf(usage), date)
 }
 
 // Request returns what the line's request would have cost through the API at
 // the prices in effect on the local day with the given date, as Worth says:
 // one that went upstream whose answer gave no usage unpriced, never free.
 func (t Table) Request(l *Line, date string) (Worth, bool) {
-	return t.worth(l.Model, l.Shape.InferenceGeo, l.Usage, l.unmetered(), date)
+	return t.worth(l.Model, l.Shape.InferenceGeo, countsOf(l.Usage), l.unmetered(), date)
 }
 
-// worth returns what usage would have cost, as Worth says, naming noUsage
-// among what it leaves unpriced where unmetered says requests it's of went
-// upstream without usage.
-func (t Table) worth(model, geo string, usage json.RawMessage, unmetered bool, date string) (Worth, bool) {
-	w, ok := t.Worth(model, geo, usage, date)
+// CacheWrite returns what the line's request's writes to the prompt cache
+// alone would have cost through the API, as Request prices them: each at its
+// model's price of a write that lasts as long as it does, five minutes or an
+// hour, writes its usage doesn't break down by how long they last unpriced.
+// It's what a move cost, as a request that moved its session wrote its
+// context again on the account it moved to.
+func (t Table) CacheWrite(l *Line, date string) (Worth, bool) {
+	return t.worth(l.Model, l.Shape.InferenceGeo, countsOf(l.Usage).only(cacheWrites, cacheTTLs), l.unmetered(), date)
+}
+
+// worth returns what the counts held would have cost, as Worth says, naming
+// noUsage among what it leaves unpriced where unmetered says requests they're
+// of went upstream without usage.
+func (t Table) worth(model, geo string, held counts, unmetered bool, date string) (Worth, bool) {
+	w, ok := t.counted(model, geo, held, date)
 	if ok && unmetered {
 		w.Unpriced = append(w.Unpriced, noUsage)
 		slices.Sort(w.Unpriced)
@@ -144,24 +156,68 @@ func (t Table) worth(model, geo string, usage json.RawMessage, unmetered bool, d
 	return w, ok
 }
 
+// counted returns what the counts held, of a request for the model with the
+// given id that asked for the geo given, would have cost, as Worth says.
+func (t Table) counted(model, geo string, held counts, date string) (Worth, bool) {
+	prices, ok := t.prices(model, date)
+	if ok {
+		prices, ok = prices.in(geo)
+	}
+	if !ok {
+		return Worth{}, false
+	}
+	return prices.worth(held), true
+}
+
+// countsOf returns the counts usage holds, as add reads them.
+func countsOf(usage json.RawMessage) counts {
+	held := make(counts)
+	held.add(usage)
+	return held
+}
+
+// only returns the counts c holds by the names given, and those within them.
+func (c counts) only(names ...string) counts {
+	kept := make(counts, len(names))
+	for _, name := range names {
+		if v, ok := c[name]; ok {
+			kept[name] = v
+		}
+	}
+	return kept
+}
+
 // prices returns the prices of the model with the given id in effect on the
-// local day with the given date: those that took effect last, on it or
-// before; or, on a day before any did, the first, which the model launched
-// with, as nothing priced it before them. It reports false for a model the
-// table doesn't know.
+// local day with the given date, as inEffect finds them. It reports false
+// for a model the table doesn't know.
 func (t Table) prices(model, date string) (Prices, bool) {
 	i := slices.IndexFunc(t.Models, func(m Model) bool { return slices.Contains(m.IDs, model) })
 	if i < 0 || len(t.Models[i].Prices) == 0 {
 		return Prices{}, false
 	}
-	all := t.Models[i].Prices
+	return inEffect(t.Models[i].Prices, date), true
+}
+
+// dated is a price that took effect on a day of its own.
+type dated interface {
+	// effective is the date of the day it took effect.
+	effective() string
+}
+
+func (p Prices) effective() string { return p.From }
+
+// inEffect returns the price of all, oldest first, in effect on the local
+// day with the given date: the one that took effect last, on it or before;
+// or, on a day before any did, the first, which launched what it prices, as
+// nothing priced it before. all holds one at least.
+func inEffect[P dated](all []P, date string) P {
 	in := all[0]
 	for _, p := range all[1:] {
-		if p.From <= date {
+		if p.effective() <= date {
 			in = p
 		}
 	}
-	return in, true
+	return in
 }
 
 // in returns the prices of a request that asked for its inference to run in
@@ -300,7 +356,7 @@ func (t Table) Priced(s Summary, date string) Priced {
 		account := PricedAccount{AccountDay: a}
 		for _, m := range a.Models {
 			model := PricedModel{ModelDay: m}
-			if w, ok := t.worth(m.Model, m.InferenceGeo, m.Usage, m.NoUsage > 0, date); ok {
+			if w, ok := t.worth(m.Model, m.InferenceGeo, countsOf(m.Usage), m.NoUsage > 0, date); ok {
 				model.Worth, model.Unpriced = &w.Cost, w.Unpriced
 			}
 			account.Models = append(account.Models, model)

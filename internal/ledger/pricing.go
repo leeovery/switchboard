@@ -12,7 +12,13 @@ package ledger
 // long-context rate is kept: Claude 4.6 and later price their whole context
 // at their standard rates, and the 1M-token beta that charged more on Claude
 // Sonnet 4 and 4.5 was retired on 30 April 2026.
-var Pricing = Table{AsOf: "2026-10-07", Models: []Model{
+//
+// Beside the models, it prices the plans a subscription is on, a month, in US
+// dollars, each at the price it launched at, unchanged since: Pro on 7
+// September 2023, and the two Max plans on 9 April 2025. And it names the
+// models' versions, a row each, by family, Opus, Sonnet, Fable, Haiku, then
+// Mythos, and within a family newest first, by the day each launched.
+var Pricing = Table{AsOf: "2026-10-07", Plans: plans, Versions: versions, Models: []Model{
 	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-fable-5-1"),
 	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-mythos-5-1"),
 	priced("2026-06-09", 10, 12.50, 20, 1, 50, usOnly, "claude-fable-5"),
@@ -29,6 +35,32 @@ var Pricing = Table{AsOf: "2026-10-07", Models: []Model{
 	priced("2025-09-29", 3, 3.75, 6, 0.30, 15, globalOnly, "claude-sonnet-4-5-20250929", "claude-sonnet-4-5"),
 	priced("2025-10-15", 1, 1.25, 2, 0.10, 5, globalOnly, "claude-haiku-4-5-20251001", "claude-haiku-4-5"),
 }}
+
+// plans are the plans the price table prices.
+var plans = []Plan{
+	plan("pro", "Pro", 1, "2023-09-07", 20),
+	plan("max5x", "Max 5x", 5, "2025-04-09", 100),
+	plan("max20x", "Max 20x", 20, "2025-04-09", 200),
+}
+
+// versions are the version table's rows.
+var versions = []Version{
+	version("Opus 5.5", "opus", "claude-opus-5-5"),
+	version("Opus 5", "opus", "claude-opus-5"),
+	version("Opus 4.8", "opus", "claude-opus-4-8"),
+	version("Opus 4.7", "opus", "claude-opus-4-7"),
+	version("Opus 4.6", "opus", "claude-opus-4-6"),
+	version("Opus 4.5", "opus", "claude-opus-4-5-20251101", "claude-opus-4-5"),
+	version("Sonnet 5.5", "sonnet", "claude-sonnet-5-5"),
+	version("Sonnet 5", "sonnet", "claude-sonnet-5"),
+	version("Sonnet 4.6", "sonnet", "claude-sonnet-4-6"),
+	version("Sonnet 4.5", "sonnet", "claude-sonnet-4-5-20250929", "claude-sonnet-4-5"),
+	version("Fable 5.1", "fable", "claude-fable-5-1"),
+	version("Fable 5", "fable", "claude-fable-5"),
+	version("Haiku 4.5", "haiku", "claude-haiku-4-5-20251001", "claude-haiku-4-5"),
+	version("Mythos 5.1", "mythos", "claude-mythos-5-1"),
+	version("Mythos 5", "mythos", "claude-mythos-5"),
+}
 
 const (
 	// usOnly is what a token costs where a request asks for US-only
@@ -50,4 +82,16 @@ func priced(from string, input, write5m, write1h, read, output float64, usOnlyPe
 		From: from, Input: perMTok(input), CacheWrite5m: perMTok(write5m), CacheWrite1h: perMTok(write1h), CacheRead: perMTok(read),
 		Output: perMTok(output), WebSearch: perThousand(webSearch), USOnlyPercent: usOnlyPercent,
 	}}}
+}
+
+// plan is the plan the config names id, shown as name, of the size given in
+// Pros, priced from the day with the date from on at monthly dollars a month.
+func plan(id, name string, size int, from string, monthly float64) Plan {
+	return Plan{ID: id, Name: name, Size: size, Prices: []PlanPrice{{From: from, Monthly: inDollars(monthly)}}}
+}
+
+// version is the version the ids given name, shown as name, of the family
+// given.
+func version(name, family string, ids ...string) Version {
+	return Version{IDs: ids, Name: name, Family: family}
 }
