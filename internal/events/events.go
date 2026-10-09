@@ -10,6 +10,7 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"slices"
 	"time"
@@ -36,31 +37,55 @@ const (
 type Line struct {
 	status.Event
 	Run time.Time `json:"run"`
-	// JSON is the line as it was filed, any field a later release added to it
-	// included, of a line read from the files: nil of one made otherwise.
-	JSON json.RawMessage `json:"-"`
 }
 
-// In returns the line a line of the files holds, its JSON as filed among it,
-// reporting false for one that doesn't read as an event: one that isn't
-// JSON, or has no run, id, at or kind. Fields it doesn't know are passed
-// over.
+// In returns the line a line of the files holds, reporting false for one that
+// doesn't read as an event: one that isn't JSON, or has no run, id, at or
+// kind. Fields it doesn't know are passed over.
 func In(data []byte) (Line, bool) {
 	var line Line
 	if json.Unmarshal(data, &line) != nil || !line.valid() {
 		return Line{}, false
 	}
-	line.JSON = slices.Clone(data)
 	return line, true
 }
 
-// Filed returns the line as the router files it: as it was filed, where it
-// was read from the files, else made JSON as the router makes it.
-func (l Line) Filed() ([]byte, error) {
-	if l.JSON != nil {
-		return l.JSON, nil
+// Held is a line as the files hold it: what it reads as, and its JSON, as it
+// was filed, any field a later release added to it included.
+type Held struct {
+	Line
+	JSON json.RawMessage
+}
+
+// HeldIn returns the line a line of the files holds, as In does, with its
+// JSON as filed.
+func HeldIn(data []byte) (Held, bool) {
+	line, ok := In(data)
+	if !ok {
+		return Held{}, false
 	}
-	return json.Marshal(l)
+	return Held{Line: line, JSON: slices.Clone(data)}, true
+}
+
+// Filed returns the line as the router files it: its JSON as filed, or, of
+// one held without it, as Marshal makes it.
+func (h Held) Filed() ([]byte, error) {
+	if h.JSON != nil {
+		return h.JSON, nil
+	}
+	return Marshal(h.Line)
+}
+
+// Marshal returns line as the router files it: its JSON, anything shaped like
+// a token in it hidden.
+func Marshal(line Line) ([]byte, error) {
+	data, err := json.Marshal(line)
+	if err != nil {
+		return nil, fmt.Errorf("put an event as JSON: %w", err)
+	}
+	// JSON escapes none of a token's characters, so a token anywhere in the
+	// line shows whole, to be hidden, and what hides it needs no escaping.
+	return []byte(redact.Text(string(data))), nil
 }
 
 // valid reports whether the line names an event: its run, its id, which
@@ -115,7 +140,7 @@ func (w *Writer) Run(ctx context.Context) {
 // lines returns line as the files' lines, filed under the local day it's
 // written on: none, should it not be put as JSON, which is logged once.
 func (w *Writer) lines(line Line) dayfile.Lines {
-	data, err := json.Marshal(line)
+	data, err := Marshal(line)
 	if err != nil {
 		if !w.unwritable {
 			w.logger.Warn("router's events can't hold a line; it goes unwritten", "event", line.ID, "error", err)
@@ -124,8 +149,6 @@ func (w *Writer) lines(line Line) dayfile.Lines {
 		return nil
 	}
 	lines := make(dayfile.Lines)
-	// JSON escapes none of a token's characters, so a token anywhere in the
-	// line shows whole, to be hidden, and what hides it needs no escaping.
-	lines.Add(w.now(), []byte(redact.Text(string(data))))
+	lines.Add(w.now(), data)
 	return lines
 }

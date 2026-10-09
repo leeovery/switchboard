@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"iter"
 	"os"
 	"os/signal"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -50,8 +48,12 @@ line, with its run and id, so a reader of a changed one takes the last. --json
 prints the JSON, and --pretty the text, wherever stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
-			defer stop()
+			ctx := cmd.Context()
+			if opts.follow {
+				var stop context.CancelFunc
+				ctx, stop = signal.NotifyContext(ctx, os.Interrupt)
+				defer stop()
+			}
 			return a.events(ctx, cmd.OutOrStdout(), opts)
 		},
 	}
@@ -78,29 +80,20 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		// Before the listing, so no event filed as it's read goes unprinted.
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), a.Now)
 	}
-	var reader views.Events = events.NewReader(dir, a.Now, logger)
 	printer, tomorrow := a.eventsPrinter(out, opts.form), startOfDay(now, -1)
-	if err := printer.list(reader.Between(from, tomorrow), from, now); err != nil || follower == nil {
+	if err := printer.list(events.NewReader(dir, a.Now, logger), from, tomorrow, now); err != nil || follower == nil {
 		return err
 	}
-	return follower.run(ctx, a.followEvery(), printer.follow)
-}
-
-// followEvery is how often a follower looks for new lines: as FollowEvery
-// says, else as logs.PollEvery does.
-func (a *app) followEvery() time.Duration {
-	if a.FollowEvery > 0 {
-		return a.FollowEvery
-	}
-	return logs.PollEvery
+	return follower.run(ctx, logs.PollEvery(a.FollowEvery), printer.follow)
 }
 
 // eventsPrinter prints the router's events in a form.
 type eventsPrinter interface {
-	// list prints the events that happened since from, as read at now.
-	list(lines iter.Seq[events.Line], from, now time.Time) error
+	// list prints the events reader reads that happened from from up to to,
+	// read at now.
+	list(reader *events.Reader, from, to, now time.Time) error
 	// follow prints a line as it's filed, after the listing.
-	follow(line events.Line) error
+	follow(h events.Held) error
 }
 
 // eventsPrinter returns the printer of the form f chooses, printing to out.
@@ -108,7 +101,7 @@ func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(windowInProse)}
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(claude.WindowInProse)}
 }
 
 // eventsJSON prints each event as the router files it, a JSON object a line,
@@ -117,17 +110,17 @@ type eventsJSON struct {
 	out io.Writer
 }
 
-func (p eventsJSON) list(lines iter.Seq[events.Line], _, _ time.Time) error {
-	for line := range lines {
-		if err := p.follow(line); err != nil {
+func (p eventsJSON) list(reader *events.Reader, from, to, _ time.Time) error {
+	for h := range reader.HeldBetween(from, to) {
+		if err := p.follow(h); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (p eventsJSON) follow(line events.Line) error {
-	data, err := line.Filed()
+func (p eventsJSON) follow(h events.Held) error {
+	data, err := h.Filed()
 	if err != nil {
 		return fmt.Errorf("print an event: %w", err)
 	}
@@ -141,29 +134,36 @@ type eventsText struct {
 	out     io.Writer
 	now     func() time.Time
 	telling *views.Telling
-	// day is the day of the last heading printed: zero before one is.
-	day time.Time
+	// day is the day of the last heading printed: zero before one is. widths
+	// are the columns' as the last rows printed were aligned, which a line
+	// followed is aligned to, at the least.
+	day    time.Time
+	widths []int
 }
 
-func (p *eventsText) list(lines iter.Seq[events.Line], from, now time.Time) error {
+func (p *eventsText) list(reader *events.Reader, from, to, now time.Time) error {
+	var lines views.Events = reader
 	at := func(line events.Line) time.Time { return line.At }
-	day, err := writeDays(p.out, lines, at, p.row, "events", from, now)
-	p.day = day
+	table, err := writeDays(p.out, lines.Between(from, to), at, p.row, "events", from, now)
+	p.day, p.widths = table.day, widths(nil, table.indented()...)
 	return err
 }
 
-// follow prints line's row, under its day's heading where that isn't the
-// last printed, as a change of day, or a changed event of an earlier day,
-// brings.
-func (p *eventsText) follow(line events.Line) error {
+// follow prints h's row, aligned to the rows before it, under its day's
+// heading where that isn't the last printed, as a change of day, or a
+// changed event of an earlier day, brings.
+func (p *eventsText) follow(h events.Held) error {
 	now := p.now()
-	at := line.At.In(now.Location())
-	table := dayTable{day: at, rows: [][]string{p.row(line, at)}}
-	if !p.day.IsZero() && (dayTable{day: p.day}).of(at) {
-		return table.writeRows(p.out)
+	at := h.At.In(now.Location())
+	row := indented(p.row(h.Line, at))
+	if p.day.IsZero() || !(dayTable{day: p.day}).of(at) {
+		p.day = at
+		if err := (dayTable{day: at}).writeHeading(p.out, now, false); err != nil {
+			return err
+		}
 	}
-	p.day = at
-	return table.write(p.out, now, false)
+	p.widths = widths(p.widths, row)
+	return writeRow(p.out, row, p.widths)
 }
 
 // row is line's row, at at: its time, its session's id cut short, its kind,
@@ -173,42 +173,36 @@ func (p *eventsText) row(line events.Line, at time.Time) []string {
 	return []string{at.Format(time.TimeOnly), status.ShortID(status.Clean(line.Session)), told.Kind, told.Account.String(), told.What.String()}
 }
 
-// windowInProse names a window by its key as the views' words do: one of
-// whole hours by them, as "5-hour"; any other by its label, as "week" or
-// "Fable week".
-func windowInProse(key string) string {
-	if length, ok := quota.Length(key); ok && length >= time.Hour && length%time.Hour == 0 && length < 24*time.Hour {
-		return fmt.Sprintf("%d-hour", length/time.Hour)
-	}
-	return status.InProse(claude.WindowLabel(key))
-}
-
 // eventsFollower follows the router's events' files, a day's at a time, as
 // they grow, reading on from where it last ended.
 type eventsFollower struct {
 	files *dayfile.Files
 	now   func() time.Time
 	date  string
-	tail  *dayfile.Tail[events.Line]
+	tail  *dayfile.Tail[events.Held]
+	// handed counts the lines of the day handed on, or passed over as listed
+	// already, and read those read since its files were last read afresh.
+	handed, read int
 }
 
 // newEventsFollower returns a follower of files, the router's events', from
 // the end of what today's, by now's clock, holds already.
 func newEventsFollower(files *dayfile.Files, now func() time.Time) *eventsFollower {
 	f := &eventsFollower{files: files, now: now}
-	f.open(localDate(now()))
-	f.tail.Read(func() {}, func(events.Line) {})
+	f.open(dayfile.DateOf(now()))
+	f.readOn(func(events.Held) {})
 	return f
 }
 
-// open follows the files of the local day with the given date.
+// open follows the files of the local day with the given date, none of its
+// lines handed on yet.
 func (f *eventsFollower) open(date string) {
-	f.date, f.tail = date, dayfile.NewTail(f.files, date, events.In)
+	f.date, f.tail, f.handed, f.read = date, dayfile.NewTail(f.files, date, events.HeldIn), 0, 0
 }
 
 // run hands print each line filed after those the follower began from,
 // every interval given, until ctx ends or print fails.
-func (f *eventsFollower) run(ctx context.Context, every time.Duration, print func(events.Line) error) error {
+func (f *eventsFollower) run(ctx context.Context, every time.Duration, print func(events.Held) error) error {
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 	for {
@@ -217,9 +211,9 @@ func (f *eventsFollower) run(ctx context.Context, every time.Duration, print fun
 			return nil
 		case <-ticker.C:
 			var err error
-			f.poll(func(line events.Line) {
+			f.poll(func(h events.Held) {
 				if err == nil {
-					err = print(line)
+					err = print(h)
 				}
 			})
 			if err != nil {
@@ -229,35 +223,47 @@ func (f *eventsFollower) run(ctx context.Context, every time.Duration, print fun
 	}
 }
 
-// poll hands take each line the day's files gained since the last poll, as
-// a dayfile.Tail reads them, those of files read afresh again. Once a later
-// day has come and the router has filed under it, it reads the day it
-// followed to its end, then the later day's, from its start, and follows
-// that.
-func (f *eventsFollower) poll(take func(events.Line)) {
-	next := f.nextDay()
-	f.tail.Read(func() {}, take)
-	if next != "" {
+// poll hands take each line filed since the last poll: the rest of the day
+// followed, then, a day at a time, each later day the router has filed
+// under, up to today, read to its end, the last of them followed from then
+// on.
+func (f *eventsFollower) poll(take func(events.Held)) {
+	for {
+		next := f.nextDay()
+		f.readOn(take)
+		if next == "" {
+			return
+		}
 		f.open(next)
-		f.tail.Read(func() {}, take)
 	}
 }
 
-// nextDay is the date of today, by the follower's clock, where it's later
-// than the day followed and the router has filed under it: "" until then.
+// readOn hands take each line the day's files gained since the last read,
+// as a dayfile.Tail reads them. Lines are only ever appended to a day, so of
+// its files read afresh, from their start, as when the day is compressed,
+// as many as were handed on before are passed over.
+func (f *eventsFollower) readOn(take func(events.Held)) {
+	f.tail.Read(func() { f.read = 0 }, func(h events.Held) {
+		if f.read++; f.read <= f.handed {
+			return
+		}
+		f.handed++
+		take(h)
+	})
+}
+
+// nextDay is the date of the first day after the one followed, up to today
+// by the follower's clock, that the router has filed under: "" where there's
+// none yet.
 func (f *eventsFollower) nextDay() string {
-	date := localDate(f.now())
-	if date <= f.date {
+	_, end, ok := dayfile.Day(f.date)
+	if !ok {
 		return ""
 	}
-	if _, err := f.files.Stat(date); err != nil {
-		return ""
+	for _, date := range dayfile.Span(end, f.now()) {
+		if _, err := f.files.Stat(date); err == nil {
+			return date
+		}
 	}
-	return date
-}
-
-// localDate is the date of the local day t falls on, as the files' names give
-// it.
-func localDate(t time.Time) string {
-	return t.Local().Format(time.DateOnly)
+	return ""
 }

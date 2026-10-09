@@ -45,14 +45,26 @@ func NewReader(stateDir string, now func() time.Time, logger *slog.Logger) *Read
 // is logged.
 func (r *Reader) Between(from, to time.Time) iter.Seq[Line] {
 	return func(yield func(Line) bool) {
+		for h := range r.HeldBetween(from, to) {
+			if !yield(h.Line) {
+				return
+			}
+		}
+	}
+}
+
+// HeldBetween returns the events that happened from from up to to, as
+// Between does, each with its last version's JSON, as it was filed.
+func (r *Reader) HeldBetween(from, to time.Time) iter.Seq[Held] {
+	return func(yield func(Held) bool) {
 		last := to.AddDate(0, 0, ChangesFor)
 		if now := r.now(); now.Before(last) {
 			last = now
 		}
-		m := merge{from: from, to: to, held: make(map[key]Line), yield: yield}
-		unread := dayfile.ReadFiled(r.files, dayfile.Dates(from, last), In, m.hold, m.dayRead)
+		m := merge{from: from, to: to, held: make(map[key]Held), yield: yield}
+		unread := dayfile.ReadFiled(r.files, dayfile.Dates(from, last), HeldIn, m.hold, m.dayRead)
 		if !m.stopped {
-			m.handOn(func(Line) bool { return true })
+			m.handOn(func(Held) bool { return true })
 		}
 		if unread > 0 {
 			r.logger.Warn("lines of the router's events unread", "lines", unread)
@@ -76,8 +88,8 @@ func keyOf(line Line) key {
 // on those settled, oldest first, to yield.
 type merge struct {
 	from, to time.Time
-	held     map[key]Line
-	yield    func(Line) bool
+	held     map[key]Held
+	yield    func(Held) bool
 	// settled is when the events handed on happened before: no file left to
 	// read can hold a version of one.
 	settled time.Time
@@ -89,11 +101,11 @@ type merge struct {
 // its event happened in the span and isn't settled: a version of a settled
 // event, filed further after it than an event changes, is passed over, as its
 // event has been handed on. It always wants more.
-func (m *merge) hold(line Line) bool {
-	if line.At.Before(m.from) || !line.At.Before(m.to) || line.At.Before(m.settled) {
+func (m *merge) hold(h Held) bool {
+	if h.At.Before(m.from) || !h.At.Before(m.to) || h.At.Before(m.settled) {
 		return true
 	}
-	m.held[keyOf(line)] = line
+	m.held[keyOf(h.Line)] = h
 	return true
 }
 
@@ -108,22 +120,22 @@ func (m *merge) dayRead(date string) bool {
 		return true
 	}
 	m.settled = dayfile.DayStart(start, -ChangesFor)
-	return m.handOn(func(line Line) bool { return line.At.Before(m.settled) })
+	return m.handOn(func(h Held) bool { return h.At.Before(m.settled) })
 }
 
 // handOn hands yield the events held that settled reports true of, oldest
 // first, and lets them go, reporting whether yield wants more.
-func (m *merge) handOn(settled func(Line) bool) bool {
-	var ready []Line
-	for k, line := range m.held {
-		if settled(line) {
-			ready = append(ready, line)
+func (m *merge) handOn(settled func(Held) bool) bool {
+	var ready []Held
+	for k, h := range m.held {
+		if settled(h) {
+			ready = append(ready, h)
 			delete(m.held, k)
 		}
 	}
 	slices.SortFunc(ready, oldestFirst)
-	for _, line := range ready {
-		if !m.yield(line) {
+	for _, h := range ready {
+		if !m.yield(h) {
 			m.stopped = true
 			return false
 		}
@@ -133,7 +145,7 @@ func (m *merge) handOn(settled func(Line) bool) bool {
 
 // oldestFirst orders lines by when their events happened, then by their runs
 // and ids.
-func oldestFirst(a, b Line) int {
+func oldestFirst(a, b Held) int {
 	return cmp.Or(a.At.Compare(b.At), a.Run.Compare(b.Run), cmp.Compare(a.ID, b.ID))
 }
 

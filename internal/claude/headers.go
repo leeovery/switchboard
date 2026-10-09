@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // limitsPrefix begins the name of each of the usage headers, lowercased.
@@ -177,4 +179,14 @@ func WindowLabel(key string) string {
 		return label
 	}
 	return key
+}
+
+// WindowInProse names the window Claude reports by the key given as a
+// sentence of the views has it, cleaned: one of whole hours, under a day, by
+// them, as "5-hour", and any other by its label, as "week" or "Fable week".
+func WindowInProse(key string) string {
+	if length, ok := quota.Length(key); ok && length >= time.Hour && length%time.Hour == 0 && length < 24*time.Hour {
+		return fmt.Sprintf("%d-hour", length/time.Hour)
+	}
+	return status.InProse(WindowLabel(key))
 }

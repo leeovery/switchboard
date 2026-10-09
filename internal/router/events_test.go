@@ -143,13 +143,8 @@ func TestARouterRestartingInPlaceFilesItsEventsFirst(t *testing.T) {
 }
 
 // readEvents reads back the events filed in the state directory stateDir,
-// each as it last stands, of the day either side of now: as lines made are,
-// without the JSON each was filed as.
+// each as it last stands, of the day either side of now.
 func readEvents(stateDir string) []events.Line {
 	reader := events.NewReader(stateDir, func() time.Time { return now.Add(24 * time.Hour) }, slog.New(slog.DiscardHandler))
-	lines := slices.Collect(reader.Between(now.Add(-24*time.Hour), now.Add(24*time.Hour)))
-	for i := range lines {
-		lines[i].JSON = nil
-	}
-	return lines
+	return slices.Collect(reader.Between(now.Add(-24*time.Hour), now.Add(24*time.Hour)))
 }

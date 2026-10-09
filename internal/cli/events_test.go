@@ -265,7 +265,7 @@ func TestEventsFollowPrintsEachLineAsItsFiled(t *testing.T) {
 	}
 }
 
-func TestEventsFollowPrintsAChangedEventAgainWhole(t *testing.T) {
+func TestEventsFollowPrintsAChangedEventAgainWholeAlignedToTheListing(t *testing.T) {
 	deps := eventsDeps(t)
 	stdout, interrupt := follow(t, deps, onATerminal, "events", "-f")
 
@@ -273,9 +273,16 @@ func TestEventsFollowPrintsAChangedEventAgainWhole(t *testing.T) {
 	limitLifted := limitMoved
 	limitLifted.Count, limitLifted.To = 2, ""
 	fileEvent(t, deps, "2026-10-07", limitLifted)
-	stdout.waitFor(t, todaysEvents+`
+	followed := todaysEvents + `
 Tue 6 Oct 2026
-  22:00:00    limit  personal  its 5-hour window, till 23:58: its 2 sessions move to other accounts
+  22:00:00            limit     personal    its 5-hour window, till 23:58: its 2 sessions move to other accounts
+`
+	stdout.waitFor(t, followed)
+	fileEvent(t, deps, "2026-10-07", eventLine(runTwo, 2, status.Event{At: october(7, 13, 10, 0), Kind: status.EventMoved, Session: sessionB,
+		From: "work", To: "personal", Reason: status.ReasonMovedByPin}))
+	stdout.waitFor(t, followed+`
+Wed 7 Oct 2026, so far
+  13:10:00  5b0e9d33  moved     work → personal  pinned to personal
 `)
 
 	if code, stderr := interrupt(); code != 0 || stderr != "" {
@@ -283,53 +290,79 @@ Tue 6 Oct 2026
 	}
 }
 
-func TestEventsFollowCrossesMidnightOntoTheNextDaysFile(t *testing.T) {
+func TestEventsFollowPrintsNothingAgainAsTheDayIsCompressed(t *testing.T) {
+	deps := eventsDeps(t)
+	stdout, interrupt := follow(t, deps, offATerminal, "events", "--since", "12:00", "-f")
+
+	listed := eventJSON(t, restartDue, routerUnwell)
+	stdout.waitFor(t, listed)
+	// The router filed a last line under the day, and the day was compressed,
+	// before the follower looked again, as over a quiet weekend.
+	dir := ledger.Dir(stateDir(t, deps))
+	plain := filepath.Join(dir, "events-2026-10-07.jsonl")
+	last := eventLine(runTwo, 2, status.Event{At: october(7, 13, 10, 0), Kind: status.EventHealth})
+	appendTo(t, plain, eventJSON(t, last))
+	held, err := os.ReadFile(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, dir, "events-2026-10-07.jsonl.gz.tmp", gzipOf(t, held))
+	if err := os.Rename(plain+".gz.tmp", plain+".gz"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(plain); err != nil {
+		t.Fatal(err)
+	}
+	stdout.waitFor(t, listed+eventJSON(t, last))
+	// Long enough for a few more looks, which find nothing new.
+	time.Sleep(50 * time.Millisecond)
+
+	if code, stderr := interrupt(); code != 0 || stderr != "" || stdout.String() != listed+eventJSON(t, last) {
+		t.Errorf("switchboard events -f exited %d, printing\n%s\nand %q on stderr, once interrupted; want 0, the day's lines each once, and nothing",
+			code, stdout.String(), stderr)
+	}
+}
+
+func TestEventsFollowMovesOnADayAtATime(t *testing.T) {
 	deps := eventsDeps(t)
 	var clock atomic.Int64
 	clock.Store(october(7, 23, 59, 0).UnixNano())
 	deps.Now = func() time.Time { return time.Unix(0, clock.Load()).Local() }
 	stdout, interrupt := follow(t, deps, onATerminal, "events", "--since", "12:30", "-f")
 
-	listed := `Wed 7 Oct 2026, so far
+	printed := `Wed 7 Oct 2026, so far
   12:30:00    health    unhealthy: most requests failing
 `
-	stdout.waitFor(t, listed)
+	stdout.waitFor(t, printed)
+	// Past midnight, the day before is followed until the router files under
+	// the next.
 	clock.Store(october(8, 0, 0, 10).UnixNano())
-	lateLine := eventLine(runTwo, 2, status.Event{At: october(7, 23, 59, 50), Kind: status.EventRoom, Account: "personal", Windows: []string{"5h"}})
-	fileEvent(t, deps, "2026-10-07", lateLine)
-	listed += "  23:59:50    open  personal  its 5-hour window reset\n"
-	stdout.waitFor(t, listed)
-	straggler := eventLine(runTwo, 3, status.Event{At: october(7, 23, 59, 55), Kind: status.EventHealth})
-	fileEvent(t, deps, "2026-10-07", straggler)
-	nextDays := eventLine(runTwo, 4, status.Event{At: october(8, 0, 0, 5), Kind: status.EventStarted, Session: sessionB, Account: "side", Reason: status.ReasonNew})
-	fileEvent(t, deps, "2026-10-08", nextDays)
-	listed += `  23:59:55    health    healthy again
+	fileEvent(t, deps, "2026-10-07", eventLine(runTwo, 2, status.Event{At: october(7, 23, 59, 50), Kind: status.EventRoom, Account: "personal", Windows: []string{"5h"}}))
+	printed += "  23:59:50    open    personal  its 5-hour window reset\n"
+	stdout.waitFor(t, printed)
+	// A day later, as after a follower was suspended, it reads the rest of
+	// the day it followed, then the day between, then today's.
+	clock.Store(october(9, 0, 0, 20).UnixNano())
+	fileEvent(t, deps, "2026-10-07", eventLine(runTwo, 3, status.Event{At: october(7, 23, 59, 55), Kind: status.EventHealth}))
+	fileEvent(t, deps, "2026-10-08", eventLine(runTwo, 4, status.Event{At: october(8, 0, 0, 5), Kind: status.EventStarted, Session: sessionB, Account: "side",
+		Reason: status.ReasonNew}))
+	printed += `  23:59:55    health            healthy again
 
-Thu 8 Oct 2026, so far
+Thu 8 Oct 2026
   00:00:05  5b0e9d33  started  side
 `
-	stdout.waitFor(t, listed)
-	later := eventLine(runTwo, 5, status.Event{At: october(8, 0, 0, 30), Kind: status.EventAuto, Accounts: []string{"work", "side"}, By: "dashboard"})
-	fileEvent(t, deps, "2026-10-08", later)
-	stdout.waitFor(t, listed+"  00:00:30    auto    new sessions back from work and side to the router's choice, set from the dashboard\n")
+	stdout.waitFor(t, printed)
+	fileEvent(t, deps, "2026-10-09", eventLine(runTwo, 5, status.Event{At: october(9, 0, 0, 15), Kind: status.EventAuto, Accounts: []string{"work", "side"},
+		By: "dashboard"}))
+	printed += `
+Fri 9 Oct 2026, so far
+  00:00:15            auto               new sessions back from work and side to the router's choice, set from the dashboard
+`
+	stdout.waitFor(t, printed)
+	fileEvent(t, deps, "2026-10-09", eventLine(runTwo, 6, status.Event{At: october(9, 0, 0, 18), Kind: status.EventHealth}))
+	stdout.waitFor(t, printed+"  00:00:18            health             healthy again\n")
 
 	if code, stderr := interrupt(); code != 0 || stderr != "" {
 		t.Errorf("switchboard events -f exited %d, printing %q on stderr, once interrupted; want 0 and nothing", code, stderr)
-	}
-}
-
-func TestEventsNamesAWindowInTheViewsWords(t *testing.T) {
-	tests := []struct{ key, want string }{
-		{key: "5h", want: "5-hour"},
-		{key: "7d", want: "week"},
-		{key: "7d_oi", want: "Fable week"},
-		{key: "7d_opus", want: "Opus week"},
-		{key: "90m", want: "90m"},
-		{key: "odd\x1bkey", want: "odd key"},
-	}
-	for _, tt := range tests {
-		if got := cli.WindowInProse(tt.key); got != tt.want {
-			t.Errorf("WindowInProse(%q) = %q, want %q", tt.key, got, tt.want)
-		}
 	}
 }

@@ -38,10 +38,20 @@ var restartWords = map[string]string{
 // words: nothing for anyone else, or no one.
 var by = map[string]string{"cli": ", set from the command line", "dashboard": ", set from the dashboard"}
 
+// forced says a global pin set or cleared with force cleared every
+// session's own pin too: nothing of one without.
+func forced(e status.Event) string {
+	if !e.Force {
+		return ""
+	}
+	return ", every session's own pin cleared too"
+}
+
 // Telling tells the router's events as their lines, oldest first, as they're
 // read: it remembers when each account's latest pressure event said it runs
-// out, for a move whose choice later passed the account over. A Telling
-// isn't safe for concurrent use.
+// out, for a move whose choice later passed the account over. Its zero value
+// names a window by its key, cleaned. A Telling isn't safe for concurrent
+// use.
 type Telling struct {
 	window   func(key string) string
 	pressure map[string]time.Time
@@ -58,6 +68,9 @@ func NewTelling(window func(key string) string) *Telling {
 func (t *Telling) Line(e status.Event, now time.Time) EventLine {
 	at := e.At.In(now.Location())
 	if e.Kind == status.EventPressure && !e.Until.IsZero() {
+		if t.pressure == nil {
+			t.pressure = make(map[string]time.Time)
+		}
 		t.pressure[status.Clean(e.Account)] = e.Until
 	}
 	kind, ok := kindWords[e.Kind]
@@ -98,10 +111,15 @@ func (*Telling) started(e status.Event, _ time.Time) (status.Words, status.Words
 
 // moved tells of a session's move, from and to, as "work → side", and why,
 // as status.EventWords says: a choice that passed an account over under
-// pressure with when that account's latest pressure event said it runs out.
+// pressure with when that account's latest pressure event said it runs out,
+// where the move came before then.
 func (t *Telling) moved(e status.Event, at time.Time) (status.Words, status.Words) {
 	moves := status.Words{named(e.From), said(" → "), named(e.To)}
-	facts := status.Facts{From: e.From, To: e.To, Until: t.pressure[status.PassedOver(e.Reason)], Now: at}
+	runsOut := t.pressure[status.PassedOver(e.Reason)]
+	if !e.At.Before(runsOut) {
+		runsOut = time.Time{}
+	}
+	facts := status.Facts{From: e.From, To: e.To, Until: runsOut, Now: at}
 	return moves, status.EventWords(e.Reason, facts)
 }
 
@@ -167,8 +185,8 @@ func (t *Telling) opened(e status.Event, _ time.Time) (status.Words, status.Word
 
 // pinned tells of routing set by hand: the global pin's accounts, "new
 // sessions go there", or with its move, "new and running sessions go
-// there"; or a session's own pin's account, "this session goes there"; and
-// who set it, as by says.
+// there", with force, every session's own pin cleared too; or a session's
+// own pin's account, "this session goes there"; and who set it, as by says.
 func (*Telling) pinned(e status.Event, _ time.Time) (status.Words, status.Words) {
 	if e.Session != "" {
 		return account(e.Account), clause("this session goes there" + by[e.By])
@@ -177,13 +195,14 @@ func (*Telling) pinned(e status.Event, _ time.Time) (status.Words, status.Words)
 	if e.Move {
 		what = "new and running sessions go there"
 	}
-	return pinAccounts(e), clause(what + by[e.By])
+	return pinAccounts(e), clause(what + forced(e) + by[e.By])
 }
 
 // unpinned tells of routing given back to the router: "new sessions back
 // from personal to the router's choice", or of a session's own pin, "this
-// session back from side to the router's choice"; and who did it, as by
-// says. It names no account in the account column.
+// session back from side to the router's choice"; the global pin's with
+// force, every session's own pin cleared too; and who did it, as by says.
+// It names no account in the account column.
 func (*Telling) unpinned(e status.Event, _ time.Time) (status.Words, status.Words) {
 	who, from := "new sessions back", e.Accounts
 	if e.Session != "" {
@@ -194,7 +213,7 @@ func (*Telling) unpinned(e status.Event, _ time.Time) (status.Words, status.Word
 		what = append(what, said(" from "))
 		what = append(what, joined(names, " and ")...)
 	}
-	return nil, append(what, said(" to the router's choice"+by[e.By]))
+	return nil, append(what, said(" to the router's choice"+forced(e)+by[e.By]))
 }
 
 // restarting tells of a restart falling due: "due: the config changed".
@@ -262,8 +281,11 @@ func (t *Telling) its(keys []string, none string) string {
 // windowOf names the window with the given key, as "5-hour": "window" where
 // there's none.
 func (t *Telling) windowOf(key string) string {
-	if key == "" {
+	switch {
+	case key == "":
 		return "window"
+	case t.window == nil:
+		return status.Clean(key)
 	}
 	return t.window(key)
 }

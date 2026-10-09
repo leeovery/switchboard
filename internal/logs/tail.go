@@ -13,9 +13,19 @@ import (
 	"time"
 )
 
-// PollEvery is how often Follow looks for new lines unless told otherwise,
-// as a follower of other files looks for theirs.
-const PollEvery = 500 * time.Millisecond
+// pollEvery is how often a follower looks for new lines unless told
+// otherwise.
+const pollEvery = 500 * time.Millisecond
+
+// PollEvery is how often a follower told to look for new lines every interval
+// given looks for them, as Follow does, and a follower of other files: every
+// interval given, or every half second where that's zero.
+func PollEvery(every time.Duration) time.Duration {
+	if every <= 0 {
+		return pollEvery
+	}
+	return every
+}
 
 // tailChunk is how much of a log lastLines reads at a time, back from its end.
 const tailChunk = 64 << 10
@@ -59,10 +69,7 @@ func Follow(ctx context.Context, w io.Writer, path string, n int, every time.Dur
 	if err := writeTail(w, file, path, n); err != nil {
 		return err
 	}
-	if every <= 0 {
-		every = PollEvery
-	}
-	ticker := time.NewTicker(every)
+	ticker := time.NewTicker(PollEvery(every))
 	defer ticker.Stop()
 	for {
 		select {

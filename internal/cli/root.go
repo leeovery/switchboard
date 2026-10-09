@@ -59,8 +59,8 @@ type Deps struct {
 	Watch func(ctx context.Context, cfg watch.Config, out io.Writer, environ []string) error
 	// Notifier posts desktop notifications, as notify.Desktop does.
 	Notifier Notifier
-	// FollowEvery is how often logs --follow looks for new lines. Zero means
-	// every half second.
+	// FollowEvery is how often logs --follow and events --follow look for
+	// new lines. Zero means every half second.
 	FollowEvery time.Duration
 	// WatchEvery is how often the router serve runs reads the token files
 	// again, and looks at its config file and its binary. Zero means every 3

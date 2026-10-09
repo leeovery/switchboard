@@ -75,12 +75,16 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 			kind: "pin", account: "side", what: "new and running sessions go there, set from the dashboard"},
 		{name: "the global pin, not saying who set it", event: status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}},
 			kind: "pin", account: "side", what: "new sessions go there"},
+		{name: "the global pin, clearing every session's own", event: status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}, Move: true, Force: true, By: "cli"},
+			kind: "pin", account: "side", what: "new and running sessions go there, every session's own pin cleared too, set from the command line"},
 		{name: "a session's own pin", event: status.Event{Kind: status.EventPin, Account: "side", Session: "s1", By: "dashboard"},
 			kind: "pin", account: "side", what: "this session goes there, set from the dashboard"},
 		{name: "the global pin cleared", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, By: "dashboard"},
 			kind: "auto", what: "new sessions back from personal to the router's choice, set from the dashboard"},
 		{name: "the global pin of several cleared", event: status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side", "personal"}, By: "cli"},
 			kind: "auto", what: "new sessions back from work, side and personal to the router's choice, set from the command line"},
+		{name: "the global pin cleared with every session's own", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, Force: true, By: "dashboard"},
+			kind: "auto", what: "new sessions back from personal to the router's choice, every session's own pin cleared too, set from the dashboard"},
 		{name: "a session's own pin cleared", event: status.Event{Kind: status.EventAuto, Account: "side", Session: "s1", By: "cli"},
 			kind: "auto", what: "this session back from side to the router's choice, set from the command line"},
 		{name: "a restart for the config", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForConfig},
@@ -140,6 +144,22 @@ func TestAMovePassingOverAnAccountUnderPressureSaysWhenItRunsOut(t *testing.T) {
 	telling.Line(status.Event{At: at(13, 5), Kind: status.EventPressure, Account: "work", Windows: []string{"5h"}, Until: at(17, 0)}, now)
 	if got, want := telling.Line(move, now).What.String(), "personal came under pressure, its 5-hour to run out at 15:10"; got != want {
 		t.Errorf("once personal's pressure is told, a move passing it over says %q, want %q", got, want)
+	}
+	move.At = at(15, 10)
+	if got, want := telling.Line(move, now).What.String(), "personal came under pressure"; got != want {
+		t.Errorf("a move passing personal over as its pressure's run-out comes says %q, want %q, the time gone stale", got, want)
+	}
+}
+
+func TestATellingsZeroValueNamesAWindowByItsKey(t *testing.T) {
+	var telling views.Telling
+	pressure := status.Event{At: at(13, 0), Kind: status.EventPressure, Account: "personal", Windows: []string{"5\x1bh"}, Until: at(15, 10)}
+	if got, want := telling.Line(pressure, at(16, 0)).What.String(), "its 5 h to run out at 15:10"; got != want {
+		t.Errorf("a zero Telling tells a pressure event as %q, want %q", got, want)
+	}
+	move := status.Event{At: at(14, 0), Kind: status.EventMoved, From: "personal", To: "side", Reason: "new, personal under pressure"}
+	if got, want := telling.Line(move, at(16, 0)).What.String(), "personal came under pressure, its 5-hour to run out at 15:10"; got != want {
+		t.Errorf("a zero Telling tells a move passing personal over as %q, want %q", got, want)
 	}
 }
 

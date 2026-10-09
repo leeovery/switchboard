@@ -178,8 +178,8 @@ func TestAnEventIsReadAsItsLastVersionWasFiled(t *testing.T) {
 	fileDays(t, state, filed{day: 10, lines: []string{jsonOf(t, first)}}, filed{day: 11, lines: []string{lastFiled}})
 
 	var got []string
-	for line := range events.NewReader(state, func() time.Time { return now }, logs.For("cli")).Between(september(10, 0, 0), september(11, 0, 0)) {
-		data, err := line.Filed()
+	for held := range events.NewReader(state, func() time.Time { return now }, logs.For("cli")).HeldBetween(september(10, 0, 0), september(11, 0, 0)) {
+		data, err := held.Filed()
 		if err != nil {
 			t.Fatal(err)
 		}

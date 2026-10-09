@@ -323,12 +323,12 @@ func TestLinesAreAppendedToThePlainFilesOfTheirDays(t *testing.T) {
 			t.Fatalf("Append() = %v", err)
 		}
 	}
-	for date, want := range map[string]string{dateOf(yesterday): linesOf("one"), dateOf(start): linesOf("two", "three", "four")} {
+	for date, want := range map[string]string{DateOf(yesterday): linesOf("one"), DateOf(start): linesOf("two", "three", "four")} {
 		if got := heldIn(t, f, plainFile(date)); got != want {
 			t.Errorf("the plain file of %s holds\n%s\nwant its day's lines, in the order they came\n%s", date, got, want)
 		}
 	}
-	for path, mode := range map[string]fs.FileMode{dir: fs.ModeDir | 0o700, f.path(plainFile(dateOf(start))): 0o600} {
+	for path, mode := range map[string]fs.FileMode{dir: fs.ModeDir | 0o700, f.path(plainFile(DateOf(start))): 0o600} {
 		info, err := os.Stat(path)
 		if err != nil {
 			t.Fatal(err)
@@ -379,7 +379,7 @@ func TestAnAppendStartsALineOfItsOwnAfterOneCutShort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := requestLedger(t.TempDir())
-			date := dateOf(start)
+			date := DateOf(start)
 			writeDay(t, f, plainFile(date), tt.held)
 			lines := make(Lines)
 			lines.Add(start, []byte(appended))
@@ -426,11 +426,11 @@ func TestADaysFilesGoOnceItsDayEndedAsLongAgoAsTheyreKept(t *testing.T) {
 
 func TestADaysFilesKeptForeverAreCompressedButNeverGo(t *testing.T) {
 	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
-	today := dateOf(now)
+	today := DateOf(now)
 	// Today's, then days done with: one, one past the keep the config gives
 	// unless it says, and one that ended longer ago than a time.Duration
 	// holds.
-	dates := []string{today, dateOf(now.AddDate(0, 0, -3)), dateOf(now.AddDate(0, 0, -401)), "0001-01-01"}
+	dates := []string{today, DateOf(now.AddDate(0, 0, -3)), DateOf(now.AddDate(0, 0, -401)), "0001-01-01"}
 	for _, files := range []func(dir string) *Files{readingsHistory, requestLedger} {
 		f := files(t.TempDir())
 		t.Run(f.Name, func(t *testing.T) {
@@ -458,7 +458,7 @@ func TestPruningLeavesAnythingButItsOwnFilesAlone(t *testing.T) {
 	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
 	dir := t.TempDir()
 	f, other := readingsHistory(dir), requestLedger(dir)
-	old, done := dateOf(now.AddDate(0, 0, -30)), dateOf(now.AddDate(0, 0, -3))
+	old, done := DateOf(now.AddDate(0, 0, -30)), DateOf(now.AddDate(0, 0, -3))
 	// Another prefix's files, one past keeping and one of a day done with, and
 	// anything else, as a compressed file left half written.
 	writeDay(t, other, plainFile(old), linesOf("old"))
@@ -674,7 +674,7 @@ func TestTheFilesArentReadWhilePrunedNorPrunedWhileRead(t *testing.T) {
 		hold func(f *Files) (release func())
 		run  func(f *Files)
 	}{
-		{name: "a read waits for pruning", hold: pruning, run: func(f *Files) { readAll(f, dateOf(start)) }},
+		{name: "a read waits for pruning", hold: pruning, run: func(f *Files) { readAll(f, DateOf(start)) }},
 		{name: "finding the newest days waits for pruning", hold: pruning, run: func(f *Files) { f.Newest(start, 2) }},
 		{name: "appending waits for pruning", hold: pruning, run: func(f *Files) { _ = f.Append(make(Lines)) }},
 		{
