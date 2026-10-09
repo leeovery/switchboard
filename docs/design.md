@@ -3281,27 +3281,22 @@ first ran on them:
   session's points are its requests' shares summed, in whole points of the window, a reset starting
   the window afresh.
 
-**TURNS.** A turn is a prompt to the answer that ended it.
+**TURNS.** A turn is a prompt and every request that serves it, as Claude Code itself tells them.
 
-- **Told from the lines:** the ledger keeps no content, so a session's turns are told from the shape
-  of its `message` lines, in the order they arrived; checks and counts are left out.
-  - A request's thread length is its `shape.messages`. Claude Code's main conversation is the
-    longest thread; the side requests it makes, a subagent's or a small model's, start short.
-  - A turn's main thread is its longest so far: a request is on it where its length is at least the
-    main thread's last.
-  - A turn ends at an answer on its main thread that stops other than at `tool_use`: `end_turn`,
-    `max_tokens`, `stop_sequence` or `refusal`; or at a main-thread request its client canceled, as
-    an interruption does. A side request's `end_turn` ends nothing.
-  - The request after a turn's end starts the next turn. A conversation compacted or cleared starts
-    a new turn short.
-- **Checked against real lines before the page is built,** as no test and no agent reads a real
-  ledger: `scripts/turns-check`, run by hand on the machine whose ledger it is, reads it through
-  `internal/ledger` and prints counts alone, never an id, a directory, a time or anything of a
-  line: the sessions and turns read; the requests a turn, the least, the median and the most; the
-  turns ended by each stop reason, and by cancelling; the side requests' `end_turn`s passed over,
-  by model; the turns whose first request is shorter than the main thread before them; and the turns
-  that ran over an hour. Where the counts don't fit what its user knows of their sessions, the rule
-  changes before the page ships.
+- **Told by Claude Code:** each of its requests names the prompt it serves, by an id of Claude
+  Code's, and what kind of request it is, and a subagent's names its agent, as the router records
+  on its line (see The request ledger). The ledger keeps no content, and a turn needs none: it's a
+  session's `message` lines of one prompt; checks and counts are left out.
+  - A message sent while Claude works, and left to queue, joins the prompt running, as Claude Code
+    takes it in at its next step; one pushed in starts a prompt of its own (see Observed).
+  - A subagent's requests count in the turn of the prompt that started it, as its first request
+    names it, however long it runs and whatever prompts come meanwhile; one a later prompt starts
+    counts in that one's. A compaction, and a side request Claude Code makes for a prompt, as a
+    title or a summary, count in the prompt's turn too.
+  - A turn ends with its conversation's last answer, of its `main` requests: a subagent still
+    running counts in it without keeping it going.
+  - A request that names no prompt, as one from a Claude Code before 2.1.283, or one the ledger
+    holds from before the router recorded prompts, is in no turn.
 - **The heading:** `TURNS`, with no description, its rule of `─` in `border` from column 9 to two
   cells short of the totals, and at the right the session's totals: `13 turns` in `text.secondary`;
   ` · 445 requests · 97% from cache · ` in `text.muted`; its worth bold `text.secondary` (`$48.20`);
@@ -4058,6 +4053,19 @@ from the first day a router that has it runs, so nothing before then is in it.
     as where the router answered it itself.
   - `agent` and `betas`: Claude Code's user agent, which carries its version, and the features its
     `anthropic-beta` header asked for, some of which change what a request costs.
+  - `prompt`, `class`, `agent_id`, `parent_agent_id`, `agent_type`, `compaction`, `compacted` and
+    `tool_ms`: what Claude Code's headers say of the request, as `run` has it send them (see
+    Launching), each left out where it carries none; Claude Code's gateway guide documents them.
+    `prompt`: the id of the prompt it serves, the same on every request serving one prompt,
+    including the turns of the subagents that prompt starts. `class`: what kind of request it is,
+    `main`, a turn of the session's own conversation, `subagent`, `workflow`, `compaction` or
+    `auxiliary`, a side request such as a title, a classifier or a summary. `agent_id`: the
+    subagent that sent it, and `parent_agent_id` the one that started that, where agents nest.
+    `agent_type`: a built-in agent's name, as `Explore`, or `custom`, `teammate` or `fork`, never a
+    name the user chose. `compaction`: what started the compaction it is, `auto`, `manual` or
+    `reactive`; `compacted`, the same, on the first request of the conversation after one.
+    `tool_ms`: how long each tool call whose result it carries ran, in milliseconds, as
+    `[{"tool": "Bash", "ms": 742}]`. Each is cut as `session` is, and a list as `tried` is.
   - `shape`: the request's size in bytes; how many messages, system blocks and tools it carried, as
     counts; and those of its settings switchboard knows: `max_tokens`, `thinking`, `stream`,
     `tool_choice`'s type, `temperature`, `top_k`, `top_p`, `service_tier`, `output_config`'s
@@ -4613,7 +4621,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place; and where writing through a link leads, so a file that's a link is written where it leads, never replaced |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's, the readings history's and the router's events' files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
-| `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
+| `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak and the best-account pick. Pure functions of a snapshot and a clock |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words |
@@ -4820,9 +4828,6 @@ hiding it behind the provider would take a wider interface than it's worth:
   `reference/`, `vhs` tapes screenshot fixtures `cmd/capturetool` draws: scaffolding, cleared, with
   their captures, as each milestone is signed off. `testdata/vhs/README.md` says how (see Visual
   capture harness in `CLAUDE.md`).
-- **The turns check,** in the repository: `scripts/turns-check`, which the owner runs by hand
-  against the real ledger, to check how turns are told from a session's lines (see A session's
-  page): it prints counts alone, never anything of a request, and no test or agent runs it.
 
 ### Config
 
@@ -5170,7 +5175,10 @@ verbs).
   it, as when it's been removed since, or the router's health doesn't say `strips_own_headers`: a
   router from before, which took the pin off alone and would send the directory on to the API,
   serves on after an upgrade until it restarts in place, at a moment with no request in flight,
-  and one run by hand with `serve` until it's run again (see Proxy rules).
+  and one run by hand with `serve` until it's run again (see Proxy rules). It sets
+  `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a base URL the headers it
+  sends the API directly: the prompt each request serves, its class and its agent, which the
+  router records (see The request ledger).
 - **Direct:** otherwise it connects directly, on `--account`'s token, else the primary's, else the
   first account's with a usable token, without the base URL, the pin or the directory, and says why
   in a line on stderr: `switchboard: the router isn't running — connecting directly on work · Work`.
@@ -5362,8 +5370,8 @@ early as it can:
 from 4 to 8 October 2026, each area signed off with its frames and a spec: `usage`, the Overview,
 Accounts and History, the routing pickers, a session's page and the Log, and Sessions and Runway.
 The Dashboard section is that design, and The data verbs the commands it brought. It's built in 14
-stages, a pull request each, each judged against the signed-off frames through the capture
-harness, cell for cell once stage 4 has rebuilt it, and what moves by eye (see Files). Each
+stages, a pull request each but stage 2's two, each judged against the signed-off frames through the
+capture harness, cell for cell once stage 4 has rebuilt it, and what moves by eye (see Files). Each
 replaces rather than layers: what a stage makes dead goes in that stage, with no alias, no shim and
 no code left commented out. After every stage, every gate in `CLAUDE.md` passes, and
 `golangci-lint`'s `unused` finds nothing.
@@ -5379,18 +5387,21 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
    written again knows no less (see The request ledger). The overage headers and `dir` join every
    answer's path, so the stage is reviewed as a change of its own, as the request ledger's idea asks
    of code in every answer's path, and the proxy's benchmark is taken again. It deletes nothing.
-2. **The data layer.** `status`'s reading moves out of the dashboard's packages, so `status` builds
-   on no dashboard code. The ledger's, the readings history's and the events' readers reach the
-   watch as small interfaces, which its tests and the capture harness fake. The files are read as
-   they grow: today's lines tailed, each day's summary held once read, and a session's days found
-   by the summaries' session ids (see Live updates). Prices gain a move's cache-write cost, the
-   plans' prices in the dated table, with a `plan` for each account, the version table's names, and
-   overrides of the table in the config. One map takes the router's reasons to the dashboard's
-   words. The config gains `week_starts` (see Config). Turns are worked out from a session's lines,
-   the rule checked first against real lines by `scripts/turns-check`, which the owner runs, and
-   which prints counts alone, never anything of a request (see Files). Nothing anyone sees changes.
-   Its tests show the incremental reads give what whole reads give, over a day appended to,
-   compressed and pruned as it's read.
+2. **The data layer,** in two pull requests. The first: `status`'s reading moves out of the
+   dashboard's packages, so `status` builds on no dashboard code. The ledger's, the readings
+   history's and the events' readers reach the watch as small interfaces, which its tests and the
+   capture harness fake. The files are read as they grow: today's lines tailed, each day's summary
+   held once read, and a session's days found by the summaries' session ids (see Live updates).
+   Prices gain a move's cache-write cost, the plans' prices in the dated table, with a `plan` for
+   each account, the version table's names, and overrides of the table in the config. One map takes
+   the router's reasons to the dashboard's words. The config gains `week_starts` (see Config).
+   Nothing anyone sees changes. Its tests show the incremental reads give what whole reads give,
+   over a day appended to, compressed and pruned as it's read. The second is released at once, as
+   stage 1 was, since a day not recorded can't be recorded after: `run` has Claude Code send its
+   gateway hint headers, and the router records on each request's line the prompt it serves, its
+   class and the agent that sent it (see The request ledger), from which a session's turns are told
+   (see A session's page). The headers join every answer's path, so it's reviewed as a change of its
+   own, and the proxy's benchmark is taken again.
 3. **The data verbs** (see The data verbs): pretty on a terminal and JSON off one, with `--json`
    and `--pretty`, for `status`, `usage`, `requests` and `history`; `history`'s blocks, every one
    History and Accounts build, with the capacity replay `capacity` needs, built in `internal/views`,
@@ -5447,8 +5458,10 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
     Packages).
 
 Stage 1 merges and is released at once, as v0.1.3. Stages 2 to 4 merge as each is ready, with
-`usage -w` still there, so main can be released through them, and stage 3 is released as it merges,
-as stage 1 is, so agents have the data verbs before the dashboard. Stages 5 to 14 are a stack,
+`usage -w` still there, so main can be released through them. Stage 2's second pull request and
+stage 3 are each released as they merge, as stage 1 was: the one so the router records which prompt
+each request serves as early as it can, the other so agents have the data verbs before the
+dashboard. Stages 5 to 14 are a stack,
 merged once it has been reviewed whole: from stage 5, `usage -w` is gone, so main can't be released
 partway. Then, before the release, a review of everything milestone 7 and the request ledger changed
 for costs that grow with time or with what's kept, each measured against a year of heavy use: the
@@ -5528,6 +5541,16 @@ any of it. Times are the Mac's, UTC+1.
   account with room instead (`rescored after 12h 14m idle, 1 under pressure`).
 - **29–30 September 2026: no burst limit seen.** Over two thousand requests on one account in a
   night, from a session and up to five subagents at once, drew no 429 but the quota check's.
+- **9 October 2026: Claude Code's gateway hint headers.** Claude Code 2.1.295, given
+  `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1` and a base URL, sent `x-claude-code-prompt-id` and
+  `x-claude-code-request-class` (`main`) on its requests, seen at a listener on loopback; its
+  gateway guide documents them, and the agent headers a subagent's requests carry
+  (code.claude.com/docs/en/llm-gateway-protocol). Its own record of a session gives each prompt an
+  id: a message left to queue while it worked was taken in at its next step under the prompt
+  running, and one pushed in, with ctrl+x ctrl+s, started a prompt of its own. The record gave a
+  background subagent's later requests the ids of the session's newer turns, ones started by
+  agents' reports rather than by the user, where the guide has a subagent's requests keep the id
+  of the prompt that started it.
 
 ## Checks owed
 
@@ -5561,6 +5584,9 @@ What's built but hasn't been seen against the real thing:
 - *Milestone 7:* the overage headers `extra_usage` reads, `overage-status`, `overage-utilization`
   and `overage-reset`, and the values they carry, once an account's extra usage is on: every account
   tested read it as off (see What doesn't go through the router).
+- *Milestone 7:* which prompt a background subagent's later requests name, the one that started
+  it, as Claude Code's gateway guide says, or the session's newest, as its own record numbers them
+  (see Observed): a turn counts a subagent by its first request either way.
 
 ## Open-source hygiene
 
