@@ -89,7 +89,9 @@ type Route struct {
 // directory Claude Code starts in, where it keeps that from the API, its
 // conversation pinned when an account is, on the primary's token, whichever
 // account the conversation goes to: what isn't the conversation goes out on
-// Claude Code's own token, and so lands on the primary. Otherwise it sends
+// Claude Code's own token, and so lands on the primary. Claude Code tells the
+// router too what it tells the API of each request, such as the prompt it
+// serves, unless the environment says already whether to. Otherwise it sends
 // them straight to the API, on the pinned account's token, else the
 // primary's, and Stderr hears why. Either way, failing those, it starts on
 // the first account's with a usable token, and with none, Unaided. A pin that
@@ -112,7 +114,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	}
 	env := environ(l.Environ)
 	if state.healthy() {
-		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state))
+		env = env.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(r.Account).workingIn(l.toldDir(state)).hinting()
 		logger.Info("starting claude", "mode", "routed", "router", state.name, "account", c.account.ID, "chosen", c.why, "pin", r.Account, "claude", path)
 	} else {
 		env = env.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")

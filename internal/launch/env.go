@@ -60,6 +60,18 @@ func (e environ) get(key string) string {
 	return ""
 }
 
+// hinting returns the environment with Claude Code sending the router the
+// headers telling of each request that it sends the API directly, such as the
+// prompt a request serves, which the request ledger keeps. Where it says
+// already whether to send them, as set to 0, which sends them nowhere, it's
+// left as it is. Set to "", it says nothing: Claude Code reads it as unset.
+func (e environ) hinting() environ {
+	if e.get(claude.HintHeadersEnv) != "" {
+		return e
+	}
+	return e.with(claude.HintHeadersEnv, "1")
+}
+
 // startingAt returns the environment marked as the one the claude at path
 // starts in at now, in the place of the switchboard whose process id is pid,
 // in place of any mark it held.

@@ -88,11 +88,12 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 		t.Errorf("started %s as %q, want %s as %q", got.path, got.argv, h.claude, want)
 	}
 	want := map[string]string{
-		"HOME":                     "/home/tester",
-		"PATH":                     path,
-		"ANTHROPIC_BASE_URL":       "http://" + proxyAddr,
-		"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
-		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+		"HOME":                             "/home/tester",
+		"PATH":                             path,
+		"ANTHROPIC_BASE_URL":               "http://" + proxyAddr,
+		"CLAUDE_CODE_OAUTH_TOKEN":          workToken,
+		"ANTHROPIC_CUSTOM_HEADERS":         "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+		"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
 		t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
@@ -476,12 +477,45 @@ func TestRunTellsARouterFromBeforeNoDirectory(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 	want := map[string]string{
-		"ANTHROPIC_BASE_URL":       "http://" + proxyAddr,
-		"CLAUDE_CODE_OAUTH_TOKEN":  workToken,
-		"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on\nX-Switchboard-Account: side",
+		"ANTHROPIC_BASE_URL":               "http://" + proxyAddr,
+		"CLAUDE_CODE_OAUTH_TOKEN":          workToken,
+		"ANTHROPIC_CUSTOM_HEADERS":         "X-Trace: on\nX-Switchboard-Account: side",
+		"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
 		t.Errorf("started with the environment\n%q\nwant\n%q: routed and pinned, the router told no directory, which it would send on", env, want)
+	}
+}
+
+func TestRunHasClaudeCodeTellTheRouterWhatItTellsTheAPIOfEachRequest(t *testing.T) {
+	const hints = "CLAUDE_CODE_GATEWAY_HINT_HEADERS"
+	tests := []struct {
+		name   string
+		router *fakeRouter
+		// environ is what Claude Code starts from, and want the setting it
+		// starts with, wantSet whether it's set at all.
+		environ []string
+		want    string
+		wantSet bool
+	}{
+		{name: "routed, sent", router: healthy(), want: "1", wantSet: true},
+		{name: "routed, turned off already, kept off", router: healthy(), environ: []string{hints + "=0"}, want: "0", wantSet: true},
+		{name: "routed, turned on already, kept", router: healthy(), environ: []string{hints + "=1"}, want: "1", wantSet: true},
+		{name: "routed, set to nothing already, which Claude Code reads as unset, sent", router: healthy(), environ: []string{hints + "="}, want: "1", wantSet: true},
+		{name: "direct, left unset, as Claude Code sends the API them anyway", router: notRunning()},
+		{name: "direct, turned off already, kept off", router: notRunning(), environ: []string{hints + "=0"}, want: "0", wantSet: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, tt.environ...)
+
+			if err := h.launcher.Run(t.Context(), route(tt.router, ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if got, set := h.environment(t)[hints]; got != tt.want || set != tt.wantSet {
+				t.Errorf("started with %s %q (set: %v), want %q (set: %v)", hints, got, set, tt.want, tt.wantSet)
+			}
+		})
 	}
 }
 
