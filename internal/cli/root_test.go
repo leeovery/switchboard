@@ -448,9 +448,9 @@ const testPID = 5150
 // otherwise; the system is macOS, for the user the test runs as, who owns the
 // token files it writes. Watch, Hidden, Terminal and Background are the real
 // ones: a test's output and input are never a terminal, so Watch fails before
-// it would take one over, Hidden finds none to read, usage prints the status
-// document, unless a test says otherwise, and no terminal is asked its
-// background.
+// it would take one over, Hidden finds none to read, every data verb prints
+// its JSON, unless a test says otherwise, as a printForm does, and no
+// terminal is asked its background.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },

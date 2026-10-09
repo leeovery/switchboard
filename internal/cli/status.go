@@ -49,7 +49,7 @@ why it went where it did. It needs the router running: start it with
 switchboard service install (or switchboard serve).
 
 ` + namingASession,
-		Args: form.args(func(cmd *cobra.Command, args []string) error {
+		Args: func(cmd *cobra.Command, args []string) error {
 			switch {
 			case cmd.Flags().Changed("session") && session == "":
 				return errors.New("--session takes the id of a session")
@@ -59,7 +59,7 @@ switchboard service install (or switchboard serve).
 				return errors.New("--session asks after one session, not the accounts, so it takes no --refresh")
 			}
 			return noArgs(cmd, args)
-		}),
+		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			if session != "" {
@@ -76,7 +76,7 @@ switchboard service install (or switchboard serve).
 			return err
 		},
 	}
-	form.add(cmd)
+	form.addWithJSON(cmd, "print the status document as JSON, as off a terminal; with --session, the session's every model and why it went where it did")
 	cmd.Flags().BoolVar(&probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "have the router read every account it may first, as usage --refresh does")
 	cmd.Flags().StringVar(&session, "session", "", "print the account the router sends session `ID`'s requests to")

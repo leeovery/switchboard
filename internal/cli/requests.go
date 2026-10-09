@@ -48,7 +48,7 @@ On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, a JSON object a
 line, for an agent or a script to read. --json prints the JSON, and --pretty
 the text, wherever stdout is.`,
-		Args: opts.form.args(a.ledgerArgs),
+		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.requests(cmd.OutOrStdout(), opts)
 		},

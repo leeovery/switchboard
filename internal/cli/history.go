@@ -56,7 +56,7 @@ the ledger holds them, from the first it holds, so the last is today's, each
 model's worth in US dollars added, and what it leaves unpriced, for an agent
 or a script to read. --json prints the JSON, and --pretty the text, wherever
 stdout is.`,
-		Args: form.args(a.ledgerArgs),
+		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			return a.history(out, given, a.printsJSON(form, out))

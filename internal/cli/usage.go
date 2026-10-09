@@ -96,8 +96,10 @@ The dashboard is drawn in the theme chosen in the picker, or the pair of
 tokyo-night-day for a light terminal and nord for a dark one, which the
 terminal is asked. Themes of your own are <slug>.theme files in
 $SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
-~/.config/switchboard/themes. NO_COLOR draws it without colour.`,
-		Args: opts.form.args(opts.parseArgs),
+~/.config/switchboard/themes. NO_COLOR draws it without colour. Off a
+terminal, as --pretty prints it, it has none either, unless CLICOLOR_FORCE
+asks for it.`,
+		Args: opts.parseArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			switch out := cmd.OutOrStdout(); {
 			case opts.watch:

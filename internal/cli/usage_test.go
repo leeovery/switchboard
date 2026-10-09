@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io"
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,15 +65,34 @@ func TestUsage(t *testing.T) {
 	}
 }
 
-func TestUsagePrettyOffATerminalIsPrintedWithoutColour(t *testing.T) {
-	deps := goldenDeps(t, map[string]string{"TERM": "xterm-256color", "COLORTERM": "truecolor"})
-
-	got := offATerminal.run(t, deps, "usage", "--pretty")
-	if got.code != 0 || strings.Contains(got.stdout, "\x1b[") {
-		t.Errorf("switchboard usage --pretty, off a terminal that would show colour, = %+v, want exit status 0 and no escapes", got)
+func TestUsagePrettyOffATerminalIsPrintedWithoutColourUnlessCLIColorForceAsks(t *testing.T) {
+	truecolor := map[string]string{"TERM": "xterm-256color", "COLORTERM": "truecolor"}
+	tests := []struct {
+		name string
+		// force is CLICOLOR_FORCE, "" for unset.
+		force      string
+		wantColour bool
+	}{
+		{name: "without CLICOLOR_FORCE, none"},
+		{name: "with CLICOLOR_FORCE, in colour", force: "1", wantColour: true},
 	}
-	if want := readGolden(t, "usage.golden"); got.stdout != want {
-		t.Errorf("switchboard usage --pretty, off a terminal, printed\n%s\nwant what it prints on one (testdata/usage.golden)\n%s", got.stdout, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := maps.Clone(truecolor)
+			if tt.force != "" {
+				env["CLICOLOR_FORCE"] = tt.force
+			}
+
+			got := offATerminal.run(t, goldenDeps(t, env), "usage", "--pretty")
+			coloured, escaped := strings.Contains(got.stdout, "\x1b[38;2;"), strings.Contains(got.stdout, "\x1b[")
+			if got.code != 0 || coloured != tt.wantColour || escaped != tt.wantColour {
+				t.Fatalf("switchboard usage --pretty, off a terminal, = %+v, want exit status 0, and in colour: %v", got, tt.wantColour)
+			}
+			if want := readGolden(t, "usage.golden"); ansi.Strip(got.stdout) != want {
+				t.Errorf("switchboard usage --pretty, off a terminal, printed, stripped of its escapes,\n%s\nwant what it prints on one (testdata/usage.golden)\n%s",
+					ansi.Strip(got.stdout), want)
+			}
+		})
 	}
 }
 
@@ -82,7 +102,7 @@ func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
 	usage := func(args ...string) (result, []string) {
 		api := newClaudeAPI(t)
 		deps := statusDeps(t, api.URL, nil)
-		onTerminal(&deps)
+		onATerminal.on(&deps)
 		writeToken(t, deps, "personal", "test-token-personal")
 		return run(t, deps, append([]string{"usage"}, args...)...), api.questions()
 	}
@@ -244,7 +264,7 @@ func TestUsageDrawsTheRoutersHistory(t *testing.T) {
 	var later atomic.Int64
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 	writePrefs(t, srv.deps, `{"featured": "5h"}`)
@@ -581,15 +601,9 @@ func recordWatch(t *testing.T, deps *cli.Deps) *watch.Config {
 func goldenDeps(t *testing.T, env map[string]string) cli.Deps {
 	t.Helper()
 	deps := statusDeps(t, fakeClaudeAPI(t), env)
-	onTerminal(&deps)
+	onATerminal.on(&deps)
 	writeToken(t, deps, "personal", "test-token-personal")
 	return deps
-}
-
-// onTerminal has commands run with deps take their output for a terminal, so
-// usage draws its dashboard there.
-func onTerminal(deps *cli.Deps) {
-	deps.Terminal = func(io.Writer) bool { return true }
 }
 
 func readGolden(t *testing.T, name string) string {

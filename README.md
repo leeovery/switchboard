@@ -159,7 +159,7 @@ switchboard usage [-w [interval]] [--no-notify] [--probe] [-r] [--json | --prett
 | `--probe` | probe every account, even while the router runs |
 | `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. Not with `--watch`, where `r` refreshes |
 | `--json` | print the status document as JSON, as it does off a terminal anyway, even on one. Not with `--watch` |
-| `--pretty` | print the dashboard, as it does on a terminal, even off one: without colour, as wide as `COLUMNS` says, else 80 columns |
+| `--pretty` | print the dashboard, as it does on a terminal, even off one: without colour, unless `CLICOLOR_FORCE` asks for it, as wide as `COLUMNS` says, else 80 columns |
 
 In watch mode, reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time. Should the router stop answering, its last view stays on screen, saying since when, until it answers again or the interval's read, or `r`, probes the accounts directly. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
 
@@ -639,7 +639,7 @@ The dashboard is drawn in a theme. Themes name colours by what they mean and how
   It gives all 19 base tokens, `text.primary`, `text.secondary`, `text.tertiary`, `text.muted`, `text.subtle`, `text.faint`, `text.on-selection`, `accent.primary`, `accent.key`, `accent.mode`, `accent.attention`, `state.positive`, `state.destructive`, `canvas`, `bg.selection`, `bg.attention`, `bg.subtle`, `border` and `text.on-attention`, or it doesn't load. The charts' own, `viz.ramp.1` to `viz.ramp.4` (a bar's fill, first cell to last), `viz.track`, `viz.pace`, `viz.reserve` and `viz.series.1` to `viz.series.6` (the accounts' colours), are each worked out from those where a file leaves them out. A key switchboard doesn't know is passed over. A file can't take a built-in's slug.
 - **Kept:** the choice is kept in `prefs.json` in the state directory, which the dashboard writes and you never need to; one that can't be read is set aside as `prefs.json.corrupt-<unix time>`, and the defaults stand.
 - **The background:** with `-w`, the dashboard paints the theme's background on every cell, and sets the terminal's own to it, putting it back as it was when the dashboard stops: on `q`, an interrupt or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is reset to its profile's own instead. Printed once, without `-w`, the dashboard paints no background.
-- **Fewer colours, and none:** the colours are brought down to what the terminal shows. With `NO_COLOR` set to anything, the dashboard has no colour, nor background: what colour would say, its glyphs and bold say, and `t` does nothing.
+- **Fewer colours, and none:** the colours are brought down to what the terminal shows. With `NO_COLOR` set to anything, the dashboard has no colour, nor background: what colour would say, its glyphs and bold say, and `t` does nothing. Printed off a terminal, as `usage --pretty` prints it, it has no colour either, unless `CLICOLOR_FORCE` asks for it.
 
 ## Notifications
 

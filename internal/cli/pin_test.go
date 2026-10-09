@@ -326,26 +326,29 @@ func TestStatusSession(t *testing.T) {
 
 	// A statusline reads the bare id, wherever stdout is.
 	for _, form := range append(prettyForms(), offATerminal) {
-		for _, given := range []string{sessionOne, "0b5c6", "0"} {
-			if got, want := form.run(t, srv.deps, "status", "--session", given), (result{stdout: "work\n"}); got != want {
-				t.Errorf("switchboard status --session %s %s, %s, = %+v, want %+v", given, strings.Join(form.args, " "), form.name, got, want)
+		t.Run(form.name, func(t *testing.T) {
+			for _, given := range []string{sessionOne, "0b5c6", "0"} {
+				if got, want := form.run(t, srv.deps, "status", "--session", given), (result{stdout: "work\n"}); got != want {
+					t.Errorf("switchboard status --session %s %s = %+v, want %+v", given, strings.Join(form.args, " "), got, want)
+				}
 			}
-		}
+		})
 	}
 
 	wantAssignments := []status.Assignment{
 		{Model: "claude-haiku-4-5-20251001", Family: "haiku", Account: "work", Reason: "new", AssignedAt: testNow, LastSeen: testNow},
 	}
 	for _, form := range withJSON {
-		got := form.run(t, srv.deps, "status", "--session", "0b5c")
-		var session status.Session
-		if got.code != 0 || got.stderr != "" || json.Unmarshal([]byte(got.stdout), &session) != nil {
-			t.Fatalf("switchboard status --session --json, %s, = %+v, want exit status 0 and JSON alone", form.name, got)
-		}
-		if session.ID != sessionOne || !reflect.DeepEqual(session.Assignments, wantAssignments) || session.Account.ID != "work" || session.Account.Sessions != 2 {
-			t.Errorf("switchboard status --session --json, %s, printed\n%+v\nwant the session, its assignment %+v, and work's status with its sessions",
-				form.name, session, wantAssignments)
-		}
+		t.Run(form.name, func(t *testing.T) {
+			got := form.run(t, srv.deps, "status", "--session", "0b5c")
+			var session status.Session
+			if got.code != 0 || got.stderr != "" || json.Unmarshal([]byte(got.stdout), &session) != nil {
+				t.Fatalf("switchboard status --session --json = %+v, want exit status 0 and JSON alone", got)
+			}
+			if session.ID != sessionOne || !reflect.DeepEqual(session.Assignments, wantAssignments) || session.Account.ID != "work" || session.Account.Sessions != 2 {
+				t.Errorf("switchboard status --session --json printed\n%+v\nwant the session, its assignment %+v, and work's status with its sessions", session, wantAssignments)
+			}
+		})
 	}
 }
 

@@ -136,7 +136,7 @@ probed directly
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	// A token for personal, as goldenDeps gives it.
 	writeToken(t, srv.deps, "personal", "test-token-personal")
 	routing(t, srv)
@@ -209,7 +209,7 @@ func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 
@@ -242,7 +242,7 @@ func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 	api.limitWeek(true)

@@ -128,27 +128,29 @@ func TestStatusRefreshWithoutTheRouterProbesAsStatusDoes(t *testing.T) {
 	// runStatus runs switchboard status with args, with a token for personal,
 	// as goldenDeps gives it, and returns how it went and what the API was
 	// asked.
-	runStatus := func(args ...string) (result, []string) {
+	runStatus := func(t *testing.T, args ...string) (result, []string) {
 		api := newClaudeAPI(t)
 		deps := statusDeps(t, api.URL, nil)
 		writeToken(t, deps, "personal", "test-token-personal")
 		return run(t, deps, append([]string{"status"}, args...)...), api.questions()
 	}
 	for _, flags := range [][]string{{"--pretty"}, {"--json"}} {
-		want, probes := runStatus(flags...)
-		if want.code != 0 || len(probes) == 0 {
-			t.Fatalf("switchboard status %s = %+v, asking the API %q, want exit status 0 and every account probed", strings.Join(flags, " "), want, probes)
-		}
-		for _, flag := range []string{"--refresh", "-r"} {
-			args := append(slices.Clone(flags), flag)
-			got, asked := runStatus(args...)
-			if got != want {
-				t.Errorf("switchboard status %s =\n%+v\nwant what status %s prints\n%+v", strings.Join(args, " "), got, strings.Join(flags, " "), want)
+		t.Run(strings.Join(flags, " "), func(t *testing.T) {
+			want, probes := runStatus(t, flags...)
+			if want.code != 0 || len(probes) == 0 {
+				t.Fatalf("switchboard status %s = %+v, asking the API %q, want exit status 0 and every account probed", strings.Join(flags, " "), want, probes)
 			}
-			if !slices.Equal(asked, probes) {
-				t.Errorf("switchboard status %s asked the API %q, want %q, every account probed as status probes it", strings.Join(args, " "), asked, probes)
+			for _, flag := range []string{"--refresh", "-r"} {
+				args := append(slices.Clone(flags), flag)
+				got, asked := runStatus(t, args...)
+				if got != want {
+					t.Errorf("switchboard status %s =\n%+v\nwant what status %s prints\n%+v", strings.Join(args, " "), got, strings.Join(flags, " "), want)
+				}
+				if !slices.Equal(asked, probes) {
+					t.Errorf("switchboard status %s asked the API %q, want %q, every account probed as status probes it", strings.Join(args, " "), asked, probes)
+				}
 			}
-		}
+		})
 	}
 }
 

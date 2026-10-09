@@ -478,14 +478,16 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376},` +
 		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}]}]}`
 	for _, form := range jsonForms() {
-		got := form.run(t, deps, "history", "--since", "2026-10-04")
-		var compact bytes.Buffer
-		if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"prices_as_of\"") {
-			t.Fatalf("switchboard history %s, %s, = %+v (%v), want indented JSON", strings.Join(form.args, " "), form.name, got, err)
-		}
-		if compact.String() != want {
-			t.Errorf("switchboard history %s, %s, printed\n%s\nwant\n%s", strings.Join(form.args, " "), form.name, compact.String(), want)
-		}
+		t.Run(form.name, func(t *testing.T) {
+			got := form.run(t, deps, "history", "--since", "2026-10-04")
+			var compact bytes.Buffer
+			if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"prices_as_of\"") {
+				t.Fatalf("switchboard history %s = %+v (%v), want indented JSON", strings.Join(form.args, " "), got, err)
+			}
+			if compact.String() != want {
+				t.Errorf("switchboard history %s printed\n%s\nwant\n%s", strings.Join(form.args, " "), compact.String(), want)
+			}
+		})
 	}
 }
 
@@ -622,16 +624,23 @@ func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
 
 func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 	deps, _ := ledgerDeps(t)
-	tests := []struct {
-		args []string
-		want result
-	}{
-		{args: []string{"requests", "--pretty", "--session", tokenShaped}, want: result{stdout: "no requests since Wed 7 Oct 2026 00:00\n"}},
-		{args: []string{"requests", "--pretty", "--account", tokenShaped}, want: result{stdout: "no requests since Wed 7 Oct 2026 00:00\n"}},
-	}
-	for _, tt := range tests {
-		if got := run(t, deps, tt.args...); got != tt.want {
-			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, tt.want)
+	// Of a token given as an id, the text says there are no requests, and the
+	// JSON is none.
+	for _, flag := range []string{"--session", "--account"} {
+		for _, tt := range []struct {
+			forms []printForm
+			want  result
+		}{
+			{forms: prettyForms(), want: result{stdout: "no requests since Wed 7 Oct 2026 00:00\n"}},
+			{forms: jsonForms()},
+		} {
+			for _, form := range tt.forms {
+				t.Run(flag+" <a token>, "+form.name, func(t *testing.T) {
+					if got := form.run(t, deps, "requests", flag, tokenShaped); got != tt.want {
+						t.Errorf("switchboard requests %s <a token> %s = %+v, want %+v", flag, strings.Join(form.args, " "), got, tt.want)
+					}
+				})
+			}
 		}
 	}
 	for _, command := range []string{"requests", "history"} {
