@@ -26,7 +26,7 @@ func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 
-	if got, want := h.source.asked, []Read{{Refresh: interval, Probe: true}}; !slices.Equal(got, want) {
+	if got, want := h.source.asked, []status.Read{{Refresh: interval, Probe: true}}; !slices.Equal(got, want) {
 		t.Fatalf("starting asked for %+v, want %+v: the router refreshing what it hasn't read in an interval", got, want)
 	}
 	for i := range 3 {
@@ -35,7 +35,7 @@ func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 			t.Errorf("look %d at %s, want %s", i+1, got.Format(time.StampMilli), want.Format(time.StampMilli))
 		}
 	}
-	want := []Read{{Refresh: interval, Probe: true}, {}, {}, {}}
+	want := []status.Read{{Refresh: interval, Probe: true}, {}, {}, {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("asked for %+v, want %+v: a look at the router's document every five seconds, which never probes", h.source.asked, want)
 	}
@@ -124,7 +124,7 @@ func TestHasTheRouterRefreshSoonerWhileAnAccountCantBeRead(t *testing.T) {
 	for h.clock.now.Before(at(13, 19, 0)) {
 		asked := len(h.source.asked)
 		h.fire(h.lastTick())
-		if slices.ContainsFunc(h.source.asked[asked:], func(r Read) bool { return r.Refresh > 0 }) {
+		if slices.ContainsFunc(h.source.asked[asked:], func(r status.Read) bool { return r.Refresh > 0 }) {
 			refreshed = append(refreshed, h.clock.now)
 		}
 	}
@@ -193,7 +193,7 @@ func TestHasTheRouterRefreshAtOnceForAWindowThatResetBeforeTheWatchBegan(t *test
 
 	h.tickUntilAsked()
 	h.tickUntilAsked()
-	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor}, {}}
+	want := []status.Read{{Refresh: interval, Probe: true}, {Refresh: status.FreshFor}, {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("asked for %+v, want %+v: the first look has the router refresh what it hasn't read in the last minute, once", h.source.asked, want)
 	}
@@ -270,7 +270,7 @@ func TestReadsTheRouterAgainOnceItAnswers(t *testing.T) {
 	if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 		t.Errorf("once the router answers again, footer = %q, want %q", got, want)
 	}
-	if got, want := h.source.asked[len(h.source.asked)-1], (Read{Refresh: interval}); got != want {
+	if got, want := h.source.asked[len(h.source.asked)-1], (status.Read{Refresh: interval}); got != want {
 		t.Errorf("the read that found the router asked for %+v, want %+v: a question after the router, having it refresh", got, want)
 	}
 	if h.source.reads != 1 {
@@ -288,7 +288,7 @@ func TestAsksAfterTheRouterOnceAMinuteAtMost(t *testing.T) {
 	if ticks < 200 {
 		t.Fatalf("ticked %d times by 13:16:30, want every second", ticks)
 	}
-	if got := countReads(h.source.asked, Read{Refresh: interval}); got != 4 {
+	if got := countReads(h.source.asked, status.Read{Refresh: interval}); got != 4 {
 		t.Errorf("asked after the router %d times by 13:16:30, want 4: once at each minute", got)
 	}
 }
@@ -300,7 +300,7 @@ func TestAsksAfterTheRouterWhenAProbeIsDue(t *testing.T) {
 	h.tickUntil(at(13, 41, 59).Add(tickSlack))
 	h.startRouter(routerDocument(three()...))
 	h.tickUntilAsked() // 13:42, when the probe is due.
-	if got, want := h.source.asked[len(h.source.asked)-1], (Read{Refresh: interval, Probe: true}); got != want {
+	if got, want := h.source.asked[len(h.source.asked)-1], (status.Read{Refresh: interval, Probe: true}); got != want {
 		t.Errorf("the read due at 13:42 asked for %+v, want %+v", got, want)
 	}
 	if !h.model.routed() || h.source.reads != 1 {
@@ -330,7 +330,7 @@ func TestRefreshKeyReadingTheRouter(t *testing.T) {
 	h.start()
 
 	pending := h.press("r")
-	if got, want := h.source.asked[len(h.source.asked)-1], (Read{Refresh: freshFor, Probe: true}); got != want {
+	if got, want := h.source.asked[len(h.source.asked)-1], (status.Read{Refresh: status.FreshFor, Probe: true}); got != want {
 		t.Errorf("r asked for %+v, want %+v: the router refreshing what it hasn't read in the last minute", got, want)
 	}
 	if got, want := h.footer(), routerKeys+" · refreshing…"; got != want {
@@ -607,11 +607,11 @@ func TestALookAskedForWhileAReadIsUnderWayComesOnceItLands(t *testing.T) {
 
 	reading := h.press("r")
 	h.deliver(h.press("1")...)
-	if got, want := h.source.asked, []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor, Probe: true}}; !slices.Equal(got, want) {
+	if got, want := h.source.asked, []status.Read{{Refresh: interval, Probe: true}, {Refresh: status.FreshFor, Probe: true}}; !slices.Equal(got, want) {
 		t.Fatalf("while r's read is under way, asked for %+v, want %+v", got, want)
 	}
 	h.deliver(reading...)
-	want := []Read{{Refresh: interval, Probe: true}, {Refresh: freshFor, Probe: true}, {}}
+	want := []status.Read{{Refresh: interval, Probe: true}, {Refresh: status.FreshFor, Probe: true}, {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("once it lands, asked for %+v, want %+v", h.source.asked, want)
 	}

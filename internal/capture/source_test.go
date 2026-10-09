@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -16,7 +15,7 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	s := threeAccounts(moment(time.UTC))
 	want := s.doc
 
-	for _, r := range []watch.Read{{}, {Probe: true}, watch.Fresh()} {
+	for _, r := range []status.Read{{}, {Probe: true}, status.Fresh()} {
 		doc, health, err := s.Read(t.Context(), r)
 		if err != nil || !reflect.DeepEqual(doc, want) {
 			t.Errorf("Read(%+v) = %+v, %v, want the router's document", r, doc, err)
@@ -37,7 +36,7 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	if err := s.UnpinSession(t.Context(), idD28C); err != nil {
 		t.Errorf("UnpinSession() error = %v, want the order taken", err)
 	}
-	if doc, _, _ := s.Read(t.Context(), watch.Read{}); !reflect.DeepEqual(doc, want) {
+	if doc, _, _ := s.Read(t.Context(), status.Read{}); !reflect.DeepEqual(doc, want) {
 		t.Errorf("after orders, Read() = %+v, want the document as it was", doc)
 	}
 	if !s.RouterAnswers(t.Context()) {

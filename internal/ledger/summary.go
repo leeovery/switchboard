@@ -278,14 +278,23 @@ func Summarise(date string, lines iter.Seq[Line], history Readings, held *Summar
 		t.line(&line)
 		n++
 	}
+	read := func() iter.Seq[readings.Reading] { return history(start.Add(-readingsBefore), end) }
+	return t.day(date, n, read, held, caps, asOf), nil
+}
+
+// day returns the local day with the given date, a date that is one, as its
+// summary, made from the n lines t tallies, and the readings read gives of
+// the day and the week before it, asked for only where n is more than none,
+// as Summarise says.
+func (t tally) day(date string, n int, read func() iter.Seq[readings.Reading], held *Summary, caps Caps, asOf time.Time) Summary {
 	if n > 0 {
-		until := end
-		if asOf.Before(end) {
+		start, until, _ := dayfile.Day(date)
+		if asOf.Before(until) {
 			until = asOf
 		}
-		t.readings(history(start.Add(-readingsBefore), end), start, until, held.readBefore)
+		t.readings(read(), start, until, held.readBefore)
 	}
-	return t.summary(date, n, caps), nil
+	return t.summary(date, n, caps)
 }
 
 // readBefore reports whether the summary, where there is one, was made with a
@@ -351,6 +360,20 @@ func (t tally) account(id string) *accountTally {
 		windows: make(map[string]*windowDay)}
 	t[id] = a
 	return a
+}
+
+// clone returns a copy of t, a tally of lines alone, with no readings
+// tallied in it, to tally more in without changing t.
+func (t tally) clone() tally {
+	c := make(tally, len(t))
+	for id, a := range t {
+		ca := c.account(id)
+		ca.sessions, ca.movedOn, ca.movedOff = maps.Clone(a.sessions), maps.Clone(a.movedOn), maps.Clone(a.movedOff)
+		for key, m := range a.models {
+			ca.models[key] = &modelTally{day: m.day, sessions: maps.Clone(m.sessions), usage: m.usage.clone()}
+		}
+	}
+	return c
 }
 
 // model returns the tally of the model's requests key names, starting it
@@ -627,6 +650,18 @@ func (c counts) addTyped(list []any) {
 			c.within(kind).addFields(fields)
 		}
 	}
+}
+
+// clone returns a copy of c, the counts within it copied too.
+func (c counts) clone() counts {
+	copied := make(counts, len(c))
+	for name, v := range c {
+		if within, ok := v.(counts); ok {
+			v = within.clone()
+		}
+		copied[name] = v
+	}
+	return copied
 }
 
 // within returns the counts c holds within name, starting them where there

@@ -211,3 +211,9 @@ func TestAnEventIsHandedOnOnceNoFileLeftCanHoldAVersionOfIt(t *testing.T) {
 		t.Errorf("read %q, logging\n%s\nwant %q, handed on once the 19th was read, the 20th never opened", jsonsOf(t, got), log, want)
 	}
 }
+
+func TestNoEventsReadNothing(t *testing.T) {
+	if got := slices.Collect(events.Empty{}.Between(september(1, 0, 0), now)); len(got) > 0 {
+		t.Errorf("Between() = %+v, want none", got)
+	}
+}

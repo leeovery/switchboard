@@ -27,7 +27,7 @@ type Snapshot struct {
 // didn't give, as when asking for it failed, there's no history, and the
 // charts draw the room each window has now: a reading of the document's
 // alone, with none to follow, draws no more.
-func Once(ctx context.Context, source Source, r Read) (Snapshot, error) {
+func Once(ctx context.Context, source Source, r status.Read) (Snapshot, error) {
 	got := fetchFrom(ctx, source, r)
 	if got.err != nil {
 		return Snapshot{}, got.err

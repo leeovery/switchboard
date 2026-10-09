@@ -324,10 +324,12 @@ func (o *inOrder[T]) sort() {
 	slices.SortStableFunc(o.held, func(a, b T) int { return o.at(a).Compare(o.at(b)) })
 }
 
-// openFile is one of a day's files, opened to read the lines it holds.
+// openFile is one of a day's files, opened to read the lines it holds, and
+// src, where it's set, the file itself, as it was opened.
 type openFile struct {
 	dayFile
 	io.ReadCloser
+	src *os.File
 }
 
 // fileError is why one of a day's files couldn't be opened.
@@ -353,7 +355,7 @@ func (f *Files) openDay(date string) (opened []openFile, failed []fileError) {
 // openOne opens file, adding why it couldn't be to failed: nil where it isn't
 // there, which is no failure.
 func (f *Files) openOne(file dayFile, failed []fileError) (*openFile, []fileError) {
-	src, err := f.open(file)
+	src, lines, err := f.open(file)
 	if f.opened != nil {
 		f.opened(file)
 	}
@@ -363,7 +365,7 @@ func (f *Files) openOne(file dayFile, failed []fileError) (*openFile, []fileErro
 	case err != nil:
 		return nil, append(failed, fileError{file: file, err: err})
 	}
-	return &openFile{dayFile: file, ReadCloser: src}, failed
+	return &openFile{dayFile: file, ReadCloser: lines, src: src}, failed
 }
 
 // dayOpened returns the files of a day opened, plain and compressed, either
@@ -439,21 +441,21 @@ func (f *Files) failure(failed []fileError) error {
 	return errors.Join(errs...)
 }
 
-// open opens the file to read the lines it holds: through gzip when it's
-// compressed, which reads its members as one stream.
-func (f *Files) open(file dayFile) (io.ReadCloser, error) {
-	src, err := os.Open(f.path(file))
+// open opens the file, src, to read the lines it holds: through gzip when
+// it's compressed, which reads its members as one stream.
+func (f *Files) open(file dayFile) (src *os.File, lines io.ReadCloser, err error) {
+	src, err = os.Open(f.path(file))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !file.compressed {
-		return src, nil
+		return src, src, nil
 	}
 	members, err := gzip.NewReader(src)
 	if err != nil {
-		return nil, errors.Join(err, src.Close())
+		return nil, nil, errors.Join(err, src.Close())
 	}
-	return readCloser{Reader: members, Closer: src}, nil
+	return src, readCloser{Reader: members, Closer: src}, nil
 }
 
 // readCloser reads through one thing, and closes another, as a file read

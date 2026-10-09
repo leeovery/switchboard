@@ -6,15 +6,9 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-const (
-	// lookEvery is how often the dashboard looks at the router's document,
-	// while it reads the router: over a local socket, which costs nothing
-	// upstream.
-	lookEvery = 5 * time.Second
-	// freshFor is how lately the router must have read an account for r to
-	// leave it be.
-	freshFor = time.Minute
-)
+// lookEvery is how often the dashboard looks at the router's document, while
+// it reads the router: over a local socket, which costs nothing upstream.
+const lookEvery = 5 * time.Second
 
 // plan is when the dashboard next reads its source, and what it asks for. The
 // source's document says how often to read it. The router's costs nothing to
@@ -55,8 +49,8 @@ type plan struct {
 }
 
 // full is the read of every account a plan asks for once an interval.
-func (p plan) full() Read {
-	return Read{Refresh: p.interval, Probe: true}
+func (p plan) full() status.Read {
+	return status.Read{Refresh: p.interval, Probe: true}
 }
 
 // at returns the read due at now, reading the router when routed, and
@@ -64,27 +58,27 @@ func (p plan) full() Read {
 // router, a look at its document, which probes nothing when it doesn't
 // answer; else, once a minute, a question after the router, which has it
 // refresh when it answers, and probes nothing when it doesn't.
-func (p plan) at(now time.Time, routed bool) (Read, bool) {
+func (p plan) at(now time.Time, routed bool) (status.Read, bool) {
 	switch {
 	case !now.Before(p.due):
 		return p.full(), true
 	case routed && !now.Before(p.next):
 		return p.look(now), true
 	case !routed && now.Truncate(time.Minute).After(p.asked):
-		return Read{Refresh: p.interval}, true
+		return status.Read{Refresh: p.interval}, true
 	default:
-		return Read{}, false
+		return status.Read{}, false
 	}
 }
 
 // look is the look at the router's document due at now: one that has the
 // router refresh the accounts it hasn't read in the last minute first, once a
 // window on screen has reset since it last did.
-func (p plan) look(now time.Time) Read {
+func (p plan) look(now time.Time) status.Read {
 	if !p.reset.IsZero() && !now.Before(p.reset) {
-		return Read{Refresh: freshFor}
+		return status.Read{Refresh: status.FreshFor}
 	}
-	return Read{}
+	return status.Read{}
 }
 
 // landed notes a read that asked for r landing at now with doc. After the
@@ -92,7 +86,7 @@ func (p plan) look(now time.Time) Read {
 // full read is an interval on, sooner after a read that failed in part.
 // After one built by probing, the next is an interval on, sooner after a
 // read that failed in part or for a window that resets before then.
-func (p plan) landed(r Read, doc status.Document, now time.Time) plan {
+func (p plan) landed(r status.Read, doc status.Document, now time.Time) plan {
 	p.asked = now
 	var wait time.Duration
 	if !routed(doc) {
@@ -104,7 +98,7 @@ func (p plan) landed(r Read, doc status.Document, now time.Time) plan {
 		p.failures, wait = backoff(p.failures, incomplete(doc), p.interval)
 		p.due = now.Add(wait)
 	}
-	if r.Refresh > 0 && r.Refresh <= freshFor {
+	if r.Refresh > 0 && r.Refresh <= status.FreshFor {
 		p.fresh = now
 	}
 	p.next = now.Add(lookEvery)

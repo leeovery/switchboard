@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
-	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -56,7 +55,7 @@ func newSource(now time.Time, samples []sample, best string, events ...status.Ev
 }
 
 // Read reads the router's document, whatever the read asks.
-func (s source) Read(context.Context, watch.Read) (status.Document, router.Health, error) {
+func (s source) Read(context.Context, status.Read) (status.Document, router.Health, error) {
 	return s.doc, s.health, nil
 }
 

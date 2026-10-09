@@ -14,6 +14,9 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -45,6 +48,9 @@ func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, 
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     s.Size,
+		Ledger:   ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}),
+		Readings: readings.Empty{},
+		Events:   events.Empty{},
 	}
 	dressed(&cfg, s.theme, s.colourless)
 	return live{Model: watch.New(context.Background(), cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}
@@ -94,7 +100,7 @@ func (t *timeline) at() source {
 }
 
 // Read reads the router's document as it stands now, whatever the read asks.
-func (t *timeline) Read(ctx context.Context, r watch.Read) (status.Document, router.Health, error) {
+func (t *timeline) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
 	return t.at().Read(ctx, r)
 }
 

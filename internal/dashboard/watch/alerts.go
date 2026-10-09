@@ -18,17 +18,17 @@ type reading struct {
 	at      time.Time
 }
 
-// readings are each account as it was last read, by id. A new document is
+// lastReads are each account as it was last read, by id. A new document is
 // compared with them rather than with the document before it, so an account
 // that couldn't be read for a while is compared with how it last stood.
-type readings map[string]reading
+type lastReads map[string]reading
 
 // alerts are the notifications doc, read at now, calls for, of those settings
 // asks for: each account that had no room under the windows every model
 // shares and now has some, and each window that has passed the warning. An
 // account is only compared with an earlier reading, so the first document
 // calls for none.
-func (r readings) alerts(doc status.Document, now time.Time, policy score.Policy, settings config.Notifications) []notify.Notice {
+func (r lastReads) alerts(doc status.Document, now time.Time, policy score.Policy, settings config.Notifications) []notify.Notice {
 	var alerts []notify.Notice
 	for _, a := range doc.Accounts {
 		last, ok := r[a.ID]
@@ -46,8 +46,8 @@ func (r readings) alerts(doc status.Document, now time.Time, policy score.Policy
 }
 
 // with returns the readings updated with each account doc read at now.
-func (r readings) with(doc status.Document, now time.Time) readings {
-	updated := make(readings, len(r))
+func (r lastReads) with(doc status.Document, now time.Time) lastReads {
+	updated := make(lastReads, len(r))
 	maps.Copy(updated, r)
 	for _, a := range doc.Accounts {
 		if wasRead(a) {

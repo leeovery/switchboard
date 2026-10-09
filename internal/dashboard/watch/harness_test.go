@@ -12,7 +12,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -71,7 +74,7 @@ func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
-		Interval: interval, Policy: policy, Size: size,
+		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})
 	return h
 }
@@ -243,7 +246,7 @@ func (h *harness) refreshesUntil(t time.Time) []time.Time {
 		asked := len(h.source.asked)
 		h.fire(h.lastTick())
 		for _, r := range h.source.asked[asked:] {
-			if r == (Read{Refresh: freshFor}) {
+			if r == (status.Read{Refresh: status.FreshFor}) {
 				refreshed = append(refreshed, h.clock.now)
 			}
 		}
@@ -395,20 +398,20 @@ type fakeSource struct {
 	// reads counts the reads that probed, or failed.
 	reads int
 	// asked lists every read asked for, in turn.
-	asked []Read
+	asked []status.Read
 	// orders lists the orders given, in turn, as "pin work", "pin work,side",
 	// "move work" or "unpin", or of one session, as "pin d28c5e17 to side"
 	// or "unpin d28c5e17".
 	orders []string
 }
 
-func (s *fakeSource) Read(_ context.Context, r Read) (status.Document, router.Health, error) {
+func (s *fakeSource) Read(_ context.Context, r status.Read) (status.Document, router.Health, error) {
 	s.asked = append(s.asked, r)
 	switch {
 	case s.router != nil && !s.probing:
 		return *s.router, s.health, nil
 	case !r.Probe:
-		return status.Document{}, router.Health{}, ErrNoRouter
+		return status.Document{}, router.Health{}, status.ErrNoRouter
 	}
 	s.reads++
 	return s.doc, router.Health{}, s.err
@@ -500,11 +503,11 @@ func (s *fakeSource) order(what string, pin status.Pin) error {
 // looks counts the reads asked for that looked at the router's document as
 // it stood.
 func (s *fakeSource) looks() int {
-	return countReads(s.asked, Read{})
+	return countReads(s.asked, status.Read{})
 }
 
 // countReads counts the reads in asked that asked for r.
-func countReads(asked []Read, r Read) int {
+func countReads(asked []status.Read, r status.Read) int {
 	n := 0
 	for _, a := range asked {
 		if a == r {
@@ -523,6 +526,12 @@ type fakeNotifier struct {
 func (n *fakeNotifier) Notify(message string) error {
 	n.posted = append(n.posted, message)
 	return n.err
+}
+
+// emptyLedger reads as a request ledger that holds no line, by the test's
+// clock.
+func (h *harness) emptyLedger() ledger.Empty {
+	return ledger.NewEmpty(h.clock.Now, ledger.Caps{Shared: policy.Shared})
 }
 
 // window is a window resetting a duration after the clock starts.

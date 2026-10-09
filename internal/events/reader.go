@@ -136,3 +136,12 @@ func (m *merge) handOn(settled func(Line) bool) bool {
 func oldestFirst(a, b Line) int {
 	return cmp.Or(a.At.Compare(b.At), a.Run.Compare(b.Run), cmp.Compare(a.ID, b.ID))
 }
+
+// Empty reads as the router's events where there are none, with no files to
+// read: for one who reads them where there's none to find.
+type Empty struct{}
+
+// Between returns no event.
+func (Empty) Between(time.Time, time.Time) iter.Seq[Line] {
+	return func(func(Line) bool) {}
+}

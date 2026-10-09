@@ -24,14 +24,14 @@ func TestOnceReadsTheRoutersDocumentSessionsAndHistory(t *testing.T) {
 		history:  map[string]router.History{"5h": historyOf("work", sessionStart, 0.1, 0.2)},
 	}
 
-	snap, err := Once(context.Background(), source, Fresh())
+	snap, err := Once(context.Background(), source, status.Fresh())
 	if err != nil {
 		t.Fatalf("Once() error = %v", err)
 	}
 	if snap.Doc.Source != status.SourceRouter || len(snap.Sessions) != 1 || snap.Outdated {
 		t.Errorf("Once() = %+v, want the router's document and its session", snap)
 	}
-	if want := []Read{Fresh()}; !slices.Equal(source.asked, want) {
+	if want := []status.Read{status.Fresh()}; !slices.Equal(source.asked, want) {
 		t.Errorf("Once() asked for %+v, want %+v, once", source.asked, want)
 	}
 	if want := []string{"5h 5m0s", "7d 30m0s"}; !slices.Equal(source.histories, want) {
@@ -51,7 +51,7 @@ func TestOnceReadsTheRoutersDocumentSessionsAndHistory(t *testing.T) {
 func TestOnceProbingReadsNoHistory(t *testing.T) {
 	source := &fakeSource{doc: probedWithoutTheRouter()}
 
-	snap, err := Once(context.Background(), source, Read{Probe: true})
+	snap, err := Once(context.Background(), source, status.Read{Probe: true})
 	if err != nil || snap.Doc.Source != status.SourceProbe {
 		t.Fatalf("Once() = %+v, %v, want the document probed", snap, err)
 	}
@@ -64,7 +64,7 @@ func TestOnceSaysWhenTheRouterIsFromBeforeItsHistory(t *testing.T) {
 	doc := routerDocument(three()...)
 	source := &fakeSource{router: &doc, historyErr: fmt.Errorf("ask the router: %w", router.ErrNoHistory)}
 
-	snap, err := Once(context.Background(), source, Read{Probe: true})
+	snap, err := Once(context.Background(), source, status.Read{Probe: true})
 	if err != nil || !snap.Outdated || len(snap.History) > 0 {
 		t.Errorf("Once() = %+v, %v; want the router's document, outdated, without history", snap, err)
 	}
@@ -77,13 +77,13 @@ func TestOnceDrawsAWindowWhoseHistoryTheRouterCouldntGiveWithoutHistory(t *testi
 	doc := routerDocument(account("work", "Work", session(0.25, 3*time.Hour), week(0.5)))
 	source := &fakeSource{router: &doc, historyErr: errors.New("timed out")}
 
-	snap, err := Once(context.Background(), source, Read{Probe: true})
+	snap, err := Once(context.Background(), source, status.Read{Probe: true})
 	if err != nil || snap.Outdated || len(snap.History) > 0 {
 		t.Errorf("Once() = %+v, %v; want the router's document, no window with a history, none having been given", snap, err)
 	}
 	source.historyErr = nil
 	source.history = map[string]router.History{"5h": historyOf("work", start.Add(-2*time.Hour), 0.1, 0.2)}
-	snap, _ = Once(context.Background(), source, Read{Probe: true})
+	snap, _ = Once(context.Background(), source, status.Read{Probe: true})
 	if _, ok := snap.History[dashboard.Ref{Account: "work", Window: "5h"}]; !ok || len(snap.History) != 1 {
 		t.Errorf("Once() gives the history of %v, want work's session's alone, the one the router gave", slices.Collect(maps.Keys(snap.History)))
 	}
@@ -93,10 +93,10 @@ func TestOnceFailsAsItsReadDoes(t *testing.T) {
 	failed := errors.New("connection refused")
 	source := &fakeSource{err: failed}
 
-	if _, err := Once(context.Background(), source, Read{Probe: true}); !errors.Is(err, failed) {
+	if _, err := Once(context.Background(), source, status.Read{Probe: true}); !errors.Is(err, failed) {
 		t.Errorf("Once() error = %v, want %v", err, failed)
 	}
-	if _, err := Once(context.Background(), &fakeSource{}, Read{}); !errors.Is(err, ErrNoRouter) {
-		t.Errorf("Once(), not to probe, without the router, error = %v, want ErrNoRouter", err)
+	if _, err := Once(context.Background(), &fakeSource{}, status.Read{}); !errors.Is(err, status.ErrNoRouter) {
+		t.Errorf("Once(), not to probe, without the router, error = %v, want status.ErrNoRouter", err)
 	}
 }

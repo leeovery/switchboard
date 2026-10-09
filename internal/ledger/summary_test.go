@@ -63,9 +63,7 @@ func readingsOf(read ...readings.Reading) ledger.Readings {
 }
 
 // noReadings gives no readings, as a readings history that holds none.
-func noReadings(time.Time, time.Time) iter.Seq[readings.Reading] {
-	return func(func(readings.Reading) bool) {}
-}
+var noReadings = readings.Empty{}.Between
 
 // workRead is work's window with the given key read at at, at u of its use,
 // resetting at resets, with the status given.
@@ -514,7 +512,7 @@ func (read windowsRead) json() string {
 
 // holdLines adds lines, as the ledger writes them, to its plain file in dir
 // of the local day with the given date.
-func holdLines(t *testing.T, dir, date string, lines ...ledger.Line) {
+func holdLines(t testing.TB, dir, date string, lines ...ledger.Line) {
 	t.Helper()
 	var data []byte
 	for _, line := range lines {

@@ -10,7 +10,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -263,6 +265,7 @@ func TestOpensFeaturingTheWindowKept(t *testing.T) {
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm,
 		Interval: interval, Policy: policy, Size: Size{Width: 160, Height: 40}, Featured: "7d",
+		Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})
 	h.start()
 
@@ -351,6 +354,7 @@ func TestOpensDrawingTheChartKept(t *testing.T) {
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm,
 		Interval: interval, Policy: policy, Size: Size{Width: 160, Height: 40}, Chart: dashboard.Hourglass,
+		Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})
 	h.start()
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -33,8 +34,8 @@ const (
 // What went wrong on an account a request went out on, as the log, and the
 // reason for moving on from the account, give it.
 const (
-	whyLimit     = "hit its limit"
-	whyRefused   = "was refused"
+	whyLimit     = status.WhyLimit
+	whyRefused   = status.WhyRefused
 	whyThrottled = "was throttled"
 	whyNewToken  = "has a new token"
 	whyReset     = "was reset by hand"
@@ -43,7 +44,7 @@ const (
 // reasonBack is why a session goes back to the account it was on before a
 // request every account it went out on refused, as the request stream tells
 // of it: the moves the request made came to nothing.
-const reasonBack = "back where it was before its request"
+const reasonBack = status.ReasonBack
 
 // replay is the transport a routed request goes upstream on. It sends the
 // request on the exchange's account, and again, before the client has any of

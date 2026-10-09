@@ -7,12 +7,21 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
+
+// readOnce is what status and usage ask of the source they read, reading
+// once: with --refresh, the read the dashboard's r asks for, else the
+// document as it stands.
+func readOnce(refresh bool) status.Read {
+	if refresh {
+		return status.Fresh()
+	}
+	return status.Read{Probe: true}
+}
 
 // usageSource is where status, usage and the dashboard read the status
 // document: the router's, while it answers, else one built by probing every
@@ -33,13 +42,13 @@ type usageSource struct {
 // healthy or not, and says which router it was, as its health check
 // answered. Otherwise, when r allows, it builds one by probing every
 // account, saying why the router's wasn't read when the router was asked.
-func (s usageSource) Read(ctx context.Context, r watch.Read) (status.Document, router.Health, error) {
+func (s usageSource) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
 	doc, health, fallback, ok := s.fromRouter(ctx, r.Refresh)
 	switch {
 	case ok:
 		return doc, health, nil
 	case !r.Probe:
-		return status.Document{}, router.Health{}, watch.ErrNoRouter
+		return status.Document{}, router.Health{}, status.ErrNoRouter
 	}
 	logger.Debug("probing directly", "router", fallback.Router, "reason", fallback.Reason)
 	doc, err := s.probe.Fetch(ctx)

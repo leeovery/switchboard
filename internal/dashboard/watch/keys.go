@@ -135,7 +135,7 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.turn(-1)
 	case "r", "R":
 		logger.Debug("refresh key pressed", "already_reading", m.fetching)
-		return m.read(Fresh())
+		return m.read(status.Fresh())
 	case "t", "T":
 		return m.openPicker()
 	case "w", "W":
@@ -319,7 +319,7 @@ func (m Model) reread() (Model, tea.Cmd) {
 		m.again = true
 		return m, nil
 	default:
-		return m.read(Read{})
+		return m.read(status.Read{})
 	}
 }
 
@@ -338,7 +338,7 @@ func (m Model) unanswered() (Model, tea.Cmd) {
 	if !m.routed() {
 		return m, nil
 	}
-	return m.noting(ErrNoRouter.Error())
+	return m.noting(status.ErrNoRouter.Error())
 }
 
 // keyListing is a key as the model stands, as the footer and the help list it:
