@@ -167,11 +167,12 @@ func listen(addr string) (net.Listener, error) {
 
 // serve serves the proxy and the control API until ctx ends, either fails,
 // or the router restarts itself, probing each account nothing has been read
-// of in the meantime, priming the accounts on the schedule, looking after
-// itself, keeping the state file, the readings history, the request ledger
-// and what has happened lately, filing its events, and posting
-// notifications, then shuts both down, writes what's left to write, and
-// restarting, replaces itself, handing their listeners over.
+// of in the meantime, priming the accounts on the schedule, probing on its
+// rounds the accounts nothing has read lately, looking after itself, keeping
+// the state file, the readings history, the request ledger and what has
+// happened lately, filing its events, and posting notifications, then shuts
+// both down, writes what's left to write, and restarting, replaces itself,
+// handing their listeners over.
 func (r *Router) serve(ctx context.Context, ls listeners) error {
 	proxySrv, controlSrv := newProxyServer(r.Proxy()), newServer(r.Control())
 	var serving sync.WaitGroup
@@ -186,6 +187,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	if r.primer != nil {
 		looked.Go(func() { r.primer.run(looking) })
 	}
+	looked.Go(func() { r.rounds.run(looking) })
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, and each has its line in the ledger,
 	// so keeping, writing and notifying outlast ctx.

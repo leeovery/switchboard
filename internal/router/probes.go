@@ -142,25 +142,25 @@ func (p *probes) sourceOf(r *run) readings.Source {
 }
 
 // await probes the accounts as start does, and waits for those probes to end
-// as wait does. It reports whether there were any.
-func (p *probes) await(ctx context.Context, as accounts, due func(id string, now time.Time) bool, limit time.Duration) bool {
+// as wait does, why saying what for. It reports whether there were any.
+func (p *probes) await(ctx context.Context, as accounts, due func(id string, now time.Time) bool, limit time.Duration, why string) bool {
 	underway := p.start(as, due)
 	if len(underway) == 0 {
 		return false
 	}
-	p.wait(ctx, underway, limit)
+	p.wait(ctx, underway, limit, why)
 	return true
 }
 
-// wait waits for probes under way before a choice, as settle does, and logs
-// how that went.
-func (p *probes) wait(ctx context.Context, underway []probing, limit time.Duration) {
+// wait waits for probes under way, as settle does, and logs how that went,
+// why saying what they were for, as "before choosing".
+func (p *probes) wait(ctx context.Context, underway []probing, limit time.Duration, why string) {
 	started := time.Now()
 	switch settle(ctx, underway, limit) {
 	case settled:
-		logger.Debug("probed before choosing", "accounts", accountsOf(underway), "duration", time.Since(started).Round(time.Millisecond))
+		logger.Debug("probed "+why, "accounts", accountsOf(underway), "duration", time.Since(started).Round(time.Millisecond))
 	case timedOut:
-		logger.Debug("stopped waiting for probes before choosing", "accounts", accountsOf(underway), "after", limit)
+		logger.Debug("stopped waiting for probes "+why, "accounts", accountsOf(underway), "after", limit)
 	}
 }
 

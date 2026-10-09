@@ -36,13 +36,19 @@ type usage struct {
 	// moment each reading held was taken in.
 	windows map[string]quota.Window
 	taken   map[string]moment
+	// readAt holds, by key, when each window was last read, by a reading that
+	// counts, as mergeLater says: an answer reads only the windows its model
+	// counts. Zero is unknown, as for a window the state file kept without it.
+	readAt map[string]time.Time
 	// updated is when a reading last came in.
 	updated time.Time
 	// probed is when a probe of the account last ended, whether it read
 	// anything or not.
 	probed time.Time
-	// probeErr says why the last probe read nothing, until a reading comes in.
+	// probeErr says why the last probe read nothing, and misses counts the
+	// probes in a row that read nothing, until a reading comes in.
 	probeErr string
+	misses   int
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
@@ -243,6 +249,7 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		s.usage[a.ID] = &usage{
 			windows:   make(map[string]quota.Window),
 			taken:     make(map[string]moment),
+			readAt:    make(map[string]time.Time),
 			forbidden: make(map[string]refusals),
 			trails:    make(trails),
 			resetBy:   make(map[string]moment),
@@ -312,6 +319,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	u.probed = at
 	if err != nil {
 		u.probeErr = err.Error()
+		u.misses++
 		return
 	}
 	if probed.Admitted {
@@ -382,8 +390,8 @@ func (s *state) refuse(id string, status int, by string) time.Time {
 
 // tokenReplaced notes that the account with the given id goes out on another
 // token from now on: the upstream's refusals of the one before no longer hold
-// it back. It returns the news of them lifting, and reports false when none
-// was in force.
+// it back, and its probes start afresh, as probesAfresh says. It returns the
+// news of the refusals lifting, and reports false when none was in force.
 func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 	now := s.now()
 	s.mu.Lock()
@@ -391,7 +399,24 @@ func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 	u := s.usage[id]
 	held := u.refused.inForce(now)
 	u.refused = nil
+	u.probesAfresh()
 	return RefusalLifted{Account: id}, held
+}
+
+// tokenGained notes that the account with the given id has a usable token
+// again, or for the first time: its probes start afresh, as probesAfresh
+// says.
+func (s *state) tokenGained(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.usage[id].probesAfresh()
+}
+
+// probesAfresh forgets how the account's probes went, as it goes out on a
+// token it didn't have: the probes that read nothing on another, or on none,
+// say nothing of it, so neither their error nor their backoff holds.
+func (u *usage) probesAfresh() {
+	u.probed, u.probeErr, u.misses = time.Time{}, "", 0
 }
 
 // forbid notes that the upstream refused the account the request with the id
@@ -564,13 +589,79 @@ func (s *state) dueAgain(id string, now time.Time) bool {
 
 // probeable reports whether the account whose usage is u can be probed at
 // now: no probe of it has ended in the last reprobeAfter, so an account whose
-// probes fail isn't probed at every ask, and none of its windows has lapsed,
-// as a probe is a request, and would start it. An account that's spent, as
-// spent says, is the exception: it can take no request anyway, so a probe
-// that starts its window costs nothing, and a probe is how a limit lifted
-// before its reset, as by a reset made by hand, is seen. s.mu must be held.
+// probes fail isn't probed at every ask, and a probe of it starts no window
+// it shouldn't, as harmless says. s.mu must be held.
 func (s *state) probeable(u *usage, now time.Time) bool {
-	return now.Sub(u.probed) >= reprobeAfter && (u.spent(s.policy, now) || len(s.policy.Lapsed(u.latest(), now)) == 0)
+	return now.Sub(u.probed) >= reprobeAfter && u.harmless(s.policy, now)
+}
+
+// harmless reports whether a probe of the account at now starts no window it
+// shouldn't, as policy judges: none of its windows has lapsed, as a probe is
+// a request, and would start it. An account that's spent, as spent says, is
+// the exception: it can take no request anyway, so a probe that starts its
+// window costs nothing, and a probe is how a limit lifted before its reset,
+// as by a reset made by hand, is seen.
+func (u *usage) harmless(policy score.Policy, now time.Time) bool {
+	return u.spent(policy, now) || len(policy.Lapsed(u.latest(), now)) == 0
+}
+
+// rounding returns what reports whether the router's rounds probe an account
+// at now, as onRounds says, clears reporting, where it's asked, whether a
+// window the account starts then would reset before it's next primed.
+func (s *state) rounding(clears func(id string, now time.Time) bool) func(id string, now time.Time) bool {
+	return func(id string, now time.Time) bool {
+		due, ifClear := s.onRounds(id, now)
+		return due || ifClear && clears(id, now)
+	}
+}
+
+// onRounds reports whether the router's rounds probe the account with the
+// given id at now, as usage's onRounds says.
+func (s *state) onRounds(id string, now time.Time) (due, ifClear bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.usage[id].onRounds(s.policy, now)
+}
+
+// onRounds reports, as policy judges the account's windows at now, whether
+// the router's rounds probe it, due; and, where they don't, ifClear, whether
+// they would should the window a probe starts reset before its next prime,
+// which the caller says. Nothing is due while its token is refused, nor until
+// retryAfter has passed since its last probe ended. Then a week of its about
+// to reset unread, as weekEnding says, is due whatever its other windows
+// read; else the account must have gone unread for unreadFor, and is due
+// where a probe of it is harmless, as harmless says, and due if clear where
+// it isn't.
+func (u *usage) onRounds(policy score.Policy, now time.Time) (due, ifClear bool) {
+	switch {
+	case u.refused.inForce(now) || now.Sub(u.probed) < retryAfter(u.misses):
+		return false, false
+	case u.weekEnding(now):
+		return true, false
+	case now.Sub(u.updated) < unreadFor:
+		return false, false
+	}
+	harmless := u.harmless(policy, now)
+	return harmless, !harmless
+}
+
+// weekEnding reports whether a window of the account's longer than a day
+// resets within beforeWeekReset of now, as it runs then, as score.Current
+// has it, so a reset passed since it was read has its next a length on; and
+// since beforeWeekReset before that reset, nothing has read the window, and
+// no probe of the account has ended, whether it read the window or not: one
+// probe is the window's one attempt.
+func (u *usage) weekEnding(now time.Time) bool {
+	for key, w := range u.windows {
+		if !quota.MultiDay(key) || w.ResetsAt.IsZero() {
+			continue
+		}
+		from := score.Current(w, now).ResetsAt.Add(-beforeWeekReset)
+		if !now.Before(from) && score.Later(u.readAt[key], u.probed).Before(from) {
+			return true
+		}
+	}
+	return false
 }
 
 // nextPrime returns when the account with the given id is next to be primed,
@@ -794,7 +885,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 			if score.ResetByHand(held, kept) {
 				u.resetBy[w.Key] = sent
 			}
-			u.windows[w.Key], u.taken[w.Key] = kept, taken
+			u.windows[w.Key], u.taken[w.Key], u.readAt[w.Key] = kept, taken, at
 			u.trails.note(held, kept, at)
 		}
 		if readsOtherwise(held, kept) {
@@ -806,7 +897,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 	if len(merged) == 0 {
 		return nil, false
 	}
-	u.updated, u.probeErr = at, ""
+	u.updated, u.probeErr, u.misses = at, "", 0
 	if u.limited.liftedBy(merged, at, sent) {
 		u.lift()
 	}
@@ -1039,15 +1130,15 @@ func (u *usage) current(policy score.Policy, now time.Time) []quota.Window {
 }
 
 // saved is what the state file keeps of the accounts' usage: each account's
-// windows as last read, and when, and its extra usage, and the model families
-// each window has been reported on.
+// windows as last read, and when, the account and each window, and its extra
+// usage, and the model families each window has been reported on.
 func (s *state) saved() savedUsage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string)}
 	for id, u := range s.usage {
 		if len(u.windows) > 0 || u.extra.Given() {
-			saved.Readings[id] = savedReading{ReadAt: u.updated, Windows: u.latest(), Extra: u.extra}
+			saved.Readings[id] = savedReading{ReadAt: u.updated, Windows: u.latest(), WindowsReadAt: u.windowsReadAt(), Extra: u.extra}
 		}
 	}
 	for key, families := range s.seen {
@@ -1056,9 +1147,18 @@ func (s *state) saved() savedUsage {
 	return saved
 }
 
+// windowsReadAt returns when each of the account's windows was last read, by
+// its key, but those it isn't known for.
+func (u *usage) windowsReadAt() map[string]time.Time {
+	readAt := maps.Clone(u.readAt)
+	maps.DeleteFunc(readAt, func(_ string, at time.Time) bool { return at.IsZero() })
+	return readAt
+}
+
 // recall takes in what the state file kept of the accounts' usage, as the
 // router starts, but for the readings of accounts no longer configured, and
-// reports whether it left any out.
+// reports whether it left any out. A window kept without when it was read, as
+// a router from before kept them, wasn't read as far as is known.
 func (s *state) recall(saved savedUsage) (dropped bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1070,6 +1170,7 @@ func (s *state) recall(saved savedUsage) (dropped bool) {
 		}
 		for _, w := range reading.Windows {
 			u.windows[w.Key] = w
+			u.readAt[w.Key] = reading.WindowsReadAt[w.Key].UTC()
 		}
 		u.updated, u.extra = reading.ReadAt.UTC(), reading.Extra
 	}
