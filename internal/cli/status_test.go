@@ -18,11 +18,13 @@ import (
 )
 
 func TestStatus(t *testing.T) {
-	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	for _, form := range prettyForms() {
+		t.Run(form.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
 
-	got := run(t, deps, "status")
-	want := result{
-		stdout: `work · Work (primary)
+			got := form.run(t, deps, "status")
+			want := result{
+				stdout: `work · Work (primary)
   Session     23%  resets in 4h 58m · Mon 18:10
   Week        93%  resets in 4d 7h · Fri 21:00 · runs out ~Mon 18:01
   Fable week 100%  resets in 5d 11h · Sun 01:10 · exhausted
@@ -36,18 +38,33 @@ side · Side
 best next: work · Work
 probed directly: the router isn't running
 `,
-		code: 0,
-	}
-	if got != want {
-		t.Errorf("switchboard status =\n%+v\nwant\n%+v", got, want)
+				code: 0,
+			}
+			if got != want {
+				t.Errorf("switchboard status %s =\n%+v\nwant\n%+v", strings.Join(form.args, " "), got, want)
+			}
+		})
 	}
 }
 
 func TestStatusJSON(t *testing.T) {
-	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	for _, form := range jsonForms() {
+		t.Run(form.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
 
-	got := run(t, deps, "status", "--json")
-	want := result{
+			got := form.run(t, deps, "status")
+			if want := statusDocument(t, deps); got != want {
+				t.Errorf("switchboard status %s =\n%+v\nwant\n%+v", strings.Join(form.args, " "), got, want)
+			}
+		})
+	}
+}
+
+// statusDocument is what status prints as JSON of the accounts statusDeps
+// configures.
+func statusDocument(t *testing.T, deps cli.Deps) result {
+	t.Helper()
+	return result{
 		stdout: `{
   "generated_at": "2026-09-28T13:12:00Z",
   "source": "probe",
@@ -105,9 +122,6 @@ func TestStatusJSON(t *testing.T) {
 `,
 		code: 0,
 	}
-	if got != want {
-		t.Errorf("switchboard status --json =\n%+v\nwant\n%+v", got, want)
-	}
 }
 
 func TestStatusRefreshWithoutTheRouterProbesAsStatusDoes(t *testing.T) {
@@ -120,16 +134,16 @@ func TestStatusRefreshWithoutTheRouterProbesAsStatusDoes(t *testing.T) {
 		writeToken(t, deps, "personal", "test-token-personal")
 		return run(t, deps, append([]string{"status"}, args...)...), api.questions()
 	}
-	for _, form := range [][]string{nil, {"--json"}} {
-		want, probes := runStatus(form...)
+	for _, flags := range [][]string{{"--pretty"}, {"--json"}} {
+		want, probes := runStatus(flags...)
 		if want.code != 0 || len(probes) == 0 {
-			t.Fatalf("switchboard status %s = %+v, asking the API %q, want exit status 0 and every account probed", strings.Join(form, " "), want, probes)
+			t.Fatalf("switchboard status %s = %+v, asking the API %q, want exit status 0 and every account probed", strings.Join(flags, " "), want, probes)
 		}
 		for _, flag := range []string{"--refresh", "-r"} {
-			args := append(slices.Clone(form), flag)
+			args := append(slices.Clone(flags), flag)
 			got, asked := runStatus(args...)
 			if got != want {
-				t.Errorf("switchboard status %s =\n%+v\nwant what status %s prints\n%+v", strings.Join(args, " "), got, strings.Join(form, " "), want)
+				t.Errorf("switchboard status %s =\n%+v\nwant what status %s prints\n%+v", strings.Join(args, " "), got, strings.Join(flags, " "), want)
 			}
 			if !slices.Equal(asked, probes) {
 				t.Errorf("switchboard status %s asked the API %q, want %q, every account probed as status probes it", strings.Join(args, " "), asked, probes)
@@ -156,7 +170,7 @@ func TestStatusListsTheRoutersSessions(t *testing.T) {
 		t.Fatalf("switchboard pin side --session 18bb = %+v", got)
 	}
 
-	got := run(t, srv.deps, "status")
+	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workAtStatus + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
 sessions
   0b5c6f2e  haiku on work  ·  seen just now
@@ -186,10 +200,11 @@ func TestStatusSaysWhenClaudeOnPathIsntSwitchboard(t *testing.T) {
 		// wantSaid is set when the text starts saying so.
 		wantSaid bool
 	}{
-		{name: "switchboard, first on PATH", path: []string{linked, claudeCode}, args: []string{"status"}},
-		{name: "Claude Code, first on PATH", path: []string{claudeCode, linked}, args: []string{"status"}, wantSaid: true},
-		{name: "no claude on PATH", args: []string{"status"}, wantSaid: true},
+		{name: "switchboard, first on PATH", path: []string{linked, claudeCode}, args: []string{"status", "--pretty"}},
+		{name: "Claude Code, first on PATH", path: []string{claudeCode, linked}, args: []string{"status", "--pretty"}, wantSaid: true},
+		{name: "no claude on PATH", args: []string{"status", "--pretty"}, wantSaid: true},
 		{name: "Claude Code, first on PATH, as JSON", path: []string{claudeCode}, args: []string{"status", "--json"}},
+		{name: "Claude Code, first on PATH, as JSON off a terminal", path: []string{claudeCode}, args: []string{"status"}},
 		{name: "Claude Code, first on PATH, a session asked after", path: []string{claudeCode}, args: []string{"status", "--session", "0b5c"}, wantCode: 1},
 	}
 	for _, tt := range tests {
@@ -233,9 +248,9 @@ func TestStatusNeverPrintsTheToken(t *testing.T) {
 		upstream string
 		args     []string
 	}{
-		{name: "from the API's error message, as text", upstream: leaky.URL, args: []string{"status"}},
+		{name: "from the API's error message, as text", upstream: leaky.URL, args: []string{"status", "--pretty"}},
 		{name: "from the API's error message, as JSON", upstream: leaky.URL, args: []string{"status", "--json"}},
-		{name: "from the upstream's path, as text", upstream: closed.URL + "/" + token, args: []string{"status"}},
+		{name: "from the upstream's path, as text", upstream: closed.URL + "/" + token, args: []string{"status", "--pretty"}},
 		{name: "from the upstream's path, as JSON", upstream: closed.URL + "/" + token, args: []string{"status", "--json"}},
 	}
 	for _, tt := range tests {

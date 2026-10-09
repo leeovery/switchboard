@@ -33,8 +33,8 @@ type historyDocument struct {
 
 func newHistoryCommand(a *app) *cobra.Command {
 	var (
-		given  string
-		asJSON bool
+		given string
+		form  formFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "history",
@@ -50,17 +50,20 @@ so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
 
-With --json, print the summaries of the days asked for, as the ledger holds
-them, from the first it holds, so the last is today's, each model's worth in
-US dollars added, and what it leaves unpriced, for an agent or a script to
-read.`,
-		Args: a.ledgerArgs,
+On a terminal, history prints its days as text. Anywhere else, as in a pipe
+or an agent's shell, it prints as JSON the summaries of the days asked for, as
+the ledger holds them, from the first it holds, so the last is today's, each
+model's worth in US dollars added, and what it leaves unpriced, for an agent
+or a script to read. --json prints the JSON, and --pretty the text, wherever
+stdout is.`,
+		Args: form.args(a.ledgerArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.history(cmd.OutOrStdout(), given, asJSON)
+			out := cmd.OutOrStdout()
+			return a.history(out, given, a.printsJSON(form, out))
 		},
 	}
 	cmd.Flags().StringVar(&given, "since", "", "start on the day of `WHEN`: "+sinceForms+" (default the last 30 days)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "print the days as JSON")
+	form.add(cmd)
 	return cmd
 }
 

@@ -149,7 +149,7 @@ Every command takes `--config <file>`, naming the config file in place of the on
 Every account's usage as a dashboard: a card per account, its state in words, the window that will stop it first in big digits with its chart, and a bar for each other window (see [The Dashboard](#the-dashboard)). It reads the router while it runs, with its history for the charts, else probes each account. Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead, as [`status --json`](#status) does, read as its flags say; `-w` needs a terminal.
 
 ```bash
-switchboard usage [-w [interval]] [--no-notify] [--probe] [-r]
+switchboard usage [-w [interval]] [--no-notify] [--probe] [-r] [--json | --pretty]
 ```
 
 | Flag | Description |
@@ -158,6 +158,8 @@ switchboard usage [-w [interval]] [--no-notify] [--probe] [-r]
 | `--no-notify` | with `--watch`, post no desktop notifications |
 | `--probe` | probe every account, even while the router runs |
 | `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. Not with `--watch`, where `r` refreshes |
+| `--json` | print the status document as JSON, as it does off a terminal anyway, even on one. Not with `--watch` |
+| `--pretty` | print the dashboard, as it does on a terminal, even off one: without colour, as wide as `COLUMNS` says, else 80 columns |
 
 In watch mode, reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time. Should the router stop answering, its last view stays on screen, saying since when, until it answers again or the interval's read, or `r`, probes the accounts directly. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
 
@@ -345,17 +347,20 @@ switchboard service status
 
 Every account's usage as text: each window's utilization, when it resets and where it's heading; what holds an account back, such as a limit it reached or its reserve, and whether it's under pressure, with the rate it goes by (`under pressure: runs out ~18:21 at Session's rate over the last 30 min, before its reset at 20:10`); the sessions routed in the last hour, a line each, with the account each of its models goes to; the priming schedule; the best account to use next; and last, where the usage came from, with the router's health, and under it, a restart the router has due, with how to have it now. It reads the router while it runs, else probes each account. When the `claude` a shell runs from `PATH` isn't switchboard, the first line says so.
 
+Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead.
+
 ```bash
-switchboard status [--json] [--probe] [-r]
-switchboard status --session <id> [--json]
+switchboard status [--json | --pretty] [--probe] [-r]
+switchboard status --session <id> [--json | --pretty]
 ```
 
 | Flag | Description |
 |---|---|
-| `--json` | print the status document as JSON, what an agent or a script reads; with `--session`, the session's every model and why it went where it did |
+| `--json` | print the status document as JSON, what an agent or a script reads, as it does off a terminal anyway, even on one; with `--session`, the session's every model and why it went where it did |
+| `--pretty` | print the text, as it does on a terminal, even off one |
 | `--probe` | probe every account, even while the router runs |
 | `-r, --refresh` | have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
-| `--session <id>` | print the id of the account the router sends that session's requests to, the one its last-used model went to, as a statusline asks; it needs the router, and takes no `--probe` or `--refresh` |
+| `--session <id>` | print the id of the account the router sends that session's requests to, the one its last-used model went to, as a statusline asks, on a terminal or off one; it needs the router, and takes no `--probe` or `--refresh` |
 
 ```bash
 switchboard status
@@ -386,14 +391,14 @@ switchboard logs router --path
 
 ### Looking back
 
-Both read the [request ledger](#how-it-works)'s files where they lie, so neither needs the router. Their plain text is a first cut; agents read their `--json`.
+Both read the [request ledger](#how-it-works)'s files where they lie, so neither needs the router. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
 
 #### `requests`
 
 The ledger's requests: today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long it took.
 
 ```bash
-switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json]
+switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json | --pretty]
 ```
 
 | Flag | Description |
@@ -401,7 +406,8 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json]
 | `--session <id>` | keep that session's requests, named by its id, or as much of it as is unique among the sessions read |
 | `--account <id>` | keep that account's requests |
 | `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
-| `--json` | print each line as the ledger holds it, a JSON object a line |
+| `--json` | print each line as the ledger holds it, a JSON object a line, as it does off a terminal anyway, even on one |
+| `--pretty` | print the text, as it does on a terminal, even off one |
 
 ```bash
 switchboard requests --since 14:00
@@ -413,13 +419,14 @@ switchboard requests --session 18bb --json | jq '.usage'
 The ledger's days: the last 30, unless `--since` says otherwise, a row for each account and model with its requests, tokens, sessions and worth, what they'd have cost through the API at the prices switchboard carries, read from Anthropic's pricing page; then each account's sessions, moves, limits reached and windows' highest use. Today's is summed up from its lines, as far as it has gone. A model the price table doesn't know shows as unpriced, never free.
 
 ```bash
-switchboard history [--since <when>] [--json]
+switchboard history [--since <when>] [--json | --pretty]
 ```
 
 | Flag | Description |
 |---|---|
 | `--since <when>` | start on the day of a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
-| `--json` | print `{"prices_as_of", "days"}`: the day the prices were read, and each day's summary as the ledger holds it, every day asked for since the ledger began, today's last, one without requests without `accounts`, each model's `worth` in US dollars added, and `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back |
+| `--json` | print `{"prices_as_of", "days"}`, as it does off a terminal anyway, even on one: the day the prices were read, and each day's summary as the ledger holds it, every day asked for since the ledger began, today's last, one without requests without `accounts`, each model's `worth` in US dollars added, and `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back |
+| `--pretty` | print the text, as it does on a terminal, even off one |
 
 ```bash
 switchboard history --since 7d

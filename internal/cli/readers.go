@@ -7,6 +7,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // caps are the caps of the accounts cfg configures, as the request ledger
@@ -15,18 +16,35 @@ func caps(cfg *config.Config) ledger.Caps {
 	return ledger.CapsOf(cfg.Accounts, claude.SharedWindows)
 }
 
-// readers has wc read the request ledger, the readings history and the
-// router's events where they lie, in the state directory, by the commands'
-// clock, the ledger's days summarised with the caps of the accounts cfg
-// configures. Without a state directory to find, they read nothing.
-func (a *app) readers(wc *watch.Config, cfg *config.Config) {
+// stateReaders read the request ledger, the readings history and the
+// router's events where they lie, with no router: what the dashboard and the
+// data verbs read them through.
+type stateReaders struct {
+	ledger   views.Ledger
+	readings views.Readings
+	events   views.Events
+}
+
+// stateReaders returns readers of the request ledger, the readings history
+// and the router's events in the state directory, by the commands' clock, the
+// ledger's days summarised with the caps of the accounts cfg configures.
+// Without a state directory to find, they read nothing.
+func (a *app) stateReaders(cfg *config.Config) stateReaders {
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		logger.Debug("can't find the ledger, the readings history or the router's events", "error", err)
-		wc.Ledger, wc.Readings, wc.Events = ledger.NewEmpty(a.Now, caps(cfg)), readings.Empty{}, events.Empty{}
-		return
+		return stateReaders{ledger: ledger.NewEmpty(a.Now, caps(cfg)), readings: readings.Empty{}, events: events.Empty{}}
 	}
-	wc.Ledger = ledger.NewFollower(dir, a.Now, caps(cfg), logger)
-	wc.Readings = readings.NewReader(dir, logger)
-	wc.Events = events.NewReader(dir, a.Now, logger)
+	return stateReaders{
+		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), logger),
+		readings: readings.NewReader(dir, logger),
+		events:   events.NewReader(dir, a.Now, logger),
+	}
+}
+
+// readers has wc read the request ledger, the readings history and the
+// router's events through the readers stateReaders returns.
+func (a *app) readers(wc *watch.Config, cfg *config.Config) {
+	r := a.stateReaders(cfg)
+	wc.Ledger, wc.Readings, wc.Events = r.ledger, r.readings, r.events
 }

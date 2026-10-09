@@ -39,21 +39,25 @@ type usageOptions struct {
 	noNotify bool
 	probe    bool
 	refresh  bool
+	form     formFlags
 	interval time.Duration
 }
 
 func newUsageCommand(a *app) *cobra.Command {
 	var opts usageOptions
 	cmd := &cobra.Command{
-		Use:   "usage [--watch [interval]] [--no-notify] [--probe] [--refresh]",
+		Use:   "usage [--watch [interval]] [--no-notify] [--probe] [--refresh] [--json | --pretty]",
 		Short: "Show every account's usage as a dashboard",
 		Long: `Show every account's usage as a dashboard: the router's, while it runs, with
 its sessions and pin, else read by probing each account, as --probe does
 whether the router runs or not.
 
-Where stdout isn't a terminal, as in a pipe or an agent's shell, usage prints
-the status document as JSON in place of the dashboard, as status --json
-prints it, read as its flags say. --watch needs a terminal.
+On a terminal, usage prints the dashboard once. Anywhere else, as in a pipe
+or an agent's shell, it prints the status document as JSON in its place, as
+status --json prints it, read as its flags say. --json prints the JSON, and
+--pretty the dashboard, wherever stdout is: off a terminal, without colour,
+as wide as $COLUMNS says, else 80 columns. --watch needs a terminal, and
+takes no --json.
 
 With --refresh, the router first reads every account it may, as the
 dashboard's r has it do: each it hasn't read in the last minute, and each that
@@ -93,12 +97,12 @@ tokyo-night-day for a light terminal and nord for a dark one, which the
 terminal is asked. Themes of your own are <slug>.theme files in
 $SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
 ~/.config/switchboard/themes. NO_COLOR draws it without colour.`,
-		Args: opts.parseArgs,
+		Args: opts.form.args(opts.parseArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			switch out := cmd.OutOrStdout(); {
 			case opts.watch:
 				return a.watchUsage(cmd.Context(), out, opts)
-			case !a.Terminal(out):
+			case a.printsJSON(opts.form, out):
 				return a.printDocument(cmd.Context(), out, opts)
 			default:
 				return a.printUsage(cmd.Context(), out, opts)
@@ -109,15 +113,18 @@ $SWITCHBOARD_THEMES_DIR, else $XDG_CONFIG_HOME/switchboard/themes, else
 	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "with --watch, post no desktop notifications")
 	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().BoolVarP(&opts.refresh, "refresh", "r", false, "have the router read every account it may first, as the dashboard's r does")
+	opts.form.add(cmd)
 	return cmd
 }
 
 // parseArgs reads the interval, which only --watch takes, and refuses
-// --refresh with --watch.
+// --refresh and --json with --watch.
 func (o *usageOptions) parseArgs(_ *cobra.Command, args []string) error {
 	switch {
 	case o.refresh && o.watch:
 		return errors.New("--refresh reads once, so it takes no --watch: in a watch, r refreshes")
+	case o.form.json && o.watch:
+		return errors.New("--json prints the status document once, so it takes no --watch")
 	case len(args) > 0 && !o.watch:
 		return fmt.Errorf("unexpected argument %q: only --watch takes an interval", redact.Text(args[0]))
 	case len(args) > 1:
@@ -178,15 +185,14 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 }
 
 // printDocument prints the status document once, read as opts say, as
-// status --json prints it: what usage prints where stdout isn't a terminal,
-// as for an agent or a pipe, which want data rather than a dashboard's boxes
-// and bars.
+// status --json prints it: what usage prints with --json, or where stdout
+// isn't a terminal, as for an agent or a pipe, which want data rather than a
+// dashboard's boxes and bars.
 func (a *app) printDocument(ctx context.Context, out io.Writer, opts usageOptions) error {
 	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
-	logger.Debug("stdout isn't a terminal: printing the status document")
 	return writeJSON(out, doc)
 }
 

@@ -259,12 +259,15 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 		{name: "a session no line is of", args: []string{"--session", "77aa"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, deps, append([]string{"requests"}, tt.args...)...)
-			if got.stdout != tt.want || got.code != 0 {
-				t.Errorf("switchboard requests %s printed\n%s(%d, %s)\nwant\n%s", strings.Join(tt.args, " "), got.stdout, got.code, got.stderr, tt.want)
-			}
-		})
+		for _, form := range prettyForms() {
+			t.Run(tt.name+", "+form.name, func(t *testing.T) {
+				got := form.run(t, deps, append([]string{"requests"}, tt.args...)...)
+				if got.stdout != tt.want || got.code != 0 {
+					t.Errorf("switchboard requests %s %s printed\n%s(%d, %s)\nwant\n%s",
+						strings.Join(tt.args, " "), strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
+				}
+			})
+		}
 	}
 }
 
@@ -282,12 +285,15 @@ func TestRequestsJSONPrintsEachLineAsTheLedgerHoldsIt(t *testing.T) {
 		{name: "none", args: []string{"--account", "nobody"}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, deps, append([]string{"requests", "--json"}, tt.args...)...)
-			if got.stdout != tt.want || got.code != 0 {
-				t.Errorf("switchboard requests --json %s printed\n%s(%d, %s)\nwant\n%s", strings.Join(tt.args, " "), got.stdout, got.code, got.stderr, tt.want)
-			}
-		})
+		for _, form := range jsonForms() {
+			t.Run(tt.name+", "+form.name, func(t *testing.T) {
+				got := form.run(t, deps, append([]string{"requests"}, tt.args...)...)
+				if got.stdout != tt.want || got.code != 0 {
+					t.Errorf("switchboard requests %s %s printed\n%s(%d, %s)\nwant\n%s",
+						strings.Join(tt.args, " "), strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
+				}
+			})
+		}
 	}
 }
 
@@ -422,23 +428,20 @@ func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 		{name: "from the day of days ago", args: []string{"--since", "2d"}, want: historyFromThe6th},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, deps, append([]string{"history"}, tt.args...)...)
-			if got.stdout != tt.want || got.code != 0 {
-				t.Errorf("switchboard history %s printed\n%s(%d, %s)\nwant\n%s", strings.Join(tt.args, " "), got.stdout, got.code, got.stderr, tt.want)
-			}
-		})
+		for _, form := range prettyForms() {
+			t.Run(tt.name+", "+form.name, func(t *testing.T) {
+				got := form.run(t, deps, append([]string{"history"}, tt.args...)...)
+				if got.stdout != tt.want || got.code != 0 {
+					t.Errorf("switchboard history %s %s printed\n%s(%d, %s)\nwant\n%s",
+						strings.Join(tt.args, " "), strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
+				}
+			})
+		}
 	}
 }
 
 func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	deps, _ := ledgerDeps(t)
-
-	got := run(t, deps, "history", "--json", "--since", "2026-10-04")
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"prices_as_of\"") {
-		t.Fatalf("switchboard history --json = %+v (%v), want indented JSON", got, err)
-	}
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
@@ -474,8 +477,15 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376},` +
 		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}]}]}`
-	if compact.String() != want {
-		t.Errorf("switchboard history --json printed\n%s\nwant\n%s", compact.String(), want)
+	for _, form := range jsonForms() {
+		got := form.run(t, deps, "history", "--since", "2026-10-04")
+		var compact bytes.Buffer
+		if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"prices_as_of\"") {
+			t.Fatalf("switchboard history %s, %s, = %+v (%v), want indented JSON", strings.Join(form.args, " "), form.name, got, err)
+		}
+		if compact.String() != want {
+			t.Errorf("switchboard history %s, %s, printed\n%s\nwant\n%s", strings.Join(form.args, " "), form.name, compact.String(), want)
+		}
 	}
 }
 
@@ -499,7 +509,7 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 			}
 			writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(ledgerConfig+tt.prices))
 
-			got := run(t, deps, "history", "--since", "10:00")
+			got := run(t, deps, "history", "--pretty", "--since", "10:00")
 			want := strings.Replace(historyOfToday, "$0.08", tt.worth, 1)
 			want = strings.Replace(want, "as of 7 Oct 2026\n", "as of 7 Oct 2026 and the config's\n", 1)
 			if got.stdout != want || got.code != 0 {
@@ -616,8 +626,8 @@ func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 		args []string
 		want result
 	}{
-		{args: []string{"requests", "--session", tokenShaped}, want: result{stdout: "no requests since Wed 7 Oct 2026 00:00\n"}},
-		{args: []string{"requests", "--account", tokenShaped}, want: result{stdout: "no requests since Wed 7 Oct 2026 00:00\n"}},
+		{args: []string{"requests", "--pretty", "--session", tokenShaped}, want: result{stdout: "no requests since Wed 7 Oct 2026 00:00\n"}},
+		{args: []string{"requests", "--pretty", "--account", tokenShaped}, want: result{stdout: "no requests since Wed 7 Oct 2026 00:00\n"}},
 	}
 	for _, tt := range tests {
 		if got := run(t, deps, tt.args...); got != tt.want {
@@ -650,9 +660,9 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		args []string
 		want string
 	}{
-		{args: []string{"requests"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
+		{args: []string{"requests", "--pretty"}, want: "no requests since Wed 7 Oct 2026 00:00\n"},
 		{args: []string{"requests", "--json"}},
-		{args: []string{"history"}, want: "no requests since Tue 8 Sep 2026\n"},
+		{args: []string{"history", "--pretty"}, want: "no requests since Tue 8 Sep 2026\n"},
 	}
 	for _, tt := range tests {
 		if got := run(t, deps, tt.args...); got != (result{stdout: tt.want}) {
@@ -702,7 +712,7 @@ func TestTheLedgersCommandsNeedAConfig(t *testing.T) {
 func TestHistoryHelpSaysWhichDaysItsJSONGives(t *testing.T) {
 	got := run(t, testDeps(nil, t.TempDir()), "history", "--help")
 	help := strings.Join(strings.Fields(got.stdout), " ")
-	want := "With --json, print the summaries of the days asked for, as the ledger holds them, from the first it holds, so the last is today's"
+	want := "it prints as JSON the summaries of the days asked for, as the ledger holds them, from the first it holds, so the last is today's"
 	if got.code != 0 || !strings.Contains(help, want) || strings.Contains(help, "every day since the ledger began") {
 		t.Errorf("switchboard history --help = %+v, want help saying %q: the last 30 days, or --since's, not every day the ledger holds", got, want)
 	}

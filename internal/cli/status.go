@@ -16,7 +16,7 @@ import (
 
 func newStatusCommand(a *app) *cobra.Command {
 	var (
-		asJSON  bool
+		form    formFlags
 		probe   bool
 		refresh bool
 		session string
@@ -32,7 +32,10 @@ the router has due, which the line under it says, with how to have it now.
 When the claude a shell runs from PATH isn't switchboard, so the sessions it
 starts don't go through the router, the first line says so.
 
-With --json, print the status document, for an agent or a script to read.
+On a terminal, status prints this as text. Anywhere else, as in a pipe or an
+agent's shell, it prints the status document as JSON, for an agent or a
+script to read. --json prints the JSON, and --pretty the text, wherever
+stdout is.
 
 With --refresh, the router first reads every account it may, as usage
 --refresh has it do, and waits for those reads, ten seconds at most, so once
@@ -41,12 +44,12 @@ a limit is reset by hand, the router sees it. Without the router, or with
 
 With --session, print the id of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
-asks; or with --json, the session's every model and why it went where it did.
-It needs the router running: start it with switchboard service install (or
-switchboard serve).
+asks, on a terminal or off one; or with --json, the session's every model and
+why it went where it did. It needs the router running: start it with
+switchboard service install (or switchboard serve).
 
 ` + namingASession,
-		Args: func(cmd *cobra.Command, args []string) error {
+		Args: form.args(func(cmd *cobra.Command, args []string) error {
 			switch {
 			case cmd.Flags().Changed("session") && session == "":
 				return errors.New("--session takes the id of a session")
@@ -56,23 +59,24 @@ switchboard serve).
 				return errors.New("--session asks after one session, not the accounts, so it takes no --refresh")
 			}
 			return noArgs(cmd, args)
-		},
+		}),
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			out := cmd.OutOrStdout()
 			if session != "" {
-				return a.sessionStatus(cmd.Context(), cmd.OutOrStdout(), session, asJSON)
+				return a.sessionStatus(cmd.Context(), out, session, form.json)
 			}
 			doc, err := a.collect(cmd.Context(), probe, readOnce(refresh))
 			if err != nil {
 				return err
 			}
-			if asJSON {
-				return writeJSON(cmd.OutOrStdout(), doc)
+			if a.printsJSON(form, out) {
+				return writeJSON(out, doc)
 			}
-			_, err = io.WriteString(cmd.OutOrStdout(), a.unrouted()+doc.Text(a.Now(), a.running(cmd.Context(), doc)...))
+			_, err = io.WriteString(out, a.unrouted()+doc.Text(a.Now(), a.running(cmd.Context(), doc)...))
 			return err
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "print as JSON")
+	form.add(cmd)
 	cmd.Flags().BoolVar(&probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "have the router read every account it may first, as usage --refresh does")
 	cmd.Flags().StringVar(&session, "session", "", "print the account the router sends session `ID`'s requests to")
