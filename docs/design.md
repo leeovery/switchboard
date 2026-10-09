@@ -5468,10 +5468,10 @@ merged once it has been reviewed whole: from stage 5, `usage -w` is gone, so mai
 partway. Then, before the release, a review of everything milestone 7 and the request ledger changed
 for costs that grow with time or with what's kept, each measured against a year of heavy use: the
 kind of cost a round's recount of every kept day was until it learned to look only at the days whose
-lines changed. Stage 2's review left it three, each a cost of what a look reads rather than of
-what's kept: today's ledger file tailed twice, for today's lines and for today's tally; today's
-readings worked out afresh at each read of the days; and every day a follower has read held for the
-run. Then the release.
+lines changed. Stage 2's review left it four: today's ledger file tailed twice, for today's lines
+and for today's tally; today's readings worked out afresh at each read of the days; every day a
+follower has read held for the run; and a session's days found by looking at the summary of every
+day kept, back to the first, at each read of its lines. Then the release.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
