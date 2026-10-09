@@ -5463,7 +5463,9 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
    sessions telling what's in flight; "requests" meaning one thing everywhere, as what the verbs
    print changes here (see The request ledger); `internal/views`, the functions the verbs print and
    the pages will draw; and the skill telling agents of them, its version moved on. Tests hold each
-   verb's JSON to its shape.
+   verb's JSON to its shape. Decided with the owner as it was built (9 October 2026), as recording
+   can't be done after: the router reads every account on rounds of its own, each nothing has read
+   in 30 minutes and each before its weeks reset (see The router's rounds).
 4. **The capture harness, rebuilt.** Its samples are the specs' worlds, and its fakes hold a year of
    days, a session's lines and the router's events, the prices injected and each frame's fixed
    scales pinned. `reference/` holds the 77 signed-off stems in place of milestone 5's frames. A
