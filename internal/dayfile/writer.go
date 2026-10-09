@@ -118,14 +118,14 @@ func (w *Writer[T]) round() {
 	if w.onPruning != nil {
 		w.onPruning(now)
 	}
-	w.pruned = dateOf(now)
+	w.pruned = DateOf(now)
 	w.files.prune(now, w.keep)
 }
 
 // prunedOn reports whether the files have been pruned on the local day now
 // falls on.
 func (w *Writer[T]) prunedOn(now time.Time) bool {
-	return dateOf(now) == w.pruned
+	return DateOf(now) == w.pruned
 }
 
 // drain writes what's still queued.

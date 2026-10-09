@@ -353,7 +353,7 @@ func TestSinceIsADayATimeTodayOrHowLongAgo(t *testing.T) {
 		{since: "", want: `Error: --since "" isn't a day`},
 	}
 	for _, tt := range tests {
-		for _, command := range []string{"requests", "history"} {
+		for _, command := range []string{"requests", "history", "events"} {
 			got := run(t, deps, command, "--since", tt.since)
 			if got.code != 1 || !strings.Contains(got.stderr, tt.want) || !strings.Contains(got.stdout+got.stderr, "Usage:") {
 				t.Errorf("switchboard %s --since %q = %+v, want exit status 1, the usage, and %q", command, tt.since, got, tt.want)
@@ -643,7 +643,7 @@ func TestTheLedgersCommandsNeverEchoAToken(t *testing.T) {
 			}
 		}
 	}
-	for _, command := range []string{"requests", "history"} {
+	for _, command := range []string{"requests", "history", "events"} {
 		refusals := []struct {
 			name string
 			args []string
