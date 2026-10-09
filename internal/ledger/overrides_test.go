@@ -24,8 +24,19 @@ var changing = ledger.Table{AsOf: today, Models: []ledger.Model{{IDs: []string{"
 const everyKind = `{"input_tokens":1000000,"output_tokens":1000000,"cache_read_input_tokens":1000000,"cache_creation_input_tokens":2000000,` +
 	`"cache_creation":{"ephemeral_5m_input_tokens":1000000,"ephemeral_1h_input_tokens":1000000},"server_tool_use":{"web_search_requests":1000}}`
 
+// overridden is table with the config's prices in place of its own, failing
+// the test where it passes over any of them.
+func overridden(t *testing.T, table ledger.Table, prices config.Prices) ledger.Table {
+	t.Helper()
+	table, passed := table.With(prices)
+	if len(passed) > 0 {
+		t.Fatalf("With() passed over %q, want every price the config gives taken", passed)
+	}
+	return table
+}
+
 func TestTheConfigsPricesOfAModelPriceEveryDayAlike(t *testing.T) {
-	table := changing.With(config.Prices{Models: map[string]config.ModelPrices{"claude-test-1": {Input: new(3.2), CacheWrite1h: new(6.4)}}})
+	table := overridden(t, changing, config.Prices{Models: map[string]config.ModelPrices{"claude-test-1": {Input: new(3.2), CacheWrite1h: new(6.4)}}})
 	tests := []struct {
 		name  string
 		model string
@@ -52,7 +63,7 @@ func TestTheConfigsPricesOfAModelPriceEveryDayAlike(t *testing.T) {
 }
 
 func TestTheConfigsPricesOfAModelAreConvertedExactly(t *testing.T) {
-	table := ledger.Pricing.With(config.Prices{Models: map[string]config.ModelPrices{"claude-opus-5-5": {Input: new(3.2), Output: new(16.0), CacheRead: new(0.16)}}})
+	table := overridden(t, ledger.Pricing, config.Prices{Models: map[string]config.ModelPrices{"claude-opus-5-5": {Input: new(3.2), Output: new(16.0), CacheRead: new(0.16)}}})
 	got := worthOf(t, table, "claude-opus-5-5", "", `{"input_tokens":3,"output_tokens":7,"cache_read_input_tokens":11}`, today)
 	if want := ledger.Picodollars(3*3_200_000 + 7*16_000_000 + 11*160_000); got.Cost != want {
 		t.Errorf("Worth() = %d picodollars, want %d, each token priced whole", got.Cost, want)
@@ -63,7 +74,12 @@ func TestAModelTheTableDoesntKnowIsPricedOnlyWhereTheConfigGivesEveryPrice(t *te
 	every := config.ModelPrices{Input: new(1.0), Output: new(5.0), CacheRead: new(0.1), CacheWrite5m: new(1.25), CacheWrite1h: new(2.0)}
 	some := every
 	some.CacheWrite1h = nil
-	table := ledger.Pricing.With(config.Prices{Models: map[string]config.ModelPrices{"claude-test-2": every, "claude-test-3": some}})
+	table, passed := ledger.Pricing.With(config.Prices{Models: map[string]config.ModelPrices{
+		"claude-test-2": every, "claude-test-3": some, "claude-test-4": {}, "claude-opus-5-5": {},
+	}})
+	if want := []string{"claude-test-3", "claude-test-4"}; !slices.Equal(passed, want) {
+		t.Errorf("With() passed over %q, want %q, the models it doesn't know whose every price the config doesn't give", passed, want)
+	}
 
 	got := worthOf(t, table, "claude-test-2", "", everyKind, today)
 	if want := dollars(1 + 5 + 0.1 + 1.25 + 2 + 10); got.Cost != want || len(got.Unpriced) > 0 {
@@ -81,7 +97,7 @@ func TestAModelTheTableDoesntKnowIsPricedOnlyWhereTheConfigGivesEveryPrice(t *te
 }
 
 func TestTheConfigsPriceOfAPlanPricesEveryDayAlike(t *testing.T) {
-	table := changing.With(config.Prices{Plans: map[string]float64{"max5x": 90.5}})
+	table := overridden(t, changing, config.Prices{Plans: map[string]float64{"max5x": 90.5}})
 	plan, ok := table.Plan("max5x")
 	if !ok {
 		t.Fatal("Plan(max5x) isn't priced")
@@ -101,17 +117,19 @@ func TestATableIsOverriddenOnlyWhereTheConfigsPricesStandInPlaceOfItsOwn(t *test
 		name   string
 		prices config.Prices
 		want   bool
+		passed []string
 	}{
 		{name: "none"},
 		{name: "a model's table, empty", prices: config.Prices{Models: map[string]config.ModelPrices{"claude-test-1": {}}}},
-		{name: "some prices of a model the table doesn't know", prices: config.Prices{Models: map[string]config.ModelPrices{"claude-test-9": {Input: new(1.0)}}}},
+		{name: "some prices of a model the table doesn't know", prices: config.Prices{Models: map[string]config.ModelPrices{"claude-test-9": {Input: new(1.0)}}},
+			passed: []string{"claude-test-9"}},
 		{name: "a price of a model it knows", prices: config.Prices{Models: map[string]config.ModelPrices{"claude-test-1": {Output: new(0.0)}}}, want: true},
 		{name: "a plan's", prices: config.Prices{Plans: map[string]float64{"max5x": 100}}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := changing.With(tt.prices).Overridden; got != tt.want {
-				t.Errorf("Overridden = %v, want %v", got, tt.want)
+			if got, passed := changing.With(tt.prices); got.Overridden != tt.want || !slices.Equal(passed, tt.passed) {
+				t.Errorf("With() is overridden: %v, passing over %q; want %v, passing over %q", got.Overridden, passed, tt.want, tt.passed)
 			}
 		})
 	}
@@ -122,7 +140,7 @@ func TestTheConfigsPricesLeaveTheTableTheyreGivenAsItIs(t *testing.T) {
 	for i := range before.Models {
 		before.Models[i].Prices = slices.Clone(before.Models[i].Prices)
 	}
-	changing.With(config.Prices{
+	overridden(t, changing, config.Prices{
 		Plans:  map[string]float64{"max5x": 1},
 		Models: map[string]config.ModelPrices{"claude-test-1": {Input: new(1.0)}, "claude-test-2": {Input: new(1.0), Output: new(1.0), CacheRead: new(1.0), CacheWrite5m: new(1.0), CacheWrite1h: new(1.0)}},
 	})

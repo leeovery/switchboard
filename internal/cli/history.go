@@ -23,10 +23,12 @@ import (
 const historyDays = 30
 
 // historyDocument is what history --json prints: the date of the prices the
-// days are priced at, and the days.
+// days are priced at, whether the config's prices stand in place of any of
+// them, and the days.
 type historyDocument struct {
-	PricesAsOf string          `json:"prices_as_of"`
-	Days       []ledger.Priced `json:"days"`
+	PricesAsOf       string          `json:"prices_as_of"`
+	PricesFromConfig bool            `json:"prices_from_config,omitempty"`
+	Days             []ledger.Priced `json:"days"`
 }
 
 func newHistoryCommand(a *app) *cobra.Command {
@@ -65,10 +67,11 @@ read.`,
 // history prints the ledger's days from the one given on, else the last 30,
 // priced at today's prices.
 func (a *app) history(out io.Writer, given string, asJSON bool) error {
-	reader, prices, err := a.ledgerReader()
+	reader, cfg, err := a.ledgerReader()
 	if err != nil {
 		return err
 	}
+	prices := pricing(cfg)
 	now := a.Now()
 	from, err := sinceOr(given, now, startOfDay(now, historyDays-1))
 	if err != nil {
@@ -80,7 +83,7 @@ func (a *app) history(out io.Writer, given string, asJSON bool) error {
 		days = append(days, prices.Priced(summary, today))
 	}
 	if asJSON {
-		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, Days: days})
+		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, Days: days})
 	}
 	return writeHistory(out, days, prices, from, now)
 }
