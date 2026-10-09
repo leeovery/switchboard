@@ -28,8 +28,9 @@ only when something rare happens.
   API closes, after the drain. But nothing waits for a reader's writer goroutine to flush the
   `done` events queued for it before the control API closes, so under load a reader can miss the
   last ones. `TestTheRequestStreamTellsOfTheRequestsARestartFinishes` failed once this way at a
-  load average near 100, and passed 30 times alone. A fix: as the stream closes, write what's
-  queued for each reader before ending its response.
+  load average near 100, and passed 30 times alone; and again on 9 October 2026, in a full gate
+  run beside three others. A fix: as the stream closes, write what's queued for each reader
+  before ending its response.
 - **A restart in place leaves its control socket unanswered as it finishes stopping.**
   `drainHandingOver` (`internal/router/replace.go`) closes the control API once the drain is done,
   and only then does `serve` stop its background: the notifications' finishing, up to
@@ -62,12 +63,3 @@ only when something rare happens.
   `s.entries()`, which groups and sorts the assignments of every session in the last hour, to
   report the one asked for, and statuslines ask for it often. A fix: gather that one session's
   entries alone, sorted by `byUse`, as `lastUsed` finds its newest.
-
-## Found while building milestone 7's stage 2, 9 October 2026
-
-- **`TestTheRequestStreamTellsOfTheRequestsARestartFinishes` failed once,** in a full gate run
-  beside three others: "the stream told of [], want the request it finished done". The first
-  reader's stream closed as the router restarted without telling of the request it finished. It
-  passed 20 times alone since, and in the next full gate, and stage 2 doesn't touch the router's
-  stream. Not yet looked into: what closes that reader's stream before the request's `done` under
-  load.
