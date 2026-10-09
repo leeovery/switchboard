@@ -591,6 +591,7 @@ func themedHarness(t *testing.T, choice theme.Choice) (*harness, *fakeThemes) {
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Interval: interval, Policy: policy,
 		Size: Size{Width: 150, Height: 50}, Choice: choice, Pair: themes.listing.Pair(choice), Themes: themes,
+		Ledger: fakeLedger{}, Readings: fakeReadings{}, Events: fakeEvents{},
 	})
 	return h, themes
 }

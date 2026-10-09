@@ -45,6 +45,9 @@ func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, 
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     s.Size,
+		Ledger:   fakeLedger{},
+		Readings: fakeReadings{},
+		Events:   fakeEvents{},
 	}
 	dressed(&cfg, s.theme, s.colourless)
 	return live{Model: watch.New(context.Background(), cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}

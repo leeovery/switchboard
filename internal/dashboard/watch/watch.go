@@ -8,8 +8,10 @@
 // window passes the warning. Probing as asked while the router answers, it
 // leaves them to the router all the same. It redraws as the clock moves, every
 // second, and eases each bar to its new reading. Beyond its log, the model
-// does no I/O of its own: it's handed its source, its clock, its notifier and
-// where it keeps its preferences, so tests drive it as a terminal would.
+// does no I/O of its own: it's handed its source, its clock, its notifier,
+// where it keeps its preferences, and the readers of the request ledger, the
+// readings history and the router's events, so tests drive it as a terminal
+// would.
 package watch
 
 import (
@@ -17,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"slices"
 	"strings"
@@ -26,8 +29,11 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -87,6 +93,35 @@ type Notifier interface {
 	Notify(message string) error
 }
 
+// Ledger reads the request ledger where it lies, with no router, as it
+// grows, as a ledger.Follower does.
+type Ledger interface {
+	// Days gives the summaries of the local days from from's to today's.
+	Days(from time.Time) []ledger.Summary
+	// Today gives today's lines read since mark, and the Mark they're read
+	// to, reporting afresh where they're every one of today's, for those
+	// read before to be let go of.
+	Today(mark ledger.Mark) (lines []ledger.Held, next ledger.Mark, afresh bool)
+	// Session gives the lines of the session with the given id, newest
+	// first, read as far back as the caller goes on.
+	Session(id string) iter.Seq[ledger.Held]
+}
+
+// Readings reads the readings history where it lies, with no router, as a
+// readings.Reader does.
+type Readings interface {
+	// Between gives the readings of times from from up to to.
+	Between(from, to time.Time) iter.Seq[readings.Reading]
+}
+
+// Events reads the router's events where they lie, with no router, as an
+// events.Reader does.
+type Events interface {
+	// Between gives the events that happened from from up to to, each as it
+	// last stands, oldest first.
+	Between(from, to time.Time) iter.Seq[events.Line]
+}
+
 // Config is what a watch is given.
 type Config struct {
 	Source   Source
@@ -132,6 +167,12 @@ type Config struct {
 	Featured dashboard.Feature
 	Chart    dashboard.Chart
 	Prefs    Prefs
+	// Ledger, Readings and Events read the request ledger, the readings
+	// history and the router's events where they lie: the watch opens none
+	// of their files itself.
+	Ledger   Ledger
+	Readings Readings
+	Events   Events
 }
 
 // Size is a terminal's size in cells.
@@ -189,7 +230,7 @@ type Model struct {
 	frames   int
 	framing  bool
 	frameDue time.Time
-	readings readings
+	readings lastReads
 
 	// choice is the theme or pair the user chose, and pair the themes it
 	// draws in; showing is the theme the screen is drawn in, the one in

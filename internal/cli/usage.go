@@ -215,6 +215,7 @@ func (a *app) watchUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Featured:      dashboard.Feature(kept.Featured),
 		Chart:         dashboard.Chart(kept.Chart),
 	}
+	a.readers(&wc, cfg)
 	if t.prefs != nil {
 		wc.Prefs = t.prefs
 	}

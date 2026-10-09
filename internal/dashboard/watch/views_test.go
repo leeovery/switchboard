@@ -263,6 +263,7 @@ func TestOpensFeaturingTheWindowKept(t *testing.T) {
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm,
 		Interval: interval, Policy: policy, Size: Size{Width: 160, Height: 40}, Featured: "7d",
+		Ledger: fakeLedger{}, Readings: fakeReadings{}, Events: fakeEvents{},
 	})
 	h.start()
 
@@ -351,6 +352,7 @@ func TestOpensDrawingTheChartKept(t *testing.T) {
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm,
 		Interval: interval, Policy: policy, Size: Size{Width: 160, Height: 40}, Chart: dashboard.Hourglass,
+		Ledger: fakeLedger{}, Readings: fakeReadings{}, Events: fakeEvents{},
 	})
 	h.start()
 

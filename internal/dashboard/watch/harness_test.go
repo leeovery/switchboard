@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"iter"
 	"regexp"
 	"slices"
 	"strings"
@@ -12,7 +13,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -71,7 +75,7 @@ func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
-		Interval: interval, Policy: policy, Size: size,
+		Interval: interval, Policy: policy, Size: size, Ledger: fakeLedger{}, Readings: fakeReadings{}, Events: fakeEvents{},
 	})
 	return h
 }
@@ -523,6 +527,31 @@ type fakeNotifier struct {
 func (n *fakeNotifier) Notify(message string) error {
 	n.posted = append(n.posted, message)
 	return n.err
+}
+
+// fakeLedger reads as a request ledger that holds no line.
+type fakeLedger struct{}
+
+func (fakeLedger) Days(time.Time) []ledger.Summary { return nil }
+
+func (fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
+	return nil, ledger.Mark{}, false
+}
+
+func (fakeLedger) Session(string) iter.Seq[ledger.Held] { return func(func(ledger.Held) bool) {} }
+
+// fakeReadings reads as a readings history that holds no reading.
+type fakeReadings struct{}
+
+func (fakeReadings) Between(time.Time, time.Time) iter.Seq[readings.Reading] {
+	return func(func(readings.Reading) bool) {}
+}
+
+// fakeEvents reads as the router's events where there are none.
+type fakeEvents struct{}
+
+func (fakeEvents) Between(time.Time, time.Time) iter.Seq[events.Line] {
+	return func(func(events.Line) bool) {}
 }
 
 // window is a window resetting a duration after the clock starts.

@@ -54,6 +54,9 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     size,
+		Ledger:   fakeLedger{},
+		Readings: fakeReadings{},
+		Events:   fakeEvents{},
 	}
 	dressed(&cfg, f.theme, f.colourless)
 	m := watch.New(context.Background(), cfg)

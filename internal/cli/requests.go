@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -89,7 +88,7 @@ func (a *app) ledgerReader() (*ledger.Reader, ledger.Table, error) {
 	if err != nil {
 		return nil, ledger.Table{}, err
 	}
-	return ledger.NewReader(dir, a.Now, ledger.CapsOf(cfg.Accounts, claude.SharedWindows), logger), ledger.Pricing.With(cfg.Prices), nil
+	return ledger.NewReader(dir, a.Now, caps(cfg), logger), ledger.Pricing.With(cfg.Prices), nil
 }
 
 // requests prints the ledger's lines as opts ask.

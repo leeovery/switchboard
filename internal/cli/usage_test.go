@@ -3,8 +3,10 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,7 +24,11 @@ import (
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -327,6 +333,105 @@ func TestUsageWatchReadsWhatStatusReads(t *testing.T) {
 	if want := (score.Policy{Shared: []string{"5h", "7d"}, Perishable: "7d", Tiebreak: "5h", Started: "5h", Pressure: "5h"}); !reflect.DeepEqual(cfg.Policy, want) {
 		t.Errorf("policy = %+v, want Claude's %+v", cfg.Policy, want)
 	}
+}
+
+func TestUsageWatchReadsTheLedgerTheReadingsAndTheEventsInTheStateDirectory(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow }
+	configure(t, deps)
+	state := stateDir(t, deps)
+	line := ledger.Line{At: october(7, 9, 0, 0).UTC(), Request: "c1", Kind: ledger.KindMessage, Session: sessionA, Model: "claude-opus-5-5", Account: "work",
+		Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 14230, Usage: json.RawMessage(cachedUsage)}
+	reading := readings.Reading{At: october(7, 9, 0, 0).UTC(), Account: "work", Key: "5h", Utilization: 0.3, ResetsAt: october(7, 14, 0, 0).UTC(),
+		Status: quota.StatusAllowed, Source: readings.FromAnswer}
+	event := events.Line{ID: 1, At: october(7, 10, 0, 0).UTC(), Kind: status.EventLimit, Account: "work", Run: october(7, 8, 0, 0).UTC()}
+	writeStateFile(t, ledger.Dir(state), "requests-2026-10-07.jsonl", jsonLine(t, line))
+	writeStateFile(t, readings.Dir(state), "readings-2026-10-07.jsonl", jsonLine(t, reading))
+	writeStateFile(t, ledger.Dir(state), "events-2026-10-07.jsonl", jsonLine(t, event))
+	cfg := recordWatch(t, &deps)
+
+	if got := run(t, deps, "usage", "--watch"); got != (result{}) {
+		t.Fatalf("switchboard usage --watch = %+v, want exit status 0 and nothing printed", got)
+	}
+	today := october(7, 0, 0, 0)
+	if lines, _, _ := cfg.Ledger.Today(ledger.Mark{}); len(lines) != 1 || lines[0].Request != "c1" {
+		t.Errorf("the ledger's reader reads today's lines as %+v, want the one written", lines)
+	}
+	if lines := slices.Collect(cfg.Ledger.Session(sessionA)); len(lines) != 1 || lines[0].Request != "c1" {
+		t.Errorf("the ledger's reader reads the session's lines as %+v, want the one written", lines)
+	}
+	if days := cfg.Ledger.Days(today); len(days) != 1 || days[0].Day != "2026-10-07" || days[0].Lines != 1 {
+		t.Errorf("the ledger's reader reads the days as %+v, want today's, of the line written", days)
+	}
+	if got := slices.Collect(cfg.Readings.Between(today, ledgerNow)); len(got) != 1 || !got[0].At.Equal(reading.At) || got[0].Window() != reading.Window() {
+		t.Errorf("the readings history's reader reads %+v, want the reading written, %+v", got, reading)
+	}
+	if got := slices.Collect(cfg.Events.Between(today, ledgerNow)); len(got) != 1 || got[0].ID != 1 || got[0].Kind != status.EventLimit {
+		t.Errorf("the events' reader reads %+v, want the event written, %+v", got, event)
+	}
+}
+
+func TestUsageWatchReadsNothingWithoutAStateDirectory(t *testing.T) {
+	tests := []struct {
+		name   string
+		noHome bool
+	}{
+		{name: "where it isn't there yet"},
+		{name: "where there's none to find", noHome: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, ledgerConfig)}, t.TempDir())
+			deps.Now = func() time.Time { return ledgerNow }
+			if tt.noHome {
+				deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
+			}
+			cfg := recordWatch(t, &deps)
+
+			if got := run(t, deps, "usage", "--watch"); got != (result{}) {
+				t.Fatalf("switchboard usage --watch = %+v, want exit status 0 and nothing printed", got)
+			}
+			if cfg.Ledger == nil || cfg.Readings == nil || cfg.Events == nil {
+				t.Fatalf("the watch is given the readers %#v, %#v and %#v, want one of each", cfg.Ledger, cfg.Readings, cfg.Events)
+			}
+			from := october(1, 0, 0, 0)
+			if lines, _, _ := cfg.Ledger.Today(ledger.Mark{}); len(lines) > 0 {
+				t.Errorf("the ledger's reader reads today's lines as %+v, want none", lines)
+			}
+			if lines := slices.Collect(cfg.Ledger.Session(sessionA)); len(lines) > 0 {
+				t.Errorf("the ledger's reader reads the session's lines as %+v, want none", lines)
+			}
+			if days := cfg.Ledger.Days(from); len(days) != 1 || days[0].Day != "2026-10-07" || days[0].Lines != 0 {
+				t.Errorf("the ledger's reader reads the days as %+v, want today's alone, of no requests", days)
+			}
+			if got := slices.Collect(cfg.Readings.Between(from, ledgerNow)); len(got) > 0 {
+				t.Errorf("the readings history's reader reads %+v, want none", got)
+			}
+			if got := slices.Collect(cfg.Events.Between(from, ledgerNow)); len(got) > 0 {
+				t.Errorf("the events' reader reads %+v, want none", got)
+			}
+			if tt.noHome {
+				return
+			}
+			state := stateDir(t, deps)
+			for _, dir := range []string{ledger.Dir(state), readings.Dir(state)} {
+				if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+					t.Errorf("%s is there (%v), want it left as it was, not there", dir, err)
+				}
+			}
+		})
+	}
+}
+
+// jsonLine returns v as a line of JSON, as the state directory's files hold
+// it.
+func jsonLine(t *testing.T, v any) []byte {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(data, '\n')
 }
 
 func TestUsageWatchDrawsAtTheEnvironmentsSizeUntilTheTerminalGivesOne(t *testing.T) {
