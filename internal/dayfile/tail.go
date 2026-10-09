@@ -58,10 +58,11 @@ func NewTail[T any](f *Files, date string, decode func(line []byte) (T, bool)) *
 // that decode makes a T of, in the order they came: where it reads the files
 // afresh, from their start, as it does the first time, it calls afresh first,
 // for what take was handed before to be let go of. It reports false where one
-// of the files couldn't be looked at or opened, which is warned of as Read
-// says: what could be read is handed on all the same, and the next read reads
-// them afresh. A damaged file is read up to the damage, warned of as Read
-// says.
+// of the files couldn't be looked at or opened, or the plain file read to the
+// end of its last line, which is warned of as Read says, but where the file
+// shrank as it was read: what could be read is handed on all the same, and
+// the next read reads them afresh. A damaged file is read up to the damage,
+// warned of as Read says.
 func (t *Tail[T]) Read(afresh func(), take func(T)) bool {
 	t.files.mu.RLock()
 	defer t.files.mu.RUnlock()
@@ -72,8 +73,11 @@ func (t *Tail[T]) Read(afresh func(), take func(T)) bool {
 		return false
 	case t.unchanged(plain, compressed):
 		return true
-	case t.grew(plain, compressed) && t.readOn(take):
-		return true
+	case t.grew(plain, compressed):
+		if file, info := t.reopen(); file != nil {
+			defer func() { _ = file.Close() }()
+			return t.follow(file, info, take)
+		}
 	}
 	afresh()
 	return t.readAfresh(take)
@@ -113,9 +117,9 @@ func (t *Tail[T]) look() (plain, compressed fs.FileInfo, ok bool) {
 }
 
 // unchanged reports whether the day's files, as plain and compressed look,
-// are as the last read, which ended well, left them, as sameAs says.
+// are as the last read, which ended well, left them, as SameAs says.
 func (t *Tail[T]) unchanged(plain, compressed fs.FileInfo) bool {
-	return t.read && sameAs(t.plain, plain) && sameAs(t.compressed, compressed)
+	return t.read && SameAs(t.plain, plain) && SameAs(t.compressed, compressed)
 }
 
 // grew reports whether the day's plain file, as plain looks, is the one the
@@ -124,31 +128,31 @@ func (t *Tail[T]) grew(plain, compressed fs.FileInfo) bool {
 	return t.read && t.following && compressed == nil && plain != nil && os.SameFile(t.plain, plain) && plain.Size() > t.plain.Size()
 }
 
-// sameAs reports whether a file that looked as was, nil where it wasn't
+// SameAs reports whether a file that looked as was, nil where it wasn't
 // there, looks as it did as now does: the same file, as long, and last
 // modified at the same time; or not there still.
-func sameAs(was, now fs.FileInfo) bool {
+func SameAs(was, now fs.FileInfo) bool {
 	if was == nil || now == nil {
 		return was == nil && now == nil
 	}
 	return os.SameFile(was, now) && was.Size() == now.Size() && was.ModTime().Equal(now.ModTime())
 }
 
-// readOn reads the plain file on from where the last read ended, as follow
-// does, where it's still the file the last read followed, no shorter, as when
-// it opens it: it reports false, having read none of it, where it's not, as
-// when it was compressed since it was looked at.
-func (t *Tail[T]) readOn(take func(T)) bool {
+// reopen opens the plain file the last read followed, to read on from where
+// it ended, and returns it and a look at it, as it opens it: none where it
+// can't be opened, or isn't that file, or is shorter, as when it was
+// compressed since it was looked at.
+func (t *Tail[T]) reopen() (*os.File, fs.FileInfo) {
 	file, err := os.Open(t.files.path(plainFile(t.date)))
 	if err != nil {
-		return false
+		return nil, nil
 	}
-	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil || !os.SameFile(info, t.plain) || info.Size() < t.plain.Size() {
-		return false
+		_ = file.Close()
+		return nil, nil
 	}
-	return t.follow(file, info, take)
+	return file, info
 }
 
 // readAfresh reads the day's files from their start, as ReadDay does,
@@ -192,8 +196,9 @@ func openedInfo(file *openFile, failed []fileError) (fs.FileInfo, []fileError) {
 // file and looked at as info, holds whole from end on, and holds the line it
 // ends in, cut short, apart, as Cut gives it: so the next read goes on from
 // the end of its last line read whole. It reports false where it can't find
-// that end, which is warned of.
-func (t *Tail[T]) follow(file *os.File, info fs.FileInfo, take func(T)) bool {
+// that end, or read as far as it, which is warned of, as Read says, leaving
+// the next read to read the files afresh.
+func (t *Tail[T]) follow(file io.ReaderAt, info fs.FileInfo, take func(T)) bool {
 	size := info.Size()
 	end, err := lastLineEnd(file, t.end, size)
 	if err != nil {
@@ -201,10 +206,15 @@ func (t *Tail[T]) follow(file *os.File, info fs.FileInfo, take func(T)) bool {
 		t.read = false
 		return false
 	}
-	lines, unread := readOpened(t.files, []openFile{t.section(file, t.end, end)}, t.decode, handing(take))
+	whole := &measured{r: io.NewSectionReader(file, t.end, end-t.end)}
+	lines, unread := readOpened(t.files, []openFile{t.section(whole)}, t.decode, handing(take))
+	if whole.n < end-t.end {
+		t.read = false
+		return false
+	}
 	t.whole.lines, t.whole.unread = t.whole.lines+lines, t.whole.unread+unread
 	t.last, t.hasLast = *new(T), false
-	lines, unread = readOpened(t.files, []openFile{t.section(file, end, size)}, t.decode, func(v T) bool {
+	lines, unread = readOpened(t.files, []openFile{t.section(io.NewSectionReader(file, end, size-end))}, t.decode, func(v T) bool {
 		t.last, t.hasLast = v, true
 		return true
 	})
@@ -213,10 +223,22 @@ func (t *Tail[T]) follow(file *os.File, info fs.FileInfo, take func(T)) bool {
 	return true
 }
 
-// section is the plain file, opened as file, from from up to to, as one of
-// the day's files opened to read the lines it holds.
-func (t *Tail[T]) section(file *os.File, from, to int64) openFile {
-	return openFile{dayFile: plainFile(t.date), ReadCloser: io.NopCloser(io.NewSectionReader(file, from, to-from))}
+// section is what r reads of the plain file, as one of the day's files
+// opened to read the lines it holds.
+func (t *Tail[T]) section(r io.Reader) openFile {
+	return openFile{dayFile: plainFile(t.date), ReadCloser: io.NopCloser(r)}
+}
+
+// measured reads what r reads, counting in n how many bytes it read.
+type measured struct {
+	r io.Reader
+	n int64
+}
+
+func (m *measured) Read(p []byte) (int, error) {
+	n, err := m.r.Read(p)
+	m.n += int64(n)
+	return n, err
 }
 
 // handing has take, which wants every line, take each as Read's do.

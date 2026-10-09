@@ -28,20 +28,22 @@ type Reader struct {
 // by now's clock, which summarises days with the accounts' caps as caps gives
 // them, what it can't read logged to logger.
 func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Logger) *Reader {
-	return &Reader{days: daysIn(stateDir, caps, logger), now: now}
+	d, _ := daysIn(stateDir, caps, logger)
+	return &Reader{days: d, now: now}
 }
 
 // daysIn returns the ledger's days in the state directory stateDir, as they
-// lie, summarised with the readings history beside them and the accounts'
-// caps as caps gives them, what can't be read of them logged to logger.
-func daysIn(stateDir string, caps Caps, logger *slog.Logger) days {
-	history := readings.Files(readings.Dir(stateDir), logger)
+// lie, summarised with the readings history beside them, in history, and the
+// accounts' caps as caps gives them, what can't be read of them logged to
+// logger.
+func daysIn(stateDir string, caps Caps, logger *slog.Logger) (d days, history *dayfile.Files) {
+	history = readings.Files(readings.Dir(stateDir), logger)
 	return days{
 		files:   filesIn(Dir(stateDir), logger),
 		history: func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
 		caps:    caps,
 		logger:  logger,
-	}
+	}, history
 }
 
 // Held is a line as the ledger holds it: what it reads as, and its JSON, as
@@ -78,6 +80,13 @@ func (r *Reader) Lines(from time.Time) iter.Seq[Held] {
 // warned of.
 func (d days) start(from, now time.Time) time.Time {
 	first, err := d.first()
+	return d.startFrom(first, err, from, now)
+}
+
+// startFrom returns where a read of the ledger's days from from on, at now,
+// starts, as start says, the first day the ledger holds as first and err,
+// first's failure, give it.
+func (d days) startFrom(first time.Time, err error, from, now time.Time) time.Time {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return now
