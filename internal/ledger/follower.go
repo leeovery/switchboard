@@ -83,7 +83,12 @@ func (f *Follower) Days(from time.Time) []Summary {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := f.now()
-	dates := f.dates(from, now)
+	return f.summariesOf(f.dates(from, now), now)
+}
+
+// summariesOf returns the summaries of the local days with the given dates,
+// as summaryOf gives them, at now.
+func (f *Follower) summariesOf(dates []string, now time.Time) []Summary {
 	summaries := make([]Summary, len(dates))
 	for i, date := range dates {
 		summaries[i] = f.summaryOf(date, now)

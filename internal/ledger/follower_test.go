@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"iter"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -612,6 +613,69 @@ func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 	wg.Wait()
 	if got, _, _ := follower.Today(ledger.Mark{}); len(got) != 2 {
 		t.Errorf("Today() gave %d lines, want both", len(got))
+	}
+}
+
+// requestsOf returns the ids of lines' requests, in their order.
+func requestsOf(lines []ledger.Line) []string {
+	ids := make([]string, len(lines))
+	for i, l := range lines {
+		ids[i] = l.Request
+	}
+	return ids
+}
+
+func TestSessionsReadsTodaysAndThoseAskedForEachAsSessionReadsOne(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	holdLines(t, dir, "2026-10-03", askedBy("1", "one", on(-2, 9, 0)), askedBy("2", "old", on(-2, 10, 0)))
+	holdLines(t, dir, "2026-10-04", askedBy("3", "two", on(-1, 9, 0)))
+	// Request 6 arrived today, filed under yesterday's date, as after a
+	// change of time zone.
+	holdLines(t, dir, date, askedBy("4", "one", on(0, 9, 0)), askedBy("5", "two", on(0, 9, 30)), askedBy("6", "two", on(1, 0, 30)))
+	summariseAt(dir, history, on(1, 1, 10))
+	// Request 8 arrives after now, as after a clock set back; 9 is filed
+	// under tomorrow's date, as a clock once set ahead files one.
+	holdLines(t, dir, "2026-10-06", askedBy("7", "one", on(1, 9, 0)), askedBy("8", "one", on(1, 13, 0)))
+	holdLines(t, dir, "2026-10-07", askedBy("9", "three", on(1, 9, 30)))
+	clock := &testClock{at: on(1, 12, 0)}
+	follower := followerOf(state, clock, caps)
+
+	taken := make(map[string]string)
+	got := follower.Sessions([]string{"old"}, func(date string, l ledger.Line) { taken[l.Request] += date })
+	want := map[string][]string{"one": {"1", "4", "7"}, "two": {"3", "5", "6"}, "three": {"9"}, "old": {"2"}}
+	if len(got) != len(want) {
+		t.Errorf("Sessions() read %d sessions, want %d: today's, and old, asked for", len(got), len(want))
+	}
+	for id, requests := range want {
+		if !slices.Equal(requestsOf(got[id]), requests) {
+			t.Errorf("Sessions() gave %s's requests %q, want %q, oldest first, each once", id, requestsOf(got[id]), requests)
+		}
+		var session []ledger.Line
+		for h := range follower.Session(id) {
+			session = append(session, h.Line)
+		}
+		slices.Reverse(session)
+		if !slices.Equal(requestsOf(session), requests) {
+			t.Errorf("Session(%s) gave requests %q, want %q, as Sessions gives them", id, requestsOf(session), requests)
+		}
+	}
+	wantTaken := map[string]string{"1": "2026-10-03", "2": "2026-10-03", "3": "2026-10-04", "4": date, "5": date, "6": date, "7": "2026-10-06", "9": "2026-10-07"}
+	if !maps.Equal(taken, wantTaken) {
+		t.Errorf("Sessions() handed take %v, want each line read that arrived by now once, with its file's date %v", taken, wantTaken)
+	}
+}
+
+func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, history := stateDirs(t)
+	holdLines(t, dir, "2026-10-03", askedBy("1", "one", on(-2, 9, 0)))
+	holdLines(t, dir, "2026-10-04", askedBy("2", "one", on(-1, 9, 0)))
+	summariseAt(dir, history, on(0, 1, 10))
+	unopenable(t, dir, "*2026-10-03*")
+	follower := followerOf(state, &testClock{at: on(1, 12, 0)}, caps)
+
+	if got := follower.Sessions(nil, nil); len(got) != 0 || opened(log) != 0 {
+		t.Errorf("log reads\n%s\nSessions() = %v, want no session read, nor a day before yesterday opened", log, got)
 	}
 }
 

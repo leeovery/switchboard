@@ -454,6 +454,61 @@ func TestADaysFilesKeptForeverAreCompressedButNeverGo(t *testing.T) {
 	}
 }
 
+func TestADaysFilesAreKeptUntilTheDayOfTheirLastInstantKept(t *testing.T) {
+	const day = 24 * time.Hour
+	tests := []struct {
+		name, zone, date string
+		keep             time.Duration
+		want             string
+	}{
+		{name: "a week and a day", zone: "UTC", date: "2026-10-07", keep: 8 * day, want: "2026-10-15"},
+		{name: "90 days", zone: "UTC", date: "2026-09-30", keep: 90 * day, want: "2026-12-29"},
+		{name: "90 days, the clocks going back between", zone: "Europe/London", date: "2026-09-30", keep: 90 * day, want: "2026-12-29"},
+		{name: "400 days, the clocks going back and forward between", zone: "Europe/London", date: "2026-09-30", keep: 400 * day, want: "2027-11-04"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loc, err := time.LoadLocation(tt.zone)
+			if err != nil {
+				t.Fatalf("load %s: %v", tt.zone, err)
+			}
+			if got, ok := keptUntilIn(tt.date, tt.keep, loc); got != tt.want || !ok {
+				t.Errorf("the files of %s kept %v are kept until %q (%v), want %q", tt.date, tt.keep, got, ok, tt.want)
+			}
+		})
+	}
+	for _, date := range []string{"2026-10-07", "soon"} {
+		if got, ok := KeptUntil(date, Forever); ok {
+			t.Errorf("the files of %s kept forever are kept until %q, want for good", date, got)
+		}
+	}
+	if got, ok := KeptUntil("soon", 8*day); ok {
+		t.Errorf("the files of a day that isn't one are kept until %q, want none", got)
+	}
+}
+
+func TestADaysFilesGoTheDayAfterTheyreKeptUntil(t *testing.T) {
+	const date = "2026-09-30"
+	for _, days := range []int{8, 90, 400} {
+		t.Run(strconv.Itoa(days)+" days", func(t *testing.T) {
+			keep := time.Duration(days) * 24 * time.Hour
+			until, _ := KeptUntil(date, keep)
+			last, after, _ := Day(until)
+			for _, tt := range []struct {
+				now   time.Time
+				stays bool
+			}{{now: last, stays: true}, {now: after, stays: false}} {
+				f := readingsHistory(t.TempDir())
+				writeDay(t, f, compressedFile(date), linesOf("a"))
+				f.prune(tt.now, keep)
+				if held := holdsDay(f, date); held != tt.stays {
+					t.Errorf("pruned at %v, the files of %s, kept until %s, are kept = %v, want %v", tt.now, date, until, held, tt.stays)
+				}
+			}
+		})
+	}
+}
+
 func TestPruningLeavesAnythingButItsOwnFilesAlone(t *testing.T) {
 	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.Local)
 	dir := t.TempDir()

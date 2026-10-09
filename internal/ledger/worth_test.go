@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 )
@@ -385,6 +386,103 @@ func TestAMovesCostIsUnpricedWhereItsRequestIs(t *testing.T) {
 	} {
 		if got, ok := ledger.Pricing.CacheWrite(&line, today); ok {
 			t.Errorf("CacheWrite() of %s in %q = %+v, want it unpriced, as its request is", line.Model, line.Shape.InferenceGeo, got)
+		}
+	}
+}
+
+func TestASumOfRequestsNamesWhatItCantPrice(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(l *ledger.Line)
+		want ledger.Worth
+	}{
+		{name: "one the table prices, at its worth", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}},
+		{name: "one the table prices, but without usage", edit: func(l *ledger.Line) { l.Usage, l.CutOff = nil, true },
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "one of a model the table doesn't know, its every count that costs anything", edit: func(l *ledger.Line) {
+			l.Model = "claude-opus-9"
+			l.Usage = usage(`{"input_tokens":10,"cache_read_input_tokens":0,"output_tokens":20,"output_tokens_details":{"thinking_tokens":5},` +
+				`"server_tool_use":{"web_fetch_requests":1,"web_search_requests":1}}`)
+		}, want: ledger.Worth{Unpriced: []string{"input_tokens", "output_tokens", "server_tool_use.web_search_requests"}}},
+		{name: "one of a model the table doesn't know, without usage", edit: func(l *ledger.Line) { l.Model, l.Usage = "claude-opus-9", nil },
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+		{name: "one of a model the table doesn't know, the router answered itself", edit: func(l *ledger.Line) {
+			l.Model, l.Usage, l.Attempts, l.Status = "claude-opus-9", nil, 0, 429
+		}},
+		{name: "one in a geo the table doesn't price its model in", edit: func(l *ledger.Line) { l.Model, l.Shape.InferenceGeo = "claude-haiku-4-5", "us" },
+			want: ledger.Worth{Unpriced: []string{"input_tokens", "output_tokens"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line := asked("1", on(0, 9, 0))
+			tt.edit(&line)
+			if got := ledger.Pricing.Summed(&line, today); got.Cost != tt.want.Cost || !slices.Equal(got.Unpriced, tt.want.Unpriced) {
+				t.Errorf("Summed() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestACachesWritesLastFiveMinutesOnlyWhereEachDoes(t *testing.T) {
+	tests := []struct {
+		usage string
+		want  time.Duration
+	}{
+		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":3120,"ephemeral_1h_input_tokens":0}}`, want: 5 * time.Minute},
+		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":3120}}`, want: time.Hour},
+		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":120,"ephemeral_1h_input_tokens":3000}}`, want: time.Hour},
+		// Those it doesn't break down count as an hour's.
+		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":120}}`, want: time.Hour},
+		{usage: `{"cache_creation":{"ephemeral_5m_input_tokens":120}}`, want: 5 * time.Minute},
+		{usage: `{"cache_creation_input_tokens":3120}`, want: time.Hour},
+		// Of these, which wrote nothing, nothing is said.
+		{usage: `{"cache_read_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0}}`},
+		{usage: `{"cache_read_input_tokens":3120,"cache_creation_input_tokens":0}`},
+		{usage: ``},
+	}
+	for _, tt := range tests {
+		if got, ok := (ledger.Reply{Usage: usage(tt.usage)}).CacheLife(); got != tt.want || ok != (tt.want != 0) {
+			t.Errorf("CacheLife() of %s = %v, %v, want %v, as it wrote to the cache", tt.usage, got, ok, tt.want)
+		}
+	}
+}
+
+func TestAMoveWouldWriteTheWholePromptAgainAtTheCachesOwnPrice(t *testing.T) {
+	// The prompt: 12 input, 182,340 read from the cache and 3,120 written to
+	// it; the output and a web search are left out.
+	const prompt = `"input_tokens":12,"cache_read_input_tokens":182340,"output_tokens":845,"server_tool_use":{"web_search_requests":1},` +
+		`"cache_creation_input_tokens":3120`
+	const tokens = 12 + 182340 + 3120
+	tests := []struct {
+		name string
+		geo  string
+		life time.Duration
+		want ledger.Picodollars
+	}{
+		{name: "writes for an hour, at the price of one", life: ledger.LongCache, want: dollars(tokens * 8e-6)},
+		{name: "writes for five minutes, at the price of one", life: ledger.ShortCache, want: dollars(tokens * 5e-6)},
+		{name: "in the US, a tenth more", geo: "us", life: ledger.LongCache, want: dollars(tokens * 8e-6 * 1.1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line := asked("1", on(0, 9, 0))
+			line.Usage, line.Shape.InferenceGeo = usage(`{`+prompt+`,"cache_creation":{"ephemeral_1h_input_tokens":3120}}`), tt.geo
+			if got, ok := ledger.Pricing.Rewrite(&line, tt.life, today); !ok || got != tt.want {
+				t.Errorf("Rewrite() for %v = %v, %v, want %v", tt.life, got, ok, tt.want)
+			}
+		})
+	}
+}
+
+func TestAMoveWhosePromptIsntKnownIsntPriced(t *testing.T) {
+	write := usage(`{"cache_creation_input_tokens":3000,"cache_creation":{"ephemeral_1h_input_tokens":3000}}`)
+	for _, line := range []ledger.Line{
+		{Model: "claude-opus-9", Kind: ledger.KindMessage, Attempts: 1, Usage: write},
+		{Model: "claude-haiku-4-5", Kind: ledger.KindMessage, Attempts: 1, Usage: write, Shape: ledger.Shape{InferenceGeo: "us"}},
+		{Model: "claude-opus-5-5", Kind: ledger.KindMessage, Attempts: 1, CutOff: true},
+	} {
+		if got, ok := ledger.Pricing.Rewrite(&line, ledger.LongCache, today); ok {
+			t.Errorf("Rewrite() of %s in %q, usage %s, = %v, want it unpriced", line.Model, line.Shape.InferenceGeo, line.Usage, got)
 		}
 	}
 }

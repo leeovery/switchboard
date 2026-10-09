@@ -391,7 +391,7 @@ switchboard logs router --path
 
 ### Looking back
 
-`requests` and `history` read the [request ledger](#how-it-works)'s files where they lie, and `events` the files the router keeps its events in beside them, so none needs the router. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
+`requests`, `history` and `sessions` read the [request ledger](#how-it-works)'s files where they lie, and `events` the files the router keeps its events in beside them, so none needs the router, though `sessions` asks it which sessions are running where it answers. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
 
 #### `requests`
 
@@ -431,6 +431,27 @@ switchboard history [--since <when>] [--json | --pretty]
 ```bash
 switchboard history --since 7d
 switchboard history --json | jq '.days[-1]'   # today's, as far as it has gone
+```
+
+#### `sessions`
+
+Today's sessions: those running, the oldest started first, then those that ended today, the latest ended first. A line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering, idle or when it ended, when it started, its requests today and what they'd have cost through the API, and how it came to its account, such as `from work, at its cap` and what writing its context again there cost; then a line summing them. It reads the ledger's files, and the router's sessions where it answers; without the router, it lists today's sessions from the ledger alone, none as running, and says so.
+
+Given a session, by its id or as much of it as is unique among today's sessions, it shows that one's page: what it's doing, where it runs and why, when it started, and when it came back after an hour or more without a request; each account it ran on, with its time there, its requests, the points of each of the account's windows they took and their worth; then its turns, newest first, a turn being a prompt and every request that serves it, its subagents', compactions and side requests included, as Claude Code's own headers tell them, each with when it started and how long it took, its requests, the tools its answers called most, the tokens it read from the cache, wrote to it and put out, its worth, and the accounts its own conversation went to, as `work → side` where it moved, a subagent on another account being no move; and its totals. The points are an estimate: a window counts its account's every session, so each rise in its use between two answers is shared out among the requests that ended between them, by their tokens. A session of an earlier day is found by its whole id. Without the router, it's shown from its lines alone, as ended.
+
+```bash
+switchboard sessions [<id>] [--json | --pretty]
+```
+
+| Flag | Description |
+|---|---|
+| `--json` | print `{"generated_at", "prices_as_of", "sessions", "today"}`, as it does off a terminal anyway, even on one: each session with its whole id, its directory, account and model, whether it's `running`, and of one running, when it was last seen, each of its models' account and why, what it's doing and its `move_cost`, what moving it now would cost; of one ended, when it `ended`; when it `started`, its `requests` today, their `worth` in US dollars and what it leaves `unpriced`, and the move that brought it to its account, as `moved`; and `today`, summing them. Given a session, its page: `session`, `dir`, `account`, `model`, `running`, `last_seen`, `models`, `state`, `move_cost` and `ended` as the list has them, its own `pin`, `started`, `resumed`, and of one ended, `kept_until`, the last day the ledger keeps the lines of its first day; `accounts`, each `{account, from, to, requests, worth, points}`, `points` by window; `moves`, each `{at, model, from, to, reason, written, cost}`; `turns`, newest first, each `{turn, started, ended, requests, tools, read, written, out, worth, accounts}`, `ended` left out of one still going; and `totals`, `{turns, requests, from_cache, worth, unpriced}` |
+| `--pretty` | print the text, as it does on a terminal, even off one |
+
+```bash
+switchboard sessions
+switchboard sessions --json | jq '.sessions[] | select(.running)'   # those running now
+switchboard sessions 5b0e --json | jq '.turns[0]'                    # its newest turn
 ```
 
 #### `events`

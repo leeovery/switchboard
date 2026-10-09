@@ -172,6 +172,14 @@ func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 			want: map[string]float64{"7d": 0.1},
 		},
 		{
+			name: "none of a reading of a reset earlier than the latest read, taken out of turn from before it",
+			readings: []readings.Reading{allowed(on(0, 10, 0), "5h", 0.1, on(0, 15, 30)), allowed(on(0, 10, 2), "5h", 0.12, on(0, 15, 40)),
+				allowed(on(0, 10, 5), "5h", 0.5, on(0, 15, 30)), allowed(on(0, 10, 8), "5h", 0.14, on(0, 15, 40))},
+			// 0.1 at its first read, the window having begun within the day;
+			// then 0.12 from nothing, as it began again; then 0.02.
+			want: map[string]float64{"5h": 0.24},
+		},
+		{
 			name:     "none of a window it began the day at, read no more",
 			readings: []readings.Reading{allowed(on(-1, 12, 0), "7d", 0.41, on(3, 10, 0))},
 			want:     map[string]float64{"7d": 0},
@@ -194,6 +202,20 @@ func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 				t.Errorf("work's windows rose %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAReadingOfARunReadLateCountsTowardThatRunAloneNotTheRiseSince(t *testing.T) {
+	// The third, of a reset earlier than the one read before it, was read
+	// late, from before the window began again at 10:02, and rejected.
+	got := workDay(t, caps, dayDone, allowed(on(0, 10, 0), "5h", 0.1, on(0, 15, 30)), allowed(on(0, 10, 2), "5h", 0.12, on(0, 15, 40)),
+		rejected(on(0, 10, 5), "5h", 0.5, on(0, 15, 30)), allowed(on(0, 10, 8), "5h", 0.14, on(0, 15, 40)))
+	limit := ledger.Limit{Window: "5h", At: on(0, 10, 5).UTC(), ResetsAt: on(0, 15, 30).UTC()}
+	if got.Highest["5h"] != 0.5 || got.Rise["5h"] != 0.24 || !slices.Equal(got.Limits, []ledger.Limit{limit}) {
+		t.Errorf("work's day is %+v, want its session window's highest 0.5, its limit reached, and its rise 0.24, none of it from 0.5", got)
+	}
+	if len(got.Resets) == 0 || got.Resets[0].Before != 0.5 {
+		t.Errorf("work's resets are %+v, want the first's use before it 0.5, as read late", got.Resets)
 	}
 }
 
