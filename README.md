@@ -416,7 +416,9 @@ switchboard requests --session 18bb --json | jq '.usage'
 
 #### `history`
 
-The ledger's days: the last 30, unless `--since` says otherwise, a row for each account and model with its requests, tokens, sessions and worth, what they'd have cost through the API at the prices switchboard carries, read from Anthropic's pricing page; then each account's sessions, moves, limits reached and windows' highest use. Today's is summed up from its lines, as far as it has gone. A model the price table doesn't know shows as unpriced, never free.
+The ledger's days: the last 30, unless `--since` says otherwise, a row for each account and model with its requests, tokens, sessions and worth, what they'd have cost through the API at the prices switchboard carries, read from Anthropic's pricing page; then each account's sessions, moves, limits reached and windows' highest use. Its requests are messages, those that went upstream and those the router answered itself: Claude Code's quota checks and its counts of tokens, which spend nothing, are never among them. Today's is summed up from its lines, as far as it has gone. A model the price table doesn't know shows as unpriced, never free.
+
+A plan's price a month, of the `plan` the config gives an account, is prorated as the dashboard prices its periods: a day at 12/365 of a month, a week at 12/52, 30 days at a month and 12 weeks at twelve weeks', a period still running priced whole. An account without a `plan` has no cost and no ratio, and every account's sums those that have one.
 
 ```bash
 switchboard history [--since <when>] [--json | --pretty]
@@ -425,7 +427,7 @@ switchboard history [--since <when>] [--json | --pretty]
 | Flag | Description |
 |---|---|
 | `--since <when>` | start on the day of a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
-| `--json` | print `{"prices_as_of", "days"}`, as it does off a terminal anyway, even on one: the day the prices were read, and each day's summary as the ledger holds it, every day asked for since the ledger began, today's last, one without requests without `accounts`, each model's `worth` in US dollars added, and `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back |
+| `--json` | print `{"prices_as_of", "days", "year", "months", "tokens", "plans"}`, as it does off a terminal anyway, even on one, each block over the days asked for since the ledger began, oldest first, today's last: the day the prices were read; each day's summary as the ledger holds it, one without requests without `accounts`, each model's `worth` in US dollars added, `unpriced` naming what it leaves out, as `no_usage`, requests that got no usage back, and `by_family`, the day's worth by model family; `year`, each day's `requests` and the `level`, 0 to 4, it's shaded at, and the `cuts` between the levels, the active days' quarters; `months`, each month's `requests`, `worth`, `limits` reached by window, `by_family`, and its plans' `cost`, the whole month's, with the worth of their accounts `against` it, a ratio, but for the month so far; `tokens`, each week's, from the day the config's `week_starts` names, Monday unless it says otherwise, by kind, `input`, `output`, `cache_write`, `cache_read` and `total`, its `worth`, its plans' `cost` and `against`, then `by_account` and `by_model`, each version by its id, with the accounts it ran `on`; and `plans`, each account's `plan`, its `price` a month, what it cost over those days and `against` it, and its `worth`, then `all` of them, of those on a plan. Every `worth` is exact, with `unpriced` beside it naming what it leaves out, a model the price table doesn't know by its id, and left out where nothing was priced |
 | `--pretty` | print the text, as it does on a terminal, even off one |
 
 ```bash

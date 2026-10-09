@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // october is the local time on the given day of October 2026, at
@@ -398,12 +399,13 @@ const historyFromThe6th = `Tue 6 Oct 2026
 ` + historyOfToday
 
 // historyOfToday is what history prints of today, the prices last: side's
-// request, canceled, gave no usage, so its worth isn't known.
+// request, canceled, gave no usage, so its worth isn't known; and work's
+// quota check and count of tokens are no requests.
 const historyOfToday = `Wed 7 Oct 2026, so far
   no account  claude-opus-5-5   1 request   0 tokens     1 session    $0.00
   side        claude-opus-5-5   1 request   0 tokens     1 session    $0.00, part unpriced
-  work        claude-haiku-4-5  1 request   9 tokens     no sessions  $0.00
-              claude-opus-5-5   2 requests  186k tokens  1 session    $0.08
+  work        claude-haiku-4-5  0 requests  9 tokens     no sessions  $0.00
+              claude-opus-5-5   1 request   186k tokens  1 session    $0.08
               claude-opus-9     1 request   110 tokens   1 session    unpriced
   side: 1 session  ·  highest: Session 10%
   work: 2 sessions  ·  highest: Session 30%, Week 41%
@@ -440,6 +442,33 @@ func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 	}
 }
 
+// historyBlocks are the blocks history's JSON gives over the 4th to today,
+// after the days, as ledgerConfig configures the accounts, on no plan, and
+// starts the weeks on Monday: today's quota check and count of tokens are no
+// requests; work's check is of claude-haiku-4-5, its version's alias.
+const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","requests":1,"level":3},{"day":"2026-10-05","requests":0,"level":0},` +
+	`{"day":"2026-10-06","requests":1,"level":3},{"day":"2026-10-07","requests":4,"level":4}]},` +
+	`"months":[{"month":"2026-10","requests":6,"worth":0.171785,"unpriced":["claude-opus-9","no_usage"],"limits":{"5h":1},` +
+	`"by_family":[{"family":"opus","worth":0.171772,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0.000013}]}],` +
+	`"tokens":[{"week":"2026-09-28","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
+	`"by_account":[{"account":"work","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
+	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]}],` +
+	`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]},` +
+	`{"week":"2026-10-05","input":125,"output":906,"cache_write":3120,"cache_read":202340,"total":206491,"worth":0.093409,"unpriced":["claude-opus-9","no_usage"],` +
+	`"by_account":[{"input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0,` +
+	`"by_model":[{"model":"claude-opus-5-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0}]},` +
+	`{"account":"side","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"],` +
+	`"by_model":[{"model":"claude-opus-5-5","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"]}]},` +
+	`{"account":"work","input":120,"output":856,"cache_write":3120,"cache_read":182340,"total":186436,"worth":0.078389,"unpriced":["claude-opus-9"],` +
+	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376},` +
+	`{"model":"claude-haiku-4-5","input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
+	`{"model":"claude-opus-9","input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
+	`"by_model":[{"model":"claude-opus-5-5","on":["side","work"],"input":17,"output":895,"cache_write":3120,"cache_read":202340,"total":206372,` +
+	`"worth":0.093396,"unpriced":["no_usage"]},` +
+	`{"model":"claude-haiku-4-5","on":["work"],"input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
+	`{"model":"claude-opus-9","on":["work"],"input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
+	`"plans":[{"account":"work","worth":0.156765,"unpriced":["claude-opus-9"]},{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true}]`
+
 func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
@@ -450,7 +479,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
-		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}]},` +
+		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
 		`{"version":2,"day":"2026-10-05","lines":0},` +
 		`{"version":2,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
@@ -460,7 +489,8 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		// 22:14 to its session's reset.
 		`{"account":"work","sessions":0,"session_ids":[],"moved_on":0,"moved_off":1,"highest":{"5h":1},"rise":{"5h":1},` +
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
-		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}]},` +
+		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}],` +
+		`"by_family":[{"family":"opus","worth":0.01502}]},` +
 		`{"version":2,"day":"2026-10-07","lines":6,"accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
@@ -476,7 +506,11 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376},` +
-		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}]}]}`
+		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}],` +
+		// Of Opus, claude-opus-9, which the price table doesn't know, and
+		// side's request that gave no usage are unpriced.
+		`"by_family":[{"family":"opus","worth":0.078376,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0.000013}]}],` +
+		historyBlocks + `}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "history", "--since", "2026-10-04")
@@ -488,6 +522,42 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 				t.Errorf("switchboard history %s printed\n%s\nwant\n%s", strings.Join(form.args, " "), compact.String(), want)
 			}
 		})
+	}
+}
+
+func TestHistoryJSONPricesThePlansAndStartsTheWeeksAsTheConfigSays(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := "week_starts = \"sunday\"\n\n[[account]]\nid = \"work\"\nreserve = 0.1\nplan = \"max20x\"\n\n[[account]]\nid = \"side\"\n"
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(cfg))
+
+	got := run(t, deps, "history", "--json")
+	var doc struct {
+		Tokens []struct {
+			Week string `json:"week"`
+		} `json:"tokens"`
+		Plans json.RawMessage `json:"plans"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
+	}
+	var weeks []string
+	for _, week := range doc.Tokens {
+		weeks = append(weeks, week.Week)
+	}
+	if want := []string{"2026-10-04"}; !slices.Equal(weeks, want) {
+		t.Errorf("switchboard history --json gives the weeks %q, want %q: the 4th to today, a week from Sunday", weeks, want)
+	}
+	// Over the last 30 days, work's plan costs its month, and side's isn't
+	// known.
+	want := `[{"account":"work","plan":"max20x","price":200,"cost":200,"against":0.000783825,"worth":0.156765,"unpriced":["claude-opus-9"]},` +
+		`{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"price":200,"cost":200,"against":0.000783825,"worth":0.156765,"unpriced":["claude-opus-9"]}]`
+	var plans bytes.Buffer
+	if err := json.Compact(&plans, doc.Plans); err != nil || plans.String() != want {
+		t.Errorf("switchboard history --json gives the plans\n%s (%v)\nwant\n%s", plans.String(), err, want)
 	}
 }
 
@@ -610,7 +680,7 @@ func TestHistoryWarnsOnceOfAModelTheConfigCantPrice(t *testing.T) {
 
 func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
 	work := ledger.PricedAccount{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-5-5", Upstream: 1, Sessions: 1}}}
-	days := []ledger.Priced{
+	days := []views.Day{
 		{Version: 1, Day: "2026-10-06", Lines: 1, Accounts: []ledger.PricedAccount{work}},
 		{Version: 1, Day: "2026-13-45", Lines: 1, Accounts: []ledger.PricedAccount{work}},
 	}
