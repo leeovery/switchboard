@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 	"testing"
@@ -76,11 +77,33 @@ func TestTheTallyCountsTheTurnsEachSessionsLinesTell(t *testing.T) {
 		canceled:   1,
 		going:      2,
 		passedOver: map[string]int{haiku: 1, unnamed: 1},
+		otherwise:  map[string]int{},
 		shorter:    2,
 		overAnHour: 1,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("count() =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+func TestTheTallyCountsTheMainThreadsStopsThatEndNothingByName(t *testing.T) {
+	paused := asked("work", at(9, 4, 0), 6, "pause_turn", opus)
+	paused.Canceled = true
+	lines := []ledger.Line{
+		asked("work", at(9, 0, 0), 3, "pause_turn", opus),
+		asked("work", at(9, 1, 0), 1, "pause_turn", haiku),
+		asked("work", at(9, 2, 0), 4, "a_stop_never_seen", opus),
+		asked("work", at(9, 3, 0), 5, "tool_use", opus),
+		paused,
+		asked("work", at(9, 5, 0), 1, "pause_turn", opus),
+		asked("work", at(9, 6, 0), 2, "end_turn", opus),
+	}
+	got := count(slices.Values(lines))
+	if want := map[string]int{"pause_turn": 2, "a_stop_never_seen": 1}; !maps.Equal(got.otherwise, want) {
+		t.Errorf("the main thread's answers that stopped otherwise = %v, want %v: neither tool_use's, a side request's, nor one canceled", got.otherwise, want)
+	}
+	if want := map[string]int{"end_turn": 1}; !maps.Equal(got.stops, want) || got.canceled != 1 {
+		t.Errorf("turns ended by stop reason %v and cancelling %d, want %v and 1", got.stops, got.canceled, want)
 	}
 }
 

@@ -58,6 +58,9 @@ turns ended by stop reason:
 turns ended by cancelling: 0
 turns still going: 0
 
+main-thread answers that stopped otherwise, but at tool_use, ending nothing, by stop reason:
+  none
+
 side requests' end_turns passed over, by model:
   none
 

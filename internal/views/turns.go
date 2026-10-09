@@ -10,9 +10,17 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// stopToolUse is the stop reason of an answer that called a tool, which
-// leaves its turn going.
-const stopToolUse = "tool_use"
+// Ends reports whether an answer on a turn's main thread that stopped at stop
+// ends its turn: one at end_turn, max_tokens, stop_sequence or refusal does.
+// Any other leaves it going, as tool_use and pause_turn do, each continued by
+// the client sending the answer back, and as one never seen does.
+func Ends(stop string) bool {
+	switch stop {
+	case "end_turn", "max_tokens", "stop_sequence", "refusal":
+		return true
+	}
+	return false
+}
 
 // Request is a request of a turn: its line, and whether it was on the turn's
 // main thread.
@@ -56,9 +64,8 @@ func (t Turn) Thread() int {
 // counts are left out.
 //
 // A request is on its turn's main thread where its thread length is at least
-// the main thread's last, and the turn ends at an answer on it that stops
-// other than at tool_use, or at one its client canceled; a side request ends
-// nothing. The request after a turn's end starts the next, its main thread
+// the main thread's last, and the turn ends at an answer on it whose stop
+// Ends, or at one its client canceled; a side request ends nothing. The request after a turn's end starts the next, its main thread
 // afresh, so a conversation compacted or cleared starts a turn short. A
 // request whose thread length is unknown, its body unread, is on no thread.
 func Turns(lines []ledger.Line) []Turn {
@@ -96,7 +103,7 @@ func (t *teller) tell(line ledger.Line) {
 	switch {
 	case !main:
 		return
-	case line.Answer.Stop != "" && line.Answer.Stop != stopToolUse:
+	case Ends(line.Answer.Stop):
 		t.going.Stop = line.Answer.Stop
 	case line.Canceled:
 		t.going.Canceled = true

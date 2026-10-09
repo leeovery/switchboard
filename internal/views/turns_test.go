@@ -92,12 +92,17 @@ func TestTurnsAreToldFromTheShapeOfASessionsLines(t *testing.T) {
 		{"or at max_tokens", session(asked(1, "max_tokens")), []string{"m max_tokens"}},
 		{"or at stop_sequence", session(asked(1, "stop_sequence")), []string{"m stop_sequence"}},
 		{"or at refusal", session(asked(1, "refusal")), []string{"m refusal"}},
-		{
-			"or at any stop other than tool_use",
-			session(asked(1, "model_context_window_exceeded")),
-			[]string{"m model_context_window_exceeded"},
-		},
 		{"an answer that stops at tool_use leaves its turn going", session(asked(1, "tool_use")), []string{"m going"}},
+		{
+			"as one that stops at pause_turn does, the client sending it back",
+			session(asked(1, "pause_turn"), asked(3, "end_turn")),
+			[]string{"mm end_turn"},
+		},
+		{
+			"and any other stop on the main thread ends nothing, one never seen among them",
+			session(asked(1, "model_context_window_exceeded"), asked(3, "a_stop_never_seen")),
+			[]string{"mm going"},
+		},
 		{
 			"a request as long as the main thread's last is on it",
 			session(asked(5, "tool_use"), asked(5, "end_turn")),
@@ -122,6 +127,11 @@ func TestTurnsAreToldFromTheShapeOfASessionsLines(t *testing.T) {
 			"an answer's stop tells how it ended, its client gone or not",
 			session(func() ledger.Line { l := asked(1, "end_turn"); l.Canceled = true; return l }()),
 			[]string{"m end_turn"},
+		},
+		{
+			"a main-thread request canceled ends its turn, its stop ending nothing",
+			session(func() ledger.Line { l := asked(1, "pause_turn"); l.Canceled = true; return l }()),
+			[]string{"m canceled"},
 		},
 		{
 			"a request answered with an error ends nothing",

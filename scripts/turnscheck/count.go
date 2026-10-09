@@ -19,6 +19,8 @@ const (
 	// stopEndTurn is the stop reason of an answer that ended its turn as the
 	// model chose.
 	stopEndTurn = "end_turn"
+	// stopToolUse is the stop reason of an answer that called a tool.
+	stopToolUse = "tool_use"
 	// anHour is how many minutes a turn ran for to have run over an hour.
 	anHour = 60
 	// unnamed stands for the model of a line that names none.
@@ -41,6 +43,9 @@ type tally struct {
 	// passedOver are the side requests' end_turns, by the model each asked
 	// for.
 	passedOver map[string]int
+	// otherwise are the main thread's answers that stopped other than at
+	// tool_use, ending nothing, by stop reason.
+	otherwise map[string]int
 	// shorter are the turns whose first request is shorter than the main
 	// thread before them, and overAnHour the turns ended that ran over an
 	// hour.
@@ -50,7 +55,7 @@ type tally struct {
 // count returns the tally of lines, oldest first by arrival: each session's
 // turns told from its message lines, as views.Turns tells them.
 func count(lines iter.Seq[ledger.Line]) tally {
-	c := tally{stops: map[string]int{}, passedOver: map[string]int{}}
+	c := tally{stops: map[string]int{}, passedOver: map[string]int{}, otherwise: map[string]int{}}
 	sessions := map[string][]ledger.Line{}
 	for line := range lines {
 		if line.Kind != ledger.KindMessage {
@@ -89,7 +94,7 @@ func (c *tally) add(turns []views.Turn) {
 	for i, turn := range turns {
 		c.requests = append(c.requests, len(turn.Requests))
 		c.ending(turn)
-		c.sides(turn)
+		c.perRequest(turn)
 		if i > 0 && startsShorter(turn, turns[i-1]) {
 			c.shorter++
 		}
@@ -111,15 +116,19 @@ func (c *tally) ending(turn views.Turn) {
 	}
 }
 
-// sides counts the requests of turn whose thread length is unknown, and the
-// end_turns of those off its main thread.
-func (c *tally) sides(turn views.Turn) {
+// perRequest counts the requests of turn whose thread length is unknown, the
+// end_turns of those off its main thread, and the stops of those on it that
+// end nothing, but tool_use, which leaves nearly every turn going.
+func (c *tally) perRequest(turn views.Turn) {
 	for _, r := range turn.Requests {
+		stop := r.Answer.Stop
 		switch {
 		case r.Shape.Messages == 0:
 			c.unmeasured++
-		case !r.Main && r.Answer.Stop == stopEndTurn:
+		case !r.Main && stop == stopEndTurn:
 			c.passedOver[cmp.Or(r.Model, unnamed)]++
+		case r.Main && !r.Canceled && stop != "" && stop != stopToolUse && !views.Ends(stop):
+			c.otherwise[stop]++
 		}
 	}
 }
@@ -156,6 +165,8 @@ turns ended by stop reason:
 turns ended by cancelling: %d
 turns still going: %d
 
+main-thread answers that stopped otherwise, but at tool_use, ending nothing, by stop reason:
+%s
 side requests' end_turns passed over, by model:
 %s
 turns whose first request is shorter than the main thread before them: %d
@@ -164,7 +175,7 @@ turns ended that ran over an hour: %d
 		c.messages, c.sessionless, c.unmeasured, warned.warnings.Load(), warned.unread.Load(),
 		c.sessions, len(c.requests), least, median, most,
 		listed(c.stops), c.canceled, c.going,
-		listed(c.passedOver), c.shorter, c.overAnHour)
+		listed(c.otherwise), listed(c.passedOver), c.shorter, c.overAnHour)
 	return err
 }
 
