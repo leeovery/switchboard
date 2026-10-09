@@ -363,6 +363,9 @@ func TestALineKeepsAMoveAnotherRequestOfItsSessionStayedOn(t *testing.T) {
 
 func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 	betas := []string{"oauth-2025-04-20", "context-1m-2025-08-07"}
+	// hints are what the request's header says of it, which the router reads
+	// without its body.
+	hints := ledger.Hints{Prompt: "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b", Class: "main"}
 	tests := []struct {
 		name string
 		path string
@@ -379,7 +382,7 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 			path: "/v1/messages",
 			body: func(context.Context) io.Reader { return io.LimitReader(zeros{}, maxBody+1) },
 			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project",
-				Status: http.StatusRequestEntityTooLarge, Agent: testAgent, Betas: betas},
+				Status: http.StatusRequestEntityTooLarge, Agent: testAgent, Betas: betas, Hints: hints},
 		},
 		{
 			name: "a count of tokens whose client went a second into sending its body",
@@ -389,7 +392,7 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 			},
 			goneAfter: time.Second,
 			want: ledger.Line{At: start, Kind: ledger.KindCount, Session: "one", Dir: "~/Code/project",
-				Status: http.StatusBadRequest, Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
+				Status: http.StatusBadRequest, Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas, Hints: hints},
 		},
 		{
 			name: "a message whose body was still coming as the router cut it off",
@@ -399,7 +402,7 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 			},
 			cutAfter: time.Second,
 			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project",
-				Status: http.StatusBadRequest, CutOff: true, TotalMS: 1000, Agent: testAgent, Betas: betas},
+				Status: http.StatusBadRequest, CutOff: true, TotalMS: 1000, Agent: testAgent, Betas: betas, Hints: hints},
 		},
 	}
 	for _, tt := range tests {
@@ -414,6 +417,8 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				client := cutOffAfter(t, clientGoing(t, tt.goneAfter), tt.cutAfter)
 				req := claudeCodeAsks(client, tt.path, "one", tt.body(client))
 				req.Header.Set(DirHeader, "~/Code/project")
+				req.Header.Set("X-Claude-Code-Prompt-Id", hints.Prompt)
+				req.Header.Set("X-Claude-Code-Request-Class", hints.Class)
 
 				rec := httptest.NewRecorder()
 				r.Proxy().ServeHTTP(rec, req)

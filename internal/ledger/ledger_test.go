@@ -37,6 +37,8 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 				Dir: "~/Code/project", Model: "claude-opus-5-5", Account: "side", Reason: "moved: work hit its limit", From: "work",
 				Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}}, Status: 200, Attempts: 2, FirstMS: ms(812), TotalMS: 14230,
 				Agent: "claude-cli/2.1.0 (external, cli)", Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
+				Prompt: "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b", Class: "subagent", AgentID: "a1b2c3d4e5f6", ParentAgentID: "f6e5d4c3b2a1",
+				AgentType: "Explore", ToolMS: []ledger.ToolTime{{Tool: "Bash", MS: 742}, {Tool: "Read", MS: 9}},
 				Shape: ledger.Shape{Bytes: 482113, Messages: 214, System: 3, Tools: 31, MaxTokens: new(int64(32000)),
 					Thinking: ledger.Thinking{Type: "enabled", BudgetTokens: new(int64(31999))}, Stream: new(true),
 					ToolChoice: ledger.ToolChoice{Type: "auto"}, Temperature: new(1.0), TopK: new(int64(40)), TopP: new(0.95), ServiceTier: "auto",
@@ -51,6 +53,8 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 				`"dir":"~/Code/project","model":"claude-opus-5-5","account":"side","reason":"moved: work hit its limit","from":"work",` +
 				`"tried":[{"account":"work","why":"hit its limit"}],"status":200,"attempts":2,"first_ms":812,"total_ms":14230,` +
 				`"agent":"claude-cli/2.1.0 (external, cli)","betas":["oauth-2025-04-20","context-1m-2025-08-07"],` +
+				`"prompt":"6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b","class":"subagent","agent_id":"a1b2c3d4e5f6","parent_agent_id":"f6e5d4c3b2a1",` +
+				`"agent_type":"Explore","tool_ms":[{"tool":"Bash","ms":742},{"tool":"Read","ms":9}],` +
 				`"shape":{"bytes":482113,"messages":214,"system":3,"tools":31,"max_tokens":32000,"thinking":{"type":"enabled","budget_tokens":31999},` +
 				`"stream":true,"tool_choice":{"type":"auto"},"temperature":1,"top_k":40,"top_p":0.95,"service_tier":"auto",` +
 				`"output_config":{"effort":"high"},"speed":"fast","inference_geo":"us","context_management":{"edits":["clear_tool_uses_20250919"]}},` +
@@ -67,6 +71,24 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c8","kind":"message","session":"one","model":"claude-opus-5-5","account":"work",` +
 				`"reason":"sticky","status":529,"attempts":1,"first_ms":95,"total_ms":96,` +
 				`"answer":{"id":"req_011CError","error":{"type":"overloaded_error","message":"Overloaded"}}}`,
+		},
+		{
+			name: "a subagent's compaction, started as its context ran out",
+			line: ledger.Line{At: arrived, Request: "3f2a91c9", Kind: ledger.KindMessage, Session: "one", Model: "claude-opus-5-5", Account: "work",
+				Reason: "sticky", Status: 200, Attempts: 1, FirstMS: ms(400), TotalMS: 9000,
+				Prompt: "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b", Class: "compaction", AgentID: "a1b2c3d4e5f6", Compaction: "auto"},
+			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c9","kind":"message","session":"one","model":"claude-opus-5-5","account":"work",` +
+				`"reason":"sticky","status":200,"attempts":1,"first_ms":400,"total_ms":9000,` +
+				`"prompt":"6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b","class":"compaction","agent_id":"a1b2c3d4e5f6","compaction":"auto"}`,
+		},
+		{
+			name: "the first request of the conversation after a compaction made by hand",
+			line: ledger.Line{At: arrived, Request: "3f2a91ca", Kind: ledger.KindMessage, Session: "one", Model: "claude-opus-5-5", Account: "work",
+				Reason: "sticky", Status: 200, Attempts: 1, FirstMS: ms(700), TotalMS: 4000,
+				Prompt: "0a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2c3d", Class: "main", Compacted: "manual"},
+			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91ca","kind":"message","session":"one","model":"claude-opus-5-5","account":"work",` +
+				`"reason":"sticky","status":200,"attempts":1,"first_ms":700,"total_ms":4000,` +
+				`"prompt":"0a1b2c3d-4e5f-4a6b-8c7d-8e9f0a1b2c3d","class":"main","compacted":"manual"}`,
 		},
 		{
 			name: "a count of tokens, of no settings but its lists",
@@ -137,11 +159,15 @@ func TestALineHoldsNothingShapedLikeAToken(t *testing.T) {
 
 	write(t, dir, &ledger.Line{At: now, Request: "1", Kind: ledger.KindMessage, Session: tokenShaped, Dir: "~/Code/" + tokenShaped,
 		Model: "model-" + tokenShaped, Reason: "pinned " + tokenShaped, Tried: []ledger.Tried{{Account: "work", Why: tokenShaped}},
-		Agent: tokenShaped + " (cli)", Betas: []string{tokenShaped, "oauth-2025-04-20"}})
+		Agent: tokenShaped + " (cli)", Betas: []string{tokenShaped, "oauth-2025-04-20"},
+		Prompt: tokenShaped, Class: "main " + tokenShaped, AgentID: tokenShaped, ParentAgentID: tokenShaped, AgentType: tokenShaped,
+		Compaction: tokenShaped, Compacted: tokenShaped, ToolMS: []ledger.ToolTime{{Tool: tokenShaped, MS: 5}}})
 	got := readDay(t, dir, now)
 	want := `{"at":"2026-10-06T13:12:00Z","request":"1","kind":"message","session":"[redacted]","dir":"~/Code/[redacted]","model":"model-[redacted]",` +
 		`"reason":"pinned [redacted]","tried":[{"account":"work","why":"[redacted]"}],"status":0,"attempts":0,"total_ms":0,` +
-		`"agent":"[redacted] (cli)","betas":["[redacted]","oauth-2025-04-20"]}` + "\n"
+		`"agent":"[redacted] (cli)","betas":["[redacted]","oauth-2025-04-20"],"prompt":"[redacted]","class":"main [redacted]",` +
+		`"agent_id":"[redacted]","parent_agent_id":"[redacted]","agent_type":"[redacted]","compaction":"[redacted]","compacted":"[redacted]",` +
+		`"tool_ms":[{"tool":"[redacted]","ms":5}]}` + "\n"
 	if got != want {
 		t.Errorf("the ledger holds\n%s\nwant\n%s", got, want)
 	}

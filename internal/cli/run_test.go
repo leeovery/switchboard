@@ -338,6 +338,7 @@ func TestRunStartsClaudeCodesLocalSubcommandsAsIfSwitchboardWerentThere(t *testi
 				want["ANTHROPIC_BASE_URL"] = "http://" + srv.listen
 				want["CLAUDE_CODE_OAUTH_TOKEN"] = "test-token-work"
 				want["ANTHROPIC_CUSTOM_HEADERS"] = "X-Switchboard-Dir: ~/Code/project"
+				want["CLAUDE_CODE_GATEWAY_HINT_HEADERS"] = "1"
 			}
 			if !maps.Equal(got.env, want) {
 				t.Errorf("handed over with\n%q\nwant\n%q", got.env, want)

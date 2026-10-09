@@ -86,6 +86,7 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		TotalMS:  f.took.Milliseconds(),
 		Agent:    h.Get("User-Agent"),
 		Betas:    p.provider.Betas(h),
+		Hints:    ex.hints,
 		Shape:    ex.shape,
 	}
 	if ex.tap != nil {

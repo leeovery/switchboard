@@ -94,8 +94,10 @@ type exchange struct {
 	req     Request
 	account account
 	reason  string
-	// shape is a routed request's shape, as the request ledger keeps it.
+	// shape is a routed request's shape, and hints what its header says of
+	// it, as the request ledger keeps them.
 	shape ledger.Shape
+	hints ledger.Hints
 	// answered is the account whose answer the client has, as it was picked,
 	// when it isn't the one the request went out on last: the first whose
 	// limit the request reached, its answer held back, where every account
@@ -194,7 +196,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		p.routing.begin()
 		defer p.routing.end()
 	}
-	ex := &exchange{id: newID(), started: time.Now(), arrived: p.now(), spends: p.provider.Spends(r.URL.Path)}
+	ex := &exchange{id: newID(), started: time.Now(), arrived: p.now(), spends: p.provider.Spends(r.URL.Path), hints: p.provider.Hints(r.Header)}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	if err != nil {
 		p.unread(w, r, ex, err)
@@ -589,7 +591,8 @@ func (p *proxy) ended(ex *exchange) {
 // event returns the request stream's event of the kind given of a routed
 // request, as it stands: on the account whose answer the client has, once
 // it has one, its session and model cut short where they run too long, and
-// its directory as the request ledger gives it.
+// its directory, the prompt it serves, its class and its agent as the request
+// ledger gives them.
 func (ex *exchange) event(kind string) StreamEvent {
 	return StreamEvent{
 		Kind:    kind,
@@ -599,6 +602,9 @@ func (ex *exchange) event(kind string) StreamEvent {
 		Dir:     ex.req.Dir,
 		Model:   bounded(ex.req.Model),
 		Account: ex.answering().account,
+		Prompt:  ledger.LineText(ex.hints.Prompt),
+		Class:   ledger.LineText(ex.hints.Class),
+		AgentID: ledger.LineText(ex.hints.AgentID),
 		Check:   ex.req.Check,
 	}
 }

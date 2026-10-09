@@ -29,10 +29,11 @@ func BenchmarkProxyLongSession(b *testing.B) {
 }
 
 // benchmarkProxy times a messages request whose body is asked, as Claude
-// Code sends one on a session under way, started by run in a directory, going through a running router's
-// proxy to an upstream that reads it whole and answers it as answer does,
-// reporting the account's usage in its headers as the API does, and back to a
-// client that reads the answer whole, which is to be body.
+// Code sends one on a session under way, started by run in a directory, after
+// tool calls of the prompt it serves, going through a running router's proxy
+// to an upstream that reads it whole and answers it as answer does, reporting
+// the account's usage in its headers as the API does, and back to a client
+// that reads the answer whole, which is to be body.
 //
 // The router's clock stands still, so no request's result ever leaves its
 // health's window, and each request scans them all: a request takes longer
@@ -49,7 +50,8 @@ func benchmarkProxy(b *testing.B, asked string, answer http.HandlerFunc, body st
 	cfg.Prober = readingEvery(session, week)
 	runRouter(b, cfg)
 	proxy := "http://" + cfg.Listen + "/v1/messages"
-	header := with(claudeCode(workToken), router.DirHeader, router.EncodeDir("~/Code/project"))
+	header := hinted(with(claudeCode(workToken), router.DirHeader, router.EncodeDir("~/Code/project")),
+		map[string]string{promptHeader: promptID, classHeader: "main", toolTimesHeader: "Bash=742;Read=9"})
 	// The session's first request, which chooses its account, goes untimed.
 	postAsking(proxy, asked, header)
 	want := "200 " + body

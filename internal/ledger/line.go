@@ -26,9 +26,9 @@ const (
 	// textMost is how many bytes of a text a line holds, cut at the end of a
 	// character, as the request stream cuts a session's id and a model's.
 	textMost = 200
-	// listMost is how many of a list's entries a line holds, or kinds of a
-	// count's.
-	listMost = 32
+	// ListMost is how many of a list's entries a line holds, or kinds of a
+	// count's: what reads a list for a line need keep no more.
+	ListMost = 32
 	// limitsMost is how many of an answer's usage headers a line holds: the
 	// API gives some twenty.
 	limitsMost = 64
@@ -88,6 +88,8 @@ type Line struct {
 	// request costs.
 	Agent string   `json:"agent,omitempty"`
 	Betas []string `json:"betas,omitempty"`
+	// Hints are what the client's headers say of the request.
+	Hints
 	// Shape is the request's shape, zero where its body isn't a request, or
 	// couldn't be read.
 	Shape Shape `json:"shape,omitzero"`
@@ -100,6 +102,30 @@ type Line struct {
 type Tried struct {
 	Account string `json:"account"`
 	Why     string `json:"why"`
+}
+
+// Hints are what a client's headers say of its request, as Claude Code's
+// gateway guide documents them, each left out where the request carries none:
+// the prompt it serves, the same on every request serving one; its class, such
+// as main, subagent or compaction; the subagent that sent it, the one that
+// started that, and the subagent's kind, never a name the user chose; what
+// started the compaction it is, or the one it's the first request after; and
+// how long each tool call whose result it carries ran.
+type Hints struct {
+	Prompt        string     `json:"prompt,omitempty"`
+	Class         string     `json:"class,omitempty"`
+	AgentID       string     `json:"agent_id,omitempty"`
+	ParentAgentID string     `json:"parent_agent_id,omitempty"`
+	AgentType     string     `json:"agent_type,omitempty"`
+	Compaction    string     `json:"compaction,omitempty"`
+	Compacted     string     `json:"compacted,omitempty"`
+	ToolMS        []ToolTime `json:"tool_ms,omitempty"`
+}
+
+// ToolTime is how long a tool call ran, by the tool's name, in milliseconds.
+type ToolTime struct {
+	Tool string `json:"tool"`
+	MS   int64  `json:"ms"`
 }
 
 // Shape is a request's shape: its size in bytes, how many messages, system
@@ -223,14 +249,20 @@ func (l *Line) written() *Line {
 	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
 	w.Dir = LineDir(l.Dir)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
-	w.Tried = nil
-	for _, t := range l.Tried[:min(len(l.Tried), listMost)] {
-		w.Tried = append(w.Tried, Tried{Account: cut(t.Account), Why: cut(t.Why)})
-	}
-	w.Betas = cutAll(l.Betas)
+	w.Tried = cutAll(l.Tried, func(t Tried) Tried { return Tried{Account: cut(t.Account), Why: cut(t.Why)} })
+	w.Betas = cutAll(l.Betas, cut)
+	w.Hints = l.Hints.written()
 	w.Shape = l.Shape.written()
 	w.Reply = l.Reply.written()
 	return &w
+}
+
+// written returns the hints as a line writes them.
+func (h Hints) written() Hints {
+	h.Prompt, h.Class, h.AgentID, h.ParentAgentID = cut(h.Prompt), cut(h.Class), cut(h.AgentID), cut(h.ParentAgentID)
+	h.AgentType, h.Compaction, h.Compacted = cut(h.AgentType), cut(h.Compaction), cut(h.Compacted)
+	h.ToolMS = cutAll(h.ToolMS, func(t ToolTime) ToolTime { return ToolTime{Tool: cut(t.Tool), MS: t.MS} })
+	return h
 }
 
 // written returns the shape as a line writes it.
@@ -238,7 +270,7 @@ func (s Shape) written() Shape {
 	s.Thinking.Type, s.Thinking.Display = cut(s.Thinking.Type), cut(s.Thinking.Display)
 	s.ToolChoice.Type, s.ServiceTier = cut(s.ToolChoice.Type), cut(s.ServiceTier)
 	s.OutputConfig.Effort, s.Speed, s.InferenceGeo = cut(s.OutputConfig.Effort), cut(s.Speed), cut(s.InferenceGeo)
-	s.ContextManagement.Edits = cutAll(s.ContextManagement.Edits)
+	s.ContextManagement.Edits = cutAll(s.ContextManagement.Edits, cut)
 	return s
 }
 
@@ -257,8 +289,8 @@ func (r Reply) written() Reply {
 func (a Answer) written() Answer {
 	a.ID, a.Model, a.Stop = cut(a.ID), cut(a.Model), cut(a.Stop)
 	a.Error = Error{Type: cut(a.Error.Type), Message: cut(a.Error.Message)}
-	a.Blocks = cutMap(a.Blocks, listMost, func(n int) int { return n })
-	a.Tools = cutAll(a.Tools)
+	a.Blocks = cutMap(a.Blocks, ListMost, func(n int) int { return n })
+	a.Tools = cutAll(a.Tools, cut)
 	return a
 }
 
@@ -269,6 +301,12 @@ func cut(s string) string {
 	return prose.TruncateBytes(redact.Text(s), textMost)
 }
 
+// LineText is the text s as a line gives it, as cut cuts it. The request
+// stream gives a request's prompt, class and agent so too.
+func LineText(s string) string {
+	return cut(s)
+}
+
 // LineDir is the directory dir as a line gives it: cut as cut cuts a text,
 // but from its front, an ellipsis standing for what's cut, so it keeps its
 // own name. The router's sessions and request stream give a directory so too.
@@ -276,14 +314,17 @@ func LineDir(dir string) string {
 	return prose.TruncateBytesFront(redact.Text(dir), textMost)
 }
 
-// cutAll returns the first listMost of texts, each cut, as a list of its own:
-// nil for none.
-func cutAll(texts []string) []string {
-	var all []string
-	for _, s := range texts[:min(len(texts), listMost)] {
-		all = append(all, cut(s))
+// cutAll returns the first ListMost of list, each as each cuts it, as a list
+// of its own: nil for none.
+func cutAll[T any](list []T, each func(T) T) []T {
+	if len(list) == 0 {
+		return nil
 	}
-	return all
+	kept := make([]T, min(len(list), ListMost))
+	for i := range kept {
+		kept[i] = each(list[i])
+	}
+	return kept
 }
 
 // cutMap returns the first most of m's entries, in the order of their names,

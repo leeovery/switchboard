@@ -38,6 +38,10 @@ type Provider interface {
 	// Session returns the id of the session a request belongs to, or "" when
 	// it doesn't say.
 	Session(h http.Header) string
+	// Hints returns what a request's header says of it beside its session,
+	// as the request ledger keeps it: the prompt it serves, its class and the
+	// agent that sent it, among others, each left out where it carries none.
+	Hints(h http.Header) ledger.Hints
 	// Betas returns the features a request's header asks the API for beyond
 	// its version, some of which change what a request costs.
 	Betas(h http.Header) []string

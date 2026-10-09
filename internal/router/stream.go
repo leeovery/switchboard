@@ -80,6 +80,12 @@ type StreamEvent struct {
 	// or, once the client has an answer, the one it came from; and of a
 	// move, the account the session moved to.
 	Account string `json:"account,omitempty"`
+	// Prompt, Class and AgentID are the prompt the request serves, its class
+	// and the agent that sent it, as the request ledger gives them, each ""
+	// where the request carries none.
+	Prompt  string `json:"prompt,omitempty"`
+	Class   string `json:"class,omitempty"`
+	AgentID string `json:"agent_id,omitempty"`
 	// Check is set when the request is the client's quota check.
 	Check bool `json:"check,omitzero"`
 	// SentAt is when a request in flight last went upstream, and FirstAt when
