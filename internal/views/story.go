@@ -94,11 +94,13 @@ func (s *story) add(l *ledger.Line) {
 
 // move is a request's move of its session from one account onto another:
 // when it came, the account it left and the one it went to, why, as the
-// router said, and what writing its context again on the account it went to
-// cost, nil where that isn't known, or its cache would have run out anyway.
+// router said, the tokens its request wrote to the cache, and what writing
+// its context again on the account it went to cost, nil where that isn't
+// known, or its cache would have run out anyway.
 type move struct {
 	at               time.Time
 	from, to, reason string
+	written          int
 	cost             *ledger.Picodollars
 }
 
@@ -107,7 +109,8 @@ type move struct {
 // the model's last request came longer before it than its writes to the
 // cache last, as the cache would have run out by then anyway.
 func (s *story) moveOf(l *ledger.Line) move {
-	m := move{at: l.At, from: l.From, to: l.Account, reason: l.Reason}
+	tokens, _ := l.Tokens()
+	m := move{at: l.At, from: l.From, to: l.Account, reason: l.Reason, written: tokens.CacheWrite}
 	if before := s.lastOf[l.Model]; before != nil && l.At.Sub(before.At) > before.CacheLife() {
 		return m
 	}

@@ -503,6 +503,23 @@ func (f *Follower) Session(id string) iter.Seq[Held] {
 	}
 }
 
+// DayLines returns the lines filed under the local day with the given date,
+// in the order they came, as dayfile.ReadDay reads them, whatever session
+// each is of: none of a day pruned, or never written. A line that doesn't read
+// as one is passed over, and how many were is logged, as is a file that can't
+// be read.
+func (f *Follower) DayLines(date string) iter.Seq[Line] {
+	return func(yield func(Line) bool) {
+		_, unread, err := dayfile.ReadDay(f.days.files, date, lineIn, yield)
+		if unread > 0 {
+			f.days.logger.Warn("request ledger lines unread", "day", date, "lines", unread)
+		}
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			f.days.logger.Warn("can't read the request ledger", "day", date, "error", err)
+		}
+	}
+}
+
 // linesDates returns the dates of the local days whose files Reader.Lines
 // reads of every line, at now, as dayfile.Dates gives them: from the day
 // before the first the ledger holds, as firstDay gives it, to the day after

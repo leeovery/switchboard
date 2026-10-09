@@ -615,6 +615,30 @@ func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
+func TestADaysLinesAreEverySessionsFiledUnderItInTheOrderTheyCame(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, _ := stateDirs(t)
+	holdLines(t, dir, "2026-10-04", askedBy("1", "one", on(-1, 9, 0)), askedBy("2", "two", on(-1, 9, 30)))
+	compressFile(t, dir, "requests-2026-10-04.jsonl")
+	holdLines(t, dir, date, askedBy("3", "two", on(0, 9, 0)))
+	appendTo(t, dir, "requests-"+date+".jsonl", "not a line\n")
+	holdLines(t, dir, date, askedBy("4", "one", on(0, 8, 0)))
+	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
+
+	for day, want := range map[string][]string{"2026-10-04": {"1", "2"}, date: {"3", "4"}, "2026-10-03": nil} {
+		var got []string
+		for l := range follower.DayLines(day) {
+			got = append(got, l.Request)
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("DayLines(%s) gave %q, want %q", day, got, want)
+		}
+	}
+	if !log.Has("level=WARN", `msg="request ledger lines unread"`, "day="+date, "lines=1") {
+		t.Errorf("log reads\n%s\nwant the line of %s that doesn't read warned of", log, date)
+	}
+}
+
 func TestASessionsLinesAreReadOfItsOwnDaysAloneNewestFirst(t *testing.T) {
 	log := logstest.Capture(t)
 	state, dir, history := stateDirs(t)

@@ -88,6 +88,7 @@ func TestTheDataVerbsRefuseJSONWithPretty(t *testing.T) {
 		{"requests"},
 		{"history"},
 		{"sessions"},
+		{"sessions", "5b0e"},
 	}
 	for _, command := range commands {
 		for _, where := range []printForm{onATerminal, offATerminal} {

@@ -185,13 +185,26 @@ func namedBefore(l Ledger, ids []string, d day) map[string]bool {
 // sessionStory returns the story of the session with the given id told by
 // every line of it the ledger holds, whatever day each is of.
 func sessionStory(l Ledger, id string, prices ledger.Table, d day) *story {
-	var newestFirst []ledger.Held
+	return storyOf(sessionLines(l, id), prices, d)
+}
+
+// sessionLines returns every line of the session with the given id the
+// ledger holds, whatever day each is of, oldest first.
+func sessionLines(l Ledger, id string) []ledger.Line {
+	var lines []ledger.Line
 	for h := range l.Session(id) {
-		newestFirst = append(newestFirst, h)
+		lines = append(lines, h.Line)
 	}
+	slices.Reverse(lines)
+	return lines
+}
+
+// storyOf returns the story lines, a session's, oldest first, tell, its
+// requests on the day d counted and priced by prices.
+func storyOf(lines []ledger.Line, prices ledger.Table, d day) *story {
 	s := newStory(prices, d)
-	for i := range slices.Backward(newestFirst) {
-		s.add(&newestFirst[i].Line)
+	for i := range lines {
+		s.add(&lines[i])
 	}
 	return s
 }

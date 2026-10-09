@@ -280,6 +280,26 @@ func TestExtraUsageUnreadableNeverFailsTheWindows(t *testing.T) {
 	}
 }
 
+func TestALedgerLinesLimitsGiveTheWindowsItsAnswersHeadersDid(t *testing.T) {
+	limits := map[string]string{
+		"5h-utilization": "0.23", "5h-reset": "1790619000", "5h-status": "allowed",
+		"7d-utilization": "0.93", "7d-reset": "1790974800",
+		"7d_oi-utilization":   "high",
+		"overage-utilization": "0.5", "overage-status": "rejected",
+		"status": "allowed", "reset": "1790619000", "representative-claim": "five_hour",
+	}
+	want := []quota.Window{
+		{Key: "5h", Label: "Session", Utilization: 0.23, ResetsAt: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), Status: quota.StatusAllowed},
+		{Key: "7d", Label: "Week", Utilization: 0.93, ResetsAt: time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC)},
+	}
+	if got := claude.LimitWindows(limits); !reflect.DeepEqual(got, want) {
+		t.Errorf("LimitWindows() =\n%+v\nwant\n%+v", got, want)
+	}
+	if got := claude.LimitWindows(nil); got != nil {
+		t.Errorf("LimitWindows(nil) = %+v, want none", got)
+	}
+}
+
 // extraText gives extra usage as JSON, its utilization's value rather than
 // its address.
 func extraText(e quota.ExtraUsage) string {

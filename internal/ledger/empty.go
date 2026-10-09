@@ -40,3 +40,8 @@ func (Empty) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 func (Empty) Session(string) iter.Seq[Held] {
 	return func(func(Held) bool) {}
 }
+
+// DayLines returns no line.
+func (Empty) DayLines(string) iter.Seq[Line] {
+	return func(func(Line) bool) {}
+}

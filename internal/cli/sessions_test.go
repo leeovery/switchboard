@@ -71,6 +71,14 @@ var routedSessions = []status.Session{
 // at ledgerNow, configured as ledgerConfig says.
 func sessionsDeps(t *testing.T) cli.Deps {
 	t.Helper()
+	return sessionsDepsOf(t, sessionLines)
+}
+
+// sessionsDepsOf are deps as sessionsDeps says, their state directory
+// holding days' lines, by the date each arrived on, in place of sessions'
+// tests'.
+func sessionsDepsOf(t *testing.T, days map[string][]ledger.Line) cli.Deps {
+	t.Helper()
 	stateHome, err := os.MkdirTemp("", "sb")
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +88,7 @@ func sessionsDeps(t *testing.T) cli.Deps {
 	deps.Now = func() time.Time { return ledgerNow }
 	configure(t, deps)
 	dir := ledger.Dir(stateDir(t, deps))
-	for date, lines := range sessionLines {
+	for date, lines := range days {
 		var day bytes.Buffer
 		for _, line := range lines {
 			line.At = line.At.UTC()

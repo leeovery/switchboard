@@ -27,6 +27,9 @@ type Ledger interface {
 	// Session gives the lines of the session with the given id, newest
 	// first, read as far back as the caller goes on.
 	Session(id string) iter.Seq[ledger.Held]
+	// DayLines gives the lines filed under the local day with the given
+	// date, every session's, in the order they came.
+	DayLines(date string) iter.Seq[ledger.Line]
 }
 
 // Readings reads the readings history where it lies, with no router, as a

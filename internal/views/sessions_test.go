@@ -137,6 +137,16 @@ func (f fakeLedger) Session(id string) iter.Seq[ledger.Held] {
 	}
 }
 
+func (f fakeLedger) DayLines(date string) iter.Seq[ledger.Line] {
+	return func(yield func(ledger.Line) bool) {
+		for _, l := range f.lines {
+			if l.At.Local().Format(time.DateOnly) == date && !yield(l) {
+				return
+			}
+		}
+	}
+}
+
 // naming is a summary of the day with the given date naming the sessions
 // with the given ids, as work's.
 func naming(date string, ids ...string) ledger.Summary {

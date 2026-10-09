@@ -50,6 +50,17 @@ func ParseUsage(h http.Header) quota.Usage {
 	return usage
 }
 
+// LimitWindows returns the windows a request ledger's line gives in its
+// limits, the answer's usage headers as limitsOf kept them, read as
+// ParseUsage reads them off the headers.
+func LimitWindows(limits map[string]string) []quota.Window {
+	h := make(http.Header, len(limits))
+	for name, value := range limits {
+		h[limitsPrefix+name] = []string{value}
+	}
+	return ParseUsage(h).Windows
+}
+
 // limitsOf returns each of the usage headers h holds, by its name lowercased,
 // limitsPrefix taken off, and its value as given: of a window, as
 // 5h-utilization, and of the answer as a whole, as status. It's nil where h
