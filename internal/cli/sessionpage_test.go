@@ -136,7 +136,7 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 	// Paging's every request read 100,000 tokens from the cache, but its
 	// subagent's, which sent 8 tokens of input: of 4 × 101,010 + 8 sent.
 	fromCache := strconv.FormatFloat(400000.0/404048, 'f', -1, 64)
-	want := `{"session":"` + paging + `","dir":"~/Code/web","running":true,"last_seen":` + at(october(7, 13, 10, 0)) + `,` +
+	want := `{"session":"` + paging + `","dir":"~/Code/web","account":"side","model":"claude-opus-5-5","running":true,"last_seen":` + at(october(7, 13, 10, 0)) + `,` +
 		`"models":[{"model":"claude-opus-5-5","account":"side","reason":"rescored after 15h 7m idle"},{"model":"claude-haiku-4-5","account":"work","reason":"sticky"}],` +
 		`"state":"answering","move_cost":0.80808,"started":` + at(october(6, 16, 40, 0)) + `,"resumed":` + at(october(7, 9, 12, 0)) + `,` +
 		`"accounts":[{"account":"work","from":` + at(october(6, 16, 40, 0)) + `,"to":` + at(october(7, 9, 13, 0)) + `,"requests":3,"worth":0.076093,"points":{"5h":4,"7d":1}},` +
@@ -263,6 +263,46 @@ func TestWhereASessionRunsIsTheMoveOfTheModelItNames(t *testing.T) {
 	const want = "\nidle 2m  ·  on side since it started  ·  started 13:00 · 12m\n"
 	if got.code != 0 || !strings.Contains(got.stdout, want) {
 		t.Errorf("switchboard sessions %s --pretty = %+v, want it to say%s", paging, got, want)
+	}
+}
+
+func TestWhereAnEndedSessionRanIsItsConversations(t *testing.T) {
+	lines := []ledger.Line{
+		pagedLine{request: "o1", prompt: "first", model: "claude-opus-5-5", account: "work", reason: "new", stop: "tool_use", at: october(7, 11, 0, 0), ms: 60000}.line(),
+		pagedLine{request: "h1", prompt: "first", agent: "a1", model: "claude-haiku-4-5", account: "work", reason: "new", stop: "end_turn",
+			at: october(7, 11, 1, 0), ms: 30000}.line(),
+		pagedLine{request: "o2", prompt: "first", model: "claude-opus-5-5", account: "side", reason: "moved: work hit its limit", from: "work", stop: "end_turn",
+			at: october(7, 11, 2, 0), ms: 60000}.line(),
+		pagedLine{request: "h2", prompt: "first", agent: "a1", model: "claude-haiku-4-5", account: "personal", reason: "moved: work hit its limit", from: "work",
+			stop: "end_turn", at: october(7, 11, 5, 0), ms: 30000}.line(),
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
+	got := run(t, deps, "sessions", paging, "--pretty")
+	// Its subagent's Claude Haiku 4.5 moved to personal after; its
+	// conversation's Claude Opus 5.5 ran on work, then side.
+	const want = "\nended 11:05  ·  ran on work, then side from 11:02: work reached its limit  ·  started 11:00 · ran 5m\n"
+	if got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions %s --pretty = %+v, want it to say%s", paging, got, want)
+	}
+}
+
+func TestTheAccountARunningSessionIsOnNowIsItsLatestRequests(t *testing.T) {
+	lines := []ledger.Line{
+		pagedLine{request: "o1", prompt: "first", model: "claude-opus-5-5", account: "work", reason: "new", stop: "end_turn", at: october(7, 12, 0, 0), ms: 60000}.line(),
+		pagedLine{request: "o2", prompt: "second", model: "claude-opus-5-5", account: "side", reason: "moved: work hit its limit", from: "work", stop: "end_turn",
+			at: october(7, 12, 5, 0), ms: 60000}.line(),
+		pagedLine{request: "o3", prompt: "third", model: "claude-opus-5-5", account: "work", reason: "moved: side hit its limit", from: "side", stop: "end_turn",
+			at: october(7, 12, 10, 0), ms: 60000}.line(),
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": lines})
+	// The router has rescored it onto side, before any request of it there.
+	serveSessions(t, deps, []status.Session{{ID: paging, Assignments: []status.Assignment{
+		{Model: "claude-opus-5-5", Account: "side", Reason: "rescored after 1h idle", LastSeen: october(7, 13, 11, 0).UTC()},
+	}}})
+	got := run(t, deps, "sessions", paging, "--pretty")
+	const want = "\nwork  12:00 – now    2 requests    $0.08\nside  12:05 – 12:05  1 request     $0.04\n"
+	if got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard sessions %s --pretty = %+v, want its accounts' rows\n%s", paging, got, want)
 	}
 }
 

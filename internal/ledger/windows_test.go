@@ -205,6 +205,16 @@ func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 	}
 }
 
+func TestAReadingTakenOutOfTurnCountsInNoneOfADaysFields(t *testing.T) {
+	// The third, of a reset earlier than the one read before it, was read
+	// out of turn, from before the window began again, and rejected.
+	got := workDay(t, caps, dayDone, allowed(on(0, 10, 0), "5h", 0.1, on(0, 15, 30)), allowed(on(0, 10, 2), "5h", 0.12, on(0, 15, 40)),
+		rejected(on(0, 10, 5), "5h", 0.5, on(0, 15, 30)), allowed(on(0, 10, 8), "5h", 0.14, on(0, 15, 40)))
+	if got.Highest["5h"] != 0.14 || got.Rise["5h"] != 0.24 || len(got.Limits) != 0 {
+		t.Errorf("work's day is %+v, want its session window's highest 0.14, its rise 0.24, and no limit reached", got)
+	}
+}
+
 func TestASummaryHoldsEachResetOfAWindowTheReadingsHistorySaw(t *testing.T) {
 	reset := func(key string, at time.Time, before float64) ledger.Reset {
 		return ledger.Reset{Window: key, At: at.UTC(), Before: before}

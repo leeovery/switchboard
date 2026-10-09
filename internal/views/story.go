@@ -26,33 +26,37 @@ func (d day) holds(t time.Time) bool {
 }
 
 // story is what a session's lines tell, taken in oldest first, as add takes
-// them: its first and last request, the directory it last named, its last
-// request whose answer gave usage, and its last such turn of its own
-// conversation, its requests on the day and their worth, and each move a
-// request of it made.
+// them: its first and last request, and its last of its own conversation;
+// the directory it last named; its last request whose answer gave usage, and
+// its last such turn of its own conversation; how long its writes to the
+// cache last, as its last request that wrote to it says; its requests on the
+// day and their worth; each move a request of it made; and when the last
+// request of each of its threads ended.
 type story struct {
 	prices ledger.Table
 	day    day
 
-	first, last *ledger.Line
-	dir         string
-	used        *ledger.Line
-	usedMain    *ledger.Line
+	first, last, lastMain *ledger.Line
+	dir                   string
+	used, usedMain        *ledger.Line
 	// classed is set once a request of it says its class, as a Claude Code
 	// and a router that tell prompts apart have each say.
-	classed  bool
+	classed bool
+	// life is how long its writes to the cache last: an hour until a request
+	// of it wrote to the cache, as one that only read from it says nothing.
+	life     time.Duration
 	requests int
 	worth    worthSum
 	moves    []move
-	// lastOf is each model's last request so far, by its id: a move of the
-	// model's comes after it.
-	lastOf map[string]*ledger.Line
+	// ends are when each thread's last request so far ended, by threadOf: a
+	// move of the thread's comes after it.
+	ends map[string]time.Time
 }
 
 // newStory returns the story of a session before any of its lines is taken
 // in, its requests on the day d counted and priced by prices.
 func newStory(prices ledger.Table, d day) *story {
-	return &story{prices: prices, day: d, lastOf: make(map[string]*ledger.Line)}
+	return &story{prices: prices, day: d, life: ledger.LongCache, ends: make(map[string]time.Time)}
 }
 
 // isRequest reports whether l is a session's request: a message of a session,
@@ -76,9 +80,13 @@ func (s *story) add(l *ledger.Line) {
 		s.dir = l.Dir
 	}
 	s.classed = s.classed || l.Class != ""
+	main := l.Class == ledger.ClassMain
+	if main {
+		s.lastMain = l
+	}
 	if _, ok := l.Tokens(); ok {
 		s.used = l
-		if l.Class == ledger.ClassMain {
+		if main {
 			s.usedMain = l
 		}
 	}
@@ -89,7 +97,43 @@ func (s *story) add(l *ledger.Line) {
 	if l.From != "" {
 		s.moves = append(s.moves, s.moveOf(l))
 	}
-	s.lastOf[l.Model] = l
+	thread := threadOf(l)
+	s.ends[thread] = latest(s.ends[thread], ended(l))
+	if life, ok := l.CacheLife(); ok {
+		s.life = life
+	}
+}
+
+// classCompaction is the class, as a line's hints give it, of a compaction
+// of a session's conversation.
+const classCompaction = "compaction"
+
+// threadOf returns the thread of a session's requests the request l is of,
+// as its cache follows them: a subagent's, by its id; the session's own
+// conversation, its compactions, which read it, among them; a side
+// request's, as a title, by its class and model; and, of a line from before
+// requests said their class, which tells no thread from another, its
+// model's.
+func threadOf(l *ledger.Line) string {
+	switch {
+	case l.AgentID != "":
+		return "agent " + l.AgentID
+	case l.Class == ledger.ClassMain || l.Class == classCompaction:
+		return "conversation"
+	case l.Class == "":
+		return "model " + l.Model
+	}
+	return l.Class + " " + l.Model
+}
+
+// conversation returns the session's last request of its own conversation,
+// where its requests say their class and one is, else its last request: the
+// one whose account and model the List names of one ended.
+func (s *story) conversation() *ledger.Line {
+	if s.classed && s.lastMain != nil {
+		return s.lastMain
+	}
+	return s.last
 }
 
 // move is a request's move of its session from one account onto another:
@@ -107,12 +151,13 @@ type move struct {
 
 // moveOf returns the move l made: its cost its cache write, priced at the
 // day's prices, left out where the table can't price all of it, and where
-// the model's last request came longer before it than its writes to the
-// cache last, as the cache would have run out by then anyway.
+// the last request of its thread, as threadOf tells it, ended longer before
+// it than the session's writes to the cache last, as the cache would have run
+// out by then anyway.
 func (s *story) moveOf(l *ledger.Line) move {
 	tokens, _ := l.Tokens()
 	m := move{at: l.At, model: l.Model, from: l.From, to: l.Account, reason: l.Reason, written: tokens.CacheWrite}
-	if before := s.lastOf[l.Model]; before != nil && l.At.Sub(before.At) > before.CacheLife() {
+	if end, ok := s.ends[threadOf(l)]; ok && l.At.Sub(end) > s.life {
 		return m
 	}
 	if w, ok := s.prices.CacheWrite(l, s.day.date); ok && len(w.Unpriced) == 0 {
@@ -121,39 +166,44 @@ func (s *story) moveOf(l *ledger.Line) move {
 	return m
 }
 
-// movedOnto returns the move that brought the session onto the account with
-// the given id, where its last move came on the day, and was onto it: nil
-// where it wasn't.
-func (s *story) movedOnto(account string) *Move {
-	if len(s.moves) == 0 {
-		return nil
+// movedOnto returns the move of the model with the given id that brought
+// the session onto the account with the given id, where the model's last
+// move came on the day, and was onto it: nil where it wasn't. A session's
+// models are routed apart, so another's move tells nothing of how this one
+// came there.
+func (s *story) movedOnto(model, account string) *Move {
+	for _, m := range slices.Backward(s.moves) {
+		if m.model != model {
+			continue
+		}
+		if !s.day.holds(m.at) || m.to != account {
+			return nil
+		}
+		return &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
 	}
-	m := s.moves[len(s.moves)-1]
-	if !s.day.holds(m.at) || m.to != account {
-		return nil
-	}
-	return &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
+	return nil
 }
 
 // moveCost returns what moving the session at now would cost, as Routing by
 // hand says: the whole prompt of the last turn of its own conversation whose
-// answer gave usage written again, as ledger.Table.Rewrite prices it, so a
-// side request, as a title, never stands in for its conversation. Of a
-// session none of whose requests says its class, as from a Claude Code or a
-// router from before they did, it's its last request whose answer gave
-// usage. It reports false where that isn't known, and where the cache of
-// that request has run out since it ended, which the session would write
-// again on its next request anyway: unless flying says a request of its
-// model is in flight, keeping its cache warm.
+// answer gave usage written again, as ledger.Table.Rewrite prices it for as
+// long as the session's writes to the cache last, so a side request, as a
+// title, never stands in for its conversation. Of a session none of whose
+// requests says its class, as from a Claude Code or a router from before
+// they did, it's its last request whose answer gave usage. It reports false
+// where that isn't known, and where the cache has run out since that request
+// ended, which the session would write again on its next request anyway:
+// unless flying says a request of its model is in flight, keeping its cache
+// warm.
 func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.Picodollars, bool) {
 	prompt := s.used
 	if s.classed {
 		prompt = s.usedMain
 	}
-	if prompt == nil || !flying(prompt.Model) && now.Sub(ended(prompt)) > prompt.CacheLife() {
+	if prompt == nil || !flying(prompt.Model) && now.Sub(ended(prompt)) > s.life {
 		return 0, false
 	}
-	return s.prices.Rewrite(prompt, s.day.date)
+	return s.prices.Rewrite(prompt, s.life, s.day.date)
 }
 
 // worthSum sums requests' worth exactly, and names, once each, the counts

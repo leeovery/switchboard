@@ -15,10 +15,12 @@ import (
 // turns, newest first, and its totals. Fields may be added to it, never
 // renamed.
 type SessionPage struct {
-	// Session, Dir, Running, LastSeen, Models, State, MoveCost and Ended are
-	// as the List has them.
+	// Session, Dir, Account, Model, Running, LastSeen, Models, State,
+	// MoveCost and Ended are as the List has them.
 	Session  string              `json:"session"`
 	Dir      string              `json:"dir,omitempty"`
+	Account  string              `json:"account,omitempty"`
+	Model    string              `json:"model,omitempty"`
 	Running  bool                `json:"running,omitempty"`
 	LastSeen time.Time           `json:"last_seen,omitzero"`
 	Models   []SessionModel      `json:"models,omitempty"`
@@ -138,24 +140,25 @@ const comeBack = time.Hour
 
 // SessionPageOf builds the page of the session with the given id from src:
 // what the router says of it, where it lists it, and what every line of it
-// the ledger holds tells, whatever day each is of, with the lines of the
-// accounts it ran on, on its days, for the points it took. It reports false
-// where the ledger holds no request of it, and the router doesn't list it.
+// the ledger holds tells, whatever day each is of, with the requests of the
+// accounts it ran on, on its days, for the points it took, as readPage reads
+// them. It reports false where the ledger holds no request of it, and the
+// router doesn't list it.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	today := dayOf(src.Now)
-	lines := sessionLines(src.Ledger, id)
-	requests := requestsOf(lines, src.Prices, today.date)
+	read := readPage(src.Ledger, id, today)
+	requests := requestsOf(read.own, src.Prices, today.date)
 	if len(requests) == 0 && src.Routed == nil {
 		return SessionPage{}, false
 	}
-	s := storyOf(lines, src.Prices, today)
+	s := storyOf(read.own, src.Prices, today)
 	listed := listedFrom(id, s)
 	if src.Routed != nil {
 		listed.run(*src.Routed, s, src.Now)
 	}
 	page := SessionPage{
-		Session: listed.Session, Dir: listed.Dir, Running: listed.Running, LastSeen: listed.LastSeen, Models: listed.Models,
-		State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
+		Session: listed.Session, Dir: listed.Dir, Account: listed.Account, Model: listed.Model, Running: listed.Running, LastSeen: listed.LastSeen,
+		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
 		Resumed: resumedAt(requests), Accounts: accountsOf(requests), Moves: movesOf(s), Turns: turnsOf(requests, listed.Running),
 	}
 	if src.Routed != nil {
@@ -164,12 +167,38 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	if !page.Running && s.first != nil {
 		page.KeptUntil, _ = dayfile.KeptUntil(dayOf(s.first.At).date, src.Keep)
 	}
-	points := pointsOf(src.Ledger, id, requests)
+	points := pointsOf(read.answers, requests)
 	for i := range page.Accounts {
 		page.Accounts[i].Points = points[page.Accounts[i].Account]
 	}
 	page.Totals = totalsOf(requests, len(page.Turns))
 	return page, true
+}
+
+// pageRead is what a session's page reads of the ledger: the session's own
+// lines, oldest first, and every request of any session on an account, as
+// answeredOf holds it, by the date of the day it's filed under.
+type pageRead struct {
+	own     []ledger.Line
+	answers map[string][]answered
+}
+
+// readPage reads the days of the session with the given id, those before d
+// that daysNaming gives and d itself, each day's files once.
+func readPage(l Ledger, id string, d day) pageRead {
+	read := pageRead{answers: make(map[string][]answered)}
+	for _, date := range append(daysNaming(l, []string{id}, d), d.date) {
+		for line := range l.DayLines(date) {
+			if line.Session == id {
+				read.own = append(read.own, line)
+			}
+			if line.Kind == ledger.KindMessage && line.Account != "" {
+				read.answers[date] = append(read.answers[date], answeredOf(&line, id))
+			}
+		}
+	}
+	slices.SortStableFunc(read.own, byArrival)
+	return read
 }
 
 // request is a session's request, as its page counts it: its line, what it

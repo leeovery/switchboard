@@ -564,17 +564,17 @@ func (f *Follower) linesDates(now time.Time) []string {
 
 // names reports whether the summary of the local day with the given date,
 // as Days gives it at now, names the session with the given id, as
-// Summary.names says.
+// Summary.Names says.
 func (f *Follower) names(date, id string, now time.Time) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.summaryOf(date, now).names(id)
+	return f.summaryOf(date, now).Names(id)
 }
 
-// names reports whether the summary names the session with the given id
+// Names reports whether the summary names the session with the given id
 // among those its accounts' requests were of, or might: an account's day
 // that never read its sessions' ids, as one of version 1, might name any.
-func (s Summary) names(id string) bool {
+func (s Summary) Names(id string) bool {
 	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool { return a.SessionIDs == nil || slices.Contains(a.SessionIDs, id) })
 }
 

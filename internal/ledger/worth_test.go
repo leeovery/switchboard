@@ -432,12 +432,14 @@ func TestACachesWritesLastFiveMinutesOnlyWhereEachDoes(t *testing.T) {
 		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":3120}}`, want: time.Hour},
 		{usage: `{"cache_creation_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":120,"ephemeral_1h_input_tokens":3000}}`, want: time.Hour},
 		{usage: `{"cache_creation_input_tokens":3120}`, want: time.Hour},
-		{usage: `{"cache_read_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0}}`, want: time.Hour},
-		{usage: ``, want: time.Hour},
+		// Of these, which wrote nothing, nothing is said.
+		{usage: `{"cache_read_input_tokens":3120,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0}}`},
+		{usage: `{"cache_read_input_tokens":3120,"cache_creation_input_tokens":0}`},
+		{usage: ``},
 	}
 	for _, tt := range tests {
-		if got := (ledger.Reply{Usage: usage(tt.usage)}).CacheLife(); got != tt.want {
-			t.Errorf("CacheLife() of %s = %v, want %v", tt.usage, got, tt.want)
+		if got, ok := (ledger.Reply{Usage: usage(tt.usage)}).CacheLife(); got != tt.want || ok != (tt.want != 0) {
+			t.Errorf("CacheLife() of %s = %v, %v, want %v, as it wrote to the cache", tt.usage, got, ok, tt.want)
 		}
 	}
 }
@@ -449,23 +451,21 @@ func TestAMoveWouldWriteTheWholePromptAgainAtTheCachesOwnPrice(t *testing.T) {
 		`"cache_creation_input_tokens":3120`
 	const tokens = 12 + 182340 + 3120
 	tests := []struct {
-		name  string
-		geo   string
-		usage string
-		want  ledger.Picodollars
+		name string
+		geo  string
+		life time.Duration
+		want ledger.Picodollars
 	}{
-		{name: "writes for an hour, at the price of one", usage: `{` + prompt + `,"cache_creation":{"ephemeral_1h_input_tokens":3120}}`, want: dollars(tokens * 8e-6)},
-		{name: "writes for five minutes, at the price of one", usage: `{` + prompt + `,"cache_creation":{"ephemeral_5m_input_tokens":3120}}`, want: dollars(tokens * 5e-6)},
-		{name: "writes for each, at an hour's", usage: `{` + prompt + `,"cache_creation":{"ephemeral_5m_input_tokens":120,"ephemeral_1h_input_tokens":3000}}`,
-			want: dollars(tokens * 8e-6)},
-		{name: "in the US, a tenth more", geo: "us", usage: `{` + prompt + `,"cache_creation":{"ephemeral_1h_input_tokens":3120}}`, want: dollars(tokens * 8e-6 * 1.1)},
+		{name: "writes for an hour, at the price of one", life: ledger.LongCache, want: dollars(tokens * 8e-6)},
+		{name: "writes for five minutes, at the price of one", life: ledger.ShortCache, want: dollars(tokens * 5e-6)},
+		{name: "in the US, a tenth more", geo: "us", life: ledger.LongCache, want: dollars(tokens * 8e-6 * 1.1)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			line := asked("1", on(0, 9, 0))
-			line.Usage, line.Shape.InferenceGeo = usage(tt.usage), tt.geo
-			if got, ok := ledger.Pricing.Rewrite(&line, today); !ok || got != tt.want {
-				t.Errorf("Rewrite() of %s = %v, %v, want %v", tt.usage, got, ok, tt.want)
+			line.Usage, line.Shape.InferenceGeo = usage(`{`+prompt+`,"cache_creation":{"ephemeral_1h_input_tokens":3120}}`), tt.geo
+			if got, ok := ledger.Pricing.Rewrite(&line, tt.life, today); !ok || got != tt.want {
+				t.Errorf("Rewrite() for %v = %v, %v, want %v", tt.life, got, ok, tt.want)
 			}
 		})
 	}
@@ -478,7 +478,7 @@ func TestAMoveWhosePromptIsntKnownIsntPriced(t *testing.T) {
 		{Model: "claude-haiku-4-5", Kind: ledger.KindMessage, Attempts: 1, Usage: write, Shape: ledger.Shape{InferenceGeo: "us"}},
 		{Model: "claude-opus-5-5", Kind: ledger.KindMessage, Attempts: 1, CutOff: true},
 	} {
-		if got, ok := ledger.Pricing.Rewrite(&line, today); ok {
+		if got, ok := ledger.Pricing.Rewrite(&line, ledger.LongCache, today); ok {
 			t.Errorf("Rewrite() of %s in %q, usage %s, = %v, want it unpriced", line.Model, line.Shape.InferenceGeo, line.Usage, got)
 		}
 	}

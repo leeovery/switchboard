@@ -438,7 +438,9 @@ func (l *Line) counted() string {
 // is tallied only where readBefore, of the summary it's to replace, reports
 // that window wasn't read before either, as Summarise says. The windows read
 // in the week before are noted on those of their accounts the day tallies,
-// and how each window went through the day until until, as windows says.
+// and how each window went through the day until until, as windowDay says. A
+// reading of the day its window's day doesn't take, as one taken out of turn,
+// counts toward none of them.
 func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Time, readBefore func(accountWindow) bool) {
 	last := make(map[accountWindow]quota.Window)
 	var day []readings.Reading
@@ -455,12 +457,21 @@ func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Ti
 	}
 	seen := maps.Clone(before)
 	maps.DeleteFunc(last, func(_ accountWindow, w quota.Window) bool { return w.ResetBy(start) })
-	carried := maps.Clone(last)
-	for w, began := range last {
-		t.account(w.account).peak(began)
+	days := windowDays{start: start, until: until, days: make(map[accountWindow]*windowDay)}
+	for w := range before {
+		if began, ok := last[w]; ok {
+			days.of(w).carry(began)
+			t.account(w.account).peak(began)
+		} else {
+			days.of(w).afresh()
+		}
 	}
 	for _, r := range day {
-		a, w, read := t.account(r.Account), windowOf(r), r.Window()
+		w, read := windowOf(r), r.Window()
+		if !days.of(w).take(read, r.At) {
+			continue
+		}
+		a := t.account(r.Account)
 		a.peak(read)
 		if turned(last[w], read) && (seen[w] || !readBefore(w)) {
 			a.limits = append(a.limits, Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()})
@@ -472,39 +483,34 @@ func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Ti
 			a.readBefore[w.key], a.read = true, true
 		}
 	}
-	t.windows(before, carried, day, start, until)
+	days.end(t)
 }
 
-// windows tallies how each window went through the day that starts at start,
-// until until, as windowDay says, on those of their accounts the day
-// tallies: from the reading carried, the last of the week before the day,
-// where it hadn't reset by then, else from nothing, where it was read before
-// the day, as before says, then through the day's readings, in the order
-// they came.
-func (t tally) windows(before map[accountWindow]bool, carried map[accountWindow]quota.Window, day []readings.Reading, start, until time.Time) {
-	days := make(map[accountWindow]*windowDay)
-	of := func(w accountWindow) *windowDay {
-		d, ok := days[w]
-		if !ok {
-			d = &windowDay{start: start, until: until, climb: Climb{key: w.key}}
-			days[w] = d
-		}
-		return d
+// windowDays are how each window of the accounts went through the day that
+// starts at start, until until, as windowDay says, by the account and key of
+// each.
+type windowDays struct {
+	start, until time.Time
+	days         map[accountWindow]*windowDay
+}
+
+// of returns the window w's day, starting it where there's none yet.
+func (d windowDays) of(w accountWindow) *windowDay {
+	day, ok := d.days[w]
+	if !ok {
+		day = newWindowDay(w.key, d.start, d.until)
+		d.days[w] = day
 	}
-	for w := range before {
-		if began, ok := carried[w]; ok {
-			of(w).carry(began)
-		} else {
-			of(w).afresh()
-		}
-	}
-	for _, r := range day {
-		of(windowOf(r)).take(r.Window(), r.At)
-	}
-	for w, d := range days {
-		if a, ok := t[w.account]; ok && d.read {
-			d.end()
-			a.windows[w.key] = d
+	return day
+}
+
+// end ends each window's day that took a reading, on those of their accounts
+// the day tallies.
+func (d windowDays) end(t tally) {
+	for w, day := range d.days {
+		if a, ok := t[w.account]; ok && day.read {
+			day.end()
+			a.windows[w.key] = day
 		}
 	}
 }

@@ -172,11 +172,11 @@ func (t Table) Summed(l *Line, date string) Worth {
 // prompt cache again would cost through the API, at the prices in effect on
 // the local day with the given date: its input, reads from the cache and
 // writes to it together, each at its model's price of a write that lasts as
-// long as the line's do, as CacheLife says. It's what moving its session
+// long as life says, five minutes or an hour. It's what moving its session
 // would cost, as the account it moved to holds none of its cache. It reports
 // false where the table can't price the request, and where its answer gave
 // no usage, as what it was then is unknown.
-func (t Table) Rewrite(l *Line, date string) (Picodollars, bool) {
+func (t Table) Rewrite(l *Line, life time.Duration, date string) (Picodollars, bool) {
 	tokens, ok := l.Tokens()
 	prices, priced := t.prices(l.Model, date)
 	if priced {
@@ -186,31 +186,38 @@ func (t Table) Rewrite(l *Line, date string) (Picodollars, bool) {
 		return 0, false
 	}
 	price := prices.CacheWrite1h
-	if l.CacheLife() == shortCache {
+	if life == ShortCache {
 		price = prices.CacheWrite5m
 	}
 	return Picodollars(tokens.Input+tokens.CacheRead+tokens.CacheWrite) * price, true
 }
 
-// shortCache and longCache are how long the prompt cache's writes last: five
-// minutes, or an hour, as Claude Code has a subscription's last.
+// ShortCache and LongCache are how long the prompt cache's writes last: five
+// minutes, or an hour, as Claude Code has a subscription's last, and as
+// they're taken to where nothing says.
 const (
-	shortCache = 5 * time.Minute
-	longCache  = time.Hour
+	ShortCache = 5 * time.Minute
+	LongCache  = time.Hour
 )
 
 // CacheLife returns how long the prompt cache's writes of the reply's usage
 // last: five minutes where every write it breaks down by how long it lasts is
 // a five-minute one, else an hour, as Claude Code has a subscription's last,
-// those it doesn't break down, and a reply with none, among them.
-func (r Reply) CacheLife() time.Duration {
+// those it doesn't break down among them. It reports false where the reply
+// wrote nothing to the cache, as one that only read from it, which says
+// nothing of how long its writes last.
+func (r Reply) CacheLife() (time.Duration, bool) {
 	held := countsOf(r.Usage)
+	written, _ := held[cacheWrites].(int64)
 	ttls, _ := held[cacheTTLs].(counts)
 	short, _ := ttls[shortWrites].(int64)
-	if short > 0 && short == held.total(cacheTTLs) {
-		return shortCache
+	switch broken := held.total(cacheTTLs); {
+	case written == 0 && broken == 0:
+		return 0, false
+	case short > 0 && short == broken:
+		return ShortCache, true
 	}
-	return longCache
+	return LongCache, true
 }
 
 // worth returns what the counts held would have cost, as Worth says, naming

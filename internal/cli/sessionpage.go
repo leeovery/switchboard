@@ -157,15 +157,22 @@ func movedWords(m views.SessionMove, now time.Time) string {
 	return words
 }
 
-// ranOn says where the session p, ended, ran: on each account, in turn, with
-// when each move came and why, as "ran on work, then side from 16:02: work
-// reached its cap".
+// ranOn says where the session p, ended, ran, its conversation's model as p
+// names it: on each account, in turn, with when each of that model's moves
+// came and why, as "ran on work, then side from 16:02: work reached its
+// cap". A session's models are routed apart, so another's moves are none of
+// its conversation's.
 func ranOn(p views.SessionPage, now time.Time) string {
-	if len(p.Accounts) == 0 {
+	moves := slices.DeleteFunc(slices.Clone(p.Moves), func(m views.SessionMove) bool { return m.Model != p.Model })
+	first := p.Account
+	if len(moves) > 0 {
+		first = moves[0].From
+	}
+	if first == "" {
 		return ""
 	}
-	parts := []string{"ran on " + status.Clean(p.Accounts[0].Account)}
-	for _, m := range p.Moves {
+	parts := []string{"ran on " + status.Clean(first)}
+	for _, m := range moves {
 		why := status.EventWords(m.Reason, status.Facts{From: m.From, To: m.To, Now: now}).String()
 		parts = append(parts, "then "+status.Clean(m.To)+" from "+status.Past(now, m.At)+": "+why)
 	}
@@ -217,12 +224,13 @@ func goesOrKept(p views.SessionPage, now time.Time) string {
 
 // ranOnRows are the rows of the accounts the session p ran on, at now: each
 // with its time there, from its first request there to its last, or now, for
-// the one it's on while it runs; its requests; the points of each window
-// they took; and their worth.
+// the one its latest request went to while it runs, never one the router
+// sends it to but no request of it has gone to since; its requests; the
+// points of each window they took; and their worth.
 func ranOnRows(p views.SessionPage, now time.Time) [][]string {
 	var on string
-	if p.Running && len(p.Models) > 0 {
-		on = p.Models[0].Account
+	if p.Running && len(p.Accounts) > 0 {
+		on = slices.MaxFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.To.Compare(b.To) }).Account
 	}
 	rows := make([][]string, len(p.Accounts))
 	for i, a := range p.Accounts {

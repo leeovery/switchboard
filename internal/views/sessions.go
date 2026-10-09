@@ -32,7 +32,8 @@ type ListedSession struct {
 	Dir string `json:"dir,omitempty"`
 	// Account and Model are the account its latest request went to, and that
 	// request's model: of one running, as the router last routed it; of one
-	// ended, its last request's.
+	// ended, its last request of its own conversation's, where its requests
+	// say their class, else its last request's.
 	Account string `json:"account,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Running is set while the router lists it, and left out otherwise.
@@ -132,7 +133,7 @@ func ListSessions(src SessionSources) SessionList {
 		if session, running := routed[id]; running {
 			listed.run(session, s, src.Now)
 		}
-		listed.Moved = s.movedOnto(listed.Account)
+		listed.Moved = s.movedOnto(listed.Model, listed.Account)
 		list.Sessions = append(list.Sessions, listed)
 		list.Today.Requests += listed.Requests
 		worth.add(ledger.Worth{Cost: listed.Worth, Unpriced: listed.Unpriced})
@@ -189,19 +190,19 @@ func storiesOf(lines []ledger.Held, prices ledger.Table, d day) (map[string]*sto
 
 // linesBefore returns the lines of those of the sessions with the given ids
 // that started on a day before d, by session: every line of theirs filed
-// under the days before d whose summaries name any of them among their
-// sessions, each day's files read once.
+// under the days before d that daysNaming gives, each day's files read once.
 func linesBefore(l Ledger, ids []string, d day) map[string][]ledger.Line {
+	lines := make(map[string][]ledger.Line)
+	dates := daysNaming(l, ids, d)
+	if len(dates) == 0 {
+		return lines
+	}
 	wanted := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		wanted[id] = true
 	}
-	lines := make(map[string][]ledger.Line)
-	for _, summary := range l.DaysBefore(d.start) {
-		if !names(summary, wanted) {
-			continue
-		}
-		for line := range l.DayLines(summary.Day) {
+	for _, date := range dates {
+		for line := range l.DayLines(date) {
 			if wanted[line.Session] {
 				lines[line.Session] = append(lines[line.Session], line)
 			}
@@ -210,12 +211,20 @@ func linesBefore(l Ledger, ids []string, d day) map[string][]ledger.Line {
 	return lines
 }
 
-// names reports whether the summary names any of the sessions wanted among
-// its accounts' sessions.
-func names(summary ledger.Summary, wanted map[string]bool) bool {
-	return slices.ContainsFunc(summary.Accounts, func(a ledger.AccountDay) bool {
-		return slices.ContainsFunc(a.SessionIDs, func(id string) bool { return wanted[id] })
-	})
+// daysNaming returns the dates of the days before d whose summaries name any
+// of the sessions with the given ids among theirs, or might, as
+// ledger.Summary.Names says: none, and no summary read, where no id is given.
+func daysNaming(l Ledger, ids []string, d day) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	var dates []string
+	for _, summary := range l.DaysBefore(d.start) {
+		if slices.ContainsFunc(ids, summary.Names) {
+			dates = append(dates, summary.Day)
+		}
+	}
+	return dates
 }
 
 // withTodays returns each session's earlier lines with its lines among
@@ -227,20 +236,14 @@ func withTodays(earlier map[string][]ledger.Line, todays []ledger.Held) map[stri
 		}
 	}
 	for _, lines := range earlier {
-		slices.SortStableFunc(lines, func(a, b ledger.Line) int { return a.At.Compare(b.At) })
+		slices.SortStableFunc(lines, byArrival)
 	}
 	return earlier
 }
 
-// sessionLines returns every line of the session with the given id the
-// ledger holds, whatever day each is of, oldest first.
-func sessionLines(l Ledger, id string) []ledger.Line {
-	var lines []ledger.Line
-	for h := range l.Session(id) {
-		lines = append(lines, h.Line)
-	}
-	slices.Reverse(lines)
-	return lines
+// byArrival orders lines by when each request arrived.
+func byArrival(a, b ledger.Line) int {
+	return a.At.Compare(b.At)
 }
 
 // storyOf returns the story lines, a session's, oldest first, tell, its
@@ -254,14 +257,18 @@ func storyOf(lines []ledger.Line, prices ledger.Table, d day) *story {
 }
 
 // listedFrom returns the session with the given id as its story tells it,
-// ended, its last request's account and model its own.
+// ended at its last request, the account and model its own its
+// conversation's, as story.conversation says.
 func listedFrom(id string, s *story) ListedSession {
 	listed := ListedSession{Session: id, Dir: s.dir, Requests: s.requests, Worth: s.worth.cost, Unpriced: s.worth.unpriced}
 	if s.first != nil {
 		listed.Started = s.first.At.UTC()
 	}
 	if s.last != nil {
-		listed.Account, listed.Model, listed.Ended = s.last.Account, s.last.Model, s.last.At.UTC()
+		listed.Ended = s.last.At.UTC()
+	}
+	if c := s.conversation(); c != nil {
+		listed.Account, listed.Model = c.Account, c.Model
 	}
 	return listed
 }
