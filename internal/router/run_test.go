@@ -360,7 +360,7 @@ func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
 	runRouter(t, cfg)
 	// The day is noted summarised once its summary is written.
 	waitUntil(t, "the router notes it summarised yesterday", func() bool {
-		return log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "component=router", "day="+date, "requests=1")
+		return log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "component=router", "day="+date, "lines=1")
 	})
 	data, err := os.ReadFile(summary)
 	if err != nil {

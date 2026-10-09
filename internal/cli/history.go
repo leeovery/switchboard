@@ -102,11 +102,7 @@ type historyAsked struct {
 // askHistory returns what history reads, the days asked for from the one
 // given on, else the last 30.
 func (a *app) askHistory(given string) (historyAsked, error) {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return historyAsked{}, err
-	}
-	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	cfg, dir, err := a.ledgerState()
 	if err != nil {
 		return historyAsked{}, err
 	}
@@ -121,16 +117,18 @@ func (a *app) askHistory(given string) (historyAsked, error) {
 // history prints the ledger's days from the one given on, else the last 30,
 // priced at today's prices, and the blocks over them. It reads the days once,
 // through a reader, which reads the readings history ahead once for each run
-// of days it summarises.
+// of days it summarises, by the time it was asked at, so a run across
+// midnight places every day against one today.
 func (a *app) history(out io.Writer, given string, asJSON bool) error {
 	asked, err := a.askHistory(given)
 	if err != nil {
 		return err
 	}
 	prices := pricing(asked.cfg)
+	reader := ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
 	history := views.NewHistory(views.HistoryInput{
-		Ledger: ledger.NewReader(asked.stateDir, a.Now, caps(asked.cfg), logger), From: asked.from, Now: asked.now, Prices: prices,
-		Accounts: asked.cfg.Accounts, WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
+		Ledger: reader, From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.cfg.Accounts,
+		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 	})
 	if asJSON {
 		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})
@@ -153,24 +151,30 @@ func (a *app) historyWindows(out io.Writer, given string, asJSON bool) error {
 }
 
 // writeHistory writes history as its text: a table a day of its days with
-// requests, then the blocks over them, then which prices they're worth at;
-// or says there were none since from. Given a day whose date isn't one, it
-// fails, writing nothing.
+// requests or notes, then the blocks over them, then which prices they're
+// worth at; first saying there were no requests since from, where there were
+// none, and that alone, where the days hold nothing at all. Given a day whose
+// date isn't one, it fails, writing nothing.
 func writeHistory(out io.Writer, history views.History, prices ledger.Table, from, now time.Time) error {
 	tables, err := historyTables(history.Days, now)
 	if err != nil {
 		return err
 	}
-	if len(tables) == 0 {
-		_, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout))
-		return err
+	requested := slices.ContainsFunc(tables, func(t dayTable) bool { return len(t.rows) > 0 })
+	if !requested {
+		if _, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout)); err != nil {
+			return err
+		}
+	}
+	if !slices.ContainsFunc(history.Days, func(d views.Day) bool { return len(d.Accounts) > 0 }) {
+		return nil
 	}
 	at, err := pricedAt(prices)
 	if err != nil {
 		return err
 	}
 	for i, table := range tables {
-		if err := table.write(out, now, i == 0); err != nil {
+		if err := table.write(out, now, requested && i == 0); err != nil {
 			return err
 		}
 	}
@@ -196,7 +200,7 @@ func pricedAt(prices ledger.Table) (string, error) {
 	return at, nil
 }
 
-// historyTables are the tables of those of days with requests, as
+// historyTables are the tables of those of days with requests or notes, as
 // historyTable makes each.
 func historyTables(days []views.Day, now time.Time) ([]dayTable, error) {
 	var tables []dayTable
@@ -205,7 +209,7 @@ func historyTables(days []views.Day, now time.Time) ([]dayTable, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(table.rows) > 0 {
+		if len(table.rows) > 0 || len(table.notes) > 0 {
 			tables = append(tables, table)
 		}
 	}
@@ -287,7 +291,8 @@ func worthOf(m ledger.PricedModel) string {
 // off it, the limits it reached, and each window's highest use, times in now's
 // time zone, as "work: 6 sessions  ·  2 moved on, 1 off  ·  limits: Session at
 // 14:37  ·  highest: Session 100%, Week 41%": "" for the requests no account
-// answered.
+// answered, and for an account's day with nothing to say, of no sessions and
+// none of the rest.
 func accountNote(a ledger.PricedAccount, now time.Time) string {
 	if a.Account == "" {
 		return ""
@@ -309,6 +314,9 @@ func accountNote(a ledger.PricedAccount, now time.Time) string {
 			highest = append(highest, claude.WindowLabel(key)+" "+status.Percent(a.Highest[key]))
 		}
 		parts = append(parts, "highest: "+status.Clean(strings.Join(highest, ", ")))
+	}
+	if a.Sessions == 0 && len(parts) == 1 {
+		return ""
 	}
 	return status.Clean(a.Account) + ": " + strings.Join(parts, status.Separator)
 }

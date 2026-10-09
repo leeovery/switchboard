@@ -11,19 +11,19 @@ import (
 // summary before, so it knows no less. Every count is held's where that's
 // more, as a line can't be taken away while the day's are kept, so fewer
 // means some were lost since, as to a damaged file: so are a model's
-// requests and usage, and an account's sessions and moves; and the accounts
+// counts and usage, and an account's sessions and moves; and the accounts
 // and models held that the lines no longer give are kept. Which lines were
 // lost can't be told, so where some of a model's were lost and as many or
-// more filed since, its requests are the more of the two summaries', fewer
+// more filed since, its counts are the more of the two summaries', fewer
 // than there were. Its lines are as many as the more of the two were made
-// from, and as its requests where those are more, as the lines lost were
-// held's. Each window's highest use, and its rise, is held's where that's
+// from, and as its counts stand for where those are more, as the lines lost
+// were held's. Each window's highest use, and its rise, is held's where that's
 // higher, as are the minutes at its cap and at a limit; and held's limits,
 // resets, session ids and the windows it read in the week before are among
 // its own, as the readings they came from may have been pruned since.
 func (s Summary) knowing(held Summary) Summary {
 	s.Accounts = knowingAll(s.Accounts, held.Accounts, func(a AccountDay) string { return a.Account }, AccountDay.knowing, strings.Compare)
-	s.Lines = max(s.Lines, held.Lines, s.requests())
+	s.Lines = max(s.Lines, held.Lines, s.counted())
 	return s
 }
 

@@ -585,8 +585,9 @@ func (m *modelTally) summary() ModelDay {
 	return day
 }
 
-// requests counts the requests the summary is of.
-func (s Summary) requests() int {
+// counted counts the lines the summary's counts stand for: its requests,
+// quota checks and counts of tokens, a line each.
+func (s Summary) counted() int {
 	n := 0
 	for _, a := range s.Accounts {
 		for _, m := range a.Models {

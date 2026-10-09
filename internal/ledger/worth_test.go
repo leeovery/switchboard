@@ -296,7 +296,7 @@ func TestASummaryIsPricedModelByModel(t *testing.T) {
 		`{"model":"claude-opus-5-5","upstream":2,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.006},` +
 		`{"model":"claude-opus-5-5","inference_geo":"us","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,` +
 		`"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.0066},` +
-		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000}},` +
+		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000},"unpriced":["claude-opus-9"]},` +
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,` +
 		`"usage":{"input_tokens":8,"output_tokens":1,"server_tool_use":{"code_execution_requests":1}},"worth":0.000013,"unpriced":["server_tool_use.code_execution_requests"]},` +
 		`{"model":"claude-sonnet-5-5","upstream":2,"no_usage":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},` +
@@ -306,6 +306,33 @@ func TestASummaryIsPricedModelByModel(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("the priced summary is\n%s\nwant\n%s: each model's worth beside it, none where the model is unpriced, and the requests that went "+
 			"upstream without usage named unpriced, never free", got, want)
+	}
+}
+
+func TestAModelsDayTheTablePricesNoneOfNamesWhy(t *testing.T) {
+	spent := usage(`{"input_tokens":1000}`)
+	tests := []struct {
+		name  string
+		model ledger.ModelDay
+		want  []string
+	}{
+		{name: "a model the table doesn't know, by its id", model: ledger.ModelDay{Model: "claude-opus-9", Upstream: 1, Usage: spent},
+			want: []string{"claude-opus-9"}},
+		{name: "a geo the table doesn't price a model it knows in, by the geo", model: ledger.ModelDay{Model: "claude-opus-5-5", InferenceGeo: "eu", Upstream: 1, Usage: spent},
+			want: []string{"inference_geo:eu"}},
+		{name: "requests that named no model", model: ledger.ModelDay{Upstream: 1, Usage: spent}, want: []string{"no_model"}},
+		{name: "and requests that went upstream without usage", model: ledger.ModelDay{Model: "claude-opus-9", Upstream: 1, NoUsage: 1},
+			want: []string{"claude-opus-9", "no_usage"}},
+		{name: "none where they spent nothing, their worth none", model: ledger.ModelDay{Model: "claude-opus-9", Unsent: 2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			summary := ledger.Summary{Version: 2, Day: date, Accounts: []ledger.AccountDay{{Account: "work", Models: []ledger.ModelDay{tt.model}}}}
+			got := ledger.Pricing.Priced(summary, today).Accounts[0].Models[0]
+			if got.Worth != nil || !slices.Equal(got.Unpriced, tt.want) {
+				t.Errorf("the model's day is worth %v, unpriced %q, want no worth, unpriced %q", got.Worth, got.Unpriced, tt.want)
+			}
+		})
 	}
 }
 

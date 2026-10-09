@@ -152,20 +152,21 @@ func plansOf(days []Day, p plans, first string, s share) []PlanCost {
 	worths := accountWorths(days)
 	costs := make([]PlanCost, 0, len(p.accounts)+1)
 	all := PlanCost{All: true}
-	var price ledger.Picodollars
+	var price, prorated ledger.Picodollars
+	known := false
 	for _, a := range p.accounts {
 		cost := PlanCost{Account: a.ID, Worth: worths[a.ID]}
 		if plan, ok := p.of(a.ID); ok {
 			monthly := plan.Price(first)
-			cost.Plan, cost.Price = a.Plan, &monthly
-			cost.Against = against(prorate(monthly, s), cost.amount())
-			price += monthly
+			its := prorate(monthly, s)
+			cost.Plan, cost.Price, cost.Against = a.Plan, &monthly, against(its, cost.amount())
+			price, prorated, known = price+monthly, prorated+its, true
 			all.add(cost.Worth)
 		}
 		costs = append(costs, cost)
 	}
-	if all.Against = p.against(worths, first, s); all.Cost != nil {
-		all.Price = &price
+	if known {
+		all.Price, all.Against = &price, against(prorated, all.amount())
 	}
 	return append(costs, all)
 }

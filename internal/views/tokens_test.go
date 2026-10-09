@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -92,5 +93,20 @@ func TestTokensIsEachWeeksTokensByKindAccountAndModel(t *testing.T) {
 				t.Errorf("the weeks are\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTokensListNoAccountWhoseDaysHoldNoModels(t *testing.T) {
+	// Side's windows were read today, but it wasn't used.
+	days := daysFrom("2026-10-07", day("2026-10-07",
+		windowsDay{highest: map[string]float64{"5h": 0.2}}.of("side"),
+		account("work", sent("claude-opus-5-5", 1, inputUsage))))
+
+	var listed []string
+	for _, a := range views.NewHistory(input(days)).Tokens[0].ByAccount {
+		listed = append(listed, a.Account)
+	}
+	if want := []string{"work"}; !slices.Equal(listed, want) {
+		t.Errorf("this week's tokens are by the accounts %q, want %q", listed, want)
 	}
 }

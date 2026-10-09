@@ -43,7 +43,7 @@ type AccountTotals struct {
 	Partial    []string     `json:"partial,omitempty"`
 }
 
-// ModelShare is a model version's part of an account's use, by the first id
+// ModelShare is a model version's part of an account's use, by the shortest id
 // the version table names it by, or its own where the table doesn't: its
 // share of use, weighed at API prices, its worth over the account's, so cache
 // reads, which run to millions and cost little, count for little, left out
@@ -110,7 +110,8 @@ func newTotalling(totals AccountTotals) *totalling {
 // add counts an account's day, returning its requests. A day of a summary
 // of version 1, which never named its sessions, has them counted as
 // distinct, as the nearest there is. The requests no account answered have
-// no windows, so no minutes to count.
+// no windows, so no minutes to count; and every account's totals give no
+// share left at a reset, so count no resets.
 func (t *totalling) add(a ledger.PricedAccount, v versions) int {
 	requests := 0
 	for _, m := range a.Models {
@@ -133,15 +134,23 @@ func (t *totalling) add(a ledger.PricedAccount, v versions) int {
 		}
 		t.Limits[l.Window]++
 	}
-	for _, r := range a.Resets {
-		if last, ok := t.resets[r.Window]; !ok || !r.At.Before(last.At) {
-			t.resets[r.Window] = r
-		}
+	if !t.All {
+		t.lastResets(a.Resets)
 	}
 	if a.Account != "" {
 		t.minutes(a.AccountDay)
 	}
 	return requests
+}
+
+// lastResets keeps each window's last reset among those given, and those
+// counted before.
+func (t *totalling) lastResets(resets []ledger.Reset) {
+	for _, r := range resets {
+		if last, ok := t.resets[r.Window]; !ok || !r.At.Before(last.At) {
+			t.resets[r.Window] = r
+		}
+	}
 }
 
 // minutes counts the day's minutes at the account's cap and at a limit,
@@ -180,10 +189,7 @@ func (t *totalling) totals() AccountTotals {
 			totals.Partial = []string{"minutes_at_cap", "minutes_at_limit"}
 		}
 	}
-	if !totals.All {
-		totals.LeftAtReset = t.leftAtReset()
-	}
-	totals.ByModel = t.byModel()
+	totals.LeftAtReset, totals.ByModel = t.leftAtReset(), t.byModel()
 	return totals
 }
 

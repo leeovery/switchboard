@@ -77,20 +77,27 @@ func (a *app) ledgerArgs(cmd *cobra.Command, args []string) error {
 	return noArgs(cmd, args)
 }
 
-// ledgerReader returns a reader of the request ledger in the state directory,
-// by the commands' clock, which summarises days with the caps of the accounts
-// configured, and the config. It fails without a config, as every command
-// that reads one does.
-func (a *app) ledgerReader() (*ledger.Reader, *config.Config, error) {
+// ledgerState returns the config and the state directory, which the request
+// ledger and the readings history are in. It fails without a config, as
+// every command that reads one does, or where the state directory can't be
+// found.
+func (a *app) ledgerState() (*config.Config, string, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
-	return ledger.NewReader(dir, a.Now, caps(cfg), logger), cfg, nil
+	return cfg, dir, nil
+}
+
+// ledgerReader returns a reader of the request ledger in the state directory
+// dir, by the clock now, which summarises days with the caps of the accounts
+// cfg configures.
+func ledgerReader(dir string, cfg *config.Config, now func() time.Time) *ledger.Reader {
+	return ledger.NewReader(dir, now, caps(cfg), logger)
 }
 
 // pricing is the price table, cfg's prices in place of its own, warning of
@@ -107,10 +114,11 @@ func pricing(cfg *config.Config) ledger.Table {
 
 // requests prints the ledger's lines as opts ask.
 func (a *app) requests(out io.Writer, opts requestsOptions) error {
-	reader, _, err := a.ledgerReader()
+	cfg, dir, err := a.ledgerState()
 	if err != nil {
 		return err
 	}
+	reader := ledgerReader(dir, cfg, a.Now)
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {

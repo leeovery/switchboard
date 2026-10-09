@@ -139,15 +139,22 @@ func ledgerDeps(t *testing.T) (cli.Deps, map[string]string) {
 		writeStateFile(t, dir, name, data)
 	}
 	writeStateFile(t, dir, "day-2026-10-04.json", []byte(heldSummary+"\n"))
+	writeFixtureReadings(t, history)
+	return deps, written
+}
+
+// writeFixtureReadings writes fixtureReadings to the readings history in dir,
+// each from an answer, read at its time in UTC.
+func writeFixtureReadings(t *testing.T, dir string) {
+	t.Helper()
 	for _, r := range fixtureReadings {
 		r.At, r.Source = r.At.UTC(), readings.FromAnswer
 		data, err := json.Marshal(r)
 		if err != nil {
 			t.Fatal(err)
 		}
-		appendStateFile(t, history, "readings-"+r.At.Local().Format(time.DateOnly)+".jsonl", append(data, '\n'))
+		appendStateFile(t, dir, "readings-"+r.At.Local().Format(time.DateOnly)+".jsonl", append(data, '\n'))
 	}
-	return deps, written
 }
 
 // gzipOf returns data compressed, as a gzip member.
@@ -610,7 +617,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376},` +
-		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}],` +
+		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10},"unpriced":["claude-opus-9"]}]}],` +
 		// Of Opus, claude-opus-9, which the price table doesn't know, and
 		// side's request that gave no usage are unpriced.
 		`"by_family":[{"family":"opus","worth":0.078376,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0.000013}]}],` +

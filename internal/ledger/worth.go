@@ -344,14 +344,24 @@ type PricedAccount struct {
 
 // PricedModel is a model's day on an account, with what its requests would
 // have cost through the API: none where the model is unpriced, as one the
-// table doesn't know; and the paths of the counts in its usage the worth
-// leaves out, as they can't be priced, no_usage among them where some of its
-// requests went upstream without usage.
+// table doesn't know; and what the worth leaves out, as wholly unpriced says
+// of one that has none, and otherwise the paths of the counts in its usage
+// that can't be priced, no_usage among them where some of its requests went
+// upstream without usage.
 type PricedModel struct {
 	ModelDay
 	Worth    *Picodollars `json:"worth,omitempty"`
 	Unpriced []string     `json:"unpriced,omitempty"`
 }
+
+// What a model's day with no worth names as unpriced, as wholly unpriced
+// says: noModel where its requests named no model, and the geo they asked
+// for, after inferenceGeo, as inference_geo:eu, where the table doesn't price
+// the model in it.
+const (
+	noModel      = "no_model"
+	inferenceGeo = "inference_geo:"
+)
 
 // Priced returns the summary priced at the prices in effect on the local day
 // with the given date.
@@ -363,10 +373,40 @@ func (t Table) Priced(s Summary, date string) Priced {
 			model := PricedModel{ModelDay: m}
 			if w, ok := t.worth(m.Model, m.InferenceGeo, countsOf(m.Usage), m.NoUsage > 0, date); ok {
 				model.Worth, model.Unpriced = &w.Cost, w.Unpriced
+			} else {
+				model.Unpriced = t.wholly(m, date)
 			}
 			account.Models = append(account.Models, model)
 		}
 		priced.Accounts = append(priced.Accounts, account)
 	}
 	return priced
+}
+
+// wholly names why a model's day the table prices none of is unpriced, on
+// the local day with the given date: noModel where its requests named none;
+// the geo they asked for, as inference_geo:eu, where the table knows the
+// model but doesn't price it there; else the model's id; and noUsage beside
+// it where some went upstream without usage. It's none where the day spent
+// nothing, giving no usage and none upstream without it, so its worth is
+// none, not unknown.
+func (t Table) wholly(m ModelDay, date string) []string {
+	var named string
+	_, known := t.prices(m.Model, date)
+	switch {
+	case len(m.Usage) == 0 && m.NoUsage == 0:
+		return nil
+	case m.Model == "":
+		named = noModel
+	case known:
+		named = inferenceGeo + m.InferenceGeo
+	default:
+		named = m.Model
+	}
+	unpriced := []string{named}
+	if m.NoUsage > 0 {
+		unpriced = append(unpriced, noUsage)
+	}
+	slices.Sort(unpriced)
+	return unpriced
 }

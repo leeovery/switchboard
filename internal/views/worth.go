@@ -9,9 +9,11 @@ import (
 // Worth is what requests would have cost through the API, summed exactly:
 // Amount, of those the price table priced, left out where it priced none;
 // and Unpriced, what Amount leaves out as it can't be priced, never taken
-// for free: the paths of the counts it can't price, no_usage where requests
-// went upstream without usage, and the id of a model it doesn't know whose
-// requests spent anything.
+// for free, as the ledger's priced days name it: the paths of the counts it
+// can't price, no_usage where requests went upstream without usage, and of
+// requests that spent anything, the id of a model it doesn't know,
+// inference_geo and the geo where it doesn't price a model in the geo they
+// asked for, and no_model where they named none.
 type Worth struct {
 	Amount   *ledger.Picodollars `json:"worth,omitempty"`
 	Unpriced []string            `json:"unpriced,omitempty"`
@@ -19,13 +21,10 @@ type Worth struct {
 
 // addModel adds what a model's day was worth.
 func (w *Worth) addModel(m ledger.PricedModel) {
-	switch {
-	case m.Worth != nil:
+	if m.Worth != nil {
 		w.addAmount(*m.Worth)
-		w.unprice(m.Unpriced...)
-	case len(m.Usage) > 0 || m.NoUsage > 0:
-		w.unprice(m.Model)
 	}
+	w.unprice(m.Unpriced...)
 }
 
 // add adds another sum.

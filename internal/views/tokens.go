@@ -53,7 +53,7 @@ type AccountTokens struct {
 	ByModel []ModelTokens `json:"by_model,omitempty"`
 }
 
-// ModelTokens are a model version's tokens in a week, by the first id the
+// ModelTokens are a model version's tokens in a week, by the shortest id the
 // version table names it by, or its own where the table doesn't, and their
 // worth, each of its ids at its own prices. On, of every account's, are the
 // accounts it ran on.
@@ -81,12 +81,16 @@ func tokensOf(days []Day, p plans, v versions, from string, weekStarts time.Week
 }
 
 // tokenWeekOf is the week the span's days make: their tokens and worth, by
-// account and by model version.
+// account and by model version. An account whose days hold no model's, as
+// one whose windows were read but that wasn't used, has none.
 func tokenWeekOf(s span, v versions) TokenWeek {
 	week := TokenWeek{Week: s.key}
 	models, accounts := modelTally{}, accountTally{}
 	for _, d := range s.days {
 		for _, a := range d.Accounts {
+			if len(a.Models) == 0 {
+				continue
+			}
 			account := accounts.of(a.Account)
 			for _, m := range a.Models {
 				tokens := m.Tokens()
