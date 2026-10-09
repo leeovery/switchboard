@@ -101,7 +101,7 @@ func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(claude.WindowInProse)}
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(claude.WindowName)}
 }
 
 // eventsJSON prints each event as the router files it, a JSON object a line,

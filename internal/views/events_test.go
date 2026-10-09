@@ -17,9 +17,9 @@ func at(hour, minute int) time.Time {
 	return time.Date(2026, 10, 7, hour, minute, 0, 0, zone)
 }
 
-// windowNames name the tests' windows, as the CLI names Claude's.
+// windowNames name the tests' windows, as Claude names its own.
 func windowNames(key string) string {
-	return map[string]string{"5h": "5-hour", "7d": "week", "7d_oi": "Fable week"}[key]
+	return map[string]string{"5h": "5-hour", "7d": "Week", "7d_oi": "Fable week", "1d_odd": "Odd\x1bday"}[key]
 }
 
 func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
@@ -49,6 +49,8 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 			kind: "cap", account: "work", what: "80% of its week window: its session moves to side as its next request comes"},
 		{name: "a cap in two windows, moving sessions to several", event: status.Event{Kind: status.EventCap, Account: "work", Windows: []string{"5h", "7d"}, Reserve: 0.1, Count: 2},
 			kind: "cap", account: "work", what: "90% of its 5-hour and week windows: its 2 sessions move to other accounts as their next requests come"},
+		{name: "a cap in a window named with what a terminal would act on", event: status.Event{Kind: status.EventCap, Account: "work", Windows: []string{"1d_odd"}, Reserve: 0.1},
+			kind: "cap", account: "work", what: "90% of its Odd day window"},
 		{name: "a cap moving none", event: status.Event{Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.1},
 			kind: "cap", account: "work", what: "90% of its 5-hour window"},
 		{name: "a limit moving a session", event: status.Event{Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Until: at(23, 58), Count: 1, To: "side"},
@@ -153,9 +155,11 @@ func TestAMovePassingOverAnAccountUnderPressureSaysWhenItRunsOut(t *testing.T) {
 
 func TestATellingsZeroValueNamesAWindowByItsKey(t *testing.T) {
 	var telling views.Telling
-	pressure := status.Event{At: at(13, 0), Kind: status.EventPressure, Account: "personal", Windows: []string{"5\x1bh"}, Until: at(15, 10)}
-	if got, want := telling.Line(pressure, at(16, 0)).What.String(), "its 5 h to run out at 15:10"; got != want {
-		t.Errorf("a zero Telling tells a pressure event as %q, want %q", got, want)
+	for key, want := range map[string]string{"5h": "its 5h to run out at 15:10", "Five\x1bh": "its Five h to run out at 15:10", "Fiveh": "its fiveh to run out at 15:10"} {
+		pressure := status.Event{At: at(13, 0), Kind: status.EventPressure, Account: "personal", Windows: []string{key}, Until: at(15, 10)}
+		if got := telling.Line(pressure, at(16, 0)).What.String(); got != want {
+			t.Errorf("a zero Telling tells a pressure event of window %q as %q, want %q, its key put as a sentence has it", key, got, want)
+		}
 	}
 	move := status.Event{At: at(14, 0), Kind: status.EventMoved, From: "personal", To: "side", Reason: "new, personal under pressure"}
 	if got, want := telling.Line(move, at(16, 0)).What.String(), "personal came under pressure, its 5-hour to run out at 15:10"; got != want {

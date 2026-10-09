@@ -50,7 +50,7 @@ func forced(e status.Event) string {
 // Telling tells the router's events as their lines, oldest first, as they're
 // read: it remembers when each account's latest pressure event said it runs
 // out, for a move whose choice later passed the account over. Its zero value
-// names a window by its key, cleaned. A Telling isn't safe for concurrent
+// names a window by its key. A Telling isn't safe for concurrent
 // use.
 type Telling struct {
 	window   func(key string) string
@@ -58,7 +58,7 @@ type Telling struct {
 }
 
 // NewTelling returns a Telling that names a window by its key as window
-// does, as "5-hour" or "week", cleaned, with no event told yet.
+// does, as "5-hour" or "Week", with no event told yet.
 func NewTelling(window func(key string) string) *Telling {
 	return &Telling{window: window, pressure: make(map[string]time.Time)}
 }
@@ -278,16 +278,17 @@ func (t *Telling) its(keys []string, none string) string {
 	return "its " + prose.List(names) + " windows"
 }
 
-// windowOf names the window with the given key, as "5-hour": "window" where
-// there's none.
+// windowOf names the window with the given key as a sentence has it, as
+// status.InProse puts the name its namer gives, as "5-hour" or "week":
+// "window" where there's none.
 func (t *Telling) windowOf(key string) string {
 	switch {
 	case key == "":
 		return "window"
 	case t.window == nil:
-		return status.Clean(key)
+		return status.InProse(key)
 	}
-	return t.window(key)
+	return status.InProse(t.window(key))
 }
 
 // till says until when what's told holds, as ", till 23:58", shown beside
