@@ -257,10 +257,14 @@ func took(ms int64) string {
 	return d.Round(time.Second).String()
 }
 
+// dash stands, in the data verbs' text, for what there's none of, or isn't
+// known.
+const dash = "-"
+
 // orNone is text, or a dash standing for none.
 func orNone(text string) string {
 	if text == "" {
-		return "-"
+		return dash
 	}
 	return text
 }

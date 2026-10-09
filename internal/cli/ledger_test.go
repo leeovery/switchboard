@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // october is the local time on the given day of October 2026, at
@@ -389,7 +390,14 @@ func TestSinceATimeTodayIsWhenTheClocksFirstReadItThatDay(t *testing.T) {
 	}
 }
 
-// historyFromThe6th is what history prints of the 6th and today.
+// historyFromThe4th is what history prints of the 4th's table.
+const historyFromThe4th = `Sun 4 Oct 2026
+  work  claude-opus-5-5  1 request  186k tokens  1 session  $0.08
+  work: 1 session  ·  highest: Session 50%
+
+` + historyFromThe6th
+
+// historyFromThe6th is what history prints of the 6th's table and today's.
 const historyFromThe6th = `Tue 6 Oct 2026
   side  claude-opus-5-5  1 request  20k tokens  1 session  $0.02
   side: 1 session  ·  1 moved on  ·  highest: Session 10%
@@ -397,19 +405,68 @@ const historyFromThe6th = `Tue 6 Oct 2026
 
 ` + historyOfToday
 
-// historyOfToday is what history prints of today, the prices last: side's
-// request, canceled, gave no usage, so its worth isn't known.
+// historyOfToday is what history prints of today's table: side's request,
+// canceled, gave no usage, so its worth isn't known; and work's quota check
+// and count of tokens are no requests, so its Claude Haiku 4.5, of its check
+// alone, has no row.
 const historyOfToday = `Wed 7 Oct 2026, so far
-  no account  claude-opus-5-5   1 request   0 tokens     1 session    $0.00
-  side        claude-opus-5-5   1 request   0 tokens     1 session    $0.00, part unpriced
-  work        claude-haiku-4-5  1 request   9 tokens     no sessions  $0.00
-              claude-opus-5-5   2 requests  186k tokens  1 session    $0.08
-              claude-opus-9     1 request   110 tokens   1 session    unpriced
+  no account  claude-opus-5-5  1 request  0 tokens     1 session  $0.00
+  side        claude-opus-5-5  1 request  0 tokens     1 session  $0.00, part unpriced
+  work        claude-opus-5-5  1 request  186k tokens  1 session  $0.08
+              claude-opus-9    1 request  110 tokens   1 session  unpriced
   side: 1 session  ·  highest: Session 10%
   work: 2 sessions  ·  highest: Session 30%, Week 41%
+`
 
+// historyPricedAt is what history prints last, the prices its worth is at.
+const historyPricedAt = `
 worth is what they'd have cost through the API, at its prices as of 7 Oct 2026
 `
+
+// historyTotalsFromThe6th are the totals history prints over the 6th to
+// today: work's requests are its messages; side's session moved onto it is
+// one of every account's moves; side's limit is work's alone; work's time at
+// its cap and its limit is the 6th's; the share of use is weighed at API
+// prices, so work's quota check of Haiku is under 1%.
+const historyTotalsFromThe6th = `
+Over these days           work                  side                  all accounts
+  requests                2                     2                     5
+  sessions served         2                     1                     3
+  sessions moved          1 out                 1 in                  1 move
+  limits hit              Session ×1            none                  1
+  at cap or limit         2h 10m                none                  2h 10m
+  left at its last reset  Session 0%            Session 90%           -
+  plan                    -                     -                     -
+  worth                   $0.08, part unpriced  $0.02, part unpriced  $0.09, part unpriced
+  against its price       -                     -                     -
+  busiest day             Wed 7 Oct             Tue 6 Oct             Wed 7 Oct
+  longest run             1 day                 2 days                2 days
+  by model
+    Opus 5.5              100%                  100%                  100%
+    Haiku 4.5             <1%                   -                     <1%
+    opus-9                -                     -                     -
+`
+
+// The weeks history prints, from the 28th and from this week, of which the
+// readings history read no week's reset, so no week's peak is known.
+const (
+	historyNoWeeksFromThe28th = `
+Weeks at their peaks  28 Sep  5 Oct
+  work                -       -
+  side                -       -
+  all accounts        -       -
+
+Weeks: not enough weeks yet
+`
+	historyNoWeeksThisWeek = `
+Weeks at their peaks  5 Oct
+  work                -
+  side                -
+  all accounts        -
+
+Weeks: not enough weeks yet
+`
+)
 
 func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 	deps, _ := ledgerDeps(t)
@@ -418,14 +475,44 @@ func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "the last 30 days, of each day the ledger holds", want: `Sun 4 Oct 2026
-  work  claude-opus-5-5  1 request  186k tokens  1 session  $0.08
-  work: 1 session  ·  highest: Session 50%
-
-` + historyFromThe6th},
-		{name: "from a day", args: []string{"--since", "2026-10-06"}, want: historyFromThe6th},
-		{name: "from the day of a time today", args: []string{"--since", "10:00"}, want: historyOfToday},
-		{name: "from the day of days ago", args: []string{"--since", "2d"}, want: historyFromThe6th},
+		{name: "the last 30 days, of each day the ledger holds", want: historyFromThe4th + `
+Over these days           work                  side                  all accounts
+  requests                3                     2                     6
+  sessions served         2                     1                     3
+  sessions moved          1 out                 1 in                  1 move
+  limits hit              Session ×1            none                  1
+  at cap or limit         2h 10m                none                  2h 10m
+  left at its last reset  Session 0%            Session 90%           -
+  plan                    -                     -                     -
+  worth                   $0.16, part unpriced  $0.02, part unpriced  $0.17, part unpriced
+  against its price       -                     -                     -
+  busiest day             Wed 7 Oct             Tue 6 Oct             Wed 7 Oct
+  longest run             1 day                 2 days                2 days
+  by model
+    Opus 5.5              100%                  100%                  100%
+    Haiku 4.5             <1%                   -                     <1%
+    opus-9                -                     -                     -
+` + historyNoWeeksFromThe28th + historyPricedAt},
+		{name: "from a day", args: []string{"--since", "2026-10-06"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
+		{name: "from the day of a time today", args: []string{"--since", "10:00"}, want: historyOfToday + `
+Over these days           work                  side                  all accounts
+  requests                2                     1                     4
+  sessions served         2                     1                     3
+  sessions moved          none                  none                  none
+  limits hit              none                  none                  none
+  at cap or limit         none                  none                  none
+  left at its last reset  -                     Session 90%           -
+  plan                    -                     -                     -
+  worth                   $0.08, part unpriced  $0.00, part unpriced  $0.08, part unpriced
+  against its price       -                     -                     -
+  busiest day             Wed 7 Oct             Wed 7 Oct             Wed 7 Oct
+  longest run             1 day                 1 day                 1 day
+  by model
+    Opus 5.5              100%                  -                     100%
+    Haiku 4.5             <1%                   -                     <1%
+    opus-9                -                     -                     -
+` + historyNoWeeksThisWeek + historyPricedAt},
+		{name: "from the day of days ago", args: []string{"--since", "2d"}, want: historyFromThe6th + historyTotalsFromThe6th + historyNoWeeksThisWeek + historyPricedAt},
 	}
 	for _, tt := range tests {
 		for _, form := range prettyForms() {
@@ -440,6 +527,52 @@ func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 	}
 }
 
+// historyBlocks are the blocks history's JSON gives over the 4th to today,
+// after the days, as ledgerConfig configures the accounts, on no plan, and
+// starts the weeks on Monday: today's quota check and count of tokens are no
+// requests; work's check is of claude-haiku-4-5, its version's alias. The
+// readings history read no week's reset, so no week's peak is known, and
+// work's limit of the 6th is in the calendar week it was reached in.
+const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","requests":1,"level":3},{"day":"2026-10-05","requests":0,"level":0},` +
+	`{"day":"2026-10-06","requests":1,"level":3},{"day":"2026-10-07","requests":4,"level":4}]},` +
+	`"months":[{"month":"2026-10","requests":6,"worth":0.171785,"unpriced":["claude-opus-9","no_usage"],"limits":{"5h":1},` +
+	`"by_family":[{"family":"opus","worth":0.171772,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0.000013}]}],` +
+	`"weeks":[{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
+	`{"week":"2026-10-05","accounts":[{"account":"work","limits":{"5h":1}},{"account":"side"},{"all":true}]}],` +
+	`"tokens":[{"week":"2026-09-28","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
+	`"by_account":[{"account":"work","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
+	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]}],` +
+	`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]},` +
+	`{"week":"2026-10-05","input":125,"output":906,"cache_write":3120,"cache_read":202340,"total":206491,"worth":0.093409,"unpriced":["claude-opus-9","no_usage"],` +
+	`"by_account":[{"input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0,` +
+	`"by_model":[{"model":"claude-opus-5-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0}]},` +
+	`{"account":"side","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"],` +
+	`"by_model":[{"model":"claude-opus-5-5","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"]}]},` +
+	`{"account":"work","input":120,"output":856,"cache_write":3120,"cache_read":182340,"total":186436,"worth":0.078389,"unpriced":["claude-opus-9"],` +
+	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376},` +
+	`{"model":"claude-haiku-4-5","input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
+	`{"model":"claude-opus-9","input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
+	`"by_model":[{"model":"claude-opus-5-5","on":["side","work"],"input":17,"output":895,"cache_write":3120,"cache_read":202340,"total":206372,` +
+	`"worth":0.093396,"unpriced":["no_usage"]},` +
+	`{"model":"claude-haiku-4-5","on":["work"],"input":8,"output":1,"cache_write":0,"cache_read":0,"total":9,"worth":0.000013},` +
+	`{"model":"claude-opus-9","on":["work"],"input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]}],` +
+	// Every account's counts the requests no account answered, and session B
+	// once, though it ran on side and on none.
+	`"totals":{"accounts":[{"account":"work","requests":3,"sessions":2,"moved_on":0,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
+	`"left_at_reset":{"5h":0},"worth":0.156765,"unpriced":["claude-opus-9"],"by_model":[{"model":"claude-opus-5-5","share":0.9999170733263164,"worth":0.156752},` +
+	`{"model":"claude-haiku-4-5","share":0.00008292667368353906,"worth":0.000013},{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
+	`"busiest_day":"2026-10-07","longest_run":1},` +
+	`{"account":"side","requests":2,"sessions":1,"moved_on":1,"moved_off":0,"minutes_at_cap":0,"minutes_at_limit":0,"left_at_reset":{"5h":0.9},` +
+	`"worth":0.01502,"unpriced":["no_usage"],"by_model":[{"model":"claude-opus-5-5","share":1,"worth":0.01502,"unpriced":["no_usage"]}],` +
+	`"busiest_day":"2026-10-06","longest_run":2},` +
+	`{"all":true,"requests":6,"sessions":3,"moved_on":1,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
+	`"worth":0.171785,"unpriced":["claude-opus-9","no_usage"],"by_model":[{"model":"claude-opus-5-5","share":0.9999243240096632,"worth":0.171772,"unpriced":["no_usage"]},` +
+	`{"model":"claude-haiku-4-5","share":0.00007567599033675815,"worth":0.000013},{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
+	`"busiest_day":"2026-10-07","longest_run":2}]},` +
+	`"plans":[{"account":"work","worth":0.156765,"unpriced":["claude-opus-9"]},{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true}],` +
+	`"capacity":{"weeks":0,"short":0,"with_one_fewer":0,"with_one_more":0,"accounts":[` +
+	`{"account":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]}`
+
 func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
@@ -450,7 +583,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
-		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}]},` +
+		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
 		`{"version":2,"day":"2026-10-05","lines":0},` +
 		`{"version":2,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
@@ -460,7 +593,8 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		// 22:14 to its session's reset.
 		`{"account":"work","sessions":0,"session_ids":[],"moved_on":0,"moved_off":1,"highest":{"5h":1},"rise":{"5h":1},` +
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
-		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}]},` +
+		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}],` +
+		`"by_family":[{"family":"opus","worth":0.01502}]},` +
 		`{"version":2,"day":"2026-10-07","lines":6,"accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
@@ -476,7 +610,11 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376},` +
-		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}]}]}`
+		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":100,"output_tokens":10}}]}],` +
+		// Of Opus, claude-opus-9, which the price table doesn't know, and
+		// side's request that gave no usage are unpriced.
+		`"by_family":[{"family":"opus","worth":0.078376,"unpriced":["claude-opus-9","no_usage"]},{"family":"haiku","worth":0.000013}]}],` +
+		historyBlocks + `}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "history", "--since", "2026-10-04")
@@ -488,6 +626,42 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 				t.Errorf("switchboard history %s printed\n%s\nwant\n%s", strings.Join(form.args, " "), compact.String(), want)
 			}
 		})
+	}
+}
+
+func TestHistoryJSONPricesThePlansAndStartsTheWeeksAsTheConfigSays(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := "week_starts = \"sunday\"\n\n[[account]]\nid = \"work\"\nreserve = 0.1\nplan = \"max20x\"\n\n[[account]]\nid = \"side\"\n"
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(cfg))
+
+	got := run(t, deps, "history", "--json")
+	var doc struct {
+		Tokens []struct {
+			Week string `json:"week"`
+		} `json:"tokens"`
+		Plans json.RawMessage `json:"plans"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
+	}
+	var weeks []string
+	for _, week := range doc.Tokens {
+		weeks = append(weeks, week.Week)
+	}
+	if want := []string{"2026-10-04"}; !slices.Equal(weeks, want) {
+		t.Errorf("switchboard history --json gives the weeks %q, want %q: the 4th to today, a week from Sunday", weeks, want)
+	}
+	// Over the last 30 days, work's plan costs its month, and side's isn't
+	// known.
+	want := `[{"account":"work","plan":"max20x","price":200,"cost":200,"against":0.000783825,"worth":0.156765,"unpriced":["claude-opus-9"]},` +
+		`{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"price":200,"cost":200,"against":0.000783825,"worth":0.156765,"unpriced":["claude-opus-9"]}]`
+	var plans bytes.Buffer
+	if err := json.Compact(&plans, doc.Plans); err != nil || plans.String() != want {
+		t.Errorf("switchboard history --json gives the plans\n%s (%v)\nwant\n%s", plans.String(), err, want)
 	}
 }
 
@@ -512,10 +686,10 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 			writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(ledgerConfig+tt.prices))
 
 			got := run(t, deps, "history", "--pretty", "--since", "10:00")
-			want := strings.Replace(historyOfToday, "$0.08", tt.worth, 1)
-			want = strings.Replace(want, "as of 7 Oct 2026\n", "as of 7 Oct 2026 and the config's\n", 1)
-			if got.stdout != want || got.code != 0 {
-				t.Errorf("switchboard history printed\n%s(%d, %s)\nwant\n%s", got.stdout, got.code, got.stderr, want)
+			table := strings.Replace(historyOfToday, "$0.08", tt.worth, 1)
+			pricedAt := strings.Replace(historyPricedAt, "as of 7 Oct 2026\n", "as of 7 Oct 2026 and the config's\n", 1)
+			if !strings.HasPrefix(got.stdout, table) || !strings.HasSuffix(got.stdout, pricedAt) || got.code != 0 {
+				t.Errorf("switchboard history printed\n%s(%d, %s)\nwant today's table\n%s\nand last%s", got.stdout, got.code, got.stderr, table, pricedAt)
 			}
 
 			got = run(t, deps, "history", "--json", "--since", "10:00")
@@ -610,13 +784,13 @@ func TestHistoryWarnsOnceOfAModelTheConfigCantPrice(t *testing.T) {
 
 func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
 	work := ledger.PricedAccount{Account: "work", Sessions: 1, Models: []ledger.PricedModel{{Model: "claude-opus-5-5", Upstream: 1, Sessions: 1}}}
-	days := []ledger.Priced{
+	days := []views.Day{
 		{Version: 1, Day: "2026-10-06", Lines: 1, Accounts: []ledger.PricedAccount{work}},
 		{Version: 1, Day: "2026-13-45", Lines: 1, Accounts: []ledger.PricedAccount{work}},
 	}
 
 	var out bytes.Buffer
-	err := cli.WriteHistory(&out, days, ledger.Pricing, october(6, 0, 0, 0), ledgerNow)
+	err := cli.WriteHistory(&out, views.History{Days: days}, ledger.Pricing, october(6, 0, 0, 0), ledgerNow)
 	if err == nil || !strings.Contains(err.Error(), `"2026-13-45"`) || out.Len() > 0 {
 		t.Errorf("history of a summary of 2026-13-45 printed\n%s(%v)\nwant nothing printed, and the summary's day reported", out.String(), err)
 	}

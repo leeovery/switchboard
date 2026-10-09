@@ -11,11 +11,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // historyDays is how many days history shows unless --since says otherwise:
@@ -24,17 +27,18 @@ const historyDays = 30
 
 // historyDocument is what history --json prints: the date of the prices the
 // days are priced at, whether the config's prices stand in place of any of
-// them, and the days.
+// them, and History's blocks.
 type historyDocument struct {
-	PricesAsOf       string          `json:"prices_as_of"`
-	PricesFromConfig bool            `json:"prices_from_config,omitempty"`
-	Days             []ledger.Priced `json:"days"`
+	PricesAsOf       string `json:"prices_as_of"`
+	PricesFromConfig bool   `json:"prices_from_config,omitempty"`
+	views.History
 }
 
 func newHistoryCommand(a *app) *cobra.Command {
 	var (
-		given string
-		form  formFlags
+		given   string
+		windows bool
+		form    formFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "history",
@@ -43,59 +47,117 @@ func newHistoryCommand(a *app) *cobra.Command {
 otherwise, a row for each account and model with its requests, tokens,
 sessions and worth, what they'd have cost through the API, at the prices
 switchboard carries; then of each account, its sessions, those moved onto it
-and off it, the limits it reached, and its windows' highest use. Today's is
-summarised from its lines, as far as it has gone. It reads the ledger's files,
-so it needs no router.
+and off it, the limits it reached, and its windows' highest use. Requests are
+messages, whether they went upstream or the router answered them itself:
+Claude Code's quota checks and its counts of tokens are never among them.
+Today's is summarised from its lines, as far as it has gone. Then, over those
+days, each account's totals, its plan and its worth against it, as the
+dashboard's Accounts sets them side by side; each week's peaks, each
+account's own week, from one reset of its week to the next, placed under the
+calendar week it began nearest; and the verdicts of History's Weeks, from
+replaying each whole week with an account fewer or more. It reads the
+ledger's files, so it needs no router.
 
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
 
+--windows prints, in place of the days, each account's windows over those
+days: a line each time a window's use, its reset or its status changed, as
+the readings history holds it.
+
 On a terminal, history prints its days as text. Anywhere else, as in a pipe
 or an agent's shell, it prints as JSON the summaries of the days asked for, as
 the ledger holds them, from the first it holds, so the last is today's, each
-model's worth in US dollars added, and what it leaves unpriced, for an agent
-or a script to read. --json prints the JSON, and --pretty the text, wherever
+model's worth in US dollars added, and what it leaves unpriced, with each
+day's worth by family; then, over those days, the year's grid of requests a
+day, each month's, each week's peaks and its tokens, each account's totals,
+its plan and its worth against it, and the capacity Weeks gives its verdicts
+from, for an agent or a script to read; or, with --windows, each account's
+windows' readings. --json prints the JSON, and --pretty the text, wherever
 stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
-			return a.history(out, given, a.printsJSON(form, out))
+			asJSON := a.printsJSON(form, out)
+			if windows {
+				return a.historyWindows(out, given, asJSON)
+			}
+			return a.history(out, given, asJSON)
 		},
 	}
 	cmd.Flags().StringVar(&given, "since", "", "start on the day of `WHEN`: "+sinceForms+" (default the last 30 days)")
+	cmd.Flags().BoolVar(&windows, "windows", false, "print each account's windows' readings over those days, in place of the days")
 	form.add(cmd)
 	return cmd
 }
 
-// history prints the ledger's days from the one given on, else the last 30,
-// priced at today's prices.
-func (a *app) history(out io.Writer, given string, asJSON bool) error {
-	reader, cfg, err := a.ledgerReader()
+// historyAsked is what history reads: the config, the state directory, and
+// the days asked for, from from's to now's.
+type historyAsked struct {
+	cfg       *config.Config
+	stateDir  string
+	from, now time.Time
+}
+
+// askHistory returns what history reads, the days asked for from the one
+// given on, else the last 30.
+func (a *app) askHistory(given string) (historyAsked, error) {
+	cfg, err := a.loadConfig()
 	if err != nil {
-		return err
+		return historyAsked{}, err
 	}
-	prices := pricing(cfg)
+	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		return historyAsked{}, err
+	}
 	now := a.Now()
 	from, err := sinceOr(given, now, startOfDay(now, historyDays-1))
 	if err != nil {
-		return err
+		return historyAsked{}, err
 	}
-	today := now.Local().Format(time.DateOnly)
-	days := []ledger.Priced{}
-	for _, summary := range reader.Days(from) {
-		days = append(days, prices.Priced(summary, today))
-	}
-	if asJSON {
-		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, Days: days})
-	}
-	return writeHistory(out, days, prices, from, now)
+	return historyAsked{cfg: cfg, stateDir: dir, from: from, now: now}, nil
 }
 
-// writeHistory writes days as history's text, a table a day of those with
-// requests, then which prices they're worth at; or says there were none since
-// from. Given a day whose date isn't one, it fails, writing nothing.
-func writeHistory(out io.Writer, days []ledger.Priced, prices ledger.Table, from, now time.Time) error {
-	tables, err := historyTables(days, now)
+// history prints the ledger's days from the one given on, else the last 30,
+// priced at today's prices, and the blocks over them. It reads the days once,
+// through a reader, which reads the readings history ahead once for each run
+// of days it summarises.
+func (a *app) history(out io.Writer, given string, asJSON bool) error {
+	asked, err := a.askHistory(given)
+	if err != nil {
+		return err
+	}
+	prices := pricing(asked.cfg)
+	history := views.NewHistory(views.HistoryInput{
+		Ledger: ledger.NewReader(asked.stateDir, a.Now, caps(asked.cfg), logger), From: asked.from, Now: asked.now, Prices: prices,
+		Accounts: asked.cfg.Accounts, WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
+	})
+	if asJSON {
+		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})
+	}
+	return writeHistory(out, history, prices, asked.from, asked.now)
+}
+
+// historyWindows prints each account's windows' readings over the days from
+// the one given on, else the last 30.
+func (a *app) historyWindows(out io.Writer, given string, asJSON bool) error {
+	asked, err := a.askHistory(given)
+	if err != nil {
+		return err
+	}
+	windows := views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.cfg.Accounts, asked.from, asked.now)
+	if asJSON {
+		return writeJSON(out, windows)
+	}
+	return writeWindows(out, windows, asked.from, asked.now)
+}
+
+// writeHistory writes history as its text: a table a day of its days with
+// requests, then the blocks over them, then which prices they're worth at;
+// or says there were none since from. Given a day whose date isn't one, it
+// fails, writing nothing.
+func writeHistory(out io.Writer, history views.History, prices ledger.Table, from, now time.Time) error {
+	tables, err := historyTables(history.Days, now)
 	if err != nil {
 		return err
 	}
@@ -111,6 +173,9 @@ func writeHistory(out io.Writer, days []ledger.Priced, prices ledger.Table, from
 		if err := table.write(out, now, i == 0); err != nil {
 			return err
 		}
+	}
+	if err := writeBlocks(out, history, prices); err != nil {
+		return err
 	}
 	_, err = fmt.Fprintf(out, "\nworth is what they'd have cost through the API, %s\n", at)
 	return err
@@ -133,24 +198,25 @@ func pricedAt(prices ledger.Table) (string, error) {
 
 // historyTables are the tables of those of days with requests, as
 // historyTable makes each.
-func historyTables(days []ledger.Priced, now time.Time) ([]dayTable, error) {
+func historyTables(days []views.Day, now time.Time) ([]dayTable, error) {
 	var tables []dayTable
 	for _, day := range days {
-		if len(day.Accounts) == 0 {
-			continue
-		}
-		table, err := historyTable(day, now)
+		table, err := historyTable(day.Priced, now)
 		if err != nil {
 			return nil, err
 		}
-		tables = append(tables, table)
+		if len(table.rows) > 0 {
+			tables = append(tables, table)
+		}
 	}
 	return tables, nil
 }
 
-// historyTable is the day's table: a row for each account's model, the
-// account named on its first, and a note of each account's. It fails for a
-// day whose date isn't one, which the ledger's reader never gives.
+// historyTable is the day's table: a row for each account's model with
+// requests, the account named on its first, and a note of each account's. A
+// model's quota checks and counts of tokens alone, which aren't requests, make
+// no row. It fails for a day whose date isn't one, which the ledger's reader
+// never gives.
 func historyTable(day ledger.Priced, now time.Time) (dayTable, error) {
 	start, _, ok := dayfile.Day(day.Day)
 	if !ok {
@@ -158,10 +224,14 @@ func historyTable(day ledger.Priced, now time.Time) (dayTable, error) {
 	}
 	table := dayTable{day: start}
 	for _, a := range day.Accounts {
-		for i, m := range a.Models {
+		named := false
+		for _, m := range a.Models {
+			if m.Requests() == 0 {
+				continue
+			}
 			account := ""
-			if i == 0 {
-				account = accountName(a.Account)
+			if !named {
+				account, named = accountName(a.Account), true
 			}
 			tokens := m.Tokens()
 			table.rows = append(table.rows, []string{account, modelName(m.ModelDay), requestCount(m.ModelDay),
@@ -194,14 +264,10 @@ func modelName(m ledger.ModelDay) string {
 	return name
 }
 
-// requestCount counts a model's day's requests, however each went, as "412
+// requestCount counts a model's day's requests, its messages, as "412
 // requests".
 func requestCount(m ledger.ModelDay) string {
-	n := m.Upstream + m.Unsent + m.Checks + m.Counts
-	if n == 1 {
-		return "1 request"
-	}
-	return fmt.Sprintf("%d requests", n)
+	return prose.Counted(m.Requests(), "request")
 }
 
 // worthOf says what a model's day was worth, to the cent, as "$412.53", and
