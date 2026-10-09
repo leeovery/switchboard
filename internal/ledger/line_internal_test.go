@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -62,6 +63,25 @@ func TestHintsAreCutAsASessionIsAndTheirToolsTimesAsTheAccountsTried(t *testing.
 		if want := (ToolTime{Tool: cut, MS: int64(i)}); tt != want {
 			t.Errorf("the tool's time %d is written as %+v, want %+v: its name cut, its time as it was", i, tt, want)
 		}
+	}
+}
+
+func TestCutHintsHaveTheirTextsAsALineGivesThemAndTheirToolsTimesAsTheyWere(t *testing.T) {
+	long := strings.Repeat("☃", textMost)
+	cut := strings.Repeat("☃", textMost/len("☃"))
+	times := []ToolTime{{Tool: long, MS: 742}}
+	hints := Hints{Prompt: long, Class: "main", AgentID: long, ParentAgentID: long, AgentType: "Explore", Compaction: long, Compacted: long, ToolMS: times}
+
+	got := hints.Cut()
+	want := Hints{Prompt: cut, Class: "main", AgentID: cut, ParentAgentID: cut, AgentType: "Explore", Compaction: cut, Compacted: cut, ToolMS: times}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Cut() = %+v, want %+v", got, want)
+	}
+	if &got.ToolMS[0] != &times[0] {
+		t.Error("Cut() copied the tools' times, want them as they were, for written to cut")
+	}
+	if allocs := testing.AllocsPerRun(100, func() { hints.Cut() }); allocs != 0 {
+		t.Errorf("Cut() allocates %v times, want none: it's on every request's path", allocs)
 	}
 }
 

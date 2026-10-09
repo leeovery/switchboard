@@ -94,8 +94,8 @@ type exchange struct {
 	req     Request
 	account account
 	reason  string
-	// shape is a routed request's shape, and hints what its header says of
-	// it, as the request ledger keeps them.
+	// shape is a routed request's shape, as the request ledger keeps it, and
+	// hints what its header says of it, their texts cut as a line gives them.
 	shape ledger.Shape
 	hints ledger.Hints
 	// answered is the account whose answer the client has, as it was picked,
@@ -196,7 +196,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		p.routing.begin()
 		defer p.routing.end()
 	}
-	ex := &exchange{id: newID(), started: time.Now(), arrived: p.now(), spends: p.provider.Spends(r.URL.Path), hints: p.provider.Hints(r.Header)}
+	ex := &exchange{id: newID(), started: time.Now(), arrived: p.now(), spends: p.provider.Spends(r.URL.Path), hints: p.provider.Hints(r.Header).Cut()}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 	if err != nil {
 		p.unread(w, r, ex, err)
@@ -602,9 +602,9 @@ func (ex *exchange) event(kind string) StreamEvent {
 		Dir:     ex.req.Dir,
 		Model:   bounded(ex.req.Model),
 		Account: ex.answering().account,
-		Prompt:  ledger.LineText(ex.hints.Prompt),
-		Class:   ledger.LineText(ex.hints.Class),
-		AgentID: ledger.LineText(ex.hints.AgentID),
+		Prompt:  ex.hints.Prompt,
+		Class:   ex.hints.Class,
+		AgentID: ex.hints.AgentID,
 		Check:   ex.req.Check,
 	}
 }

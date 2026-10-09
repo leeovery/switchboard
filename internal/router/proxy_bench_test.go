@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -51,7 +52,7 @@ func benchmarkProxy(b *testing.B, asked string, answer http.HandlerFunc, body st
 	runRouter(b, cfg)
 	proxy := "http://" + cfg.Listen + "/v1/messages"
 	header := hinted(with(claudeCode(workToken), router.DirHeader, router.EncodeDir("~/Code/project")),
-		map[string]string{promptHeader: promptID, classHeader: "main", toolTimesHeader: "Bash=742;Read=9"})
+		map[string]string{claude.PromptHeader: promptID, claude.ClassHeader: "main", claude.ToolTimesHeader: "Bash=742;Read=9"})
 	// The session's first request, which chooses its account, goes untimed.
 	postAsking(proxy, asked, header)
 	want := "200 " + body

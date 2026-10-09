@@ -257,10 +257,18 @@ func (l *Line) written() *Line {
 	return &w
 }
 
-// written returns the hints as a line writes them.
-func (h Hints) written() Hints {
+// Cut returns the hints with each of their texts cut, as a line gives them,
+// and their tools' times as they are, which written cuts: so it allocates
+// nothing. The request stream gives a request's prompt, class and agent so.
+func (h Hints) Cut() Hints {
 	h.Prompt, h.Class, h.AgentID, h.ParentAgentID = cut(h.Prompt), cut(h.Class), cut(h.AgentID), cut(h.ParentAgentID)
 	h.AgentType, h.Compaction, h.Compacted = cut(h.AgentType), cut(h.Compaction), cut(h.Compacted)
+	return h
+}
+
+// written returns the hints as a line writes them.
+func (h Hints) written() Hints {
+	h = h.Cut()
 	h.ToolMS = cutAll(h.ToolMS, func(t ToolTime) ToolTime { return ToolTime{Tool: cut(t.Tool), MS: t.MS} })
 	return h
 }
@@ -299,12 +307,6 @@ func (a Answer) written() Answer {
 // goes by its prefix, which a cut through it could part from the rest.
 func cut(s string) string {
 	return prose.TruncateBytes(redact.Text(s), textMost)
-}
-
-// LineText is the text s as a line gives it, as cut cuts it. The request
-// stream gives a request's prompt, class and agent so too.
-func LineText(s string) string {
-	return cut(s)
 }
 
 // LineDir is the directory dir as a line gives it: cut as cut cuts a text,

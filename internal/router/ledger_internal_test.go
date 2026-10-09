@@ -417,8 +417,8 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				client := cutOffAfter(t, clientGoing(t, tt.goneAfter), tt.cutAfter)
 				req := claudeCodeAsks(client, tt.path, "one", tt.body(client))
 				req.Header.Set(DirHeader, "~/Code/project")
-				req.Header.Set("X-Claude-Code-Prompt-Id", hints.Prompt)
-				req.Header.Set("X-Claude-Code-Request-Class", hints.Class)
+				req.Header.Set(claude.PromptHeader, hints.Prompt)
+				req.Header.Set(claude.ClassHeader, hints.Class)
 
 				rec := httptest.NewRecorder()
 				r.Proxy().ServeHTTP(rec, req)

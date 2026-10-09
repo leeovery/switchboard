@@ -501,7 +501,7 @@ func TestRunHasClaudeCodeTellTheRouterWhatItTellsTheAPIOfEachRequest(t *testing.
 		{name: "routed, sent", router: healthy(), want: "1", wantSet: true},
 		{name: "routed, turned off already, kept off", router: healthy(), environ: []string{hints + "=0"}, want: "0", wantSet: true},
 		{name: "routed, turned on already, kept", router: healthy(), environ: []string{hints + "=1"}, want: "1", wantSet: true},
-		{name: "routed, set to nothing already, kept so", router: healthy(), environ: []string{hints + "="}, wantSet: true},
+		{name: "routed, set to nothing already, which Claude Code reads as unset, sent", router: healthy(), environ: []string{hints + "="}, want: "1", wantSet: true},
 		{name: "direct, left unset, as Claude Code sends the API them anyway", router: notRunning()},
 		{name: "direct, turned off already, kept off", router: notRunning(), environ: []string{hints + "=0"}, want: "0", wantSet: true},
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
@@ -23,29 +24,17 @@ const (
 	hintToken = "sk-ant-oat01-fake_hint-token-shaped"
 )
 
-// The headers Claude Code tells of a request by, beside its session.
-const (
-	promptHeader     = "X-Claude-Code-Prompt-Id"
-	classHeader      = "X-Claude-Code-Request-Class"
-	agentHeader      = "X-Claude-Code-Agent-Id"
-	parentHeader     = "X-Claude-Code-Parent-Agent-Id"
-	agentTypeHeader  = "X-Claude-Code-Agent-Type"
-	compactionHeader = "X-Claude-Code-Compaction"
-	compactedHeader  = "X-Claude-Code-Context-Compacted"
-	toolTimesHeader  = "X-Claude-Code-Prev-Tool-Durations"
-)
-
 // everyHint is each of the headers Claude Code tells of a request by, beside
 // its session.
 var everyHint = map[string]string{
-	promptHeader:     promptID,
-	classHeader:      "subagent",
-	agentHeader:      agentID,
-	parentHeader:     "f6e5d4c3b2a1",
-	agentTypeHeader:  "Explore",
-	compactionHeader: "auto",
-	compactedHeader:  "manual",
-	toolTimesHeader:  "Bash=742;Read=9",
+	claude.PromptHeader:      promptID,
+	claude.ClassHeader:       "subagent",
+	claude.AgentHeader:       agentID,
+	claude.ParentAgentHeader: "f6e5d4c3b2a1",
+	claude.AgentTypeHeader:   "Explore",
+	claude.CompactionHeader:  "auto",
+	claude.CompactedHeader:   "manual",
+	claude.ToolTimesHeader:   "Bash=742;Read=9",
 }
 
 // hinted returns h with each of hints set, by its name, to its value.
@@ -82,13 +71,13 @@ func TestTheLedgerHoldsWhatClaudeCodesHeadersSayOfARequest(t *testing.T) {
 		},
 		{
 			name: "a token hidden, and a value too long cut",
-			sent: map[string]string{promptHeader: hintToken, classHeader: "main " + hintToken, agentHeader: long, toolTimesHeader: hintToken + "=5"},
+			sent: map[string]string{claude.PromptHeader: hintToken, claude.ClassHeader: "main " + hintToken, claude.AgentHeader: long, claude.ToolTimesHeader: hintToken + "=5"},
 			want: ledger.Hints{Prompt: redact.Placeholder, Class: "main " + redact.Placeholder, AgentID: strings.Repeat("☃", 66),
 				ToolMS: []ledger.ToolTime{{Tool: redact.Placeholder, MS: 5}}},
 		},
 		{
 			name: "the tools' times, a name decoded, an entry that doesn't parse passed over, as many as a line holds",
-			sent: map[string]string{toolTimesHeader: "My%20Tool=3;Read=fast;" + strings.Join(many, ";")},
+			sent: map[string]string{claude.ToolTimesHeader: "My%20Tool=3;Read=fast;" + strings.Join(many, ";")},
 			want: ledger.Hints{ToolMS: firstMany},
 		},
 	}
@@ -125,7 +114,7 @@ func TestTheRequestStreamTellsARequestsPromptClassAndAgentAsItsLineGivesThem(t *
 		{name: "as sent", sent: everyHint, want: [3]string{promptID, "subagent", agentID}},
 		{
 			name: "a token hidden, and a value too long cut",
-			sent: map[string]string{promptHeader: hintToken, classHeader: "main", agentHeader: long},
+			sent: map[string]string{claude.PromptHeader: hintToken, claude.ClassHeader: "main", claude.AgentHeader: long},
 			want: [3]string{redact.Placeholder, "main", strings.Repeat("☃", 66)},
 		},
 	}
@@ -177,11 +166,11 @@ func TestClaudeCodesHeadersGoUpstreamUnchanged(t *testing.T) {
 	// Each as Claude Code sends it, a token and a value longer than a line
 	// holds among them, which only the ledger hides and cuts.
 	sent := map[string]string{
-		promptHeader:    hintToken,
-		classHeader:     "subagent",
-		agentHeader:     strings.Repeat("a", 300),
-		agentTypeHeader: "Explore",
-		toolTimesHeader: "My%20Tool=3;Read=fast;mcp__notes__find%3Bv2=12",
+		claude.PromptHeader:    hintToken,
+		claude.ClassHeader:     "subagent",
+		claude.AgentHeader:     strings.Repeat("a", 300),
+		claude.AgentTypeHeader: "Explore",
+		claude.ToolTimesHeader: "My%20Tool=3;Read=fast;mcp__notes__find%3Bv2=12",
 	}
 
 	readAll(t, send(t, http.MethodPost, proxy+"/v1/messages", hinted(claudeCode(workToken), sent), strings.NewReader(messages)))

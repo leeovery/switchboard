@@ -49,30 +49,24 @@ func (e environ) without(keys ...string) environ {
 	})
 }
 
-// get returns key's value, or "" when it's unset.
+// get returns key's value, or "" when it's unset. Of a key set twice, the
+// first counts, as it does for getenv.
 func (e environ) get(key string) string {
-	value, _ := e.lookup(key)
-	return value
-}
-
-// lookup returns key's value, and whether it's set at all, as it may be to "".
-// Of a key set twice, the first counts, as it does for getenv.
-func (e environ) lookup(key string) (string, bool) {
 	for _, variable := range e {
 		if k, value, _ := strings.Cut(variable, "="); k == key {
-			return value, true
+			return value
 		}
 	}
-	return "", false
+	return ""
 }
 
 // hinting returns the environment with Claude Code sending the router the
 // headers telling of each request that it sends the API directly, such as the
 // prompt a request serves, which the request ledger keeps. Where it says
 // already whether to send them, as set to 0, which sends them nowhere, it's
-// left as it is.
+// left as it is. Set to "", it says nothing: Claude Code reads it as unset.
 func (e environ) hinting() environ {
-	if _, set := e.lookup(claude.HintHeadersEnv); set {
+	if e.get(claude.HintHeadersEnv) != "" {
 		return e
 	}
 	return e.with(claude.HintHeadersEnv, "1")
