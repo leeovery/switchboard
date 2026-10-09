@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-10-09
+
+✨ Added
+- Request ledger lines now record what Claude Code says of each request — the prompt it serves, its class (main, subagent, compaction and so on), the subagent that sent it, compaction triggers and tool-call durations.
+- `claude` started by switchboard now sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1` so the router receives those details, unless your environment already sets it.
+- The router's request stream now carries each request's prompt, class and agent id.
+- `plan` on an account (`pro`, `max5x` or `max20x`) and a `[prices]` table in the config — set plan prices and override per-model token prices.
+- `week_starts` config key — choose the day the dashboard's calendar weeks start on, Monday by default.
+- `switchboard history` reports when the config's prices stand in place of the built-in ones, and `--json` gains `prices_from_config`.
+- The dashboard can now follow the request ledger, readings history and router events as they grow, reading only what each file gained — groundwork for the redesigned views.
+- The price table now carries plan prices and a model version table for naming models, Opus 5.5 for example.
+- Cache-write cost can be priced on its own — the cost of the context a session rewrites when it moves accounts.
+
+🔧 Changed
+- Account day summaries now record session ids, rises and resets of each window with the use before each, and the minutes spent at the cap and at a limit.
+- Router events are filed in an `events-<date>.jsonl` file beside the ledger, kept and compressed like the ledger's, so they outlast a restart.
+- Config errors now hide anything token-shaped in the key as well as the value.
+
 ## [0.1.3] - 2026-10-09
 
 ✨ Added
