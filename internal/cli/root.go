@@ -76,8 +76,8 @@ type Deps struct {
 	// HiddenInput does: a token is typed there unseen, and setup asks there
 	// alone.
 	Hidden func(stdin io.Reader) (read func() ([]byte, error), ok bool)
-	// Terminal reports whether out is a terminal, as IsTerminal does: usage
-	// draws its dashboard on one, and prints the status document elsewhere.
+	// Terminal reports whether out is a terminal, as IsTerminal does: a data
+	// verb prints its form for a person on one, and its JSON elsewhere.
 	Terminal func(out io.Writer) bool
 	// Background asks the terminal out is what its background is, as
 	// TerminalBackground does: nil where it doesn't say. usage prints the

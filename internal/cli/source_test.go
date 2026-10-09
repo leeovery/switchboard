@@ -45,7 +45,7 @@ side · Side
 func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := routingSetup(t)
 
-	got := run(t, srv.deps, "status")
+	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workAtStatus + "  1 session\n\n" + othersAtStatus(t, srv.deps) + `
 sessions
   0b5c6f2e  haiku on work  ·  seen just now
@@ -76,7 +76,7 @@ func TestStatusReadsAnUnhealthyRoutersDocument(t *testing.T) {
 	}
 	srv.waitForStatus(t, func(doc status.Document) bool { return doc.Router.Requests == 5 })
 
-	got := run(t, srv.deps, "status")
+	got := run(t, srv.deps, "status", "--pretty")
 	const reason = "5 of the 5 requests in the last 5 minutes failed"
 	wantLast := "from the router: unhealthy, " + reason + "  ·  no sessions  ·  routing automatically\n"
 	if got.code != 0 || !strings.HasSuffix(got.stdout, "\n"+wantLast) {
@@ -89,7 +89,7 @@ func TestStatusReadsAnUnhealthyRoutersDocument(t *testing.T) {
 }
 
 func TestStatusProbesWithoutTheRouter(t *testing.T) {
-	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status")
+	got := run(t, statusDeps(t, fakeClaudeAPI(t), nil), "status", "--pretty")
 	if want := "\nprobed directly: the router isn't running\n"; !strings.HasSuffix(got.stdout, want) {
 		t.Errorf("switchboard status = %+v, want it to end %q", got, want)
 	}
@@ -103,7 +103,7 @@ func TestStatusProbesPastARouterThatDoesntAnswer(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	serveSilently(t, srv.socket())
 
-	got := run(t, srv.deps, "status")
+	got := run(t, srv.deps, "status", "--pretty")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
 best next: work · Work
 probed directly: the router is unhealthy, no answer within 500ms
@@ -120,7 +120,7 @@ probed directly: the router is unhealthy, no answer within 500ms
 func TestStatusProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 
-	got := run(t, srv.deps, "status", "--probe")
+	got := run(t, srv.deps, "status", "--pretty", "--probe")
 	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
 best next: work · Work
 probed directly
@@ -136,7 +136,7 @@ probed directly
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	// A token for personal, as goldenDeps gives it.
 	writeToken(t, srv.deps, "personal", "test-token-personal")
 	routing(t, srv)
@@ -209,7 +209,7 @@ func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 
@@ -242,7 +242,7 @@ func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
 	api := newClaudeAPI(t)
 	srv := newServeSetup(t, api.URL, nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 	api.limitWeek(true)

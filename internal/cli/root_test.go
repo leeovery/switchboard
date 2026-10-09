@@ -82,6 +82,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "setup without a terminal", args: []string{"setup"}, wantUsage: false},
 		{name: "unexpected status argument", args: []string{"status", "extra"}, wantUsage: true},
 		{name: "invalid config for status", args: []string{"status", "--json", "--config", invalid}, wantUsage: false},
+		{name: "status as JSON and for a person", args: []string{"status", "--json", "--pretty"}, wantUsage: true},
 		{name: "a session without an id", args: []string{"status", "--session", ""}, wantUsage: true},
 		{name: "a session's status without the router", args: []string{"status", "--session", "0b5c6f2e"}, wantUsage: false},
 		{name: "a session's status, probing", args: []string{"status", "--session", "0b5c6f2e", "--probe"}, wantUsage: true},
@@ -103,6 +104,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "invalid config for usage", args: []string{"usage", "--config", invalid}, wantUsage: false},
 		{name: "invalid watch interval", args: []string{"usage", "--watch", "soon"}, wantUsage: true},
 		{name: "a watch refreshing", args: []string{"usage", "--watch", "--refresh"}, wantUsage: true},
+		{name: "a watch printing JSON", args: []string{"usage", "--watch", "--json"}, wantUsage: true},
 		{name: "invalid config for usage --watch", args: []string{"usage", "--watch", "--config", invalid}, wantUsage: false},
 		{name: "unexpected requests argument", args: []string{"requests", "extra"}, wantUsage: true},
 		{name: "requests of a session without its id", args: []string{"requests", "--session", ""}, wantUsage: true},
@@ -110,6 +112,7 @@ func TestUsageOnlyFollowsCommandLineMistakes(t *testing.T) {
 		{name: "requests since a time that isn't one", args: []string{"requests", "--since", "soon"}, wantUsage: true},
 		{name: "unexpected history argument", args: []string{"history", "extra"}, wantUsage: true},
 		{name: "history since a time still to come", args: []string{"history", "--since", "2099-01-01"}, wantUsage: true},
+		{name: "history as JSON and for a person", args: []string{"history", "--json", "--pretty"}, wantUsage: true},
 		{name: "unknown log", args: []string{"logs", "extra"}, wantUsage: true},
 		{name: "number of lines that isn't one", args: []string{"logs", "-n", "many"}, wantUsage: true},
 		{name: "log that doesn't exist yet", args: []string{"logs", "router"}, wantUsage: false},
@@ -445,9 +448,9 @@ const testPID = 5150
 // otherwise; the system is macOS, for the user the test runs as, who owns the
 // token files it writes. Watch, Hidden, Terminal and Background are the real
 // ones: a test's output and input are never a terminal, so Watch fails before
-// it would take one over, Hidden finds none to read, usage prints the status
-// document, unless a test says otherwise, and no terminal is asked its
-// background.
+// it would take one over, Hidden finds none to read, every data verb prints
+// its JSON, unless a test says otherwise, as a printForm does, and no
+// terminal is asked its background.
 func testDeps(env map[string]string, home string) cli.Deps {
 	return cli.Deps{
 		Getenv: func(key string) string { return env[key] },

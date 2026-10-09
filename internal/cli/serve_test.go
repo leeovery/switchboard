@@ -237,7 +237,7 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	// and personal has none.
 	schedule := "priming 08:00-23:00: work at 04:10 and side at 06:40\n"
 
-	probed := run(t, srv.deps, "status")
+	probed := run(t, srv.deps, "status", "--pretty")
 	if want := schedule + "next reset: work · Work, Mon 18:10\n"; !strings.Contains(probed.stdout, want) {
 		t.Errorf("switchboard status, probing, printed\n%s\nwant\n%s", probed.stdout, want)
 	}
@@ -258,7 +258,7 @@ func TestPrimingAsTheConfigSetsIt(t *testing.T) {
 	if !reflect.DeepEqual(doc.Prime, want) {
 		t.Errorf("the router's schedule is\n%+v\nwant\n%+v", doc.Prime, want)
 	}
-	routed := run(t, srv.deps, "status")
+	routed := run(t, srv.deps, "status", "--pretty")
 	if want := schedule + "next reset: work · Work, Mon 18:10  ·  next prime: side · Side, Mon 13:17\n"; !strings.Contains(routed.stdout, want) {
 		t.Errorf("switchboard status, reading the router, printed\n%s\nwant\n%s", routed.stdout, want)
 	}

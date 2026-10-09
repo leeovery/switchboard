@@ -21,7 +21,7 @@ import (
 // requestsOptions are the requests command's flags.
 type requestsOptions struct {
 	session, account, since string
-	asJSON                  bool
+	form                    formFlags
 }
 
 // idFlags are the flags that take an id, and what each is the id of, for the
@@ -44,8 +44,10 @@ ago, as 3h or 2d. --session keeps a session's own requests, named by its id or
 as much of it as is unique among the sessions read, and --account an
 account's.
 
-With --json, print each line as the ledger holds it, a JSON object a line, for
-an agent or a script to read.`,
+On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
+or an agent's shell, it prints each as the ledger holds it, a JSON object a
+line, for an agent or a script to read. --json prints the JSON, and --pretty
+the text, wherever stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.requests(cmd.OutOrStdout(), opts)
@@ -54,7 +56,7 @@ an agent or a script to read.`,
 	cmd.Flags().StringVar(&opts.session, "session", "", "keep session `ID`'s requests")
 	cmd.Flags().StringVar(&opts.account, "account", "", "keep account `ID`'s requests")
 	cmd.Flags().StringVar(&opts.since, "since", "", "start at `WHEN`: "+sinceForms+" (default today's start)")
-	cmd.Flags().BoolVar(&opts.asJSON, "json", false, "print each line as the ledger holds it, a JSON object a line")
+	opts.form.add(cmd)
 	return cmd
 }
 
@@ -121,7 +123,7 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 		}
 	}
 	lines = accountLines(lines, opts.account)
-	if opts.asJSON {
+	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines)
 	}
 	return writeRequests(out, lines, from, now)

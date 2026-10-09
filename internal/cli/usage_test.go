@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io"
 	"io/fs"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -47,16 +48,49 @@ func TestUsage(t *testing.T) {
 		{name: "ignoring a $COLUMNS of zero", env: map[string]string{"COLUMNS": "0"}, golden: "usage.golden"},
 	}
 	for _, tt := range tests {
+		for _, form := range prettyForms() {
+			t.Run(tt.name+", "+form.name, func(t *testing.T) {
+				got := form.run(t, goldenDeps(t, tt.env), "usage")
+				if got.code != 0 || got.stderr != "" {
+					t.Fatalf("switchboard usage %s = %+v, want exit status 0 and nothing on stderr", strings.Join(form.args, " "), got)
+				}
+				if *update {
+					writeGolden(t, tt.golden, got.stdout)
+				}
+				if want := readGolden(t, tt.golden); got.stdout != want {
+					t.Errorf("switchboard usage %s printed\n%s\nwant (testdata/%s; run with -update to accept it)\n%s", strings.Join(form.args, " "), got.stdout, tt.golden, want)
+				}
+			})
+		}
+	}
+}
+
+func TestUsagePrettyOffATerminalIsPrintedWithoutColourUnlessCLIColorForceAsks(t *testing.T) {
+	truecolor := map[string]string{"TERM": "xterm-256color", "COLORTERM": "truecolor"}
+	tests := []struct {
+		name string
+		// force is CLICOLOR_FORCE, "" for unset.
+		force      string
+		wantColour bool
+	}{
+		{name: "without CLICOLOR_FORCE, none"},
+		{name: "with CLICOLOR_FORCE, in colour", force: "1", wantColour: true},
+	}
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, goldenDeps(t, tt.env), "usage")
-			if got.code != 0 || got.stderr != "" {
-				t.Fatalf("switchboard usage = %+v, want exit status 0 and nothing on stderr", got)
+			env := maps.Clone(truecolor)
+			if tt.force != "" {
+				env["CLICOLOR_FORCE"] = tt.force
 			}
-			if *update {
-				writeGolden(t, tt.golden, got.stdout)
+
+			got := offATerminal.run(t, goldenDeps(t, env), "usage", "--pretty")
+			coloured, escaped := strings.Contains(got.stdout, "\x1b[38;2;"), strings.Contains(got.stdout, "\x1b[")
+			if got.code != 0 || coloured != tt.wantColour || escaped != tt.wantColour {
+				t.Fatalf("switchboard usage --pretty, off a terminal, = %+v, want exit status 0, and in colour: %v", got, tt.wantColour)
 			}
-			if want := readGolden(t, tt.golden); got.stdout != want {
-				t.Errorf("switchboard usage printed\n%s\nwant (testdata/%s; run with -update to accept it)\n%s", got.stdout, tt.golden, want)
+			if want := readGolden(t, "usage.golden"); ansi.Strip(got.stdout) != want {
+				t.Errorf("switchboard usage --pretty, off a terminal, printed, stripped of its escapes,\n%s\nwant what it prints on one (testdata/usage.golden)\n%s",
+					ansi.Strip(got.stdout), want)
 			}
 		})
 	}
@@ -68,7 +102,7 @@ func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
 	usage := func(args ...string) (result, []string) {
 		api := newClaudeAPI(t)
 		deps := statusDeps(t, api.URL, nil)
-		onTerminal(&deps)
+		onATerminal.on(&deps)
 		writeToken(t, deps, "personal", "test-token-personal")
 		return run(t, deps, append([]string{"usage"}, args...)...), api.questions()
 	}
@@ -144,7 +178,7 @@ func TestUsageColor(t *testing.T) {
 	}
 }
 
-func TestUsageWithoutATerminalPrintsWhatStatusJSONPrints(t *testing.T) {
+func TestUsageAsJSONPrintsWhatStatusJSONPrints(t *testing.T) {
 	tests := []struct {
 		name string
 		// args are given to usage and to status --json alike.
@@ -156,18 +190,21 @@ func TestUsageWithoutATerminalPrintsWhatStatusJSONPrints(t *testing.T) {
 		{name: "probed as asked", args: []string{"--probe"}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+		for _, form := range jsonForms() {
+			t.Run(tt.name+", "+form.name, func(t *testing.T) {
+				deps := statusDeps(t, fakeClaudeAPI(t), nil)
 
-			got := run(t, deps, append([]string{"usage"}, tt.args...)...)
-			want := run(t, deps, append([]string{"status", "--json"}, tt.args...)...)
-			if want.code != 0 || !json.Valid([]byte(want.stdout)) {
-				t.Fatalf("switchboard status --json %s = %+v, want exit status 0 and a document", strings.Join(tt.args, " "), want)
-			}
-			if got != want {
-				t.Errorf("switchboard usage %s, without a terminal, =\n%+v\nwant what status --json prints\n%+v", strings.Join(tt.args, " "), got, want)
-			}
-		})
+				got := form.run(t, deps, append([]string{"usage"}, tt.args...)...)
+				want := run(t, deps, append([]string{"status", "--json"}, tt.args...)...)
+				if want.code != 0 || !json.Valid([]byte(want.stdout)) {
+					t.Fatalf("switchboard status --json %s = %+v, want exit status 0 and a document", strings.Join(tt.args, " "), want)
+				}
+				if got != want {
+					t.Errorf("switchboard usage %s %s, %s, =\n%+v\nwant what status --json prints\n%+v",
+						strings.Join(tt.args, " "), strings.Join(form.args, " "), form.name, got, want)
+				}
+			})
+		}
 	}
 }
 
@@ -227,7 +264,7 @@ func TestUsageDrawsTheRoutersHistory(t *testing.T) {
 	var later atomic.Int64
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
-	onTerminal(&srv.deps)
+	onATerminal.on(&srv.deps)
 	srv.start(t)
 	srv.waitForProbes(t)
 	writePrefs(t, srv.deps, `{"featured": "5h"}`)
@@ -261,6 +298,7 @@ func TestUsageWatch(t *testing.T) {
 		{name: "with the interval before the flag", args: []string{"usage", "45", "-w"}, wantInterval: 45 * time.Minute, wantNotify: true},
 		{name: "without notifications", args: []string{"usage", "-w", "--no-notify"}, wantInterval: 30 * time.Minute, wantNotify: false},
 		{name: "without notifications, every interval", args: []string{"usage", "--no-notify", "-w", "1h"}, wantInterval: time.Hour, wantNotify: false},
+		{name: "with --pretty", args: []string{"usage", "-w", "--pretty"}, wantInterval: 30 * time.Minute, wantNotify: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -509,6 +547,8 @@ func TestUsageWatchArguments(t *testing.T) {
 		{name: "a negative interval", args: []string{"usage", "-w", "--", "-10m"}, wantErr: "interval -10m is too short: the shortest is 5m"},
 		{name: "refreshing", args: []string{"usage", "-w", "-r"}, wantErr: "--refresh reads once, so it takes no --watch: in a watch, r refreshes"},
 		{name: "refreshing, with an interval", args: []string{"usage", "--watch", "15m", "--refresh"}, wantErr: "--refresh reads once, so it takes no --watch: in a watch, r refreshes"},
+		{name: "printing JSON", args: []string{"usage", "-w", "--json"}, wantErr: "--json prints the status document once, so it takes no --watch"},
+		{name: "printing JSON, with an interval", args: []string{"usage", "--json", "--watch", "15m"}, wantErr: "--json prints the status document once, so it takes no --watch"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -561,15 +601,9 @@ func recordWatch(t *testing.T, deps *cli.Deps) *watch.Config {
 func goldenDeps(t *testing.T, env map[string]string) cli.Deps {
 	t.Helper()
 	deps := statusDeps(t, fakeClaudeAPI(t), env)
-	onTerminal(&deps)
+	onATerminal.on(&deps)
 	writeToken(t, deps, "personal", "test-token-personal")
 	return deps
-}
-
-// onTerminal has commands run with deps take their output for a terminal, so
-// usage draws its dashboard there.
-func onTerminal(deps *cli.Deps) {
-	deps.Terminal = func(io.Writer) bool { return true }
 }
 
 func readGolden(t *testing.T, name string) string {
