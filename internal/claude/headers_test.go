@@ -19,6 +19,23 @@ func TestAWindowIsNamedByItsLabelOrElseItsKey(t *testing.T) {
 	}
 }
 
+func TestAWindowIsNamedByItsHoursOrElseItsLabel(t *testing.T) {
+	tests := []struct{ key, want string }{
+		{key: "5h", want: "5-hour"},
+		{key: "1h", want: "1-hour"},
+		{key: "7d", want: "Week"},
+		{key: "7d_oi", want: "Fable week"},
+		{key: "7d_opus", want: "Opus week"},
+		{key: "90m", want: "90m"},
+		{key: "7d_new", want: "7d_new"},
+	}
+	for _, tt := range tests {
+		if got := claude.WindowName(tt.key); got != tt.want {
+			t.Errorf("WindowName(%q) = %q, want %q", tt.key, got, tt.want)
+		}
+	}
+}
+
 func TestParseUsageReadsTheWindows(t *testing.T) {
 	sessionReset := time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC)
 	weekReset := time.Date(2026, 10, 2, 21, 0, 0, 0, time.UTC)

@@ -61,7 +61,7 @@ func TestARequestOverItsAccountsLimitIsReplayedOnAnother(t *testing.T) {
 		t.Errorf("the request went out on %q, want work, then side", got)
 	}
 
-	if work, _ := r.rt.Status().Account("work"); !slices.Contains(work.Windows, sessionSpent) {
+	if work, _ := r.rt.Status().Account("work"); !slices.Contains(asRead(work.Windows), sessionSpent) {
 		t.Errorf("work reads %+v, want its spent session recorded off the 429", work.Windows)
 	}
 	if got := r.ask(t, sessionID, opus, ""); got != "side" {

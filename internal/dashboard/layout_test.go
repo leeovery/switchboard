@@ -133,7 +133,7 @@ func TestOneAccountsColumnHasCOMINGUPAndRECENTLevelWithItsChart(t *testing.T) {
 		{ID: 2, At: now.Add(-4 * time.Minute).UTC(), Kind: status.EventPressure, Account: "work", Windows: []string{"5h"}, Until: now.Add(90 * time.Minute).UTC()},
 		{ID: 1, At: now.Add(-time.Hour).UTC(), Kind: status.EventRestart, Reason: "upgraded"},
 	}
-	rows := frameOf(160, 40).Draw(doc, now)
+	rows := frameOf(160, 40).Draw(doc.WorkedOut(claudeLike), now)
 
 	column := func(row int) string {
 		cells := []rune(rows[row])

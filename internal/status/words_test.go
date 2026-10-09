@@ -286,3 +286,19 @@ func TestRescored(t *testing.T) {
 		t.Errorf("Rescored(15h) = %q, want %q", got, want)
 	}
 }
+
+func TestPassedOverIsTheAccountUnderPressureAChoicePassedOver(t *testing.T) {
+	tests := []struct{ reason, want string }{
+		{reason: "new, personal under pressure", want: "personal"},
+		{reason: "moved: work hit its limit, personal under pressure", want: "personal"},
+		{reason: "new,  personal\x1b under pressure", want: "personal"},
+		{reason: "new", want: ""},
+		{reason: "new, two words under pressure", want: ""},
+		{reason: "personal under pressure", want: ""},
+	}
+	for _, tt := range tests {
+		if got := status.PassedOver(tt.reason); got != tt.want {
+			t.Errorf("PassedOver(%q) = %q, want %q", tt.reason, got, tt.want)
+		}
+	}
+}

@@ -379,8 +379,7 @@ func because(what, why string) string {
 // now: it has a usable token, and room in every window every model shares,
 // and no limit or refused token holds it back.
 func (f Frame) takes(a status.Account, now time.Time) bool {
-	refused := a.Refused.Holds(now) && a.Refused.Family == ""
-	return a.TokenSet && !limited(a, now, f.Policy) && !refused && score.Available(a.Windows, 0, f.Policy.IsShared, now)
+	return a.TokenSet && !limited(a, now, f.Policy) && !a.TokenRefused(now) && score.Available(a.Windows, 0, f.Policy.IsShared, now)
 }
 
 // sessionRoom is the share of its 5-hour window the account has left at now,

@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"regexp"
@@ -188,4 +189,14 @@ func WindowLabel(key string) string {
 		return label
 	}
 	return key
+}
+
+// WindowName names the window Claude reports by the key given, as the views
+// name it: one of whole hours, under a day, by them, as "5-hour", and any
+// other as WindowLabel labels it, as "Week" or "Fable week".
+func WindowName(key string) string {
+	if length, ok := quota.Length(key); ok && length >= time.Hour && length%time.Hour == 0 && length < 24*time.Hour {
+		return fmt.Sprintf("%d-hour", length/time.Hour)
+	}
+	return WindowLabel(key)
 }

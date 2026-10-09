@@ -76,6 +76,17 @@ func testConfig(upstream string) router.Config {
 // personalMissing is why personal has no token, unless the test gives it one.
 var personalMissing = tokenstest.Missing("personal").Error()
 
+// asRead is windows as they were read, without the even pace and allowance
+// the status document works out of them, for a test whose question is what
+// was read: the status package's tests pin what's worked out.
+func asRead(windows []quota.Window) []quota.Window {
+	read := slices.Clone(windows)
+	for i := range read {
+		read[i].Pace, read[i].Allowance = nil, quota.Allowance{}
+	}
+	return read
+}
+
 // withPersonalToken gives personal a token, so requests can go out on all
 // three accounts.
 func withPersonalToken(cfg *router.Config) {

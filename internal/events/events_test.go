@@ -147,6 +147,32 @@ func TestALineIsAnEventAsTheStatusDocumentGivesItWithItsRun(t *testing.T) {
 	}
 }
 
+func TestALineIsFiledAsItWasReadALaterReleasesFieldsIncluded(t *testing.T) {
+	made := limit(firstRun, 7, september(10, 9, 0), 2)
+	filed := `{"a_later_field":{"kept":true},` + strings.TrimPrefix(jsonOf(t, made), "{")
+
+	held, ok := events.HeldIn([]byte(filed))
+	if got, err := held.Filed(); !ok || err != nil || string(got) != filed || jsonOf(t, held.Line) != jsonOf(t, made) {
+		t.Errorf("HeldIn(%s) is filed as\n%s (%v, %v), reading as\n%s\nwant it as it was read, reading as the line made", filed, got, ok, err, jsonOf(t, held.Line))
+	}
+	if _, ok := events.HeldIn([]byte("a line that isn't JSON")); ok {
+		t.Error("HeldIn holds a line that isn't JSON, want it passed over")
+	}
+}
+
+func TestALineHeldWithoutItsJSONIsFiledAsTheRouterFilesIt(t *testing.T) {
+	made := limit(firstRun, 7, september(10, 9, 0), 2)
+	made.Reason = "upstream said sk-ant-oat01-" + strings.Repeat("x", 40)
+
+	got, err := events.Held{Line: made}.Filed()
+	if err != nil || strings.Contains(string(got), "sk-ant-") || !strings.Contains(string(got), "upstream said [redacted]") {
+		t.Errorf("a line held without its JSON is filed as\n%s (%v)\nwant it as the router files it, the token hidden", got, err)
+	}
+	if marshalled, _ := events.Marshal(made); string(marshalled) != string(got) {
+		t.Errorf("a line held without its JSON is filed as\n%s\nwant it as Marshal puts it\n%s", got, marshalled)
+	}
+}
+
 func TestALineThatDoesntReadAsAnEventIsPassedOver(t *testing.T) {
 	whole := jsonOf(t, limit(firstRun, 7, september(10, 9, 0), 2))
 	without := func(field string) string {

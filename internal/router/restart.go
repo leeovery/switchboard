@@ -14,9 +14,9 @@ import (
 
 // Why the router restarts itself, as the log gives it.
 const (
-	restartForConfig  = "config changed"
-	restartForUpgrade = "upgraded"
-	restartForZone    = "time zone changed"
+	restartForConfig  = status.RestartForConfig
+	restartForUpgrade = status.RestartForUpgrade
+	restartForZone    = status.RestartForZone
 	restartAsked      = "asked to"
 )
 

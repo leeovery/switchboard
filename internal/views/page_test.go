@@ -66,8 +66,8 @@ func subagent(agent, parent, prompt string, at time.Time) ledger.Line {
 	return l
 }
 
-// at is the local time on 7 October at hour:minute:second.
-func at(hour, minute, second int) time.Time {
+// local is the local time on 7 October at hour:minute:second.
+func local(hour, minute, second int) time.Time {
 	return time.Date(2026, 10, 7, hour, minute, second, 0, time.Local)
 }
 
@@ -117,76 +117,76 @@ func TestATurnIsAPromptAndEveryRequestThatServesIt(t *testing.T) {
 	}{
 		{
 			name: "a message left to queue joins the prompt running",
-			lines: []ledger.Line{mainOn(p1, at(10, 0, 0), "tool_use"), mainOn(p1, at(10, 2, 0), "tool_use"), mainOn(p1, at(10, 4, 0), "end_turn"),
-				mainOn(p2, at(10, 10, 0), "end_turn")},
-			want: []turnSaid{{2, at(10, 10, 0), at(10, 11, 0), 1, sideOnly}, {1, at(10, 0, 0), at(10, 5, 0), 3, sideOnly}},
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), mainOn(p1, local(10, 2, 0), "tool_use"), mainOn(p1, local(10, 4, 0), "end_turn"),
+				mainOn(p2, local(10, 10, 0), "end_turn")},
+			want: []turnSaid{{2, local(10, 10, 0), local(10, 11, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 5, 0), 3, sideOnly}},
 		},
 		{
 			name:  "a message pushed in starts a prompt of its own, the one before ending with its last answer",
-			lines: []ledger.Line{mainOn(p1, at(10, 0, 0), "tool_use"), mainOn(p2, at(10, 1, 0), "tool_use"), mainOn(p2, at(10, 3, 0), "end_turn")},
-			want:  []turnSaid{{2, at(10, 1, 0), at(10, 4, 0), 2, sideOnly}, {1, at(10, 0, 0), at(10, 1, 0), 1, sideOnly}},
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), mainOn(p2, local(10, 1, 0), "tool_use"), mainOn(p2, local(10, 3, 0), "end_turn")},
+			want:  []turnSaid{{2, local(10, 1, 0), local(10, 4, 0), 2, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 		{
 			name: "a subagent counts in the turn of the prompt that started it, whatever prompts come meanwhile, never keeping it going",
-			lines: []ledger.Line{mainOn(p1, at(10, 0, 0), "tool_use"), subagent("a1", "", p1, at(10, 1, 0)), mainOn(p2, at(10, 5, 0), "end_turn"),
-				subagent("a1", "", p2, at(10, 6, 0)), subagent("a1", "", p2, at(10, 20, 0))},
-			want: []turnSaid{{2, at(10, 5, 0), at(10, 6, 0), 1, sideOnly}, {1, at(10, 0, 0), at(10, 1, 0), 4, both}},
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), subagent("a1", "", p1, local(10, 1, 0)), mainOn(p2, local(10, 5, 0), "end_turn"),
+				subagent("a1", "", p2, local(10, 6, 0)), subagent("a1", "", p2, local(10, 20, 0))},
+			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 4, both}},
 		},
 		{
 			name: "a nested subagent counts in the turn of the prompt its first request names",
-			lines: []ledger.Line{mainOn(p1, at(10, 0, 0), "tool_use"), subagent("a1", "", p1, at(10, 1, 0)), subagent("a2", "a1", p1, at(10, 2, 0)),
-				mainOn(p2, at(10, 5, 0), "end_turn"), subagent("a2", "a1", p2, at(10, 6, 0))},
-			want: []turnSaid{{2, at(10, 5, 0), at(10, 6, 0), 1, sideOnly}, {1, at(10, 0, 0), at(10, 1, 0), 4, both}},
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), subagent("a1", "", p1, local(10, 1, 0)), subagent("a2", "a1", p1, local(10, 2, 0)),
+				mainOn(p2, local(10, 5, 0), "end_turn"), subagent("a2", "a1", p2, local(10, 6, 0))},
+			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 1, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 4, both}},
 		},
 		{
 			name: "a compaction, and a side request, count in the turn of the prompt they name",
-			lines: []ledger.Line{mainOn(p1, at(10, 0, 0), "end_turn"), took(time.Minute, serving(p1, "compaction", line(paged, opus, "side", "sticky", at(10, 1, 0), hourUsage))),
-				mainOn(p2, at(10, 5, 0), "end_turn"), took(time.Minute, serving(p2, "auxiliary", line(paged, haiku, "work", "sticky", at(10, 5, 30), smallUsage)))},
-			want: []turnSaid{{2, at(10, 5, 0), at(10, 6, 0), 2, both}, {1, at(10, 0, 0), at(10, 1, 0), 2, sideOnly}},
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "end_turn"), took(time.Minute, serving(p1, "compaction", line(paged, opus, "side", "sticky", local(10, 1, 0), hourUsage))),
+				mainOn(p2, local(10, 5, 0), "end_turn"), took(time.Minute, serving(p2, "auxiliary", line(paged, haiku, "work", "sticky", local(10, 5, 30), smallUsage)))},
+			want: []turnSaid{{2, local(10, 5, 0), local(10, 6, 0), 2, both}, {1, local(10, 0, 0), local(10, 1, 0), 2, sideOnly}},
 		},
 		{
 			name:  "a request that names no prompt is in no turn",
-			lines: []ledger.Line{line(paged, opus, "side", "new", at(9, 0, 0), hourUsage), mainOn(p1, at(10, 0, 0), "end_turn")},
-			want:  []turnSaid{{1, at(10, 0, 0), at(10, 1, 0), 1, sideOnly}},
+			lines: []ledger.Line{line(paged, opus, "side", "new", local(9, 0, 0), hourUsage), mainOn(p1, local(10, 0, 0), "end_turn")},
+			want:  []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 		{
 			name:  "none, of lines from before prompts were told",
-			lines: []ledger.Line{line(paged, opus, "side", "new", at(9, 0, 0), hourUsage), line(paged, opus, "side", "sticky", at(9, 5, 0), hourUsage)},
+			lines: []ledger.Line{line(paged, opus, "side", "new", local(9, 0, 0), hourUsage), line(paged, opus, "side", "sticky", local(9, 5, 0), hourUsage)},
 			want:  []turnSaid{},
 		},
 		{
 			name:    "the newest of a running session still going, as its last answer called a tool, the one before ended",
-			lines:   []ledger.Line{mainOn(p1, at(10, 0, 0), "tool_use"), mainOn(p2, at(10, 5, 0), "tool_use")},
+			lines:   []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), mainOn(p2, local(10, 5, 0), "tool_use")},
 			running: true,
-			want:    []turnSaid{{2, at(10, 5, 0), time.Time{}, 1, sideOnly}, {1, at(10, 0, 0), at(10, 1, 0), 1, sideOnly}},
+			want:    []turnSaid{{2, local(10, 5, 0), time.Time{}, 1, sideOnly}, {1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 		{
 			name:    "the newest of a running session still going, as its last answer paused",
-			lines:   []ledger.Line{mainOn(p1, at(10, 0, 0), "pause_turn")},
+			lines:   []ledger.Line{mainOn(p1, local(10, 0, 0), "pause_turn")},
 			running: true,
-			want:    []turnSaid{{1, at(10, 0, 0), time.Time{}, 1, sideOnly}},
+			want:    []turnSaid{{1, local(10, 0, 0), time.Time{}, 1, sideOnly}},
 		},
 		{
 			name:    "the newest of a running session ended with its last answer",
-			lines:   []ledger.Line{mainOn(p1, at(10, 0, 0), "tool_use"), mainOn(p1, at(10, 2, 0), "end_turn")},
+			lines:   []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use"), mainOn(p1, local(10, 2, 0), "end_turn")},
 			running: true,
-			want:    []turnSaid{{1, at(10, 0, 0), at(10, 3, 0), 2, sideOnly}},
+			want:    []turnSaid{{1, local(10, 0, 0), local(10, 3, 0), 2, sideOnly}},
 		},
 		{
 			name:    "the newest of a running session ended with its last answer, its subagent's still calling a tool",
-			lines:   []ledger.Line{mainOn(p1, at(10, 0, 0), "end_turn"), stopped("tool_use", subagent("a1", "", p1, at(10, 1, 0)))},
+			lines:   []ledger.Line{mainOn(p1, local(10, 0, 0), "end_turn"), stopped("tool_use", subagent("a1", "", p1, local(10, 1, 0)))},
 			running: true,
-			want:    []turnSaid{{1, at(10, 0, 0), at(10, 1, 0), 2, both}},
+			want:    []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 2, both}},
 		},
 		{
 			name:  "the newest of a session ended, whatever its last answer",
-			lines: []ledger.Line{mainOn(p1, at(10, 0, 0), "tool_use")},
-			want:  []turnSaid{{1, at(10, 0, 0), at(10, 1, 0), 1, sideOnly}},
+			lines: []ledger.Line{mainOn(p1, local(10, 0, 0), "tool_use")},
+			want:  []turnSaid{{1, local(10, 0, 0), local(10, 1, 0), 1, sideOnly}},
 		},
 		{
 			name:  "one with no request of its own conversation ending with its last request",
-			lines: []ledger.Line{subagent("a1", "", p1, at(10, 0, 0)), subagent("a1", "", p1, at(10, 3, 0))},
-			want:  []turnSaid{{1, at(10, 0, 0), at(10, 4, 0), 2, []string{"work"}}},
+			lines: []ledger.Line{subagent("a1", "", p1, local(10, 0, 0)), subagent("a1", "", p1, local(10, 3, 0))},
+			want:  []turnSaid{{1, local(10, 0, 0), local(10, 4, 0), 2, []string{"work"}}},
 		},
 	}
 	for _, tt := range tests {
@@ -214,15 +214,15 @@ func zeroOrUTC(t time.Time) time.Time {
 }
 
 func TestATurnCountsItsToolsTokensWorthAndAccounts(t *testing.T) {
-	unknown := mainOn(p1, at(10, 2, 0), "end_turn")
+	unknown := mainOn(p1, local(10, 2, 0), "end_turn")
 	unknown.Model, unknown.Usage = "claude-opus-9", json.RawMessage(smallUsage)
 	lines := []ledger.Line{
-		stopped("tool_use", mainOn(p1, at(10, 0, 0), ""), "Bash", "Read", "Bash"),
-		stopped("tool_use", subagent("a1", "", p1, at(10, 1, 0)), "Read", "Grep"),
+		stopped("tool_use", mainOn(p1, local(10, 0, 0), ""), "Bash", "Read", "Bash"),
+		stopped("tool_use", subagent("a1", "", p1, local(10, 1, 0)), "Read", "Grep"),
 		unknown,
 	}
 	want := []views.Turn{{
-		Turn: 1, Started: utc(at(10, 0, 0)), Ended: utc(at(10, 3, 0)), Requests: 3,
+		Turn: 1, Started: utc(local(10, 0, 0)), Ended: utc(local(10, 3, 0)), Requests: 3,
 		Tools: []views.ToolCalls{{Tool: "Bash", Times: 2}, {Tool: "Read", Times: 2}, {Tool: "Grep", Times: 1}},
 		Read:  100000, Written: 1000, Out: 500 + 10 + 10, Worth: micro(hourWorth + smallWorth),
 		Unpriced: []string{"input_tokens", "output_tokens"}, Accounts: []string{"side", "work"},
@@ -233,22 +233,22 @@ func TestATurnCountsItsToolsTokensWorthAndAccounts(t *testing.T) {
 }
 
 func TestTheAccountsItRanOnFollowItsRequestsWhicheverModelEachWas(t *testing.T) {
-	unsent := line(paged, opus, "", "no account has room", at(11, 30, 0), "")
+	unsent := line(paged, opus, "", "no account has room", local(11, 30, 0), "")
 	unsent.Status, unsent.Attempts = 429, 0
 	// Sent again on side after work's limit, it's one request, side's.
-	resent := movedFrom("work", line(paged, opus, "side", "moved: work hit its limit", at(10, 30, 0), hourUsage))
+	resent := movedFrom("work", line(paged, opus, "side", "moved: work hit its limit", local(10, 30, 0), hourUsage))
 	resent.Tried, resent.Attempts = []ledger.Tried{{Account: "work", Why: "hit its limit"}}, 2
 	lines := []ledger.Line{
-		line(paged, opus, "work", "new", at(10, 0, 0), hourUsage),
-		line(paged, haiku, "side", "new", at(10, 1, 0), smallUsage),
+		line(paged, opus, "work", "new", local(10, 0, 0), hourUsage),
+		line(paged, haiku, "side", "new", local(10, 1, 0), smallUsage),
 		resent,
-		line(paged, opus, "side", "sticky", at(11, 0, 0), hourUsage),
+		line(paged, opus, "side", "sticky", local(11, 0, 0), hourUsage),
 		unsent,
 	}
 	page := pageOf(t, lines, nil)
 	want := []views.SessionAccount{
-		{Account: "work", From: utc(at(10, 0, 0)), To: utc(at(10, 0, 0)), Requests: 1, Worth: micro(hourWorth)},
-		{Account: "side", From: utc(at(10, 1, 0)), To: utc(at(11, 0, 0)), Requests: 3, Worth: micro(2*hourWorth + smallWorth)},
+		{Account: "work", From: utc(local(10, 0, 0)), To: utc(local(10, 0, 0)), Requests: 1, Worth: micro(hourWorth)},
+		{Account: "side", From: utc(local(10, 1, 0)), To: utc(local(11, 0, 0)), Requests: 3, Worth: micro(2*hourWorth + smallWorth)},
 	}
 	if !reflect.DeepEqual(page.Accounts, want) {
 		t.Errorf("the accounts are\n%+v\nwant\n%+v", page.Accounts, want)
@@ -278,7 +278,7 @@ func tokens(n int) string {
 }
 
 func TestThePointsOfAWindowAreItsRisesSharedOutByTokens(t *testing.T) {
-	fiveHour, week, fableWeek := at(15, 0, 0), october(12, 10, 0), october(12, 10, 0)
+	fiveHour, week, fableWeek := local(15, 0, 0), october(12, 10, 0), october(12, 10, 0)
 	// ours is a request of paged, and theirs of other, of the model given on
 	// work, arriving at at, taking a second, its answer's usage as given.
 	ours := func(model string, at time.Time, usage string) ledger.Line {
@@ -297,11 +297,11 @@ func TestThePointsOfAWindowAreItsRisesSharedOutByTokens(t *testing.T) {
 			lines: []ledger.Line{
 				// other's request arrives before paged's first, but ends after
 				// it, in the rise to paged's second.
-				took(2*time.Minute, theirs(opus, at(9, 59, 0), tokens(100))),
-				limited(ours(opus, at(9, 59, 59), tokens(100)), "5h", "0.20", fiveHour, "7d", "0.40", week),
-				limited(ours(opus, at(10, 2, 0), `{"cache_read_input_tokens":200,"output_tokens":100}`), "5h", "0.28", fiveHour, "7d", "0.44", week),
-				limited(theirs(opus, at(10, 3, 0), tokens(100)), "5h", "0.30", fiveHour, "7d", "0.44", week),
-				limited(ours(opus, at(10, 4, 0), tokens(100)), "5h", "0.31", fiveHour, "7d", "0.44", week),
+				took(2*time.Minute, theirs(opus, local(9, 59, 0), tokens(100))),
+				limited(ours(opus, local(9, 59, 59), tokens(100)), "5h", "0.20", fiveHour, "7d", "0.40", week),
+				limited(ours(opus, local(10, 2, 0), `{"cache_read_input_tokens":200,"output_tokens":100}`), "5h", "0.28", fiveHour, "7d", "0.44", week),
+				limited(theirs(opus, local(10, 3, 0), tokens(100)), "5h", "0.30", fiveHour, "7d", "0.44", week),
+				limited(ours(opus, local(10, 4, 0), tokens(100)), "5h", "0.31", fiveHour, "7d", "0.44", week),
 			},
 			// 5h: three quarters of 0.08, none of 0.02 and all of 0.01; 7d:
 			// three quarters of 0.04.
@@ -310,39 +310,39 @@ func TestThePointsOfAWindowAreItsRisesSharedOutByTokens(t *testing.T) {
 		{
 			name: "a later reset starting the window afresh, from nothing",
 			lines: []ledger.Line{
-				limited(ours(opus, at(10, 0, 0), tokens(100)), "5h", "0.90", at(10, 30, 0)),
-				limited(ours(opus, at(11, 0, 0), tokens(100)), "5h", "0.05", at(15, 30, 0)),
+				limited(ours(opus, local(10, 0, 0), tokens(100)), "5h", "0.90", local(10, 30, 0)),
+				limited(ours(opus, local(11, 0, 0), tokens(100)), "5h", "0.05", local(15, 30, 0)),
 			},
 			want: map[string]int{"5h": 5},
 		},
 		{
 			name:  "none of a window never read",
-			lines: []ledger.Line{ours(opus, at(10, 0, 0), tokens(100)), ours(opus, at(10, 1, 0), tokens(100))},
+			lines: []ledger.Line{ours(opus, local(10, 0, 0), tokens(100)), ours(opus, local(10, 1, 0), tokens(100))},
 		},
 		{
 			name: "a window every model shares counting every request, of a model whose answers never read it among them",
 			lines: []ledger.Line{
-				limited(ours(opus, at(10, 0, 0), tokens(100)), "5h", "0.10", fiveHour),
-				theirs("claude-opus-9", at(10, 1, 0), tokens(100)),
-				limited(ours(opus, at(10, 2, 0), tokens(100)), "5h", "0.20", fiveHour),
+				limited(ours(opus, local(10, 0, 0), tokens(100)), "5h", "0.10", fiveHour),
+				theirs("claude-opus-9", local(10, 1, 0), tokens(100)),
+				limited(ours(opus, local(10, 2, 0), tokens(100)), "5h", "0.20", fiveHour),
 			},
 			want: map[string]int{"5h": 5},
 		},
 		{
 			name: "a model's own window counting the requests of the models that read it alone",
 			lines: []ledger.Line{
-				limited(ours(fable, at(10, 0, 0), tokens(100)), "5h", "0.10", fiveHour, "7d_oi", "0.10", fableWeek),
-				limited(ours(haiku, at(10, 1, 0), tokens(100)), "5h", "0.12", fiveHour),
-				limited(theirs(fable, at(10, 2, 0), tokens(100)), "5h", "0.15", fiveHour, "7d_oi", "0.14", fableWeek),
+				limited(ours(fable, local(10, 0, 0), tokens(100)), "5h", "0.10", fiveHour, "7d_oi", "0.10", fableWeek),
+				limited(ours(haiku, local(10, 1, 0), tokens(100)), "5h", "0.12", fiveHour),
+				limited(theirs(fable, local(10, 2, 0), tokens(100)), "5h", "0.15", fiveHour, "7d_oi", "0.14", fableWeek),
 			},
 			want: map[string]int{"5h": 2, "7d_oi": 0},
 		},
 		{
 			name: "none of a model's own window its session never used",
 			lines: []ledger.Line{
-				limited(theirs(fable, at(10, 0, 0), tokens(100)), "5h", "0.10", fiveHour, "7d_oi", "0.10", fableWeek),
-				limited(ours(haiku, at(10, 1, 0), tokens(100)), "5h", "0.12", fiveHour),
-				limited(theirs(fable, at(10, 2, 0), tokens(100)), "5h", "0.15", fiveHour, "7d_oi", "0.14", fableWeek),
+				limited(theirs(fable, local(10, 0, 0), tokens(100)), "5h", "0.10", fiveHour, "7d_oi", "0.10", fableWeek),
+				limited(ours(haiku, local(10, 1, 0), tokens(100)), "5h", "0.12", fiveHour),
+				limited(theirs(fable, local(10, 2, 0), tokens(100)), "5h", "0.15", fiveHour, "7d_oi", "0.14", fableWeek),
 			},
 			want: map[string]int{"5h": 2},
 		},
@@ -380,9 +380,9 @@ func TestASessionResumesAfterAnHourOrMoreWithoutARequest(t *testing.T) {
 		requests []time.Time
 		want     time.Time
 	}{
-		{name: "never, its requests closer together", requests: []time.Time{at(9, 0, 0), at(9, 59, 59), at(10, 30, 0)}},
-		{name: "after an hour", requests: []time.Time{at(9, 0, 0), at(10, 0, 0), at(10, 5, 0)}, want: at(10, 0, 0)},
-		{name: "the latest time, of several", requests: []time.Time{october(6, 16, 40), october(6, 18, 5), at(9, 12, 0), at(11, 0, 0)}, want: at(11, 0, 0)},
+		{name: "never, its requests closer together", requests: []time.Time{local(9, 0, 0), local(9, 59, 59), local(10, 30, 0)}},
+		{name: "after an hour", requests: []time.Time{local(9, 0, 0), local(10, 0, 0), local(10, 5, 0)}, want: local(10, 0, 0)},
+		{name: "the latest time, of several", requests: []time.Time{october(6, 16, 40), october(6, 18, 5), local(9, 12, 0), local(11, 0, 0)}, want: local(11, 0, 0)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -398,7 +398,7 @@ func TestASessionResumesAfterAnHourOrMoreWithoutARequest(t *testing.T) {
 }
 
 func TestOneEndedIsKeptUntilTheLastDayItsFirstDaysLinesAre(t *testing.T) {
-	lines := []ledger.Line{line(paged, opus, "work", "new", october(6, 22, 0), hourUsage), line(paged, opus, "work", "sticky", at(9, 0, 0), hourUsage)}
+	lines := []ledger.Line{line(paged, opus, "work", "new", october(6, 22, 0), hourUsage), line(paged, opus, "work", "sticky", local(9, 0, 0), hourUsage)}
 	tests := []struct {
 		name    string
 		keep    time.Duration
@@ -426,13 +426,13 @@ func TestOneEndedIsKeptUntilTheLastDayItsFirstDaysLinesAre(t *testing.T) {
 
 func TestEachMoveSaysWhatItWroteAndWhatThatCostWhereTheCacheWouldntHaveRunOut(t *testing.T) {
 	lines := []ledger.Line{
-		line(paged, opus, "work", "new", at(9, 0, 0), hourUsage),
-		movedFrom("work", line(paged, opus, "side", "moved: work hit its limit", at(9, 30, 0), hourUsage)),
-		movedFrom("side", line(paged, opus, "work", "rescored after 2h 30m idle", at(12, 0, 0), hourUsage)),
+		line(paged, opus, "work", "new", local(9, 0, 0), hourUsage),
+		movedFrom("work", line(paged, opus, "side", "moved: work hit its limit", local(9, 30, 0), hourUsage)),
+		movedFrom("side", line(paged, opus, "work", "rescored after 2h 30m idle", local(12, 0, 0), hourUsage)),
 	}
 	want := []views.SessionMove{
-		{At: utc(at(9, 30, 0)), From: "work", To: "side", Reason: "moved: work hit its limit", Written: 1000, Cost: cost(hourWrite)},
-		{At: utc(at(12, 0, 0)), From: "side", To: "work", Reason: "rescored after 2h 30m idle", Written: 1000},
+		{At: utc(local(9, 30, 0)), From: "work", To: "side", Reason: "moved: work hit its limit", Written: 1000, Cost: cost(hourWrite)},
+		{At: utc(local(12, 0, 0)), From: "side", To: "work", Reason: "rescored after 2h 30m idle", Written: 1000},
 	}
 	if got := pageOf(t, lines, nil).Moves; !reflect.DeepEqual(got, want) {
 		t.Errorf("the moves are\n%+v\nwant\n%+v", got, want)
@@ -441,23 +441,23 @@ func TestEachMoveSaysWhatItWroteAndWhatThatCostWhereTheCacheWouldntHaveRunOut(t 
 
 func TestTheRoutersSayJoinsWhatItsLinesTell(t *testing.T) {
 	lines := []ledger.Line{
-		in("~/Code/api", serving(p1, ledger.ClassMain, line(paged, opus, "work", "new", at(13, 0, 0), hourUsage))),
-		in("~/Code/api", movedFrom("work", serving(p1, ledger.ClassMain, line(paged, opus, "side", "pinned", at(13, 5, 0), hourUsage)))),
+		in("~/Code/api", serving(p1, ledger.ClassMain, line(paged, opus, "work", "new", local(13, 0, 0), hourUsage))),
+		in("~/Code/api", movedFrom("work", serving(p1, ledger.ClassMain, line(paged, opus, "side", "pinned", local(13, 5, 0), hourUsage)))),
 	}
 	routed := &status.Session{ID: paged, Pin: "side", Assignments: []status.Assignment{
-		{Model: opus, Account: "side", Reason: "pinned", InFlight: status.Asking, LastSeen: at(13, 11, 0)},
+		{Model: opus, Account: "side", Reason: "pinned", InFlight: status.Asking, LastSeen: local(13, 11, 0)},
 	}}
 	got := pageOf(t, lines, routed)
 	want := views.SessionPage{
-		Session: paged, Dir: "~/Code/api", Running: true, LastSeen: utc(at(13, 11, 0)),
+		Session: paged, Dir: "~/Code/api", Running: true, LastSeen: utc(local(13, 11, 0)),
 		Models: []views.SessionModel{{Model: opus, Account: "side", Reason: "pinned"}}, State: status.Asking, MoveCost: cost(hourRewrite),
-		Pin: "side", Started: utc(at(13, 0, 0)),
+		Pin: "side", Started: utc(local(13, 0, 0)),
 		Accounts: []views.SessionAccount{
-			{Account: "work", From: utc(at(13, 0, 0)), To: utc(at(13, 0, 0)), Requests: 1, Worth: micro(hourWorth)},
-			{Account: "side", From: utc(at(13, 5, 0)), To: utc(at(13, 5, 0)), Requests: 1, Worth: micro(hourWorth)},
+			{Account: "work", From: utc(local(13, 0, 0)), To: utc(local(13, 0, 0)), Requests: 1, Worth: micro(hourWorth)},
+			{Account: "side", From: utc(local(13, 5, 0)), To: utc(local(13, 5, 0)), Requests: 1, Worth: micro(hourWorth)},
 		},
-		Moves: []views.SessionMove{{At: utc(at(13, 5, 0)), From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite)}},
-		Turns: []views.Turn{{Turn: 1, Started: utc(at(13, 0, 0)), Ended: utc(at(13, 5, 0)), Requests: 2, Tools: []views.ToolCalls{},
+		Moves: []views.SessionMove{{At: utc(local(13, 5, 0)), From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite)}},
+		Turns: []views.Turn{{Turn: 1, Started: utc(local(13, 0, 0)), Ended: utc(local(13, 5, 0)), Requests: 2, Tools: []views.ToolCalls{},
 			Read: 200000, Written: 2000, Out: 1000, Worth: micro(2 * hourWorth), Accounts: []string{"work", "side"}}},
 		Totals: views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: micro(2 * hourWorth)},
 	}
@@ -478,9 +478,9 @@ func TestASessionTheRouterListsIsOneWithoutLines(t *testing.T) {
 }
 
 func TestASessionNeitherTheLedgerNorTheRouterKnowsHasNoPage(t *testing.T) {
-	check := line(paged, haiku, "work", "new", at(9, 0, 0), smallUsage)
+	check := line(paged, haiku, "work", "new", local(9, 0, 0), smallUsage)
 	check.Kind = ledger.KindCheck
-	l := fakeLedger{now: now, lines: []ledger.Line{check, line(other, opus, "work", "new", at(9, 1, 0), hourUsage)}}
+	l := fakeLedger{now: now, lines: []ledger.Line{check, line(other, opus, "work", "new", local(9, 1, 0), hourUsage)}}
 	if _, ok := views.SessionPageOf(paged, views.PageSources{Ledger: l, Prices: ledger.Pricing, Now: now}); ok {
 		t.Error("SessionPageOf() found a session the ledger holds no request of, and the router doesn't list")
 	}

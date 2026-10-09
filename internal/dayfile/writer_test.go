@@ -75,11 +75,11 @@ func TestAWriterWritesWhatsNotedToTheFilesOfItsDays(t *testing.T) {
 		w.Note(noted{at: yesterday, text: "one"})
 		w.Note(noted{at: start, text: "two"})
 		synctest.Wait()
-		holds("as it runs", dateOf(yesterday), linesOf("one"))
-		holds("as it runs", dateOf(start), linesOf("two"))
+		holds("as it runs", DateOf(yesterday), linesOf("one"))
+		holds("as it runs", DateOf(start), linesOf("two"))
 		w.Note(noted{at: start, text: "three"})
 		stop()
-		holds("once it has stopped", dateOf(start), linesOf("two", "three"))
+		holds("once it has stopped", DateOf(start), linesOf("two", "three"))
 	})
 }
 
@@ -105,7 +105,7 @@ func TestAWriteThatFailsIsLoggedOnceUntilOneSucceeds(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	w := testWriter(f, at(start), 1)
 	one := noted{at: start, text: "one"}
-	today := f.path(plainFile(dateOf(start)))
+	today := f.path(plainFile(DateOf(start)))
 	// Today's file can't be opened to append while a directory stands at its
 	// path.
 	block := func() {
@@ -165,7 +165,7 @@ func TestTheFilesArePrunedOnTheFirstWriteOfANewDay(t *testing.T) {
 	w := testWriter(f, clock.read, 1)
 	w.round()
 	// Its day ended 13 days before start's, so it goes on the day after.
-	old := dateOf(start.Local().AddDate(0, 0, -14))
+	old := DateOf(start.Local().AddDate(0, 0, -14))
 	writeDay(t, f, plainFile(old), linesOf("old"))
 
 	w.write(noted{at: clock.now, text: "one"})
@@ -189,7 +189,7 @@ func TestTheFilesArePrunedOnANewDayWithNothingToWrite(t *testing.T) {
 		synctest.Wait()
 		// A day long past keeping, whose file comes once the files have been
 		// pruned for start's day, so it goes at the next prune.
-		old := dateOf(start.Local().AddDate(0, 0, -30))
+		old := DateOf(start.Local().AddDate(0, 0, -30))
 		writeDay(t, f, plainFile(old), linesOf("old"))
 		y, m, d := start.Local().Date()
 		tomorrow := time.Date(y, m, d+1, 0, 0, 0, 0, time.Local)
@@ -213,7 +213,7 @@ func TestAWriterMakesItsRoundAsItStartsAndEveryHourAfterBeforePruning(t *testing
 	synctest.Test(t, func(t *testing.T) {
 		f := readingsHistory(t.TempDir())
 		// A day long past keeping, which the first round's pruning removes.
-		old := dateOf(start.Local().AddDate(0, 0, -30))
+		old := DateOf(start.Local().AddDate(0, 0, -30))
 		writeDay(t, f, plainFile(old), linesOf("old"))
 		began := time.Now()
 		var rounds []time.Time
@@ -241,7 +241,7 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := readingsHistory(t.TempDir())
 		// A day long past keeping, which the first prune removes.
-		old := dateOf(start.Local().AddDate(0, 0, -30))
+		old := DateOf(start.Local().AddDate(0, 0, -30))
 		writeDay(t, f, plainFile(old), linesOf("old"))
 		began := time.Now()
 		rounds := 0
@@ -250,7 +250,7 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 		w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
 			Round: func(time.Time) { rounds++ },
 			Pruning: func(now time.Time) {
-				prunings = append(prunings, dateOf(now))
+				prunings = append(prunings, DateOf(now))
 				held = append(held, holdsDay(f, old))
 			}})
 		stop := running(t, w)
@@ -261,7 +261,7 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 		time.Sleep(tomorrow.Sub(start) + time.Minute + 2*pruneLook)
 		synctest.Wait()
 		stop()
-		if want := []string{dateOf(start), dateOf(tomorrow)}; !slices.Equal(prunings, want) || !slices.Equal(held, []bool{true, false}) {
+		if want := []string{DateOf(start), DateOf(tomorrow)}; !slices.Equal(prunings, want) || !slices.Equal(held, []bool{true, false}) {
 			t.Errorf("the writer's Pruning came on %q, the day past keeping there for each = %v; want on %q alone, the first before the prune it went at",
 				prunings, held, want)
 		}
@@ -275,7 +275,7 @@ func TestTheFirstWriteOfANewDayMakesTheRoundBeforeItPrunes(t *testing.T) {
 	clock := &testClock{now: start}
 	f := readingsHistory(t.TempDir())
 	// A day whose files go once they're pruned a day on.
-	old := dateOf(start.Local().AddDate(0, 0, -14))
+	old := DateOf(start.Local().AddDate(0, 0, -14))
 	writeDay(t, f, plainFile(old), linesOf("old"))
 	var rounds []time.Time
 	var held []bool
@@ -298,7 +298,7 @@ func TestTheFirstWriteOfANewDayMakesTheRoundBeforeItPrunes(t *testing.T) {
 }
 
 func TestWhatsLoggedNamesTheFilesAndWhatTheyHold(t *testing.T) {
-	old, done, today := dateOf(start.AddDate(0, 0, -30)), dateOf(start.AddDate(0, 0, -3)), dateOf(start)
+	old, done, today := DateOf(start.AddDate(0, 0, -30)), DateOf(start.AddDate(0, 0, -3)), DateOf(start)
 	// blockedDir returns a directory that can't be made, nor read, as a file
 	// stands in its path.
 	blockedDir := func(t *testing.T) string {
