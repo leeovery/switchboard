@@ -42,13 +42,19 @@ func (a *app) newStateReaders(cfg *config.Config) (stateReaders, error) {
 }
 
 // readers has wc read the request ledger, the readings history and the
-// router's events where they lie, through newStateReaders' readers. Without a
-// state directory to find, they read nothing.
+// router's events where they lie, through stateReadersOrNone's readers.
 func (a *app) readers(wc *watch.Config, cfg *config.Config) {
+	r := a.stateReadersOrNone(cfg)
+	wc.Ledger, wc.Readings, wc.Events = r.ledger, r.readings, r.events
+}
+
+// stateReadersOrNone returns newStateReaders' readers, or, without a state
+// directory to find, readers that read nothing.
+func (a *app) stateReadersOrNone(cfg *config.Config) stateReaders {
 	r, err := a.newStateReaders(cfg)
 	if err != nil {
 		logger.Debug("can't find the ledger, the readings history or the router's events", "error", err)
 		r = stateReaders{ledger: ledger.NewEmpty(a.Now, caps(cfg)), readings: readings.Empty{}, events: events.Empty{}}
 	}
-	wc.Ledger, wc.Readings, wc.Events = r.ledger, r.readings, r.events
+	return r
 }

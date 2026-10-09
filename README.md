@@ -391,7 +391,7 @@ switchboard logs router --path
 
 ### Looking back
 
-Both read the [request ledger](#how-it-works)'s files where they lie, so neither needs the router. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
+Each reads the [request ledger](#how-it-works)'s files where they lie, so none needs the router, though `sessions` asks it which sessions are running where it answers. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
 
 #### `requests`
 
@@ -431,6 +431,24 @@ switchboard history [--since <when>] [--json | --pretty]
 ```bash
 switchboard history --since 7d
 switchboard history --json | jq '.days[-1]'   # today's, as far as it has gone
+```
+
+#### `sessions`
+
+Today's sessions: those running, the oldest started first, then those that ended today, the latest ended first. A line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering, idle or when it ended, when it started, its requests today and what they'd have cost through the API, and how it came to its account, such as `from work, at its cap` and what writing its context again there cost; then a line summing them. It reads the ledger's files, and the router's sessions where it answers; without the router, it lists today's sessions from the ledger alone, none as running, and says so.
+
+```bash
+switchboard sessions [--json | --pretty]
+```
+
+| Flag | Description |
+|---|---|
+| `--json` | print `{"generated_at", "prices_as_of", "sessions", "today"}`, as it does off a terminal anyway, even on one: each session with its whole id, its directory, account and model, whether it's `running`, and of one running, when it was last seen, each of its models' account and why, what it's doing and its `move_cost`, what moving it now would cost; of one ended, when it `ended`; when it `started`, its `requests` today, their `worth` in US dollars and what it leaves `unpriced`, and the move that brought it to its account, as `moved`; and `today`, summing them |
+| `--pretty` | print the text, as it does on a terminal, even off one |
+
+```bash
+switchboard sessions
+switchboard sessions --json | jq '.sessions[] | select(.running)'   # those running now
 ```
 
 ### Plumbing

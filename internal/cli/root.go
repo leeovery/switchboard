@@ -129,7 +129,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
 	root.SetFlagErrorFunc(hideTokens)
 	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newRequestsCommand(a),
-		newHistoryCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a), newServiceCommand(a),
+		newHistoryCommand(a), newSessionsCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a), newServiceCommand(a),
 		newVersionCommand())
 	return root
 }
