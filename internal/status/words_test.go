@@ -70,11 +70,26 @@ func TestReasonWords(t *testing.T) {
 			session: "[work] had no room",
 		},
 		{
+			name:    "a move off an account, routed from the account the line's from gives",
+			reason:  "moved: work has no room",
+			facts:   status.Facts{From: "personal", To: "side"},
+			event:   "[work] had no room",
+			routing: "from [personal], with no room",
+			session: "[work] had no room",
+		},
+		{
+			name:    "a move off an account that the line says didn't move its session",
+			reason:  "moved: work hit its limit",
+			facts:   status.Facts{To: "work"},
+			event:   "[work] reached its limit",
+			session: "[work] reached its limit",
+		},
+		{
 			name:    "a move off an account for a why the dashboard has no words for, as the router gives it",
 			reason:  "moved: work was throttled",
 			facts:   status.Facts{From: "work", To: "side"},
 			event:   "moved: [work] was throttled",
-			routing: "moved: [work] was throttled",
+			routing: "from [work], moved: [work] was throttled",
 			session: "moved: [work] was throttled",
 		},
 		{
@@ -86,11 +101,10 @@ func TestReasonWords(t *testing.T) {
 			session: "pinned to [side]",
 		},
 		{
-			name:    "a move by pin, the account it left not given",
+			name:    "a move by pin, the account it left not given, so no move",
 			reason:  "moved by pin",
 			facts:   status.Facts{To: "side"},
 			event:   "pinned to [side]",
-			routing: "pinned to [side]",
 			session: "pinned to [side]",
 		},
 		{
@@ -110,11 +124,10 @@ func TestReasonWords(t *testing.T) {
 			session: "rescored after {15h} idle: [personal] had the most room",
 		},
 		{
-			name:    "a session rescored that stayed where it was, so moved from nowhere",
+			name:    "a session rescored that stayed where it was, which routing leaves blank",
 			reason:  "rescored after 12h 14m idle",
 			facts:   status.Facts{To: "side"},
 			event:   "rescored after {12h 14m} idle",
-			routing: "rescored after {12h 14m} idle",
 			session: "rescored after {12h 14m} idle: [side] had the most room",
 		},
 		{
@@ -126,11 +139,11 @@ func TestReasonWords(t *testing.T) {
 			session: "rescored after {15h} idle",
 		},
 		{
-			name:    "a choice that passed an account over for pressure, when it runs out in now's time zone",
+			name:    "a new session that passed an account over for pressure, when it runs out in now's time zone",
 			reason:  "new, personal under pressure",
 			facts:   pressure,
 			event:   "[personal] came under pressure, its 5-hour to run out at 15:10",
-			routing: "[personal] came under pressure, its 5-hour to run out at 15:10",
+			routing: "new session",
 			session: "[personal] came under pressure, its 5-hour to run out at 15:10",
 		},
 		{
@@ -138,7 +151,14 @@ func TestReasonWords(t *testing.T) {
 			reason:  "rescored after 12h 14m idle, personal under pressure",
 			facts:   status.Facts{From: "side", To: "work"},
 			event:   "[personal] came under pressure",
-			routing: "[personal] came under pressure",
+			routing: "from [side], [personal] came under pressure",
+			session: "[personal] came under pressure",
+		},
+		{
+			name:    "a choice that passed an account over for pressure but didn't move its session",
+			reason:  "rescored after 12h 14m idle, personal under pressure",
+			facts:   status.Facts{To: "side"},
+			event:   "[personal] came under pressure",
 			session: "[personal] came under pressure",
 		},
 		{
@@ -146,7 +166,7 @@ func TestReasonWords(t *testing.T) {
 			reason:  "pin yields: side has no room",
 			facts:   status.Facts{From: "side", To: "work"},
 			event:   "its pin to [side] yields: [side] has no room",
-			routing: "its pin to [side] yields: [side] has no room",
+			routing: "from [side], its pin to [side] yields: [side] has no room",
 			session: "its pin to [side] yields: [side] has no room",
 		},
 		{
@@ -162,7 +182,7 @@ func TestReasonWords(t *testing.T) {
 			reason:  "back where it was before its request",
 			facts:   status.Facts{From: "side", To: "work"},
 			event:   "back where it was",
-			routing: "back where it was",
+			routing: "from [side], back where it was",
 			session: "back where it was",
 		},
 		{
@@ -180,17 +200,33 @@ func TestReasonWords(t *testing.T) {
 			session: "kept for its thinking",
 		},
 		{
-			name:    "a session's own pin, which moves nothing",
+			name:    "a session's own pin, where it stayed",
 			reason:  "pinned",
 			facts:   status.Facts{To: "work"},
 			event:   "pinned here",
 			session: "pinned here",
 		},
 		{
-			name:    "the global pin, which moves nothing",
+			name:    "a session's own pin, which moved it, routed as the router gives it",
+			reason:  "pinned",
+			facts:   status.Facts{From: "side", To: "work"},
+			event:   "pinned here",
+			routing: "from [side], pinned here",
+			session: "pinned here",
+		},
+		{
+			name:    "the global pin, where the session stayed",
 			reason:  "pinned (global)",
 			facts:   status.Facts{To: "side"},
 			event:   "pinned to [side]",
+			session: "pinned to [side]",
+		},
+		{
+			name:    "the global pin, a forced move to one of its accounts",
+			reason:  "pinned (global)",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "pinned to [side]",
+			routing: "from [work], pinned to [side]",
 			session: "pinned to [side]",
 		},
 		{
@@ -202,9 +238,9 @@ func TestReasonWords(t *testing.T) {
 		{
 			name:    "any other reason, as the router gives it",
 			reason:  "no account has room",
-			facts:   status.Facts{To: "work"},
+			facts:   status.Facts{From: "work", To: "side"},
 			event:   "no account has room",
-			routing: "no account has room",
+			routing: "from [work], no account has room",
 			session: "no account has room",
 		},
 		{
@@ -214,6 +250,13 @@ func TestReasonWords(t *testing.T) {
 			event:   "pinned to [side]",
 			routing: "from [work], pinned to [side]",
 			session: "pinned to [side]",
+		},
+		{
+			name:    "a new session's reason from elsewhere, cleaned",
+			reason:  "new\n",
+			event:   "started",
+			routing: "new session",
+			session: "since it started",
 		},
 	}
 	for _, tt := range tests {
