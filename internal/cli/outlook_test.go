@@ -2,17 +2,14 @@ package cli_test
 
 import (
 	"encoding/json"
-	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -48,33 +45,12 @@ func TestStatusWorksOutWhatARouterFromBeforeDoesntGive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := newServeSetup(t, "http://127.0.0.1:1", nil)
-			serveDocument(t, srv.socket(), tt.doc)
+			serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+				"GET /status": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(tt.doc) },
+			})
 			if got := statusJSON(t, srv.deps); !reflect.DeepEqual(got, want) {
 				t.Errorf("switchboard status --json printed\n%+v\nwant the router's document with what's worked out of it\n%+v", got, want)
 			}
 		})
 	}
-}
-
-// serveDocument answers health checks on the socket at path until the test
-// ends, as a healthy router does, and gives doc as its status document.
-func serveDocument(t *testing.T, path string, doc status.Document) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	ln, err := net.Listen("unix", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(router.Health{OK: true, Listen: "127.0.0.1:4747"})
-	})
-	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(doc)
-	})
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
-	go func() { _ = srv.Serve(ln) }()
-	t.Cleanup(func() { _ = srv.Close() })
 }

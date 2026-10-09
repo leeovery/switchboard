@@ -74,7 +74,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 		{
 			name: "an account its reserve holds back, reaching it before its limit",
 			doc:  routerDoc("work", 0, reserved),
-			want: []string{"14:20 work reaches its reserve", "16:12 work's session resets", "Fri 13:12 work's week resets"},
+			want: []string{"14:20 work reaches its cap", "16:12 work's session resets", "Fri 13:12 work's week resets"},
 		},
 		{
 			name: "an account a pin names, its reserve not holding it back",
@@ -100,12 +100,12 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 		{
 			name: "an account back from its cap as its week resets",
 			doc:  routerDoc("capped", 0, capped),
-			want: []string{"15:12 capped's session resets", "Wed 13:12 capped back from its reserve"},
+			want: []string{"15:12 capped's session resets", "Wed 13:12 capped back from its cap"},
 		},
 		{
 			name: "an account back from the cap on a model's own week",
 			doc:  routerDoc("fable", 0, modelCapped),
-			want: []string{"15:12 fable's session resets", "Wed 13:12 fable back from its Fable week reserve", "Thu 13:12 fable's week resets"},
+			want: []string{"15:12 fable's session resets", "Wed 13:12 fable back from its Fable week cap", "Thu 13:12 fable's week resets"},
 		},
 	}
 	for _, tt := range tests {
@@ -151,9 +151,9 @@ func TestCOMINGUPsInks(t *testing.T) {
 	want := map[string]theme.Token{
 		" is primed":                   theme.AccentPrimary,
 		" back from its limit":         theme.TextMuted,
-		" back from its reserve":       theme.TextMuted,
+		" back from its cap":           theme.TextMuted,
 		" runs out at its pace":        theme.AccentAttention,
-		" reaches its reserve":         theme.AccentAttention,
+		" reaches its cap":             theme.AccentAttention,
 		"'s week runs out at its pace": theme.AccentAttention,
 		"'s session resets":            theme.TextMuted,
 		"'s week resets":               theme.TextMuted,

@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,12 +138,21 @@ func TestEachWindowsEvenPaceAndAllowance(t *testing.T) {
 			pace:   0.8,
 		},
 		{
-			name: "held by the router's limit, though it reads some room",
+			name: "held by the router's limit naming it, though it reads some room",
 			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
 			})),
 			wantOK: true,
 			pace:   0.8,
+		},
+		{
+			name: "under the router's limit naming no window: as its reading says",
+			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(time.Hour)}
+			})),
+			wantOK:  true,
+			pace:    5.0 / 7,
+			allowed: quota.Allowance{Share: 0.25, Per: quota.PerDay},
 		},
 		{
 			name:    "reset since it was read: from empty, from that reset, to its next a length on",
@@ -251,7 +261,7 @@ func TestThePool(t *testing.T) {
 			},
 		},
 		{
-			name: "none in the session of an account at its limit, nor in the window its limit holds",
+			name: "none in the session of an account at its limit, nor in the window its limit names",
 			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.97, 2*day)), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"7d"}, Until: built.Add(2 * day)}
 			}), plainSide),
@@ -260,6 +270,22 @@ func TestThePool(t *testing.T) {
 				"5h Session: room 0.8, used 0.6, pace 0.6",
 				"7d Week: room 0.9, used 0.55, pace 0.428571",
 			},
+		},
+		{
+			name: "none in the session of an account at a limit naming no window, its other windows as their readings say",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.5, 2*day)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(time.Hour)}
+			}), plainSide),
+			accounts: []string{"work", "side"},
+			want: []string{
+				"5h Session: room 0.8, used 0.6, pace 0.6",
+				"7d Week: room 1.4, used 0.3, pace 0.428571",
+			},
+		},
+		{
+			name:     "no windows read: a list of none",
+			doc:      routerDocOf(status.Account{ID: "work", Label: "work", TokenSet: true}, status.Account{ID: "side", Label: "side", TokenSet: true}),
+			accounts: []string{"work", "side"},
 		},
 		{
 			name:     "none in the session of an account at its cap, nor below none in the window at it",
@@ -321,7 +347,18 @@ func TestThePool(t *testing.T) {
 			if got := poolLines(pool); !slices.Equal(got, tt.want) {
 				t.Errorf("the pool's windows are %q, want %q", got, tt.want)
 			}
+			if tt.accounts != nil && pool.Windows == nil {
+				t.Error("the pool's windows are nil, want a list, however short")
+			}
 		})
+	}
+}
+
+func TestThePoolsWindowsAreAListEvenOfNone(t *testing.T) {
+	doc := routerDocOf(status.Account{ID: "work", Label: "work", TokenSet: true}, status.Account{ID: "side", Label: "side", TokenSet: true})
+	got, err := json.Marshal(doc.WorkedOut(policy))
+	if want := `"pool":{"accounts":["work","side"],"windows":[]}`; err != nil || !strings.Contains(string(got), want) {
+		t.Errorf("Marshal() = %s, %v, want it to hold %s", got, err, want)
 	}
 }
 
@@ -400,6 +437,20 @@ func TestWhatsComingUp(t *testing.T) {
 			name: "a cap on a model's own week lifting, named",
 			doc:  routerDocOf(with(readAt("fable", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.3, 3*day), windowIn("7d_oi", 0.95, 2*day)), reserving)),
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), back("fable", "7d_oi", 2*day, true), reset("fable", "7d", 3*day)},
+		},
+		{
+			name: "a cap on the week and a limit of a model's own week: back from each as it lifts",
+			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, 2*day), spentIn("7d_oi", 1, 4*day)), func(a *status.Account) {
+				a.Reserve, a.Limit = 0.1, status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(4 * day)}
+			})),
+			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), back("fable", "", 2*day, true), back("fable", "7d_oi", 4*day, false)},
+		},
+		{
+			name: "a limit on every request and a model's own week read spent: back from each as it lifts",
+			doc: routerDocOf(with(readAt("fable", spentIn("5h", 1, time.Hour), windowIn("7d", 0.2, 3*day), spentIn("7d_oi", 1, 4*day)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+			})),
+			want: []status.Upcoming{back("fable", "", time.Hour, false), reset("fable", "7d", 3*day), back("fable", "7d_oi", 4*day, false)},
 		},
 		{
 			name: "the session running out at its recent rate, slower than its use since it started",
@@ -539,6 +590,19 @@ func TestWorkingADocumentOutAgainChangesNothing(t *testing.T) {
 	}
 	if worked := fullDocument().WorkedOut(policy); worked.Pool.Windows == nil || worked.ComingUp == nil || worked.Accounts[0].Windows[0].Pace == nil {
 		t.Errorf("WorkedOut() = %+v, want something of everything worked out", worked)
+	}
+}
+
+func TestAnAccountWorkedOutAloneIsAsTheDocumentWorkedOutHasIt(t *testing.T) {
+	doc := fullDocument()
+	worked := doc.WorkedOut(policy)
+	for _, want := range worked.Accounts {
+		if got, ok := doc.AccountWorkedOut(want.ID, policy); !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("AccountWorkedOut(%q) = %+v, %v, want %+v, true", want.ID, got, ok, want)
+		}
+	}
+	if got, ok := doc.AccountWorkedOut("spare", policy); ok {
+		t.Errorf("AccountWorkedOut(\"spare\") = %+v, true, want none: the document has no such account", got)
 	}
 }
 

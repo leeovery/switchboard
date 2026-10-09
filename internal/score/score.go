@@ -66,7 +66,7 @@ func (p Policy) IsShared(key string) bool {
 func (p Policy) Lapsed(windows []quota.Window, now time.Time) []string {
 	var keys []string
 	for _, w := range windows {
-		if p.HasLapsed(w, now) {
+		if p.lapsed(w, now) {
 			keys = append(keys, w.Key)
 		}
 	}
@@ -79,16 +79,16 @@ func (p Policy) Lapsed(windows []quota.Window, now time.Time) []string {
 func (p Policy) AsOf(windows []quota.Window, now time.Time) []quota.Window {
 	standing := slices.Clone(windows)
 	for i, w := range standing {
-		if p.HasLapsed(w, now) {
+		if p.lapsed(w, now) {
 			standing[i] = quota.Window{Key: w.Key, Label: w.Label}
 		}
 	}
 	return standing
 }
 
-// HasLapsed reports whether w has lapsed at now: it's the window a request
+// lapsed reports whether w has lapsed at now: it's the window a request
 // starts, and it has reset since it was read.
-func (p Policy) HasLapsed(w quota.Window, now time.Time) bool {
+func (p Policy) lapsed(w quota.Window, now time.Time) bool {
 	return w.Key == p.Started && w.ResetBy(now)
 }
 

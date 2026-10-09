@@ -422,6 +422,9 @@ func TestClientSession(t *testing.T) {
 		},
 		Account: status.Account{ID: "work", Label: "Work", TokenSet: true, FetchedAt: later, Windows: []quota.Window{session, week}, Sessions: 1},
 	}
+	if work, _ := r.rt.Status().Account("work"); !reflect.DeepEqual(got.Account, work) || work.Windows[0].Pace == nil {
+		t.Errorf("Session() gave the account\n%+v\nwant it as the status document has it, its windows' even pace and allowance among it,\n%+v", got.Account, work)
+	}
 	got.Account.Windows = asRead(got.Account.Windows)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Session() =\n%+v\nwant, the pin its last request carried, and the account of the model used last,\n%+v", got, want)

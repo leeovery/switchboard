@@ -73,12 +73,26 @@ type Upcoming struct {
 // own would have.
 func (d Document) WorkedOut(policy score.Policy) Document {
 	d.Accounts = slices.Clone(d.Accounts)
+	standings := make([]standing, len(d.Accounts))
 	for i, a := range d.Accounts {
-		d.Accounts[i].Windows = d.measured(a, policy)
+		standings[i] = d.standingOf(a, policy)
+		d.Accounts[i].Windows = d.measured(a, standings[i])
 	}
-	d.Pool = d.pool(policy)
-	d.ComingUp = d.comingUp(policy)
+	d.Pool = d.pool(standings, policy)
+	d.ComingUp = d.comingUp(standings, policy)
 	return d
+}
+
+// AccountWorkedOut is the document's account with the given id, its windows
+// with their even pace and allowance, as WorkedOut works them out, without
+// the pool or what's coming up; reporting false where the document has no
+// such account.
+func (d Document) AccountWorkedOut(id string, policy score.Policy) (Account, bool) {
+	a, ok := d.Account(id)
+	if ok {
+		a.Windows = d.measured(a, d.standingOf(a, policy))
+	}
+	return a, ok
 }
 
 // standing is how an account stands as of when the document was built, as
@@ -100,7 +114,7 @@ type standing struct {
 // so has any other policy judges lapsed by then.
 func (d Document) standingOf(a Account, policy score.Policy) standing {
 	at := d.GeneratedAt
-	s := standing{lapsed: slices.Concat(a.Lapsed, policy.Lapsed(a.Windows, at)), refused: a.tokenRefused(at)}
+	s := standing{lapsed: slices.Concat(a.Lapsed, policy.Lapsed(a.Windows, at)), refused: a.TokenRefused(at)}
 	s.held, s.limited = a.Held(at, policy)
 	s.capped = d.ReserveHolds(a) && slices.ContainsFunc(score.AtReserve(a.Windows, a.Reserve, at), policy.IsShared)
 	return s
@@ -124,17 +138,20 @@ func (s standing) shut() bool {
 }
 
 // holds reports whether a limit holds the account's window with the given
-// key.
+// key as its own: one the router's limit names, or one read spent. A limit
+// that names no window holds the account at its limit, as every says, but
+// takes no window's room: what each has left is what its reading says.
 func (s standing) holds(key string) bool {
-	return s.limited && s.held.Holds(key)
+	return s.limited && slices.Contains(s.held.Windows, key)
 }
 
-// measured are account a's windows, each with its even pace and its
-// allowance as of when the document was built, its use running to where the
-// account runs out, as floor says: neither where it has lapsed, as it isn't
-// running, and no allowance where a limit holds it, as it has no room.
-func (d Document) measured(a Account, policy score.Policy) []quota.Window {
-	at, s := d.GeneratedAt, d.standingOf(a, policy)
+// measured are account a's windows, standing as s says, each with its even
+// pace and its allowance as of when the document was built, its use running
+// to where the account runs out, as Floor says: neither where it has lapsed,
+// as it isn't running, and no allowance where a limit holds it as its own,
+// as holds says, as it has no room.
+func (d Document) measured(a Account, s standing) []quota.Window {
+	at := d.GeneratedAt
 	windows := slices.Clone(a.Windows)
 	for i, w := range windows {
 		windows[i].Pace, windows[i].Allowance = nil, quota.Allowance{}
@@ -145,35 +162,42 @@ func (d Document) measured(a Account, policy score.Policy) []quota.Window {
 			windows[i].Pace = &pace
 		}
 		if !s.holds(w.Key) {
-			windows[i].Allowance, _ = score.AllowanceOf(w, d.floor(a), at)
+			windows[i].Allowance, _ = score.AllowanceOf(w, d.Floor(a), at)
 		}
 	}
 	return windows
 }
 
-// floor is the share of a window of account a used where the account runs
+// Floor is the share of a window of account a used where the account runs
 // out: where its reserve starts, where that holds it back, as ReserveHolds
 // says, else its limit.
-func (d Document) floor(a Account) float64 {
+func (d Document) Floor(a Account) float64 {
 	if d.ReserveHolds(a) {
 		return 1 - a.Reserve
 	}
 	return 1
 }
 
+// member is an account of the pool, its windows measured, and how it stands.
+type member struct {
+	account  Account
+	standing standing
+}
+
 // pool is the accounts new sessions can go to as of when the document was
-// built, as one, their windows' even paces as measured says: zero with one
-// account, whose own windows say the same.
-func (d Document) pool(policy score.Policy) Pool {
-	members := d.poolAccounts()
+// built, as one, each standing as standings says, in the accounts' order,
+// their windows' even paces as measured says: zero with one account, whose
+// own windows say the same.
+func (d Document) pool(standings []standing, policy score.Policy) Pool {
+	members := d.poolMembers(standings)
 	if len(d.Accounts) < 2 || len(members) == 0 {
 		return Pool{}
 	}
-	p := Pool{Pinned: !d.Pin.IsZero()}
+	p := Pool{Pinned: !d.Pin.IsZero(), Windows: []PoolWindow{}}
 	var keys []string
-	for _, a := range members {
-		p.Accounts = append(p.Accounts, a.ID)
-		for _, w := range a.Windows {
+	for _, m := range members {
+		p.Accounts = append(p.Accounts, m.account.ID)
+		for _, w := range m.account.Windows {
 			if !slices.Contains(keys, w.Key) {
 				keys = append(keys, w.Key)
 			}
@@ -186,35 +210,39 @@ func (d Document) pool(policy score.Policy) Pool {
 	return p
 }
 
-// poolAccounts are the accounts new sessions can go to, in the config's
-// order: those the global pin names, else every one.
-func (d Document) poolAccounts() []Account {
-	if d.Pin.IsZero() {
-		return d.Accounts
+// poolMembers are the accounts new sessions can go to, in the config's
+// order, each standing as standings says: those the global pin names, else
+// every one.
+func (d Document) poolMembers(standings []standing) []member {
+	var members []member
+	for i, a := range d.Accounts {
+		if d.Pin.IsZero() || d.Pin.Has(a.ID) {
+			members = append(members, member{account: a, standing: standings[i]})
+		}
 	}
-	return slices.DeleteFunc(slices.Clone(d.Accounts), func(a Account) bool { return !d.Pin.Has(a.ID) })
+	return members
 }
 
-// poolWindow is the window with the given key of the accounts given, as
-// one: the room each has left in it, as poolRoom says, summed; what that
-// leaves its bar filled to; and their even paces in it, where it's running,
+// poolWindow is the window with the given key of the members given, as one:
+// the room each has left in it, as poolRoom says, summed; what that leaves
+// its bar filled to; and their even paces in it, where it's running,
 // averaged.
-func (d Document) poolWindow(accounts []Account, key string, policy score.Policy) PoolWindow {
+func (d Document) poolWindow(members []member, key string, policy score.Policy) PoolWindow {
 	pw := PoolWindow{Key: key}
 	var paces float64
 	var running int
-	for _, a := range accounts {
-		w, ok := a.Window(key)
+	for _, m := range members {
+		w, ok := m.account.Window(key)
 		if !ok {
 			continue
 		}
 		pw.Label = cmp.Or(pw.Label, w.Label)
-		pw.Room += d.poolRoom(a, w, policy)
+		pw.Room += d.poolRoom(m, w, policy)
 		if w.Pace != nil {
 			paces, running = paces+*w.Pace, running+1
 		}
 	}
-	pw.Used = 1 - pw.Room/float64(len(accounts))
+	pw.Used = 1 - pw.Room/float64(len(members))
 	if running > 0 {
 		mean := paces / float64(running)
 		pw.Pace = &mean
@@ -222,33 +250,35 @@ func (d Document) poolWindow(accounts []Account, key string, policy score.Policy
 	return pw
 }
 
-// poolRoom is the room account a has left in its window w as the pool counts
+// poolRoom is the room member m has left in its window w as the pool counts
 // it, as of when the document was built, to where the account runs out, as
-// floor says: none in any window of one nothing has been read of, or whose
+// Floor says: none in any window of one nothing has been read of, or whose
 // token is refused; none in the window a request starts, as policy names it,
-// of one at its limit or its cap; and none in a window a limit holds.
-func (d Document) poolRoom(a Account, w quota.Window, policy score.Policy) float64 {
-	s := d.standingOf(a, policy)
+// of one at its limit or its cap; and none in a window a limit holds as its
+// own, as holds says.
+func (d Document) poolRoom(m member, w quota.Window, policy score.Policy) float64 {
+	s := m.standing
 	switch {
-	case a.FetchedAt.IsZero() || s.refused:
+	case m.account.FetchedAt.IsZero() || s.refused:
 		return 0
 	case w.Key == policy.Started && (s.every() || s.capped):
 		return 0
 	case s.holds(w.Key):
 		return 0
 	}
-	return score.Room(w, d.floor(a), d.GeneratedAt)
+	return score.Room(w, d.Floor(m.account), d.GeneratedAt)
 }
 
 // comingUp is what's coming to the accounts after the document was built,
-// soonest first, as policy judges their windows: each account's, as
-// comingTo says, those at one time in the order of the accounts, then the
-// router's next prime of each. It's nil when nothing is, as a document read
-// back without any has it.
-func (d Document) comingUp(policy score.Policy) []Upcoming {
+// soonest first, each standing as standings says, in the accounts' order,
+// as policy judges their windows: each account's, as comingTo says, those at
+// one time in the order of the accounts, then the router's next prime of
+// each. It's nil when nothing is, as a document read back without any has
+// it.
+func (d Document) comingUp(standings []standing, policy score.Policy) []Upcoming {
 	var all []Upcoming
-	for _, a := range d.Accounts {
-		all = append(all, d.comingTo(a, policy)...)
+	for i, a := range d.Accounts {
+		all = append(all, d.comingTo(a, standings[i], policy)...)
 	}
 	for _, s := range d.Prime.Slots {
 		all = append(all, Upcoming{At: s.Next, Account: s.Account, Kind: UpcomingPrime})
@@ -264,28 +294,34 @@ func (d Document) comingUp(policy score.Policy) []Upcoming {
 	return after
 }
 
-// comingTo is what's coming to account a as of when the document was built:
-// its having room again, as backs says; its windows running out, as
-// runningOut says; and their resets, as resets says.
-func (d Document) comingTo(a Account, policy score.Policy) []Upcoming {
-	s := d.standingOf(a, policy)
+// comingTo is what's coming to account a, standing as s says, as of when the
+// document was built: its having room again, as backs says; its windows
+// running out, as runningOut says; and their resets, as resets says.
+func (d Document) comingTo(a Account, s standing, policy score.Policy) []Upcoming {
 	backs := d.backs(a, s, policy)
 	return slices.Concat(backs, d.runningOut(a, s), d.resets(a, s, backs, policy))
 }
 
-// backs are when account a, standing as s says, has room again. Held back
-// from every request, by a limit or its cap, it's once each has lifted, Cap
-// set where its cap lifts last, and none where either lifts at no known
-// time. Held back from some models' requests alone, it's as each window
-// holding them lifts, named: at its limit as Lifts says, or at its cap as it
-// resets.
+// backs are when account a, standing as s says, has room again: held back
+// from every request, by a limit or its cap, once each has lifted, as
+// backFromEvery says; and held back from some models' requests, as each
+// window holding back theirs alone lifts, as backsOfModels says.
 func (d Document) backs(a Account, s standing, policy score.Policy) []Upcoming {
-	if s.every() || s.capped {
-		return d.backFromEvery(a, s, policy)
-	}
 	var backs []Upcoming
-	if s.limited {
-		for _, key := range s.held.Windows {
+	if s.every() || s.capped {
+		backs = d.backFromEvery(a, s, policy)
+	}
+	return append(backs, d.backsOfModels(a, s, policy)...)
+}
+
+// backsOfModels are when account a, standing as s says, has room again for
+// some models' requests, as each window that holds back theirs alone, as
+// policy says which, lifts, named: one a limit holds, as Lifts says, and one
+// at its cap, where its reserve holds the account back, as it resets.
+func (d Document) backsOfModels(a Account, s standing, policy score.Policy) []Upcoming {
+	var backs []Upcoming
+	for _, key := range s.held.Windows {
+		if s.limited && !policy.IsShared(key) {
 			backs = append(backs, Upcoming{At: s.held.Lifts(key), Account: a.ID, Kind: UpcomingBack, Window: key})
 		}
 	}
@@ -293,7 +329,7 @@ func (d Document) backs(a Account, s standing, policy score.Policy) []Upcoming {
 		return backs
 	}
 	for _, key := range score.AtReserve(a.Windows, a.Reserve, d.GeneratedAt) {
-		if w, ok := a.Window(key); ok && !s.holds(key) {
+		if w, ok := a.Window(key); ok && !policy.IsShared(key) && !s.holds(key) {
 			backs = append(backs, Upcoming{At: w.ResetsAt, Account: a.ID, Kind: UpcomingBack, Window: key, Cap: true})
 		}
 	}
@@ -301,7 +337,8 @@ func (d Document) backs(a Account, s standing, policy score.Policy) []Upcoming {
 }
 
 // backFromEvery is when account a, held back from every request by a limit
-// or its cap, as s says, has room again, as backs says.
+// or its cap, as s says, has room again: once each has lifted, Cap set where
+// its cap lifts last; none where either lifts at no known time.
 func (d Document) backFromEvery(a Account, s standing, policy score.Policy) []Upcoming {
 	back := Upcoming{Account: a.ID, Kind: UpcomingBack}
 	if s.every() {
@@ -325,7 +362,7 @@ func (d Document) backFromEvery(a Account, s standing, policy score.Policy) []Up
 // runningOut is account a's windows running out before they reset, standing
 // as s says, as RunsOut has it as of when the document was built: none while
 // it can take no request, as its use can't rise; and none of a window that
-// has lapsed, or that a limit holds.
+// has lapsed, or that a limit holds as its own, as holds says.
 func (d Document) runningOut(a Account, s standing) []Upcoming {
 	if s.shut() {
 		return nil

@@ -533,7 +533,7 @@ func (d Document) readAt(now time.Time) time.Time {
 func (d Document) RunsOut(a Account, w quota.Window, now time.Time) (RunOut, bool) {
 	out := RunOut{Heading: d.Project(a, w, now), Reserve: d.ReserveHolds(a)}
 	var ok bool
-	out.At, ok = score.Reaches(w, out.Projection, d.floor(a), d.readAt(now))
+	out.At, ok = score.Reaches(w, out.Projection, d.Floor(a), d.readAt(now))
 	return out, ok
 }
 
@@ -621,12 +621,12 @@ func choose(policy score.Policy, accounts []Account, pinned []string, now time.T
 // every request, as policy says which windows every model shares.
 func (a Account) shut(now time.Time, policy score.Policy) bool {
 	limited := a.Limit.Holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
-	return limited || a.tokenRefused(now)
+	return limited || a.TokenRefused(now)
 }
 
-// tokenRefused reports whether the upstream refuses the account's token at
+// TokenRefused reports whether the upstream refuses the account's token at
 // now, holding back every request, rather than a model family's alone.
-func (a Account) tokenRefused(now time.Time) bool {
+func (a Account) TokenRefused(now time.Time) bool {
 	return a.Refused.Holds(now) && a.Refused.Family == ""
 }
 

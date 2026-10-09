@@ -2,7 +2,6 @@ package watch
 
 import (
 	"errors"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -45,31 +44,6 @@ func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 	}
 	if got, want := h.footer(), routerKeys+" · read 0s ago"; got != want {
 		t.Errorf("footer = %q, want %q", got, want)
-	}
-}
-
-func TestTheRoutersDocumentIsShownWithWhatsWorkedOutOfIt(t *testing.T) {
-	given := routerDocument(three()...)
-	want := given.WorkedOut(policy)
-	if want.ComingUp == nil || want.Pool.Windows == nil {
-		t.Fatalf("WorkedOut() = %+v, want what's coming up and the pool", want)
-	}
-	tests := []struct {
-		name string
-		doc  status.Document
-	}{
-		{name: "from a router from before, which gives none of it", doc: given},
-		{name: "from a router that gives it, as it gave it", doc: want},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := routedHarness(t, tt.doc)
-			h.start()
-
-			if !reflect.DeepEqual(h.model.doc, want) {
-				t.Errorf("the document shown is\n%+v\nwant the router's, with what's worked out of it\n%+v", h.model.doc, want)
-			}
-		})
 	}
 }
 

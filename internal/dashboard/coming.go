@@ -31,9 +31,9 @@ func upcoming(doc status.Document, now time.Time, policy score.Policy) []happeni
 // happeningOf is what doc's COMING UP says comes of u: its account back from
 // its limit, as in "back from its limit", or from one of some models alone,
 // named by its window, as in "back from its Fable week limit", or from its
-// reserve; a window running out, as runningOut says; a window resetting, as
-// in "'s session resets"; or its being primed. It reports false for a kind
-// it doesn't tell of, as one from a later router.
+// cap; a window running out, as runningOut says; a window resetting, as in
+// "'s session resets"; or its being primed. It reports false for a kind it
+// doesn't tell of, as one from a later router.
 func happeningOf(doc status.Document, u status.Upcoming, policy score.Policy) (happening, bool) {
 	h := happening{at: u.At, name: named(doc, u.Account), ink: mutedInk}
 	switch u.Kind {
@@ -51,13 +51,13 @@ func happeningOf(doc status.Document, u status.Upcoming, policy score.Policy) (h
 	return h, true
 }
 
-// holder names what held back the account u is back from: its reserve,
-// where u has it back from its cap, else its limit, each named by the window
-// that held back some models' requests alone, as in "Fable week limit".
+// holder names what held back the account u is back from: its cap, or its
+// limit, each named by the window that held back some models' requests
+// alone, as in "Fable week cap".
 func holder(doc status.Document, u status.Upcoming) string {
 	what := "limit"
 	if u.Cap {
-		what = "reserve"
+		what = "cap"
 	}
 	if u.Window == "" {
 		return what
@@ -66,14 +66,14 @@ func holder(doc status.Document, u status.Upcoming) string {
 }
 
 // runningOut says what befalls an account as its window runs out, as u
-// says: it runs out at its pace, or reaches its reserve where that holds it
+// says: it runs out at its pace, or reaches its cap where that holds it
 // back; as the window a request starts does, unnamed, as in "work runs out
 // at its pace", or as any other, named, as in "client's week reaches its
-// reserve".
+// cap".
 func runningOut(doc status.Document, u status.Upcoming, policy score.Policy) string {
 	what := " runs out at its pace"
 	if u.Cap {
-		what = " reaches its reserve"
+		what = " reaches its cap"
 	}
 	if u.Window == policy.Started {
 		return what

@@ -332,6 +332,20 @@ func (r *Router) Proxy() http.Handler {
 // worked out of all that once it's set, as WorkedOut says, each window's even
 // pace and allowance, the pool and what's coming up.
 func (r *Router) Status() status.Document {
+	return r.assembled().WorkedOut(r.cfg.Policy)
+}
+
+// accountStatus reports the status of the account with the given id as Status
+// gives it, its windows' even pace and allowance among it, without working
+// out the pool or what's coming up, which it doesn't need: a session's
+// account is asked for every few seconds, as a statusline shows it.
+func (r *Router) accountStatus(id string) status.Account {
+	a, _ := r.assembled().AccountWorkedOut(id, r.cfg.Policy)
+	return a
+}
+
+// assembled is the document Status gives, but for what's worked out of it.
+func (r *Router) assembled() status.Document {
 	now := r.cfg.Now()
 	pin := r.sessions.globalPin()
 	doc := r.state.document(pin.Accounts...)
@@ -347,5 +361,5 @@ func (r *Router) Status() status.Document {
 	for i, a := range doc.Accounts {
 		doc.Accounts[i].Sessions = byAccount[a.ID]
 	}
-	return doc.WorkedOut(r.cfg.Policy)
+	return doc
 }
