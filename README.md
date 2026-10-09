@@ -391,7 +391,7 @@ switchboard logs router --path
 
 ### Looking back
 
-Both read the [request ledger](#how-it-works)'s files where they lie, so neither needs the router. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
+`requests` and `history` read the [request ledger](#how-it-works)'s files where they lie, and `events` the files the router keeps its events in beside them, so none needs the router. Their plain text is a first cut; agents read their JSON, which each prints wherever its output isn't a terminal.
 
 #### `requests`
 
@@ -431,6 +431,26 @@ switchboard history [--since <when>] [--json | --pretty]
 ```bash
 switchboard history --since 7d
 switchboard history --json | jq '.days[-1]'   # today's, as far as it has gone
+```
+
+#### `events`
+
+What the router decided and noticed: sessions started and moved, accounts under pressure, at their caps and limits, refused, primed and open again, pins set and cleared, restarts falling due and the router's health. Today's, unless `--since` reaches further back, oldest first, under the day each happened on, each once, as it last stood, a line each with the time, the session's id cut short, if it's of one, the kind, the account and what happened. Its files outlast a restart, so it looks back across them.
+
+```bash
+switchboard events [--since <when>] [-f] [--json | --pretty]
+```
+
+| Flag | Description |
+|---|---|
+| `--since <when>` | start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`) |
+| `-f, --follow` | then go on printing a line each time the router files one, a changed event again, whole, until interrupted |
+| `--json` | print each event as the router files it, a JSON object a line, with its `run` and `id`, as it does off a terminal anyway, even on one: of an event printed again, the last line is how it stands |
+| `--pretty` | print the text, as it does on a terminal, even off one |
+
+```bash
+switchboard events --since 2d
+switchboard events -f --json | jq 'select(.kind == "limit")'
 ```
 
 ### Plumbing

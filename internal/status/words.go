@@ -134,6 +134,13 @@ func isNew(reason string) bool {
 	return reason == ReasonNew
 }
 
+// PassedOver is the account a reason ending ", personal under pressure" says
+// the choice passed over, cleaned: "" for a reason without it.
+func PassedOver(reason string) string {
+	_, account, _ := passedOver(Clean(reason))
+	return account
+}
+
 // passedOver cuts the ending ", personal under pressure" from a reason,
 // giving why the choice was made and the account it passed over, and reports
 // false for a reason without it.

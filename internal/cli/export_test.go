@@ -23,3 +23,7 @@ var WriteHistory = writeHistory
 // Since is when --since's value starts, for tests of it in time zones of
 // their own.
 var Since = since
+
+// WindowInProse is how events names a window by its key, for tests of each
+// window Claude reports.
+var WindowInProse = windowInProse

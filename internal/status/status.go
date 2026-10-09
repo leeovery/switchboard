@@ -203,6 +203,18 @@ type Health struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// Why a restart falls due, as a Restart's Reason, and a restart's event's,
+// give it.
+const (
+	// RestartForConfig is the config file changed, into another valid config.
+	RestartForConfig = "config changed"
+	// RestartForUpgrade is the binary leading to another file than the one
+	// running, as after an upgrade.
+	RestartForUpgrade = "upgraded"
+	// RestartForZone is the system's time zone changed.
+	RestartForZone = "time zone changed"
+)
+
 // Restart is a restart the router has due, having found what it was started
 // from changed, such as its config file. The service's router restarts
 // itself once no request is in flight; one run by hand, only when it's run

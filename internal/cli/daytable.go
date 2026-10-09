@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"iter"
 	"time"
 )
 
@@ -35,6 +36,11 @@ func (d dayTable) write(out io.Writer, now time.Time, first bool) error {
 	if _, err := fmt.Fprintln(out, heading); err != nil {
 		return err
 	}
+	return d.writeRows(out)
+}
+
+// writeRows writes the table's rows, aligned, and its notes after them.
+func (d dayTable) writeRows(out io.Writer) error {
 	rows := make([][]string, len(d.rows))
 	for i, row := range d.rows {
 		rows[i] = append([]string{"  " + row[0]}, row[1:]...)
@@ -48,4 +54,30 @@ func (d dayTable) write(out io.Writer, now time.Time, first bool) error {
 		}
 	}
 	return nil
+}
+
+// writeDays writes items as a table a day, under each day's heading, oldest
+// first, a row each, as row makes it of an item at its time, as at gives it,
+// in now's time zone; or says there were none of what since from. It returns
+// the day of the last table written: zero where it wrote none.
+func writeDays[T any](out io.Writer, items iter.Seq[T], at func(T) time.Time, row func(T, time.Time) []string, what string, from, now time.Time) (time.Time, error) {
+	day, first := dayTable{}, true
+	for item := range items {
+		t := at(item).In(now.Location())
+		if len(day.rows) > 0 && !day.of(t) {
+			if err := day.write(out, now, first); err != nil {
+				return time.Time{}, err
+			}
+			day.rows, first = nil, false
+		}
+		if len(day.rows) == 0 {
+			day.day = t
+		}
+		day.rows = append(day.rows, row(item, t))
+	}
+	if len(day.rows) == 0 {
+		_, err := fmt.Fprintf(out, "no %s since %s\n", what, from.In(now.Location()).Format(dayLayout+" 15:04"))
+		return time.Time{}, err
+	}
+	return day.day, day.write(out, now, first)
 }

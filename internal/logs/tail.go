@@ -13,12 +13,12 @@ import (
 	"time"
 )
 
-const (
-	// pollEvery is how often Follow looks for new lines unless told otherwise.
-	pollEvery = 500 * time.Millisecond
-	// tailChunk is how much of a log lastLines reads at a time, back from its end.
-	tailChunk = 64 << 10
-)
+// PollEvery is how often Follow looks for new lines unless told otherwise,
+// as a follower of other files looks for theirs.
+const PollEvery = 500 * time.Millisecond
+
+// tailChunk is how much of a log lastLines reads at a time, back from its end.
+const tailChunk = 64 << 10
 
 // DefaultPath is the log in dir to read when none is named: the router's,
 // once the router has logged, else the CLI's.
@@ -60,7 +60,7 @@ func Follow(ctx context.Context, w io.Writer, path string, n int, every time.Dur
 		return err
 	}
 	if every <= 0 {
-		every = pollEvery
+		every = PollEvery
 	}
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
