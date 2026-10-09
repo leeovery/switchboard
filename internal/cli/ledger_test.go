@@ -508,8 +508,9 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 
 			got = run(t, deps, "history", "--json", "--since", "10:00")
 			var doc struct {
-				PricesAsOf string `json:"prices_as_of"`
-				Days       []struct {
+				PricesAsOf       string `json:"prices_as_of"`
+				PricesFromConfig *bool  `json:"prices_from_config"`
+				Days             []struct {
 					Accounts []struct {
 						Account string `json:"account"`
 						Models  []struct {
@@ -530,11 +531,68 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 					}
 				}
 			}
-			if doc.PricesAsOf != "2026-10-07" || worth != tt.worthJSON {
-				t.Errorf("switchboard history --json gives prices as of %s, and work's Claude Opus 5.5 worth %s, want 2026-10-07 and %s",
-					doc.PricesAsOf, worth, tt.worthJSON)
+			if doc.PricesAsOf != "2026-10-07" || doc.PricesFromConfig == nil || !*doc.PricesFromConfig || worth != tt.worthJSON {
+				t.Errorf("switchboard history --json gives prices as of %s, from the config: %v, and work's Claude Opus 5.5 worth %s, "+
+					"want 2026-10-07, from the config, and %s", doc.PricesAsOf, doc.PricesFromConfig, worth, tt.worthJSON)
 			}
 		})
+	}
+}
+
+func TestHistoryJSONSaysNothingOfTheConfigsPricesWhereNoneStandIn(t *testing.T) {
+	for _, prices := range []string{"", "\n[prices.models.claude-test-1]\ninput = 1\n"} {
+		deps, _ := ledgerDeps(t)
+		path, err := config.Path(deps.Getenv, deps.HomeDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(ledgerConfig+prices))
+
+		got := run(t, deps, "history", "--json")
+		var doc map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+			t.Fatalf("switchboard history --json = %+v (%v), want the days", got, err)
+		}
+		if given, ok := doc["prices_from_config"]; ok {
+			t.Errorf("with the config's prices%s, switchboard history --json gives prices_from_config %s, want it left out", prices, given)
+		}
+	}
+}
+
+func TestHistoryWarnsOnceOfAModelTheConfigCantPrice(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	every := "input = 1\noutput = 5\ncache_read = 0.1\ncache_write_5m = 1.25\ncache_write_1h = 2\n"
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(ledgerConfig+
+		"\n[prices.models.claude-test-1]\ninput = 1\n"+
+		"\n[prices.models.\""+tokenShaped+"\"]\noutput = 2\n"+
+		"\n[prices.models.claude-test-2]\n"+every))
+	const warning = `msg="the config prices a model the price table doesn't know, but not all five of its prices, so it's left unpriced"`
+
+	if got := run(t, deps, "requests"); got.code != 0 {
+		t.Fatalf("switchboard requests = %+v, want it to succeed", got)
+	}
+	if log := readLog(t, deps, "cli.log"); strings.Contains(log, warning) {
+		t.Errorf("after requests, which prices nothing, cli.log reads\n%s\nwant no warning of the config's prices", log)
+	}
+
+	if got := run(t, deps, "history"); got.code != 0 || strings.Contains(got.stdout+got.stderr, "sk-ant-") {
+		t.Fatalf("switchboard history = %+v, want it to succeed, quoting no token", got)
+	}
+	log := readLog(t, deps, "cli.log")
+	var warned []string
+	for line := range strings.Lines(log) {
+		if strings.Contains(line, warning) {
+			warned = append(warned, line)
+		}
+	}
+	needs := `needs="input, output, cache_read, cache_write_5m and cache_write_1h"`
+	if strings.Contains(log, "sk-ant-") || len(warned) != 2 ||
+		!hasLine(warned[0], "level=WARN", "model=claude-test-1", needs) || !hasLine(warned[1], "level=WARN", "model=[redacted]", needs) {
+		t.Errorf("cli.log reads\n%s\nwant a warning each, once, of the models given some prices, the token hidden, and none of the model given all five", log)
 	}
 }
 

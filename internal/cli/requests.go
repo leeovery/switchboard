@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -76,19 +77,30 @@ func (a *app) ledgerArgs(cmd *cobra.Command, args []string) error {
 
 // ledgerReader returns a reader of the request ledger in the state directory,
 // by the commands' clock, which summarises days with the caps of the accounts
-// configured, and the price table to price what it reads at, the config's
-// prices in place of the table's. It fails without a config, as every
-// command that reads one does.
-func (a *app) ledgerReader() (*ledger.Reader, ledger.Table, error) {
+// configured, and the config. It fails without a config, as every command
+// that reads one does.
+func (a *app) ledgerReader() (*ledger.Reader, *config.Config, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return nil, ledger.Table{}, err
+		return nil, nil, err
 	}
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
-		return nil, ledger.Table{}, err
+		return nil, nil, err
 	}
-	return ledger.NewReader(dir, a.Now, caps(cfg), logger), ledger.Pricing.With(cfg.Prices), nil
+	return ledger.NewReader(dir, a.Now, caps(cfg), logger), cfg, nil
+}
+
+// pricing is the price table, cfg's prices in place of its own, warning of
+// each model cfg prices that the table doesn't know but whose every price it
+// doesn't give, which is left unpriced.
+func pricing(cfg *config.Config) ledger.Table {
+	table, passed := ledger.Pricing.With(cfg.Prices)
+	for _, id := range passed {
+		logger.Warn("the config prices a model the price table doesn't know, but not all five of its prices, so it's left unpriced",
+			"model", redact.Text(id), "needs", "input, output, cache_read, cache_write_5m and cache_write_1h")
+	}
+	return table
 }
 
 // requests prints the ledger's lines as opts ask.
