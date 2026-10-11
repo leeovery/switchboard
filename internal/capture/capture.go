@@ -41,6 +41,9 @@ type Fixture struct {
 	theme theme.Theme
 	// colourless draws it without colour, as NO_COLOR asks.
 	colourless bool
+	// records are what its world's readers serve the watch: nil serves
+	// none.
+	records *records
 }
 
 // InTheme is the fixture drawn in t, as the one theme chosen.
