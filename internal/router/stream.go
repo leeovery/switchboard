@@ -160,7 +160,8 @@ type flight struct {
 }
 
 // streamReader is a reader of the stream, and the events it's yet to take:
-// closed once it's dropped. left is closed once it has left.
+// closed once it's dropped. left is closed once it has left, by leave alone,
+// with the stream's lock held.
 type streamReader struct {
 	events chan StreamEvent
 	left   chan struct{}
@@ -255,7 +256,7 @@ func (s *stream) progressed(request string, chars int) {
 // join has a reader join the stream: it returns the requests in flight, as
 // they stand, the first sent first, and the reader, to be told of every event
 // after them. A reader joining once the stream has ended is told of nothing,
-// its events closed. Each reader leaves once.
+// its events closed.
 func (s *stream) join() ([]StreamEvent, *streamReader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -312,14 +313,18 @@ func (s *stream) startPacing() {
 	go s.pace(s.pacing, s.stir)
 }
 
-// leave stops telling r of events, as it goes.
+// leave stops telling r of events, as it goes. Leaving again does nothing.
 func (s *stream) leave(r *streamReader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.readers[r]; ok {
 		s.drop(r)
 	}
-	close(r.left)
+	select {
+	case <-r.left:
+	default:
+		close(r.left)
+	}
 }
 
 // end ends the stream, as the router restarts: each reader's events close

@@ -451,6 +451,61 @@ func TestEndingTheStreamWaitsForAReaderThatTakesNothingOnlySoLong(t *testing.T) 
 	})
 }
 
+func TestAReaderCanLeaveAgain(t *testing.T) {
+	tests := []struct {
+		name string
+		// before is what befalls the stream before the reader leaves twice.
+		before func(s *stream)
+	}{
+		{name: "the reader still reading", before: func(*stream) {}},
+		{name: "the reader dropped as the stream ended", before: func(s *stream) { s.end(0) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newStream(at(start))
+			_, reader := s.join()
+			tt.before(s)
+
+			s.leave(reader)
+			s.leave(reader)
+			select {
+			case <-reader.left:
+			default:
+				t.Error("a reader that left twice is still to leave, want it gone")
+			}
+			if _, open := <-reader.events; open {
+				t.Error("a reader that left twice is told of events, want them closed")
+			}
+		})
+	}
+}
+
+func TestEndingTheStreamWaitsForItsReadersToLeave(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newStream(at(start))
+		_, reader := s.join()
+		ended := make(chan struct{})
+		go func() {
+			s.end(time.Hour)
+			close(ended)
+		}()
+		synctest.Wait()
+		select {
+		case <-ended:
+			t.Fatal("the stream ended before its reader left, want it to wait")
+		default:
+		}
+		s.leave(reader)
+		synctest.Wait()
+		select {
+		case <-ended:
+		default:
+			t.Fatal("the stream is still ending once its reader has left, want it ended")
+		}
+		s.leave(reader)
+	})
+}
+
 func TestAReaderJoiningOnceTheStreamHasEndedIsToldOfNothing(t *testing.T) {
 	s := newStream(at(start))
 	s.publish(StreamEvent{Kind: StreamSent, Request: "r", Attempt: 1})
