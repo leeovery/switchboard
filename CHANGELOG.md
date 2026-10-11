@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-10-11
+
+✨ Added
+- `switchboard sessions` lists today's sessions with their account, model, state, requests and API-price worth, and `sessions <id>` shows one session's page — its accounts, moves, turns and totals.
+- `switchboard events` lists what the router decided and noticed, with `-f` to follow new events as they're filed.
+- `history` now totals each account over the period, with plan cost against worth, each week's peaks, and a verdict on whether you have as many accounts as your use needs.
+- `history --windows` prints every window's readings over the days asked for.
+- Set `plan` on an account and `[prices]` for plans and models in the config to price worth against what you pay.
+- `week_starts` config key sets the day calendar weeks start on.
+- The router now probes accounts on its own rounds — any account nothing has read in half an hour, and each account 5 minutes before its week resets — so readings stay current without a dashboard open.
+- The status document now includes each window's even pace and allowance, the pool of room new sessions can go to, and what's coming up.
+
+🔧 Changed
+- `status`, `usage`, `sessions`, `requests`, `history` and `events` print JSON by default whenever output isn't a terminal, with `--json` and `--pretty` to choose the form either way.
+- `usage --pretty` prints the dashboard off a terminal, without colour unless `CLICOLOR_FORCE` is set.
+- The `history` request count now counts messages only, leaving out Claude Code's quota checks and token counts.
+- Day summaries now cover every account the readings history read that day, including days with no requests, so a quiet day keeps a week's peak.
+- Request ledger files are no longer pruned before their day's summary is written.
+- The skill now teaches Claude the new data verbs.
+
+🐛 Fixed
+- A token replaced or newly added now resets an account's probe backoff, so its readings resume at once.
+- Readings that arrive late from a window that has since reset no longer count toward the new run's rise.
+
 ## [0.1.4] - 2026-10-09
 
 ✨ Added
