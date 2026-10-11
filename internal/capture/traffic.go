@@ -186,7 +186,7 @@ func movedWhy(last, l ledger.Line) string {
 	case l.Account == "side":
 		return reasonLimited
 	}
-	return status.Rescored(status.Countdown(last.At, l.At)) + ", " + last.Account + " under pressure"
+	return rescoredUnderPressure(status.Countdown(last.At, l.At), last.Account)
 }
 
 // cacheLife is how long a session's cache lasts unused, Claude Code's writes

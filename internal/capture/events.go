@@ -44,14 +44,18 @@ func routerRun(now time.Time) time.Time {
 }
 
 // The router's reasons the frames' moves give, as its log has them: a move
-// off work at its cap, one off personal at its limit, and db8a's choice made
-// afresh after it idled since yesterday's 16:07:19, passing personal over
-// under pressure.
+// off work at its cap, and one off personal at its limit.
 const (
-	reasonCapped   = status.ReasonMovedOff + "work " + status.WhyReserve
-	reasonLimited  = status.ReasonMovedOff + "personal " + status.WhyLimit
-	reasonPressure = status.ReasonRescored + "21h 15m" + " idle, personal under pressure"
+	reasonCapped  = status.ReasonMovedOff + "work " + status.WhyReserve
+	reasonLimited = status.ReasonMovedOff + "personal " + status.WhyLimit
 )
+
+// rescoredUnderPressure is the router's reason, as its log has it, for
+// choosing afresh the account of a session that idled as long as idle says,
+// passing the account given over under pressure.
+func rescoredUnderPressure(idle, account string) string {
+	return status.Rescored(idle) + ", " + account + " under pressure"
+}
 
 // The identities of the frames' limits and caps, as the router's events
 // number them: personal's limit, yesterday, and work's cap, today.
@@ -61,11 +65,12 @@ const (
 )
 
 // routerEvents are the router's events of the day now falls on and of the
-// evening before, a line each as it last stands, as events -f reads them: yesterday's
-// last, from 8a2c's start to personal's window reset; and today's 20 from
-// 07:05:12, five primes, ten sessions started, the last c61b at 14:41:11, db8a
-// moved from personal to work under pressure at 13:22:40, and work's cap at
-// 14:31:03 and its three moves (log2.YESTERDAY and log2.TODAY).
+// evening before, a line each as it last stands, as events -f reads them:
+// yesterday's last, from 8a2c's start to personal's window reset; and today's
+// 20 from 07:05:12, five primes, ten sessions started, the last c61b at
+// 14:41:11, db8a moved from personal to work at 13:22:40, chosen afresh after
+// it idled since yesterday's 16:07:19, personal under pressure, and work's cap
+// at 14:31:03 and its three moves (log2.YESTERDAY and log2.TODAY).
 func routerEvents(now time.Time) []events.Line {
 	at := func(days, hour, minute, second int) time.Time { return clockAt(now, days, hour, minute, second) }
 	run := routerRun(now)
@@ -106,7 +111,7 @@ func routerEvents(now time.Time) []events.Line {
 		started(0, 12, 2, 10, idD28C, "work"),
 		primed(12, 10, 0, "work", at(0, 17, 10, 0)),
 		started(0, 12, 47, 12, id41E0, "personal"),
-		moved(at(0, 13, 22, 40), idDB8A, "personal", "work", reasonPressure, 0),
+		moved(at(0, 13, 22, 40), idDB8A, "personal", "work", rescoredUnderPressure("21h 15m", "personal"), 0),
 		primed(13, 50, 0, "side", at(0, 18, 50, 0)),
 		started(0, 14, 12, 30, id7F3A, "work"),
 		{Kind: status.EventCap, At: at(0, 14, 31, 3), Account: "work", Windows: five, Until: at(0, 17, 10, 0), Reserve: workReserve, Count: 3, To: "side"},
