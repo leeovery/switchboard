@@ -53,9 +53,9 @@ var caps = ledger.Caps{Shared: []string{"5h", "7d"}}
 // order they came.
 type heldReadings []readings.Reading
 
-// Between gives those of the times asked for, in the order they came, as the
+// of gives those of the times asked for, in the order they came, as the
 // readings history does.
-func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
+func (h heldReadings) of(from, to time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
 		for _, r := range h {
 			if !r.At.Before(from) && r.At.Before(to) && !yield(r) {
@@ -63,6 +63,12 @@ func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 			}
 		}
 	}
+}
+
+// Between gives those of the times asked for, as of does, every one read
+// whole.
+func (h heldReadings) Between(from, to time.Time, _ *dayfile.Faults) iter.Seq[readings.Reading] {
+	return h.of(from, to)
 }
 
 // Dates gives the dates of the days they were read on, oldest first, as the
@@ -91,10 +97,10 @@ type counted struct {
 	asked, given int
 }
 
-func (c *counted) Between(from, to time.Time) iter.Seq[readings.Reading] {
+func (c *counted) Between(from, to time.Time, _ *dayfile.Faults) iter.Seq[readings.Reading] {
 	c.asked++
 	return func(yield func(readings.Reading) bool) {
-		for r := range c.held.Between(from, to) {
+		for r := range c.held.of(from, to) {
 			c.given++
 			if !yield(r) {
 				return
@@ -120,7 +126,7 @@ func usage(s string) json.RawMessage {
 
 // summarised returns the summary of the day of lines, with the readings
 // history given, as it's written and read back: what the ledger keeps of it.
-func summarised(t *testing.T, history ledger.History, lines ...ledger.Line) ledger.Summary {
+func summarised(t *testing.T, history heldReadings, lines ...ledger.Line) ledger.Summary {
 	t.Helper()
 	data := summaryJSON(t, history, lines...)
 	var kept ledger.Summary
@@ -132,9 +138,9 @@ func summarised(t *testing.T, history ledger.History, lines ...ledger.Line) ledg
 
 // summaryJSON returns the summary of the day of lines, with the readings
 // history given, as it's written.
-func summaryJSON(t *testing.T, history ledger.History, lines ...ledger.Line) []byte {
+func summaryJSON(t *testing.T, history heldReadings, lines ...ledger.Line) []byte {
 	t.Helper()
-	s, err := ledger.Summarise(date, slices.Values(lines), history.Between, nil, caps, dayDone)
+	s, err := ledger.Summarise(date, slices.Values(lines), history.of, nil, caps, dayDone)
 	if err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}
@@ -406,7 +412,7 @@ func TestASummaryAsksForTheReadingsOfItsDayAndTheWeekBefore(t *testing.T) {
 	var from, to time.Time
 	history := func(f, t time.Time) iter.Seq[readings.Reading] {
 		from, to = f, t
-		return noReadings.Between(f, t)
+		return noReadings.of(f, t)
 	}
 
 	if _, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), history, nil, caps, dayDone); err != nil {
@@ -528,7 +534,7 @@ func TestAnUpstreamRequestWhoseAnswerGaveNoUsageIsCounted(t *testing.T) {
 }
 
 func TestADateThatIsntOneIsntSummarised(t *testing.T) {
-	if _, err := ledger.Summarise("2026-10-32", slices.Values([]ledger.Line(nil)), noReadings.Between, nil, caps, dayDone); err == nil {
+	if _, err := ledger.Summarise("2026-10-32", slices.Values([]ledger.Line(nil)), noReadings.of, nil, caps, dayDone); err == nil {
 		t.Error("Summarise() of 2026-10-32 succeeded, want it to fail: it isn't a date")
 	}
 }
@@ -1307,6 +1313,32 @@ func TestASummaryThatDoesntReadAsItsDaysIsSummarisedAgain(t *testing.T) {
 	}
 }
 
+func TestASummaryOfADayWithNoLinesThatDoesntReadAsItsOwnIsLeftAsItIs(t *testing.T) {
+	tests := []struct {
+		name string
+		held string
+	}{
+		{name: "cut short", held: `{"version":2,"day":`},
+		{name: "of another day", held: summaryOf("2026-10-04", 2, 2, windowsRead{})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			dir := t.TempDir()
+			// The day's lines are pruned, and its readings kept.
+			writeFile(t, dir, "day-"+date+".json", []byte(tt.held))
+
+			writeAt(t, dir, on(3, 10, 0), readingsOf(workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)))
+			if got, err := os.ReadFile(summaryFile(dir, date)); err != nil || string(got) != tt.held {
+				t.Errorf("the day's summary is %q (%v), want it as it was, %q: what it held can't be had again", got, err, tt.held)
+			}
+			if !log.Has("level=WARN", `msg="can't read the request ledger's summary of a day; its lines are gone, so it's left as it is"`, "day="+date) {
+				t.Errorf("log reads\n%s\nwant the summary that doesn't read as the day's warned of", log)
+			}
+		})
+	}
+}
+
 func TestARoundReadsTheReadingsHistoryOnceForTheDaysItSummarises(t *testing.T) {
 	dir := t.TempDir()
 	for day := range 3 {
@@ -1382,6 +1414,10 @@ func TestARoundSummarisesADayOfNoRequestsTheReadingsHistoryTellsOf(t *testing.T)
 		{
 			name: "none where the readings history holds none of it, or of the week before it, as once it has pruned them", first: "2026-10-04", at: on(1, 10, 0),
 			read: []readings.Reading{workRead(on(-12, 10, 0), "7d", 0.3, on(-8, 13, 0), quota.StatusAllowed)},
+		},
+		{
+			name: "none of the day before the history's first, read the day after alone", first: "2026-10-04", at: on(2, 10, 0),
+			read: []readings.Reading{workRead(on(1, 10, 0), "5h", 0.3, on(1, 13, 0), quota.StatusAllowed)},
 		},
 	}
 	for _, tt := range tests {

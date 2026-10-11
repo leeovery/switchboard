@@ -191,8 +191,8 @@ type historyFiles struct {
 	files *dayfile.Files
 }
 
-func (h historyFiles) Between(from, to time.Time) iter.Seq[readings.Reading] {
-	return readings.Between(h.files, from, to)
+func (h historyFiles) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
+	return readings.BetweenNoting(h.files, from, to, faults)
 }
 
 func (h historyFiles) Dates() []string {
@@ -688,6 +688,66 @@ func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
 
 	if got := follower.Sessions(nil, nil); len(got) != 0 || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nSessions() = %v, want no session read, nor a day before yesterday opened", log, got)
+	}
+}
+
+func TestAReadOfTheDaysListsTheReadingsHistoryOnce(t *testing.T) {
+	for _, by := range []string{"a reader", "a follower"} {
+		t.Run("by "+by, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, history := stateDirs(t)
+			// Days whose lines are pruned, their summaries of version 2, each of
+			// which a look at its files asks the history after.
+			for _, day := range []string{"2026-10-02", "2026-10-03", "2026-10-04"} {
+				writeFile(t, dir, "day-"+day+".json", []byte(ofVersion(summaryOf(day, 1, 1, windowsRead{}), 2)+"\n"))
+			}
+			// The history's files can be opened by name, but not listed, so a
+			// listing of them warns that it can't.
+			if err := os.Chmod(history, 0o300); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(history, 0o700) })
+			days := readerAt(state, on(2, 12, 0)).Days
+			if by == "a follower" {
+				days = followerOf(state, &testClock{at: on(2, 12, 0)}, caps).Days
+			}
+
+			days(on(-3, 0, 0))
+			if listed := strings.Count(log.String(), `msg="can't read the readings history"`); listed != 1 {
+				t.Errorf("log reads\n%s\nthe read listed the readings history %d times, want once", log, listed)
+			}
+		})
+	}
+}
+
+func TestASessionsDaysAreFoundWithoutTheReadingsHistory(t *testing.T) {
+	tests := []struct {
+		name string
+		read func(f *ledger.Follower)
+	}{
+		{name: "by Session", read: func(f *ledger.Follower) {
+			for range f.Session("one") {
+			}
+		}},
+		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions([]string{"one"}, nil) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, history := stateDirs(t)
+			holdLines(t, dir, "2026-10-03", askedBy("1", "one", on(-2, 9, 0)))
+			holdLines(t, dir, "2026-10-07", askedBy("2", "one", on(2, 9, 0)))
+			// Days of no requests between, not yet summarised, their readings
+			// open to no one, so a read of them warns that it can't.
+			holdReadings(t, history, "2026-10-04", workRead(on(-1, 10, 0), "5h", 0.3, on(-1, 13, 0), quota.StatusAllowed))
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			unopenable(t, history, "readings-*")
+
+			tt.read(followerOf(state, &testClock{at: on(2, 12, 0)}, caps))
+			if n := opened(log); n != 0 {
+				t.Errorf("log reads\n%s\nthe session's days were found opening %d of the readings history's files, want none: they name no session", log, n)
+			}
+		})
 	}
 }
 

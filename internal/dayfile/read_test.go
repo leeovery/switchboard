@@ -84,6 +84,61 @@ func readAll(f *Files, dates ...string) []string {
 	return lines
 }
 
+func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay lays the day's files out in f.
+		lay   func(t *testing.T, f *Files)
+		fault bool
+	}{
+		{name: "none of a day read whole", lay: func(t *testing.T, f *Files) { writeDay(t, f, plainFile("2026-09-27"), linesOf(`{"n":1}`)) }},
+		{name: "none of a day with no files", lay: func(*testing.T, *Files) {}},
+		{
+			name: "a day one of whose files couldn't be opened", fault: true,
+			lay: func(t *testing.T, f *Files) {
+				writeDay(t, f, compressedFile("2026-09-27"), linesOf(`{"n":1}`))
+				writeDay(t, f, plainFile("2026-09-27"), linesOf(`{"n":2}`))
+				if err := os.Chmod(f.path(plainFile("2026-09-27")), 0o000); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(f.path(plainFile("2026-09-27")), 0o600) })
+			},
+		},
+		{
+			name: "a day whose compressed file is damaged", fault: true,
+			lay: func(t *testing.T, f *Files) {
+				damaged := append(gzipOf(t, linesOf(`{"n":1}`)), gzipOf(t, linesOf(`{"n":2}`))[:5]...)
+				if err := os.WriteFile(f.path(compressedFile("2026-09-27")), damaged, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "a day holding a line passed over", fault: true,
+			lay: func(t *testing.T, f *Files) {
+				writeDay(t, f, plainFile("2026-09-27"), linesOf(`{"n":1}`, `not a line`))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := readingsHistory(t.TempDir())
+			tt.lay(t, f)
+			writeDay(t, f, plainFile("2026-09-28"), linesOf(`{"n":3}`))
+			asJSON := func(line []byte) (string, bool) { return string(line), json.Valid(line) }
+			var faults Faults
+
+			ReadNoting(f, []string{"2026-09-27", "2026-09-28"}, asJSON, untimed, every[string], every[string], &faults)
+			if got := faults.Any([]string{"2026-09-27"}); got != tt.fault {
+				t.Errorf("the 27th among the faults = %v, want %v", got, tt.fault)
+			}
+			if faults.Any([]string{"2026-09-28"}) {
+				t.Error("the 28th among the faults, want it read whole")
+			}
+		})
+	}
+}
+
 func TestReadGivesEachDaysLinesOnceInTheOrderTheyCame(t *testing.T) {
 	tests := []struct {
 		name string
@@ -366,33 +421,6 @@ func TestNewestTakesTheNewestDaysByTheirFilesNames(t *testing.T) {
 	for _, tt := range tests {
 		if got := f.Newest(now, tt.n); !slices.Equal(got, tt.want) {
 			t.Errorf("Newest(%d) = %q, want %q: each day once, oldest first, none after tomorrow", tt.n, got, tt.want)
-		}
-	}
-}
-
-func TestEndedTakesTheDaysThatEndedAsLongAgoAsAsked(t *testing.T) {
-	now := time.Date(2026, 9, 28, 0, 30, 0, 0, time.Local)
-	f := readingsHistory(t.TempDir())
-	// Days long done, compressed and plain; yesterday's, which ended half an
-	// hour before now; today's; and a day after tomorrow's, as a clock once set
-	// ahead names one.
-	for _, file := range []dayFile{compressedFile("2026-09-20"), compressedFile("2026-09-26"), plainFile("2026-09-26"), plainFile("2026-09-27"),
-		plainFile("2026-09-28"), plainFile("2026-09-30")} {
-		writeDay(t, f, file, linesOf("a"))
-	}
-	if err := os.WriteFile(f.path(plainFile("2026-09-25"))+".tmp", nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	tests := []struct {
-		ago  time.Duration
-		want []string
-	}{
-		{ago: 0, want: []string{"2026-09-20", "2026-09-26", "2026-09-27"}},
-		{ago: time.Hour, want: []string{"2026-09-20", "2026-09-26"}},
-	}
-	for _, tt := range tests {
-		if got := f.Ended(now, tt.ago); !slices.Equal(got, tt.want) {
-			t.Errorf("Ended(%v) = %q, want %q: each day once, oldest first, that ended %v or more before", tt.ago, got, tt.want, tt.ago)
 		}
 	}
 }

@@ -173,7 +173,7 @@ func (t *Tail[T]) readAfresh(take func(T)) bool {
 	for _, e := range failed {
 		t.files.warn("can't read the "+t.files.Name, e.file, e.err)
 	}
-	lines, unread := readOpened(t.files, dayOpened(plain, compressed), t.decode, handing(take))
+	lines, unread, _ := readOpened(t.files, dayOpened(plain, compressed), t.decode, handing(take))
 	t.whole = counted{lines: lines, unread: unread}
 	t.read, t.plain, t.compressed = len(failed) == 0, plainInfo, compressedInfo
 	return t.read
@@ -207,14 +207,14 @@ func (t *Tail[T]) follow(file io.ReaderAt, info fs.FileInfo, take func(T)) bool 
 		return false
 	}
 	whole := &measured{r: io.NewSectionReader(file, t.end, end-t.end)}
-	lines, unread := readOpened(t.files, []openFile{t.section(whole)}, t.decode, handing(take))
+	lines, unread, _ := readOpened(t.files, []openFile{t.section(whole)}, t.decode, handing(take))
 	if whole.n < end-t.end {
 		t.read = false
 		return false
 	}
 	t.whole.lines, t.whole.unread = t.whole.lines+lines, t.whole.unread+unread
 	t.last, t.hasLast = *new(T), false
-	lines, unread = readOpened(t.files, []openFile{t.section(io.NewSectionReader(file, end, size-end))}, t.decode, func(v T) bool {
+	lines, unread, _ = readOpened(t.files, []openFile{t.section(io.NewSectionReader(file, end, size-end))}, t.decode, func(v T) bool {
 		t.last, t.hasLast = v, true
 		return true
 	})

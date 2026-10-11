@@ -102,8 +102,15 @@ func Files(dir string, logger *slog.Logger) *dayfile.Files {
 // time zone can file a reading under a day beside its own. It holds the files
 // from pruning and compressing while it reads them.
 func Between(files *dayfile.Files, from, to time.Time) iter.Seq[Reading] {
+	return BetweenNoting(files, from, to, nil)
+}
+
+// BetweenNoting returns the readings files hold of times from from up to to,
+// as Between does, noting in faults, where it's given, the days whose files
+// it couldn't read whole, as dayfile.Faults says, as it reads them.
+func BetweenNoting(files *dayfile.Files, from, to time.Time, faults *dayfile.Faults) iter.Seq[Reading] {
 	return func(yield func(Reading) bool) {
-		Read(files, dayfile.Dates(from, to), func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield)
+		dayfile.ReadNoting(files, dayfile.Dates(from, to), In, readAt, func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield, faults)
 	}
 }
 

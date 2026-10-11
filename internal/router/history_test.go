@@ -399,11 +399,11 @@ func TestTheHistoryGivesTheLedgerTheReadingsOfATimeAndTheDaysItHolds(t *testing.
 	writeDay(t, dir, plainFile("2026-09-28"), linesOf(t, after))
 	h := newHistory(config.History{}, at(start))
 
-	if got, dates := slices.Collect(h.Between(from, to)), h.Dates(); len(got) > 0 || len(dates) > 0 {
+	if got, dates := slices.Collect(h.Between(from, to, nil)), h.Dates(); len(got) > 0 || len(dates) > 0 {
 		t.Errorf("before the history was opened, Between() = %+v and Dates() = %q, want none", got, dates)
 	}
 	h.open(dir)
-	got := slices.Collect(h.Between(from, to))
+	got := slices.Collect(h.Between(from, to, nil))
 	if want := []readings.Reading{first, last}; !slices.EqualFunc(got, want, func(a, b readings.Reading) bool {
 		return a.At.Equal(b.At) && a.Account == b.Account && a.Window() == b.Window()
 	}) {

@@ -32,16 +32,18 @@ func (s Summary) knowing(held Summary) Summary {
 // summary before, where there's one, as knowing says. What came of the lines
 // it always knows no less of, as lines can be lost; but what held took from
 // the readings history it takes afresh, as s gives it, where held is of an
-// older version and the readings it was made from are kept still: the day's,
-// as kept reports, and the week before's, as readsAgain does. So a newer
-// version rights an older one's facts of the readings, as of a reading read
-// late, which knowing no less would keep.
-func (s Summary) made(lines int, held *Summary, kept func(date string) bool) Summary {
+// older version and the readings it was made from were read whole again:
+// the day's, kept and read with no file failing to open, damage or a line
+// passed over, as whole reports, and the week before's, as readsAgain does.
+// So a newer version rights an older one's facts of the readings, as of a
+// reading read late, which knowing no less would keep. A summary of version
+// 1, which never noted the windows it read in the week before, is never so.
+func (s Summary) made(lines int, held *Summary, whole bool) Summary {
 	s.Lines = lines
 	switch {
 	case held == nil:
 		return s
-	case held.Version < summaryVersion && kept(s.Day) && s.readsAgain(*held):
+	case whole && held.Version > 1 && held.Version < summaryVersion && s.readsAgain(*held):
 		return s.knowing(held.linesAlone())
 	}
 	return s.knowing(*held)
@@ -101,9 +103,10 @@ func (a AccountDay) knowing(held AccountDay) AccountDay {
 }
 
 // together returns the ids of ids and held together, in order, each once:
-// nil only where both are.
+// nil, as never named, where one is nil and the other names none, as what was
+// never named, merged with none, is unknown still.
 func together(ids, held []string) []string {
-	if ids == nil && held == nil {
+	if ids == nil && len(held) == 0 || held == nil && len(ids) == 0 {
 		return nil
 	}
 	all := append(append(make([]string, 0, len(ids)+len(held)), ids...), held...)

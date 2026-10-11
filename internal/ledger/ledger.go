@@ -100,7 +100,7 @@ type Ledger struct {
 // history, and the accounts' caps as caps gives them, logging what can't be
 // done with them to logger.
 func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger) *Ledger {
-	l := &Ledger{days: days{files: filesIn(dir, logger), history: history.Between, historyDates: history.Dates, caps: caps, logger: logger}}
+	l := &Ledger{days: days{files: filesIn(dir, logger), history: history, caps: caps, logger: logger}}
 	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.SummariseEnded})
 	return l
 }
@@ -141,25 +141,30 @@ func (l *Ledger) lines(line *Line) dayfile.Lines {
 // now whose lines the ledger holds, or whose readings the readings history
 // does, as ended says, and has no summary that stands, as standing says, the
 // readings history read ahead for them all, as readingAhead says: the summary
-// knows no less than any it replaces, as knowing says, and is written whole,
-// the user's alone, over any there, and marked, as mark says. A day that
-// can't be summarised, as one of its files can't be opened, which a summary
-// of it in part would be taken for whole, is logged, and left to the next
-// round. It's safe to call from any goroutine: the readings history's writer
-// calls it before it prunes the readings the summaries need.
+// knows no less than any it replaces, as made says, and is written whole, the
+// user's alone, over any there, and marked, as mark says. A day that can't be
+// summarised, as one of its files can't be opened, which a summary of it in
+// part would be taken for whole, is logged, and left to the next round. It
+// lists the ledger's directory and the history's once each, the history's
+// before it reads any of its files. It's safe to call from any goroutine: the
+// readings history's writer calls it before it prunes the readings the
+// summaries need.
 func (l *Ledger) SummariseEnded(now time.Time) {
 	l.summarising.Lock()
 	defer l.summarising.Unlock()
+	held := readingsHeld(l.days.history.Dates())
 	var due []dueDay
-	kept := l.days.keeping()
-	for _, date := range l.ended(now) {
-		if stands, held, err := l.days.standing(date); err != nil {
+	for _, date := range l.ended(now, held) {
+		if stands, summary, err := l.days.standing(date, held.reaches); err != nil {
 			l.days.logger.Warn("can't summarise the request ledger", "day", date, "error", err)
 		} else if !stands {
-			due = append(due, dueDay{date: date, held: held, asOf: now, kept: kept})
+			due = append(due, dueDay{date: date, held: summary, asOf: now})
 		}
 	}
-	for i, err := range readingAhead(l.days.history, due, l.writeSummary) {
+	written := readingAhead(l.days.history, due, func(day dueDay, read *ahead) error {
+		return l.writeSummary(day, read, held.keeps(day.date))
+	})
+	for i, err := range written {
 		if err != nil {
 			l.days.logger.Warn("can't summarise the request ledger", "day", due[i].date, "error", err)
 		}
@@ -169,21 +174,22 @@ func (l *Ledger) SummariseEnded(now time.Time) {
 // ended returns the dates of the local days a round at now summarises, each
 // that ended summariseAfter or more before now, oldest first: those the
 // ledger holds lines of; and, from the first day it holds on, as nothing
-// before it is in it, those whose summaries read a file of the readings
-// history's, as readingDates says, requests or not.
-func (l *Ledger) ended(now time.Time) []string {
-	dates := l.days.files.Ended(now, summariseAfter)
-	first, err := l.days.first()
-	held := l.days.historyDates()
-	if err != nil || len(held) == 0 {
-		return dates
+// before it is in it, those whose summaries read the readings history's, as
+// held, the dates of the days it holds readings of, gives them, requests or
+// not.
+func (l *Ledger) ended(now time.Time, held readingsHeld) []string {
+	lines, first, err := l.days.listed()
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil:
+		l.days.logger.Warn("can't read the request ledger", "dir", l.days.files.Dir, "error", err)
+		return nil
 	}
-	holds := func(date string) bool {
-		_, ok := slices.BinarySearch(held, date)
-		return ok
-	}
-	for _, date := range dayfile.Span(first, dayfile.DayStart(now.Add(-summariseAfter).Local(), -1)) {
-		if slices.ContainsFunc(readingDates(date), holds) {
+	last := dayfile.DateOf(dayfile.DayStart(now.Add(-summariseAfter).Local(), -1))
+	dates := slices.DeleteFunc(lines, func(date string) bool { return date > last })
+	for _, date := range held.days() {
+		if date >= first && date <= last {
 			dates = append(dates, date)
 		}
 	}
@@ -191,37 +197,69 @@ func (l *Ledger) ended(now time.Time) []string {
 	return slices.Compact(dates)
 }
 
-// readingDates returns the dates of the readings history's files a summary of
-// the local day with the given date, a date that is one, reads: those of the
-// day and the week before it, and those beside them, as dayfile.Dates gives
-// them.
-func readingDates(date string) []string {
-	start, end, _ := dayfile.Day(date)
-	return dayfile.Dates(start.Add(-readingsBefore), end)
+// weekDays is how many days a week before a day reaches back.
+const weekDays = 7
+
+// readingsHeld are the dates of the local days the readings history holds
+// readings of, oldest first, as one listing of its files gives them.
+type readingsHeld []string
+
+// keeps reports whether the history keeps the readings of the local day with
+// the given date: it keeps every day's from the first it holds on, as it
+// prunes the oldest first.
+func (h readingsHeld) keeps(date string) bool {
+	return len(h) > 0 && h[0] <= date
+}
+
+// reaches reports whether the history holds readings a summary of the local
+// day with the given date reads: of the day, or of the week before it.
+func (h readingsHeld) reaches(date string) bool {
+	start, _, ok := dayfile.Day(date)
+	if !ok {
+		return false
+	}
+	i, _ := slices.BinarySearch(h, dayfile.DateOf(dayfile.DayStart(start, -weekDays)))
+	return i < len(h) && h[i] <= date
+}
+
+// days returns the dates of the local days whose summaries read the
+// history's readings, as reaches says, oldest first, each once: each day it
+// holds, and the week after it.
+func (h readingsHeld) days() []string {
+	var dates []string
+	for _, date := range h {
+		if start, _, ok := dayfile.Day(date); ok {
+			for after := range weekDays + 1 {
+				dates = append(dates, dayfile.DateOf(dayfile.DayStart(start, after)))
+			}
+		}
+	}
+	slices.Sort(dates)
+	return slices.Compact(dates)
 }
 
 // dueDay is a local day to be summarised, by its date, as of asOf, as
 // Summarise says, and the summary held of it, which the day's summary
-// replaces: nil for none. kept reports whether the readings history keeps a
-// day's readings, as days.keeping says.
+// replaces: nil for none.
 type dueDay struct {
 	date string
 	held *Summary
 	asOf time.Time
-	kept func(date string) bool
 }
 
-// writeSummary writes the summary of the day due, from its lines and
-// history, knowing no less than the one held, marked with its files as they
-// were before they were read: of its readings alone, where it has no files,
-// as a day of no requests, or one whose lines were pruned. It fails where one
-// of the day's files can't be opened, writing none.
-func (l *Ledger) writeSummary(day dueDay, history Readings) error {
+// writeSummary writes the summary of the day due, from its lines and the
+// readings history, as read reads it, knowing no less than the one held, as
+// summarise says, kept reporting whether the history keeps the day's
+// readings; marked with its files as they were before they were read: of its
+// readings alone, where it has no files, as a day of no requests, or one
+// whose lines were pruned. It fails where one of the day's files can't be
+// opened, writing none.
+func (l *Ledger) writeSummary(day dueDay, read *ahead, kept bool) error {
 	stat, err := l.days.files.Stat(day.date)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	summary, err := l.days.summarise(day, history)
+	summary, err := l.days.summarise(day, read, kept)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
@@ -233,33 +271,13 @@ func (l *Ledger) writeSummary(day dueDay, history Readings) error {
 }
 
 // days are the ledger's days where they lie, in its directory: their lines,
-// and their summaries beside them, summarised with the readings history
-// gives, and the accounts' caps, what can't be done with them logged.
-// historyDates gives the dates of the days the readings history holds
-// readings of, oldest first.
+// and their summaries beside them, summarised with the readings history, and
+// the accounts' caps, what can't be done with them logged.
 type days struct {
-	files        *dayfile.Files
-	history      Readings
-	historyDates func() []string
-	caps         Caps
-	logger       *slog.Logger
-}
-
-// keeping returns what reports whether the readings history keeps the
-// readings of the local day with the given date: it keeps every day's from
-// the first it holds on, as it prunes the oldest first. It lists the
-// history's files once, as it's first asked.
-func (d days) keeping() func(date string) bool {
-	first := sync.OnceValue(func() string {
-		if dates := d.historyDates(); len(dates) > 0 {
-			return dates[0]
-		}
-		return ""
-	})
-	return func(date string) bool {
-		from := first()
-		return from != "" && from <= date
-	}
+	files   *dayfile.Files
+	history History
+	caps    Caps
+	logger  *slog.Logger
 }
 
 // errNotTheDaysSummary is the error of a summary held of a day that doesn't
@@ -316,13 +334,16 @@ func readStamped(path string) ([]byte, time.Time, error) {
 // where it does, so the next look counts none of the day's lines; and gives
 // the summary held where it doesn't, for the one that replaces it to know no
 // less: none where it holds none, or one that doesn't read as the day's,
-// which is warned of, so the day is summarised from its lines alone. A look
-// at the summary's file and the day's files, reading none of them, tells of
-// most days, as unchanged says, a day with none among them, its lines pruned,
-// or none written: the summary is read only where it can't, so one damaged
+// which is warned of, so the day is summarised from its lines alone. Of a
+// day with no lines, its lines pruned, or none written, one that doesn't
+// read as the day's is warned of and left as it is, never replaced by one of
+// the readings alone, as what it held can't be had again. A look at the
+// summary's file and the day's files, as glance gives it, reading none of
+// them, tells of most days, reaches reporting which the readings history's
+// readings reach: the summary is read only where it can't, so one damaged
 // in place, its file keeping its stamp, stands until a read of it tells. It
 // fails where the summary can't be read, or the day's lines counted, to tell.
-func (d days) standing(date string) (stands bool, held *Summary, err error) {
+func (d days) standing(date string, reaches func(date string) bool) (stands bool, held *Summary, err error) {
 	info, err := os.Stat(summaryFile(d.files.Dir, date))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -330,17 +351,17 @@ func (d days) standing(date string) (stands bool, held *Summary, err error) {
 	case err != nil:
 		return false, nil, err
 	}
-	stat, err := d.files.Stat(date)
-	switch {
-	case err != nil && !errors.Is(err, fs.ErrNotExist):
-		return false, nil, err
-	case unchanged(date, stat, info.ModTime()):
-		return true, nil, nil
+	stat, none, stands, err := d.glance(date, info.ModTime(), reaches)
+	if stands || err != nil {
+		return stands, nil, err
 	}
 	h, err := d.held(date)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return false, nil, nil
+	case errors.Is(err, errNotTheDaysSummary) && none:
+		d.logger.Warn("can't read the request ledger's summary of a day; its lines are gone, so it's left as it is", "day", date, "error", err)
+		return true, nil, nil
 	case errors.Is(err, errNotTheDaysSummary):
 		d.logger.Warn("can't read the request ledger's summary of a day; summarising it from its lines", "day", date, "error", err)
 		return false, nil, nil
@@ -354,19 +375,27 @@ func (d days) standing(date string) (stands bool, held *Summary, err error) {
 }
 
 // glance looks at the files of the local day with the given date, reading
-// none of them, for whether the day's summary, stamped at stamp, stands for a
-// reader without a read of it: the day's lines are pruned, or none were
-// written, or its files are as they were when the summary was marked, as
-// unchanged says. stat is the look, where the day has files.
-func (d days) glance(date string, stamp time.Time) (stat dayfile.DayStat, stands bool, err error) {
+// none of them, for whether the day's summary, stamped at stamp, stands
+// without a read of it, as standsAtALook says, reaches reporting which days
+// the readings history's readings reach. stat is the look, and none reports
+// the day has no files. It fails where they can't be looked at.
+func (d days) glance(date string, stamp time.Time, reaches func(date string) bool) (stat dayfile.DayStat, none, stands bool, err error) {
 	stat, err = d.files.Stat(date)
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return stat, true, nil
-	case err != nil:
-		return stat, false, err
+	none = errors.Is(err, fs.ErrNotExist)
+	if err != nil && !none {
+		return stat, false, false, err
 	}
-	return stat, unchanged(date, stat, stamp), nil
+	return stat, none, standsAtALook(date, stat, none, stamp, reaches), nil
+}
+
+// standsAtALook reports whether the summary of the local day with the given
+// date, stamped at stamp, stands without a read of it, its files as stat
+// looks at them, none set where it has none: they're as they were when it
+// was marked, as unchanged says; or it has none, and the readings history's
+// readings reach none of the day's, as reaches reports, so there's nothing to
+// summarise it again from. The router and a reader look alike.
+func standsAtALook(date string, stat dayfile.DayStat, none bool, stamp time.Time, reaches func(date string) bool) bool {
+	return unchanged(date, stat, stamp) || none && !reaches(date)
 }
 
 // stands reports whether held, a summary the ledger holds, stands, its day's
@@ -582,25 +611,27 @@ func (d days) stamp(date string, stat dayfile.DayStat) {
 }
 
 // summarise returns the summary of the day due from its lines, as many as
-// ReadDay counts, and history, as Summarise makes it, knowing no less than
-// the summary held of it, which it replaces, where there's one, as made
-// says; warning of how many of the lines couldn't be read as one, where any
-// couldn't. Where one of the day's files can't be opened, it fails, giving
-// the summary of those that could be all the same; and with fs.ErrNotExist
-// where the day has none, giving the summary of its readings alone.
-func (d days) summarise(day dueDay, history Readings) (Summary, error) {
+// ReadDay counts, and the readings history, as history reads it ahead, as
+// Summarise makes it, knowing no less than the summary held of it, which it
+// replaces, where there's one, as made says, its readings whole where kept
+// reports the history keeps them and history read them whole; warning of how
+// many of the lines couldn't be read as one, where any couldn't. Where one
+// of the day's files can't be opened, it fails, giving the summary of those
+// that could be all the same; and with fs.ErrNotExist where the day has
+// none, giving the summary of its readings alone.
+func (d days) summarise(day dueDay, history *ahead, kept bool) (Summary, error) {
 	var lines, unread int
 	var read error
 	summary, err := Summarise(day.date, func(yield func(Line) bool) {
 		lines, unread, read = dayfile.ReadDay(d.files, day.date, lineIn, yield)
-	}, history, day.held, d.caps, day.asOf)
+	}, history.readings, day.held, d.caps, day.asOf)
 	if err != nil {
 		return Summary{}, err
 	}
 	if unread > 0 {
 		d.logger.Warn("request ledger lines unread", "day", day.date, "lines", unread)
 	}
-	return summary.made(lines, day.held, day.kept), read
+	return summary.made(lines, day.held, kept && history.whole(day.date)), read
 }
 
 // lineIn returns the line a line of the ledger holds, reporting false for one

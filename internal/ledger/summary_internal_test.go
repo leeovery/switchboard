@@ -49,7 +49,7 @@ type asking struct {
 	given int
 }
 
-func (a *asking) readings(from, to time.Time) iter.Seq[readings.Reading] {
+func (a *asking) Between(from, to time.Time, _ *dayfile.Faults) iter.Seq[readings.Reading] {
 	a.asked = append(a.asked, [2]time.Time{from, to})
 	return func(yield func(readings.Reading) bool) {
 		for _, r := range between(a.held, from, to) {
@@ -59,6 +59,10 @@ func (a *asking) readings(from, to time.Time) iter.Seq[readings.Reading] {
 			}
 		}
 	}
+}
+
+func (*asking) Dates() []string {
+	return nil
 }
 
 func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeOnceForEachRunOfDays(t *testing.T) {
@@ -71,9 +75,9 @@ func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeOnceForEachRunOfDays
 		due = append(due, dueDay{date: day(n).Format(time.DateOnly)})
 	}
 
-	got := readingAhead(history.readings, due, func(d dueDay, read Readings) []readings.Reading {
+	got := readingAhead(history, due, func(d dueDay, read *ahead) []readings.Reading {
 		from, to, _ := dayfile.Day(d.date)
-		return slices.Collect(read(from.Add(-readingsBefore), to))
+		return slices.Collect(read.readings(from.Add(-readingsBefore), to))
 	})
 	for i, d := range due {
 		from, to, _ := dayfile.Day(d.date)
@@ -94,7 +98,7 @@ func TestReadingsReadAheadHoldAWeekAndADayOfThemAtMost(t *testing.T) {
 	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	day := func(n int) time.Time { return start.AddDate(0, 0, n) }
 	history := &asking{held: hourly(start, 60*24)}
-	next, stop := iter.Pull(history.readings(day(0), day(60)))
+	next, stop := iter.Pull(history.Between(day(0), day(60), nil))
 	defer stop()
 	a := &ahead{next: next}
 

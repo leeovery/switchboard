@@ -24,7 +24,7 @@ var reserving = ledger.Caps{Reserves: map[string]float64{"work": 0.1}, Shared: [
 // windows read as read gives them, summarised by caps as of asOf.
 func workDay(t *testing.T, c ledger.Caps, asOf time.Time, read ...readings.Reading) ledger.AccountDay {
 	t.Helper()
-	s, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), readingsOf(read...).Between, nil, c, asOf)
+	s, err := ledger.Summarise(date, slices.Values([]ledger.Line{asked("1", on(0, 9, 0))}), readingsOf(read...).of, nil, c, asOf)
 	if err != nil {
 		t.Fatalf("Summarise() error = %v", err)
 	}

@@ -189,12 +189,14 @@ type Reset struct {
 // from up to to, in the order they were read.
 type Readings func(from, to time.Time) iter.Seq[readings.Reading]
 
-// History is the readings history, as the router's rounds summarise the days
-// with it.
+// History is the readings history, as the ledger summarises its days with
+// it.
 type History interface {
 	// Between returns the readings it holds of times from from up to to, in
-	// the order they were read.
-	Between(from, to time.Time) iter.Seq[readings.Reading]
+	// the order they were read, noting in faults, where they're given, the
+	// days whose files it couldn't read whole, as dayfile.Faults says, as it
+	// reads them.
+	Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading]
 	// Dates returns the dates of the local days it holds readings of, oldest
 	// first, as its files' names give them.
 	Dates() []string
@@ -205,11 +207,12 @@ type History interface {
 // run of them, as runOf says, so a read never takes in the readings between
 // days far apart, and holds a week and a day of them at most, as ahead says.
 // Each run's read holds the history's files from pruning until its days are
-// made, as readings.Between does as it reads: the router's readings history
-// prunes only once it has had the ledger summarise, which waits for any
-// summarising under way, as SummariseEnded's lock has it, so it never waits
-// on a read.
-func readingAhead[T any](history Readings, due []dueDay, each func(dueDay, Readings) T) []T {
+// made, as readings.Between does as it reads, so each takes no lock of the
+// history's files, as a listing of them does: a prune waiting on the read
+// would hold the listing back, and the listing the read. The router's
+// readings history prunes only once it has had the ledger summarise, which
+// waits for any summarising under way, as SummariseEnded's lock has it.
+func readingAhead[T any](history History, due []dueDay, each func(dueDay, *ahead) T) []T {
 	made := make([]T, 0, len(due))
 	for len(due) > 0 {
 		run := due[:runOf(due)]
@@ -222,15 +225,16 @@ func readingAhead[T any](history Readings, due []dueDay, each func(dueDay, Readi
 // readRun returns what each makes of every day of run, a run of days due, as
 // runOf gives it, with the history read once for them all, from the week
 // before the first to the end of the last.
-func readRun[T any](history Readings, run []dueDay, each func(dueDay, Readings) T) []T {
+func readRun[T any](history History, run []dueDay, each func(dueDay, *ahead) T) []T {
 	start, _, _ := dayfile.Day(run[0].date)
 	_, end, _ := dayfile.Day(run[len(run)-1].date)
-	next, stop := iter.Pull(history(start.Add(-readingsBefore), end))
+	read := &ahead{}
+	next, stop := iter.Pull(history.Between(start.Add(-readingsBefore), end, &read.faults))
 	defer stop()
-	read := &ahead{next: next}
+	read.next = next
 	made := make([]T, len(run))
 	for i, day := range run {
-		made[i] = each(day, read.readings)
+		made[i] = each(day, read)
 	}
 	return made
 }
@@ -252,10 +256,30 @@ func runOf(due []dueDay) int {
 // ahead is the readings of a run of days, as next gives them, oldest first,
 // read ahead as the days ask for theirs, oldest first: each ask gives those
 // of the times asked for, reading on as far as it needs, and lets go of those
-// before them, which no later ask wants. held are those read and kept.
+// before them, which no later ask wants. held are those read and kept, and
+// faults the days whose files the read couldn't read whole so far.
 type ahead struct {
-	next func() (readings.Reading, bool)
-	held []readings.Reading
+	next   func() (readings.Reading, bool)
+	held   []readings.Reading
+	faults dayfile.Faults
+}
+
+// whole reports whether the read read whole the readings history's files
+// that may hold the readings of the local day with the given date and of the
+// week before it, as readingDates gives them, as dayfile.Faults says: those
+// files are read by the time the day has its readings.
+func (a *ahead) whole(date string) bool {
+	return !a.faults.Any(readingDates(date))
+}
+
+// readingDates returns the dates of the readings history's files that may
+// hold the readings of the local day with the given date, a date that is
+// one, and of the week before it: those of the dates of its times, and of
+// those beside them, as a change of time zone files a reading under a date
+// beside its own, as dayfile.Dates gives them.
+func readingDates(date string) []string {
+	start, end, _ := dayfile.Day(date)
+	return dayfile.Dates(start.Add(-readingsBefore), end.Add(-time.Nanosecond))
 }
 
 // readings gives the readings of times from from up to to, as ahead says.

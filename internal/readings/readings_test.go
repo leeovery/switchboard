@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -139,7 +140,7 @@ func TestBetweenStopsWhenAskedTo(t *testing.T) {
 	}
 }
 
-func TestTheHistorysFilesPassOverALineTooLongToHold(t *testing.T) {
+func TestTheHistorysFilesPassOverALineTooLongToHoldNotingItsDay(t *testing.T) {
 	log := logstest.Capture(t)
 	dir := t.TempDir()
 	at := time.Date(2026, 9, 27, 12, 0, 0, 0, time.Local)
@@ -149,10 +150,18 @@ func TestTheHistorysFilesPassOverALineTooLongToHold(t *testing.T) {
 	damaged := append(gzipOf(t, linesOf(t, workRead(at.AddDate(0, 0, -1), 0.05))), gzipOf(t, linesOf(t, workRead(at.AddDate(0, 0, -1), 0.06)))[:5]...)
 	writeDay(t, dir, "readings-2026-09-26.jsonl.gz", damaged)
 
-	got := slices.Collect(readings.Between(readings.Files(dir, logs.For("cli")), at.AddDate(0, 0, -1), at.Add(time.Hour)))
-	want := []readings.Reading{workRead(at.AddDate(0, 0, -1), 0.05), workRead(at, 0.1), workRead(at, 0.2)}
+	writeDay(t, dir, "readings-2026-09-25.jsonl", []byte(linesOf(t, workRead(at.AddDate(0, 0, -2), 0.01))))
+	var faults dayfile.Faults
+
+	got := slices.Collect(readings.BetweenNoting(readings.Files(dir, logs.For("cli")), at.AddDate(0, 0, -2), at.Add(time.Hour), &faults))
+	want := []readings.Reading{workRead(at.AddDate(0, 0, -2), 0.01), workRead(at.AddDate(0, 0, -1), 0.05), workRead(at, 0.1), workRead(at, 0.2)}
 	if !slices.EqualFunc(got, want, sameReading) {
-		t.Errorf("Between() = %+v, want %+v: the lines either side of the one too long to hold, and those before the damage", got, want)
+		t.Errorf("BetweenNoting() = %+v, want %+v: the lines either side of the one too long to hold, and those before the damage", got, want)
+	}
+	for date, fault := range map[string]bool{"2026-09-25": false, "2026-09-26": true, "2026-09-27": true} {
+		if got := faults.Any([]string{date}); got != fault {
+			t.Errorf("%s among the faults = %v, want %v: the days of a line passed over, or damage, alone", date, got, fault)
+		}
 	}
 	if !log.Has("level=WARN", `msg="readings history read short"`, "file=readings-2026-09-26.jsonl.gz", "component=cli") {
 		t.Errorf("log reads\n%s\nwant the damaged file warned of, as the readings history", log)

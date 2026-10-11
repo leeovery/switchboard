@@ -116,13 +116,14 @@ func (h *history) readBack(now time.Time) iter.Seq[readings.Reading] {
 }
 
 // Between returns the readings the history holds of times from from up to
-// to, as readings.Between gives them, as the request ledger summarises a day
-// with them: none before the history is opened.
-func (h *history) Between(from, to time.Time) iter.Seq[readings.Reading] {
+// to, as readings.BetweenNoting gives them, noting in faults the days whose
+// files it couldn't read whole, as the request ledger summarises a day with
+// them: none before the history is opened.
+func (h *history) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
 	if !h.opened.Load() {
 		return func(func(readings.Reading) bool) {}
 	}
-	return readings.Between(h.files, from, to)
+	return readings.BetweenNoting(h.files, from, to, faults)
 }
 
 // Dates returns the dates of the local days the history holds readings of,
