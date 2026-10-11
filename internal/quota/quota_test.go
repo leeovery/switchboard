@@ -32,6 +32,27 @@ func TestMultiDay(t *testing.T) {
 	}
 }
 
+func TestWeekLong(t *testing.T) {
+	tests := []struct {
+		key  string
+		want bool
+	}{
+		{key: "7d", want: true},
+		{key: "7d_oi", want: true},
+		{key: "168h", want: true},
+		{key: "6d"},
+		{key: "8d"},
+		{key: "14d"},
+		{key: "5h"},
+		{key: "overage"},
+	}
+	for _, tt := range tests {
+		if got := quota.WeekLong(tt.key); got != tt.want {
+			t.Errorf("WeekLong(%q) = %v, want %v", tt.key, got, tt.want)
+		}
+	}
+}
+
 func TestLength(t *testing.T) {
 	tests := []struct {
 		key    string

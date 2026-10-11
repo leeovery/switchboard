@@ -1569,6 +1569,37 @@ func TestARoundSummarisesNoDayWhileTheReadingsHistoryCantBeListed(t *testing.T) 
 	}
 }
 
+func TestARoundWarnsOfTheLedgerThatCantBeListedOnceUntilItCanBe(t *testing.T) {
+	log := logstest.Capture(t)
+	_, dir, history := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, historyIn(history), caps, logs.For("router"))
+	unlisted := func() int { return strings.Count(log.String(), `msg="can't read the request ledger"`) }
+
+	unlistable(t, dir)
+	l.SummariseEnded(on(1, 10, 0))
+	l.SummariseEnded(on(1, 11, 0))
+	l.SummariseEnded(on(1, 12, 0))
+	if warned := unlisted(); warned != 1 {
+		t.Errorf("log reads\n%s\nwant the ledger that can't be listed warned of once over three rounds, not at each", log)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	l.SummariseEnded(on(1, 13, 0))
+	l.SummariseEnded(on(1, 14, 0))
+	if warned := unlisted(); warned != 1 {
+		t.Errorf("log reads\n%s\nwant no warning while the ledger can be listed", log)
+	}
+	unlistable(t, dir)
+	l.SummariseEnded(on(1, 15, 0))
+	l.SummariseEnded(on(1, 16, 0))
+	if warned := unlisted(); warned != 2 {
+		t.Errorf("log reads\n%s\nwant the ledger warned of again, once, as it can't be listed afresh", log)
+	}
+}
+
 func TestADaysLinesArePrunedOnlyOnceItsSummaryIsWrittenAndStands(t *testing.T) {
 	_, dir, history := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)))

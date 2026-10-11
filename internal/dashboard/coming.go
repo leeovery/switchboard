@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -17,10 +18,16 @@ type happening struct {
 }
 
 // upcoming are the things coming up after now, as doc's COMING UP lists
-// them, in its order, soonest first, each as happeningOf says it.
+// them, in its order, soonest first, each as happeningOf says it: but those
+// of a window every card hides, as shownWindows says, which the document
+// lists where its reset isn't its week's.
 func upcoming(doc status.Document, now time.Time, policy score.Policy) []happening {
+	shown := shownWindows(doc, now, policy)
 	var all []happening
 	for _, u := range doc.ComingUp {
+		if u.Window != "" && !slices.Contains(shown, u.Window) {
+			continue
+		}
 		if h, ok := happeningOf(doc, u, policy); ok && h.at.After(now) {
 			all = append(all, h)
 		}

@@ -61,13 +61,6 @@ func weeklyOf(key string, starts time.Weekday, now time.Time) weekly {
 	return weekly{key: key, length: length, starts: starts, now: now, this: this}
 }
 
-// isWeek reports whether the window with the given key is a week long, as
-// the account's week is, and a model's own week, as Fable's, is.
-func (w weekly) isWeek(key string) bool {
-	length, ok := quota.Length(key)
-	return ok && length == w.length
-}
-
 // ownWeek is a week of an account's window, from one reset of it to the next:
 // peak is its use read just before the reset that ended it, at end, or, of the
 // week still running, open, its highest use so far, which known reports is
@@ -120,7 +113,7 @@ func (w weekly) ownWeeksOf(days []ledger.AccountDay) ownWeeks {
 	last, lastDay := make(map[string]time.Time), make(map[string]int)
 	for i, d := range days {
 		for _, r := range d.Resets {
-			if !w.isWeek(r.Window) || !r.At.After(last[r.Window]) {
+			if !quota.WeekLong(r.Window) || !r.At.After(last[r.Window]) {
 				continue
 			}
 			weeks[r.Window] = append(weeks[r.Window], ownWeek{start: w.began(last[r.Window], r.At), end: r.At, peak: millionthsOf(r.Before), known: true})

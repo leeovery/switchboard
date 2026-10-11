@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -263,6 +264,74 @@ func TestEventsFollowPrintsEachLineAsItsFiled(t *testing.T) {
 	if code, stderr := interrupt(); code != 0 || stderr != "" {
 		t.Errorf("switchboard events -f exited %d, printing %q on stderr, once interrupted; want 0 and nothing", code, stderr)
 	}
+}
+
+func TestEventsFollowPrintsAnEventFiledAsItStartsOnce(t *testing.T) {
+	// The router files an event each time the clock is read, the first few
+	// times: so one is filed at each step as events starts to follow, between
+	// the follower being set up and the listing reading the files among them,
+	// and as it follows.
+	const filings = 6
+	filedAsItStarts := make([]events.Line, filings)
+	for i := range filedAsItStarts {
+		filedAsItStarts[i] = eventLine(runTwo, 2+i, status.Event{At: october(7, 12, 31+i, 0), Kind: status.EventHealth, Reason: "most requests failing"})
+	}
+	tests := []struct {
+		form printForm
+		want func(t *testing.T) string
+	}{
+		{form: offATerminal, want: func(t *testing.T) string {
+			return eventJSON(t, append([]events.Line{sessionStarted, workPressed, pinned, restartDue, routerUnwell}, filedAsItStarts...)...)
+		}},
+		{form: onATerminal, want: func(*testing.T) string {
+			want := todaysEvents
+			for _, line := range filedAsItStarts {
+				want += "  " + line.At.Format(time.TimeOnly) + "            health                unhealthy: most requests failing\n"
+			}
+			return want
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.form.name, func(t *testing.T) {
+			deps := eventsDeps(t)
+			plain := filepath.Join(ledger.Dir(stateDir(t, deps)), "events-2026-10-07.jsonl")
+			lines := make([]string, filings)
+			for i, line := range filedAsItStarts {
+				lines[i] = eventJSON(t, line)
+			}
+			var reads atomic.Int64
+			deps.Now = func() time.Time {
+				if i := reads.Add(1) - 1; i < filings {
+					if err := appendLines(plain, lines[i]); err != nil {
+						t.Error(err)
+					}
+				}
+				return ledgerNow
+			}
+			stdout, interrupt := follow(t, deps, tt.form, "events", "-f")
+
+			want := tt.want(t)
+			stdout.waitFor(t, want)
+			// Long enough for a few more looks, which print nothing again.
+			time.Sleep(50 * time.Millisecond)
+
+			if code, stderr := interrupt(); code != 0 || stderr != "" || stdout.String() != want {
+				t.Errorf("switchboard events -f exited %d, printing\n%s\nand %q on stderr, once interrupted; want 0, each event once\n%s\nand nothing",
+					code, stdout.String(), stderr, want)
+			}
+		})
+	}
+}
+
+// appendLines appends lines to the file at path, as appendTo does, for a
+// goroutine other than the test's: it returns what failed.
+func appendLines(path, lines string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(lines)
+	return errors.Join(err, f.Close())
 }
 
 func TestEventsFollowPrintsAChangedEventAgainWholeAlignedToTheListing(t *testing.T) {
