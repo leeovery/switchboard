@@ -122,8 +122,8 @@ the switchboard binary. `--theme` draws it in a built-in, or a `.theme` file giv
 `testdata/vhs/reference/` holds milestone 7's signed-off frames, exported from Paper, as PNGs, and
 as the text and ANSI of the generator that drew them: capture's tests hold each fixture named after
 a frame to that frame, cell for cell, passing over only the cells `testdata/vhs/README.md` lists,
-and `vhs` tapes in `testdata/vhs/` screenshot fixtures to judge by eye. The fixtures and the
-harness are permanent; the tapes and captures are scaffolding, cleared as each milestone is signed
-off. `testdata/vhs/README.md` says how. `--scenario` plays a scripted scenario through the same model in real time, for the
-README's demos: their tapes, in `demo/`, and the art they make, in `art/`, are permanent, and
-`demo/README.md` says how to record them.
+and `vhs` tapes in `testdata/vhs/` screenshot fixtures to judge by eye. The fixtures and the harness
+are permanent; the tapes and captures are scaffolding, cleared as each milestone is signed off.
+`testdata/vhs/README.md` says how. `--scenario` plays a scripted scenario through the same model in
+real time, for the README's demos: their tapes, in `demo/`, and the art they make, in `art/`, are
+permanent, and `demo/README.md` says how to record them.
