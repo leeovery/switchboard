@@ -1,0 +1,326 @@
+package watch
+
+import (
+	"cmp"
+	"fmt"
+	"math/rand/v2"
+	"slices"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
+)
+
+// targets are the targets of the page on screen.
+func (h *harness) targets() []dashboard.Target {
+	f, _, _ := h.model.screen(h.clock.now)
+	return f.Targets()
+}
+
+// tabTarget is the target of the tab given on the page on screen, failing
+// the test where there's none.
+func (h *harness) tabTarget(tab dashboard.View) dashboard.Target {
+	h.t.Helper()
+	i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnTab && t.Tab == tab })
+	if i < 0 {
+		h.t.Fatalf("the page has no target for the %s tab among %+v", tab, h.targets())
+	}
+	return h.targets()[i]
+}
+
+// click clicks the left button on the cell at x along row y, delivering what
+// it sends back, and reports whether it quit.
+func (h *harness) click(x, y int) bool {
+	h.t.Helper()
+	msgs := h.update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+	h.deliver(msgs...)
+	return quits(msgs)
+}
+
+// clickOn clicks the target given, as clicked lands on it, delivering what it
+// sends back, and reports whether it quit.
+func (h *harness) clickOn(t dashboard.Target) bool {
+	h.t.Helper()
+	next, cmd := h.model.clickedOn(t)
+	h.model = next.(Model)
+	msgs := h.run(cmd)
+	h.deliver(msgs...)
+	return quits(msgs)
+}
+
+// keyTarget is a key of the key line, as the page's targets give it.
+func keyTarget(key string) dashboard.Target {
+	return dashboard.Target{On: dashboard.OnKey, Key: key}
+}
+
+func TestAClickOnATabShowsItFromItsTopAndKeepsIt(t *testing.T) {
+	for _, size := range []tea.WindowSizeMsg{{Width: 150, Height: 50}, {Width: 52, Height: 40}} {
+		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
+			h := newHarness(t, twelve())
+			prefs := &fakePrefs{}
+			h.model.cfg.Prefs = prefs
+			h.update(size)
+			h.start()
+
+			for _, tab := range dashboard.Views() {
+				from := dashboard.Overview
+				if tab == from {
+					from = dashboard.Log
+				}
+				h.model.view = from
+				target := h.tabTarget(tab)
+				for _, x := range []int{target.X, target.X + target.Width - 1} {
+					h.model.view, h.model.scroll = from, 1
+					h.click(x, target.Y)
+					if h.model.view != tab || h.model.scroll != 0 || prefs.kept.View != string(tab) {
+						t.Errorf("a click at %d,%d, on the %s tab, showed %q scrolled %d, and kept %q; want %q from its top, kept",
+							x, target.Y, tab, h.model.view, h.model.scroll, prefs.kept.View, tab)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestAClickOnTheTabShownChangesNothing(t *testing.T) {
+	h := newHarness(t, twelve())
+	prefs := &fakePrefs{}
+	h.model.cfg.Prefs = prefs
+	h.start()
+	h.press("j")
+
+	target := h.tabTarget(dashboard.Overview)
+	h.click(target.X, target.Y)
+	if h.model.view != dashboard.Overview || h.model.scroll != 1 || prefs.updates != 0 {
+		t.Errorf("a click on the tab shown showed %q scrolled %d, keeping it %d times; want it as it was, a row down, nothing kept", h.model.view, h.model.scroll, prefs.updates)
+	}
+}
+
+func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.settle()
+	was := h.model
+	targets := h.targets()
+	for y := range was.size.Height {
+		for x := range was.size.Width {
+			if _, on := targetAt(targets, x, y); on {
+				continue
+			}
+			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.focus != "" || h.model.flipped != nil ||
+				h.model.featured != was.featured || h.model.chart != was.chart || h.model.picker.open || len(h.source.orders) > 0 {
+				t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, focus on %q, flipped %v, orders %q", x, y, h.model.view, h.model.open, h.model.focus, h.model.flipped, h.source.orders)
+			}
+		}
+	}
+}
+
+func TestATargetTakesTheCellsItSpans(t *testing.T) {
+	targets := []dashboard.Target{
+		{X: 4, Y: 0, Width: 3, On: dashboard.OnTab, Tab: dashboard.Accounts},
+		{X: 7, Y: 0, Width: 2, On: dashboard.OnTab, Tab: dashboard.History},
+		{X: 4, Y: 9, Width: 5, On: dashboard.OnKey, Key: "w"},
+	}
+	tests := []struct {
+		x, y int
+		want dashboard.Target
+		on   bool
+	}{
+		{x: 3, y: 0},
+		{x: 4, y: 0, want: targets[0], on: true},
+		{x: 6, y: 0, want: targets[0], on: true},
+		{x: 7, y: 0, want: targets[1], on: true},
+		{x: 8, y: 0, want: targets[1], on: true},
+		{x: 9, y: 0},
+		{x: 5, y: 1},
+		{x: 8, y: 9, want: targets[2], on: true},
+		{x: 9, y: 9},
+	}
+	for _, tt := range tests {
+		if got, on := targetAt(targets, tt.x, tt.y); got != tt.want || on != tt.on {
+			t.Errorf("targetAt(%d, %d) = %+v, %v; want %+v, %v", tt.x, tt.y, got, on, tt.want, tt.on)
+		}
+	}
+}
+
+func TestOnlyTheLeftButtonClicks(t *testing.T) {
+	h := newHarness(t, calm())
+	h.start()
+	target := h.tabTarget(dashboard.Runway)
+	for _, button := range []tea.MouseButton{tea.MouseRight, tea.MouseMiddle} {
+		h.deliver(h.update(tea.MouseClickMsg{X: target.X, Y: target.Y, Button: button})...)
+		if h.model.view != dashboard.Overview {
+			t.Errorf("button %v on the Runway tab showed %q, want the Overview still", button, h.model.view)
+		}
+	}
+}
+
+func TestAClickOnAKeyOfTheKeyLineActsAsTheKey(t *testing.T) {
+	tests := []struct {
+		key string
+		// acted reports whether the key acted, as the model now stands.
+		acted func(m Model) bool
+	}{
+		{key: "tab", acted: func(m Model) bool { return m.view == dashboard.Accounts }},
+		{key: "w", acted: func(m Model) bool { return m.featured != dashboard.Auto }},
+		{key: "g", acted: func(m Model) bool { return m.chart != dashboard.Burndown }},
+		{key: "←→", acted: func(m Model) bool { return m.focus == "work" }},
+		{key: "space", acted: func(m Model) bool { return m.flipped["work"] }},
+		{key: "?", acted: func(m Model) bool { return m.open == helpOpen }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.start()
+			if h.clickOn(keyTarget(tt.key)) || !tt.acted(h.model) {
+				t.Errorf("a click on %s didn't act as %s does", tt.key, tt.key)
+			}
+		})
+	}
+}
+
+func TestAClickOnAPairOfArrowsMovesOn(t *testing.T) {
+	h := gridHarness(t)
+	h.clickOn(keyTarget("←→"))
+	h.clickOn(keyTarget("←→"))
+	if h.model.focus != "personal" {
+		t.Errorf("two clicks on ←→ put the focus on %q, want personal, a card on from work, as → moves it", h.model.focus)
+	}
+}
+
+func TestAClickNeverPinsOrQuits(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	for _, key := range []string{"p", "q", "", "pin", "1", "a", "m"} {
+		if h.clickOn(keyTarget(key)) || h.model.open != nothingOpen || len(h.source.orders) > 0 {
+			t.Errorf("a click on %q quit, or opened %v, or ordered %q; want nothing", key, h.model.open, h.source.orders)
+		}
+	}
+}
+
+func TestNoClickActsWhileACardIsOpen(t *testing.T) {
+	for _, card := range []string{"p", "?"} {
+		t.Run(card, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.start()
+			h.press(card)
+			open := h.model.open
+			for _, target := range h.targets() {
+				if h.click(target.X, target.Y) || h.model.open != open || h.model.view != dashboard.Overview {
+					t.Fatalf("with %v open, a click on %+v acted: open %v, showing %q", open, target, h.model.open, h.model.view)
+				}
+			}
+			for y := range h.model.size.Height {
+				for x := range h.model.size.Width {
+					if h.click(x, y) || h.model.open != open || len(h.source.orders) > 0 || h.model.help.scroll != 0 {
+						t.Fatalf("with %v open, a click at %d,%d acted: open %v, orders %q", open, x, y, h.model.open, h.source.orders)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestWhileThePickerIsOpenAClickActsAsItsKeysAlone(t *testing.T) {
+	h, _ := settledThemedHarness(t, theme.One("amber"))
+	h.typed("t")
+
+	tab := h.tabTarget(dashboard.Accounts)
+	h.click(tab.X, tab.Y)
+	if h.model.view != dashboard.Overview || !h.model.picker.open {
+		t.Errorf("with the picker open, a click on the Accounts tab showed %q, the picker open %v; want nothing, as tab does nothing then", h.model.view, h.model.picker.open)
+	}
+	for y := range h.model.size.Height {
+		for x := h.model.size.Width - dashboard.PickerWidth(h.model.size.Width); x < h.model.size.Width; x++ {
+			if h.click(x, y) || !h.model.picker.open {
+				t.Fatalf("a click at %d,%d, on the picker, closed it or quit", x, y)
+			}
+		}
+	}
+	h.clickOn(keyTarget("esc"))
+	if h.model.picker.open {
+		t.Error("a click on the picker's esc left it open, want it closed, as esc does")
+	}
+}
+
+func TestShowingSessionsAsAnAnswerStreamsDrawsItsFrames(t *testing.T) {
+	h := streamingHarness(t)
+	h.keys(spaceKey)
+	h.settle()
+	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", 0))
+
+	target := h.tabTarget(dashboard.Sessions)
+	h.click(target.X, target.Y)
+	if _, ok := h.pendingFrame(); h.model.view != dashboard.Sessions || !ok {
+		t.Errorf("a click showing Sessions as d28c's answer streams showed %q, a frame armed %v; want Sessions, a frame armed to draw its shimmer", h.model.view, ok)
+	}
+}
+
+// TestNoClickOrTurnOfTheWheelRoutesQuitsOrPanics clicks, and turns the
+// wheel, on each target the page gives and at cells picked at random, on
+// every tab, at sizes from a wide terminal's to a cell's, with nothing open
+// over the page, the routing card, help, and the theme picker, drawing the
+// screen after each.
+func TestNoClickOrTurnOfTheWheelRoutesQuitsOrPanics(t *testing.T) {
+	sizes := []tea.WindowSizeMsg{{Width: 160, Height: 40}, {Width: 52, Height: 40}, {Width: 20, Height: 6}, {Width: 1, Height: 1}}
+	for i, opening := range []string{"", "p", "?", "t"} {
+		t.Run("opened with "+cmp.Or(opening, "nothing"), func(t *testing.T) {
+			t.Parallel()
+			r := rand.New(rand.NewPCG(6, uint64(i)))
+			for _, size := range sizes {
+				for _, tab := range dashboard.Views() {
+					h := clickedHarness(t, tab, size, opening)
+					routing := h.model.open == routingOpen
+					for _, cell := range cellsToClick(h.targets(), size, r) {
+						x, y := cell[0], cell[1]
+						wheel := tea.MouseWheelMsg{X: x, Y: y, Button: []tea.MouseButton{tea.MouseWheelUp, tea.MouseWheelDown}[r.IntN(2)]}
+						h.deliver(h.update(wheel)...)
+						if h.click(x, y) || len(h.source.orders) > 0 || !routing && h.model.open == routingOpen {
+							t.Fatalf("%dx%d on %s, a click at %d,%d quit, ordered %q, or opened the routing card: open %v",
+								size.Width, size.Height, tab, x, y, h.source.orders, h.model.open)
+						}
+						h.model.View()
+					}
+				}
+			}
+		})
+	}
+}
+
+// clickedHarness is a model drawn in colour of the router of three, d28c
+// busy on work, showing the tab given in a terminal of the size given,
+// started, with the key given pressed, where it's one.
+func clickedHarness(t *testing.T, tab dashboard.View, size tea.WindowSizeMsg, opening string) *harness {
+	t.Helper()
+	h, _ := themedHarness(t, theme.One("amber"))
+	h.model.cfg.Await = h.await
+	doc := routerDocument(three()...)
+	h.source.router, h.source.sessions = &doc, []status.Session{sessionOn(idD28C, opus, "work", 10*time.Second)}
+	h.model.view = tab
+	h.update(size)
+	h.start()
+	h.answer(darkBackground)
+	if opening != "" {
+		h.typed(opening)
+	}
+	return h
+}
+
+// cellsToClick are the cells to click on a terminal of the size given: the
+// first of each target's, and a few picked by r, a cell beyond it either way
+// among them.
+func cellsToClick(targets []dashboard.Target, size tea.WindowSizeMsg, r *rand.Rand) [][2]int {
+	var cells [][2]int
+	for _, t := range targets {
+		cells = append(cells, [2]int{t.X, t.Y})
+	}
+	for range 20 {
+		cells = append(cells, [2]int{r.IntN(size.Width+2) - 1, r.IntN(size.Height+2) - 1})
+	}
+	return cells
+}

@@ -17,8 +17,8 @@ import (
 // the number keys and m among them, which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
-	if rows, ok := m.scrollKey(k); ok {
-		return m.scrollBy(rows), nil
+	if by, ok := scrollKey(k); ok {
+		return m.scrollView(by), nil
 	}
 	if next, ok := m.cardKey(k); ok {
 		return next, nil
@@ -77,18 +77,18 @@ func (m Model) wKey() keyListing {
 }
 
 // keyLine is the key line as m stands at now: while the theme picker is
-// open, its keys alone; else tab views, then the page's own keys that work,
-// those it leaves to help aside, then p pin where a pin can be set, and ?
-// help and q quit last; and the note a key left in their place, while
-// that's news.
+// open, its keys alone, then q quit, a phone's line as a wide one; else tab
+// views, then the page's own keys that work, those it leaves to help aside,
+// then p pin where a pin can be set, and ? help and q quit last, a phone's
+// line keeping the page's own keys between them; and the note a key left in
+// their place, while that's news.
 func (m Model) keyLine(now time.Time) dashboard.KeyLine {
-	l := dashboard.KeyLine{Lead: 3, PhoneHelp: "keys", Note: m.noted(now)}
 	if m.picker.open {
-		l.Groups = [][]dashboard.Key{m.picker.keys()}
-		return l
+		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {quit}}, Lead: keysAfter, Note: m.noted(now)}
 	}
+	l := dashboard.KeyLine{Lead: 3, PhoneHelp: "keys", Note: m.noted(now)}
 	if m.view == dashboard.Overview {
-		l.Lead = 5
+		l.Lead, l.PhoneHelp = 5, "keys and toggles"
 	}
 	l.Groups = [][]dashboard.Key{{{Key: "tab", Does: "views"}}}
 	var page []dashboard.Key
@@ -98,14 +98,21 @@ func (m Model) keyLine(now time.Time) dashboard.KeyLine {
 		}
 	}
 	if len(page) > 0 {
-		l.Groups = append(l.Groups, page)
+		l.Groups, l.Phone = append(l.Groups, page), page
 	}
 	if pin, ok := m.pinKey(); ok {
 		l.Groups = append(l.Groups, []dashboard.Key{pin})
 	}
-	l.Groups = append(l.Groups, []dashboard.Key{{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}})
+	l.Groups = append(l.Groups, []dashboard.Key{{Key: "?", Does: "help"}, quit})
 	return l
 }
+
+// quit is q, which quits, as the key line and help list it.
+var quit = dashboard.Key{Key: "q", Does: "quit"}
+
+// keysAfter is how many blank cells the key line sets a group of keys apart
+// from the next by.
+const keysAfter = 4
 
 // helpKeys are the keys help lists, as m stands, worded as the key line
 // words them: tab; every key of the page's own that works, those the key
@@ -124,5 +131,5 @@ func (m Model) helpKeys() []dashboard.Key {
 	if m.coloured() {
 		keys = append(keys, dashboard.Key{Key: "t", Does: "themes"})
 	}
-	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, dashboard.Key{Key: "?", Does: "help"}, dashboard.Key{Key: "q", Does: "quit"})
+	return append(keys, dashboard.Key{Key: "R", Does: "refresh"}, dashboard.Key{Key: "?", Does: "help"}, quit)
 }

@@ -400,6 +400,10 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 	}
 }
 
+// cardKeys are the Overview's own keys, as its key line lists them while
+// its cards feature each its own window.
+var cardKeys = []dashboard.Key{{Key: "w", Does: "window: auto"}, {Key: "←→", Does: "focus"}, {Key: "space", Does: "flip"}, {Key: "g", Does: "chart"}}
+
 // calmScreen is the screen of calm read at now, its windows used as trails
 // says, as a terminal of the size given shows it without colour, probing,
 // with nothing more to say.
@@ -407,11 +411,11 @@ func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 	return strings.Join(dashboard.Frame{
 		Width: size.Width, Height: size.Height, Look: dashboard.NoColour(),
 		View: dashboard.Overview, Trails: trails,
-		KeyLine: dashboard.KeyLine{Lead: 5, PhoneHelp: "keys", Groups: [][]dashboard.Key{
+		KeyLine: dashboard.KeyLine{Lead: 5, Groups: [][]dashboard.Key{
 			{{Key: "tab", Does: "views"}},
-			{{Key: "w", Does: "window: auto"}, {Key: "←→", Does: "focus"}, {Key: "space", Does: "flip"}, {Key: "g", Does: "chart"}},
+			cardKeys,
 			{{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},
-		}},
+		}, Phone: cardKeys, PhoneHelp: "keys and toggles"},
 		Policy: policy,
 	}.Draw(calm(), now), "\n")
 }

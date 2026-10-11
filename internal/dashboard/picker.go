@@ -44,8 +44,6 @@ const (
 	pickerChrome = 2
 	// cursorColumn is the cells the cursor's bar takes before each name.
 	cursorColumn = 2
-	// keyColumn is the cells a key takes before what it does.
-	keyColumn = 5
 	// nameFloor is the fewest cells a theme's name is cut to, however much
 	// its row's badge and problem take.
 	nameFloor = 4
@@ -54,8 +52,8 @@ const (
 // The keys the picker takes, and what each does: those it always takes, and
 // those that answer its question.
 var (
-	pickerKeys = [][2]string{{"⏎", "set theme"}, {"d", "set as dark"}, {"l", "set as light"}, {"esc", "close"}}
-	answerKeys = [][2]string{{"y", "confirm"}, {"n", "cancel"}}
+	pickerKeys = []Key{{Key: "enter", Does: "set theme"}, {Key: "d", Does: "set as dark"}, {Key: "l", Does: "set as light"}, {Key: "esc", Does: "close"}}
+	answerKeys = []Key{{Key: "y", Does: "confirm"}, {Key: "n", Does: "cancel"}}
 )
 
 // pickerHead is the picker's rows over the themes: a blank one, its name,
@@ -153,8 +151,7 @@ func (p Picker) foot(inner int) []line {
 	}
 	foot := []line{message, {{rule(inner), borderInk}}}
 	for _, k := range keys {
-		key := k[0] + strings.Repeat(" ", keyColumn-ansi.StringWidth(k[0]))
-		foot = append(foot, line{{key, ink{token: theme.AccentKey}}, {k[1], ink{token: theme.TextMuted}}})
+		foot = append(foot, k.words())
 	}
 	return foot
 }

@@ -19,12 +19,23 @@ func (m Model) openHelp() Model {
 }
 
 // helpKey acts on a key while help is open, which takes every key but
-// ctrl+c: ? and esc close it, and the rest do nothing.
+// ctrl+c: ? and esc close it; j and k scroll it a row, and PgDn and PgUp a
+// page; and the rest do nothing.
 func (m Model) helpKey(key string) (tea.Model, tea.Cmd) {
 	if key == "?" || key == "esc" {
 		return m.uncover(), nil
 	}
+	if by, ok := scrollKey(key); ok {
+		return m.scrollHelp(by), nil
+	}
 	return m, nil
+}
+
+// scrollHelp scrolls help by, within the card it's drawn in on screen.
+func (m Model) scrollHelp(by scrollStep) Model {
+	f, _, _ := m.screen(m.now())
+	m.help.scroll = by.from(m.help.scroll, f.CardScrolling())
+	return m
 }
 
 // helpCard is the page's help as m stands: its keys, and how far it's

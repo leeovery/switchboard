@@ -27,13 +27,22 @@ func opening(kept dashboard.View) dashboard.View {
 }
 
 // turn shows the tab by places on from the one shown, round, as tab and
-// shift-tab move, from its top, and keeps it, for the next watch to open on.
+// shift-tab move.
 func (m Model) turn(by int) (tea.Model, tea.Cmd) {
 	tabs := dashboard.Views()
 	i := slices.Index(tabs, m.view) + by
-	m.view, m.scroll = tabs[(i%len(tabs)+len(tabs))%len(tabs)], 0
+	return m.showTab(tabs[(i%len(tabs)+len(tabs))%len(tabs)]), nil
+}
+
+// showTab shows the tab given, from its top, and keeps it, for the next watch
+// to open on. The tab shown already stays as it is.
+func (m Model) showTab(tab dashboard.View) Model {
+	if tab == m.view {
+		return m
+	}
+	m.view, m.scroll = tab, 0
 	m.keepView()
-	return m, nil
+	return m
 }
 
 // keepView keeps the view shown in the preferences, where there are

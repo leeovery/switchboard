@@ -356,6 +356,20 @@ func (h *harness) listed() []string {
 	return keys
 }
 
+// grouped are the model's key line's groups as it stands, each key with its
+// word, as in "tab views".
+func (h *harness) grouped() [][]string {
+	var groups [][]string
+	for _, group := range h.model.keyLine(h.clock.now).Groups {
+		var keys []string
+		for _, k := range group {
+			keys = append(keys, k.Key+" "+k.Does)
+		}
+		groups = append(groups, keys)
+	}
+	return groups
+}
+
 // nextRead is when the next full read is due, to the minute, as in "13:42".
 func (h *harness) nextRead() string {
 	return h.model.plan.due.In(start.Location()).Format("15:04")
