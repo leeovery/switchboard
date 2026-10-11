@@ -2,6 +2,7 @@ package capture
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"image/color"
@@ -23,35 +24,46 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestAPrintoutIsWhatUsagePrintsOfItsRouter(t *testing.T) {
-	now := moment(time.UTC)
 	tests := []struct {
-		name   string
-		router source
+		name, fixture string
+		// by is what the config's [usage] by says, "" where it says nothing.
+		by   string
+		args []string
 	}{
-		{name: "one account", router: oneAccount(now)},
-		{name: "three accounts", router: threeAccounts(now)},
-		{name: "eight accounts", router: eightAccounts(now)},
+		{fixture: "usage-160"},
+		{fixture: "usage-120"},
+		{fixture: "usage-80"},
+		{fixture: "usage-52"},
+		{fixture: "usage-5h-160", args: []string{"--5h"}},
+		{fixture: "usage-5h-52", args: []string{"--5h"}},
+		{fixture: "usage-by-account-160", args: []string{"--by", "account"}},
+		{fixture: "usage-by-account-52", args: []string{"--by", "account"}},
+		{fixture: "usage-one-account-160"},
+		{name: "by account, as the config says", fixture: "usage-by-account-160", by: "account"},
+		{name: "--by window beating the config's account", fixture: "usage-160", by: "account", args: []string{"--by", "window"}},
 	}
+	run := make(map[string]bool)
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := printoutOf(t)
-			f.router = tt.router
-			usage := usageOf(t, tt.router, now)
-			for _, width := range []int{160, 120, 80, 52} {
-				if got, want := "\n"+f.Frame(watch.Size{Width: width}), usage(width); got != want {
-					t.Errorf("at %d columns, the printout reads, after a blank line,\n%s\nwant what switchboard usage prints of its router\n%s", width, got, want)
-				}
+		run[tt.fixture] = true
+		t.Run(cmp.Or(tt.name, tt.fixture), func(t *testing.T) {
+			f := fixture(t, tt.fixture)
+			if got, want := "\n"+f.Frame(f.Size), usageOf(t, f, tt.by, tt.args...); got != want {
+				t.Errorf("the printout reads, after a blank line,\n%s\nwant what switchboard usage %s prints of its router\n%s", got, strings.Join(tt.args, " "), want)
 			}
 		})
+	}
+	for _, name := range Names() {
+		if f := fixture(t, name); f.Printout && !run[name] {
+			t.Errorf("%s is a printout, and nothing holds it to what usage prints", name)
+		}
 	}
 }
 
 func TestAPrintoutIsAsTallAsItIsAndPaintsNoBackground(t *testing.T) {
-	f := printoutOf(t)
+	f := fixture(t, "usage-160")
 	screen := f
 	screen.Printout = false
 	if !strings.Contains(screen.Frame(screen.Size), nordCanvas) {
@@ -78,7 +90,7 @@ func TestAPrintoutIsAsTallAsItIsAndPaintsNoBackground(t *testing.T) {
 }
 
 func TestAPrintoutWithoutColourIsBoldAlone(t *testing.T) {
-	frame := printoutOf(t).WithoutColour().Frame(watch.Size{Width: 160})
+	frame := fixture(t, "usage-160").WithoutColour().Frame(watch.Size{Width: 160})
 
 	if !strings.Contains(frame, "\x1b[1m") {
 		t.Errorf("without colour, the printout\n%q\nwant its names and percentages bold", frame)
@@ -96,24 +108,13 @@ const nordCanvas = "48;2;46;52;64"
 // sgrs are the SGR sequences in text, each one's parameters captured.
 var sgrs = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
 
-// printoutOf is a printout of usage over milestone 5's three accounts, in the
-// frames' theme, at the frames' moment, in UTC.
-func printoutOf(t *testing.T) Fixture {
-	t.Helper()
-	now := moment(time.UTC)
-	nord, ok := theme.Builtin(theme.DefaultDark)
-	if !ok {
-		t.Fatal("no built-in nord")
-	}
-	return Fixture{Name: "usage-3", Size: wide(34), Printout: true, now: now, router: threeAccounts(now), theme: nord}
-}
-
-// usageOf is what switchboard usage prints of the router given, by now's
-// clock, on a terminal as wide as given: run in process, as its own tests run
-// it, its config listing the router's accounts, the router served on the
-// control socket of a state directory of its own, and the terminal a
-// truecolour one whose background is the frames' canvas.
-func usageOf(t *testing.T, r source, now time.Time) func(width int) string {
+// usageOf is what switchboard usage prints, given args, of the fixture's
+// router, by its clock, on a terminal as wide as its own: run in process, as
+// its own tests run it, its config listing the router's accounts and, where
+// by isn't "", setting [usage] by to it, the router served on the control
+// socket of a state directory of its own, and the terminal a truecolour one
+// whose background is the frames' canvas.
+func usageOf(t *testing.T, f Fixture, by string, args ...string) string {
 	t.Helper()
 	// t.TempDir's can be too long on macOS for a socket's path.
 	stateHome, err := os.MkdirTemp("", "sb")
@@ -123,15 +124,18 @@ func usageOf(t *testing.T, r source, now time.Time) func(width int) string {
 	t.Cleanup(func() { _ = os.RemoveAll(stateHome) })
 	home := t.TempDir()
 	configFile := filepath.Join(home, "config.toml")
-	var accounts strings.Builder
-	for _, a := range r.doc.Accounts {
-		fmt.Fprintf(&accounts, "[[account]]\nid = %q\n\n", a.ID)
+	var cfg strings.Builder
+	if by != "" {
+		fmt.Fprintf(&cfg, "[usage]\nby = %q\n\n", by)
 	}
-	if err := os.WriteFile(configFile, []byte(accounts.String()), 0o600); err != nil {
+	for _, a := range f.router.doc.Accounts {
+		fmt.Fprintf(&cfg, "[[account]]\nid = %q\n\n", a.ID)
+	}
+	if err := os.WriteFile(configFile, []byte(cfg.String()), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	env := map[string]string{
-		"SWITCHBOARD_CONFIG": configFile, "XDG_STATE_HOME": stateHome,
+		"SWITCHBOARD_CONFIG": configFile, "XDG_STATE_HOME": stateHome, "COLUMNS": strconv.Itoa(f.Size.Width),
 		"TERM": "xterm-256color", "COLORTERM": "truecolor", "CLICOLOR_FORCE": "1",
 	}
 	deps := cli.Deps{
@@ -144,7 +148,7 @@ func usageOf(t *testing.T, r source, now time.Time) func(width int) string {
 			return environ
 		},
 		HomeDir:       func() (string, error) { return home, nil },
-		Now:           func() time.Time { return now },
+		Now:           func() time.Time { return f.now },
 		ClaudeVersion: func() string { return "2.1.300" },
 		Terminal:      func(io.Writer) bool { return true },
 		Background:    func(io.Writer) color.Color { return terminalBackground },
@@ -153,19 +157,16 @@ func usageOf(t *testing.T, r source, now time.Time) func(width int) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serveAsRouter(t, router.SocketPath(state), r)
-	return func(width int) string {
-		env["COLUMNS"] = strconv.Itoa(width)
-		root := cli.NewRootCommand(deps)
-		var stdout, stderr bytes.Buffer
-		root.SetArgs([]string{"usage"})
-		root.SetOut(&stdout)
-		root.SetErr(&stderr)
-		if code := cli.Execute(root); code != 0 || stderr.Len() > 0 {
-			t.Fatalf("switchboard usage exited %d, saying %q", code, stderr.String())
-		}
-		return stdout.String()
+	serveAsRouter(t, router.SocketPath(state), f.router)
+	root := cli.NewRootCommand(deps)
+	var stdout, stderr bytes.Buffer
+	root.SetArgs(append([]string{"usage"}, args...))
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	if code := cli.Execute(root); code != 0 || stderr.Len() > 0 {
+		t.Fatalf("switchboard usage %s exited %d, saying %q", strings.Join(args, " "), code, stderr.String())
 	}
+	return stdout.String()
 }
 
 // serveAsRouter answers on the control socket at path, until the test ends,

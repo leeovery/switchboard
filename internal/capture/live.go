@@ -236,7 +236,7 @@ const mostTyped = 4
 // typedMsg wakes the model to redraw once the keys typed have had their time.
 type typedMsg struct{}
 
-// Init starts the watch, as usage -w does, and in colour, answers its
+// Init starts the watch, as dashboard does, and in colour, answers its
 // question of the terminal's background at once, as a tape's terminal would,
 // so it's drawn from the start.
 func (l live) Init() tea.Cmd {
