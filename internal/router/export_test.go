@@ -32,3 +32,9 @@ func (r *Router) SetChooser(c Chooser) {
 func (c *Client) HTTP() *http.Client {
 	return c.http
 }
+
+// RequestsInFlight counts the proxy's requests in flight, for tests that wait
+// for the router to be done with one whose client already has its answer.
+func (r *Router) RequestsInFlight() int {
+	return r.inFlight.requests()
+}

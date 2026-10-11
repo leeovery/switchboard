@@ -542,6 +542,14 @@ func (r *routed) ask(t *testing.T, session, model, pin string) string {
 	return r.api.lastAccount()
 }
 
+// settle waits for the router to be done with the requests it has in flight:
+// a request stays in flight, as the request stream tells of it, until its
+// handler returns, which can be just after its client has the whole answer.
+func (r *routed) settle(t *testing.T) {
+	t.Helper()
+	waitUntil(t, "the router is done with its requests", func() bool { return r.rt.RequestsInFlight() == 0 })
+}
+
 // weekOf is a week used as given, which resets after left.
 func weekOf(used float64, left time.Duration) quota.Window {
 	return quota.Window{Key: "7d", Label: "Week", Utilization: used, ResetsAt: now.Add(left), Status: quota.StatusAllowed}
