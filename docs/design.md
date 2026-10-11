@@ -4395,8 +4395,9 @@ from the first day a router that has it runs, so nothing before then is in it.
   it, never worked out from another, as a cache read's share of the input's differs from model to
   model; a web search's, $10 a thousand beyond its tokens; and what US-only inference costs, a
   tenth more on each token's price, on Claude 4.6 and later, where a request's shape asks for
-  `inference_geo` `us`. Each price carries the day it took effect, those of the table each model's
-  launch day, as none has changed since; so a request can be priced as at its own day or at
+  `inference_geo` `us`. Each price carries the day it took effect: each model's launch day, and the
+  day a price of it changed, as Sonnet 5.5's cache reads did on 7 October 2026, checked against the
+  page again on 11 October 2026; so a request can be priced as at its own day or at
   today's prices, and the views price at today's unless their design says otherwise. Worth is
   worked out as it's read and never stored, so a release with new prices prices the whole ledger
   afresh. A model the table doesn't know has no worth, and is shown as unpriced, never as free, as
@@ -4418,7 +4419,11 @@ from the first day a router that has it runs, so nothing before then is in it.
   - *No long-context rate (7 October 2026):* Claude 4.6 and later price their whole 1M-token
     context at their standard rates, since 13 March 2026, and the 1M-token beta that charged more
     on Claude Sonnet 4 and 4.5, which `context-1m-2025-08-07` asked for, was retired on 30 April
-    2026, before the ledger began recording. So no request the ledger holds pays one.
+    2026, before the ledger began recording. So no request the ledger holds pays one, but Claude
+    Haiku 5.5's: from its launch on 7 October 2026 it prices a prompt of over 100,000 tokens
+    higher, which the table doesn't keep, so every Haiku 5.5 request is priced at its rate for
+    prompts up to 100,000, the owner's call (11 October 2026), until how the table is kept is
+    settled (see Backlog: keeping the price table current).
   - **Plans:** beside the models, the table prices the plans a subscription is on, each a month, in
     US dollars, with its size in Pros, which History's replay of a week weighs an account by (see
     History): `pro`, Pro, $20 and 1; `max5x`, Max 5x, $100 and 5; and `max20x`, Max 20x, $200 and
@@ -5778,8 +5783,9 @@ why.
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | Releases signed with a Developer ID, so macOS stops noticing each upgrade | next, once the certificate is in hand | [developer-id-signing](../ideas/2026-10-01--developer-id-signing.md) |
 | Three things the router keeps that grow without bound, each only when something rare happens, and a restart's request stream that can end before its last events | open: small fixes, any time | [router-loose-ends](../ideas/2026-10-05--router-loose-ends.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, Sonnet 5.5's halved cache prices first | open: Sonnet 5.5's row any time, the check to settle with its owner | [current-prices](../ideas/2026-10-09--current-prices.md) |
+| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Stage 3's loose ends: two router tests a loaded machine can fail, Weeks' headline for a set short every week, and the cleanups its reviews left | open: the tests and cleanups any time, the headline to settle with its owner | [stage-3-loose-ends](../ideas/2026-10-11--stage-3-loose-ends.md) |
+| Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
 | Worth past what it's counted in: a config's price, or a period's sum, too large to hold | open: a small fix, its bound to settle | [worth-range](../ideas/2026-10-09--worth-range.md) |
 | What a routed session's environment carries to a `claude` switchboard steps aside for, as one a script points at another gateway | open: a small fix, any time | [stepping-aside](../ideas/2026-10-09--stepping-aside.md) |
 | Probing more often than every 30 minutes, every 5 say, so use from a phone and free resets are seen sooner | open: how often, and the dashboard's refresh, to settle with its owner | [probing-more-often](../ideas/2026-10-09--probing-more-often.md) |
