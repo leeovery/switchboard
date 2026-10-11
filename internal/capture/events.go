@@ -54,7 +54,7 @@ const (
 // choosing afresh the account of a session that idled as long as idle says,
 // passing the account given over under pressure.
 func rescoredUnderPressure(idle, account string) string {
-	return status.Rescored(idle) + ", " + account + " under pressure"
+	return status.PassingOver(status.Rescored(idle), account)
 }
 
 // The identities of the frames' limits and caps, as the router's events

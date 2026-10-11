@@ -18,8 +18,10 @@ package capture
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -67,33 +69,49 @@ func (f Fixture) WithoutColour() Fixture {
 
 // Names lists every fixture's name, sorted.
 func Names() []string {
-	var names []string
-	for _, f := range fixtures(time.Local) {
-		names = append(names, f.Name)
-	}
-	slices.Sort(names)
-	return names
+	return local().names()
 }
 
 // ByName returns the fixture with the given name, drawn in the local time
 // zone, as fixtures says. An empty or unknown name is an error that lists the
 // fixtures.
 func ByName(name string) (Fixture, error) {
-	return named(name, time.Local)
+	return local().named(name)
 }
 
-// named returns the fixture with the given name, drawn in the time zone
-// given, as fixtures says.
-func named(name string, loc *time.Location) (Fixture, error) {
+// local is every fixture drawn in the local time zone, built once.
+var local = sync.OnceValue(func() fixtureSet { return fixturesIn(time.Local) })
+
+// fixtureSet is every fixture drawn in a time zone, each built once, by name.
+type fixtureSet map[string]Fixture
+
+// fixturesIn is every fixture drawn in the time zone given, as fixtures says.
+func fixturesIn(loc *time.Location) fixtureSet {
+	set := make(fixtureSet)
+	for _, f := range fixtures(loc) {
+		set[f.Name] = f
+	}
+	return set
+}
+
+// names lists the set's names, sorted.
+func (s fixtureSet) names() []string {
+	return slices.Sorted(maps.Keys(s))
+}
+
+// named returns the set's fixture with the given name, its keys its own, so
+// a caller changing them changes no other's. An empty or unknown name is an
+// error that lists the fixtures.
+func (s fixtureSet) named(name string) (Fixture, error) {
 	if name == "" {
-		return Fixture{}, fmt.Errorf("name a fixture (available: %s)", strings.Join(Names(), ", "))
+		return Fixture{}, fmt.Errorf("name a fixture (available: %s)", strings.Join(s.names(), ", "))
 	}
-	all := fixtures(loc)
-	i := slices.IndexFunc(all, func(f Fixture) bool { return f.Name == name })
-	if i < 0 {
-		return Fixture{}, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(Names(), ", "))
+	f, ok := s[name]
+	if !ok {
+		return Fixture{}, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(s.names(), ", "))
 	}
-	return all[i], nil
+	f.keys = slices.Clone(f.keys)
+	return f, nil
 }
 
 // moment is when every fixture over no records is drawn, as the frames are:

@@ -134,6 +134,20 @@ func isNew(reason string) bool {
 	return reason == ReasonNew
 }
 
+// How a reason ends that says the choice passed an account over under
+// pressure, as in ", personal under pressure": before the account and after.
+const (
+	passingOver   = ", "
+	underPressure = " under pressure"
+)
+
+// PassingOver is the reason given, ending as one does whose choice passed the
+// account given over under pressure: "new" passing over personal is "new,
+// personal under pressure", which PassedOver reads.
+func PassingOver(reason, account string) string {
+	return reason + passingOver + account + underPressure
+}
+
 // PassedOver is the account a reason ending ", personal under pressure" says
 // the choice passed over, cleaned: "" for a reason without it.
 func PassedOver(reason string) string {
@@ -145,8 +159,8 @@ func PassedOver(reason string) string {
 // giving why the choice was made and the account it passed over, and reports
 // false for a reason without it.
 func passedOver(reason string) (base, account string, ok bool) {
-	rest, ok := strings.CutSuffix(reason, " under pressure")
-	base, account, found := strings.CutLast(rest, ", ")
+	rest, ok := strings.CutSuffix(reason, underPressure)
+	base, account, found := strings.CutLast(rest, passingOver)
 	if !ok || !found || strings.Contains(account, " ") {
 		return "", "", false
 	}
