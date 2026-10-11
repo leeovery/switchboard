@@ -395,9 +395,10 @@ func TestParseRefusesWhatItWouldReadOtherwiseThanATerminal(t *testing.T) {
 }
 
 func TestEveryFixturesFrameParsesToItsPlainText(t *testing.T) {
+	utc := fixturesIn(time.UTC)
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
-			frame := frameOf(t, name, time.UTC)
+			frame := frameOf(t, utc, name)
 			g, err := parse(frame)
 			if err != nil {
 				t.Fatalf("parsing the frame: %v", err)
