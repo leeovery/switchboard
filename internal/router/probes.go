@@ -65,14 +65,14 @@ type probing struct {
 // report notes how a probe of an account went.
 type report func(a account, w went)
 
-// went is how a probe went: what it read, or why it read nothing, when it was
-// sent and how long it took, and whether it went out on the token before the
-// one the account goes out on now, as recordProbe judges it, which keeps
-// nothing of how it went.
+// went is how a probe went: what it read, or why it read nothing, at, the
+// time it was sent, by the router's clock, how long it took, and whether it
+// went out on the token before the one the account goes out on now, as
+// recordProbe judges it, which keeps nothing of how it went.
 type went struct {
 	probed      quota.Probe
 	err         error
-	sent        time.Time
+	at          time.Time
 	took        time.Duration
 	tokenBefore bool
 }
@@ -236,7 +236,7 @@ func (p *probes) probe(a account, r *run) {
 		return
 	}
 	tokenBefore := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
-	p.told(r)(a, went{probed: probed, err: err, sent: at, took: took, tokenBefore: tokenBefore})
+	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: tokenBefore})
 }
 
 // logProbe logs how a probe of an account went: one that failed on the token
@@ -273,7 +273,7 @@ func (p *probes) logPrime(a account, w went) {
 		logger.Warn("prime didn't start the window", append(attrs, "window", primed.Window)...)
 	} else {
 		logger.Info("primed", attrs...)
-		if primed.startedBy(w.sent) {
+		if primed.startedBy(w.at) {
 			p.emit(primed)
 		}
 	}
