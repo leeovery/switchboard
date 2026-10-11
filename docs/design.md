@@ -4527,8 +4527,8 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   config change refused, as invalid at two looks in a row; a restart that couldn't replace the
   process, and exits instead; and listeners handed over that couldn't be taken up. At `debug`, a
   token file found holding no usable token at one look, which the account's token outlasts; a
-  config file found making no valid config at one look; and a probe that came back after its
-  account took up another token, as what it found isn't kept. Of the readings
+  config file found making no valid config at one look; and a probe that failed on the token its
+  account has since replaced, as its failure isn't kept. Of the readings
   history (see Files): at `info`, how many readings the router took up from it as it started
   (`took up the readings history`), and that it's written again after failing (`writing the
   readings history again`); at `warn`, that its directory can't be made private (`can't make the
