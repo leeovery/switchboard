@@ -1,9 +1,11 @@
 package watch
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -66,8 +68,8 @@ func TestThePageUnderACardStandsStill(t *testing.T) {
 	moved.Accounts[0].Windows[0].Utilization = 0.9
 	h.startRouter(moved)
 	h.tickUntil(at(13, 12, 30))
-	if got := h.view(); got != under {
-		t.Errorf("half a minute on, a look read since, the screen is\n%s\nwant it as the card opened over it\n%s", got, under)
+	if got := h.view(); behindCard(got) != behindCard(under) || !strings.Contains(got, "5-hour 90%") {
+		t.Errorf("half a minute on, a look read since, the screen is\n%s\nwant the page as the card opened over it, and the card's figures as read since\n%s", got, under)
 	}
 	if !strings.Contains(under, "13:12:00") {
 		t.Errorf("the screen is\n%s\nwant the clock stopped at 13:12:00, when the card opened", under)
@@ -80,6 +82,30 @@ func TestThePageUnderACardStandsStill(t *testing.T) {
 	if view := h.view(); !strings.Contains(view, h.clock.now.Format(time.TimeOnly)) || view == under {
 		t.Errorf("the card closed, the screen is\n%s\nwant the page as it stands now", view)
 	}
+}
+
+// behindCard is the screen with the routing card's box over it blanked: the
+// page behind it alone.
+func behindCard(view string) string {
+	rows := strings.Split(view, "\n")
+	top := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "╭─ ROUTING") })
+	if top < 0 {
+		return view
+	}
+	x := utf8.RuneCountInString(rows[top][:strings.Index(rows[top], "╭─ ROUTING")])
+	right := x + slices.Index([]rune(rows[top])[x:], '╮')
+	for y := top; y < len(rows); y++ {
+		cells := []rune(rows[y])
+		foot := cells[x] == '╰'
+		for i := x; i <= right; i++ {
+			cells[i] = ' '
+		}
+		rows[y] = string(cells)
+		if foot {
+			break
+		}
+	}
+	return strings.Join(rows, "\n")
 }
 
 func TestThePageUnderACardFollowsTheTerminalsSize(t *testing.T) {
