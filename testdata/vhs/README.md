@@ -426,6 +426,15 @@ before the moment drawn, then sets the clock to the moment, presses the fixture'
 then hands the model to Bubble Tea, which starts it reading nothing more. So there's no first
 paint to race, and nothing on screen moves until a key does.
 
+A fixture over none of the ledger's records is drawn at the frames' moment in a zone whose clocks
+never change, fixed as the zone it's asked for stands then, so it reads the same in every zone. One
+over records is built and drawn in the machine's own zone, `time.Local` itself, as the ledger, its
+readers and the views split days there, which a test can't change in process: so its frame reads the
+same in any zone whose clocks don't change in the frames' week, which running capture's tests under
+`TZ` checks (under UTC, London, Tokyo and Los Angeles, 11 October 2026). Where they do, as Sydney's
+go forward on Sunday 4 October, a week's window can't both reset when drawn and run its 168 hours,
+and those frames' tests fail there.
+
 A view that follows the router's request stream has the watch open it: the fixture's tells of what
 has befallen its requests, each at its time before the moment drawn, then ends, as a router ends
 it. The watch keeps what it told, and asks for it again only once a timer fires, which none does,
