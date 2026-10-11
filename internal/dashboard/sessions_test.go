@@ -649,6 +649,7 @@ func TestLOGSaysWhyASessionMoved(t *testing.T) {
 	}{
 		{reason: "moved: work hit its limit", want: ": work reached its limit, so its request was retried on side"},
 		{reason: "moved: work was refused", want: ": work was refused, so its request was retried on side"},
+		{reason: "moved: work has a new token", want: ": work had a new token, so its request was retried on side"},
 		{reason: "moved: work was throttled, personal under pressure", want: ": work was throttled, so its request was retried on side, passing over personal under pressure"},
 		{reason: "moved: work has no room", want: ": work has no room"},
 		{reason: "pinned", want: " (pin)"},
