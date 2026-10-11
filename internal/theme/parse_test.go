@@ -216,9 +216,11 @@ func TestWhatAThemeLeavesOutOfItsChartsIsWorkedOutFromTheRest(t *testing.T) {
 		// Halfway from accent.attention, #EBCB8B, to state.destructive, #DD8188.
 		{token: theme.VizRamp3, want: "#E4A68A"},
 		{token: theme.VizRamp4, want: "#DD8188"},
-		{token: theme.VizTrack, want: "#4C566A"},
+		// bg.subtle.
+		{token: theme.VizTrack, want: "#3B4252"},
 		{token: theme.VizPace, want: "#ECEFF4"},
-		{token: theme.VizReserve, want: "#81A1C1"},
+		// accent.attention.
+		{token: theme.VizReserve, want: "#EBCB8B"},
 		{token: theme.VizSeries1, want: "#81A1C1"},
 		{token: theme.VizSeries2, want: "#A7C492"},
 		{token: theme.VizSeries3, want: "#B48EAD"},
