@@ -454,26 +454,42 @@ func TestADaysFilesKeptForeverAreCompressedButNeverGo(t *testing.T) {
 	}
 }
 
-func TestADaysFilesAreKeptUntilTheDayOfTheirLastInstantKept(t *testing.T) {
-	const day = 24 * time.Hour
-	tests := []struct {
-		name, zone, date string
-		keep             time.Duration
-		want             string
-	}{
-		{name: "a week and a day", zone: "UTC", date: "2026-10-07", keep: 8 * day, want: "2026-10-15"},
-		{name: "90 days", zone: "UTC", date: "2026-09-30", keep: 90 * day, want: "2026-12-29"},
-		{name: "90 days, the clocks going back between", zone: "Europe/London", date: "2026-09-30", keep: 90 * day, want: "2026-12-29"},
-		{name: "400 days, the clocks going back and forward between", zone: "Europe/London", date: "2026-09-30", keep: 400 * day, want: "2027-11-04"},
+// keptInZones are days' files kept as long as keep says, in a time zone, and
+// the date of the last day there they're kept on: whole days by the calendar,
+// wherever the clocks change between, and part of a day as a whole one. The
+// clocks go back in London on 25 Oct 2026, and forward on 28 Mar 2027, and
+// forward in Sydney on 4 Oct 2026.
+var keptInZones = []struct {
+	name, zone, date string
+	keep             time.Duration
+	until            string
+}{
+	{name: "a week and a day", zone: "UTC", date: "2026-10-07", keep: 8 * 24 * time.Hour, until: "2026-10-15"},
+	{name: "90 days", zone: "UTC", date: "2026-09-30", keep: 90 * 24 * time.Hour, until: "2026-12-29"},
+	{name: "a day and a half", zone: "UTC", date: "2026-10-07", keep: 36 * time.Hour, until: "2026-10-09"},
+	{name: "a week and a day, the clocks going back between", zone: "Europe/London", date: "2026-10-20", keep: 8 * 24 * time.Hour, until: "2026-10-28"},
+	{name: "90 days, the clocks going back between", zone: "Europe/London", date: "2026-09-30", keep: 90 * 24 * time.Hour, until: "2026-12-29"},
+	{name: "400 days, the clocks going back and forward between", zone: "Europe/London", date: "2026-09-30", keep: 400 * 24 * time.Hour, until: "2027-11-04"},
+	{name: "a week and a day, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-01", keep: 8 * 24 * time.Hour, until: "2026-10-09"},
+	{name: "90 days, the clocks going forward between", zone: "Australia/Sydney", date: "2026-09-30", keep: 90 * 24 * time.Hour, until: "2026-12-29"},
+	{name: "a day and a half, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-03", keep: 36 * time.Hour, until: "2026-10-05"},
+}
+
+// zone loads the time zone with the given name.
+func zone(t *testing.T, name string) *time.Location {
+	t.Helper()
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		t.Fatalf("load %s: %v", name, err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			loc, err := time.LoadLocation(tt.zone)
-			if err != nil {
-				t.Fatalf("load %s: %v", tt.zone, err)
-			}
-			if got, ok := keptUntilIn(tt.date, tt.keep, loc); got != tt.want || !ok {
-				t.Errorf("the files of %s kept %v are kept until %q (%v), want %q", tt.date, tt.keep, got, ok, tt.want)
+	return loc
+}
+
+func TestADaysFilesAreKeptUntilTheDayOfTheirLastInstantKept(t *testing.T) {
+	for _, tt := range keptInZones {
+		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {
+			if got, ok := keptUntilIn(tt.date, tt.keep, zone(t, tt.zone)); got != tt.until || !ok {
+				t.Errorf("the files of %s kept %v are kept until %q (%v), want %q", tt.date, tt.keep, got, ok, tt.until)
 			}
 		})
 	}
@@ -482,8 +498,30 @@ func TestADaysFilesAreKeptUntilTheDayOfTheirLastInstantKept(t *testing.T) {
 			t.Errorf("the files of %s kept forever are kept until %q, want for good", date, got)
 		}
 	}
-	if got, ok := KeptUntil("soon", 8*day); ok {
+	if got, ok := KeptUntil("soon", 8*24*time.Hour); ok {
 		t.Errorf("the files of a day that isn't one are kept until %q, want none", got)
+	}
+}
+
+func TestADaysFilesGoAsTheDayTheyreKeptUntilEndsInTheirZone(t *testing.T) {
+	for _, tt := range keptInZones {
+		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {
+			loc := zone(t, tt.zone)
+			day, _, _ := dayIn(tt.date, loc)
+			_, ends, _ := dayIn(tt.until, loc)
+			for _, at := range []struct {
+				now   time.Time
+				stays bool
+			}{{now: ends.Add(-time.Nanosecond), stays: true}, {now: ends, stays: false}} {
+				f := readingsHistory(t.TempDir())
+				file := compressedFile(tt.date)
+				writeDay(t, f, file, linesOf("a"))
+				f.tend(file, day, at.now, tt.keep, false)
+				if held := holdsDay(f, tt.date); held != at.stays {
+					t.Errorf("pruned at %v, the files of %s kept %v, until %s, are kept = %v, want %v", at.now, tt.date, tt.keep, tt.until, held, at.stays)
+				}
+			}
+		})
 	}
 }
 

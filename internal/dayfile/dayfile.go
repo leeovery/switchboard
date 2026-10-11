@@ -298,11 +298,11 @@ func (f *Files) named(name string) (dayFile, time.Time, bool) {
 	return dayFile{date: date, compressed: compressed}, day, true
 }
 
-// prune removes the files past keeping at now, those of days that ended keep
-// or more before, none when keep is Forever, but those of the days spared
-// reports true of, where it's given, and compresses those of the days done
-// with, as tend says, leaving anything else in the directory alone. spared
-// is asked holding the files, so it takes nothing of them.
+// prune removes the files past keeping at now, as pastKeeping says, none
+// when keep is Forever, but those of the days spared reports true of, where
+// it's given, and compresses those of the days done with, as tend says,
+// leaving anything else in the directory alone. spared is asked holding the
+// files, so it takes nothing of them.
 func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string) bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -340,10 +340,18 @@ func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration, spare
 	}
 }
 
-// pastKeeping returns when the files of the local day that starts at day
-// are past keeping, kept as long as keep says: keep after the day ends.
+// pastKeeping returns when the files of the day that starts at day, in its
+// time zone, are past keeping, kept as long as keep says: at the start of the
+// day keep's days after the day ends, as DayStart counts days, wherever the
+// clocks change between, so always at a day's start. Part of a day counts as
+// a whole one, so the files are never kept less than keep.
 func pastKeeping(day time.Time, keep time.Duration) time.Time {
-	return endOf(day).Add(keep)
+	const whole = 24 * time.Hour
+	days := keep / whole
+	if keep%whole > 0 {
+		days++
+	}
+	return DayStart(endOf(day), int(days))
 }
 
 // KeptUntil returns the date of the last local day the files of the local day
