@@ -660,9 +660,15 @@ func (y year) limited(id string, d int) bool {
 // move moves the session with the given id off one account onto another on
 // day d of the year.
 func (y year) move(from, to string, d int, id string) {
-	off, on := &y.days[from][d], &y.days[to][d]
-	off.movedOff++
-	on.movedOn++
+	y.days[from][d].movedOff++
+	y.days[to][d].movedOn++
+	y.ranOn(to, d, id)
+}
+
+// ranOn has the session with the given id run on the account given on day d
+// of the year.
+func (y year) ranOn(account string, d int, id string) {
+	on := &y.days[account][d]
 	if !slices.Contains(on.sessions, id) {
 		on.sessions = append(on.sessions, id)
 		slices.Sort(on.sessions)
@@ -670,16 +676,22 @@ func (y year) move(from, to string, d int, id string) {
 }
 
 // sessionThisWeek gives yesterday its 17 sessions: db8a's on personal, 4b0e's
-// on work and 5e7d's on side, which ran on into today, and 8a2c's, which
-// moved from personal to side at personal's limit; and the rest, among the
-// three as their requests are, Monday's and Tuesday's sessions of each
-// account its own of them, running on into yesterday. Each of the rest of
-// the accounts has its sessions this week as Accounts draws them, every one
-// running each day of it.
+// on work and 5e7d's on side, which ran on into today; 8a2c's, which moved
+// from personal to side at personal's limit; b9c4's, on work, then on side
+// from work's cap, as its lines tell, though not its move, which Accounts'
+// moves this week leave out; and the rest, among the three as their requests
+// are, Monday's and Tuesday's sessions of each account its own of them,
+// running on into yesterday. Each of the rest of the accounts has its
+// sessions this week as Accounts draws them, every one running each day of
+// it.
 func (y year) sessionThisWeek() {
 	wednesday := today - 1
-	given := map[string][]string{"work": {id4B0E}, "personal": {idDB8A, id8A2C}, "side": {id5E7D}}
-	rest := apportion(yesterday.sessions-4, weightsOf(indexes(len(three)), func(i int) float64 { return float64(y.days[three[i]][wednesday].requests) }))
+	given := map[string][]string{"work": {id4B0E, idB9C4}, "personal": {idDB8A, id8A2C}, "side": {id5E7D}}
+	named := 0
+	for _, ids := range given {
+		named += len(ids)
+	}
+	rest := apportion(yesterday.sessions-named, weightsOf(indexes(len(three)), func(i int) float64 { return float64(y.days[three[i]][wednesday].requests) }))
 	for i, id := range three {
 		running := sessionIDs(dateOf(wednesday), id, rest[i])
 		for d := thisWeek; d < wednesday; d++ {
@@ -690,6 +702,7 @@ func (y year) sessionThisWeek() {
 		slices.Sort(day.sessions)
 	}
 	y.move("personal", "side", wednesday, id8A2C)
+	y.ranOn("side", wednesday, idB9C4)
 	for id, n := range weekSessions {
 		running := sessionIDs(dateOf(thisWeek), id, n)
 		for d := thisWeek; d < today; d++ {

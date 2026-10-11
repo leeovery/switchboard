@@ -205,6 +205,31 @@ func TestYesterdayIsTheLogs(t *testing.T) {
 	}
 }
 
+// Each session a day's lines name is in that day's summary, on each account
+// its lines ran on: of yesterday's, b9c4's on work and on side.
+func TestEachSessionADaysLinesNameIsInItsSummary(t *testing.T) {
+	w, now := autoWorld(), worldsNow().now
+	days := w.ledger().Days(dayStart(now, today-1))
+	type named struct{ date, account, session string }
+	seen := make(map[named]bool)
+	for _, f := range w.records.lines {
+		if f.Kind == ledger.KindCheck || f.Session == "" || f.At.After(now) {
+			continue
+		}
+		seen[named{f.date, f.Account, f.Session}] = true
+	}
+	for n := range seen {
+		i := slices.IndexFunc(days, func(s ledger.Summary) bool { return s.Day == n.date })
+		if i < 0 {
+			t.Errorf("%s's lines name %s on %s, with no summary of the day", n.date, n.session, n.account)
+			continue
+		}
+		if a := dayOfAccount(t, days[i], n.account); !slices.Contains(a.SessionIDs, n.session) {
+			t.Errorf("%s's lines name %s on %s, which its summary doesn't: %v", n.date, n.session, n.account, a.SessionIDs)
+		}
+	}
+}
+
 // hoursMinutes is a span of minutes as the frames draw it: 3h 10m, or 52m.
 func hoursMinutes(minutes int) string {
 	if minutes < 60 {
@@ -244,9 +269,9 @@ func weekWords(t *testing.T, w recordedWorld) []string {
 // draws it, but what no world the views read can give, where the frames'
 // figures disagree with the Log's (LOG-SPEC.md) or with each other; the views
 // give:
-//   - sessions served: 8 on work, 10 on personal, 14 on side, 27 in all, where
-//     the frame draws 9, 6, 11 and 19: the Log's 17 sessions yesterday and its
-//     14 today, 4 of them yesterday's, are 27;
+//   - sessions served: 10 on personal, 14 on side, 27 in all, where the frame
+//     draws 6, 11 and 19: the Log's 17 sessions yesterday and its 14 today, 4
+//     of them yesterday's, are 27;
 //   - moves: 2 off personal and 5 in all, where it draws 1 out and 4 moves:
 //     the Log tells of 8a2c's off personal at its limit yesterday and db8a's
 //     under pressure today, besides work's three;
@@ -268,7 +293,7 @@ func TestThisWeekIsAccountsTodaysLinesAndAll(t *testing.T) {
 		{
 			name: "three accounts", world: autoWorld(),
 			words: []string{
-				"work requests 1204", "work moved off 3", "work 5-hour limits 2", "work at its cap or a limit 3h 10m", "work worth $184",
+				"work requests 1204", "work sessions 9", "work moved off 3", "work 5-hour limits 2", "work at its cap or a limit 3h 10m", "work worth $184",
 				"work against its plan 4.0×",
 				"personal requests 2330", "personal worth $212", "personal against its plan 4.6×",
 				"side requests 1876", "side moved on 4", "side 5-hour limits 1", "side at its cap or a limit 52m", "side left at its last reset 40%",

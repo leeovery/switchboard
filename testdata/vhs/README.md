@@ -218,15 +218,15 @@ cell by cell, listing each under The cells passed over with what the dashboard d
 - **A session's page (stage 10):** d28c's split, $41.09 and $7.12 (drawn $41.06 and $7.14), its
   work ending 14:30; b9c4's stretches ending 16:01 and 18:46, ended 18:46, 5h 26m; turn 8's tools
   in another order; f41a's side stretch ending 18:04; the `% from cache` figures, written in.
-- **Accounts (stage 11):** this week's sessions served, drawn 9, 6, 11 and 19 in all, where the
-  world gives 8, 10, 14 and 27 (yesterday's 17 and today's 14, 4 of them both, are 27); personal's
-  moves, drawn 1 out and 4 in all (2 and 5: db8a's move under pressure at 13:22:40 as well as
-  8a2c's); personal's 5-hour limit and 4h 45m at it, from the Log's limit of 19:12:40 yesterday,
-  where Accounts draws none (all accounts 4 and 8h 47m, drawn 3 and 4h 02m); work's 0% and
-  personal's 15% left at their last reset, whose weeks reset on Sunday, before this week's Monday;
-  the 30 days; the share left at a reset (32%, drawn 30%); lab's and team's minutes at a limit; the
-  ten's all-accounts row (drawn 12,598 requests, 51 sessions, 10 moves, 9h 57m, $1,342 and 3.4×,
-  the world 11,698, 53, 5, 13h 31m, $1,310 and 3.3×), typed, not summed from its rows; all
+- **Accounts (stage 11):** this week's sessions served on personal and side and in all, drawn 6, 11
+  and 19, where the world gives 10, 14 and 27 (yesterday's 17 and today's 14, 4 of them both, are
+  27); personal's moves, drawn 1 out and 4 in all (2 and 5: db8a's move under pressure at 13:22:40
+  as well as 8a2c's); personal's 5-hour limit and 4h 45m at it, from the Log's limit of 19:12:40
+  yesterday, where Accounts draws none (all accounts 4 and 8h 47m, drawn 3 and 4h 02m); work's 0%
+  and personal's 15% left at their last reset, whose weeks reset on Sunday, before this week's
+  Monday; the 30 days; the share left at a reset (32%, drawn 30%); lab's and team's minutes at a
+  limit; the ten's all-accounts row (drawn 12,598 requests, 51 sessions, 10 moves, 9h 57m, $1,342
+  and 3.4×, the world 11,698, 53, 5, 13h 31m, $1,310 and 3.3×), typed, not summed from its rows; all
   accounts' BY MODEL this week (drawn 57/2/33/3/2/3, the world 56/2/34/3/2/2); Detail's BY DAY
   marks; `accounts-detail-one-160`'s `[ ]` on its heading row, where the design gives one account
   Detail alone.
