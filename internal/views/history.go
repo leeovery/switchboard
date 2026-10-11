@@ -63,7 +63,7 @@ func NewHistory(in HistoryInput) History {
 		Months:   monthsOf(days, p, v, asked, today),
 		Weeks:    weeksOf(placed, in.Accounts),
 		Tokens:   tokensOf(days, p, v, asked, in.WeekStarts),
-		Totals:   totalsOf(days, in.Accounts, v),
+		Totals:   accountTotalsOf(days, in.Accounts, v),
 		Plans:    plansOf(days, p, asked, askedShare(from, to, in.WeekStarts)),
 		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 	}

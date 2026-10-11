@@ -242,11 +242,11 @@ func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane
 // room: over the day, every window every model shares; over the week, the
 // weeks among them, those longer than a day.
 func (f Frame) counts(w quota.Window) bool {
-	switch length, ok := quota.Length(w.Key); {
+	switch {
 	case !f.Policy.IsShared(w.Key):
 		return false
 	case f.Span == Week:
-		return ok && length > day
+		return quota.MultiDay(w.Key)
 	default:
 		return true
 	}

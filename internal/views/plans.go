@@ -7,27 +7,27 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// share is a part of a month, num over den: what a plan costs over a period,
+// monthPart is a part of a month, num over den: what a plan costs over a period,
 // as a part of its monthly price.
-type share struct{ num, den int64 }
+type monthPart struct{ num, den int64 }
 
 // The shares of a month Accounts and History price their periods at: a day
 // 12/365 of a month, a week 12/52, 30 days or a calendar month a month, and
 // 12 weeks twelve weeks'.
 var (
-	aWeek       = share{12, 52}
-	aMonth      = share{1, 1}
-	twelveWeeks = share{12 * 12, 52}
+	aWeek       = monthPart{12, 52}
+	aMonth      = monthPart{1, 1}
+	twelveWeeks = monthPart{12 * 12, 52}
 )
 
 // days is the share of a month n days are.
-func days(n int) share {
-	return share{12 * int64(n), 365}
+func days(n int) monthPart {
+	return monthPart{12 * int64(n), 365}
 }
 
 // prorate returns the part s of monthly, a plan's monthly price, to the
 // nearest picodollar.
-func prorate(monthly ledger.Picodollars, s share) ledger.Picodollars {
+func prorate(monthly ledger.Picodollars, s monthPart) ledger.Picodollars {
 	whole, part := int64(monthly)/s.den, int64(monthly)%s.den
 	return ledger.Picodollars(whole*s.num + (part*s.num+s.den/2)/s.den)
 }
@@ -37,7 +37,7 @@ func prorate(monthly ledger.Picodollars, s share) ledger.Picodollars {
 // period they make, where they make one, today, this week from the day
 // weeks start on, the last 30 days or the last 12 weeks, each whole while
 // it's still running; else a day each.
-func askedShare(from, today time.Time, weekStarts time.Weekday) share {
+func askedShare(from, today time.Time, weekStarts time.Weekday) monthPart {
 	week := weekOf(today, weekStarts)
 	switch {
 	case from.Equal(today):
@@ -59,7 +59,7 @@ func askedShare(from, today time.Time, weekStarts time.Weekday) share {
 // days from then to its end, a day each, as of then. So a period still
 // running is priced to its end, and the day the ledger began recording cuts
 // none short.
-func cutShort(first, last, from string, uncut share) (share, string) {
+func cutShort(first, last, from string, uncut monthPart) (monthPart, string) {
 	start, startOK := civil(from)
 	end, endOK := civil(last)
 	if from <= first || !startOK || !endOK {
@@ -114,7 +114,7 @@ func (p plans) of(account string) (ledger.Plan, bool) {
 // of a month, each at its price on the day with the date first, the
 // period's first, and the worth against it of those accounts alone, as
 // worths, by account, hold it.
-func (p plans) against(worths map[string]Worth, first string, s share) Against {
+func (p plans) against(worths map[string]Worth, first string, s monthPart) Against {
 	var cost, worth ledger.Picodollars
 	known := false
 	for _, a := range p.accounts {
@@ -148,7 +148,7 @@ type PlanCost struct {
 // plansOf are each configured account's plan over days, in the config's
 // order, then every account's, each priced at its price on the day with the
 // date first, the period's first, prorated as its share s of a month.
-func plansOf(days []Day, p plans, first string, s share) []PlanCost {
+func plansOf(days []Day, p plans, first string, s monthPart) []PlanCost {
 	worths := accountWorths(days)
 	costs := make([]PlanCost, 0, len(p.accounts)+1)
 	all := PlanCost{All: true}

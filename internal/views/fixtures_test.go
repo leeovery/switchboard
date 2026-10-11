@@ -12,10 +12,6 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// now is the time by the clock in the views' tests: Wednesday 7 October
-// 2026, 13:00 local time.
-var now = time.Date(2026, 10, 7, 13, 0, 0, 0, time.Local)
-
 // on is the start of the local day with the given date.
 func on(date string) time.Time {
 	day, err := time.ParseInLocation(time.DateOnly, date, time.Local)
@@ -34,8 +30,8 @@ const (
 	// inputUsage is worth $4 of Claude Opus 5.5, $2 of Claude Sonnet 5.5
 	// and $1 of Claude Haiku 4.5.
 	inputUsage = `{"input_tokens":1000000}`
-	// hourUsage writes the cache for an hour: worth $8 of Claude Opus 5.5.
-	hourUsage = `{"cache_creation_input_tokens":1000000,"cache_creation":{"ephemeral_1h_input_tokens":1000000}}`
+	// cacheHourUsage writes the cache for an hour: worth $8 of Claude Opus 5.5.
+	cacheHourUsage = `{"cache_creation_input_tokens":1000000,"cache_creation":{"ephemeral_1h_input_tokens":1000000}}`
 )
 
 // dollar is a dollar, as the ledger counts money.

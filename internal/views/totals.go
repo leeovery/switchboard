@@ -54,9 +54,9 @@ type ModelShare struct {
 	Worth
 }
 
-// totalsOf are the totals over days of the accounts given, and of every
+// accountTotalsOf are the totals over days of the accounts given, and of every
 // account.
-func totalsOf(days []Day, accounts config.Accounts, v versions) Totals {
+func accountTotalsOf(days []Day, accounts config.Accounts, v versions) Totals {
 	index := make(map[string]int, len(accounts))
 	tallies := make([]*totalling, len(accounts)+1)
 	for i, a := range accounts {

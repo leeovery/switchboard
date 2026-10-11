@@ -97,6 +97,11 @@ type Line struct {
 	Reply
 }
 
+// ClassMain is the class, as a line's Hints give it, of a turn of a session's
+// own conversation, rather than a subagent's, or a side request, such as a
+// title.
+const ClassMain = "main"
+
 // Tried is an account a request went out on that couldn't serve it, and why
 // it was left, as "hit its limit".
 type Tried struct {

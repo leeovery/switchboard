@@ -55,13 +55,13 @@ func TestWindowsAreEachAccountsWindowsReadingsOverTheDaysAskedFor(t *testing.T) 
 	// each window's readings in the order they were read.
 	got := views.NewWindows(history, accounts, onAt("2026-10-06", "14:00"), now)
 	want := `{"windows":[` +
-		`{"account":"work","window":"5h","readings":[{"at":"` + utc("2026-10-06", "21:00") + `","utilization":0.9,"status":"allowed","source":"answer"},` +
-		`{"at":"` + utc("2026-10-06", "22:14") + `","utilization":1,"resets_at":"` + utc("2026-10-06", "23:10") + `","status":"rejected","source":"answer"}]},` +
-		`{"account":"work","window":"7d","readings":[{"at":"` + utc("2026-10-07", "09:00") + `","utilization":0.41,"status":"allowed","source":"answer"}]},` +
-		`{"account":"side","window":"5h","readings":[{"at":"` + utc("2026-10-06", "10:00") + `","utilization":0.3,"status":"allowed","source":"answer"}]},` +
-		`{"account":"side","window":"7d","readings":[{"at":"` + utc("2026-10-07", "12:00") + `","utilization":0.6,"status":"allowed","source":"answer"}]},` +
-		`{"account":"side","window":"7d_oi","readings":[{"at":"` + utc("2026-10-07", "08:00") + `","utilization":0.2,"source":"probe"}]},` +
-		`{"account":"former","window":"5h","readings":[{"at":"` + utc("2026-10-06", "09:00") + `","utilization":0.5,"status":"allowed","source":"answer"}]}]}`
+		`{"account":"work","window":"5h","readings":[{"at":"` + heldAt("2026-10-06", "21:00") + `","utilization":0.9,"status":"allowed","source":"answer"},` +
+		`{"at":"` + heldAt("2026-10-06", "22:14") + `","utilization":1,"resets_at":"` + heldAt("2026-10-06", "23:10") + `","status":"rejected","source":"answer"}]},` +
+		`{"account":"work","window":"7d","readings":[{"at":"` + heldAt("2026-10-07", "09:00") + `","utilization":0.41,"status":"allowed","source":"answer"}]},` +
+		`{"account":"side","window":"5h","readings":[{"at":"` + heldAt("2026-10-06", "10:00") + `","utilization":0.3,"status":"allowed","source":"answer"}]},` +
+		`{"account":"side","window":"7d","readings":[{"at":"` + heldAt("2026-10-07", "12:00") + `","utilization":0.6,"status":"allowed","source":"answer"}]},` +
+		`{"account":"side","window":"7d_oi","readings":[{"at":"` + heldAt("2026-10-07", "08:00") + `","utilization":0.2,"source":"probe"}]},` +
+		`{"account":"former","window":"5h","readings":[{"at":"` + heldAt("2026-10-06", "09:00") + `","utilization":0.5,"status":"allowed","source":"answer"}]}]}`
 	if got := jsonOf(t, got); got != want {
 		t.Errorf("the windows are\n%s\nwant\n%s", got, want)
 	}
@@ -73,8 +73,8 @@ func TestWindowsOfAnEmptyHistoryAreNone(t *testing.T) {
 	}
 }
 
-// utc is the local time on the day with the given date, at the clock given,
+// heldAt is the local time on the day with the given date, at the clock given,
 // in UTC, as the readings history writes it.
-func utc(date, clock string) string {
+func heldAt(date, clock string) string {
 	return onAt(date, clock).UTC().Format(time.RFC3339)
 }

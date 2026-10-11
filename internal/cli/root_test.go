@@ -172,6 +172,7 @@ func TestCommandsNeverEchoATokenGivenAsAnID(t *testing.T) {
 		{name: "the session to pin", args: []string{"pin", "side", "--session", tokenShaped}, want: unseen},
 		{name: "the session to unpin", args: []string{"pin", "auto", "--session", tokenShaped}, want: unseen},
 		{name: "the session to show", args: []string{"status", "--session", tokenShaped}, want: unseen},
+		{name: "the session whose page to show", args: []string{"sessions", tokenShaped}, want: "Error: no session [redacted] in the ledger, or among the router's sessions"},
 		{name: "the account to launch on", args: []string{"run", "--account", tokenShaped}, want: `Error: there's no account "[redacted]": pin work or side`},
 	}
 	for _, tt := range tests {

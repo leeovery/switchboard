@@ -87,6 +87,8 @@ func TestTheDataVerbsRefuseJSONWithPretty(t *testing.T) {
 		{"usage", "--watch"},
 		{"requests"},
 		{"history"},
+		{"sessions"},
+		{"sessions", "5b0e"},
 		{"events"},
 		{"events", "-f"},
 	}

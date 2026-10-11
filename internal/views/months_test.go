@@ -8,9 +8,9 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// limited is an account's day, of the models' days given, on which it
+// limitedDay is an account's day, of the models' days given, on which it
 // reached the limits of the windows given.
-func limited(id string, windows []string, models ...ledger.ModelDay) ledger.AccountDay {
+func limitedDay(id string, windows []string, models ...ledger.ModelDay) ledger.AccountDay {
 	a := account(id, models...)
 	for _, w := range windows {
 		a.Limits = append(a.Limits, ledger.Limit{Window: w, At: now})
@@ -24,10 +24,10 @@ func limited(id string, windows []string, models ...ledger.ModelDay) ledger.Acco
 // unpriced model and requests without usage.
 var acrossTheMonthsEnd = daysFrom("2026-09-29",
 	day("2026-09-29",
-		limited("work", []string{"5h"}, sent("claude-opus-5-5", 1, opusUsage)),
+		limitedDay("work", []string{"5h"}, sent("claude-opus-5-5", 1, opusUsage)),
 		account("side", sent("claude-sonnet-5-5", 1, inputUsage))),
-	day("2026-09-30", account("spare", sent("claude-opus-5-5", 1, hourUsage))),
-	day("2026-10-01", limited("side", []string{"5h", "7d"}, sent("claude-haiku-4-5", 3, inputUsage))),
+	day("2026-09-30", account("spare", sent("claude-opus-5-5", 1, cacheHourUsage))),
+	day("2026-10-01", limitedDay("side", []string{"5h", "7d"}, sent("claude-haiku-4-5", 3, inputUsage))),
 	day("2026-10-07",
 		account("", ledger.ModelDay{Model: "claude-opus-5-5", Unsent: 1}),
 		account("work", sent("claude-opus-9", 1, inputUsage), ledger.ModelDay{Model: "claude-opus-5-5", Upstream: 2, NoUsage: 1, Checks: 4, Counts: 6,

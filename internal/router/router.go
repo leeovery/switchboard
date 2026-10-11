@@ -193,7 +193,8 @@ func (c Config) notifying() bool {
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
 // account each request goes out on, the live state of every account's usage,
-// the router's own health, what has happened lately, the request stream of
+// the primes and the rounds that read the accounts with no traffic to read
+// them by, the router's own health, what has happened lately, the request stream of
 // what befalls each request as it happens, the request ledger of each once
 // it's done, the control API that reports on it all, the desktop
 // notifications of what befalls the accounts, and its upkeep, which keeps it
@@ -224,6 +225,8 @@ type Router struct {
 	proxy      *proxy
 	// primer is nil when priming is off.
 	primer *primer
+	// rounds probe the accounts nothing has read lately.
+	rounds *rounds
 	// inFlight counts the proxy's requests in flight.
 	inFlight *inFlight
 	upkeep   *upkeep
@@ -265,6 +268,7 @@ func New(cfg Config) (*Router, error) {
 	recent.judge = health.look
 	scheduler := &scheduler{accounts: accounts, state: state, sessions: sessions, probes: probes, now: cfg.Now, emit: emit}
 	primer := newPrimer(cfg.Prime, accounts, state, probes, cfg.Now)
+	rounds := newRounds(accounts, state, probes, primer)
 	inFlight := newInFlight()
 	stream := newStream(cfg.Now)
 	requests := newRequestLedger(cfg.Ledger, ledger.CapsOf(cfg.Accounts, cfg.Policy.Shared), cfg.Now)
@@ -306,6 +310,7 @@ func New(cfg Config) (*Router, error) {
 			errorLog:       logs.StdLogger("router", slog.LevelWarn),
 		},
 		primer:        primer,
+		rounds:        rounds,
 		inFlight:      inFlight,
 		upkeep:        newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, emit),
 		notifications: notices,
