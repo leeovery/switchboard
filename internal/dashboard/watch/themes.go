@@ -461,20 +461,18 @@ func (p picker) drawn(choice theme.Choice) dashboard.Picker {
 	return d
 }
 
-// keys are the keys there are while the picker is open, which takes every
-// key but q, as the key line lists them: while it asks its question, y and
-// n; else the arrows, through the themes, enter, d and l, to set one, and
-// esc, to close it; then q.
+// keys are the picker's own keys, as the key line lists them while it's
+// open: while it asks its question, y and n; else the arrows, through the
+// themes, enter, d and l, to set one, and esc, to close it.
 func (p picker) keys() []dashboard.Key {
-	keys := []dashboard.Key{
+	if p.asking != (pick{}) {
+		return []dashboard.Key{{Key: "y", Does: "confirm"}, {Key: "n", Does: "cancel"}}
+	}
+	return []dashboard.Key{
 		{Key: "↑↓", Does: "preview"},
-		{Key: "⏎", Does: "set theme"},
+		{Key: "enter", Does: "set theme"},
 		{Key: "d", Does: "set as dark"},
 		{Key: "l", Does: "set as light"},
 		{Key: "esc", Does: "close"},
 	}
-	if p.asking != (pick{}) {
-		keys = []dashboard.Key{{Key: "y", Does: "confirm"}, {Key: "n", Does: "cancel"}}
-	}
-	return append(keys, dashboard.Key{Key: "q", Does: "quit"})
 }

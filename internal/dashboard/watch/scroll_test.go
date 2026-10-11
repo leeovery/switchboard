@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -130,13 +131,100 @@ func TestTheCardsScrollAsFarAsTheyreDrawnWhileTheBarsRise(t *testing.T) {
 	}
 }
 
-func TestTheWheelDoesNothingWhileTheHelpIsOpen(t *testing.T) {
+func TestAScrollGoesNoFurtherThanWhatItScrolls(t *testing.T) {
+	tall, fits := dashboard.Scrolling{Most: 10, Page: 4}, dashboard.Scrolling{Page: 4}
+	tests := []struct {
+		name string
+		by   scrollStep
+		at   int
+		s    dashboard.Scrolling
+		want int
+	}{
+		{name: "a row down", by: scrollStep{rows: 1}, at: 3, s: tall, want: 4},
+		{name: "a row up", by: scrollStep{rows: -1}, at: 3, s: tall, want: 2},
+		{name: "a page down", by: scrollStep{pages: 1}, at: 3, s: tall, want: 7},
+		{name: "a page up", by: scrollStep{pages: -1}, at: 7, s: tall, want: 3},
+		{name: "a page down, past the foot", by: scrollStep{pages: 1}, at: 8, s: tall, want: 10},
+		{name: "a page up, past the top", by: scrollStep{pages: -1}, at: 2, s: tall, want: 0},
+		{name: "a row up from further than it now goes", by: scrollStep{rows: -1}, at: 14, s: tall, want: 9},
+		{name: "nowhere, where it fits", by: scrollStep{rows: 1}, at: 0, s: fits, want: 0},
+	}
+	for _, tt := range tests {
+		if got := tt.by.from(tt.at, tt.s); got != tt.want {
+			t.Errorf("%s: from %d, scrolled to %d, want %d", tt.name, tt.at, got, tt.want)
+		}
+	}
+}
+
+func TestTheWheelScrollsHelpWhileItsOpenAndNotThePageUnderIt(t *testing.T) {
 	h := newHarness(t, twelve())
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 20})
 	h.start()
 	h.press("?")
+	f, _, _ := h.model.screen(h.clock.now)
+	most := f.CardScrolling().Most
+
 	h.update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
-	h.press("j")
-	if h.model.scroll != 0 {
-		t.Errorf("with the help open, the cards scrolled %d rows, want none", h.model.scroll)
+	if want := min(wheelRows, most); h.model.help.scroll != want || h.model.scroll != 0 {
+		t.Errorf("with help open, a turn down scrolled help %d rows and the cards %d; want help %d, the cards none", h.model.help.scroll, h.model.scroll, want)
+	}
+	h.update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+	if h.model.help.scroll != 0 {
+		t.Errorf("a turn up scrolled help to %d, want its top", h.model.help.scroll)
+	}
+}
+
+func TestHelpScrollsWithinItsCard(t *testing.T) {
+	h := newHarness(t, twelve())
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 20})
+	h.start()
+	h.press("?")
+	f, _, _ := h.model.screen(h.clock.now)
+	s := f.CardScrolling()
+
+	steps := []struct {
+		name string
+		key  tea.KeyPressMsg
+		want int
+	}{
+		{name: "j, a row down", key: tea.KeyPressMsg{Code: 'j', Text: "j"}, want: min(1, s.Most)},
+		{name: "PgDn, a page", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: min(1+s.Page, s.Most)},
+		{name: "PgDn, no further than it goes", key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: min(1+2*s.Page, s.Most)},
+		{name: "k, a row up", key: tea.KeyPressMsg{Code: 'k', Text: "k"}, want: max(min(1+2*s.Page, s.Most)-1, 0)},
+		{name: "PgUp, past the top", key: tea.KeyPressMsg{Code: tea.KeyPgUp}, want: max(min(1+2*s.Page, s.Most)-1-s.Page, 0)},
+	}
+	for _, step := range steps {
+		h.update(step.key)
+		if h.model.help.scroll != step.want || h.model.scroll != 0 || !h.inHelp() {
+			t.Errorf("%s: help scrolled %d rows, the cards %d, help open %v; want help %d, the cards none, help open", step.name, h.model.help.scroll, h.model.scroll, h.inHelp(), step.want)
+		}
+	}
+	h.press("?")
+	h.press("?")
+	if h.model.help.scroll != 0 {
+		t.Errorf("help opened again scrolled %d rows, want its top", h.model.help.scroll)
+	}
+}
+
+func TestTheWheelDoesNothingWhileTheRoutingCardIsOpen(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 20})
+	h.start()
+	h.press("p")
+	before := h.model.routingCard(h.clock.now)
+	h.update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	if after := h.model.routingCard(h.clock.now); h.model.scroll != 0 || after.Cursor != before.Cursor || h.model.open != routingOpen {
+		t.Errorf("with the routing card open, a turn down scrolled the page %d rows, moved the cursor from %d to %d, open %v; want nothing moved", h.model.scroll, before.Cursor, after.Cursor, h.model.open)
+	}
+}
+
+func TestOnlyTheWheelScrolls(t *testing.T) {
+	h := newHarness(t, twelve())
+	h.start()
+	for _, button := range []tea.MouseButton{tea.MouseWheelLeft, tea.MouseWheelRight, tea.MouseLeft} {
+		h.update(tea.MouseWheelMsg{Button: button})
+		if h.model.scroll != 0 {
+			t.Errorf("button %v scrolled the cards %d rows, want none", button, h.model.scroll)
+		}
 	}
 }

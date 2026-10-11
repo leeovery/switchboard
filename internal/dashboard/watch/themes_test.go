@@ -260,7 +260,7 @@ func TestTOpensThePickerOverTheView(t *testing.T) {
 	h.typed("t")
 
 	view := h.view()
-	for _, want := range []string{"│ Themes", "│ ▌ nord", "● dark", "● light", "│ ⏎    set theme", "broken"} {
+	for _, want := range []string{"│ Themes", "│ ▌ nord", "● dark", "● light", "│ enter set theme", "broken"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("with the picker open, the screen reads\n%s\nwant %q", view, want)
 		}
@@ -360,7 +360,7 @@ func TestAHalfOverOneThemeAsksFirst(t *testing.T) {
 			h.typed("down")
 			h.typed("l")
 
-			if view := h.view(); !strings.Contains(view, "clear amber?  y / n") || !strings.Contains(view, "y    confirm") {
+			if view := h.view(); !strings.Contains(view, "clear amber?  y / n") || !strings.Contains(view, "│ y confirm") {
 				t.Errorf("setting a half over one theme, the screen reads\n%s\nwant it to ask first", view)
 			}
 			for _, key := range tt.answers {
@@ -503,12 +503,16 @@ func TestThePickerReadsAndKeepsOutsideUpdate(t *testing.T) {
 func TestWhileThePickerIsOpenTheKeyLineListsItsKeysAlone(t *testing.T) {
 	h, _ := settledThemedHarness(t, theme.One("amber"))
 	h.typed("t")
-	if got, want := h.listed(), []string{"↑↓", "⏎", "d", "l", "esc", "q"}; !slices.Equal(got, want) {
-		t.Errorf("with the picker open, the key line lists %q, want the picker's keys alone, %q", got, want)
+	if got, want := h.grouped(), [][]string{{"↑↓ preview", "enter set theme", "d set as dark", "l set as light", "esc close"}, {"q quit"}}; !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("with the picker open, the key line lists %q, want the picker's keys alone, enter by its name, then q, %q", got, want)
+	}
+	if l := h.model.keyLine(h.clock.now); l.Lead != keysAfter || l.Phone != nil || l.PhoneHelp != "" {
+		t.Errorf("with the picker open, q quit is %d cells after the picker's keys, a phone keeping %q, ? saying %q; want %d, as after any group, and a phone's line as a wide one's",
+			l.Lead, listedKeys(l.Phone), l.PhoneHelp, keysAfter)
 	}
 	h.typed("down", "l")
-	if got, want := h.listed(), []string{"y", "n", "q"}; !slices.Equal(got, want) {
-		t.Errorf("with the picker asking, the key line lists %q, want its answers alone, %q", got, want)
+	if got, want := h.grouped(), [][]string{{"y confirm", "n cancel"}, {"q quit"}}; !slices.EqualFunc(got, want, slices.Equal) {
+		t.Errorf("with the picker asking, the key line lists %q, want its answers alone, then q, %q", got, want)
 	}
 	h.typed("n", "esc")
 	if got := h.listed(); !slices.Contains(got, "?") {
