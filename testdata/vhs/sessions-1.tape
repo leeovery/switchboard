@@ -1,5 +1,5 @@
-# The sessions-1 fixture, tab pressed to show Sessions, its one account a plain
-# list, full screen at its 160 × 27, as capturetool runs it.
+# The sessions-1 fixture, tab pressed three times to show Sessions, its one
+# account a plain list, full screen at its 160 × 27, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/sessions-1.tape
 
 Set Shell "bash"

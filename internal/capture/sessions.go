@@ -39,6 +39,22 @@ func routedSessions(now time.Time) []status.Session {
 	}
 }
 
+// routedPastPersonalsLimit are the sessions the router lists at now in
+// routing's world of a limit: routedSessions, but for personal's, 41e0 and
+// 9c2e, moved to side as personal reached its limit at 14:12.
+func routedPastPersonalsLimit(now time.Time) []status.Session {
+	limited := clockAt(now, 0, 14, 12, 0)
+	sessions := routedSessions(now)
+	for _, s := range sessions {
+		for i, a := range s.Assignments {
+			if a.Account == "personal" {
+				s.Assignments[i] = assigned(a.Model, "side", a.Dir, reasonLimited, limited, a.LastSeen, a.InFlight)
+			}
+		}
+	}
+	return sessions
+}
+
 // listedSessions are the sessions the router lists at now, Thursday's
 // 14:42:07, as Sessions' List and the Log draw them (log1.tail), each its
 // own conversation's model, opus, seen last as its latest request came: on

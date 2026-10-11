@@ -2,6 +2,8 @@ package capture
 
 import (
 	"cmp"
+	"errors"
+	"maps"
 	"reflect"
 	"slices"
 	"testing"
@@ -48,19 +50,23 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	}
 }
 
-func TestAWorldsRouterGivesItsDocument(t *testing.T) {
+func TestAWorldsRouterGivesItsDocumentAndListsItsSessions(t *testing.T) {
 	worlds := worldsNow()
 	tests := []struct {
 		name     string
 		world    accountWorld
 		sessions int
+		// listed are how many sessions the router lists on each account.
+		listed map[string]int
 	}{
-		{name: "auto", world: worlds.auto(), sessions: 6},
-		{name: "work alone, as usage's frame counts its sessions", world: worlds.alone(), sessions: 6},
+		{name: "auto", world: worlds.auto(), sessions: 6, listed: map[string]int{"personal": 2, "side": 4}},
+		{name: "routing's limit, personal's moved to side", world: worlds.limit(), sessions: 6, listed: map[string]int{"side": 6}},
+		{name: "work alone, as usage's frame counts its sessions", world: worlds.alone(), sessions: 6, listed: map[string]int{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			doc, health, err := routerOf(tt.world, worlds.now).Read(t.Context(), status.Read{Probe: true})
+			router := routerOf(tt.world, worlds.now)
+			doc, health, err := router.Read(t.Context(), status.Read{Probe: true})
 			if want := tt.world.document(worlds.now); err != nil || !reflect.DeepEqual(doc, want) {
 				t.Errorf("Read() = %+v, %v, want the world's document, as the router gives it", doc, err)
 			}
@@ -70,7 +76,40 @@ func TestAWorldsRouterGivesItsDocument(t *testing.T) {
 			if doc.Sessions != tt.sessions {
 				t.Errorf("the document counts %d sessions, want %d", doc.Sessions, tt.sessions)
 			}
+			sessions, err := router.Sessions(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			listed := map[string]int{}
+			for _, s := range sessions {
+				listed[s.Assignments[0].Account]++
+			}
+			if !maps.Equal(listed, tt.listed) {
+				t.Errorf("the router lists sessions on %v, want %v", listed, tt.listed)
+			}
 		})
+	}
+}
+
+func TestAGoneRouterAnswersUntilItsTimeThenFailsEveryRead(t *testing.T) {
+	now := moment(time.UTC)
+	clock := &clock{now: ago(now, readAgo)}
+	s := threeAccounts(now).goneAt(now).by(clock.read)
+
+	if _, _, err := s.Read(t.Context(), status.Read{}); err != nil || !s.RouterAnswers(t.Context()) {
+		t.Errorf("before it's gone, Read() error = %v, RouterAnswers() = %v, want it read, and answering", err, s.RouterAnswers(t.Context()))
+	}
+	clock.now = now
+	for _, r := range []status.Read{{}, {Probe: true}, status.Fresh()} {
+		if _, _, err := s.Read(t.Context(), r); !errors.Is(err, errGone) {
+			t.Errorf("once it's gone, Read(%+v) error = %v, want %v", r, err, errGone)
+		}
+	}
+	if s.RouterAnswers(t.Context()) {
+		t.Error("once it's gone, RouterAnswers() = true, want it not answering")
+	}
+	if _, _, err := threeAccounts(now).by(clock.read).Read(t.Context(), status.Read{}); err != nil {
+		t.Errorf("a router never gone, Read() error = %v, want it read", err)
 	}
 }
 

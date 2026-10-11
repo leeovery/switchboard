@@ -21,8 +21,9 @@ import (
 // don't hold: its pin, the limits and refusals in force, when it
 // last read an account it couldn't read since, how many sessions it sent
 // each in the last hour, and where it sends new sessions, where the frames
-// say so; and whether today's traffic of the three, the sessions' world's,
-// is the world's.
+// say so; the sessions it lists at a moment, as GET /sessions gives them,
+// where the world has them; and whether today's traffic of the three, the
+// sessions' world's, is the world's.
 type accountWorld struct {
 	accounts config.Accounts
 	history  history
@@ -32,6 +33,7 @@ type accountWorld struct {
 	stale    map[string]time.Time
 	sessions map[string]int
 	best     string
+	routed   func(now time.Time) []status.Session
 	traffic  bool
 }
 
@@ -257,11 +259,15 @@ const framesChoice = "side"
 
 // auto is the world of most frames, routing on its merits (DASHBOARD-
 // OVERVIEW-SPEC.md, "The sample data"): work at its cap till 17:10;
-// personal, the primary, open; side open, where new sessions go. Today's
-// traffic is the sessions' world's.
+// personal, the primary, open; side open, where new sessions go. The router
+// lists the Overview's six sessions, and today's traffic is the sessions'
+// world's.
 func (a accountWorlds) auto() accountWorld {
 	accounts := firstAccounts(3)
-	return accountWorld{accounts: accounts, history: a.today().three(true).history(accounts), sessions: autoSessions, best: framesChoice, traffic: true}
+	return accountWorld{
+		accounts: accounts, history: a.today().three(true).history(accounts), sessions: autoSessions, best: framesChoice,
+		routed: routedSessions, traffic: true,
+	}
 }
 
 // pinned is the auto world's accounts, read as it reads them, with new
@@ -277,7 +283,8 @@ func (a accountWorlds) pinned() accountWorld {
 }
 
 // limit is routing's world of a limit: the auto world with personal at its
-// 5-hour limit since 14:12 till 15:54, its sessions moved to side.
+// 5-hour limit since 14:12 till 15:54, its sessions moved to side, where the
+// router lists all six.
 func (a accountWorlds) limit() accountWorld {
 	accounts := firstAccounts(3)
 	return accountWorld{
@@ -285,6 +292,7 @@ func (a accountWorlds) limit() accountWorld {
 		history:  a.today().three(false).limited().history(accounts),
 		limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
 		sessions: map[string]int{"side": 6},
+		routed:   routedPastPersonalsLimit,
 	}
 }
 

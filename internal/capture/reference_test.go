@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 )
 
 // referenceDir is where milestone 7's signed-off frames are kept, each by its
@@ -95,6 +99,17 @@ func weekPace(n, c int) passing {
 	return cellsOf(n, c, c+1, "┃")
 }
 
+// figures passes over an account's two figures on row n of a routing frame,
+// its 5-hour window's and its week's, which read as given: the frames colour
+// them along a ramp, where the design colours them by level.
+func figures(n int, session, week string) []passing {
+	return []passing{cellsOf(n, 76, 78, session), cellsOf(n, 87, 89, week)}
+}
+
+// The routing frames' figures of work, personal and side, as the auto world
+// has them, rows 15, 16 and 17.
+var routingFigures = slices.Concat(figures(15, "95%", "34%"), figures(16, "39%", "66%"), figures(17, "13%", "78%"))
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, which testdata/vhs/README.md lists, with what the
 // dashboard draws in their place.
@@ -162,6 +177,13 @@ var passedOver = map[string][]passing{
 	},
 	"history-year-160":      {period(145, "last 12 months"), wholeRow(37, historyKeys)},
 	"history-year-opus-160": {period(145, "last 12 months"), wholeRow(37, historyKeys)},
+
+	"routing-auto-160": routingFigures,
+	"routing-two-160":  routingFigures,
+	"routing-move-160": append(slices.Clone(routingFigures), cellsOf(23, 76, 79, "6.20")),
+	"routing-limit-160": slices.Concat(
+		figures(15, "95%", "34%"), []passing{cellsOf(16, 87, 89, "64%")}, figures(17, "13%", "78%"),
+	),
 
 	"session-phone-52":         {wholeRow(32, "esc back   ↑↓ turn   enter open   ? keys")},
 	"session-turn-opened-160":  {wholeRow(37, "esc close    ↑↓ request  p pin")},
@@ -251,6 +273,90 @@ func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
 				t.Fatalf("parsing what %s draws: %v", stem, err)
 			}
 			diffs, err := compare(frame, drawn, canvas, spans(passedOver[stem]))
+			if err != nil {
+				t.Fatalf("%s: %v", stem, err)
+			}
+			if len(diffs) > 0 {
+				t.Error(describe(stem, diffs))
+			}
+		})
+	}
+}
+
+// partial is part of a frame a page draws before any fixture is named after
+// it, held to the frame cell for cell: the page, over the frame's world with
+// its keys pressed, and the area of the frame it draws as the frame does.
+type partial struct {
+	page page
+	area area
+}
+
+// The areas the page is held to: the chrome, the title row and the status
+// line, the design's rows 0 to 3, or 0 to 4 on a phone, whose tabs take a
+// row of their own; and the routing card's box over a page 37 rows tall,
+// new sessions' card of three accounts, rows 9 to 26 and columns 39 to 120.
+var (
+	chrome      = area{top: 1, bottom: 4}
+	phoneChrome = area{top: 1, bottom: 5}
+	routingBox  = area{top: 10, bottom: 27, left: 40, right: 121}
+)
+
+// heldOver is the page over the world given, with the keys given pressed,
+// held over the area given.
+func heldOver(world func(accountWorlds) accountWorld, within area, keys ...string) partial {
+	return partial{page: page{world: world, keys: keysOf(keys...)}, area: within}
+}
+
+// heldTabbed is the page over the auto world, tab pressed the times given,
+// held over the area given.
+func heldTabbed(tabs int, within area) partial {
+	h := heldOver(accountWorlds.auto, within)
+	h.page.keys = slices.Repeat([]tea.KeyPressMsg{{Code: tea.KeyTab}}, tabs)
+	return h
+}
+
+// holds are, by stem, the frames the page is held to in part until their
+// fixtures draw them whole: the chrome of a frame of each tab, and of the
+// Overview pinned and in the bad hour, and of the Overview and Sessions on
+// a phone; and the routing card's box as it opens on auto, with two picked,
+// with one picked and m ticked, and of routing's world of a limit, with side
+// picked.
+var holds = map[string]partial{
+	"overview-default-160":     heldOver(accountWorlds.auto, chrome),
+	"overview-pinned-160":      heldOver(accountWorlds.pinned, chrome),
+	"overview-bad-hour-160":    heldOver(accountWorlds.badHour, chrome),
+	"accounts-compare-160":     heldTabbed(1, chrome),
+	"history-year-160":         heldTabbed(2, chrome),
+	"sessions-switchboard-160": heldTabbed(3, chrome),
+	"runway-5-hour-160":        heldTabbed(4, chrome),
+	"log-requests-160":         heldTabbed(5, chrome),
+	"overview-phone-52":        heldOver(accountWorlds.auto, phoneChrome),
+	"sessions-phone-52":        heldTabbed(3, phoneChrome),
+	"routing-auto-160":         heldOver(accountWorlds.auto, routingBox, "p"),
+	"routing-two-160":          heldOver(accountWorlds.auto, routingBox, "p", "2", "3"),
+	"routing-move-160":         heldOver(accountWorlds.auto, routingBox, "p", "2", "m"),
+	"routing-limit-160":        heldOver(accountWorlds.limit, routingBox, "p", "3"),
+}
+
+func TestThePageDrawsWhatItHoldsOfAFrameCellForCell(t *testing.T) {
+	worlds := worldsNow()
+	canvas := rgb(terminalBackground.R, terminalBackground.G, terminalBackground.B)
+	names := Names()
+	for stem, h := range holds {
+		t.Run(stem, func(t *testing.T) {
+			if slices.Contains(names, stem) {
+				t.Fatalf("a fixture draws %s whole: hold it so, and take it from holds", stem)
+			}
+			frame, _ := reference(t, stem)
+			width, _ := sizeOf(t, stem)
+			p := h.page
+			p.name, p.size = stem, watch.Size{Width: width, Height: len(frame)}
+			f := p.fixture(worlds)
+			drawn, err := parse(f.Frame(f.Size))
+			if err != nil {
+				t.Fatalf("parsing what the page draws: %v", err)
+			}
+			diffs, err := compareWithin(frame, drawn, canvas, h.area, spans(passedOver[stem]))
 			if err != nil {
 				t.Fatalf("%s: %v", stem, err)
 			}

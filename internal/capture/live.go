@@ -314,8 +314,6 @@ func keyName(key tea.KeyPressMsg) string {
 		return "←"
 	case "right":
 		return "→"
-	case "enter":
-		return "⏎"
 	case "shift+tab":
 		return "shift-tab"
 	case "pgup":

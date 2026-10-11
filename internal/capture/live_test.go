@@ -285,7 +285,7 @@ func TestKeysAreNamedAsTheKeyLineNamesThem(t *testing.T) {
 		{key: tea.KeyPressMsg{Code: tea.KeyDown}, want: "↓"},
 		{key: tea.KeyPressMsg{Code: tea.KeyLeft}, want: "←"},
 		{key: tea.KeyPressMsg{Code: tea.KeyRight}, want: "→"},
-		{key: tea.KeyPressMsg{Code: tea.KeyEnter}, want: "⏎"},
+		{key: tea.KeyPressMsg{Code: tea.KeyEnter}, want: "enter"},
 		{key: tea.KeyPressMsg{Code: tea.KeyEscape}, want: "esc"},
 		{key: tea.KeyPressMsg{Code: tea.KeyPgDown}, want: "PgDn"},
 		{key: tea.KeyPressMsg{Code: 'w', Text: "w"}, want: "w"},

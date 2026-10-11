@@ -3,6 +3,7 @@ package capture
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -18,7 +19,8 @@ import (
 // them; its accounts' use of their windows over time, which GET /history
 // answers from; and what its request stream tells, as GET /stream does. It's
 // the watch's Source, every read giving the document, and an order a key
-// gives changing nothing.
+// gives changing nothing. Where it's gone, it stops answering then, by the
+// fixture's clock: a read fails, mid-read, from then on.
 type source struct {
 	doc      status.Document
 	health   router.Health
@@ -26,7 +28,13 @@ type source struct {
 	trails   []trail
 	stream   []router.StreamEvent
 	now      time.Time
+	gone     time.Time
+	clock    func() time.Time
 }
+
+// errGone is a read of the router once it has gone: it took the read, and
+// stopped answering before it gave the document.
+var errGone = errors.New("the router stopped answering mid-read")
 
 // routerPID is the process the fixtures' router runs as.
 const routerPID = 41207
@@ -53,12 +61,33 @@ func newSource(now time.Time, samples []sample, best string, events ...status.Ev
 	return source{doc: doc, health: startedAtNoon(now), sessions: sessions, trails: trailsOf(samples, now), now: now}
 }
 
-// routerOf is the router of the world w at now, as usage reads it: its status
-// document and its health check's answer, started at noon. It lists no
-// sessions, keeps no history and tells nothing on its stream, as usage reads
-// none of them.
+// routerOf is the router of the world w at now: its status document and its
+// health check's answer, started at noon, which are all usage reads of it;
+// and the sessions it lists, where the world has them. It keeps no history
+// and tells nothing on its stream.
 func routerOf(w accountWorld, now time.Time) source {
-	return source{doc: w.document(now), health: startedAtNoon(now), now: now}
+	s := source{doc: w.document(now), health: startedAtNoon(now), now: now}
+	if w.routed != nil {
+		s.sessions = w.routed(now)
+	}
+	return s
+}
+
+// goneAt is the source, stopping answering at the time given.
+func (s source) goneAt(t time.Time) source {
+	s.gone = t
+	return s
+}
+
+// by is the source, read by the clock given, which says whether it's gone.
+func (s source) by(clock func() time.Time) source {
+	s.clock = clock
+	return s
+}
+
+// isGone reports whether the router has stopped answering, by the clock.
+func (s source) isGone() bool {
+	return !s.gone.IsZero() && !s.clock().Before(s.gone)
 }
 
 // startedAtNoon is the health check's answer of the fixtures' router, started
@@ -68,8 +97,11 @@ func startedAtNoon(now time.Time) router.Health {
 }
 
 // Read reads the router's document, whatever the read asks, with what's
-// worked out of it, as the router gives it.
+// worked out of it, as the router gives it; once it's gone, it fails.
 func (s source) Read(context.Context, status.Read) (status.Document, router.Health, error) {
+	if s.isGone() {
+		return status.Document{}, router.Health{}, errGone
+	}
 	return s.doc.WorkedOut(claude.Policy), s.health, nil
 }
 
@@ -93,9 +125,10 @@ func (s source) UnpinSession(context.Context, string) error {
 	return nil
 }
 
-// RouterAnswers reports whether the document is the router's.
+// RouterAnswers reports whether the document is the router's, and the router
+// isn't gone.
 func (s source) RouterAnswers(context.Context) bool {
-	return s.doc.Source == status.SourceRouter
+	return s.doc.Source == status.SourceRouter && !s.isGone()
 }
 
 // Sessions lists the sessions the router has routed lately, as GET /sessions
