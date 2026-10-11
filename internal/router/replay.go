@@ -173,14 +173,14 @@ func (rp *replay) tell(kind string, status int) {
 // as the upstream refused the token it holds, and has the request move on, as
 // refused says. A token the account has replaced since, as after it's
 // rotated, is no refusal: its token file holds another, as renewed says, or
-// the router took another up while the request was out, as refuse says. Then
-// the request goes out again on the account, once an account, and after that
-// on another, as elsewhere says, the account not barred, nor anything told of
-// a refusal.
+// the router took another up while the request was out, as barToken says.
+// Then the request goes out again on the account, once an account, and after
+// that on another, as elsewhere says, the account not barred, nor anything
+// told of a refusal.
 func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.Response, bool, error) {
 	renewed := !rp.newToken && rp.renewed()
 	if !renewed {
-		if news, barred := rp.refuse(resp.StatusCode); barred {
+		if news, barred := rp.barToken(resp.StatusCode); barred {
 			return rp.refused(ctx, resp, quota.Refused, news)
 		}
 	}
@@ -193,15 +193,18 @@ func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.
 	return nil, true, nil
 }
 
-// refuse bars the account the request went out on from every request, as the
-// upstream refused its token, answering with status, and returns the news of
-// it. It reports false, barring nothing, when the account has gone out on a
-// token it didn't have since the request went out, as the state's refuse
-// says: the token refused is the one before.
-func (rp *replay) refuse(status int) (Refused, bool) {
+// barToken bars the account the request went out on from every request, as
+// the upstream refused its token, answering with status, and returns the news
+// of it. It reports false, barring nothing, when the account has gone out on
+// another token since the request went out, as the state's refuse says: the
+// token refused is the one before.
+func (rp *replay) barToken(status int) (Refused, bool) {
 	ex := rp.ex
 	until, barred := rp.p.state.refuse(ex.account.ID, status, ex.id, rp.when)
-	return Refused{Account: ex.account.ID, Status: status, Request: ex.id, Until: until}, barred
+	if !barred {
+		return Refused{}, false
+	}
+	return Refused{Account: ex.account.ID, Status: status, Request: ex.id, Until: until}, true
 }
 
 // forbid bars the account the request went out on from the requests of the
@@ -344,17 +347,18 @@ func (rp *replay) elsewhere(ctx context.Context, why string, answer refusedError
 	return nil, false, answer
 }
 
-// takeBack takes back what the request did when every account it went out
-// on refused it, as a refusal of the request every account that judged it
-// gives says more of the request than of the accounts: the moves of its
-// session, which goes back where it was, as the request stream is told, and
-// the bars it placed on its model family, each told of as it lifts. A bar on
-// an account's token stands, as it says something of the account, and so
-// does a bar another request placed; and so do the session's moves, the
-// request's own among them, once another request of the session has been
-// routed since.
+// takeBack takes back what the request did when every account that judged it
+// refused it, as a refusal of the request every account that judged it gives
+// says more of the request than of the accounts: the moves of its session,
+// which goes back where it was, as the request stream is told, and the bars
+// it placed on its model family, each told of as it lifts. An account the
+// request left for a new token judged nothing, as its 401 was to a token it
+// no longer held. A bar on an account's token stands, as it says something of
+// the account, and so does a bar another request placed; and so do the
+// session's moves, the request's own among them, once another request of the
+// session has been routed since.
 func (rp *replay) takeBack() {
-	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused }) {
+	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused && a.Why != whyNewToken }) {
 		return
 	}
 	if back := rp.p.forget(rp.ex); back != "" && back != rp.ex.account.ID {

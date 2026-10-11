@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -415,9 +416,8 @@ type takeUp struct {
 	do    func(r *Router, files *changingFiles)
 }
 
-// takeUps are the ways side comes to go out on another token, or its own
-// again.
-var takeUps = []takeUp{
+// replacements are the ways side comes to go out on another token.
+var replacements = []takeUp{
 	{
 		name:  "replaced, as the router looks at the token files",
 		token: renewedToken,
@@ -435,18 +435,25 @@ var takeUps = []takeUp{
 			(&replay{p: r.proxy, ex: &exchange{account: side}, sent: side.token()}).renewed()
 		},
 	},
-	{
-		name:  "its own back, once its file held none",
-		token: sideToken,
-		do: func(r *Router, files *changingFiles) {
-			files.set(tokenstest.Files{"work": workToken})
-			r.upkeep.tokens.look()
-			r.upkeep.tokens.look()
-			files.set(testTokens)
-			r.upkeep.tokens.look()
-		},
+}
+
+// regainedUnchanged has side lose its token, its file holding none at two
+// looks in a row, and gain it back unchanged.
+var regainedUnchanged = takeUp{
+	name:  "its own back, once its file held none",
+	token: sideToken,
+	do: func(r *Router, files *changingFiles) {
+		files.set(tokenstest.Files{"work": workToken})
+		r.upkeep.tokens.look()
+		r.upkeep.tokens.look()
+		files.set(testTokens)
+		r.upkeep.tokens.look()
 	},
 }
+
+// takeUps are the ways side comes to go out on another token, or its own
+// again.
+var takeUps = append(slices.Clone(replacements), regainedUnchanged)
 
 func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
 	for _, tt := range takeUps {
@@ -526,7 +533,7 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 		},
 	}
 	for _, o := range outcomes {
-		for _, tt := range takeUps {
+		for _, tt := range replacements {
 			t.Run(o.name+", "+tt.name, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					log := logstest.Capture(t)
@@ -597,6 +604,35 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestAProbeOnATokenGainedBackUnchangedCountsAsTheAccounts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := &testClock{now: start}
+		files := &changingFiles{files: testTokens}
+		refused := errors.New("HTTP 401 · Invalid bearer token")
+		prober := &stubProber{gate: make(chan struct{}), errs: map[string]error{sideToken: refused}}
+		r := newTestRouterReading(t, clock.read, prober, files.read)
+		defer r.probes.stop()
+		answered(40*time.Minute)(r, clock)
+		clock.now = start
+
+		// Side's rounds probe it, and the probe is still out on its token as
+		// side loses it and gains it back unchanged; then it's refused.
+		underway := r.probes.start(r.accounts.only([]string{"side"}), r.state.rounding(r.rounds.clears))
+		synctest.Wait()
+		regainedUnchanged.do(r, files)
+		close(prober.gate)
+		<-underway[0].done
+
+		if got := probesOf(r, "side"); !got.ended.Equal(start) || got.err != refused.Error() || got.misses != 1 {
+			t.Errorf("side's probes went %+v, want one ended at %v that read nothing, refused: the token it went out on is side's still", got, start)
+		}
+		if !log.Has("level=WARN", `msg="probe failed"`, "account=side") {
+			t.Errorf("log reads\n%s\nwant side's probe's failure warned of", log)
+		}
+	})
 }
 
 // probesWent is how an account's probes went, as the state has it: when one

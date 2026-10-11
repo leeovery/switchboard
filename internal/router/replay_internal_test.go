@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
@@ -192,9 +193,10 @@ func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {
 	})
 }
 
+// rotatedToken is work's token once renewedToken is replaced in its turn.
+const rotatedToken = "test-token-work-rotated"
+
 func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *testing.T) {
-	// rotatedToken is work's token once renewedToken is replaced in its turn.
-	const rotatedToken = "test-token-work-rotated"
 	tests := []struct {
 		name string
 		// script returns work's answers, by the token each goes out with,
@@ -252,6 +254,17 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *t
 				}
 			},
 			wantTokens:  []string{workToken, renewedToken, sideToken},
+			wantRefused: true,
+			wantMove:    "moved: work was refused",
+		},
+		{
+			name: "its token lost and gained back unchanged as the request was out, which bars it",
+			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
+				return map[string][]answer{
+					workToken: {refusedAs(holds(""), lookAt, lookAt, holds(workToken), lookAt), unauthorized},
+				}
+			},
+			wantTokens:  []string{workToken, sideToken},
 			wantRefused: true,
 			wantMove:    "moved: work was refused",
 		},
@@ -317,6 +330,44 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *t
 			})
 		})
 	}
+}
+
+func TestARequestEveryAccountThatJudgedItRefusedIsTakenBackThoughItLeftOneForANewToken(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		files := &changingFiles{files: testTokens}
+		r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+		one := key{session: "one", model: opus}
+		assign(r.sessions, one, "", decision{account: "work", reason: reasonNew}, start)
+		holds := func(token string) func() {
+			return func() { files.set(tokenstest.Files{"work": token, "side": sideToken}) }
+		}
+		// Work's token is replaced as the request is out on it, and again as
+		// it goes out on the new one, so the request leaves work for side,
+		// which refuses it; no account is left.
+		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{
+			workToken:    {refusedAs(holds(renewedToken))},
+			renewedToken: {refusedAs(holds(rotatedToken), r.upkeep.tokens.look)},
+			sideToken:    {forbidden},
+		}}
+		var events []Event
+		r.proxy.emit = func(e Event) { events = append(events, e) }
+
+		if rec := routeAsking(t.Context(), r, "one", opusAsked); rec.Code != http.StatusBadGateway {
+			t.Errorf("answered %d %s, want side's refusal, as a 502", rec.Code, rec.Body)
+		}
+		if side, _ := r.Status().Account("side"); side.Refused != (status.Refusal{}) {
+			t.Errorf("side's refusal = %+v, want none: every account that judged the request refused it", side.Refused)
+		}
+		if got := r.sessions.lookup(one).current.Account; got != "work" {
+			t.Errorf("session one is on %s, want work, where it was before its request", got)
+		}
+		lifted := func(e Event) bool { l, ok := e.(RefusalLifted); return ok && l.Account == "side" && l.Family == "opus" }
+		if !slices.ContainsFunc(events, lifted) {
+			t.Errorf("events = %+v, want side's refusal of the request's family lifting", events)
+		}
+	})
 }
 
 // refusedAs answers with a 401, refusing the account's token, once what's
