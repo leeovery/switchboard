@@ -271,7 +271,7 @@ func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("side", []string{"7d"}, far, s.mark()) }},
 		{name: "a limit in no window named", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{spentWeek}, s.mark()) }},
-		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) }},
 		{
 			name:     "a limit on its Fable week alone, which other models' requests go out beside",
 			holdBack: func(s *state) { s.limit("side", []string{"7d_oi"}, far, s.mark()) },
@@ -318,7 +318,7 @@ func TestAnAccountThatCantStartAWindowIsPrimedOnceItCan(t *testing.T) {
 		},
 		{
 			name:     "its token refused",
-			holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) },
+			holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) },
 			want:     freed,
 		},
 	}
@@ -406,6 +406,37 @@ func TestAPrimeOnTheTokenBeforeStandsAsTheAccountsPrime(t *testing.T) {
 	})
 }
 
+func TestAPrimeThatFailsOnTheTokenBeforeIsWarnedOfThoughItHoldsTheNewOneBackNot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 4, 0))
+		upstream := newWindowsUpstream(clock)
+		upstream.refuse(workToken)
+		prober := &lateProber{prober: upstream, token: workToken, held: make(chan struct{})}
+		files := &changingFiles{files: testTokens}
+		r := newPrimingRouterReading(t, clock.read, prober, daytime, files.read)
+		stop := startPriming(r)
+		defer stop()
+
+		// Work's prime at its slot, 04:10, is refused, and the answer comes
+		// at 04:10:30, once work has taken up another token.
+		time.Sleep(10*time.Minute + 30*time.Second)
+		synctest.Wait()
+		files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
+		r.upkeep.tokens.look()
+		close(prober.held)
+		time.Sleep(10 * time.Minute)
+		synctest.Wait()
+
+		if !log.Has("level=WARN", `msg="prime failed"`, "account=work", `error="HTTP 401 · Invalid bearer token"`) {
+			t.Errorf("log reads\n%s\nwant the prime's failure warned of", log)
+		}
+		if got, want := upstream.probes()[renewedToken], []time.Time{onDay(1, 4, 10).Add(30 * time.Second)}; !reflect.DeepEqual(got, want) {
+			t.Errorf("work primed on its new token at %v, want %v: at once, not five minutes on, as the failure on the token before isn't kept", got, want)
+		}
+	})
+}
+
 // lateProber probes as prober does, but holds the answer to each probe of
 // token, which has reached the upstream, until held is closed, or the probe's
 // context ends.
@@ -461,7 +492,7 @@ func TestTheRoutersDocumentSaysNothingOfWhenAnAccountThatCantStartAWindowIsNextP
 		// holdBack holds side back.
 		holdBack func(s *state)
 	}{
-		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) }},
 		{name: "a limit holding back its every request", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{lapsed, spentWeek}, s.mark()) }},
 	}

@@ -635,7 +635,7 @@ func TestAMoveSaysWhatHeldItsRequestBack(t *testing.T) {
 			name: "its limit, though its token is refused too",
 			hold: func(s *state) {
 				s.limit("work", []string{"5h"}, start.Add(time.Hour), s.mark())
-				s.refuse("work", http.StatusUnauthorized, someRequest)
+				s.refuse("work", http.StatusUnauthorized, someRequest, s.mark())
 			},
 			wantHeld: HeldByLimit, wantLimit: 1,
 		},
@@ -643,7 +643,7 @@ func TestAMoveSaysWhatHeldItsRequestBack(t *testing.T) {
 			name: "a refusal of its token, while its limit holds back Fable alone",
 			hold: func(s *state) {
 				fableAlone(s)
-				s.refuse("work", http.StatusUnauthorized, someRequest)
+				s.refuse("work", http.StatusUnauthorized, someRequest, s.mark())
 			},
 			wantHeld: HeldByRefusal,
 		},
@@ -703,7 +703,7 @@ func TestOnlyAMoveTheSessionHadToMakeSaysWhatHeldItsRequestBack(t *testing.T) {
 		},
 		{
 			name: "a refusal of its token",
-			hold: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest) },
+			hold: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest, s.mark()) },
 			held: HeldByRefusal,
 		},
 		{
