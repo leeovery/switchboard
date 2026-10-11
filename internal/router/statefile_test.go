@@ -948,9 +948,13 @@ func TestAnAssignmentUsedAgainIsSavedOnceAMinute(t *testing.T) {
 		f := newTestFile(time.Now, testAccounts())
 		f.load(path)
 		writes := countWrites(f)
-		stop := keep(f)
 		k := key{session: "one", model: opus}
+		// The new session's change is noted with the load's, the tokens' hashes
+		// new to the file, before the file is kept, so one write takes both.
+		// Kept first, it could take the load's alone, and write again a second
+		// on, racing the session's use.
 		assign(f.sessions, k, "", decision{account: "work", reason: reasonNew}, time.Now())
+		stop := keep(f)
 		time.Sleep(saveAfter)
 		synctest.Wait()
 		if n := writes.Load(); n != 1 {

@@ -56,13 +56,35 @@ func (r *Reader) Between(from, to time.Time) iter.Seq[Line] {
 // HeldBetween returns the events that happened from from up to to, as
 // Between does, each with its last version's JSON, as it was filed.
 func (r *Reader) HeldBetween(from, to time.Time) iter.Seq[Held] {
+	return r.HeldTailing(from, to, Tailed{})
+}
+
+// Tailed is a local day whose lines are read by a tail of its files, as a
+// follower of the day reads them, rather than from the files themselves:
+// Read hands take each line the tail reads on, as a dayfile.Tail hands them,
+// and returns how many of the day's lines were unread, as dayfile.ReadDay
+// counts them.
+type Tailed struct {
+	Date string
+	Read func(take func(Held)) (unread int)
+}
+
+// HeldTailing returns the events that happened from from up to to, as
+// HeldBetween does, but reads the lines of tailed's day through its Read,
+// where it reads that day at all, and no day's after it: so the follower of
+// the day, whose tail that is, goes on from exactly where the read ended,
+// handing on no line it read again, and missing none filed meanwhile, then
+// hands on the lines of each later day, as a change of time zone files under
+// the day after, from its first, as it comes to them. A Tailed with no Read
+// reads as HeldBetween does.
+func (r *Reader) HeldTailing(from, to time.Time, tailed Tailed) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		last := to.AddDate(0, 0, ChangesFor)
 		if now := r.now(); now.Before(last) {
 			last = now
 		}
 		m := merge{from: from, to: to, held: make(map[key]Held), yield: yield}
-		unread := dayfile.ReadFiled(r.files, dayfile.Dates(from, last), HeldIn, m.hold, m.dayRead)
+		unread := r.read(dayfile.Dates(from, last), tailed, &m)
 		if !m.stopped {
 			m.handOn(func(Held) bool { return true })
 		}
@@ -70,6 +92,22 @@ func (r *Reader) HeldBetween(from, to time.Time) iter.Seq[Held] {
 			r.logger.Warn("lines of the router's events unread", "lines", unread)
 		}
 	}
+}
+
+// read reads the days with the given dates into m, as dayfile.ReadFiled
+// reads them, but tailed's, which its Read reads, and those after it, which
+// it leaves to tailed's follower, and returns how many of their lines were
+// unread.
+func (r *Reader) read(dates []string, tailed Tailed, m *merge) (unread int) {
+	i := slices.Index(dates, tailed.Date)
+	if tailed.Read == nil || i < 0 {
+		return dayfile.ReadFiled(r.files, dates, HeldIn, m.hold, m.dayRead)
+	}
+	unread = dayfile.ReadFiled(r.files, dates[:i], HeldIn, m.hold, m.dayRead)
+	if m.stopped {
+		return unread
+	}
+	return unread + tailed.Read(func(h Held) { m.hold(h) })
 }
 
 // key tells an event apart from every other: its run and its id.

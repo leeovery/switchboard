@@ -49,8 +49,8 @@ const reasonBack = status.ReasonBack
 // replay is the transport a routed request goes upstream on. It sends the
 // request on the exchange's account, and again, before the client has any of
 // an answer, while the account can't serve it: on the same account after a
-// pause when the account is throttled, when it refuses the token its token
-// file no longer holds, as after the token is rotated, or when the limit it
+// pause when the account is throttled, when it refuses a token the account
+// has replaced since, as after the token is rotated, or when the limit it
 // answers with was reset by hand since the request was sent, and on another
 // when its limit is reached or it refuses the request. It reads the usage off
 // every answer. What the client gets is the answer to the last attempt,
@@ -66,11 +66,11 @@ type replay struct {
 	// throttled counts the times the request was sent again on its account
 	// after being throttled there.
 	throttled int
-	// reread is set once the account's token file has been read again after
-	// the upstream refused its token, which happens once an account: a file
-	// that holds a new token each time it's read mustn't keep the request
-	// going round.
-	reread bool
+	// newToken is set once the request has gone out again on its account for
+	// a new token, after the upstream refused the one before, which happens
+	// once an account: a token that changes between each attempt and its 401
+	// mustn't keep the request going round.
+	newToken bool
 	// limit is the answer of the first account whose limit the request
 	// reached, held back from the client, or nil while there's none.
 	limit *heldAnswer
@@ -114,9 +114,12 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 		}
 		attempt.Body = body
 	}
+	// when is marked before the token is read, so a token the account takes
+	// up after the read is marked after when, and the state's refuse notes no
+	// refusal of this one against the account.
+	rp.when = rp.p.state.mark()
 	rp.sent = ex.account.token()
 	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
-	rp.when = rp.p.state.mark()
 	rp.p.stream.publishOf(ex.event(StreamSent), ex.req.key())
 	resp, err := rp.p.transport.RoundTrip(attempt)
 	if err != nil {
@@ -150,7 +153,7 @@ func (rp *replay) settle(ctx context.Context, resp *http.Response) (*http.Respon
 	case quota.Refused:
 		return rp.tokenRefused(ctx, resp)
 	case quota.Forbidden:
-		return rp.refused(ctx, resp, outcome.Verdict)
+		return rp.refused(ctx, resp, quota.Forbidden, rp.forbid(resp.StatusCode))
 	default:
 		return resp, false, nil
 	}
@@ -166,32 +169,62 @@ func (rp *replay) tell(kind string, status int) {
 	rp.p.stream.publish(e)
 }
 
-// tokenRefused has the request go out again on its account when the
-// account's token file holds another token than the one the upstream
-// refused, as after the token is rotated. Otherwise the account is refused,
-// as refused says.
+// tokenRefused bars the account the request went out on from every request,
+// as the upstream refused the token it holds, and has the request move on, as
+// refused says. A token the account has replaced since, as after it's
+// rotated, is no refusal: its token file holds another, as renewed says, or
+// the router took another up while the request was out, as barToken says.
+// Then the request goes out again on the account, once an account, and after
+// that on another, as elsewhere says, the account not barred, nor anything
+// told of a refusal.
 func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.Response, bool, error) {
-	if !rp.renewed() {
-		return rp.refused(ctx, resp, quota.Refused)
+	renewed := !rp.newToken && rp.renewed()
+	if !renewed {
+		if news, barred := rp.barToken(resp.StatusCode); barred {
+			return rp.refused(ctx, resp, quota.Refused, news)
+		}
 	}
+	if rp.newToken {
+		return rp.elsewhere(ctx, whyNewToken, rp.refusalOf(resp))
+	}
+	rp.newToken = true
 	discard(resp)
 	rp.replaying(rp.ex.account.ID, whyNewToken)
 	return nil, true, nil
 }
 
-// renewed reads the token file of the account the request went out on again,
-// unless it has been read again for this request already, and reports
-// whether it holds another token than the one the request went out with,
-// which the account goes out on from then on, the one it replaces still
-// counting as the account's for clients started before, and no refusal of it
-// holding the account back. A file that holds no token the account can use,
-// as for a moment while it's rewritten, is no news: the account keeps its
-// token. It logs what it found, but never the token.
-func (rp *replay) renewed() bool {
-	if rp.reread {
-		return false
+// barToken bars the account the request went out on from every request, as
+// the upstream refused its token, answering with status, and returns the news
+// of it. It reports false, barring nothing, when the account has gone out on
+// another token since the request went out, as the state's refuse says: the
+// token refused is the one before.
+func (rp *replay) barToken(status int) (Refused, bool) {
+	ex := rp.ex
+	until, barred := rp.p.state.refuse(ex.account.ID, status, ex.id, rp.when)
+	if !barred {
+		return Refused{}, false
 	}
-	rp.reread = true
+	return Refused{Account: ex.account.ID, Status: status, Request: ex.id, Until: until}, true
+}
+
+// forbid bars the account the request went out on from the requests of the
+// request's model family, as the upstream refused the request there,
+// answering with status, though not its token, and returns the news of it.
+func (rp *replay) forbid(status int) Refused {
+	ex := rp.ex
+	news := Refused{Account: ex.account.ID, Status: status, Request: ex.id, Family: rp.p.provider.Family(ex.req.Model)}
+	news.Until = rp.p.state.forbid(news.Account, news.Family, status, ex.id)
+	return news
+}
+
+// renewed reads the token file of the account the request went out on again,
+// and reports whether it holds another token than the one the request went
+// out with, which the account goes out on from then on, the one it replaces
+// still counting as the account's for clients started before, and no refusal
+// of it holding the account back. A file that holds no token the account can
+// use, as for a moment while it's rewritten, is no news: the account keeps
+// its token. It logs what it found, but never the token.
+func (rp *replay) renewed() bool {
 	a := rp.ex.account
 	token, err := rp.p.readToken(a.ID)
 	changed := err == nil && token.Reveal() != rp.sent.Reveal()
@@ -277,18 +310,33 @@ func (rp *replay) throttle(ctx context.Context, resp *http.Response, retryAfter 
 	return nil, true, nil
 }
 
-// refused bars an account that refused the request for a while, as bar
-// does, tells the request stream of the refusal, and moves on from the
-// account when another can take the request. When none can, the client has
-// the answer of the first account whose limit the request reached, as that's
-// why no account was left, else a refusal, giving the upstream's reason.
-func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quota.Verdict) (*http.Response, bool, error) {
+// refused tells the request stream of the upstream's refusal of the request
+// on the account it went out on, which has barred the account for a while, as
+// verdict says and news tells of, logs it, and moves on from the account, as
+// elsewhere says.
+func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quota.Verdict, news Refused) (*http.Response, bool, error) {
 	rp.tell(StreamRefused, resp.StatusCode)
+	answer := rp.refusalOf(resp)
+	logRefused(verdict, news, answer.reason)
+	rp.p.emit(news)
+	return rp.elsewhere(ctx, whyRefused, answer)
+}
+
+// refusalOf returns the upstream's refusal of the request, resp, as the client
+// has it, its reason read off resp, which it closes.
+func (rp *replay) refusalOf(resp *http.Response) refusedError {
 	reason := prose.Truncate(rp.p.provider.ErrorMessage(resp.Body, rp.sent.Reveal()), refusalShown)
 	discard(resp)
-	rp.p.emit(rp.bar(verdict, resp.StatusCode, reason))
+	return refusedError{status: resp.StatusCode, reason: reason}
+}
+
+// elsewhere has the request go out next on another account, as the one it
+// went out on couldn't serve it, for the reason why. When none can take it,
+// the client has the answer of the first account whose limit the request
+// reached, as that's why no account was left, else answer.
+func (rp *replay) elsewhere(ctx context.Context, why string, answer refusedError) (*http.Response, bool, error) {
 	switch {
-	case rp.moveOn(ctx, whyRefused):
+	case rp.moveOn(ctx, why):
 		return nil, true, nil
 	case rp.limit != nil:
 		logger.Info("answering with the limit reached before", "id", rp.ex.id, "account", rp.limit.account)
@@ -296,20 +344,22 @@ func (rp *replay) refused(ctx context.Context, resp *http.Response, verdict quot
 		return rp.limit.resp, false, nil
 	}
 	rp.takeBack()
-	return nil, false, refusedError{status: resp.StatusCode, reason: reason}
+	return nil, false, answer
 }
 
-// takeBack takes back what the request did when every account it went out
-// on refused it, as a refusal of the request every account that judged it
-// gives says more of the request than of the accounts: the moves of its
-// session, which goes back where it was, as the request stream is told, and
-// the bars it placed on its model family, each told of as it lifts. A bar on
-// an account's token stands, as it says something of the account, and so
-// does a bar another request placed; and so do the session's moves, the
-// request's own among them, once another request of the session has been
-// routed since.
+// takeBack takes back what the request did when an account judged it, and
+// every account that did refused it, as a refusal of the request every
+// account that judged it gives says more of the request than of the
+// accounts: the moves of its session, which goes back where it was, as the
+// request stream is told, and the bars it placed on its model family, each
+// told of as it lifts. An account the request left for a new token judged
+// nothing, as its 401 was to a token it no longer held. A bar on an
+// account's token stands, as it says something of the account, and so does a
+// bar another request placed; and so do the session's moves, the request's
+// own among them, once another request of the session has been routed since.
 func (rp *replay) takeBack() {
-	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused }) {
+	judged := slices.DeleteFunc(slices.Clone(rp.ex.req.Tried), func(a Attempt) bool { return a.Why == whyNewToken })
+	if len(judged) == 0 || slices.ContainsFunc(judged, func(a Attempt) bool { return a.Why != whyRefused }) {
 		return
 	}
 	if back := rp.p.forget(rp.ex); back != "" && back != rp.ex.account.ID {
@@ -324,22 +374,15 @@ func (rp *replay) takeBack() {
 	}
 }
 
-// bar bars the account the request went out on, which refused it with
-// status, for the reason given: from every request when the verdict is its
-// token refused, else from the requests of the request's model family. It
-// logs the refusal, and returns the news of it.
-func (rp *replay) bar(verdict quota.Verdict, status int, reason string) Refused {
-	ex := rp.ex
-	news := Refused{Account: ex.account.ID, Status: status, Request: ex.id}
+// logRefused logs the upstream's refusal of a request, which news tells of,
+// for the reason given: of the account's token when the verdict says so,
+// else of the request alone.
+func logRefused(verdict quota.Verdict, news Refused, reason string) {
 	if verdict == quota.Refused {
-		news.Until = rp.p.state.refuse(news.Account, status, ex.id)
-		logger.Warn("upstream refused the account's token", "id", ex.id, "account", news.Account, "status", status, "error", reason)
-		return news
+		logger.Warn("upstream refused the account's token", "id", news.Request, "account", news.Account, "status", news.Status, "error", reason)
+		return
 	}
-	news.Family = rp.p.provider.Family(ex.req.Model)
-	news.Until = rp.p.state.forbid(news.Account, news.Family, status, ex.id)
-	logger.Warn("upstream refused the request on the account", "id", ex.id, "account", news.Account, "status", status, "family", news.Family, "error", reason)
-	return news
+	logger.Warn("upstream refused the request on the account", "id", news.Request, "account", news.Account, "status", news.Status, "family", news.Family, "error", reason)
 }
 
 // moveOn has the request go out next on another account, as the one it went
@@ -355,7 +398,7 @@ func (rp *replay) moveOn(ctx context.Context, why string) bool {
 		return false
 	}
 	ex.account, ex.reason = to, choice.Reason
-	rp.throttled, rp.reread = 0, false
+	rp.throttled, rp.newToken = 0, false
 	rp.replaying(from, why)
 	rp.p.moved(ex, choice.From)
 	return true

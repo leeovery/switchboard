@@ -284,12 +284,9 @@ func eventful(a ledger.PricedAccount) bool {
 }
 
 // weekResets are the resets of an account's weeks, its windows a week long,
-// as its own week, or a model's, in the order they came.
+// as quota.WeekLong says, its own week, or a model's, in the order they came.
 func weekResets(a ledger.PricedAccount) []ledger.Reset {
-	return slices.DeleteFunc(slices.Clone(a.Resets), func(r ledger.Reset) bool {
-		length, ok := quota.Length(r.Window)
-		return !ok || length != 7*quota.Day
-	})
+	return slices.DeleteFunc(slices.Clone(a.Resets), func(r ledger.Reset) bool { return !quota.WeekLong(r.Window) })
 }
 
 // accountName names the account with the given id, cleaned: "no account" for

@@ -89,23 +89,24 @@ func (d days) reaching(list func() ([]string, error), unlisted *failing) func(da
 	return func(date string) reach { return listing()(date) }
 }
 
-// failing is how listings of the readings history went, so one that fails is
-// warned of once, until one succeeds, not at each listing, as at each look a
-// dashboard takes. It's safe for concurrent use.
+// failing is how listings of a directory, as the readings history's, went,
+// so one that fails is warned of once, until one succeeds, not at each
+// listing, as at each look a dashboard takes, or each round. It's safe for
+// concurrent use.
 type failing struct {
 	warned atomic.Bool
 }
 
 // note notes how a listing went, err its failure, nil where it succeeded,
 // warning of the first to fail since one last succeeded to logger, as msg
-// says.
-func (f *failing) note(logger *slog.Logger, msg string, err error) {
+// and args, attributes before the error's, say.
+func (f *failing) note(logger *slog.Logger, msg string, err error, args ...any) {
 	if err == nil {
 		f.warned.Store(false)
 		return
 	}
 	if !f.warned.Swap(true) {
-		logger.Warn(msg, "error", err)
+		logger.Warn(msg, slices.Concat(args, []any{"error", err})...)
 	}
 }
 

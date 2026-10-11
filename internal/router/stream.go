@@ -56,6 +56,13 @@ const (
 	// what's written to it: one that doesn't is cut off, rather than held
 	// open.
 	streamWriteWait = 10 * time.Second
+	// streamEndWait is how long a restart waits, at most, for the stream's
+	// readers to write what they've been told of before the control API
+	// closes. Every request waits at the proxy's socket meanwhile, for the
+	// router this one becomes, so it's short: a reader that takes what it's
+	// sent takes it in milliseconds, and one that doesn't holds nothing up
+	// for long.
+	streamEndWait = 500 * time.Millisecond
 )
 
 // StreamEvent is something befalling a routed request, as GET /stream tells
@@ -122,7 +129,9 @@ type StreamEvent struct {
 // progressEvery at most while answers progress, and sleeps while none does.
 // Telling of an event never waits for a reader: one that falls readerLag
 // events behind is dropped, to reconnect. A reader's stream ends as the
-// control API closes, as the router stops. It's safe for concurrent use.
+// control API closes, as the router stops, or, as it restarts, once the
+// stream ends, after the reader has written what it was told of. It's safe
+// for concurrent use.
 type stream struct {
 	now func() time.Time
 
@@ -136,6 +145,8 @@ type stream struct {
 	// since it last told of progress, and stir wakes it.
 	idle bool
 	stir chan struct{}
+	// ended is set once the stream has ended, as the router restarts.
+	ended bool
 }
 
 // flight is a request in flight, as the stream keeps it: the inflight event
@@ -149,9 +160,11 @@ type flight struct {
 }
 
 // streamReader is a reader of the stream, and the events it's yet to take:
-// closed once it's dropped.
+// closed once it's dropped. left is closed once it has left, by leave alone,
+// with the stream's lock held.
 type streamReader struct {
 	events chan StreamEvent
+	left   chan struct{}
 }
 
 func newStream(now func() time.Time) *stream {
@@ -242,10 +255,16 @@ func (s *stream) progressed(request string, chars int) {
 
 // join has a reader join the stream: it returns the requests in flight, as
 // they stand, the first sent first, and the reader, to be told of every event
-// after them.
+// after them. A reader joining once the stream has ended is told of nothing,
+// its events closed.
 func (s *stream) join() ([]StreamEvent, *streamReader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	r := &streamReader{events: make(chan StreamEvent, readerLag), left: make(chan struct{})}
+	if s.ended {
+		close(r.events)
+		return nil, r
+	}
 	at := s.now().UTC()
 	inFlight := make([]StreamEvent, 0, len(s.flying))
 	for _, f := range s.flying {
@@ -256,7 +275,6 @@ func (s *stream) join() ([]StreamEvent, *streamReader) {
 	slices.SortFunc(inFlight, func(a, b StreamEvent) int {
 		return cmp.Or(a.SentAt.Compare(b.SentAt), cmp.Compare(a.Request, b.Request))
 	})
-	r := &streamReader{events: make(chan StreamEvent, readerLag)}
 	s.readers[r] = struct{}{}
 	if s.pacing == nil {
 		s.startPacing()
@@ -295,12 +313,41 @@ func (s *stream) startPacing() {
 	go s.pace(s.pacing, s.stir)
 }
 
-// leave stops telling r of events, as it goes.
+// leave stops telling r of events, as it goes. Leaving again does nothing.
 func (s *stream) leave(r *streamReader) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.readers[r]; ok {
 		s.drop(r)
+	}
+	select {
+	case <-r.left:
+	default:
+		close(r.left)
+	}
+}
+
+// end ends the stream, as the router restarts: each reader's events close
+// behind what it has been told of, which it writes before it leaves, and a
+// reader joining from now on is told of nothing. It waits for the readers to
+// leave, within at most, as the control API's closing would cut them off.
+func (s *stream) end(within time.Duration) {
+	s.mu.Lock()
+	s.ended = true
+	leaving := make([]<-chan struct{}, 0, len(s.readers))
+	for r := range s.readers {
+		leaving = append(leaving, r.left)
+		s.drop(r)
+	}
+	s.mu.Unlock()
+	waited := time.NewTimer(within)
+	defer waited.Stop()
+	for _, left := range leaving {
+		select {
+		case <-left:
+		case <-waited.C:
+			return
+		}
 	}
 }
 
@@ -369,7 +416,8 @@ func (s *stream) tellProgress(stop <-chan struct{}) bool {
 
 // serveStream answers GET /stream: the requests in flight as the reader
 // joins, then every event of the stream as it comes, a line of JSON each,
-// until the reader goes or is dropped, or the control API closes.
+// until the reader goes or is dropped, the stream ends, or the control API
+// closes.
 func (r *Router) serveStream(w http.ResponseWriter, req *http.Request) {
 	inFlight, reader := r.stream.join()
 	defer r.stream.leave(reader)

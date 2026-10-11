@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -190,7 +191,7 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	}
 	for _, a := range session.Assignments {
 		l.Models = append(l.Models, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason})
-		l.LastSeen = latest(l.LastSeen, a.LastSeen.UTC())
+		l.LastSeen = score.Later(l.LastSeen, a.LastSeen.UTC())
 		l.State = busier(l.State, a.InFlight)
 	}
 	flying := func(model string) bool {
@@ -199,13 +200,6 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	if cost, ok := s.moveCost(now, flying); ok {
 		l.MoveCost = &cost
 	}
-}
-
-func latest(a, b time.Time) time.Time {
-	if b.After(a) {
-		return b
-	}
-	return a
 }
 
 // busier returns the busier of two models' requests in flight: answering

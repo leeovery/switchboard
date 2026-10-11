@@ -271,7 +271,7 @@ func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("side", []string{"7d"}, far, s.mark()) }},
 		{name: "a limit in no window named", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{spentWeek}, s.mark()) }},
-		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) }},
 		{
 			name:     "a limit on its Fable week alone, which other models' requests go out beside",
 			holdBack: func(s *state) { s.limit("side", []string{"7d_oi"}, far, s.mark()) },
@@ -318,7 +318,7 @@ func TestAnAccountThatCantStartAWindowIsPrimedOnceItCan(t *testing.T) {
 		},
 		{
 			name:     "its token refused",
-			holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) },
+			holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) },
 			want:     freed,
 		},
 	}
@@ -369,6 +369,148 @@ func TestAPrimeThatSharesAProbeUnderWayIsLoggedAsAPrime(t *testing.T) {
 	})
 }
 
+func TestAPrimeOnTheTokenBeforeStandsAsTheAccountsPrime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 4, 0))
+		upstream := newWindowsUpstream(clock)
+		prober := &lateProber{prober: upstream, token: workToken, held: make(chan struct{})}
+		files := &changingFiles{files: testTokens}
+		r := newPrimingRouterReading(t, clock.read, prober, daytime, files.read)
+		stop := startPriming(r)
+		defer stop()
+
+		// Work's prime starts its session at its slot, 04:10, and its answer
+		// comes once work has taken up another token.
+		time.Sleep(10*time.Minute + 30*time.Second)
+		synctest.Wait()
+		files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
+		r.upkeep.tokens.look()
+		close(prober.held)
+		time.Sleep(time.Hour)
+		synctest.Wait()
+
+		if got, want := upstream.probes(), map[string][]time.Time{workToken: {afterResets(onDay(1, 4, 10), 1)}}; !reflect.DeepEqual(got, want) {
+			t.Errorf("primed at %v, want %v: the prime on the token before started work's session, so none goes out on the new one", got, want)
+		}
+		resets := onDay(1, 9, 10)
+		if !log.Has("level=INFO", "msg=primed", "account=work", "resets="+resets.Format("2006-01-02T15:04:05.000-07:00")) {
+			t.Errorf("log reads\n%s\nwant work's prime, with its session's reset", log)
+		}
+		if !slices.ContainsFunc(r.recent.events(), func(e status.Event) bool { return e.Kind == status.EventPrimed && e.Account == "work" }) {
+			t.Errorf("events() = %+v, want work's prime", r.recent.events())
+		}
+		if work, _ := r.Status().Account("work"); len(work.Windows) == 0 || !work.Windows[0].ResetsAt.Equal(resets) {
+			t.Errorf("work's windows read %+v, want its session resetting at %v, as the prime read it", work.Windows, resets)
+		}
+	})
+}
+
+func TestAPrimeOnTheTokenBeforeIsJudgedOnceAsToldAndAsThePrimerChooses(t *testing.T) {
+	tests := []struct {
+		name string
+		// idle has the upstream start no session on work's token.
+		idle bool
+		// wantLog is how the prime is told, and wantFailed whether the primer
+		// judges it failed, as it chooses how long to wait before the next.
+		wantLog    []string
+		wantFailed bool
+	}{
+		{name: "starting work's session", wantLog: []string{"level=INFO", "msg=primed", "account=work"}},
+		{
+			name:       "starting nothing",
+			idle:       true,
+			wantLog:    []string{"level=WARN", `msg="prime didn't start the window"`, "account=work", "window=5h"},
+			wantFailed: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				clock := newBubbleClock(onDay(1, 4, 10))
+				upstream := newWindowsUpstream(clock)
+				if tt.idle {
+					upstream.leaveIdle(workToken, onDay(1, 1, 0))
+				}
+				prober := &lateProber{prober: upstream, token: workToken, held: make(chan struct{})}
+				files := &changingFiles{files: testTokens}
+				r := newPrimingRouterReading(t, clock.read, prober, daytime, files.read)
+				defer r.probes.stop()
+
+				// Work's prime reads it, and its answer comes once work has
+				// taken up another token.
+				underway := r.probes.prime(r.accounts.only([]string{"work"}), func(string, time.Time) bool { return true })
+				synctest.Wait()
+				files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
+				r.upkeep.tokens.look()
+				close(prober.held)
+				<-underway[0].done
+
+				if !log.Has(tt.wantLog...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
+				}
+				if got := r.state.primeFailed("work"); got != tt.wantFailed {
+					t.Errorf("work's prime failed, as the primer judges it, = %v, want %v, as it was told", got, tt.wantFailed)
+				}
+			})
+		})
+	}
+}
+
+func TestAPrimeThatFailsOnTheTokenBeforeIsWarnedOfThoughItHoldsTheNewOneBackNot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := newBubbleClock(onDay(1, 4, 0))
+		upstream := newWindowsUpstream(clock)
+		upstream.refuse(workToken)
+		prober := &lateProber{prober: upstream, token: workToken, held: make(chan struct{})}
+		files := &changingFiles{files: testTokens}
+		r := newPrimingRouterReading(t, clock.read, prober, daytime, files.read)
+		stop := startPriming(r)
+		defer stop()
+
+		// Work's prime at its slot, 04:10, is refused, and the answer comes
+		// at 04:10:30, once work has taken up another token.
+		time.Sleep(10*time.Minute + 30*time.Second)
+		synctest.Wait()
+		files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
+		r.upkeep.tokens.look()
+		close(prober.held)
+		time.Sleep(10 * time.Minute)
+		synctest.Wait()
+
+		if !log.Has("level=WARN", `msg="prime failed"`, "account=work", `error="HTTP 401 · Invalid bearer token"`) {
+			t.Errorf("log reads\n%s\nwant the prime's failure warned of", log)
+		}
+		if got, want := upstream.probes()[renewedToken], []time.Time{onDay(1, 4, 10).Add(30 * time.Second)}; !reflect.DeepEqual(got, want) {
+			t.Errorf("work primed on its new token at %v, want %v: at once, not five minutes on, as the failure on the token before isn't kept", got, want)
+		}
+	})
+}
+
+// lateProber probes as prober does, but holds the answer to each probe of
+// token, which has reached the upstream, until held is closed, or the probe's
+// context ends.
+type lateProber struct {
+	prober Prober
+	token  string
+	held   chan struct{}
+}
+
+func (p *lateProber) Probe(ctx context.Context, token string) (quota.Probe, error) {
+	probed, err := p.prober.Probe(ctx, token)
+	if token != p.token {
+		return probed, err
+	}
+	select {
+	case <-p.held:
+		return probed, err
+	case <-ctx.Done():
+		return quota.Probe{}, ctx.Err()
+	}
+}
+
 func TestTheRoutersDocumentGivesTheScheduleAndWhenEachAccountIsNextPrimed(t *testing.T) {
 	clock := &testClock{now: onDay(1, 5, 0)}
 	r := newPrimingRouter(t, clock.read, &stubProber{}, daytime)
@@ -402,7 +544,7 @@ func TestTheRoutersDocumentSaysNothingOfWhenAnAccountThatCantStartAWindowIsNextP
 		// holdBack holds side back.
 		holdBack func(s *state)
 	}{
-		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) }},
 		{name: "a limit holding back its every request", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{lapsed, spentWeek}, s.mark()) }},
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"os"
 	"os/signal"
 	"time"
@@ -76,12 +77,14 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		return err
 	}
 	var follower *eventsFollower
+	var today events.Tailed
 	if opts.follow {
-		// Before the listing, so no event filed as it's read goes unprinted.
-		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), a.Now)
+		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
+		today = follower.listing()
 	}
-	printer, tomorrow := a.eventsPrinter(out, opts.form), startOfDay(now, -1)
-	if err := printer.list(events.NewReader(dir, a.Now, logger), from, tomorrow, now); err != nil || follower == nil {
+	held := events.NewReader(dir, a.Now, logger).HeldTailing(from, startOfDay(now, -1), today)
+	printer := a.eventsPrinter(out, opts.form)
+	if err := printer.list(held, from, now); err != nil || follower == nil {
 		return err
 	}
 	return follower.run(ctx, logs.PollEvery(a.FollowEvery), printer.follow)
@@ -89,9 +92,9 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 
 // eventsPrinter prints the router's events in a form.
 type eventsPrinter interface {
-	// list prints the events reader reads that happened from from up to to,
-	// read at now.
-	list(reader *events.Reader, from, to, now time.Time) error
+	// list prints the events held, those that happened from from on, read at
+	// now.
+	list(held iter.Seq[events.Held], from, now time.Time) error
 	// follow prints a line as it's filed, after the listing.
 	follow(h events.Held) error
 }
@@ -110,8 +113,8 @@ type eventsJSON struct {
 	out io.Writer
 }
 
-func (p eventsJSON) list(reader *events.Reader, from, to, _ time.Time) error {
-	for h := range reader.HeldBetween(from, to) {
+func (p eventsJSON) list(held iter.Seq[events.Held], _, _ time.Time) error {
+	for h := range held {
 		if err := p.follow(h); err != nil {
 			return err
 		}
@@ -141,10 +144,10 @@ type eventsText struct {
 	widths []int
 }
 
-func (p *eventsText) list(reader *events.Reader, from, to, now time.Time) error {
-	var lines views.Events = reader
-	at := func(line events.Line) time.Time { return line.At }
-	table, err := writeDays(p.out, lines.Between(from, to), at, p.row, "events", from, now)
+func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error {
+	at := func(h events.Held) time.Time { return h.At }
+	row := func(h events.Held, at time.Time) []string { return p.row(h.Line, at) }
+	table, err := writeDays(p.out, held, at, row, "events", from, now)
 	p.day, p.widths = table.day, widths(nil, table.indented()...)
 	return err
 }
@@ -180,18 +183,30 @@ type eventsFollower struct {
 	now   func() time.Time
 	date  string
 	tail  *dayfile.Tail[events.Held]
-	// handed counts the lines of the day handed on, or passed over as listed
-	// already, and read those read since its files were last read afresh.
+	// handed counts the lines of the day handed on, to the listing or
+	// printed, and read those read since its files were last read afresh.
 	handed, read int
 }
 
 // newEventsFollower returns a follower of files, the router's events', from
-// the end of what today's, by now's clock, holds already.
-func newEventsFollower(files *dayfile.Files, now func() time.Time) *eventsFollower {
+// the start of the local day with the given date, today's, none of its lines
+// read yet: the listing reads them through it, as listing gives them, so it
+// follows on from exactly where the listing ended, and no line is printed
+// twice, nor missed.
+func newEventsFollower(files *dayfile.Files, today string, now func() time.Time) *eventsFollower {
 	f := &eventsFollower{files: files, now: now}
-	f.open(dayfile.DateOf(now()))
-	f.readOn(func(events.Held) {})
+	f.open(today)
 	return f
+}
+
+// listing is the day followed, as the listing reads it, through the
+// follower.
+func (f *eventsFollower) listing() events.Tailed {
+	return events.Tailed{Date: f.date, Read: func(take func(events.Held)) int {
+		f.readOn(take)
+		_, unread := f.tail.Lines()
+		return unread
+	}}
 }
 
 // open follows the files of the local day with the given date, none of its

@@ -6,12 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -406,46 +408,63 @@ func TestTheRoundsAskAfterThePrimeOnlyWhereItMatters(t *testing.T) {
 	}
 }
 
+// takeUp is a way side comes to go out on another token, or its own again,
+// and the token it goes out on then.
+type takeUp struct {
+	name  string
+	token string
+	do    func(r *Router, files *changingFiles)
+}
+
+// replacements are the ways side comes to go out on another token.
+var replacements = []takeUp{
+	{
+		name:  "replaced, as the router looks at the token files",
+		token: renewedToken,
+		do: func(r *Router, files *changingFiles) {
+			files.set(tokenstest.Files{"work": workToken, "side": renewedToken})
+			r.upkeep.tokens.look()
+		},
+	},
+	{
+		name:  "replaced, as the upstream refuses the token a request went out on",
+		token: renewedToken,
+		do: func(r *Router, files *changingFiles) {
+			files.set(tokenstest.Files{"work": workToken, "side": renewedToken})
+			side, _ := r.accounts.byID("side")
+			(&replay{p: r.proxy, ex: &exchange{account: side}, sent: side.token()}).renewed()
+		},
+	},
+}
+
+// regainedUnchanged has side lose its token, its file holding none at two
+// looks in a row, and gain it back unchanged.
+var regainedUnchanged = takeUp{
+	name:  "its own back, once its file held none",
+	token: sideToken,
+	do: func(r *Router, files *changingFiles) {
+		files.set(tokenstest.Files{"work": workToken})
+		r.upkeep.tokens.look()
+		r.upkeep.tokens.look()
+		files.set(testTokens)
+		r.upkeep.tokens.look()
+	},
+}
+
+// takeUps are the ways side comes to go out on another token, or its own
+// again.
+var takeUps = append(slices.Clone(replacements), regainedUnchanged)
+
 func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
-	tests := []struct {
-		name string
-		// takeUp has side take up another token, or its own again.
-		takeUp func(r *Router, files *changingFiles)
-	}{
-		{
-			name: "replaced, as the router looks at the token files",
-			takeUp: func(r *Router, files *changingFiles) {
-				files.set(tokenstest.Files{"work": workToken, "side": renewedToken})
-				r.upkeep.tokens.look()
-			},
-		},
-		{
-			name: "replaced, as the upstream refuses the token a request went out on",
-			takeUp: func(r *Router, files *changingFiles) {
-				files.set(tokenstest.Files{"work": workToken, "side": renewedToken})
-				side, _ := r.accounts.byID("side")
-				(&replay{p: r.proxy, ex: &exchange{account: side}, sent: side.token()}).renewed()
-			},
-		},
-		{
-			name: "its own back, once its file held none",
-			takeUp: func(r *Router, files *changingFiles) {
-				files.set(tokenstest.Files{"work": workToken})
-				r.upkeep.tokens.look()
-				r.upkeep.tokens.look()
-				files.set(testTokens)
-				r.upkeep.tokens.look()
-			},
-		},
-	}
-	for _, tt := range tests {
+	for _, tt := range takeUps {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			files := &changingFiles{files: testTokens}
 			r := newTestRouterReading(t, clock.read, &stubProber{}, files.read)
-			// Read 40 minutes ago, side's probes have read nothing since,
-			// three in a row, the last three minutes ago: it waits eight.
-			for _, s := range []step{answered(40 * time.Minute), unread(20 * time.Minute), unread(10 * time.Minute), unread(3 * time.Minute)} {
+			// Read 30 minutes ago by a probe that couldn't read its Fable
+			// week, side's probes have read nothing since, three in a row,
+			// the last three minutes ago: it waits eight.
+			for _, s := range []step{partlyRead(30 * time.Minute), unread(20 * time.Minute), unread(10 * time.Minute), unread(3 * time.Minute)} {
 				s(r, clock)
 			}
 			clock.now = start
@@ -453,16 +472,183 @@ func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
 			if due("side", start) {
 				t.Fatal("side due on the rounds before its token changed, want it backing off")
 			}
+			if side, _ := r.Status().Account("side"); len(side.Failures) == 0 {
+				t.Fatal("side's Fable week reads as read before its token changed, want it unread")
+			}
 
-			tt.takeUp(r, files)
+			tt.do(r, files)
 			if !due("side", start) {
 				t.Error("side not due on the rounds, want it probed afresh on the token it goes out on now")
 			}
-			if side, _ := r.Status().Account("side"); side.Error != "" {
+			side, _ := r.Status().Account("side")
+			if side.Error != "" {
 				t.Errorf("side's error reads %q, want none: it was the token before's", side.Error)
+			}
+			if len(side.Failures) > 0 {
+				t.Errorf("side's windows unread are %+v, want none: they were the token before's", side.Failures)
 			}
 		})
 	}
+}
+
+func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
+	higher := week
+	higher.Utilization = 0.97
+	// partly read side's session and week, not its Fable week.
+	partly := probed(nil, session, higher)
+	partly.Failures = []quota.Failure{{Label: "Fable", Window: fableWeek.Key, Error: errUnreadable.Error()}}
+	outcomes := []struct {
+		name string
+		// reading and err are what the probe on the token before finds.
+		reading quota.Probe
+		err     error
+		// wantWeek is what side's week reads once the probe has ended,
+		// wantLogs the lines the log has of the probe, and unwantedLogs those
+		// it hasn't.
+		wantWeek     float64
+		wantLogs     [][]string
+		unwantedLogs [][]string
+		// wantDue is whether side is due on the next round, a minute on.
+		wantDue bool
+	}{
+		{
+			name:         "refused, which says nothing of the token side goes out on now",
+			err:          errors.New("HTTP 401 · Invalid bearer token"),
+			wantWeek:     week.Utilization,
+			wantLogs:     [][]string{{"level=DEBUG", `msg="probe on the token before failed; its failure isn't kept"`, "account=side", `error="HTTP 401 · Invalid bearer token"`}},
+			unwantedLogs: [][]string{{`msg="probe failed"`}},
+			wantDue:      true,
+		},
+		{
+			name:     "reading its windows, which read the same on either token, but its Fable week",
+			reading:  partly,
+			wantWeek: higher.Utilization,
+			wantLogs: [][]string{
+				{"level=DEBUG", `msg="probed account"`, "account=side", "windows=2"},
+				{"level=DEBUG", `msg="window unread"`, "account=side", "window=7d_oi"},
+			},
+			unwantedLogs: [][]string{{"level=WARN", `msg="window unread"`}},
+			// The probe read side a minute before, as the rounds count it.
+			wantDue: false,
+		},
+	}
+	for _, o := range outcomes {
+		for _, tt := range replacements {
+			t.Run(o.name+", "+tt.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					log := logstest.Capture(t)
+					clock := &testClock{now: start}
+					files := &changingFiles{files: testTokens}
+					prober := &stubProber{
+						gate:     make(chan struct{}),
+						readings: map[string]quota.Probe{sideToken: o.reading},
+						errs:     map[string]error{sideToken: o.err},
+					}
+					r := newTestRouterReading(t, clock.read, prober, files.read)
+					defer r.probes.stop()
+					answered(40*time.Minute)(r, clock)
+					clock.now = start
+					due := r.state.rounding(r.rounds.clears)
+
+					// Side's rounds probe it, unread for 40 minutes, and the
+					// probe is still out on its token as side takes one up.
+					underway := r.probes.start(r.accounts.only([]string{"side"}), due)
+					synctest.Wait()
+					if n := prober.counts()[sideToken]; n != 1 {
+						t.Fatalf("side's token probed %d times, want once before side takes a token up", n)
+					}
+					tt.do(r, files)
+					close(prober.gate)
+					<-underway[0].done
+
+					if got := probesOf(r, "side"); got != (probesWent{}) {
+						t.Errorf("side's probes went %+v, want as they start afresh on the token it goes out on now", got)
+					}
+					side, _ := r.Status().Account("side")
+					if side.Error != "" {
+						t.Errorf("side's error reads %q, want none: it was the token before's", side.Error)
+					}
+					if got := side.Windows[1].Utilization; got != o.wantWeek {
+						t.Errorf("side's week reads %v, want %v", got, o.wantWeek)
+					}
+					if len(side.Failures) > 0 {
+						t.Errorf("side's windows unread are %+v, want none: they were the token before's", side.Failures)
+					}
+					for _, want := range o.wantLogs {
+						if !log.Has(want...) {
+							t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+						}
+					}
+					for _, unwanted := range o.unwantedLogs {
+						if log.Has(unwanted...) {
+							t.Errorf("log reads\n%s\nwant no line with %q", log, unwanted)
+						}
+					}
+
+					clock.now = start.Add(roundEvery)
+					if got := due("side", clock.now); got != o.wantDue {
+						t.Fatalf("side due on the next round = %v, want %v", got, o.wantDue)
+					}
+					if !o.wantDue {
+						return
+					}
+					before := prober.counts()[tt.token]
+					r.rounds.look(t.Context())
+					if n := prober.counts()[tt.token] - before; n != 1 {
+						t.Errorf("the next round probed side's token %d times, want once", n)
+					}
+					if got := probesOf(r, "side").ended; !got.Equal(clock.now) {
+						t.Errorf("side's last probe ended %v, want %v: the next round's, on the token it goes out on now, counts", got, clock.now)
+					}
+				})
+			})
+		}
+	}
+}
+
+func TestAProbeOnATokenGainedBackUnchangedCountsAsTheAccounts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		log := logstest.Capture(t)
+		clock := &testClock{now: start}
+		files := &changingFiles{files: testTokens}
+		refused := errors.New("HTTP 401 · Invalid bearer token")
+		prober := &stubProber{gate: make(chan struct{}), errs: map[string]error{sideToken: refused}}
+		r := newTestRouterReading(t, clock.read, prober, files.read)
+		defer r.probes.stop()
+		answered(40*time.Minute)(r, clock)
+		clock.now = start
+
+		// Side's rounds probe it, and the probe is still out on its token as
+		// side loses it and gains it back unchanged; then it's refused.
+		underway := r.probes.start(r.accounts.only([]string{"side"}), r.state.rounding(r.rounds.clears))
+		synctest.Wait()
+		regainedUnchanged.do(r, files)
+		close(prober.gate)
+		<-underway[0].done
+
+		if got := probesOf(r, "side"); !got.ended.Equal(start) || got.err != refused.Error() || got.misses != 1 {
+			t.Errorf("side's probes went %+v, want one ended at %v that read nothing, refused: the token it went out on is side's still", got, start)
+		}
+		if !log.Has("level=WARN", `msg="probe failed"`, "account=side") {
+			t.Errorf("log reads\n%s\nwant side's probe's failure warned of", log)
+		}
+	})
+}
+
+// probesWent is how an account's probes went, as the state has it: when one
+// last ended, why it read nothing, and how many in a row did.
+type probesWent struct {
+	ended  time.Time
+	err    string
+	misses int
+}
+
+// probesOf returns how the probes of the account with the given id went.
+func probesOf(r *Router, id string) probesWent {
+	r.state.mu.Lock()
+	defer r.state.mu.Unlock()
+	u := r.state.usage[id]
+	return probesWent{ended: u.probed, err: u.probeErr, misses: u.misses}
 }
 
 func TestAWeekTheLastAnswerDidntCarryIsProbedBeforeItResetsAfterARestart(t *testing.T) {
@@ -597,6 +783,17 @@ func probedSide(ago time.Duration, from readings.Source) step {
 	}
 }
 
+// partlyRead has a probe of side read its session and week ago before start,
+// but not its Fable week.
+func partlyRead(ago time.Duration) step {
+	return func(r *Router, clock *testClock) {
+		clock.now = start.Add(-ago)
+		reading := probed(nil, session, week)
+		reading.Failures = []quota.Failure{{Label: "Fable", Window: fableWeek.Key, Error: errUnreadable.Error()}}
+		r.state.recordProbe("side", reading, nil, r.state.mark(), readings.FromProbe)
+	}
+}
+
 // unread has a probe of side read nothing ago before start.
 func unread(ago time.Duration) step {
 	return unreadAt(start.Add(-ago))
@@ -619,7 +816,7 @@ func refusedSide(ago time.Duration) step {
 func refusedAt(at time.Time) step {
 	return func(r *Router, clock *testClock) {
 		clock.now = at
-		r.state.refuse("side", http.StatusUnauthorized, someRequest)
+		r.state.refuse("side", http.StatusUnauthorized, someRequest, r.state.mark())
 	}
 }
 

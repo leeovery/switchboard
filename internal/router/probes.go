@@ -62,9 +62,20 @@ type probing struct {
 	done <-chan struct{}
 }
 
-// report notes how a probe of an account, sent at sent, went: what it read,
-// or why it read nothing, and how long it took.
-type report func(a account, probed quota.Probe, err error, sent time.Time, took time.Duration)
+// report notes how a probe of an account went.
+type report func(a account, w went)
+
+// went is how a probe went: what it read, or why it read nothing, at, the
+// time it was sent, by the router's clock, how long it took, and whether it
+// went out on the token before the one the account goes out on now, as
+// recordProbe judges it, which keeps nothing of how it went.
+type went struct {
+	probed      quota.Probe
+	err         error
+	at          time.Time
+	took        time.Duration
+	tokenBefore bool
+}
 
 // start probes each of the accounts that due says wants a probe, unless a
 // probe of it is under way already, and returns every probe of them under
@@ -214,6 +225,9 @@ func (p *probes) stop() {
 
 // probe reads an account's usage, as r, and notes how that went.
 func (p *probes) probe(a account, r *run) {
+	// sent is marked before the token is read, so a token the account takes up
+	// after the read is marked after sent, and recordProbe judges this probe
+	// one on the token before.
 	started, at, sent := time.Now(), p.now(), p.state.mark()
 	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
 	took := time.Since(started).Round(time.Millisecond)
@@ -221,44 +235,49 @@ func (p *probes) probe(a account, r *run) {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
-	p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
-	p.told(r)(a, probed, err, at, took)
+	tokenBefore := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
+	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenBefore: tokenBefore})
 }
 
-// logProbe logs how a probe of an account went.
-func logProbe(a account, probed quota.Probe, err error, _ time.Time, took time.Duration) {
-	if err != nil {
-		logger.Warn("probe failed", "account", a.ID, "duration", took, "error", err)
-		return
+// logProbe logs how a probe of an account went: one that failed on the token
+// before at debug alone, as its failure says nothing of the account.
+func logProbe(a account, w went) {
+	switch {
+	case w.err != nil && w.tokenBefore:
+		logger.Debug("probe on the token before failed; its failure isn't kept", "account", a.ID, "duration", w.took, "error", w.err)
+	case w.err != nil:
+		logger.Warn("probe failed", "account", a.ID, "duration", w.took, "error", w.err)
+	default:
+		logger.Debug("probed account", "account", a.ID, "duration", w.took, "windows", len(w.probed.Windows))
+		logUnread(a, w)
 	}
-	logger.Debug("probed account", "account", a.ID, "duration", took, "windows", len(probed.Windows))
-	logUnread(a, probed)
 }
 
-// logPrime logs how a prime of an account, sent at sent, went: at info, with
-// the reset it read of the window it primed, or at warn when it failed, or
-// didn't start that window. A prime that started it is told of too, but for
-// one that found it running already, as when the Claude apps started it.
-func (p *probes) logPrime(a account, probed quota.Probe, err error, sent time.Time, took time.Duration) {
-	if err != nil {
-		logger.Warn("prime failed", "account", a.ID, "duration", took, "error", err)
+// logPrime logs how a prime of an account went: at info, with the reset it
+// read of the window it primed, or at warn when it failed, on whichever
+// token, or didn't start that window. A prime that started it is told of
+// too, but for one that found it running already, as when the Claude apps
+// started it.
+func (p *probes) logPrime(a account, w went) {
+	if w.err != nil {
+		logger.Warn("prime failed", "account", a.ID, "duration", w.took, "error", w.err)
 		return
 	}
-	attrs := []any{"account", a.ID, "duration", took}
+	attrs := []any{"account", a.ID, "duration", w.took}
 	primed := Primed{Account: a.ID, Window: p.state.policy.Started}
-	if i := slices.IndexFunc(probed.Windows, func(w quota.Window) bool { return w.Key == primed.Window }); i >= 0 {
-		primed.ResetsAt = probed.Windows[i].ResetsAt
+	if i := slices.IndexFunc(w.probed.Windows, func(read quota.Window) bool { return read.Key == primed.Window }); i >= 0 {
+		primed.ResetsAt = w.probed.Windows[i].ResetsAt
 		attrs = append(attrs, "resets", primed.ResetsAt)
 	}
 	if p.state.primeFailed(a.ID) {
 		logger.Warn("prime didn't start the window", append(attrs, "window", primed.Window)...)
 	} else {
 		logger.Info("primed", attrs...)
-		if primed.startedBy(sent) {
+		if primed.startedBy(w.at) {
 			p.emit(primed)
 		}
 	}
-	logUnread(a, probed)
+	logUnread(a, w)
 }
 
 // markedBack is the most the upstream takes the start of a window back by:
@@ -275,9 +294,14 @@ func (p Primed) startedBy(sent time.Time) bool {
 }
 
 // logUnread logs each window a probe of an account expected, and couldn't
-// read.
-func logUnread(a account, probed quota.Probe) {
-	for _, f := range probed.Failures {
-		logger.Warn("window unread", "account", a.ID, "window", f.Window, "error", f.Error)
+// read: at debug alone of a probe on the token before, as the account keeps
+// none of them.
+func logUnread(a account, w went) {
+	note := logger.Warn
+	if w.tokenBefore {
+		note = logger.Debug
+	}
+	for _, f := range w.probed.Failures {
+		note("window unread", "account", a.ID, "window", f.Window, "error", f.Error)
 	}
 }

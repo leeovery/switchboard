@@ -176,7 +176,7 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 	serveSessions(t, deps, routedSessions)
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
-	want := `{"generated_at":"` + at(ledgerNow) + `","prices_as_of":"2026-10-07","sessions":[` +
+	want := `{"generated_at":"` + at(ledgerNow) + `","prices_as_of":"2026-10-11","sessions":[` +
 		`{"session":"` + asking + `","dir":"~/Code/api","account":"work","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 13, 10, 0)) + `",` +
 		`"models":[{"model":"claude-opus-5-5","account":"work","reason":"sticky"}],"state":"asking","move_cost":0.80808,` +
 		`"started":"` + at(october(6, 22, 0, 0)) + `","requests":1,"worth":0.03804},` +
@@ -250,7 +250,7 @@ func TestSessionsNeedsNeitherTheRouterNorTheLedger(t *testing.T) {
 	if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || got.stderr != notice {
 		t.Fatalf("switchboard sessions --json = %+v (%v), want JSON, and the notice", got, err)
 	}
-	want := `{"generated_at":"` + ledgerNow.UTC().Format(time.RFC3339) + `","prices_as_of":"2026-10-07","sessions":[],"today":{"sessions":0,"requests":0}}`
+	want := `{"generated_at":"` + ledgerNow.UTC().Format(time.RFC3339) + `","prices_as_of":"2026-10-11","sessions":[],"today":{"sessions":0,"requests":0}}`
 	if compact.String() != want {
 		t.Errorf("switchboard sessions --json printed\n%s\nwant\n%s", compact.String(), want)
 	}

@@ -25,6 +25,7 @@ var retried = map[string]string{
 	"was refused":       "was refused",
 	"was throttled":     "was throttled",
 	"was reset by hand": "was reset by hand",
+	"has a new token":   "had a new token",
 }
 
 // logBlock is where LOG goes: its label's row, how many of its lines show

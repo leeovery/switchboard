@@ -3,14 +3,6 @@
 Milestone 7's stage 3, the data verbs, went through several rounds of review each. What the reviews
 found and left, as not worth holding the stage for, gathered here.
 
-## Two router tests that fail under load
-
-`TestAnAssignmentUsedAgainIsSavedOnceAMinute` and
-`TestTheRequestStreamTellsOfTheRequestsARestartFinishes` (`internal/router`) each failed once in a
-full run of the tests while several other runs went on at once, and passed every time run alone, five
-times each. Each rests on a timing assumption that a loaded machine can break. Find what each waits
-on, and wait on it rather than on time.
-
 ## Weeks' headline for a set short every week
 
 Where now is short on 4 or more of 7 weeks and one more account wouldn't halve that (short on 7 of
@@ -26,6 +18,39 @@ short every week. A headline for more than one too few needs its owner's words.
   `dayFirst` and `dayText`, `entryName` and `accountName`); `totalling.add` shadowing `Worth.add`.
 - `sessions`: `SessionPage` repeats `ListedSession`'s fields rather than embedding them; views'
   `dayOf` repeats `dayfile.DateOf`.
+- The router: `takeBack` clones the request's attempts and walks them twice where one pass would
+  do; `tokenRefused` tests `newToken` twice where a switch on it would say its two cases plainly.
+
+## What the end review left
+
+The review of the whole stage, run after its release, found these and left them:
+
+- Milestone 5's LATELY words the router's events its own way (`internal/dashboard/recent.go`),
+  where `events` words them through `views.Telling`, so the two can disagree until stage 7's
+  Overview draws LATELY from `Telling`.
+- The session status a statusline asks for every few seconds builds the whole status document to
+  read one account's name (`accountStatus`): every account's state, the recent events and every
+  session walked, for one name.
+- `status` and the dashboard work the router's document out again (`fromRouter`), which only a
+  router from before stage 3 needs.
+- The ledger's reader and follower warn that they can't read the request ledger at each read, where
+  the rounds' listings now warn once until they can.
+- `events -f` lists a line filed under the day after, as a router started before a change of time
+  zone files one, only once its day comes, where `events` lists it at once.
+- Whether a probe or a request went out on the token an account has replaced since is judged by when
+  it went out against when the account took up the other, not by the token itself, so every place
+  that sends on an account's token must mark its moment before it reads the token. A swap in the
+  moment between the two, or between the token's swap and the account taking it up, judges one on
+  the new token old: a request then goes out once more before a 401 bars the account, and a probe's
+  failure goes unkept until the next round probes it again. Comparing the token sent with the one
+  the account holds, whose hash its secret keeps, would ask it directly, with no moments to keep.
+- A request whose account took up a new token twice while it was out goes on to another account,
+  and its session moves with it, though nothing was wrong with the account it left.
+- A prime that failed on the token before is warned of, where a probe's failure on it is noted at
+  debug; the account on its new token is primed again at once, so there's nothing to chase.
+- Milestone 5's COMING UP lists only the windows its cards show; the document lists a model's own
+  week wherever its reset isn't its week's. Whether the Overview's COMING UP, in stage 7, lists the
+  reset of a week no card shows is to check against the design then.
 
 The costs these stages found that grow with time or with what's kept are in Milestones, for the
 review before milestone 7's release.

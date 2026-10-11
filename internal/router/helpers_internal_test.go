@@ -149,11 +149,12 @@ func (c *testClock) read() time.Time {
 	return c.now
 }
 
-// stubProber answers each token with its probe, and counts the probes of
-// each. When it has a gate, each probe waits for the gate to close, or for
-// its context to end.
+// stubProber answers each token with its probe, or its error, and counts the
+// probes of each. When it has a gate, each probe waits for the gate to close,
+// or for its context to end.
 type stubProber struct {
 	readings map[string]quota.Probe
+	errs     map[string]error
 	gate     chan struct{}
 
 	mu     sync.Mutex
@@ -174,7 +175,7 @@ func (p *stubProber) Probe(ctx context.Context, token string) (quota.Probe, erro
 			return quota.Probe{}, ctx.Err()
 		}
 	}
-	return p.readings[token], nil
+	return p.readings[token], p.errs[token]
 }
 
 // counts returns how many probes each token has had.
