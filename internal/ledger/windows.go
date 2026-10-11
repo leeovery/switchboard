@@ -139,8 +139,8 @@ type Climb struct {
 	based  bool
 	latest time.Time
 	rise   float64
-	// resets are the resets that ended its runs, and ended each run's reset
-	// as its readings gave it.
+	// resets are the resets that ended its runs that read above nothing, and
+	// ended each such run's reset as its readings gave it.
 	resets []Reset
 	ended  []time.Time
 }
@@ -221,8 +221,8 @@ func (c *Climb) take(w quota.Window, at time.Time) (float64, taking) {
 // readLate takes w, a reading of a run of the window that has reset since, read
 // late, as an answer that began before the reset and ended after it gives
 // one: a true reading of that run, which says nothing of the run since.
-// Where it reads higher than the use that run was last read at, the run's
-// reset takes it as the use before it.
+// Where it reads higher than that run's highest use, the run's reset takes it
+// as the use before it.
 func (c *Climb) readLate(w quota.Window) {
 	if i := slices.IndexFunc(c.ended, w.ResetsAt.Equal); i >= 0 {
 		c.resets[i].Before = max(c.resets[i].Before, w.Utilization)
@@ -243,11 +243,16 @@ func (c *Climb) Rise() float64 {
 	return c.rise
 }
 
-// reset notes the window's reset at at, its use as last read before it, and
-// ends the run it was in, the next beginning at nothing.
+// reset notes the window's reset at at, the highest use of the run it ended
+// before it, and ends that run, the next beginning at nothing. A run that
+// never read above nothing, the use carried into it included, notes none:
+// nothing was open to reset, as of a window no request opened, its reset
+// moving on with each reading.
 func (c *Climb) reset(at time.Time) {
-	c.resets = append(c.resets, Reset{Window: c.key, At: at.UTC(), Before: c.last.Utilization})
-	c.ended = append(c.ended, c.last.ResetsAt)
+	if c.top != 0 {
+		c.resets = append(c.resets, Reset{Window: c.key, At: at.UTC(), Before: c.top})
+		c.ended = append(c.ended, c.last.ResetsAt)
+	}
 	c.top = 0
 }
 
