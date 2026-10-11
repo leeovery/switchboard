@@ -101,11 +101,7 @@ it.`,
 // and prints the windows opts give, laid out as they say, else as the config
 // does, as wide as the terminal, in the theme the preferences keep.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return err
-	}
-	doc, _, err := a.source(cfg, opts.probe).Read(ctx, readOnce(opts.refresh))
+	cfg, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
@@ -134,7 +130,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 // isn't a terminal, as for an agent or a pipe, which want data rather than a
 // printout's bars.
 func (a *app) printDocument(ctx context.Context, out io.Writer, opts usageOptions) error {
-	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
+	_, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}

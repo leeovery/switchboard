@@ -330,14 +330,15 @@ func (a *app) configFile() (string, error) {
 
 // collect loads the config and reads the status document status and usage
 // print, as r asks, from the source that decides where it comes from,
-// probing alone when probe says so.
-func (a *app) collect(ctx context.Context, probe bool, r status.Read) (status.Document, error) {
+// probing alone when probe says so. It gives the config too, as usage lays
+// its printout out as the config says.
+func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.Config, status.Document, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
-		return status.Document{}, err
+		return nil, status.Document{}, err
 	}
 	doc, _, err := a.source(cfg, probe).Read(ctx, r)
-	return doc, err
+	return cfg, doc, err
 }
 
 // source returns where the status document is read for the config given: the
