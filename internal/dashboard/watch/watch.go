@@ -330,21 +330,24 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update takes in a message, as take says, then has the watch read the
-// router's request stream while it wants it, and only then, and draw frames
-// while anything on screen moves. The view is drawn again after each, which
-// is all a note's lapsing asks.
+// router's request stream while it wants it, and only then, price the moves
+// the routing card would make while it wants them, and draw frames while
+// anything on screen moves. The view is drawn again after each, which is all
+// a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
+	tuned, costs := tuned.costing()
 	tuned, frames := tuned.startFrames(tuned.now())
-	return tuned, tea.Batch(cmd, stream, frames)
+	return tuned, tea.Batch(cmd, stream, costs, frames)
 }
 
 // take takes in a message: a key, a click, the wheel, a resize, the
 // terminal's background, the themes listed for the picker, or the choice
 // kept as it stands, a read, the router's history, the router carrying out
-// an order, the request stream opening, telling of requests or falling due
-// to be asked for again, a tick or a frame.
+// an order, the sessions listed to price the routing card's moves, the
+// request stream opening, telling of requests or falling due to be asked for
+// again, a tick or a frame.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -373,6 +376,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case orderedMsg:
 		return m.ordered(msg)
+	case costedMsg:
+		return m.costed(msg), nil
 	case streamOpenedMsg:
 		return m.opened(msg)
 	case streamHeardMsg:

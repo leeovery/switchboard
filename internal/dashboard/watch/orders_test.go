@@ -109,7 +109,7 @@ func TestAnOrderOfOneSessionPinsItOrTakesItsPinOff(t *testing.T) {
 	}
 }
 
-func TestAnOrderTheRouterRefusesSaysWhyInTheKeyLinesPlace(t *testing.T) {
+func TestARefusalOnceTheRoutingCardHasClosedSaysWhyInTheKeyLinesPlace(t *testing.T) {
 	refusal := errors.New("account personal has no usable token, so nothing can go out on it: token missing")
 	tests := []struct {
 		name    string
@@ -180,27 +180,40 @@ func TestAnOrderWhileTheRouterCarriesOutAnotherIsDropped(t *testing.T) {
 }
 
 func TestAnOrderSaysSoWhileTheRouterDoesntAnswer(t *testing.T) {
-	h := routedHarness(t, routerDocument(three()...))
-	h.start()
-	h.stopRouter()
-	h.tickUntilAsked() // 13:12:05.
-
-	h.deliver(h.commanded(order{accounts: []string{"work"}})...)
-	if len(h.source.orders) > 0 {
-		t.Errorf("orders = %q, want none", h.source.orders)
+	tests := []struct {
+		name string
+		h    func(t *testing.T) *harness
+	}{
+		{
+			name: "showing the router's last document",
+			h: func(t *testing.T) *harness {
+				h := routedHarness(t, routerDocument(three()...))
+				h.start()
+				h.stopRouter()
+				h.tickUntilAsked() // 13:12:05.
+				return h
+			},
+		},
+		{
+			name: "probing, as the router isn't running",
+			h: func(t *testing.T) *harness {
+				h := newHarness(t, probedWithoutTheRouter())
+				h.start()
+				return h
+			},
+		},
 	}
-	if got, want := h.keyLine(), status.ErrNoRouter.Error(); got != want {
-		t.Errorf("the key line reads %q, want %q", got, want)
-	}
-}
-
-func TestAnOrderDoesNothingWhileProbing(t *testing.T) {
-	h := newHarness(t, probedWithoutTheRouter())
-	h.start()
-
-	h.deliver(h.commanded(order{accounts: []string{"work"}})...)
-	if len(h.source.orders) > 0 || h.model.note != "" {
-		t.Errorf("orders = %q, note %q, want neither", h.source.orders, h.model.note)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tt.h(t)
+			h.deliver(h.commanded(order{accounts: []string{"work"}})...)
+			if len(h.source.orders) > 0 {
+				t.Errorf("orders = %q, want none", h.source.orders)
+			}
+			if got, want := h.keyLine(), status.ErrNoRouter.Error(); got != want {
+				t.Errorf("the key line reads %q, want %q", got, want)
+			}
+		})
 	}
 }
 
