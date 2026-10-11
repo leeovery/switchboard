@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+HISTORY    Year  Weeks  Days  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────  p last 12 months
+
+              Oct       Nov     Dec     Jan       Feb     Mar     Apr       May     Jun     Jul       Aug     Sep             LAST 12 MONTHS
+Mon           ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■       requests     236,410
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■       sessions     1,688
+Wed           ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■       limits hit   5-hour ×402
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■       worth        $27,480
+Fri           ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■         plans cost   $7,200
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■         against it   3.8×
+              ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■         busiest day  Tue 22 Sep
+                                                                                                                              longest run  58 days
+              ■ none   ■ under 450   ■ 450–750   ■ 750–1,000   ■ over 1,000  requests a day
+
+BY MONTH  worth at API prices; against what the plans cost that month
+              requests    worth       against   limits      by model
+  Oct 2025    10,148      $1,180      2.0×      23          ▅▅▅▅▅▅▅▅▅▅▅
+  Nov         11,524      $1,340      2.2×      26          ▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Dec         10,406      $1,210      2.0×      23          ▅▅▅▅▅▅▅▅▅▅▅▅
+  Jan         13,416      $1,560      2.6×      30          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Feb         14,792      $1,720      2.9×      33          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Mar         17,028      $1,980      3.3×      38          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Apr         18,490      $2,150      3.6×      41          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  May         20,038      $2,330      3.9×      45          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Jun         21,242      $2,470      4.1×      48          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Jul         23,134      $2,690      4.5×      52          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Aug         24,596      $2,860      4.8×      55          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Sep         26,832      $3,120      5.2×      60          ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  Oct         1,548       $180        —         2           ▅▅  so far
+
+                                                            ● Opus   ● Sonnet   ● Fable   ● Haiku
+
+
+tab views   [ ] view   p period: last 12 months     ←→ account  ? help  q quit

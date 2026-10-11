@@ -1,0 +1,48 @@
+ SWITCHBOARD                     Thu 1 Oct  14:42:07
+ Overview  Accounts  History  Sessions  Runway  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+ACCOUNTS  Compare Detail
+                                         p this week
+
+WEEK USED
+
+ work              ▊    ┃       ╎  34%
+
+ personal ◆               ┃        66%
+
+ side ▲               ┃     ▋      78%
+
+ all                    ┃          59%
+
+BY MODEL
+
+ work                              ● Opus 5.5 55%
+
+ personal ◆                        ● Sonnet 5.5 60%
+
+ side ▲                            ● Opus 5.5 82%
+
+ all                               ● Opus 5.5 57%
+
+ACTIVITY     reqs      sessions    moved
+ work        1,204     9           3 out
+ personal ◆  2,330     6           1 out
+ side ▲      1,876     11          4 in
+ all         5,410     19          4 moves
+
+LIMITS       hit          at cap    left
+ work        5h ×2        3h 10m    0%
+ personal ◆  none         —         15%
+ side ▲      5h ×1        52m       40%
+ all         3            4h 02m    —
+
+VALUE        plan         worth     against it
+ work        $200/mo      $184      4.0×
+ personal ◆  $200/mo      $212      4.6×
+ side ▲      $200/mo      $239      5.2×
+ all         $600/mo      $635      4.6×
+
+
+tab views   [ ] view   ? keys   q quit

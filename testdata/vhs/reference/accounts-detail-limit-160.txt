@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  pinned to personal and side  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────  p this week
+
+ 0 all accounts     │   2 personal ◆   ■ limit reached · new sessions go elsewhere
+                    │
+ 1 work        ■    │   USAGE                                                                               THIS WEEK
+                    │   5-hour                             ┃              100%  limit · back 15:54          requests  2,330
+ 2 personal ◆  ■    │                                                                                       limits    5-hour ×1
+                    │   Week                               ┃               66%  out ~Sat 06:00              plan      Max 20x
+ 3 side ▲      ●    │                                                                                       worth     $212  4.6×
+                    │   Fable wk                           ┃                0%  40%/day till Sun 02:00      extra use off
+                    │
+ ↑↓ choose          │   BY MODEL
+                    │               ● Opus 5.5 29%  ● Sonnet 5.5 60%  ● Sonnet 5 7%  ● Haiku 4.5 4%
+                    │
+                    │   ┄┄ the last six weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │
+                    │   BY DAY                          ▪     ▪             ▪             ▪   ▪   ▪         ▪     ▪                   ······
+                    │               24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
+                    │
+                    │   WEEKS            ▎    58            ▉   77            ▎   69              ▏ 90             ▋  85                66
+                    │
+                    │   ends most weeks with room   limit hit 0 of the last 7 weeks · 27% left at a reset, on average
+                    │
+                    │   LATELY      14:12  ■ reached its 5-hour limit: 2 sessions moved to side
+                    │               13:40  ● pinned with side, by hand
+                    │               11:30  ◇ primed: its 5-hour window started
+                    │
+                    │
+                    │
+
+
+
+tab views   [ ] view     p period: this week     ↑↓ account  enter its page     0 auto  1-3 pin  m move  ? help  q quit
