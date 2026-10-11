@@ -61,12 +61,9 @@ func (f Frame) tabTargets() []Target {
 // as no click opens the routing card, and q quit: none while a note takes
 // the line's place, or where it has no row of its own.
 func (f Frame) keyTargets() []Target {
-	y := f.Height - 1
-	if y < f.titleRows() || f.KeyLine.Note != "" {
-		return nil
-	}
+	y, keys, _ := f.keyLineRow()
 	var targets []Target
-	for _, k := range f.keysAt() {
+	for _, k := range keys {
 		if k.key.Key == "p" || k.key.Key == "q" {
 			continue
 		}

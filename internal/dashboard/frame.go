@@ -187,6 +187,37 @@ func (f Frame) viewRows() int {
 	return f.Height - underView - f.top()
 }
 
+// Under is what of the frame is under a cell, for the wheel to scroll.
+type Under int
+
+const (
+	// UnderNothing is a cell of nothing that scrolls: the title row, the
+	// status line, the heading row or the key line, or the page faded
+	// behind a card.
+	UnderNothing Under = iota
+	// UnderCard is a cell of the card open over the page, its edges
+	// included.
+	UnderCard
+	// UnderView is a cell of the view's rows, while no card is open.
+	UnderView
+)
+
+// Under is what's under the cell at x along row y, as the frame draws it:
+// while a card is open, the card, in its box, and nothing outside it; else
+// the view, in its rows, where the page has room for it, as cramped says.
+func (f Frame) Under(x, y int) Under {
+	inside := func(left, top, width, height int) bool {
+		return left <= x && x < left+width && top <= y && y < top+height
+	}
+	switch {
+	case f.Card != nil && inside(f.Card.card(f).box(f.Width, f.Height)):
+		return UnderCard
+	case f.Card == nil && !f.cramped() && inside(0, f.top(), f.Width, f.viewRows()):
+		return UnderView
+	}
+	return UnderNothing
+}
+
 // cramped reports whether the terminal is too short for the page's fixed
 // rows and leastView of the view's: the page is then its title row, its
 // status line and its key line alone.
