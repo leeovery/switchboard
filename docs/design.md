@@ -1365,7 +1365,7 @@ line after it, as a shell's prompt spaces itself (settled in the plan).
   with it, plus a gap of two cells; at least 14 cells, or 12 under 80 columns, and at most 24, or 16
   under 80. The bars give up the cells. One column serves every section that names accounts.
 - **A longer label is cut** with `…` to fit, its number and marks kept, and the cells for `▲` kept
-  too, so a label never changes when `▲` moves: `2 someone.else@exam… ◆`. Labels are free text, and
+  too, so a label never changes when `▲` moves: `2 someone.else@ex… ◆`. Labels are free text, and
   an email address is the common long one.
 
 **Colour.** The printout is drawn in the theme's colours and brought down to what the terminal shows
