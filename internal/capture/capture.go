@@ -26,6 +26,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/theme"
 )
@@ -45,6 +46,10 @@ type Fixture struct {
 	now    time.Time
 	router source
 	keys   []tea.KeyPressMsg
+	// by is how a printout groups the windows, and windows are the keys of
+	// those it prints, in Claude's order: none prints every one.
+	by      dashboard.By
+	windows []string
 	// theme is what it's drawn in: the frames' nord unless InTheme says
 	// otherwise.
 	theme theme.Theme
@@ -108,9 +113,9 @@ func (s fixtureSet) names() []string {
 	return slices.Sorted(maps.Keys(s))
 }
 
-// named returns the set's fixture with the given name, its keys its own, so
-// a caller changing them changes no other's. An empty or unknown name is an
-// error that lists the fixtures.
+// named returns the set's fixture with the given name, its keys and windows
+// its own, so a caller changing them changes no other's. An empty or unknown
+// name is an error that lists the fixtures.
 func (s fixtureSet) named(name string) (Fixture, error) {
 	if name == "" {
 		return Fixture{}, fmt.Errorf("name a fixture (available: %s)", strings.Join(s.names(), ", "))
@@ -119,42 +124,48 @@ func (s fixtureSet) named(name string) (Fixture, error) {
 	if !ok {
 		return Fixture{}, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(s.names(), ", "))
 	}
-	f.keys = slices.Clone(f.keys)
+	f.keys, f.windows = slices.Clone(f.keys), slices.Clone(f.windows)
 	return f, nil
 }
 
-// moment is when every fixture over no records is drawn, as the frames are:
-// Thursday 1 October 2026, 14:42:07, in the time zone given, fixed as its
-// clocks are then. Such a fixture is built and drawn in that, a zone whose
-// clocks never change: where the given zone's change within the fixtures'
-// week, as Sydney's do on the Sunday, their resets would move by an hour.
+// moment is when every fixture over milestone 5's samples is drawn, as the
+// frames are: Thursday 1 October 2026, 14:42:07, in the time zone given,
+// fixed as its clocks are then. Such a fixture is built and drawn in that, a
+// zone whose clocks never change: where the given zone's change within the
+// fixtures' week, as Sydney's do on the Sunday, their resets would move by an
+// hour.
 func moment(loc *time.Location) time.Time {
 	name, offset := time.Date(2026, time.October, 1, 14, 42, 7, 0, loc).Zone()
 	return time.Date(2026, time.October, 1, 14, 42, 7, 0, time.FixedZone(name, offset))
 }
 
-// localMoment is when every fixture over records is drawn: the frames'
-// moment in the machine's own zone, time.Local itself, whose clocks change as
-// they do there. The ledger, its readers and the views split days in it, so a
-// world whose days they read is built in it too, placed wall clock by wall
-// clock, its days falling where they put them through a year that crosses
-// summer time where the machine's zone does.
+// localMoment is when every fixture over a world is drawn, its records or its
+// document alone: the frames' moment in the machine's own zone, time.Local
+// itself, whose clocks change as they do there. The ledger, its readers and
+// the views split days in it, so a world whose days they read is built in it
+// too, placed wall clock by wall clock, its days falling where they put them
+// through a year that crosses summer time where the machine's zone does.
 func localMoment() time.Time {
 	return time.Date(2026, time.October, 1, 14, 42, 7, 0, time.Local)
 }
 
-// fixtures are every fixture, in the frames' theme: those over no records at
-// the frames' moment in the zone given, as moment fixes it, and those over
-// records at it in the machine's, as localMoment fixes it, whatever the zone
-// given. There's one for each set of accounts the frames draw, at the size of
-// the frame it mirrors, or for five accounts, which the final page draws only
-// in Sessions and Runway, at Sessions'. A frame of another view, or reached
-// by a key, is a fixture with its own size and keys over one of these sets:
-// as every card flipped with s; work's card flipped with space, and d28c, its
-// second session as the router lists them, picked out with ↓ twice; the
-// theme picker, open, its cursor moved up a theme from the frames' to show
-// the one before; the help, which the frames don't draw; and Runway, with
-// tab, over the day, and with w, over the week.
+// worldsNow are the accounts' worlds at localMoment, built once, as every
+// zone's fixtures are built over them, and their year takes a while.
+var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) })
+
+// fixtures are every fixture, in the frames' theme: those over milestone 5's
+// samples at the frames' moment in the zone given, as moment fixes it, and
+// those over a world at it in the machine's, as localMoment fixes it,
+// whatever the zone given. Of milestone 5's, there's one for each set of
+// accounts its frames draw, at the size of the frame it mirrors, or for five
+// accounts, which its final page draws only in Sessions and Runway, at
+// Sessions'. A frame of another view, or reached by a key, is a fixture with
+// its own size and keys over one of these sets: as every card flipped with s;
+// work's card flipped with space, and d28c, its second session as the router
+// lists them, picked out with ↓ twice; the theme picker, open, its cursor
+// moved up a theme from the frames' to show the one before; the help, which
+// the frames don't draw; and Runway, with tab, over the day, and with w, over
+// the week. Then usage's printouts, as printouts has them.
 func fixtures(loc *time.Location) []Fixture {
 	now := moment(loc)
 	nord, _ := theme.Builtin(theme.DefaultDark)
@@ -194,10 +205,43 @@ func fixtures(loc *time.Location) []Fixture {
 		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), keys: []tea.KeyPressMsg{tab}},
 		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), keys: []tea.KeyPressMsg{tab}},
 	}
+	all = append(all, printouts(worldsNow())...)
 	for i := range all {
 		all[i].theme = nord
 	}
 	return all
+}
+
+// printouts are usage's printouts of the worlds given, each named after the
+// frame it draws, at that frame's size: the auto world's every window, by
+// window, at each width a layout changes at; its 5-hour window alone, as
+// --5h prints it; by account, as --by account prints it; and work alone,
+// with six sessions on it, as its frame counts them.
+func printouts(worlds accountWorlds) []Fixture {
+	now := worlds.now
+	auto, alone := routerOf(worlds.auto(), now), routerOf(worlds.alone(), now)
+	usage := func(name string, width, height int, r source) Fixture {
+		return Fixture{Name: name, Size: watch.Size{Width: width, Height: height}, Printout: true, now: now, router: r}
+	}
+	fiveHours := func(f Fixture) Fixture {
+		f.windows = []string{sessionKey}
+		return f
+	}
+	byAccount := func(f Fixture) Fixture {
+		f.by = dashboard.ByAccount
+		return f
+	}
+	return []Fixture{
+		usage("usage-160", 160, 13, auto),
+		usage("usage-120", 120, 36, auto),
+		usage("usage-80", 80, 38, auto),
+		usage("usage-52", 52, 38, auto),
+		fiveHours(usage("usage-5h-160", 160, 13, auto)),
+		fiveHours(usage("usage-5h-52", 52, 16, auto)),
+		byAccount(usage("usage-by-account-160", 160, 31, auto)),
+		byAccount(usage("usage-by-account-52", 52, 38, auto)),
+		usage("usage-one-account-160", 160, 7, alone),
+	}
 }
 
 // wide is a terminal as wide as the frames are, 160 columns, and as tall as

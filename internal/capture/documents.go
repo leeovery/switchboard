@@ -372,3 +372,12 @@ func (a accountWorlds) one() accountWorld {
 	})
 	return accountWorld{accounts: accounts, history: h, sessions: map[string]int{"work": 5}}
 }
+
+// alone is work alone as usage's frame of it counts its sessions: one's
+// world, with six on work, where the dashboard's frames of work alone draw
+// five, or three.
+func (a accountWorlds) alone() accountWorld {
+	w := a.one()
+	w.sessions = map[string]int{"work": 6}
+	return w
+}

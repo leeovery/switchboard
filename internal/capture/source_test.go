@@ -48,6 +48,32 @@ func TestTheRouterGivesItsDocumentWhateverIsAsked(t *testing.T) {
 	}
 }
 
+func TestAWorldsRouterGivesItsDocument(t *testing.T) {
+	worlds := worldsNow()
+	tests := []struct {
+		name     string
+		world    accountWorld
+		sessions int
+	}{
+		{name: "auto", world: worlds.auto(), sessions: 6},
+		{name: "work alone, as usage's frame counts its sessions", world: worlds.alone(), sessions: 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc, health, err := routerOf(tt.world, worlds.now).Read(t.Context(), status.Read{Probe: true})
+			if want := tt.world.document(worlds.now); err != nil || !reflect.DeepEqual(doc, want) {
+				t.Errorf("Read() = %+v, %v, want the world's document, as the router gives it", doc, err)
+			}
+			if !health.OK || health.PID != routerPID || !health.StartedAt.Equal(on(worlds.now, 1, 12, 0)) {
+				t.Errorf("Read() says the router is %+v, want the one the fixtures have, healthy, started at noon", health)
+			}
+			if doc.Sessions != tt.sessions {
+				t.Errorf("the document counts %d sessions, want %d", doc.Sessions, tt.sessions)
+			}
+		})
+	}
+}
+
 func TestSessionsListTheSampleSessionsSeenLastFirst(t *testing.T) {
 	s := threeAccounts(moment(time.UTC))
 
@@ -144,7 +170,7 @@ func TestHistoryRisesAsTheFramesChartsDo(t *testing.T) {
 }
 
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
-	for _, f := range fixtures(time.UTC) {
+	for _, f := range watched(fixtures(time.UTC)) {
 		for _, a := range f.router.doc.Accounts {
 			for _, w := range a.Windows {
 				if a.HasLapsed(w) {
@@ -174,7 +200,7 @@ func TestHistoryRefusesAStepOfNothing(t *testing.T) {
 }
 
 func TestEventsAreNumberedTheNewestFirst(t *testing.T) {
-	for _, f := range fixtures(time.UTC) {
+	for _, f := range watched(fixtures(time.UTC)) {
 		events := f.router.doc.Events
 		if len(events) == 0 {
 			t.Errorf("%s tells of nothing lately", f.Name)
@@ -204,6 +230,12 @@ func TestAMoveALimitForcedIsCountedInIt(t *testing.T) {
 	if moved[0].Limit != 0 {
 		t.Errorf("a move forced by no limit told of is counted in event %d, want none", moved[0].Limit)
 	}
+}
+
+// watched are the fixtures given that the watch draws: not usage's printouts,
+// whose router, as usage reads it, keeps no history and tells of nothing.
+func watched(all []Fixture) []Fixture {
+	return slices.DeleteFunc(all, func(f Fixture) bool { return f.Printout })
 }
 
 // stepsFrom are the times from first to last, a step apart.

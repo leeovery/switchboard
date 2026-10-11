@@ -10,12 +10,13 @@ import (
 
 // printout draws the fixture as usage prints it on a terminal as wide as
 // given, but for the blank line usage prints first: its router's status
-// document, read as usage reads it, in its print look, as tall as it is, a
-// line for each of its rows, each ending in a newline.
+// document, read as usage reads it, in its print look, grouped by and of the
+// windows the fixture's flags give, as tall as it is, a line for each of its
+// rows, each ending in a newline.
 func (f Fixture) printout(width int) string {
 	// The fixture's router answers every read, so Read never fails.
 	doc, _, _ := f.router.Read(context.Background(), status.Read{Probe: true})
-	p := dashboard.Printout{Width: width, Look: f.printLook(), By: dashboard.ByWindow}
+	p := dashboard.Printout{Width: width, Look: f.printLook(), By: f.by, Windows: f.windows}
 	return strings.Join(p.Draw(doc, f.now), "\n") + "\n"
 }
 
