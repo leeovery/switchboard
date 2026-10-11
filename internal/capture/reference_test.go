@@ -35,8 +35,6 @@ var owed = []string{
 	"session-turn-opened-160",
 	"sessions-list-160", "sessions-list-phone-52", "sessions-moved-160", "sessions-one-account-160", "sessions-phone-52",
 	"sessions-pinned-160", "sessions-refused-160", "sessions-switchboard-160", "sessions-ten-accounts-160",
-	"usage-5h-52", "usage-5h-160", "usage-52", "usage-80", "usage-120", "usage-160", "usage-by-account-52",
-	"usage-by-account-160", "usage-one-account-160",
 }
 
 // passing is cells a frame drew otherwise than the design says, which the
@@ -83,10 +81,25 @@ func phonePeriod(reads string) passing {
 	return wholeRow(7, "p "+reads)
 }
 
+// How usage's frames word side's week, at its allowance, where it runs out
+// first, at its average pace: in full, and short.
+const (
+	sidesWeek      = "6%/day till Mon 10:00"
+	sidesWeekShort = "6%/day · Mon"
+)
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, which testdata/vhs/README.md lists, with what the
 // dashboard draws in their place.
 var passedOver = map[string][]passing{
+	"usage-160":             {cellsOf(9, 88, 108, sidesWeek)},
+	"usage-120":             {cellsOf(20, 98, 118, sidesWeek)},
+	"usage-80":              {cellsOf(22, 58, 78, sidesWeek)},
+	"usage-52":              {cellsOf(22, 38, 49, sidesWeekShort)},
+	"usage-by-account-160":  {cellsOf(20, 138, 158, sidesWeek), wholeRow(31, "┃ even pace")},
+	"usage-by-account-52":   {cellsOf(25, 38, 49, sidesWeekShort)},
+	"usage-one-account-160": {cellsOf(5, 8, 10, "▲")},
+
 	"overview-bad-hour-160":        {wholeRow(19, pinnedRouting), wholeRow(37, overviewKeys)},
 	"overview-by-account-160":      {wholeRow(42, overviewKeys)},
 	"overview-default-160":         {wholeRow(37, overviewKeys)},

@@ -116,9 +116,9 @@ func TestNordIsNordTunedWithTheDashboardsOwnBars(t *testing.T) {
 		theme.VizRamp2:         "#EBCB8B",
 		theme.VizRamp3:         "#D08770",
 		theme.VizRamp4:         "#BF616A",
-		theme.VizTrack:         "#4C566A",
+		theme.VizTrack:         "#3B4252",
 		theme.VizPace:          "#ECEFF4",
-		theme.VizReserve:       "#81A1C1",
+		theme.VizReserve:       "#EBCB8B",
 		theme.VizSeries1:       "#81A1C1",
 	} {
 		if got := hex(nord.Colour(tok)); got != want {
@@ -138,15 +138,15 @@ func TestTheBuiltInsAsTheirSheetsDrawThem(t *testing.T) {
 		}},
 		{slug: "tokyo-night-day", want: map[theme.Token]string{
 			theme.Canvas: "#E1E2E7", theme.TextPrimary: "#2E3C64", theme.Border: "#C9CDDB",
-			theme.VizRamp1: "#587539", theme.VizRamp2: "#8C6C3E", theme.VizRamp3: "#B15C00", theme.VizRamp4: "#BD2545", theme.VizTrack: "#C9CDDB",
+			theme.VizRamp1: "#587539", theme.VizRamp2: "#8C6C3E", theme.VizRamp3: "#B15C00", theme.VizRamp4: "#BD2545", theme.VizTrack: "#D2D4DE",
 		}},
 		{slug: "amber", want: map[theme.Token]string{
 			theme.Canvas: "#0E0B06", theme.TextPrimary: "#FFD27A", theme.StateDestructive: "#FF5A36",
-			theme.VizRamp1: "#B07A00", theme.VizRamp4: "#FF5A36", theme.VizTrack: "#2A1E05", theme.VizPace: "#FFE7B0", theme.VizReserve: "#FFD27A",
+			theme.VizRamp1: "#B07A00", theme.VizRamp4: "#FF5A36", theme.VizTrack: "#2A1E05", theme.VizPace: "#FFE7B0", theme.VizReserve: "#FF8A1F",
 		}},
 		{slug: "exchange", want: map[theme.Token]string{
 			theme.Canvas: "#1B1714", theme.TextPrimary: "#F4EEDF", theme.AccentKey: "#C9A44C",
-			theme.VizRamp3: "#E07A3F", theme.VizReserve: "#4F86C6", theme.VizTrack: "#5A4D3E", theme.VizPace: "#F4EEDF",
+			theme.VizRamp3: "#E07A3F", theme.VizReserve: "#EDAE49", theme.VizTrack: "#241E19", theme.VizPace: "#F4EEDF",
 		}},
 	}
 	for _, tt := range tests {
