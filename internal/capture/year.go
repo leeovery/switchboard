@@ -376,76 +376,77 @@ func monthDays(i int) (int, int) {
 }
 
 // share shares a day's worth and requests among the accounts given, each as
-// far as its week rose that day: the worth among those that had a request.
+// far as its week rose that day, as spent shares them.
 func (y year) share(ids []string, d int, worth float64, requests int) {
 	rises := make([]float64, len(ids))
-	sum := 0.0
 	for i, id := range ids {
 		rises[i] = y.days[id][d].rise
-		sum += rises[i]
 	}
-	if sum == 0 {
-		return
-	}
-	counts := apportion(requests, rises)
-	sum = 0
-	for i := range rises {
-		if counts[i] == 0 {
-			rises[i] = 0
-		}
-		sum += rises[i]
-	}
+	worths, counts := spent(worth, requests, rises)
 	for i, id := range ids {
-		y.days[id][d].worth, y.days[id][d].requests = worth*rises[i]/sum, counts[i]
+		y.days[id][d].worth, y.days[id][d].requests = worths[i], counts[i]
 	}
 }
 
 // spendThisWeek spends each of the three's week, but what today's lines hold
 // of it, over this week's days before today: yesterday's requests and worth
 // as the Log has them, shared as each account's week rose, and the rest of
-// each one's over Monday and Tuesday as its week rose on each.
+// each one's over Monday and Tuesday as its week rose on each, as spent
+// shares them.
 func (y year) spendThisWeek() {
 	wednesday := today - 1
 	y.share(three, wednesday, yesterday.worth, yesterday.requests)
 	for _, id := range three {
 		days := y.days[id]
 		requests, worth := weekUses[id].beforeToday()
-		requests -= days[wednesday].requests
-		worth -= days[wednesday].worth
-		rises := []float64{days[thisWeek].rise, days[thisWeek+1].rise}
-		counts := apportion(requests, rises)
-		for i, rise := range rises {
-			days[thisWeek+i].worth = worth * rise / (rises[0] + rises[1])
-			days[thisWeek+i].requests = counts[i]
+		worths, counts := spent(worth-days[wednesday].worth, requests-days[wednesday].requests, []float64{days[thisWeek].rise, days[thisWeek+1].rise})
+		for i := range worths {
+			days[thisWeek+i].worth, days[thisWeek+i].requests = worths[i], counts[i]
 		}
 	}
 }
 
 // spendAsThisWeek spends the account with the given id's days as it spent
 // this week before today, worth and requests alike, for each point of its
-// week used: no worth on a day of too little use for a request.
+// week used: this week's days as spent shares them, and every day before no
+// worth where too little used for a request.
 func (y year) spendAsThisWeek(id string) {
 	days := y.days[id]
 	requests, worth := weekUses[id].beforeToday()
-	risen := 0.0
-	for d := thisWeek; d < today; d++ {
-		risen += days[d].rise
-	}
-	worthAPoint := worth / risen
-	requestsAPoint := float64(requests) / risen
 	rises := make([]float64, 0, today-thisWeek)
-	for d := firstDay(id); d < today; d++ {
-		days[d].worth = days[d].rise * worthAPoint
-		if d < thisWeek {
-			days[d].requests = int(math.Round(days[d].rise * requestsAPoint))
-			days[d].worth *= float64(min(days[d].requests, 1))
-		} else {
-			rises = append(rises, days[d].rise)
+	risen := 0.0
+	for _, day := range days[thisWeek:today] {
+		rises, risen = append(rises, day.rise), risen+day.rise
+	}
+	worths, counts := spent(worth, requests, rises)
+	for i := range worths {
+		days[thisWeek+i].worth, days[thisWeek+i].requests = worths[i], counts[i]
+	}
+	worthAPoint, requestsAPoint := worth/risen, float64(requests)/risen
+	for d := firstDay(id); d < thisWeek; d++ {
+		days[d].requests = int(math.Round(days[d].rise * requestsAPoint))
+		days[d].worth = days[d].rise * worthAPoint * float64(min(days[d].requests, 1))
+	}
+}
+
+// spent shares worth and requests among parts as their weights are: the
+// requests in whole ones, as apportion shares them, and the worth among the
+// parts that had one, none on a part too little used for a request.
+func spent(worth float64, requests int, weights []float64) ([]float64, []int) {
+	counts := apportion(requests, weights)
+	had := 0.0
+	for i, w := range weights {
+		if counts[i] > 0 {
+			had += w
 		}
 	}
-	for i, n := range apportion(requests, rises) {
-		days[thisWeek+i].requests = n
+	worths := make([]float64, len(weights))
+	for i, w := range weights {
+		if counts[i] > 0 {
+			worths[i] = worth * w / had
+		}
 	}
+	return worths, counts
 }
 
 // weightsOf are what weigh gives each of days.

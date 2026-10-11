@@ -387,6 +387,49 @@ func TestThisWeeksDaysBeforeYesterdayReadEachOfTheirOwnWindowsByTheHundredth(t *
 	}
 }
 
+// Each account's week to now, today's lines and all, is worth through the
+// views what Accounts draws, to the cent, as no day of the year is worth
+// anything without a request, a day the ledger keeps no summary of.
+func TestEachAccountsWeekIsWorthWhatAccountsDraws(t *testing.T) {
+	y, h := worldsNow().year, historyFrom(tenWorld(), thisWeek)
+	for _, a := range tenAccounts {
+		for d, day := range y.days[a.ID][:today] {
+			if day.requests == 0 && day.worth != 0 {
+				t.Errorf("%s's day of %s is worth $%.4f with no request", a.ID, dateOf(d), day.worth)
+			}
+		}
+		worth := accountTotals(t, h, a.ID).Worth
+		if worth.Amount == nil {
+			t.Fatalf("%s's week is unpriced", a.ID)
+		}
+		if got := float64(*worth.Amount) / 1e12; math.Abs(got-weekUses[a.ID].worth) >= 0.005 {
+			t.Errorf("%s's week is worth $%.4f, want $%.2f, as Accounts draws it", a.ID, got, weekUses[a.ID].worth)
+		}
+	}
+}
+
+// An account spent as it spent this week has no worth on a day of this week
+// too little used for a request, its week's worth all on the days that had
+// one, as on the days before this week.
+func TestADayOfThisWeekWithNoRequestHasNoWorth(t *testing.T) {
+	y := year{now: localMoment(), days: map[string][]accountDay{"spare": make([]accountDay, today)}}
+	days := y.days["spare"]
+	days[thisWeek].rise, days[thisWeek+1].rise, days[thisWeek+2].rise = 0.3, 0.3, 0.0001
+
+	y.spendAsThisWeek("spare")
+	if day := days[thisWeek+2]; day.requests != 0 || day.worth != 0 {
+		t.Errorf("spare's %s, too little used for a request, has %d requests worth $%.4f, want none", dateOf(thisWeek+2), day.requests, day.worth)
+	}
+	requests, worth := weekUses["spare"].beforeToday()
+	spent, made := 0.0, 0
+	for _, day := range days[thisWeek:today] {
+		spent, made = spent+day.worth, made+day.requests
+	}
+	if math.Abs(spent-worth) > 1e-9 || made != requests {
+		t.Errorf("spare's week before today has %d requests worth $%.4f, want %d worth $%.2f", made, spent, requests, worth)
+	}
+}
+
 // Each account's day of the year is worth, through the views, what the year
 // spent on it, its versions' worths summed: none lost to a version too little
 // used for a request of its own, whose worth goes to the version used most.
