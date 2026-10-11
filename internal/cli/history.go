@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
@@ -48,15 +49,18 @@ otherwise, a row for each account and model with its requests, tokens,
 sessions and worth, what they'd have cost through the API, at the prices
 switchboard carries, or the config's [prices] where it gives them; then of
 each account, its sessions, those moved onto it and off it, the limits it
-reached, and its windows' highest use. Requests are messages, whether they
-went upstream or the router answered them itself: Claude Code's quota checks
-and its counts of tokens are never among them. Today's is summarised from its
-lines, as far as it has gone. Then, over those days, each account's totals,
-its plan and its worth against it, as the dashboard's Accounts sets them side
-by side; each week's peaks, each account's own week, from one reset of its
-week to the next, placed under the calendar week it began nearest; and the
-verdicts of History's Weeks, from replaying each whole week with an account
-fewer or more. It reads the ledger's files, so it needs no router.
+reached, the times its weeks reset, and its windows' highest use: of an
+account that served no request that day, only where it reached a limit or
+one of its weeks reset. Requests are messages,
+whether they went upstream or the router answered them itself: Claude Code's
+quota checks and its counts of tokens are never among them. Today's is
+summarised from its lines, as far as it has gone. Then, where any of those
+days has requests, over them, each account's totals, its plan and its worth
+against it, as the dashboard's Accounts sets them side by side; each week's
+peaks, each account's own week, from one reset of its week to the next,
+placed under the calendar week it began nearest; and the verdicts of
+History's Weeks, from replaying each whole week with an account fewer or
+more. It reads the ledger's files, so it needs no router.
 
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
@@ -152,37 +156,44 @@ func (a *app) historyWindows(out io.Writer, given string, asJSON bool) error {
 
 // writeHistory writes history as its text: a table a day of its days with
 // requests or notes, then the blocks over them, then which prices they're
-// worth at; first saying there were no requests since from, where there were
-// none, and that alone, where the days hold nothing at all. Given a day whose
-// date isn't one, it fails, writing nothing.
+// worth at; but where none of its days has requests, that there were none
+// since from, then the tables of those with notes alone, as the blocks and
+// prices tell of nothing. Given a day whose date isn't one, it fails,
+// writing nothing.
 func writeHistory(out io.Writer, history views.History, prices ledger.Table, from, now time.Time) error {
 	tables, err := historyTables(history.Days, now)
 	if err != nil {
 		return err
 	}
-	requested := slices.ContainsFunc(tables, func(t dayTable) bool { return len(t.rows) > 0 })
-	if !requested {
+	if !slices.ContainsFunc(tables, func(t dayTable) bool { return len(t.rows) > 0 }) {
 		if _, err := fmt.Fprintf(out, "no requests since %s\n", from.In(now.Location()).Format(dayLayout)); err != nil {
 			return err
 		}
-	}
-	if !slices.ContainsFunc(history.Days, func(d views.Day) bool { return len(d.Accounts) > 0 }) {
-		return nil
+		return writeTables(out, tables, now, false)
 	}
 	at, err := pricedAt(prices)
 	if err != nil {
 		return err
 	}
-	for i, table := range tables {
-		if err := table.write(out, now, requested && i == 0); err != nil {
-			return err
-		}
+	if err := writeTables(out, tables, now, true); err != nil {
+		return err
 	}
 	if err := writeBlocks(out, history, prices); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(out, "\nworth is what they'd have cost through the API, %s\n", at)
 	return err
+}
+
+// writeTables writes the tables, each after a blank line but the first,
+// where first says it's first.
+func writeTables(out io.Writer, tables []dayTable, now time.Time, first bool) error {
+	for i, table := range tables {
+		if err := table.write(out, now, first && i == 0); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // pricedAt says which prices worth is at, as "at its prices as of 7 Oct
@@ -220,10 +231,11 @@ func historyTables(days []views.Day, now time.Time) ([]dayTable, error) {
 	return tables, nil
 }
 
-// historyTable is the day's table: a row for each account's model with
-// requests, the account named on its first, and a note of each account's. A
-// model's quota checks and counts of tokens alone, which aren't requests, make
-// no row. It fails for a day whose date isn't one, which the ledger's reader
+// historyTable is the day's table: each account's rows, as modelRows makes
+// them, and a note of each account's, as accountNote says; but of one that
+// served no request, a note only where its day eventful reports, as its
+// highest use alone says little, so a day's idle accounts don't crowd its
+// table. It fails for a day whose date isn't one, which the ledger's reader
 // never gives.
 func historyTable(day ledger.Priced, now time.Time) (dayTable, error) {
 	start, _, ok := dayfile.Day(day.Day)
@@ -232,24 +244,52 @@ func historyTable(day ledger.Priced, now time.Time) (dayTable, error) {
 	}
 	table := dayTable{day: start}
 	for _, a := range day.Accounts {
-		named := false
-		for _, m := range a.Models {
-			if m.Requests() == 0 {
-				continue
-			}
-			account := ""
-			if !named {
-				account, named = accountName(a.Account), true
-			}
-			tokens := m.Tokens()
-			table.rows = append(table.rows, []string{account, modelName(m.ModelDay), requestCount(m.ModelDay),
-				prose.Count(tokensIn(tokens)+tokens.Output) + " tokens", status.SessionCount(m.Sessions), worthOf(m)})
+		rows := modelRows(a)
+		table.rows = append(table.rows, rows...)
+		if len(rows) == 0 && !eventful(a) {
+			continue
 		}
 		if note := accountNote(a, now); note != "" {
 			table.notes = append(table.notes, note)
 		}
 	}
 	return table, nil
+}
+
+// modelRows are the rows of an account's day: one for each of its models
+// with requests, the account named on the first. A model's quota checks and
+// counts of tokens alone, which aren't requests, make no row.
+func modelRows(a ledger.PricedAccount) [][]string {
+	var rows [][]string
+	for _, m := range a.Models {
+		if m.Requests() == 0 {
+			continue
+		}
+		account := ""
+		if len(rows) == 0 {
+			account = accountName(a.Account)
+		}
+		tokens := m.Tokens()
+		rows = append(rows, []string{account, modelName(m.ModelDay), requestCount(m.ModelDay),
+			prose.Count(tokensIn(tokens)+tokens.Output) + " tokens", status.SessionCount(m.Sessions), worthOf(m)})
+	}
+	return rows
+}
+
+// eventful reports whether the day of an account that served no request is
+// worth a note: it reached a limit, or one of its weeks reset, as weekResets
+// says.
+func eventful(a ledger.PricedAccount) bool {
+	return len(a.Limits) > 0 || len(weekResets(a)) > 0
+}
+
+// weekResets are the resets of an account's weeks, its windows a week long,
+// as its own week, or a model's, in the order they came.
+func weekResets(a ledger.PricedAccount) []ledger.Reset {
+	return slices.DeleteFunc(slices.Clone(a.Resets), func(r ledger.Reset) bool {
+		length, ok := quota.Length(r.Window)
+		return !ok || length != 7*quota.Day
+	})
 }
 
 // accountName names the account with the given id, cleaned: "no account" for
@@ -292,37 +332,63 @@ func worthOf(m ledger.PricedModel) string {
 }
 
 // accountNote says, of an account's day, its sessions, those moved onto it and
-// off it, the limits it reached, and each window's highest use, times in now's
-// time zone, as "work: 6 sessions  ·  2 moved on, 1 off  ·  limits: Session at
-// 14:37  ·  highest: Session 100%, Week 41%": "" for the requests no account
-// answered, and for an account's day with nothing to say, of no sessions and
-// none of the rest.
+// off it, the limits it reached, the resets of its weeks, and each window's
+// highest use, times in now's time zone, as "work: 6 sessions  ·  2 moved on,
+// 1 off  ·  limits: Session at 14:37  ·  week reset 10:00  ·  highest:
+// Session 100%, Week 41%": "" for the requests no account answered, and for
+// an account's day with nothing to say, of no sessions and none of the rest.
 func accountNote(a ledger.PricedAccount, now time.Time) string {
 	if a.Account == "" {
 		return ""
 	}
 	parts := []string{status.SessionCount(a.Sessions)}
-	if moved := moves(a.MovedOn, a.MovedOff); moved != "" {
-		parts = append(parts, moved)
-	}
-	if len(a.Limits) > 0 {
-		limits := make([]string, len(a.Limits))
-		for i, l := range a.Limits {
-			limits[i] = claude.WindowLabel(l.Window) + " at " + status.TimeOfDay(now, l.At)
+	for _, part := range []string{moves(a.MovedOn, a.MovedOff), limitsOf(a, now), weeksResetOf(a, now), highestOf(a)} {
+		if part != "" {
+			parts = append(parts, part)
 		}
-		parts = append(parts, "limits: "+status.Clean(prose.List(limits)))
-	}
-	if len(a.Highest) > 0 {
-		var highest []string
-		for _, key := range slices.Sorted(maps.Keys(a.Highest)) {
-			highest = append(highest, claude.WindowLabel(key)+" "+status.Percent(a.Highest[key]))
-		}
-		parts = append(parts, "highest: "+status.Clean(strings.Join(highest, ", ")))
 	}
 	if a.Sessions == 0 && len(parts) == 1 {
 		return ""
 	}
 	return status.Clean(a.Account) + ": " + strings.Join(parts, status.Separator)
+}
+
+// limitsOf says the limits an account reached, as "limits: Session at
+// 14:37", times in now's time zone: "" for none.
+func limitsOf(a ledger.PricedAccount, now time.Time) string {
+	if len(a.Limits) == 0 {
+		return ""
+	}
+	limits := make([]string, len(a.Limits))
+	for i, l := range a.Limits {
+		limits[i] = claude.WindowLabel(l.Window) + " at " + status.TimeOfDay(now, l.At)
+	}
+	return "limits: " + status.Clean(prose.List(limits))
+}
+
+// weeksResetOf says when an account's weeks reset, as weekResets gives them,
+// each window named as events name it, as "week reset 10:00", times in now's
+// time zone: "" for none.
+func weeksResetOf(a ledger.PricedAccount, now time.Time) string {
+	resets := weekResets(a)
+	said := make([]string, len(resets))
+	for i, r := range resets {
+		said[i] = status.InProse(claude.WindowName(r.Window)) + " reset " + status.TimeOfDay(now, r.At)
+	}
+	return status.Clean(prose.List(said))
+}
+
+// highestOf says each of an account's windows' highest use, as "highest:
+// Session 100%, Week 41%": "" for none.
+func highestOf(a ledger.PricedAccount) string {
+	if len(a.Highest) == 0 {
+		return ""
+	}
+	var highest []string
+	for _, key := range slices.Sorted(maps.Keys(a.Highest)) {
+		highest = append(highest, claude.WindowLabel(key)+" "+status.Percent(a.Highest[key]))
+	}
+	return "highest: " + status.Clean(strings.Join(highest, ", "))
 }
 
 // moves says how many sessions were moved onto an account and off it, as "2

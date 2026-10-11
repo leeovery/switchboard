@@ -78,7 +78,7 @@ var fixtureLines = map[string][]ledger.Line{
 
 // heldSummary is the summary the ledger holds of the 4th, as the router wrote
 // it.
-const heldSummary = `{"version":2,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
+const heldSummary = `{"version":3,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
 	`"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},` +
 	`"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,"input_tokens":12,"output_tokens":845}}],"sessions":1,` +
 	`"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0}]}`
@@ -139,15 +139,15 @@ func ledgerDeps(t *testing.T) (cli.Deps, map[string]string) {
 		writeStateFile(t, dir, name, data)
 	}
 	writeStateFile(t, dir, "day-2026-10-04.json", []byte(heldSummary+"\n"))
-	writeFixtureReadings(t, history)
+	writeReadings(t, history, fixtureReadings...)
 	return deps, written
 }
 
-// writeFixtureReadings writes fixtureReadings to the readings history in dir,
-// each from an answer, read at its time in UTC.
-func writeFixtureReadings(t *testing.T, dir string) {
+// writeReadings writes read to the readings history in dir, each from an
+// answer, read at its time in UTC, in the file of the day it was read on.
+func writeReadings(t *testing.T, dir string, read ...readings.Reading) {
 	t.Helper()
-	for _, r := range fixtureReadings {
+	for _, r := range read {
 		r.At, r.Source = r.At.UTC(), readings.FromAnswer
 		data, err := json.Marshal(r)
 		if err != nil {
@@ -534,6 +534,59 @@ Over these days           work                  side                  all accoun
 	}
 }
 
+// historyBegan is a reading the readings history began with, more than a
+// week and a day before the 5th, which no day from the 4th on reads: with it,
+// the history covers the 5th on, so a day of no requests among them is
+// summarised of its readings alone.
+var historyBegan = readings.Reading{At: time.Date(2026, 9, 26, 10, 0, 0, 0, time.Local), Account: "work", Key: "5h", Utilization: 0.1,
+	ResetsAt: time.Date(2026, 9, 26, 13, 0, 0, 0, time.Local), Status: quota.StatusAllowed}
+
+func TestHistoryNotesADayOfNoRequestsOnlyWhereALimitWasReachedOrAWeekReset(t *testing.T) {
+	sideRead := func(key string, u float64, status quota.Status) readings.Reading {
+		return readings.Reading{At: october(5, 9, 0, 0), Account: "side", Key: key, Utilization: u, ResetsAt: october(5, 10, 0, 0), Status: status}
+	}
+	tests := []struct {
+		name string
+		// read is side's window, read on the 5th, resetting in it, and note
+		// side's note of the 5th: "" for none.
+		read readings.Reading
+		note string
+	}{
+		{name: "its highest use alone, its session reset", read: sideRead("5h", 0.2, quota.StatusAllowed)},
+		{name: "a limit reached", read: sideRead("5h", 1, quota.StatusRejected), note: "side: no sessions  ·  limits: Session at 09:00  ·  highest: Session 100%"},
+		{name: "its week reset", read: sideRead("7d", 0.64, quota.StatusAllowed), note: "side: no sessions  ·  week reset 10:00  ·  highest: Week 64%"},
+		{name: "a model's week reset", read: sideRead("7d_oi", 0.5, quota.StatusAllowed), note: "side: no sessions  ·  Fable week reset 10:00  ·  highest: Fable week 50%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := ledgerDeps(t)
+			writeReadings(t, readings.Dir(stateDir(t, deps)), historyBegan, tt.read)
+
+			// The 5th has no rows, as it served no request, and side's note
+			// alone, where it has one.
+			days := historyFromThe6th
+			if tt.note != "" {
+				days = "Mon 5 Oct 2026\n  " + tt.note + "\n\n" + days
+			}
+			for _, form := range prettyForms() {
+				if got := form.run(t, deps, "history", "--since", "2026-10-05"); !strings.HasPrefix(got.stdout, days) || got.code != 0 {
+					t.Errorf("switchboard history %s printed\n%s(%d, %s)\nwant it to begin\n%s", strings.Join(form.args, " "), got.stdout, got.code, got.stderr, days)
+				}
+			}
+			got := jsonForms()[0].run(t, deps, "history", "--since", "2026-10-05")
+			var document struct {
+				Days []ledger.Summary `json:"days"`
+			}
+			if err := json.Unmarshal([]byte(got.stdout), &document); err != nil || len(document.Days) == 0 {
+				t.Fatalf("switchboard history printed %+v (%v), want its JSON", got, err)
+			}
+			if quiet := document.Days[0]; len(quiet.Accounts) != 1 || quiet.Accounts[0].Account != "side" {
+				t.Errorf("the 5th's summary is %+v, want side's day in it, as the readings history tells of it, note or not", quiet)
+			}
+		})
+	}
+}
+
 // historyBlocks are the blocks history's JSON gives over the 4th to today,
 // after the days, as ledgerConfig configures the accounts, on no plan, and
 // starts the weeks on Monday: today's quota check and count of tokens are no
@@ -586,13 +639,13 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"prices_as_of":"2026-10-07","days":[` +
-		`{"version":2,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+		`{"version":3,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
-		`{"version":2,"day":"2026-10-05","lines":0},` +
-		`{"version":2,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`{"version":3,"day":"2026-10-05","lines":0},` +
+		`{"version":3,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_read_input_tokens":20000,` +
 		`"input_tokens":5,"output_tokens":50,"server_tool_use":{"web_search_requests":1}},"worth":0.01502}]},` +
@@ -602,7 +655,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
 		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}],` +
 		`"by_family":[{"family":"opus","worth":0.01502}]},` +
-		`{"version":2,"day":"2026-10-07","lines":6,"accounts":[` +
+		`{"version":3,"day":"2026-10-07","lines":6,"accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
 		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` +
@@ -878,7 +931,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		}
 		days = append(days, compact.String())
 	}
-	if want := []string{`{"version":2,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+	if want := []string{`{"version":3,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
 		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
 	}
 }

@@ -83,7 +83,7 @@ func (r *Router) run(ctx context.Context) error {
 // events beside it, as long as the ledger's lines, those heard before filed
 // as they now stand.
 func (r *Router) openLedger(dir string) {
-	r.ledger.open(dir, r.history.readings)
+	r.ledger.open(dir, ledger.HistoryIn(r.history.files))
 	r.eventFiles = events.Open(dir, r.ledger.keep, r.cfg.Now, logger)
 	r.recent.fileTo(r.eventFiles, r.started)
 }

@@ -299,9 +299,11 @@ func (f *Files) named(name string) (dayFile, time.Time, bool) {
 }
 
 // prune removes the files past keeping at now, those of days that ended keep
-// or more before, none when keep is Forever, and compresses those of the days
-// done with, as tend says, leaving anything else in the directory alone.
-func (f *Files) prune(now time.Time, keep time.Duration) {
+// or more before, none when keep is Forever, but those of the days spared
+// reports true of, where it's given, and compresses those of the days done
+// with, as tend says, leaving anything else in the directory alone. spared
+// is asked holding the files, so it takes nothing of them.
+func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string) bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	entries, err := os.ReadDir(f.Dir)
@@ -313,21 +315,21 @@ func (f *Files) prune(now time.Time, keep time.Duration) {
 	}
 	for _, e := range entries {
 		if file, day, ok := f.named(e.Name()); ok {
-			f.tend(file, day, now, keep)
+			f.tend(file, day, now, keep, spared != nil && spared(file.date))
 		}
 	}
 }
 
 // tend removes the file, of the local day given, once the day is past
-// keeping at now, as pastKeeping says, never when keep is Forever, and
-// compresses it, a plain file, once the day ended two days or more before
-// now. A file of a day after tomorrow, as a clock once set ahead names one,
-// stays until its day is past keeping too: the clock may be the one that's
-// wrong, set back, and Newest passes such a file over meanwhile. What it
-// can't do is logged, and left to the next prune.
-func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration) {
+// keeping at now, as pastKeeping says, never when keep is Forever, nor where
+// it's spared, and compresses it, a plain file, once the day ended two days
+// or more before now. A file of a day after tomorrow, as a clock once set
+// ahead names one, stays until its day is past keeping too: the clock may be
+// the one that's wrong, set back, and Newest passes such a file over
+// meanwhile. What it can't do is logged, and left to the next prune.
+func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration, spared bool) {
 	switch {
-	case keep != Forever && !now.Before(pastKeeping(day, keep)):
+	case keep != Forever && !spared && !now.Before(pastKeeping(day, keep)):
 		if err := os.Remove(f.path(file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			f.Logger.Warn("can't prune the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}

@@ -414,7 +414,7 @@ func TestADaysFilesGoOnceItsDayEndedAsLongAgoAsTheyreKept(t *testing.T) {
 				}
 			}
 
-			f.prune(now, time.Duration(days)*day)
+			f.prune(now, time.Duration(days)*day, nil)
 			for back, stays := range kept {
 				if held := holdsDay(f, dated(back)); held != stays {
 					t.Errorf("the day %d days back is kept = %v, want %v: a day's files go %d days after it ends", back, held, stays, days)
@@ -438,7 +438,7 @@ func TestADaysFilesKeptForeverAreCompressedButNeverGo(t *testing.T) {
 				writeDay(t, f, plainFile(date), linesOf(date))
 			}
 
-			f.prune(now, Forever)
+			f.prune(now, Forever, nil)
 			for _, date := range dates {
 				file := compressedFile(date)
 				if date == today {
@@ -500,7 +500,7 @@ func TestADaysFilesGoTheDayAfterTheyreKeptUntil(t *testing.T) {
 			}{{now: last, stays: true}, {now: after, stays: false}} {
 				f := readingsHistory(t.TempDir())
 				writeDay(t, f, compressedFile(date), linesOf("a"))
-				f.prune(tt.now, keep)
+				f.prune(tt.now, keep, nil)
 				if held := holdsDay(f, date); held != tt.stays {
 					t.Errorf("pruned at %v, the files of %s, kept until %s, are kept = %v, want %v", tt.now, date, until, held, tt.stays)
 				}
@@ -529,7 +529,7 @@ func TestPruningLeavesAnythingButItsOwnFilesAlone(t *testing.T) {
 	writeDay(t, f, plainFile(old), linesOf("old"))
 	writeDay(t, f, plainFile(done), linesOf("done"))
 
-	f.prune(now, twoWeeks)
+	f.prune(now, twoWeeks, nil)
 	for _, path := range others {
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("%s went (%v), want anything but the files' own left alone", filepath.Base(path), err)
@@ -564,7 +564,7 @@ func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
 			f := readingsHistory(t.TempDir())
 			writeDay(t, f, plainFile(date), lines)
 
-			f.prune(day.AddDate(0, 0, 1).Add(tt.ended), twoWeeks)
+			f.prune(day.AddDate(0, 0, 1).Add(tt.ended), twoWeeks, nil)
 			if got := heldIn(t, f, tt.in); got != lines {
 				t.Errorf("%s holds\n%s\nwant the day's lines\n%s", tt.in.name(f.Prefix), got, lines)
 			}
@@ -612,7 +612,7 @@ func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
 			writeDay(t, f, plainFile(date), newer)
 
 			// Days on, wherever the clocks changed between.
-			f.prune(day.AddDate(0, 0, 4), twoWeeks)
+			f.prune(day.AddDate(0, 0, 4), twoWeeks, nil)
 			if got := heldIn(t, f, compressedFile(date)); got != tt.want {
 				t.Errorf("the day's compressed file holds\n%s\nwant its lines, older first, each once\n%s", got, tt.want)
 			}
@@ -632,7 +632,7 @@ func TestALineCutShortIsCompressedAsItIsAndTheLinesCompressedAfterItRead(t *test
 	// Days on, wherever the clocks changed between.
 	later := day.AddDate(0, 0, 4)
 
-	f.prune(later, twoWeeks)
+	f.prune(later, twoWeeks, nil)
 	if got := heldIn(t, f, compressedFile(date)); got != torn {
 		t.Errorf("the day's compressed file holds %q, want its lines as they were, the one cut short too: %q", got, torn)
 	}
@@ -643,7 +643,7 @@ func TestALineCutShortIsCompressedAsItIsAndTheLinesCompressedAfterItRead(t *test
 	if err := f.Append(lines); err != nil {
 		t.Fatalf("Append() = %v", err)
 	}
-	f.prune(later, twoWeeks)
+	f.prune(later, twoWeeks, nil)
 	if read, unread := readJSON(f, date); !slices.Equal(read, []string{`{"n":1}`, `{"n":3}`}) || unread != 1 {
 		t.Errorf(`read %q, %d unread; want {"n":1} and {"n":3}, and the line cut short alone unread`, read, unread)
 	}
@@ -664,7 +664,7 @@ func TestACompressionThatFailsLeavesThePlainFileToCompressAgain(t *testing.T) {
 	// Days on, wherever the clocks changed between.
 	now := day.AddDate(0, 0, 4)
 
-	f.prune(now, twoWeeks)
+	f.prune(now, twoWeeks, nil)
 	if got := heldIn(t, f, plainFile(date)); got != lines {
 		t.Errorf("the day's plain file holds\n%s\nwant it as it was\n%s", got, lines)
 	}
@@ -675,7 +675,7 @@ func TestACompressionThatFailsLeavesThePlainFileToCompressAgain(t *testing.T) {
 	if err := os.Remove(damaged); err != nil {
 		t.Fatal(err)
 	}
-	f.prune(now, twoWeeks)
+	f.prune(now, twoWeeks, nil)
 	if got := heldIn(t, f, compressedFile(date)); got != lines {
 		t.Errorf("at the next prune, the day's compressed file holds\n%s\nwant its lines\n%s", got, lines)
 	}
@@ -707,7 +707,7 @@ func TestAClockSetBackKeepsTheDaysItIsBefore(t *testing.T) {
 				writeDay(t, f, file, linesOf("a"))
 			}
 
-			f.prune(tt.now, twoWeeks)
+			f.prune(tt.now, twoWeeks, nil)
 			for _, file := range days {
 				if _, err := os.Stat(f.path(file)); err != nil {
 					t.Errorf("%s went (%v), want every day's file kept", file.name(f.Prefix), err)
@@ -731,6 +731,7 @@ func TestTheFilesArentReadWhilePrunedNorPrunedWhileRead(t *testing.T) {
 	}{
 		{name: "a read waits for pruning", hold: pruning, run: func(f *Files) { readAll(f, DateOf(start)) }},
 		{name: "finding the newest days waits for pruning", hold: pruning, run: func(f *Files) { f.Newest(start, 2) }},
+		{name: "listing the files waits for pruning", hold: pruning, run: func(f *Files) { _, _ = f.List() }},
 		{name: "appending waits for pruning", hold: pruning, run: func(f *Files) { _ = f.Append(make(Lines)) }},
 		{
 			name: "pruning waits for a read",
@@ -738,7 +739,7 @@ func TestTheFilesArentReadWhilePrunedNorPrunedWhileRead(t *testing.T) {
 				f.mu.RLock()
 				return f.mu.RUnlock
 			},
-			run: func(f *Files) { f.prune(start, twoWeeks) },
+			run: func(f *Files) { f.prune(start, twoWeeks, nil) },
 		},
 	}
 	for _, tt := range tests {

@@ -33,7 +33,7 @@ func wholeDay(files *dayfile.Files, from, start, end time.Time) []readings.Readi
 	type window struct{ account, key string }
 	last := make(map[window]readings.Reading)
 	var day []readings.Reading
-	for r := range readings.Between(files, from, end) {
+	for r := range readings.Between(files, from, end, nil) {
 		if r.At.Before(start) {
 			last[window{account: r.Account, key: r.Key}] = r
 			continue

@@ -34,6 +34,13 @@ type WriterOptions struct {
 	// summaries need the readings history's, is kept on it, while they're
 	// still there, and needn't be on every round.
 	Pruning func(now time.Time)
+	// Spare, where it's given, reports whether the files of the local day
+	// with the given date, past keeping, are kept all the same, until a later
+	// prune: what's kept of the day needs its lines still, as a request
+	// ledger's day without a summary that stands does. It's asked of each day
+	// past keeping before each prune, on Run's goroutine, holding nothing of
+	// the files.
+	Spare func(date string) bool
 }
 
 // Writer writes what's noted to it to its files, on Run's goroutine, and
@@ -52,6 +59,7 @@ type Writer[T any] struct {
 	items     string
 	onRound   func(now time.Time)
 	onPruning func(now time.Time)
+	spare     func(date string) bool
 	queue     chan T
 	// dropping is set once what's noted is dropped for the queue being full,
 	// until a write succeeds.
@@ -67,7 +75,7 @@ type Writer[T any] struct {
 // the lines linesOf returns of it, as opts say.
 func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *Writer[T] {
 	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, onPruning: opts.Pruning,
-		queue: make(chan T, opts.Queue)}
+		spare: opts.Spare, queue: make(chan T, opts.Queue)}
 }
 
 // Note queues v for Run to write. It never waits: with the queue full, v is
@@ -105,8 +113,8 @@ func (w *Writer[T]) Run(ctx context.Context) {
 
 // round has the Writer's Round, where it has one, keep what it keeps of the
 // files' days, then prunes the files on a day they haven't been pruned on,
-// noting the day it did, after its Pruning, where it has one: no prune comes
-// but after both.
+// noting the day it did, after its Pruning, where it has one, sparing the
+// days spared says: no prune comes but after both.
 func (w *Writer[T]) round() {
 	now := w.now()
 	if w.onRound != nil {
@@ -119,7 +127,26 @@ func (w *Writer[T]) round() {
 		w.onPruning(now)
 	}
 	w.pruned = DateOf(now)
-	w.files.prune(now, w.keep)
+	w.files.prune(now, w.keep, w.spared(now))
+}
+
+// spared returns what reports whether the files of a day past keeping at now
+// are spared the prune, as the Writer's Spare says, asked before it, so the
+// prune asks it nothing of the files: none where there's no Spare, and every
+// one where the files can't be listed to ask.
+func (w *Writer[T]) spared(now time.Time) func(date string) bool {
+	if w.spare == nil || w.keep == Forever {
+		return nil
+	}
+	past, err := w.files.dates(func(day time.Time) bool { return !now.Before(pastKeeping(day, w.keep)) })
+	if err != nil {
+		return func(string) bool { return true }
+	}
+	spared := make(map[string]bool)
+	for _, date := range past {
+		spared[date] = w.spare(date)
+	}
+	return func(date string) bool { return spared[date] }
 }
 
 // prunedOn reports whether the files have been pruned on the local day now

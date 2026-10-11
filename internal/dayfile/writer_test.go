@@ -271,6 +271,31 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 	})
 }
 
+func TestAWritersPruneSparesTheDaysItsSpareKeeps(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	// Two days long past keeping, the first spared; and one still kept.
+	spared, pruned, kept := DateOf(start.Local().AddDate(0, 0, -31)), DateOf(start.Local().AddDate(0, 0, -30)), DateOf(start)
+	for _, date := range []string{spared, pruned, kept} {
+		writeDay(t, f, plainFile(date), linesOf(date))
+	}
+	var asked []string
+	w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return start }, Items: "readings",
+		Spare: func(date string) bool {
+			asked = append(asked, date)
+			return date == spared
+		}})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	w.Run(ctx)
+	if got := []bool{holdsDay(f, spared), holdsDay(f, pruned), holdsDay(f, kept)}; !slices.Equal(got, []bool{true, false, true}) {
+		t.Errorf("after the prune, the spared day, the day past keeping and the day kept are held = %v; want the spared day's files kept", got)
+	}
+	if want := []string{spared, pruned}; !slices.Equal(asked, want) {
+		t.Errorf("Spare was asked of %q, want %q: the days past keeping alone", asked, want)
+	}
+}
+
 func TestTheFirstWriteOfANewDayMakesTheRoundBeforeItPrunes(t *testing.T) {
 	clock := &testClock{now: start}
 	f := readingsHistory(t.TempDir())
@@ -332,7 +357,7 @@ func TestWhatsLoggedNamesTheFilesAndWhatTheyHold(t *testing.T) {
 		{
 			name:    "a directory that can't be pruned",
 			blocked: true,
-			trouble: func(t *testing.T, f *Files, _ *Writer[noted]) { f.prune(start, twoWeeks) },
+			trouble: func(t *testing.T, f *Files, _ *Writer[noted]) { f.prune(start, twoWeeks, nil) },
 			want:    []string{"level=WARN", `msg="can't prune the request ledger"`, "dir="},
 		},
 		{
@@ -342,7 +367,7 @@ func TestWhatsLoggedNamesTheFilesAndWhatTheyHold(t *testing.T) {
 				if err := os.MkdirAll(filepath.Join(f.path(plainFile(old)), "held"), 0o700); err != nil {
 					t.Fatal(err)
 				}
-				f.prune(start, twoWeeks)
+				f.prune(start, twoWeeks, nil)
 			},
 			want: []string{"level=WARN", `msg="can't prune the request ledger"`, "file=requests-" + old + ".jsonl"},
 		},
@@ -351,7 +376,7 @@ func TestWhatsLoggedNamesTheFilesAndWhatTheyHold(t *testing.T) {
 			trouble: func(t *testing.T, f *Files, _ *Writer[noted]) {
 				writeDay(t, f, plainFile(done), linesOf("done"))
 				write(t, f.path(compressedFile(done)), []byte("not gzip"), 0o600)
-				f.prune(start, twoWeeks)
+				f.prune(start, twoWeeks, nil)
 			},
 			want: []string{"level=WARN", `msg="can't compress the request ledger"`, "file=requests-" + done + ".jsonl"},
 		},

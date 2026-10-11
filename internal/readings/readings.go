@@ -100,10 +100,12 @@ func Files(dir string, logger *slog.Logger) *dayfile.Files {
 // a time, as Read gives them: those of the local days from the day before
 // from's to the day after to's, as dayfile.Dates gives them, as a change of
 // time zone can file a reading under a day beside its own. It holds the files
-// from pruning and compressing while it reads them.
-func Between(files *dayfile.Files, from, to time.Time) iter.Seq[Reading] {
+// from pruning and compressing while it reads them, and notes in faults,
+// where they're given, the days whose files it couldn't read for now, as
+// dayfile.Faults says.
+func Between(files *dayfile.Files, from, to time.Time, faults *dayfile.Faults) iter.Seq[Reading] {
 	return func(yield func(Reading) bool) {
-		Read(files, dayfile.Dates(from, to), func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield)
+		Read(files, dayfile.Dates(from, to), func(r Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield, faults)
 	}
 }
 
@@ -112,9 +114,10 @@ func Between(files *dayfile.Files, from, to time.Time) iter.Seq[Reading] {
 // were read, whatever day's file each is in, as dayfile.Read reads them,
 // until take reports false, and returns how many of their lines were unread:
 // too long to hold, or not a reading that can be taken up, which are passed
-// over.
-func Read(files *dayfile.Files, dates []string, keep, take func(Reading) bool) (unread int) {
-	return dayfile.Read(files, dates, In, readAt, keep, take)
+// over. faults, where they're given, note the days whose files it couldn't
+// read for now, as dayfile.Faults says, as it reads them.
+func Read(files *dayfile.Files, dates []string, keep, take func(Reading) bool, faults *dayfile.Faults) (unread int) {
+	return dayfile.Read(files, dates, In, readAt, keep, take, faults)
 }
 
 // readAt is when r was read.

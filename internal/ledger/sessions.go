@@ -41,9 +41,10 @@ func (f *Follower) Sessions(ids []string, take func(date string, l Line)) map[st
 
 // namingBefore returns the dates of the local days before the one with the
 // given date whose summaries, as Days gives them at now, name any of the
-// sessions wanted among theirs, or might, as Summary.names says: none, and no
-// summary read, where none is wanted. It gives none where the ledger holds no
-// day, or can't be looked at to tell, which is warned of.
+// sessions wanted among theirs, or might, as Follower.names tells without the
+// readings history: none, and no summary read, where none is wanted. It gives
+// none where the ledger holds no day, or can't be looked at to tell, which is
+// warned of.
 func (f *Follower) namingBefore(date string, wanted map[string]bool, now time.Time) []string {
 	if len(wanted) == 0 {
 		return nil
@@ -60,12 +61,8 @@ func (f *Follower) namingBefore(date string, wanted map[string]bool, now time.Ti
 	before, _, _ := dayfile.Day(date)
 	var dates []string
 	for _, d := range dayfile.Span(first, dayfile.DayStart(before, -1)) {
-		summary := f.summaryOf(d, now)
-		for id := range wanted {
-			if summary.names(id) {
-				dates = append(dates, d)
-				break
-			}
+		if f.names(d, wanted) {
+			dates = append(dates, d)
 		}
 	}
 	return dates

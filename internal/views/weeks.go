@@ -108,10 +108,13 @@ func (o ownWeeks) holding(key, week string, at time.Time) (ownWeek, bool) {
 // ownWeeksOf are an account's own weeks over its days, each a day of the days
 // asked for, the zero day where it has none: of each window a week long, a
 // week from one of its resets the days give to the next, and one still
-// running from the last, while that's less than a week ago. A reset the days
-// don't give, as one on a day of no requests, isn't taken for one that never
-// came: a week is no longer than its window, so a week's start is never
-// further back than that from its end.
+// running from the last, while that's less than a week ago. A summary gives
+// the resets of a day of no requests too, but a reset the days don't give, as
+// one of a day whose readings the history had pruned before it was
+// summarised, or of a day of no requests a summary of version 2 or before
+// gave no account, isn't taken for one that never came: a week is no longer
+// than its window, so a week's start is never further back than that from
+// its end.
 func (w weekly) ownWeeksOf(days []ledger.AccountDay) ownWeeks {
 	weeks := ownWeeks{}
 	last, lastDay := make(map[string]time.Time), make(map[string]int)

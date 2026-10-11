@@ -1,11 +1,13 @@
 package views_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -120,9 +122,10 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 				`{"week":"2026-10-05","accounts":[{"account":"work","open":["7d","7d_oi"]},{"account":"side"},{"all":true,"open":["7d","7d_oi"]}]}]`,
 		},
 		{
-			// The week that reset on the 24th, a day of no requests, isn't
-			// taken for part of the next: that began a week before its end,
-			// and the week before it isn't known.
+			// The week that reset on the 24th, a day of no requests a summary
+			// of version 2 gave no account, isn't taken for part of the next:
+			// that began a week before its end, and the week before it isn't
+			// known.
 			name: "a reset the days don't give", weekStarts: time.Monday,
 			days: worksDays("2026-09-14", map[string]windowsDay{
 				"2026-09-17": {resets: []ledger.Reset{reset("7d", "2026-09-17", "10:00", 0.3)}},
@@ -165,6 +168,85 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 			}
 		})
 	}
+}
+
+// summarised are the days from the one with the date first to today's, as
+// the ledger summarises them: of a request of work's at noon on each day with
+// one of the dates requested, and of the readings history read holds.
+func summarised(t *testing.T, first string, requested []string, read historyOf) []ledger.Summary {
+	t.Helper()
+	var days []ledger.Summary
+	for d := on(first); !d.After(now); d = d.AddDate(0, 0, 1) {
+		date := d.Format(time.DateOnly)
+		var lines []ledger.Line
+		if slices.Contains(requested, date) {
+			lines = append(lines, ledger.Line{At: onAt(date, "12:00"), Request: date, Kind: ledger.KindMessage, Session: "one", Model: "claude-opus-5-5",
+				Account: "work", Reason: "sticky", Status: 200, Attempts: 1})
+		}
+		summary, err := ledger.Summarise(date, slices.Values(lines), read.Between, nil, ledger.Caps{Shared: []string{"5h", "7d"}}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		days = append(days, summary)
+	}
+	return days
+}
+
+func TestAWeekThatResetOnADayOfNoRequestsHasItsPeakFromItsSummary(t *testing.T) {
+	// Work's week resets at 10:00 each Thursday, on the 24th and the 1st, days
+	// it served no request, its use last read the evening before each.
+	days := summarised(t, "2026-09-14", []string{"2026-09-21", "2026-09-23", "2026-09-28", "2026-09-30", "2026-10-05"}, historyOf{
+		weekRead("2026-09-21", 0.2, "2026-09-24"), weekRead("2026-09-23", 0.7, "2026-09-24"),
+		weekRead("2026-09-28", 0.3, "2026-10-01"), weekRead("2026-09-30", 0.55, "2026-10-01"),
+		weekRead("2026-10-05", 0.1, "2026-10-08"),
+	})
+	// quiet is the days as version 2 summarised them: those of no requests of
+	// no accounts.
+	quiet := slices.Clone(days)
+	for i, d := range quiet {
+		if !slices.ContainsFunc(d.Accounts, func(a ledger.AccountDay) bool { return len(a.Models) > 0 }) {
+			quiet[i].Accounts = nil
+		}
+	}
+	tests := []struct {
+		name string
+		days []ledger.Summary
+		want string
+	}{
+		{
+			// The week that ended on the 24th began a week before, under the
+			// 14th; the one that ended on the 1st, under the 21st.
+			name: "each reset, and the peak before it, from the quiet day's summary", days: days,
+			want: `[{"week":"2026-09-14","accounts":[{"account":"work","peaks":{"7d":0.7}},{"all":true,"peaks":{"7d":0.7}}]},` +
+				`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.55}},{"all":true,"peaks":{"7d":0.55}}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.1},"open":["7d"]},{"all":true,"peaks":{"7d":0.1},"open":["7d"]}]}]`,
+		},
+		{
+			name: "no week known, where the quiet days gave no account, as before", days: quiet,
+			want: `[{"week":"2026-09-14","accounts":[{"account":"work"},{"all":true}]},{"week":"2026-09-21","accounts":[{"account":"work"},{"all":true}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work"},{"all":true}]}]`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input(tt.days)
+			in.Accounts = config.Accounts{{ID: "work"}}
+			if got := jsonOf(t, views.NewHistory(in).Weeks); got != tt.want {
+				t.Errorf("the weeks are\n%s\nwant\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+// weekRead is a reading of work's week at 18:00 on the day with the given
+// date, its use the one given, to reset at 10:00 on the day with the date
+// resets.
+func weekRead(date string, use float64, resets string) readings.Reading {
+	r := reading("work", "7d", date, "18:00", use)
+	r.ResetsAt = onAt(resets, "10:00").UTC()
+	return r
 }
 
 func TestAWeekStillRunningIsUnderThisWeekAndNeverReplayed(t *testing.T) {

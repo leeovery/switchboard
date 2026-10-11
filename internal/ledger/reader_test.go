@@ -156,7 +156,7 @@ func TestLinesAreReadBackOldestFirstWhicheverDaysFileTheyreIn(t *testing.T) {
 // noRequests is the summary of the day with the given date of no requests,
 // made from as many lines as lines says.
 func noRequests(date string, lines int) string {
-	return fmt.Sprintf(`{"version":2,"day":"%s","lines":%d}`, date, lines)
+	return fmt.Sprintf(`{"version":3,"day":"%s","lines":%d}`, date, lines)
 }
 
 // summariesJSON returns each of summaries as JSON, but for the sizes of its
@@ -184,6 +184,59 @@ func TestDaysAreEveryDayOfTheRangeTodaysLast(t *testing.T) {
 	want := []string{summaryOf("2026-10-04", 1, 1, windowsRead{}), noRequests(date, 0), noRequests("2026-10-06", 1), noRequests("2026-10-07", 0)}
 	if !slices.Equal(got, want) {
 		t.Errorf("Days() =\n%s\nwant\n%s: every day from the 4th's to today's, a day of no requests a summary of no accounts", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestADayOfNoRequestsIsReadWithTheAccountsItsReadingsTellOf(t *testing.T) {
+	for _, by := range []string{"a reader", "a follower"} {
+		t.Run("by "+by, func(t *testing.T) {
+			state, dir, history := stateDirs(t)
+			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+			// The 5th, of no requests, work's session read in it, not yet
+			// summarised, as when the router was stopped as it ended, the
+			// history covering it.
+			holdReadings(t, history, "2026-09-26", historyBegan)
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			days := readerAt(state, on(1, 12, 0)).Days
+			if by == "a follower" {
+				days = followerOf(state, &testClock{at: on(1, 12, 0)}, caps).Days
+			}
+
+			got := summariesJSON(t, days(on(-1, 0, 0)))
+			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
+			want := []string{summaryOf("2026-10-04", 1, 1, windowsRead{}), `{"version":3,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`,
+				noRequests("2026-10-06", 0)}
+			if !slices.Equal(got, want) {
+				t.Errorf("Days() =\n%s\nwant\n%s: the 5th summarised from its readings as it's read", strings.Join(got, "\n"), strings.Join(want, "\n"))
+			}
+			if held := heldSummary(t, dir, date); held != "" {
+				t.Errorf("the ledger holds a summary of the 5th, as\n%s\nwant none written by reading it", held)
+			}
+		})
+	}
+}
+
+func TestADayIsReadWithItsReadingsWhereTheReadingsHistoryCantBeListed(t *testing.T) {
+	for _, by := range []string{"a reader", "a follower"} {
+		t.Run("by "+by, func(t *testing.T) {
+			state, dir, history := stateDirs(t)
+			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+			// The 5th, of no requests, not yet summarised, the history covering
+			// it, but it can't be listed to tell.
+			holdReadings(t, history, "2026-09-26", historyBegan)
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			unlistable(t, history)
+			days := readerAt(state, on(1, 12, 0)).Days
+			if by == "a follower" {
+				days = followerOf(state, &testClock{at: on(1, 12, 0)}, caps).Days
+			}
+
+			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
+			want := `{"version":3,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`
+			if got := summariesJSON(t, days(on(0, 0, 0))[:1])[0]; got != want {
+				t.Errorf("the 5th is\n%s\nwant\n%s: a listing that failed tells of no day the history holds no readings of", got, want)
+			}
+		})
 	}
 }
 

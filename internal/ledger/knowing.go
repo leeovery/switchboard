@@ -39,9 +39,15 @@ func (s Summary) made(lines int, held *Summary) Summary {
 }
 
 // knowing returns a, an account's day summarised afresh, knowing no less
-// than held, its day as summarised before, as Summary.knowing says.
+// than held, its day as summarised before, as Summary.knowing says. Where
+// held never named its sessions, as one of version 1, and the ids a gives
+// number fewer than held counted, it names none still, as which they were
+// is unknown.
 func (a AccountDay) knowing(held AccountDay) AccountDay {
 	a.SessionIDs = together(a.SessionIDs, held.SessionIDs)
+	if held.SessionIDs == nil && len(a.SessionIDs) < held.Sessions {
+		a.SessionIDs = nil
+	}
 	a.Sessions = max(a.Sessions, held.Sessions, len(a.SessionIDs))
 	a.MovedOn, a.MovedOff = max(a.MovedOn, held.MovedOn), max(a.MovedOff, held.MovedOff)
 	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)

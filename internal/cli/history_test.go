@@ -3,12 +3,14 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -230,9 +232,9 @@ var (
 )
 
 // checksAloneDeps are deps whose ledger holds today's lines given alone, by a
-// clock stopped at ledgerNow, and whose readings history holds
-// fixtureReadings, where read says.
-func checksAloneDeps(t *testing.T, today []ledger.Line, read bool) cli.Deps {
+// clock stopped at ledgerNow, and whose readings history holds the readings
+// given.
+func checksAloneDeps(t *testing.T, today []ledger.Line, read ...readings.Reading) cli.Deps {
 	t.Helper()
 	deps := testDeps(nil, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
@@ -247,55 +249,73 @@ func checksAloneDeps(t *testing.T, today []ledger.Line, read bool) cli.Deps {
 		lines.Write(append(data, '\n'))
 	}
 	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "requests-2026-10-07.jsonl", lines.Bytes())
-	if read {
-		writeFixtureReadings(t, readings.Dir(stateDir(t, deps)))
-	}
+	writeReadings(t, readings.Dir(stateDir(t, deps)), read...)
 	return deps
 }
 
-func TestHistoryOfDaysWithoutRequestsSaysSoThenTheirNotesAndTheBlocks(t *testing.T) {
+func TestHistoryOfDaysWithoutRequestsSaysSoThenNotesTheirLimitsAndWeeksReset(t *testing.T) {
+	const none = "no requests since Wed 7 Oct 2026\n"
 	tests := []struct {
 		name  string
 		today []ledger.Line
-		read  bool
-		// want is how the text begins, before the blocks.
+		read  []readings.Reading
+		// want is the text, the blocks and the prices left out, as they tell
+		// of no request.
 		want string
 	}{
+		{name: "a quota check alone", today: []ledger.Line{worksCheck}, want: none},
+		// Work's count of tokens is of a session, which makes no note on a day
+		// of no requests.
+		{name: "a check and a count", today: []ledger.Line{worksCheck, worksCount}, want: none},
+		// Each account's highest use alone makes no note either.
+		{name: "a check and a count, each account's windows read", today: []ledger.Line{worksCheck, worksCount}, read: fixtureReadings, want: none},
 		{
-			// Work's day of a quota check alone has nothing to say.
-			name: "a quota check alone", today: []ledger.Line{worksCheck},
-			want: "no requests since Wed 7 Oct 2026\n\nOver these days",
-		},
-		{
-			// Work's count of tokens is of a session, which its day's note
-			// gives, with no row.
-			name: "a check and a count", today: []ledger.Line{worksCheck, worksCount},
-			want: "no requests since Wed 7 Oct 2026\n\nWed 7 Oct 2026, so far\n  work: 1 session\n\nOver these days",
-		},
-		{
-			// The windows read give side's day a note too.
-			name: "a check and a count, each account's windows read", today: []ledger.Line{worksCheck, worksCount}, read: true,
-			want: `no requests since Wed 7 Oct 2026
-
-Wed 7 Oct 2026, so far
-  side: no sessions  ·  highest: Session 10%
-  work: 1 session  ·  highest: Session 30%, Week 41%
-
-Over these days`,
+			name: "a check and a count, work's session reaching its limit", today: []ledger.Line{worksCheck, worksCount},
+			read: append(slices.Clone(fixtureReadings), readings.Reading{At: october(7, 9, 30, 0), Account: "work", Key: "5h", Utilization: 1,
+				ResetsAt: october(7, 14, 0, 0), Status: quota.StatusRejected}),
+			want: none + "\nWed 7 Oct 2026, so far\n  work: 1 session  ·  limits: Session at 09:30  ·  highest: Session 100%, Week 41%\n",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, checksAloneDeps(t, tt.today, tt.read), "history", "--pretty", "--since", "10:00")
-			if !strings.HasPrefix(got.stdout, tt.want) || !strings.HasSuffix(got.stdout, historyPricedAt) || got.code != 0 {
-				t.Errorf("switchboard history --pretty printed\n%s(%d, %s)\nwant it to begin\n%s\nand end with the prices", got.stdout, got.code, got.stderr, tt.want)
+			got := run(t, checksAloneDeps(t, tt.today, tt.read...), "history", "--pretty", "--since", "10:00")
+			if got != (result{stdout: tt.want}) {
+				t.Errorf("switchboard history --pretty = %+v, want it to print\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHistoryNotesAnAccountThatServedNoRequestOnlyWhereALimitWasReachedOrAWeekReset(t *testing.T) {
+	// Work's request of claude-opus-9, side serving none, its windows read.
+	worksRequest := fixtureLines["2026-10-07"][4]
+	const busy = "Wed 7 Oct 2026, so far\n  work  claude-opus-9  1 request  110 tokens  1 session  unpriced\n"
+	const works = "  work: 1 session  ·  highest: Session 30%, Week 41%\n\n"
+	tests := []struct {
+		name string
+		read []readings.Reading
+		want string
+	}{
+		{name: "its highest use alone, its session reset", read: fixtureReadings, want: busy + works},
+		{
+			name: "a limit reached",
+			read: append(slices.Clone(fixtureReadings), readings.Reading{At: october(7, 10, 30, 0), Account: "side", Key: "5h", Utilization: 1,
+				ResetsAt: october(7, 15, 0, 0), Status: quota.StatusRejected}),
+			want: busy + "  side: no sessions  ·  limits: Session at 10:30  ·  highest: Session 100%\n" + works,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := run(t, checksAloneDeps(t, []ledger.Line{worksRequest}, tt.read...), "history", "--pretty", "--since", "10:00")
+			if !strings.HasPrefix(got.stdout, tt.want) || got.code != 0 {
+				t.Errorf("switchboard history --pretty printed\n%s(%d, %s)\nwant it to begin\n%s", got.stdout, got.code, got.stderr, tt.want)
 			}
 		})
 	}
 }
 
 func TestHistoryJSONOfQuotaChecksAndCountsAloneHoldsThem(t *testing.T) {
-	deps := checksAloneDeps(t, []ledger.Line{worksCheck, worksCount}, false)
+	deps := checksAloneDeps(t, []ledger.Line{worksCheck, worksCount})
 	// The JSON holds the day as the ledger does, its check and count among it.
 	got := run(t, deps, "history", "--json", "--since", "10:00")
 	var doc struct {

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
-	"iter"
 	"maps"
 	"os"
 	"path/filepath"
@@ -187,9 +186,8 @@ func removeFile(t *testing.T, dir, name string) {
 }
 
 // historyIn is the readings history in dir, as the router reads it.
-func historyIn(dir string) ledger.Readings {
-	files := readings.Files(dir, logs.For("router"))
-	return func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(files, from, to) }
+func historyIn(dir string) ledger.History {
+	return ledger.HistoryIn(readings.Files(dir, logs.For("router")))
 }
 
 // summariseAt has the router's ledger in dir summarise the days that have
@@ -592,6 +590,73 @@ func TestTheFirstDayTheLedgerHoldsIsHeldUntilItsDirectoryChanges(t *testing.T) {
 	}
 }
 
+func TestTheReadingsHistorysListingIsHeldUntilItsDirectoryChanges(t *testing.T) {
+	at := on(0, 12, 0)
+	tests := []struct {
+		name string
+		// changed is when the history's directory last changed, and held
+		// whether its listing is held.
+		changed time.Time
+		held    bool
+	}{
+		{name: "changed a second and more before it was listed", changed: at.Add(-time.Hour), held: true},
+		{name: "changed in the second it was listed in, as a file system that keeps whole seconds can't tell from one changed after", changed: at},
+	}
+	const unlisted = `msg="can't read the readings history"`
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, history := stateDirs(t)
+			// A day not yet summarised, which asks whether the history reaches it.
+			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+			holdReadings(t, history, "2026-10-04", workRead(on(-1, 10, 0), "5h", 0.3, on(-1, 13, 0), quota.StatusAllowed))
+			if err := os.Chtimes(history, time.Time{}, tt.changed); err != nil {
+				t.Fatal(err)
+			}
+			follower := followerOf(state, &testClock{at: at}, caps)
+			follower.Days(on(-1, 0, 0))
+			unlistable(t, history)
+
+			follower.Days(on(-1, 0, 0))
+			if listed := log.Has(unlisted); listed == tt.held {
+				t.Errorf("log reads\n%s\nwant the listing held %v", log, tt.held)
+			}
+
+			// A file added changes the directory, which is listed again.
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.1, on(0, 15, 0), quota.StatusAllowed))
+			follower.Days(on(-1, 0, 0))
+			if !log.Has(unlisted) {
+				t.Errorf("log reads\n%s\nwant the directory, changed, listed again", log)
+			}
+		})
+	}
+}
+
+func TestAFollowerWarnsOfAReadingsHistoryItCantListOnceUntilItCan(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, history := stateDirs(t)
+	// A day not yet summarised, which asks whether the history reaches it.
+	holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+	unlistable(t, history)
+	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
+	const unlisted = `msg="can't read the readings history"`
+
+	follower.Days(on(-1, 0, 0))
+	follower.Days(on(-1, 0, 0))
+	if warned := strings.Count(log.String(), unlisted); warned != 1 {
+		t.Errorf("log reads\n%s\nwant the history that can't be listed warned of once, not at each look: %d times", log, warned)
+	}
+	if err := os.Chmod(history, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	follower.Days(on(-1, 0, 0))
+	unlistable(t, history)
+	follower.Days(on(-1, 0, 0))
+	if warned := strings.Count(log.String(), unlisted); warned != 2 {
+		t.Errorf("log reads\n%s\nwant it warned of again once it can't be listed after it could: %d times", log, warned)
+	}
+}
+
 func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 	state, dir, _ := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
@@ -676,6 +741,74 @@ func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
 
 	if got := follower.Sessions(nil, nil); len(got) != 0 || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nSessions() = %v, want no session read, nor a day before yesterday opened", log, got)
+	}
+}
+
+// listCounted is a readings history that counts the times it's listed.
+type listCounted struct {
+	ledger.History
+	listed int
+}
+
+func (l *listCounted) Dates() ([]string, error) {
+	l.listed++
+	return l.History.Dates()
+}
+
+func TestAReadOfTheDaysListsTheReadingsHistoryOnce(t *testing.T) {
+	for _, by := range []string{"a reader", "a follower"} {
+		t.Run("by "+by, func(t *testing.T) {
+			state, dir, history := stateDirs(t)
+			// Days not yet summarised, each of which asks the history whether it
+			// reaches it, as its readings are read only where it does.
+			for back := 3; back >= 1; back-- {
+				holdLines(t, dir, on(-back, 0, 0).Format(time.DateOnly), asked("1", on(-back, 9, 0)))
+			}
+			h := &listCounted{History: historyIn(history)}
+			reader, follower := readerAt(state, on(2, 12, 0)), followerOf(state, &testClock{at: on(2, 12, 0)}, caps)
+			reader.SetHistory(h)
+			follower.SetHistory(h)
+			days := reader.Days
+			if by == "a follower" {
+				days = follower.Days
+			}
+
+			days(on(-3, 0, 0))
+			if h.listed != 1 {
+				t.Errorf("the read listed the readings history %d times, want once", h.listed)
+			}
+		})
+	}
+}
+
+func TestASessionsDaysAreFoundWithoutTheReadingsHistory(t *testing.T) {
+	tests := []struct {
+		name string
+		read func(f *ledger.Follower)
+	}{
+		{name: "by Session", read: func(f *ledger.Follower) {
+			for range f.Session("one") {
+			}
+		}},
+		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions([]string{"one"}, nil) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, history := stateDirs(t)
+			holdLines(t, dir, "2026-10-03", askedBy("1", "one", on(-2, 9, 0)))
+			holdLines(t, dir, "2026-10-07", askedBy("2", "one", on(2, 9, 0)))
+			// Days of no requests between, not yet summarised, their readings
+			// open to no one, so a read of them warns that it can't.
+			holdReadings(t, history, "2026-10-04", workRead(on(-1, 10, 0), "5h", 0.3, on(-1, 13, 0), quota.StatusAllowed))
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			unopenable(t, history, "readings-*")
+
+			tt.read(followerOf(state, &testClock{at: on(2, 12, 0)}, caps))
+			if n := opened(log); n != 0 {
+				t.Errorf("log reads\n%s\nthe session's days were found opening %d of the readings history's files, want none: they name no session", log, n)
+			}
+		})
 	}
 }
 
