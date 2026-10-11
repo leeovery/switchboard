@@ -40,10 +40,44 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 }
 
 func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
-	all := []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}
+	tests := []struct {
+		name    string
+		watched []Fixture
+		printed []printout
+	}{
+		{name: "two the watch draws", watched: []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}},
+		{name: "one the watch draws, and a printout", watched: []Fixture{{Name: "accounts-1"}}, printed: []printout{{name: "usage-160"}, {name: "accounts-1"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, want := panicked(t, func() { setOf(tt.watched, tt.printed, worldsNow) }), `capture: two fixtures named "accounts-1"`; got != want {
+				t.Errorf("setOf panicked with %q, want %q", got, want)
+			}
+		})
+	}
+}
 
-	if got, want := panicked(t, func() { setOf(all) }), `capture: two fixtures named "accounts-1"`; got != want {
-		t.Errorf("setOf panicked with %q, want %q", got, want)
+func TestOnlyAPrintoutBuildsTheWorlds(t *testing.T) {
+	built := 0
+	set := setOf(fixtures(time.UTC), printouts, func() accountWorlds {
+		built++
+		return worldsNow()
+	})
+
+	if names := set.names(); !slices.Contains(names, "usage-160") || !slices.Contains(names, "accounts-3") {
+		t.Fatalf("names() = %v, want usage-160 and accounts-3 among them", names)
+	}
+	if _, err := set.named("accounts-3"); err != nil {
+		t.Fatal(err)
+	}
+	if built != 0 {
+		t.Errorf("having listed the fixtures and asked for one the watch draws, the worlds were built %d times, want none", built)
+	}
+	if _, err := set.named("usage-160"); err != nil {
+		t.Fatal(err)
+	}
+	if built != 1 {
+		t.Errorf("having asked for a printout, the worlds were built %d times, want once", built)
 	}
 }
 

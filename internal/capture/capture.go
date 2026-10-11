@@ -87,23 +87,33 @@ func ByName(name string) (Fixture, error) {
 // local is every fixture drawn in the local time zone, built once.
 var local = sync.OnceValue(func() fixtureSet { return fixturesIn(time.Local) })
 
-// fixtureSet is every fixture drawn in a time zone, each built once, by name.
-type fixtureSet map[string]Fixture
+// fixtureSet is every fixture drawn in a time zone, by name, each built as
+// it's asked for: usage's printouts are drawn over the worlds, whose year
+// takes a while, so no set builds them before a printout is asked for.
+type fixtureSet map[string]func() Fixture
 
-// fixturesIn is every fixture drawn in the time zone given, as fixtures says.
+// fixturesIn is every fixture drawn in the time zone given, as fixtures and
+// printouts say.
 func fixturesIn(loc *time.Location) fixtureSet {
-	return setOf(fixtures(loc))
+	return setOf(fixtures(loc), printouts, worldsNow)
 }
 
-// setOf is the fixtures given, by name. It panics on a name given twice, as
-// the second would hide the first.
-func setOf(all []Fixture) fixtureSet {
-	set := make(fixtureSet, len(all))
-	for _, f := range all {
-		if _, ok := set[f.Name]; ok {
-			panic(fmt.Sprintf("capture: two fixtures named %q", f.Name))
+// setOf is the watch's fixtures given and usage's printouts given, by name,
+// a printout drawn over what worlds gives once it's asked for. It panics on a
+// name given twice, as the second would hide the first.
+func setOf(watched []Fixture, printed []printout, worlds func() accountWorlds) fixtureSet {
+	set := make(fixtureSet, len(watched)+len(printed))
+	add := func(name string, build func() Fixture) {
+		if _, ok := set[name]; ok {
+			panic(fmt.Sprintf("capture: two fixtures named %q", name))
 		}
-		set[f.Name] = f
+		set[name] = build
+	}
+	for _, f := range watched {
+		add(f.Name, func() Fixture { return f })
+	}
+	for _, p := range printed {
+		add(p.name, func() Fixture { return p.fixture(worlds()) })
 	}
 	return set
 }
@@ -120,10 +130,11 @@ func (s fixtureSet) named(name string) (Fixture, error) {
 	if name == "" {
 		return Fixture{}, fmt.Errorf("name a fixture (available: %s)", strings.Join(s.names(), ", "))
 	}
-	f, ok := s[name]
+	build, ok := s[name]
 	if !ok {
 		return Fixture{}, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(s.names(), ", "))
 	}
+	f := build()
 	f.keys, f.windows = slices.Clone(f.keys), slices.Clone(f.windows)
 	return f, nil
 }
@@ -153,11 +164,9 @@ func localMoment() time.Time {
 // zone's fixtures are built over them, and their year takes a while.
 var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(localMoment()) })
 
-// fixtures are every fixture, in the frames' theme: those over milestone 5's
-// samples at the frames' moment in the zone given, as moment fixes it, and
-// those over a world at it in the machine's, as localMoment fixes it,
-// whatever the zone given. Of milestone 5's, there's one for each set of
-// accounts its frames draw, at the size of the frame it mirrors, or for five
+// fixtures are the watch's fixtures, in the frames' theme, over milestone 5's
+// samples at the frames' moment in the zone given, as moment fixes it: one
+// for each set of accounts its frames draw, at the size of the frame it mirrors, or for five
 // accounts, which its final page draws only in Sessions and Runway, at
 // Sessions'. A frame of another view, or reached by a key, is a fixture with
 // its own size and keys over one of these sets: as every card flipped with s;
@@ -165,10 +174,9 @@ var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(lo
 // lists them, picked out with ↓ twice; the theme picker, open, its cursor
 // moved up a theme from the frames' to show the one before; the help, which
 // the frames don't draw; and Runway, with tab, over the day, and with w, over
-// the week. Then usage's printouts, as printouts has them.
+// the week.
 func fixtures(loc *time.Location) []Fixture {
 	now := moment(loc)
-	nord, _ := theme.Builtin(theme.DefaultDark)
 	w, g, tab := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: tea.KeyTab}
 	space, down := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: tea.KeyDown}
 	storyboard := storyboardAt(now)
@@ -205,42 +213,51 @@ func fixtures(loc *time.Location) []Fixture {
 		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), keys: []tea.KeyPressMsg{tab}},
 		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), keys: []tea.KeyPressMsg{tab}},
 	}
-	all = append(all, printouts(worldsNow())...)
 	for i := range all {
-		all[i].theme = nord
+		all[i].theme = framesTheme()
 	}
 	return all
 }
 
-// printouts are usage's printouts of the worlds given, each named after the
-// frame it draws, at that frame's size: the auto world's every window, by
-// window, at each width a layout changes at; its 5-hour window alone, as
-// --5h prints it; by account, as --by account prints it; and work alone,
-// with six sessions on it, as its frame counts them.
-func printouts(worlds accountWorlds) []Fixture {
-	now := worlds.now
-	auto, alone := routerOf(worlds.auto(), now), routerOf(worlds.alone(), now)
-	usage := func(name string, width, height int, r source) Fixture {
-		return Fixture{Name: name, Size: watch.Size{Width: width, Height: height}, Printout: true, now: now, router: r}
-	}
-	fiveHours := func(f Fixture) Fixture {
-		f.windows = []string{sessionKey}
-		return f
-	}
-	byAccount := func(f Fixture) Fixture {
-		f.by = dashboard.ByAccount
-		return f
-	}
-	return []Fixture{
-		usage("usage-160", 160, 13, auto),
-		usage("usage-120", 120, 36, auto),
-		usage("usage-80", 80, 38, auto),
-		usage("usage-52", 52, 38, auto),
-		fiveHours(usage("usage-5h-160", 160, 13, auto)),
-		fiveHours(usage("usage-5h-52", 52, 16, auto)),
-		byAccount(usage("usage-by-account-160", 160, 31, auto)),
-		byAccount(usage("usage-by-account-52", 52, 38, auto)),
-		usage("usage-one-account-160", 160, 7, alone),
+// framesTheme is the theme the frames are drawn in: nord.
+func framesTheme() theme.Theme {
+	nord, _ := theme.Builtin(theme.DefaultDark)
+	return nord
+}
+
+// printout is one of usage's printouts, named after the frame it draws, at
+// that frame's size: of the world that world picks of the accounts', laid
+// out as by and windows say.
+type printout struct {
+	name    string
+	size    watch.Size
+	world   func(accountWorlds) accountWorld
+	by      dashboard.By
+	windows []string
+}
+
+// printouts are usage's printouts: the auto world's every window, by window,
+// at each width a layout changes at; its 5-hour window alone, as --5h prints
+// it; by account, as --by account prints it; and work alone, with six
+// sessions on it, as its frame counts them.
+var printouts = []printout{
+	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
+	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},
+	{name: "usage-80", size: watch.Size{Width: 80, Height: 38}, world: accountWorlds.auto},
+	{name: "usage-52", size: watch.Size{Width: 52, Height: 38}, world: accountWorlds.auto},
+	{name: "usage-5h-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto, windows: []string{sessionKey}},
+	{name: "usage-5h-52", size: watch.Size{Width: 52, Height: 16}, world: accountWorlds.auto, windows: []string{sessionKey}},
+	{name: "usage-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.auto, by: dashboard.ByAccount},
+	{name: "usage-by-account-52", size: watch.Size{Width: 52, Height: 38}, world: accountWorlds.auto, by: dashboard.ByAccount},
+	{name: "usage-one-account-160", size: watch.Size{Width: 160, Height: 7}, world: accountWorlds.alone},
+}
+
+// fixture is the printout of its world of worlds, read at their moment, in
+// the frames' theme.
+func (p printout) fixture(worlds accountWorlds) Fixture {
+	return Fixture{
+		Name: p.name, Size: p.size, Printout: true, now: worlds.now, router: routerOf(p.world(worlds), worlds.now),
+		by: p.by, windows: p.windows, theme: framesTheme(),
 	}
 }
 

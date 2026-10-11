@@ -170,7 +170,7 @@ func TestHistoryRisesAsTheFramesChartsDo(t *testing.T) {
 }
 
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
-	for _, f := range watched(fixtures(time.UTC)) {
+	for _, f := range fixtures(time.UTC) {
 		for _, a := range f.router.doc.Accounts {
 			for _, w := range a.Windows {
 				if a.HasLapsed(w) {
@@ -200,7 +200,7 @@ func TestHistoryRefusesAStepOfNothing(t *testing.T) {
 }
 
 func TestEventsAreNumberedTheNewestFirst(t *testing.T) {
-	for _, f := range watched(fixtures(time.UTC)) {
+	for _, f := range fixtures(time.UTC) {
 		events := f.router.doc.Events
 		if len(events) == 0 {
 			t.Errorf("%s tells of nothing lately", f.Name)
@@ -230,12 +230,6 @@ func TestAMoveALimitForcedIsCountedInIt(t *testing.T) {
 	if moved[0].Limit != 0 {
 		t.Errorf("a move forced by no limit told of is counted in event %d, want none", moved[0].Limit)
 	}
-}
-
-// watched are the fixtures given that the watch draws: not usage's printouts,
-// whose router, as usage reads it, keeps no history and tells of nothing.
-func watched(all []Fixture) []Fixture {
-	return slices.DeleteFunc(all, func(f Fixture) bool { return f.Printout })
 }
 
 // stepsFrom are the times from first to last, a step apart.
