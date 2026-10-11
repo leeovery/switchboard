@@ -18,14 +18,15 @@ type happening struct {
 }
 
 // upcoming are the things coming up after now, as doc's COMING UP lists
-// them, in its order, soonest first, each as happeningOf says it: but those
-// of a window every card hides, as shownWindows says, which the document
-// lists where its reset isn't its week's.
+// them, in its order, soonest first, each as happeningOf says it: but a
+// window running out, or resetting, that every card hides, as shownWindows
+// says, as the document lists a model's own week's reset where it isn't its
+// week's. A limit or cap lifting is listed whatever its window.
 func upcoming(doc status.Document, now time.Time, policy score.Policy) []happening {
 	shown := shownWindows(doc, now, policy)
 	var all []happening
 	for _, u := range doc.ComingUp {
-		if u.Window != "" && !slices.Contains(shown, u.Window) {
+		if hidden(u, shown) {
 			continue
 		}
 		if h, ok := happeningOf(doc, u, policy); ok && h.at.After(now) {
@@ -33,6 +34,13 @@ func upcoming(doc status.Document, now time.Time, policy score.Policy) []happeni
 		}
 	}
 	return all
+}
+
+// hidden reports whether u is a window running out, or resetting, that
+// isn't among the windows shown.
+func hidden(u status.Upcoming, shown []string) bool {
+	ofWindow := u.Kind == status.UpcomingRunsOut || u.Kind == status.UpcomingReset
+	return ofWindow && !slices.Contains(shown, u.Window)
 }
 
 // happeningOf is what doc's COMING UP says comes of u: its account back from

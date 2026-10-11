@@ -392,6 +392,44 @@ func TestEventsFollowPrintsNothingAgainAsTheDayIsCompressed(t *testing.T) {
 	}
 }
 
+func TestEventsFollowPrintsALineFiledUnderTheDayAfterOnce(t *testing.T) {
+	// Filed under tomorrow by a router a time zone east, before events began.
+	early := eventLine(runTwo, 2, status.Event{At: october(7, 23, 58, 0), Kind: status.EventHealth})
+	tests := []struct {
+		form          printForm
+		listed, filed string
+	}{
+		{form: offATerminal, listed: eventJSON(t, routerUnwell), filed: eventJSON(t, early)},
+		{form: onATerminal, listed: `Wed 7 Oct 2026, so far
+  12:30:00    health    unhealthy: most requests failing
+`, filed: "  23:58:00    health    healthy again\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.form.name, func(t *testing.T) {
+			deps := eventsDeps(t)
+			fileEvent(t, deps, "2026-10-08", early)
+			var clock atomic.Int64
+			clock.Store(october(7, 23, 59, 0).UnixNano())
+			deps.Now = func() time.Time { return time.Unix(0, clock.Load()).Local() }
+			stdout, interrupt := follow(t, deps, tt.form, "events", "--since", "12:30", "-f")
+
+			stdout.waitFor(t, tt.listed)
+			// Past midnight, the follower comes to the day after, and hands on
+			// its lines from its first.
+			clock.Store(october(8, 0, 0, 10).UnixNano())
+			want := tt.listed + tt.filed
+			stdout.waitFor(t, want)
+			// Long enough for a few more looks, which print nothing again.
+			time.Sleep(50 * time.Millisecond)
+
+			if code, stderr := interrupt(); code != 0 || stderr != "" || stdout.String() != want {
+				t.Errorf("switchboard events -f exited %d, printing\n%s\nand %q on stderr, once interrupted; want 0, the line once, as the follower came to its day\n%s\nand nothing",
+					code, stdout.String(), stderr, want)
+			}
+		})
+	}
+}
+
 func TestEventsFollowMovesOnADayAtATime(t *testing.T) {
 	deps := eventsDeps(t)
 	var clock atomic.Int64

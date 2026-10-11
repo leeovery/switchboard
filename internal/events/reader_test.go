@@ -190,19 +190,19 @@ func TestAnEventIsReadAsItsLastVersionWasFiled(t *testing.T) {
 	}
 }
 
-func TestATailedDayIsReadThroughItsTailAlone(t *testing.T) {
+func TestATailedDayIsReadThroughItsTailAloneAndNoDayAfterIt(t *testing.T) {
 	log := logstest.Capture(t)
 	a := func(count int) events.Line { return limit(firstRun, 1, september(10, 9, 0), count) }
-	b := limit(firstRun, 2, september(11, 9, 0), 1)
+	b := func(count int) events.Line { return limit(firstRun, 2, september(11, 9, 0), count) }
 	c := limit(firstRun, 3, september(12, 9, 0), 1)
 	state := t.TempDir()
 	fileDays(t, state,
 		filed{day: 10, lines: []string{jsonOf(t, a(1))}},
-		filed{day: 11, lines: []string{jsonOf(t, a(2)), jsonOf(t, b)}},
-		filed{day: 12, lines: []string{jsonOf(t, c)}},
+		filed{day: 11, lines: []string{jsonOf(t, a(2)), jsonOf(t, b(1))}},
+		filed{day: 12, lines: []string{jsonOf(t, b(2)), jsonOf(t, c)}},
 	)
 	tailed := events.Tailed{Date: dateOf(september(11, 12, 0)), Read: func(take func(events.Held)) int {
-		take(events.Held{Line: b})
+		take(events.Held{Line: b(1)})
 		return 3
 	}}
 
@@ -210,9 +210,10 @@ func TestATailedDayIsReadThroughItsTailAlone(t *testing.T) {
 	for held := range events.NewReader(state, func() time.Time { return now }, logs.For("cli")).HeldTailing(september(10, 0, 0), september(13, 0, 0), tailed) {
 		got = append(got, held.Line)
 	}
-	// The 11th's version of a is never read: its tail hands on b alone.
-	if want := jsonsOf(t, []events.Line{a(1), b, c}); !slices.Equal(jsonsOf(t, got), want) {
-		t.Errorf("read\n%s\nwant the tailed day's lines as its tail read them, the others' from their files\n%s",
+	// The 11th's version of a is never read, as its tail hands on b alone,
+	// nor the 12th's lines, left to the follower whose tail it is.
+	if want := jsonsOf(t, []events.Line{a(1), b(1)}); !slices.Equal(jsonsOf(t, got), want) {
+		t.Errorf("read\n%s\nwant the tailed day's lines as its tail read them, the days' before from their files, and none after\n%s",
 			strings.Join(jsonsOf(t, got), "\n"), strings.Join(want, "\n"))
 	}
 	if want := []string{"level=WARN", `msg="lines of the router's events unread"`, "lines=3"}; !log.Has(want...) {

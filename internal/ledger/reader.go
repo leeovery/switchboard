@@ -106,7 +106,7 @@ func (f *failing) note(logger *slog.Logger, msg string, err error, args ...any) 
 		return
 	}
 	if !f.warned.Swap(true) {
-		logger.Warn(msg, append(args, "error", err)...)
+		logger.Warn(msg, slices.Concat(args, []any{"error", err})...)
 	}
 }
 
