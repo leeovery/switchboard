@@ -22,11 +22,11 @@ const (
 	idF41A = "f41a8c3e-2b97-4d05-9e6a-0f4d1b7c8e29"
 )
 
-// clockAt is the time of day given on the day days after now's, in now's
-// time zone.
+// clockAt is when the clocks in now's time zone first read the time of day
+// given on the day days after now's, as clockOn says.
 func clockAt(now time.Time, days, hour, minute, second int) time.Time {
 	y, m, d := now.Date()
-	return time.Date(y, m, d+days, hour, minute, second, 0, now.Location())
+	return clockOn(time.Date(y, m, d+days, 0, 0, 0, 0, time.UTC), hour, minute, second, now.Location())
 }
 
 // workReserve is the share of each of work's windows the router leaves

@@ -9,7 +9,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -33,9 +32,8 @@ func (y year) summaries(h history, accounts config.Accounts) []ledger.Summary {
 	none := func(func(ledger.Line) bool) {}
 	days := make([]ledger.Summary, 0, today)
 	for d := range today {
-		date := y.dateOf(d)
-		_, end, _ := dayfile.Day(date)
-		s, err := ledger.Summarise(date, none, h.Between, nil, caps, end)
+		date := dateOf(d)
+		s, err := ledger.Summarise(date, none, h.Between, nil, caps, dayStart(y.now, d+1))
 		if err != nil {
 			panic(fmt.Sprintf("summarise %s: %v", date, err))
 		}

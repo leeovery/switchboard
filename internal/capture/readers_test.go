@@ -51,8 +51,7 @@ func heldLine(t *testing.T, request, session, kind string, at time.Time) ledger.
 
 // readersAt is readersNow moved by the days given to the clock given.
 func readersAt(days, hour, minute, second int) time.Time {
-	y, m, d := readersNow.Date()
-	return time.Date(y, m, d+days, hour, minute, second, 0, time.Local)
+	return clockAt(readersNow, days, hour, minute, second)
 }
 
 // heldRecords are the readers' tests' records: lines of two days ago,

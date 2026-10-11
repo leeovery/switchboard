@@ -386,6 +386,44 @@ func TestEachDaysVersionsSumToItsWorth(t *testing.T) {
 	}
 }
 
+// A year built in any zone, whatever the machine's, has each of its days on
+// its own date, one after another, each starting at its date's first instant
+// there, though the clocks go forward over its midnight, as Santiago's do on
+// 6 September 2026 and Havana's on 8 March.
+func TestEachDayOfTheYearHasItsOwnDateFromItsFirstInstant(t *testing.T) {
+	for _, zone := range []string{"America/Santiago", "America/Havana", "Australia/Sydney", "Europe/London"} {
+		t.Run(zone, func(t *testing.T) {
+			loc, err := time.LoadLocation(zone)
+			if err != nil {
+				t.Fatal(err)
+			}
+			y := newYear(time.Date(2026, time.October, 1, 14, 42, 7, 0, loc))
+			before := "2025-09-28"
+			for d := range today + 1 {
+				date := dateOf(d)
+				if want := nextDate(t, before); date != want {
+					t.Fatalf("day %d of the year is dated %s, want %s, the day after day %d's", d, date, want, d-1)
+				}
+				start := dayStart(y.now, d)
+				if on, was := start.In(loc).Format(time.DateOnly), start.Add(-time.Nanosecond).In(loc).Format(time.DateOnly); on != date || was != before {
+					t.Errorf("%s starts at %s, on %s, the instant before on %s, want its first instant", date, start.In(loc), on, was)
+				}
+				before = date
+			}
+		})
+	}
+}
+
+// nextDate is the date after the one given.
+func nextDate(t *testing.T, date string) string {
+	t.Helper()
+	day, err := time.Parse(time.DateOnly, date)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return day.AddDate(0, 0, 1).Format(time.DateOnly)
+}
+
 // dayOfYear is an account's day of the year: its requests, its sessions and
 // those moved onto it and off it; when it reached each 5-hour limit; and when
 // each of its 5-hour windows and its own weeks reset, each list in order.
@@ -411,7 +449,7 @@ func instants(times []time.Time) string {
 func (y year) madeDays(id string) []dayOfYear {
 	limits, resets := make([][]time.Time, today), make([][]time.Time, today)
 	onDay := func(held [][]time.Time, t time.Time) {
-		if d := daysBetween(dayStart(y.now, 0), t.In(y.now.Location())); d >= 0 && d < today {
+		if d := dayOf(t.In(y.now.Location())); d >= 0 && d < today {
 			held[d] = append(held[d], t)
 		}
 	}

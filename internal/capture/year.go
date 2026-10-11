@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // monthWorths are BY MONTH's months as the frames draw them, from October
@@ -188,9 +187,10 @@ type ownWeek struct {
 // each a share of the eight weeks' mean as its days' use is of theirs.
 func (y year) weeksOf(id string) []ownWeek {
 	var weeks []ownWeek
-	for end := nextReset(id, y.now); ; end = end.AddDate(0, 0, -7) {
-		w := ownWeek{start: end.AddDate(0, 0, -7), end: end, open: end.After(y.now)}
-		w.column = y.column(w)
+	for back := 0; ; back-- {
+		end := weekReset(id, y.now, back)
+		w := ownWeek{start: weekReset(id, y.now, back-1), end: end, open: end.After(y.now)}
+		w.column = columnOf(w)
 		for d := firstDay(id); d <= today; d++ {
 			if noon := dayAt(y.now, d, 12, 0, 0); !noon.Before(w.start) && noon.Before(w.end) {
 				w.days = append(w.days, d)
@@ -218,22 +218,21 @@ func (y year) weeksOf(id string) []ownWeek {
 	return weeks
 }
 
-// column is the column of the eight weeks an own week is placed under, as
+// columnOf is the column of the eight weeks an own week is placed under, as
 // Weeks places it: the last for the one still running; else that of the
 // calendar week of the day it began, where it began up to half a week in,
 // or of the next; -1 for one placed before them.
-func (y year) column(w ownWeek) int {
+func columnOf(w ownWeek) int {
 	if w.open {
 		return 7
 	}
-	monday := dayStart(y.now, eightWeeks)
-	began := time.Date(w.start.Year(), w.start.Month(), w.start.Day(), 0, 0, 0, 0, y.now.Location())
-	week := began.AddDate(0, 0, -((int(began.Weekday()) + 6) % 7))
-	if daysBetween(week, began) > 3 {
-		week = week.AddDate(0, 0, 7)
+	began := dayOf(w.start)
+	week := began - (began%7+7)%7
+	if began-week > 3 {
+		week += 7
 	}
-	column := daysBetween(monday, week) / 7
-	if week.Before(monday) || column > 6 {
+	column := (week - eightWeeks) / 7
+	if week < eightWeeks || column > 6 {
 		return -1
 	}
 	return column
@@ -338,7 +337,7 @@ func (y year) monthsSpent() ([]float64, []int) {
 		thisWeeksRequests += requests
 	}
 	for i, worth := range monthWorths {
-		first, last := y.monthDays(i)
+		first, last := monthDays(i)
 		var months []int
 		for d := first; d < min(last, thisWeek); d++ {
 			months = append(months, d)
@@ -368,25 +367,12 @@ func (y year) monthsSpent() ([]float64, []int) {
 // monthDays are the first day of the year in the ith of monthWorths's months
 // and the day after its last: October 2025's from the 2nd, as the last 12
 // months to today begin then.
-func (y year) monthDays(i int) (int, int) {
-	start := dayStart(y.now, 0)
-	first := time.Date(2025, time.October+time.Month(i), 1, 0, 0, 0, 0, y.now.Location())
+func monthDays(i int) (int, int) {
+	first := dayOf(time.Date(2025, time.October+time.Month(i), 1, 0, 0, 0, 0, time.UTC))
 	if i == 0 {
-		first = first.AddDate(0, 0, 1)
+		first++
 	}
-	next := time.Date(2025, time.October+time.Month(i)+1, 1, 0, 0, 0, 0, y.now.Location())
-	return daysBetween(start, first), daysBetween(start, next)
-}
-
-// daysBetween counts the days from the day one time falls on to the day
-// another does, in their time zone, by the calendar: a day where the clocks
-// change is a day, however long.
-func daysBetween(from, to time.Time) int {
-	civil := func(t time.Time) time.Time {
-		y, m, d := t.Date()
-		return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-	}
-	return int(civil(to).Sub(civil(from)) / (24 * time.Hour))
+	return first, dayOf(time.Date(2025, time.October+time.Month(i)+1, 1, 0, 0, 0, 0, time.UTC))
 }
 
 // share shares a day's worth and requests among the accounts given, each as
@@ -517,7 +503,7 @@ func (y year) limit() {
 		}
 	}
 	for i, worth := range monthWorths {
-		first, last := y.monthDays(i)
+		first, last := monthDays(i)
 		var weekdays []int
 		for d := first; d < min(last, eightWeeks-7); d++ {
 			if d%7 < 5 {
@@ -640,7 +626,7 @@ func (y year) session() {
 				year = append(year, accountDate{a.ID, d})
 			default:
 				n := max(1, int(math.Round(float64(y.days[a.ID][d].requests)/requestsASession)))
-				y.days[a.ID][d].sessions = sessionIDs(y.dateOf(d), a.ID, n)
+				y.days[a.ID][d].sessions = sessionIDs(dateOf(d), a.ID, n)
 			}
 		}
 	}
@@ -648,7 +634,7 @@ func (y year) session() {
 		return float64(y.days[year[i].id][year[i].d].requests)
 	}))
 	for i, at := range year {
-		y.days[at.id][at.d].sessions = sessionIDs(y.dateOf(at.d), at.id, 1+rest[i])
+		y.days[at.id][at.d].sessions = sessionIDs(dateOf(at.d), at.id, 1+rest[i])
 	}
 	for d := range thisWeek {
 		for _, id := range three {
@@ -695,7 +681,7 @@ func (y year) sessionThisWeek() {
 	given := map[string][]string{"work": {id4B0E}, "personal": {idDB8A, id8A2C}, "side": {id5E7D}}
 	rest := apportion(yesterday.sessions-4, weightsOf(indexes(len(three)), func(i int) float64 { return float64(y.days[three[i]][wednesday].requests) }))
 	for i, id := range three {
-		running := sessionIDs(y.dateOf(wednesday), id, rest[i])
+		running := sessionIDs(dateOf(wednesday), id, rest[i])
 		for d := thisWeek; d < wednesday; d++ {
 			y.days[id][d].sessions = slices.Clone(running)
 		}
@@ -705,7 +691,7 @@ func (y year) sessionThisWeek() {
 	}
 	y.move("personal", "side", wednesday, id8A2C)
 	for id, n := range weekSessions {
-		running := sessionIDs(y.dateOf(thisWeek), id, n)
+		running := sessionIDs(dateOf(thisWeek), id, n)
 		for d := thisWeek; d < today; d++ {
 			y.days[id][d].sessions = slices.Clone(running)
 		}
@@ -725,8 +711,8 @@ func sessionIDs(date, account string, n int) []string {
 }
 
 // dateOf is day d of the year's date, as the ledger files its days.
-func (y year) dateOf(d int) string {
-	return dayfile.DateOf(dayStart(y.now, d))
+func dateOf(d int) string {
+	return civil(d).Format(time.DateOnly)
 }
 
 // --------------------------------------------------------- versions
@@ -852,7 +838,7 @@ func versionsOf(shares []float64) map[string]float64 {
 // 45% to 58% of the day's worth, the rest of Opus's Opus 5's, and Sonnet 5.5
 // nine in ten of Sonnet's.
 func drifted(d int) map[string]float64 {
-	day := time.Date(2025, time.September, 29+d, 0, 0, 0, 0, time.UTC)
+	day := civil(d)
 	f := float64(max((day.Year()-2025)*12+int(day.Month()-time.October), 0)) / 11
 	opus, sonnet, fable, haiku := math.Round(28+30*f), math.Round(66-28*f), 0.0, 5-math.Round(3*f)
 	if f > .4 {

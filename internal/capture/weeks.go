@@ -3,6 +3,8 @@ package capture
 import (
 	"math"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // The year's days, counted as the frames' generator counts them: day 0 is
@@ -15,14 +17,39 @@ const (
 	today      = 367
 )
 
-// dayStart is the start of day d of the year, in now's time zone.
-func dayStart(now time.Time, d int) time.Time {
-	return time.Date(2025, time.September, 29+d, 0, 0, 0, 0, now.Location())
+// civil is day d of the year's date, wherever it's read: its midnight in UTC,
+// which has every date's.
+func civil(d int) time.Time {
+	return time.Date(2025, time.September, 29+d, 0, 0, 0, 0, time.UTC)
 }
 
-// dayAt is the time of day given on day d of the year, in now's time zone.
+// dayOf is the day of the year t falls on, in its time zone, counted by the
+// calendar: a day the clocks change in is a day, however long.
+func dayOf(t time.Time) int {
+	y, m, d := t.Date()
+	return int(time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Sub(civil(0)) / (24 * time.Hour))
+}
+
+// dayStart is when day d of the year starts in now's time zone: at its first
+// instant, as clockOn says.
+func dayStart(now time.Time, d int) time.Time {
+	return dayAt(now, d, 0, 0, 0)
+}
+
+// dayAt is when the clocks in now's time zone first read the time of day
+// given on day d of the year, as clockOn says.
 func dayAt(now time.Time, d, hour, minute, second int) time.Time {
-	return time.Date(2025, time.September, 29+d, hour, minute, second, 0, now.Location())
+	return clockOn(civil(d), hour, minute, second, now.Location())
+}
+
+// clockOn is when the clocks in loc first read the time of day given on
+// date's date, as dayfile.TimeOfDay says, or went forward over it: always on
+// that date, where time.Date puts a midnight they go forward over on the day
+// before.
+func clockOn(date time.Time, hour, minute, second int, loc *time.Location) time.Time {
+	y, m, d := date.Date()
+	noon := time.Date(y, m, d, 12, 0, 0, 0, loc)
+	return dayfile.TimeOfDay(noon, hour, minute).Add(time.Duration(second) * time.Second)
 }
 
 // weekdayWeights weigh a day's use by its day of the week, from Monday, as
@@ -74,16 +101,21 @@ var weekResets = map[string]weekClock{
 	"studio": {time.Sunday, 6, 0},
 }
 
-// nextReset is when the account with the given id's week next resets after
-// now.
-func nextReset(id string, now time.Time) time.Time {
+// weekReset is when the account with the given id's week resets the weeks
+// given after it next does after now, or before, for weeks less than none: at
+// its time of the week on that week's date, as clockOn says, each week's
+// read afresh, so a time the clocks skip one week moves no other's.
+func weekReset(id string, now time.Time, weeks int) time.Time {
 	c := weekResets[id]
-	ahead := (int(c.day) - int(now.Weekday()) + 7) % 7
-	at := time.Date(now.Year(), now.Month(), now.Day()+ahead, c.hour, c.minute, 0, 0, now.Location())
-	if !at.After(now) {
-		at = at.AddDate(0, 0, 7)
+	y, m, d := now.Date()
+	on := func(days int) time.Time {
+		return clockOn(time.Date(y, m, d+days, 0, 0, 0, 0, time.UTC), c.hour, c.minute, 0, now.Location())
 	}
-	return at
+	ahead := (int(c.day) - int(now.Weekday()) + 7) % 7
+	if !on(ahead).After(now) {
+		ahead += 7
+	}
+	return on(ahead + 7*weeks)
 }
 
 // peaks are how full each account's week got, the eight weeks Weeks draws,
