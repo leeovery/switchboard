@@ -81,9 +81,12 @@ frame, with the cells `cells_test.go` reads and compares:
   - **a blank's foreground and bold,** which nothing shows: a blank's background is compared;
   - **the cells passed over,** below.
 
-  The size must match, its rows and each row's columns. A failure names the stem and lists the
-  cells that differ, the first 20, a line each with its row and column, counted from 1, and the
-  frame's and the fixture's glyph, colours and bold; then how many more.
+  A drawn row shorter than its frame's is read as a terminal shows it, blank and unpainted to the
+  frame's width, as `usage`'s printout writes nothing past a line's end; so it passes where the
+  frame is blank on the canvas there, and fails where the frame has a glyph or another background.
+  A drawn row wider than its frame's, or a row more or fewer, fails. A failure names the stem and
+  lists the cells that differ, the first 20, a line each with its row and column, counted from 1,
+  and the frame's and the fixture's glyph, colours and bold; then how many more.
 - **The frames prove the reading:** every frame's `.ansi` reads to its `.txt`, every cell painted,
   at the width its stem names, and its height where it names one; and every fixture's frame reads
   to its own plain text.

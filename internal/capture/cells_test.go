@@ -3,6 +3,7 @@ package capture
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -250,24 +251,34 @@ type difference struct {
 // span of over covers. A cell whose background isn't painted is the canvas's,
 // as a terminal of that background shows it; a colour's channel may be one
 // apart (see colour.near); and a blank's foreground and weight aren't
-// compared, as nothing shows them. The grids must be one size, row for row.
+// compared, as nothing shows them. A drawn row shorter than the frame's is
+// filled to its width with blank, unpainted cells, as a terminal shows what
+// wasn't written, since usage's printout writes nothing past a line's end.
+// The grids must have as many rows, and no drawn row may be wider.
 func compare(frame, drawn grid, canvas colour, over []span) ([]difference, error) {
 	if len(drawn) != len(frame) {
 		return nil, fmt.Errorf("drawn %d rows, where the frame has %d", len(drawn), len(frame))
 	}
 	var diffs []difference
 	for r := range frame {
-		if len(drawn[r]) != len(frame[r]) {
+		if len(drawn[r]) > len(frame[r]) {
 			return nil, fmt.Errorf("row %d drawn %d columns, where the frame has %d", r+1, len(drawn[r]), len(frame[r]))
 		}
+		row := filled(drawn[r], len(frame[r]))
 		for c := range frame[r] {
-			if passed(over, r+1, c+1) || alike(frame[r][c], drawn[r][c], canvas) {
+			if passed(over, r+1, c+1) || alike(frame[r][c], row[c], canvas) {
 				continue
 			}
-			diffs = append(diffs, difference{row: r + 1, col: c + 1, frame: frame[r][c], drawn: drawn[r][c]})
+			diffs = append(diffs, difference{row: r + 1, col: c + 1, frame: frame[r][c], drawn: row[c]})
 		}
 	}
 	return diffs, nil
+}
+
+// filled is row, with blank, unpainted cells after it to width, which is no
+// less than its own.
+func filled(row []cell, width int) []cell {
+	return slices.Concat(row, slices.Repeat([]cell{{glyph: ' '}}, width-len(row)))
 }
 
 // passed reports whether a span of over covers the cell at row and column.
@@ -463,6 +474,45 @@ func TestCompareHoldsEachCellToItsFrame(t *testing.T) {
 	}
 }
 
+func TestCompareFillsAShortRowAsATerminalShowsIt(t *testing.T) {
+	canvas, ink, other := rgb(46, 52, 64), rgb(216, 222, 233), rgb(180, 142, 173)
+	tests := []struct {
+		name  string
+		frame []cell
+		// want are the columns found to differ, each with the cell drawn
+		// there.
+		want map[int]cell
+	}{
+		{name: "the frame blank on the canvas past it", frame: slices.Concat(inked("ab", pen{ink, canvas, true}), inked("  ", pen{ink, canvas, false}))},
+		{
+			name:  "a glyph in the frame past it",
+			frame: slices.Concat(inked("ab", pen{ink, canvas, true}), inked(" c", pen{ink, canvas, false})),
+			want:  map[int]cell{4: {glyph: ' '}},
+		},
+		{
+			name:  "another background in the frame past it",
+			frame: slices.Concat(inked("ab", pen{ink, canvas, true}), inked(" ", pen{ink, canvas, false}), inked(" ", pen{ink, other, false})),
+			want:  map[int]cell{4: {glyph: ' '}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			drawn := grid{inked("ab", pen{ink, canvas, true})}
+			diffs, err := compare(grid{tt.frame}, drawn, canvas, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[int]cell{}
+			for _, d := range diffs {
+				got[d.col] = d.drawn
+			}
+			if !maps.Equal(got, tt.want) {
+				t.Errorf("compare found %v differing, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCompareRefusesAGridOfAnotherSize(t *testing.T) {
 	frame := grid{inked("ab", pen{}), inked("cd", pen{})}
 	tests := []struct {
@@ -472,7 +522,6 @@ func TestCompareRefusesAGridOfAnotherSize(t *testing.T) {
 	}{
 		{name: "a row fewer", drawn: frame[:1], want: "drawn 1 rows, where the frame has 2"},
 		{name: "a row more", drawn: append(clone(frame), nil), want: "drawn 3 rows, where the frame has 2"},
-		{name: "a row narrower", drawn: grid{frame[0], frame[1][:1]}, want: "row 2 drawn 1 columns, where the frame has 2"},
 		{name: "a row wider", drawn: grid{inked("abc", pen{}), frame[1]}, want: "row 1 drawn 3 columns, where the frame has 2"},
 	}
 	for _, tt := range tests {
