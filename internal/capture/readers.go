@@ -129,11 +129,14 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 }
 
 // Session gives the lines of the session with the given id that arrived by
-// now, of whatever day, newest first, as a Follower orders them, as far as
-// the caller goes on.
+// now, newest first, as a Follower orders them, as far as the caller goes on:
+// of each day that names it, as its summary would, as a Follower reads them,
+// so none of a day it made only quota checks on.
 func (l heldLedger) Session(id string) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		lines := slices.DeleteFunc(l.arrived(l.now()), func(f filed) bool { return f.Session != id })
+		lines := l.arrived(l.now())
+		named := naming(lines, map[string]bool{id: true})
+		lines = slices.DeleteFunc(lines, func(f filed) bool { return f.Session != id || !named[f.date] })
 		slices.SortStableFunc(lines, func(a, b filed) int { return byArrival(b, a) })
 		for _, f := range lines {
 			if !yield(f.Held) {
@@ -147,9 +150,9 @@ func (l heldLedger) Session(id string) iter.Seq[ledger.Held] {
 // with a request that arrived today, and of those with the given ids, by
 // each one's id, oldest first, as a Follower reads them: the days either side
 // of today's, and today's, read whole, then each earlier day that names a
-// session it gives, as its summary would, among those its lines, but quota
-// checks, were of. take, where it's given, is handed each line of every day
-// read, with the day's date, those either side of today's and today's first.
+// session it gives, as its summary would. take, where it's given, is handed
+// each line of every day read, with the day's date, those either side of
+// today's and today's first.
 func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Line)) map[string][]ledger.Line {
 	now := l.now()
 	lines := l.arrived(now)
@@ -164,14 +167,9 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 			wanted[f.Session] = true
 		}
 	}
-	named := make(map[string]bool)
-	for _, f := range lines {
-		if f.date < near[0] && f.Kind != ledger.KindCheck && wanted[f.Session] {
-			named[f.date] = true
-		}
-	}
+	named := naming(lines, wanted)
 	read := func(f filed) bool { return slices.Contains(near, f.date) }
-	more := func(f filed) bool { return named[f.date] }
+	more := func(f filed) bool { return f.date < near[0] && named[f.date] }
 	sessions := make(map[string][]filed)
 	for _, reads := range []func(filed) bool{read, more} {
 		for _, f := range lines {
@@ -194,6 +192,18 @@ func (l heldLedger) Sessions(ids []string, take func(date string, line ledger.Li
 		}
 	}
 	return given
+}
+
+// naming are the dates of the days whose lines name a session wanted, as
+// their summaries would: among those their lines, but quota checks, were of.
+func naming(lines []filed, wanted map[string]bool) map[string]bool {
+	named := make(map[string]bool)
+	for _, f := range lines {
+		if f.Kind != ledger.KindCheck && wanted[f.Session] {
+			named[f.date] = true
+		}
+	}
+	return named
 }
 
 // heldReadings reads the records' readings history as a readings.Reader

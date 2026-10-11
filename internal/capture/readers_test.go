@@ -194,7 +194,7 @@ func TestTheRecordsLedgerGivesASessionsLinesNewestFirstAsAFollowerDoes(t *testin
 	now := func() time.Time { return readersNow }
 	l, _, _ := r.readers(now)
 	follower := fileLedger(t, r, now)
-	for _, id := range []string{sessionToday, sessionBoth, sessionAsked} {
+	for _, id := range []string{sessionToday, sessionBoth, sessionAsked, sessionChecked} {
 		got, want := slices.Collect(l.Session(id)), slices.Collect(follower.Session(id))
 		if !reflect.DeepEqual(requestsOf(got), requestsOf(want)) {
 			t.Errorf("Session(%s) gave %v, want %v, as a Follower gives them", id, requestsOf(got), requestsOf(want))
