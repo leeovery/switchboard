@@ -370,6 +370,38 @@ func TestARequestEveryAccountThatJudgedItRefusedIsTakenBackThoughItLeftOneForANe
 	})
 }
 
+func TestARequestNoAccountJudgedTakesNothingBack(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		files := &changingFiles{files: tokenstest.Files{"work": workToken}}
+		r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
+		r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+		one := key{session: "one", model: opus}
+		assign(r.sessions, one, "", decision{account: "side", reason: reasonNew}, start)
+		holds := func(token string) func() {
+			return func() { files.set(tokenstest.Files{"work": token}) }
+		}
+		// Session one is on side, which has no token, so its request moves it
+		// to work, the only account with one, whose token is replaced as the
+		// request is out on it, and again as it goes out on the new one; no
+		// account is left.
+		r.proxy.transport = &scriptedUpstream{answers: map[string][]answer{
+			workToken:    {refusedAs(holds(renewedToken))},
+			renewedToken: {refusedAs(holds(rotatedToken), r.upkeep.tokens.look)},
+		}}
+		reader := joined(t, r)
+
+		if rec := routeAsking(t.Context(), r, "one", opusAsked); rec.Code != http.StatusBadGateway {
+			t.Errorf("answered %d %s, want work's 401 as a refusal, a 502", rec.Code, rec.Body)
+		}
+		if got := r.sessions.lookup(one).current.Account; got != "work" {
+			t.Errorf("session one is on %s, want work, where its request moved it: no account judged the request, so nothing is taken back", got)
+		}
+		if slices.ContainsFunc(heard(reader), func(e StreamEvent) bool { return e.Kind == StreamMoved && e.Reason == reasonBack }) {
+			t.Error("the stream told of session one going back where it was, want it left where its request moved it")
+		}
+	})
+}
+
 // refusedAs answers with a 401, refusing the account's token, once what's
 // given has happened as the request was out.
 func refusedAs(happen ...func()) answer {

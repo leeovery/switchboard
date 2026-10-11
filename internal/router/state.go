@@ -43,8 +43,11 @@ type usage struct {
 	// updated is when a reading last came in.
 	updated time.Time
 	// probed is when a probe of the account last ended, whether it read
-	// anything or not.
-	probed time.Time
+	// anything or not, which its probes' backoff runs from; and ended is when
+	// the last probe the account took anything in from ended, which a prime's
+	// verdict is judged at, as primeFailed says. A probe on the token before
+	// that read the account moves ended alone, as recordProbe says.
+	probed, ended time.Time
 	// probeErr says why the last probe read nothing, and misses counts the
 	// probes in a row that read nothing, until a reading comes in.
 	probeErr string
@@ -319,9 +322,12 @@ func (s *state) admitted(id string, sent moment) {
 // success, or why it read nothing. It reports whether the probe went out on
 // the token before, sent before the account last went out on another, as
 // tokenReplaced marks it: of one of those, it takes in what it read alone,
-// the subscription's usage, which reads the same on either token, and none
-// of how it went: when it ended, why it read nothing, or what it couldn't
-// read.
+// the subscription's usage, which reads the same on either token, and when it
+// ended, for a prime's verdict, but not why it read nothing, what it couldn't
+// read, or the backoff its end would start. Its reading stamps the account
+// read, and clears its probes' error and backoff, as any reading does: none
+// can have come since the account took up its token, as its probes go out
+// one at a time.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) bool {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -330,11 +336,12 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	tokenBefore := sent < u.afresh
 	if err != nil {
 		if !tokenBefore {
-			u.probed, u.probeErr = at, err.Error()
+			u.probed, u.ended, u.probeErr = at, at, err.Error()
 			u.misses++
 		}
 		return tokenBefore
 	}
+	u.ended = at
 	if !tokenBefore {
 		u.probed, u.failures = at, slices.Clone(probed.Failures)
 	}
@@ -734,7 +741,7 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 		return time.Time{}, false
 	}
 	retry := reprobeAfter
-	if u.primeFailed(policy, u.probed) {
+	if u.primeFailed(policy) {
 		retry = reprimeAfter
 	}
 	return score.Later(at, u.probed.Add(retry)), true
@@ -767,22 +774,19 @@ func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 }
 
 // primeFailed reports whether the last probe of the account with the given
-// id, ended at ended, failed as a prime, as its usage's primeFailed says. The
-// account's probes keep no end of one on the token before, as recordProbe
-// says, so the caller gives it.
-func (s *state) primeFailed(id string, ended time.Time) bool {
+// id failed as a prime, as its usage's primeFailed says.
+func (s *state) primeFailed(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.usage[id].primeFailed(s.policy, ended)
+	return s.usage[id].primeFailed(s.policy)
 }
 
-// primeFailed reports whether the account's last probe, ended at ended,
-// failed as a prime: it read nothing, or the window a request starts, as
-// policy names it, wasn't running as it ended, by what has been read, so the
-// prime didn't start it.
-func (u *usage) primeFailed(policy score.Policy, ended time.Time) bool {
+// primeFailed reports whether the account's last probe failed as a prime: it
+// read nothing, or the window a request starts, as policy names it, wasn't
+// running as it ended, by what has been read, so the prime didn't start it.
+func (u *usage) primeFailed(policy score.Policy) bool {
 	windows := u.latest()
-	return u.probeErr != "" || len(windows) == 0 || len(policy.Lapsed(windows, ended)) > 0
+	return u.probeErr != "" || len(windows) == 0 || len(policy.Lapsed(windows, u.ended)) > 0
 }
 
 // view returns what a choice of account for a request of model knows at now:

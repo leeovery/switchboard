@@ -269,7 +269,7 @@ func (p *probes) logPrime(a account, w went) {
 		primed.ResetsAt = w.probed.Windows[i].ResetsAt
 		attrs = append(attrs, "resets", primed.ResetsAt)
 	}
-	if p.state.primeFailed(a.ID, p.now()) {
+	if p.state.primeFailed(a.ID) {
 		logger.Warn("prime didn't start the window", append(attrs, "window", primed.Window)...)
 	} else {
 		logger.Info("primed", attrs...)

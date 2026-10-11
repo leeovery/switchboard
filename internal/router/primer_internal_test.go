@@ -406,6 +406,58 @@ func TestAPrimeOnTheTokenBeforeStandsAsTheAccountsPrime(t *testing.T) {
 	})
 }
 
+func TestAPrimeOnTheTokenBeforeIsJudgedOnceAsToldAndAsThePrimerChooses(t *testing.T) {
+	tests := []struct {
+		name string
+		// idle has the upstream start no session on work's token.
+		idle bool
+		// wantLog is how the prime is told, and wantFailed whether the primer
+		// judges it failed, as it chooses how long to wait before the next.
+		wantLog    []string
+		wantFailed bool
+	}{
+		{name: "starting work's session", wantLog: []string{"level=INFO", "msg=primed", "account=work"}},
+		{
+			name:       "starting nothing",
+			idle:       true,
+			wantLog:    []string{"level=WARN", `msg="prime didn't start the window"`, "account=work", "window=5h"},
+			wantFailed: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				clock := newBubbleClock(onDay(1, 4, 10))
+				upstream := newWindowsUpstream(clock)
+				if tt.idle {
+					upstream.leaveIdle(workToken, onDay(1, 1, 0))
+				}
+				prober := &lateProber{prober: upstream, token: workToken, held: make(chan struct{})}
+				files := &changingFiles{files: testTokens}
+				r := newPrimingRouterReading(t, clock.read, prober, daytime, files.read)
+				defer r.probes.stop()
+
+				// Work's prime reads it, and its answer comes once work has
+				// taken up another token.
+				underway := r.probes.prime(r.accounts.only([]string{"work"}), func(string, time.Time) bool { return true })
+				synctest.Wait()
+				files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
+				r.upkeep.tokens.look()
+				close(prober.held)
+				<-underway[0].done
+
+				if !log.Has(tt.wantLog...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, tt.wantLog)
+				}
+				if got := r.state.primeFailed("work"); got != tt.wantFailed {
+					t.Errorf("work's prime failed, as the primer judges it, = %v, want %v, as it was told", got, tt.wantFailed)
+				}
+			})
+		})
+	}
+}
+
 func TestAPrimeThatFailsOnTheTokenBeforeIsWarnedOfThoughItHoldsTheNewOneBackNot(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := logstest.Capture(t)
