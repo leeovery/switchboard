@@ -385,9 +385,9 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   returns 502, shaped as the API shapes its errors and marked `X-Should-Retry: false`, as the same
   token would only be refused again, its message giving the upstream's reason, cut to 200
   characters, with anything shaped like a token hidden.
-- **A request refused everywhere bars no family:** when every account a request went out on refused
-  it, but those it left for a new token, which judged nothing as their 401s were to a token they no
-  longer held, the refusals of the request itself it met, the 403s, are taken back, as a refusal every
+- **A request refused everywhere bars no family:** when every account that judged a request refused
+  it, and one at least did, those it left for a new token judging nothing as their 401s were to a
+  token they no longer held, the refusals of the request itself it met, the 403s, are taken back, as a refusal every
   account that judged the request gives says more of the request, such as a beta it carries, than
   of the accounts. Otherwise one such request would hold its model's family back on every account
   for 10 minutes, and every session of the family would fall back to the client's account, the
