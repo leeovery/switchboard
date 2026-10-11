@@ -289,7 +289,7 @@ func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time) Summary {
 		}
 		return slices.Values(d.history.Read())
 	}
-	return t.day(d.date, n, read, held, f.days.caps, asOf).made(lines, held)
+	return t.day(d.date, n, read, held, f.days.caps, asOf).made(lines, held, f.days.keeping())
 }
 
 // tailed is the ledger's files of a local day, by its date, read as they

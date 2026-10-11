@@ -1128,7 +1128,7 @@ func summaryAgain(t *testing.T, by, state, dir string, at time.Time, held []read
 		return strings.TrimSuffix(heldSummary(t, dir, date), "\n")
 	}
 	for _, r := range held {
-		writeFile(t, readings.Dir(state), "readings-"+r.At.Local().Format(time.DateOnly)+".jsonl", []byte(readingJSON(t, r)+"\n"))
+		holdReadings(t, readings.Dir(state), r.At.Local().Format(time.DateOnly), r)
 	}
 	return summariesJSON(t, readerAt(state, at).Days(on(0, 0, 0))[:1])[0]
 }

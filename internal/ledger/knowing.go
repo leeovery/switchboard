@@ -29,12 +29,54 @@ func (s Summary) knowing(held Summary) Summary {
 
 // made returns s, a day summarised from its lines, made from as many as its
 // files hold, as lines counts them, knowing no less than held, the day's
-// summary before, where there's one, as knowing says.
-func (s Summary) made(lines int, held *Summary) Summary {
+// summary before, where there's one, as knowing says. What came of the lines
+// it always knows no less of, as lines can be lost; but what held took from
+// the readings history it takes afresh, as s gives it, where held is of an
+// older version and the readings it was made from are kept still: the day's,
+// as kept reports, and the week before's, as readsAgain does. So a newer
+// version rights an older one's facts of the readings, as of a reading read
+// late, which knowing no less would keep.
+func (s Summary) made(lines int, held *Summary, kept func(date string) bool) Summary {
 	s.Lines = lines
-	if held != nil {
-		return s.knowing(*held)
+	switch {
+	case held == nil:
+		return s
+	case held.Version < summaryVersion && kept(s.Day) && s.readsAgain(*held):
+		return s.knowing(held.linesAlone())
 	}
+	return s.knowing(*held)
+}
+
+// readsAgain reports whether s read, in the week before its day, every
+// window held, a summary of the day before it, read there, account by
+// account, as their read_before say.
+func (s Summary) readsAgain(held Summary) bool {
+	for _, h := range held.Accounts {
+		i := slices.IndexFunc(s.Accounts, func(a AccountDay) bool { return a.Account == h.Account })
+		for _, key := range h.ReadBefore {
+			if i < 0 || !slices.Contains(s.Accounts[i].ReadBefore, key) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// linesAlone returns s with none of what it took from the readings history:
+// each account's day without its windows' highest use, rises, resets,
+// limits, minutes or the windows read before it, and one the readings alone
+// gave, which served no request and moved no session, left out.
+func (s Summary) linesAlone() Summary {
+	var accounts []AccountDay
+	for _, a := range s.Accounts {
+		if len(a.Models) == 0 && a.MovedOn == 0 && a.MovedOff == 0 {
+			continue
+		}
+		a.Highest, a.Rise, a.Resets, a.Limits, a.ReadBefore = nil, nil, nil, nil, nil
+		a.MinutesAtCap, a.MinutesAtLimit = nil, nil
+		accounts = append(accounts, a)
+	}
+	s.Accounts = accounts
 	return s
 }
 

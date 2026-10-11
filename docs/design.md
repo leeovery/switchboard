@@ -4199,14 +4199,21 @@ from the first day a router that has it runs, so nothing before then is in it.
     otherwise, or keeps more of it, writes another, so the summaries written before it can be told:
     a day whose summary is of an older version is read, and summarised again from its lines and its
     readings while either is kept, once, on the first round under the new version, as the round's
-    stamp holds the summary's version (see below), knowing no less than it, as any summary written
-    again does: so a day whose readings the history has pruned is summarised again from its lines,
-    and keeps what the summary before took from the readings; one whose lines are pruned, from its
-    readings, and keeps its requests as the summary before gave them; and one whose lines and
-    readings are both gone keeps the summary it has. A reader that meets an older version's
-    summary, its lines kept, summarises the day from its lines, as it does today's; and of the
-    rest, whose lines are gone, a reader knows what they never counted, rather than taking it for
-    none. Versions 2 and 3 only add fields, and accounts, so a release from before one reads a
+    stamp holds the summary's version (see below), knowing no less than it of what came of the
+    lines, as any summary written again does, as lines can be lost. What came of the readings,
+    though, its windows' `highest`, `rise`, `resets`, `limits`, minutes and `read_before`, it takes
+    afresh where the readings are kept, the day's, as the history's files say, and the week
+    before's, as far as the summary before read them, as its `read_before` says: a newer version
+    rights an older one's facts of the readings where they can be read again, as version 3 rights a
+    rise a reading read late added to, or a limit it counted again, as the data's being right comes
+    before keeping an older version's errors. So a day whose readings the history has pruned, even
+    in part, is summarised again from its lines, and keeps what the summary before took from the
+    readings; one whose lines are pruned, from its readings, and keeps its requests as the summary
+    before gave them; and one whose lines and readings are both gone keeps the summary it has. A
+    reader that meets an older version's summary, its lines kept, summarises the day from its
+    lines, as it does today's, by the same rules; and of the rest, whose lines are gone, a reader
+    knows what they never counted, rather than taking it for none. Versions 2 and 3 only add
+    fields, and accounts, so a release from before one reads a
     summary of it as one of its own, passing over what it doesn't know, and keeps those fields when
     it marks the summary afresh; where it summarises the day again, as lines come to be filed under
     it, it writes its own version, which the next release to run summarises again while the day's
@@ -4302,9 +4309,10 @@ from the first day a router that has it runs, so nothing before then is in it.
   one before held are among its own. Its `session_ids` are its own and the one before's together;
   each window's rise, and each of its minutes, are the one before's where that's more; and the
   resets the one before held are among its own, a reset being the same where its window and the
-  time it reset are, its `before` the higher of the two. So a summary of version 2 summarised again
-  keeps what version 3 counts otherwise, as a rise a reading read late added to, where that's more
-  (see `rise`). The readings history prunes the readings of a day past its own keep, whatever the
+  time it reset are, its `before` the higher of the two. All but where the one before is of an older
+  version, and the readings it was made from are kept still: what came of them is then taken afresh,
+  as `version` says, as a newer version rights an older one's errors, which knowing no less would
+  keep. The readings history prunes the readings of a day past its own keep, whatever the
   ledger's, and a clock moved can leave it short of them, so what the readings gave can't be had
   again from them: a limit whose window has no reading before it, in the day or the week before,
   which a summary takes for one reached, is its own only where the summary before read none of

@@ -145,10 +145,6 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 	// be read; read as it did with its readings.
 	whole := fmt.Sprintf(`{"version":3,"day":"%s","lines":2,"accounts":[%s,%s]}`, date, personal, work)
 	blind, read := ofVersion(summaryOf(date, 2, 2, windowsRead{}), 2), ofVersion(whole, 2)
-	// more is work's session as version 2 read it, of a reading lost since:
-	// at its limit from 12:00 to its reset at 13:00.
-	more := windowsRead{read: true, highest: `{"5h":0.7}`, rise: `{"5h":0.6}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.7) + `]`,
-		limits: `[` + limitJSON("5h", on(0, 12, 0), on(0, 13, 0)) + `]`, atLimit: 60}
 	tests := []struct {
 		name string
 		held string
@@ -159,8 +155,6 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 		want     string
 	}{
 		{name: "its lines and readings kept, summarised again from both", held: blind, readings: kept, want: whole},
-		{name: "its lines and readings kept, knowing no less than it did of a reading lost since", held: ofVersion(summaryOf(date, 2, 2, more), 2), readings: kept,
-			want: fmt.Sprintf(`{"version":3,"day":"%s","lines":2,"accounts":[%s,%s]}`, date, personal, workDayJSON(2, more))},
 		{name: "its lines pruned, its readings kept, summarised again from them, knowing its requests as it did", held: blind, pruned: true, readings: kept,
 			want: whole},
 		{name: "its lines kept, its readings pruned, summarised again from its lines, knowing what it did of the readings", held: read, want: whole},
@@ -189,6 +183,54 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 				t.Errorf("log reads\n%s\nthe round after opened %d of the day's files, want none: its summary stands, as its stamp tells", log, n)
 			}
 		})
+	}
+}
+
+func TestANewerVersionRightsAnOlderOnesFactsOfTheReadingsWhereTheyreKept(t *testing.T) {
+	week := workRead(on(-3, 12, 0), "7d", 0.41, on(2, 10, 0), quota.StatusAllowed)
+	// Work's session, at its limit from 10:02, a reading of the run before
+	// it, which reset at 15:30, read late between.
+	session := []readings.Reading{rejected(on(0, 10, 2), "5h", 1, on(0, 15, 40)), rejected(on(0, 10, 5), "5h", 1, on(0, 15, 30)),
+		rejected(on(0, 10, 8), "5h", 1, on(0, 15, 40))}
+	limits := `[` + limitJSON("5h", on(0, 10, 2), on(0, 15, 40)) + `,` + limitJSON("5h", on(0, 10, 5), on(0, 15, 30)) + `,` +
+		limitJSON("5h", on(0, 10, 8), on(0, 15, 40)) + `]`
+	// countedAgain is the day as version 2 summarised it: the late reading
+	// taken for a run of its own, its limit counted again, and again as the
+	// run it broke went on, a reset of that run at 10:08, and the rise from
+	// nothing after it; righted, as version 3 summarises it.
+	countedAgain := windowsRead{read: true, highest: `{"5h":1}`, rise: `{"5h":2}`,
+		resets: `[` + resetJSON("5h", on(0, 10, 8), 1) + `,` + resetJSON("5h", on(0, 15, 40), 1) + `]`, limits: limits, atLimit: 338}
+	righted := windowsRead{read: true, highest: `{"5h":1,"7d":0.41}`, rise: `{"5h":1,"7d":0}`, resets: `[` + resetJSON("5h", on(0, 15, 40), 1) + `]`,
+		limits: `[` + limitJSON("5h", on(0, 10, 2), on(0, 15, 40)) + `]`, atLimit: 338, before: `["7d"]`}
+	withWeek := countedAgain
+	withWeek.highest, withWeek.rise, withWeek.before = `{"5h":1,"7d":0.41}`, `{"5h":2,"7d":0}`, `["7d"]`
+	tests := []struct {
+		name string
+		// held is the day's work as version 2 summarised it, and readings
+		// those the readings history holds now.
+		held     windowsRead
+		readings []readings.Reading
+		want     windowsRead
+	}{
+		{name: "its readings kept, the late reading's rise and limits righted", held: withWeek, readings: append([]readings.Reading{week}, session...),
+			want: righted},
+		{name: "the week before's readings pruned, kept as version 2 had them", held: withWeek, readings: session, want: withWeek},
+		{name: "the day's readings pruned, a later day's kept, kept as version 2 had them", held: countedAgain,
+			readings: []readings.Reading{workRead(on(2, 9, 0), "5h", 0.1, on(2, 13, 0), quota.StatusAllowed)}, want: countedAgain},
+	}
+	for _, tt := range tests {
+		for _, by := range []string{"the router", "a reader"} {
+			t.Run(tt.name+", by "+by, func(t *testing.T) {
+				state, dir, _ := stateDirs(t)
+				holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
+				markVersionTwo(t, dir, ofVersion(summaryOf(date, 2, 2, tt.held), 2))
+
+				got := summaryAgain(t, by, state, dir, on(1, 11, 0), tt.readings)
+				if want := summaryOf(date, 2, 2, tt.want); got != want {
+					t.Errorf("the day's summary is\n%s\nwant\n%s", got, want)
+				}
+			})
+		}
 	}
 }
 

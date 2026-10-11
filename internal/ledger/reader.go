@@ -39,10 +39,11 @@ func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Lo
 func daysIn(stateDir string, caps Caps, logger *slog.Logger) (d days, history *dayfile.Files) {
 	history = readings.Files(readings.Dir(stateDir), logger)
 	return days{
-		files:   filesIn(Dir(stateDir), logger),
-		history: func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
-		caps:    caps,
-		logger:  logger,
+		files:        filesIn(Dir(stateDir), logger),
+		history:      func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(history, from, to) },
+		historyDates: history.All,
+		caps:         caps,
+		logger:       logger,
 	}, history
 }
 
@@ -146,7 +147,7 @@ func arrived(h Held) time.Time {
 // summary the ledger holds of a day, as it's held, where it stands, as stands
 // says; else the day summarised from its lines and the readings history, as
 // they're read, as of today as far as it has gone, knowing no less than any
-// summary held of it, as knowing says, the history read ahead for them all,
+// summary held of it, as made says, the history read ahead for them all,
 // as readingAhead says. A day of no requests is a summary of the accounts the
 // readings history tells of alone, of none where it tells of none.
 func (r *Reader) Days(from time.Time) []Summary {
@@ -155,13 +156,14 @@ func (r *Reader) Days(from time.Time) []Summary {
 	days := make([]Summary, len(dates))
 	var due []dueDay
 	var at []int
+	kept := r.days.keeping()
 	for i, date := range dates {
 		summary, stands := r.standing(date)
 		if stands {
 			days[i] = *summary
 			continue
 		}
-		due, at = append(due, dueDay{date: date, held: summary, asOf: now}), append(at, i)
+		due, at = append(due, dueDay{date: date, held: summary, asOf: now, kept: kept}), append(at, i)
 	}
 	for k, summary := range readingAhead(r.days.history, due, r.summarised) {
 		days[at[k]] = summary
