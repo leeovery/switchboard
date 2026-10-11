@@ -3,14 +3,6 @@
 Milestone 7's stage 3, the data verbs, went through several rounds of review each. What the reviews
 found and left, as not worth holding the stage for, gathered here.
 
-## Two router tests that fail under load
-
-`TestAnAssignmentUsedAgainIsSavedOnceAMinute` and
-`TestTheRequestStreamTellsOfTheRequestsARestartFinishes` (`internal/router`) each failed once in a
-full run of the tests while several other runs went on at once, and passed every time run alone, five
-times each. Each rests on a timing assumption that a loaded machine can break. Find what each waits
-on, and wait on it rather than on time.
-
 ## Weeks' headline for a set short every week
 
 Where now is short on 4 or more of 7 weeks and one more account wouldn't halve that (short on 7 of

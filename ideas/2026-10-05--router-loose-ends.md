@@ -23,14 +23,6 @@ only when something rare happens.
 
 ## Found while building milestone 6, 6 October 2026
 
-- **A restart can close the request stream before its last events are written.** The design
-  promises a stream's readers see the requests a restart finishes: the stream ends as the control
-  API closes, after the drain. But nothing waits for a reader's writer goroutine to flush the
-  `done` events queued for it before the control API closes, so under load a reader can miss the
-  last ones. `TestTheRequestStreamTellsOfTheRequestsARestartFinishes` failed once this way at a
-  load average near 100, and passed 30 times alone; and again on 9 October 2026, in a full gate
-  run beside three others. A fix: as the stream closes, write what's queued for each reader
-  before ending its response.
 - **A restart in place leaves its control socket unanswered as it finishes stopping.**
   `drainHandingOver` (`internal/router/replace.go`) closes the control API once the drain is done,
   and only then does `serve` stop its background: the notifications' finishing, up to
