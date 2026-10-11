@@ -24,3 +24,22 @@ var families = []family{
 	{label: "Base", models: []string{"claude-haiku-4-5-20251001"}},
 	{label: "Fable", window: "7d_oi", models: []string{"claude-fable-5-1", "claude-fable-5"}},
 }
+
+// ModelWindow is a window only one model family's models report, as Fable's
+// week is.
+type ModelWindow struct {
+	// Name is the family's, as Fable, and Key the window's, as 7d_oi.
+	Name, Key string
+}
+
+// ModelWindows are the windows only one model family reports, a family at a
+// time: known before any account is read, as usage's flags must be.
+func ModelWindows() []ModelWindow {
+	var windows []ModelWindow
+	for _, f := range families {
+		if f.window != "" {
+			windows = append(windows, ModelWindow{Name: f.label, Key: f.window})
+		}
+	}
+	return windows
+}

@@ -3,6 +3,7 @@ package cli_test
 import (
 	"image/color"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -42,12 +43,12 @@ text.on-attention = #ECEFF4
 // truecolour is an environment whose terminal shows every colour.
 var truecolour = map[string]string{"CLICOLOR_FORCE": "1", "TERM": "xterm-256color", "COLORTERM": "truecolor"}
 
-func TestUsageWatchIsDrawnInTheThemesChosen(t *testing.T) {
+func TestDashboardIsDrawnInTheThemesChosen(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"theme_light": "lake", "theme_dark": "amber"}`)
 	writeTheme(t, themesDir(t, deps), "lake", lakeTheme)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if want := (theme.Choice{Light: "lake", Dark: "amber"}); cfg.Choice != want {
 		t.Errorf("choice = %+v, want %+v, as prefs.json keeps it", cfg.Choice, want)
@@ -70,11 +71,11 @@ func TestUsageWatchIsDrawnInTheThemesChosen(t *testing.T) {
 	}
 }
 
-func TestTheWatchsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
+func TestTheDashboardsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"theme_light": "exchange", "view": "accounts"}`)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 	writePrefs(t, deps, `{"theme_light": "tokyo-night", "view": "accounts"}`)
 
 	if got, want := cfg.Themes.Chosen(), (theme.Choice{Light: "tokyo-night"}); got != want {
@@ -90,18 +91,18 @@ func TestTheWatchsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
 	}
 }
 
-func TestUsageWatchOpensOnTheViewKept(t *testing.T) {
+func TestDashboardOpensOnTheViewKept(t *testing.T) {
 	for _, env := range []map[string]string{nil, {"NO_COLOR": "1"}} {
 		deps := statusDeps(t, fakeClaudeAPI(t), env)
 		writePrefs(t, deps, `{"theme": "amber", "view": "accounts"}`)
 		cfg := recordWatch(t, &deps)
-		run(t, deps, "usage", "--watch")
+		run(t, deps, "dashboard")
 
 		if cfg.View != dashboard.Accounts {
-			t.Errorf("with %v, the watch opens on %q, want the view prefs.json keeps", env, cfg.View)
+			t.Errorf("with %v, the dashboard opens on %q, want the view prefs.json keeps", env, cfg.View)
 		}
 		if cfg.Prefs == nil {
-			t.Fatalf("with %v, the watch has nowhere to keep the view shown", env)
+			t.Fatalf("with %v, the dashboard has nowhere to keep the view shown", env)
 		}
 		if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.View = "sessions" }); err != nil {
 			t.Fatalf("Update() error = %v", err)
@@ -113,45 +114,45 @@ func TestUsageWatchOpensOnTheViewKept(t *testing.T) {
 	}
 }
 
-func TestUsageWatchFeaturesTheWindowKept(t *testing.T) {
+func TestDashboardFeaturesTheWindowKept(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"view": "accounts", "featured": "7d"}`)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Featured != "7d" {
-		t.Errorf("the watch's cards feature %q, want the week prefs.json keeps", cfg.Featured)
+		t.Errorf("the dashboard's cards feature %q, want the week prefs.json keeps", cfg.Featured)
 	}
 }
 
-func TestUsageWatchDrawsTheChartKept(t *testing.T) {
+func TestDashboardDrawsTheChartKept(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"view": "accounts", "chart": "hourglass"}`)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Chart != dashboard.Hourglass {
-		t.Errorf("the watch's cards draw %q, want the hourglass prefs.json keeps", cfg.Chart)
+		t.Errorf("the dashboard's cards draw %q, want the hourglass prefs.json keeps", cfg.Chart)
 	}
 }
 
-func TestUsageWatchFindsThemesWhereSwitchboardThemesDirSays(t *testing.T) {
+func TestDashboardFindsThemesWhereSwitchboardThemesDirSays(t *testing.T) {
 	dotfiles := t.TempDir()
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_THEMES_DIR": dotfiles})
 	writeTheme(t, dotfiles, "lake", lakeTheme)
 	writePrefs(t, deps, `{"theme": "lake"}`)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Pair.Dark.Slug != "lake" {
 		t.Errorf("drawn in %s, want lake, from $SWITCHBOARD_THEMES_DIR", cfg.Pair.Dark.Slug)
 	}
 }
 
-func TestUsageWatchUnderNoColourHasNoThemes(t *testing.T) {
+func TestDashboardUnderNoColourHasNoThemes(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"NO_COLOR": "yes"})
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Themes != nil {
 		t.Error("under NO_COLOR, the dashboard has themes, want none: no colour, and t doing nothing")
@@ -162,7 +163,7 @@ func TestACorruptPreferencesFileLeavesTheDefaults(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), nil)
 	writePrefs(t, deps, `{"theme": `)
 	cfg := recordWatch(t, &deps)
-	run(t, deps, "usage", "--watch")
+	run(t, deps, "dashboard")
 
 	if cfg.Choice != (theme.Choice{}) || cfg.Pair.Dark.Slug != theme.DefaultDark {
 		t.Errorf("choice = %+v, drawn in %s on a dark terminal; want the defaults", cfg.Choice, cfg.Pair.Dark.Slug)
@@ -234,6 +235,27 @@ func TestUsageUnderNoColourAsksTheTerminalNothing(t *testing.T) {
 
 	if got.code != 0 || strings.Contains(got.stdout, "\x1b[38;") || !strings.Contains(got.stdout, "\x1b[1m") {
 		t.Errorf("switchboard usage under NO_COLOR = %+v, want no colour, but bold", got)
+	}
+}
+
+func TestUsageOnATerminalThatShowsNoColourIsPrintedAsUnderNoColour(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "a dumb terminal", env: map[string]string{"TTY_FORCE": "1", "TERM": "dumb"}},
+		{name: "a terminal that names no kind", env: map[string]string{"TTY_FORCE": "1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			noColour := maps.Clone(tt.env)
+			noColour["NO_COLOR"] = "1"
+
+			got := run(t, goldenDeps(t, tt.env), "usage")
+			if want := run(t, goldenDeps(t, noColour), "usage"); got.code != 0 || got != want {
+				t.Errorf("switchboard usage =\n%+v\nwant what it prints under NO_COLOR\n%+v", got, want)
+			}
+		})
 	}
 }
 
