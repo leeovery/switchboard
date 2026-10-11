@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -316,21 +317,124 @@ func TestTheTitleAndOpeningLineFollowM(t *testing.T) {
 	}
 }
 
-func TestTheCardKeepsItsHeightAsThePicksChange(t *testing.T) {
-	f := Frame{Width: 160, Height: 37}
-	want := 15 + 3 - chrome(true)
-	for _, picked := range [][]string{nil, {"personal"}, {"personal", "side"}, {"work", "personal", "side"}} {
-		for _, move := range []bool{false, true} {
-			r := routedCard(func(r *RoutingCard) { r.Picked, r.Move, r.Moving, r.Cost = picked, move, 4, dollars(620) })
-			if got := len(r.card(f).body); got != want {
-				t.Errorf("picking %q, m %v, the card's body is %d rows, want %d: 15 + 3 rows for three accounts, all told", picked, move, got, want)
-			}
+func TestNewSessionsCardIs15RowsTallAndOneAnAccount(t *testing.T) {
+	for _, accounts := range []int{1, 2, 3, 4} {
+		doc := routerDoc("", 0, namedAccounts(accounts)...)
+		r := RoutingCard{Rows: RoutingRows(doc, nil, now, claudeLike)}
+		if got, want := len(r.card(Frame{Width: 160, Height: 40}).body)+chrome(true), 15+accounts; got != want {
+			t.Errorf("with %d accounts, the card is %d rows tall, want %d", accounts, got, want)
 		}
 	}
-	phone := Frame{Width: 52, Height: 40}
-	clear, ticked := routedCard(nil), routedCard(func(r *RoutingCard) { r.Move = true })
-	if a, b := len(clear.card(phone).body), len(ticked.card(phone).body); a != b {
-		t.Errorf("on a phone, the card's body is %d rows with m clear and %d with it ticked, want them alike: its opening line held to its longer form", a, b)
+}
+
+func TestNoPickMTickOrRefusalMovesTheCard(t *testing.T) {
+	refusal := strings.Repeat("the router refused the pin, as no account it names can take a request now; ", 8)
+	// says are what the card can be told as it's picked: m clear, and
+	// ticked, moving none, one, four and many sessions; or refused.
+	says := []RoutingCard{
+		{}, {Move: true}, {Move: true, Moving: 1, Cost: dollars(156)}, {Move: true, Moving: 4, Cost: dollars(620)},
+		{Move: true, Moving: 999, Cost: dollars(99_999_999)}, {Refused: refusal},
+	}
+	for _, accounts := range []int{1, 2, 3, 4, 12} {
+		doc := routerDoc("", 0, namedAccounts(accounts)...)
+		rows := RoutingRows(doc, nil, now, claudeLike)
+		for _, width := range []int{52, 160} {
+			t.Run(fmt.Sprintf("%d accounts at %d columns", accounts, width), func(t *testing.T) {
+				f := Frame{Width: width, Height: 37}
+				opened := cardAt(f, RoutingCard{Rows: rows})
+				for _, picked := range pickings(doc) {
+					for _, said := range says {
+						r := said
+						r.Rows, r.Picked = rows, picked
+						if got := cardAt(f, r); got != opened {
+							t.Errorf("picking %q, m %v, moving %d, refused %v, the card sits at %+v, want it where it opened, %+v", picked, r.Move, r.Moving, r.Refused != "", got, opened)
+						}
+						if lines, room := len(wrappedAt(r.sentences(), f.cardWidth(routingWidth)-2*cardInset)), r.outcomeRoom(f.cardWidth(routingWidth)-2*cardInset); r.Refused == "" && lines > room {
+							t.Errorf("picking %q, m %v, moving %d, the outcome takes %d rows, more than the %d kept for it", picked, r.Move, r.Moving, lines, room)
+						}
+					}
+				}
+				for cursor := range rows {
+					if got := cardAt(f, RoutingCard{Rows: rows, Cursor: cursor}); got != opened {
+						t.Errorf("the cursor on row %d, the card sits at %+v, want it where it opened, %+v", cursor+1, got, opened)
+					}
+				}
+			})
+		}
+	}
+}
+
+// placing is where a card sits on the frame: its top row, and how many rows
+// it takes.
+type placing struct {
+	y, height int
+}
+
+// cardAt is where the routing card sits on the frame.
+func cardAt(f Frame, r RoutingCard) placing {
+	k := r.card(f)
+	height := len(k.body) + chrome(len(k.keys) > 0)
+	return placing{y: (f.Height - height) / 2, height: height}
+}
+
+// namedAccounts are n accounts with room, named as accounts are, some
+// briefly and some at length, the third held at its limit, so it can't be
+// picked.
+func namedAccounts(n int) []status.Account {
+	names := []string{"work", "personal", "side", "client", "consultancy", "studio", "research-lab", "ops", "an-account-named-at-length", "lab", "team", "spare"}
+	accounts := make([]status.Account, n)
+	for i := range accounts {
+		accounts[i] = readAccount(names[i], sessionOf(0.3, time.Hour), weekOf(0.4, 3*day))
+		if i == 2 {
+			accounts[i] = limitedAccount(names[i])
+		}
+	}
+	return accounts
+}
+
+// pickings are what the card can have picked of doc's accounts, in the
+// config's order: of four or fewer, every set of them; of more, none, each
+// alone, each pair, all but each, and all.
+func pickings(doc status.Document) [][]string {
+	ids := make([]string, len(doc.Accounts))
+	for i, a := range doc.Accounts {
+		ids[i] = a.ID
+	}
+	var sets [][]string
+	for set := range 1 << len(ids) {
+		var picked []string
+		for i, id := range ids {
+			if set&(1<<i) != 0 {
+				picked = append(picked, id)
+			}
+		}
+		if n := len(picked); len(ids) <= 4 || n <= 2 || n >= len(ids)-1 {
+			sets = append(sets, picked)
+		}
+	}
+	return sets
+}
+
+// wrappedAt are the sentences wrapped to width cells, as the outcome wraps
+// them.
+func wrappedAt(sentences []line, width int) []line {
+	var lines []line
+	for _, s := range sentences {
+		lines = append(lines, s.wrap(width)...)
+	}
+	return lines
+}
+
+func TestARefusalLongerThanItsRoomIsCutToIt(t *testing.T) {
+	r := routedCard(func(r *RoutingCard) {
+		r.Picked, r.Refused = []string{"personal"}, strings.Repeat("no account it names can take a request now ", 10)
+	})
+	outcome := plains(r.outcome(76))
+	if len(outcome) != r.outcomeRoom(76) || !strings.HasSuffix(outcome[len(outcome)-1], "…") {
+		t.Errorf("the refusal reads %q, want it in the %d rows kept for the outcome, the last cut short with …", outcome, r.outcomeRoom(76))
+	}
+	if !strings.HasPrefix(outcome[0], "no account it names can take a request now no account") {
+		t.Errorf("the refusal reads %q, want its words from the first", outcome)
 	}
 }
 

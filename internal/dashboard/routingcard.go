@@ -3,6 +3,7 @@ package dashboard
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -19,8 +20,9 @@ const numbered = 9
 // spare, at its tallest: past that, its rows scroll within it.
 const routingSpare = 4
 
-// outcomeRows are the rows the routing card keeps for its outcome, its
-// longest, so picking, which changes how long it is, never moves the card.
+// outcomeRows are the fewest rows the routing card keeps for its outcome,
+// which keeps room for its longest, so picking, which changes how long it
+// is, never moves the card.
 const outcomeRows = 4
 
 // The columns the routing card's rows lay their parts in, from its
@@ -241,7 +243,8 @@ func atLeast(lines []line, rows int) []line {
 // inView are the card's rows as they show in room lines, as choice lays each
 // out, and how far they're scrolled: all of them where they fit; else those
 // around the cursor, with "▲ 2 more" over them while some are above, and
-// "▼ 3 more" under them while some are below.
+// "▼ 3 more" under them while some are below, in all room's lines, so a
+// phone's rows of two lines never move the card as the cursor does.
 func (r RoutingCard) inView(phone bool, width, room int) ([]line, cardScroll) {
 	choices := make([][]line, len(r.Rows))
 	heights := make([]int, len(r.Rows))
@@ -257,6 +260,9 @@ func (r RoutingCard) inView(phone bool, width, room int) ([]line, cardScroll) {
 	lines = append(lines, slices.Concat(choices[first:end]...)...)
 	if end < len(choices) {
 		lines = append(lines, line{{"▼ " + strconv.Itoa(len(choices)-end) + " more", dimInk}})
+	}
+	if first > 0 || end < len(choices) {
+		lines = atLeast(lines, room)
 	}
 	return lines, cardScroll{above: first, below: len(choices) - end}
 }
@@ -390,19 +396,70 @@ func (r RoutingCard) moveRow() line {
 	return line{box, spaces(1), {"m", keyInk}, {"  also move the sessions running", secondaryInk}}
 }
 
-// outcome is what applying the card would do, wrapped to width cells, in
-// outcomeRows rows at least: or why the router refused the last apply, in
-// red.
+// outcome is what applying the card would do, or why the router refused the
+// last apply, in red, wrapped to width cells, in the rows outcomeRoom keeps
+// for it: cut short where it's longer, as a refusal can be.
 func (r RoutingCard) outcome(width int) []line {
-	if r.Refused != "" {
-		return atLeast(line{{status.Clean(r.Refused), errorInk}}.wrap(width), outcomeRows)
+	said := []line{{{status.Clean(r.Refused), errorInk}}}
+	if r.Refused == "" {
+		said = r.sentences()
 	}
 	var lines []line
-	for _, sentence := range r.sentences() {
+	for _, sentence := range said {
 		lines = append(lines, sentence.wrap(width)...)
 	}
-	return atLeast(lines, outcomeRows)
+	room := r.outcomeRoom(width)
+	return atLeast(cutTo(lines, room, width), room)
 }
+
+// The widest count of sessions moving, and cost of moving them, the card
+// keeps room to say: past them, its outcome is cut to the room kept.
+const (
+	widestMoving = "9999"
+	widestCost   = "$9999.99"
+)
+
+// outcomeRoom is how many rows the card keeps for its outcome, width cells
+// wide: outcomeRows, or as many as the longest it can say takes, whatever's
+// picked. What it says of any pick is widest's words, but for some left out
+// and some shorter: fewer names, each with "or" before it and a comma or a
+// full stop after it at most, wherever it stands in the list; "it's" for
+// "both are"; "session" for "sessions". As wrap fills a row before it starts
+// the next, fewer and shorter words never take more rows.
+func (r RoutingCard) outcomeRoom(width int) int {
+	var names []string
+	for _, row := range r.Rows {
+		if row.Account != "" {
+			names = append(names, "or "+row.Name+",")
+		}
+	}
+	widest := []string{
+		"New sessions go to " + strings.Join(names, " ") + " When both are full, the router chooses.",
+		"The " + widestMoving + " sessions running elsewhere moves there too.",
+		"Rebuilding their caches costs ≈ " + widestCost + ".",
+	}
+	rows := 0
+	for _, said := range widest {
+		rows += len(line{{said, secondaryInk}}.wrap(width))
+	}
+	return max(outcomeRows, rows, len(line{{autoChooses, secondaryInk}}.wrap(width)))
+}
+
+// cutTo is lines cut to rows: where there are more, the last row kept runs
+// on into the rest, cut short with an ellipsis at width cells.
+func cutTo(lines []line, rows, width int) []line {
+	if len(lines) <= rows {
+		return lines
+	}
+	last := lines[rows-1]
+	for _, l := range lines[rows:] {
+		last = slices.Concat(last, line{spaces(1)}, l)
+	}
+	return append(lines[:rows-1:rows-1], last.fit(width))
+}
+
+// autoChooses is what the card says applying it does with auto picked.
+const autoChooses = "The router chooses an account for each new session."
 
 // sentences say what applying the card changes, a sentence each, built of
 // its parts: where new sessions go; then, with m ticked and an account
@@ -410,7 +467,7 @@ func (r RoutingCard) outcome(width int) []line {
 // rebuilding their caches costs, where that's known and isn't nothing.
 func (r RoutingCard) sentences() []line {
 	if len(r.Picked) == 0 {
-		return []line{{{"The router chooses an account for each new session.", secondaryInk}}}
+		return []line{{{autoChooses, secondaryInk}}}
 	}
 	said := []line{slices.Concat(
 		line{{"New sessions go to ", secondaryInk}}, either(r.names(r.Picked), titleInk, secondaryInk),

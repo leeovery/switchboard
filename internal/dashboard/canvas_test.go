@@ -177,23 +177,13 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 
 func TestThePageBehindACardIsFadedAsItsFrameDrawsIt(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
-	tab := ink{token: theme.TextSubtle}
-	c := newCanvas(160, 3)
-	c.line(0, 0, line{
-		{" SWITCHBOARD ", ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}}, spaces(2),
-		{" Overview ", ink{token: theme.TextPrimary, on: hue{token: theme.BgSelection}, bold: true}}, spaces(1),
-		{" Accounts ", tab}, spaces(1), {" History ", tab}, spaces(1), {" Sessions ", tab}, spaces(1),
-		{" Runway ", tab}, spaces(1), {" Log ", tab}, spaces(2), {"tab ⇥", faintInk},
-	})
-	c.right(160, 0, line{{"Thu 1 Oct  ", mutedInk}, {"14:42:07", strongInk}})
-	apart := span{"  ·  ", mutedInk}
-	c.line(0, 2, line{
-		{"● ", positiveInk}, {"healthy", secondaryInk}, apart, {"auto", secondaryInk}, apart,
-		{"6 sessions", mutedInk}, apart, {"new sessions → ", mutedInk}, {"▲ side", nameInk},
-	})
-	c.fade()
+	doc, sessions := routedWorld(false)
+	f := Frame{
+		Width: 160, Height: 37, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions,
+		Card: RoutingCard{Rows: RoutingRows(doc, sessions, routedAt, claudeLike)},
+	}
 
-	heldTo(t, "routing-auto-160", reference(t, "routing-auto-160"), screenOf(t, c.rows(nord)), region{top: 0, bottom: 2, left: 0, right: 159}, shadeOf(nord.Canvas()), nil, nil)
+	heldTo(t, "routing-auto-160", reference(t, "routing-auto-160"), screenOf(t, f.Draw(doc, routedAt)), region{top: 0, bottom: 2, left: 0, right: 159}, shadeOf(nord.Canvas()), nil, nil)
 }
 
 func TestEveryCellOfThePageBehindACardIsFadedAndNothingInItBold(t *testing.T) {
