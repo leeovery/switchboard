@@ -1,7 +1,6 @@
 package ledger_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"iter"
@@ -143,7 +142,7 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 	// The day's readings: work's session, read as its requests were answered,
 	// and personal's week, read days before, reset in the day, personal
 	// serving none of its requests.
-	kept := []readings.Reading{workRead(on(0, 9, 0), "5h", 0.4, on(0, 13, 0), quota.StatusAllowed), personalRead(on(-3, 12, 0), "7d", 0.82, on(0, 10, 0))}
+	kept := []readings.Reading{historyBegan, workRead(on(0, 9, 0), "5h", 0.4, on(0, 13, 0), quota.StatusAllowed), personalRead(on(-3, 12, 0), "7d", 0.82, on(0, 10, 0))}
 	personal := quietDayJSON("personal", windowsRead{read: true, highest: `{"7d":0.82}`, rise: `{"7d":0}`, resets: `[` + resetJSON("7d", on(0, 10, 0), 0.82) + `]`,
 		before: `["7d"]`})
 	work := workDayJSON(2, windowsRead{read: true, highest: `{"5h":0.4}`, rise: `{"5h":0.4}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.4) + `]`})
@@ -282,7 +281,7 @@ func TestSessionsASummaryOfVersionOneNeverNamedAreNamedOnlyWhereTheIDsAccountFor
 			tt.lines(t, dir)
 			writeFile(t, dir, "day-"+date+".json", []byte(tt.held+"\n"))
 
-			writeAt(t, dir, on(3, 10, 0), readingsOf(workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)))
+			writeAt(t, dir, on(3, 10, 0), readingsOf(historyBegan, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)))
 			data, err := os.ReadFile(summaryFile(dir, date))
 			if err != nil {
 				t.Fatal(err)
@@ -299,23 +298,61 @@ func TestSessionsASummaryOfVersionOneNeverNamedAreNamedOnlyWhereTheIDsAccountFor
 	}
 }
 
-// pruneAsRead is the readings history in its files, as the router reads it,
-// that has prune start a prune of them as a read hands on its first reading,
-// as the history's writer prunes on a goroutine of its own.
-type pruneAsRead struct {
+// lockedHistory is the readings history in its files, held by a lock of its
+// own as dayfile.Files holds them: to read, as a read of it hands on its
+// readings, and as it's listed; and to write as it's pruned, which a read
+// starts as it hands on its first reading, as the history's writer prunes
+// on a goroutine of its own. A prune waiting on the lock holds back any read
+// or listing asked for after it, as a sync.RWMutex does; pruned is closed
+// once it's done.
+type lockedHistory struct {
 	ledger.History
-	prune func()
-	once  sync.Once
+	mu     sync.RWMutex
+	once   sync.Once
+	pruned chan struct{}
 }
 
-func (p *pruneAsRead) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
+func (h *lockedHistory) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
-		for r := range p.History.Between(from, to, faults) {
-			p.once.Do(p.prune)
+		h.mu.RLock()
+		defer h.mu.RUnlock()
+		for r := range h.History.Between(from, to, faults) {
+			h.once.Do(h.prune)
 			if !yield(r) {
 				return
 			}
 		}
+	}
+}
+
+func (h *lockedHistory) Dates() ([]string, error) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.History.Dates()
+}
+
+// prune starts a prune, returning once it waits on the read that holds the
+// history.
+func (h *lockedHistory) prune() {
+	go func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		close(h.pruned)
+	}()
+	for h.mu.TryRLock() {
+		h.mu.RUnlock()
+		runtime.Gosched()
+	}
+}
+
+// waitFor waits for done to be closed, failing with failure where it isn't
+// within ten seconds.
+func waitFor(t *testing.T, done <-chan struct{}, failure string) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal(failure)
 	}
 }
 
@@ -329,21 +366,7 @@ func TestARoundFinishesAsAPruneOfTheReadingsWaitsOnItsRead(t *testing.T) {
 	holdReadings(t, history, date, workRead(on(0, 9, 0), "5h", 0.2, on(0, 13, 0), quota.StatusAllowed),
 		workRead(on(0, 10, 0), "5h", 0.4, on(0, 13, 0), quota.StatusAllowed))
 	holdReadings(t, history, "2026-10-06", workRead(on(1, 9, 0), "5h", 0.1, on(1, 13, 0), quota.StatusAllowed))
-	files := readings.Files(history, logs.For("router"))
-	pruner := dayfile.NewWriter(files, func(struct{}) dayfile.Lines { return nil },
-		dayfile.WriterOptions{Queue: 1, Keep: 400 * 24 * time.Hour, Now: func() time.Time { return on(2, 11, 0) }, Items: "readings"})
-	ctx, cancel := context.WithCancel(t.Context())
-	pruned := make(chan struct{})
-	h := &pruneAsRead{History: ledger.HistoryIn(files), prune: func() {
-		go func() {
-			pruner.Run(ctx)
-			close(pruned)
-		}()
-		// The read holds the files, so the prune comes to wait on it.
-		for !files.Waiting() {
-			runtime.Gosched()
-		}
-	}}
+	h := &lockedHistory{History: historyIn(history), pruned: make(chan struct{})}
 	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(2, 11, 0) }, h, caps, logs.For("router"))
 
 	summarised := make(chan struct{})
@@ -351,13 +374,8 @@ func TestARoundFinishesAsAPruneOfTheReadingsWaitsOnItsRead(t *testing.T) {
 		l.SummariseEnded(on(2, 11, 0))
 		close(summarised)
 	}()
-	select {
-	case <-summarised:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the round hung as the prune waited on its read: it took a lock of the readings history's files as its read held one")
-	}
-	cancel()
-	<-pruned
+	waitFor(t, summarised, "the round hung as the prune waited on its read: it took a lock of the readings history as its read held one")
+	waitFor(t, h.pruned, "the prune never came: the round never read the readings history")
 	if got := heldSummary(t, dir, date); !strings.Contains(got, `"version":3`) {
 		t.Errorf("the day's summary is\n%s\nwant it summarised again, as version 3", got)
 	}

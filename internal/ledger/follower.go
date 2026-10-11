@@ -31,7 +31,8 @@ type Follower struct {
 	now     func() time.Time
 
 	mu       sync.Mutex
-	first    heldFirst
+	first    heldListing[time.Time]
+	readings heldListing[[]string]
 	followed map[string]*followedDay
 	today    todaysLines
 }
@@ -44,34 +45,47 @@ func NewFollower(stateDir string, now func() time.Time, caps Caps, logger *slog.
 	return &Follower{days: d, history: history, now: now, followed: make(map[string]*followedDay)}
 }
 
-// heldFirst is the start of the first local day the ledger holds, first, or
-// why it holds none, err, as days.first found them, held while the ledger's
-// directory looks as dir did before it was listed: none held where dir is
-// nil.
-type heldFirst struct {
+// heldListing is what a listing of a directory found, found, or why it
+// found nothing, err, held while the directory looks as dir did before it
+// was listed: none held where dir is nil.
+type heldListing[T any] struct {
 	dir   fs.FileInfo
-	first time.Time
+	found T
 	err   error
 }
 
-// firstDay returns the start of the first local day the ledger holds, as
-// days.first does, at now: as it was last found, where the ledger's
-// directory looks as it did then, which a file named for a day added to it,
-// or removed, changes; else listing the directory again.
-func (f *Follower) firstDay(now time.Time) (time.Time, error) {
-	dir, err := os.Stat(f.days.files.Dir)
-	if err == nil && f.first.dir != nil && dayfile.SameAs(f.first.dir, dir) {
-		return f.first.first, f.first.err
+// listed returns what list finds of the directory at path, at now: as it was
+// last found, where the directory looks as it did then, which a file added
+// to it, or removed, changes; else listing it again. A listing that fails,
+// but for finding nothing, is never held.
+func (h *heldListing[T]) listed(path string, now time.Time, list func() (T, error)) (T, error) {
+	dir, err := os.Stat(path)
+	if err == nil && h.dir != nil && dayfile.SameAs(h.dir, dir) {
+		return h.found, h.err
 	}
-	first, listed := f.days.first()
-	f.first = heldFirst{first: first, err: listed}
+	found, listErr := list()
+	*h = heldListing[T]{found: found, err: listErr}
 	// A file system that keeps whole seconds, as HFS+ does, gives a directory
 	// changed again within the second it was listed in no time of its own: a
 	// listing of one changed in the last second isn't held.
-	if err == nil && (listed == nil || errors.Is(listed, fs.ErrNotExist)) && now.Sub(dir.ModTime()) > time.Second {
-		f.first.dir = dir
+	if err == nil && (listErr == nil || errors.Is(listErr, fs.ErrNotExist)) && now.Sub(dir.ModTime()) > time.Second {
+		h.dir = dir
 	}
-	return first, listed
+	return found, listErr
+}
+
+// firstDay returns the start of the first local day the ledger holds, as
+// days.first does, at now, held as heldListing.listed says while the
+// ledger's directory looks as it did.
+func (f *Follower) firstDay(now time.Time) (time.Time, error) {
+	return f.first.listed(f.days.files.Dir, now, f.days.first)
+}
+
+// readingsDates returns the dates of the local days the readings history
+// holds readings of, as its Dates gives them, at now, held as
+// heldListing.listed says while its directory looks as it did.
+func (f *Follower) readingsDates(now time.Time) ([]string, error) {
+	return f.readings.listed(f.history.Dir, now, f.days.history.Dates)
 }
 
 // Days returns the summaries of the local days from from's to today's, as
@@ -83,11 +97,11 @@ func (f *Follower) Days(from time.Time) []Summary {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := f.now()
-	reaches := f.days.reaching()
+	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) })
 	dates := f.dates(from, now)
 	summaries := make([]Summary, len(dates))
 	for i, date := range dates {
-		summaries[i] = f.summaryOf(date, now, reaches)
+		summaries[i] = f.summaryOf(date, now, reachOf)
 	}
 	return summaries
 }
@@ -107,16 +121,17 @@ func (f *Follower) dates(from, now time.Time) []string {
 // summaryOf returns the summary of the local day with the given date, as
 // Reader.Days gives it, at now: the summary the ledger holds of it, where it
 // stands, as follow finds; else the day summarised from its lines as they
-// grow, and the readings history, where it reaches the day, as reaches
-// reports.
-func (f *Follower) summaryOf(date string, now time.Time, reaches func(date string) bool) Summary {
+// grow, and the readings history, where the day's reach, as reachOf tells it,
+// says its summary reads them, as reach.reads says, its files as follow last
+// looked at them.
+func (f *Follower) summaryOf(date string, now time.Time, reachOf func(date string) reach) Summary {
 	d := f.follow(date)
 	if d.stands {
 		return *d.held
 	}
 	live := d.liveDay(f)
 	live.read(f.days.logger)
-	return live.summary(f, d.held, now, reaches(date))
+	return live.summary(f, d.held, now, reachOf(date).reads(d.look.none))
 }
 
 // names reports whether the local day with the given date, as Days gives it,
@@ -306,14 +321,14 @@ func (d *liveDay) countsNoMore(logger *slog.Logger, held int) bool {
 }
 
 // summary returns the day summarised from its lines as last read, and the
-// readings history as it's read now, where reached reports it reaches the
-// day, as of asOf, as Reader.Days summarises a day from its lines, knowing no
-// less than held, where it's given: its tally, and the line the day's plain
-// file ends in, cut short, where it reads as one, as a read of the day whole
-// would read it. So the minutes at each account's cap and at a limit, and
-// each window's last reading standing, move on with the clock, as
+// readings history as it's read now, where reads reports its summary reads
+// them, as of asOf, as Reader.Days summarises a day from its lines, knowing
+// no less than held, where it's given: its tally, and the line the day's
+// plain file ends in, cut short, where it reads as one, as a read of the day
+// whole would read it. So the minutes at each account's cap and at a limit,
+// and each window's last reading standing, move on with the clock, as
 // summarising the day afresh moves them.
-func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reached bool) Summary {
+func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reads bool) Summary {
 	t, n := d.tally.clone(), d.tallied
 	if cut, ok := d.lines.Cut(); ok {
 		t.line(&cut)
@@ -321,8 +336,8 @@ func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reached bo
 	}
 	lines, _ := d.lines.Lines()
 	read := func() iter.Seq[readings.Reading] {
-		if !reached {
-			return slices.Values([]readings.Reading(nil))
+		if !reads {
+			return readNone
 		}
 		if d.history == nil {
 			start, end, _ := dayfile.Day(d.date)

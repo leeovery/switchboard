@@ -399,8 +399,11 @@ func TestTheHistoryGivesTheLedgerTheReadingsOfATimeAndTheDaysItHolds(t *testing.
 	writeDay(t, dir, plainFile("2026-09-28"), linesOf(t, after))
 	h := newHistory(config.History{}, at(start))
 
-	if history := ledger.HistoryIn(h.files); len(slices.Collect(history.Between(from, to, nil))) > 0 || len(history.Dates()) > 0 {
+	if history := ledger.HistoryIn(h.files); len(slices.Collect(history.Between(from, to, nil))) > 0 {
 		t.Error("before the history was opened, it gave the ledger readings, want none")
+	}
+	if dates, err := ledger.HistoryIn(h.files).Dates(); len(dates) > 0 || err != nil {
+		t.Errorf("before the history was opened, it gave the ledger the days %q (%v), want none", dates, err)
 	}
 	h.open(dir)
 	history := ledger.HistoryIn(h.files)
@@ -410,8 +413,8 @@ func TestTheHistoryGivesTheLedgerTheReadingsOfATimeAndTheDaysItHolds(t *testing.
 	}) {
 		t.Errorf("Between() = %+v, want %+v: those of the time asked for, in the order they came, whatever day's file they're in", got, want)
 	}
-	if got, want := history.Dates(), []string{"2026-09-26", "2026-09-27", "2026-09-28"}; !slices.Equal(got, want) {
-		t.Errorf("Dates() = %q, want %q: the days the history holds readings of, oldest first", got, want)
+	if got, err := history.Dates(); !slices.Equal(got, []string{"2026-09-26", "2026-09-27", "2026-09-28"}) || err != nil {
+		t.Errorf("Dates() = %q, %v; want the days the history holds readings of, oldest first", got, err)
 	}
 }
 

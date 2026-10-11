@@ -193,7 +193,9 @@ func TestADayOfNoRequestsIsReadWithTheAccountsItsReadingsTellOf(t *testing.T) {
 			state, dir, history := stateDirs(t)
 			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
 			// The 5th, of no requests, work's session read in it, not yet
-			// summarised, as when the router was stopped as it ended.
+			// summarised, as when the router was stopped as it ended, the
+			// history covering it.
+			holdReadings(t, history, "2026-09-26", historyBegan)
 			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
 			days := readerAt(state, on(1, 12, 0)).Days
 			if by == "a follower" {
@@ -209,6 +211,30 @@ func TestADayOfNoRequestsIsReadWithTheAccountsItsReadingsTellOf(t *testing.T) {
 			}
 			if held := heldSummary(t, dir, date); held != "" {
 				t.Errorf("the ledger holds a summary of the 5th, as\n%s\nwant none written by reading it", held)
+			}
+		})
+	}
+}
+
+func TestADayIsReadWithItsReadingsWhereTheReadingsHistoryCantBeListed(t *testing.T) {
+	for _, by := range []string{"a reader", "a follower"} {
+		t.Run("by "+by, func(t *testing.T) {
+			state, dir, history := stateDirs(t)
+			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+			// The 5th, of no requests, not yet summarised, the history covering
+			// it, but it can't be listed to tell.
+			holdReadings(t, history, "2026-09-26", historyBegan)
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			unlistable(t, history)
+			days := readerAt(state, on(1, 12, 0)).Days
+			if by == "a follower" {
+				days = followerOf(state, &testClock{at: on(1, 12, 0)}, caps).Days
+			}
+
+			quiet := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
+			want := `{"version":3,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", quiet) + `]}`
+			if got := summariesJSON(t, days(on(0, 0, 0))[:1])[0]; got != want {
+				t.Errorf("the 5th is\n%s\nwant\n%s: a listing that failed tells of no day the history holds no readings of", got, want)
 			}
 		})
 	}

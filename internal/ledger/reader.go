@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"iter"
 	"log/slog"
-	"os"
 	"slices"
 	"sync"
 	"time"
@@ -55,27 +54,35 @@ type filedHistory struct {
 }
 
 func (h filedHistory) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
-	return func(yield func(readings.Reading) bool) {
-		if h.files != nil {
-			readings.Read(h.files, dayfile.Dates(from, to), func(r readings.Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield, faults)
-		}
+	if h.files == nil {
+		return readNone
 	}
+	return readings.Between(h.files, from, to, faults)
 }
 
-func (h filedHistory) Dates() []string {
+func (h filedHistory) Dates() ([]string, error) {
 	if h.files == nil {
-		return nil
+		return nil, nil
 	}
 	return h.files.All()
 }
 
-// reaching returns what reports whether the readings history's readings
-// reach the local day with the given date, as readingsHeld.reaches says,
-// listing its files once, as it's first asked: before any read of them, or
-// after, never as one is under way, as readingAhead says.
-func (d days) reaching() func(date string) bool {
-	held := sync.OnceValue(func() readingsHeld { return d.history.Dates() })
-	return func(date string) bool { return held().reaches(date) }
+// reaching returns what tells how far the readings history holds the
+// readings a summary of the local day with the given date reads, as
+// readingsHeld.reach says, from list's listing of its files, taken once, as
+// it's first asked: before any read of them, or after, never as one is under
+// way, as readingAhead says. Where they can't be listed, which is warned of,
+// it tells of every day that the history holds them all, as everyReach says.
+func (d days) reaching(list func() ([]string, error)) func(date string) reach {
+	listing := sync.OnceValue(func() func(date string) reach {
+		dates, err := list()
+		if err != nil {
+			d.logger.Warn("can't read the readings history", "error", err)
+			return func(string) reach { return everyReach }
+		}
+		return readingsHeld(dates).reach
+	})
+	return func(date string) reach { return listing()(date) }
 }
 
 // Held is a line as the ledger holds it: what it reads as, and its JSON, as
@@ -147,10 +154,11 @@ func (d days) first() (time.Time, error) {
 // listed returns, from one listing of the ledger's directory, the dates of
 // the local days it holds lines of, oldest first, each once, and the date of
 // the first day it holds: the earliest its files of lines, and its
-// summaries, are of, by the dates their names give. It fails with
+// summaries, are of, by the dates their names give. It lists the directory
+// as dayfile.Files.List does, never halfway through a prune. It fails with
 // fs.ErrNotExist where it holds none.
 func (d days) listed() (lines []string, first string, err error) {
-	entries, err := os.ReadDir(d.files.Dir)
+	entries, err := d.files.List()
 	if err != nil {
 		return nil, "", err
 	}
@@ -191,24 +199,23 @@ func arrived(h Held) time.Time {
 // says; else the day summarised from its lines and the readings history, as
 // they're read, as of today as far as it has gone, knowing no less than any
 // summary held of it, as knowing says, the history read ahead for them all,
-// as readingAhead says, of those days alone whose readings it holds, as
-// readingsHeld.reaches says. A day of no requests is a summary of the
-// accounts the readings history tells of alone, of none where it tells of
-// none.
+// as readingAhead says, of those days alone whose summaries read them, as
+// reach.reads says. A day of no requests is a summary of the accounts the
+// readings history tells of alone, of none where it tells of none.
 func (r *Reader) Days(from time.Time) []Summary {
 	now := r.now()
 	dates := dayfile.Span(r.days.start(from, now), now)
 	days := make([]Summary, len(dates))
 	var due []dueDay
 	var at []int
-	reaches := r.days.reaching()
+	reachOf := r.days.reaching(r.days.history.Dates)
 	for i, date := range dates {
 		summary, stands := r.standing(date)
 		if stands {
 			days[i] = *summary
 			continue
 		}
-		due, at = append(due, dueDay{date: date, held: summary, asOf: now, reached: reaches(date)}), append(at, i)
+		due, at = append(due, dueDay{date: date, held: summary, asOf: now, reach: reachOf(date)}), append(at, i)
 	}
 	for k, summary := range readingAhead(r.days.history, due, r.summarised, nil) {
 		days[at[k]] = summary

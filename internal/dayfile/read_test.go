@@ -84,7 +84,7 @@ func readAll(f *Files, dates ...string) []string {
 	return lines
 }
 
-func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
+func TestAReadNotesTheDaysWhoseFilesItCouldntReadForNow(t *testing.T) {
 	tests := []struct {
 		name string
 		// lay lays the day's files out in f, and listed is set where a listing
@@ -108,7 +108,7 @@ func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
 			},
 		},
 		{
-			name: "a day whose compressed file is damaged", fault: true,
+			name: "none of a day whose compressed file is damaged, as it reads no better later", listed: true,
 			lay: func(t *testing.T, f *Files) {
 				damaged := append(gzipOf(t, linesOf(`{"n":1}`)), gzipOf(t, linesOf(`{"n":2}`))[:5]...)
 				if err := os.WriteFile(f.path(compressedFile("2026-09-27")), damaged, 0o600); err != nil {
@@ -117,9 +117,9 @@ func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
 			},
 		},
 		{
-			name: "a day holding a line passed over", fault: true,
+			name: "none of a day holding a line torn, passed over, as it reads no better later", listed: true,
 			lay: func(t *testing.T, f *Files) {
-				writeDay(t, f, plainFile("2026-09-27"), linesOf(`{"n":1}`, `not a line`))
+				writeDay(t, f, plainFile("2026-09-27"), linesOf(`{"n":1}`, `{"n":`, `{"n":2}`))
 			},
 		},
 	}
@@ -129,10 +129,7 @@ func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
 			tt.lay(t, f)
 			writeDay(t, f, plainFile("2026-09-28"), linesOf(`{"n":3}`))
 			asJSON := func(line []byte) (string, bool) { return string(line), json.Valid(line) }
-			listed := []string{"2026-09-28"}
-			if tt.listed {
-				listed = append(listed, "2026-09-27")
-			}
+			listed := func(date string) bool { return date == "2026-09-28" || tt.listed && date == "2026-09-27" }
 			faults := NewFaults(listed)
 
 			Read(f, []string{"2026-09-27", "2026-09-28"}, asJSON, untimed, every[string], every[string], faults)
@@ -143,18 +140,6 @@ func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
 				t.Error("the 28th among the faults, want it read whole")
 			}
 		})
-	}
-}
-
-func TestWaitingTellsAPruneHoldsTheFilesOrWaitsTo(t *testing.T) {
-	f := readingsHistory(t.TempDir())
-	if f.Waiting() {
-		t.Error("Waiting() of files no prune holds = true, want false")
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if !f.Waiting() {
-		t.Error("Waiting() of files a prune holds = false, want true")
 	}
 }
 
@@ -456,11 +441,20 @@ func TestAllTakesEveryDayByItsFilesNames(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := f.All(), []string{"2026-09-20", "2026-09-26", "2026-09-28", "2026-09-30"}; !slices.Equal(got, want) {
-		t.Errorf("All() = %q, want %q: each day the files are of once, oldest first", got, want)
+	if got, err := f.All(); !slices.Equal(got, []string{"2026-09-20", "2026-09-26", "2026-09-28", "2026-09-30"}) || err != nil {
+		t.Errorf("All() = %q, %v; want each day the files are of once, oldest first", got, err)
 	}
-	if got := readingsHistory(filepath.Join(t.TempDir(), "none")).All(); len(got) > 0 {
-		t.Errorf("All() of files with no directory = %q, want none", got)
+	if got, err := readingsHistory(filepath.Join(t.TempDir(), "none")).All(); len(got) > 0 || err != nil {
+		t.Errorf("All() of files with no directory = %q, %v; want none", got, err)
+	}
+
+	// Its files can be opened by name, but it can't be listed.
+	if err := os.Chmod(f.Dir, 0o300); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(f.Dir, 0o700) })
+	if got, err := f.All(); len(got) > 0 || !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("All() of files that can't be listed = %q, %v; want it to fail, never taken for files of no day", got, err)
 	}
 }
 

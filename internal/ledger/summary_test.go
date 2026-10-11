@@ -74,13 +74,13 @@ func (h heldReadings) Between(from, to time.Time, _ *dayfile.Faults) iter.Seq[re
 
 // Dates gives the dates of the days they were read on, oldest first, as the
 // readings history's files' names give them.
-func (h heldReadings) Dates() []string {
+func (h heldReadings) Dates() ([]string, error) {
 	dates := make([]string, len(h))
 	for i, r := range h {
 		dates[i] = r.At.Local().Format(time.DateOnly)
 	}
 	slices.Sort(dates)
-	return slices.Compact(dates)
+	return slices.Compact(dates), nil
 }
 
 // readingsOf is a readings history holding read.
@@ -110,7 +110,7 @@ func (c *counted) Between(from, to time.Time, _ *dayfile.Faults) iter.Seq[readin
 	}
 }
 
-func (c *counted) Dates() []string {
+func (c *counted) Dates() ([]string, error) {
 	return c.held.Dates()
 }
 
@@ -1330,7 +1330,7 @@ func TestASummaryOfADayWithNoLinesThatDoesntReadAsItsOwnIsLeftAsItIs(t *testing.
 			// The day's lines are pruned, and its readings kept.
 			writeFile(t, dir, "day-"+date+".json", []byte(tt.held))
 			l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(3, 10, 0) },
-				readingsOf(workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)), caps, logs.For("router"))
+				readingsOf(historyBegan, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)), caps, logs.For("router"))
 
 			l.SummariseEnded(on(3, 10, 0))
 			l.SummariseEnded(on(3, 11, 0))
@@ -1351,17 +1351,41 @@ func TestASummaryOfADayWithNoLinesThatDoesntReadAsItsOwnIsLeftAsItIs(t *testing.
 }
 
 func TestADamagedSummaryIsNeverReplacedByOneOfReadingsAloneAsItsLinesGo(t *testing.T) {
-	_, dir, history := stateDirs(t)
-	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
-	writeFile(t, dir, "day-"+date+".json", []byte(`{"version":2,"day":`))
-	holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
-	// The day's lines pruned as its readings are read, after the round found
-	// its summary to be made again from them.
-	h := &onRead{History: historyIn(history), read: func() { removeFile(t, dir, "requests-"+date+".jsonl") }}
+	tests := []struct {
+		name string
+		// open opens the ledger in dir, with the readings history in history,
+		// so the day's lines are pruned, by prune, after the round found its
+		// summary to be made again from them.
+		open func(dir string, history ledger.History, prune func()) *ledger.Ledger
+	}{
+		{
+			name: "pruned before the round looks at them, as its read of the readings begins",
+			open: func(dir string, history ledger.History, prune func()) *ledger.Ledger {
+				return ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, &onRead{History: history, read: prune}, caps,
+					logs.For("router"))
+			},
+		},
+		{
+			name: "pruned between the round's look at them and its read of them",
+			open: func(dir string, history ledger.History, prune func()) *ledger.Ledger {
+				l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, history, caps, logs.For("router"))
+				l.SetLooked(func(string) { prune() })
+				return l
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, dir, history := stateDirs(t)
+			holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+			writeFile(t, dir, "day-"+date+".json", []byte(`{"version":2,"day":`))
+			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
 
-	ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, h, caps, logs.For("router")).SummariseEnded(on(1, 10, 0))
-	if got := heldSummary(t, dir, date); got != `{"version":2,"day":` {
-		t.Errorf("the day's summary is %q, want it as it was: none of the readings alone written over it", got)
+			tt.open(dir, historyIn(history), func() { removeFile(t, dir, "requests-"+date+".jsonl") }).SummariseEnded(on(1, 10, 0))
+			if got := heldSummary(t, dir, date); got != `{"version":2,"day":` {
+				t.Errorf("the day's summary is %q, want it as it was: none of the readings alone written over it", got)
+			}
+		})
 	}
 }
 
@@ -1386,31 +1410,40 @@ type prunedOnListing struct {
 	once  sync.Once
 }
 
-func (p *prunedOnListing) Dates() []string {
-	dates := p.History.Dates()
+func (p *prunedOnListing) Dates() ([]string, error) {
+	dates, err := p.History.Dates()
 	p.once.Do(p.prune)
-	return dates
+	return dates, err
 }
 
-func TestADayOfNoRequestsIsWrittenOnlyWhereItsReadingsWereReadWhole(t *testing.T) {
+// historyBegan is a reading the readings history began with, on the 26th of
+// September, more than a week and a day before the 5th, which no summary of
+// the 5th, or a day after it, reads: with it, the history covers the 5th, as
+// reach says, so it's summarised of its readings alone.
+var historyBegan = workRead(on(-9, 10, 0), "5h", 0.1, on(-9, 13, 0), quota.StatusAllowed)
+
+// quietDay lays out in dir and history the 4th, of a request, and the 5th, of
+// none, work's session read in it, with a reading of the day before's in
+// reach of it, the history covering it, as historyBegan says.
+func quietDay(t *testing.T, dir, history string) {
+	holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+	holdReadings(t, history, "2026-09-26", historyBegan)
+	holdReadings(t, history, "2026-10-03", workRead(on(-2, 10, 0), "5h", 0.1, on(-2, 13, 0), quota.StatusAllowed))
+	holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+}
+
+// quietDayRead is what the 5th's summary reads of work's session, as
+// quietDay lays it out.
+var quietDayRead = windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`,
+	before: `["5h"]`}
+
+func TestADayOfNoRequestsIsWrittenFromWhatItsReadingsHoldWhereSomeNeverRead(t *testing.T) {
 	file := "readings-" + date + ".jsonl"
 	tests := []struct {
 		name string
-		// lay lays the trouble out in history, and mend mends it.
-		lay, mend func(t *testing.T, history string)
-		// gone is set where a file of the readings is pruned between the
-		// round's listing of them and its read.
-		gone bool
+		// lay lays the trouble out in history.
+		lay func(t *testing.T, history string)
 	}{
-		{
-			name: "a file of them that couldn't be opened",
-			lay:  func(t *testing.T, history string) { unopenable(t, history, file) },
-			mend: func(t *testing.T, history string) {
-				if err := os.Chmod(filepath.Join(history, file), 0o600); err != nil {
-					t.Fatal(err)
-				}
-			},
-		},
 		{
 			name: "a file of them damaged",
 			lay: func(t *testing.T, history string) {
@@ -1421,31 +1454,53 @@ func TestADayOfNoRequestsIsWrittenOnlyWhereItsReadingsWereReadWhole(t *testing.T
 				}
 				writeFile(t, history, file+".gz", append(data, gzipped(t, "lost\n")[:5]...))
 			},
-			mend: func(t *testing.T, history string) {
-				removeFile(t, history, file+".gz")
-				holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
-			},
 		},
-		{
-			name: "a line of them passed over",
-			lay:  func(t *testing.T, history string) { appendTo(t, history, file, "not a reading\n") },
-			mend: func(t *testing.T, history string) {
-				removeFile(t, history, file)
-				holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
-			},
-		},
-		{name: "a file of them gone since the round listed them", lay: func(*testing.T, string) {}, mend: func(*testing.T, string) {}, gone: true},
+		{name: "a line of them torn", lay: func(t *testing.T, history string) { appendTo(t, history, file, `{"at":"2026-10-05T11:`+"\n") }},
 	}
-	read := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, dir, history := stateDirs(t)
+			quietDay(t, dir, history)
+			tt.lay(t, history)
+
+			summariseAt(dir, history, on(1, 10, 0))
+			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":3,"day":"2026-10-05","lines":0,"accounts":[`+
+				quietDayJSON("work", quietDayRead)+`]}`; got != want {
+				t.Errorf("the day's summary is\n%s\nwant\n%s, from what its readings hold: they'll read no better later", got, want)
+			}
+		})
+	}
+}
+
+func TestADayOfNoRequestsIsLeftForALaterRoundWhereItsReadingsCantBeReadForNow(t *testing.T) {
+	file := "readings-" + date + ".jsonl"
+	tests := []struct {
+		name string
+		// lay lays the trouble out in history, which lasts for rounds rounds,
+		// and mend mends it; gone is set where a file of the readings is
+		// pruned between the round's listing of them and its read, which the
+		// next round's listing tells.
+		lay, mend func(t *testing.T, history string)
+		rounds    int
+		gone      bool
+	}{
+		{
+			name: "a file of them that can't be opened", rounds: 2,
+			lay: func(t *testing.T, history string) { unopenable(t, history, file) },
+			mend: func(t *testing.T, history string) {
+				if err := os.Chmod(filepath.Join(history, file), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{name: "a file of them gone since the round listed them", rounds: 1, lay: func(*testing.T, string) {}, mend: func(*testing.T, string) {}, gone: true},
+	}
+	const postponed = `msg="can't summarise the request ledger"`
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			_, dir, history := stateDirs(t)
-			holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
-			// The 5th, of no requests, work's session read in it; and a reading
-			// of the day before's in reach of it.
-			holdReadings(t, history, "2026-10-03", workRead(on(-2, 10, 0), "5h", 0.1, on(-2, 13, 0), quota.StatusAllowed))
-			holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			quietDay(t, dir, history)
 			tt.lay(t, history)
 			h := &prunedOnListing{History: historyIn(history), prune: func() {
 				if tt.gone {
@@ -1454,23 +1509,62 @@ func TestADayOfNoRequestsIsWrittenOnlyWhereItsReadingsWereReadWhole(t *testing.T
 			}}
 			l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, h, caps, logs.For("router"))
 
-			l.SummariseEnded(on(1, 10, 0))
-			if got := heldSummary(t, dir, date); got != "" {
-				t.Fatalf("the day's summary is\n%s\nwant none written, its readings not read whole", got)
+			for round := range tt.rounds {
+				l.SummariseEnded(on(1, 10+round, 0))
+				if got := heldSummary(t, dir, date); got != "" {
+					t.Fatalf("at round %d, the day's summary is\n%s\nwant none written, its readings not read", round+1, got)
+				}
 			}
-			if !log.Has("level=WARN", `msg="can't summarise the request ledger"`, "day="+date, "readings couldn't all be read") {
-				t.Errorf("log reads\n%s\nwant the day left for a later round warned of", log)
+			if warned := strings.Count(log.String(), postponed); warned != 1 || !log.Has("level=WARN", postponed, "day="+date, "can't all be read for now") {
+				t.Errorf("log reads\n%s\nwant the day left for a later round warned of once, not at each round", log)
 			}
 			tt.mend(t, history)
-			l.SummariseEnded(on(1, 11, 0))
-			read := read
-			if !tt.gone {
-				read.before = `["5h"]`
+			l.SummariseEnded(on(1, 10+tt.rounds, 0))
+			read := quietDayRead
+			if tt.gone {
+				read.before = ""
 			}
 			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":3,"day":"2026-10-05","lines":0,"accounts":[`+quietDayJSON("work", read)+`]}`; got != want {
 				t.Errorf("at the round after, the day's summary is\n%s\nwant\n%s", got, want)
 			}
 		})
+	}
+}
+
+// unlistable has the directory dir hold its files where they can be opened
+// by name, but not listed.
+func unlistable(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0o300); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+}
+
+func TestARoundSummarisesNoDayWhileTheReadingsHistoryCantBeListed(t *testing.T) {
+	log := logstest.Capture(t)
+	_, dir, history := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+	unlistable(t, history)
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, historyIn(history), caps, logs.For("router"))
+
+	l.SummariseEnded(on(1, 10, 0))
+	l.SummariseEnded(on(1, 11, 0))
+	if got := heldSummary(t, dir, date); got != "" {
+		t.Fatalf("the day's summary is\n%s\nwant none: a listing that failed tells of no day the history holds no readings of", got)
+	}
+	const unlisted = `msg="can't read the readings history; the request ledger's days are summarised once it can be"`
+	if warned := strings.Count(log.String(), unlisted); warned != 1 {
+		t.Errorf("log reads\n%s\nwant the history that can't be listed warned of once, not at each round", log)
+	}
+	if err := os.Chmod(history, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	l.SummariseEnded(on(1, 12, 0))
+	read := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
+	if got, want := heldSummary(t, dir, date), summaryOf(date, 1, 1, read)+"\n"; got != want {
+		t.Errorf("once the history can be listed, the day's summary is\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -1533,29 +1627,29 @@ func TestARoundSummarisesADayOfNoRequestsTheReadingsHistoryTellsOf(t *testing.T)
 	}{
 		{
 			name: "an account read in it", first: "2026-10-04", at: on(1, 10, 0),
-			read: []readings.Reading{workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)},
+			read: []readings.Reading{historyBegan, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)},
 			want: `{"version":3,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", read) + `]}`,
 		},
 		{
 			name:  "an account's week reset in it by its last reading's reset, nothing read in it, as when the router was stopped",
 			first: "2026-10-04", at: on(2, 10, 0),
-			read: []readings.Reading{workRead(on(-1, 12, 0), "7d", 0.64, on(0, 10, 0), quota.StatusAllowed)},
+			read: []readings.Reading{historyBegan, workRead(on(-1, 12, 0), "7d", 0.64, on(0, 10, 0), quota.StatusAllowed)},
 			want: `{"version":3,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", reset) + `]}`,
 		},
 		{
 			name: "none before the first day the ledger holds, as nothing before it is in it", first: "2026-10-06", at: on(2, 10, 0),
-			read: []readings.Reading{workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)},
+			read: []readings.Reading{historyBegan, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)},
 		},
 		{
 			name: "none where the readings history holds none of it, or of the week before it, as once it has pruned them", first: "2026-10-04", at: on(1, 10, 0),
 			read: []readings.Reading{workRead(on(-12, 10, 0), "7d", 0.3, on(-8, 13, 0), quota.StatusAllowed)},
 		},
 		{
-			name: "one of no accounts of the day before the history's first, its reach taking in the day after's file, as a change of time zone files " +
-				"a reading under the date beside its own",
-			first: "2026-10-04", at: on(2, 10, 0),
-			read: []readings.Reading{workRead(on(1, 10, 0), "5h", 0.3, on(1, 13, 0), quota.StatusAllowed)},
-			want: `{"version":3,"day":"2026-10-05","lines":0}`,
+			name: "none where the history began within the week before it, so it holds none of the week before the history began, " +
+				"as a window already at its limit as it began would read as one reached that day",
+			first: "2026-10-04", at: on(1, 10, 0),
+			read: []readings.Reading{workRead(on(-2, 10, 0), "5h", 1, on(-2, 13, 0), quota.StatusRejected),
+				workRead(on(0, 10, 0), "7d", 1, on(3, 10, 0), quota.StatusRejected)},
 		},
 	}
 	for _, tt := range tests {
@@ -1581,6 +1675,36 @@ func TestARoundSummarisesADayOfNoRequestsTheReadingsHistoryTellsOf(t *testing.T)
 				t.Errorf("log reads\n%s\nwant the day summarised noted, and the round after reading its summary %d times, none: its stamp tells it stands", log, n)
 			}
 		})
+	}
+}
+
+func TestTheFirstDaysOfNoRequestsAfterTheHistoryBeganAreSummarisedOfNoReadings(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	// The ledger's first day, the 30th of September, of a request; the
+	// history begun the day after, work's week already at its limit, read so
+	// each day since, of no requests.
+	holdLines(t, dir, "2026-09-30", asked("1", on(-5, 9, 0)))
+	for day := -4; day <= 4; day++ {
+		holdReadings(t, history, on(day, 0, 0).Format(time.DateOnly), workRead(on(day, 10, 0), "7d", 1, on(10, 10, 0), quota.StatusRejected))
+	}
+
+	summariseAt(dir, history, on(5, 10, 0))
+	for day := -4; day <= 3; day++ {
+		if got := heldSummary(t, dir, on(day, 0, 0).Format(time.DateOnly)); got != "" {
+			t.Errorf("the summary of %s is\n%s\nwant none: the history holds none of the week before it began", on(day, 0, 0).Format(time.DateOnly), got)
+		}
+	}
+	if got := heldSummary(t, dir, "2026-10-09"); !strings.Contains(got, `"account":"work"`) || strings.Contains(got, `"limits"`) {
+		t.Errorf("the summary of the 9th, the history's first day a week and a day before it, is\n%s\nwant work's day in it, at no limit reached", got)
+	}
+	for _, by := range []string{"a reader", "a follower"} {
+		days := readerAt(state, on(5, 12, 0)).Days
+		if by == "a follower" {
+			days = followerOf(state, &testClock{at: on(5, 12, 0)}, caps).Days
+		}
+		if got := summariesJSON(t, days(on(-4, 0, 0))[:1])[0]; got != `{"version":3,"day":"2026-10-01","lines":0}` {
+			t.Errorf("by %s, the history's first day is\n%s\nwant one of no accounts, its limit, reached before the history began, never read as reached that day", by, got)
+		}
 	}
 }
 

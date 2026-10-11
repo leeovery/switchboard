@@ -61,8 +61,8 @@ func (a *asking) Between(from, to time.Time, _ *dayfile.Faults) iter.Seq[reading
 	}
 }
 
-func (*asking) Dates() []string {
-	return nil
+func (*asking) Dates() ([]string, error) {
+	return nil, nil
 }
 
 func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeOnceForEachRunOfDays(t *testing.T) {
@@ -73,7 +73,7 @@ func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeOnceForEachRunOfDays
 	// Days 10 to 14, then day 30, well after them; and day 20, which the
 	// history doesn't reach.
 	for _, n := range []int{10, 11, 12, 13, 14, 20, 30} {
-		due = append(due, dueDay{date: day(n).Format(time.DateOnly), reached: n != 20})
+		due = append(due, dueDay{date: day(n).Format(time.DateOnly), reach: reach{reached: n != 20}})
 	}
 
 	got := readingAhead(history, due, func(d dueDay, read *ahead) []readings.Reading {
@@ -83,7 +83,7 @@ func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeOnceForEachRunOfDays
 	for i, d := range due {
 		from, to, _ := dayfile.Day(d.date)
 		want := between(history.held, from.Add(-readingsBefore), to)
-		if !d.reached {
+		if !d.reach.reached {
 			want = nil
 		}
 		if !slices.Equal(got[i], want) {
@@ -113,5 +113,35 @@ func TestReadingsReadAheadHoldAWeekAndADayOfThemAtMost(t *testing.T) {
 		if most := 8*24 + 1; len(a.held) > most {
 			t.Fatalf("asked for day %d, it holds %d readings, want %d at most: a week and a day's, and the first after", n, len(a.held), most)
 		}
+	}
+}
+
+func TestADaysReachTellsWhetherItsSummaryReadsTheReadingsHistory(t *testing.T) {
+	const date = "2026-10-05"
+	tests := []struct {
+		name string
+		// held are the days the history holds readings of, and want how far
+		// they reach the 5th: a day of lines reads them where they're
+		// reached, and one of none, where they're covered.
+		held readingsHeld
+		want reach
+	}{
+		{name: "none held"},
+		{name: "none held from the day before its week to the day after it", held: readingsHeld{"2026-09-26", "2026-10-07"}},
+		{
+			name: "the day after's alone, as a change of time zone files a reading under the date beside its own",
+			held: readingsHeld{"2026-10-06"}, want: reach{reached: true},
+		},
+		{name: "from within its week on, as the history began then", held: readingsHeld{"2026-09-28", date}, want: reach{reached: true}},
+		{name: "from the day before its week on", held: readingsHeld{"2026-09-27", date}, want: reach{reached: true, covered: true}},
+		{name: "from before that on", held: readingsHeld{"2026-09-20", "2026-10-01"}, want: reach{reached: true, covered: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.held.reach(date)
+			if got != tt.want || got.reads(false) != tt.want.reached || got.reads(true) != tt.want.covered {
+				t.Errorf("reach(%s) = %+v, reading them with lines %v, and with none %v; want %+v", date, got, got.reads(false), got.reads(true), tt.want)
+			}
+		})
 	}
 }

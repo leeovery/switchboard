@@ -18,30 +18,34 @@ import (
 
 // Newest returns the dates of the n newest days at now, oldest first, by the
 // dates the files' names give, but for those of a day after tomorrow: a file
-// of one was named by a clock set ahead.
+// of one was named by a clock set ahead. Where the files can't be listed,
+// which is warned of, it returns none.
 func (f *Files) Newest(now time.Time, n int) []string {
-	dates := f.dates(func(day time.Time) bool { return !afterTomorrow(day, now) })
+	dates, err := f.dates(func(day time.Time) bool { return !afterTomorrow(day, now) })
+	if err != nil {
+		f.Logger.Warn("can't read the "+f.Name, "dir", f.Dir, "error", err)
+	}
 	return dates[max(len(dates)-n, 0):]
 }
 
 // All returns the dates of every day the files hold lines of, oldest first,
-// by the dates the files' names give.
-func (f *Files) All() []string {
+// by the dates the files' names give: none where their directory isn't
+// there. It fails where they can't be listed.
+func (f *Files) All() ([]string, error) {
 	return f.dates(func(time.Time) bool { return true })
 }
 
 // dates returns the dates of the local days the files are of, each once,
 // oldest first, but for those whose day, by its start, keep reports false
-// of.
-func (f *Files) dates(keep func(day time.Time) bool) []string {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	entries, err := os.ReadDir(f.Dir)
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			f.Logger.Warn("can't read the "+f.Name, "dir", f.Dir, "error", err)
-		}
-		return nil
+// of: none where their directory isn't there. It fails where they can't be
+// listed.
+func (f *Files) dates(keep func(day time.Time) bool) ([]string, error) {
+	entries, err := f.List()
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, err
 	}
 	var dates []string
 	for _, e := range entries {
@@ -50,7 +54,16 @@ func (f *Files) dates(keep func(day time.Time) bool) []string {
 		}
 	}
 	slices.Sort(dates)
-	return slices.Compact(dates)
+	return slices.Compact(dates), nil
+}
+
+// List returns what the files' directory holds, as os.ReadDir does, holding
+// the files from pruning as it lists them, so it never lists them halfway
+// through a prune.
+func (f *Files) List() ([]fs.DirEntry, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return os.ReadDir(f.Dir)
 }
 
 // afterTomorrow reports whether day, the start of a local day as named gives
@@ -104,7 +117,7 @@ func noon(t time.Time) time.Time {
 // the lines before the damage, which is warned of too: each once until it
 // reads to its end again, as filesWarned says. The files are read as openDay
 // opens them. faults, where they're given, note the days whose files it
-// couldn't read whole, as Faults says, as it reads them.
+// couldn't read for now, as Faults says, as it reads them.
 func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), at func(T) time.Time, keep, take func(T) bool,
 	faults *Faults) (unread int) {
 	f.mu.RLock()
@@ -139,8 +152,8 @@ func ReadFiled[T any](f *Files, dates []string, decode func(line []byte) (T, boo
 
 // readFiled reads the days as ReadFiled says, its caller holding the files
 // from pruning, noting in faults, where it's given, each day whose files it
-// couldn't read whole, as Faults says, before read is called with its date,
-// and reports whether take and read wanted more.
+// couldn't read for now, as Faults says, before read is called with its
+// date, and reports whether take and read wanted more.
 func readFiled[T any](f *Files, dates []string, decode func(line []byte) (T, bool), take func(T) bool, read func(date string) bool,
 	faults *Faults) (unread int, more bool) {
 	taking := func(v T) bool {
@@ -152,13 +165,12 @@ func readFiled[T any](f *Files, dates []string, decode func(line []byte) (T, boo
 		for _, e := range failed {
 			f.warn("can't read the "+f.Name, e.file, e.err)
 		}
-		more = true
-		gone := len(opened) == 0 && len(failed) == 0 && faults.listing(date)
-		_, skipped, short := readOpened(f, opened, decode, taking)
-		unread += skipped
-		if gone || len(failed) > 0 || skipped > 0 || short {
+		if len(failed) > 0 || len(opened) == 0 && faults.listing(date) {
 			faults.note(date)
 		}
+		more = true
+		_, skipped := readOpened(f, opened, decode, taking)
+		unread += skipped
 		if !more || !read(date) {
 			return unread, false
 		}
@@ -182,7 +194,7 @@ func ReadDay[T any](f *Files, date string, decode func(line []byte) (T, bool), t
 	if len(opened) == 0 && len(failed) == 0 {
 		return 0, 0, fmt.Errorf("the %s holds no lines of %s: %w", f.Name, date, fs.ErrNotExist)
 	}
-	lines, unread, _ = readOpened(f, opened, decode, take)
+	lines, unread = readOpened(f, opened, decode, take)
 	return lines, unread, f.failure(failed)
 }
 
@@ -242,13 +254,13 @@ func (f *Files) stat(file dayFile) (fs.FileInfo, error) {
 
 // readOpened hands take each line the files opened hold that decode makes a
 // T of, in order, until take reports false, and returns how many lines they
-// hold, as far as it read, how many of those were unread, and whether one of
-// them read short, as one damaged. It closes the files.
-func readOpened[T any](f *Files, opened []openFile, decode func(line []byte) (T, bool), take func(T) bool) (lines, unread int, short bool) {
+// hold, as far as it read, and how many of those were unread. It closes the
+// files.
+func readOpened[T any](f *Files, opened []openFile, decode func(line []byte) (T, bool), take func(T) bool) (lines, unread int) {
 	defer closeAll(opened)
 	undecoded := 0
 	for _, file := range opened {
-		handed, long, more, cut := f.readFile(file, func(line []byte) bool {
+		handed, long, more := f.readFile(file, func(line []byte) bool {
 			v, ok := decode(line)
 			if !ok {
 				undecoded++
@@ -258,55 +270,52 @@ func readOpened[T any](f *Files, opened []openFile, decode func(line []byte) (T,
 		})
 		lines += handed + long
 		unread += long
-		short = short || cut
 		if !more {
 			break
 		}
 	}
-	return lines, unread + undecoded, short
+	return lines, unread + undecoded
 }
 
 // readFile hands take each line the file holds, in order, without its line
 // ending, until take reports false, and returns how many of its lines it
 // handed take, how many it skipped as too long to hold, as LineMax says,
-// without holding them, whether take wanted more, and whether it read short,
-// as one damaged, which is warned of as Read says.
-func (f *Files) readFile(file openFile, take func(line []byte) bool) (handed, long int, more, short bool) {
+// without holding them, and whether take wanted more. A file damaged is
+// warned of as Read says.
+func (f *Files) readFile(file openFile, take func(line []byte) bool) (handed, long int, more bool) {
 	lines := linescan.New(file, f.LineMax)
 	for lines.Scan() {
 		handed++
 		if !take(lines.Bytes()) {
-			return handed, lines.Long(), false, false
+			return handed, lines.Long(), false
 		}
 	}
 	if err := lines.Err(); err != nil {
 		f.warn(f.Name+" read short", file.dayFile, err)
-		return handed, lines.Long(), true, true
+	} else {
+		f.warned.forget(file.name(f.Prefix))
 	}
-	f.warned.forget(file.name(f.Prefix))
-	return handed, lines.Long(), true, false
+	return handed, lines.Long(), true
 }
 
 // Faults are the dates of the local days whose files a read couldn't read
-// whole: one of them couldn't be opened, or read short, as one damaged, or
-// held a line passed over, too long to hold or made nothing of; or, of a day
-// a listing of the files taken before the read gave, as NewFaults has it, its
-// files had gone by the time the read came to them, as after a prune. A read
-// notes each day's as it reads its files, under its own hold on them, before
-// it hands on any line of a day after it.
+// for now, so a read later may read more of them: one of them couldn't be
+// opened; or, of a day a listing of the files taken before the read gave, as
+// NewFaults has it, its files had gone by the time the read came to them, as
+// after a prune, which a listing after it tells. A file that reads short, as
+// one damaged, or holds a line passed over, as one torn, is no fault: it
+// reads no better later. A read notes each day's as it opens its files,
+// under its own hold on them, before it hands on any line of a day after it.
 type Faults struct {
-	listed map[string]bool
+	listed func(date string) bool
 	dates  map[string]bool
 }
 
 // NewFaults returns the faults of a read of files a listing of which, taken
-// before it, gave the dates listed: none noted yet.
-func NewFaults(listed []string) *Faults {
-	f := &Faults{listed: make(map[string]bool, len(listed))}
-	for _, date := range listed {
-		f.listed[date] = true
-	}
-	return f
+// before it, gave the dates listed reports true of: none noted yet. listed
+// may be nil, as of a read with no listing before it.
+func NewFaults(listed func(date string) bool) *Faults {
+	return &Faults{listed: listed}
 }
 
 // Any reports whether any of the days with the given dates is among them.
@@ -317,7 +326,7 @@ func (f *Faults) Any(dates []string) bool {
 // listing reports whether the listing taken before the read gave the day
 // with the given date.
 func (f *Faults) listing(date string) bool {
-	return f != nil && f.listed[date]
+	return f != nil && f.listed != nil && f.listed(date)
 }
 
 // note notes the day with the given date among them, where there are any to
@@ -330,17 +339,6 @@ func (f *Faults) note(date string) {
 		f.dates = make(map[string]bool)
 	}
 	f.dates[date] = true
-}
-
-// Waiting reports whether a prune of the files holds them, or waits to, as
-// one does on a read under way: a read begun now would wait on it. It's for
-// a test of what waits on a read.
-func (f *Files) Waiting() bool {
-	if f.mu.TryRLock() {
-		f.mu.RUnlock()
-		return false
-	}
-	return true
 }
 
 // inOrder hands on what's read that keep reports true of, oldest first by the

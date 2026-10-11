@@ -731,6 +731,7 @@ func TestTheFilesArentReadWhilePrunedNorPrunedWhileRead(t *testing.T) {
 	}{
 		{name: "a read waits for pruning", hold: pruning, run: func(f *Files) { readAll(f, DateOf(start)) }},
 		{name: "finding the newest days waits for pruning", hold: pruning, run: func(f *Files) { f.Newest(start, 2) }},
+		{name: "listing the files waits for pruning", hold: pruning, run: func(f *Files) { _, _ = f.List() }},
 		{name: "appending waits for pruning", hold: pruning, run: func(f *Files) { _ = f.Append(make(Lines)) }},
 		{
 			name: "pruning waits for a read",

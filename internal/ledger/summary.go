@@ -194,18 +194,19 @@ type Readings func(from, to time.Time) iter.Seq[readings.Reading]
 type History interface {
 	// Between returns the readings it holds of times from from up to to, in
 	// the order they were read, noting in faults, where they're given, the
-	// days whose files it couldn't read whole, as dayfile.Faults says, as it
-	// reads them.
+	// days whose files it couldn't read for now, as dayfile.Faults says, as
+	// it reads them.
 	Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading]
 	// Dates returns the dates of the local days it holds readings of, oldest
-	// first, as its files' names give them.
-	Dates() []string
+	// first, as its files' names give them: none where it holds none. It
+	// fails where its files can't be listed, which never tells of none.
+	Dates() ([]string, error)
 }
 
 // readingAhead returns what each makes of every one of the days due, given
 // oldest first, with the readings history read ahead for those of them it
-// reaches, as their reached says: once for each run of them, as runOf says,
-// so a read never takes in the readings between days far apart, and holds a
+// reaches, as their reach says: once for each run of them, as runOf says, so
+// a read never takes in the readings between days far apart, and holds a
 // week and a day of them at most, as ahead says. A day it doesn't reach is
 // made with none read. Each run's read holds the history's files from
 // pruning until its days are made, as readings.Read does as it reads, so
@@ -213,13 +214,14 @@ type History interface {
 // prune waiting on the read would hold the listing back, and the listing the
 // read. The router's readings history prunes only once it has had the ledger
 // summarise, which waits for any summarising under way, as SummariseEnded's
-// lock has it. listed are the dates of the days a listing of the history
-// gave before the read, its faults noting those whose files have gone since,
-// as dayfile.Faults says.
-func readingAhead[T any](history History, due []dueDay, each func(dueDay, *ahead) T, listed []string) []T {
+// lock has it. listed reports whether a listing of the history before the
+// read gave a day's date, as one listing, shared by every run, gives them,
+// so each run's faults note those whose files have gone since, as
+// dayfile.Faults says: nil where there was none.
+func readingAhead[T any](history History, due []dueDay, each func(dueDay, *ahead) T, listed func(date string) bool) []T {
 	made := make([]T, 0, len(due))
 	for len(due) > 0 {
-		if !due[0].reached {
+		if !due[0].reach.reached {
 			made = append(made, each(due[0], &ahead{}))
 			due = due[1:]
 			continue
@@ -233,8 +235,9 @@ func readingAhead[T any](history History, due []dueDay, each func(dueDay, *ahead
 
 // readRun returns what each makes of every day of run, a run of days due, as
 // runOf gives it, with the history read once for them all, from the week
-// before the first to the end of the last, as listed says.
-func readRun[T any](history History, run []dueDay, each func(dueDay, *ahead) T, listed []string) []T {
+// before the first to the end of the last, its faults noted afresh, as
+// listed says.
+func readRun[T any](history History, run []dueDay, each func(dueDay, *ahead) T, listed func(date string) bool) []T {
 	start, _, _ := dayfile.Day(run[0].date)
 	_, end, _ := dayfile.Day(run[len(run)-1].date)
 	read := &ahead{faults: dayfile.NewFaults(listed)}
@@ -254,7 +257,7 @@ func readRun[T any](history History, run []dueDay, each func(dueDay, *ahead) T, 
 // next's.
 func runOf(due []dueDay) int {
 	n := 1
-	for ; n < len(due) && due[n].reached; n++ {
+	for ; n < len(due) && due[n].reach.reached; n++ {
 		_, before, _ := dayfile.Day(due[n-1].date)
 		if start, _, _ := dayfile.Day(due[n].date); start.Add(-readingsBefore).After(before) {
 			break
@@ -268,18 +271,18 @@ func runOf(due []dueDay) int {
 // of the times asked for, reading on as far as it needs, and lets go of those
 // before them, which no later ask wants; none where there's no next, as of a
 // day the history doesn't reach. held are those read and kept, and faults the
-// days whose files the read couldn't read whole so far.
+// days whose files the read couldn't read for now, so far.
 type ahead struct {
 	next   func() (readings.Reading, bool)
 	held   []readings.Reading
 	faults *dayfile.Faults
 }
 
-// whole reports whether the read read whole the readings history's files
-// that may hold the readings of the local day with the given date and of the
-// week before it, as readingDates gives them, as dayfile.Faults says: those
-// files are read, under the read's own hold on them, by the time the day has
-// its readings.
+// whole reports whether the read read the readings history's files that may
+// hold the readings of the local day with the given date and of the week
+// before it, as readingDates gives them, as whole as they'll ever read: none
+// a fault, as dayfile.Faults says. Those files are read, under the read's own
+// hold on them, by the time the day has its readings.
 func (a *ahead) whole(date string) bool {
 	return !a.faults.Any(readingDates(date))
 }
@@ -302,10 +305,58 @@ func readingDates(date string) []string {
 	return dayfile.Span(dayfile.DayStart(start, -readingsReach), dayfile.DayStart(start, 1))
 }
 
+// readingsHeld are the dates of the local days the readings history holds
+// readings of, oldest first, as one listing of its files gives them.
+type readingsHeld []string
+
+// holds reports whether the history holds readings of the local day with the
+// given date.
+func (h readingsHeld) holds(date string) bool {
+	_, found := slices.BinarySearch(h, date)
+	return found
+}
+
+// reach returns how far the history holds the readings a summary of the
+// local day with the given date reads, as reach says, by the dates
+// readingDates gives their files.
+func (h readingsHeld) reach(date string) reach {
+	dates := readingDates(date)
+	if len(dates) == 0 {
+		return reach{}
+	}
+	i, _ := slices.BinarySearch(h, dates[0])
+	reached := i < len(h) && h[i] <= dates[len(dates)-1]
+	return reach{reached: reached, covered: reached && h[0] <= dates[0]}
+}
+
+// reach is how far the readings history holds the readings a local day's
+// summary reads: reached, where it holds any of them; and covered, where it
+// holds every one it ever held, its files from the first on, the day before
+// the day's week, as the history began before it and has pruned none of
+// them since.
+type reach struct {
+	reached, covered bool
+}
+
+// everyReach is the reach of a day where the readings history can't be
+// listed to tell: every one, so its readings are read, as a listing that
+// failed tells of none it doesn't hold.
+var everyReach = reach{reached: true, covered: true}
+
+// reads reports whether a summary of the day reads its readings, none
+// reporting whether the day has no lines: one with lines reads them where
+// they're reached; one of none, its summary of its readings alone, only
+// where they're covered, so a window already at a limit as the history
+// began, of which a day at its start holds no reading before, isn't taken
+// for a limit reached that day.
+func (r reach) reads(none bool) bool {
+	return r.covered || r.reached && !none
+}
+
 // readings gives the readings of times from from up to to, as ahead says.
 func (a *ahead) readings(from, to time.Time) iter.Seq[readings.Reading] {
 	if a.next == nil {
-		return slices.Values([]readings.Reading(nil))
+		return readNone
 	}
 	a.held = a.held[firstAt(a.held, from):]
 	for len(a.held) == 0 || a.held[len(a.held)-1].At.Before(to) {
@@ -317,6 +368,9 @@ func (a *ahead) readings(from, to time.Time) iter.Seq[readings.Reading] {
 	}
 	return slices.Values(a.held[:firstAt(a.held, to)])
 }
+
+// readNone gives no reading.
+func readNone(func(readings.Reading) bool) {}
 
 // firstAt returns the index of the first of read, oldest first, read at or
 // after t.
@@ -338,7 +392,8 @@ func firstAt(read []readings.Reading, t time.Time) int {
 // said the limit held already. The day is summarised as of asOf, as far as
 // it has gone where it hasn't ended, as today hasn't: its windows' resets,
 // and the minutes its accounts spent at their caps, as caps gives them, and
-// at a limit, go no further. It fails for a date that isn't one.
+// at a limit, go no further. It asks history for the readings once it has
+// read every line. It fails for a date that isn't one.
 func Summarise(date string, lines iter.Seq[Line], history Readings, held *Summary, caps Caps, asOf time.Time) (Summary, error) {
 	start, end, ok := dayfile.Day(date)
 	if !ok {
