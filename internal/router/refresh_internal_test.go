@@ -146,7 +146,7 @@ func TestRefreshProbesAnAccountWhoseSessionHasLapsedWhenItCanTakeNoRequest(t *te
 		},
 		{
 			name:     "its token refused",
-			holdBack: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest, s.mark()) },
+			holdBack: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest) },
 		},
 		{
 			name:     "a model refused",
