@@ -46,7 +46,8 @@ func newHistoryCommand(a *app) *cobra.Command {
 		Long: `Show each day of the request ledger: the last 30, unless --since says
 otherwise, a row for each account and model with its requests, tokens,
 sessions and worth, what they'd have cost through the API, at the prices
-switchboard carries; then of each account, its sessions, those moved onto it
+switchboard carries, or the config's [prices] where it gives them; then of
+each account, its sessions, those moved onto it
 and off it, the limits it reached, and its windows' highest use. Requests are
 messages, whether they went upstream or the router answered them itself:
 Claude Code's quota checks and its counts of tokens are never among them.
