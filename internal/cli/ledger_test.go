@@ -554,8 +554,8 @@ func TestHistoryNotesADayOfNoRequestsOnlyWhereALimitWasReachedOrAWeekReset(t *te
 	}{
 		{name: "its highest use alone, its session reset", read: sideRead("5h", 0.2, quota.StatusAllowed)},
 		{name: "a limit reached", read: sideRead("5h", 1, quota.StatusRejected), note: "side: no sessions  ·  limits: Session at 09:00  ·  highest: Session 100%"},
-		{name: "its week reset", read: sideRead("7d", 0.64, quota.StatusAllowed), note: "side: no sessions  ·  highest: Week 64%"},
-		{name: "a model's week reset", read: sideRead("7d_oi", 0.5, quota.StatusAllowed), note: "side: no sessions  ·  highest: Fable week 50%"},
+		{name: "its week reset", read: sideRead("7d", 0.64, quota.StatusAllowed), note: "side: no sessions  ·  week reset 10:00  ·  highest: Week 64%"},
+		{name: "a model's week reset", read: sideRead("7d_oi", 0.5, quota.StatusAllowed), note: "side: no sessions  ·  Fable week reset 10:00  ·  highest: Fable week 50%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

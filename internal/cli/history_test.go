@@ -286,6 +286,34 @@ func TestHistoryOfDaysWithoutRequestsSaysSoThenNotesTheirLimitsAndWeeksReset(t *
 	}
 }
 
+func TestHistoryNotesAnAccountThatServedNoRequestOnlyWhereALimitWasReachedOrAWeekReset(t *testing.T) {
+	// Work's request of claude-opus-9, side serving none, its windows read.
+	worksRequest := fixtureLines["2026-10-07"][4]
+	const busy = "Wed 7 Oct 2026, so far\n  work  claude-opus-9  1 request  110 tokens  1 session  unpriced\n"
+	const works = "  work: 1 session  ·  highest: Session 30%, Week 41%\n\n"
+	tests := []struct {
+		name string
+		read []readings.Reading
+		want string
+	}{
+		{name: "its highest use alone, its session reset", read: fixtureReadings, want: busy + works},
+		{
+			name: "a limit reached",
+			read: append(slices.Clone(fixtureReadings), readings.Reading{At: october(7, 10, 30, 0), Account: "side", Key: "5h", Utilization: 1,
+				ResetsAt: october(7, 15, 0, 0), Status: quota.StatusRejected}),
+			want: busy + "  side: no sessions  ·  limits: Session at 10:30  ·  highest: Session 100%\n" + works,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := run(t, checksAloneDeps(t, []ledger.Line{worksRequest}, tt.read...), "history", "--pretty", "--since", "10:00")
+			if !strings.HasPrefix(got.stdout, tt.want) || got.code != 0 {
+				t.Errorf("switchboard history --pretty printed\n%s(%d, %s)\nwant it to begin\n%s", got.stdout, got.code, got.stderr, tt.want)
+			}
+		})
+	}
+}
+
 func TestHistoryJSONOfQuotaChecksAndCountsAloneHoldsThem(t *testing.T) {
 	deps := checksAloneDeps(t, []ledger.Line{worksCheck, worksCount})
 	// The JSON holds the day as the ledger does, its check and count among it.

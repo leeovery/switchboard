@@ -632,6 +632,31 @@ func TestTheReadingsHistorysListingIsHeldUntilItsDirectoryChanges(t *testing.T) 
 	}
 }
 
+func TestAFollowerWarnsOfAReadingsHistoryItCantListOnceUntilItCan(t *testing.T) {
+	log := logstest.Capture(t)
+	state, dir, history := stateDirs(t)
+	// A day not yet summarised, which asks whether the history reaches it.
+	holdLines(t, dir, "2026-10-04", asked("1", on(-1, 9, 0)))
+	unlistable(t, history)
+	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
+	const unlisted = `msg="can't read the readings history"`
+
+	follower.Days(on(-1, 0, 0))
+	follower.Days(on(-1, 0, 0))
+	if warned := strings.Count(log.String(), unlisted); warned != 1 {
+		t.Errorf("log reads\n%s\nwant the history that can't be listed warned of once, not at each look: %d times", log, warned)
+	}
+	if err := os.Chmod(history, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	follower.Days(on(-1, 0, 0))
+	unlistable(t, history)
+	follower.Days(on(-1, 0, 0))
+	if warned := strings.Count(log.String(), unlisted); warned != 2 {
+		t.Errorf("log reads\n%s\nwant it warned of again once it can't be listed after it could: %d times", log, warned)
+	}
+}
+
 func TestAFollowerIsSafeForConcurrentUse(t *testing.T) {
 	state, dir, _ := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
@@ -719,30 +744,38 @@ func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
 	}
 }
 
+// listCounted is a readings history that counts the times it's listed.
+type listCounted struct {
+	ledger.History
+	listed int
+}
+
+func (l *listCounted) Dates() ([]string, error) {
+	l.listed++
+	return l.History.Dates()
+}
+
 func TestAReadOfTheDaysListsTheReadingsHistoryOnce(t *testing.T) {
 	for _, by := range []string{"a reader", "a follower"} {
 		t.Run("by "+by, func(t *testing.T) {
-			log := logstest.Capture(t)
 			state, dir, history := stateDirs(t)
 			// Days not yet summarised, each of which asks the history whether it
 			// reaches it, as its readings are read only where it does.
 			for back := 3; back >= 1; back-- {
 				holdLines(t, dir, on(-back, 0, 0).Format(time.DateOnly), asked("1", on(-back, 9, 0)))
 			}
-			// The history's files can be opened by name, but not listed, so a
-			// listing of them warns that it can't.
-			if err := os.Chmod(history, 0o300); err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = os.Chmod(history, 0o700) })
-			days := readerAt(state, on(2, 12, 0)).Days
+			h := &listCounted{History: historyIn(history)}
+			reader, follower := readerAt(state, on(2, 12, 0)), followerOf(state, &testClock{at: on(2, 12, 0)}, caps)
+			reader.SetHistory(h)
+			follower.SetHistory(h)
+			days := reader.Days
 			if by == "a follower" {
-				days = followerOf(state, &testClock{at: on(2, 12, 0)}, caps).Days
+				days = follower.Days
 			}
 
 			days(on(-3, 0, 0))
-			if listed := strings.Count(log.String(), `msg="can't read the readings history"`); listed != 1 {
-				t.Errorf("log reads\n%s\nthe read listed the readings history %d times, want once", log, listed)
+			if h.listed != 1 {
+				t.Errorf("the read listed the readings history %d times, want once", h.listed)
 			}
 		})
 	}

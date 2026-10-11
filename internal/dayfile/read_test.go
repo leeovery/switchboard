@@ -523,7 +523,7 @@ func TestFilesOfADayAfterTomorrowAreKeptButNotAmongTheNewest(t *testing.T) {
 	if got := readAll(f, f.Newest(now, 2)...); !slices.Equal(got, []string{"yesterday", "today"}) {
 		t.Errorf("the newest days hold %q, want yesterday's and today's, not those of days to come", got)
 	}
-	f.prune(now, twoWeeks)
+	f.prune(now, twoWeeks, nil)
 	for file := range files {
 		if _, err := os.Stat(f.path(file)); err != nil {
 			t.Errorf("%s went (%v), want it kept: the clock may be the one that's wrong", file.name(f.Prefix), err)

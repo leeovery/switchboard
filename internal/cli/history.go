@@ -49,8 +49,9 @@ otherwise, a row for each account and model with its requests, tokens,
 sessions and worth, what they'd have cost through the API, at the prices
 switchboard carries, or the config's [prices] where it gives them; then of
 each account, its sessions, those moved onto it and off it, the limits it
-reached, and its windows' highest use: of a day of no requests, only of an
-account that reached a limit or whose week reset. Requests are messages,
+reached, the times its weeks reset, and its windows' highest use: of an
+account that served no request that day, only where it reached a limit or
+one of its weeks reset. Requests are messages,
 whether they went upstream or the router answered them itself: Claude Code's
 quota checks and its counts of tokens are never among them. Today's is
 summarised from its lines, as far as it has gone. Then, where any of those
@@ -231,10 +232,11 @@ func historyTables(days []views.Day, now time.Time) ([]dayTable, error) {
 }
 
 // historyTable is the day's table: each account's rows, as modelRows makes
-// them, and a note of each account's, as accountNote says; but of a day of
-// no requests, a note only of an account whose day eventful reports, as its
-// highest use alone says little. It fails for a day whose date isn't one,
-// which the ledger's reader never gives.
+// them, and a note of each account's, as accountNote says; but of one that
+// served no request, a note only where its day eventful reports, as its
+// highest use alone says little, so a day's idle accounts don't crowd its
+// table. It fails for a day whose date isn't one, which the ledger's reader
+// never gives.
 func historyTable(day ledger.Priced, now time.Time) (dayTable, error) {
 	start, _, ok := dayfile.Day(day.Day)
 	if !ok {
@@ -242,11 +244,9 @@ func historyTable(day ledger.Priced, now time.Time) (dayTable, error) {
 	}
 	table := dayTable{day: start}
 	for _, a := range day.Accounts {
-		table.rows = append(table.rows, modelRows(a)...)
-	}
-	quiet := len(table.rows) == 0
-	for _, a := range day.Accounts {
-		if quiet && !eventful(a) {
+		rows := modelRows(a)
+		table.rows = append(table.rows, rows...)
+		if len(rows) == 0 && !eventful(a) {
 			continue
 		}
 		if note := accountNote(a, now); note != "" {
@@ -276,13 +276,19 @@ func modelRows(a ledger.PricedAccount) [][]string {
 	return rows
 }
 
-// eventful reports whether an account's day of no requests is worth a note:
-// it reached a limit, or one of its weeks reset, a window a week long, as
-// its own week, or a model's.
+// eventful reports whether the day of an account that served no request is
+// worth a note: it reached a limit, or one of its weeks reset, as weekResets
+// says.
 func eventful(a ledger.PricedAccount) bool {
-	return len(a.Limits) > 0 || slices.ContainsFunc(a.Resets, func(r ledger.Reset) bool {
+	return len(a.Limits) > 0 || len(weekResets(a)) > 0
+}
+
+// weekResets are the resets of an account's weeks, its windows a week long,
+// as its own week, or a model's, in the order they came.
+func weekResets(a ledger.PricedAccount) []ledger.Reset {
+	return slices.DeleteFunc(slices.Clone(a.Resets), func(r ledger.Reset) bool {
 		length, ok := quota.Length(r.Window)
-		return ok && length == 7*quota.Day
+		return !ok || length != 7*quota.Day
 	})
 }
 
@@ -326,37 +332,63 @@ func worthOf(m ledger.PricedModel) string {
 }
 
 // accountNote says, of an account's day, its sessions, those moved onto it and
-// off it, the limits it reached, and each window's highest use, times in now's
-// time zone, as "work: 6 sessions  ·  2 moved on, 1 off  ·  limits: Session at
-// 14:37  ·  highest: Session 100%, Week 41%": "" for the requests no account
-// answered, and for an account's day with nothing to say, of no sessions and
-// none of the rest.
+// off it, the limits it reached, the resets of its weeks, and each window's
+// highest use, times in now's time zone, as "work: 6 sessions  ·  2 moved on,
+// 1 off  ·  limits: Session at 14:37  ·  week reset 10:00  ·  highest:
+// Session 100%, Week 41%": "" for the requests no account answered, and for
+// an account's day with nothing to say, of no sessions and none of the rest.
 func accountNote(a ledger.PricedAccount, now time.Time) string {
 	if a.Account == "" {
 		return ""
 	}
 	parts := []string{status.SessionCount(a.Sessions)}
-	if moved := moves(a.MovedOn, a.MovedOff); moved != "" {
-		parts = append(parts, moved)
-	}
-	if len(a.Limits) > 0 {
-		limits := make([]string, len(a.Limits))
-		for i, l := range a.Limits {
-			limits[i] = claude.WindowLabel(l.Window) + " at " + status.TimeOfDay(now, l.At)
+	for _, part := range []string{moves(a.MovedOn, a.MovedOff), limitsOf(a, now), weeksResetOf(a, now), highestOf(a)} {
+		if part != "" {
+			parts = append(parts, part)
 		}
-		parts = append(parts, "limits: "+status.Clean(prose.List(limits)))
-	}
-	if len(a.Highest) > 0 {
-		var highest []string
-		for _, key := range slices.Sorted(maps.Keys(a.Highest)) {
-			highest = append(highest, claude.WindowLabel(key)+" "+status.Percent(a.Highest[key]))
-		}
-		parts = append(parts, "highest: "+status.Clean(strings.Join(highest, ", ")))
 	}
 	if a.Sessions == 0 && len(parts) == 1 {
 		return ""
 	}
 	return status.Clean(a.Account) + ": " + strings.Join(parts, status.Separator)
+}
+
+// limitsOf says the limits an account reached, as "limits: Session at
+// 14:37", times in now's time zone: "" for none.
+func limitsOf(a ledger.PricedAccount, now time.Time) string {
+	if len(a.Limits) == 0 {
+		return ""
+	}
+	limits := make([]string, len(a.Limits))
+	for i, l := range a.Limits {
+		limits[i] = claude.WindowLabel(l.Window) + " at " + status.TimeOfDay(now, l.At)
+	}
+	return "limits: " + status.Clean(prose.List(limits))
+}
+
+// weeksResetOf says when an account's weeks reset, as weekResets gives them,
+// each window named as events name it, as "week reset 10:00", times in now's
+// time zone: "" for none.
+func weeksResetOf(a ledger.PricedAccount, now time.Time) string {
+	resets := weekResets(a)
+	said := make([]string, len(resets))
+	for i, r := range resets {
+		said[i] = status.InProse(claude.WindowName(r.Window)) + " reset " + status.TimeOfDay(now, r.At)
+	}
+	return status.Clean(prose.List(said))
+}
+
+// highestOf says each of an account's windows' highest use, as "highest:
+// Session 100%, Week 41%": "" for none.
+func highestOf(a ledger.PricedAccount) string {
+	if len(a.Highest) == 0 {
+		return ""
+	}
+	var highest []string
+	for _, key := range slices.Sorted(maps.Keys(a.Highest)) {
+		highest = append(highest, claude.WindowLabel(key)+" "+status.Percent(a.Highest[key]))
+	}
+	return "highest: " + status.Clean(strings.Join(highest, ", "))
 }
 
 // moves says how many sessions were moved onto an account and off it, as "2

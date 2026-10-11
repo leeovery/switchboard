@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -22,6 +23,8 @@ import (
 type Reader struct {
 	days days
 	now  func() time.Time
+	// unlisted is how its listings of the readings history went.
+	unlisted failing
 }
 
 // NewReader returns a reader of the ledger in the state directory stateDir,
@@ -71,18 +74,39 @@ func (h filedHistory) Dates() ([]string, error) {
 // readings a summary of the local day with the given date reads, as
 // readingsHeld.reach says, from list's listing of its files, taken once, as
 // it's first asked: before any read of them, or after, never as one is under
-// way, as readingAhead says. Where they can't be listed, which is warned of,
-// it tells of every day that the history holds them all, as everyReach says.
-func (d days) reaching(list func() ([]string, error)) func(date string) reach {
+// way, as readingAhead says. Where they can't be listed, which is warned of
+// as unlisted says, it tells of every day that the history holds them all,
+// as everyReach says.
+func (d days) reaching(list func() ([]string, error), unlisted *failing) func(date string) reach {
 	listing := sync.OnceValue(func() func(date string) reach {
 		dates, err := list()
+		unlisted.note(d.logger, "can't read the readings history", err)
 		if err != nil {
-			d.logger.Warn("can't read the readings history", "error", err)
 			return func(string) reach { return everyReach }
 		}
 		return readingsHeld(dates).reach
 	})
 	return func(date string) reach { return listing()(date) }
+}
+
+// failing is how listings of the readings history went, so one that fails is
+// warned of once, until one succeeds, not at each listing, as at each look a
+// dashboard takes. It's safe for concurrent use.
+type failing struct {
+	warned atomic.Bool
+}
+
+// note notes how a listing went, err its failure, nil where it succeeded,
+// warning of the first to fail since one last succeeded to logger, as msg
+// says.
+func (f *failing) note(logger *slog.Logger, msg string, err error) {
+	if err == nil {
+		f.warned.Store(false)
+		return
+	}
+	if !f.warned.Swap(true) {
+		logger.Warn(msg, "error", err)
+	}
 }
 
 // Held is a line as the ledger holds it: what it reads as, and its JSON, as
@@ -208,7 +232,7 @@ func (r *Reader) Days(from time.Time) []Summary {
 	days := make([]Summary, len(dates))
 	var due []dueDay
 	var at []int
-	reachOf := r.days.reaching(r.days.history.Dates)
+	reachOf := r.days.reaching(r.days.history.Dates, &r.unlisted)
 	for i, date := range dates {
 		summary, stands := r.standing(date)
 		if stands {

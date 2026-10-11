@@ -33,6 +33,7 @@ type Follower struct {
 	mu       sync.Mutex
 	first    heldListing[time.Time]
 	readings heldListing[[]string]
+	unlisted failing
 	followed map[string]*followedDay
 	today    todaysLines
 }
@@ -97,7 +98,7 @@ func (f *Follower) Days(from time.Time) []Summary {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := f.now()
-	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) })
+	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) }, &f.unlisted)
 	dates := f.dates(from, now)
 	summaries := make([]Summary, len(dates))
 	for i, date := range dates {

@@ -52,6 +52,11 @@ const (
 	// summaryPrefix and summarySuffix begin and end the name of a day's
 	// summary: day-<date>.json.
 	summaryPrefix, summarySuffix = "day-", ".json"
+	// postponeFor is how long a day of no lines whose readings can't all be
+	// read for now is left for a later round, from the first round that left
+	// it: a file of them that can't be opened may be put right, but one that
+	// never is mustn't hold the day back for good.
+	postponeFor = 24 * time.Hour
 )
 
 // Dir is the ledger's directory in the state directory stateDir.
@@ -92,17 +97,20 @@ type Ledger struct {
 	// summarising is held while the days are summarised, as they are from
 	// the readings history's writer's goroutine as well as Run's.
 	summarising sync.Mutex
-	// left are the summaries left as they are, of days with no lines that
-	// don't read as their days', each as its file looked when it was last
-	// warned of, by its date: so it's warned of once until its file changes.
-	// Only a round, holding summarising, touches them.
-	left map[string]fs.FileInfo
-	// postponed are the dates of the days left for a later round as their
-	// readings couldn't be read for now, each warned of once, until it's
-	// summarised; and unlisted is set once a round couldn't list the readings
-	// history, warned of once, until one can. Only a round touches them.
-	postponed map[string]bool
-	unlisted  bool
+	// left are the summaries the last round left as they are, of days with no
+	// lines that don't read as their days', each as its file looked then, by
+	// its date: so it's warned of once until its file changes. postponed are
+	// the days the last round left for a later one as their readings
+	// couldn't all be read for now, each as of the round that first left it,
+	// by its date: so it's warned of once, until it's summarised, and
+	// summarised from what can be read once postponeFor has gone. Each round
+	// keeps those of its own alone, so a day no longer due is let go of, and
+	// warned of again should it come to be. Only a round, holding
+	// summarising, touches them.
+	left      map[string]fs.FileInfo
+	postponed map[string]time.Time
+	// unlisted is how the rounds' listings of the readings history went.
+	unlisted failing
 	// looked, where it's set, is called with the date of each day a round
 	// summarises once it has looked at the day's files, before it reads them:
 	// a prune may come between the two, as tests have it there.
@@ -113,13 +121,14 @@ type Ledger struct {
 }
 
 // Open returns the ledger in dir, which keeps a day's lines for keep once the
-// day has ended, by now's clock, and summarises its days with the readings
-// history, and the accounts' caps as caps gives them, logging what can't be
-// done with them to logger.
+// day has ended, by now's clock, and longer where its summary isn't written,
+// or doesn't stand, as settled says, and summarises its days with the
+// readings history, and the accounts' caps as caps gives them, logging what
+// can't be done with them to logger.
 func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger) *Ledger {
-	l := &Ledger{days: days{files: filesIn(dir, logger), history: history, caps: caps, logger: logger}, left: make(map[string]fs.FileInfo),
-		postponed: make(map[string]bool)}
-	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.SummariseEnded})
+	l := &Ledger{days: days{files: filesIn(dir, logger), history: history, caps: caps, logger: logger}}
+	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.SummariseEnded,
+		Spare: func(date string) bool { return !l.days.settled(date) }})
 	return l
 }
 
@@ -176,21 +185,26 @@ func (l *Ledger) SummariseEnded(now time.Time) {
 	if !ok {
 		return
 	}
+	left := make(map[string]fs.FileInfo)
 	var due []dueDay
 	for _, date := range l.ended(now, held) {
 		stands, summary, err := l.days.standing(date, held.reach)
 		switch {
 		case errors.Is(err, errLeftAsItIs):
-			l.warnLeft(date, err)
+			left[date] = l.warnLeft(date, err)
 		case err != nil:
 			l.days.logger.Warn("can't summarise the request ledger", "day", date, "error", err)
 		case !stands:
 			due = append(due, dueDay{date: date, held: summary, asOf: now, reach: held.reach(date)})
 		}
 	}
+	postponed := make(map[string]time.Time)
 	for i, err := range readingAhead(l.days.history, due, l.writeSummary, held.holds) {
-		l.written(due[i].date, err)
+		if first, ok := l.written(due[i], err); ok {
+			postponed[due[i].date] = first
+		}
 	}
+	l.left, l.postponed = left, postponed
 }
 
 // listedReadings returns one listing of the readings history's files,
@@ -200,27 +214,28 @@ func (l *Ledger) SummariseEnded(now time.Time) {
 // may read them.
 func (l *Ledger) listedReadings() (readingsHeld, bool) {
 	dates, err := l.days.history.Dates()
-	if err != nil && !l.unlisted {
-		l.days.logger.Warn("can't read the readings history; the request ledger's days are summarised once it can be", "error", err)
-	}
-	l.unlisted = err != nil
+	l.unlisted.note(l.days.logger, "can't read the readings history; the request ledger's days are summarised once it can be", err)
 	return dates, err == nil
 }
 
-// written logs what became of the summary of the local day with the given
-// date, as writeSummary's err says: a day left for a later round as its
-// readings couldn't be read for now is warned of once, until it's
-// summarised, as it may be for a while; any other failure, at each round.
-func (l *Ledger) written(date string, err error) {
-	postponed := errors.Is(err, errReadingsUnread)
-	if warned := postponed && l.postponed[date]; err != nil && !warned {
-		l.days.logger.Warn("can't summarise the request ledger", "day", date, "error", err)
+// written logs what became of the summary of the day due, as writeSummary's
+// err says, and reports, where it's left for a later round as its readings
+// can't all be read for now, as of when it was first left: warned of then
+// alone, as it may be for a while. Any other failure is warned of at each
+// round.
+func (l *Ledger) written(day dueDay, err error) (first time.Time, postponed bool) {
+	if !errors.Is(err, errReadingsUnread) {
+		if err != nil {
+			l.days.logger.Warn("can't summarise the request ledger", "day", day.date, "error", err)
+		}
+		return time.Time{}, false
 	}
-	if postponed {
-		l.postponed[date] = true
-		return
+	first, warned := l.postponed[day.date]
+	if !warned {
+		l.days.logger.Warn("can't summarise the request ledger", "day", day.date, "error", err)
+		first = day.asOf
 	}
-	delete(l.postponed, date)
+	return first, true
 }
 
 // errLeftAsItIs is the error of a summary of a day with no lines that doesn't
@@ -228,17 +243,17 @@ func (l *Ledger) written(date string, err error) {
 var errLeftAsItIs = errors.New("its lines are gone, so it's left as it is")
 
 // warnLeft warns of the summary of the local day with the given date, left
-// as it is, as err says: once, until its file looks otherwise.
-func (l *Ledger) warnLeft(date string, err error) {
+// as it is, as err says: once, until its file looks otherwise than the last
+// round left it. It returns how its file looks.
+func (l *Ledger) warnLeft(date string, err error) fs.FileInfo {
 	info, statErr := os.Stat(summaryFile(l.days.files.Dir, date))
 	if statErr != nil {
 		info = nil
 	}
-	if was, warned := l.left[date]; warned && dayfile.SameAs(was, info) {
-		return
+	if was, warned := l.left[date]; !warned || !dayfile.SameAs(was, info) {
+		l.days.logger.Warn("can't read the request ledger's summary of a day; its lines are gone, so it's left as it is", "day", date, "error", err)
 	}
-	l.left[date] = info
-	l.days.logger.Warn("can't read the request ledger's summary of a day; its lines are gone, so it's left as it is", "day", date, "error", err)
+	return info
 }
 
 // ended returns the dates of the local days a round at now summarises, each
@@ -294,10 +309,12 @@ var errReadingsUnread = errors.New("its readings can't all be read for now; it's
 // whose lines were pruned. Of those it writes none where a summary is there
 // that couldn't be read as the day's, as what it held can't be had again;
 // and none where the read couldn't read the readings for now, as ahead.whole
-// says, failing, so the next round tries again. It writes none where the
-// day's lines go between its look at them and its read, as to a prune, so
-// the next round finds them gone; and fails where one of the day's files
-// can't be opened, writing none.
+// says, failing, so the next round tries again, until the day has been left
+// for postponeFor, as overdue says, when it writes it from what could be
+// read, which is warned of. It writes none where the day's lines go between
+// its look at them and its read, as to a prune, so the next round finds them
+// gone; and fails where one of the day's files can't be opened, writing
+// none.
 func (l *Ledger) writeSummary(day dueDay, read *ahead) error {
 	stat, err := l.days.files.Stat(day.date)
 	none := errors.Is(err, fs.ErrNotExist)
@@ -309,21 +326,31 @@ func (l *Ledger) writeSummary(day dueDay, read *ahead) error {
 	}
 	summary, err := l.days.summarise(day, read)
 	gone := errors.Is(err, fs.ErrNotExist)
+	unread := none && !read.whole(day.date)
 	switch {
 	case err != nil && !gone:
 		return err
-	case gone && !none:
+	case gone && !none, none && day.held == nil && l.days.holdsSummary(day.date):
 		return nil
-	case none && day.held == nil && l.days.holdsSummary(day.date):
-		return nil
-	case none && !read.whole(day.date):
+	case unread && !l.overdue(day):
 		return errReadingsUnread
 	}
 	if err := l.days.mark(summary, stat); err != nil {
 		return err
 	}
+	if unread {
+		l.days.logger.Warn("summarised a day of the request ledger from what of its readings could be read; the rest couldn't be for a day", "day", day.date)
+		return nil
+	}
 	l.days.logger.Info("summarised a day of the request ledger", "day", day.date, "lines", summary.linesCounted())
 	return nil
+}
+
+// overdue reports whether the day due was first left for a later round, as
+// its readings couldn't all be read, postponeFor or more before it's due.
+func (l *Ledger) overdue(day dueDay) bool {
+	first, postponed := l.postponed[day.date]
+	return postponed && !day.asOf.Before(first.Add(postponeFor))
 }
 
 // days are the ledger's days where they lie, in its directory: their lines,
@@ -485,6 +512,25 @@ func (d days) stands(held Summary, stat dayfile.DayStat) (bool, error) {
 		return false, err
 	}
 	return lines <= held.Lines, nil
+}
+
+// settled reports whether the summary of the local day with the given date
+// is written, and stands, as stands says, so the day's lines can be pruned:
+// a day's lines go no sooner, so none goes uncounted, as while a round can't
+// summarise it. One with no summary, or one that can't be read as the day's,
+// or can't be told to stand, isn't; but one whose files have gone since has
+// nothing left to keep.
+func (d days) settled(date string) bool {
+	held, err := d.held(date)
+	if err != nil {
+		return false
+	}
+	stat, err := d.files.Stat(date)
+	if err != nil {
+		return errors.Is(err, fs.ErrNotExist)
+	}
+	stands, err := d.stands(held.Summary, stat)
+	return err == nil && stands
 }
 
 // standsUncounted reports whether held, a summary the ledger holds, stands,

@@ -3,6 +3,7 @@ package ledger_test
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1565,6 +1566,119 @@ func TestARoundSummarisesNoDayWhileTheReadingsHistoryCantBeListed(t *testing.T) 
 	read := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
 	if got, want := heldSummary(t, dir, date), summaryOf(date, 1, 1, read)+"\n"; got != want {
 		t.Errorf("once the history can be listed, the day's summary is\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestADaysLinesArePrunedOnlyOnceItsSummaryIsWrittenAndStands(t *testing.T) {
+	_, dir, history := stateDirs(t)
+	holdLines(t, dir, date, asked("1", on(0, 9, 0)))
+	holdReadings(t, history, date, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+	unlistable(t, history)
+	// The day's lines kept a day once it ends: past keeping from the 7th.
+	var at time.Time
+	l := ledger.Open(dir, 24*time.Hour, func() time.Time { return at }, historyIn(history), caps, logs.For("router"))
+	// round has the ledger's writer make its round at when, and prune, as it
+	// does as it starts.
+	round := func(when time.Time) {
+		at = when
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		l.Run(ctx)
+	}
+
+	for day := 3; day <= 5; day++ {
+		round(on(day, 10, 0))
+	}
+	if got := heldSummary(t, dir, date); got != "" || dayBytes(t, dir, date) == (ledger.Bytes{}) {
+		t.Fatalf("the day's summary is %q, and its lines held %+v; want none written, as the history can't be listed, and its lines kept past "+
+			"keeping until it is", got, dayBytes(t, dir, date))
+	}
+	if err := os.Chmod(history, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	round(on(6, 10, 0))
+	read := windowsRead{read: true, highest: `{"5h":0.3}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
+	if got, want := heldSummary(t, dir, date), summaryOf(date, 1, 1, read)+"\n"; got != want || dayBytes(t, dir, date) != (ledger.Bytes{}) {
+		t.Errorf("once the history can be listed, the day's summary is\n%s\nand its lines held %+v; want\n%s\nand its lines pruned, its summary written",
+			got, dayBytes(t, dir, date), want)
+	}
+}
+
+// swapped is a readings history a test swaps for another as it goes.
+type swapped struct {
+	ledger.History
+}
+
+func TestARoundLetsGoOfTheDaysItLeftOnceTheyreNoLongerDue(t *testing.T) {
+	tests := []struct {
+		name string
+		// lay lays the day out in dir and history, and returns the readings
+		// history to open the ledger with; warning is what's warned of it.
+		lay     func(t *testing.T, dir, history string) ledger.History
+		warning string
+	}{
+		{
+			name: "a summary of a day with no lines left as it is, as it doesn't read as the day's",
+			lay: func(t *testing.T, dir, _ string) ledger.History {
+				writeFile(t, dir, "day-"+date+".json", []byte(`{"version":2,"day":`))
+				return readingsOf(historyBegan, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed))
+			},
+			warning: `msg="can't read the request ledger's summary of a day; its lines are gone, so it's left as it is"`,
+		},
+		{
+			name: "a day of no requests left for a later round, as a file of its readings can't be opened",
+			lay: func(t *testing.T, dir, history string) ledger.History {
+				quietDay(t, dir, history)
+				unopenable(t, history, "readings-"+date+".jsonl")
+				return historyIn(history)
+			},
+			warning: `msg="can't summarise the request ledger"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			_, dir, history := stateDirs(t)
+			held := tt.lay(t, dir, history)
+			h := &swapped{History: held}
+			l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, h, caps, logs.For("router"))
+
+			l.SummariseEnded(on(1, 10, 0))
+			l.SummariseEnded(on(1, 11, 0))
+			// No longer due, as the history no longer reaches it, then due again.
+			h.History = noReadings
+			l.SummariseEnded(on(1, 12, 0))
+			h.History = held
+			l.SummariseEnded(on(1, 13, 0))
+			if warned := strings.Count(log.String(), tt.warning); warned != 2 {
+				t.Errorf("log reads\n%s\nwant the day warned of once as it was left, and again once it came to be due again: %d times", log, warned)
+			}
+		})
+	}
+}
+
+func TestADayOfNoRequestsLeftForALaterRoundIsWrittenFromWhatCanBeReadADayOn(t *testing.T) {
+	log := logstest.Capture(t)
+	_, dir, history := stateDirs(t)
+	quietDay(t, dir, history)
+	// The day's own readings in a file no one can open, for good.
+	unopenable(t, history, "readings-"+date+".jsonl")
+	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(1, 10, 0) }, historyIn(history), caps, logs.For("router"))
+
+	l.SummariseEnded(on(1, 10, 0))
+	l.SummariseEnded(on(2, 9, 59))
+	if got := heldSummary(t, dir, date); got != "" {
+		t.Fatalf("within a day of the round that first left it, the day's summary is\n%s\nwant none written", got)
+	}
+	l.SummariseEnded(on(2, 10, 0))
+	// The week before's reading of work's session, reset before the day,
+	// tells of no account's day.
+	if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":3,"day":"2026-10-05","lines":0}`; got != want {
+		t.Errorf("a day on, the day's summary is\n%s\nwant it written from what could be read, none of the day's own readings\n%s", got, want)
+	}
+	if !log.Has("level=WARN", `msg="summarised a day of the request ledger from what of its readings could be read; the rest couldn't be for a day"`,
+		"day="+date) {
+		t.Errorf("log reads\n%s\nwant the day written from what could be read warned of", log)
 	}
 }
 
