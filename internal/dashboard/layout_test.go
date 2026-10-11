@@ -327,7 +327,7 @@ func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
 			t.Errorf("row %d = %q, want nothing between the accounts and the key line", i+7, row)
 		}
 	}
-	if rows[11] != " tab views   ? help  q quit" {
+	if rows[11] != "tab views   ? help  q quit" {
 		t.Errorf("the last row = %q, want the key line", rows[11])
 	}
 	if got := f.Scrolling(doc, now); got != (Scrolling{}) {
@@ -341,7 +341,7 @@ func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
 	}
 	for _, height := range []int{2, 3} {
 		rows := frameOf(160, height).Draw(doc, now)
-		if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || slices.ContainsFunc(rows[1:height-1], func(r string) bool { return r != "" }) || rows[height-1] != " tab views   ? help  q quit" {
+		if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || slices.ContainsFunc(rows[1:height-1], func(r string) bool { return r != "" }) || rows[height-1] != "tab views   ? help  q quit" {
 			t.Errorf("at %d rows, drew\n%s\nwant the title row and the key line alone", height, strings.Join(rows, "\n"))
 		}
 	}

@@ -25,10 +25,17 @@ func TestACardIsAsWideAsItWantsWithACellEitherSideAtLeast(t *testing.T) {
 	}
 }
 
+// titled is a card of its title alone, as wide as help.
+type titled string
+
+func (k titled) card(f Frame) Card {
+	return Card{title: string(k), width: f.cardWidth(helpWidth)}
+}
+
 func TestACardIsDrawnCentredOverThePage(t *testing.T) {
 	f := frameOf(160, 40)
 	page := f.Draw(threeRouted(), now)
-	f.Card = Help{}
+	f.Card = titled("HELP · OVERVIEW")
 	rows := f.Draw(threeRouted(), now)
 
 	top, bottom := []rune(rows[19]), []rune(rows[20])
