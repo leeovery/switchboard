@@ -176,11 +176,10 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 	colors := colorprofile.NewWriter(out, a.Environ())
 	t := a.themes()
 	kept, width := t.kept(), a.terminalWidth(out)
-	rows := dashboard.Frame{
-		Width: width, Look: a.printLook(out, colors.Profile, t, kept.Choice), View: dashboard.Accounts,
-		Outdated: snap.Outdated, History: snap.History, Featured: dashboard.Feature(kept.Featured), Chart: dashboard.Chart(kept.Chart),
-		Sessions: snap.Sessions, Policy: claude.Policy,
-	}.Draw(snap.Doc, a.Now())
+	rows := dashboard.Printout{
+		Width: width, Look: a.printLook(out, colors.Profile, t, kept.Choice),
+		Featured: dashboard.Feature(kept.Featured), Chart: dashboard.Chart(kept.Chart), Policy: claude.Policy,
+	}.Draw(snap, a.Now())
 	logger.Debug("drew the dashboard", "width", width, "colors", colors.Profile.String())
 	_, err = io.WriteString(colors, strings.Join(rows, "\n")+"\n")
 	return err

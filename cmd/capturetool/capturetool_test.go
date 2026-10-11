@@ -200,6 +200,51 @@ func TestDrawsThePickerOverTheView(t *testing.T) {
 	}
 }
 
+func TestPrintsAPrintoutAsTallAsItIsAtTheWidthGiven(t *testing.T) {
+	f := printout(t)
+	var out bytes.Buffer
+	if err := draw(f, options{print: true, size: "100x20"}, &out); err != nil {
+		t.Fatal(err)
+	}
+
+	if want := plain(f.Frame(watch.Size{Width: 100, Height: 20})); out.String() != want {
+		t.Errorf("printed\n%s\nwant the printout\n%s", out.String(), want)
+	}
+	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
+	if len(lines) <= 20 || strings.Contains(out.String(), "read 4s ago") {
+		t.Errorf("printed %d lines:\n%s\nwant the printout, as tall as it is, without the watch's footer", len(lines), out.String())
+	}
+	for i, line := range lines {
+		if width := ansi.StringWidth(line); width > 100 {
+			t.Errorf("line %d is %d cells wide, want 100 at most", i+1, width)
+		}
+	}
+}
+
+func TestRefusesAPrintoutFullScreen(t *testing.T) {
+	var out bytes.Buffer
+	err := draw(printout(t), options{}, &out)
+
+	if want := "a printout of usage prints once: --print draws it"; err == nil || err.Error() != want {
+		t.Errorf("draw() error = %v, want %s", err, want)
+	}
+	if out.Len() > 0 {
+		t.Errorf("draw() printed %q, want nothing", out.String())
+	}
+}
+
+// printout is a fixture drawn as a printout of usage: the first named, as
+// none is one yet.
+func printout(t *testing.T) capture.Fixture {
+	t.Helper()
+	f, err := capture.ByName(capture.Names()[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Printout = true
+	return f
+}
+
 // nordFile is Nord's theme file, its 19 base tokens alone.
 const nordFile = `text.primary = #ECEFF4
 text.secondary = #E5E9F0
