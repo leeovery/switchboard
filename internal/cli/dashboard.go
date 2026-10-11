@@ -125,6 +125,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	kept := t.kept()
 	wc := watch.Config{
 		Source:        a.source(cfg, opts.probe),
+		ProbeOnly:     opts.probe,
 		Notifier:      notifier,
 		Notifications: cfg.Notifications,
 		Now:           a.Now,

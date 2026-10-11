@@ -92,8 +92,12 @@ type Notifier interface {
 
 // Config is what a watch is given.
 type Config struct {
-	Source   Source
-	Notifier Notifier
+	Source Source
+	// ProbeOnly is set where the source probes every account as asked, as
+	// --probe has it, never reading the router's document: there's no router
+	// for a read that fails to have lost.
+	ProbeOnly bool
+	Notifier  Notifier
 	// Notifications says which notifications the dashboard posts while it
 	// probes without the router: room again, and a window passing the
 	// warning. The others are the router's alone, as only it sees limits
@@ -179,7 +183,7 @@ type Model struct {
 	// under way lands.
 	again bool
 	// lost is when the router stopped answering, while the dashboard has
-	// probed since, or shows its last document.
+	// probed since, shows its last document, or has read nothing since.
 	lost time.Time
 
 	// ordering is set while the router carries out an order the routing
@@ -568,11 +572,11 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none, and plans the next read by it. A question after the router, or a
-// look at its document, that found it gone only notes the router lost, as
-// lose does. Each read starts a new chain of ticks at the pace it calls for,
-// and lets a look at the router's document asked for while it was under way
-// go ahead.
+// none, and plans the next read by it. A read that fails notes the router
+// lost, as lose does: a question after the router, or a look at its
+// document, that found it gone does nothing more. Each read starts a new
+// chain of ticks at the pace it calls for, and lets a look at the router's
+// document asked for while it was under way go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching = false
@@ -584,6 +588,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	case msg.err != nil:
 		m.plan = m.plan.failed(m.doc, now)
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
+		m = m.lose(now)
 	default:
 		m.plan = m.plan.landed(msg.read, msg.doc, now)
 		m, shown = m.show(msg, now)
@@ -678,16 +683,25 @@ func (m Model) follow(doc status.Document, now time.Time) Model {
 	return m
 }
 
-// lose notes a look at the router's document, at now, finding the router
-// gone: its document stays on screen, the status line saying since when
-// the router hasn't answered, until it answers again, or a full read
-// probes.
+// lose notes a read at now that failed, as the router not answering it:
+// while its document is on screen, which stays there, the status line
+// saying since when the router hasn't answered, until it answers again, or a
+// full read probes; and before any document, the status line saying that
+// alone, unless the source probes as asked, with no router to lose. A read
+// that fails while probing says nothing of the router: a probe's failures
+// show by account.
 func (m Model) lose(now time.Time) Model {
-	if !m.routed() || !m.lost.IsZero() {
+	switch {
+	case !m.lost.IsZero():
+		return m
+	case m.routed():
+		logger.Warn("the router stopped answering; showing its last document")
+	case m.updated.IsZero() && !m.cfg.ProbeOnly:
+		logger.Warn("the router isn't answering, and nothing has been read")
+	default:
 		return m
 	}
 	m.lost = now
-	logger.Warn("the router stopped answering; showing its last document")
 	return m
 }
 

@@ -234,6 +234,58 @@ func TestKeepsTheRoutersDocumentWhileItDoesntAnswerALook(t *testing.T) {
 	}
 }
 
+func TestAReadThatFailsWhileTheRoutersDocumentShowsSaysTheRouterIsntAnswering(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.stopRouter()
+	h.source.err = errors.New("connection refused")
+	h.deliver(h.press("R")...)
+
+	if !h.model.routed() || h.model.answering() {
+		t.Errorf("the document on screen is the router's: %v, the router answering: %v; want its last one kept, the router not answering", h.model.routed(), h.model.answering())
+	}
+	if got := strings.Split(h.view(), "\n")[2]; !strings.HasPrefix(got, "■ the router isn't answering  ·  since 13:12:00  ·  auto  ·  ") {
+		t.Errorf("the status line reads %q, want it to say since when the router hasn't answered, the rest as its last document had them", got)
+	}
+
+	h.source.err = nil
+	h.startRouter(routerDocument(three()...))
+	h.tickUntilAsked()
+	if got := strings.Split(h.view(), "\n")[2]; !h.model.answering() || !strings.HasPrefix(got, "● healthy  ·  auto  ·  ") {
+		t.Errorf("once the router answers again, the status line reads %q, want the router healthy", got)
+	}
+}
+
+func TestAFirstReadThatFailsSaysTheRouterIsntAnswering(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	h.source.err = errors.New("connection refused")
+	h.start()
+
+	if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "■ the router isn't answering  ·  since 13:12:00"; got != want {
+		t.Errorf("the status line reads %q, want %q: nothing read, that alone", got, want)
+	}
+
+	h.source.err = nil
+	h.startRouter(routerDocument(three()...))
+	h.tickUntilAsked()
+	if got := strings.Split(h.view(), "\n")[2]; !h.model.answering() || !strings.HasPrefix(got, "● healthy  ·  auto  ·  ") {
+		t.Errorf("once the router answers, the status line reads %q, want the router healthy", got)
+	}
+}
+
+func TestProbingAsAskedAReadThatFailsSaysNothingOfTheRouter(t *testing.T) {
+	h := newHarness(t, calm())
+	h.model.cfg.ProbeOnly = true
+	h.source.probing = true
+	h.source.err = errors.New("connection refused")
+	h.start()
+	h.tickUntilAsked() // A question after the router, which a source probing as asked never reads.
+
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != "" || !h.model.lost.IsZero() {
+		t.Errorf("the status line reads %q, the router lost at %v; want it blank, nothing read, with no router to lose", got, h.model.lost)
+	}
+}
+
 func TestFallsBackToProbingWhenTheRouterStops(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()

@@ -293,6 +293,9 @@ func TestDashboardReadsTheRouterWhileItRuns(t *testing.T) {
 	cfg := recordWatch(t, &srv.deps)
 	run(t, srv.deps, "dashboard")
 
+	if cfg.ProbeOnly {
+		t.Error("the watch is told it probes as asked, want it reading the router")
+	}
 	for _, r := range []status.Read{{Refresh: 30 * time.Minute, Probe: true}, {Probe: true}, {Refresh: 30 * time.Minute}} {
 		doc, health, err := cfg.Source.Read(t.Context(), r)
 		if err != nil || doc.Source != status.SourceRouter {
@@ -476,6 +479,9 @@ func TestDashboardProbesAsAsked(t *testing.T) {
 	cfg := recordWatch(t, &srv.deps)
 	run(t, srv.deps, "dashboard", "--probe")
 
+	if !cfg.ProbeOnly {
+		t.Error("the watch isn't told it probes as asked, want it told: there's no router for a failed read to have lost")
+	}
 	doc, _, err := cfg.Source.Read(t.Context(), status.Read{Refresh: 30 * time.Minute, Probe: true})
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{}) {
 		t.Errorf("Read() = %+v, %v, want one probed, as asked, while the router runs", doc, err)
