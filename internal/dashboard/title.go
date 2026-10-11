@@ -35,9 +35,6 @@ func (f Frame) title(c *canvas, now time.Time) {
 	end := c.line(margin, 0, pill)
 	if f.phone() {
 		f.clock(c, end, line{{now.Format("15:04"), secondaryInk}})
-		if len(f.Views) == 0 {
-			return
-		}
 		end = f.tabs(c, margin, 2, 0)
 		if len(f.Views) > 1 {
 			f.atRight(c, 2, end, hint)
@@ -50,10 +47,10 @@ func (f Frame) title(c *canvas, now time.Time) {
 	f.clock(c, end, line{{now.Format("Mon 2 Jan  "), mutedInk}, {now.Format("15:04:05"), secondaryInk}}, line{{now.Format("15:04:05"), secondaryInk}})
 }
 
-// titleRows is how many rows the title row takes: on a phone with views to
-// show, three, its tabs on the third; else one.
+// titleRows is how many rows the title row takes: on a phone, three, its
+// tabs on the third; else one.
 func (f Frame) titleRows() int {
-	if f.phone() && len(f.Views) > 0 {
+	if f.phone() {
 		return 3
 	}
 	return 1
