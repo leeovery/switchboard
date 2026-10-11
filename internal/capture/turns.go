@@ -189,8 +189,9 @@ func (p sessionPlan) moveAt(minute int) movePlan {
 // the turn still going, those before its request in flight. Each of the rest
 // that calls a tool is of the session's own conversation and stopped to call
 // it, as is its last, which ended the turn, or, of the turn still going,
-// stopped to call a tool; and the others are side requests for the prompt,
-// spread among them.
+// stopped to call a tool, where one's left to call; and the others are side
+// requests for the prompt, spread among them, as are all of a turn still
+// going with no tool call left, its conversation's request the one in flight.
 func (p sessionPlan) turn(n int, t turnPlan) []ledger.Line {
 	drawn := p.drawn[n]
 	turnStart := p.start.Add(time.Duration(t.start) * time.Minute)
@@ -217,7 +218,7 @@ func (p sessionPlan) turn(n int, t turnPlan) []ledger.Line {
 		switch {
 		case q == before && !going:
 			l.Answer.Stop = "end_turn"
-		case q < before && (q+1)*aside/before > q*aside/before:
+		case len(tools) == 0, q < before && (q+1)*aside/before > q*aside/before:
 			l.Class, l.Answer.Stop = classAuxiliary, "end_turn"
 		default:
 			l.Answer.Stop, l.Answer.Tools = "tool_use", []string{tools[0]}
