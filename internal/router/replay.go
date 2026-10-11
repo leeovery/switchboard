@@ -347,18 +347,19 @@ func (rp *replay) elsewhere(ctx context.Context, why string, answer refusedError
 	return nil, false, answer
 }
 
-// takeBack takes back what the request did when every account that judged it
-// refused it, as a refusal of the request every account that judged it gives
-// says more of the request than of the accounts: the moves of its session,
-// which goes back where it was, as the request stream is told, and the bars
-// it placed on its model family, each told of as it lifts. An account the
-// request left for a new token judged nothing, as its 401 was to a token it
-// no longer held. A bar on an account's token stands, as it says something of
-// the account, and so does a bar another request placed; and so do the
-// session's moves, the request's own among them, once another request of the
-// session has been routed since.
+// takeBack takes back what the request did when an account judged it, and
+// every account that did refused it, as a refusal of the request every
+// account that judged it gives says more of the request than of the
+// accounts: the moves of its session, which goes back where it was, as the
+// request stream is told, and the bars it placed on its model family, each
+// told of as it lifts. An account the request left for a new token judged
+// nothing, as its 401 was to a token it no longer held. A bar on an
+// account's token stands, as it says something of the account, and so does a
+// bar another request placed; and so do the session's moves, the request's
+// own among them, once another request of the session has been routed since.
 func (rp *replay) takeBack() {
-	if slices.ContainsFunc(rp.ex.req.Tried, func(a Attempt) bool { return a.Why != whyRefused && a.Why != whyNewToken }) {
+	judged := slices.DeleteFunc(slices.Clone(rp.ex.req.Tried), func(a Attempt) bool { return a.Why == whyNewToken })
+	if len(judged) == 0 || slices.ContainsFunc(judged, func(a Attempt) bool { return a.Why != whyRefused }) {
 		return
 	}
 	if back := rp.p.forget(rp.ex); back != "" && back != rp.ex.account.ID {
