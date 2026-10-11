@@ -623,9 +623,11 @@ func TestEachDaysVersionsSumToItsWorth(t *testing.T) {
 // A year built in any zone, whatever the machine's, has each of its days on
 // its own date, one after another, each starting at its date's first instant
 // there, though the clocks go forward over its midnight, as Santiago's do on
-// 6 September 2026 and Havana's on 8 March: its summary of the day dated so,
-// its 5-hour windows and its weeks' readings of the day falling on it there,
-// and its sessions' ids made from its date.
+// 6 September 2026 and Havana's on 8 March: its 5-hour windows and its weeks'
+// readings of the day falling on it there, and its sessions' ids made from its
+// date. Its summaries aren't checked here: ledger.Summarise splits their days
+// in the machine's zone, so their contents are checked in it alone, by
+// TestEachDayOfTheYearReadsAsTheYearMadeIt.
 func TestEachDayOfTheYearHasItsOwnDateFromItsFirstInstant(t *testing.T) {
 	for _, zone := range []string{"America/Santiago", "America/Havana", "Australia/Sydney", "Europe/London"} {
 		t.Run(zone, func(t *testing.T) {
@@ -635,14 +637,10 @@ func TestEachDayOfTheYearHasItsOwnDateFromItsFirstInstant(t *testing.T) {
 			}
 			y := newYear(time.Date(2026, time.October, 1, 14, 42, 7, 0, loc))
 			h := y.readings().history()
-			summaries := y.summaries(h, tenAccounts)
 			dates := make([]string, 0, today+1)
 			before := "2025-09-28"
 			for d := range today + 1 {
 				date := nextDate(t, before)
-				if d < today && summaries[d].Day != date {
-					t.Fatalf("day %d of the year's summary is dated %s, want %s, the day after day %d's", d, summaries[d].Day, date, d-1)
-				}
 				start := dayStart(y.now, d)
 				if on, was := start.In(loc).Format(time.DateOnly), start.Add(-time.Nanosecond).In(loc).Format(time.DateOnly); on != date || was != before {
 					t.Errorf("%s starts at %s, on %s, the instant before on %s, want its first instant", date, start.In(loc), on, was)
