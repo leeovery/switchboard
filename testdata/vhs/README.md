@@ -114,6 +114,14 @@ says (see Files, "The capture harness", in `docs/design.md`).
   `6%/day · Mon`: columns 88 to 108 of row 9 of `usage-160`, 98 to 118 of row 20 of `usage-120`,
   58 to 78 of row 22 of `usage-80`, and 138 to 158 of row 20 of `usage-by-account-160`; and, short,
   38 to 49 of row 22 of `usage-52` and of row 25 of `usage-by-account-52`.
+- **Even pace on a week, a cell off.** The frames place `┃` as if each week's even pace were a
+  whole percent, work's 53%, personal's 65% and side's 46%, where at the moment drawn they're
+  53.4%, 64.7% and 45.7%, so the design's rule, `min(round(pace × bar), bar − 1)`, puts it a cell
+  on from the frame's for work, and a cell back for personal and side: `usage` draws `┃` where the
+  frame has the bar, and the bar where the frame has `┃`. In `usage-160`, row 5, columns 73 and 74
+  and 121 and 122, work's week and Fable week; in `usage-120`, rows 16 and 27, columns 56 and 57,
+  work's; and in `usage-by-account-160`, columns 82 and 83 of rows 6 and 8, work's, 94 and 95 of
+  rows 13 and 15, personal's, and 74 and 75 of rows 20 and 22, side's.
 - **`◆` on work alone,** in `usage-one-account-160`, row 5, columns 8 to 10, which the frame draws
   `1 work ▲`. Work is the primary, as the config makes the one account it lists, and the design
   marks the primary `◆` with one account as with several (the owner's call, 11 October 2026), so
@@ -454,10 +462,11 @@ world, its records or, as `usage`'s printouts are, its status document alone, is
 the machine's own zone, `time.Local` itself, as the ledger, its readers and the views split days
 there, which a test can't change in process; the worlds are built there once, and every zone's
 fixtures share them. So its frame reads the same in any zone whose clocks don't change from the
-moment drawn to the weeks' resets. Capture's tests under `TZ` (11 October 2026) pass in UTC,
-London, Tokyo, Los Angeles, Santiago, Havana and Auckland, and fail in Sydney, whose clocks go
-forward at 02:00 on Sunday 4 October: personal's week resets at 03:00, and work's can't both reset
-when drawn and run its 168 hours.
+moment drawn to the weeks' resets. Capture's tests under `TZ` (11 October 2026), `usage`'s
+printouts held to their frames among them, pass in UTC, London, Tokyo, Los Angeles, Santiago,
+Havana and Auckland, and fail in Sydney, whose clocks go forward at 02:00 on Sunday 4 October:
+personal's week resets at 03:00, and work's can't both reset when drawn and run its 168 hours, so
+the weeks' even pace and allowances, which the printouts draw, come out a point off.
 
 A view that follows the router's request stream has the watch open it: the fixture's tells of what
 has befallen its requests, each at its time before the moment drawn, then ends, as a router ends

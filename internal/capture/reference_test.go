@@ -88,15 +88,26 @@ const (
 	sidesWeekShort = "6%/day · Mon"
 )
 
+// weekPace passes over row n's two cells from column c, one of them the
+// frame's even pace on a week, which it places as if the pace were a whole
+// percent, and the other where the design's rule places it.
+func weekPace(n, c int) passing {
+	return cellsOf(n, c, c+1, "┃")
+}
+
 // passedOver is, by stem, the rows and cells each frame drew otherwise than
 // the design says, which testdata/vhs/README.md lists, with what the
 // dashboard draws in their place.
 var passedOver = map[string][]passing{
-	"usage-160":             {cellsOf(9, 88, 108, sidesWeek)},
-	"usage-120":             {cellsOf(20, 98, 118, sidesWeek)},
-	"usage-80":              {cellsOf(22, 58, 78, sidesWeek)},
-	"usage-52":              {cellsOf(22, 38, 49, sidesWeekShort)},
-	"usage-by-account-160":  {cellsOf(20, 138, 158, sidesWeek), wholeRow(31, "┃ even pace")},
+	"usage-160": {weekPace(5, 73), weekPace(5, 121), cellsOf(9, 88, 108, sidesWeek)},
+	"usage-120": {weekPace(16, 56), cellsOf(20, 98, 118, sidesWeek), weekPace(27, 56)},
+	"usage-80":  {cellsOf(22, 58, 78, sidesWeek)},
+	"usage-52":  {cellsOf(22, 38, 49, sidesWeekShort)},
+	"usage-by-account-160": {
+		weekPace(6, 82), weekPace(8, 82), weekPace(13, 94), weekPace(15, 94),
+		cellsOf(20, 138, 158, sidesWeek), weekPace(20, 74), weekPace(22, 74),
+		wholeRow(31, "┃ even pace"),
+	},
 	"usage-by-account-52":   {cellsOf(25, 38, 49, sidesWeekShort)},
 	"usage-one-account-160": {cellsOf(5, 8, 10, "▲")},
 
