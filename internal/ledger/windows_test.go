@@ -284,7 +284,7 @@ func TestASummaryHoldsEachResetOfAWindowTheReadingsHistorySaw(t *testing.T) {
 		want []ledger.Reset
 	}{
 		{
-			name:     "at each reset time read, its use as last read before it",
+			name:     "at each reset time read, its run's highest use before it",
 			readings: theDesignsDay,
 			want:     []ledger.Reset{reset("5h", on(0, 7, 10), 0.35), reset("5h", on(0, 12, 10), 0.58), reset("5h", on(0, 17, 10), 1)},
 		},
@@ -326,9 +326,9 @@ func TestASummaryHoldsEachResetOfAWindowTheReadingsHistorySaw(t *testing.T) {
 			readings: []readings.Reading{allowed(on(0, 10, 7), "5h", 0, on(0, 15, 0)), allowed(on(0, 10, 37), "5h", 0, on(0, 15, 30))},
 		},
 		{
-			name:     "when the reading that showed a later reset came, of a run that rose above nothing though it last read nothing",
+			name:     "when the reading that showed a later reset came, its run's highest use before it, though it last read nothing",
 			readings: aDippedRun,
-			want:     []ledger.Reset{reset("5h", on(0, 21, 0), 0)},
+			want:     []ledger.Reset{reset("5h", on(0, 21, 0), 0.05)},
 		},
 		{
 			name:     "of a model's own window, as of one every model shares, in the order they came",

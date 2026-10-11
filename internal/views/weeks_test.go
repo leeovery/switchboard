@@ -249,6 +249,30 @@ func weekRead(date string, use float64, resets string) readings.Reading {
 	return r
 }
 
+func TestAWeekBegunAfterADipHasItsPeakSoFarFromWhatItRoseToSinceIt(t *testing.T) {
+	// read is a reading of work's week at the clock given on the date given,
+	// to reset on the date resets at the clock given.
+	read := func(date, clock string, use float64, resets, at string) readings.Reading {
+		r := reading("work", "7d", date, clock, use)
+		r.ResetsAt = onAt(resets, at).UTC()
+		return r
+	}
+	// Work's week read 5% yesterday, dipped to nothing this morning, short
+	// of a reset by hand, and began again at noon, at 3% since: this week's
+	// peak so far is yesterday's 5% and today's 3% rise, less the 5% the week
+	// that ended rose to, not the nothing it last read.
+	days := summarised(t, "2026-10-05", nil, historyOf{
+		read("2026-10-06", "18:00", 0.05, "2026-10-08", "10:00"), read("2026-10-07", "09:00", 0, "2026-10-08", "10:00"),
+		read("2026-10-07", "12:00", 0.03, "2026-10-14", "12:00"),
+	})
+	want := `[{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.03},"open":["7d"]},{"all":true,"peaks":{"7d":0.03},"open":["7d"]}]}]`
+	in := input(days)
+	in.Accounts = config.Accounts{{ID: "work"}}
+	if got := jsonOf(t, views.NewHistory(in).Weeks); got != want {
+		t.Errorf("the weeks are\n%s\nwant\n%s", got, want)
+	}
+}
+
 func TestAWeekStillRunningIsUnderThisWeekAndNeverReplayed(t *testing.T) {
 	saturday := time.Date(2026, 10, 10, 12, 0, 0, 0, time.Local)
 	// worksReset is work's day on which its week reset at the clock given, its
