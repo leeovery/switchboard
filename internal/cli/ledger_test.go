@@ -427,7 +427,7 @@ const historyOfToday = `Wed 7 Oct 2026, so far
 
 // historyPricedAt is what history prints last, the prices its worth is at.
 const historyPricedAt = `
-worth is what they'd have cost through the API, at its prices as of 7 Oct 2026
+worth is what they'd have cost through the API, at its prices as of 11 Oct 2026
 `
 
 // historyTotalsFromThe6th are the totals history prints over the 6th to
@@ -638,7 +638,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
-	want := `{"prices_as_of":"2026-10-07","days":[` +
+	want := `{"prices_as_of":"2026-10-11","days":[` +
 		`{"version":3,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
@@ -749,7 +749,7 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 
 			got := run(t, deps, "history", "--pretty", "--since", "10:00")
 			table := strings.Replace(historyOfToday, "$0.08", tt.worth, 1)
-			pricedAt := strings.Replace(historyPricedAt, "as of 7 Oct 2026\n", "as of 7 Oct 2026 and the config's\n", 1)
+			pricedAt := strings.Replace(historyPricedAt, "as of 11 Oct 2026\n", "as of 11 Oct 2026 and the config's\n", 1)
 			if !strings.HasPrefix(got.stdout, table) || !strings.HasSuffix(got.stdout, pricedAt) || got.code != 0 {
 				t.Errorf("switchboard history printed\n%s(%d, %s)\nwant today's table\n%s\nand last%s", got.stdout, got.code, got.stderr, table, pricedAt)
 			}
@@ -779,7 +779,7 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 					}
 				}
 			}
-			if doc.PricesAsOf != "2026-10-07" || doc.PricesFromConfig == nil || !*doc.PricesFromConfig || worth != tt.worthJSON {
+			if doc.PricesAsOf != "2026-10-11" || doc.PricesFromConfig == nil || !*doc.PricesFromConfig || worth != tt.worthJSON {
 				t.Errorf("switchboard history --json gives prices as of %s, from the config: %v, and work's Claude Opus 5.5 worth %s, "+
 					"want 2026-10-07, from the config, and %s", doc.PricesAsOf, doc.PricesFromConfig, worth, tt.worthJSON)
 			}
@@ -920,7 +920,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		PricesAsOf string            `json:"prices_as_of"`
 		Days       []json.RawMessage `json:"days"`
 	}
-	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || got.stderr != "" || doc.PricesAsOf != "2026-10-07" {
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || got.stderr != "" || doc.PricesAsOf != "2026-10-11" {
 		t.Fatalf("switchboard history --json = %+v (%v), want the days, priced as of 2026-10-07", got, err)
 	}
 	var days []string

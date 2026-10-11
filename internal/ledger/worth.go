@@ -98,7 +98,7 @@ type Model struct {
 // Table is a table of models' and plans' prices, as Anthropic gave them on
 // the day AsOf names, and the version table beside it.
 type Table struct {
-	// AsOf is the date of the day the prices were read, as 2026-10-07.
+	// AsOf is the date of the day the prices were read, as 2026-10-11.
 	AsOf   string
 	Models []Model
 	Plans  []Plan

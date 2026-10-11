@@ -23,7 +23,7 @@ import "slices"
 // September 2023, and the two Max plans on 9 April 2025. And it names the
 // models' versions, a row each, by family, Opus, Sonnet, Fable, Haiku, then
 // Mythos, and within a family newest first, by the day each launched.
-var Pricing = Table{AsOf: "2026-10-07", Plans: plans, Versions: versions, Models: []Model{
+var Pricing = Table{AsOf: "2026-10-11", Plans: plans, Versions: versions, Models: []Model{
 	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-fable-5-1"),
 	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-mythos-5-1"),
 	priced("2026-06-09", 10, 12.50, 20, 1, 50, usOnly, "claude-fable-5"),
