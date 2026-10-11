@@ -24,7 +24,7 @@ import (
 type records struct {
 	days     []ledger.Summary
 	lines    []ledger.Held
-	readings []readings.Reading
+	readings history
 	events   []events.Line
 	caps     ledger.Caps
 }
@@ -218,12 +218,8 @@ type heldReadings struct {
 func (h heldReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
 		now := h.now()
-		read := slices.DeleteFunc(slices.Clone(h.records.readings), func(r readings.Reading) bool {
-			return r.At.Before(from) || !r.At.Before(to) || r.At.After(now)
-		})
-		slices.SortStableFunc(read, func(a, b readings.Reading) int { return a.At.Compare(b.At) })
-		for _, r := range read {
-			if !yield(r) {
+		for r := range h.records.readings.Between(from, to) {
+			if r.At.After(now) || !yield(r) {
 				return
 			}
 		}

@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -148,6 +149,9 @@ func TestEachWorldsRecordsAreItsDaysReadingsCapsAndTraffic(t *testing.T) {
 			}
 			if got, want := slices.Sorted(maps.Keys(summarised)), slices.Sorted(slices.Values(tt.world.accounts.IDs())); !slices.Equal(got, want) {
 				t.Errorf("the days summarise %v, want the world's accounts, %v", got, want)
+			}
+			if !slices.IsSortedFunc(tt.world.records.readings, func(a, b readings.Reading) int { return a.At.Compare(b.At) }) {
+				t.Error("the world's readings aren't in the order they were read, which its reader searches them by")
 			}
 			if n := len(slices.Collect(read.Between(time.Time{}, worlds.now))); n != len(tt.world.history) {
 				t.Errorf("the readings reader gives %d readings, want the world's %d", n, len(tt.world.history))
