@@ -80,8 +80,8 @@ type Deps struct {
 	// verb prints its form for a person on one, and its JSON elsewhere.
 	Terminal func(out io.Writer) bool
 	// Background asks the terminal out is what its background is, as
-	// TerminalBackground does: nil where it doesn't say. usage prints the
-	// dashboard in the theme for it.
+	// TerminalBackground does: nil where it doesn't say. usage prints its
+	// windows in the theme for it.
 	Background func(out io.Writer) color.Color
 	// GOOS is the operating system, as runtime.GOOS names it, and UID the
 	// user's id: the token files must be theirs.
@@ -128,7 +128,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
 	root.SetFlagErrorFunc(hideTokens)
-	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newRequestsCommand(a),
+	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newSessionsCommand(a), newEventsCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a),
 		newServiceCommand(a), newVersionCommand())
 	return root

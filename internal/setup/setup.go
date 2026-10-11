@@ -1,6 +1,6 @@
 // Package setup walks the user at a terminal through setting switchboard up:
 // the accounts and their tokens, which is the primary, priming, the service,
-// the claude link and the skill, then shows usage. Each step says what's done
+// the claude link and the skill, then prints usage. Each step says what's done
 // already, and does only what isn't, so setup is safe to run again.
 package setup
 
@@ -26,7 +26,7 @@ var ErrNoTerminal = errors.New(`setup asks as it goes, so it needs a terminal: r
   3. The service: switchboard service install, or switchboard service restart once it's installed
   4. The claude link: a link named claude to "$(command -v switchboard)" in switchboard's bin directory, ~/.local/share/switchboard/bin, or $XDG_DATA_HOME/switchboard/bin, and that directory on PATH ahead of claude's
   5. The skill: setup alone writes it
-  6. Every account's usage: switchboard usage`)
+  6. Every account's windows as they stand: switchboard usage`)
 
 // errNoAccount is what setup stops with when there's no account, and the
 // user adds none: there's nothing to set up without one.
@@ -56,7 +56,8 @@ type Setup struct {
 	Bin, Home string
 	// Skill is where Claude Code reads the skill.
 	Skill string
-	// Usage shows every account's usage on out, as switchboard usage does.
+	// Usage prints every account's windows as they stand on out, as
+	// switchboard usage does.
 	Usage func(ctx context.Context, out io.Writer) error
 }
 

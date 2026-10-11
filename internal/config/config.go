@@ -64,6 +64,7 @@ type Config struct {
 	Notifications Notifications
 	History       History
 	Ledger        Ledger
+	Usage         Usage
 	// Prices are the config's prices in place of those switchboard carries.
 	Prices Prices
 }
@@ -175,6 +176,33 @@ type Ledger struct {
 	Keep time.Duration
 }
 
+// Usage says how usage and the dashboard lay out the accounts' windows.
+type Usage struct {
+	// By is the layout they open with: the config's, else ByWindow.
+	By Layout
+}
+
+// Layout is how the accounts' windows are laid out, as [usage] by and usage
+// --by name it.
+type Layout string
+
+const (
+	// ByWindow compares the accounts a window at a time.
+	ByWindow Layout = "window"
+	// ByAccount puts each account's windows together.
+	ByAccount Layout = "account"
+)
+
+// ParseLayout reads a layout by its name, window or account, reporting false
+// for any other text.
+func ParseLayout(given string) (Layout, bool) {
+	switch layout := Layout(given); layout {
+	case ByWindow, ByAccount:
+		return layout, true
+	}
+	return "", false
+}
+
 // file is the config file as it's written, before its defaults are filled in.
 type file struct {
 	Listen        string        `toml:"listen"`
@@ -185,6 +213,7 @@ type file struct {
 	Notifications Notifications `toml:"notifications"`
 	History       fileKeep      `toml:"history"`
 	Ledger        fileKeep      `toml:"ledger"`
+	Usage         fileUsage     `toml:"usage"`
 	Prices        Prices        `toml:"prices"`
 }
 
@@ -207,6 +236,11 @@ type filePrime struct {
 type fileKeep struct {
 	// Keep is nil when the table doesn't give one.
 	Keep *string `toml:"keep"`
+}
+
+// fileUsage is the [usage] table as it's written.
+type fileUsage struct {
+	By string `toml:"by"`
 }
 
 // Load reads the config file at path, validates it and fills in its defaults.
@@ -264,6 +298,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 	day, dayErr := ParseDay(f.Prime.Day)
 	historyKeep, historyErr := parseKeep("history.keep", f.History.Keep, DefaultHistoryKeep)
 	ledgerKeep, ledgerErr := parseKeep("ledger.keep", f.Ledger.Keep, DefaultLedgerKeep)
+	by, byErr := parseUsageBy(f.Usage.By)
 	err := errors.Join(
 		checkKeys(undecoded),
 		checkListen(f.Listen),
@@ -274,6 +309,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		checkWarning(f.Notifications.Warning),
 		historyErr,
 		ledgerErr,
+		byErr,
 		checkPrices(f.Prices),
 	)
 	if err != nil {
@@ -288,6 +324,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		Notifications: f.Notifications,
 		History:       History{Keep: historyKeep},
 		Ledger:        Ledger{Keep: ledgerKeep},
+		Usage:         Usage{By: by},
 		Prices:        f.Prices,
 	}, nil
 }
