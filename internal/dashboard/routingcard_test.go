@@ -472,8 +472,13 @@ func TestTheKeysRowNamesTheNumbersAndKeepsEnterAndEscWhereItsShort(t *testing.T)
 		{name: "three accounts", accounts: 3, width: 160, want: "↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel"},
 		{name: "one account", accounts: 1, width: 160, want: "↑↓ move   space 0-1 tick   m move running   enter apply   esc cancel"},
 		{name: "past nine accounts", accounts: 12, width: 160, want: "↑↓ move   space 0-9 tick   m move running   enter apply   esc cancel"},
-		{name: "a phone, ↑↓ first to go", accounts: 3, width: 70, want: "space 0-3 tick   m move running   enter apply   esc cancel"},
-		{name: "a phone, then the numbers", accounts: 3, width: 52, want: "m move running   enter apply   esc cancel"},
+		{name: "a phone with room for every key", accounts: 3, width: 76, want: "↑↓ move   space 0-3 tick   m move running   enter apply   esc cancel"},
+		{name: "a phone a cell short, ↑↓ first to go", accounts: 3, width: 75, want: "space 0-3 tick   m move running   enter apply   esc cancel"},
+		{name: "a phone with room for the numbers and m", accounts: 3, width: 66, want: "space 0-3 tick   m move running   enter apply   esc cancel"},
+		{name: "a phone a cell short, m next, its row naming it", accounts: 3, width: 65, want: "space 0-3 tick   enter apply   esc cancel"},
+		{name: "a phone of 52 columns", accounts: 3, width: 52, want: "space 0-3 tick   enter apply   esc cancel"},
+		{name: "a phone with room for the numbers alone", accounts: 3, width: 49, want: "space 0-3 tick   enter apply   esc cancel"},
+		{name: "a phone a cell short, the numbers last to go", accounts: 3, width: 48, want: "enter apply   esc cancel"},
 		{name: "a narrow phone, enter and esc kept", accounts: 3, width: 30, want: "enter apply   esc cancel"},
 	}
 	for _, tt := range tests {
