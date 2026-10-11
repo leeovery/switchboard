@@ -1,5 +1,5 @@
-# The sessions-3 fixture, tab pressed to show Sessions, full screen at its 160 ×
-# 28, as capturetool runs it.
+# The sessions-3 fixture, tab pressed three times to show Sessions, full screen
+# at its 160 × 28, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/sessions-3.tape
 
 Set Shell "bash"

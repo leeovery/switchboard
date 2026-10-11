@@ -1,6 +1,6 @@
-# The sessions-storyboard-3-refused fixture, tab pressed to show Sessions,
-# d28c's request refused at work's limit, its red pulse bouncing back, full
-# screen at its 160 × 28, as capturetool runs it.
+# The sessions-storyboard-3-refused fixture, tab pressed three times to show
+# Sessions, d28c's request refused at work's limit, its red pulse bouncing back,
+# full screen at its 160 × 28, as capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/sessions-storyboard-3-refused.tape
 
 Set Shell "bash"

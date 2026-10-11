@@ -52,12 +52,17 @@ for a window that resets or an account that couldn't be read, and reads the
 router again once it's back.
 
 Keys: tab and shift-tab move between its tabs, the Overview, Accounts,
-History, Sessions, Runway and the Log; on the Overview, w the window every
+History, Sessions, Runway and the Log. On the Overview, w the window every
 card features (auto, for each its own, then the 5-hour window, the week, and
-any other in use) and g the chart every card draws of it (burn-down, burn
-rate, hourglass); j, k, PgDn, PgUp and the wheel scroll the view where it
-doesn't fit; p the routing card, ? the page's help, esc closes either; R
-refresh, t the theme picker, q quit, and ctrl-c quits wherever it is.
+any other in use), g the chart every card draws of it (burn-down, burn rate,
+hourglass), the arrows the focus between the cards, space flips the card
+with it and s every card; on Runway, w the day or the week. j, k, PgDn, PgUp
+and the wheel scroll the view where it doesn't fit. p opens the routing
+card, which picks the accounts new sessions go to and changes nothing until
+enter; ? the page's help; esc closes either, or the theme picker. R
+refreshes, t opens the theme picker, q quits, and ctrl-c quits wherever it
+is. A click on a tab shows it, and on a key of the key line does what the
+key does, but p and q.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a

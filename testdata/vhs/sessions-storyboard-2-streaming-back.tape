@@ -1,5 +1,5 @@
-# The sessions-storyboard-2-streaming-back fixture, tab pressed to show
-# Sessions, c61b's answer streaming back, full screen at its 160 × 28, as
+# The sessions-storyboard-2-streaming-back fixture, tab pressed three times to
+# show Sessions, c61b's answer streaming back, full screen at its 160 × 28, as
 # capturetool runs it.
 # Run from the repository's root: vhs testdata/vhs/sessions-storyboard-2-streaming-back.tape
 
