@@ -61,7 +61,9 @@ func (w accountWorld) document(now time.Time) status.Document {
 	return doc.WorkedOut(claude.Policy)
 }
 
-// account is the account a's status at at, as the router gives it.
+// account is the account a's status at at, as the router gives it: as last
+// read at at, or, where the world has the router unable to read it since a
+// time, then, its rates and pressure worked out from its readings to then.
 func (w accountWorld) account(a config.Account, at time.Time) status.Account {
 	read := at
 	if stale, ok := w.stale[a.ID]; ok {
@@ -73,7 +75,7 @@ func (w accountWorld) account(a config.Account, at time.Time) status.Account {
 	st.Windows = latest
 	st = st.AsOf(claude.Policy, at)
 	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
-	trails := w.trails(a.ID, at)
+	trails := w.trails(a.ID, read)
 	for _, l := range latest {
 		if rate, since, ok := score.RecentRate(l, trails[l.Key], at); ok {
 			st.Rates = append(st.Rates, status.Rate{Window: l.Key, Rate: rate, Since: since.UTC()})

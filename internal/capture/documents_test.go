@@ -2,11 +2,13 @@ package capture
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -183,6 +185,38 @@ func TestTheWorldsRouterStandsAsTheFramesDrawIt(t *testing.T) {
 				tt.check(t, doc)
 			}
 		})
+	}
+}
+
+// An account the router couldn't read since a time is worked out as the
+// router last read it: how fast its windows have been used, and the pressure
+// that puts it under, from its readings to then, none after it, as the router
+// took none.
+func TestAnAccountReadLongAgoIsWorkedOutFromItsReadingsToThen(t *testing.T) {
+	worlds := worldsNow()
+	world := worlds.badHour()
+	var last readings.Reading
+	for _, r := range world.history.before(world.stale["work"]) {
+		if r.Account == "work" && r.Key == sessionKey {
+			last = r
+		}
+	}
+	// Work's 5-hour window read higher at 14:30, after its token was refused,
+	// which the router could never have read.
+	unread := last
+	unread.At, unread.Utilization = dayAt(worlds.now, today, 14, 30, 0).UTC(), last.Utilization+0.04
+	later := world
+	i, _ := slices.BinarySearchFunc(world.history, unread.At, func(r readings.Reading, at time.Time) int { return r.At.Compare(at) })
+	later.history = slices.Insert(slices.Clone(world.history), i, unread)
+
+	want, _ := world.document(worlds.now).Account("work")
+	got, _ := later.document(worlds.now).Account("work")
+	if len(want.Rates) == 0 {
+		t.Fatal("work has no rate as last read: the check below reads nothing")
+	}
+	if !reflect.DeepEqual(got.Rates, want.Rates) || got.Pressure != want.Pressure {
+		t.Errorf("work's rates are %+v, its pressure %+v, want %+v and %+v, as last read at 14:20", got.Rates, got.Pressure, want.Rates,
+			want.Pressure)
 	}
 }
 
