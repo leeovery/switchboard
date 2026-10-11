@@ -108,8 +108,8 @@ const pageText = `session 5e6f9d33  ~/Code/web
 answering  ·  on side since 09:12, rescored after 15h 7m idle: side had the most room  ·  started yesterday 16:40 · resumed 09:12
 opus-5-5 → side   haiku-4-5 → work
 
-work  yesterday 16:40 – 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
-side  09:12 – now              2 requests  ≈ 2 points of its 5-hour · 0 of its week  $0.08
+work  yesterday 16:40 – today 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
+side  today 09:12 – now              2 requests  ≈ 2 points of its 5-hour                  $0.08
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took   requests  tools                      read  written  out   worth  on
@@ -168,7 +168,7 @@ func TestSessionsFindsASessionOfAnEarlierDayByItsWholeIdAlone(t *testing.T) {
 ended Mon 10:00  ·  ran on work  ·  started Mon 10:00 · ran 0m
 kept until 9 Nov 2027
 
-work  Mon 10:00 – Mon 10:00  1 request    $0.04
+work  10:00 – 10:00  1 request    $0.04
 
 0 turns  ·  1 request  ·  99% from cache  ·  $0.04 at API prices
 `
@@ -196,8 +196,8 @@ func TestASessionsPageWithoutTheRouterIsItsLinesAloneAsEnded(t *testing.T) {
 ended 09:20  ·  ran on work, then side from 09:12: rescored after 15h 7m idle  ·  started yesterday 16:40 · ran 16h 40m
 kept until 10 Nov 2027
 
-work  yesterday 16:40 – 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
-side  09:12 – 09:20            2 requests  ≈ 2 points of its 5-hour · 0 of its week  $0.08
+work  yesterday 16:40 – today 09:13  3 requests  ≈ 4 points of its 5-hour · 1 of its week  $0.08
+side  today 09:12 – 09:20            2 requests  ≈ 2 points of its 5-hour                  $0.08
 
 2 turns  ·  5 requests  ·  99% from cache  ·  $0.15 at API prices
 #  started          took  requests  tools                      read  written  out   worth  on

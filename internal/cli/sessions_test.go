@@ -147,6 +147,17 @@ func TestSessionsListsTodaysSessions(t *testing.T) {
 	}
 }
 
+func TestSessionsSaysTodaysWorthAsEachRowDoes(t *testing.T) {
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		{At: october(7, 9, 0, 0), Request: "u1", Kind: ledger.KindMessage, Session: ended, Model: "claude-opus-9", Account: "work", Reason: "new",
+			Status: 200, Attempts: 1, TotalMS: 900, Usage: json.RawMessage(unknownUsage)},
+	}})
+	const want = "\ntoday  1 session  ·  1 request  ·  unpriced at API prices\n"
+	if got := run(t, deps, "sessions", "--pretty"); got.code != 0 || !strings.HasSuffix(got.stdout, want) {
+		t.Errorf("switchboard sessions --pretty = %+v, want it to end%s", got, want)
+	}
+}
+
 func TestSessionsSaysASessionItsOwnPinPutOnItsAccountIsPinnedThere(t *testing.T) {
 	deps := sessionsDeps(t)
 	pinned := status.Session{ID: asking, Pin: "work", Assignments: []status.Assignment{{Model: "claude-opus-5-5", Account: "work", Pinned: true,

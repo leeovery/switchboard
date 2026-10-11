@@ -219,6 +219,17 @@ func TestAReadingOfARunReadLateCountsTowardThatRunAloneNotTheRiseSince(t *testin
 	}
 }
 
+func TestALimitTheWindowStandsAtIsCountedOnceAcrossAReadingReadLate(t *testing.T) {
+	// The second, of a reset earlier than the first's, was read late; the
+	// window stood at the first's limit until the third, still at it.
+	got := workDay(t, caps, dayDone, rejected(on(0, 10, 2), "5h", 1, on(0, 15, 40)), rejected(on(0, 10, 5), "5h", 1, on(0, 15, 30)),
+		rejected(on(0, 10, 8), "5h", 1, on(0, 15, 40)))
+	want := []ledger.Limit{{Window: "5h", At: on(0, 10, 2).UTC(), ResetsAt: on(0, 15, 40).UTC()}}
+	if !slices.Equal(got.Limits, want) {
+		t.Errorf("work's limits are %+v, want %+v alone", got.Limits, want)
+	}
+}
+
 func TestASummaryHoldsEachResetOfAWindowTheReadingsHistorySaw(t *testing.T) {
 	reset := func(key string, at time.Time, before float64) ledger.Reset {
 		return ledger.Reset{Window: key, At: at.UTC(), Before: before}

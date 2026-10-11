@@ -139,8 +139,6 @@ func ListSessions(src SessionSources) SessionList {
 	return list
 }
 
-// runningIDs returns the ids of the sessions running gives, as the router
-// lists them.
 func runningIDs(running []status.Session) []string {
 	ids := make([]string, len(running))
 	for i, s := range running {
@@ -181,8 +179,9 @@ func listedFrom(id string, s *story) ListedSession {
 // run has the session running, as the router says of it at now: its models;
 // the account its conversation's model goes to, and that model, as its story
 // tells its conversation's, else as the router last routed it; its
-// directory, where it names one; what it's doing; and what moving it would
-// cost, its story telling the rest.
+// directory, of the model seen most lately that names one, where any does;
+// what it's doing; and what moving it would cost, its story telling the
+// rest.
 func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	l.Running, l.Ended = true, time.Time{}
 	model := s.conversationModel()
@@ -191,8 +190,8 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	} else if len(session.Assignments) > 0 {
 		l.Account, l.Model = session.Assignments[0].Account, session.Assignments[0].Model
 	}
-	if i := slices.IndexFunc(session.Assignments, func(a status.Assignment) bool { return a.Dir != "" }); i >= 0 {
-		l.Dir = session.Assignments[i].Dir
+	if named := slices.DeleteFunc(slices.Clone(session.Assignments), func(a status.Assignment) bool { return a.Dir == "" }); len(named) > 0 {
+		l.Dir = slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }).Dir
 	}
 	for _, a := range session.Assignments {
 		l.Models = append(l.Models, SessionModel{Model: a.Model, Account: a.Account, Reason: a.Reason})
@@ -207,7 +206,6 @@ func (l *ListedSession) run(session status.Session, s *story, now time.Time) {
 	}
 }
 
-// latest returns the later of a and b.
 func latest(a, b time.Time) time.Time {
 	if b.After(a) {
 		return b

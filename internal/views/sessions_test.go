@@ -329,21 +329,28 @@ func TestAMovesCostIsIdleFromTheEndOfTheRequestItPrices(t *testing.T) {
 	tests := []struct {
 		name string
 		// took is how long the turn it prices took, arriving 70 minutes ago;
-		// flying, the model a request of which is in flight, if any.
-		took   time.Duration
-		flying string
-		want   *ledger.Picodollars
+		// then, the class of a request of its conversation's five minutes
+		// ago whose answer gave no usage, if any; flying, the model a request
+		// of which is in flight, if any.
+		took         time.Duration
+		then, flying string
+		want         *ledger.Picodollars
 	}{
 		{name: "over its cache's hour since it ended, a side request of another model since keeping nothing warm"},
 		{name: "within its cache's hour since it ended, though it arrived longer ago", took: 15 * time.Minute, want: cost(hourRewrite)},
 		{name: "over its cache's hour since it ended, another model's request in flight", flying: haiku},
 		{name: "a request of its model in flight", flying: opus, want: cost(hourRewrite)},
+		{name: "within its cache's hour since its conversation's last request, its answer giving no usage", then: "main", want: cost(hourRewrite)},
+		{name: "within its cache's hour since its conversation's compaction", then: "compaction", want: cost(hourRewrite)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			turn := of("main", line(mover, opus, "work", "new", ago(70*time.Minute), hourUsage))
 			turn.TotalMS = tt.took.Milliseconds()
 			l := fakeLedger{now: now, lines: []ledger.Line{turn, of("auxiliary", line(mover, haiku, "work", "new", ago(2*time.Minute), smallUsage))}}
+			if tt.then != "" {
+				l.lines = []ledger.Line{turn, of(tt.then, line(mover, opus, "work", "sticky", ago(5*time.Minute), ""))}
+			}
 			assignment := func(model string, seen time.Time) status.Assignment {
 				a := status.Assignment{Model: model, Account: "work", Reason: "sticky", LastSeen: seen}
 				if model == tt.flying {
@@ -613,6 +620,10 @@ func TestASessionsDirectoryIsTheRoutersElseItsLines(t *testing.T) {
 	}{
 		{name: "the router's, of the model used last that names one", assignments: []status.Assignment{
 			{Model: opus, Account: "work"}, {Model: haiku, Account: "work", Dir: "~/Code/new"},
+		}, want: "~/Code/new"},
+		{name: "the router's, of the model seen most lately that names one, whatever its order", assignments: []status.Assignment{
+			{Model: opus, Account: "work", Dir: "~/Code/first", LastSeen: october(7, 12, 0)},
+			{Model: haiku, Account: "work", Dir: "~/Code/new", LastSeen: october(7, 13, 0)},
 		}, want: "~/Code/new"},
 		{name: "its lines', where the router names none", assignments: []status.Assignment{{Model: opus, Account: "work"}}, want: "~/Code/old"},
 		{name: "its lines', without the router", want: "~/Code/old"},

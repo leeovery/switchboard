@@ -80,7 +80,6 @@ type turnTally struct {
 	accounts, mainAccounts []string
 }
 
-// add takes in r, the turn's next request.
 func (t *turnTally) add(r request) {
 	t.last, t.accounts = r.Line, withAccount(t.accounts, r.Account)
 	if r.Class == ledger.ClassMain {
@@ -94,9 +93,6 @@ func (t *turnTally) add(r request) {
 	t.worth.add(r.worth)
 }
 
-// withAccount returns accounts, in the order requests went to them, with the
-// account with the given id after them, where it's one, and not the last of
-// them already: one gone back to comes again.
 func withAccount(accounts []string, account string) []string {
 	if account == "" || len(accounts) > 0 && accounts[len(accounts)-1] == account {
 		return accounts

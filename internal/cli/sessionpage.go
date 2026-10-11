@@ -56,8 +56,6 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 	return writeSessionPage(out, page, now)
 }
 
-// listed returns the session with the given id among those the router lists:
-// nil where it isn't one of them.
 func listed(running []status.Session, id string) *status.Session {
 	i := slices.IndexFunc(running, func(s status.Session) bool { return s.ID == id })
 	if i < 0 {
@@ -218,33 +216,61 @@ func goesOrKept(p views.SessionPage, now time.Time) string {
 	return "kept until " + until.Format(layout)
 }
 
-// ranOnRows are the rows of the accounts the session p ran on, at now: each
-// with its time there, from its first request there to its last, or now, for
-// the one its latest request went to while it runs, never one the router
-// sends it to but no request of it has gone to since; its requests; the
-// points of each window they took; and their worth.
+// ranOnRows are the rows of the accounts the session p ran on, one at least,
+// at now: each with its time there, as stint says, to now for the one its
+// latest request went to while it runs, never one the router sends it to but
+// no request of it has gone to since; its requests; the points of each
+// window they took; and their worth.
 func ranOnRows(p views.SessionPage, now time.Time) [][]string {
-	var on string
-	if p.Running && len(p.Accounts) > 0 {
-		on = slices.MaxFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.To.Compare(b.To) }).Account
-	}
+	first := slices.MinFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.From.Compare(b.From) }).From
+	last := slices.MaxFunc(p.Accounts, func(a, b views.SessionAccount) int { return a.To.Compare(b.To) })
+	spans := !sameDay(now, first, last.To)
 	rows := make([][]string, len(p.Accounts))
 	for i, a := range p.Accounts {
-		to := status.Past(now, a.To)
-		if a.Account == on {
-			to = "now"
-		}
-		rows[i] = []string{status.Clean(a.Account), status.Past(now, a.From) + " – " + to, requestsCount(a.Requests), pointsSaid(a.Points),
-			worthSaid(a.Worth, a.Unpriced)}
+		rows[i] = []string{status.Clean(a.Account), stint(a, p.Running && a.Account == last.Account, spans, now), requestsCount(a.Requests),
+			pointsSaid(a.Points), worthSaid(a.Worth, a.Unpriced)}
 	}
 	return rows
 }
 
+// stint says a's time on its account, from its first request there to its
+// last, or now, as "12:02 – 14:31" or "14:31 – now"; or, where the session
+// spans more than one day, each end with its day, but an end on its start's,
+// as "yesterday 16:40 – 18:05" or "today 09:12 – now".
+func stint(a views.SessionAccount, toNow, spans bool, now time.Time) string {
+	from, to := status.TimeOfDay(now, a.From), status.TimeOfDay(now, a.To)
+	if spans {
+		from = withDay(a.From, now)
+		if !sameDay(now, a.From, a.To) {
+			to = withDay(a.To, now)
+		}
+	}
+	if toNow {
+		to = "now"
+	}
+	return from + " – " + to
+}
+
+// withDay says t with its day, at now: "today 09:12", else as status.Past
+// says it, as "yesterday 16:40".
+func withDay(t, now time.Time) string {
+	if sameDay(now, t, now) {
+		return "today " + status.TimeOfDay(now, t)
+	}
+	return status.Past(now, t)
+}
+
+func sameDay(now, a, b time.Time) bool {
+	return a.In(now.Location()).Format(time.DateOnly) == b.In(now.Location()).Format(time.DateOnly)
+}
+
 // pointsSaid says the points of an account's windows a session took, the
 // shortest window first, each named as the views name it, as "≈ 41 points of
-// its 5-hour · 6 of its week": "" for none.
+// its 5-hour · 6 of its week", leaving out those that round to none: "" where
+// all do.
 func pointsSaid(points map[string]int) string {
 	keys := slices.SortedFunc(maps.Keys(points), quota.CompareKeys)
+	keys = slices.DeleteFunc(keys, func(key string) bool { return points[key] == 0 })
 	said := make([]string, len(keys))
 	for i, key := range keys {
 		of := " of its " + status.InProse(claude.WindowName(key))
@@ -309,7 +335,6 @@ func accountsSaid(accounts []string) string {
 	return strings.Join(said, " → ")
 }
 
-// turnsCount counts turns in words, as "13 turns" or "1 turn".
 func turnsCount(n int) string {
 	if n == 1 {
 		return "1 turn"

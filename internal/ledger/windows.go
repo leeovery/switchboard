@@ -55,8 +55,6 @@ type windowDay struct {
 	stood        []stood
 }
 
-// newWindowDay returns the window with the given key's day that starts at
-// start, until until, before any reading of it is taken.
 func newWindowDay(key string, start, until time.Time) *windowDay {
 	return &windowDay{start: start, until: until, climb: NewClimb(key, func(w quota.Window) float64 { return beganAt(w, start) })}
 }
@@ -80,22 +78,25 @@ func (d *windowDay) afresh() {
 	d.climb.BeginAt(0)
 }
 
-// read reports whether the window's day has a reading it stands at.
 func (d *windowDay) read() bool {
 	return d.climb.read
 }
 
 // take takes w, a reading of the window read at at, in the day, as its climb
 // takes it: the reading it stood at before stands until then, or its reset.
-// Nor does one read from until on say anything of the window.
-func (d *windowDay) take(w quota.Window, at time.Time) {
+// Nor does one read from until on say anything of the window. It reports
+// false of a reading of a run that has reset since, read late, as the window
+// never stood at it.
+func (d *windowDay) take(w quota.Window, at time.Time) bool {
 	if !at.Before(d.until) {
-		return
+		return true
 	}
 	last, from, read := d.climb.last, d.climb.at, d.climb.read
-	if _, ok := d.climb.Take(w, at); ok && read {
+	_, took := d.climb.take(w, at)
+	if took == taken && read {
 		d.stand(last, from, at)
 	}
+	return took != late
 }
 
 // end ends the window's day at until: the reading it stands at stands until
@@ -175,14 +176,30 @@ func (c *Climb) Carry(w quota.Window, at time.Time) {
 // the climb, of a reading that says nothing of the run since: one past its
 // own reset as it was read, as an answer that came late gives, the window
 // having started afresh since; or one whose reset is earlier than the latest
-// read, a reading of an earlier run read late, as late takes it.
+// read, a reading of an earlier run read late, as readLate takes it.
 func (c *Climb) Take(w quota.Window, at time.Time) (float64, bool) {
+	climbed, took := c.take(w, at)
+	return climbed, took == taken
+}
+
+// taking is what a climb made of a reading: taken toward it; passed over, as
+// past its own reset as it was read; or late, of a run that has reset since.
+type taking int
+
+const (
+	taken taking = iota
+	pastReset
+	late
+)
+
+// take takes w as Take says, saying what it made of it.
+func (c *Climb) take(w quota.Window, at time.Time) (float64, taking) {
 	switch {
 	case w.ResetBy(at):
-		return 0, false
+		return 0, pastReset
 	case !w.ResetsAt.IsZero() && w.ResetsAt.Before(c.latest):
-		c.late(w)
-		return 0, false
+		c.readLate(w)
+		return 0, late
 	}
 	if c.read {
 		if reset, ok := resetBetween(c.last, w, at); ok {
@@ -198,15 +215,15 @@ func (c *Climb) Take(w quota.Window, at time.Time) (float64, bool) {
 	if w.ResetsAt.After(c.latest) {
 		c.latest = w.ResetsAt
 	}
-	return climbed, true
+	return climbed, taken
 }
 
-// late takes w, a reading of a run of the window that has reset since, read
+// readLate takes w, a reading of a run of the window that has reset since, read
 // late, as an answer that began before the reset and ended after it gives
 // one: a true reading of that run, which says nothing of the run since.
 // Where it reads higher than the use that run was last read at, the run's
 // reset takes it as the use before it.
-func (c *Climb) late(w quota.Window) {
+func (c *Climb) readLate(w quota.Window) {
 	if i := slices.IndexFunc(c.ended, w.ResetsAt.Equal); i >= 0 {
 		c.resets[i].Before = max(c.resets[i].Before, w.Utilization)
 	}

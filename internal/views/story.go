@@ -58,8 +58,6 @@ func newStory(prices ledger.Table, d day) *story {
 	return &story{prices: prices, day: d, ends: make(map[string]time.Time), lives: make(map[string]time.Duration)}
 }
 
-// storyOf returns the story requests, a session's, oldest first, tell, on the
-// day d, moves priced by prices.
 func storyOf(requests []request, prices ledger.Table, d day) *story {
 	s := newStory(prices, d)
 	for _, r := range requests {
@@ -238,10 +236,10 @@ func (s *story) movedOnto(model, account string) *Move {
 // title, never stands in for its conversation. Of a session none of whose
 // requests says its class, as from a Claude Code or a router from before
 // they did, it's its last request whose answer gave usage. It reports false
-// where that isn't known, and where the cache has run out since that request
-// ended, which the session would write again on its next request anyway:
-// unless flying says a request of its model is in flight, keeping its cache
-// warm.
+// where that isn't known, and where the cache has run out since its thread's
+// last request ended, as rewrites judges a move, which the session would
+// write again on its next request anyway: unless flying says a request of
+// its model is in flight, keeping its cache warm.
 func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.Picodollars, bool) {
 	prompt := s.used
 	if s.classed {
@@ -250,8 +248,9 @@ func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.
 	if prompt == nil {
 		return 0, false
 	}
-	life := s.life(threadOf(prompt))
-	if !flying(prompt.Model) && now.Sub(ended(prompt)) > life {
+	thread := threadOf(prompt)
+	life := s.life(thread)
+	if !flying(prompt.Model) && now.Sub(s.ends[thread]) > life {
 		return 0, false
 	}
 	return s.prices.Rewrite(prompt, life, s.day.date)

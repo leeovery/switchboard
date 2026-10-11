@@ -247,8 +247,6 @@ func requestsOf(lines []ledger.Line, prices ledger.Table, date string) []request
 	return requests
 }
 
-// ended is when the request the line l holds ended: its arrival, and its
-// whole time after it.
 func ended(l *ledger.Line) time.Time {
 	return l.At.Add(time.Duration(l.TotalMS) * time.Millisecond)
 }
@@ -294,8 +292,6 @@ func accountsOf(requests []request) []SessionAccount {
 	return accounts
 }
 
-// movesOf returns each move the session's story tells, in the order they
-// came.
 func movesOf(s *story) []SessionMove {
 	moves := make([]SessionMove, len(s.moves))
 	for i, m := range s.moves {

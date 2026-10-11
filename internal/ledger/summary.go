@@ -469,12 +469,15 @@ func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Ti
 	}
 	for _, r := range day {
 		a, w, read := t.account(r.Account), windowOf(r), r.Window()
-		days.of(w).take(read, r.At)
+		stands := days.of(w).take(read, r.At)
 		a.peak(read)
-		if turned(last[w], read) && (seen[w] || !readBefore(w)) {
+		if reached(last[w], read, stands) && (seen[w] || !readBefore(w)) {
 			a.limits = append(a.limits, Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()})
 		}
-		last[w], seen[w], a.read = read, true, true
+		if stands {
+			last[w] = read
+		}
+		seen[w], a.read = true, true
 	}
 	for w := range before {
 		if a, ok := t[w.account]; ok {
@@ -528,6 +531,18 @@ func windowOf(r readings.Reading) accountWindow {
 // with another reset, or not read at all.
 func turned(was, w quota.Window) bool {
 	return w.Status == quota.StatusRejected && (was.Status != quota.StatusRejected || !was.ResetsAt.Equal(w.ResetsAt))
+}
+
+// reached reports whether w, a reading of a window that stood at was, reached
+// a limit: it turned rejected, as turned says, where the window stands at it;
+// else, of a run that has reset since, read late, whose reset tells nothing
+// against was's, it's rejected where the window as it stood wasn't, so a
+// limit the window stood at isn't counted again.
+func reached(was, w quota.Window, stands bool) bool {
+	if stands {
+		return turned(was, w)
+	}
+	return w.Status == quota.StatusRejected && was.Status != quota.StatusRejected
 }
 
 // peak takes w's use as its window's highest that day, where it's the

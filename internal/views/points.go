@@ -63,7 +63,6 @@ func daysOf(byDate map[string][]ledger.Line, id string) []string {
 	return dates
 }
 
-// runsOf returns dates, oldest first, in runs of days one after another.
 func runsOf(dates []string) [][]string {
 	var runs [][]string
 	for i, date := range dates {
@@ -75,8 +74,6 @@ func runsOf(dates []string) [][]string {
 	return runs
 }
 
-// nextDate returns the date of the local day after the one with the given
-// date.
 func nextDate(date string) string {
 	_, end, _ := dayfile.Day(date)
 	return dayOf(end).date
@@ -194,8 +191,6 @@ type windowShare struct {
 	share  float64
 }
 
-// countsToward reports whether the requests of the model with the given id
-// count toward the window.
 func (w *windowShare) countsToward(model string) bool {
 	return w.shared || w.models[model]
 }

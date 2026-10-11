@@ -56,7 +56,6 @@ or an agent's shell, it prints them as JSON, for an agent or a script to read.
 	return cmd
 }
 
-// oneSessionAtMost checks sessions' command line: a session's id, or none.
 func oneSessionAtMost(_ *cobra.Command, args []string) error {
 	switch {
 	case len(args) > 1:
@@ -105,8 +104,6 @@ func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead stri
 	return sessions
 }
 
-// routerSessions returns the sessions the router lists, as GET /sessions
-// gives them, failing where it can't ask them.
 func (a *app) routerSessions(ctx context.Context) ([]status.Session, error) {
 	client, err := a.routerClient()
 	if err != nil {
@@ -133,7 +130,7 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 		return err
 	}
 	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", status.SessionCount(list.Today.Sessions), status.Separator,
-		requestsCount(list.Today.Requests), status.Separator, todaysWorth(list))
+		requestsCount(list.Today.Requests), status.Separator, worthSaid(list.Today.Worth, list.Today.Unpriced))
 	return err
 }
 
@@ -208,16 +205,6 @@ func worthSaid(worth ledger.Picodollars, unpriced []string) string {
 	return worth.Cents() + "+"
 }
 
-// todaysWorth says what the List's sessions' requests today were worth, to
-// the cent, "+" after it where it leaves some unpriced.
-func todaysWorth(list views.SessionList) string {
-	worth := list.Today.Worth.Cents()
-	if len(list.Today.Unpriced) > 0 {
-		worth += "+"
-	}
-	return worth
-}
-
 // routing says how a session came to the account it's on, in the routing
 // words: the move that brought it, as "from work, at its cap", and what
 // writing its context again there cost, where that's known, as "$1.82";
@@ -237,7 +224,6 @@ func routing(s views.ListedSession, now time.Time) string {
 	return ""
 }
 
-// requestsCount counts requests in words, as "1,240 requests" or "1 request".
 func requestsCount(n int) string {
 	if n == 1 {
 		return "1 request"
