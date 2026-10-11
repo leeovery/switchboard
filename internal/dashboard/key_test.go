@@ -113,5 +113,3 @@ func TestTheGlyphLinesGlyphsLineUpWithTheLabelsUnderTheCards(t *testing.T) {
 		t.Errorf("under COMING UP, the glyph line reads %q, want its glyphs in COMING UP's column", got)
 	}
 }
-
-// helped is a frame of three accounts at 160×34, drawn as text alone, with

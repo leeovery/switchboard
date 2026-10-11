@@ -151,7 +151,7 @@ func TestAFrameDrawsTheTitleTheStatusLineTheViewAndTheKeyLine(t *testing.T) {
 	if recent < 0 || rows[recent-1] != "" || strings.TrimSpace(rows[recent-2]) == "" {
 		t.Errorf("rows are\n%s\nwant RECENT a blank row under the cards", strings.Join(rows, "\n"))
 	}
-	if got, want := rows[39], " tab views   ? help  q quit"; got != want {
+	if got, want := rows[39], "tab views   ? help  q quit"; got != want {
 		t.Errorf("the last row = %q, want the key line, %q", got, want)
 	}
 }

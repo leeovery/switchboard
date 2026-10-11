@@ -710,7 +710,7 @@ func TestRunwayIsDrawnUnderTheRowsEveryTabHas(t *testing.T) {
 				t.Errorf("over the %s, row %d reads\n%q\nwant it as every tab has it\n%q", span.Name(), i+1, rows[i], overview[i])
 			}
 		}
-		if got, want := rows[25], " tab views   ? help  q quit"; got != want {
+		if got, want := rows[25], "tab views   ? help  q quit"; got != want {
 			t.Errorf("over the %s, the key line reads %q, want the keys given", span.Name(), got)
 		}
 	}
