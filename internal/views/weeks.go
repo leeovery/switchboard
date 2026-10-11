@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -34,8 +35,9 @@ type AccountWeek struct {
 	Limits  map[string]int     `json:"limits,omitempty"`
 }
 
-// halfAWeek is how far into a calendar week a week can begin and still be
-// placed under it, rather than under the next.
+// halfAWeek is how far into a calendar week, by its date, a week can begin
+// and still be placed under it, rather than under the next: three days, half
+// a week's seven being three and a half.
 const halfAWeek = 7 * 24 * time.Hour / 2
 
 // weekly tells the accounts' own weeks, and places them as Weeks does: key is
@@ -199,17 +201,19 @@ func resetOn(day ledger.AccountDay, key string) bool {
 
 // placedUnder is the first day of the calendar week an own week is placed
 // under, as Weeks places its columns: one still running under this week, as
-// Weeks shows this week's so far; else the one whose first day, by the clock,
-// it began nearest.
+// Weeks shows this week's so far; else, by the date it began on, in now's
+// time zone, the calendar week of that day where it's up to half the week's
+// days in, as a Thursday is in a week from Monday, else the next. By the
+// date, a reset fixed by the clock of another zone keeps its week as the
+// clocks change.
 func (w weekly) placedUnder(o ownWeek) string {
 	if o.open {
 		return w.this
 	}
-	day := dateOf(o.start)
+	y, m, d := o.start.In(w.now.Location()).Date()
+	day := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 	week := weekOf(day, w.starts)
-	hour, minute, second := o.start.Local().Clock()
-	into := day.Sub(week) + time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute + time.Duration(second)*time.Second
-	if into >= halfAWeek {
+	if day.Sub(week) > halfAWeek {
 		week = week.AddDate(0, 0, 7)
 	}
 	return week.Format(time.DateOnly)
@@ -259,8 +263,11 @@ func (p *placedWeek) limit(account int, key string) {
 type calendar map[string]*placedWeek
 
 // placedWeeks are the calendar weeks days span, with the accounts' own weeks
-// placed under them.
-func (w weekly) placedWeeks(days []Day, accounts config.Accounts) []placedWeek {
+// placed under them. The days before them, before, give the resets the
+// accounts' weeks are told by, and nothing else: so the week still running
+// as days begin is known by the reset that began it, and no week that ended
+// before then is placed.
+func (w weekly) placedWeeks(before, days []Day, accounts config.Accounts) []placedWeek {
 	spans := spansOf(days, weekKey(w.starts))
 	weeks := make([]placedWeek, len(spans))
 	at := make(calendar, len(spans))
@@ -268,20 +275,25 @@ func (w weekly) placedWeeks(days []Day, accounts config.Accounts) []placedWeek {
 		weeks[i] = placedWeek{week: s.key, peaks: make([]map[string]peak, len(accounts)), limits: make([]map[string]int, len(accounts))}
 		at[s.key] = &weeks[i]
 	}
+	var begun time.Time
+	if len(days) > 0 {
+		begun, _, _ = dayfile.Day(days[0].Day)
+	}
 	for i, a := range accounts {
 		own := accountDays(days, a.ID)
-		weeksOf := w.ownWeeksOf(own)
-		w.placePeaks(at, i, weeksOf)
+		weeksOf := w.ownWeeksOf(append(accountDays(before, a.ID), own...))
+		w.placePeaks(at, i, weeksOf, begun)
 		w.placeLimits(at, i, weeksOf, own, days)
 	}
 	return weeks
 }
 
-// placePeaks places the own weeks given of the account with the given index.
-func (w weekly) placePeaks(at calendar, account int, weeks ownWeeks) {
+// placePeaks places the own weeks given of the account with the given index,
+// but those that ended before begun.
+func (w weekly) placePeaks(at calendar, account int, weeks ownWeeks, begun time.Time) {
 	for key, list := range weeks {
 		for _, o := range list {
-			if p, ok := at[w.placedUnder(o)]; ok {
+			if p, ok := at[w.placedUnder(o)]; ok && (o.open || !o.end.Before(begun)) {
 				p.place(account, key, o)
 			}
 		}

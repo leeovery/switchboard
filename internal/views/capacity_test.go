@@ -106,6 +106,28 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":7,"left_at_reset":0.5}]}`,
 		},
 		{
+			// Work's week peaked at twice its room in four weeks: with one
+			// more, those four are still short, which isn't half. Short every
+			// week, the set has no account to spare, though one fewer is no
+			// worse.
+			name: "short every week, one more short on 4 of 7: about right, none to drop", accounts: workAndSide,
+			peaks: map[string][]float64{"work": {2, 2, 2, 2, 1, 1, 1}, "side": {0, 0, 0, 0, 0, 0, 0}},
+			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_one_more":4,"verdict":"about right","accounts":[` +
+				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
+				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
+				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":7,"left_at_reset":0.5}]}`,
+		},
+		{
+			// Short on 4 of 7, the design's short, and one more would leave
+			// 3, which doesn't halve it: about right, and still none to drop.
+			name: "short on 4 of 7, one more not halving it: about right, none to drop", accounts: workAndSide,
+			peaks: map[string][]float64{"work": {2, 2, 2, 1, 0.5, 0.5, 0.5}, "side": {0, 0, 0, 0, 0, 0, 0}},
+			want: `{"weeks":7,"short":4,"with_one_fewer":4,"with_one_more":3,"verdict":"about right","accounts":[` +
+				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.21428571428571427,"without_it":4},` +
+				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":4},` +
+				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":4,"left_at_reset":0.6071428571428571}]}`,
+		},
+		{
 			// Side, on no plan, counts as Max 20x, as work is: without
 			// either, the other's peak rises by all of its, 7 weeks short.
 			// Counted as one, side's loss would short none.

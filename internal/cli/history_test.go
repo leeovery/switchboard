@@ -75,6 +75,27 @@ Weeks: two is one more than you need
 	}
 }
 
+func TestHistoryOfTodayAloneGivesThisWeeksPeakSoFar(t *testing.T) {
+	deps := weeksDeps(t)
+
+	// Asked for today alone, the reset that began this week, on Monday, is
+	// read from the days before for that alone: work's limit of the 6th
+	// isn't among today's.
+	got := run(t, deps, "history", "--json", "--since", "10:00")
+	var doc struct {
+		Weeks json.RawMessage `json:"weeks"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
+	}
+	want := `[{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.41},"open":["7d"]},{"account":"side","open":["7d"]},` +
+		`{"all":true,"peaks":{"7d":0.41},"open":["7d"]}]}]`
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, doc.Weeks); err != nil || compact.String() != want {
+		t.Errorf("switchboard history --json --since 10:00 gives the weeks\n%s (%v)\nwant\n%s", compact.String(), err, want)
+	}
+}
+
 func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 	deps := weeksDeps(t)
 
@@ -347,5 +368,31 @@ func TestHistorysTextCountsOneAsOne(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("history printed\n%s\nwant it to say %q", out.String(), want)
 		}
+	}
+}
+
+func TestHistorysTotalsSetTheirThousandsApart(t *testing.T) {
+	history := views.History{Days: aDayOfARequest, Totals: views.Totals{Accounts: []views.AccountTotals{
+		{Account: "work", Requests: 12345, Sessions: 1240}, {All: true, Requests: 12345, Sessions: 1240},
+	}}}
+
+	var out bytes.Buffer
+	if err := cli.WriteHistory(&out, history, ledger.Pricing, october(7, 0, 0, 0), ledgerNow); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"12,345  12,345\n", "1,240   1,240\n"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("history printed\n%s\nwant it to say %q", out.String(), want)
+		}
+	}
+}
+
+func TestHistoryPassesOverADayOfNoAccountsUnread(t *testing.T) {
+	// A day of no accounts whose date isn't one never fails the text.
+	days := append([]views.Day{{Version: 2, Day: "2026-13-45"}}, aDayOfARequest...)
+
+	var out bytes.Buffer
+	if err := cli.WriteHistory(&out, views.History{Days: days}, ledger.Pricing, october(6, 0, 0, 0), ledgerNow); err != nil || !strings.HasPrefix(out.String(), "Wed 7 Oct 2026") {
+		t.Errorf("history printed\n%s(%v)\nwant today's table, the empty day passed over", out.String(), err)
 	}
 }

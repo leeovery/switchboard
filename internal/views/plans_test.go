@@ -19,6 +19,10 @@ var usedToday = []ledger.Summary{day("2026-10-07",
 	account("work", sent("claude-opus-5-5", 1, inputUsage), sent("claude-opus-9", 1, inputUsage)),
 )}
 
+// sinceJuly are the days of a ledger begun on 1 July, of no requests but
+// usedToday's.
+var sinceJuly = daysFrom("2026-07-01", usedToday...)
+
 func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -31,20 +35,23 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 			// Spare's plan isn't known, so it has its worth alone, and every
 			// account's sums work's and side's: (4 + 2) / 220.
 			name: "over the last 30 days, a month",
-			days: usedToday,
+			days: sinceJuly,
 			want: `[{"account":"work","plan":"max20x","price":200,"cost":200,"against":0.02,"worth":4,"unpriced":["claude-opus-9"]},` +
 				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
 				`{"all":true,"price":220,"cost":220,"against":0.02727272727272727,"worth":6,"unpriced":["claude-opus-9"]}]`,
 		},
 		{
+			// Begun today, the ledger prices the plans from today, a day's
+			// worth.
 			name: "the empty ledger",
 			days: []ledger.Summary{day("2026-10-07")},
-			want: `[{"account":"work","plan":"max20x","price":200,"cost":200,"against":0},{"account":"side","plan":"pro","price":20,"cost":20,"against":0},` +
-				`{"account":"spare"},{"all":true,"price":220,"cost":220,"against":0}]`,
+			want: `[{"account":"work","plan":"max20x","price":200,"cost":6.575342465753,"against":0},` +
+				`{"account":"side","plan":"pro","price":20,"cost":0.657534246575,"against":0},` +
+				`{"account":"spare"},{"all":true,"price":220,"cost":7.232876712328,"against":0}]`,
 		},
 		{
 			name:   "at the config's price of a plan",
-			days:   usedToday,
+			days:   sinceJuly,
 			prices: config.Prices{Plans: map[string]float64{"max20x": 160}},
 			want: `[{"account":"work","plan":"max20x","price":160,"cost":160,"against":0.025,"worth":4,"unpriced":["claude-opus-9"]},` +
 				`{"account":"side","plan":"pro","price":20,"cost":20,"against":0.1,"worth":2},{"account":"spare","worth":1},` +
@@ -52,7 +59,7 @@ func TestPlansAreEachAccountsPlanAndTheWorthAgainstIt(t *testing.T) {
 		},
 		{
 			name:     "with no account on a plan known",
-			days:     usedToday,
+			days:     sinceJuly,
 			accounts: config.Accounts{{ID: "work"}, {ID: "side"}},
 			want:     `[{"account":"work","worth":4,"unpriced":["claude-opus-9"]},{"account":"side","worth":2},{"all":true}]`,
 		},
@@ -96,12 +103,12 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 			want: "46.027397260274 4.602739726027 50.630136986301"},
 		{name: "a week from another day than weeks start on, a day each", from: "2026-10-05", weekStarts: time.Sunday,
 			want: "19.72602739726 1.972602739726 21.698630136986"},
-		{name: "before the ledger began, every day asked for", from: "2025-10-07", weekStarts: time.Monday,
-			want: "2406.575342465753 240.657534246575 2647.232876712328"},
+		{name: "from before the ledger began, each day from its first", from: "2025-10-07", weekStarts: time.Monday,
+			want: "650.958904109589 65.095890410959 716.054794520548"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			in := input(usedToday)
+			in := input(sinceJuly)
 			in.From, in.WeekStarts = on(tt.from), tt.weekStarts
 			plans := views.NewHistory(in).Plans
 			got := jsonOf(t, plans[0].Cost) + " " + jsonOf(t, plans[1].Cost) + " " + jsonOf(t, plans[3].Cost)
@@ -113,7 +120,7 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 }
 
 func TestAPeriodAPlanPriceChangedInCostsItsPriceOnItsFirstDay(t *testing.T) {
-	in := input(usedToday)
+	in := input(sinceJuly)
 	in.From, in.Accounts = on("2026-09-08"), config.Accounts{{ID: "work", Plan: "max20x"}}
 	in.Prices.Plans = []ledger.Plan{{ID: "max20x", Name: "Max 20x", Size: 20, Prices: []ledger.PlanPrice{
 		{From: "2025-04-09", Monthly: 200 * dollar}, {From: "2026-09-09", Monthly: 300 * dollar},

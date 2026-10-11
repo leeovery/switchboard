@@ -43,8 +43,8 @@ type figure struct {
 // model version, its share of each one's use.
 func writeTotals(out io.Writer, totals views.Totals, plans []views.PlanCost, prices ledger.Table) error {
 	figures := []figure{
-		{label: "requests", of: func(t views.AccountTotals, _ views.PlanCost) string { return strconv.Itoa(t.Requests) }},
-		{label: "sessions served", of: func(t views.AccountTotals, _ views.PlanCost) string { return strconv.Itoa(t.Sessions) }},
+		{label: "requests", of: func(t views.AccountTotals, _ views.PlanCost) string { return prose.Grouped(t.Requests) }},
+		{label: "sessions served", of: func(t views.AccountTotals, _ views.PlanCost) string { return prose.Grouped(t.Sessions) }},
 		{label: "sessions moved", of: func(t views.AccountTotals, _ views.PlanCost) string { return movedText(t) }},
 		{label: "limits hit", of: func(t views.AccountTotals, _ views.PlanCost) string { return limitsText(t) }},
 		{label: "at cap or limit", of: func(t views.AccountTotals, _ views.PlanCost) string { return minutesText(t) }},

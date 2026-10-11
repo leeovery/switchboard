@@ -49,14 +49,25 @@ type HistoryInput struct {
 	Family func(model string) string
 }
 
-// NewHistory builds the History of the days in asks for.
+// lookBack is how many days before the first asked for the ledger's days are
+// read, for the resets of the accounts' weeks alone, so the week still
+// running as the days asked for begin is known by the reset that began it.
+const lookBack = 7
+
+// NewHistory builds the History of the days in asks for. The plans are
+// priced from the later of the day asked for and the first day the ledger
+// holds.
 func NewHistory(in HistoryInput) History {
 	from, to := dateOf(in.From), dateOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
-	days := pricedDays(in.Ledger.Days(in.From), in.Prices, today, v)
-	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(days, in.Accounts)
+	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in.Prices, today, v), asked)
+	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
+	priced := from
+	if first, ok := firstDay(days); ok && first.After(from) {
+		priced = first
+	}
 	return History{
 		Days:     days,
 		Year:     yearOf(days),
@@ -64,9 +75,28 @@ func NewHistory(in HistoryInput) History {
 		Weeks:    weeksOf(placed, in.Accounts),
 		Tokens:   tokensOf(days, p, v, asked, in.WeekStarts),
 		Totals:   accountTotalsOf(days, in.Accounts, v),
-		Plans:    plansOf(days, p, asked, askedShare(from, to, in.WeekStarts)),
+		Plans:    plansOf(days, p, priced.Format(time.DateOnly), askedShare(priced, to, in.WeekStarts)),
 		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 	}
+}
+
+// splitAt splits days, in order, at the one with the given date: those
+// before it, and it and those after.
+func splitAt(days []Day, date string) (before, from []Day) {
+	i := slices.IndexFunc(days, func(d Day) bool { return d.Day >= date })
+	if i < 0 {
+		return days, nil
+	}
+	return days[:i], days[i:]
+}
+
+// firstDay is the first of days, as civil gives it, reporting false where
+// there's none, or its date isn't one.
+func firstDay(days []Day) (time.Time, bool) {
+	if len(days) == 0 {
+		return time.Time{}, false
+	}
+	return civil(days[0].Day)
 }
 
 // wholeWeek reports whether a calendar week, by its first day's date, is

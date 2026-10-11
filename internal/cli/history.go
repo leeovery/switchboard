@@ -201,10 +201,14 @@ func pricedAt(prices ledger.Table) (string, error) {
 }
 
 // historyTables are the tables of those of days with requests or notes, as
-// historyTable makes each.
+// historyTable makes each: a day of no accounts is passed over, its date
+// unread.
 func historyTables(days []views.Day, now time.Time) ([]dayTable, error) {
 	var tables []dayTable
 	for _, day := range days {
+		if len(day.Accounts) == 0 {
+			continue
+		}
 		table, err := historyTable(day.Priced, now)
 		if err != nil {
 			return nil, err

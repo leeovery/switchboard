@@ -662,10 +662,12 @@ func TestHistoryJSONPricesThePlansAndStartsTheWeeksAsTheConfigSays(t *testing.T)
 	if want := []string{"2026-10-04"}; !slices.Equal(weeks, want) {
 		t.Errorf("switchboard history --json gives the weeks %q, want %q: the 4th to today, a week from Sunday", weeks, want)
 	}
-	// Over the last 30 days, work's plan costs its month, and side's isn't
-	// known.
-	want := `[{"account":"work","plan":"max20x","price":200,"cost":200,"against":0.000783825,"worth":0.156765,"unpriced":["claude-opus-9"]},` +
-		`{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"price":200,"cost":200,"against":0.000783825,"worth":0.156765,"unpriced":["claude-opus-9"]}]`
+	// Asked for the last 30 days, of a ledger begun on Sunday the 4th, this
+	// week's first day, the plans are priced from then, this week so far,
+	// whole: work's costs its week, and side's isn't known.
+	want := `[{"account":"work","plan":"max20x","price":200,"cost":46.153846153846,"against":0.0033965750000000115,"worth":0.156765,"unpriced":["claude-opus-9"]},` +
+		`{"account":"side","worth":0.01502,"unpriced":["no_usage"]},` +
+		`{"all":true,"price":200,"cost":46.153846153846,"against":0.0033965750000000115,"worth":0.156765,"unpriced":["claude-opus-9"]}]`
 	var plans bytes.Buffer
 	if err := json.Compact(&plans, doc.Plans); err != nil || plans.String() != want {
 		t.Errorf("switchboard history --json gives the plans\n%s (%v)\nwant\n%s", plans.String(), err, want)

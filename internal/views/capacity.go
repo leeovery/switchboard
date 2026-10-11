@@ -115,15 +115,17 @@ func (c *Capacity) judge(r replay, accounts config.Accounts, without []int) {
 }
 
 // headline is Weeks' headline: one too few, where now is short on 4 or more
-// of every 7 and one more would halve that; else one more than you need,
-// where one fewer would be short on no more weeks than now; else about
-// right. One too few comes first: where every week is short already, one
-// fewer can't be short on more, so one more than you need would hold too.
+// of every 7 and one more would halve that; one more than you need, where
+// now is short on fewer and one fewer would be short on no more weeks than
+// now; else about right. A set short on 4 or more never has one more than it
+// needs: where every week is short already, one fewer can't be short on
+// more, which says nothing of what it needs.
 func (c Capacity) headline() string {
+	short := 7*c.Short >= 4*c.Weeks
 	switch {
-	case 7*c.Short >= 4*c.Weeks && 2*c.WithOneMore <= c.Short:
+	case short && 2*c.WithOneMore <= c.Short:
 		return oneTooFew
-	case c.WithOneFewer != nil && *c.WithOneFewer <= c.Short:
+	case !short && c.WithOneFewer != nil && *c.WithOneFewer <= c.Short:
 		return oneMoreThanYouNeed
 	}
 	return aboutRight

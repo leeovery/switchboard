@@ -226,6 +226,61 @@ func TestAWeekStillRunningIsUnderThisWeekAndNeverReplayed(t *testing.T) {
 	}
 }
 
+func TestTheWeekBeforeTheDaysAskedForGivesTheirWeeksResetsAlone(t *testing.T) {
+	// Work's week reset at 18:00 each Saturday, and it hit a 5-hour limit
+	// and made a request on Friday the 2nd. The days are asked for from
+	// Sunday the 4th, the ledger holding them from the 24th.
+	days := daysFrom("2026-09-24",
+		day("2026-09-26", windowsDay{resets: []ledger.Reset{reset("7d", "2026-09-26", "18:00", 0.5)}}.of("work")),
+		day("2026-10-02", account("work", sent("claude-opus-5-5", 1, inputUsage)),
+			windowsDay{limits: []ledger.Limit{limit("5h", "2026-10-02", "12:00")}}.of("side")),
+		day("2026-10-03", windowsDay{resets: []ledger.Reset{reset("7d", "2026-10-03", "18:00", 0.9)}}.of("work")),
+		day("2026-10-06", windowsDay{highest: map[string]float64{"7d": 0.2}}.of("work")),
+	)
+	in := input(days)
+	in.From, in.Accounts = on("2026-10-04"), config.Accounts{{ID: "work"}, {ID: "side"}}
+	history := views.NewHistory(in)
+
+	// This week's so far is the week begun on the 3rd's; the week that ended
+	// then, under the 28th, ended before the days asked for, as did side's
+	// limit, and work's request is none of theirs.
+	want := `[{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
+		`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.2},"open":["7d"]},{"account":"side"},` +
+		`{"all":true,"peaks":{"7d":0.2},"open":["7d"]}]}]`
+	if got := jsonOf(t, history.Weeks); got != want {
+		t.Errorf("the weeks are\n%s\nwant\n%s", got, want)
+	}
+	if first, requests := history.Days[0].Day, history.Totals.Accounts[0].Requests; first != "2026-10-04" || requests != 0 {
+		t.Errorf("the days begin on %s, work's requests %d, want the 4th, and none", first, requests)
+	}
+}
+
+func TestAWeekIsPlacedByTheDateItBeganOnAcrossAClockChange(t *testing.T) {
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Work's week resets at 11:30 UTC each Thursday: 12:30 by London's
+	// clocks in summer time, 11:30 once they go back, on Sunday 25 October.
+	worksReset := func(date string, before float64) ledger.Summary {
+		midnight, _ := time.Parse(time.DateOnly, date)
+		return day(date, windowsDay{resets: []ledger.Reset{{Window: "7d", At: midnight.Add(11*time.Hour + 30*time.Minute), Before: before}}}.of("work"))
+	}
+	thursday := time.Date(2026, 11, 5, 15, 0, 0, 0, london)
+	in := input(daysTo("2026-10-19", thursday,
+		worksReset("2026-10-22", 0.3), worksReset("2026-10-29", 0.6), worksReset("2026-11-05", 0.8)))
+	in.Now, in.Accounts = thursday, config.Accounts{{ID: "work"}}
+
+	// Each Thursday's week is its own calendar week's, either side of the
+	// change, never the one before it under the next.
+	want := `[{"week":"2026-10-19","accounts":[{"account":"work","peaks":{"7d":0.6}},{"all":true,"peaks":{"7d":0.6}}]},` +
+		`{"week":"2026-10-26","accounts":[{"account":"work","peaks":{"7d":0.8}},{"all":true,"peaks":{"7d":0.8}}]},` +
+		`{"week":"2026-11-02","accounts":[{"account":"work","open":["7d"]},{"all":true,"open":["7d"]}]}]`
+	if got := jsonOf(t, views.NewHistory(in).Weeks); got != want {
+		t.Errorf("the weeks are\n%s\nwant\n%s", got, want)
+	}
+}
+
 func TestEveryAccountsPeakIsTheMeanOfThoseThatHaveOne(t *testing.T) {
 	days := daysFrom("2026-09-28", day("2026-10-05",
 		windowsDay{resets: []ledger.Reset{reset("7d", "2026-10-05", "00:30", 0.3)}}.of("side"),
