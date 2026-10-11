@@ -272,12 +272,12 @@ func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
 	}
 }
 
-func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
+func TestDashboardReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
 	srv.waitForProbes(t)
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch")
+	run(t, srv.deps, "dashboard")
 
 	for _, r := range []status.Read{{Refresh: 30 * time.Minute, Probe: true}, {Probe: true}, {Refresh: 30 * time.Minute}} {
 		doc, health, err := cfg.Source.Read(t.Context(), r)
@@ -336,12 +336,12 @@ func TestUsageWatchReadsTheRouterWhileItRuns(t *testing.T) {
 	}
 }
 
-func TestUsageWatchPinsOneSessionAsPinSessionDoes(t *testing.T) {
+func TestDashboardPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
 	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch")
+	run(t, srv.deps, "dashboard")
 
 	if err := cfg.Source.PinSession(t.Context(), sessionOne, "side"); err != nil {
 		t.Fatalf("PinSession() error = %v", err)
@@ -378,10 +378,10 @@ func TestUsageWatchPinsOneSessionAsPinSessionDoes(t *testing.T) {
 	}
 }
 
-func TestUsageWatchProbesAsAsked(t *testing.T) {
+func TestDashboardProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch", "--probe")
+	run(t, srv.deps, "dashboard", "--probe")
 
 	doc, _, err := cfg.Source.Read(t.Context(), status.Read{Refresh: 30 * time.Minute, Probe: true})
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{}) {
@@ -392,11 +392,11 @@ func TestUsageWatchProbesAsAsked(t *testing.T) {
 	}
 }
 
-func TestUsageWatchProbingAsAskedAsksAfterTheRouter(t *testing.T) {
+func TestDashboardProbingAsAskedAsksAfterTheRouter(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "usage", "--watch", "--probe")
+	run(t, srv.deps, "dashboard", "--probe")
 
 	if !cfg.Source.RouterAnswers(t.Context()) {
 		t.Error("RouterAnswers() = false while the router runs, want true: it posts the notifications")

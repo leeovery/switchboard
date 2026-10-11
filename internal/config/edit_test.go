@@ -345,7 +345,7 @@ func TestEditsLoadAsMeant(t *testing.T) {
 }
 
 // priced is a config that gives the day its weeks start on, each account's
-// plan, and prices of its own.
+// plan, the layout usage opens with, and prices of its own.
 const priced = `week_starts = "sunday"
 
 [[account]]
@@ -356,6 +356,9 @@ plan = "max20x"  # the work subscription
 id   = "personal"
 plan = "pro"
 
+[usage]
+by = "account"
+
 [prices.plans]
 max5x = 90
 
@@ -364,7 +367,7 @@ input  = 3.2
 output = 16
 `
 
-func TestEditsKeepTheWeeksStartThePlansAndThePrices(t *testing.T) {
+func TestEditsKeepTheWeeksStartThePlansTheLayoutAndThePrices(t *testing.T) {
 	path := writeConfig(t, priced)
 	wantPrices := config.Prices{
 		Plans:  map[string]float64{"max5x": 90},
@@ -428,13 +431,14 @@ func TestEditsKeepTheWeeksStartThePlansAndThePrices(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: Load() error = %v", step.name, err)
 		}
-		if !reflect.DeepEqual(cfg.Accounts, config.Accounts(step.want)) || cfg.WeekStarts != time.Sunday || !reflect.DeepEqual(cfg.Prices, wantPrices) {
-			t.Errorf("%s: the config loads with the accounts\n%+v\nweeks from %v and the prices %+v\nwant\n%+v\nweeks from Sunday and the prices %+v",
-				step.name, cfg.Accounts, cfg.WeekStarts, cfg.Prices, step.want, wantPrices)
+		if !reflect.DeepEqual(cfg.Accounts, config.Accounts(step.want)) || cfg.WeekStarts != time.Sunday || cfg.Usage.By != config.ByAccount ||
+			!reflect.DeepEqual(cfg.Prices, wantPrices) {
+			t.Errorf("%s: the config loads with the accounts\n%+v\nweeks from %v, usage by %s and the prices %+v\nwant\n%+v\nweeks from Sunday, usage by account and the prices %+v",
+				step.name, cfg.Accounts, cfg.WeekStarts, cfg.Usage.By, cfg.Prices, step.want, wantPrices)
 		}
 	}
 	text := readFile(t, path)
-	for _, kept := range []string{"week_starts = \"sunday\"\n", "plan = \"pro\"\n", "[prices.plans]\nmax5x = 90\n", "[prices.models.claude-opus-5-5]\ninput  = 3.2\noutput = 16\n"} {
+	for _, kept := range []string{"week_starts = \"sunday\"\n", "plan = \"pro\"\n", "[usage]\nby = \"account\"\n", "[prices.plans]\nmax5x = 90\n", "[prices.models.claude-opus-5-5]\ninput  = 3.2\noutput = 16\n"} {
 		if !strings.Contains(text, kept) {
 			t.Errorf("once edited, the config reads\n%s\nwant it to keep\n%s", text, kept)
 		}

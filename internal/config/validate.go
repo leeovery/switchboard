@@ -299,6 +299,18 @@ func parseWeekStart(given string) (time.Weekday, error) {
 	return time.Monday, wrongValue("week_starts", given, "must be a day of the week, by its name in English, such as monday")
 }
 
+// parseUsageBy reads [usage] by: a layout, by its name. None given is
+// ByWindow.
+func parseUsageBy(given string) (Layout, error) {
+	if given == "" {
+		return ByWindow, nil
+	}
+	if layout, ok := ParseLayout(given); ok {
+		return layout, nil
+	}
+	return ByWindow, wrongValue("usage.by", given, "must be window, the accounts compared a window at a time, or account, each account's windows together")
+}
+
 // MostDays is the most whole days a time.Duration holds, some 292 years: a
 // count of more, as ParseDays reads one, is longer than any duration.
 const MostDays = uint64(math.MaxInt64 / (24 * time.Hour))
