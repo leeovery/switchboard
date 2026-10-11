@@ -80,13 +80,13 @@ func (o order) logSession(err error) {
 	}
 }
 
-// command has the router carry out an order, while the router answers and
-// isn't still carrying out the last. Once it has, the router's document is
-// read again.
+// command has the router carry out an order, while it isn't still carrying
+// out the last, as ordered takes in once it has; or, while the router
+// doesn't answer, says so, as a refusal is said.
 func (m Model) command(o order) (Model, tea.Cmd) {
 	switch {
 	case !m.answering():
-		return m.unanswered()
+		return m.refused(status.ErrNoRouter)
 	case m.ordering:
 		return m, nil
 	}
@@ -97,17 +97,31 @@ func (m Model) command(o order) (Model, tea.Cmd) {
 	}
 }
 
-// ordered takes in how an order went: the router's reason, where it refused
-// it, is noted, and the router's document is read again to show what it did.
+// ordered takes in how an order went: taken, the routing card closes;
+// refused, the router's reason is said, as refused says. Either way, the
+// router's document is read again at once, to show what it did.
 func (m Model) ordered(msg orderedMsg) (tea.Model, tea.Cmd) {
 	m.ordering = false
 	msg.order.log(msg.err)
-	var lapse tea.Cmd
-	if msg.err != nil {
-		m, lapse = m.noting(msg.err.Error())
+	var said tea.Cmd
+	switch {
+	case msg.err != nil:
+		m, said = m.refused(msg.err)
+	case m.open == routingOpen:
+		m = m.uncover()
 	}
 	m, read := m.reread()
-	return m, tea.Batch(lapse, read)
+	return m, tea.Batch(said, read)
+}
+
+// refused says why the router didn't take an order: in the routing card,
+// while it's open, until its picks change; else in the key line's place.
+func (m Model) refused(err error) (Model, tea.Cmd) {
+	if m.open == routingOpen {
+		m.routing.refused = err.Error()
+		return m, nil
+	}
+	return m.noting(err.Error())
 }
 
 // noting has the key line say note in its place for noteFor, and returns
@@ -139,14 +153,4 @@ func (m Model) reread() (Model, tea.Cmd) {
 // answered the last look at its document: orders work only then.
 func (m Model) answering() bool {
 	return m.routed() && m.lost.IsZero()
-}
-
-// unanswered is what an order does while the router can't take it: it says
-// the router isn't answering while the router's last document is on screen,
-// and does nothing while the dashboard probes.
-func (m Model) unanswered() (Model, tea.Cmd) {
-	if !m.routed() {
-		return m, nil
-	}
-	return m.noting(status.ErrNoRouter.Error())
 }

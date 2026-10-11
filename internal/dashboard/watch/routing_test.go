@@ -1,0 +1,501 @@
+package watch
+
+import (
+	"encoding/json"
+	"errors"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
+)
+
+// namedKeys are the keys the routing card takes that the terminal sends by
+// name, as a test names them.
+var namedKeys = map[string]tea.KeyPressMsg{
+	"up": upKey, "down": downKey, "space": spaceKey, "esc": escKey, "enter": {Code: tea.KeyEnter},
+}
+
+// keyed presses the keys given, a space between each, as "2 3 m enter", in
+// turn, delivering what each sends back.
+func (h *harness) keyed(keys string) {
+	h.t.Helper()
+	for k := range strings.FieldsSeq(keys) {
+		key, named := namedKeys[k]
+		if !named {
+			key = tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
+		}
+		h.deliver(h.update(key)...)
+	}
+}
+
+// card is the routing card as it stands.
+func (h *harness) card() dashboard.RoutingCard {
+	return h.model.routingCard(h.clock.now)
+}
+
+// tokenless is an account without a usable token.
+func tokenless(id, label string) status.Account {
+	return status.Account{ID: id, Label: label, Error: "token missing: write it to tokens/" + id}
+}
+
+// pinnedTo is doc with new sessions pinned to the accounts given since the
+// clock started.
+func pinnedTo(doc status.Document, accounts ...string) status.Document {
+	doc.Pin = status.Pin{Accounts: accounts, Since: start.UTC()}
+	return doc
+}
+
+func TestTheRoutingCardOpensWithNothingPickedButWhatsSetNow(t *testing.T) {
+	moving := pinnedTo(routerDocument(three()...), "side")
+	moving.Pin.Move = true
+	tests := []struct {
+		name       string
+		doc        status.Document
+		wantPicked []string
+		wantCursor int
+	}{
+		{name: "routing automatically", doc: routerDocument(three()...), wantCursor: 0},
+		{name: "pinned to one", doc: pinnedTo(routerDocument(three()...), "side"), wantPicked: []string{"side"}, wantCursor: 3},
+		{name: "pinned to two", doc: pinnedTo(routerDocument(three()...), "personal", "side"), wantPicked: []string{"personal", "side"}, wantCursor: 2},
+		{name: "pinned to one, moving the sessions running", doc: moving, wantPicked: []string{"side"}, wantCursor: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, tt.doc)
+			h.start()
+			h.keyed("p")
+
+			got := h.card()
+			if !slices.Equal(got.Picked, tt.wantPicked) || got.Cursor != tt.wantCursor || got.Move || got.Refused != "" {
+				t.Errorf("the card opens picking %q, the cursor on row %d, m ticked %v, refused %q; want %q, on row %d, m clear, nothing refused",
+					got.Picked, got.Cursor, got.Move, got.Refused, tt.wantPicked, tt.wantCursor)
+			}
+		})
+	}
+}
+
+func TestTheRoutingCardsKeysPickItsRows(t *testing.T) {
+	doc := routerDocument(three()[0], tokenless("personal", "Personal"), three()[2])
+	tests := []struct {
+		name       string
+		keys       string
+		wantPicked []string
+		wantCursor int
+		wantMove   bool
+	}{
+		{name: "nothing", keys: "", wantCursor: 0},
+		{name: "down to work, and space", keys: "down space", wantPicked: []string{"work"}, wantCursor: 1},
+		{name: "a number, the cursor going to its row", keys: "3", wantPicked: []string{"side"}, wantCursor: 3},
+		{name: "two, in the config's order whatever order they're picked in", keys: "3 1", wantPicked: []string{"work", "side"}, wantCursor: 1},
+		{name: "one picked again, which clears it", keys: "1 3 1", wantPicked: []string{"side"}, wantCursor: 1},
+		{name: "every one cleared, which is auto", keys: "1 1", wantCursor: 1},
+		{name: "auto, which clears the accounts", keys: "1 3 0", wantCursor: 0},
+		{name: "auto with space, which clears the accounts", keys: "1 3 up up up space", wantCursor: 0},
+		{name: "an account that can't be picked, by its number", keys: "1 2", wantPicked: []string{"work"}, wantCursor: 1},
+		{name: "an account that can't be picked, by space", keys: "1 down space", wantPicked: []string{"work"}, wantCursor: 2},
+		{name: "a number past the accounts there are", keys: "1 4 9", wantPicked: []string{"work"}, wantCursor: 1},
+		{name: "up from the first row", keys: "up up", wantCursor: 0},
+		{name: "down past the last row", keys: "down down down down down", wantCursor: 3},
+		{name: "m", keys: "m", wantMove: true},
+		{name: "m again, which clears it", keys: "m m"},
+		{name: "m with auto picked, as it's never dimmed", keys: "0 m", wantMove: true},
+		{name: "keys that do nothing in it", keys: "a r s w g t R ? q tab", wantCursor: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, doc)
+			h.start()
+			h.keyed("p")
+			h.keyed(tt.keys)
+
+			got := h.card()
+			if h.model.open != routingOpen || !slices.Equal(got.Picked, tt.wantPicked) || got.Cursor != tt.wantCursor || got.Move != tt.wantMove {
+				t.Errorf("after %q, the card is open %v, picking %q, the cursor on row %d, m ticked %v; want it open, picking %q, on row %d, m ticked %v",
+					tt.keys, h.model.open == routingOpen, got.Picked, got.Cursor, got.Move, tt.wantPicked, tt.wantCursor, tt.wantMove)
+			}
+			if len(h.source.orders) > 0 {
+				t.Errorf("after %q, orders = %q, want none before enter", tt.keys, h.source.orders)
+			}
+		})
+	}
+}
+
+func TestPastNineAccountsTheRestHaveNoNumber(t *testing.T) {
+	accounts := make([]status.Account, 10)
+	for i := range accounts {
+		accounts[i] = account("a"+strconv.Itoa(i+1), "A"+strconv.Itoa(i+1), session(0.1, 3*time.Hour), week(0.2))
+	}
+	h := routedHarness(t, routerDocument(accounts...))
+	h.start()
+	h.keyed("p 9")
+	if got := h.card().Picked; !slices.Equal(got, []string{"a9"}) {
+		t.Fatalf("9 picks %q, want the ninth account", got)
+	}
+
+	h.keyed("down space")
+	if got := h.card().Picked; !slices.Equal(got, []string{"a9", "a10"}) {
+		t.Errorf("down from the ninth and space pick %q, want the ninth and the tenth", got)
+	}
+}
+
+func TestEnterSendsThePicks(t *testing.T) {
+	tests := []struct {
+		name string
+		doc  status.Document
+		keys string
+		// want is the order sent, as fakeSource notes it: none where
+		// nothing is sent.
+		want []string
+	}{
+		{name: "two accounts", doc: routerDocument(three()...), keys: "2 3 enter", want: []string{"pin personal,side"}},
+		{name: "two accounts, in the config's order", doc: routerDocument(three()...), keys: "3 1 enter", want: []string{"pin work,side"}},
+		{name: "an account, moving the sessions running", doc: routerDocument(three()...), keys: "2 m enter", want: []string{"move personal"}},
+		{name: "auto, from a pin", doc: pinnedTo(routerDocument(three()...), "side"), keys: "0 enter", want: []string{"unpin"}},
+		{name: "the pin's account cleared, which is auto", doc: pinnedTo(routerDocument(three()...), "side"), keys: "3 enter", want: []string{"unpin"}},
+		{name: "auto with m, which moves nothing", doc: pinnedTo(routerDocument(three()...), "side"), keys: "0 m enter", want: []string{"unpin"}},
+		{name: "auto as it opened, with m", doc: routerDocument(three()...), keys: "m enter", want: []string{"unpin"}},
+		{name: "the pin as it stands, with m", doc: pinnedTo(routerDocument(three()...), "side"), keys: "m enter", want: []string{"move side"}},
+		{name: "nothing changed", doc: routerDocument(three()...), keys: "enter"},
+		{name: "the pin as it stands", doc: pinnedTo(routerDocument(three()...), "personal", "side"), keys: "enter"},
+		{name: "picks changed and changed back", doc: pinnedTo(routerDocument(three()...), "side"), keys: "1 1 m m enter"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, tt.doc)
+			h.start()
+			looks := h.source.looks()
+			h.keyed("p " + tt.keys)
+
+			if !slices.Equal(h.source.orders, tt.want) {
+				t.Errorf("orders = %q, want %q", h.source.orders, tt.want)
+			}
+			if h.model.open != nothingOpen {
+				t.Errorf("after enter, the card is still open, want it closed")
+			}
+			wantLooks := 0
+			if len(tt.want) > 0 {
+				wantLooks = 1
+			}
+			if got := h.source.looks() - looks; got != wantLooks {
+				t.Errorf("looked at the router's document %d times, want %d: again at once, once the router took an order", got, wantLooks)
+			}
+		})
+	}
+}
+
+func TestOnceTheRouterTakesThePicksTheCardShowsWhatItDid(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.keyed("p 2 3 enter")
+	if got := h.model.doc.Pin.Accounts; !slices.Equal(got, []string{"personal", "side"}) {
+		t.Fatalf("the document on screen is pinned to %q, want personal and side, read again once the router took it", got)
+	}
+
+	h.keyed("p")
+	if got := h.card().Picked; !slices.Equal(got, []string{"personal", "side"}) {
+		t.Errorf("opened again, the card picks %q, want the pin it set", got)
+	}
+}
+
+func TestARefusalKeepsTheCardOpenSayingWhyUntilThePicksChange(t *testing.T) {
+	refusal := errors.New("account personal has no usable token, so nothing can go out on it: token missing")
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.source.refuse = refusal
+	h.keyed("p 2 enter")
+
+	if h.model.open != routingOpen || h.card().Refused != refusal.Error() {
+		t.Fatalf("refused, the card is open %v, saying %q; want it open, saying %q", h.model.open == routingOpen, h.card().Refused, refusal)
+	}
+	if h.model.note != "" {
+		t.Errorf("the key line notes %q, want nothing: the card says why", h.model.note)
+	}
+	h.keyed("down")
+	if got := h.card().Refused; got != refusal.Error() {
+		t.Errorf("once the cursor moved, the card says %q, want %q still", got, refusal)
+	}
+	h.keyed("3")
+	if got := h.card().Refused; got != "" {
+		t.Errorf("once the picks changed, the card says %q, want the refusal gone", got)
+	}
+	h.keyed("esc")
+	if h.model.open != nothingOpen || len(h.source.orders) != 1 {
+		t.Errorf("after esc, the card is open %v, and orders = %q; want it closed, sending nothing more", h.model.open == routingOpen, h.source.orders)
+	}
+}
+
+func TestARefusalLandingOnceTheCardHasClosedSaysWhyInTheKeyLinesPlace(t *testing.T) {
+	refusal := errors.New("account personal has no usable token, so nothing can go out on it: token missing")
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.source.refuse = refusal
+	h.keyed("p 2")
+	answer := h.update(namedKeys["enter"])
+	h.keyed("esc")
+	h.deliver(answer...)
+
+	if h.model.open != nothingOpen {
+		t.Errorf("the card opened again, want it closed")
+	}
+	if got := h.keyLine(); got != refusal.Error() {
+		t.Errorf("the key line reads %q, want %q in its place", got, refusal)
+	}
+}
+
+func TestAnAccountThatCantBePickedPinnedOpensPicked(t *testing.T) {
+	doc := pinnedTo(routerDocument(three()[0], tokenless("personal", "Personal"), three()[2]), "personal", "side")
+	tests := []struct {
+		name       string
+		keys       string
+		wantPicked []string
+		wantOrders []string
+	}{
+		{name: "its number and space taking nothing", keys: "2 space", wantPicked: []string{"personal", "side"}},
+		{name: "sent with the rest", keys: "3 enter", wantOrders: []string{"pin personal"}},
+		{name: "cleared by auto", keys: "0", wantPicked: nil},
+		{name: "kept as another is picked", keys: "1 enter", wantOrders: []string{"pin work,personal,side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, doc)
+			h.start()
+			h.keyed("p")
+			if got := h.card(); !slices.Equal(got.Picked, []string{"personal", "side"}) || got.Cursor != 2 {
+				t.Fatalf("the card opens picking %q, on row %d; want personal and side, on personal's", got.Picked, got.Cursor)
+			}
+
+			h.keyed(tt.keys)
+			if len(tt.wantOrders) > 0 {
+				if !slices.Equal(h.source.orders, tt.wantOrders) {
+					t.Errorf("orders = %q, want %q", h.source.orders, tt.wantOrders)
+				}
+				return
+			}
+			if got := h.card().Picked; !slices.Equal(got, tt.wantPicked) {
+				t.Errorf("after %q, the card picks %q, want %q", tt.keys, got, tt.wantPicked)
+			}
+		})
+	}
+}
+
+func TestPDoesNothingWithOneAccountUnlessAPinStands(t *testing.T) {
+	one := routerDocument(three()[0])
+	tests := []struct {
+		name string
+		doc  status.Document
+		want bool
+	}{
+		{name: "one account", doc: one},
+		{name: "one account, pinned", doc: pinnedTo(one, "work"), want: true},
+		{name: "two accounts", doc: routerDocument(three()[:2]...), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, tt.doc)
+			h.start()
+			if listed := slices.Contains(h.listed(), "p"); listed != tt.want {
+				t.Errorf("the key line lists p: %v, want %v", listed, tt.want)
+			}
+			h.keyed("p")
+			if opened := h.model.open == routingOpen; opened != tt.want {
+				t.Errorf("p opened the routing card: %v, want %v", opened, tt.want)
+			}
+			if h.model.note != "" {
+				t.Errorf("p noted %q, want nothing", h.model.note)
+			}
+		})
+	}
+}
+
+func TestOneAccountsPinIsClearedFromTheCard(t *testing.T) {
+	h := routedHarness(t, pinnedTo(routerDocument(three()[0]), "work"))
+	h.start()
+	h.keyed("p")
+	if rows := h.card().Rows; len(rows) != 2 || rows[1].Account != "work" {
+		t.Fatalf("the card's rows are %+v, want auto's and work's", rows)
+	}
+	h.keyed("0 enter")
+	if want := []string{"unpin"}; !slices.Equal(h.source.orders, want) {
+		t.Errorf("orders = %q, want %q", h.source.orders, want)
+	}
+}
+
+func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
+	tests := []struct {
+		name  string
+		h     func(t *testing.T) *harness
+		after func(h *harness)
+	}{
+		{
+			name: "showing the router's last document",
+			h:    func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
+			after: func(h *harness) {
+				h.stopRouter()
+				h.tickUntilAsked()
+			},
+		},
+		{
+			name:  "probing, as the router isn't running",
+			h:     func(t *testing.T) *harness { return newHarness(t, probedWithoutTheRouter()) },
+			after: func(*harness) {},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tt.h(t)
+			h.start()
+			tt.after(h)
+
+			if pin, ok := h.model.pinKey(); !ok || !pin.Off {
+				t.Errorf("p is %+v, listed %v; want it listed, faint", pin, ok)
+			}
+			h.keyed("p")
+			if h.model.open != nothingOpen {
+				t.Fatal("p opened the routing card, want nothing open")
+			}
+			if got, want := h.keyLine(), status.ErrNoRouter.Error(); got != want {
+				t.Errorf("the key line reads %q, want %q in its place", got, want)
+			}
+			if lapse, ok := h.pending(noteMsg{}); !ok || lapse.delay != noteFor {
+				t.Errorf("the note lapses after %v (armed %v), want %v", lapse, ok, noteFor)
+			}
+		})
+	}
+}
+
+func TestPIsntFaintWhileTheRouterAnswers(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	if pin, ok := h.model.pinKey(); !ok || pin.Off {
+		t.Errorf("p is %+v, listed %v; want it listed, and not faint", pin, ok)
+	}
+}
+
+func TestEnterSaysSoInTheCardWhileTheRouterDoesntAnswer(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.keyed("p 2")
+	h.stopRouter()
+	h.tickUntilAsked()
+
+	h.keyed("enter")
+	if len(h.source.orders) > 0 {
+		t.Errorf("orders = %q, want none", h.source.orders)
+	}
+	if h.model.open != routingOpen || h.card().Refused != status.ErrNoRouter.Error() {
+		t.Errorf("the card is open %v, saying %q; want it open, saying %q", h.model.open == routingOpen, h.card().Refused, status.ErrNoRouter)
+	}
+}
+
+// sessionsLedger is a request ledger of the lines given, by session, which
+// counts the times its sessions' lines are read.
+type sessionsLedger struct {
+	ledger.Empty
+	lines map[string][]ledger.Line
+	reads int
+}
+
+func (l *sessionsLedger) Sessions([]string, func(string, ledger.Line)) map[string][]ledger.Line {
+	l.reads++
+	return l.lines
+}
+
+// The usages of the priced sessions' answers. hourUsage writes the cache for
+// an hour: its prompt, 101,010 tokens, costs $0.81 to write again for an hour
+// at Claude Opus 5.5's prices. fiveMinuteUsage writes as much for five
+// minutes.
+const (
+	hourUsage = `{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":100000,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":1000},"output_tokens":500}`
+	fiveMinuteUsage = `{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":100000,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":1000,"ephemeral_1h_input_tokens":0},"output_tokens":500}`
+)
+
+// pricedHarness is gridHarness, its moves priced at the price table's prices
+// from the ledger it returns: idD28C's last request on work a minute before
+// the clock starts, writing the cache for an hour; 7f3a's nine minutes
+// before, writing it for five, which have run out; and 9e21, on client,
+// without a line.
+func pricedHarness(t *testing.T) (*harness, *sessionsLedger) {
+	t.Helper()
+	asked := func(id, model, usage string, ago time.Duration) []ledger.Line {
+		return []ledger.Line{{
+			At: start.Add(-ago).UTC(), Kind: ledger.KindMessage, Session: id, Model: model, Account: "work", Reason: "new", Status: 200, Attempts: 1,
+			Usage: json.RawMessage(usage),
+		}}
+	}
+	l := &sessionsLedger{Empty: ledger.NewEmpty(func() time.Time { return start }, ledger.Caps{Shared: policy.Shared}), lines: map[string][]ledger.Line{
+		idD28C: asked(idD28C, "claude-opus-5-5", hourUsage, time.Minute),
+		id7F3A: asked(id7F3A, "claude-haiku-4-5", fiveMinuteUsage, 9*time.Minute),
+	}}
+	h := gridHarness(t)
+	h.model.cfg.Ledger, h.model.cfg.Prices = l, ledger.Pricing
+	return h, l
+}
+
+func TestTheCardPricesTheMovesOnceMIsTicked(t *testing.T) {
+	h, l := pricedHarness(t)
+	h.keyed("p 2")
+	if got := h.card(); got.Moving != 0 || got.Cost != nil || l.reads > 0 {
+		t.Fatalf("m clear, the card moves %d sessions at %v, the ledger read %d times; want none, unread", got.Moving, got.Cost, l.reads)
+	}
+
+	h.keyed("m")
+	got := h.card()
+	if got.Moving != 3 || got.Cost == nil || got.Cost.Cents() != "$0.81" {
+		t.Fatalf("m ticked, the card moves %d sessions at %v, want work's two and client's one at $0.81: d28c's alone, 7f3a's cache run out, 9e21 unpriced",
+			got.Moving, got.Cost)
+	}
+	if l.reads != 1 {
+		t.Errorf("the ledger was read %d times, want once", l.reads)
+	}
+
+	h.keyed("down 3")
+	if got := h.card(); got.Moving != 3 || l.reads != 1 {
+		t.Errorf("side picked too, the card moves %d sessions, the ledger read %d times; want 3, still once for the document on screen", got.Moving, l.reads)
+	}
+	h.keyed("1")
+	if got := h.card(); got.Moving != 1 || got.Cost != nil {
+		t.Errorf("work picked too, the card moves %d sessions at %v, want client's one, unpriced", got.Moving, got.Cost)
+	}
+
+	h.tickUntilAsked()
+	if l.reads != 2 {
+		t.Errorf("once a look read the document again, the ledger was read %d times, want twice", l.reads)
+	}
+}
+
+func TestTheCardDoesntPriceMovesThatDontHappen(t *testing.T) {
+	tests := []struct {
+		name string
+		keys string
+	}{
+		{name: "m clear", keys: "p 2"},
+		{name: "auto with m", keys: "p m"},
+		{name: "every account with a session picked", keys: "p 1 4 m"},
+		{name: "the card closed", keys: "p 2 m esc"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := pricedHarness(t)
+			h.keyed(tt.keys)
+			reads := l.reads
+			h.tickUntilAsked()
+			if l.reads > reads {
+				t.Errorf("a look read the ledger, want it unread")
+			}
+			if h.model.open == routingOpen {
+				if got := h.card(); got.Moving != 0 || got.Cost != nil {
+					t.Errorf("the card moves %d sessions at %v, want none", got.Moving, got.Cost)
+				}
+			}
+		})
+	}
+}
