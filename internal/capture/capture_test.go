@@ -104,6 +104,7 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			drawn := f.Frame(f.Size)
 			if f.records != nil {
 				// The ledger and the views split its days in time.Local, which a
 				// test can't change in process: its zone is varied by running the
@@ -111,9 +112,14 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 				if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
 					t.Errorf("%s, over records, is drawn at %s, want the frames' moment in the machine's zone", name, f.now)
 				}
+				// Its moment can be right while part of its world is still built
+				// in the zone asked for, drawing otherwise in UTC than in the
+				// machine's zone wherever the machine isn't in UTC.
+				if mine := frameOf(t, local(), name); drawn != mine {
+					t.Errorf("%s, over records, asked for in UTC, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, drawn, mine)
+				}
 				return
 			}
-			drawn := f.Frame(f.Size)
 			for _, other := range others {
 				if frame := frameOf(t, other, name); frame != drawn {
 					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, drawn, other[name].now.Location(), frame)
