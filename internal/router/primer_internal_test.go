@@ -394,7 +394,7 @@ func TestAPrimeOnTheTokenBeforeStandsAsTheAccountsPrime(t *testing.T) {
 			t.Errorf("primed at %v, want %v: the prime on the token before started work's session, so none goes out on the new one", got, want)
 		}
 		resets := onDay(1, 9, 10)
-		if !log.Has("level=INFO", "msg=primed", "account=work", "resets="+resets.Format("2006-01-02T15:04:05.000-07:00")) {
+		if !log.Has("level=INFO", "msg=primed", "account=work", "resets="+resets.Local().Format("2006-01-02T15:04:05.000-07:00")) {
 			t.Errorf("log reads\n%s\nwant work's prime, with its session's reset", log)
 		}
 		if !slices.ContainsFunc(r.recent.events(), func(e status.Event) bool { return e.Kind == status.EventPrimed && e.Account == "work" }) {

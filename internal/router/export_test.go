@@ -32,3 +32,18 @@ func (r *Router) SetChooser(c Chooser) {
 func (c *Client) HTTP() *http.Client {
 	return c.http
 }
+
+// InFlightOf returns the ids of the requests of session and model the request
+// stream has in flight, for tests that wait for the router to be done with
+// one whose client already has its answer.
+func (r *Router) InFlightOf(session, model string) []string {
+	r.stream.mu.Lock()
+	defer r.stream.mu.Unlock()
+	var ids []string
+	for id, f := range r.stream.flying {
+		if f.of == (key{session: session, model: model}) {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
