@@ -256,7 +256,8 @@ func (c *Climb) reset(at time.Time) {
 // w shows it reset by hand, as score.ResetByHand says, at at; was's reset had
 // passed by at, w being of another window, or of none, at was's reset; or w's
 // reset is later than was's, which hadn't come, the window having started
-// again before it, at at.
+// again before it, at at, where was read some use: read at nothing, nothing
+// was open to reset, the later reset an unopened window's moving on.
 func resetBetween(was, w quota.Window, at time.Time) (time.Time, bool) {
 	switch {
 	case score.ResetByHand(was, w):
@@ -265,7 +266,7 @@ func resetBetween(was, w quota.Window, at time.Time) (time.Time, bool) {
 		return time.Time{}, false
 	case was.ResetBy(at):
 		return was.ResetsAt, true
-	case w.ResetsAt.After(was.ResetsAt):
+	case w.ResetsAt.After(was.ResetsAt) && was.Utilization != 0:
 		return at, true
 	}
 	return time.Time{}, false

@@ -61,6 +61,23 @@ var theDesignsDay = []readings.Reading{
 	allowed(on(0, 20, 0), "5h", 0.4, on(1, 1, 0)),
 }
 
+// anIdleSession is work's session window read where no request opens it,
+// as when its week is refused: at nothing, each reading's reset five hours
+// on, cut back to a ten-minute mark, the one a window opened then would have.
+var anIdleSession = []readings.Reading{
+	allowed(on(0, 20, 7), "5h", 0, on(1, 1, 0)),
+	allowed(on(0, 20, 37), "5h", 0, on(1, 1, 30)),
+	allowed(on(0, 21, 7), "5h", 0, on(1, 2, 0)),
+	allowed(on(0, 21, 37), "5h", 0, on(1, 2, 30)),
+}
+
+// anIdleSessionOpened is anIdleSession until a request opens it, at 22:00.
+var anIdleSessionOpened = slices.Concat(anIdleSession, []readings.Reading{allowed(on(0, 22, 0), "5h", 0.05, on(1, 3, 0))})
+
+// aWeekRefused is a day of work's whose week was refused from 20:07 to the
+// day's end, its session read idle as anIdleSession has it.
+var aWeekRefused = slices.Concat([]readings.Reading{rejected(on(0, 20, 7), "7d", 1, on(3, 10, 0))}, anIdleSession)
+
 func TestASummaryHoldsTheIdsOfTheSessionsEachAccountCounts(t *testing.T) {
 	of := func(request, account, session string) ledger.Line {
 		l := asked(request, on(0, 9, 0))
@@ -191,6 +208,16 @@ func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 			want: map[string]float64{"7d": 0, "7d_oi": 0.3},
 		},
 		{
+			name:     "none of a window read at nothing, its reset moving on, nor of its week refused",
+			readings: aWeekRefused,
+			want:     map[string]float64{"5h": 0, "7d": 0},
+		},
+		{
+			name:     "from nothing, of a window read at nothing, its reset moving on, until a request opened it",
+			readings: anIdleSessionOpened,
+			want:     map[string]float64{"5h": 0.05},
+		},
+		{
 			name:     "none of a window read only before the day, reset by its start",
 			readings: []readings.Reading{allowed(on(-1, 12, 0), "5h", 0.6, on(-1, 16, 0)), allowed(on(0, 10, 0), "7d", 0.4, on(3, 10, 0))},
 			want:     map[string]float64{"7d": 0},
@@ -266,6 +293,14 @@ func TestASummaryHoldsEachResetOfAWindowTheReadingsHistorySaw(t *testing.T) {
 			name:     "when the reading that showed a later reset came, before the reset read before it",
 			readings: []readings.Reading{allowed(on(0, 10, 0), "7d", 0.5, on(3, 10, 0)), allowed(on(0, 12, 0), "7d", 0.02, on(6, 12, 0))},
 			want:     []ledger.Reset{reset("7d", on(0, 12, 0), 0.5)},
+		},
+		{
+			name:     "none of a window read at nothing, its reset later at each reading, as nothing was open to reset",
+			readings: anIdleSession,
+		},
+		{
+			name:     "none of a window read at nothing, its reset moving on, as a request opens it",
+			readings: anIdleSessionOpened,
 		},
 		{
 			name:     "of a model's own window, as of one every model shares, in the order they came",
@@ -358,6 +393,11 @@ func TestASummaryHoldsTheMinutesAnAccountSpentAtItsCapAndAtALimit(t *testing.T) 
 			readings: []readings.Reading{allowed(on(0, 10, 0), "5h", 0.92, on(0, 13, 0)), rejected(on(0, 11, 0), "7d", 1, on(3, 0, 0)),
 				allowed(on(0, 14, 0), "5h", 0.95, on(0, 18, 0))},
 			atCap: 60, atLimit: 780,
+		},
+		{
+			name:     "at a limit from the reading of its week refused to the day's end, its session read at nothing, its reset moving on",
+			readings: aWeekRefused,
+			atLimit:  233,
 		},
 		{
 			name:     "never at its cap without a reserve",
