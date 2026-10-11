@@ -37,10 +37,11 @@ import (
 const (
 	// dateLayout is the layout of a day's date in its files' names.
 	dateLayout = time.DateOnly
-	// compressAfter is how long after its day ends a day's file is
-	// compressed: today's and yesterday's never are, so lines are appended
-	// to plain files, and read back from them, in the normal run of things.
-	compressAfter = 48 * time.Hour
+	// compressAfter is how many days after its day ends a day's file is
+	// compressed, as doneWith counts them: today's and yesterday's never
+	// are, so lines are appended to plain files, and read back from them, in
+	// the normal run of things.
+	compressAfter = 2
 )
 
 // Forever, as how long the files are kept, keeps every day's, however long
@@ -298,11 +299,11 @@ func (f *Files) named(name string) (dayFile, time.Time, bool) {
 	return dayFile{date: date, compressed: compressed}, day, true
 }
 
-// prune removes the files past keeping at now, those of days that ended keep
-// or more before, none when keep is Forever, but those of the days spared
-// reports true of, where it's given, and compresses those of the days done
-// with, as tend says, leaving anything else in the directory alone. spared
-// is asked holding the files, so it takes nothing of them.
+// prune removes the files past keeping at now, as pastKeeping says, none
+// when keep is Forever, but those of the days spared reports true of, where
+// it's given, and compresses those of the days done with, as tend says,
+// leaving anything else in the directory alone. spared is asked holding the
+// files, so it takes nothing of them.
 func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string) bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -322,8 +323,8 @@ func (f *Files) prune(now time.Time, keep time.Duration, spared func(date string
 
 // tend removes the file, of the local day given, once the day is past
 // keeping at now, as pastKeeping says, never when keep is Forever, nor where
-// it's spared, and compresses it, a plain file, once the day ended two days
-// or more before now. A file of a day after tomorrow, as a clock once set
+// it's spared, and compresses it, a plain file, once the day is done with at
+// now, as doneWith says. A file of a day after tomorrow, as a clock once set
 // ahead names one, stays until its day is past keeping too: the clock may be
 // the one that's wrong, set back, and Newest passes such a file over
 // meanwhile. What it can't do is logged, and left to the next prune.
@@ -333,17 +334,33 @@ func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration, spare
 		if err := os.Remove(f.path(file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			f.Logger.Warn("can't prune the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}
-	case now.Sub(endOf(day)) >= compressAfter && !file.compressed:
+	case !now.Before(doneWith(day)) && !file.compressed:
 		if err := f.compress(file.date); err != nil {
 			f.Logger.Warn("can't compress the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}
 	}
 }
 
-// pastKeeping returns when the files of the local day that starts at day
-// are past keeping, kept as long as keep says: keep after the day ends.
+// doneWith returns when the day that starts at day, in its time zone, is done
+// with, so its file is compressed: at the start of the day compressAfter's
+// days after the day ends, as DayStart counts days, wherever the clocks change
+// between.
+func doneWith(day time.Time) time.Time {
+	return DayStart(endOf(day), compressAfter)
+}
+
+// pastKeeping returns when the files of the day that starts at day, in its
+// time zone, are past keeping, kept as long as keep says: at the start of the
+// day keep's days after the day ends, as DayStart counts days, wherever the
+// clocks change between, so always at a day's start. Part of a day counts as
+// a whole one, so the files are never kept less than keep.
 func pastKeeping(day time.Time, keep time.Duration) time.Time {
-	return endOf(day).Add(keep)
+	const whole = 24 * time.Hour
+	days := keep / whole
+	if keep%whole > 0 {
+		days++
+	}
+	return DayStart(endOf(day), int(days))
 }
 
 // KeptUntil returns the date of the last local day the files of the local day

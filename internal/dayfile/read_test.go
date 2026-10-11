@@ -532,10 +532,7 @@ func TestFilesOfADayAfterTomorrowAreKeptButNotAmongTheNewest(t *testing.T) {
 }
 
 func TestDatesStepADayAtATimeWhereTheClocksChangeAtMidnight(t *testing.T) {
-	santiago, err := time.LoadLocation("America/Santiago")
-	if err != nil {
-		t.Fatalf("load America/Santiago: %v", err)
-	}
+	santiago := zone(t, "America/Santiago")
 	// Chile's clocks went from 00:00 to 01:00 on 6 September 2026.
 	got := datesFrom(time.Date(2026, 9, 4, 15, 0, 0, 0, santiago), time.Date(2026, 9, 8, 10, 0, 0, 0, santiago))
 	if want := []string{"2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08"}; !slices.Equal(got, want) {
