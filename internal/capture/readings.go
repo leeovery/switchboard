@@ -39,16 +39,14 @@ func (h history) before(t time.Time) history {
 	return h[:i]
 }
 
-// windows are the account with the given id's windows as last read before
-// t, in quota.Sort's order, labelled as Claude labels them.
-func (h history) windows(account string, t time.Time, label func(key string) string) []quota.Window {
+// windows are the windows of the account whose readings history h is, as
+// last read, in quota.Sort's order, labelled as Claude labels them.
+func (h history) windows(label func(key string) string) []quota.Window {
 	last := make(map[string]quota.Window)
-	for _, r := range h.before(t) {
-		if r.Account == account {
-			w := r.Window()
-			w.Label = label(r.Key)
-			last[r.Key] = w
-		}
+	for _, r := range h {
+		w := r.Window()
+		w.Label = label(r.Key)
+		last[r.Key] = w
 	}
 	windows := make([]quota.Window, 0, len(last))
 	for _, w := range last {

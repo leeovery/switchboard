@@ -205,9 +205,8 @@ func TestAnAccountReadLongAgoIsWorkedOutFromItsReadingsToThen(t *testing.T) {
 	// which the router could never have read.
 	unread := last
 	unread.At, unread.Utilization = dayAt(worlds.now, today, 14, 30, 0).UTC(), last.Utilization+0.04
-	later := world
 	i, _ := slices.BinarySearchFunc(world.history, unread.At, func(r readings.Reading, at time.Time) int { return r.At.Compare(at) })
-	later.history = slices.Insert(slices.Clone(world.history), i, unread)
+	later := world.reading(slices.Insert(slices.Clone(world.history), i, unread))
 
 	want, _ := world.document(worlds.now).Account("work")
 	got, _ := later.document(worlds.now).Account("work")
