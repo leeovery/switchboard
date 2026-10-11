@@ -27,7 +27,7 @@ Run several subscriptions and there's a routine on top: watch the limits, notice
 
 ## Why Switchboard?
 
-- **Your usage, always in view.** `switchboard usage -w` keeps every window on screen: how much is left, when it runs out at your pace, when it resets, and when you'll have room again, over the day or the week, charted from a history it keeps. It reads usage off the answers your sessions already get, so watching costs next to nothing.
+- **Your usage, always in view.** `switchboard dashboard` keeps every window on screen: how much is left, when it runs out at your pace, when it resets, and when you'll have room again, over the day or the week, charted from a history it keeps. `switchboard usage` prints every account's windows once, dated, to hold against one printed an hour before. Both read usage off the answers your sessions already get, so looking costs next to nothing.
 - **Told in time.** Desktop notifications when a window passes a share you choose, when an account hits a limit, and when it has room again.
 - **Claude knows too.** A skill tells Claude Code about switchboard, so Claude reads every account's usage itself (`switchboard status`), looks back over your sessions, requests and days, and can plan around a limit, or pin and move sessions when you ask. Run by an agent, `status`, `usage`, `sessions`, `requests`, `history` and `events` print JSON with no flag, as anywhere their output isn't a terminal.
 - **Limits stop interrupting you.** With several subscriptions, a request that hits a limit is replayed on another account before Claude Code sees any of the answer. You get one slower turn while the cache rebuilds there, then the session carries on: no exiting, no resuming.
@@ -60,7 +60,8 @@ go install github.com/leeovery/switchboard/cmd/switchboard@latest
 brew install leeovery/tools/switchboard
 switchboard setup       # accounts and their tokens, priming, the service, the claude link, the skill
 claude                  # Claude Code, through switchboard
-switchboard usage -w    # every account's usage, live
+switchboard usage       # every account's windows, as they stand
+switchboard dashboard   # every account's usage, live
 ```
 
 `setup` walks through the rest a step at a time, and is safe to run again: each step says what's done already, and does only what isn't. It asks for each account's id, label and token, which account is the primary, and your day for priming; installs the service that keeps the router running; links `claude` to switchboard, and gives you the one line to add to your shell's startup file; and installs a Claude Code skill that tells Claude what switchboard does. See [`setup`](#setup).
@@ -120,7 +121,7 @@ Each account then meets four windows in an 08:00–23:00 day. The cost is short 
 - **A prime** is a probe, one request per model family, Haiku and Fable (falling back to the previous Fable), each capped at one output token, sent to an account whose 5-hour window isn't running. An account whose window is already running, as after a late night, gets none, and its slot shifts for the day. A prime that reads nothing, or doesn't start the window, is logged as a warning and sent again five minutes on. An account that can take no request anyway, or whose token is refused, isn't primed while it's so, as a prime couldn't start its window.
 - **Through the day,** whenever an account's window resets, in use or not, the router primes it 5 seconds on, so its windows run back to back, a prime being sure to land after the reset though the Mac's clock runs a little ahead of the API's. After the day ends it stops, and the windows lapse overnight, but for those the router's rounds start where they reset before the account's slot.
 - **A prime missed** while the Mac slept, or the router was away, goes out as soon as it can, unless the day has ended.
-- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it, on its rounds where the window it starts resets before the account's slot, or while it can take no request anyway, as while a limit holds back its every request or its week reads spent: starting its window costs nothing then, and a probe is how the router sees a limit you've reset by hand. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, on its rounds, or sooner when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe`, and `usage` or `status` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
+- **No accidental windows.** A probe is a request, so probing an idle account starts its window. The router never probes an account whose 5-hour window has lapsed except to prime it, on its rounds where the window it starts resets before the account's slot, or while it can take no request anyway, as while a limit holds back its every request or its week reads spent: starting its window costs nothing then, and a probe is how the router sees a limit you've reset by hand. An account nothing has been read of has no window known to have lapsed, so the router probes it as it starts, and, should that fail or the account be given its first token while the router runs, on its rounds, or sooner when a decision or a dashboard needs it, at any hour, which may start its window off the schedule, once. `usage --probe` and `dashboard --probe`, and `usage`, `status` or `dashboard` without the router, probe every account, as asked, and `accounts add`, `accounts token` and `setup` probe a token they're given, to check it.
 - **The router's rounds.** Every answer the router relays carries its account's whole usage, from wherever it was used: your phone, claude.ai, Claude Code run directly. So an account in use through the router is always current, and the router reads the others itself, around the clock, dashboard or not: each account nothing has read, by an answer, a probe or a prime, in the last half hour. One whose 5-hour window has lapsed and that can take a request is probed, starting its window, only where its slot is more than 5 hours off, so that window resets before its prime is due; without priming, it's probed. One that can take no request anyway is probed at any hour, so a reset you make by hand is seen within the half hour. Each account is also probed once in the 5 minutes before each of its weeks resets, whatever the schedule, unless something read that week in them, so a week's last use is read before it goes; where that starts a lapsed window, the account's prime is skipped as for a window already running, and its schedule settles back by itself. Routing comes first, then the readings' accuracy, then priming. A probe that reads nothing is tried again 2 minutes on, doubling to the half hour, until it reads the account or the account goes out on another token, and a probe due while your Mac slept goes out within a minute of its waking.
 
 `status` shows the schedule. `status` and the dashboard show the next reset among the 5-hour windows and, from the router, the next prime, and a 5-hour window that hasn't started says when its account is next primed.
@@ -147,22 +148,50 @@ Every command takes `--config <file>`, naming the config file in place of the on
 
 #### `usage`
 
-Every account's usage as a dashboard: a card per account, its state in words, the window that will stop it first in big digits with its chart, and a bar for each other window (see [The Dashboard](#the-dashboard)). It reads the router while it runs, with its history for the charts, else probes each account. Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead, as [`status --json`](#status) does, read as its flags say; `-w` needs a terminal.
+Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed an hour before. A header, with when it read and the router's status, `● healthy  ·  6 sessions  ·  new sessions → ▲ side`, with `pinned to personal` while a global pin holds; then a bar for each account's every window, and last, the pool; then a line saying what the marks mean. It reads the router's status document while the router answers, else probes each account. Where its output isn't a terminal, as in a pipe or an agent's shell, it prints the status document as JSON instead, as [`status --json`](#status) does, read as its flags say.
 
 ```bash
-switchboard usage [-w [interval]] [--no-notify] [--probe] [-r] [--json | --pretty]
+switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-r] [--json | --pretty]
 ```
 
 | Flag | Description |
 |---|---|
-| `-w, --watch` | stay on screen, reading usage every interval, given after the flag: `30m` unless given, `5m` at the least; a duration such as `15m` or `1h`, or a number of minutes |
-| `--no-notify` | with `--watch`, post no desktop notifications |
+| `--5h`, `--week` | print that window alone, with the header and the key line; given together, the windows given, in Claude's order: the 5-hour window, the week, then each model's own |
+| `--<model>` | print a model's own window, as `--week` does the week: a flag for each model with a window of its own, named for it, as `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are |
+| `--by window\|account` | lay the windows out by window, the accounts compared a window at a time, or by account, each account's windows together; over [`[usage] by`](#usage-keys), and by window where neither says |
 | `--probe` | probe every account, even while the router runs |
-| `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway. Not with `--watch`, where `r` refreshes |
-| `--json` | print the status document as JSON, as it does off a terminal anyway, even on one. Not with `--watch` |
-| `--pretty` | print the dashboard, as it does on a terminal, even off one: without colour, unless `CLICOLOR_FORCE` asks for it, as wide as `COLUMNS` says, else 80 columns |
+| `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
+| `--json` | print the status document as JSON, as it does off a terminal anyway, even on one. The window flags and `--by` shape the printout alone, and the JSON is the whole document whatever they say |
+| `--pretty` | print the bars, as it does on a terminal, even off one: without colour, unless `CLICOLOR_FORCE` asks for it, as wide as `COLUMNS` says, else 80 columns |
 
-In watch mode, reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time, beside the router's own [rounds](#priming), every half hour. Should the router stop answering, its last view stays on screen, saying since when, until it answers again or the interval's read, or `r`, probes the accounts directly. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
+- **A row** an account, in the config's order: its number, its place in the config, its label, `◆` on the primary and `▲` on the account new sessions go to; the window's bar, filled along the theme's ramp, `┃` where even use would have put it by now and `╎` where its cap starts, 1 less its `reserve`; its percentage; and the first of these that holds: `limit · back 15:54` while Claude's limit holds the window; `at cap · back 17:10` once its use reaches the cap and the cap holds the account back; `out ~Sat 06:00` where it runs out before its reset, at its recent rate; `not started`, of a 5-hour window not yet started; else its allowance, what can be spent of it an hour or a day and still last to its reset, `19%/day till Sun 21:00`, or under an hour from the 5-hour window's reset, or a day from a week's, the room itself, `34% till 16:30`. An account with no usable token reads `no token`, and one nothing has been read of `not read yet`, their bars empty; one whose token is refused, or whose last read failed, shows its last reading faded, `not read since 14:20`.
+- **The pool,** wherever there's more than one account, is the room new sessions can go to, summed across the accounts in it: every account on auto, only those pinned when there's a global pin. Its row, `Σ pool`, comes last, under a rule, its words the room left in accounts' worth, `1.5 of 3 left`, and pinned, ` · pinned`, an account out of it numbered faintly.
+- **Every window shows,** used or not: a model's own window, as Fable's week, on every account, at 0% as at 40%.
+- **The width** shapes it. By window, from 150 columns the windows sit side by side, a column each, and narrower, or where a bar would be under 12 cells, as with four windows at 160 columns, they're stacked, a section each. By account, each account is a block, its windows as rows, its name beside its first bar from 110 columns, else on a line of its own above it. The header is one line from 120 columns, else two, and the key line one from 150, else two. Under 70 columns the words shorten, to `back 15:54`, `out ~Sat` and `19%/day · Sun`. A label too long for the name column is cut with `…`, never moving as `▲` moves between accounts.
+- **Colour:** it's drawn in the dashboard's theme, brought down to what the terminal shows, with no background of its own (see [Themes](#themes)). With `NO_COLOR` set, or on a terminal that shows no colour, a bar's fill is drawn in `█`, its track left as spaces, and the names and percentages keep their bold.
+
+```bash
+switchboard usage                  # every window, every account
+switchboard usage --5h             # the 5-hour window alone
+switchboard usage --by account     # each account's windows together
+switchboard usage --probe          # read every account from the API, whatever the router says
+switchboard usage -r               # have the router read every account it may first, as after a reset made by hand
+```
+
+#### `dashboard`
+
+Every account's usage, full screen, until `q`: a card per account, its state in words, the window that will stop it first in big digits with its chart, and a bar for each other window; Sessions, where each session's requests go; and Runway, when each account has room (see [The Dashboard](#the-dashboard)). It needs a terminal, and refuses without one. It reads the router while it answers, else probes each account. The interval, given after the command, is how often it reads in full: `30m` unless given, `5m` at the least; a duration such as `15m` or `1h`, or a number of minutes.
+
+```bash
+switchboard dashboard [interval] [--no-notify] [--probe]
+```
+
+| Flag | Description |
+|---|---|
+| `--no-notify` | post none of the desktop notifications it posts while it probes without the router (see [Notifications](#notifications)) |
+| `--probe` | probe every account each interval, even while the router runs |
+
+Reading the router, it looks at the router's view every 5 seconds, which costs nothing upstream, and every interval has the router probe the accounts it hasn't read in that time, beside the router's own [rounds](#priming), every half hour. Should the router stop answering, its last view stays on screen, saying since when, until it answers again or the interval's read, or `r`, probes the accounts directly. Without the router, it probes every account every interval, sooner after a window on screen resets or an account couldn't be read, and goes back to the router once it answers.
 
 | Key | Does |
 |---|---|
@@ -173,7 +202,7 @@ In watch mode, reading the router, it looks at the router's view every 5 seconds
 | `m` | move running sessions to the pinned accounts |
 | `t` | the theme picker: see [Themes](#themes) |
 | `w` | the window every card features, with its big readout and chart: `auto`, each card what will stop its account first, then the 5-hour window, the week, and any other window in use; the next dashboard starts with it. In Runway, the day or the week |
-| `g` | the chart every card draws of the window it features: a burn-down, its burn rate, or an hourglass; the next dashboard, and `usage` printed once, draw it so |
+| `g` | the chart every card draws of the window it features: a burn-down, its burn rate, or an hourglass; the next dashboard draws it so |
 | `←` `→` `↑` `↓` | move the focus between the cards, the card with it edged heavy: `←` `→` along a row, `↑` `↓` between rows, over a flipped card's sessions first, picking one out, and past its first or last, on to the card above or below. The first gives the focus to the first card in view; a card out of view is scrolled to |
 | `space` | flip the card with the focus to its back, the sessions on its account, or back |
 | `s` | flip every card, or back |
@@ -185,11 +214,9 @@ In watch mode, reading the router, it looks at the router's view every 5 seconds
 `1`–`9`, `a` and `m` work while the dashboard reads the router and the router answers, of more than one account; pressed while its last view stays on screen, they say it isn't answering. The footer lists the keys that work but `s`, `r`, `t` and the scrolling keys, as many as fit, `?` and `q` always, and says what each one did; at its right, how long ago what's on screen was read, or, while the router's last view stays on screen, since when there's been no router. With a session picked out, it lists the keys that act on it instead, and at its right, which session it is, and on which account.
 
 ```bash
-switchboard usage              # once
-switchboard usage -w           # on screen, reading every 30 minutes
-switchboard usage -w 15m       # every 15 minutes
-switchboard usage --probe      # read every account from the API, whatever the router says
-switchboard usage -r           # have the router read every account it may first, as after a reset made by hand
+switchboard dashboard           # reading every 30 minutes
+switchboard dashboard 15m       # every 15 minutes
+switchboard dashboard --probe   # every account from the API each interval, whatever the router says
 ```
 
 #### `pin`
@@ -279,7 +306,7 @@ switchboard setup
    ```
 
 5. **The skill.** Writes a Claude Code skill, or brings it up to date, which tells Claude what switchboard does under `claude`, so no session needs it explained: `skills/switchboard/SKILL.md` in `~/.claude`, or in `$CLAUDE_CONFIG_DIR`. Switchboard owns the file: `setup`, and the router as it starts, replace it, edits and all, when a new switchboard brings a new version of it, and leave it be otherwise.
-6. **Usage.** Shows every account's usage, as `switchboard usage` does.
+6. **Usage.** Prints [`usage`](#usage), every account's windows as they stand.
 
 Setup refuses a switchboard that won't last, such as `go run`'s, as the service and the link both run the one it was run by. It asks for tokens where they don't show as they're pasted, and never takes one pasted where it would.
 
@@ -567,6 +594,9 @@ keep = "400d"
 [ledger]                # optional: this is the default
 keep = "400d"
 
+[usage]                 # optional: this is the default
+by = "window"
+
 [prices.plans]          # optional: a plan's price, in US dollars a month, in place of switchboard's
 max5x = 90
 
@@ -633,6 +663,14 @@ How long the router keeps the request ledger's lines: see [How It Works](#how-it
 |---|---|---|
 | `keep` | `400d` | how long a day's file of lines is kept once its day has ended: a whole number of days, `<n>d`, `8d`, a week and a day, or more; or `forever`, which never removes one. The day's summary is kept for good |
 
+### `[usage]` keys
+
+How [`usage`](#usage) lays out its windows.
+
+| Key | Default | Description |
+|---|---|---|
+| `by` | `window` | `window`, the accounts compared a window at a time, or `account`, each account's windows together; `usage --by` overrides it for one printout |
+
 ### `[prices]` keys
 
 Prices in place of those switchboard carries, read from Anthropic's pricing page, for [`history`](#history) and [`sessions`](#sessions) to price with. Each price is a number, `0` or more, and holds for every day alike; one left out keeps switchboard's.
@@ -671,16 +709,15 @@ The router reads the tokens as it starts, every account's file again every 3 sec
 
 One account: its card's burn-down, and where it's heading, with COMING UP and RECENT beside it; then `g` to its burn rate and its hourglass, and `tab` past its sessions to Runway, the day ahead.
 
-`switchboard usage` draws a title row, a heading that sums the accounts up, and a card per account.
+`switchboard dashboard` draws a title row, a heading that sums the accounts up, and a card per account.
 
-- **The views:** `tab` and `shift-tab` move between three. Accounts, the cards. Sessions, a switchboard of where each session's requests go: the sessions as calls, the accounts as lines, and a cord from each call to its line, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red; with LOG, what the router did and why. With one account, or where the cords don't fit, it's a plain list of each account and its sessions. And Runway, when each account has room, a lane each, over the day, or, with `w`, the week. With `-w`, the next dashboard opens on the view last shown.
+- **The views:** `tab` and `shift-tab` move between three. Accounts, the cards. Sessions, a switchboard of where each session's requests go: the sessions as calls, the accounts as lines, and a cord from each call to its line, its requests travelling it, out as they go and back as their answers stream, a refusal bouncing back red; with LOG, what the router did and why. With one account, or where the cords don't fit, it's a plain list of each account and its sessions. And Runway, when each account has room, a lane each, over the day, or, with `w`, the week. The next dashboard opens on the view last shown.
 - **The heading** says how the router is, its sessions and how it routes them (`● healthy`, `5 sessions · auto`), or that the accounts were probed, and why; where new sessions go (`▲ 3 side`, `1 of 3 open`); the room left in each account's 5-hour window and week, as bars, summed as accounts' worth (`1.3 of 3`); and the next three things coming up, such as a limit lifting, a window running out at its pace, a reset or a prime, each with how long until it. With one account, it's a single line.
 - **A card** says its account's state in words, what holds it back or what it's doing, and what that means for new sessions: `● under pressure · new sessions go elsewhere`, `■ limit reached · back 15:54, in 1h 12m`, `○ idle · its window starts at its prime, 16:20`. It features the window that will stop its account first, or the one `w` chooses, in big digits, with where it's heading (`→ runs out ~16:05 at its last-30-min rate`) and when it resets, over a chart of it, in the style `g` chooses: a burn-down of the room left in it, the past from the router's history, a dotted line to where it's heading, `✕` where it runs out; its burn rate, its use each 10 minutes as bars, those faster than it could go on being used and still last to its reset in the theme's attention colour, under a dotted line at that rate; or an hourglass, standing over now, the room left as sand above and the use piled below, its stream as thick as its recent rate, falling while the account is busy, and turned over at its reset. Its other windows are bars, filled along the theme's ramp, the share they're heading for faded beyond, `┃` where even use would be now and `╎` where a reserve starts. Its badges, `◆ primary`, `● pinned` and `▲ next`, are on its top edge, and a dot for each session on its foot, lit while busy. A model's own window no account uses, as Fable's week, is hidden from every card, and the line over the footer says so.
 - **A card's back:** `space` flips the card with the focus, and `s` every card, to show the sessions on its account, keeping its size and place: how many there are and how many busy; a row for each session's model, its dot lit while busy, its id, the model, and `seen now` or `idle 9m`, and under it, where there's room, a note: where its session goes from its next request, or that its own pin yielded there at a limit, where its other models are, `pinned here`, `moved from personal at 14:12`, or `here since 13:20`; then, where there's room, what has befallen the account lately; and the keys. One with no sessions says why where it can, as `3 moved to side at 14:12, when personal reached its limit`. On it, `↑` and `↓` pick out a session, which a digit moves to the account in that place, and `a` hands back to the router.
 - **The layout:** as many cards across as fit at least 50 columns wide, sharing the spare width, every card the same size, so their rows line up; one account gets a wide card, with COMING UP and RECENT beside it from 150 columns. The cards take the richest form that fits the terminal: the big digits and a 4-row chart, then a one-line header over a chart of 6 rows down to 3, then a compact card with a chart of 3 or 2. RECENT, what the router has done lately, takes an empty cell of the last row of cards, or a strip under them; rows left over grow it to four lines, then show a line that says what the glyphs mean, or, without room for it, that `?` does. Where even the compact cards don't fit, they scroll between the heading and the footer, a scrollbar at the right, and the line over the footer says how many accounts are out of view. Under 100 columns, the dashboard is a phone's: the cards stacked, the heading in two lines.
-- **Printed once,** without `-w`, every card is at its fullest, as wide as the terminal allows, never scrolling: the terminal's scrollback holds what doesn't fit the screen.
 
-With `-w` it stays on screen, reading as [`usage`](#usage) says, and takes its keys.
+It reads, and takes its keys, as [`dashboard`](#dashboard) says.
 
 <table>
   <tr>
@@ -704,7 +741,7 @@ The dashboard is drawn in a theme. Themes name colours by what they mean and how
 
 - **Built in:** `nord`, the dashboard's palette from the start; `tokyo-night`, and `tokyo-night-day` for a light terminal; `amber`, an amber CRT; `exchange`, a telephone exchange's brass and walnut; and `terminal`, for a terminal with a transparent or image background, which paints no background and draws in the terminal's own sixteen colours.
 - **One, or a pair:** choose one theme for every terminal, or a pair: one for a light background and one for a dark. The dashboard asks the terminal what its background is as it starts, and takes a terminal that doesn't say for a dark one. Choosing nothing gives the pair of `tokyo-night-day` and `nord`.
-- **The picker:** in `usage -w`, `t` opens a panel at the right, over the dashboard, listing every theme. `↑` and `↓` move through them, the dashboard redrawn in each as it's reached; `enter` sets the one theme; `d` and `l` set the dark and the light half of the pair, asking first, with `y` or `n`, to clear a single theme; and `esc` closes it, putting back the theme in force. A badge says what each theme fills: `●` the one theme, `● light`, `● dark`, or `● both`. A theme file that doesn't load is listed with why, such as `bad colour` or `missing tokens`, and the log has the detail.
+- **The picker:** in the dashboard, `t` opens a panel at the right, over the dashboard, listing every theme. `↑` and `↓` move through them, the dashboard redrawn in each as it's reached; `enter` sets the one theme; `d` and `l` set the dark and the light half of the pair, asking first, with `y` or `n`, to clear a single theme; and `esc` closes it, putting back the theme in force. A badge says what each theme fills: `●` the one theme, `● light`, `● dark`, or `● both`. A theme file that doesn't load is listed with why, such as `bad colour` or `missing tokens`, and the log has the detail.
 - **Your own:** a theme is a file named `<slug>.theme`, its slug lower-case letters, digits and hyphens, in the themes directory (see [Where things live](#where-things-live)), its top level alone; links are followed, and it's read again each time the picker opens. Each line is `key = #RRGGBB`, a line starting `#` a comment, and every key once:
 
   ```
@@ -716,8 +753,8 @@ The dashboard is drawn in a theme. Themes name colours by what they mean and how
 
   It gives all 19 base tokens, `text.primary`, `text.secondary`, `text.tertiary`, `text.muted`, `text.subtle`, `text.faint`, `text.on-selection`, `accent.primary`, `accent.key`, `accent.mode`, `accent.attention`, `state.positive`, `state.destructive`, `canvas`, `bg.selection`, `bg.attention`, `bg.subtle`, `border` and `text.on-attention`, or it doesn't load. The charts' own, `viz.ramp.1` to `viz.ramp.4` (a bar's fill, first cell to last), `viz.track`, `viz.pace`, `viz.reserve` and `viz.series.1` to `viz.series.6` (the accounts' colours), are each worked out from those where a file leaves them out. A key switchboard doesn't know is passed over. A file can't take a built-in's slug.
 - **Kept:** the choice is kept in `prefs.json` in the state directory, which the dashboard writes and you never need to; one that can't be read is set aside as `prefs.json.corrupt-<unix time>`, and the defaults stand.
-- **The background:** with `-w`, the dashboard paints the theme's background on every cell, and sets the terminal's own to it, putting it back as it was when the dashboard stops: on `q`, an interrupt or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is reset to its profile's own instead. Printed once, without `-w`, the dashboard paints no background.
-- **Fewer colours, and none:** the colours are brought down to what the terminal shows. With `NO_COLOR` set to anything, the dashboard has no colour, nor background: what colour would say, its glyphs and bold say, and `t` does nothing. Printed off a terminal, as `usage --pretty` prints it, it has no colour either, unless `CLICOLOR_FORCE` asks for it.
+- **The background:** the dashboard paints the theme's background on every cell, and sets the terminal's own to it, putting it back as it was when the dashboard stops: on `q`, an interrupt or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is reset to its profile's own instead. [`usage`](#usage) paints none, printing into the scrollback: it asks the terminal what its background is, and takes the light or dark half of the pair by it; one theme chosen prints only on a background as dark or light as its own, else the default pair's half for that background.
+- **Fewer colours, and none:** the colours are brought down to what the terminal shows. With `NO_COLOR` set to anything, the dashboard has no colour, nor background: what colour would say, its glyphs and bold say, and `t` does nothing. `usage` has none either, there or on a terminal that shows no colour, its bars filled in `█`; printed off a terminal, as `usage --pretty` prints it, it has none unless `CLICOLOR_FORCE` asks for it.
 
 ## Notifications
 
@@ -730,7 +767,7 @@ While it runs, the router posts desktop notifications, whether or not a dashboar
 
 A limit's notification always goes out. Any other goes out only a minute or more after the last posted about its account, and is dropped otherwise. Notifications never hold a request up.
 
-A dashboard watching without the router posts its own, of an account with room again and a window passing the warning, unless `--no-notify`. While the router runs, the dashboard posts none, so nothing is told twice, even probing with `--probe`.
+The dashboard, probing without the router, posts its own, of an account with room again and a window passing the warning, unless `--no-notify`. While the router runs, the dashboard posts none, so nothing is told twice, even probing with `--probe`.
 
 ## Logs
 
