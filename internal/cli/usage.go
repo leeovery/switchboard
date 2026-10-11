@@ -101,11 +101,7 @@ it.`,
 // and prints the windows opts give, laid out as they say, else as the config
 // does, as wide as the terminal, in the theme the preferences keep.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return err
-	}
-	doc, _, err := a.source(cfg, opts.probe).Read(ctx, readOnce(opts.refresh))
+	cfg, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
@@ -134,7 +130,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 // isn't a terminal, as for an agent or a pipe, which want data rather than a
 // printout's bars.
 func (a *app) printDocument(ctx context.Context, out io.Writer, opts usageOptions) error {
-	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
+	_, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
@@ -190,7 +186,10 @@ type windowFlags []*windowFlag
 // --5h, --week, and one for each model's own window internal/claude knows,
 // so each is known as the command line is parsed.
 func addWindowFlags(cmd *cobra.Command) windowFlags {
-	flags := windowFlags{{name: "5h", key: "5h", what: "the 5-hour window"}, {name: "week", key: claude.WeekWindow, what: "the week"}}
+	flags := windowFlags{
+		{name: "5h", key: claude.FiveHourWindow, what: "the " + claude.WindowName(claude.FiveHourWindow) + " window"},
+		{name: "week", key: claude.WeekWindow, what: "the week"},
+	}
 	for _, w := range claude.ModelWindows() {
 		flags = append(flags, &windowFlag{name: strings.ToLower(w.Name), key: w.Key, what: "the " + claude.WindowName(w.Key)})
 	}
