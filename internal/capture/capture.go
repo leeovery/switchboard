@@ -9,7 +9,7 @@
 // stretch of the router's life, played in real time. Both are drawn by the
 // dashboard's own watch model, built through watch.New, with every seam
 // faked; a printout of usage, through a path of its own, from the fake
-// router read as usage reads one, through watch.Once. So a capture never
+// router's status document, read as usage reads it. So a capture never
 // dials the router, probes, touches the network, reads or writes the real
 // config, state, prefs or tokens, or runs another process.
 //

@@ -210,9 +210,13 @@ func TestPrintsAPrintoutAsTallAsItIsAtTheWidthGiven(t *testing.T) {
 	if want := plain(f.Frame(watch.Size{Width: 100, Height: 20})); out.String() != want {
 		t.Errorf("printed\n%s\nwant the printout\n%s", out.String(), want)
 	}
+	var taller bytes.Buffer
+	if err := draw(f, options{print: true, size: "100x80"}, &taller); err != nil {
+		t.Fatal(err)
+	}
 	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
-	if len(lines) <= 20 || strings.Contains(out.String(), "read 4s ago") {
-		t.Errorf("printed %d lines:\n%s\nwant the printout, as tall as it is, without the watch's footer", len(lines), out.String())
+	if taller.String() != out.String() || strings.Contains(out.String(), "read 4s ago") {
+		t.Errorf("printed %d lines:\n%s\nand on a terminal 80 tall\n%s\nwant the printout, as tall as it is, without the watch's footer", len(lines), out.String(), taller.String())
 	}
 	for i, line := range lines {
 		if width := ansi.StringWidth(line); width > 100 {

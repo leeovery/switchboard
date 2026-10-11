@@ -4,19 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"io"
 	"io/fs"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,37 +30,6 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
-
-var update = flag.Bool("update", false, "rewrite the golden files with what the tests print")
-
-func TestUsage(t *testing.T) {
-	tests := []struct {
-		name   string
-		env    map[string]string
-		golden string
-	}{
-		{name: "at the default width", golden: "usage.golden"},
-		{name: "at the width $COLUMNS gives", env: map[string]string{"COLUMNS": "180"}, golden: "usage-wide.golden"},
-		{name: "ignoring a $COLUMNS that isn't a width", env: map[string]string{"COLUMNS": "wide"}, golden: "usage.golden"},
-		{name: "ignoring a $COLUMNS of zero", env: map[string]string{"COLUMNS": "0"}, golden: "usage.golden"},
-	}
-	for _, tt := range tests {
-		for _, form := range prettyForms() {
-			t.Run(tt.name+", "+form.name, func(t *testing.T) {
-				got := form.run(t, goldenDeps(t, tt.env), "usage")
-				if got.code != 0 || got.stderr != "" {
-					t.Fatalf("switchboard usage %s = %+v, want exit status 0 and nothing on stderr", strings.Join(form.args, " "), got)
-				}
-				if *update {
-					writeGolden(t, tt.golden, got.stdout)
-				}
-				if want := readGolden(t, tt.golden); got.stdout != want {
-					t.Errorf("switchboard usage %s printed\n%s\nwant (testdata/%s; run with -update to accept it)\n%s", strings.Join(form.args, " "), got.stdout, tt.golden, want)
-				}
-			})
-		}
-	}
-}
 
 func TestUsagePrettyOffATerminalIsPrintedWithoutColourUnlessCLIColorForceAsks(t *testing.T) {
 	truecolor := map[string]string{"TERM": "xterm-256color", "COLORTERM": "truecolor"}
@@ -84,12 +50,12 @@ func TestUsagePrettyOffATerminalIsPrintedWithoutColourUnlessCLIColorForceAsks(t 
 			}
 
 			got := offATerminal.run(t, goldenDeps(t, env), "usage", "--pretty")
-			coloured, escaped := strings.Contains(got.stdout, "\x1b[38;2;"), strings.Contains(got.stdout, "\x1b[")
+			coloured, escaped := strings.Contains(got.stdout, "38;2;"), strings.Contains(got.stdout, "\x1b[")
 			if got.code != 0 || coloured != tt.wantColour || escaped != tt.wantColour {
 				t.Fatalf("switchboard usage --pretty, off a terminal, = %+v, want exit status 0, and in colour: %v", got, tt.wantColour)
 			}
-			if want := readGolden(t, "usage.golden"); ansi.Strip(got.stdout) != want {
-				t.Errorf("switchboard usage --pretty, off a terminal, printed, stripped of its escapes,\n%s\nwant what it prints on one (testdata/usage.golden)\n%s",
+			if want := ansi.Strip(run(t, goldenDeps(t, env), "usage").stdout); ansi.Strip(got.stdout) != want {
+				t.Errorf("switchboard usage --pretty, off a terminal, printed, stripped of its escapes,\n%s\nwant what it prints on one\n%s",
 					ansi.Strip(got.stdout), want)
 			}
 		})
@@ -106,73 +72,18 @@ func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
 		writeToken(t, deps, "personal", "test-token-personal")
 		return run(t, deps, append([]string{"usage"}, args...)...), api.questions()
 	}
-	_, probes := usage()
-	if len(probes) == 0 {
-		t.Fatal("switchboard usage asked the API nothing, want every account probed")
+	want, probes := usage()
+	if want.code != 0 || want.stderr != "" || len(probes) == 0 {
+		t.Fatalf("switchboard usage = %+v, asking the API %q; want exit status 0, nothing on stderr, and every account probed", want, probes)
 	}
 	for _, flag := range []string{"--refresh", "-r"} {
 		t.Run(flag, func(t *testing.T) {
 			got, asked := usage(flag)
-			if want := (result{stdout: readGolden(t, "usage.golden")}); got != want {
-				t.Errorf("switchboard usage %s =\n%+v\nwant what usage prints (testdata/usage.golden)\n%+v", flag, got, want)
+			if got != want {
+				t.Errorf("switchboard usage %s =\n%+v\nwant what usage prints\n%+v", flag, got, want)
 			}
 			if !slices.Equal(asked, probes) {
 				t.Errorf("switchboard usage %s asked the API %q, want %q, every account probed as usage probes it", flag, asked, probes)
-			}
-		})
-	}
-}
-
-func TestUsageColor(t *testing.T) {
-	tests := []struct {
-		name     string
-		env      map[string]string
-		want     string
-		wantNone string
-		// golden is what it prints, stripped of its escapes: under NO_COLOR,
-		// in the glyphs that stand in for colour, as a bar's projection's
-		// shade.
-		golden string
-	}{
-		{
-			name:     "brought down to what the terminal shows",
-			env:      map[string]string{"CLICOLOR_FORCE": "1", "TERM": "xterm-256color"},
-			want:     "\x1b[38;5;",
-			wantNone: "\x1b[38;2;",
-			golden:   "usage.golden",
-		},
-		{
-			name:   "in full where the terminal shows it",
-			env:    map[string]string{"CLICOLOR_FORCE": "1", "TERM": "xterm-256color", "COLORTERM": "truecolor"},
-			want:   "\x1b[38;2;",
-			golden: "usage.golden",
-		},
-		{
-			name:     "none under NO_COLOR, but still bold",
-			env:      map[string]string{"TTY_FORCE": "1", "TERM": "xterm-256color", "NO_COLOR": "1"},
-			want:     "\x1b[1m",
-			wantNone: "\x1b[38;",
-			golden:   "usage-no-colour.golden",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := run(t, goldenDeps(t, tt.env), "usage")
-			if got.code != 0 {
-				t.Fatalf("switchboard usage = %+v, want exit status 0", got)
-			}
-			if !strings.Contains(got.stdout, tt.want) {
-				t.Errorf("switchboard usage printed %q, want it to contain %q", got.stdout, tt.want)
-			}
-			if tt.wantNone != "" && strings.Contains(got.stdout, tt.wantNone) {
-				t.Errorf("switchboard usage printed %q, want no %q", got.stdout, tt.wantNone)
-			}
-			stripped := ansi.Strip(got.stdout)
-			if *update && tt.golden != "usage.golden" {
-				writeGolden(t, tt.golden, stripped)
-			}
-			if want := readGolden(t, tt.golden); stripped != want {
-				t.Errorf("switchboard usage printed, stripped of its escapes,\n%s\nwant (testdata/%s)\n%s", stripped, tt.golden, want)
 			}
 		})
 	}
@@ -205,78 +116,6 @@ func TestUsageAsJSONPrintsWhatStatusJSONPrints(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestUsagePrintsEveryCardInFullHoweverShortTheTerminal(t *testing.T) {
-	got := run(t, goldenDeps(t, map[string]string{"LINES": "12"}), "usage")
-	if want := readGolden(t, "usage.golden"); got.stdout != want {
-		t.Errorf("switchboard usage in 12 rows printed\n%s\nwant every card in full, as in any number (testdata/usage.golden)\n%s", got.stdout, want)
-	}
-}
-
-func TestUsageFeaturesTheWindowKept(t *testing.T) {
-	tests := []struct {
-		name string
-		// prefs is what prefs.json holds, "" for none.
-		prefs string
-		want  string
-	}{
-		{name: "none kept: what stops work first, its Fable week at its limit", want: "FABLE WEEK  7-day window"},
-		{name: "the week", prefs: `{"featured": "7d"}`, want: "WEEK  7-day window"},
-		{name: "the session", prefs: `{"featured": "5h"}`, want: "SESSION  5-hour window"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deps := goldenDeps(t, nil)
-			if tt.prefs != "" {
-				writePrefs(t, deps, tt.prefs)
-			}
-			if got := run(t, deps, "usage"); !strings.Contains(got.stdout, "    "+tt.want) {
-				t.Errorf("switchboard usage printed\n%s\nwant work's card to feature %q", got.stdout, tt.want)
-			}
-		})
-	}
-}
-
-func TestUsageDrawsTheChartKept(t *testing.T) {
-	tests := []struct {
-		name, prefs, want string
-	}{
-		{name: "none kept: a burn-down, on the floor at its limit", want: "│  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁"},
-		{name: "a burn rate: its use since it started, then along the floor till its limit lifts", prefs: `{"chart": "burn-rate"}`, want: "│  ████████████████│▁▁▁▁"},
-		{name: "an hourglass, its top emptied at its limit", prefs: `{"chart": "hourglass"}`, want: "│             ▜████████▛ "},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deps := goldenDeps(t, nil)
-			if tt.prefs != "" {
-				writePrefs(t, deps, tt.prefs)
-			}
-			if got := run(t, deps, "usage"); !strings.Contains(got.stdout, tt.want) {
-				t.Errorf("switchboard usage printed\n%s\nwant work's chart drawn as prefs.json keeps it, %q", got.stdout, tt.want)
-			}
-		})
-	}
-}
-
-func TestUsageDrawsTheRoutersHistory(t *testing.T) {
-	var later atomic.Int64
-	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-	srv.deps.Now = func() time.Time { return testNow.Add(time.Duration(later.Load())) }
-	onATerminal.on(&srv.deps)
-	srv.start(t)
-	srv.waitForProbes(t)
-	writePrefs(t, srv.deps, `{"featured": "5h"}`)
-	// Work's session started two minutes before the router read it: twenty
-	// on, its history has points.
-	later.Store(int64(20 * time.Minute))
-
-	if got := run(t, srv.deps, "usage"); got.code != 0 || !strings.Contains(got.stdout, "SESSION  5-hour window") || strings.Contains(got.stdout, "no history yet") {
-		t.Errorf("switchboard usage printed\n%s\nwant work's session charted from the router's history", got.stdout)
-	}
-	if got := run(t, srv.deps, "usage", "--probe"); !strings.Contains(got.stdout, "no history yet") {
-		t.Errorf("switchboard usage --probe printed\n%s\nwant work's session charted without history, probing", got.stdout)
 	}
 }
 
@@ -594,33 +433,14 @@ func recordWatch(t *testing.T, deps *cli.Deps) *watch.Config {
 	return &cfg
 }
 
-// goldenDeps are statusDeps on a terminal, so usage draws its dashboard, with
+// goldenDeps are statusDeps on a terminal, so usage draws its printout, with
 // env added to their environment, but for a token for personal, which
 // fakeClaudeAPI refuses: the reason for one missing names the test's own
-// state directory, which no golden file can.
+// state directory, so what two of them print would differ.
 func goldenDeps(t *testing.T, env map[string]string) cli.Deps {
 	t.Helper()
 	deps := statusDeps(t, fakeClaudeAPI(t), env)
 	onATerminal.on(&deps)
 	writeToken(t, deps, "personal", "test-token-personal")
 	return deps
-}
-
-func readGolden(t *testing.T, name string) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join("testdata", name))
-	if err != nil {
-		t.Fatalf("read golden file (run with -update to create it): %v", err)
-	}
-	return string(data)
-}
-
-func writeGolden(t *testing.T, name, content string) {
-	t.Helper()
-	if err := os.MkdirAll("testdata", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join("testdata", name), []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
 }

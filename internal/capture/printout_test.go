@@ -42,8 +42,8 @@ func TestAPrintoutIsWhatUsagePrintsOfItsRouter(t *testing.T) {
 			f.router = tt.router
 			usage := usageOf(t, tt.router, now)
 			for _, width := range []int{160, 120, 80, 52} {
-				if got, want := f.Frame(watch.Size{Width: width}), usage(width); got != want {
-					t.Errorf("at %d columns, the printout reads\n%s\nwant what switchboard usage prints of its router\n%s", width, got, want)
+				if got, want := "\n"+f.Frame(watch.Size{Width: width}), usage(width); got != want {
+					t.Errorf("at %d columns, the printout reads, after a blank line,\n%s\nwant what switchboard usage prints of its router\n%s", width, got, want)
 				}
 			}
 		})
@@ -169,8 +169,8 @@ func usageOf(t *testing.T, r source, now time.Time) func(width int) string {
 }
 
 // serveAsRouter answers on the control socket at path, until the test ends,
-// as a router does that gives what r gives: its health check, its status
-// document, the sessions it lists and its windows' history.
+// as a router does that gives what r gives: its health check and its status
+// document. usage reads nothing else, so anything else asked fails the test.
 func serveAsRouter(t *testing.T, path string, r source) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -196,18 +196,9 @@ func serveAsRouter(t *testing.T, path string, r source) {
 		doc, _, err := r.Read(req.Context(), status.Read{})
 		answer(w, doc, err)
 	})
-	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, req *http.Request) {
-		sessions, err := r.Sessions(req.Context())
-		answer(w, sessions, err)
-	})
-	mux.HandleFunc("GET /history", func(w http.ResponseWriter, req *http.Request) {
-		step, err := time.ParseDuration(req.URL.Query().Get("step"))
-		if err != nil {
-			answer(w, nil, err)
-			return
-		}
-		history, err := r.History(req.Context(), req.URL.Query().Get("window"), step)
-		answer(w, history, err)
+	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		t.Errorf("switchboard usage asked the router %s %s, want the status document alone", req.Method, req.URL.Path)
+		http.NotFound(w, req)
 	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
 	go func() { _ = srv.Serve(ln) }()

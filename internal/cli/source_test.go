@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -135,26 +136,29 @@ probed directly
 }
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
-	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	api := newClaudeAPI(t)
+	srv := newServeSetup(t, api.URL, nil)
 	onATerminal.on(&srv.deps)
 	// A token for personal, as goldenDeps gives it.
 	writeToken(t, srv.deps, "personal", "test-token-personal")
 	routing(t, srv)
 
-	got := run(t, srv.deps, "usage")
-	if got.code != 0 || got.stderr != "" {
-		t.Fatalf("switchboard usage = %+v, want exit status 0 and nothing on stderr", got)
+	tests := []struct {
+		args   []string
+		probes bool
+	}{
+		{},
+		{args: []string{"--probe"}, probes: true},
 	}
-	const golden = "usage-router.golden"
-	if *update {
-		writeGolden(t, golden, got.stdout)
-	}
-	if want := readGolden(t, golden); got.stdout != want {
-		t.Errorf("switchboard usage printed\n%s\nwant (testdata/%s; run with -update to accept it)\n%s", got.stdout, golden, want)
-	}
-	probed := run(t, srv.deps, "usage", "--probe")
-	if !strings.Contains(probed.stdout, "○ probing, as asked") || strings.Contains(probed.stdout, "healthy") || strings.Contains(probed.stdout, "pinned") {
-		t.Errorf("switchboard usage --probe printed\n%s\nwant the accounts probed, as asked, saying nothing of the router", probed.stdout)
+	for _, tt := range tests {
+		before := len(api.questions())
+		got := run(t, srv.deps, append([]string{"usage"}, tt.args...)...)
+		if got.code != 0 || got.stderr != "" || !strings.HasPrefix(got.stdout, "\n") {
+			t.Errorf("switchboard usage %s = %+v, want exit status 0, nothing on stderr, and the printout after a blank line", strings.Join(tt.args, " "), got)
+		}
+		if probed := len(api.questions()) > before; probed != tt.probes {
+			t.Errorf("switchboard usage %s probed the accounts: %v, want %v", strings.Join(tt.args, " "), probed, tt.probes)
+		}
 	}
 }
 
@@ -217,22 +221,23 @@ func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 		// Two minutes on each time, every account last read over a minute
 		// ago, and last probed, work's session reads as used a point more.
 		later.Store(int64(i+1) * int64(2*time.Minute))
-		api.readSessionAs(fmt.Sprintf("0.%d", 31+i))
+		used := fmt.Sprintf("0.%d", 31+i)
+		api.readSessionAs(used)
 		asked := len(api.questions())
-		got := run(t, srv.deps, args...)
-		if got.code != 0 || got.stderr != "" || !strings.Contains(got.stdout, "● healthy") {
-			t.Fatalf("switchboard %s = %+v, want exit status 0 and the router's dashboard", strings.Join(args, " "), got)
+		if got := run(t, srv.deps, args...); got.code != 0 || got.stderr != "" {
+			t.Fatalf("switchboard %s = %+v, want exit status 0 and nothing on stderr", strings.Join(args, " "), got)
 		}
 		refreshed := len(api.questions()) > asked
 		if want := len(args) > 1; refreshed != want {
 			t.Errorf("after switchboard %s, the router probed = %v, want %v", strings.Join(args, " "), refreshed, want)
 		}
-		shown := "23%"
+		shown := "0.23"
 		if refreshed {
-			shown = fmt.Sprintf("%d%%", 31+i)
+			shown = used
 		}
-		if !strings.Contains(got.stdout, "Session") || !strings.Contains(got.stdout, shown) {
-			t.Errorf("switchboard %s printed\n%s\nwant work's session at %s, as the router last read it", strings.Join(args, " "), got.stdout, shown)
+		doc := statusJSON(t, srv.deps)
+		if work, _ := doc.Account("work"); len(work.Windows) == 0 || fmt.Sprint(work.Windows[0].Utilization) != shown {
+			t.Errorf("after switchboard %s, the router's document is\n%+v\nwant work's session at %s, as the router last read it", strings.Join(args, " "), doc, shown)
 		}
 	}
 }
@@ -255,13 +260,15 @@ func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
 
 	// Work's limit holds it back from every request: its Fable week's, the
 	// fake API's, holds back that model's alone.
-	const limited = "■ limit reached · "
-	if got := run(t, srv.deps, "usage"); !strings.Contains(got.stdout, limited) {
-		t.Fatalf("switchboard usage printed\n%s\nwant work's limit, which the router hasn't read since", got.stdout)
+	shut := func() bool {
+		work, _ := statusJSON(t, srv.deps).Account("work")
+		return work.Shut(srv.deps.Now(), claude.Policy)
 	}
-	got := run(t, srv.deps, "usage", "--refresh")
-	if got.code != 0 || !strings.Contains(got.stdout, "● healthy") || strings.Contains(got.stdout, limited) {
-		t.Errorf("switchboard usage --refresh = %+v, want the router's dashboard, work's limit lifted: its probe, though its session has lapsed, read the reset", got)
+	if got := run(t, srv.deps, "usage"); got.code != 0 || !shut() {
+		t.Fatalf("switchboard usage = %+v, leaving work shut %v; want work's limit, which the router hasn't read since", got, shut())
+	}
+	if got := run(t, srv.deps, "usage", "--refresh"); got.code != 0 || shut() {
+		t.Errorf("switchboard usage --refresh = %+v, leaving work shut; want work's limit lifted: its probe, though its session has lapsed, read the reset", got)
 	}
 }
 

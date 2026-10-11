@@ -157,31 +157,25 @@ func parseInterval(s string) (time.Duration, error) {
 	return interval, nil
 }
 
-// printUsage prints the dashboard once, read as opts say: probing alone with
-// --probe, and having the router refresh first with --refresh; from the
-// router, with its sessions and its history. It's the Accounts view, as wide
-// as the terminal, every card at its fullest, in the theme the preferences
-// keep, featuring the window they keep, its chart in the style they keep.
+// printUsage prints every account's windows once, a blank line first, read
+// as opts say: probing alone with --probe, and having the router refresh
+// first with --refresh. It reads the status document alone, as status does,
+// and prints it as wide as the terminal, in the theme the preferences keep.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	cfg, err := a.loadConfig()
+	doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
 	if err != nil {
 		return err
 	}
-	snap, err := watch.Once(ctx, a.source(cfg, opts.probe), readOnce(opts.refresh))
-	if err != nil {
-		return err
-	}
-	// The frame is drawn in full colour; the writer brings it down to what
+	// The printout is drawn in full colour; the writer brings it down to what
 	// the terminal shows, which is none when it isn't one.
 	colors := colorprofile.NewWriter(out, a.Environ())
 	t := a.themes()
-	kept, width := t.kept(), a.terminalWidth(out)
+	width := a.terminalWidth(out)
 	rows := dashboard.Printout{
-		Width: width, Look: a.printLook(out, colors.Profile, t, kept.Choice),
-		Featured: dashboard.Feature(kept.Featured), Chart: dashboard.Chart(kept.Chart), Policy: claude.Policy,
-	}.Draw(snap, a.Now())
-	logger.Debug("drew the dashboard", "width", width, "colors", colors.Profile.String())
-	_, err = io.WriteString(colors, strings.Join(rows, "\n")+"\n")
+		Width: width, Look: a.printLook(out, colors.Profile, t, t.kept().Choice), By: dashboard.ByWindow,
+	}.Draw(doc, a.Now())
+	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
+	_, err = io.WriteString(colors, "\n"+strings.Join(rows, "\n")+"\n")
 	return err
 }
 
