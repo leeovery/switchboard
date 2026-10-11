@@ -112,7 +112,16 @@ type ink struct {
 	// dim draws it faint where the look can't fade it, as a look that blends
 	// nothing draws what the others fade, such as a stale reading's bar.
 	dim bool
+	// behind marks a cell of the page behind a card: its colours, as its own
+	// fade and glow leave them, and its surface's, faded behindFade more into
+	// the colour beneath; or, in a look that blends nothing, faint, on no
+	// surface.
+	behind bool
 }
+
+// behindFade is how far the page behind a card fades into the colour
+// beneath: it keeps a fifth of its colour.
+const behindFade = 0.8
 
 // hue is a colour as an ink has one: a token's, or a bar's ramp's at a place
 // along it, faded so far into the colour beneath. The zero hue is no colour.
@@ -176,28 +185,38 @@ func (l Look) render(text string, k ink) string {
 }
 
 // faint reports whether the look draws the ink faint: in the terminal's own
-// foreground, as its theme draws the ink's token; or dim, where the look
-// can't fade it.
+// foreground, as its theme draws the ink's token; or dim, or behind a card,
+// where the look can't fade it.
 func (l Look) faint(k ink) bool {
-	return l.coloured && (!k.ramp && l.theme.Faint(k.token) || k.dim && !l.blends())
+	return l.coloured && (!k.ramp && l.theme.Faint(k.token) || (k.dim || k.behind) && !l.blends())
 }
 
 // reversed reports whether the look draws the ink's surface by swapping the
 // terminal's own foreground and background, as its theme draws the
 // surface's token: until it's faded halfway, as a look that blends nothing
-// shows a surface.
+// shows a surface, and never behind a card.
 func (l Look) reversed(k ink) bool {
-	return l.coloured && !k.on.ramp && l.theme.Reversed(k.on.token) && k.on.fade < 0.5
+	return l.coloured && !k.on.ramp && l.theme.Reversed(k.on.token) && k.on.fade < 0.5 && !k.behind
 }
 
-// colour is the ink's colour in the look, glowing and faded as the ink says:
-// nil without colour.
+// colour is the ink's colour in the look, glowing and faded as the ink says,
+// then veiled behind a card: nil without colour.
 func (l Look) colour(k ink) color.Color {
 	if !l.coloured {
 		return nil
 	}
 	h := k.hue()
-	return l.faded(l.glowing(l.unfaded(h), k.glow), h.fade)
+	return l.veiled(l.faded(l.glowing(l.unfaded(h), k.glow), h.fade), k)
+}
+
+// veiled is c, a colour of the ink k as finally drawn, faded behindFade into
+// the colour beneath where k is of the page behind a card: as it is
+// otherwise, and in a look that blends nothing.
+func (l Look) veiled(c color.Color, k ink) color.Color {
+	if !k.behind {
+		return c
+	}
+	return l.faded(c, behindFade)
 }
 
 // glowing is c blended amount toward text.primary, as a lit cord glows: in a
@@ -234,15 +253,16 @@ func (l Look) faded(c color.Color, amount float64) color.Color {
 }
 
 // surface is the colour the ink is drawn on in the look: its own surface's,
-// faded as the ink says, else the canvas, where the look paints it. In a
-// look that blends nothing, a surface shows until it's faded halfway.
+// faded as the ink says, then veiled behind a card, else the canvas, where
+// the look paints it. In a look that blends nothing, a surface shows until
+// it's faded halfway, and never behind a card.
 func (l Look) surface(k ink) color.Color {
 	if !l.coloured {
 		return l.Canvas()
 	}
 	on := l.unfaded(k.on)
-	if on == nil || (k.on.fade >= 0.5 && !l.blends()) {
+	if on == nil || (k.on.fade >= 0.5 || k.behind) && !l.blends() {
 		return l.Canvas()
 	}
-	return l.faded(on, k.on.fade)
+	return l.veiled(l.faded(on, k.on.fade), k)
 }

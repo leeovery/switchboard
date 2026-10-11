@@ -9,12 +9,10 @@ const (
 	helpWidth    = 128
 )
 
-// The cells a card's content starts in from its left edge, and its keys row
-// ends short of its right edge.
-const (
-	cardInset     = 3
-	cardKeysInset = 2
-)
+// cardInset is how many cells in from a card's edges its content runs: its
+// line and two blank cells, either side, so its keys row ends where its
+// content does.
+const cardInset = 3
 
 // Opened is a card open over the page, as its data: the routing card's, or
 // help's. The frame builds the card it draws of it.
@@ -24,9 +22,9 @@ type Opened interface {
 }
 
 // Card is a card drawn over the page, centred across it and down it, the
-// page faded behind it: a rounded line, its title in its top edge; its body,
-// from cardInset cells in; and its keys, a blank row over them,
-// right-aligned cardKeysInset cells in on its last row but one.
+// page faded behind it: a rounded line, its title in its top edge; a blank
+// row; its body, from cardInset cells in; a blank row; and its keys, where it
+// has any, right-aligned cardInset cells in on its last row but one.
 type Card struct {
 	// title is in its top edge, after ╭─, as ROUTING · NEW SESSIONS.
 	title string
@@ -59,6 +57,22 @@ func (f Frame) cardWidth(wanted int) int {
 	return min(wanted, f.Width-2)
 }
 
+// bodyRoom is how many rows of body a card with keys, or without, has room
+// for on the frame, where the card takes all but spare of the frame's rows.
+func (f Frame) bodyRoom(spare int, keys bool) int {
+	return f.Height - spare - chrome(keys)
+}
+
+// chrome is how many of a card's rows aren't its body: its top edge and the
+// blank row under it, the blank row over its keys row, or over its foot,
+// its keys row, where it has keys, and its foot.
+func chrome(keys bool) int {
+	if keys {
+		return 5
+	}
+	return 4
+}
+
 // CardScrolling is how far the body of the card open over the frame
 // scrolls: Most, the furthest, in rows, zero where it fits; and Page, how
 // many rows of it show at once. It's zero while no card is open.
@@ -73,25 +87,23 @@ func (f Frame) CardScrolling() Scrolling {
 // draw draws the card over what's drawn on c, centred across it and down it,
 // the cells inside its line blank.
 func (k Card) draw(c *canvas) {
-	inside := max(k.width-2, 0)
-	rows := len(k.body)
-	if len(k.keys) > 0 {
-		rows += 2
-	}
-	x, y := (c.width-k.width)/2, (c.height()-rows-2)/2
+	keys := len(k.keys) > 0
+	height := len(k.body) + chrome(keys)
+	x, y := (c.width-k.width)/2, (c.height()-height)/2
+	inside, content := max(k.width-2, 0), max(k.width-2*cardInset, 0)
 	title := line{{"─ " + k.title + " ", dimInk}}.fit(inside)
 	c.text(x, y, "╭", dimInk)
 	c.text(c.line(x+1, y, title), y, rule(inside-title.width())+"╮", dimInk)
-	for row := range rows {
-		c.text(x, y+1+row, "│"+strings.Repeat(" ", inside)+"│", dimInk)
+	for row := 1; row < height-1; row++ {
+		c.text(x, y+row, "│"+strings.Repeat(" ", inside)+"│", dimInk)
 	}
 	for i, l := range k.body {
-		c.line(x+cardInset, y+1+i, l.fit(k.width-2*cardInset))
+		c.line(x+cardInset, y+2+i, l.fit(content))
 	}
-	if len(k.keys) > 0 {
-		c.right(x+k.width-cardKeysInset, y+rows, keyRow(k.keys).fit(k.width-2*cardKeysInset))
+	if keys {
+		c.right(x+k.width-cardInset, y+height-2, keyRow(k.keys).fit(content))
 	}
-	c.text(x, y+rows+1, "╰"+rule(inside)+"╯", dimInk)
+	c.text(x, y+height-1, "╰"+rule(inside)+"╯", dimInk)
 }
 
 // keyRow is a card's keys as its keys row lists them, three cells apart.
@@ -99,7 +111,7 @@ func keyRow(keys []Key) line {
 	var l line
 	for i, k := range keys {
 		if i > 0 {
-			l = append(l, spaces(3))
+			l = append(l, spaces(keysApart))
 		}
 		l = append(l, k.words()...)
 	}

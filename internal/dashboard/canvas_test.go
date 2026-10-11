@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"image/color"
 	"regexp"
 	"slices"
 	"strings"
@@ -171,6 +172,113 @@ func TestASurfaceShowsInALookThatCantBlendUntilHalfFaded(t *testing.T) {
 		if got := strings.Contains(c.rows(look)[0], "\x1b[7m"); got != tt.want {
 			t.Errorf("faded %v, the surface shows: %v, want %v: %q", tt.fade, got, tt.want, c.rows(look)[0])
 		}
+	}
+}
+
+func TestThePageBehindACardIsFadedAsItsFrameDrawsIt(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
+	tab := ink{token: theme.TextSubtle}
+	c := newCanvas(160, 3)
+	c.line(0, 0, line{
+		{" SWITCHBOARD ", ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}}, spaces(2),
+		{" Overview ", ink{token: theme.TextPrimary, on: hue{token: theme.BgSelection}, bold: true}}, spaces(1),
+		{" Accounts ", tab}, spaces(1), {" History ", tab}, spaces(1), {" Sessions ", tab}, spaces(1),
+		{" Runway ", tab}, spaces(1), {" Log ", tab}, spaces(2), {"tab ⇥", faintInk},
+	})
+	c.right(160, 0, line{{"Thu 1 Oct  ", mutedInk}, {"14:42:07", strongInk}})
+	apart := span{"  ·  ", mutedInk}
+	c.line(0, 2, line{
+		{"● ", positiveInk}, {"healthy", secondaryInk}, apart, {"auto", secondaryInk}, apart,
+		{"6 sessions", mutedInk}, apart, {"new sessions → ", mutedInk}, {"▲ side", nameInk},
+	})
+	c.fade()
+
+	heldTo(t, "routing-auto-160", reference(t, "routing-auto-160"), screenOf(t, c.rows(nord)), region{top: 0, bottom: 2, left: 0, right: 159}, shadeOf(nord.Canvas()), nil, nil)
+}
+
+func TestEveryCellOfThePageBehindACardIsFadedAndNothingInItBold(t *testing.T) {
+	f := frameOf(160, 40)
+	f.Look = Screen(builtin(t, "nord"))
+	doc := threeRouted()
+	page := screenOf(t, f.Draw(doc, now))
+	f.Card = RoutingCard{Rows: RoutingRows(doc, nil, now, claudeLike)}
+	behind := screenOf(t, f.Draw(doc, now))
+
+	k := f.Card.card(f)
+	height := len(k.body) + chrome(true)
+	x, y := (f.Width-k.width)/2, (f.Height-height)/2
+	canvas := f.Look.Canvas()
+	faded := func(s shade) shade {
+		if !s.set {
+			return s
+		}
+		return shadeOf(theme.Mix(color.RGBA{R: s.r, G: s.g, B: s.b, A: 0xff}, canvas, behindFade))
+	}
+	for row := range page {
+		for col, was := range page[row] {
+			if row >= y && row < y+height && col >= x && col < x+k.width {
+				continue
+			}
+			want := seen{glyph: was.glyph, fg: faded(was.fg), bg: faded(was.bg.or(shadeOf(canvas)))}
+			got := behind[row][col]
+			if want.glyph == ' ' {
+				want.fg, got.fg = shade{}, shade{}
+			}
+			if got != want {
+				t.Errorf("row %d, column %d is %s, want %s: the page's %s faded 80%% into the canvas, not bold", row+1, col+1, got, want, was)
+			}
+		}
+	}
+	if title := behind[y][x+3]; title.fg != shadeOf(f.Look.theme.Colour(theme.TextSubtle)) {
+		t.Errorf("the card's title is %s, want it in text.subtle, not faded", title)
+	}
+}
+
+func TestAFadeBehindACardComesAfterTheCellsOwn(t *testing.T) {
+	look := Screen(builtin(t, "nord"))
+	nord, canvas := look.theme, look.Canvas()
+	c := newCanvas(1, 1)
+	c.text(0, 0, "x", ink{token: theme.AccentKey, fade: staleFade, glow: 0.5, on: hue{token: theme.BgAttention, fade: 0.3}, bold: true})
+	c.fade()
+	faded := c.cells[0][0].ink
+
+	own := theme.Mix(theme.Mix(nord.Colour(theme.AccentKey), nord.Colour(theme.TextPrimary), 0.5), canvas, staleFade)
+	if got, want := look.colour(faded), theme.Mix(own, canvas, behindFade); !sameColor(got, want) {
+		t.Errorf("its colour is %v, want %v: its glow, then its own fade, then 80%% into the canvas", got, want)
+	}
+	ownSurface := theme.Mix(nord.Colour(theme.BgAttention), canvas, 0.3)
+	if got, want := look.surface(faded), theme.Mix(ownSurface, canvas, behindFade); !sameColor(got, want) {
+		t.Errorf("its surface is %v, want %v: its own fade, then 80%% into the canvas", got, want)
+	}
+	if faded.bold {
+		t.Error("it's bold behind the card, want nothing bold")
+	}
+}
+
+func TestBehindACardALookThatCantBlendDrawsThePageFaint(t *testing.T) {
+	look := Screen(builtin(t, "terminal"))
+	c := newCanvas(30, 1)
+	c.line(0, 0, line{{" Overview ", ink{token: theme.TextPrimary, on: hue{token: theme.BgSelection}, bold: true}}, {"▲ side", nameInk}})
+	c.fade()
+
+	for _, sgr := range regexp.MustCompile(`\x1b\[([0-9;]*)m`).FindAllStringSubmatch(c.rows(look)[0], -1) {
+		codes := strings.Split(sgr[1], ";")
+		if sgr[1] == "" || slices.Equal(codes, []string{"0"}) {
+			continue
+		}
+		if !slices.Contains(codes, "2") || slices.ContainsFunc(codes, func(code string) bool { return code == "1" || code == "7" || code == "48" }) {
+			t.Errorf("drew %q behind the card, want it faint, on no surface, nothing bold", sgr[0])
+		}
+	}
+}
+
+func TestBehindACardWithoutColourThePageLosesOnlyItsBold(t *testing.T) {
+	c := newCanvas(20, 1)
+	c.line(0, 0, line{{"work", titleInk}, spaces(2), {"healthy", secondaryInk}})
+	c.fade()
+
+	if got, want := c.rows(NoColour())[0], "work  healthy"; got != want {
+		t.Errorf("drew %q, want %q: its words as they were, nothing bold", got, want)
 	}
 }
 

@@ -119,10 +119,10 @@ func TestHelpScrollsPastThePagesHeightLessTwoRows(t *testing.T) {
 		above, below  int
 		height, shown int
 	}{
-		{name: "from its top", scroll: 0, height: 14, shown: 8, from: 0, above: 0, below: 4},
-		{name: "scrolled", scroll: 3, height: 14, shown: 8, from: 3, above: 3, below: 1},
-		{name: "no further than its last row", scroll: 9, height: 14, shown: 8, from: 4, above: 4, below: 0},
-		{name: "never above its top", scroll: -2, height: 14, shown: 8, from: 0, above: 0, below: 4},
+		{name: "from its top", scroll: 0, height: 14, shown: 7, from: 0, above: 0, below: 5},
+		{name: "scrolled", scroll: 3, height: 14, shown: 7, from: 3, above: 3, below: 2},
+		{name: "no further than its last row", scroll: 9, height: 14, shown: 7, from: 5, above: 5, below: 0},
+		{name: "never above its top", scroll: -2, height: 14, shown: 7, from: 0, above: 0, below: 5},
 		{name: "too short for any", scroll: 0, height: 5, shown: 0, from: 0, above: 0, below: 12},
 	}
 	for _, tt := range tests {

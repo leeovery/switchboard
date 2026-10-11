@@ -5,10 +5,6 @@ import (
 	"strings"
 )
 
-// helpChrome is the rows of help's card around its body: its top and bottom
-// edges, and the blank row and keys row over its foot.
-const helpChrome = 4
-
 // Help is the page's help, open over it, as the watch gives it: every key
 // that works on the page, those the key line leaves out among them, worded
 // as the key line words them; and how many rows it's scrolled down by. The
@@ -27,7 +23,7 @@ type Help struct {
 func (h Help) card(f Frame) Card {
 	width := f.cardWidth(helpWidth)
 	body := slices.Concat(keyRows(h.Keys, width-2*cardInset), f.helpParts())
-	shown := min(max(f.Height-2-helpChrome, 0), len(body))
+	shown := min(max(f.bodyRoom(2, true), 0), len(body))
 	from := min(max(h.Scroll, 0), len(body)-shown)
 	keys := []Key{{Key: "esc", Does: "close"}}
 	if shown < len(body) {
