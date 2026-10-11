@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // interval is how often a watch reads in full when usage -w isn't told
@@ -52,20 +53,7 @@ func (f Fixture) Model() tea.Model {
 // there but what a key does.
 func (f Fixture) settle(size watch.Size) watch.Model {
 	clock := &clock{now: ago(f.now, readAgo)}
-	cfg := watch.Config{
-		Source:   f.router,
-		Notifier: quiet{},
-		Now:      clock.read,
-		After:    held,
-		Interval: interval,
-		Policy:   claude.Policy,
-		Size:     size,
-		Ledger:   ledger.NewEmpty(clock.read, ledger.Caps{Shared: claude.SharedWindows}),
-		Readings: readings.Empty{},
-		Events:   events.Empty{},
-	}
-	dressed(&cfg, f.theme, f.colourless)
-	m := watch.New(context.Background(), cfg)
+	m := watch.New(context.Background(), f.config(size, clock.read))
 	m = deliver(m, run(m.Init())...)
 	if !f.colourless {
 		m = deliver(m, tea.BackgroundColorMsg{Color: terminalBackground})
@@ -75,6 +63,33 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 		m = deliver(m, key)
 	}
 	return m
+}
+
+// config configures the watch of the fixture on a terminal of the given size,
+// by now's clock, as usage -w configures it, its seams the fixture's.
+func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
+	cfg := watch.Config{
+		Source:   f.router,
+		Notifier: quiet{},
+		Now:      now,
+		After:    held,
+		Interval: interval,
+		Policy:   claude.Policy,
+		Size:     size,
+	}
+	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
+	dressed(&cfg, f.theme, f.colourless)
+	return cfg
+}
+
+// readers are what the watch of the fixture reads the request ledger, the
+// readings history and the router's events through, by now's clock: its
+// world's records, or, of a fixture over none, as milestone 5's are, none.
+func (f Fixture) readers(now func() time.Time) (views.Ledger, views.Readings, views.Events) {
+	if f.records == nil {
+		return ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}), readings.Empty{}, events.Empty{}
+	}
+	return f.records.readers(now)
 }
 
 // dressed has the watch cfg configures drawn in t, as the one theme chosen,
