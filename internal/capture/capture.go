@@ -5,9 +5,10 @@
 // milestone 5 draw it: what the router gives at that moment, on a terminal of
 // a size. A scenario is a stretch of the router's life, played in real time.
 // Both are drawn by the dashboard's own watch model, built through watch.New,
-// with every seam faked, so a capture never dials the router, probes, touches
-// the network, reads or writes the real config, state, prefs or tokens, or
-// runs another process.
+// with every seam faked; a fixture that's a printout of usage, through the
+// path usage prints through, from the fake router read directly. So a capture
+// never dials the router, probes, touches the network, reads or writes the
+// real config, state, prefs or tokens, or runs another process.
 //
 // Only cmd/capturetool imports it: switchboard itself never does.
 package capture
@@ -32,6 +33,9 @@ type Fixture struct {
 	Name string
 	// Size is the terminal of the frame it mirrors.
 	Size watch.Size
+	// Printout is set for a printout of usage, drawn once, as it prints into
+	// the scrollback, rather than by the watch, full screen.
+	Printout bool
 	// now is the moment drawn.
 	now    time.Time
 	router source

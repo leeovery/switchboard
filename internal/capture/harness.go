@@ -23,8 +23,11 @@ const interval = 30 * time.Minute
 
 // Frame draws the fixture as a terminal of the given size shows it: a line
 // for each of its rows, styled as the dashboard draws them, each ending in a
-// newline.
+// newline. A printout is drawn as usage prints it instead.
 func (f Fixture) Frame(size watch.Size) string {
+	if f.Printout {
+		return f.printout(size.Width)
+	}
 	lines := strings.Split(f.settle(size).View().Content, "\n")
 	lines = lines[:min(len(lines), size.Height)]
 	for len(lines) < size.Height {
