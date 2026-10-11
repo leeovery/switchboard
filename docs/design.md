@@ -4778,7 +4778,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; and `?`'s help for each page |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
-| `internal/capture` | The capture harness's fixtures, a fixture a signed-off frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens. Imported by `cmd/capturetool` alone |
+| `internal/capture` | The capture harness's fixtures, a fixture a signed-off frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, its fake router read as `usage` reads one, through `watch.Once`, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets |
 | `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
@@ -4944,16 +4944,22 @@ hiding it behind the provider would take a wider interface than it's worth:
   against its design. `reference/` keeps milestone 7's signed-off frames, 77 of them, each exported
   from Paper as a PNG, and as the text and ANSI of the generator that drew it, named by its stem:
   `usage-*` (9), `overview-*` (13), `accounts-*` (11), `history-*` (10), `routing-*` (5),
-  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (5), each area's Paper page named
-  in its section. A fixture of `internal/capture`'s, of the same name, draws each, and capture's
-  tests hold it to the frame's `.txt` and `.ansi`, cell for cell. A fixture pins what its frame
-  was drawn with, as it pins its frame's clock, Thu 1 Oct 2026 at 14:42:07, or at 16:05:41 and
-  16:05:42 for `sessions-refused-160` and `sessions-moved-160`: the traces' scale at 16 requests a
-  minute and a session's story's at 8, the frames' fixed scales, where the live page scales as its
-  rule says (see The Overview, A session's page); `[ledger] keep` at `90d`, for the ended session's
-  `kept until 29 Dec`; and the price table, injected (settled in the plan), dated 1 Oct 2026 as the
-  frames were drawn, where the built-in table's date is 7 Oct 2026. The tests pass over the cells a
-  frame drew otherwise than this document says:
+  `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (5), each area's Paper page named in
+  its section. A fixture of `internal/capture`'s, of the same name, draws each, and capture's tests
+  hold it to the frame's `.txt` and `.ansi`, cell for cell: each cell's glyph, colours and bold, a
+  blank's background alone, a cell not painted taken as the canvas, as `usage`'s printout paints
+  none and writes nothing past a line's end, and a channel of a colour let one apart, as the
+  generators rounded a half to even. A fixture pins what its frame was drawn with, as it pins its
+  frame's clock, Thu 1 Oct 2026 at 14:42:07, or at 16:05:41 and 16:05:42 for `sessions-refused-160`
+  and `sessions-moved-160`: the traces' scale at 16 requests a minute and a session's story's at 8,
+  the frames' fixed scales, where the live page scales as its rule says (see The Overview, A
+  session's page); `[ledger] keep` at `90d`, for the ended session's `kept until 29 Dec`; and the
+  price table, injected (settled in the plan), dated 1 Oct 2026 as the frames were drawn, every
+  model priced alike at the frames' sample, Opus 5's rates, where the built-in table's date is 11
+  Oct 2026. Its world is the frame's spec's, worked out by the real code but for where new sessions
+  go: every frame drawn in auto marks side, where the design's scoring would choose personal, or
+  spare, so the fake router says side, the frame's choice (the owner's call, 11 Oct 2026). The tests
+  pass over the cells a frame drew otherwise than this document says:
   - the rows a frame drew with the keys as they stood before the sweep of 7 and 8 October 2026,
     which the dashboard draws as Keys has them: the key lines of every `overview-*` frame but
     `overview-phone-52`, and ROUTING's heading in `overview-pinned-160` and
@@ -4974,10 +4980,13 @@ hiding it behind the provider would take a wider interface than it's worth:
     kind had one mark, where the Log's marks give `◔`.
 
   `testdata/vhs/README.md` lists each, with what the dashboard draws in its place, rather than their
-  being patched in `reference/`, which stays the generators' output (settled in the plan). Beside
-  `reference/`, `vhs` tapes screenshot fixtures `cmd/capturetool` draws: scaffolding, cleared, with
-  their captures, as each milestone is signed off. `testdata/vhs/README.md` says how (see Visual
-  capture harness in `CLAUDE.md`).
+  being patched in `reference/`, which stays the generators' output (settled in the plan). So do the
+  figures a frame drew that no world gives, as the generators typed them by hand, disagreeing with
+  each other or with this document's rules: each view's stage fits its world where it can, passes
+  over the rest, and lists them, the README naming those known when the worlds were built (the
+  owner's call, 11 Oct 2026). Beside `reference/`, `vhs` tapes screenshot fixtures `cmd/capturetool`
+  draws: scaffolding, cleared, with their captures, as each milestone is signed off.
+  `testdata/vhs/README.md` says how (see Visual capture harness in `CLAUDE.md`).
 
 ### Config
 
@@ -5576,9 +5585,10 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
    days, a session's lines and the router's events, the prices injected and each frame's fixed
    scales pinned. `reference/` holds the 77 signed-off stems in place of milestone 5's frames. A
    test holds each fixture to its frame's `.txt` and `.ansi`, cell for cell, passing over only the
-   cells `testdata/vhs/README.md` lists; from here on, each stage's fixtures must pass it.
-   `usage`'s printout gets a draw path of its own, outside the watch. `CLAUDE.md`'s paragraph on
-   the harness changes with it, here, as the harness does.
+   cells `testdata/vhs/README.md` lists; from here on, each stage's fixtures must pass it. A frame
+   with no fixture yet is owed one, as the test lists it, and each stage takes its own off the list.
+   `usage`'s printout gets a draw path of its own, outside the watch. `CLAUDE.md`'s paragraph on the
+   harness changes with it, here, as the harness does.
 5. **`usage` and `dashboard`.** The usage block is one component, which the printout draws, and the
    Overview's USAGE will. `usage` takes its window flags, `--by` and `[usage] by`;
    `dashboard [interval] [--no-notify] [--probe]` runs milestone 5's views until their stages

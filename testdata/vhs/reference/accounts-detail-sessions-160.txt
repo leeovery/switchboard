@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────  p this week
+
+ 0 all accounts     │   3 side ▲   ● open · new sessions come here
+                    │
+ 1 work        ●    │   USAGE                                                                               THIS WEEK
+                    │   5-hour        ▎ ┃                                  13%  21%/h till 18:50            requests  1,876
+ 2 personal ◆  ●    │                                                                                       limits    5-hour ×1
+                    │   Week                       ┃            ▎          78%  6%/day till Mon 10:00       plan      Max 20x
+ 3 side ▲      ●    │                                                                                       worth     $239  5.2×
+                    │   Fable wk  ▋                ┃                        4%  25%/day till Mon 10:00      extra use off
+                    │
+ ↑↓ choose          │   BY MODEL
+                    │               ● Opus 5.5 82%  ● Sonnet 5.5 16%  ● Fable 5.1 1%  ● Haiku 4.5 1%
+                    │
+                    │   ┄┄ the last six weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │
+                    │   BY DAY        ▪                                     ▪                                     ▪             ▪     ······
+                    │               24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
+                    │
+                    │   WEEKS          ▊      41        ▊       30          ▋     52          ▎     47           ▍    60                78
+                    │
+                    │   plenty to spare most weeks   limit hit 0 of the last 7 weeks · 59% left at a reset, on average
+                    │
+                    │   SESSIONS  now                                   LATELY
+                    │     ● c61b  opus    ↓ ~1.2k  now                  14:41  ▲ c61b started here, the best
+                    │   ▸ ● d28c  opus    ↑ ask    now                  14:31  ▸ 3 sessions came from work: work reached its cap
+                    │     ○ 7f3a  sonnet  idle      1m                  13:50  ◇ primed: its 5-hour window started
+                    │     ○ db8a  opus    idle      4m
+                    │
+                    │     enter opens d28c's page
+
+
+tab views   [ ] view     p period: this week     ↑↓ account  enter its page     0 auto  1-3 pin  m move  ? help  q quit

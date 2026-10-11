@@ -188,6 +188,42 @@ func TestLately(t *testing.T) {
 	}
 }
 
+func TestNoted(t *testing.T) {
+	// The session, read at 30% 45 minutes ago, at 32% from 20 minutes ago to
+	// 5 minutes ago, read now.
+	held := session(0.32, 2*time.Hour)
+	trail := []score.Reading{readAt(45*time.Minute, 0.3), readSpan(20*time.Minute, 5*time.Minute, 0.32)}
+	at := func(utilization float64) quota.Window {
+		w := held
+		w.Utilization = utilization
+		return w
+	}
+	tests := []struct {
+		name  string
+		trail []score.Reading
+		kept  quota.Window
+		want  []score.Reading
+	}{
+		{name: "a rise, a level of its own", trail: trail, kept: at(0.34), want: []score.Reading{trail[0], trail[1], readSpan(0, 0, 0.34)}},
+		{name: "the same use, its level read again", trail: trail, kept: at(0.32), want: []score.Reading{trail[0], readSpan(20*time.Minute, 0, 0.32)}},
+		{name: "a dip, the trail as it was", trail: trail, kept: at(0.31), want: trail},
+		{name: "a reset made by hand, the window afresh", trail: trail, kept: at(0.2), want: []score.Reading{readSpan(0, 0, 0.2)}},
+		{name: "another reset, a new window", trail: trail, kept: session(0.01, time.Minute), want: []score.Reading{readSpan(0, 0, 0.01)}},
+		{name: "none before, its first level", kept: at(0.32), want: []score.Reading{readSpan(0, 0, 0.32)}},
+		{
+			name: "the levels past the baseline gone", trail: []score.Reading{readAt(50*time.Minute, 0.28), readAt(40*time.Minute, 0.3)},
+			kept: at(0.32), want: []score.Reading{readAt(40*time.Minute, 0.3), readSpan(0, 0, 0.32)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := score.Noted(slices.Clone(tt.trail), held, tt.kept, now); !slices.Equal(got, tt.want) {
+				t.Errorf("Noted() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPressureOf(t *testing.T) {
 	// The session is 40% used, and resets in 3 hours.
 	running := []quota.Window{window("5h", 0.4, 3*time.Hour), window("7d", 0.5, 48*time.Hour)}

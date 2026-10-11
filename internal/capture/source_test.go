@@ -144,7 +144,7 @@ func TestHistoryRisesAsTheFramesChartsDo(t *testing.T) {
 }
 
 func TestEveryWindowsHistoryEndsAtItsUse(t *testing.T) {
-	for _, f := range fixtures(moment(time.UTC)) {
+	for _, f := range fixtures(time.UTC) {
 		for _, a := range f.router.doc.Accounts {
 			for _, w := range a.Windows {
 				if a.HasLapsed(w) {
@@ -174,7 +174,7 @@ func TestHistoryRefusesAStepOfNothing(t *testing.T) {
 }
 
 func TestEventsAreNumberedTheNewestFirst(t *testing.T) {
-	for _, f := range fixtures(moment(time.UTC)) {
+	for _, f := range fixtures(time.UTC) {
 		events := f.router.doc.Events
 		if len(events) == 0 {
 			t.Errorf("%s tells of nothing lately", f.Name)

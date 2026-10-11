@@ -1,0 +1,53 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  14 sessions  ·  new sessions → ▲ side
+
+USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
+
+                 5-HOUR                                          WEEK                                            FABLE WEEK
+
+ 1 work                  ┃      ╎  95%  at cap · back 17:10           ▌  ┃      ╎  34%  19%/day till Sun 21:00    ▉      ┃      ╎  12%  25%/day till Sun 21:00
+
+ 2 personal ◆          ▎   ┃       39%  34%/h till 16:30                   ┃       66%  out ~Sat 06:00                     ┃        0%  40%/day till Sun 02:00
+
+ 3 side ▲          ▏┃              13%  21%/h till 18:50                ┃    ▌     78%  6%/day till Mon 10:00    ▋      ┃           4%  25%/day till Mon 10:00
+
+ 4 client              ┃ ▍         52%  16%/h till 17:40                ▌ ┃        47%  14%/day till Sun 23:00    ▎       ┃         8%  25%/day till Sun 23:00
+
+ 5 spare         ▋┃                 4%  19%/h till 19:35         ▊    ┃             5%  20%/day till Thu 18:00        ┃             0%  20%/day till Thu 18:00
+
+ 6 lab                     ┃▍      71%  out ~16:05                       ┃▎        58%  11%/day till Mon 08:00      ▍    ┃         21%  20%/day till Mon 08:00
+
+ 7 team                     ┃     100%  limit · back 15:30                 ┃  ▎    83%  4%/day till Sat 22:00        ▊     ┃       30%  17%/day till Sat 22:00
+
+ 8 extra            ▌  ┃           22%  26%/h till 17:55          ▉ ┃              12%  17%/day till Wed 07:00      ┃               0%  19%/day till Wed 07:00
+
+ 9 ops             ┃                6%  23%/h till 19:10             ▋  ┃          29%  15%/day till Mon 14:00   ▍      ┃           2%  21%/day till Mon 14:00
+
+10 studio             ▎   ┃        33%  30%/h till 16:20               ┃           41%  13%/day till Sun 06:00    ▋    ┃           10%  22%/day till Sun 06:00
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Σ pool                 ┃          44%  5.6 of 10 left                  ┃          46%  5.4 of 10 left            ▌     ┃           9%  9.1 of 10 left
+
+                 ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+
+ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── r
+
+ 1 work          ● at its cap · back 17:10 · new sessions go elsewhere         0 sessions   ▆▆▄▃▃▄▅▄▄▄▆▆▆▄▃▄▄▄▄▃▄▆▆▆▄▄▄▅▄▃▃▄▆▆▅▄▄▅▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+ 2 personal ◆    ● open                                                        2 sessions   ▁▁▂▂▂▁▁▂▃▃▂▁▁▂▂▁▁▁▂▃▂▂▂▂▂▂▁▁▁▂▂▂▂▂▂▂▂▁▁▁▂▂▂▂▂▂▂▂▁▁▁▂▂▂▂▂▂▃▂▁   2/min
+ 3 side ▲        ● open · new sessions come here                               4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▆▅▅▆▆▆▅▄▄▅▅▅▅▅▆▆▆▅▅▇▇  15/min
+ 4 client        ● open                                                        3 sessions   ▂▁▂▃▃▃▂▃▃▄▃▂▁▂▂▃▂▂▃▄▄▃▂▂▂▂▂▂▂▃▄▄▃▂▂▂▂▂▁▂▃▄▄▃▂▂▃▃▂▁▂▃▃▃▃▂▃▃▃▂   2/min
+ 5 spare         ● open                                                        0 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+ 6 lab           ● under pressure · out ~16:05                                 2 sessions   ▂▂▂▂▁▁▁▂▃▂▂▂▂▃▂▁▁▁▂▂▂▂▂▃▃▂▁▁▂▂▂▂▂▂▃▃▂▁▁▂▂▂▁▂▂▃▃▂▂▂▂▂▁▁▁▂▃▃▂▂   4/min
+ 7 team          ■ limit reached · back 15:30                                  0 sessions   ▄▄▄▃▃▃▅▆▅▄▄▄▄▄▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+ 8 extra         ● open                                                        1 session    ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   2/min
+ 9 ops           ● open                                                        0 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+10 studio        ● open                                                        2 sessions   ▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▂▂▂▁▁▂▂▁▁▁▁▂▂▂▁▂▂▂▁▁▁▁▂▂▁▁▂▂▂▁▁▁▁▁   3/min
+                                                                                            requests a minute, last 30 minutes
+
+COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
+
+16:30  personal's 5-hour resets                                in 1h 48m          14:41  ▲ c61b started on side
+17:10  work back from its cap                                  in 2h 28m          14:31  ╎ work reached its cap: 3 sessions moved to side
+18:50  side's 5-hour resets                                    in 4h 08m          14:12  ▲ 7f3a started on work
+
+tab views     u usage  g graphs  r routing  s sessions  c coming up  l lately  b by: window     ↑↓ focus  0 auto  1-9 pin  m move  ? help  q quit

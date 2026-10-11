@@ -20,25 +20,10 @@ import (
 type trails map[string][]score.Reading
 
 // note takes in kept, the reading of a window the account now stands as,
-// taken in at a time, held being the one it stood as before: a reading that
-// starts the window afresh, as startsAfresh says, leaves none of its levels
-// before it; one that reads its use as its latest level does reads that
-// level again; and one that reads it lower, a dip too small to be a reset
-// made by hand, leaves the trail as it was, as rising back from it is no use.
-// What the half hour before at has passed by goes, as score.Lately says.
+// taken in at a time, held being the one it stood as before, into the
+// window's trail, as score.Noted says.
 func (t trails) note(held, kept quota.Window, at time.Time) {
-	readings := t[kept.Key]
-	if startsAfresh(held, kept) {
-		readings = nil
-	}
-	readings = score.Lately(readings, at)
-	switch n := len(readings); {
-	case n == 0 || kept.Utilization > readings[n-1].Utilization:
-		readings = append(readings, score.Reading{At: at, Utilization: kept.Utilization, Last: at})
-	case kept.Utilization == readings[n-1].Utilization:
-		readings[n-1].Last = at
-	}
-	t[kept.Key] = readings
+	t[kept.Key] = score.Noted(t[kept.Key], held, kept, at)
 }
 
 // seed takes up, as the router starts, the readings history gives, in the
@@ -71,13 +56,6 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	return kept
 }
 
-// startsAfresh reports whether kept, the reading a window now stands as, starts
-// it afresh from held, as it stood before: kept has another reset, a new
-// window, or shows it reset by hand, as score.ResetByHand says.
-func startsAfresh(held, kept quota.Window) bool {
-	return !kept.ResetsAt.Equal(held.ResetsAt) || score.ResetByHand(held, kept)
-}
-
 // pace returns how fast the account's pressure window, as policy names it, is
 // being used at now, as score.PaceOf judges it over its trail. It reports
 // false when that can't be said, as when the window hasn't been read, or isn't
@@ -91,16 +69,9 @@ func (u *usage) pace(policy score.Policy, now time.Time) (score.Pace, bool) {
 }
 
 // rates returns how fast each of the account's windows has been used lately,
-// at now, as score.RecentRate judges it over its trail, in quota.Sort's order:
-// those that have a recent rate alone.
+// at now, in quota.Sort's order, as status.RatesOf says.
 func (u *usage) rates(now time.Time) []status.Rate {
-	var rates []status.Rate
-	for _, w := range u.latest() {
-		if rate, since, ok := score.RecentRate(w, u.trails[w.Key], now); ok {
-			rates = append(rates, status.Rate{Window: w.Key, Rate: rate, Since: since.UTC()})
-		}
-	}
-	return rates
+	return status.RatesOf(u.latest(), u.trails, now)
 }
 
 // pressure is how the account's pressure window stands at now, as the status
@@ -118,11 +89,7 @@ func (u *usage) pressure(a account, policy score.Policy, spent bool, now time.Ti
 	if spent {
 		c.Reserve = 0
 	}
-	p := policy.PressureOf(c, now)
-	return status.Pressure{
-		Window: policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, Since: pace.Since.UTC(),
-		RunsOut: p.RunsOut.UTC(), Under: p.Under && u.takesAny(policy, c.Reserve, now),
-	}
+	return status.PressureOf(policy, pace, c, func(reserve float64) bool { return u.takesAny(policy, reserve, now) }, now)
 }
 
 // takesAny reports whether the account can take a request of some model at

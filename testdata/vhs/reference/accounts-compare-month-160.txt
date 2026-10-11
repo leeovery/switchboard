@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────  p 30 days
+
+                          1 work                           2 personal ◆                     3 side ▲                         0 all accounts
+                          ● at cap                         ● open                           ● open                           2 open · 1 at cap
+
+WEEK USED  now                  ▏   ┃      ╎  34%                     ▉┃       66%                  ┃           78%                    ┃         59%
+
+BY MODEL  share of use
+  ● Opus 5.5               52%                              31%                              79%                              54%
+  ● Opus 5                  8%                                —                                —                               3%
+  ● Sonnet 5.5             30%                              57%                              19%                              35%
+  ● Sonnet 5                3%                               7%                                —                               4%
+  ● Fable 5.1               5%                               1%                               1%                               2%
+  ● Haiku 4.5               2%                               4%                               1%                               2%
+
+ACTIVITY
+  requests                5,180                            9,930                            8,050                            23,160
+  sessions served         38                               27                               41                               71
+  sessions moved          12 out                           5 out                            14 in                            31 moves
+
+LIMITS
+  limits hit              5-hour ×9                        5-hour ×3                        5-hour ×4                        16
+  at cap or limit         13h 40m                          2h 05m                           3h 10m                           18h 55m
+  left at its last reset  0% (limit Fri)                   15%                              40%                              —
+
+VALUE
+  plan                    Max 20x · $200/mo                Max 20x · $200/mo                Max 20x · $200/mo                $600/mo · 3 plans
+  extra usage             off                              off                              off                              off on all
+  worth at API prices     $790                             $905                             $1,020                           $2,715
+  against its price       4.0× its $200 month              4.5× its $200 month              5.1× its $200 month              4.5× its $600 month
+
+
+tab views   [ ] view     p period: 30 days     ←→ account  enter its page     0 auto  1-3 pin  m move  ? help  q quit

@@ -383,6 +383,19 @@ type Rate struct {
 	Since time.Time `json:"since,omitzero"`
 }
 
+// RatesOf returns how fast each of an account's windows, as last read, in the
+// order given, has been used lately, at now, as score.RecentRate judges it
+// over the window's trail, by its key: those that have a recent rate alone.
+func RatesOf(windows []quota.Window, trails map[string][]score.Reading, now time.Time) []Rate {
+	var rates []Rate
+	for _, w := range windows {
+		if rate, since, ok := score.RecentRate(w, trails[w.Key], now); ok {
+			rates = append(rates, Rate{Window: w.Key, Rate: rate, Since: since.UTC()})
+		}
+	}
+	return rates
+}
+
 // Pressure is how fast the router has seen an account's pressure window
 // used, and where, at that rate, it's heading. While it runs out before it
 // resets, the account is under pressure: a choice made afresh passes it over
@@ -404,6 +417,20 @@ type Pressure struct {
 	RunsOut time.Time `json:"runs_out,omitzero"`
 	// Under is set when RunsOut comes before the window resets.
 	Under bool `json:"under,omitempty"`
+}
+
+// PressureOf is how an account's pressure window, as policy names it, stands
+// at now, as the router gives it, the account being c, its rate the pace its
+// window is used at: when, at that rate, the window reaches where c's room
+// ends, at c's reserve; and whether that's before it resets while the
+// account can take a request of some model at that reserve, as takes reports,
+// asked only then.
+func PressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes func(reserve float64) bool, now time.Time) Pressure {
+	p := policy.PressureOf(c, now)
+	return Pressure{
+		Window: policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, Since: pace.Since.UTC(),
+		RunsOut: p.RunsOut.UTC(), Under: p.Under && takes(c.Reserve),
+	}
 }
 
 // Prober reads an account's usage with its token.
@@ -621,17 +648,17 @@ func Choosable(policy score.Policy, accounts []Account, pinned []string, now tim
 // request, as choosePinned says; else of them all, as pick says, leaving each
 // one's reserve unused. It's "" and none when none can take one.
 func choose(policy score.Policy, accounts []Account, pinned []string, now time.Time) (string, []string) {
-	open := slices.DeleteFunc(slices.Clone(accounts), func(a Account) bool { return a.shut(now, policy) })
+	open := slices.DeleteFunc(slices.Clone(accounts), func(a Account) bool { return a.Shut(now, policy) })
 	if best, among, ok := choosePinned(policy, open, pinned, now); ok {
 		return best, among
 	}
 	return pick(policy, open, now)
 }
 
-// shut reports whether the account can take no request of any model at
+// Shut reports whether the account can take no request of any model at
 // now, whatever its windows read: its token refused, or a limit holding back
 // every request, as policy says which windows every model shares.
-func (a Account) shut(now time.Time, policy score.Policy) bool {
+func (a Account) Shut(now time.Time, policy score.Policy) bool {
 	limited := a.Limit.Holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
 	return limited || a.TokenRefused(now)
 }

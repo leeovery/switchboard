@@ -1,124 +1,240 @@
 # The dashboard's visual capture harness (`vhs`)
 
-This directory is where the dashboard gets looked at. Milestone 5 rebuilds `switchboard usage -w`
-to the frames signed off in Paper, and every stage of it ends looking like them, as close as a
-terminal allows. A stage that changes what the dashboard draws writes a `vhs` tape here,
-screenshots the dashboard through it, and judges the capture against the frame it was built to.
+This directory is where the dashboard is checked against its design. Milestone 7 rebuilds the
+dashboard, and `usage`'s printout, to the frames signed off in Paper from 4 to 8 October 2026,
+which `reference/` keeps. It's checked two ways. A test holds every fixture named after a frame to
+that frame, cell for cell: its glyphs, its colours and its bold. And by eye, for what a test can't
+judge, how a page reads and what moves: a stage that changes what the dashboard draws writes a `vhs`
+tape here, screenshots a fixture through it, and judges the capture against the frame it was built
+to.
 
 The dashboard is drawn by `cmd/capturetool`, a program of its own, not a switchboard subcommand.
-It builds the dashboard's real watch model through `watch.New`, as `usage -w` does, with every seam
-faked by `internal/capture`: the router's status document, sessions and history, the clock and its
-timers, the notifier, the terminal's size and background, and the themes. It never dials the
-router's socket, probes, touches the network, reads or writes the real config, themes, state, prefs
-or tokens, or runs another process, so it's safe to run beside a live router. A theme picked in it
-is kept for the run alone. Switchboard's own binary never imports `internal/capture`:
-`cmd/capturetool`'s import guard test fails if anything `cmd/switchboard` builds ever does.
+It builds the dashboard's real watch model through `watch.New`, as the dashboard does, with every
+seam faked by `internal/capture`: the router's status document, sessions, history and request
+stream, the ledger's, the readings history's and the events' readers, the price table, the clock
+and its timers, the notifier, the terminal's size and background, and the themes; a fixture of
+`usage`'s printout is drawn through a path of its own, outside the watch, its fake router read as
+`usage` reads one, through `watch.Once`. It never dials the router's socket, probes, touches the
+network, reads or writes the real config, themes, state, ledger, prefs or tokens, or runs another
+process, so it's safe to run beside a live router. A theme picked in it is kept for the run alone.
+Switchboard's own binary never imports `internal/capture`: `cmd/capturetool`'s import guard test
+fails if anything `cmd/switchboard` builds ever does.
 
 ## What lives here, and for how long
 
 | Path | What | Lifetime |
 |---|---|---|
-| `<name>.tape` | A tape that runs a fixture, or cats a reference, and screenshots it | Scaffolding: cleared at milestone 5's sign-off |
-| `<name>.png` | Its capture | Scaffolding: cleared at milestone 5's sign-off |
-| `reference/*.png` | The signed-off frames, exported at 1x from the Paper file *Switchboard dashboard spikes*, page **FINAL · signed off · 2 Oct 2026** | **Kept** |
-| `reference/*.txt` | Each terminal frame's character grid, from the generator that drew it | **Kept** |
-| `reference/*.ansi` | Each terminal frame in 24-bit colour, from the generator that drew it: every cell painted, and no newline after its last row, so `cat` in a terminal of its size doesn't scroll it | **Kept** |
+| `<name>.tape` | A tape that runs a fixture, or cats a reference, and screenshots it | Scaffolding: cleared, with its capture, as each milestone is signed off |
+| `<name>.png` | Its capture | Scaffolding, as its tape |
+| `reference/<stem>.png` | A signed-off frame, exported at 1x from its area's Paper file | **Kept** |
+| `reference/<stem>.txt` | The frame's character grid, from the generator that drew it: a line a row, its trailing blanks trimmed | **Kept** |
+| `reference/<stem>.ansi` | The frame in 24-bit colour, from the generator that drew it: every cell painted, every row its full width, and no newline after the last, so `cat` in a terminal of its size doesn't scroll it | **Kept** |
 
 A capture is a render of the code, so it goes stale as the code moves on, and nothing checks it
 against a baseline: tapes and captures are written as a stage proceeds, committed while it's
 reviewed, so the reviewer opens the frame the implementer did, and cleared at the milestone's
 sign-off. `vhs` writes no GIF unless a tape names an `Output`, and these name none.
 
-`reference/` is kept: it's the design the code was built against, not a render of the code, and
-it doesn't go stale the way a capture does. No Go source points at it, so a sign-off sweep mustn't
-take it for orphaned. The `.png`s are the frames themselves; the `.txt` and `.ansi` are the same
-frames as the mock generator drew them, before Paper did, which lets a capture be diffed as text
-and lets `vhs` be calibrated against the frames. Each was checked against its `.png`, a cell at a
-time, and holds what it shows; the Amber sheet's carry the edit the design session made to its
-title row in Paper. `accounts-layout-rules.png` and `final-page-readme.png` are the page's notes,
-not terminal frames, so have neither.
+`reference/` is kept: it's the design the code is built against, not a render of the code, and it
+doesn't go stale the way a capture does. Capture's tests read it. The `.png`s are the frames
+themselves; the `.txt` and `.ansi` are the same frames as the mock generator drew them, before
+Paper did, which the test holds fixtures to, and which `vhs` is calibrated against. They're the
+generators' output, byte for byte, and never patched: where a frame differs from
+`docs/design.md`, the design holds, and the test passes over those cells (see The cells passed
+over).
 
-Where the frames differ from `docs/design.md`'s Dashboard section, the doc holds. The differences
-known:
+## The frames
 
-- **Account 1's cords** are red in the frames: in the doc they're `viz.series.1`, which is
-  `accent.key` where a theme doesn't set it, and never `state.destructive`. So too the theme
-  sheets' `series` rows, which open with each theme's red: the built-ins' series take none,
-  `nord`'s and the Tokyo Nights' being the doc's defaults, and `amber`'s and `exchange`'s their
-  sheets' other five, and a sixth of their own. So every account's cords in Sessions are the doc's
-  series in `nord`: work's `accent.key`, side's `accent.primary` and client's `accent.mode`, where
-  the frames' are red, `accent.key` and Aurora green.
-- **The sample session ids** differ: the frames have `d28c`, `c61b`, `db8a` and so on, the doc's
-  examples `5b19`, `3e7a`, `9e21`. The fixtures use the frames'.
-- **The footer's keys** are the doc's, in its order, `? keys` and `q quit` always listed: where
-  the frames say `? explain` or `? help`, it's `? keys`. The phone's frame lists `r refresh`,
-  which the doc leaves to `?`, and drops `q quit` and when the document was read, both of which a
-  phone's footer keeps. Runway's day frames list the generator's own `r refresh`, `d day`, `w
-  week` and `t theme`, and its week's frame leaves out `m move`: the doc's `w` switches between
-  the day and the week, the footer saying which shows, `w window: day`, as the week's frame says
-  `w window: week`. Sessions' frames list `r refresh` and `t theme` too, which the doc leaves to
-  `?`. Runway's and Sessions' frames say `read 4s ago · next look 1s`, where the dashboard,
-  reading the router, says `read 4s ago`, as the cards' frames do.
-- **Runway's lanes** go by the doc: a lane is in `accent.attention` wherever its account has room
-  but is heading to run out before its reset, whichever window that is, so personal's, back from
-  its limit at 15:54, is till its week runs out on Friday at 04:06, as the week's frame draws it,
-  where the day's draws it in `state.positive`. And each stretch without room starts, its words
-  with it, where the document says it does: personal's when the router told of it reaching its
-  limit, at 14:12, so its lane has room the past hour till then, where the frames draw none all
-  that hour, its words at the hour's start.
-- **A card's featured window** takes the colour of its account's state, digits and chart alike,
-  whichever window it is: an open account's in `state.positive`, an idle one's dim, and a week
-  featured on an account under pressure in `accent.attention`. The frames draw an open account's
-  digits in `text.primary`, and colour a chart, or a week's digits, by its window's own use.
-- **The blends** are halfway, as the doc says: a chart's past level is its state's colour faded
-  halfway into the canvas, and a bar's projection the ramp's, where the frames take 55% and 38%
-  of the colour. A limit's line along a chart's floor is `state.destructive` itself, where the
-  frames fade it.
-- **The reserve** is the floor a chart runs out at where it holds an account back, a faint dotted
-  line with `✕` on it, and `╎` marks where it starts on every bar of an account that keeps one, its
-  session's too. The frames draw neither on the charts, and no mark on a session's bar.
-- **A bar at its limit** fills along `viz.ramp` as every bar does, where the frames fill it solid
-  `state.destructive`.
-- **The key line** says the doc's words: the chart's dotted line is `heading`, where the frames say
-  `where it's heading`, and `● session, lit while busy` follows the bars' glyphs, where the frames
-  stop at `╎ reserve`.
-- **The line over the footer, as the cards scroll,** says the doc's `▼ 2 more accounts below · j/k
-  or wheel to scroll`, centred, where the frames add `header and footer stay put`.
-- **LOG** shows under the calls wherever it has room, as the doc puts it there: at 28 rows, as
-  sessions-3 has, its five lines fit under the calls, where the frame draws none. And it lists
-  each move the router told of, and why, those a limit forced too, which RECENT and LATELY fold
-  into the limit's line: so sessions-5's has db8a's and 41e0's moves off personal, where the
-  frame has personal's limit and side's prime.
-- **A line's use toward its reserve** says so, as a card's bar does: work's week, heading for 87%
-  within ten points of its 90% reserve, reads `→ 87%` in `accent.attention`, where the Sessions
-  frames' panels have it muted.
-- **The storyboards** are moments of Sessions, drawn by the fixtures whole, at 160 × 28: their
-  frames draw the calls and lines alone, under a caption, so a capture's rows 7 to 25 are a
-  frame's rows 2 to 20. The fourth frame's line telling of d28c's move is LOG's first, under the
-  calls, cut short beside the cords, its `▸` dim, as RECENT's is, where the frame draws it whole
-  in `accent.mode`, under the lines; and its pulse is five cells, as every pulse is, where the
-  frame's has a sixth, glowing a tenth. A call the stream has just told of was seen `now`: d28c,
-  refused in the third frame, where the frame has `1m`.
-- **COMING UP beside one account's card** gives each thing's countdown at the right, as COMING UP
-  always does, where the frame gives none.
-- **The phone's line over the footer** says `? for the key`, as any frame does where the key line
-  has no room, where the frame leaves it blank.
-- **An answer's tokens, as it streams,** are an estimate, `↓ ~1.2k`, as the doc says, on a card's
-  back and in Sessions alike, where the frames say `↓ 1.2k`: the exact count comes as it ends.
-- **An idle session's id** isn't bold, as the doc has an id bold while busy alone: on a card's back
-  and among Sessions' calls, 7f3a's and 41e0's are muted, where the frames draw every id bold.
-- **A session's note** says the doc's words: c61b's is `here since 14:41`, where the frames have
-  `new at 14:41: side was the best`; and every row has one where there's room for every one's,
-  7f3a's `here since 13:10` too, where the frames give it none.
-- **LATELY** tells of an account's events as RECENT does, in the doc's words, but from its side,
-  its name left out, and what follows the gist only where it fits whole: work `came under
-  pressure`, where the frames add `new sessions go elsewhere`; `d28c started here, the best`;
-  `primed: its 5-hour window started`, where the frames have `its window`; side's `c61b started
-  here, the best`, where the frames have `side was the best`; and personal's limit, with the
-  sessions it moved, `3 sessions moved to side`, as RECENT counts them, where the frames name
-  `c61b, db8a and 41e0`.
+77 of them, each by its stem: its area, what it shows, and its width, then its height where it
+isn't its area's usual, as in `overview-everything-160x39`. They're drawn in `nord` at Thu 1 Oct
+14:42:07, or at 16:05:41 and 16:05:42 for `sessions-refused-160` and `sessions-moved-160`, with the
+placeholder accounts and sample numbers the design's sections give.
 
-The fixtures, the harness and the tool are permanent: only the tapes and captures are scaffolding.
+| Area | Stems | Paper file, page |
+|---|---|---|
+| `usage` | `usage-*`, 9 | *Switchboard · usage*, **FINAL · usage · signed off 4 Oct 2026 · revised 6 Oct** |
+| The Overview | `overview-*`, 13 | *Switchboard · Overview*, **FINAL · dashboard overview · signed off 5 Oct 2026 · revised 6 Oct** |
+| Routing by hand | `routing-*`, 5 | *Switchboard · Routing*, **FINAL · routing · signed off · 7 Oct 2026** |
+| Accounts | `accounts-*`, 11 | *Switchboard · Accounts*, **FINAL · accounts · signed off 5 Oct 2026 · revised 6 Oct** |
+| History | `history-*`, 10 | *Switchboard · History*, **FINAL · history · signed off 5 Oct 2026 · revised 6 Oct** |
+| A session's page | `session-*`, 6 | *Switchboard · Session and Log*, **FINAL · session page · signed off · 7 Oct 2026** |
+| The Log | `log-*`, 9 | *Switchboard · Session and Log*, **FINAL · Log · signed off · 7 Oct 2026** |
+| Sessions | `sessions-*`, 9 | *Switchboard · Sessions and Runway*, **FINAL · Sessions and Runway · signed off · 8 Oct 2026** |
+| Runway | `runway-*`, 5 | *Switchboard · Sessions and Runway*, the same page |
+
+## How the frames are held
+
+`internal/capture`'s `reference_test.go` holds each fixture named after a frame's stem to that
+frame, with the cells `cells_test.go` reads and compares:
+
+- **The fixture is drawn** at its own size, which is its frame's, and read into cells as a terminal
+  reads it: a glyph a cell, each with its foreground, its background and its bold, its SGR's state
+  carried from one cell to the next until reset. So the generators' form, every cell painted after
+  a reset, and Lip Gloss's, a run in one style, reset after it, read alike. What it can't read as a
+  terminal would is a failure, not a guess: an escape that isn't SGR, an attribute but bold, a
+  colour not in 24 bits, a control character, or a glyph not one cell wide.
+- **Cell for cell,** it's compared with the frame's `.ansi`, and nothing passes but this:
+  - **the canvas:** a cell whose background isn't painted counts as Nord's canvas, `#2E3440`, as a
+    terminal of that background shows it, since `usage`'s printout paints no background where the
+    frames paint every cell;
+  - **rounding:** a colour's channel may be one apart, as the generators round a half to even,
+    Python's `round`, where Go's mixing rounds it away from zero;
+  - **a blank's foreground and bold,** which nothing shows: a blank's background is compared;
+  - **the cells passed over,** below.
+
+  A drawn row shorter than its frame's is read as a terminal shows it, blank and unpainted to the
+  frame's width, as `usage`'s printout writes nothing past a line's end; so it passes where the
+  frame is blank on the canvas there, and fails where the frame has a glyph or another background.
+  A drawn row wider than its frame's, or a row more or fewer, fails. A failure names the stem and
+  lists the cells that differ, the first 20, a line each with its row and column, counted from 1,
+  and the frame's and the fixture's glyph, colours and bold; then how many more.
+- **The frames prove the reading:** every frame's `.ansi` reads to its `.txt`, every cell painted,
+  at the width its stem names, and its height where it names one; and every fixture's frame reads
+  to its own plain text.
+- **What's owed:** `owed`, in `reference_test.go`, names the frames no fixture draws yet. Every
+  frame is drawn by a fixture of its stem's name or owed, never both. A stage that builds a view
+  adds its fixtures, named after its frames, and deletes their stems from `owed`, and from then on
+  they're held; it's empty by stage 14. Milestone 5's fixtures, none named after a frame, are held
+  to nothing, and go as their views do.
+- **The cells passed over** are `passedOver`, by stem: a row, or a row's cells from one column to
+  another, each with what the frame's `.txt` reads there, which a test checks, as it checks that
+  this file names every stem in it.
+
+## The cells passed over
+
+The cells a frame drew otherwise than `docs/design.md` says, by row and column, counted from 1 as
+the frame's `.txt` reads in an editor, and what the dashboard draws in their place, as the design
+says (see Files, "The capture harness", in `docs/design.md`).
+
+**Key lines drawn before the keys were swept,** on 7 and 8 October 2026, which the dashboard draws
+as Keys has them:
+
+- **The Overview's key line,** its last row, in every `overview-*` frame but `overview-phone-52`:
+  row 37 of `overview-default-160`, `overview-pinned-160`, `overview-bad-hour-160` and
+  `overview-usage-alone-160`; row 39 of `overview-everything-160x39`; 41 of
+  `overview-six-accounts-160`; 42 of `overview-by-account-160`; 53 of `overview-ten-accounts-160`;
+  70 of `overview-default-216`, `overview-sessions-216` and `overview-sessions-graphs-216`; and 106
+  of `overview-everything-216x106`. The frames end it `↑↓ focus  0 auto  1-3 pin  m move  ? help
+  q quit`; the dashboard, `↑↓ focus  p pin  ? help  q quit`.
+- **ROUTING's heading under a pin,** row 19 of `overview-pinned-160` and `overview-bad-hour-160`,
+  which ends `0 back to auto` in the frames, and `p back to auto` in the dashboard.
+- **The period on Accounts' and History's heading row,** row 5, from the rule's last two cells to
+  the last column: the frames' `p this week`, where the dashboard draws the period between its keys,
+  `< this week >`, two cells wider, so its rule ends two cells sooner; on History's Weeks and Days,
+  `eight weeks`, with no key. Columns 146 to 160 of `accounts-compare-160`,
+  `accounts-compare-bad-hour-160`, `accounts-compare-ten-160`, `accounts-detail-all-160`,
+  `accounts-detail-limit-160`, `accounts-detail-one-160`, `accounts-detail-sessions-160` and
+  `accounts-detail-work-160`; 148 to 160 of `accounts-compare-month-160` (`< 30 days >`),
+  `history-tokens-160` and `history-tokens-models-160` (`< by week >`); 144 to 160 of
+  `history-weeks-160`, `history-weeks-columns-160`, `history-weeks-ten-160`, `history-days-160` and
+  `history-days-ten-160`; and 141 to 160 of `history-year-160` and `history-year-opus-160`
+  (`< last 12 months >`). On a phone, the period's own row, row 7, under the heading:
+  `accounts-phone-compare-52`, `accounts-phone-detail-52` and `history-phone-year-52`.
+- **Accounts' and History's key line,** row 37, of each frame wider than a phone, as its period,
+  its pin and its groups' spacing all differ. The dashboard draws Compare's
+  `tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit`,
+  and Detail's the same with `↑↓ account`, in `accounts-compare-160`,
+  `accounts-compare-bad-hour-160`, `accounts-compare-month-160` (`30 days`),
+  `accounts-compare-ten-160`, `accounts-detail-all-160`, `accounts-detail-limit-160`,
+  `accounts-detail-sessions-160` and `accounts-detail-work-160`; and with one account, in
+  `accounts-detail-one-160`, `tab views   < > period: this week    ? help  q quit`. History's
+  Year, in `history-year-160`,
+  `tab views   [ ] view    < > period: last 12 months    v split: all    p pin    ? help  q quit`,
+  and in `history-year-opus-160` `v split: Opus 5.5`; Weeks, in `history-weeks-160` and
+  `history-weeks-ten-160`, `tab views   [ ] view    v split: table    p pin    ? help  q quit`,
+  and in `history-weeks-columns-160` `v split: columns`; Days, in `history-days-160` and
+  `history-days-ten-160`, `tab views   [ ] view    p pin    ? help  q quit`; and Tokens, in
+  `history-tokens-160`,
+  `tab views   [ ] view    < > period: by week    v split: by account    p pin    ? help  q quit`,
+  and in `history-tokens-models-160` `v split: by model`.
+- **`session-phone-52`'s key line,** row 32, which lacks `q quit`: a phone's line always ends
+  `? keys   q quit`.
+- **`session-turn-opened-160`'s key line,** row 37, which lacks `enter open`:
+  `esc close    ↑↓ request  enter open    p pin    ? help  q quit`.
+- **`sessions-one-account-160`'s key line,** row 37, which shows `p pin` with one account, where
+  no page shows it: `tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit`.
+- **`runway-phone-52`'s key line,** row 33, which lacks `tab views`, leading a phone's line while
+  it fits: `tab views   < > window   ←→ day   ? keys   q quit`.
+
+**History's capacity, where the replay gives other numbers** (see History in `docs/design.md`):
+
+- **`history-weeks-160`'s `without it: short` counts,** drawn 6, 5 and 3 for `work`, `personal`
+  and `side`, at row 15 column 137, row 16 column 138 and row 17 column 139, where the capacity
+  replay gives 7, 7 and 6.
+- **`history-weeks-columns-160`'s,** the same counts, at column 114 of rows 15, 21 and 27.
+- **`history-weeks-ten-160`,** whose headline the replay bears out: its short weeks, drawn 4 as
+  now (row 8, column 18), 4 with one fewer (row 8, column 96) and 6 with two fewer (row 8, column
+  150), and 4 in `all accounts`' row (row 13, column 92), where the replay gives 3 each; `spare`'s
+  `5% used`, in the line naming it to drop (row 9, columns 36 to 42) and in its verdict (row 19,
+  columns 93 to 99), where its weeks average 6%, `6% used`; and `extra`'s `80% left at a reset`
+  (row 22, columns 96 to 114), where its weeks average 78%, `78% left at a reset`.
+
+**A pressure event's mark:** in `accounts-detail-one-160`'s LATELY, row 28, column 20, `●`, drawn
+before each kind of event had a mark of its own, where the Log's marks give `◔`, in
+`accent.attention`.
+
+## What the worlds give otherwise than the frames
+
+`internal/capture` builds the worlds the frames were drawn from (its `testdata/README.md` says where
+their data came from), and the real code works out what each frame shows from them. The generators
+typed some figures by hand, and some disagree with each other or with the design's rules, so no
+world gives them. Each stage that adds a view's fixtures fits what it can and passes over the rest,
+cell by cell, listing each under The cells passed over with what the dashboard draws in its place
+(the owner's call, 11 October 2026). Known when the worlds were built:
+
+- **Where new sessions go.** Every frame drawn in auto marks side `▲`, though by the design's
+  scoring the router would choose personal, as its week resets sooner with more left, or, of six or
+  ten accounts, spare. The fake router says side, as the frames draw it (`framesChoice`): the
+  document's choice is the frame's, not the scoring's (the owner's call). Where the scoring agrees
+  with a frame, it's worked out.
+- **`usage` and the Overview (stages 5 and 7):** personal's week running out ~Sat 06:00 is missing
+  from COMING UP in the bad hour and under routing's limit; personal's week reads 66% under
+  routing's limit, where the frame's card draws 64%; side's week runs out ~Fri 12:20 at its average
+  pace, which COMING UP lists; the six accounts' pooled 5-hour window works out 47%, drawn 46%; the
+  ten's extras' rates and run-outs (client, lab, team, spare, extra, ops, studio) differ from what
+  their rows draw. LATELY (`dash2.LATELY_ALL`) and the Log's events (`log2.TODAY`) disagree:
+  LATELY lacks d28c's start at 12:02:10, has a prime of personal's at 06:25 the Log lacks, and
+  draws work's cap without its three moves. The Overview's sessions (41e0 sonnet answering, 7f3a
+  sonnet idle) and the List's and the Log's (every session opus, 41e0 idle, 7f3a answering) are two
+  listings at one moment: each frame's world holds its own.
+- **History (stage 8):** the year's $27,480 and 236,410 requests, where its own months and today
+  come to $24,736 and 212,885; against 3.8× (3.4×); limits; the busiest day (Tue 22 Sep, the
+  world's Wed 30 Sep); the longest run (58 days, the world's 20); the Year's cuts; August's and
+  September's limits; October so far, drawn 1,548 requests, $180 and 2 limits, where today's lines
+  give 1,239, $126 and none, and Opus 5.5's October, drawn 640, $120 and 67%, today's lines being
+  nearly all Opus 5.5; Opus 5.5's 48,880 requests, $5,760 and 21% (40,749, $4,761, 19%), and its
+  352 sessions, which no summary holds by version; Tokens this week, work's drawn 1.2M, 0.8M,
+  11.0M, 178M and 191M (the world's 0.83M, 1.13M, 9.1M, 177M and 188M, today's lines writing the
+  hour's cache and putting out more), and all accounts' 4.2M, 2.9M, 38.0M, 615M and 660M (3.3M,
+  3.4M, 33.8M, 618M and 658M), and earlier weeks' Tokens against BY MONTH; the weeks' 5-hour limits
+  where one weekday holds two; the ten's capacity, counting six weeks where spare's column is empty.
+- **The Log (stage 9):** 1,275 lines and 1,240 requests today, where the lines are 1,274 and
+  1,239, c61b's fifth request still answering; the Log's rows of d28c and 9c2e in its tail and
+  around the cap, against the sessions' own lines (d28c at 14:31:49 in the Log, 14:31:58 on its
+  page); a request of db8a's on work at 14:31:06, after work's cap at 14:31:03, as
+  `log1.around_the_cap` made it, which no frame draws; db8a's move of 13:22:40 (no pressure event
+  behind "out at 15:10", no cost of a move made afresh after 21 hours idle, and its reason the
+  idle's); `log-not-live-160`, a world of its own, not built yet.
+- **A session's page (stage 10):** d28c's split, $41.09 and $7.12 (drawn $41.06 and $7.14), its
+  work ending 14:30; b9c4's stretches ending 16:01 and 18:46, ended 18:46, 5h 26m; turn 8's tools
+  in another order; f41a's side stretch ending 18:04; the `% from cache` figures, written in.
+- **Accounts (stage 11):** this week's sessions served on personal and side and in all, drawn 6, 11
+  and 19, where the world gives 10, 14 and 27 (yesterday's 17 and today's 14, 4 of them both, are
+  27); personal's moves, drawn 1 out and 4 in all (2 and 5: db8a's move under pressure at 13:22:40
+  as well as 8a2c's); personal's 5-hour limit and 4h 45m at it, from the Log's limit of 19:12:40
+  yesterday, where Accounts draws none (all accounts 4 and 8h 47m, drawn 3 and 4h 02m); work's 0%
+  and personal's 15% left at their last reset, whose weeks reset on Sunday, before this week's
+  Monday; the 30 days; the share left at a reset (32%, drawn 30%); lab's and team's minutes at a
+  limit; the ten's all-accounts row (drawn 12,598 requests, 51 sessions, 10 moves, 9h 57m, $1,342
+  and 3.4×, the world 11,698, 53, 5, 13h 31m, $1,310 and 3.3×), typed, not summed from its rows; all
+  accounts' BY MODEL this week (drawn 57/2/33/3/2/3, the world 56/2/34/3/2/2); Detail's BY DAY
+  marks; `accounts-detail-one-160`'s `[ ]` on its heading row, where the design gives one account
+  Detail alone.
+- **Sessions (stage 12):** c61b's worth ($0.22, drawn $0.29) and today's ($125.94, drawn
+  $126.02); 8a2c's move, made yesterday, which the List shows only of today's; b9c4's move of
+  yesterday, which yesterday's summary doesn't hold.
+- **Runway (stage 13):** work at its 5-hour limit Wed 15:02–17:10, while b9c4 and 4b0e ran on it
+  then.
 
 ## Setting up
 
@@ -137,57 +253,22 @@ ls ~/Library/Fonts /Library/Fonts | grep JetBrainsMono-Regular
 ## Looking at a fixture
 
 ```bash
-go run ./cmd/capturetool --fixture accounts-3
+go run ./cmd/capturetool --fixture <name>
 ```
 
 The fixture runs full screen, at the size the terminal gives, until `q`. An empty or unknown
-`--fixture` is an error that lists them all. Keys work as they do in `usage -w`, though the router
-takes an order and changes nothing, and the clock stands still at the frames' moment, Thursday 1
-October 2026 at 14:42:07, so nothing moves of itself.
-
-| Fixture | Accounts | Size | Its frame |
-|---|---|---|---|
-| `accounts-1` | `work` | 160 × 27 | `accounts-1` |
-| `accounts-3` | `work`, `personal`, `side` | 160 × 34 | `accounts-3-auto` |
-| `accounts-3-5h` | `work`, `personal`, `side`, `w` pressed: every card featuring its 5-hour window | 160 × 34 | `accounts-3-5h` |
-| `accounts-3-rate` | `work`, `personal`, `side`, `g` pressed: every card drawing its burn rate | 160 × 34 | none: the burn rate was sketched in the design session, not drawn on the final page |
-| `accounts-3-hourglass` | `work`, `personal`, `side`, `g` pressed twice: every card drawing its hourglass | 160 × 34 | none: the hourglass was sketched in the design session, not drawn on the final page |
-| `accounts-3-week` | `work`, `personal`, `side`, `w` pressed twice: every card featuring its week | 160 × 34 | `accounts-3-week` |
-| `accounts-3-keys` | `work`, `personal`, `side`, `?` pressed: the help open over them | 160 × 34 | none: the frames don't draw the help |
-| `accounts-3-themes` | `work`, `personal`, `side`, the theme picker open, the cursor up a theme | 160 × 34 | none: the frames don't draw the picker |
-| `accounts-4` | and `client` | 160 × 40 | `accounts-4` |
-| `accounts-4-rate`, `accounts-4-hourglass` | the four, `g` pressed once, and twice | 160 × 40 | none, as `accounts-3-rate` |
-| `accounts-5` | and `spare` | 160 × 40 | none: Sessions' and Runway's are 5 accounts |
-| `accounts-6` | and `lab` | 160 × 40 | `accounts-6` |
-| `accounts-8` | and `team` and `extra` | 160 × 40 | `accounts-8` |
-| `accounts-8-rate`, `accounts-8-hourglass` | the eight, `g` pressed once, and twice | 160 × 40 | none, as `accounts-3-rate` |
-| `accounts-8-scrolling` | the same eight, too many for 28 rows, so they scroll | 160 × 28 | `accounts-8-scrolling` |
-| `accounts-flipped-all` | `work`, `personal`, `side`, four requests in flight, `s` pressed: every card flipped, the focus on work's | 160 × 34 | `accounts-flipped-all` |
-| `accounts-flipped-selected` | `work`, `personal`, `side`, four requests in flight, `space` and `↓` twice pressed: work's card flipped, d28c picked out | 160 × 34 | `accounts-flipped-selected` |
-| `accounts-phone` | `work`, `personal`, `side` | 52 × 36 | `accounts-phone` |
-| `runway-day-3` | `work`, `personal`, `side`, `tab` pressed twice: Runway, over the day | 160 × 26 | `runway-day-3` |
-| `runway-day-5` | and `client` and `spare`, `tab` pressed twice | 160 × 32 | `runway-day-5` |
-| `runway-week-3` | `work`, `personal`, `side`, `tab` pressed twice, then `w`: Runway, over the week | 160 × 26 | `runway-week-3` |
-| `sessions-1` | `work`, `tab` pressed: Sessions, a plain list of one account | 160 × 27 | none: the frames don't draw one account's |
-| `sessions-3` | `work`, `personal`, `side`, `tab` pressed: Sessions | 160 × 28 | `sessions-3` |
-| `sessions-3-keys` | `work`, `personal`, `side`, `tab` then `?` pressed: the help over Sessions | 160 × 28 | none: the frames don't draw the help |
-| `sessions-5` | and `client` and `spare`, `tab` pressed | 160 × 40 | `sessions-5` |
-| `sessions-storyboard-1-request-out` | the storyboard's, `tab` pressed: c61b's request 0.3s out | 160 × 28 | `sessions-storyboard-1-request-out` |
-| `sessions-storyboard-2-streaming-back` | its answer streaming back, 1.2k tokens of it | 160 × 28 | `sessions-storyboard-2-streaming-back` |
-| `sessions-storyboard-3-refused` | work at its limit: d28c's request refused, its red pulse a quarter of the way back | 160 × 28 | `sessions-storyboard-3-refused` |
-| `sessions-storyboard-4-repatched` | d28c moved to side, and sent again there, its pulse almost at side's jack | 160 × 28 | `sessions-storyboard-4-repatched` |
-
-The four, six and eight accounts have nothing used of Fable's week, as their frames do. The
-storyboard's accounts are `work`, `personal` and `side`, but side with c61b and db8a alone on it,
-and in its last two frames, work at its session's limit, reached at 14:43, as the storyboard has
-them; its frames are drawn at 14:43:02.
+`--fixture` is an error that lists them all. Keys work as they do in the dashboard, though the
+router takes an order and changes nothing, and the clock stands still at the fixture's moment, so
+nothing moves of itself. A fixture named after a frame draws that frame, at its size; milestone
+5's, `accounts-*`, `runway-day-*`, `runway-week-3` and `sessions-*`, named after milestone 5's
+frames, stay until the stages that replace their views delete them.
 
 ### `--theme`, and `NO_COLOR`
 
 ```bash
-go run ./cmd/capturetool --fixture accounts-3 --theme amber
-go run ./cmd/capturetool --fixture accounts-3 --theme path/to/lake.theme
-NO_COLOR=1 go run ./cmd/capturetool --fixture accounts-3
+go run ./cmd/capturetool --fixture <name> --theme amber
+go run ./cmd/capturetool --fixture <name> --theme path/to/lake.theme
+NO_COLOR=1 go run ./cmd/capturetool --fixture <name>
 ```
 
 A fixture is drawn in `nord`, the frames' theme, as the one theme chosen, on a terminal that says
@@ -200,32 +281,36 @@ dashboard is.
 ### `--print`
 
 ```bash
-go run ./cmd/capturetool --fixture accounts-4 --print
-go run ./cmd/capturetool --fixture accounts-4 --print --size 120x40
-go run ./cmd/capturetool --fixture accounts-4 --print --ansi
+go run ./cmd/capturetool --fixture <name> --print
+go run ./cmd/capturetool --fixture <name> --print --size 120x40
+go run ./cmd/capturetool --fixture <name> --print --ansi
 ```
 
 `--print` draws the fixture once, with no terminal, after its keys are pressed, and prints it a line
 for each of the terminal's rows: at the fixture's own size, or at `--size WxH`. It prints text alone,
 its escape codes stripped and each line's trailing spaces trimmed, which diffs against a frame's
-`.txt`; with `--ansi`, its colours too. The same fixture prints the same, byte for byte, in any time
-zone.
+`.txt`; with `--ansi`, its colours too, which `cat` shows beside the frame's `.ansi`. The same
+fixture prints the same, byte for byte, in any time zone.
 
 ```bash
-diff <(go run ./cmd/capturetool --fixture accounts-4 --print) testdata/vhs/reference/accounts-4.txt
+diff <(go run ./cmd/capturetool --fixture usage-160 --print) testdata/vhs/reference/usage-160.txt
 ```
+
+The test says where, cell by cell, colours and bold included; the diff shows the text's lines
+whole.
 
 ## Running a tape
 
 From the repository's root, as the tapes' paths are from there:
 
 ```bash
-vhs testdata/vhs/accounts-3.tape
+vhs testdata/vhs/<name>.tape
 ```
 
-It writes the PNG its `Screenshot` names. `accounts-3.tape` runs the fixture through `go run`, so the
-first run waits on a build; it waits for the frame with `Wait+Screen` rather than sleeping a guess.
-`calibrate-accounts-3-auto.tape` cats the frame's `.ansi` instead, for the calibration below.
+It writes the PNG its `Screenshot` names. A fixture's tape, such as `accounts-3.tape`, runs it
+through `go run`, so the first run waits on a build; it waits for the frame with `Wait+Screen`
+rather than sleeping a guess. `calibrate-overview-default-160.tape` cats the frame's `.ansi`
+instead, for the calibration below.
 
 ### Gotcha 1: the sandbox
 
@@ -295,38 +380,34 @@ experiment:
   bar, and 8px of width to spare.
 - **The scale**: `vhs` captures `xterm`'s canvas, which holds the cells alone, and has `ffmpeg` fit
   it to the whole terminal, padding included, so the grid comes out scaled by
-  k = (R × 20 + 10) / (R × 20): 1.5% at 34 rows, 1.25% at 40, its cells 9.13 × 20.3 px at 34
-  rows. No setting undoes it: the grid matches the frame cell for cell, a little larger. The spare
-  width keeps the fit to the height, so the grid is R × 20 + 10 px tall at 46px down, under the bar,
-  as the frames' grid is, and round(C × 9 × k) px wide, centred: at 160 × 34, 1461 × 690 at
-  +22+46.
+  k = (R × 20 + 10) / (R × 20): 1.35% at 37 rows, its cells 9.12 × 20.27 px. No setting undoes it:
+  the grid matches the frame cell for cell, a little larger. The spare width keeps the fit to the
+  height, so the grid is R × 20 + 10 px tall at 46px down, under the bar, as the frames' grid is,
+  and round(C × 9 × k) px wide, centred: at 160 × 37, 1459 × 750 at +23+46.
 
-Through these settings, every terminal frame's `.ansi` renders what its `.png` shows, cell for
-cell. What differs is how a glyph is drawn: Paper drew bold lighter in the frames it exported
-last, took the storyboards' circled digits from a fallback font a little wider than a cell, which
-shifts the rest of their captions, and drew braille and box drawing from the font, where `xterm`
-draws its own. Over the whole grid, once both are in sRGB and the capture's is scaled to the
-frame's, RMSE is 0.03 to 0.05 for half the frames, with 0.2% to 0.7% of pixels more than 10%
-apart; the rest, with more bold, braille and box drawing, such as Sessions', come to 0.06 to 0.08
-and 0.9% to 1.6%.
+Through these settings, a frame's `.ansi` renders what its `.png` shows, cell for cell, as
+`calibrate-overview-default-160` proves: once both are in sRGB and the capture's grid is scaled to
+the frame's, RMSE over the whole grid is 0.07, with 1.3% of pixels more than 10% apart. What differs
+is how a glyph is drawn, not where: anti-aliasing, and the block and box-drawing glyphs, which
+Paper drew from the font, where `xterm` draws its own.
 
 ## Comparing a capture with its frame
 
 By eye, the two side by side or one over the other:
 
 ```bash
-magick testdata/vhs/reference/accounts-3-auto.png testdata/vhs/calibrate-accounts-3-auto.png -append side-by-side.png
+magick testdata/vhs/reference/overview-default-160.png testdata/vhs/calibrate-overview-default-160.png -append side-by-side.png
 ```
 
 With `magick compare`, on the terminal grid alone. The frames carry a Display P3 colour profile, so
 take the frame to sRGB first, as a capture is, or every saturated colour reads as a difference;
 crop the frame's grid; crop the capture's, as the calibrated settings place it, and scale it to the
-frame's; then compare. At 160 × 34:
+frame's; then compare. At 160 × 37:
 
 ```bash
-magick testdata/vhs/reference/accounts-3-auto.png -profile "/System/Library/ColorSync/Profiles/sRGB Profile.icc" \
-  -crop 1440x680+24+46 +repage frame.png
-magick testdata/vhs/accounts-3.png -crop 1461x690+22+46 +repage -resize '1440x680!' capture.png
+magick testdata/vhs/reference/overview-default-160.png -profile "/System/Library/ColorSync/Profiles/sRGB Profile.icc" \
+  -crop 1440x740+24+46 +repage frame.png
+magick testdata/vhs/calibrate-overview-default-160.png -crop 1459x750+23+46 +repage -resize '1440x740!' capture.png
 magick compare -metric RMSE frame.png capture.png diff.png
 magick compare -metric AE -fuzz 10% frame.png capture.png null:
 ```
@@ -335,7 +416,7 @@ For C × R, the frame's grid is (C × 9)x(R × 20)+24+46, and the capture's
 (round(C × 9 × k))x(R × 20 + 10)+(16 + floor((C × 9 + 33 − w) / 2))+46, where w is that width.
 `diff.png` marks what differs. The comparison is judged by eye in the end: anti-aliasing, bold and
 the box-drawing glyphs always differ a little, and a frame's colours are its theme's tokens, not
-what to read off a picture.
+what to read off a picture: the test holds those.
 
 ## Determinism
 
@@ -345,105 +426,51 @@ before the moment drawn, then sets the clock to the moment, presses the fixture'
 then hands the model to Bubble Tea, which starts it reading nothing more. So there's no first
 paint to race, and nothing on screen moves until a key does.
 
-A key that shows Sessions, flips a card, or has the cards draw hourglasses, has the watch open the
-router's request stream: the fixture's tells of what has befallen its requests, each at its time
-before the moment drawn, then ends, as a router ends it. The watch keeps what it told, and asks
-for it again only once a timer fires, which none does, so what travels the cords stands where the
-moment puts it: a pulse as far along as the time since its request went says, a shimmer as many
-of the clock's steps on as have passed since its answer's first byte. That's how a storyboard's
-frame is brought to its point in the animation.
+A fixture over none of the ledger's records is drawn at the frames' moment in a zone whose clocks
+never change, fixed as the zone it's asked for stands then, so it reads the same in every zone. One
+over records is built and drawn in the machine's own zone, `time.Local` itself, as the ledger, its
+readers and the views split days there, which a test can't change in process: so its frame reads the
+same in any zone whose clocks don't change from the moment drawn to the weeks' resets. Capture's
+tests under `TZ` (11 October 2026) pass in UTC, London, Tokyo, Los Angeles, Santiago, Havana and
+Auckland, and fail in Sydney, whose clocks go forward at 02:00 on Sunday 4 October: personal's week
+resets at 03:00, and work's can't both reset when drawn and run its 168 hours.
+
+A view that follows the router's request stream has the watch open it: the fixture's tells of what
+has befallen its requests, each at its time before the moment drawn, then ends, as a router ends
+it. The watch keeps what it told, and asks for it again only once a timer fires, which none does,
+so what travels the cords stands where the moment puts it: a pulse as far along as the time since
+its request went says, a shimmer as many of the clock's steps on as have passed since its answer's
+first byte. That's how a frame of motion is brought to its point in the animation.
 
 ## The capture tool and its fixtures
 
-```
-cmd/capturetool/       the tool: --fixture, --scenario, --theme, --print, --size, --ansi, and the import guard
-internal/capture/      imported by the tool alone
-  capture.go           the Fixture, and the registry: Names, ByName, and every fixture's name, size, router and theme
-  samples.go           the frames' sample accounts and sessions, and the sets of them the frames draw
-  source.go            the fake router: its status document and health, GET /sessions, GET /history and GET /stream
-  history.go           the accounts' windows' use over time, as the frames' charts draw it
-  stream.go            what the request stream tells: the cards' backs' requests in flight, and the storyboard's moments
-  harness.go           builds the watch model, its themes faked, settles it at the fixture's moment, and draws it
-  scenario.go          the Scenario, its registry, and how its cues play: the router's world, moment by moment
-  scenarios.go         the README's demos' scenarios: each one's accounts, and its cues
-  live.go              plays a scenario in real time: its router as the watch's source, and each key shown as pressed
-```
+`cmd/capturetool` takes `--fixture`, `--scenario`, `--theme`, `--print`, `--size` and `--ansi`,
+and holds the import guard. `internal/capture`, which it alone imports, holds the fixtures and their
+registry, `Names` and `ByName`, in `capture.go`; the sample worlds they're drawn over; the fakes
+the watch reads them through; the harness that settles a fixture at its moment and draws it; the
+scenarios; and the tests that hold the fixtures to `reference/`.
 
 `--scenario` plays a scenario through the same watch model in real time, its clock running and its
 timers firing, for the README's demos: [demo/README.md](../../demo/README.md) says how.
 
-A fixture is a moment of the dashboard: what the router gives at it, the terminal it's drawn on,
-and the keys pressed once its document is read. What the router gives mirrors the frames' sample
-data, from the generator that drew them: the same accounts, in the same order, with the same
-numbers, the same session ids, its document read 4s before the clock the frames read, and the
-events the frames' RECENT has. Its sessions answer as `GET /sessions` would, and its history as `GET
-/history` would, at any step, from a reading a minute of each session and a reading each half hour
-of each week, shaped as the frames' charts are. The dashboard draws its own numbers from these, by
-its own rules, so a few read otherwise than the generator drew them:
-
-- **Work runs out** where its 90% reserve starts, as its reserve holds it back, and at its last
-  half hour's rate its session reaches it at 15:45: the frames say it runs out at 16:05, which is
-  when it reaches its limit. So COMING UP says `15:45 work reaches its reserve`, not `16:05 work
-  runs out at its pace`, and RECENT, telling of it coming under pressure, says `its session
-  reaches its reserve ~15:45 at its last-30-min rate`, not `its session runs out ~16:05 at its
-  last-30-min rate`. Its card says `→ reaches its reserve ~15:45`, or in brief `→ out ~15:45`, and
-  its chart's `✕` is there, on its reserve. Its lane in Runway has no room from 15:45, saying
-  `reaches its reserve ~15:45 · back 17:10, as it resets`, so the strip doesn't rise to every
-  account with room between personal's return at 15:54 and 16:05, as the frames' does.
-- **ROOM LEFT's sums** round the rooms' sum as it is: the six accounts' sessions have 3.55
-  accounts' worth left, which reads 3.6, where the generator's sum came to a hair under, and read
-  3.5.
-- **Projections** the generator gave without its numbers giving them: client's week, 78% used a
-  third of the way through, reaches its 80% reserve at 16:04, which holds it back, rather than
-  heading for 97%, so its card says `→ out ~16:04` and its chart's `✕` is just past now, and
-  COMING UP, with four accounts or more, says `16:04  client's week reaches its reserve` as its
-  third thing, where the frames have `16:40  client's session resets` or `16:20  spare is
-  primed`; and its lane in Runway, over the day, has no room from 16:04, saying `week reaches
-  its reserve ~16:04 · back Tue 09:00, as it resets`, where the frame has `room all day`, the
-  strip counting an account fewer from then. At their pace, spare's week heads for 34% and
-  extra's for 8%, not 12% and 5%, and with Fable's week used, client's heads for 63%, not 36%;
-  and work's Fable week heads for 30.7%, which reads 31% but fills its bar an eighth of a cell
-  short of the frames' 31%.
-- **Countdowns** run from 14:42:07, the frames' from 14:42: as the dashboard counts now, personal
-  is back in 1h 11m, not 1h 12m, and its big digits read `1:11`. They're `status`'s countdowns,
-  so side's session resets `in 4h 7m`, not `in 4h 08m`.
-- **A card's dots** come in the order the router lists its sessions, the one seen last first, so
-  the busy ones lead: work's read `● ● ○`, where the frames have `● ○ ●`. Its back lists them in
-  that order too, work's db8a, d28c and 7f3a, where the frames have d28c, 7f3a and db8a, so the
-  flipped-selected fixture picks out d28c, the frames' session, with `↓` twice, on work's second
-  row rather than its first. Sessions' calls, at the first look, run the one put on its account
-  last first, which gives the frames' order: 7f3a was put on work at 13:10, between db8a at 13:05
-  and d28c at 13:20. From then on each keeps its row, a new one joining its group's foot.
-- **The cards' backs and Sessions draw different moments**, as their frames do: the backs' frames
-  have four requests in flight, d28c's opus streaming on work, 1.2k tokens of it, db8a's sonnet
-  waiting 38s there, c61b's opus streaming on side, 3.4k tokens, and db8a's opus waiting 12s; the
-  Sessions frames have none, their cords at rest. So the flipped fixtures' router tells of those
-  four as its request stream opens, and the Sessions fixtures' of none.
-- **A line's pace** is the dashboard's, from the samples' times: side's week is 45.6% through,
-  so its marker is a cell left of the frames', whose generator rounded it to 46%, and so is its
-  Fable week's. In the storyboards, drawn at 14:43:02, personal's week runs out `~Fri 04:07`, its
-  pace moving it on a minute a minute, where the frames have 04:06.
-- **A card's back** draws its notes and LATELY from the router's events among the 50: the
-  fixtures' tell, older than RECENT's four or counted in personal's limit, of db8a's opus and 41e0
-  moving to side as personal reached its limit, d28c starting on work, and work's and personal's
-  primes, which RECENT leaves out. Personal's limit counts three sessions moved, two of them told
-  of, as the frames' RECENT and samples have it.
-- **A chart's columns** each take the last reading before their middles, from the history at its
-  steps, so a level steps an eighth of a cell apart from the frames' here and there; and its line
-  for now stands just past the column now falls in, one column from the frames' on team's week.
-- **Work's prime**, in the one account's RECENT, is told of at 12:10, when it started work's
-  session: the frame has it at 13:02, saying it primed at 12:10.
+A fixture is a moment of the dashboard: what the router and the files it reads give at it, the
+terminal it's drawn on, and the keys pressed once its document is read. What they give mirrors the
+frame's sample world, from the generator that drew it: the same accounts, in the same order, with
+the same numbers and the same session ids. The dashboard draws its own numbers from these, by its
+own rules, which the test holds to the frame's, cell for cell.
 
 ### Adding a fixture
 
-1. Add it to `fixtures` in `internal/capture/capture.go`: a name, the size of the frame it mirrors,
-   the router of one of the sets of accounts in `samples.go`, or a new one, and the keys that reach
-   the frame, such as `tab` for Sessions or `w` for the week. `Names` and `ByName` both read that
-   one list.
-2. Write its tape, modelled on `accounts-3.tape`, its `Width` and `Height` from the fixture's size,
-   as the calibrated settings say.
-3. Clear the tape and its capture at the milestone's sign-off. Leave the fixture.
-
-What a later view reads joins the router in `source.go`, its data with the samples it's of, so
-every fixture over those samples has it. The request stream is the exception, as it's a moment's:
-what it tells is each fixture's own, `telling` the events, its data in `stream.go`.
+1. Add it to `fixtures` in `internal/capture/capture.go`, named after the frame it draws: the
+   frame's size, the world it's drawn over, and the keys that reach it. `Names` and `ByName` both
+   read that one list.
+2. Delete its stem from `owed` in `internal/capture/reference_test.go`: from then on, the test
+   holds it to its frame.
+3. Where the frame drew a cell otherwise than the design says, the design holds; where its world
+   can't give a figure the frame draws (see What the worlds give otherwise than the frames), fit
+   the world where it can. Either way, pass over what's left in `passedOver`, beside `owed`, and
+   list it here, under The cells passed over, with what the dashboard draws in its place. Never
+   patch the frame.
+4. To judge it by eye too, write its tape, modelled on `accounts-3.tape`, its `Width` and `Height`
+   from the fixture's size, as the calibrated settings say; clear the tape and its capture at the
+   milestone's sign-off. Leave the fixture.

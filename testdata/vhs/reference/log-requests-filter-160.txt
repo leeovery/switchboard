@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────  35 hidden: checks and counts   f what it shows
+
+  at        session            model      on        status  first    took    read  written    out  stopped                      routing
+  14:40:26  db8a i╭─ LOG · REQUESTS · WHAT IT SHOWS ─────────────────────────────────────────────────────────────────────────────────────────╮
+  14:40:26  41e0 d│                                                                                                                          │
+  14:40:28  7f3a a│  Pick the columns it shows, and which of today's 1,275 lines.                                                            │
+  14:40:37  d28c s│                                                                                                                          │
+  14:40:39  db8a i│  COLUMNS                                 ONLY                                                                            │
+  14:40:40  d28c s│  ■ session    ■ read       □ worth       accounts  ■ work   ■ personal   ■ side                                          │
+  14:40:40  7f3a a│  ■ model      ■ written    □ input       models    ■ opus-5-5   ■ haiku-4-5                                              │
+  14:40:41  d28c s│  ■ on         ■ out        □ attempts    kinds     ■ requests 1,240   □ checks 31   □ counts 4                           │
+  14:40:49  41e0 d│  ■ status     ■ stopped    □ size        failed    □ only those that failed 3                                            │
+  14:40:59  db8a i│  ■ first      ■ routing    □ messages    sessions  every one, unless some are ticked                                     │
+  14:41:00  d28c s│  ■ took                    □ tools                   □ d28c  switchboard   side      445 today   asking                  │
+  14:41:00  7f3a a│                            □ thinking                □ c61b  mobile        side        5 today   started 14:41           │
+▲ 14:41:11  c61b m│                            □ agent                   □ 7f3a  api           side       84 today                           │
+  14:41:14  d28c s│                            □ request id              □ db8a  infra         side      126 today                           │
+  14:41:14  41e0 d│                                                      □ 41e0  docs          personal  158 today                           │
+  14:41:16  d28c s│                                                      □ 9c2e  website       personal  267 today   idle 9m                 │
+  14:41:19  c61b m│                                                      ▼ 8 more today   / finds one from another day                       │
+  14:41:22  d28c s│                                                                                                                          │
+  14:41:25  7f3a a│  It shows 1,240 of 1,275 lines, in 11 columns.                                                                           │
+  14:41:29  41e0 d│                                                                                                                          │
+  14:41:38  c61b m│                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
+  14:41:39  c61b m╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  14:41:41  7f3a api           opus-5-5   side      200      1.0s   11.9s    117k     1.4k   1.1k  tool_use · Read
+  14:41:45  d28c switchboard   opus-5-5   side      200      1.1s    9.3s    198k      807    615  tool_use · Read
+↓ 14:41:53  c61b mobile        opus-5-5   side               0.7s   14.0s                          answering · 5.1k characters
+↑ 14:42:00  d28c switchboard   opus-5-5   side                       7.0s                          asking
+↓ 14:42:01  7f3a api           opus-5-5   side               1.0s    6.0s                          answering · 1.9k characters
+
+● following                                                                                                                                    1,240 lines today
+tab views   [ ] view    ↑↓ request  enter open  f what it shows  / find    p pin    ? help  q quit

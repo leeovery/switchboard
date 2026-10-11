@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+HISTORY    Year  Weeks  Days  Tokens  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  p eight weeks
+
+all accounts                                  ▂▂▂▂▂   ▂▂▂▂▂   ▄▄▄▄▄               three is about right
+              ▅▅▅▅▅   ▇▇▇▇▇   █████                                   ▆▆▆▆▆       as now: short on 3 of the last 7 weeks, each time work alone
+                                                                                  with one fewer: short on 6 of 7   with one more: short on none
+               53%     64%     66%     67%     74%     73%     82%     59%…       an estimate, from replaying these weeks with one account fewer or more
+
+
+work          ▁▁▁▁▁   ▅▅▅▅▅           ▇▇▇▇▇           ▃▃▃▃▃                       hits its limit most weeks
+                                                                                  limit hit 3 of 7 weeks · 9% left at a reset, on average
+                                                                                  without it, the rest: short on 6 of 7
+               72%     88%     100%    94%     100%    81%     100%    34%…
+
+
+personal ◆            ▁▁▁▁▁           ▂▂▂▂▂   ▁▁▁▁▁   ▆▆▆▆▆   ▄▄▄▄▄               ends most weeks with room
+              ▇▇▇▇▇           ▆▆▆▆▆                                   █████       limit hit 0 of 7 weeks · 27% left at a reset, on average
+                                                                                  without it, the rest: short on 5 of 7
+               64%     70%     58%     77%     69%     90%     85%     66%…
+
+
+side ▲                                                                ▃▃▃▃▃       plenty to spare most weeks
+                              ▂▂▂▂▂           ▄▄▄▄▄   ▃▃▃▃▃   ▆▆▆▆▆               limit hit 0 of 7 weeks · 59% left at a reset, on average
+              ▅▅▅▅▅                   ▇▇▇▇▇                                       without it, the rest: short on 3 of 7
+               22%     35%     41%     30%     52%     47%     60%     78%…
+              10 Aug  17 Aug  24 Aug  31 Aug  7 Sep   14 Sep  21 Sep  28 Sep
+
+
+
+
+
+short: a week some account hit its limit   ·   100% it hit its limit   ·   59%… this week, so far
+
+tab views   [ ] view   p period: eight weeks   v split: columns     ←→ account  ? help  q quit

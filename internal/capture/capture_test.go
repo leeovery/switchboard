@@ -2,6 +2,7 @@ package capture
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -38,6 +39,24 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 	}
 }
 
+func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
+	all := []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}
+
+	if got, want := panicked(t, func() { setOf(all) }), `capture: two fixtures named "accounts-1"`; got != want {
+		t.Errorf("setOf panicked with %q, want %q", got, want)
+	}
+}
+
+func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
+	f := fixture(t, "accounts-3-week")
+	keys, size := slices.Clone(f.keys), f.Size
+	f.keys[0], f.Size = tea.KeyPressMsg{Code: '2', Text: "2"}, wide(10)
+
+	if got := fixture(t, "accounts-3-week"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
+		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, keys, size)
+	}
+}
+
 func TestAnEmptyOrUnknownNameListsTheFixtures(t *testing.T) {
 	available := "(available: " + strings.Join(Names(), ", ") + ")"
 	tests := []struct {
@@ -60,9 +79,10 @@ func TestAnEmptyOrUnknownNameListsTheFixtures(t *testing.T) {
 }
 
 func TestFramesAreDeterministic(t *testing.T) {
+	again := fixturesIn(time.Local)
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
-			first, second := frameOf(t, name, time.Local), frameOf(t, name, time.Local)
+			first, second := frameOf(t, local(), name), frameOf(t, again, name)
 			if first != second {
 				t.Errorf("two frames of %s differ:\n%s\nthen\n%s", name, first, second)
 			}
@@ -76,20 +96,64 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	utc := askedIn(time.UTC)
+	others := []zonedSet{askedIn(time.FixedZone("UTC+10", 10*60*60)), askedIn(sydney)}
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
-			utc := frameOf(t, name, time.UTC)
-			for _, loc := range []*time.Location{time.FixedZone("UTC+10", 10*60*60), sydney} {
-				if frame := frameOf(t, name, loc); frame != utc {
-					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, utc, loc, frame)
+			f, err := utc.set.named(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if f.records != nil {
+				drawnInTheMachinesZone(t, name, append([]zonedSet{utc}, others...))
+				return
+			}
+			drawn := f.Frame(f.Size)
+			for _, other := range others {
+				if frame := frameOf(t, other.set, name); frame != drawn {
+					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, drawn, other.zone, frame)
 				}
 			}
 		})
 	}
 }
 
+// zonedSet is every fixture, asked for in a zone.
+type zonedSet struct {
+	zone *time.Location
+	set  fixtureSet
+}
+
+func askedIn(zone *time.Location) zonedSet {
+	return zonedSet{zone: zone, set: fixturesIn(zone)}
+}
+
+// drawnInTheMachinesZone checks the fixture over records with the given name,
+// asked for in each zone given, is drawn as when asked for in the machine's,
+// at the frames' moment there. The ledger and the views split its days in
+// time.Local, which a test can't change in process: its zone is varied by
+// running the tests under TZ, as testdata/vhs/README.md says. Its moment can
+// be right while part of its world is still built in the zone asked for, which
+// a zone not the machine's shows, wherever the machine is.
+func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
+	t.Helper()
+	mine := frameOf(t, local(), name)
+	for _, a := range asked {
+		f, err := a.set.named(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
+			t.Errorf("%s, over records, asked for in %s, is drawn at %s, want the frames' moment in the machine's zone", name, a.zone, f.now)
+		}
+		if drawn := f.Frame(f.Size); drawn != mine {
+			t.Errorf("%s, over records, asked for in %s, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, a.zone, drawn, mine)
+		}
+	}
+}
+
 func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
-	frame := ansi.Strip(frameOf(t, "accounts-3", time.Local))
+	frame := ansi.Strip(frameOf(t, local(), "accounts-3"))
 
 	for _, want := range []string{
 		// The clock the frames read.
@@ -201,6 +265,7 @@ func TestTheThemesFixtureHasThePickerOpenOnTheThemeBeforeTheFrames(t *testing.T)
 }
 
 func TestTheFlippedFixturesTurnTheCardsOverWithTheirKeys(t *testing.T) {
+	utc := fixturesIn(time.UTC)
 	tests := []struct {
 		name string
 		want []string
@@ -215,7 +280,7 @@ func TestTheFlippedFixturesTurnTheCardsOverWithTheirKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			frame := ansi.Strip(frameOf(t, utc, tt.name))
 			for _, want := range tt.want {
 				if !strings.Contains(frame, want) {
 					t.Errorf("the frame\n%s\nhas no %q", frame, want)
@@ -226,6 +291,7 @@ func TestTheFlippedFixturesTurnTheCardsOverWithTheirKeys(t *testing.T) {
 }
 
 func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
+	utc := fixturesIn(time.UTC)
 	tests := []struct {
 		name string
 		want []string
@@ -242,7 +308,7 @@ func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			frame := ansi.Strip(frameOf(t, utc, tt.name))
 			for _, want := range tt.want {
 				if !strings.Contains(frame, want) {
 					t.Errorf("the frame\n%s\nhas no %q", frame, want)
@@ -253,6 +319,7 @@ func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
 }
 
 func TestTheChartFixturesDrawEachStyleWithTheirKeys(t *testing.T) {
+	utc := fixturesIn(time.UTC)
 	rate := "KEY      ▃▅ use per 10 min   ▆▆ too fast to last   ⠂⠂⠂ fastest that lasts   │"
 	hourglass := "KEY      ▀▀ room left   ▄▄ used   ▐▌ its recent rate, falling while busy   │"
 	tests := []struct {
@@ -268,7 +335,7 @@ func TestTheChartFixturesDrawEachStyleWithTheirKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			frame := ansi.Strip(frameOf(t, utc, tt.name))
 			for _, want := range tt.want {
 				if !strings.Contains(frame, want) {
 					t.Errorf("the frame\n%s\nhas no %q", frame, want)
@@ -279,6 +346,7 @@ func TestTheChartFixturesDrawEachStyleWithTheirKeys(t *testing.T) {
 }
 
 func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
+	utc := fixturesIn(time.UTC)
 	tests := []struct {
 		name string
 		want []string
@@ -301,7 +369,7 @@ func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, tt.name, time.UTC))
+			frame := ansi.Strip(frameOf(t, utc, tt.name))
 			for _, want := range tt.want {
 				if !strings.Contains(frame, want) {
 					t.Errorf("the frame\n%s\nhas no %q", frame, want)
@@ -312,6 +380,7 @@ func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
 }
 
 func TestTheStoryboardsPulsesAreWhereItsFramesHaveThem(t *testing.T) {
+	utc := fixturesIn(time.UTC)
 	tests := []struct {
 		name string
 		// row is the frame's row the pulse is on, and head the column of
@@ -324,7 +393,7 @@ func TestTheStoryboardsPulsesAreWhereItsFramesHaveThem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rows := strings.Split(frameOf(t, tt.name, time.UTC), "\n")
+			rows := strings.Split(frameOf(t, utc, tt.name), "\n")
 			cells := ansi.Strip(rows[tt.row])
 			if got := []rune(cells)[tt.head]; got != '━' {
 				t.Fatalf("row %d reads %q, want the pulse's head, ━, at %d", tt.row, cells, tt.head)
@@ -412,11 +481,11 @@ func fixture(t *testing.T, name string) Fixture {
 	return f
 }
 
-// frameOf is the frame of the fixture with the given name, drawn in the time
-// zone given, at its own size.
-func frameOf(t *testing.T, name string, loc *time.Location) string {
+// frameOf is the frame of the set's fixture with the given name, at its own
+// size.
+func frameOf(t *testing.T, set fixtureSet, name string) string {
 	t.Helper()
-	f, err := named(name, loc)
+	f, err := set.named(name)
 	if err != nil {
 		t.Fatal(err)
 	}

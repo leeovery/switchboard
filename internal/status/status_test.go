@@ -1587,6 +1587,83 @@ func (p *gatheringProber) Probe(ctx context.Context, _ string) (quota.Probe, err
 	}
 }
 
+func TestPressureOf(t *testing.T) {
+	// The session is 40% used, resetting in 3 hours, work keeping 5% of it
+	// back: at 25% an hour it reaches that in 2h 12m, at 15% in 3h 40m.
+	session := []quota.Window{windowIn("5h", 0.4, 3*time.Hour)}
+	since := built.Add(-30 * time.Minute).In(time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name  string
+		rate  float64
+		takes bool
+		outIn time.Duration
+		under bool
+		// asked are the reserves it's asked whether the account takes a
+		// request at.
+		asked []float64
+	}{
+		{name: "reaching its reserve before its reset, and taking a request", rate: 0.25, takes: true, outIn: 132 * time.Minute, under: true, asked: []float64{0.05}},
+		{name: "reaching its reserve before its reset, but taking none", rate: 0.25, outIn: 132 * time.Minute, asked: []float64{0.05}},
+		{name: "reaching its reserve after its reset", rate: 0.15, takes: true, outIn: 220 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var asked []float64
+			takes := func(reserve float64) bool {
+				asked = append(asked, reserve)
+				return tt.takes
+			}
+			pace := score.Pace{Rate: tt.rate, Recent: true, Since: since}
+			got := status.PressureOf(policy, pace, score.Candidate{ID: "work", Windows: session, Reserve: 0.05, Rate: tt.rate}, takes, built)
+
+			want := status.Pressure{Window: "5h", Rate: tt.rate, Recent: true, Since: since.UTC(), RunsOut: built.Add(tt.outIn), Under: tt.under}
+			got.RunsOut = got.RunsOut.Round(time.Second)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("PressureOf() = %+v, want %+v", got, want)
+			}
+			if !slices.Equal(asked, tt.asked) {
+				t.Errorf("PressureOf() asked whether it takes a request at reserves %v, want %v", asked, tt.asked)
+			}
+		})
+	}
+}
+
+func TestRatesOf(t *testing.T) {
+	windows := []quota.Window{windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day)}
+	// The session rose from 30%, read 40 minutes ago, to 40% now; the week
+	// has no trail.
+	trails := map[string][]score.Reading{"5h": {{At: built.Add(-40 * time.Minute), Utilization: 0.3}, {At: built, Utilization: 0.4}}}
+
+	got := status.RatesOf(windows, trails, built)
+	if len(got) != 1 || got[0].Window != "5h" || math.Abs(got[0].Rate-0.15) > 1e-9 || !got[0].Since.Equal(built.Add(-40*time.Minute)) {
+		t.Errorf("RatesOf() = %+v, want the session's alone, 15%% an hour since 40 minutes ago", got)
+	}
+}
+
+func TestShut(t *testing.T) {
+	later := built.Add(time.Hour)
+	tests := []struct {
+		name    string
+		account status.Account
+		want    bool
+	}{
+		{name: "free", account: status.Account{ID: "work"}},
+		{name: "at a limit of a window every model shares", account: status.Account{Limit: status.Limit{Windows: []string{"5h"}, Until: later}}, want: true},
+		{name: "at a limit naming no window", account: status.Account{Limit: status.Limit{Until: later}}, want: true},
+		{name: "at a limit of a model's own window", account: status.Account{Limit: status.Limit{Windows: []string{"7d_oi"}, Until: later}}},
+		{name: "past its limit", account: status.Account{Limit: status.Limit{Windows: []string{"5h"}, Until: built}}},
+		{name: "its token refused", account: status.Account{Refused: status.Refusal{Until: later, Status: 401}}, want: true},
+		{name: "refused a model family alone", account: status.Account{Refused: status.Refusal{Until: later, Status: 403, Family: "fable"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.account.Shut(built, policy); got != tt.want {
+				t.Errorf("Shut() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
 // accounts are three accounts, which the tests give tokens as they need.
 var accounts = []config.Account{
 	{ID: "work", Label: "Work"},
