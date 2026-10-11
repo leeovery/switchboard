@@ -33,6 +33,13 @@ The review of the whole stage, run after its release, found these and left them:
   router from before stage 3 needs.
 - The ledger's reader and follower warn that they can't read the request ledger at each read, where
   the rounds' listings now warn once until they can.
+- `events -f` lists a line filed under the day after, as a router started before a change of time
+  zone files one, only once its day comes, where `events` lists it at once.
+- Whether a probe or a request went out on the token an account has replaced since is judged by when
+  it went out against when the account took up the other, not by the token itself. A swap in the
+  moment between marking the one and reading the other judges one on the new token old: a request
+  then goes out once more before a 401 bars the account, and a probe's failure goes unkept until the
+  next round probes it again.
 - Milestone 5's COMING UP lists only the windows its cards show; the document lists a model's own
   week wherever its reset isn't its week's. Whether the Overview's COMING UP, in stage 7, lists the
   reset of a week no card shows is to check against the design then.
