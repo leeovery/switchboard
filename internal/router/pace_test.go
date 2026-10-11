@@ -294,7 +294,7 @@ func TestAnAccountIsUnderPressureOnlyWhileItCanTakeARequestOfSomeModel(t *testin
 		want     bool
 	}{
 		{name: "held back by nothing", holdBack: func(*state) {}, want: true},
-		{name: "its token refused", holdBack: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest, s.mark()) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("work", http.StatusUnauthorized, someRequest) }},
 		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("work", nil, far, s.mark()) }},
 		{name: "a limit on its week, which every model shares", holdBack: func(s *state) { s.limit("work", []string{"7d"}, far, s.mark()) }},
 		{name: "a limit on Fable's week alone", holdBack: func(s *state) { s.limit("work", []string{"7d_oi"}, far, s.mark()) }, want: true},

@@ -316,27 +316,32 @@ func (s *state) admitted(id string, sent moment) {
 // recordProbe takes in what probing an account, from sent on, found, as a
 // prime or not, as from says: its usage, its extra usage among it, and which
 // models reported each window, and whether a request of it was answered with
-// success, or why it read nothing. It reports false, taking in nothing, of a
-// probe sent before the account last went out on a token it didn't have, as
-// probesAfresh marks it: what it found is the token before's.
+// success, or why it read nothing. Of a probe sent before the account last
+// went out on a token it didn't have, as probesAfresh marks it, it takes in
+// what it read alone, the subscription's usage, which reads the same on
+// either token, and none of how it went: when it ended, or what it couldn't
+// read. It reports false, taking in nothing, of one of those that read
+// nothing.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) bool {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	if sent < u.afresh {
-		return false
-	}
-	u.probed = at
+	onTokenBefore := sent < u.afresh
 	if err != nil {
-		u.probeErr = err.Error()
+		if onTokenBefore {
+			return false
+		}
+		u.probed, u.probeErr = at, err.Error()
 		u.misses++
 		return true
+	}
+	if !onTokenBefore {
+		u.probed, u.failures = at, slices.Clone(probed.Failures)
 	}
 	if probed.Admitted {
 		u.admitted(sent)
 	}
-	u.failures = slices.Clone(probed.Failures)
 	changed, news := u.take(probed.Windows, at, sent, s.mark())
 	news = u.takeExtra(probed.Extra, sent) || news
 	s.history(readings.Of(id, changed, at, from))
@@ -389,11 +394,21 @@ func (s *state) seeFamily(key, family string) bool {
 }
 
 // refuse notes that the upstream refused the account's token, answering the
-// request with the id by, sent at sent, with status: the account has no room
-// for refusedFor, until the time it returns. It reports false, noting
-// nothing, when the account has gone out on a token it didn't have since
-// sent, as probesAfresh marks it: the token refused is one it had before.
-func (s *state) refuse(id string, status int, by string, sent moment) (time.Time, bool) {
+// request with the id by with status: the account has no room for
+// refusedFor, until the time it returns.
+func (s *state) refuse(id string, status int, by string) time.Time {
+	r := refusal{at: s.now().UTC(), status: status, by: by}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.usage[id].refuse(r)
+}
+
+// refuseSent notes, as refuse does, that the upstream refused the token the
+// request with the id by, sent at sent, went out on, unless the account has
+// gone out on a token it didn't have since sent, as probesAfresh marks it:
+// then it notes nothing, and reports false, as the token refused is one the
+// account had before.
+func (s *state) refuseSent(id string, status int, by string, sent moment) (time.Time, bool) {
 	r := refusal{at: s.now().UTC(), status: status, by: by}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -401,8 +416,14 @@ func (s *state) refuse(id string, status int, by string, sent moment) (time.Time
 	if sent < u.afresh {
 		return time.Time{}, false
 	}
+	return u.refuse(r), true
+}
+
+// refuse notes the upstream's refusal r of the account's token, and returns
+// when it ends.
+func (u *usage) refuse(r refusal) time.Time {
 	u.refused = u.refused.with(r)
-	return r.until(), true
+	return r.until()
 }
 
 // tokenReplaced notes that the account with the given id goes out on another
@@ -432,9 +453,10 @@ func (s *state) tokenGained(id string) {
 // probesAfresh forgets how the account's probes went, as it goes out, from
 // the moment at, on a token it didn't have: the probes on another, or on
 // none, say nothing of it, so neither their errors, the windows they couldn't
-// read among them, nor their backoff hold; nor does what a probe sent before
-// at finds, still out on another, as recordProbe says, nor the upstream's
-// refusal of the token a request sent before at went out on, as refuse says.
+// read among them, nor their backoff hold; nor does how a probe sent before
+// at, still out on another, goes, though what it reads stands, as recordProbe
+// says; nor the upstream's refusal of the token a request sent before at went
+// out on, as refuseSent says.
 func (u *usage) probesAfresh(at moment) {
 	u.probed, u.probeErr, u.misses, u.failures, u.afresh = time.Time{}, "", 0, nil, at
 }
@@ -725,7 +747,7 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 		return time.Time{}, false
 	}
 	retry := reprobeAfter
-	if u.primeFailed(policy) {
+	if u.primeFailed(policy, u.probed) {
 		retry = reprimeAfter
 	}
 	return score.Later(at, u.probed.Add(retry)), true
@@ -757,20 +779,23 @@ func (u *usage) freed(policy score.Policy, now time.Time) (time.Time, bool) {
 	return at, true
 }
 
-// primeFailed reports whether the last probe of the account with the given id
-// failed as a prime, as its usage's primeFailed says.
-func (s *state) primeFailed(id string) bool {
+// primeFailed reports whether the last probe of the account with the given
+// id, ended at ended, failed as a prime, as its usage's primeFailed says. The
+// account's probes keep no end of one on the token before, as recordProbe
+// says, so the caller gives it.
+func (s *state) primeFailed(id string, ended time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.usage[id].primeFailed(s.policy)
+	return s.usage[id].primeFailed(s.policy, ended)
 }
 
-// primeFailed reports whether the account's last probe failed as a prime: it
-// read nothing, or the window a request starts, as policy names it, wasn't
-// running as it ended, by what has been read, so the prime didn't start it.
-func (u *usage) primeFailed(policy score.Policy) bool {
+// primeFailed reports whether the account's last probe, ended at ended,
+// failed as a prime: it read nothing, or the window a request starts, as
+// policy names it, wasn't running as it ended, by what has been read, so the
+// prime didn't start it.
+func (u *usage) primeFailed(policy score.Policy, ended time.Time) bool {
 	windows := u.latest()
-	return u.probeErr != "" || len(windows) == 0 || len(policy.Lapsed(windows, u.probed)) > 0
+	return u.probeErr != "" || len(windows) == 0 || len(policy.Lapsed(windows, ended)) > 0
 }
 
 // view returns what a choice of account for a request of model knows at now:

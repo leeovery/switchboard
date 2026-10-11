@@ -192,7 +192,7 @@ func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {
 	})
 }
 
-func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccount(t *testing.T) {
+func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *testing.T) {
 	// rotatedToken is work's token once renewedToken is replaced in its turn.
 	const rotatedToken = "test-token-work-rotated"
 	tests := []struct {
@@ -208,17 +208,6 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccount(t *testi
 		wantRefused bool
 	}{
 		{
-			name: "the token its file held as it was read again, replaced as the request went out on it again",
-			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
-				return map[string][]answer{
-					workToken:    {refusedAs(holds(renewedToken))},
-					renewedToken: {refusedAs(holds(rotatedToken), lookAt)},
-					rotatedToken: {served},
-				}
-			},
-			wantTokens: []string{workToken, renewedToken, rotatedToken},
-		},
-		{
 			name: "replaced as the request was out, its file caught as it's rewritten as it's read again",
 			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
 				return map[string][]answer{
@@ -227,6 +216,30 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccount(t *testi
 				}
 			},
 			wantTokens: []string{workToken, renewedToken},
+		},
+		{
+			name: "a new token its file held as it was read again, replaced in its turn as the request went out on it, which bars it",
+			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
+				return map[string][]answer{
+					workToken:    {refusedAs(holds(renewedToken))},
+					renewedToken: {refusedAs(holds(rotatedToken), lookAt)},
+					rotatedToken: {served},
+				}
+			},
+			wantTokens:  []string{workToken, renewedToken, sideToken},
+			wantRefused: true,
+		},
+		{
+			name: "a new token the router took up as the request was out, replaced in its turn as it went out on that, which bars it",
+			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
+				return map[string][]answer{
+					workToken:    {refusedAs(holds(renewedToken), lookAt, holds(""))},
+					renewedToken: {refusedAs(holds(rotatedToken), lookAt)},
+					rotatedToken: {served},
+				}
+			},
+			wantTokens:  []string{workToken, renewedToken, sideToken},
+			wantRefused: true,
 		},
 		{
 			name: "not the token it goes out on now, which bars it",

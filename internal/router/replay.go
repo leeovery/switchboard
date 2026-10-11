@@ -66,11 +66,11 @@ type replay struct {
 	// throttled counts the times the request was sent again on its account
 	// after being throttled there.
 	throttled int
-	// reread is set once the account's token file has been read again after
-	// the upstream refused its token, which happens once an account: a file
-	// that holds a new token each time it's read mustn't keep the request
-	// going round.
-	reread bool
+	// newToken is set once the request has gone out again on its account for
+	// a new token, after the upstream refused the one before, which happens
+	// once an account: a token that changes between each attempt and its 401
+	// mustn't keep the request going round.
+	newToken bool
 	// limit is the answer of the first account whose limit the request
 	// reached, held back from the client, or nil while there's none.
 	limit *heldAnswer
@@ -115,8 +115,8 @@ func (rp *replay) send(out *http.Request) (*http.Response, error) {
 		attempt.Body = body
 	}
 	// when is marked before the token is read, so a token the account takes
-	// up after the read is marked after when, and the state's refuse notes no
-	// refusal of this one against the account.
+	// up after the read is marked after when, and the state's refuseSent notes
+	// no refusal of this one against the account.
 	rp.when = rp.p.state.mark()
 	rp.sent = ex.account.token()
 	attempt.Header.Set("Authorization", "Bearer "+rp.sent.Reveal())
@@ -170,16 +170,15 @@ func (rp *replay) tell(kind string, status int) {
 }
 
 // tokenRefused has the request go out again on its account when the account
-// has replaced the token the upstream refused, as after the token is
-// rotated: its token file holds another, as renewed says, or the router took
-// another up while the request was out, as refuse says. Otherwise the account
-// is barred from every request, as refuse says, and refused, as refused says.
+// has a new token for it, as refuse says, as after the token is rotated.
+// Otherwise the account is barred from every request, and refused, as
+// refused says.
 func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.Response, bool, error) {
-	if !rp.renewed() {
-		if news, ok := rp.refuse(resp.StatusCode); ok {
-			return rp.refused(ctx, resp, quota.Refused, news)
-		}
+	news, barred := rp.refuse(resp.StatusCode)
+	if barred {
+		return rp.refused(ctx, resp, quota.Refused, news)
 	}
+	rp.newToken = true
 	discard(resp)
 	rp.replaying(rp.ex.account.ID, whyNewToken)
 	return nil, true, nil
@@ -187,13 +186,23 @@ func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.
 
 // refuse bars the account the request went out on from every request, as the
 // upstream refused its token, answering with status, and returns the news of
-// it. It reports false, barring nothing, when the account has gone out on a
-// token it didn't have since the request went out, as the state's refuse
-// says: the token refused is the one before.
+// it; unless the account has replaced that token since, which the request
+// goes out again on, once an account: its token file holds another, as
+// renewed says, or the router took another up while the request was out, as
+// the state's refuseSent says. Then it reports false, barring nothing.
 func (rp *replay) refuse(status int) (Refused, bool) {
 	ex := rp.ex
-	until, ok := rp.p.state.refuse(ex.account.ID, status, ex.id, rp.when)
-	return Refused{Account: ex.account.ID, Status: status, Request: ex.id, Until: until}, ok
+	news := Refused{Account: ex.account.ID, Status: status, Request: ex.id}
+	if rp.newToken {
+		news.Until = rp.p.state.refuse(news.Account, status, ex.id)
+		return news, true
+	}
+	if rp.renewed() {
+		return news, false
+	}
+	var barred bool
+	news.Until, barred = rp.p.state.refuseSent(news.Account, status, ex.id, rp.when)
+	return news, barred
 }
 
 // forbid bars the account the request went out on from the requests of the
@@ -207,18 +216,13 @@ func (rp *replay) forbid(status int) Refused {
 }
 
 // renewed reads the token file of the account the request went out on again,
-// unless it has been read again for this request already, and reports
-// whether it holds another token than the one the request went out with,
-// which the account goes out on from then on, the one it replaces still
-// counting as the account's for clients started before, and no refusal of it
-// holding the account back. A file that holds no token the account can use,
-// as for a moment while it's rewritten, is no news: the account keeps its
-// token. It logs what it found, but never the token.
+// and reports whether it holds another token than the one the request went
+// out with, which the account goes out on from then on, the one it replaces
+// still counting as the account's for clients started before, and no refusal
+// of it holding the account back. A file that holds no token the account can
+// use, as for a moment while it's rewritten, is no news: the account keeps
+// its token. It logs what it found, but never the token.
 func (rp *replay) renewed() bool {
-	if rp.reread {
-		return false
-	}
-	rp.reread = true
 	a := rp.ex.account
 	token, err := rp.p.readToken(a.ID)
 	changed := err == nil && token.Reveal() != rp.sent.Reveal()
@@ -377,7 +381,7 @@ func (rp *replay) moveOn(ctx context.Context, why string) bool {
 		return false
 	}
 	ex.account, ex.reason = to, choice.Reason
-	rp.throttled, rp.reread = 0, false
+	rp.throttled, rp.newToken = 0, false
 	rp.replaying(from, why)
 	rp.p.moved(ex, choice.From)
 	return true

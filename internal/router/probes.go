@@ -212,13 +212,14 @@ func (p *probes) stop() {
 	p.wg.Wait()
 }
 
-// probe reads an account's usage, as r, and notes how that went: not at all
-// when the account has gone out on a token it didn't have since the probe was
-// sent, as what the probe found is the token before's.
+// probe reads an account's usage, as r, and notes how that went; but one that
+// read nothing on the token before, the account having gone out on a token it
+// didn't have since the probe was sent, says nothing of the account, and is
+// logged at debug alone.
 func (p *probes) probe(a account, r *run) {
 	// sent is marked before the token is read, so a token the account takes up
-	// after the read is marked after sent, and recordProbe takes nothing in of
-	// a probe on the token before.
+	// after the read is marked after sent, and recordProbe judges this probe
+	// one on the token before.
 	started, at, sent := time.Now(), p.now(), p.state.mark()
 	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
 	took := time.Since(started).Round(time.Millisecond)
@@ -227,7 +228,7 @@ func (p *probes) probe(a account, r *run) {
 		return
 	}
 	if !p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r)) {
-		logger.Debug("token taken up as the account was probed; what the probe found isn't kept", "account", a.ID, "duration", took)
+		logger.Debug("probe on the token before failed; its failure isn't kept", "account", a.ID, "duration", took, "error", err)
 		return
 	}
 	p.told(r)(a, probed, err, at, took)
@@ -258,7 +259,7 @@ func (p *probes) logPrime(a account, probed quota.Probe, err error, sent time.Ti
 		primed.ResetsAt = probed.Windows[i].ResetsAt
 		attrs = append(attrs, "resets", primed.ResetsAt)
 	}
-	if p.state.primeFailed(a.ID) {
+	if p.state.primeFailed(a.ID, p.now()) {
 		logger.Warn("prime didn't start the window", append(attrs, "window", primed.Window)...)
 	} else {
 		logger.Info("primed", attrs...)

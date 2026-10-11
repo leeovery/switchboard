@@ -321,7 +321,7 @@ func TestAnAccountThatGoesOutOnAnotherTokenIsNoLongerHeldBackByTheRefusalOfItsLa
 			files := &changingFiles{files: testTokens}
 			r := newTestRouterReading(t, clock.read, &stubProber{}, files.read)
 			until := start.Add(refusedFor)
-			r.state.refuse("work", http.StatusUnauthorized, someRequest, r.state.mark())
+			r.state.refuse("work", http.StatusUnauthorized, someRequest)
 			r.state.forbid("work", "opus", http.StatusForbidden, someRequest)
 			r.recent.hear(Refused{Account: "work", Status: http.StatusUnauthorized, Until: until, Request: someRequest})
 			r.recent.hear(Refused{Account: "work", Status: http.StatusForbidden, Family: "opus", Until: until, Request: someRequest})

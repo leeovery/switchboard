@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -483,7 +484,7 @@ func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
 	}
 }
 
-func TestAProbeCountsOnlyForTheTokenItWentOutOn(t *testing.T) {
+func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 	higher := week
 	higher.Utilization = 0.97
 	outcomes := []struct {
@@ -491,14 +492,34 @@ func TestAProbeCountsOnlyForTheTokenItWentOutOn(t *testing.T) {
 		// reading and err are what the probe on the token before finds.
 		reading quota.Probe
 		err     error
+		// wantWeek is what side's week reads once the probe has ended, and
+		// wantLog what the log says of the probe.
+		wantWeek float64
+		wantLog  []string
+		// wantDue is whether side is due on the next round, a minute on.
+		wantDue bool
 	}{
-		{name: "refused", err: errors.New("HTTP 401 · Invalid bearer token")},
-		{name: "reading its windows", reading: probed(nil, session, higher)},
+		{
+			name:     "refused, which says nothing of the token side goes out on now",
+			err:      errors.New("HTTP 401 · Invalid bearer token"),
+			wantWeek: week.Utilization,
+			wantLog:  []string{"level=DEBUG", `msg="probe on the token before failed; its failure isn't kept"`, "account=side", `error="HTTP 401 · Invalid bearer token"`},
+			wantDue:  true,
+		},
+		{
+			name:     "reading its windows, which read the same on either token",
+			reading:  probed(nil, session, higher),
+			wantWeek: higher.Utilization,
+			wantLog:  []string{"level=DEBUG", `msg="probed account"`, "account=side", "windows=2"},
+			// The probe read side a minute before, as the rounds count it.
+			wantDue: false,
+		},
 	}
 	for _, o := range outcomes {
 		for _, tt := range takeUps {
 			t.Run(o.name+", "+tt.name, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
+					log := logstest.Capture(t)
 					clock := &testClock{now: start}
 					files := &changingFiles{files: testTokens}
 					prober := &stubProber{
@@ -530,13 +551,19 @@ func TestAProbeCountsOnlyForTheTokenItWentOutOn(t *testing.T) {
 					if side.Error != "" {
 						t.Errorf("side's error reads %q, want none: it was the token before's", side.Error)
 					}
-					if got := side.Windows[1].Utilization; got != week.Utilization {
-						t.Errorf("side's week reads %v, want %v, as the answer before read it: the probe's reading was the token before's", got, week.Utilization)
+					if got := side.Windows[1].Utilization; got != o.wantWeek {
+						t.Errorf("side's week reads %v, want %v", got, o.wantWeek)
+					}
+					if !log.Has(o.wantLog...) || log.Has(`msg="probe failed"`) {
+						t.Errorf("log reads\n%s\nwant a line with %q, and no probe failed", log, o.wantLog)
 					}
 
 					clock.now = start.Add(roundEvery)
-					if !due("side", clock.now) {
-						t.Fatal("side not due on the next round, want it probed afresh on the token it goes out on now")
+					if got := due("side", clock.now); got != o.wantDue {
+						t.Fatalf("side due on the next round = %v, want %v", got, o.wantDue)
+					}
+					if !o.wantDue {
+						return
 					}
 					before := prober.counts()[tt.token]
 					r.rounds.look(t.Context())
@@ -733,7 +760,7 @@ func refusedSide(ago time.Duration) step {
 func refusedAt(at time.Time) step {
 	return func(r *Router, clock *testClock) {
 		clock.now = at
-		r.state.refuse("side", http.StatusUnauthorized, someRequest, r.state.mark())
+		r.state.refuse("side", http.StatusUnauthorized, someRequest)
 	}
 }
 
