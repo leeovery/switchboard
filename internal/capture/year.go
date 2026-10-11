@@ -600,11 +600,12 @@ func (y year) limitThisWeek() {
 	at := func(d, hour, minute, second int) time.Time { return dayAt(y.now, d, hour, minute, second) }
 	tuesday, wednesday := thisWeek+1, thisWeek+2
 	for _, id := range three {
-		y.days[id][thisWeek].windows = y.sessionsOf(id, thisWeek, false)
-		y.days[id][tuesday].windows = y.sessionsOf(id, tuesday, false)
-		for i := range y.days[id][tuesday].windows {
-			y.days[id][tuesday].windows[i].step = 0.01
-			y.days[id][thisWeek].windows[i].step = 0.01
+		for _, d := range []int{thisWeek, tuesday} {
+			windows := y.sessionsOf(id, d, false)
+			for i := range windows {
+				windows[i].step = 0.01
+			}
+			y.days[id][d].windows = windows
 		}
 	}
 	work, side := y.days["work"][tuesday].windows, y.days["side"][tuesday].windows

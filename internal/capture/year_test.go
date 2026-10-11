@@ -336,6 +336,32 @@ func TestTheModelVersionsShareTheWeekAndTheThirtyDaysAsAccountsDraws(t *testing.
 	}
 }
 
+// This week's Monday and Tuesday have their 5-hour windows read by the
+// hundredth, each day's own, however many each has: none on a day an account
+// used none of its week.
+func TestThisWeeksDaysBeforeYesterdayReadEachOfTheirOwnWindowsByTheHundredth(t *testing.T) {
+	y := year{now: localMoment(), days: make(map[string][]accountDay)}
+	for _, id := range three {
+		y.days[id] = make([]accountDay, today)
+		y.days[id][thisWeek].rise, y.days[id][thisWeek+1].rise = 0.1, 0.1
+	}
+	y.days["personal"][thisWeek].rise = 0
+
+	y.limitThisWeek()
+	if n := len(y.days["personal"][thisWeek].windows); n != 0 {
+		t.Errorf("personal has %d 5-hour windows on Monday, want none, as it used none of its week", n)
+	}
+	for _, id := range three {
+		for d := thisWeek; d < thisWeek+2; d++ {
+			for _, s := range y.days[id][d].windows {
+				if s.step != 0.01 {
+					t.Errorf("%s's 5-hour window from %s is read each %v of it, want each hundredth", id, s.start, s.step)
+				}
+			}
+		}
+	}
+}
+
 // Each account's day of the year is worth, through the views, what the year
 // spent on it, its versions' worths summed: none lost to a version too little
 // used for a request of its own, whose worth goes to the version used most.
