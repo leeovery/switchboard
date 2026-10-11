@@ -79,7 +79,7 @@ func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h.clock.now = start.Add(tt.after)
 			checkScreen(t, h, tt.session, tt.week)
-			if view := h.view(); !strings.Contains(view, "5h 50%   week 75%") {
+			if view := h.view(); !strings.Contains(view, "  25% → 44%") {
 				t.Errorf("the screen is\n%s\nwant the room left as read, the bars alone easing", view)
 			}
 		})
@@ -186,8 +186,7 @@ func sessionAndWeek(sessionUsed, weekUsed float64) status.Document {
 func checkScreen(t *testing.T, h *harness, session, week float64) {
 	t.Helper()
 	now := h.model.now()
-	f := h.model.frame(now)
-	f.Keys = h.model.keys()
+	f := h.model.live(now)
 	f.Eased = map[dashboard.Ref]float64{{Account: "work", Window: "5h"}: session, {Account: "work", Window: "7d"}: week}
 	if got, frame := h.model.View().Content, strings.Join(f.Draw(h.model.doc, now), "\n"); got != frame {
 		t.Errorf("at %s the screen is\n%s\nwant\n%s", h.clock.now.Format(time.StampMilli), got, frame)

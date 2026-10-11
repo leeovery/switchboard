@@ -83,12 +83,12 @@ func probed(accounts ...status.Account) status.Document {
 	}.WorkedOut(claudeLike)
 }
 
-// frameOf is a frame of a terminal the size given, as text alone, listing a
-// and q, and saying it was read 4s ago.
+// frameOf is a frame of a terminal the size given, as text alone, showing
+// the Overview, its key line listing tab, ? and q.
 func frameOf(width, height int) Frame {
 	return Frame{
-		Width: width, Height: height, Views: Views(), View: Accounts, Policy: claudeLike,
-		Keys: []Key{{Key: "a", Does: "auto"}, {Key: "q", Does: "quit", Always: true}}, Status: "read 4s ago",
+		Width: width, Height: height, View: Overview, Policy: claudeLike,
+		KeyLine: KeyLine{Groups: [][]Key{{{Key: "tab", Does: "views"}}, {{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}}}, Lead: 3},
 	}
 }
 
@@ -138,21 +138,21 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 	}
 }
 
-func TestAFrameDrawsTheTitleTheHeadingTheViewAndTheFooter(t *testing.T) {
+func TestAFrameDrawsTheTitleTheStatusLineTheViewAndTheKeyLine(t *testing.T) {
 	rows := frameOf(160, 40).Draw(threeRouted(), now)
 
-	if !strings.HasPrefix(rows[0], "  SWITCHBOARD    Accounts ") {
+	if !strings.HasPrefix(rows[0], "  SWITCHBOARD    Overview ") {
 		t.Errorf("row 1 = %q, want the title row", rows[0])
 	}
-	if !strings.HasPrefix(rows[2], " ROUTER                   NEW SESSIONS GO TO") {
-		t.Errorf("row 3 = %q, want the heading's labels", rows[2])
+	if got, want := rows[2], " ● healthy  ·  5 sessions  ·  new sessions → ▲ side"; got != want {
+		t.Errorf("row 3 = %q, want the status line, %q", got, want)
 	}
 	recent := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " RECENT") })
 	if recent < 0 || rows[recent-1] != "" || strings.TrimSpace(rows[recent-2]) == "" {
 		t.Errorf("rows are\n%s\nwant RECENT a blank row under the cards", strings.Join(rows, "\n"))
 	}
-	if got, want := rows[39], " a auto   q quit"; !strings.HasPrefix(got, want) || !strings.HasSuffix(got, "read 4s ago") {
-		t.Errorf("the last row = %q, want the footer", got)
+	if got, want := rows[39], " tab views   ? help  q quit"; got != want {
+		t.Errorf("the last row = %q, want the key line, %q", got, want)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestOneAccountUnder150ColumnsHasCOMINGUPUnderItsCardBeforeRECENT(t *testing
 	}
 }
 
-func TestTheLineOverTheFooterSaysWhichWindowsHideFromEveryCard(t *testing.T) {
+func TestTheLineOverTheKeyLineSaysWhichWindowsHideFromEveryCard(t *testing.T) {
 	doc := threeRouted()
 	for i := range doc.Accounts {
 		doc.Accounts[i].Windows = append(doc.Accounts[i].Windows, windowOf("7d_oi", "Fable week", 0, 4*day))
@@ -192,14 +192,19 @@ func TestTheLineOverTheFooterSaysWhichWindowsHideFromEveryCard(t *testing.T) {
 	}
 }
 
-func TestAViewNotBuiltDrawsNothing(t *testing.T) {
-	f := frameOf(160, 40)
-	f.View = "a-later-view"
-	rows := f.Draw(threeRouted(), now)
+func TestATabNotBuiltDrawsNothingAndExplainsNoGlyphs(t *testing.T) {
+	for _, v := range []View{Accounts, History, Log, "a-later-view"} {
+		f := frameOf(160, 40)
+		f.View = v
+		rows := f.Draw(threeRouted(), now)
 
-	for i, row := range rows[7:39] {
-		if row != "" {
-			t.Errorf("row %d = %q, want nothing drawn of a view not built", i+8, row)
+		for i, row := range rows[3:39] {
+			if row != "" {
+				t.Errorf("on %s, row %d = %q, want nothing drawn of a tab not built", v, i+4, row)
+			}
+		}
+		if glyphs := f.glyphs(); glyphs != nil {
+			t.Errorf("on %s, the glyphs explained are %v, want none", v, glyphs)
 		}
 	}
 }

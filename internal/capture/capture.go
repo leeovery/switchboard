@@ -166,19 +166,18 @@ var worldsNow = sync.OnceValue(func() accountWorlds { return newAccountWorlds(lo
 
 // fixtures are the watch's fixtures, in the frames' theme, over milestone 5's
 // samples at the frames' moment in the zone given, as moment fixes it: one
-// for each set of accounts its frames draw, at the size of the frame it mirrors, or for five
-// accounts, which its final page draws only in Sessions and Runway, at
-// Sessions'. A frame of another view, or reached by a key, is a fixture with
-// its own size and keys over one of these sets: as every card flipped with s;
-// work's card flipped with space, and d28c, its second session as the router
-// lists them, picked out with ↓ twice; the theme picker, open, its cursor
-// moved up a theme from the frames' to show the one before; the help, which
-// the frames don't draw; and Runway, with tab, over the day, and with w, over
-// the week.
+// for each set of accounts its frames draw, at the size of the frame it
+// mirrors, or for five accounts, which its final page draws only in Sessions
+// and Runway, at Sessions'. Each opens on the Overview, which shows milestone
+// 5's cards until stage 7 builds it. A frame of another view, or reached by
+// a key, is a fixture with its own size and keys over one of these sets: as
+// every card flipped with s; the theme picker, open, its cursor moved up a
+// theme from the frames' to show the one before; the help, which the frames
+// don't draw; Sessions, three tabs on; and Runway, four tabs on, over the
+// day, and with w, over the week.
 func fixtures(loc *time.Location) []Fixture {
 	now := moment(loc)
 	w, g, tab := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: tea.KeyTab}
-	space, down := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: tea.KeyDown}
 	storyboard := storyboardAt(now)
 	all := []Fixture{
 		{Name: "accounts-1", Size: wide(27), now: now, router: oneAccount(now)},
@@ -199,19 +198,18 @@ func fixtures(loc *time.Location) []Fixture {
 		{Name: "accounts-8-rate", Size: wide(40), now: now, router: eightAccounts(now), keys: []tea.KeyPressMsg{g}},
 		{Name: "accounts-8-scrolling", Size: wide(28), now: now, router: eightAccounts(now)},
 		{Name: "accounts-flipped-all", Size: wide(34), now: now, router: threeAccounts(now).telling(backs(now)...), keys: []tea.KeyPressMsg{{Code: 's', Text: "s"}}},
-		{Name: "accounts-flipped-selected", Size: wide(34), now: now, router: threeAccounts(now).telling(backs(now)...), keys: []tea.KeyPressMsg{space, down, down}},
 		{Name: "accounts-phone", Size: watch.Size{Width: 52, Height: 36}, now: now, router: threeAccounts(now)},
-		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab}},
-		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab}},
-		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, w}},
-		{Name: "sessions-1", Size: wide(27), now: now, router: oneAccount(now), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-3", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-3-keys", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, {Code: '?', Text: "?"}}},
-		{Name: "sessions-5", Size: wide(40), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-1-request-out", Size: wide(28), now: storyboard, router: requestOut(storyboard), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-2-streaming-back", Size: wide(28), now: storyboard, router: streamingBack(storyboard), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), keys: []tea.KeyPressMsg{tab}},
-		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), keys: []tea.KeyPressMsg{tab}},
+		{Name: "runway-day-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab}},
+		{Name: "runway-day-5", Size: wide(32), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab}},
+		{Name: "runway-week-3", Size: wide(26), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, tab, w}},
+		{Name: "sessions-1", Size: wide(27), now: now, router: oneAccount(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-3", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-3-keys", Size: wide(28), now: now, router: threeAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab, {Code: '?', Text: "?"}}},
+		{Name: "sessions-5", Size: wide(40), now: now, router: fiveAccounts(now), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-1-request-out", Size: wide(28), now: storyboard, router: requestOut(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-2-streaming-back", Size: wide(28), now: storyboard, router: streamingBack(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-3-refused", Size: wide(28), now: storyboard, router: refused(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
+		{Name: "sessions-storyboard-4-repatched", Size: wide(28), now: storyboard, router: repatched(storyboard), keys: []tea.KeyPressMsg{tab, tab, tab}},
 	}
 	for i := range all {
 		all[i].theme = framesTheme()

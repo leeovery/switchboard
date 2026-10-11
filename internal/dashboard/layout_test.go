@@ -27,11 +27,10 @@ func accountsOf(n int, fable bool) status.Document {
 	return doc
 }
 
-// laidOut is the Accounts view of doc laid out in the frame f, under its
-// title and heading.
+// laidOut is the Overview's cards of doc laid out in the frame f, from the
+// row its view starts at.
 func laidOut(f Frame, doc status.Document) layout {
-	top := f.above(newCanvas(f.Width, f.Height), doc, now)
-	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), top)
+	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top(doc))
 }
 
 func TestTheLayoutRulesAt160Columns(t *testing.T) {
@@ -206,7 +205,7 @@ func TestTheRowsLeftOverGrowTheRecentStripThenShowTheKey(t *testing.T) {
 	tests := []struct {
 		height int
 		// wantRecent is how many lines RECENT's strip shows, and wantKey
-		// whether the key line shows, else ? for the key.
+		// whether the glyph line shows, else ? for the key.
 		wantRecent int
 		wantKey    bool
 	}{
@@ -226,19 +225,19 @@ func TestTheRowsLeftOverGrowTheRecentStripThenShowTheKey(t *testing.T) {
 		rows := f.Draw(doc, now)
 		key, over := rows[tt.height-3], rows[tt.height-2]
 		if tt.wantKey != strings.HasPrefix(key, " KEY      ▆▆ room left") || tt.wantKey == strings.HasSuffix(over, "? for the key") {
-			t.Errorf("at 160×%d, the rows over the footer are\n%s\n%s\nwant the key line: %v", tt.height, key, over, tt.wantKey)
+			t.Errorf("at 160×%d, the rows over the key line are\n%s\n%s\nwant the glyph line: %v", tt.height, key, over, tt.wantKey)
 		}
 	}
 }
 
-func TestTheKeyLineExplainsNothingBeforeThereAreCards(t *testing.T) {
+func TestTheGlyphLineExplainsNothingBeforeThereAreCards(t *testing.T) {
 	rows := frameOf(160, 40).Draw(status.Document{}, now)
 	if view := strings.Join(rows[7:39], "\n"); strings.TrimSpace(view) != "" {
 		t.Errorf("before anything is read, the view reads\n%s\nwant it blank, the key with no cards to explain", view)
 	}
 }
 
-func TestTheKeyLineShowsOnlyWhereItFitsTheWidth(t *testing.T) {
+func TestTheGlyphLineShowsOnlyWhereItFitsTheWidth(t *testing.T) {
 	doc := accountsOf(3, true)
 	for _, tt := range []struct {
 		width   int
@@ -247,7 +246,7 @@ func TestTheKeyLineShowsOnlyWhereItFitsTheWidth(t *testing.T) {
 		f := frameOf(tt.width, 80)
 		rows := f.Draw(doc, now)
 		if got := laidOut(f, doc).key; got != tt.wantKey || got == strings.HasSuffix(rows[78], "? for the key") {
-			t.Errorf("at %d columns, the key line shows: %v, and the line over the footer reads %q; want it shown: %v", tt.width, got, rows[78], tt.wantKey)
+			t.Errorf("at %d columns, the glyph line shows: %v, and the line over the key line reads %q; want it shown: %v", tt.width, got, rows[78], tt.wantKey)
 		}
 	}
 }
@@ -262,7 +261,8 @@ func TestTheCardsScrollOnceTwoRowChartsDontFit(t *testing.T) {
 		name   string
 		scroll int
 		// wantBar is the scrollbar, top to bottom, wantFirst the first row
-		// of the cards shown, and wantSays what the line over the footer says.
+		// of the cards shown, and wantSays what the line over the key line
+		// says.
 		wantBar, wantFirst, wantSays string
 	}{
 		{
@@ -297,13 +297,13 @@ func TestTheCardsScrollOnceTwoRowChartsDontFit(t *testing.T) {
 				t.Errorf("the first row of cards shown is %q, want it to start %q", rows[7], tt.wantFirst)
 			}
 			if got := strings.TrimSpace(rows[26]); got != tt.wantSays {
-				t.Errorf("the line over the footer says %q, want %q", got, tt.wantSays)
+				t.Errorf("the line over the key line says %q, want %q", got, tt.wantSays)
 			}
 		})
 	}
 }
 
-func TestTheLineOverTheFooterCountsACardTallerThanTheViewOnce(t *testing.T) {
+func TestTheLineOverTheKeyLineCountsACardTallerThanTheViewOnce(t *testing.T) {
 	l := layout{across: 1, down: 3, width: 50, gap: 1, bars: 1, density: density{compactCard, 2}, content: 23, view: 4}
 	if above, below := l.hidden(3, 2); above != 1 || below != 2 {
 		t.Errorf("hidden() = %d above, %d below, want 1 and 2: the card cut at both ends counted once", above, below)
@@ -319,16 +319,16 @@ func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
 		" 2 personal  ■ limit reached · back 14:12, in 1h",
 		" 3 side  ● open · new sessions come here",
 	}
-	if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || !slices.Equal(rows[1:4], want) {
-		t.Errorf("drew\n%s\nwant the title row, then a line an account", strings.Join(rows, "\n"))
+	if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || !strings.HasPrefix(rows[2], " ● healthy") || !slices.Equal(rows[3:6], want) {
+		t.Errorf("drew\n%s\nwant the title row, the status line, then a line an account", strings.Join(rows, "\n"))
 	}
-	for i, row := range rows[4:11] {
+	for i, row := range rows[6:11] {
 		if row != "" {
-			t.Errorf("row %d = %q, want nothing between the accounts and the footer", i+5, row)
+			t.Errorf("row %d = %q, want nothing between the accounts and the key line", i+7, row)
 		}
 	}
-	if !strings.HasPrefix(rows[11], " a auto   q quit") {
-		t.Errorf("the last row = %q, want the footer", rows[11])
+	if rows[11] != " tab views   ? help  q quit" {
+		t.Errorf("the last row = %q, want the key line", rows[11])
 	}
 	if got := f.Scrolling(doc, now); got != (Scrolling{}) {
 		t.Errorf("Scrolling() = %+v, want none", got)
@@ -336,14 +336,14 @@ func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
 	if _, ok := f.Cards(doc, now).Neighbour("work", 1, 0); ok {
 		t.Error("a card's beside work's, want none: there are no cards to move between")
 	}
-	for _, height := range []int{1, 2} {
-		rows := frameOf(160, height).Draw(doc, now)
-		if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || height == 2 && rows[1] != "" {
-			t.Errorf("at %d rows, drew\n%s\nwant the title row alone", height, strings.Join(rows, "\n"))
-		}
+	if rows := frameOf(160, 1).Draw(doc, now); !strings.HasPrefix(rows[0], "  SWITCHBOARD") {
+		t.Errorf("at 1 row, drew\n%s\nwant the title row alone", strings.Join(rows, "\n"))
 	}
-	if rows := frameOf(160, 3).Draw(doc, now); rows[1] != want[0] || !strings.HasPrefix(rows[2], " a auto") {
-		t.Errorf("at 3 rows, drew\n%s\nwant the title row, an account's line and the footer", strings.Join(rows, "\n"))
+	for _, height := range []int{2, 3} {
+		rows := frameOf(160, height).Draw(doc, now)
+		if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || slices.ContainsFunc(rows[1:height-1], func(r string) bool { return r != "" }) || rows[height-1] != " tab views   ? help  q quit" {
+			t.Errorf("at %d rows, drew\n%s\nwant the title row and the key line alone", height, strings.Join(rows, "\n"))
+		}
 	}
 }
 

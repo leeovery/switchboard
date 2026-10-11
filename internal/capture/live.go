@@ -51,6 +51,7 @@ func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, 
 		Ledger:   ledger.NewEmpty(now, ledger.Caps{Shared: claude.SharedWindows}),
 		Readings: readings.Empty{},
 		Events:   events.Empty{},
+		Prices:   drawnPrices,
 	}
 	dressed(&cfg, s.theme, s.colourless)
 	return live{Model: watch.New(context.Background(), cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}
@@ -208,7 +209,7 @@ func (t *timeline) feed(ctx context.Context, events chan<- router.StreamEvent, f
 }
 
 // live is a watch playing a scenario, as Bubble Tea runs it, and the keys
-// pressed lately, drawn over its footer, so a recording shows what was typed.
+// pressed lately, drawn over its key line, so a recording shows what was typed.
 type live struct {
 	watch.Model
 	now   func() time.Time
@@ -301,7 +302,7 @@ func (t typed) shown(now time.Time) []string {
 	return t.keys
 }
 
-// keyName is a key as the dashboard's footer names it.
+// keyName is a key as the dashboard's key line names it.
 func keyName(key tea.KeyPressMsg) string {
 	name := key.String()
 	switch name {
@@ -326,7 +327,7 @@ func keyName(key tea.KeyPressMsg) string {
 }
 
 // keycaps draws keys as keycaps over the right of line, the screen's last
-// row, a cell apart, and a cell in from its edge, clearing what of the footer
+// row, a cell apart, and a cell in from its edge, clearing what of the key line
 // they'd cut into back to the two spaces that set its groups apart: in the
 // theme the screen is drawn in, as its canvas says, or where it paints none,
 // in reverse.

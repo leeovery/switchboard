@@ -16,26 +16,22 @@ type Prefs interface {
 	Update(change func(*theme.Prefs)) error
 }
 
-// opening is the view a watch opens on: the one kept, where it's one of
-// views, as one a later switchboard kept may not be, else the first.
-func opening(kept dashboard.View, views []dashboard.View) dashboard.View {
-	if slices.Contains(views, kept) {
+// opening is the tab a watch opens on: the one kept, where it's one there
+// is, as one an older or a later switchboard kept may not be, else the
+// Overview.
+func opening(kept dashboard.View) dashboard.View {
+	if slices.Contains(dashboard.Views(), kept) {
 		return kept
 	}
-	return views[0]
+	return dashboard.Overview
 }
 
-// turn shows the view by places on from the one shown, round, as tab and
-// shift-tab move, from its top, ending the selection on a card's back, and
-// keeps it, for the next watch to open on. With one view, there's nothing
-// to move to.
+// turn shows the tab by places on from the one shown, round, as tab and
+// shift-tab move, from its top, and keeps it, for the next watch to open on.
 func (m Model) turn(by int) (tea.Model, tea.Cmd) {
-	i := slices.Index(m.views, m.view) + by
-	next := m.views[(i%len(m.views)+len(m.views))%len(m.views)]
-	if next == m.view {
-		return m, nil
-	}
-	m.view, m.selected, m.scroll = next, dashboard.Seat{}, 0
+	tabs := dashboard.Views()
+	i := slices.Index(tabs, m.view) + by
+	m.view, m.scroll = tabs[(i%len(tabs)+len(tabs))%len(tabs)], 0
 	m.keepView()
 	return m, nil
 }
@@ -64,9 +60,9 @@ func (m Model) nextWindow() (tea.Model, tea.Cmd) {
 
 // feature has every card feature the next window w moves to, as the
 // document on screen stands, and keeps it, for the next watch to open with.
-// It works in the Accounts view alone, while there's a document to show.
+// It works on the Overview alone, while there's a document to show.
 func (m Model) feature() (tea.Model, tea.Cmd) {
-	if m.view != dashboard.Accounts || m.updated.IsZero() {
+	if m.view != dashboard.Overview || m.updated.IsZero() {
 		return m, nil
 	}
 	m.featured = m.featured.Next(m.doc, m.now(), m.cfg.Policy)
@@ -75,10 +71,9 @@ func (m Model) feature() (tea.Model, tea.Cmd) {
 }
 
 // nextChart has every card draw its chart in the next style g moves to, and
-// keeps it, for the next watch to open with. It works in the Accounts view
-// alone.
+// keeps it, for the next watch to open with. It works on the Overview alone.
 func (m Model) nextChart() Model {
-	if m.view != dashboard.Accounts {
+	if m.view != dashboard.Overview {
 		return m
 	}
 	m.chart = m.chart.Next()

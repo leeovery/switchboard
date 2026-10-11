@@ -254,8 +254,8 @@ func TestNoColour(t *testing.T) {
 func TestTOpensThePickerOverTheView(t *testing.T) {
 	h, themes := settledThemedHarness(t, theme.Choice{})
 
-	if strings.Contains(h.footer(), "t themes") {
-		t.Errorf("the footer reads %q, want t left for the help to list", h.footer())
+	if strings.Contains(h.keyLine(), "t themes") {
+		t.Errorf("the key line reads %q, want t left for the help to list", h.keyLine())
 	}
 	h.typed("t")
 
@@ -500,19 +500,19 @@ func TestThePickerReadsAndKeepsOutsideUpdate(t *testing.T) {
 	}
 }
 
-func TestWhileThePickerIsOpenTheFooterListsItsKeysAlone(t *testing.T) {
+func TestWhileThePickerIsOpenTheKeyLineListsItsKeysAlone(t *testing.T) {
 	h, _ := settledThemedHarness(t, theme.One("amber"))
 	h.typed("t")
-	if got, want := listedKeys(h.model.keys()), []string{"↑↓", "⏎", "d", "l", "esc", "q"}; !slices.Equal(got, want) {
-		t.Errorf("with the picker open, the footer lists %q, want the picker's keys alone, %q", got, want)
+	if got, want := h.listed(), []string{"↑↓", "⏎", "d", "l", "esc", "q"}; !slices.Equal(got, want) {
+		t.Errorf("with the picker open, the key line lists %q, want the picker's keys alone, %q", got, want)
 	}
 	h.typed("down", "l")
-	if got, want := listedKeys(h.model.keys()), []string{"y", "n", "q"}; !slices.Equal(got, want) {
-		t.Errorf("with the picker asking, the footer lists %q, want its answers alone, %q", got, want)
+	if got, want := h.listed(), []string{"y", "n", "q"}; !slices.Equal(got, want) {
+		t.Errorf("with the picker asking, the key line lists %q, want its answers alone, %q", got, want)
 	}
 	h.typed("n", "esc")
-	if got := listedKeys(h.model.keys()); !slices.Contains(got, "?") {
-		t.Errorf("the picker closed, the footer lists %q, want the dashboard's keys back", got)
+	if got := h.listed(); !slices.Contains(got, "?") {
+		t.Errorf("the picker closed, the key line lists %q, want the dashboard's keys back", got)
 	}
 }
 
@@ -538,7 +538,7 @@ func TestThePickerNeedsRoom(t *testing.T) {
 		h.update(size)
 		h.typed("t")
 		if h.model.picker.open || h.model.note != tooSmall {
-			t.Errorf("at %d×%d, t opened the picker: %v, the footer saying %q; want it closed, saying %q", size.Width, size.Height, h.model.picker.open, h.model.note, tooSmall)
+			t.Errorf("at %d×%d, t opened the picker: %v, the key line saying %q; want it closed, saying %q", size.Width, size.Height, h.model.picker.open, h.model.note, tooSmall)
 		}
 	}
 
@@ -546,9 +546,9 @@ func TestThePickerNeedsRoom(t *testing.T) {
 	h.typed("t")
 	h.typed("down")
 	h.update(tea.WindowSizeMsg{Width: 150, Height: 8})
-	if h.model.picker.open || h.drawnIn() != "nord" || !strings.Contains(h.footer(), tooSmall) {
-		t.Errorf("shrunk too short, the picker is open: %v, the screen in %s, the footer reading %q; want it closed, the theme in force put back, saying why",
-			h.model.picker.open, h.drawnIn(), h.footer())
+	if h.model.picker.open || h.drawnIn() != "nord" || !strings.Contains(h.keyLine(), tooSmall) {
+		t.Errorf("shrunk too short, the picker is open: %v, the screen in %s, the key line reading %q; want it closed, the theme in force put back, saying why",
+			h.model.picker.open, h.drawnIn(), h.keyLine())
 	}
 }
 

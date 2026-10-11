@@ -2,14 +2,19 @@ package dashboard
 
 import "cmp"
 
-// View is one of the dashboard's views of the document, as the preferences
-// file keeps the one shown.
+// View is one of the dashboard's tabs, each a view of the document, as the
+// preferences file keeps the one shown.
 type View string
 
 const (
-	// Accounts is the view of a card per account: how much of each is left,
-	// and where that's heading.
+	// Overview is the default tab: every account's windows and the router,
+	// understood at a glance. Until stage 7 builds it, it shows milestone 5's
+	// view of a card per account.
+	Overview View = "overview"
+	// Accounts is each account in depth, and all of them together.
 	Accounts View = "accounts"
+	// History is when: the weeks and days gone, and what used them.
+	History View = "history"
 	// Sessions is the view of where each session's requests go, as a
 	// switchboard draws it: the sessions as calls, the accounts as lines,
 	// and a cord from each call to its line, with requests travelling it.
@@ -17,17 +22,23 @@ const (
 	// Runway is the view of when each account has room, as a timeline: a lane
 	// per account, over the day, or the week.
 	Runway View = "runway"
+	// Log is every request and every event the router tells of, as they
+	// happen.
+	Log View = "log"
 )
 
-// titles are the views' names on their tabs.
-var titles = map[View]string{Accounts: "Accounts", Sessions: "Sessions", Runway: "Runway"}
-
-// Views are the views there are, in the order tab moves through them.
-func Views() []View {
-	return []View{Accounts, Sessions, Runway}
+// titles are the tabs' names in the title row.
+var titles = map[View]string{
+	Overview: "Overview", Accounts: "Accounts", History: "History", Sessions: "Sessions", Runway: "Runway", Log: "Log",
 }
 
-// Title is the view's name on its tab, such as Accounts.
+// Views are the tabs, in the order the title row shows them and tab moves
+// through them.
+func Views() []View {
+	return []View{Overview, Accounts, History, Sessions, Runway, Log}
+}
+
+// Title is the tab's name in the title row, such as Overview.
 func (v View) Title() string {
 	return cmp.Or(titles[v], string(v))
 }
@@ -51,7 +62,7 @@ func (s Span) Next() Span {
 	return Week
 }
 
-// Name is what the footer and the help call the span: "day" or "week".
+// Name is what the key line and the help call the span: "day" or "week".
 func (s Span) Name() string {
 	return cmp.Or(string(s), "day")
 }

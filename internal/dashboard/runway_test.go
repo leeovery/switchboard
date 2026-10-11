@@ -36,7 +36,7 @@ func runwayFrame(t *testing.T, span Span, width, height int) Frame {
 // drawnRunway is the frame f of doc drawn as text alone, each row without the
 // blanks at its end, and Runway laid out in it: where its rows are.
 func drawnRunway(f Frame, doc status.Document) ([]string, runwayLayout) {
-	top := f.above(newCanvas(f.Width, f.Height), doc, now)
+	top := f.top(doc)
 	return textOf(f.Draw(doc, now)), f.layOutRunway(doc, now, top)
 }
 
@@ -585,7 +585,7 @@ func TestALegendThatDoesntFitWholeLeavesTheKeyBehindQuestionMark(t *testing.T) {
 			t.Errorf("at %d columns, the screen is\n%s\nwant the legend shown whole: %v, and never cut short", tt.width, screen, tt.wantLegend)
 		}
 		if behind := strings.HasSuffix(rows[38], "? for the key"); behind == tt.wantLegend {
-			t.Errorf("at %d columns, the line over the footer reads %q, want the key behind ?: %v", tt.width, rows[38], !tt.wantLegend)
+			t.Errorf("at %d columns, the line over the key line reads %q, want the key behind ?: %v", tt.width, rows[38], !tt.wantLegend)
 		}
 	}
 }
@@ -619,7 +619,7 @@ func TestRunwaysLanesScrollWhereTheyDontFit(t *testing.T) {
 	for _, tt := range []struct {
 		scroll int
 		// wantFirst is the account whose lane leads the view, and wantSays
-		// what the line over the footer says.
+		// what the line over the key line says.
 		wantFirst, wantSays string
 	}{
 		{scroll: 0, wantFirst: " 1 work", wantSays: "▼ 5 more accounts below · j/k or wheel to scroll"},
@@ -632,7 +632,7 @@ func TestRunwaysLanesScrollWhereTheyDontFit(t *testing.T) {
 			t.Errorf("scrolled %d, the lanes start\n%s\nwant %s first", tt.scroll, rows[14], tt.wantFirst)
 		}
 		if got := strings.TrimSpace(rows[24]); got != tt.wantSays {
-			t.Errorf("scrolled %d, the line over the footer reads %q, want %q", tt.scroll, got, tt.wantSays)
+			t.Errorf("scrolled %d, the line over the key line reads %q, want %q", tt.scroll, got, tt.wantSays)
 		}
 		if strings.Contains(strings.Join(rows, "\n"), "has room, but running out") {
 			t.Errorf("scrolled %d, the screen is\n%s\nwant no legend while the lanes scroll", tt.scroll, strings.Join(rows, "\n"))
@@ -643,7 +643,7 @@ func TestRunwaysLanesScrollWhereTheyDontFit(t *testing.T) {
 	}
 	f = runwayFrame(t, Day, 160, 27)
 	if rows := textOf(f.Draw(routerDoc("side", 8, accounts[:4]...), now)); !strings.HasSuffix(rows[25], "? for the key") {
-		t.Errorf("with four lanes, fitting without the legend, the line over the footer reads %q, want the key behind ?", rows[25])
+		t.Errorf("with four lanes, fitting without the legend, the line over the key line reads %q, want the key behind ?", rows[25])
 	}
 }
 
@@ -676,40 +676,42 @@ func TestRunwayFitsEveryWidth(t *testing.T) {
 	}
 }
 
-func TestTheHelpOverRunwayExplainsItsGlyphs(t *testing.T) {
+func TestRunwaysGlyphsAreItsLegends(t *testing.T) {
 	for _, span := range []Span{Day, Week} {
-		f := runwayFrame(t, span, 160, 34)
-		f.Help = []Key{{Key: "w", Does: "switch between the day and the week, now the " + span.Name()}, {Key: "q", Does: "quit"}}
-		screen := strings.Join(textOf(f.Draw(runwayThree(), now)), "\n")
-
-		for _, want := range []string{"▆   has room", "▆   has room, but running out", "─   no room"} {
-			if !strings.Contains(screen, want) {
-				t.Errorf("over the %s, the screen is\n%s\nwant the help to explain %q", span.Name(), screen, want)
+		var explained []string
+		for _, group := range runwayFrame(t, span, 160, 34).glyphs() {
+			for _, g := range group {
+				explained = append(explained, g.drawn.plain()+" "+g.means)
 			}
 		}
-		if got := strings.Contains(screen, "┃   week resets"); got != (span == Week) {
-			t.Errorf("over the %s, the help explains ┃: %v, want it to over the week alone", span.Name(), got)
+		for _, want := range []string{"▆ has room", "▆ has room, but running out", "─ no room"} {
+			if !slices.Contains(explained, want) {
+				t.Errorf("over the %s, the glyphs explained are %q, want %q among them", span.Name(), explained, want)
+			}
 		}
-		if strings.Contains(screen, "room left") {
-			t.Errorf("over the %s, the screen is\n%s\nwant none of the cards' glyphs", span.Name(), screen)
+		if got := slices.Contains(explained, "┃ week resets"); got != (span == Week) {
+			t.Errorf("over the %s, ┃ is explained: %v, want it over the week alone", span.Name(), got)
+		}
+		if slices.ContainsFunc(explained, func(g string) bool { return strings.Contains(g, "room left") }) {
+			t.Errorf("over the %s, the glyphs explained are %q, want none of the cards'", span.Name(), explained)
 		}
 	}
 }
 
-func TestRunwayIsDrawnAfterTheHeadingThatEveryViewHas(t *testing.T) {
+func TestRunwayIsDrawnUnderTheRowsEveryTabHas(t *testing.T) {
 	for _, span := range []Span{Day, Week} {
 		f := runwayFrame(t, span, 160, 26)
 		cards := f
-		cards.View = Accounts
-		accounts := textOf(cards.Draw(runwayThree(), now))
+		cards.View = Overview
+		overview := textOf(cards.Draw(runwayThree(), now))
 		rows := textOf(f.Draw(runwayThree(), now))
 		for i := range 6 {
-			if i != 0 && rows[i] != accounts[i] {
-				t.Errorf("over the %s, row %d reads\n%q\nwant it as every view has it\n%q", span.Name(), i+1, rows[i], accounts[i])
+			if i != 0 && rows[i] != overview[i] {
+				t.Errorf("over the %s, row %d reads\n%q\nwant it as every tab has it\n%q", span.Name(), i+1, rows[i], overview[i])
 			}
 		}
-		if got, want := rows[25], " a auto   q quit"; !strings.HasPrefix(got, want) {
-			t.Errorf("over the %s, the footer reads %q, want the keys given", span.Name(), got)
+		if got, want := rows[25], " tab views   ? help  q quit"; got != want {
+			t.Errorf("over the %s, the key line reads %q, want the keys given", span.Name(), got)
 		}
 	}
 }

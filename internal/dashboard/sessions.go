@@ -88,7 +88,7 @@ type callRow struct {
 // the row under them, scrolled where it doesn't fit, a scrollbar beside it;
 // or, with one account, or under cordsFrom columns, or where its cords
 // don't fit, a plain list of each account's panel with its sessions under
-// it. Then the line over the footer, as overFooter has it.
+// it. Then the line over the key line, as overKeyLine has it.
 func (f Frame) sessions(c *canvas, doc status.Document, now time.Time, top int) {
 	if len(doc.Accounts) == 0 {
 		return
@@ -105,25 +105,25 @@ func (f Frame) sessions(c *canvas, doc status.Document, now time.Time, top int) 
 	}
 	area := newCanvas(f.Width, b.content)
 	f.drawBay(area, doc, b, now)
-	c.paste(area, s.offset, s.top, s.rows)
-	f.overFooter(c, doc, now, top, b.content, f.sessionsView(top), s.offset, b.hidden)
+	c.paste(area, s.offset, top+1, s.rows)
+	f.overKeyLine(c, doc, now, top, b.content, f.sessionsView(top), s.offset, b.hidden)
 }
 
 // sightOf is how the bay b, laid out under its labels on row top, shows on
 // screen: from the row under them, scrolled as far as the frame has it, as
-// many of its rows as the view shows, under the help where it's open.
+// many of its rows as the view shows.
 func (f Frame) sightOf(b bay, top int) sight {
 	view := f.sessionsView(top)
-	return sight{top: top + 1, offset: min(max(f.Scroll, 0), max(b.content-view, 0)), rows: min(view, b.content), help: f.helpCovers()}
+	return f.inSight(min(max(f.Scroll, 0), max(b.content-view, 0)), min(view, b.content))
 }
 
-// overFooter draws the line over the footer of the Sessions view, from row
+// overKeyLine draws the line over the key line of the Sessions view, from row
 // top, where it's under it: where the view's content, content rows tall,
 // scrolls, view of them shown from the row offset, a scrollbar beside the
 // view, and what the rows out of view hold, as hidden counts the accounts
 // among them, where any is; else which windows hide from every panel, where
 // any does; else a rule.
-func (f Frame) overFooter(c *canvas, doc status.Document, now time.Time, top, content, view, offset int, hidden func(offset, view int) (int, int)) {
+func (f Frame) overKeyLine(c *canvas, doc status.Document, now time.Time, top, content, view, offset int, hidden func(offset, view int) (int, int)) {
 	over := f.Height - 2
 	if over < top {
 		return
@@ -144,7 +144,7 @@ func (f Frame) overFooter(c *canvas, doc status.Document, now time.Time, top, co
 }
 
 // sessionsView is how many rows the Sessions view shows at once under its
-// labels, on row top: down to the line over the footer.
+// labels, on row top: down to the line over the key line.
 func (f Frame) sessionsView(top int) int {
 	return max(f.Height-2-(top+1), 0)
 }
@@ -163,7 +163,7 @@ func (f Frame) sessionsRows(doc status.Document, now time.Time, top int) (conten
 // switchboard of doc at now, on screen: a pulse running along a cord, or a
 // cord a move let go fading, frame by frame; and the shimmer down a cord as
 // its answer streams back, a step at a time. A call whose cord doesn't show,
-// scrolled out of view or under the help, or that has none, as of a session
+// scrolled out of view or under a card, or that has none, as of a session
 // the router hasn't listed, moves nothing, nor does the plain list.
 func (f Frame) travelling(doc status.Document, now time.Time) Motion {
 	top := f.top(doc)
@@ -182,7 +182,7 @@ func (f Frame) travelling(doc status.Document, now time.Time) Motion {
 		m.Shimmer = m.Shimmer || c.Doing == Streaming
 	}
 	for _, l := range f.looseCords(doc, b, now) {
-		if l.fades && !f.gone(l.fade) && s.shows(b.x-l.cells, l.y, l.cells, 1) {
+		if l.fades && !f.gone(l.fade) && s.shows(l.y, l.cells, 1) {
 			m.Smooth = true
 		}
 	}

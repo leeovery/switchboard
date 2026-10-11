@@ -8,16 +8,15 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// cardKey acts on a key of the Accounts view's cards, reporting false for a
-// key it doesn't take, or while there are no cards: ← and → move the focus
-// along a row of cards, ↑ and ↓ between rows, over the sessions on the back
-// of a flipped card first, picking them out; space flips the card with the
-// focus, and s every card, or back; and esc ends the selection. Where no
-// card has the focus yet, an arrow gives it to the first card in view, and
-// space and s give it there before they flip. The cards are laid out once
-// for a key, as the screen lays them out.
+// cardKey acts on a key of the Overview's cards, reporting false for a key
+// it doesn't take, or while there are no cards: ← and → move the focus along
+// a row of cards, ↑ and ↓ between rows; and space flips the card with the
+// focus, and s every card, or back. Where no card has the focus yet, an
+// arrow gives it to the first card in view, and space and s give it there
+// before they flip. The cards are laid out once for a key, as the screen
+// lays them out.
 func (m Model) cardKey(key string) (Model, bool) {
-	if m.view != dashboard.Accounts || len(m.doc.Accounts) == 0 {
+	if m.view != dashboard.Overview || len(m.doc.Accounts) == 0 {
 		return m, false
 	}
 	switch key {
@@ -31,11 +30,8 @@ func (m Model) cardKey(key string) (Model, bool) {
 		return m.vertically(m.cards(), 1), true
 	case "space":
 		return m.flip(m.cards()), true
-	case "s", "S":
+	case "s":
 		return m.flipEvery(m.cards()), true
-	case "esc":
-		m.selected = dashboard.Seat{}
-		return m, true
 	}
 	return m, false
 }
@@ -47,7 +43,7 @@ func (m Model) cards() dashboard.Cards {
 }
 
 // along moves the focus by cards along its row, to the left where by is less
-// than zero, ending the selection: no further than the row goes.
+// than zero: no further than the row goes.
 func (m Model) along(cards dashboard.Cards, by int) Model {
 	if m.focus == "" {
 		return m.focusFirst(cards)
@@ -56,33 +52,18 @@ func (m Model) along(cards dashboard.Cards, by int) Model {
 	return m.focusOn(cards, id, ok)
 }
 
-// vertically moves down by one, or up where by is less than zero: over the
-// sessions on the back of the card with the focus first, where it's
-// flipped, picking out the next of them, or where none is picked out, the
-// first going down and the last going up; then on to the card below or
-// above, ending the selection, where there's one.
+// vertically moves the focus to the card below, or above where by is less
+// than zero, where there's one.
 func (m Model) vertically(cards dashboard.Cards, by int) Model {
 	if m.focus == "" {
 		return m.focusFirst(cards)
 	}
-	seats := m.seats()
-	i := slices.Index(seats, m.selected)
-	switch {
-	case len(seats) > 0 && i < 0 && by > 0:
-		m.selected = seats[0]
-	case len(seats) > 0 && i < 0:
-		m.selected = seats[len(seats)-1]
-	case i >= 0 && i+by >= 0 && i+by < len(seats):
-		m.selected = seats[i+by]
-	default:
-		id, ok := cards.Neighbour(m.focus, 0, by)
-		return m.focusOn(cards, id, ok)
-	}
-	return m
+	id, ok := cards.Neighbour(m.focus, 0, by)
+	return m.focusOn(cards, id, ok)
 }
 
 // flip turns the card with the focus over to its back, or back to its
-// front, ending the selection.
+// front.
 func (m Model) flip(cards dashboard.Cards) Model {
 	if m.focus == "" {
 		m = m.focusFirst(cards)
@@ -93,17 +74,16 @@ func (m Model) flip(cards dashboard.Cards) Model {
 	} else {
 		flipped = with(flipped, m.focus)
 	}
-	m.flipped, m.selected = flipped, dashboard.Seat{}
+	m.flipped = flipped
 	return m
 }
 
 // flipEvery turns every card over to its back, or, where every one is
-// already, back to its front, ending the selection.
+// already, back to its front.
 func (m Model) flipEvery(cards dashboard.Cards) Model {
 	if m.focus == "" {
 		m = m.focusFirst(cards)
 	}
-	m.selected = dashboard.Seat{}
 	if m.everyFlipped() {
 		m.flipped = nil
 		return m
@@ -137,37 +117,19 @@ func (m Model) focusFirst(cards dashboard.Cards) Model {
 }
 
 // focusOn gives the focus to the card of the account with the given id, of
-// the cards, where ok says there's one, ending the selection, and scrolls the
-// cards as far as they must go to show it whole.
+// the cards, where ok says there's one, and scrolls the cards as far as they
+// must go to show it whole.
 func (m Model) focusOn(cards dashboard.Cards, id string, ok bool) Model {
 	if !ok {
 		return m
 	}
-	m.focus, m.selected = id, dashboard.Seat{}
+	m.focus = id
 	m.scroll = cards.Reveal(id)
 	return m
 }
 
-// seats are the seats on the back of the card with the focus, a row each,
-// where it's flipped and there's another account to move one to: none
-// otherwise.
-func (m Model) seats() []dashboard.Seat {
-	if !m.flipped[m.focus] || m.single() {
-		return nil
-	}
-	now := m.now()
-	return m.frame(now).Seats(m.focus, now)
-}
-
-// selecting reports whether a session is picked out on a card's back.
-func (m Model) selecting() bool {
-	return !m.selected.IsZero()
-}
-
 // stillThere is the model with the focus given up, and the cards no longer
-// flipped, where the document no longer has their accounts; and the
-// selection ended where the card's back no longer has the session picked
-// out.
+// flipped, where the document no longer has their accounts.
 func (m Model) stillThere() Model {
 	if !m.has(m.focus) {
 		m.focus = ""
@@ -175,9 +137,6 @@ func (m Model) stillThere() Model {
 	flipped := maps.Clone(m.flipped)
 	maps.DeleteFunc(flipped, func(id string, _ bool) bool { return !m.has(id) })
 	m.flipped = flipped
-	if !slices.Contains(m.seats(), m.selected) {
-		m.selected = dashboard.Seat{}
-	}
 	return m
 }
 

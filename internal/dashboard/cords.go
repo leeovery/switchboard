@@ -218,7 +218,7 @@ func relight(c *canvas, p point, k ink) {
 // shows reports whether any of the cord's cells, its jack in column jack,
 // shows on screen, as s has it.
 func (k cord) shows(s sight, jack int) bool {
-	return slices.ContainsFunc(k.path(jack), func(p point) bool { return s.shows(p.x, p.y, 1, 1) })
+	return slices.ContainsFunc(k.path(jack), func(p point) bool { return s.shows(p.y, 1, 1) })
 }
 
 // looseCord is a cord hanging loose from the jack on row y, cells long,

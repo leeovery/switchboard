@@ -8,7 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// The Accounts view's grid: cards at least leastCard cells wide, cardGutter
+// The Overview's grid: cards at least leastCard cells wide, cardGutter
 // cells apart, or tightGutter where that fits another across; and one
 // account's card, wideCard cells wide where a column fits beside it, its
 // chart wideChart rows tall.
@@ -20,7 +20,7 @@ const (
 	wideChart   = 6
 )
 
-// grid is how the Accounts view lays its accounts' cards out across the
+// grid is how the Overview lays its accounts' cards out across the
 // frame: as many across as fit, gutter cells apart, each width cells wide,
 // in down rows, gap blank rows apart, their windows' bars taking bars rows.
 // With one account, beside is set where COMING UP and RECENT take a column
@@ -35,13 +35,13 @@ type grid struct {
 // cards show: as many across as fit at least leastCard cells wide, never
 // more than there are, sharing the spare width, a card taking the whole
 // width where not even one fits; one account's card wideCard cells wide
-// with a column beside it, from slotsInRowFrom columns, else the whole
+// with a column beside it, from besideFrom columns, else the whole
 // width; and on a phone, the cards stacked without a blank between.
 func (f Frame) gridOf(n, shown int) grid {
 	room := f.Width - 2*margin
 	g := grid{across: 1, width: room, gap: 1}
 	switch {
-	case n == 1 && f.Width >= slotsInRowFrom:
+	case n == 1 && f.Width >= besideFrom:
 		g.width, g.beside = min(wideCard, room), true
 	case n > 1:
 		g.across, g.gutter = columns(room, n)
@@ -80,10 +80,11 @@ func (g grid) at(i int, d density) (x, y int) {
 	return margin + i%g.across*(g.width+g.gutter), i / g.across * (d.rows(g.bars) + g.gap)
 }
 
-// layout is the Accounts view laid out in the rows it has: its grid; the
-// density its cards are drawn at; the rows they take, content, and the rows
-// of them shown at once, view, fewer where they scroll; the strips under
-// them, each with the lines it shows; and whether the key line shows.
+// layout is the Overview's cards, laid out in the rows they have: their
+// grid; the density its cards are drawn at; the rows they take, content, and
+// the rows of them shown at once, view, fewer where they scroll; the strips
+// under them, each with the lines it shows; and whether the glyph line
+// shows.
 type layout struct {
 	grid
 	density       density
@@ -98,7 +99,7 @@ func (l layout) scrolls() bool {
 	return l.content > l.view
 }
 
-// layOut lays the Accounts view of doc at now out from row top, its cards
+// layOut lays the Overview's cards of doc at now out from row top, its cards
 // showing shown windows each, as the layout rules have it. Its cards take
 // the space first: the richest density whose rows of cards fit, with a blank
 // and a line of each strip under them, wins, one account's card trying a
@@ -130,7 +131,7 @@ func (f Frame) layOut(doc status.Document, now time.Time, shown, top int) layout
 		grown := min(max(left, 0), s.lines-1)
 		l.strips[i].lines, left = 1+grown, left-grown
 	}
-	l.key = left >= 2 && f.keyFits(l.strips)
+	l.key = left >= 2 && f.glyphsFit(l.strips)
 	return l
 }
 
@@ -157,11 +158,11 @@ type Scrolling struct {
 	Most, Page int
 }
 
-// Scrolling is how far the frame's view of doc scrolls at now: the Accounts
-// view, where not even its sparest cards fit; Sessions, where its calls and
-// lines, or its plain list, don't; and Runway, where its lanes don't, as
-// runwayRows counts them. A frame too short for any card, as short says,
-// never scrolls.
+// Scrolling is how far the frame's view of doc scrolls at now: the
+// Overview's cards, where not even their sparest fit; Sessions, where its
+// calls and lines, or its plain list, don't; and Runway, where its lanes
+// don't, as runwayRows counts them. A frame too short for any card, as short
+// says, never scrolls.
 func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	if l, ok := f.cardsOf(doc, now); ok {
 		return Scrolling{Most: l.content - l.view, Page: l.view}
@@ -182,12 +183,12 @@ func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	}
 }
 
-// cardsOf is the Accounts view of doc at now as the frame lays it out, under
-// its title and heading, reporting false for a frame that shows no cards
+// cardsOf is the Overview's cards of doc at now as the frame lays them out,
+// under its title and heading, reporting false for a frame that shows no cards
 // that move, scroll or take the focus: one of another view, or too short for
 // any card, as short says.
 func (f Frame) cardsOf(doc status.Document, now time.Time) (layout, bool) {
-	if f.View != Accounts || f.short(doc, now) {
+	if f.View != Overview || f.short(doc, now) {
 		return layout{}, false
 	}
 	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top(doc)), true
@@ -199,7 +200,7 @@ func (f Frame) scrolled(l layout) int {
 	return min(max(f.Scroll, 0), l.content-l.view)
 }
 
-// Cards are a document's cards as the Accounts view lays them out at a
+// Cards are a document's cards as the Overview lays them out at a
 // moment, full screen, as a frame scrolled as it is shows them, for the keys
 // that move the focus between them and scroll to it, laid out once for all
 // a key asks of them: no cards where the frame shows none that move, scroll
@@ -213,7 +214,7 @@ type Cards struct {
 	scroll, scrolled int
 }
 
-// Cards lays the frame's Accounts view of doc out at now, as cardsOf does.
+// Cards lays the Overview's cards of doc out at now, as cardsOf does.
 func (f Frame) Cards(doc status.Document, now time.Time) Cards {
 	l, ok := f.cardsOf(doc, now)
 	ids := make([]string, len(doc.Accounts))

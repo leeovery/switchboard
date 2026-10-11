@@ -9,31 +9,26 @@ import (
 )
 
 func TestTheTitleRow(t *testing.T) {
-	three := []View{Accounts, Sessions, Runway}
 	tests := []struct {
 		name  string
 		width int
-		views []View
 		shown View
 		// want are the rows it draws, and wantRows how many it takes.
 		want     []string
 		wantRows int
 	}{
-		{name: "the views as tabs, and the hint to move between them", width: 160, views: three, shown: Accounts, want: []string{
-			"  SWITCHBOARD    Accounts   Sessions   Runway   tab ⇥" + blanks(86) + "Mon 28 Sep  13:12:00",
+		{name: "the six tabs, in their order, and the hint to move between them", width: 160, shown: Overview, want: []string{
+			"  SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(59) + "Mon 28 Sep  13:12:00",
 		}, wantRows: 1},
-		{name: "one view, with nothing to move to", width: 160, views: []View{Accounts}, shown: Accounts, want: []string{
-			"  SWITCHBOARD    Accounts" + blanks(114) + "Mon 28 Sep  13:12:00",
-		}, wantRows: 1},
-		{name: "on a phone, the tabs on a row of their own", width: 52, views: three, shown: Sessions, want: []string{
+		{name: "on a phone, the tabs on a row of their own, filling it", width: 52, shown: Sessions, want: []string{
 			"  SWITCHBOARD" + blanks(33) + "13:12",
 			"",
-			"  Accounts  Sessions  Runway" + blanks(18) + "tab ⇥",
+			" Overview  Accounts  History  Sessions  Runway  Log",
 		}, wantRows: 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 4, Views: tt.views, View: tt.shown}
+			f := Frame{Width: tt.width, Height: 4, View: tt.shown}
 			c := newCanvas(f.Width, f.Height)
 			f.title(c, now)
 			if got := f.titleRows(); got != tt.wantRows {
@@ -47,7 +42,7 @@ func TestTheTitleRow(t *testing.T) {
 }
 
 func TestTheTitleRowFallsBackToTheTimeAlone(t *testing.T) {
-	f := Frame{Width: 100, Height: 1, Views: []View{Accounts, Sessions, Runway, "a-view-with-a-long-name"}, View: Accounts}
+	f := Frame{Width: 100, Height: 1, View: Overview}
 	c := newCanvas(f.Width, f.Height)
 	f.title(c, now)
 
@@ -57,7 +52,7 @@ func TestTheTitleRowFallsBackToTheTimeAlone(t *testing.T) {
 }
 
 func TestTheShownTabIsPickedOut(t *testing.T) {
-	f := Frame{Width: 160, Height: 1, Views: []View{Accounts, Sessions}, View: Sessions}
+	f := Frame{Width: 160, Height: 1, View: Sessions}
 	c := newCanvas(f.Width, f.Height)
 	f.title(c, now)
 
@@ -67,8 +62,8 @@ func TestTheShownTabIsPickedOut(t *testing.T) {
 	}{
 		{x: 1, want: ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}},
 		{x: 17, want: tabInk},
-		{x: 28, want: shownTabInk},
-		{x: 39, want: faintInk},
+		{x: 50, want: shownTabInk},
+		{x: 75, want: faintInk},
 	}
 	for _, tt := range tests {
 		if got := c.at(tt.x, 0).ink; got != tt.want {
@@ -78,4 +73,9 @@ func TestTheShownTabIsPickedOut(t *testing.T) {
 	if shownTabInk.on != (hue{token: theme.BgSelection}) {
 		t.Errorf("the tab shown is on %v, want bg.selection", shownTabInk.on)
 	}
+}
+
+// blanks is n blank cells.
+func blanks(n int) string {
+	return strings.Repeat(" ", n)
 }

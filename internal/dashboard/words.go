@@ -85,3 +85,11 @@ func sessionID(id string) string {
 func lately(since, at time.Time) string {
 	return strings.ReplaceAll(status.Over(since, at), " ", "-")
 }
+
+// because follows what with why, cleaned, where there's a why.
+func because(what, why string) string {
+	if why = status.Clean(why); why == "" {
+		return what
+	}
+	return what + ": " + why
+}

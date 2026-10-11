@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	// tabsAt is the column the tabs start at, beside the dashboard's name.
-	tabsAt = 16
+	// tabsFrom is the column the tabs start at, beside the dashboard's name.
+	tabsFrom = 16
 	// clockGap is the fewest cells between the tabs and the clock.
 	clockGap = 2
 )
@@ -16,7 +16,7 @@ const (
 var (
 	// pill is the dashboard's name, set on its own surface.
 	pill = line{{" SWITCHBOARD ", ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}}}
-	// hint says what moves between the views.
+	// hint says what moves between the tabs.
 	hint = line{{"tab ⇥", faintInk}}
 )
 
@@ -26,24 +26,18 @@ var (
 )
 
 // title draws the title row, on the rows titleRows says it takes: the
-// dashboard's name; the views as tabs, the one shown picked out, then tab's
-// hint while there's another view to move to; and at the right the date and
-// the time to the second, or the time alone where the date doesn't fit. On a
-// phone, the tabs take a row of their own, the hint at its right, and the
-// time stands alone, to the minute.
+// dashboard's name; the tabs, the one shown picked out, then tab's hint; and
+// at the right the date and the time to the second, or the time alone where
+// the date doesn't fit. On a phone, the tabs take a row of their own, from
+// its first column, and the time stands alone, to the minute.
 func (f Frame) title(c *canvas, now time.Time) {
 	end := c.line(margin, 0, pill)
 	if f.phone() {
 		f.clock(c, end, line{{now.Format("15:04"), secondaryInk}})
-		end = f.tabs(c, margin, 2, 0)
-		if len(f.Views) > 1 {
-			f.atRight(c, 2, end, hint)
-		}
+		f.atRight(c, 2, f.tabs(c), hint)
 		return
 	}
-	if end = f.tabs(c, tabsAt, 0, 1); len(f.Views) > 1 {
-		end = c.line(end+1, 0, hint)
-	}
+	end = c.line(f.tabs(c)+1, 0, hint)
 	f.clock(c, end, line{{now.Format("Mon 2 Jan  "), mutedInk}, {now.Format("15:04:05"), secondaryInk}}, line{{now.Format("15:04:05"), secondaryInk}})
 }
 
@@ -56,17 +50,31 @@ func (f Frame) titleRows() int {
 	return 1
 }
 
-// tabs draws the views' tabs from x along row y, gap cells apart, and returns
-// the column after the last and its gap.
-func (f Frame) tabs(c *canvas, x, y, gap int) int {
-	for _, v := range f.Views {
-		k := tabInk
-		if v == f.View {
-			k = shownTabInk
-		}
-		x = c.line(x, y, line{{" " + v.Title() + " ", k}}) + gap
+// tabsAt is where the tabs are drawn: from x along row y, gap cells apart.
+func (f Frame) tabsAt() (x, y, gap int) {
+	if f.phone() {
+		return 0, 2, 0
+	}
+	return tabsFrom, 0, 1
+}
+
+// tabs draws the tabs, as tabsAt places them, and returns the column after
+// the last and its gap.
+func (f Frame) tabs(c *canvas) int {
+	x, y, gap := f.tabsAt()
+	for _, v := range Views() {
+		x = c.line(x, y, f.tab(v)) + gap
 	}
 	return x
+}
+
+// tab is v's tab, its name with a space either side, picked out where it's
+// the one shown.
+func (f Frame) tab(v View) line {
+	if v == f.View {
+		return line{{" " + v.Title() + " ", shownTabInk}}
+	}
+	return line{{" " + v.Title() + " ", tabInk}}
 }
 
 // clock draws the first of the clocks given that fits at the title row's

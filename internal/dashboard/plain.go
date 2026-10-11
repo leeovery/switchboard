@@ -79,7 +79,7 @@ func (f Frame) unseatedUnder(doc status.Document, p linePanel, now time.Time) []
 
 // plainList draws the Sessions view of doc at now from row top as a plain
 // list, laid out as layOutPlain has it, scrolled where it doesn't fit, a
-// scrollbar beside it; then the line over the footer, as overFooter has it.
+// scrollbar beside it; then the line over the key line, as overKeyLine has it.
 func (f Frame) plainList(c *canvas, doc status.Document, now time.Time, top int) {
 	l := f.layOutPlain(doc, now)
 	view := max(f.Height-2-top, 0)
@@ -91,7 +91,7 @@ func (f Frame) plainList(c *canvas, doc status.Document, now time.Time, top int)
 	}
 	f.drawLog(area, doc, l.log, now)
 	c.paste(area, offset, top, min(view, l.content))
-	f.overFooter(c, doc, now, top, l.content, view, offset, l.hidden)
+	f.overKeyLine(c, doc, now, top, l.content, view, offset, l.hidden)
 }
 
 // plainSeats draws the seats under the panel p of doc at now, as a card's
@@ -107,7 +107,7 @@ func (f Frame) plainSeats(c *canvas, doc status.Document, p linePanel, seats []s
 	}
 	column := modelColumnOf(seats)
 	for i, s := range seats {
-		c.line(plainAt, y+2*i, f.seatLine(s, column, false, now).fit(width))
+		c.line(plainAt, y+2*i, f.seatLine(s, column, now).fit(width))
 		c.line(plainAt+noteIndent, y+2*i+1, line{{"╰ " + note(doc, p.account.ID, s, now), mutedInk}}.fit(width-noteIndent))
 	}
 }

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -28,6 +29,15 @@ const (
 type statusLine struct {
 	state, short                         line
 	restart, mode, sessions, destination line
+}
+
+// routerStatus draws the page's status line of doc at now, on its row,
+// where that's over the key line's: as the printout's, until the page has a
+// form of its own.
+func (f Frame) routerStatus(c *canvas, doc status.Document, _ time.Time) {
+	if y := f.statusRow(); y < f.Height-1 {
+		c.line(margin, y, newStatusLine(doc).fit(f.edge()-margin))
+	}
 }
 
 // newStatusLine is doc's status line, its mode shown only while the router

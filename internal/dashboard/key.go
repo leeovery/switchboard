@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -10,19 +9,12 @@ import (
 )
 
 const (
-	// keyLabel is the key line's label.
+	// keyLabel is the label of the key to the glyphs.
 	keyLabel = "KEY"
-	// glyphsGap is the blank cells between the key line's glyphs, and
+	// glyphsGap is the blank cells between the key's glyphs, and
 	// groupRule what runs between their groups.
 	glyphsGap = 3
 	groupRule = "   │   "
-)
-
-// The help's panel: its rows inset helpInset cells inside its border, its
-// keys in a column, helpGap cells before what each does.
-const (
-	helpInset = 2
-	helpGap   = 3
 )
 
 // forTheKey says the key to the glyphs is behind ?, where the view has no
@@ -38,18 +30,27 @@ type glyph struct {
 
 // glyphs are the glyphs the key explains of the view shown. Of Runway, its
 // legend's. Of Sessions, its switchboard's and its requests', as
-// switchboardGlyphs has them. Of the cards, two groups: a chart's, in the
-// style they draw, as chartGlyphs has them; then a bar's, its use, where
-// it's heading, even pace and the reserve, and a session's dot on a card's
-// edge. Each is drawn as the look draws it on a card: a bar's projection,
-// where the look can't fade it, in shade.
+// switchboardGlyphs has them. Of the Overview's cards, as cardGlyphs has
+// them. A tab not built yet has none.
 func (f Frame) glyphs() [][]glyph {
 	switch f.View {
 	case Runway:
 		return [][]glyph{f.legendGlyphs()}
 	case Sessions:
 		return switchboardGlyphs()
+	case Overview:
+		return f.cardGlyphs()
+	default:
+		return nil
 	}
+}
+
+// cardGlyphs are the glyphs of the Overview's cards, in two groups: a
+// chart's, in the style they draw, as chartGlyphs has them; then a bar's, its
+// use, where it's heading, even pace and the reserve, and a session's dot on
+// a card's edge. Each is drawn as the look draws it on a card: a bar's
+// projection, where the look can't fade it, in shade.
+func (f Frame) cardGlyphs() [][]glyph {
 	heading := line{{"██", ink{ramp: true, at: 1.0 / 3, fade: projectionFade}}}
 	if !f.Look.blends() {
 		heading = line{{strings.Repeat(shadeCell, 2), ink{ramp: true, at: 1.0 / 3}}}
@@ -128,10 +129,10 @@ func switchboardGlyphs() [][]glyph {
 // ramp.
 const rampCells = 4
 
-// keyLine is the key as a line under the cards of the strips given: its
-// label, in their labels' column, then each glyph and what it means, its
-// groups ruled apart.
-func (f Frame) keyLine(strips []strip) line {
+// glyphLine is the key to the glyphs as a line under the cards of the
+// strips given: its label, in their labels' column, then each glyph and what
+// it means, its groups ruled apart.
+func (f Frame) glyphLine(strips []strip) line {
 	l := line{{keyLabel, labelInk}, spaces(f.labelled(strips) - margin - ansi.StringWidth(keyLabel))}
 	for i, group := range f.glyphs() {
 		if i > 0 {
@@ -147,101 +148,8 @@ func (f Frame) keyLine(strips []strip) line {
 	return l
 }
 
-// keyFits reports whether the key line, under the strips given, fits the
-// frame's width.
-func (f Frame) keyFits(strips []strip) bool {
-	return margin+f.keyLine(strips).width() <= f.edge()
-}
-
-// help draws the help over the middle of the frame, in a border: its title
-// and how it closes; then every key there is and what it does; then the key
-// to the glyphs, a chart's, then a bar's, the keys and the glyphs in one
-// column; a rule between each. Where the frame is too small for it, it's cut
-// to fit.
-func (f Frame) help(c *canvas) {
-	compartments, inner := f.helpCompartments()
-	panel(c, compartments, inner, f.Width, f.Height)
-}
-
-// helpCovers is the cells the help covers while it's open over the frame:
-// none while it's closed.
-func (f Frame) helpCovers() box {
-	if f.Help == nil {
-		return box{}
-	}
-	compartments, inner := f.helpCompartments()
-	return panelBox(compartments, inner, f.Width, f.Height)
-}
-
-// helpCompartments are the help's compartments, as help draws them, and how
-// many cells wide their lines are.
-func (f Frame) helpCompartments() ([][]line, int) {
-	keys := make([]glyph, len(f.Help))
-	for i, k := range f.Help {
-		keys[i] = glyph{drawn: line{{k.Key, keyInk}}, means: k.Does}
-	}
-	groups := slices.Concat([][]glyph{keys}, f.glyphs())
-	column := 0
-	for _, group := range groups {
-		for _, g := range group {
-			column = max(column, g.drawn.width())
-		}
-	}
-	title := line{{"?", ink{token: theme.AccentPrimary, bold: true}}, {" Keys", titleInk}}
-	closes := line{{"esc close", mutedInk}}
-	compartments := [][]line{{slices.Concat(title, line{spaces(1)}, closes)}}
-	inner := compartments[0][0].width()
-	for _, group := range groups {
-		rows := make([]line, len(group))
-		for i, g := range group {
-			rows[i] = slices.Concat(g.drawn, line{spaces(column - g.drawn.width() + helpGap), {g.means, secondaryInk}})
-			inner = max(inner, rows[i].width())
-		}
-		compartments = append(compartments, rows)
-	}
-	inner = min(inner, f.Width-2-2*helpInset)
-	compartments[0][0] = spread(title, closes, inner)
-	return compartments, inner
-}
-
-// panelBox is the cells panel draws compartments of lines inner cells wide
-// over, on a canvas width cells wide and height tall: none where inner is
-// less than a cell.
-func panelBox(compartments [][]line, inner, width, height int) box {
-	if inner < 1 {
-		return box{}
-	}
-	rows := 1 + len(compartments)
-	for _, lines := range compartments {
-		rows += len(lines)
-	}
-	inside := inner + 2*helpInset
-	return box{x: (width - inside - 2) / 2, y: max((height-rows)/2, 0), width: inside + 2, rows: rows}
-}
-
-// panel draws compartments of lines, inner cells wide, in a rounded border
-// with a rule between each compartment, centred on a canvas width cells wide
-// and height tall, each line inset helpInset cells, over whatever's drawn
-// there: from its top, where it's taller than the canvas.
-func panel(c *canvas, compartments [][]line, inner, width, height int) {
-	b := panelBox(compartments, inner, width, height)
-	if b.width == 0 {
-		return
-	}
-	x, y, inside := b.x, b.y, b.width-2
-	c.text(x, y, "╭"+rule(inside)+"╮", borderInk)
-	for i, lines := range compartments {
-		if i > 0 {
-			y++
-			c.text(x, y, "├"+rule(inside)+"┤", borderInk)
-		}
-		for _, l := range lines {
-			y++
-			c.text(x, y, "│", borderInk)
-			c.text(x+1, y, strings.Repeat(" ", inside), ink{})
-			c.line(x+1+helpInset, y, l.fit(inner))
-			c.text(x+inside+1, y, "│", borderInk)
-		}
-	}
-	c.text(x, y+1, "╰"+rule(inside)+"╯", borderInk)
+// glyphsFit reports whether the key to the glyphs, under the strips given,
+// fits the frame's width.
+func (f Frame) glyphsFit(strips []strip) bool {
+	return margin+f.glyphLine(strips).width() <= f.edge()
 }

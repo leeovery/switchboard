@@ -93,6 +93,33 @@ func TestDashboardNotifiesAsTheConfigSays(t *testing.T) {
 	}
 }
 
+func TestDashboardPricesAsTheConfigSays(t *testing.T) {
+	tests := []struct {
+		name           string
+		extra          string
+		wantOverridden bool
+	}{
+		{name: "at the table's prices, where it gives none"},
+		{name: "at its own, where it gives any", extra: "\n[prices.plans]\nmax5x = 90\n", wantOverridden: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+			srv.extra = tt.extra
+			srv.writeConfig(t)
+			cfg := recordWatch(t, &srv.deps)
+
+			if got := run(t, srv.deps, "dashboard"); got != (result{}) {
+				t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+			}
+			if cfg.Prices.AsOf != ledger.Pricing.AsOf || cfg.Prices.Overridden != tt.wantOverridden {
+				t.Errorf("the prices are as of %s, the config's standing in: %v; want as of %s, the config's: %v",
+					cfg.Prices.AsOf, cfg.Prices.Overridden, ledger.Pricing.AsOf, tt.wantOverridden)
+			}
+		})
+	}
+}
+
 func TestDashboardReadsWhatStatusReads(t *testing.T) {
 	deps := statusDeps(t, fakeClaudeAPI(t), map[string]string{"TERM": "xterm-256color"})
 	cfg := recordWatch(t, &deps)

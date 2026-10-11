@@ -28,7 +28,7 @@ type Themes interface {
 	Keep(change func(theme.Choice) theme.Choice) (theme.Choice, error)
 }
 
-// tooSmall is what the footer says where the theme picker doesn't fit.
+// tooSmall is what the key line says where the theme picker doesn't fit.
 const tooSmall = "the terminal's too small for the theme picker"
 
 // unansweredMsg says the terminal has had its time to say what its
@@ -462,25 +462,19 @@ func (p picker) drawn(choice theme.Choice) dashboard.Picker {
 }
 
 // keys are the keys there are while the picker is open, which takes every
-// key but q: while it asks its question, y and n; else the arrows, through
-// the themes, enter, d and l, to set one, and esc, to close it; then q.
-func (p picker) keys() []keyListing {
-	keys := []keyListing{
-		{key: "↑↓", footer: "preview", help: "move through the themes, the dashboard drawn in each"},
-		{key: "⏎", footer: "set theme", help: "set the theme as the one theme"},
-		{key: "d", footer: "set as dark", help: "set the theme as the dark half of the pair"},
-		{key: "l", footer: "set as light", help: "set the theme as the light half of the pair"},
-		{key: "esc", footer: "close", help: "close the picker, putting back the theme in force"},
+// key but q, as the key line lists them: while it asks its question, y and
+// n; else the arrows, through the themes, enter, d and l, to set one, and
+// esc, to close it; then q.
+func (p picker) keys() []dashboard.Key {
+	keys := []dashboard.Key{
+		{Key: "↑↓", Does: "preview"},
+		{Key: "⏎", Does: "set theme"},
+		{Key: "d", Does: "set as dark"},
+		{Key: "l", Does: "set as light"},
+		{Key: "esc", Does: "close"},
 	}
 	if p.asking != (pick{}) {
-		keys = []keyListing{
-			{key: "y", footer: "confirm", help: "clear the one theme, and set the half"},
-			{key: "n", footer: "cancel", help: "keep the one theme"},
-		}
+		keys = []dashboard.Key{{Key: "y", Does: "confirm"}, {Key: "n", Does: "cancel"}}
 	}
-	keys = append(keys, keyListing{key: "q", footer: "quit", help: "quit", always: true})
-	for i := range keys {
-		keys[i].works = true
-	}
-	return keys
+	return append(keys, dashboard.Key{Key: "q", Does: "quit"})
 }

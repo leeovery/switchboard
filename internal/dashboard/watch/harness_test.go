@@ -186,11 +186,11 @@ func (h *harness) press(key string) []tea.Msg {
 	return h.update(tea.KeyPressMsg{Code: []rune(key)[0], Text: key})
 }
 
-// read has the source read doc from now on, and reads it with r.
+// read has the source read doc from now on, and reads it with R.
 func (h *harness) read(doc status.Document) {
 	h.t.Helper()
 	h.source.doc = doc
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 }
 
 // fire moves the clock to when tm is due, and delivers it.
@@ -340,15 +340,28 @@ func (h *harness) view() string {
 	return ansi.Strip(h.model.View().Content)
 }
 
-// footer is the screen's last line, without its margins, its keys and what's
-// at its right set apart by a dot each, as in "a auto · q quit · read 0s
-// ago".
-func (h *harness) footer() string {
+// keyLine is the screen's last row, the key line, without its margins, its
+// keys set apart by a dot each, as in "tab views · ? help · q quit".
+func (h *harness) keyLine() string {
 	lines := strings.Split(h.view(), "\n")
 	return strings.Join(gaps.Split(strings.TrimSpace(lines[len(lines)-1]), -1), " · ")
 }
 
-// gaps are the blanks between the parts of the footer.
+// listed are the keys of the model's key line as it stands, in order.
+func (h *harness) listed() []string {
+	var keys []string
+	for _, group := range h.model.keyLine(h.clock.now).Groups {
+		keys = append(keys, listedKeys(group)...)
+	}
+	return keys
+}
+
+// nextRead is when the next full read is due, to the minute, as in "13:42".
+func (h *harness) nextRead() string {
+	return h.model.plan.due.In(start.Location()).Format("15:04")
+}
+
+// gaps are the blanks between the keys of the key line.
 var gaps = regexp.MustCompile(` {2,}`)
 
 // fakeClock tells the time the test sets.
@@ -570,11 +583,6 @@ func reserving(a status.Account, reserve float64) status.Account {
 // unreadable is an account whose token the API refused.
 func unreadable(id, label string) status.Account {
 	return status.Account{ID: id, Label: label, TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}
-}
-
-// tokenless is an account without a usable token.
-func tokenless(id, label string) status.Account {
-	return status.Account{ID: id, Label: label, Error: "token missing: write it to tokens/" + id}
 }
 
 // partlyRead is an account whose Fable window couldn't be read.

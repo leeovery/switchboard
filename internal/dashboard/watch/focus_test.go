@@ -11,8 +11,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -73,11 +71,6 @@ func (h *harness) keys(keys ...tea.KeyPressMsg) {
 	}
 }
 
-// seatOf is the seat of a session's model, as a card's back lists it.
-func seatOf(session, model string) dashboard.Seat {
-	return dashboard.Seat{Session: session, Model: model}
-}
-
 func TestNoCardHasTheFocusTillAKeyGivesItTheFirstInView(t *testing.T) {
 	for _, key := range []tea.KeyPressMsg{leftKey, rightKey, upKey, downKey} {
 		t.Run(key.String(), func(t *testing.T) {
@@ -118,35 +111,19 @@ func TestTheArrowsMoveTheFocusAroundTheGrid(t *testing.T) {
 	}
 }
 
-func TestUpAndDownGoOverAFlippedCardsSessionsFirst(t *testing.T) {
+func TestUpAndDownMoveTheFocusOverAFlippedCardAsOverItsFront(t *testing.T) {
 	h := gridHarness(t)
 	h.keys(spaceKey)
 	if h.model.focus != "work" || !h.model.flipped["work"] {
 		t.Fatalf("space flipped %v with the focus on %q, want work's card, the first, flipped", h.model.flipped, h.model.focus)
 	}
-	h.keys(rightKey, rightKey, rightKey, downKey, spaceKey)
-	steps := []struct {
-		key      tea.KeyPressMsg
-		focus    string
-		selected dashboard.Seat
-	}{
-		{key: upKey, focus: "client", selected: seatOf(id9E21, "claude-sonnet-5-5")},
-		{key: upKey, focus: "work"},
-		{key: upKey, focus: "work", selected: seatOf(id7F3A, "claude-haiku-4-5")},
-		{key: upKey, focus: "work", selected: seatOf(idD28C, "claude-opus-5-5")},
-		{key: upKey, focus: "work", selected: seatOf(idD28C, "claude-opus-5-5")},
-		{key: downKey, focus: "work", selected: seatOf(id7F3A, "claude-haiku-4-5")},
-		{key: downKey, focus: "client"},
-		{key: downKey, focus: "client", selected: seatOf(id9E21, "claude-sonnet-5-5")},
-		{key: downKey, focus: "client", selected: seatOf(id9E21, "claude-sonnet-5-5")},
-		{key: upKey, focus: "work"},
-		{key: downKey, focus: "work", selected: seatOf(idD28C, "claude-opus-5-5")},
-		{key: rightKey, focus: "personal"},
-	}
-	for i, s := range steps {
+	for _, s := range []struct {
+		key  tea.KeyPressMsg
+		want string
+	}{{key: downKey, want: "client"}, {key: upKey, want: "work"}} {
 		h.keys(s.key)
-		if h.model.focus != s.focus || h.model.selected != s.selected {
-			t.Fatalf("step %d, %s: the focus is on %q, %+v picked out, want %q, %+v", i+1, s.key, h.model.focus, h.model.selected, s.focus, s.selected)
+		if h.model.focus != s.want {
+			t.Errorf("after %s, the focus is on %q, want %q", s.key, h.model.focus, s.want)
 		}
 	}
 }
@@ -161,7 +138,8 @@ func TestSpaceFlipsTheCardWithTheFocusAndSEveryCardOrBack(t *testing.T) {
 		{keys: []tea.KeyPressMsg{spaceKey}},
 		{keys: []tea.KeyPressMsg{rightKey, spaceKey, {Code: 's', Text: "s"}}, want: []string{"client", "personal", "side", "work"}},
 		{keys: []tea.KeyPressMsg{{Code: 's', Text: "s"}}},
-		{keys: []tea.KeyPressMsg{{Code: 'S', Text: "S"}}, want: []string{"client", "personal", "side", "work"}},
+		{keys: []tea.KeyPressMsg{{Code: 'S', Text: "S"}}},
+		{keys: []tea.KeyPressMsg{{Code: 's', Text: "s"}}, want: []string{"client", "personal", "side", "work"}},
 	}
 	for i, s := range steps {
 		h.keys(s.keys...)
@@ -183,14 +161,14 @@ func TestSpaceFlipsTheCardWithTheFocusAndSEveryCardOrBack(t *testing.T) {
 
 func TestAFlippedCardsBackListsItsSessions(t *testing.T) {
 	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
+	h.keys(spaceKey)
 	for _, want := range []string{
 		"┏━ 1 Work ━",
 		"┃  2 sessions  ·  1 busy",
-		"┃  ▸ ● d28c  opus    idle       10s",
+		"┃    ● d28c  opus    idle       10s",
 		"┃      ╰ here since 12:12",
 		"┃    ○ 7f3a  haiku   idle       9m",
-		"┃  ↑↓ select  1-4 move it  space flip",
+		"┃  space flip",
 	} {
 		if !strings.Contains(h.view(), want) {
 			t.Errorf("the screen is\n%s\nwant %q", h.view(), want)
@@ -198,126 +176,9 @@ func TestAFlippedCardsBackListsItsSessions(t *testing.T) {
 	}
 }
 
-func TestADigitPinsTheSessionPickedOutAndATakesItsPinOff(t *testing.T) {
-	log := logstest.Capture(t)
-	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
-	looks := h.source.looks()
-
-	h.deliver(h.press("3")...)
-	if want := []string{"pin " + idD28C + " to side"}; !slices.Equal(h.source.orders, want) {
-		t.Errorf("orders = %q, want %q", h.source.orders, want)
-	}
-	if got, want := h.footer(), "d28c goes to side · Side from its next request · d28c selected on Work"; got != want {
-		t.Errorf("footer = %q, want %q", got, want)
-	}
-	if got := h.source.looks(); got != looks+1 {
-		t.Errorf("looked at the router's document %d times after the key, want once", got-looks)
-	}
-	if !strings.Contains(h.view(), "╰ goes to Side from its next request") {
-		t.Errorf("the screen is\n%s\nwant d28c's note to say where it goes", h.view())
-	}
-	if !h.source.router.Pin.IsZero() {
-		t.Errorf("the router's pin is %+v, want none: the session's pin is its own", h.source.router.Pin)
-	}
-	if want := []string{"level=INFO", `msg="pinned a session"`, "session=d28c5e17", "account=side"}; !log.Has(want...) {
-		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
-	}
-
-	h.deliver(h.press("a")...)
-	if want := []string{"pin " + idD28C + " to side", "unpin " + idD28C}; !slices.Equal(h.source.orders, want) {
-		t.Errorf("orders = %q, want %q", h.source.orders, want)
-	}
-	if got, want := h.footer(), "d28c is routed automatically from its next request · d28c selected on Work"; got != want {
-		t.Errorf("footer = %q, want %q", got, want)
-	}
-	if want := []string{"level=INFO", `msg="unpinned a session"`, "session=d28c5e17"}; !log.Has(want...) {
-		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
-	}
-	if strings.Contains(log.String(), idD28C) {
-		t.Errorf("log reads\n%s\nwant the session's id cut short, as the router logs it", log)
-	}
-}
-
-func TestAnOrderOfASessionTheRouterRefusesSaysWhy(t *testing.T) {
-	log := logstest.Capture(t)
-	h := gridHarness(t)
-	h.source.refuse = errors.New("personal has no usable token: switchboard accounts token personal")
-	h.keys(spaceKey, downKey)
-
-	h.deliver(h.press("2")...)
-	if got, want := h.footer(), "personal has no usable token: switchboard accounts token personal · d28c selected on Work"; got != want {
-		t.Errorf("footer = %q, want %q", got, want)
-	}
-	if want := []string{"level=WARN", `msg="the router didn't take an order"`, "session=d28c5e17", "account=personal", "error="}; !log.Has(want...) {
-		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
-	}
-}
-
-func TestTheFooterGivesTheSelectionsKeys(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
-	if got, want := h.footer(), "↑↓ select · 1-4 move d28c to that account · space flip back · esc done · d28c selected on Work"; got != want {
-		t.Errorf("with d28c picked out, footer = %q, want %q", got, want)
-	}
-	if got, want := listedKeys(h.model.helpKeys()), []string{"↑↓", "1-4", "a", "space", "esc", "tab", "w", "←→", "s", "g", "m", "r", "?", "q"}; !slices.Equal(got, want) {
-		t.Errorf("with d28c picked out, the help lists %q, want %q", got, want)
-	}
-
-	h.keys(escKey)
-	if h.model.selecting() || !h.model.flipped["work"] || h.model.focus != "work" {
-		t.Errorf("after esc, picking out %+v, flipped %v, focus on %q; want nothing picked out, work's card flipped still, with the focus", h.model.selected, h.model.flipped, h.model.focus)
-	}
-	if got, want := h.footer(), "tab views · w window: auto · ←→ focus · space flip · g chart · 1-4 pin · a auto · m move · ? keys · q quit · read 0s ago"; got != want {
-		t.Errorf("after esc, footer = %q, want %q", got, want)
-	}
-}
-
-func TestSpaceFlipsTheCardBackEndingTheSelection(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(spaceKey, downKey, spaceKey)
-	if h.model.selecting() || h.model.flipped["work"] {
-		t.Errorf("after space, picking out %+v, flipped %v; want work's card back on its front, nothing picked out", h.model.selected, h.model.flipped)
-	}
-}
-
-func TestWithoutTheRouterTheKeysOfASessionSaySo(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
-	h.stopRouter()
-	h.tickUntilAsked()
-
-	if got, want := h.footer(), "↑↓ select · space flip back · esc done · d28c selected on Work"; got != want {
-		t.Errorf("without the router, footer = %q, want %q", got, want)
-	}
-	if !strings.Contains(h.view(), "┃  ↑↓ select  space flip") {
-		t.Errorf("the screen is\n%s\nwant work's back listing no keys that move a session", h.view())
-	}
-	for _, key := range []string{"3", "a"} {
-		h.deliver(h.press(key)...)
-		if len(h.source.orders) > 0 {
-			t.Errorf("%s gave orders %q, want none", key, h.source.orders)
-		}
-		if got, want := h.footer(), "the router isn't answering · d28c selected on Work"; got != want {
-			t.Errorf("after %s, footer = %q, want %q", key, got, want)
-		}
-	}
-}
-
-func TestTheSelectionEndsOnceItsSessionLeavesTheCard(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
-	h.source.sessions[0] = sessionOn(idD28C, "claude-opus-5-5", "side", time.Second)
-	h.tickUntilAsked()
-
-	if h.model.selecting() || h.model.focus != "work" {
-		t.Errorf("once d28c went to side, picking out %+v with the focus on %q, want nothing picked out, the focus on work still", h.model.selected, h.model.focus)
-	}
-}
-
 func TestALookThatCantListTheSessionsKeepsThoseListedLast(t *testing.T) {
 	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
+	h.keys(spaceKey)
 	listed := h.model.sessions
 	h.source.sessionsErr = errors.New("connection reset")
 	asked := h.source.listed
@@ -326,38 +187,26 @@ func TestALookThatCantListTheSessionsKeepsThoseListedLast(t *testing.T) {
 	if h.source.listed != asked+1 || !reflect.DeepEqual(h.model.sessions, listed) {
 		t.Errorf("listing failed on a look, the watch asked %d times, holding %+v; want it asked once more, holding those listed last %+v", h.source.listed-asked, h.model.sessions, listed)
 	}
-	if h.model.selected != seatOf(idD28C, "claude-opus-5-5") || !strings.Contains(h.view(), "┗━ ● ○ ━") {
-		t.Errorf("picking out %+v, the screen\n%s\nwant d28c still picked out, work's dots still lit as listed", h.model.selected, h.view())
+	if !strings.Contains(h.view(), "┗━ ● ○ ━") {
+		t.Errorf("the screen is\n%s\nwant work's dots still lit as listed", h.view())
 	}
 
 	h.stopRouter()
-	h.deliver(h.press("r")...)
-	if h.model.routed() || h.model.sessions != nil || h.model.selecting() {
-		t.Errorf("probing, holding %+v, picking out %+v; want no sessions, and nothing picked out", h.model.sessions, h.model.selected)
+	h.deliver(h.press("R")...)
+	if h.model.routed() || h.model.sessions != nil {
+		t.Errorf("probing, holding %+v; want no sessions", h.model.sessions)
 	}
 }
 
 func TestAnotherRouterThatCantListTheSessionsShowsNone(t *testing.T) {
 	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
+	h.keys(spaceKey)
 	h.source.sessionsErr = errors.New("connection reset")
 	h.source.health = router.Health{PID: 4242, StartedAt: start.UTC()}
 	h.tickUntilAsked()
 
-	if h.model.sessions != nil || h.model.selecting() {
-		t.Errorf("another router answering, unable to list its sessions, the watch holds %+v, picking out %+v; want none of the last router's", h.model.sessions, h.model.selected)
-	}
-}
-
-func TestSFlippingEveryCardEndsTheSelection(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
-	if !h.model.selecting() {
-		t.Fatal("nothing picked out on work's back")
-	}
-	h.keys(tea.KeyPressMsg{Code: 's', Text: "s"})
-	if !h.model.everyFlipped() || h.model.selecting() {
-		t.Errorf("after s, every card flipped %v, picking out %+v; want every card flipped, nothing picked out", h.model.everyFlipped(), h.model.selected)
+	if h.model.sessions != nil {
+		t.Errorf("another router answering, unable to list its sessions, the watch holds %+v; want none of the last router's", h.model.sessions)
 	}
 }
 
@@ -438,30 +287,12 @@ func TestTheFirstFocusIsOnTheFirstCardWhollyInView(t *testing.T) {
 // account's name ending in the letter it names.
 var topEdge = regexp.MustCompile(`^ ┏━ \d+ Account ([A-Z]) `)
 
-func TestWithOneAccountNoSessionIsPickedOut(t *testing.T) {
-	h := routedHarness(t, routerDocument(three()[0]))
-	h.source.sessions = []status.Session{sessionOn(idD28C, "claude-opus-5-5", "work", time.Second)}
-	h.start()
-	h.keys(spaceKey, downKey)
-
-	if !h.model.flipped["work"] || h.model.selecting() {
-		t.Errorf("flipped %v, picking out %+v, want work's card flipped, and nothing picked out: there's no other account to move a session to", h.model.flipped, h.model.selected)
-	}
-	if !strings.Contains(h.view(), "space flip") || strings.Contains(h.view(), "↑↓ select") {
-		t.Errorf("the screen is\n%s\nwant the back to list space alone", h.view())
-	}
-}
-
-func TestAnotherViewEndsTheSelection(t *testing.T) {
+func TestTheCardKeysDoNothingOnAnotherTab(t *testing.T) {
 	h := gridHarness(t)
-	h.keys(spaceKey, downKey)
+	h.keys(spaceKey)
 	h.press("tab")
-
-	if h.model.selecting() {
-		t.Errorf("showing %q, picking out %+v, want nothing picked out", h.model.view, h.model.selected)
-	}
-	h.keys(downKey, spaceKey)
-	if h.model.focus != "work" || !h.model.flipped["work"] {
+	h.keys(downKey, spaceKey, tea.KeyPressMsg{Code: 's', Text: "s"})
+	if h.model.focus != "work" || !h.model.flipped["work"] || h.model.everyFlipped() {
 		t.Errorf("showing %q, the cards' keys moved the focus to %q, flipped %v, want them doing nothing there", h.model.view, h.model.focus, h.model.flipped)
 	}
 }

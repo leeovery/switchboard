@@ -17,46 +17,34 @@ type Motion struct {
 
 // Motion is what moves on screen of the frame of doc at now: what travels
 // the cords Sessions' switchboard shows, as travelling has it; or the sand
-// falling in the hourglasses of the Accounts view's cards, as falling has
-// it.
+// falling in the hourglasses of the Overview's cards, as falling has it.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
 	switch f.View {
 	case Sessions:
 		return f.travelling(doc, now)
-	case Accounts:
+	case Overview:
 		return Motion{Falling: f.falling(doc, now)}
 	default:
 		return Motion{}
 	}
 }
 
-// box is a block of cells: from x along row y, width cells wide and rows
-// tall.
-type box struct {
-	x, y, width, rows int
-}
-
-// covers reports whether the box covers every one of the cells from x along
-// row y, width cells wide and rows tall.
-func (b box) covers(x, y, width, rows int) bool {
-	return x >= b.x && x+width <= b.x+b.width && y >= b.y && y+rows <= b.y+b.rows
-}
-
-// sight is how a view's content shows on screen: rows of its rows, from
-// the row offset, from the screen's row top; but where the help is open
-// over it, the cells it covers.
+// sight is how a view's content shows on screen: rows of its rows, from the
+// row offset; and none of it where a card is open over the page, which
+// stands still behind it.
 type sight struct {
-	top, offset, rows int
-	help              box
+	offset, rows int
+	covered      bool
 }
 
-// shows reports whether any of the cells from x along the content's row y,
-// width cells wide and rows tall, shows on screen.
-func (s sight) shows(x, y, width, rows int) bool {
-	for row := max(y, s.offset); row < min(y+rows, s.offset+s.rows); row++ {
-		if width > 0 && !s.help.covers(x, s.top+row-s.offset, width, 1) {
-			return true
-		}
-	}
-	return false
+// inSight is how the frame's page shows its view's content, rows of its rows
+// from the row offset.
+func (f Frame) inSight(offset, rows int) sight {
+	return sight{offset: offset, rows: rows, covered: f.Card != nil}
+}
+
+// shows reports whether any of the content's cells, width cells wide from
+// its row y, rows tall, shows on screen.
+func (s sight) shows(y, width, rows int) bool {
+	return !s.covered && width > 0 && max(y, s.offset) < min(y+rows, s.offset+s.rows)
 }

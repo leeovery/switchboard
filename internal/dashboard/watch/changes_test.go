@@ -138,7 +138,7 @@ func TestStatesProbedAfterTheRouterStartAfresh(t *testing.T) {
 	h.start()
 	h.stopRouter()
 	h.source.doc = document(limitedWork().Accounts...)
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 
 	if h.model.routed() {
 		t.Fatal("still showing the router's document, want the accounts probed")

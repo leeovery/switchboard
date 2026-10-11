@@ -175,7 +175,7 @@ func TestRefreshProbesAnAccountWhoseSessionHasLapsedWhenItCanTakeNoRequest(t *te
 			r.state.record("side", []quota.Window{session, week}, r.state.mark())
 			clock.now = start
 
-			// As the dashboard's r asks: what hasn't been read in a minute.
+			// As the dashboard's R asks: what hasn't been read in a minute.
 			askToRefresh(t.Context(), r, `{"max_age": "1m"}`)
 			if probed := prober.counts()[workToken] > 0; probed != tt.wantProbed {
 				t.Errorf("work probed = %v, want %v", probed, tt.wantProbed)

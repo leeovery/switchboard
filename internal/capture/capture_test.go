@@ -203,8 +203,8 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 	for _, want := range []string{
 		// The clock the frames read.
 		"Thu 1 Oct  14:42:07",
-		// The document, read readAgo before, rather than still being read.
-		"read 4s ago",
+		// The document read, rather than still being read.
+		"● healthy",
 		// side's session at its reading, its bar eased all the way there.
 		"Session  ██▏┃█████▊░░░░░░░░  12% → 54%",
 		// What the router tells of lately, none picked out as new, the first
@@ -235,10 +235,10 @@ func TestAFrameFillsATerminalOfTheSizeGiven(t *testing.T) {
 
 func TestAFixturesKeysArePressedOnceItsDocumentIsRead(t *testing.T) {
 	f := fixture(t, "accounts-3")
-	f.keys = []tea.KeyPressMsg{{Code: '2', Text: "2"}}
+	f.keys = []tea.KeyPressMsg{{Code: 'w', Text: "w"}}
 
-	if frame, want := f.Frame(f.Size), "new sessions go to personal · personal"; !strings.Contains(frame, want) {
-		t.Errorf("having pressed 2, the frame\n%s\nhas no %q", frame, want)
+	if frame, want := ansi.Strip(f.Frame(f.Size)), "w window: 5h"; !strings.Contains(frame, want) {
+		t.Errorf("having pressed w, which does nothing till a document is read, the frame\n%s\nhas no %q", frame, want)
 	}
 }
 
@@ -302,7 +302,7 @@ func TestAThemeFileTakingABuiltInsSlugIsListedAsReserved(t *testing.T) {
 func TestTheThemesFixtureHasThePickerOpenOnTheThemeBeforeTheFrames(t *testing.T) {
 	frame := ansi.Strip(fixture(t, "accounts-3-themes").Frame(wide(34)))
 
-	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "5 sessions · auto"} {
+	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "╭─ 1 work ─"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame\n%s\nhas no %q", frame, want)
 		}
@@ -318,9 +318,6 @@ func TestTheFlippedFixturesTurnTheCardsOverWithTheirKeys(t *testing.T) {
 		{name: "accounts-flipped-all", want: []string{
 			"┏━ 1 work ━", "sessions · ◆ primary ━┓", "─ sessions ─╮", "sessions · ▲ next ─╮",
 			"3 moved to side at 14:12,", "when personal reached its limit",
-		}},
-		{name: "accounts-flipped-selected", want: []string{
-			"┏━ 1 work ━", "┃  ▸ ● d28c  opus", "↑↓ select   1-3 move d28c to that account   space flip back   esc done", "d28c selected on work",
 		}},
 	}
 	for _, tt := range tests {
@@ -401,7 +398,7 @@ func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
 			"CALLS  sessions, by the line they are on", "LINES  accounts",
 			"  d28c  opus    1m           ●━", "  41e0  sonnet  4m           ●━━", "╌╌╌╌╌╌╌○  Session", "└─ resets  session 18:50  ·  weeks Mon 10:00 ─",
 		}},
-		{name: "sessions-3-keys", want: []string{"│  ●━━◉   a session's cord to its account", "│  ↓      streaming back, ~ its tokens so far"}},
+		{name: "sessions-3-keys", want: []string{"─ HELP · SESSIONS "}},
 		{name: "sessions-5", want: []string{"  9e21  sonnet  now          ●━", "┌─ 5 · SPARE ─ ○ idle", "└─ primed at 16:20 ─", "  14:39  ▸ 9e21 moved side → client (pin)"}},
 		{name: "sessions-storyboard-1-request-out", want: []string{"  c61b  opus    now  ↑ ask   ●━"}},
 		{name: "sessions-storyboard-2-streaming-back", want: []string{"  c61b  opus    now  ↓ ~1.2k ●━"}},
@@ -459,6 +456,7 @@ var everyKey = []tea.KeyPressMsg{
 	{Code: 'j', Text: "j"}, {Code: 'k', Text: "k"}, {Code: tea.KeyPgDown}, {Code: tea.KeyPgUp},
 	{Code: '1', Text: "1"}, {Code: '2', Text: "2"}, {Code: '3', Text: "3"}, {Code: 'a', Text: "a"}, {Code: 'm', Text: "m"},
 	{Code: 'r', Text: "r"}, {Code: 't', Text: "t"}, {Code: 'd', Text: "d"}, {Code: 'l', Text: "l"}, {Code: '?', Text: "?"},
+	{Code: 'p', Text: "p"}, {Code: 'R', Text: "R"},
 }
 
 // TestNoFixtureChartStyleKeyOrWidthPanics draws every fixture at every width

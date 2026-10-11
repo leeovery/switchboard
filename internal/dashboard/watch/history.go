@@ -185,8 +185,8 @@ func record(readings []score.Reading, r score.Reading) []score.Reading {
 // its readings in order: those the router gave, from when it started, then
 // those the watch has seen after the router's last; or those the watch has
 // seen alone, where the router gave none.
-func (h history) drawn(doc status.Document) dashboard.History {
-	drawn := make(dashboard.History)
+func (h history) drawn(doc status.Document) dashboard.Trails {
+	drawn := make(dashboard.Trails)
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
 			start, _, ok := w.Span()

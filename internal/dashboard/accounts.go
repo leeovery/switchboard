@@ -37,13 +37,13 @@ type strip struct {
 	draw  func(c *canvas, x, y, n int)
 }
 
-// accounts draws the Accounts view from row top, laid out as the layout
+// accounts draws the Overview's cards from row top, laid out as the layout
 // rules have it: its accounts' cards, scrolled where they don't fit, a
 // scrollbar beside them, and RECENT in their grid's empty cell, or with one
 // account, COMING UP and RECENT in a column beside its card; under them,
 // their strips, each after a blank row, its label at its left, but on a
-// phone; then, where there are cards for it to explain, the key line, where
-// it shows; and the line over the footer.
+// phone; then, where there are cards for it to explain, the glyph line,
+// where it shows; and the line over the key line.
 func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) {
 	faces, shown := f.faces(doc, now)
 	l := f.layOut(doc, now, len(shown), top)
@@ -57,7 +57,7 @@ func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) 
 		return
 	}
 	if l.key {
-		c.line(margin, key, f.keyLine(l.strips))
+		c.line(margin, key, f.glyphLine(l.strips))
 	}
 	if l.scrolls() {
 		above, below := l.hidden(len(faces), offset)
@@ -69,13 +69,13 @@ func (f Frame) accounts(c *canvas, doc status.Document, now time.Time, top int) 
 	c.right(f.edge(), over, f.unseen(doc, now, l.key).fit(f.edge()-margin))
 }
 
-// foot is where the key line, or Runway's legend, goes, over the line over
-// the footer, and where that line goes, over the footer.
+// foot is where the glyph line, or Runway's legend, goes, over the line over
+// the key line, and where that line goes, over the key line.
 func (f Frame) foot() (keyRow, over int) {
 	return f.Height - 3, f.Height - 2
 }
 
-// unseen is what the line over the footer says of what the cards don't show,
+// unseen is what the line over the key line says of what the cards don't show,
 // where they fit: which windows hide from every card, and, where the key
 // line doesn't show as key says, that the key's behind ?.
 func (f Frame) unseen(doc status.Document, now time.Time, key bool) line {
@@ -107,7 +107,7 @@ func (f Frame) grid(c *canvas, doc status.Document, now time.Time, faces []face,
 
 // stripsUnder draws the strips under the cards, from row y, each after a
 // blank row, as many lines of each as it shows, and as fit over the line
-// over the footer. Their lines start in a column, after the widest of their
+// over the key line. Their lines start in a column, after the widest of their
 // labels, but on a phone, where they have none.
 func (f Frame) stripsUnder(c *canvas, strips []strip, y int) {
 	x := margin

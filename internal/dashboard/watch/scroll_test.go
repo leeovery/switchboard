@@ -67,7 +67,7 @@ func TestScrollingMovesTheCardsUnderTheHeadingWhichStaysPut(t *testing.T) {
 	}
 	lines := strings.Split(h.view(), "\n")
 	if got := strings.TrimSpace(lines[48]); got != "▲ 2 more accounts above · ▼ 2 more accounts below · j/k or wheel to scroll" {
-		t.Errorf("the line over the footer says %q, want what's out of view", got)
+		t.Errorf("the line over the key line says %q, want what's out of view", got)
 	}
 }
 
@@ -91,15 +91,14 @@ func TestTheWheelScrollsTheCards(t *testing.T) {
 	}
 }
 
-func TestTheScreenAsksForTheWheelOnlyWhileTheCardsScroll(t *testing.T) {
+func TestTheMouseIsOnWhileTheDashboardRuns(t *testing.T) {
 	h := newHarness(t, twelve())
 	h.start()
-	if got := h.model.View().MouseMode; got != tea.MouseModeCellMotion {
-		t.Errorf("while the cards scroll, the mouse mode is %v, want the wheel's", got)
-	}
-	h.update(tea.WindowSizeMsg{Width: 150, Height: 80})
-	if got := h.model.View().MouseMode; got != tea.MouseModeNone {
-		t.Errorf("once they fit, the mouse mode is %v, want none, leaving the terminal's selecting to it", got)
+	for _, size := range []tea.WindowSizeMsg{{Width: 150, Height: 50}, {Width: 150, Height: 80}} {
+		h.update(size)
+		if got := h.model.View().MouseMode; got != tea.MouseModeCellMotion {
+			t.Errorf("at %dx%d, the mouse mode is %v, want clicks and the wheel, whether or not the cards scroll", size.Width, size.Height, got)
+		}
 	}
 }
 

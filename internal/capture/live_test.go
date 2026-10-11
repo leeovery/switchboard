@@ -246,7 +246,7 @@ func TestKeysAreShownAsTheyrePressedTillTheyveHadTheirTime(t *testing.T) {
 		t.Errorf("the last row reads %q, want the keys pressed, in turn, at its right", last)
 	}
 	if last := lastRow(l); strings.Contains(last, "read") || !strings.Contains(last, "q quit") {
-		t.Errorf("the last row reads %q, want the footer's keys, but nothing of how long ago it was read, which the keys cut into", last)
+		t.Errorf("the last row reads %q, want the key line's keys, but nothing of how long ago it was read, which the keys cut into", last)
 	}
 	elapsed += typedFor - time.Millisecond
 	if last := lastRow(l); !strings.HasSuffix(last, " w  ") {
@@ -273,7 +273,7 @@ func TestTheLatestKeysPressedAreShown(t *testing.T) {
 	}
 }
 
-func TestKeysAreNamedAsTheFooterNamesThem(t *testing.T) {
+func TestKeysAreNamedAsTheKeyLineNamesThem(t *testing.T) {
 	tests := []struct {
 		key  tea.KeyPressMsg
 		want string

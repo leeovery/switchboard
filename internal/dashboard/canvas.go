@@ -159,6 +159,12 @@ func (c *canvas) paste(from *canvas, first, y, rows int) {
 	}
 }
 
+// fade fades everything drawn on the canvas, as the page behind a card is:
+// each cell's colours, as finally drawn, its own fade and glow included,
+// mixed 80% of the way to the canvas, and nothing bold. Until it's built, it
+// leaves the canvas as it is.
+func (c *canvas) fade() {}
+
 // rows draws the canvas as look draws it, a string a row. Where the look
 // paints its canvas, every row is the canvas's whole width; where it
 // doesn't, a row ends at its last glyph or surface.

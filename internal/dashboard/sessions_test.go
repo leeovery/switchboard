@@ -29,7 +29,7 @@ func switchboard(width, height int, sessions []status.Session, traffic Traffic) 
 // and heading, failing the test where it lays it out as a plain list.
 func bayOfFrame(t *testing.T, f Frame, doc status.Document) bay {
 	t.Helper()
-	b, ok := f.bayOf(doc, now, f.above(newCanvas(f.Width, f.Height), doc, now))
+	b, ok := f.bayOf(doc, now, f.top(doc))
 	if !ok {
 		t.Fatalf("at %d×%d, the view is a plain list, want a switchboard", f.Width, f.Height)
 	}
@@ -207,7 +207,7 @@ func TestSessionsIsASwitchboardWhereItsCordsFit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := tt.frame
-		if _, got := f.bayOf(tt.doc, now, f.above(newCanvas(f.Width, f.Height), tt.doc, now)); got != tt.want {
+		if _, got := f.bayOf(tt.doc, now, f.top(tt.doc)); got != tt.want {
 			t.Errorf("%s: laid out as a switchboard %v, want %v", tt.name, got, tt.want)
 		}
 	}
@@ -258,7 +258,7 @@ func TestEachLineHasAPanelAJackAWindowGrowingARowForEachCallPastThem(t *testing.
 	for _, k := range b.cords {
 		p := b.panels[k.place-1]
 		if k.to <= p.top || k.to > p.top+p.rows {
-			t.Errorf("the cord of %s ends on row %d, outside its panel's rows %d to %d", k.plug.Seat.Shown(), k.to, p.top+1, p.top+p.rows)
+			t.Errorf("the cord of %s ends on row %d, outside its panel's rows %d to %d", sessionID(k.plug.Seat.Session), k.to, p.top+1, p.top+p.rows)
 		}
 	}
 }
@@ -271,7 +271,7 @@ func TestCordsRunRightThenDownBendingSoNoneCross(t *testing.T) {
 		doc, sessions, traffic := arrangement(r)
 		width := 90 + r.IntN(130)
 		f := switchboard(width, 20+r.IntN(40), sessions, traffic)
-		top := f.above(newCanvas(f.Width, f.Height), doc, now)
+		top := f.top(doc)
 		b, ok := f.bayOf(doc, now, top)
 		if !ok {
 			continue
@@ -296,7 +296,7 @@ func cordsHoldTheirRule(t *testing.T, name string, b bay) {
 	jacks := make(map[int]bool)
 	lastBend := b.x
 	for _, k := range b.cords {
-		who := k.plug.Seat.Shown() + " on " + k.plug.Account
+		who := sessionID(k.plug.Seat.Session) + " on " + k.plug.Account
 		switch {
 		case k.to < k.from:
 			t.Fatalf("%s: the cord of %s runs up, from row %d to %d", name, who, k.from, k.to)
@@ -380,7 +380,7 @@ func TestACordThatStartsHigherBendsFurtherRight(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := switchboard(tt.width, 60, sessions(tt.calls), Traffic{})
 			doc := threeRouted()
-			b, ok := f.bayOf(doc, now, f.above(newCanvas(f.Width, f.Height), doc, now))
+			b, ok := f.bayOf(doc, now, f.top(doc))
 			if tt.want == nil {
 				if ok {
 					t.Errorf("laid out as a switchboard, bending at %v, want a plain list", bends(b))
@@ -796,14 +796,14 @@ func TestTheSessionsViewScrollsWhereItDoesntFit(t *testing.T) {
 	rows := f.Draw(doc, now)
 
 	if got := rows[28]; !strings.Contains(got, "▼ 5 more accounts below · j/k or wheel to scroll") {
-		t.Errorf("the line over the footer reads %q, want what's out of view", got)
+		t.Errorf("the line over the key line reads %q, want what's out of view", got)
 	}
 	if got := rows[9]; !strings.HasSuffix(got, "│┃") {
 		t.Errorf("row 10 reads %q, want the lines a cell short of the frame's edge, the scrollbar beside them", got)
 	}
 	f.Scroll = scrolling.Most
 	if got := f.Draw(doc, now)[28]; !strings.Contains(got, "▲ 5 more accounts above") {
-		t.Errorf("scrolled to the foot, the line over the footer reads %q, want the accounts above", got)
+		t.Errorf("scrolled to the foot, the line over the key line reads %q, want the accounts above", got)
 	}
 }
 
@@ -865,20 +865,17 @@ func listedOn(sessions []status.Session, id, to string) []status.Session {
 	return sessions
 }
 
-func TestWhatTravelsTheCordsUnderTheHelpMovesNothing(t *testing.T) {
+func TestWhatTravelsTheCordsUnderACardMovesNothing(t *testing.T) {
 	traffic := Traffic{Live: true, Calls: map[Plug]Call{{Account: "side", Seat: Seat{Session: idC61B, Model: opus}}: {Doing: Asking, Pulsing: true}}}
 	f := switchboard(160, 40, flippingSessions(), traffic)
-	f.Help = []Key{{Key: "?", Does: "these keys, and the key to the glyphs, with room enough for every one of them and more besides"}}
-
-	b := bayOfFrame(t, f, threeRouted())
-	top := f.above(newCanvas(f.Width, f.Height), threeRouted(), now) + 1
-	for _, p := range cordOf(t, b, "c61b", "side").path(b.x) {
-		if !f.helpCovers().covers(p.x, top+p.y, 1, 1) {
-			t.Fatalf("the help doesn't cover c61b's cord at %d along row %d, want it to, to test what it covers", p.x, top+p.y)
-		}
+	if got := f.Motion(threeRouted(), now); !got.Smooth {
+		t.Fatalf("Motion = %+v, want c61b's pulse moving, to test what a card stills", got)
 	}
-	if got := f.Motion(threeRouted(), now); got.Smooth {
-		t.Errorf("Motion = %+v, want nothing moving, the cord under the help", got)
+	for _, card := range []Opened{Help{}, RoutingCard{}} {
+		f.Card = card
+		if got := f.Motion(threeRouted(), now); got != (Motion{}) {
+			t.Errorf("under %T, Motion = %+v, want nothing moving: the page behind a card stands still", card, got)
+		}
 	}
 }
 
@@ -894,17 +891,19 @@ func TestAPlaceholderIsCutToTheCallsColumns(t *testing.T) {
 	}
 }
 
-func TestSessionsDrawsNothingOverItsHeadingOrItsFooter(t *testing.T) {
+func TestSessionsDrawsNothingOverWhatsAboveItOrItsKeyLine(t *testing.T) {
 	for _, doc := range []status.Document{threeRouted(), routerDoc("work", 3, pressedAccount("work"))} {
 		for height := 1; height <= 14; height++ {
 			f := switchboard(160, height, flippingSessions(), Traffic{})
 			bare := newCanvas(f.Width, f.Height)
-			top := f.above(bare, doc, now)
-			f.footer(bare, doc, height-1)
+			f.title(bare, now)
+			f.routerStatus(bare, doc, now)
+			f.headingRow(bare)
+			f.keyLine(bare)
 			want, got := bare.rows(Look{}), f.Draw(doc, now)
 			for y := range height {
-				if (y < top || y == height-1) && got[y] != want[y] {
-					t.Errorf("%d accounts, %d rows tall: row %d reads %q, want %q, as the heading or the footer has it", len(doc.Accounts), height, y+1, got[y], want[y])
+				if (y < f.top(doc) || y == height-1) && got[y] != want[y] {
+					t.Errorf("%d accounts, %d rows tall: row %d reads %q, want %q, as the rows above the view or the key line have it", len(doc.Accounts), height, y+1, got[y], want[y])
 				}
 			}
 		}
@@ -917,10 +916,10 @@ func TestAPlainListThatScrollsWithEveryPanelInViewSaysNothingOfScrolling(t *test
 	rows := f.Draw(doc, now)
 
 	if f.Scrolling(doc, now).Most == 0 {
-		t.Fatal("the plain list doesn't scroll, want it to, to test what the line over the footer says")
+		t.Fatal("the plain list doesn't scroll, want it to, to test what the line over the key line says")
 	}
 	if got := rows[f.Height-2]; strings.Contains(got, "scroll") || got != strings.Repeat("─", 160) {
-		t.Errorf("the line over the footer reads %q, want a rule, no account out of view", got)
+		t.Errorf("the line over the key line reads %q, want a rule, no account out of view", got)
 	}
 	if got := rows[f.Height-3]; !strings.HasSuffix(got, "┃") && !strings.HasSuffix(got, "│") {
 		t.Errorf("the row over it reads %q, want the scrollbar beside the view", got)
@@ -946,7 +945,7 @@ func TestAnUnreadAccountsPanelSaysSoAsItsCardDoes(t *testing.T) {
 	}
 }
 
-func TestTheLineOverTheSessionsFooterIsARule(t *testing.T) {
+func TestTheLineOverTheSessionsKeyLineIsARule(t *testing.T) {
 	rows := switchboard(160, 40, flippingSessions(), Traffic{}).Draw(threeRouted(), now)
 
 	if got := rows[38]; got != strings.Repeat("─", 160) {

@@ -103,7 +103,7 @@ func TestAProbeBetweenLooksAtOneRouterForgetsNothingSeen(t *testing.T) {
 	h := routedHarness(t, withEvents(2, 1))
 	h.start()
 	h.stopRouter()
-	h.deliver(h.press("r")...)
+	h.deliver(h.press("R")...)
 
 	h.startRouter(withEvents(3, 2, 1))
 	h.tickUntilAsked()

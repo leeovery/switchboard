@@ -160,7 +160,7 @@ switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-
 | `--<model>` | print a model's own window, as `--week` does the week: a flag for each model with a window of its own, named for it, as `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are |
 | `--by window\|account` | lay the windows out by window, the accounts compared a window at a time, or by account, each account's windows together; over [`[usage] by`](#usage-keys), and by window where neither says |
 | `--probe` | probe every account, even while the router runs |
-| `-r, --refresh` | have the router first read every account it may, as the dashboard's `r` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
+| `-r, --refresh` | have the router first read every account it may, as the dashboard's `R` does, and wait for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `--json` | print the status document as JSON, as it does off a terminal anyway, even on one. The window flags and `--by` shape the printout alone, and the JSON is the whole document whatever they say |
 | `--pretty` | print the bars, as it does on a terminal, even off one: without colour, unless `CLICOLOR_FORCE` asks for it, as wide as `COLUMNS` says, else 80 columns |
 

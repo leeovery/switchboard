@@ -42,8 +42,8 @@ const (
 // as it reached its limit, as its log has it.
 const reasonLimit = status.ReasonMovedOff + "personal has no room"
 
-// readAgo is how long before the moment drawn the router's document was read,
-// as the frames' footers have it: "read 4s ago".
+// readAgo is how long before the moment drawn the router's document was
+// read.
 const readAgo = 4 * time.Second
 
 // sample is an account as the frames draw it, from the generator that drew

@@ -6,10 +6,10 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// History is how the accounts' windows have been used, which the charts draw
+// Trails are how the accounts' windows have been used, which the charts draw
 // from: the trail of each window as it runs now, by its account's id and its
 // key.
-type History map[Ref]Trail
+type Trails map[Ref]Trail
 
 // Ref names an account's window: the account's id, and the window's key.
 type Ref struct {

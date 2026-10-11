@@ -23,7 +23,7 @@ type Read struct {
 	Probe bool
 }
 
-// Fresh is the read the dashboard's r asks for, which usage --refresh asks
+// Fresh is the read the dashboard's R asks for, which usage --refresh asks
 // for too: the router first refreshes every account it hasn't read in the
 // last minute, the least it waits between probes of one, and every one that
 // can take no request anyway, or, without the router, every account is

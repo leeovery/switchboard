@@ -40,8 +40,8 @@ func TestLogsTheRefreshKey(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	pending := h.press("r")
-	h.press("r")
+	pending := h.press("R")
+	h.press("R")
 	h.deliver(pending...)
 	for _, want := range [][]string{
 		{"level=DEBUG", `msg="refresh key pressed" component=watch`, "already_reading=false"},

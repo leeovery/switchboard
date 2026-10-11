@@ -14,9 +14,9 @@ const wheelRows = 3
 // and k a row, PgDn and PgUp a page, as many rows as show at once.
 func (m Model) scrollKey(key string) (int, bool) {
 	switch key {
-	case "j", "J":
+	case "j":
 		return 1, true
-	case "k", "K":
+	case "k":
 		return -1, true
 	case "pgdown":
 		return m.scrolling().Page, true
@@ -27,9 +27,9 @@ func (m Model) scrollKey(key string) (int, bool) {
 }
 
 // wheeled scrolls the cards as the wheel turns, wheelRows a turn, but while
-// the theme picker or the help is open over them.
+// the theme picker or a card is open over them.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
-	if m.picker.open || m.helping {
+	if m.picker.open || m.open != nothingOpen {
 		return m
 	}
 	switch msg.Button {

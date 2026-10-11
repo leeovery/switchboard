@@ -57,8 +57,8 @@ func threeAccounts() status.Document {
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
-			Width: width, Height: height, Views: dashboard.Views(), View: dashboard.Accounts, Policy: claude,
-			Keys: []dashboard.Key{{Key: "q", Does: "quit", Always: true}}, Status: "read 4s ago",
+			Width: width, Height: height, View: dashboard.Overview, Policy: claude,
+			KeyLine: dashboard.KeyLine{Groups: [][]dashboard.Key{{{Key: "q", Does: "quit"}}}},
 		}
 	}
 	runway := func(span dashboard.Span) dashboard.Frame {
@@ -176,7 +176,7 @@ func TestTheTerminalThemeDrawsWhatsDimFaintAndWhatsPickedOutReversed(t *testing.
 		name, text, want string
 	}{
 		{name: "a card's border, faint", text: "╭─ ", want: "2"},
-		{name: "the view shown, its tab reversed", text: "Accounts", want: "7"},
+		{name: "the tab shown, reversed", text: "Overview", want: "7"},
 		{name: "an event looked at newly, picked out reversed", text: "has room again", want: "7"},
 	} {
 		if params := drawnWith(rows, tt.text); !slices.Contains(params, tt.want) {
@@ -267,7 +267,7 @@ func TestTextFromElsewhereShowsItsControlCharactersAsSpaces(t *testing.T) {
 		})
 	}
 	frame := strings.Join(frames()["wide"].Draw(doc, now), "\n")
-	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "7 of [31m", "the 9 failed"} {
+	for _, want := range []string{"Work [31m team", "HTTP 500 · bad gateway", "config [2J changed"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("drew\n%s\nwant it to say %q, its control characters as spaces", frame, want)
 		}

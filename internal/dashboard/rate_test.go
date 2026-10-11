@@ -16,7 +16,7 @@ import (
 // burning is a session 45 minutes in, 10% used: 2% in its first 10 minutes,
 // 6% in its next, none for the 20 after, and 2% in the 5 minutes since; and
 // its readings, a chart's column a 10-minute stretch of it at 30 columns.
-func burning() (status.Account, History) {
+func burning() (status.Account, Trails) {
 	session := sessionOf(0.1, 4*time.Hour+15*time.Minute)
 	start := session.ResetsAt.Add(-5 * time.Hour)
 	trail := Trail{Start: start, Readings: []score.Reading{
@@ -25,7 +25,7 @@ func burning() (status.Account, History) {
 		{At: start.Add(20 * time.Minute), Utilization: 0.08},
 		{At: start.Add(42 * time.Minute), Utilization: 0.1},
 	}}
-	return readAccount("work", session, weekOf(0.3, 4*day)), History{{Account: "work", Window: "5h"}: trail}
+	return readAccount("work", session, weekOf(0.3, 4*day)), Trails{{Account: "work", Window: "5h"}: trail}
 }
 
 func TestABurnRatesBarsAreItsUsePer10MinutesAgainstTheFastestThatLasts(t *testing.T) {
@@ -93,7 +93,7 @@ func TestABurnRateHeldAtItsLimitRunsAlongTheFloorFromWhenItWasReached(t *testing
 	doc := routerDoc("", 0, a)
 	doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Hour).UTC(), Kind: status.EventLimit, Account: "personal"}}
 	start := session.ResetsAt.Add(-5 * time.Hour)
-	history := History{{Account: "personal", Window: "5h"}: {Start: start, Readings: []score.Reading{
+	history := Trails{{Account: "personal", Window: "5h"}: {Start: start, Readings: []score.Reading{
 		{At: start, Utilization: 0},
 		{At: start.Add(time.Hour), Utilization: 0.5},
 		{At: start.Add(3 * time.Hour), Utilization: 1},
@@ -128,7 +128,7 @@ func TestAWeeksBurnRateMeasuresEachColumnsStretch(t *testing.T) {
 	week := weekOf(0.35, 3*day+12*time.Hour)
 	start := week.ResetsAt.Add(-7 * day)
 	a := readAccount("work", sessionOf(0.1, time.Hour), week)
-	history := History{{Account: "work", Window: "7d"}: {Start: start, Readings: []score.Reading{
+	history := Trails{{Account: "work", Window: "7d"}: {Start: start, Readings: []score.Reading{
 		{At: start, Utilization: 0},
 		{At: start.Add(day), Utilization: 0.14},
 		{At: start.Add(2 * day), Utilization: 0.28},
@@ -151,7 +151,7 @@ func TestTheBarOfTheColumnNowFallsInIsTheStretchUnderWay(t *testing.T) {
 	session := sessionOf(0.08, 5*time.Hour-49*time.Minute-30*time.Second)
 	start := session.ResetsAt.Add(-5 * time.Hour)
 	a := readAccount("work", session, weekOf(0.3, 4*day))
-	history := History{{Account: "work", Window: "5h"}: {Start: start, Readings: []score.Reading{
+	history := Trails{{Account: "work", Window: "5h"}: {Start: start, Readings: []score.Reading{
 		{At: start, Utilization: 0},
 		{At: start.Add(40 * time.Minute), Utilization: 0.05},
 		{At: start.Add(45 * time.Minute), Utilization: 0.08},
@@ -166,13 +166,13 @@ func TestTheBarOfTheColumnNowFallsInIsTheStretchUnderWay(t *testing.T) {
 
 // plot is the chart of the window, as plotOf has it at now, of the history
 // given.
-func (ch charting) plot(t *testing.T, history History) plot {
+func (ch charting) plot(t *testing.T, history Trails) plot {
 	t.Helper()
 	w, ok := ch.account.Window(ch.key)
 	if !ok {
 		t.Fatalf("no window %s", ch.key)
 	}
-	f := Frame{Policy: claudeLike, History: history}
+	f := Frame{Policy: claudeLike, Trails: history}
 	fc := face{account: ch.account, state: status.State{Condition: status.Open}, featured: standingOf(ch.doc, ch.account, w, now, claudeLike), busy: []bool{ch.busy}}
 	return f.plotOf(ch.doc, fc, now)
 }
