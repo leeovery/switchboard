@@ -18,7 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// interval is how often a watch reads in full when usage -w isn't told
+// interval is how often a watch reads in full when dashboard isn't told
 // otherwise.
 const interval = 30 * time.Minute
 
@@ -46,7 +46,7 @@ func (f Fixture) Model() tea.Model {
 }
 
 // settle builds the dashboard's watch model of the fixture, as watch.New
-// builds it for usage -w, on a terminal of the given size, and brings it to
+// builds it for dashboard, on a terminal of the given size, and brings it to
 // the fixture's moment: its first read lands readAgo before, the terminal
 // says what its background is, then the clock reads the moment, and the
 // fixture's keys are pressed. Its timers never fire, so nothing moves from
@@ -66,7 +66,7 @@ func (f Fixture) settle(size watch.Size) watch.Model {
 }
 
 // config configures the watch of the fixture on a terminal of the given size,
-// by now's clock, as usage -w configures it, its seams the fixture's.
+// by now's clock, as dashboard configures it, its seams the fixture's.
 func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 	cfg := watch.Config{
 		Source:   f.router,

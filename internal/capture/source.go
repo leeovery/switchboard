@@ -62,7 +62,7 @@ func routerOf(w accountWorld, now time.Time) source {
 }
 
 // startedAtNoon is the health check's answer of the fixtures' router, started
-// at noon on the day of now: healthy.
+// at noon on the frames' day, in now's time zone: healthy.
 func startedAtNoon(now time.Time) router.Health {
 	return router.Health{OK: true, PID: routerPID, StartedAt: on(now, 1, 12, 0)}
 }

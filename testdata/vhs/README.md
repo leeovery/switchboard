@@ -13,12 +13,12 @@ It builds the dashboard's real watch model through `watch.New`, as the dashboard
 seam faked by `internal/capture`: the router's status document, sessions, history and request
 stream, the ledger's, the readings history's and the events' readers, the price table, the clock
 and its timers, the notifier, the terminal's size and background, and the themes; a fixture of
-`usage`'s printout is drawn through a path of its own, outside the watch, its fake router read as
-`usage` reads one, through `watch.Once`. It never dials the router's socket, probes, touches the
-network, reads or writes the real config, themes, state, ledger, prefs or tokens, or runs another
-process, so it's safe to run beside a live router. A theme picked in it is kept for the run alone.
-Switchboard's own binary never imports `internal/capture`: `cmd/capturetool`'s import guard test
-fails if anything `cmd/switchboard` builds ever does.
+`usage`'s printout is drawn through a path of its own, outside the watch, from its fake router's
+status document alone, read as `usage` reads it. It never dials the router's socket, probes,
+touches the network, reads or writes the real config, themes, state, ledger, prefs or tokens, or
+runs another process, so it's safe to run beside a live router. A theme picked in it is kept for
+the run alone. Switchboard's own binary never imports `internal/capture`: `cmd/capturetool`'s
+import guard test fails if anything `cmd/switchboard` builds ever does.
 
 ## What lives here, and for how long
 
@@ -106,6 +106,21 @@ The cells a frame drew otherwise than `docs/design.md` says, by row and column, 
 the frame's `.txt` reads in an editor, and what the dashboard draws in their place, as the design
 says (see Files, "The capture harness", in `docs/design.md`).
 
+**`usage`'s printout, where its frames and the design part:**
+
+- **Side's week, where it runs out.** At its average pace, side's week runs out ~Fri 12:20, before
+  it resets on Monday at 10:00, so `usage` words it `out ~Fri 12:20`, short `out ~Fri`, in
+  `accent.attention`, where the frames give its allowance, `6%/day till Mon 10:00`, short
+  `6%/day · Mon`: columns 88 to 108 of row 9 of `usage-160`, 98 to 118 of row 20 of `usage-120`,
+  58 to 78 of row 22 of `usage-80`, and 138 to 158 of row 20 of `usage-by-account-160`; and, short,
+  38 to 49 of row 22 of `usage-52` and of row 25 of `usage-by-account-52`.
+- **`◆` on work alone,** in `usage-one-account-160`, row 5, columns 8 to 10, which the frame draws
+  `1 work ▲`. Work is the primary, as the config makes the one account it lists, and the design
+  marks the primary `◆` with one account as with several (the owner's call, 11 October 2026), so
+  `usage` draws `1 work ◆ ▲`.
+- **`usage-by-account-160`'s key line,** row 31, which the frame starts at column 15, where the
+  design starts it at the name column, 16 cells in: `usage` draws it two cells on, from column 17.
+
 **Key lines drawn before the keys were swept,** on 7 and 8 October 2026, which the dashboard draws
 as Keys has them:
 
@@ -187,16 +202,20 @@ cell by cell, listing each under The cells passed over with what the dashboard d
   ten accounts, spare. The fake router says side, as the frames draw it (`framesChoice`): the
   document's choice is the frame's, not the scoring's (the owner's call). Where the scoring agrees
   with a frame, it's worked out.
-- **`usage` and the Overview (stages 5 and 7):** personal's week running out ~Sat 06:00 is missing
-  from COMING UP in the bad hour and under routing's limit; personal's week reads 66% under
-  routing's limit, where the frame's card draws 64%; side's week runs out ~Fri 12:20 at its average
-  pace, which COMING UP lists; the six accounts' pooled 5-hour window works out 47%, drawn 46%; the
-  ten's extras' rates and run-outs (client, lab, team, spare, extra, ops, studio) differ from what
-  their rows draw. LATELY (`dash2.LATELY_ALL`) and the Log's events (`log2.TODAY`) disagree:
-  LATELY lacks d28c's start at 12:02:10, has a prime of personal's at 06:25 the Log lacks, and
-  draws work's cap without its three moves. The Overview's sessions (41e0 sonnet answering, 7f3a
-  sonnet idle) and the List's and the Log's (every session opus, 41e0 idle, 7f3a answering) are two
-  listings at one moment: each frame's world holds its own.
+- **`usage` (stage 5):** side's week runs out ~Fri 12:20 at its average pace, where the frames give
+  its allowance, passed over; and `usage-one-account-160` counts six sessions on work, where the
+  dashboard's frames of work alone count five, or three, so its world, work alone's, is fitted
+  with six (`alone`, in `documents.go`).
+- **The Overview (stage 7):** personal's week running out ~Sat 06:00 is missing from COMING UP in
+  the bad hour and under routing's limit; personal's week reads 66% under routing's limit, where
+  the frame's card draws 64%; side's week runs out ~Fri 12:20 at its average pace, as in `usage`,
+  which COMING UP lists; the six accounts' pooled 5-hour window works out 47%, drawn 46%; the ten's
+  extras' rates and run-outs (client, lab, team, spare, extra, ops, studio) differ from what their
+  rows draw. LATELY (`dash2.LATELY_ALL`) and the Log's events (`log2.TODAY`) disagree: LATELY lacks
+  d28c's start at 12:02:10, has a prime of personal's at 06:25 the Log lacks, and draws work's cap
+  without its three moves. The Overview's sessions (41e0 sonnet answering, 7f3a sonnet idle) and
+  the List's and the Log's (every session opus, 41e0 idle, 7f3a answering) are two listings at one
+  moment: each frame's world holds its own.
 - **History (stage 8):** the year's $27,480 and 236,410 requests, where its own months and today
   come to $24,736 and 212,885; against 3.8× (3.4×); limits; the busiest day (Tue 22 Sep, the
   world's Wed 30 Sep); the longest run (58 days, the world's 20); the Year's cuts; August's and
@@ -290,7 +309,10 @@ go run ./cmd/capturetool --fixture <name> --print --ansi
 for each of the terminal's rows: at the fixture's own size, or at `--size WxH`. It prints text alone,
 its escape codes stripped and each line's trailing spaces trimmed, which diffs against a frame's
 `.txt`; with `--ansi`, its colours too, which `cat` shows beside the frame's `.ansi`. The same
-fixture prints the same, byte for byte, in any time zone.
+fixture prints the same, byte for byte, in any time zone, or, over a world, any whose clocks don't
+change from the moment drawn to the weeks' resets (see Determinism). A printout of `usage`, a
+`usage-*` fixture, is drawn only so: as `usage` prints it, but for the blank line it prints first,
+as wide as the size and as tall as it is.
 
 ```bash
 diff <(go run ./cmd/capturetool --fixture usage-160 --print) testdata/vhs/reference/usage-160.txt
@@ -426,14 +448,16 @@ before the moment drawn, then sets the clock to the moment, presses the fixture'
 then hands the model to Bubble Tea, which starts it reading nothing more. So there's no first
 paint to race, and nothing on screen moves until a key does.
 
-A fixture over none of the ledger's records is drawn at the frames' moment in a zone whose clocks
-never change, fixed as the zone it's asked for stands then, so it reads the same in every zone. One
-over records is built and drawn in the machine's own zone, `time.Local` itself, as the ledger, its
-readers and the views split days there, which a test can't change in process: so its frame reads the
-same in any zone whose clocks don't change from the moment drawn to the weeks' resets. Capture's
-tests under `TZ` (11 October 2026) pass in UTC, London, Tokyo, Los Angeles, Santiago, Havana and
-Auckland, and fail in Sydney, whose clocks go forward at 02:00 on Sunday 4 October: personal's week
-resets at 03:00, and work's can't both reset when drawn and run its 168 hours.
+A fixture over milestone 5's samples is drawn at the frames' moment in a zone whose clocks never
+change, fixed as the zone it's asked for stands then, so it reads the same in every zone. One over a
+world, its records or, as `usage`'s printouts are, its status document alone, is built and drawn in
+the machine's own zone, `time.Local` itself, as the ledger, its readers and the views split days
+there, which a test can't change in process; the worlds are built there once, and every zone's
+fixtures share them. So its frame reads the same in any zone whose clocks don't change from the
+moment drawn to the weeks' resets. Capture's tests under `TZ` (11 October 2026) pass in UTC,
+London, Tokyo, Los Angeles, Santiago, Havana and Auckland, and fail in Sydney, whose clocks go
+forward at 02:00 on Sunday 4 October: personal's week resets at 03:00, and work's can't both reset
+when drawn and run its 168 hours.
 
 A view that follows the router's request stream has the watch open it: the fixture's tells of what
 has befallen its requests, each at its time before the moment drawn, then ends, as a router ends
@@ -463,7 +487,9 @@ own rules, which the test holds to the frame's, cell for cell.
 
 1. Add it to `fixtures` in `internal/capture/capture.go`, named after the frame it draws: the
    frame's size, the world it's drawn over, and the keys that reach it. `Names` and `ByName` both
-   read that one list.
+   read that one list. A printout of `usage` goes in `printouts`, with how it groups the windows
+   and which it prints, as its flags have them, and its flags in
+   `TestAPrintoutIsWhatUsagePrintsOfItsRouter`, which holds it to what `usage` prints given them.
 2. Delete its stem from `owed` in `internal/capture/reference_test.go`: from then on, the test
    holds it to its frame.
 3. Where the frame drew a cell otherwise than the design says, the design holds; where its world

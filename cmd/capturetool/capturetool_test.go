@@ -237,15 +237,17 @@ func TestRefusesAPrintoutFullScreen(t *testing.T) {
 	}
 }
 
-// printout is a fixture drawn as a printout of usage: the first named, as
-// none is one yet.
+// printout is a printout of usage: the frame of every window, by window, at
+// 160 columns.
 func printout(t *testing.T) capture.Fixture {
 	t.Helper()
-	f, err := capture.ByName(capture.Names()[0])
+	f, err := capture.ByName("usage-160")
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Printout = true
+	if !f.Printout {
+		t.Fatal("usage-160 isn't a printout of usage")
+	}
 	return f
 }
 
