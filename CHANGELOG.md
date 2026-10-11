@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-10-11
+
+🔧 Changed
+- `events --follow` picks up exactly where the listing ends — no line is printed twice or missed.
+- The dashboard's COMING UP hides window run-outs and resets for windows no card shows.
+- The dashboard's LOG words a token swap as "had a new token".
+- A router restart now lets `/stream` readers finish writing what they were told before the control API closes.
+- Pricing table refreshed as of 11 October 2026, with Claude Sonnet 5.5's cache-read price change on 7 October applied.
+
+✨ Added
+- Claude Haiku 5.5 pricing and version listing.
+
+🐛 Fixed
+- A request is no longer treated as having a refused token when the account has since moved to a new token — the account isn't wrongly barred.
+- Failed probes sent on a token an account has since replaced no longer count against it — they log at debug and leave its error state and backoff alone.
+- A prime's verdict is now judged by when the last probe the account took anything in from ended.
+- A request the router reroutes after a new-token 401 is no longer counted as a refusal of the request by every account.
+- An unreadable request ledger directory is warned about once, rather than every round.
+
 ## [0.1.5] - 2026-10-11
 
 ✨ Added
