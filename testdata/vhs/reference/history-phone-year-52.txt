@@ -1,0 +1,35 @@
+ SWITCHBOARD                     Thu 1 Oct  14:42:07
+ Overview  Accounts  History  Sessions  Runway  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+HISTORY  Year Weeks Days Tokens
+                                    p last 12 months
+
+    May     Jun     Jul       Aug     Sep
+M   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+W   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+F   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+
+■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day
+
+LAST 12 MONTHS
+requests  236,410         worth     $27,480
+sessions  1,688           plans     $7,200
+limits    5-hour ×402     against   3.8×
+
+BY MONTH    worth     against   by model
+ May        $2,330    3.9×      ▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Jun        $2,470    4.1×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Jul        $2,690    4.5×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Aug        $2,860    4.8×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Sep        $3,120    5.2×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Oct        $180      —         ▅
+
+
+
+tab views   [ ] view   ? keys   q quit

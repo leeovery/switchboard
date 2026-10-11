@@ -1,7 +1,8 @@
 // Command capturetool draws a fixture of switchboard's dashboard, for the
 // visual capture harness in testdata/vhs: a named, deterministic moment, drawn
 // by the dashboard's own watch model, built through watch.New with every seam
-// faked (internal/capture). Or it plays a scenario through the same model in
+// faked (internal/capture), or a printout of usage, drawn through the path
+// usage prints through. Or it plays a scenario through the same model in
 // real time, for the README's demos in demo/: the clock running, the timers
 // firing, and the fake router telling of what its cues have it do. It never
 // dials the router, probes, touches the network, reads or writes the real
@@ -80,10 +81,20 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) er
 	if getenv("NO_COLOR") != "" {
 		f = f.WithoutColour()
 	}
-	if !o.print {
-		return fullScreen(f.Model(), stdout, "full screen, it needs a terminal: --print draws without one")
+	return draw(f, o, stdout)
+}
+
+// draw draws the fixture as o asks: printed once to out with --print, else
+// full screen in the terminal out is, as a printout of usage never is.
+func draw(f capture.Fixture, o options, out io.Writer) error {
+	switch {
+	case o.print:
+		return printFrame(f, o, out)
+	case f.Printout:
+		return errors.New("a printout of usage prints once: --print draws it")
+	default:
+		return fullScreen(f.Model(), out, "full screen, it needs a terminal: --print draws without one")
 	}
-	return printFrame(f, o, stdout)
 }
 
 // play plays the scenario o names, full screen in the terminal out is, in

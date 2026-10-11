@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  20 today   f what it shows
+
+  at        session            event     account           what happened
+● 17:20:15        ╭─ LOG · EVENTS · WHAT IT SHOWS ───────────────────────────────────────────────────────────────────────────────────────────╮
+↩ 18:02:40        │                                                                                                                          │
+■ 19:12:40        │  Pick which events it shows.                                                                                             │
+▸ 19:12:52  8a2c d│                                                                                                                          │
+▲ 23:47:30  5e7d a│  EVENTS        today                                       ONLY                                                          │
+✓ 23:58:40        │  ■ started        10  a session first seen                 accounts  ■ work   ■ personal   ■ side                        │
+  Wed 30 Sep   1,9│  ■ moved           4  a session moved to another account   sessions  every one, unless some are ticked                   │───────  Thu 1 Oct
+◇ 07:05:12        │  ■ pressure        0  an account under pressure             □ d28c  switchboard   side        2 events  asking           │
+▲ 07:58:30  2b6d a│  ■ cap             1  an account at its cap                 □ c61b  mobile        side        1 event   started 14:41    │
+▲ 08:31:02  a8f1 w│  ■ limit           0  an account at its limit               □ 7f3a  api           side        2 events                   │
+◇ 08:47:00        │  ■ refused         0  an account's token refused            □ db8a  infra         side        2 events                   │
+▲ 09:12:40  e0c4 i│  ■ primed          5  a window started early                □ 41e0  docs          personal    1 event                    │
+▲ 09:40:05  3d7a d│  ■ open            0  an account with room again            □ 9c2e  website       personal    1 event   idle 9m          │
+▲ 10:02:18  5b19 m│  ■ pin             0  routing set by hand                   ▼ 5 more today   / finds one from another day                │
+◇ 11:30:02        │  ■ auto            0  routing given back to the router                                                                   │
+▲ 11:55:31  9c2e w│  ■ restart         0  a restart of the router falling due                                                                │
+▲ 12:02:10  d28c s│  ■ health          0  the router unhealthy, or well again                                                                │
+◇ 12:10:00        │                                                                                                                          │
+▲ 12:47:12  41e0 d│  It shows all 20 of today's events.                                                                                      │
+▸ 13:22:40  db8a i│                                                                                                                          │.48
+◇ 13:50:00        │                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
+▲ 14:12:30  7f3a a╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╎ 14:31:03                     cap       work              95% of its 5-hour window: its 3 sessions move to side as their next requests come
+▸ 14:31:13  d28c switchboard   moved     work → side       work reached its cap   182k cached again, $1.82
+▸ 14:31:20  7f3a api           moved     work → side       work reached its cap   98k cached again, $0.98
+▸ 14:31:40  db8a infra         moved     work → side       work reached its cap   66k cached again, $0.66
+▲ 14:41:11  c61b mobile        started   side
+
+● following                                                                                                                                      20 events today
+tab views   [ ] view    ↑↓ event  enter open  f what it shows  / find    p pin    ? help  q quit

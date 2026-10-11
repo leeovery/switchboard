@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────  35 hidden: checks and counts   f what it shows
+
+  at        session            model      on        status  first    took    read  written    out  stopped                      routing
+  14:31:09  41e0 docs          opus-5-5   personal  200      0.9s    6.7s    141k     1.1k   1.6k  tool_use · Read
+▸ 14:31:13  d28c switchboard   opus-5-5   side      200      2.9s   14.6s       —     182k   1.2k  tool_use · Bash              from work, at its cap  $1.82
+  14:31:18  9c2e website       haiku-4-5  personal  200      0.3s    0.7s       —        —     90  end_turn
+  14:31:20  9c2e╭─ REQUEST · 14:31:13 · d28c switchboard ──────────────────────────────────────────────────────────────────────────────────────╮
+▸ 14:31:20  7f3a│                                                                                                                              │s cap  $0.98
+  14:31:21  41e0│  REQUEST                                           ASKED                    ANSWERED                                         │
+  14:31:32  41e0│  ├ id           3f2a91c4                           ├ model        opus-5-5  ├ status       200                               │
+  14:31:40  9c2e│  ├ Anthropic's  req_011CQx…                        ├ size         482 KB    ├ model        opus-5-5                          │
+▸ 14:31:40  db8a│  ├ from         claude-cli/2.1.0                   ├ messages     214       ├ first byte   2.9s                              │s cap  $0.66
+  14:31:42  41e0│  └ betas        context-1m, interleaved-thinking   ├ system       3 blocks  ├ ended        14.6s                             │
+  14:31:44  d28c│                                                    ├ tools        31        ├ stopped      tool_use · Bash                   │
+  14:31:49  d28c│  ROUTED                                            ├ max_tokens   32,000    └ blocks       2 thinking, 1 text, 1 tool use    │
+  14:31:51  db8a│  ├ to           side                               ├ thinking     31,999                                                     │
+  14:31:53  9c2e│  ├ from         work, at its cap                   ├ effort       high      TOKENS                                           │
+  14:31:54  9c2e│  └ upstream     once                               └ stream       yes       ├ in           3                                 │
+  14:31:58  7f3a│                                                                             ├ from cache   0                                 │
+  14:32:02  41e0│  SIDE'S WINDOWS AFTER IT                                                    ├ cached       182,004 for an hour               │
+  14:32:04  9c2e│  ├ 5-hour       9%                                                          ├ out          1,214                             │
+  14:32:14  9c2e│  ├ week         77%                                                         ├ worth        $1.85 at API prices               │
+  14:32:16  9c2e│  └ status       allowed                                                     └ the move     $1.82 of it                       │
+  14:32:19  db8a│  never kept: the messages, the system prompt, the tools' definitions, their inputs and results                               │
+  14:32:20  d28c│                                                                                                                              │
+  14:32:22  7f3a│                                                                        ↑↓ previous/next request   s its session   esc close  │
+  14:32:23  41e0╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  14:32:29  d28c switchboard   opus-5-5   side      200      1.4s   13.1s    185k     1.1k   1.0k  tool_use · Grep
+  14:32:34  db8a infra         opus-5-5   side      200      1.2s    3.9s     69k     3.1k    220  tool_use · Read
+  14:32:36  9c2e website       opus-5-5   personal  200      0.7s    9.5s     92k     2.0k   1.8k  tool_use · TodoWrite
+
+‖ paused at 14:31:13   ▼ 214 new   end to follow                                                                                               1,240 lines today
+tab views   [ ] view    ↑↓ request  enter open  s its session  end follow    f what it shows  / find    p pin    ? help  q quit
