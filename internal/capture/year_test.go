@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -622,7 +623,9 @@ func TestEachDaysVersionsSumToItsWorth(t *testing.T) {
 // A year built in any zone, whatever the machine's, has each of its days on
 // its own date, one after another, each starting at its date's first instant
 // there, though the clocks go forward over its midnight, as Santiago's do on
-// 6 September 2026 and Havana's on 8 March.
+// 6 September 2026 and Havana's on 8 March: its summary of the day dated so,
+// its 5-hour windows and its weeks' readings of the day falling on it there,
+// and its sessions' ids made from its date.
 func TestEachDayOfTheYearHasItsOwnDateFromItsFirstInstant(t *testing.T) {
 	for _, zone := range []string{"America/Santiago", "America/Havana", "Australia/Sydney", "Europe/London"} {
 		t.Run(zone, func(t *testing.T) {
@@ -631,19 +634,105 @@ func TestEachDayOfTheYearHasItsOwnDateFromItsFirstInstant(t *testing.T) {
 				t.Fatal(err)
 			}
 			y := newYear(time.Date(2026, time.October, 1, 14, 42, 7, 0, loc))
+			h := y.readings().history()
+			summaries := y.summaries(h, tenAccounts)
+			dates := make([]string, 0, today+1)
 			before := "2025-09-28"
 			for d := range today + 1 {
-				date := dateOf(d)
-				if want := nextDate(t, before); date != want {
-					t.Fatalf("day %d of the year is dated %s, want %s, the day after day %d's", d, date, want, d-1)
+				date := nextDate(t, before)
+				if d < today && summaries[d].Day != date {
+					t.Fatalf("day %d of the year's summary is dated %s, want %s, the day after day %d's", d, summaries[d].Day, date, d-1)
 				}
 				start := dayStart(y.now, d)
 				if on, was := start.In(loc).Format(time.DateOnly), start.Add(-time.Nanosecond).In(loc).Format(time.DateOnly); on != date || was != before {
 					t.Errorf("%s starts at %s, on %s, the instant before on %s, want its first instant", date, start.In(loc), on, was)
 				}
+				dates = append(dates, date)
 				before = date
 			}
+			for _, a := range tenAccounts {
+				windowsFallOnTheirDays(t, y, a.ID, dates)
+				risesAreReadOnTheirDays(t, y, h, a.ID, dates)
+			}
+			sessionsAreMadeFromTheirDates(t, y, dates)
 		})
+	}
+}
+
+// windowsFallOnTheirDays checks the account with the given id's 5-hour
+// windows each start, and reach their caps and limits, on the date of the
+// day of the year that holds them, in the year's zone.
+func windowsFallOnTheirDays(t *testing.T, y year, id string, dates []string) {
+	t.Helper()
+	for d := firstDay(id); d < today; d++ {
+		for _, s := range y.days[id][d].windows {
+			for _, at := range []time.Time{s.start, s.capped, s.limited} {
+				if on := at.In(y.now.Location()).Format(time.DateOnly); !at.IsZero() && on != dates[d] {
+					t.Errorf("%s's 5-hour window of %s, from %s, reads at %s, on %s", id, dates[d], s.start, at, on)
+				}
+			}
+		}
+	}
+}
+
+// risesAreReadOnTheirDays checks the readings history reads each day's rise
+// of the account with the given id's own weeks on that day, in the year's
+// zone: as each of a week's days starts and ends there, the week reads what it
+// had risen to by then.
+func risesAreReadOnTheirDays(t *testing.T, y year, h history, id string, dates []string) {
+	t.Helper()
+	weeks := make(map[int64][]readings.Reading)
+	for _, r := range h {
+		if r.Account == id && r.Key == accountKey {
+			weeks[r.ResetsAt.Unix()] = append(weeks[r.ResetsAt.Unix()], r)
+		}
+	}
+	for _, w := range y.weeksOf(id) {
+		read := weeks[w.end.Unix()]
+		readBy := func(at time.Time) float64 {
+			i, _ := slices.BinarySearchFunc(read, at, func(r readings.Reading, at time.Time) int { return r.At.Compare(at) })
+			if i == 0 {
+				return 0
+			}
+			return read[i-1].Utilization
+		}
+		used := 0.0
+		for _, d := range w.days {
+			if d < firstDay(id) || d >= today {
+				continue
+			}
+			if start := dayStart(y.now, d); readBy(start) != hundredths(used) {
+				t.Errorf("%s's week to %s reads %v as %s starts, at %s, want %v", id, w.end, readBy(start), dates[d], start, hundredths(used))
+			}
+			used += y.days[id][d].rise
+			if end := dayStart(y.now, d+1); readBy(end) != hundredths(used) {
+				t.Errorf("%s's week to %s reads %v as %s ends, at %s, want %v", id, w.end, readBy(end), dates[d], end, hundredths(used))
+			}
+		}
+	}
+}
+
+// sessionsAreMadeFromTheirDates checks each account's sessions of each day
+// before this week are made from that day's date: each one of those
+// sessionIDs makes of it for an account, as many as the account had that day,
+// as one moved onto an account is another's. This week's run on from
+// Monday's or yesterday's.
+func sessionsAreMadeFromTheirDates(t *testing.T, y year, dates []string) {
+	t.Helper()
+	for d := range thisWeek {
+		made := make(map[string]bool)
+		for _, a := range tenAccounts {
+			for _, id := range sessionIDs(dates[d], a.ID, len(y.days[a.ID][d].sessions)) {
+				made[id] = true
+			}
+		}
+		for _, a := range tenAccounts {
+			for _, id := range y.days[a.ID][d].sessions {
+				if !made[id] {
+					t.Errorf("%s's session %s of %s isn't made from its date", a.ID, id, dates[d])
+				}
+			}
+		}
 	}
 }
 
