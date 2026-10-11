@@ -56,7 +56,7 @@ func (t weekToday) worth() float64 {
 // beforeToday is the account's use this week but what today's lines hold: its
 // requests, and their worth, in dollars.
 func (u weekUse) beforeToday() (int, float64) {
-	return u.requests - u.today.requests, u.worth - u.today.worth()
+	return u.requests - u.today.requests, worthLeft(u.worth, u.today.worth())
 }
 
 // weekUses are each account's use this week. Today's is what the sessions'
@@ -321,7 +321,7 @@ func (y year) spend() {
 	}
 	y.spendThisWeek()
 	for _, id := range slices.DeleteFunc(slices.Clone(tenAccounts.IDs()), func(id string) bool { return slices.Contains(three, id) }) {
-		y.spendAsThisWeek(id)
+		y.spendAsThisWeek(id, weekUses[id])
 	}
 }
 
@@ -344,7 +344,7 @@ func (y year) monthsSpent() ([]float64, []int) {
 			months = append(months, d)
 		}
 		if i == len(monthWorths)-1 {
-			worth -= thisWeeks
+			worth = worthLeft(worth, thisWeeks)
 		}
 		want := int(math.Round(monthWorths[i] * requestsADollar))
 		if i == len(monthWorths)-1 {
@@ -400,7 +400,7 @@ func (y year) spendThisWeek() {
 	for _, id := range three {
 		days := y.days[id]
 		requests, worth := weekUses[id].beforeToday()
-		worths, counts := spent(worth-days[wednesday].worth, requests-days[wednesday].requests,
+		worths, counts := spent(worthLeft(worth, days[wednesday].worth), requests-days[wednesday].requests,
 			[]float64{days[thisWeek].rise, days[thisWeek+1].rise},
 			fmt.Sprintf("%s's Monday and Tuesday, %s and %s", id, dateOf(thisWeek), dateOf(thisWeek+1)))
 		for i := range worths {
@@ -410,14 +410,15 @@ func (y year) spendThisWeek() {
 }
 
 // spendAsThisWeek spends the account with the given id's days as it spent
-// this week before today, worth and requests alike, for each point of its
-// week used: this week's days as spent shares them, and every day before no
-// worth where too little used for a request. An account that spent nothing
-// this week spends nothing on any day; one whose week rose none this week,
-// with something to spend, panics as spent does.
-func (y year) spendAsThisWeek(id string) {
+// this week before today, by its use this week given, worth and requests
+// alike, for each point of its week used: this week's days as spent shares
+// them, and every day before no worth where too little used for a request.
+// An account that spent nothing this week spends nothing on any day; one
+// whose week rose none this week, with something to spend, panics as spent
+// does.
+func (y year) spendAsThisWeek(id string, u weekUse) {
 	days := y.days[id]
-	requests, worth := weekUses[id].beforeToday()
+	requests, worth := u.beforeToday()
 	rises := make([]float64, 0, today-thisWeek)
 	risen := 0.0
 	for _, day := range days[thisWeek:today] {
@@ -439,15 +440,11 @@ func (y year) spendAsThisWeek(id string) {
 
 // spent shares worth and requests among parts as their weights are: the
 // requests in whole ones, as apportion shares them, and the worth among the
-// parts that had one, none on a part too little used for a request. A worth
-// within a hundredth of a cent of none, as a difference of worths can leave,
-// is none. It panics, naming the parts as parts does, where there's less than
-// none to share, requests and no part that rose to put one on, or worth and
-// no request to put it on.
+// parts that had one, none on a part too little used for a request. It
+// panics, naming the parts as parts does, where there's less than none to
+// share, requests and no part that rose to put one on, or worth and no
+// request to put it on.
 func spent(worth float64, requests int, weights []float64, parts string) ([]float64, []int) {
-	if math.Abs(worth) < aHundredthOfACent {
-		worth = 0
-	}
 	if worth < 0 || requests < 0 {
 		panic(fmt.Sprintf("capture: %d requests and $%.2f to spend over %s, less than none", requests, worth, parts))
 	}
@@ -473,7 +470,18 @@ func spent(worth float64, requests int, weights []float64, parts string) ([]floa
 	return worths, counts
 }
 
-// aHundredthOfACent is the least worth spent tells from none, in dollars.
+// worthLeft is what's left of worth, in dollars, once less is taken from it:
+// none where that's within a hundredth of a cent of none, as a difference of
+// worths can leave a residue either side of none, such as $0.30 less $0.10 and
+// $0.20.
+func worthLeft(worth, less float64) float64 {
+	if left := worth - less; math.Abs(left) >= aHundredthOfACent {
+		return left
+	}
+	return 0
+}
+
+// aHundredthOfACent is the least worth left tells from none, in dollars.
 const aHundredthOfACent = 1e-4
 
 // weightsOf are what weigh gives each of days.

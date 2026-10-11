@@ -467,7 +467,7 @@ func TestAYearItsDataCantBuildPanicsSayingWhatsMissing(t *testing.T) {
 		},
 		{
 			name: "spare's week, with no rise to spend its days by", rose: map[string][3]float64{"spare": {}},
-			build: func(y year) { y.spendAsThisWeek("spare") },
+			build: func(y year) { y.spendAsThisWeek("spare", weekUses["spare"]) },
 			want:  []string{"96 requests and $9.00", "over spare's days from 2026-09-28 to 2026-09-30", "rose its week"},
 		},
 	}
@@ -496,8 +496,9 @@ func TestAYearItsDataCantBuildPanicsSayingWhatsMissing(t *testing.T) {
 
 // Spending what can't be spent panics naming what's missing: requests with no
 // part risen to put one on, worth with no request to put it on, or less than
-// none, past what a difference of worths leaves.
+// none, even by a residue, which worthLeft snaps where the difference is made.
 func TestSpendingWhatCantBeSpentPanicsNamingWhatsMissing(t *testing.T) {
+	week, monday, tuesday := 0.3, 0.1, 0.2
 	tests := []struct {
 		name     string
 		worth    float64
@@ -517,6 +518,10 @@ func TestSpendingWhatCantBeSpentPanicsNamingWhatsMissing(t *testing.T) {
 			name: "less than none", worth: -0.01, requests: 3, weights: []float64{.1, .2},
 			want: "capture: 3 requests and $-0.01 to spend over the parts, less than none",
 		},
+		{
+			name: "a residue below none", worth: week - (monday + tuesday), requests: 3, weights: []float64{.1, .2},
+			want: "capture: 3 requests and $-0.00 to spend over the parts, less than none",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -527,35 +532,51 @@ func TestSpendingWhatCantBeSpentPanicsNamingWhatsMissing(t *testing.T) {
 	}
 }
 
-// A worth within a hundredth of a cent of none, as a day that took the whole
-// week leaves of it, is spent as none, never less than none: $0.30 less the
-// $0.10 and $0.20 of its days is below none in floating point.
-func TestAWorthWithinAHundredthOfACentOfNoneIsSpentAsNone(t *testing.T) {
+// What's left of a worth once another is taken from it is none within a
+// hundredth of a cent of none, either side of it, as $0.30 less the $0.10 and
+// $0.20 of its days is below none in floating point; and the difference
+// otherwise, less than none included.
+func TestWhatsLeftOfAWorthWithinAHundredthOfACentOfNoneIsNone(t *testing.T) {
 	week, monday, tuesday := 0.3, 0.1, 0.2
 	tests := []struct {
-		name     string
-		worth    float64
-		requests int
-		weights  []float64
+		name        string
+		worth, less float64
+		want        float64
 	}{
-		{name: "below none, with no request", worth: week - (monday + tuesday), weights: []float64{.1, .2}},
-		{name: "below none, with requests", worth: week - (monday + tuesday), requests: 3, weights: []float64{.1, .2}},
-		{name: "above none, with no part risen", worth: (monday + tuesday) - week, weights: []float64{0, 0}},
+		{name: "a residue below none", worth: week, less: monday + tuesday, want: 0},
+		{name: "a residue above none", worth: monday + tuesday, less: week, want: 0},
+		{name: "under a hundredth of a cent", worth: 0.00009, less: 0, want: 0},
+		{name: "a hundredth of a cent", worth: aHundredthOfACent, less: 0, want: aHundredthOfACent},
+		{name: "more than none", worth: 9, less: 2.5, want: 6.5},
+		{name: "less than none", worth: 0.25, less: 0.5, want: -0.25},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			worths, counts := spent(tt.worth, tt.requests, tt.weights, "the parts")
-			made := 0
-			for i := range worths {
-				if worths[i] != 0 {
-					t.Errorf("part %d is worth $%g, want none", i, worths[i])
-				}
-				made += counts[i]
-			}
-			if made != tt.requests {
-				t.Errorf("the parts have %d requests, want %d", made, tt.requests)
+			if got := worthLeft(tt.worth, tt.less); got != tt.want {
+				t.Errorf("worthLeft(%g, %g) = %g, want %g", tt.worth, tt.less, got, tt.want)
 			}
 		})
+	}
+}
+
+// An account whose week before today is worth a residue of none, as its week
+// less today's lines can leave, spends none on any day, before this week as
+// on this week's: never less than none.
+func TestAnAccountSpendingAResidueOfNoneSpendsNoneOnAnyDay(t *testing.T) {
+	week, monday, tuesday := 0.3, 0.1, 0.2
+	y := year{now: localMoment(), days: map[string][]accountDay{"spare": make([]accountDay, today)}}
+	days := y.days["spare"]
+	days[eightWeeks].rise = 0.2
+	days[thisWeek].rise, days[thisWeek+1].rise, days[thisWeek+2].rise = 0.1, 0.1, 0.1
+
+	y.spendAsThisWeek("spare", weekUse{requests: 5, worth: week, today: weekToday{worths: map[string]float64{opus55: monday, haiku45: tuesday}}})
+	if days[eightWeeks].requests == 0 {
+		t.Fatalf("spare's %s has no request to put a worth on, want some", dateOf(eightWeeks))
+	}
+	for d, day := range days[firstDay("spare"):today] {
+		if day.worth != 0 {
+			t.Errorf("spare's %s, with %d requests, is worth $%g, want none", dateOf(firstDay("spare")+d), day.requests, day.worth)
+		}
 	}
 }
 
@@ -566,7 +587,7 @@ func TestAnIdleAccountSpendsNothing(t *testing.T) {
 	days := y.days["idle"]
 	days[eightWeeks].rise = 0.2
 
-	y.spendAsThisWeek("idle")
+	y.spendAsThisWeek("idle", weekUses["idle"])
 	for d, day := range days[firstDay("idle"):today] {
 		if day.requests != 0 || day.worth != 0 {
 			t.Errorf("idle's %s has %d requests worth $%.4f, want none", dateOf(firstDay("idle")+d), day.requests, day.worth)
@@ -582,7 +603,7 @@ func TestADayOfThisWeekWithNoRequestHasNoWorth(t *testing.T) {
 	days := y.days["spare"]
 	days[thisWeek].rise, days[thisWeek+1].rise, days[thisWeek+2].rise = 0.3, 0.3, 0.0001
 
-	y.spendAsThisWeek("spare")
+	y.spendAsThisWeek("spare", weekUses["spare"])
 	if day := days[thisWeek+2]; day.requests != 0 || day.worth != 0 {
 		t.Errorf("spare's %s, too little used for a request, has %d requests worth $%.4f, want none", dateOf(thisWeek+2), day.requests, day.worth)
 	}
