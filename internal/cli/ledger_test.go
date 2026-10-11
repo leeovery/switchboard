@@ -781,7 +781,7 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 			}
 			if doc.PricesAsOf != "2026-10-11" || doc.PricesFromConfig == nil || !*doc.PricesFromConfig || worth != tt.worthJSON {
 				t.Errorf("switchboard history --json gives prices as of %s, from the config: %v, and work's Claude Opus 5.5 worth %s, "+
-					"want 2026-10-07, from the config, and %s", doc.PricesAsOf, doc.PricesFromConfig, worth, tt.worthJSON)
+					"want 2026-10-11, from the config, and %s", doc.PricesAsOf, doc.PricesFromConfig, worth, tt.worthJSON)
 			}
 		})
 	}
@@ -921,7 +921,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		Days       []json.RawMessage `json:"days"`
 	}
 	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || got.stderr != "" || doc.PricesAsOf != "2026-10-11" {
-		t.Fatalf("switchboard history --json = %+v (%v), want the days, priced as of 2026-10-07", got, err)
+		t.Fatalf("switchboard history --json = %+v (%v), want the days, priced as of 2026-10-11", got, err)
 	}
 	var days []string
 	for _, day := range doc.Days {
