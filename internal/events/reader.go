@@ -71,10 +71,12 @@ type Tailed struct {
 
 // HeldTailing returns the events that happened from from up to to, as
 // HeldBetween does, but reads the lines of tailed's day through its Read,
-// where it reads that day at all: so the follower of the day, whose tail
-// that is, goes on from exactly where the read ended, handing on no line it
-// read again, and missing none filed meanwhile. A Tailed with no Read reads
-// as HeldBetween does.
+// where it reads that day at all, and no day's after it: so the follower of
+// the day, whose tail that is, goes on from exactly where the read ended,
+// handing on no line it read again, and missing none filed meanwhile, then
+// hands on the lines of each later day, as a change of time zone files under
+// the day after, from its first, as it comes to them. A Tailed with no Read
+// reads as HeldBetween does.
 func (r *Reader) HeldTailing(from, to time.Time, tailed Tailed) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		last := to.AddDate(0, 0, ChangesFor)
@@ -93,8 +95,9 @@ func (r *Reader) HeldTailing(from, to time.Time, tailed Tailed) iter.Seq[Held] {
 }
 
 // read reads the days with the given dates into m, as dayfile.ReadFiled
-// reads them, but tailed's, which its Read reads, and returns how many of
-// their lines were unread.
+// reads them, but tailed's, which its Read reads, and those after it, which
+// it leaves to tailed's follower, and returns how many of their lines were
+// unread.
 func (r *Reader) read(dates []string, tailed Tailed, m *merge) (unread int) {
 	i := slices.Index(dates, tailed.Date)
 	if tailed.Read == nil || i < 0 {
@@ -104,11 +107,7 @@ func (r *Reader) read(dates []string, tailed Tailed, m *merge) (unread int) {
 	if m.stopped {
 		return unread
 	}
-	unread += tailed.Read(func(h Held) { m.hold(h) })
-	if !m.dayRead(tailed.Date) {
-		return unread
-	}
-	return unread + dayfile.ReadFiled(r.files, dates[i+1:], HeldIn, m.hold, m.dayRead)
+	return unread + tailed.Read(func(h Held) { m.hold(h) })
 }
 
 // key tells an event apart from every other: its run and its id.
