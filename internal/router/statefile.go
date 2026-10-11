@@ -124,12 +124,13 @@ type savedUsage struct {
 	WindowFamilies map[string][]string `json:"window_families,omitempty"`
 }
 
-// savedReading is an account's windows as last read, and when, and its extra
-// usage.
+// savedReading is an account's windows as last read, and when, and when each
+// window was, by its key, and its extra usage.
 type savedReading struct {
-	ReadAt  time.Time        `json:"read_at"`
-	Windows []quota.Window   `json:"windows"`
-	Extra   quota.ExtraUsage `json:"extra_usage,omitzero"`
+	ReadAt        time.Time            `json:"read_at"`
+	Windows       []quota.Window       `json:"windows"`
+	WindowsReadAt map[string]time.Time `json:"windows_read_at,omitempty"`
+	Extra         quota.ExtraUsage     `json:"extra_usage,omitzero"`
 }
 
 // load takes in the state file at path, as the router starts, and keeps in it

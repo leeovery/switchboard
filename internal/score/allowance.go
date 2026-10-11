@@ -6,10 +6,6 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
-// day is the longest window whose allowance is given by the hour: one longer
-// has its allowance given by the day.
-const day = 24 * time.Hour
-
 // Current returns w as it runs at now: as read, until its reset; once that
 // has passed since it was read, started afresh from it, empty, its next reset
 // a length on, or as many lengths on as have passed since. A window whose
@@ -45,19 +41,19 @@ func Room(w quota.Window, floor float64, now time.Time) float64 {
 // AllowanceOf returns what can be spent of w at now and still last to its
 // reset, its use running to floor, as it runs then, as Current has it: its
 // Room over the hours to its reset, for a window of a day or less, or the
-// days, for a longer one; or the room itself, Per left out, where its reset
+// days, for a longer one, as quota.MultiDay says; or the room itself, Per left out, where its reset
 // comes within that hour or day. It reports false where no room is left, or
 // w's length or reset isn't known.
 func AllowanceOf(w quota.Window, floor float64, now time.Time) (quota.Allowance, bool) {
 	w = Current(w, now)
-	length, ok := quota.Length(w.Key)
+	_, ok := quota.Length(w.Key)
 	room := Room(w, floor, now)
 	if !ok || w.ResetsAt.IsZero() || room <= Tolerance {
 		return quota.Allowance{}, false
 	}
 	per, name := time.Hour, quota.PerHour
-	if length > day {
-		per, name = day, quota.PerDay
+	if quota.MultiDay(w.Key) {
+		per, name = quota.Day, quota.PerDay
 	}
 	until := w.ResetsAt.Sub(now)
 	if until < per {
