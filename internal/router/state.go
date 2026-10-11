@@ -49,6 +49,11 @@ type usage struct {
 	// probes in a row that read nothing, until a reading comes in.
 	probeErr string
 	misses   int
+	// afresh is the moment the account last went out on a token it didn't
+	// have, as probesAfresh marks it: a probe sent before was of the token
+	// before, so what it found isn't the account's. It's kept in memory
+	// alone, as moments are.
+	afresh moment
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
@@ -310,17 +315,22 @@ func (s *state) admitted(id string, sent moment) {
 // recordProbe takes in what probing an account, from sent on, found, as a
 // prime or not, as from says: its usage, its extra usage among it, and which
 // models reported each window, and whether a request of it was answered with
-// success, or why it read nothing.
-func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) {
+// success, or why it read nothing. It reports false, taking in nothing, of a
+// probe sent before the account last went out on a token it didn't have, as
+// probesAfresh marks it: what it found is the token before's.
+func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) bool {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
+	if sent < u.afresh {
+		return false
+	}
 	u.probed = at
 	if err != nil {
 		u.probeErr = err.Error()
 		u.misses++
-		return
+		return true
 	}
 	if probed.Admitted {
 		u.admitted(sent)
@@ -337,6 +347,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if news {
 		s.changed()
 	}
+	return true
 }
 
 // learn notes that the response to a request for model reported windows:
@@ -399,7 +410,7 @@ func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 	u := s.usage[id]
 	held := u.refused.inForce(now)
 	u.refused = nil
-	u.probesAfresh()
+	u.probesAfresh(s.mark())
 	return RefusalLifted{Account: id}, held
 }
 
@@ -409,14 +420,16 @@ func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 func (s *state) tokenGained(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.usage[id].probesAfresh()
+	s.usage[id].probesAfresh(s.mark())
 }
 
-// probesAfresh forgets how the account's probes went, as it goes out on a
-// token it didn't have: the probes that read nothing on another, or on none,
-// say nothing of it, so neither their error nor their backoff holds.
-func (u *usage) probesAfresh() {
-	u.probed, u.probeErr, u.misses = time.Time{}, "", 0
+// probesAfresh forgets how the account's probes went, as it goes out, from
+// the moment at, on a token it didn't have: the probes that read nothing on
+// another, or on none, say nothing of it, so neither their error nor their
+// backoff holds; nor does what a probe sent before at finds, still out on
+// another, as recordProbe says.
+func (u *usage) probesAfresh(at moment) {
+	u.probed, u.probeErr, u.misses, u.afresh = time.Time{}, "", 0, at
 }
 
 // forbid notes that the upstream refused the account the request with the id
