@@ -18,14 +18,12 @@ type Motion struct {
 // Motion is what moves on screen of the frame of doc at now: what travels
 // the cords Sessions' switchboard shows, as travelling has it; or the sand
 // falling in the hourglasses of the Accounts view's cards, as falling has
-// it. A frame printed once has nothing that moves.
+// it.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
-	switch {
-	case f.printed():
-		return Motion{}
-	case f.View == Sessions:
+	switch f.View {
+	case Sessions:
 		return f.travelling(doc, now)
-	case f.View == Accounts:
+	case Accounts:
 		return Motion{Falling: f.falling(doc, now)}
 	default:
 		return Motion{}

@@ -359,21 +359,6 @@ func TestCardsThatFitDontScroll(t *testing.T) {
 	}
 }
 
-func TestAFramePrintedOnceNeverScrolls(t *testing.T) {
-	f := Frame{Width: 160, View: Accounts, Policy: claudeLike, Scroll: 5}
-	doc := accountsOf(8, false)
-	if got := f.Scrolling(doc, now); got != (Scrolling{}) {
-		t.Errorf("a printed frame's Scrolling() = %+v, want none", got)
-	}
-	rows := f.Draw(doc, now)
-	if !strings.HasPrefix(rows[7], " ╭─ 1 a ") || strings.HasSuffix(rows[7], "┃") {
-		t.Errorf("scrolled 5 rows, a printed frame's cards start %q, want them unscrolled, without a scrollbar", rows[7])
-	}
-	if got := strings.Count(strings.Join(rows, "\n"), "╭─ "); got != 8 {
-		t.Errorf("printed %d cards, want every one of the 8", got)
-	}
-}
-
 func TestThePhoneStacksCompactCardsWithTwoRowCharts(t *testing.T) {
 	doc := accountsOf(3, true)
 	doc.Events = append(doc.Events, status.Event{ID: 0, At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "b"})
@@ -397,51 +382,18 @@ func TestThePhoneStacksCompactCardsWithTwoRowCharts(t *testing.T) {
 	}
 }
 
-func TestAFramePrintedOnceHasNoHeightToFit(t *testing.T) {
-	doc := accountsOf(8, false)
-	f := Frame{Width: 160, View: Accounts, Policy: claudeLike}
-	l := laidOut(f, doc)
-	if l.density != densities[0] || l.scrolls() || !l.key {
-		t.Errorf("printed, %+v cards, scrolling %v, the key line %v; want full cards, no scrolling, and the key", l.density, l.scrolls(), l.key)
-	}
-	rows := f.Draw(doc, now)
-	// The title row, a blank, the heading, a blank; three rows of cards 17
-	// tall, a blank between; a blank, the key line; a blank, and which
-	// windows hide.
-	if want := 7 + 3*17 + 2 + 2 + 2; len(rows) != want {
-		t.Fatalf("printed %d rows, want %d:\n%s", len(rows), want, strings.Join(rows, "\n"))
-	}
-	if got := rows[len(rows)-3]; !strings.HasPrefix(got, " KEY      ") {
-		t.Errorf("the key line reads %q", got)
-	}
-	if got := rows[len(rows)-1]; !strings.HasSuffix(got, "Fable wk hidden: unused on every account") {
-		t.Errorf("the last row reads %q, want which windows hide, and no footer", got)
-	}
-	if strings.Contains(strings.Join(rows, "\n"), "for the key") {
-		t.Error("printed, it says the key's behind ?, which does nothing there")
-	}
-}
-
-func TestAFramePrintedOnceForOneAccountGivesItsCardAndColumn(t *testing.T) {
-	doc := routerDoc("work", 3, pressedAccount("work"))
-	rows := Frame{Width: 160, View: Accounts, Policy: claudeLike}.Draw(doc, now)
-	// The title row, a blank, the heading's line, a blank; the card 12 +
-	// 6 + its bars' row tall, COMING UP beside it; a blank, the key line.
-	if want := 4 + 19 + 2; len(rows) != want {
-		t.Fatalf("printed %d rows, want %d:\n%s", len(rows), want, strings.Join(rows, "\n"))
-	}
-	if !strings.HasSuffix(rows[4], "╮     COMING UP") {
-		t.Errorf("the card's top edge reads %q, want COMING UP beside it", rows[4])
-	}
-}
-
 func TestEveryRowOfCardsLinesUpAtEveryWidth(t *testing.T) {
+	// tall is rows enough for eight cards at their richest, stacked.
+	const tall = 200
 	for n := 1; n <= 8; n++ {
 		t.Run(fmt.Sprintf("%d accounts", n), func(t *testing.T) {
 			t.Parallel()
 			doc := accountsOf(n, n%2 == 0)
 			for width := 30; width <= 220; width++ {
-				rows := Frame{Width: width, View: Accounts, Policy: claudeLike}.Draw(doc, now)
+				rows := frameOf(width, tall).Draw(doc, now)
+				if got := strings.Count(strings.Join(rows, "\n"), "╭─ "); got != n {
+					t.Fatalf("at %d columns, drew %d cards whole, want every one of the %d", width, got, n)
+				}
 				if bad := misaligned(rows); bad != "" {
 					t.Fatalf("at %d columns: %s:\n%s", width, bad, strings.Join(rows, "\n"))
 				}
@@ -478,9 +430,6 @@ func TestNeighbourIsTheCardBesideAboveOrBelow(t *testing.T) {
 				t.Errorf("Neighbour(%s, %d, %d) = %q, %v, want %q", tt.from, tt.across, tt.down, got, ok, tt.want)
 			}
 		})
-	}
-	if _, ok := (Frame{Width: 160, View: Accounts, Policy: claudeLike}).Cards(doc, now).Neighbour("a", 1, 0); ok {
-		t.Error("a frame printed once has a card beside a's, want none: its cards take no focus")
 	}
 }
 
