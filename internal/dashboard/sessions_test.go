@@ -29,7 +29,7 @@ func switchboard(width, height int, sessions []status.Session, traffic Traffic) 
 // and heading, failing the test where it lays it out as a plain list.
 func bayOfFrame(t *testing.T, f Frame, doc status.Document) bay {
 	t.Helper()
-	b, ok := f.bayOf(doc, now, f.top(doc))
+	b, ok := f.bayOf(doc, now, f.top())
 	if !ok {
 		t.Fatalf("at %d×%d, the view is a plain list, want a switchboard", f.Width, f.Height)
 	}
@@ -207,7 +207,7 @@ func TestSessionsIsASwitchboardWhereItsCordsFit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := tt.frame
-		if _, got := f.bayOf(tt.doc, now, f.top(tt.doc)); got != tt.want {
+		if _, got := f.bayOf(tt.doc, now, f.top()); got != tt.want {
 			t.Errorf("%s: laid out as a switchboard %v, want %v", tt.name, got, tt.want)
 		}
 	}
@@ -271,7 +271,7 @@ func TestCordsRunRightThenDownBendingSoNoneCross(t *testing.T) {
 		doc, sessions, traffic := arrangement(r)
 		width := 90 + r.IntN(130)
 		f := switchboard(width, 20+r.IntN(40), sessions, traffic)
-		top := f.top(doc)
+		top := f.top()
 		b, ok := f.bayOf(doc, now, top)
 		if !ok {
 			continue
@@ -380,7 +380,7 @@ func TestACordThatStartsHigherBendsFurtherRight(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := switchboard(tt.width, 60, sessions(tt.calls), Traffic{})
 			doc := threeRouted()
-			b, ok := f.bayOf(doc, now, f.top(doc))
+			b, ok := f.bayOf(doc, now, f.top())
 			if tt.want == nil {
 				if ok {
 					t.Errorf("laid out as a switchboard, bending at %v, want a plain list", bends(b))
@@ -879,6 +879,21 @@ func TestWhatTravelsTheCordsUnderACardMovesNothing(t *testing.T) {
 	}
 }
 
+func TestNothingMovesOfAViewTooShortToBeDrawn(t *testing.T) {
+	// c61b's call is the bay's sixth row, in sight scrolled down five.
+	traffic := Traffic{Live: true, Calls: map[Plug]Call{{Account: "side", Seat: Seat{Session: idC61B, Model: opus}}: {Doing: Asking, Pulsing: true}}}
+	f := switchboard(160, 40, flippingSessions(), traffic)
+	f.Height, f.Scroll = f.top()+leastView+underView, 4
+	if got := f.Motion(threeRouted(), now); !got.Smooth {
+		t.Fatalf("with the view's three rows, Motion = %+v, want c61b's pulse moving, to test what a row fewer stills", got)
+	}
+	f.Height--
+	f.Scroll = 5
+	if got := f.Motion(threeRouted(), now); got != (Motion{}) {
+		t.Errorf("a row short of the view's three, Motion = %+v, want nothing moving: the view isn't drawn", got)
+	}
+}
+
 func TestAPlaceholderIsCutToTheCallsColumns(t *testing.T) {
 	doc := threeRouted()
 	doc.Accounts[2].Label = "a side account with a long name"
@@ -902,7 +917,7 @@ func TestSessionsDrawsNothingOverWhatsAboveItOrItsKeyLine(t *testing.T) {
 			f.keyLine(bare)
 			want, got := bare.rows(Look{}), f.Draw(doc, now)
 			for y := range height {
-				if (y < f.top(doc) || y == height-1) && got[y] != want[y] {
+				if (y < f.top() || y == height-1) && got[y] != want[y] {
 					t.Errorf("%d accounts, %d rows tall: row %d reads %q, want %q, as the rows above the view or the key line have it", len(doc.Accounts), height, y+1, got[y], want[y])
 				}
 			}
@@ -1021,8 +1036,8 @@ func TestWithOneAccountSessionsIsAPlainList(t *testing.T) {
 		"      ╰ its opus is on side",
 	}
 	for i, w := range want {
-		if got := strings.TrimRight(rows[4+i], " "); got != w {
-			t.Errorf("row %d reads %q, want %q", 5+i, got, w)
+		if got := strings.TrimRight(rows[6+i], " "); got != w {
+			t.Errorf("row %d reads %q, want %q", 7+i, got, w)
 		}
 	}
 }

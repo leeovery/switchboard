@@ -138,21 +138,135 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 	}
 }
 
-func TestAFrameDrawsTheTitleTheStatusLineTheViewAndTheKeyLine(t *testing.T) {
-	rows := frameOf(160, 40).Draw(threeRouted(), now)
+func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		view  View
+		// tabs, status and heading are the rows the tabs, the status line
+		// and the heading row are on, heading -1 where there's none; top is
+		// the row the view starts at, and first what it draws there.
+		tabs, status, heading, top int
+		first                      string
+	}{
+		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: " ╭─ 1 work "},
+		{name: "Sessions", width: 160, view: Sessions, status: 2, heading: 4, top: 6, first: "  CALLS"},
+		{name: "Runway", width: 160, view: Runway, status: 2, heading: 4, top: 6, first: textsAt(160, map[int]string{27: "now"})},
+		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: " ╭─ 1 work "},
+		{name: "Sessions on a phone", width: 52, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: " ┌─ 1 · WORK "},
+		{name: "a phone of 99 columns", width: 99, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: "  CALLS"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, 40)
+			f.View = tt.view
+			rows := textOf(f.Draw(runwayThree(), now))
 
-	if !strings.HasPrefix(rows[0], "  SWITCHBOARD    Overview ") {
-		t.Errorf("row 1 = %q, want the title row", rows[0])
+			if !strings.HasPrefix(rows[0], " SWITCHBOARD ") || !strings.Contains(rows[tt.tabs], " Overview ") {
+				t.Errorf("rows 1 and %d read\n%s\n%s\nwant the title row and its tabs", tt.tabs+1, rows[0], rows[tt.tabs])
+			}
+			if !strings.HasPrefix(rows[tt.status], "● healthy") {
+				t.Errorf("row %d reads %q, want the status line", tt.status+1, rows[tt.status])
+			}
+			if tt.heading >= 0 && !strings.HasPrefix(rows[tt.heading], strings.ToUpper(tt.view.Title())+"  ─") {
+				t.Errorf("row %d reads %q, want the heading row", tt.heading+1, rows[tt.heading])
+			}
+			if !strings.HasPrefix(rows[tt.top], tt.first) {
+				t.Errorf("row %d reads %q, want the view's first row, %q", tt.top+1, rows[tt.top], tt.first)
+			}
+			for y := tt.tabs + 1; y < tt.top; y++ {
+				if y != tt.status && y != tt.heading && rows[y] != "" {
+					t.Errorf("row %d reads %q, want it blank", y+1, rows[y])
+				}
+			}
+			if got, want := strings.TrimSpace(rows[39]), "tab views   ? help  q quit"; got != want {
+				t.Errorf("the last row reads %q, want the key line, %q", got, want)
+			}
+		})
 	}
-	if got, want := rows[2], " ● healthy  ·  5 sessions  ·  new sessions → ▲ side"; got != want {
-		t.Errorf("row 3 = %q, want the status line, %q", got, want)
+}
+
+func TestATerminalTooShortForTheViewDrawsTheTitleRowTheStatusLineAndTheKeyLineAlone(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		view  View
+		// least is the fewest rows the view is drawn in: the page's fixed
+		// rows and three of the view's.
+		least int
+	}{
+		{name: "the Overview", width: 160, view: Overview, least: 9},
+		{name: "a tab with a heading row", width: 160, view: Sessions, least: 11},
+		{name: "the Overview on a phone", width: 52, view: Overview, least: 10},
+		{name: "a phone's tab with a heading row", width: 52, view: Runway, least: 12},
 	}
-	recent := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " RECENT") })
-	if recent < 0 || rows[recent-1] != "" || strings.TrimSpace(rows[recent-2]) == "" {
-		t.Errorf("rows are\n%s\nwant RECENT a blank row under the cards", strings.Join(rows, "\n"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(tt.width, tt.least-1)
+			f.View = tt.view
+			for y, row := range textOf(f.Draw(threeRouted(), now)) {
+				switch {
+				case y < f.titleRows():
+					if row == "" {
+						t.Errorf("a row short, row %d is blank, want the title row", y+1)
+					}
+				case y == f.statusRow():
+					if !strings.HasPrefix(row, "● healthy") {
+						t.Errorf("a row short, row %d reads %q, want the status line", y+1, row)
+					}
+				case y == f.Height-1:
+					if !strings.HasSuffix(row, "q quit") {
+						t.Errorf("a row short, the last row reads %q, want the key line", row)
+					}
+				case row != "":
+					t.Errorf("a row short, row %d reads %q, want it blank: no heading row and no view", y+1, row)
+				}
+			}
+			if got := f.Scrolling(threeRouted(), now); got != (Scrolling{}) {
+				t.Errorf("a row short, the view scrolls %+v, want it not to, as it isn't drawn", got)
+			}
+			f.Height = tt.least
+			if rows := textOf(f.Draw(threeRouted(), now)); rows[f.top()] == "" {
+				t.Errorf("at %d rows, drew\n%s\nwant the view from row %d", tt.least, strings.Join(rows, "\n"), f.top()+1)
+			}
+		})
 	}
-	if got, want := rows[39], " tab views   ? help  q quit"; got != want {
-		t.Errorf("the last row = %q, want the key line, %q", got, want)
+}
+
+func TestATerminalOfAFewRowsDrawsWhatFits(t *testing.T) {
+	tests := []struct {
+		width, height int
+		want          []string
+	}{
+		{width: 160, height: 1, want: []string{"title"}},
+		{width: 160, height: 2, want: []string{"title", "keys"}},
+		{width: 160, height: 3, want: []string{"title", "", "keys"}},
+		{width: 160, height: 4, want: []string{"title", "", "status", "keys"}},
+		{width: 52, height: 2, want: []string{"title", "tabs"}},
+		{width: 52, height: 3, want: []string{"title", "tabs", "keys"}},
+		{width: 52, height: 4, want: []string{"title", "tabs", "", "keys"}},
+		{width: 52, height: 5, want: []string{"title", "tabs", "", "status", "keys"}},
+	}
+	for _, tt := range tests {
+		rows := textOf(frameOf(tt.width, tt.height).Draw(threeRouted(), now))
+		got := make([]string, len(rows))
+		for i, row := range rows {
+			switch {
+			case strings.HasPrefix(row, " SWITCHBOARD"):
+				got[i] = "title"
+			case strings.HasPrefix(row, " Overview"):
+				got[i] = "tabs"
+			case strings.HasPrefix(row, "● healthy"):
+				got[i] = "status"
+			case strings.HasSuffix(row, "q quit"):
+				got[i] = "keys"
+			default:
+				got[i] = row
+			}
+		}
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("at %d×%d, drew %q, want %q", tt.width, tt.height, got, tt.want)
+		}
 	}
 }
 
@@ -192,15 +306,19 @@ func TestTheLineOverTheKeyLineSaysWhichWindowsHideFromEveryCard(t *testing.T) {
 	}
 }
 
-func TestATabNotBuiltDrawsNothingAndExplainsNoGlyphs(t *testing.T) {
+func TestATabNotBuiltDrawsItsHeadingRowAloneAndExplainsNoGlyphs(t *testing.T) {
 	for _, v := range []View{Accounts, History, Log, "a-later-view"} {
 		f := frameOf(160, 40)
 		f.View = v
 		rows := f.Draw(threeRouted(), now)
 
-		for i, row := range rows[3:39] {
+		name := strings.ToUpper(v.Title())
+		if got, want := rows[4], name+"  "+rule(158-len(name)); got != want {
+			t.Errorf("on %s, row 5 reads %q, want its heading row, %q", v, got, want)
+		}
+		for i, row := range rows[5:39] {
 			if row != "" {
-				t.Errorf("on %s, row %d = %q, want nothing drawn of a tab not built", v, i+4, row)
+				t.Errorf("on %s, row %d = %q, want nothing drawn of a tab not built", v, i+6, row)
 			}
 		}
 		if glyphs := f.glyphs(); glyphs != nil {

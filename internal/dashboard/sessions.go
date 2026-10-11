@@ -166,7 +166,7 @@ func (f Frame) sessionsRows(doc status.Document, now time.Time, top int) (conten
 // scrolled out of view or under a card, or that has none, as of a session
 // the router hasn't listed, moves nothing, nor does the plain list.
 func (f Frame) travelling(doc status.Document, now time.Time) Motion {
-	top := f.top(doc)
+	top := f.top()
 	b, ok := f.bayOf(doc, now, top)
 	if !ok {
 		return Motion{}

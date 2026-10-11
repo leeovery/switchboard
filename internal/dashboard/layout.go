@@ -162,15 +162,15 @@ type Scrolling struct {
 // Overview's cards, where not even their sparest fit; Sessions, where its
 // calls and lines, or its plain list, don't; and Runway, where its lanes
 // don't, as runwayRows counts them. A frame too short for any card, as short
-// says, never scrolls.
+// says, or for the view, as cramped says, never scrolls.
 func (f Frame) Scrolling(doc status.Document, now time.Time) Scrolling {
 	if l, ok := f.cardsOf(doc, now); ok {
 		return Scrolling{Most: l.content - l.view, Page: l.view}
 	}
-	if len(doc.Accounts) == 0 || f.short(doc, now) {
+	if len(doc.Accounts) == 0 || f.cramped() || f.short(doc, now) {
 		return Scrolling{}
 	}
-	top := f.top(doc)
+	top := f.top()
 	switch f.View {
 	case Sessions:
 		content, view := f.sessionsRows(doc, now, top)
@@ -191,7 +191,7 @@ func (f Frame) cardsOf(doc status.Document, now time.Time) (layout, bool) {
 	if f.View != Overview || f.short(doc, now) {
 		return layout{}, false
 	}
-	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top(doc)), true
+	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top()), true
 }
 
 // scrolled is how far the layout's cards are scrolled as the frame has them:

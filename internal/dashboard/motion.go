@@ -18,11 +18,14 @@ type Motion struct {
 // Motion is what moves on screen of the frame of doc at now: what travels
 // the cords Sessions' switchboard shows, as travelling has it; or the sand
 // falling in the hourglasses of the Overview's cards, as falling has it.
+// Nothing moves of a view too short to be drawn, as cramped says.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
-	switch f.View {
-	case Sessions:
+	switch {
+	case f.cramped():
+		return Motion{}
+	case f.View == Sessions:
 		return f.travelling(doc, now)
-	case Overview:
+	case f.View == Overview:
 		return Motion{Falling: f.falling(doc, now)}
 	default:
 		return Motion{}

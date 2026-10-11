@@ -30,14 +30,14 @@ func accountsOf(n int, fable bool) status.Document {
 // laidOut is the Overview's cards of doc laid out in the frame f, from the
 // row its view starts at.
 func laidOut(f Frame, doc status.Document) layout {
-	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top(doc))
+	return f.layOut(doc, now, len(shownWindows(doc, now, f.Policy)), f.top())
 }
 
 func TestTheLayoutRulesAt160Columns(t *testing.T) {
 	full, mid6, compact3, compact2 := density{fullCard, 4}, density{midCard, 6}, density{compactCard, 3}, density{compactCard, 2}
 	tests := []struct {
 		accounts int
-		// rows are what the rules choose at 28, 40 and 50 rows: the density,
+		// rows are what the rules choose at 25, 37 and 47 rows: the density,
 		// and whether the cards scroll.
 		rows [3]density
 		// scrolls are whether the cards scroll at each.
@@ -55,7 +55,7 @@ func TestTheLayoutRulesAt160Columns(t *testing.T) {
 		// The frames draw two and three accounts with Fable's week used, and
 		// more without, as the design's table counts them.
 		doc := accountsOf(tt.accounts, tt.accounts <= 3)
-		for i, height := range []int{28, 40, 50} {
+		for i, height := range []int{25, 37, 47} {
 			l := laidOut(frameOf(160, height), doc)
 			if l.density != tt.rows[i] || l.scrolls() != tt.scrolls[i] {
 				t.Errorf("%d accounts at 160×%d: %+v, scrolling %v; want %+v, scrolling %v", tt.accounts, height, l.density, l.scrolls(), tt.rows[i], tt.scrolls[i])
@@ -209,12 +209,12 @@ func TestTheRowsLeftOverGrowTheRecentStripThenShowTheKey(t *testing.T) {
 		wantRecent int
 		wantKey    bool
 	}{
-		{height: 29, wantRecent: 1},
-		{height: 30, wantRecent: 2},
-		{height: 32, wantRecent: 4},
-		{height: 33, wantRecent: 4},
-		{height: 34, wantRecent: 4, wantKey: true},
-		{height: 50, wantRecent: 4, wantKey: true},
+		{height: 26, wantRecent: 1},
+		{height: 27, wantRecent: 2},
+		{height: 29, wantRecent: 4},
+		{height: 30, wantRecent: 4},
+		{height: 31, wantRecent: 4, wantKey: true},
+		{height: 47, wantRecent: 4, wantKey: true},
 	}
 	for _, tt := range tests {
 		f := frameOf(160, tt.height)
@@ -232,7 +232,7 @@ func TestTheRowsLeftOverGrowTheRecentStripThenShowTheKey(t *testing.T) {
 
 func TestTheGlyphLineExplainsNothingBeforeThereAreCards(t *testing.T) {
 	rows := frameOf(160, 40).Draw(status.Document{}, now)
-	if view := strings.Join(rows[7:39], "\n"); strings.TrimSpace(view) != "" {
+	if view := strings.Join(rows[4:39], "\n"); strings.TrimSpace(view) != "" {
 		t.Errorf("before anything is read, the view reads\n%s\nwant it blank, the key with no cards to explain", view)
 	}
 }
@@ -252,7 +252,7 @@ func TestTheGlyphLineShowsOnlyWhereItFitsTheWidth(t *testing.T) {
 }
 
 func TestTheCardsScrollOnceTwoRowChartsDontFit(t *testing.T) {
-	f := frameOf(160, 28)
+	f := frameOf(160, 25)
 	doc := accountsOf(8, false)
 	if got, want := f.Scrolling(doc, now), (Scrolling{Most: 4, Page: 19}); got != want {
 		t.Fatalf("Scrolling() = %+v, want %+v: three rows of 7, a blank between, in the 19 under the heading", got, want)
@@ -287,16 +287,16 @@ func TestTheCardsScrollOnceTwoRowChartsDontFit(t *testing.T) {
 			f.Scroll = tt.scroll
 			rows := f.Draw(doc, now)
 			var bar strings.Builder
-			for _, row := range rows[7:26] {
+			for _, row := range rows[4:23] {
 				bar.WriteString(string([]rune(row)[159:]))
 			}
 			if bar.String() != tt.wantBar {
 				t.Errorf("the scrollbar reads %q, want %q", bar.String(), tt.wantBar)
 			}
-			if !strings.HasPrefix(rows[7], tt.wantFirst) {
-				t.Errorf("the first row of cards shown is %q, want it to start %q", rows[7], tt.wantFirst)
+			if !strings.HasPrefix(rows[4], tt.wantFirst) {
+				t.Errorf("the first row of cards shown is %q, want it to start %q", rows[4], tt.wantFirst)
 			}
-			if got := strings.TrimSpace(rows[26]); got != tt.wantSays {
+			if got := strings.TrimSpace(rows[23]); got != tt.wantSays {
 				t.Errorf("the line over the key line says %q, want %q", got, tt.wantSays)
 			}
 		})
@@ -310,7 +310,7 @@ func TestTheLineOverTheKeyLineCountsACardTallerThanTheViewOnce(t *testing.T) {
 	}
 }
 
-func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
+func TestAViewTooShortForACardListsTheAccounts(t *testing.T) {
 	doc := threeRouted()
 	f := frameOf(160, 12)
 	rows := f.Draw(doc, now)
@@ -319,12 +319,12 @@ func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
 		" 2 personal  ■ limit reached · back 14:12, in 1h",
 		" 3 side  ● open · new sessions come here",
 	}
-	if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || !strings.HasPrefix(rows[2], " ● healthy") || !slices.Equal(rows[3:6], want) {
-		t.Errorf("drew\n%s\nwant the title row, the status line, then a line an account", strings.Join(rows, "\n"))
+	if !strings.HasPrefix(rows[0], " SWITCHBOARD") || !strings.HasPrefix(rows[2], "● healthy") || !slices.Equal(rows[4:7], want) {
+		t.Errorf("drew\n%s\nwant the title row, the status line, then from the view's first row a line an account", strings.Join(rows, "\n"))
 	}
-	for i, row := range rows[6:11] {
+	for i, row := range rows[7:11] {
 		if row != "" {
-			t.Errorf("row %d = %q, want nothing between the accounts and the key line", i+7, row)
+			t.Errorf("row %d = %q, want nothing between the accounts and the key line", i+8, row)
 		}
 	}
 	if rows[11] != " tab views   ? help  q quit" {
@@ -336,33 +336,27 @@ func TestATerminalTooShortForACardListsTheAccounts(t *testing.T) {
 	if _, ok := f.Cards(doc, now).Neighbour("work", 1, 0); ok {
 		t.Error("a card's beside work's, want none: there are no cards to move between")
 	}
-	if rows := frameOf(160, 1).Draw(doc, now); !strings.HasPrefix(rows[0], "  SWITCHBOARD") {
-		t.Errorf("at 1 row, drew\n%s\nwant the title row alone", strings.Join(rows, "\n"))
-	}
-	for _, height := range []int{2, 3} {
-		rows := frameOf(160, height).Draw(doc, now)
-		if !strings.HasPrefix(rows[0], "  SWITCHBOARD") || slices.ContainsFunc(rows[1:height-1], func(r string) bool { return r != "" }) || rows[height-1] != " tab views   ? help  q quit" {
-			t.Errorf("at %d rows, drew\n%s\nwant the title row and the key line alone", height, strings.Join(rows, "\n"))
-		}
+	if rows := frameOf(160, 4+underView+leastView).Draw(doc, now); !slices.Equal(rows[4:7], want) {
+		t.Errorf("with the view's three rows, drew\n%s\nwant a line an account in them", strings.Join(rows, "\n"))
 	}
 }
 
 func TestCardsThatFitDontScroll(t *testing.T) {
-	f := frameOf(160, 40)
+	f := frameOf(160, 37)
 	doc := accountsOf(8, false)
 	if got := f.Scrolling(doc, now); got != (Scrolling{Page: 26}) {
 		t.Errorf("Scrolling() = %+v, want none, the cards' 26 rows fitting", got)
 	}
 	f.Scroll = 3
-	if rows := f.Draw(doc, now); !strings.HasPrefix(rows[7], " ╭─ 1 a ") || strings.HasSuffix(rows[7], "┃") {
-		t.Errorf("scrolled 3 rows, cards that fit start %q, want them unscrolled, without a scrollbar", rows[7])
+	if rows := f.Draw(doc, now); !strings.HasPrefix(rows[4], " ╭─ 1 a ") || strings.HasSuffix(rows[4], "┃") {
+		t.Errorf("scrolled 3 rows, cards that fit start %q, want them unscrolled, without a scrollbar", rows[4])
 	}
 }
 
 func TestThePhoneStacksCompactCardsWithTwoRowCharts(t *testing.T) {
 	doc := accountsOf(3, true)
 	doc.Events = append(doc.Events, status.Event{ID: 0, At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "b"})
-	f := frameOf(52, 36)
+	f := frameOf(52, 34)
 	l := laidOut(f, doc)
 	if want := (density{compactCard, 2}); l.density != want || l.gap != 0 || l.across != 1 {
 		t.Fatalf("on a phone, %+v cards, %d across, %d blank rows between; want %+v, one across, none between", l.density, l.across, l.gap, want)
@@ -374,11 +368,11 @@ func TestThePhoneStacksCompactCardsWithTwoRowCharts(t *testing.T) {
 			tops = append(tops, i)
 		}
 	}
-	if !slices.Equal(tops, []int{7, 15, 23}) {
-		t.Errorf("cards start on rows %v, want 8, 16 and 24, stacked", tops)
+	if !slices.Equal(tops, []int{5, 13, 21}) {
+		t.Errorf("cards start on rows %v, want 6, 14 and 22, stacked", tops)
 	}
-	if got, want := rows[32:35], []string{" 13:11 ● a has room again", " 13:10 ● b has room again", "                                      ? for the key"}; !slices.Equal(got, want) {
-		t.Errorf("rows 33 to 35 are %q, want %q: RECENT unlabelled, two lines, and the key behind ?", got, want)
+	if got, want := rows[30:33], []string{" 13:11 ● a has room again", " 13:10 ● b has room again", "                                      ? for the key"}; !slices.Equal(got, want) {
+		t.Errorf("rows 31 to 33 are %q, want %q: RECENT unlabelled, two lines, and the key behind ?", got, want)
 	}
 }
 
@@ -435,10 +429,10 @@ func TestNeighbourIsTheCardBesideAboveOrBelow(t *testing.T) {
 
 func TestRevealScrollsNoFurtherThanItMustToShowACardWhole(t *testing.T) {
 	doc := accountsOf(8, false)
-	f := frameOf(160, 28)
+	f := frameOf(160, 25)
 	l := laidOut(f, doc)
 	if !l.scrolls() {
-		t.Fatal("eight accounts in 28 rows don't scroll")
+		t.Fatal("eight accounts in 25 rows don't scroll")
 	}
 	_, last := l.at(7, l.density)
 	tests := []struct {

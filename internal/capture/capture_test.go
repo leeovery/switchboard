@@ -429,9 +429,9 @@ func TestTheStoryboardsPulsesAreWhereItsFramesHaveThem(t *testing.T) {
 		// its head, drawn bold.
 		row, head int
 	}{
-		{name: "sessions-storyboard-1-request-out", row: 13, head: 70},
-		{name: "sessions-storyboard-3-refused", row: 9, head: 79},
-		{name: "sessions-storyboard-4-repatched", row: 23, head: 94},
+		{name: "sessions-storyboard-1-request-out", row: 12, head: 70},
+		{name: "sessions-storyboard-3-refused", row: 8, head: 79},
+		{name: "sessions-storyboard-4-repatched", row: 22, head: 94},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

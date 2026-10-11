@@ -36,7 +36,7 @@ func runwayFrame(t *testing.T, span Span, width, height int) Frame {
 // drawnRunway is the frame f of doc drawn as text alone, each row without the
 // blanks at its end, and Runway laid out in it: where its rows are.
 func drawnRunway(f Frame, doc status.Document) ([]string, runwayLayout) {
-	top := f.top(doc)
+	top := f.top()
 	return textOf(f.Draw(doc, now)), f.layOutRunway(doc, now, top)
 }
 
@@ -84,26 +84,27 @@ func TestRunwayOverTheDay(t *testing.T) {
 		hours[22+83+12*i] = hour
 	}
 	want := map[int]string{
-		7:  textsAt(160, map[int]string{27: "now"}),
-		8:  textsAt(160, hours),
-		9:  textsAt(160, map[int]string{22: string(ticks)}),
-		10: "",
-		11: " ROOM                 " + repeated("█", 4, "▃", 8, "█", 3, "▃", 9, "█", 54, "▃", 58),
-		12: " accounts with room   " + repeated("█", 136),
-		13: "",
-		14: " 1 work               " + repeated("▆", 15, "─", 9, "▆", 112),
-		15: textsAt(160, map[int]string{37: "runs out ~14:42  ·  back 16:12, as it resets"}),
-		16: "",
-		17: " 2 personal           " + repeated("▆", 4, "─", 8, "▆", 66, "─", 58),
-		18: textsAt(160, map[int]string{26: "limit reached 12:50  ·  back 14:12", 100: "week runs out ~Tue 01:12  ·  back Thu 13:12, as it resets"}),
-		19: "",
-		20: " 3 side       ▲ next  " + repeated("▆", 136),
-		21: textsAt(160, map[int]string{29: "room all day"}),
+		6:  textsAt(160, map[int]string{27: "now"}),
+		7:  textsAt(160, hours),
+		8:  textsAt(160, map[int]string{22: string(ticks)}),
+		9:  "",
+		10: " ROOM                 " + repeated("█", 4, "▃", 8, "█", 3, "▃", 9, "█", 54, "▃", 58),
+		11: " accounts with room   " + repeated("█", 136),
+		12: "",
+		13: " 1 work               " + repeated("▆", 15, "─", 9, "▆", 112),
+		14: textsAt(160, map[int]string{37: "runs out ~14:42  ·  back 16:12, as it resets"}),
+		15: "",
+		16: " 2 personal           " + repeated("▆", 4, "─", 8, "▆", 66, "─", 58),
+		17: textsAt(160, map[int]string{26: "limit reached 12:50  ·  back 14:12", 100: "week runs out ~Tue 01:12  ·  back Thu 13:12, as it resets"}),
+		18: "",
+		19: " 3 side       ▲ next  " + repeated("▆", 136),
+		20: textsAt(160, map[int]string{29: "room all day"}),
+		21: "",
 		22: "",
 		23: " ▆ has room      ▆ has room, but running out      ─ no room      past hours dimmed · labels say when, and when it's back",
 		24: "",
 	}
-	for row := 7; row <= 24; row++ {
+	for row := 6; row <= 24; row++ {
 		if rows[row] != want[row] {
 			t.Errorf("row %d reads\n%q\nwant\n%q", row+1, rows[row], want[row])
 		}
@@ -289,27 +290,27 @@ func TestRunwayOverTheWeek(t *testing.T) {
 		// at is the column it starts at.
 		at int
 	}{
-		{name: "now", row: 7, text: "now", at: 40},
-		{name: "today, Monday", row: 8, text: "Mon", at: 22 + 8},
-		{name: "the strip's label", row: 12, text: "weeks with room", at: 1},
-		{name: "work's week's use", row: 14, text: "34%", at: 17},
-		{name: "where work's week resets", row: 14, text: "┃", at: 22 + 97},
-		{name: "when, ending under it, and its use by then", row: 15, text: "resets Fri 13:12  ·  79% used by then", at: 22 + 97 - 36},
-		{name: "personal's week's use", row: 17, text: "89%", at: 17},
-		{name: "where personal's week runs out, its limit counting for nothing over the week", row: 18, text: "runs out ~Tue 01:12  ·  back Thu 13:12, as it resets", at: 22 + 29},
-		{name: "where it resets", row: 17, text: "┃", at: 22 + 77},
-		{name: "side's", row: 21, text: "resets Sat 13:12  ·  35% used by then", at: 22 + 116 - 36},
+		{name: "now", row: 6, text: "now", at: 40},
+		{name: "today, Monday", row: 7, text: "Mon", at: 22 + 8},
+		{name: "the strip's label", row: 11, text: "weeks with room", at: 1},
+		{name: "work's week's use", row: 13, text: "34%", at: 17},
+		{name: "where work's week resets", row: 13, text: "┃", at: 22 + 97},
+		{name: "when, ending under it, and its use by then", row: 14, text: "resets Fri 13:12  ·  79% used by then", at: 22 + 97 - 36},
+		{name: "personal's week's use", row: 16, text: "89%", at: 17},
+		{name: "where personal's week runs out, its limit counting for nothing over the week", row: 17, text: "runs out ~Tue 01:12  ·  back Thu 13:12, as it resets", at: 22 + 29},
+		{name: "where it resets", row: 16, text: "┃", at: 22 + 77},
+		{name: "side's", row: 20, text: "resets Sat 13:12  ·  35% used by then", at: 22 + 116 - 36},
 		{name: "the legend", row: 23, text: "▆ has room      ▆ has room, but running out      ─ no room      ┃ week resets      one column ≈ 75 min · yesterday dimmed", at: 1},
 	} {
 		if got := startOf(rows[tt.row], tt.text); got != tt.at {
 			t.Errorf("%s: %q starts at %d on row %d, want %d:\n%s", tt.name, tt.text, got, tt.row+1, tt.at, rows[tt.row])
 		}
 	}
-	if got, want := rows[17][strings.Index(rows[17], "▆"):], repeated("▆", 29, "─", 48, "┃", 1, "▆", 58); got != want {
+	if got, want := rows[16][strings.Index(rows[16], "▆"):], repeated("▆", 29, "─", 48, "┃", 1, "▆", 58); got != want {
 		t.Errorf("personal's lane reads\n%q\nwant\n%q", got, want)
 	}
-	if strings.Contains(rows[20], "▲ next") {
-		t.Errorf("side's lane reads %q, want its week's use in place of ▲ next", rows[20])
+	if strings.Contains(rows[19], "▲ next") {
+		t.Errorf("side's lane reads %q, want its week's use in place of ▲ next", rows[19])
 	}
 }
 
@@ -611,7 +612,7 @@ func TestRunwaysLanesScrollWhereTheyDontFit(t *testing.T) {
 		accounts = append(accounts, readAccount(id, sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
 	}
 	eight := routerDoc("side", 8, accounts...)
-	f := runwayFrame(t, Day, 160, 26)
+	f := runwayFrame(t, Day, 160, 25)
 
 	if got, want := f.Scrolling(eight, now), (Scrolling{Most: 13, Page: 10}); got != want {
 		t.Errorf("Scrolling() = %+v, want %+v", got, want)
@@ -628,22 +629,22 @@ func TestRunwaysLanesScrollWhereTheyDontFit(t *testing.T) {
 	} {
 		f.Scroll = tt.scroll
 		rows := textOf(f.Draw(eight, now))
-		if tt.wantFirst != "" && !strings.HasPrefix(rows[14], tt.wantFirst) {
-			t.Errorf("scrolled %d, the lanes start\n%s\nwant %s first", tt.scroll, rows[14], tt.wantFirst)
+		if tt.wantFirst != "" && !strings.HasPrefix(rows[13], tt.wantFirst) {
+			t.Errorf("scrolled %d, the lanes start\n%s\nwant %s first", tt.scroll, rows[13], tt.wantFirst)
 		}
-		if got := strings.TrimSpace(rows[24]); got != tt.wantSays {
+		if got := strings.TrimSpace(rows[23]); got != tt.wantSays {
 			t.Errorf("scrolled %d, the line over the key line reads %q, want %q", tt.scroll, got, tt.wantSays)
 		}
 		if strings.Contains(strings.Join(rows, "\n"), "has room, but running out") {
 			t.Errorf("scrolled %d, the screen is\n%s\nwant no legend while the lanes scroll", tt.scroll, strings.Join(rows, "\n"))
 		}
-		if got := cellsOf(rows[16], '┃'); !slices.Equal(got, []int{159}) && tt.scroll == 0 {
-			t.Errorf("scrolled %d, row 17 has ┃ at %v, want the scrollbar's at the right edge", tt.scroll, got)
+		if got := cellsOf(rows[15], '┃'); !slices.Equal(got, []int{159}) && tt.scroll == 0 {
+			t.Errorf("scrolled %d, row 16 has ┃ at %v, want the scrollbar's at the right edge", tt.scroll, got)
 		}
 	}
-	f = runwayFrame(t, Day, 160, 27)
-	if rows := textOf(f.Draw(routerDoc("side", 8, accounts[:4]...), now)); !strings.HasSuffix(rows[25], "? for the key") {
-		t.Errorf("with four lanes, fitting without the legend, the line over the key line reads %q, want the key behind ?", rows[25])
+	f = runwayFrame(t, Day, 160, 26)
+	if rows := textOf(f.Draw(routerDoc("side", 8, accounts[:4]...), now)); !strings.HasSuffix(rows[24], "? for the key") {
+		t.Errorf("with four lanes, fitting without the legend, the line over the key line reads %q, want the key behind ?", rows[24])
 	}
 }
 
@@ -705,10 +706,13 @@ func TestRunwayIsDrawnUnderTheRowsEveryTabHas(t *testing.T) {
 		cards.View = Overview
 		overview := textOf(cards.Draw(runwayThree(), now))
 		rows := textOf(f.Draw(runwayThree(), now))
-		for i := range 6 {
-			if i != 0 && rows[i] != overview[i] {
+		for i := 1; i < 4; i++ {
+			if rows[i] != overview[i] {
 				t.Errorf("over the %s, row %d reads\n%q\nwant it as every tab has it\n%q", span.Name(), i+1, rows[i], overview[i])
 			}
+		}
+		if got, want := rows[4], "RUNWAY  "+rule(152); got != want || rows[5] != "" {
+			t.Errorf("over the %s, rows 5 and 6 read %q and %q, want Runway's heading row, %q, and a blank row", span.Name(), got, rows[5], want)
 		}
 		if got, want := rows[25], " tab views   ? help  q quit"; got != want {
 			t.Errorf("over the %s, the key line reads %q, want the keys given", span.Name(), got)

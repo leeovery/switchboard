@@ -220,11 +220,17 @@ func TestKeepsTheRoutersDocumentWhileItDoesntAnswerALook(t *testing.T) {
 	if h.model.answering() {
 		t.Error("the router doesn't answer a look, yet the watch has it answering")
 	}
+	if got := strings.Split(h.view(), "\n")[2]; !strings.HasPrefix(got, "■ the router isn't answering  ·  since 13:12:05  ·  auto  ·  ") {
+		t.Errorf("the status line reads %q, want it to say since when the router hasn't answered, the rest as its last document had them", got)
+	}
 
 	h.startRouter(routerDocument(three()...))
 	h.tickUntilAsked()
 	if !h.model.answering() {
 		t.Error("once the router answers a look again, the watch has it not answering, want it answering")
+	}
+	if got := strings.Split(h.view(), "\n")[2]; !strings.HasPrefix(got, "● healthy  ·  auto  ·  ") {
+		t.Errorf("the status line reads %q, want the router healthy again", got)
 	}
 }
 
@@ -244,8 +250,8 @@ func TestFallsBackToProbingWhenTheRouterStops(t *testing.T) {
 	if got, want := h.nextRead(), "14:12"; got != want {
 		t.Errorf("the next read is due at %s, want %s", got, want)
 	}
-	if view := h.view(); !strings.Contains(view, "router not running") {
-		t.Errorf("the screen is\n%s\nwant it to say the accounts are probed, as the router isn't running", view)
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); got != "○ probed · router not running" {
+		t.Errorf("the status line reads %q, want it to say the accounts are probed, as the router isn't running, rather than since when it hasn't answered", got)
 	}
 }
 
