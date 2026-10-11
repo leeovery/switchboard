@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -120,7 +121,7 @@ func (p sessionPlan) lines() []ledger.Line {
 	for i, t := range p.turns {
 		for _, l := range p.turn(i+1, t) {
 			l.Session, l.Dir, l.Kind, l.Status, l.Attempts, l.Agent = p.id, p.dir, ledger.KindMessage, 200, 1, claudeCodeAgent
-			l.Request = cmpOr(l.Request, requestID(p.id, len(lines)))
+			l.Request = cmp.Or(l.Request, requestID(p.id, len(lines)))
 			l.Prompt = fmt.Sprintf("%s-prompt-%d", p.id[:8], i+1)
 			p.route(&l, routed)
 			lines = append(lines, l)
@@ -130,14 +131,6 @@ func (p sessionPlan) lines() []ledger.Line {
 		lines[0].At = p.first.UTC()
 	}
 	return lines
-}
-
-// cmpOr is the first of a and b that isn't "".
-func cmpOr(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }
 
 // requestID is the router's id for the session's request numbered n.

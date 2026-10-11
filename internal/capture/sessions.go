@@ -39,6 +39,24 @@ func routedSessions(now time.Time) []status.Session {
 	}
 }
 
+// listedSessions are the sessions the router lists at now, Thursday's
+// 14:42:07, as Sessions' List and the Log draw them (log1.tail), each its
+// own conversation's model, opus, seen last as its latest request came: on
+// personal 41e0, idle since its answer of 14:41:29, and 9c2e, idle; on side
+// c61b, answering, d28c, asking, 7f3a, answering, and db8a, idle since its
+// answer of 14:40:59, the last three moved from work as it reached its cap.
+func listedSessions(now time.Time) []status.Session {
+	at := func(hour, minute, second int) time.Time { return clockAt(now, 0, hour, minute, second) }
+	return []status.Session{
+		{ID: idD28C, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/switchboard", reasonCapped, at(14, 31, 13), at(14, 42, 0), status.Asking)}},
+		{ID: id7F3A, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/api", reasonCapped, at(14, 31, 20), at(14, 42, 1), status.Answering)}},
+		{ID: idC61B, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/mobile", status.ReasonNew, at(14, 41, 11), at(14, 41, 53), status.Answering)}},
+		{ID: id41E0, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/docs", status.ReasonNew, at(12, 47, 12), at(14, 41, 29), "")}},
+		{ID: idDB8A, Assignments: []status.Assignment{assigned(opus, "side", "~/Code/infra", reasonCapped, at(14, 31, 40), at(14, 40, 59), "")}},
+		{ID: id9C2E, Assignments: []status.Assignment{assigned(opus, "personal", "~/Code/website", status.ReasonNew, at(11, 55, 31), at(14, 33, 7), "")}},
+	}
+}
+
 // routedAtTheLimit are the sessions the router lists at 16:05:41, as GET
 // /sessions gives them, where personal reaches its 5-hour limit as 41e0 asks
 // (SESSIONS-RUNWAY-SPEC.md, "16:05:41 and 16:05:42"): on personal, 41e0, its

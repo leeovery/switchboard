@@ -25,7 +25,7 @@ func runningOf(sessions []status.Session, lines []ledger.Line, now time.Time) ma
 	said := make(map[string]runningSaid)
 	for _, s := range list.Sessions {
 		if s.Running {
-			said[status.ShortID(s.Session)[:4]] = runningSaid{account: s.Account, model: ledger.ShortModelID(s.Model), state: s.State,
+			said[short(s.Session)] = runningSaid{account: s.Account, model: ledger.ShortModelID(s.Model), state: s.State,
 				seen: now.Sub(s.LastSeen).Truncate(time.Second)}
 		}
 	}

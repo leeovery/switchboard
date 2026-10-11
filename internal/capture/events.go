@@ -7,9 +7,10 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// The frames' sessions beyond milestone 5's samples, each a Claude Code
-// session's id, which the frames cut to its first four characters: those
-// that ended today or yesterday, and f41a, resumed this morning.
+// The frames' sessions beyond milestone 5's samples and those yesterday's
+// days name, each a Claude Code session's id, which the frames cut to its
+// first four characters: those that ended today or yesterday, and f41a,
+// resumed this morning.
 const (
 	id9C2E = "9c2e47b1-0d5a-4e83-b6f2-8a1c3e9d0f57"
 	id2B6D = "2b6d8e03-a4c7-4f19-9d2b-6e05c1a8f374"
@@ -17,9 +18,6 @@ const (
 	idE0C4 = "e0c4a917-6f2b-4d58-a3e1-0b9d7c4f2e68"
 	id3D7A = "3d7a2c6e-8b14-4f90-b7d3-5e2a9f0c1b46"
 	id5B19 = "5b19f0a4-c3d8-4e27-9a6b-1f8e4d2c7a03"
-	id5E7D = "5e7d93b2-1a6f-4c04-8e5d-c2b7a0f9e316"
-	id4B0E = "4b0e6d81-f2a9-4b37-8c1e-7d5a3e0b9f24"
-	id8A2C = "8a2c1e5f-7d03-4a96-b8f2-3c9e6a0d4b71"
 	idB9C4 = "b9c4d2a7-5e18-4f63-a0b9-e7c3f1d8256a"
 	idF41A = "f41a8c3e-2b97-4d05-9e6a-0f4d1b7c8e29"
 )
@@ -47,11 +45,12 @@ func routerRun(now time.Time) time.Time {
 
 // The router's reasons the frames' moves give, as its log has them: a move
 // off work at its cap, one off personal at its limit, and db8a's choice made
-// afresh after it idled, passing personal over under pressure.
+// afresh after it idled since yesterday's 16:07:19, passing personal over
+// under pressure.
 const (
 	reasonCapped   = status.ReasonMovedOff + "work " + status.WhyReserve
 	reasonLimited  = status.ReasonMovedOff + "personal " + status.WhyLimit
-	reasonPressure = status.ReasonRescored + "1h 2m" + " idle, personal under pressure"
+	reasonPressure = status.ReasonRescored + "21h 15m" + " idle, personal under pressure"
 )
 
 // The identities of the frames' limits and caps, as the router's events
