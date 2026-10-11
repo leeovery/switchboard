@@ -104,6 +104,13 @@ func (p *primer) due(id string, now time.Time) bool {
 	return ok && !at.After(now)
 }
 
+// clears reports whether a window the account with the given id starts at
+// now would reset before the account is next primed, as the schedule's Clear
+// says.
+func (p *primer) clears(id string, now time.Time) bool {
+	return p.current().schedule.Clear(id, now)
+}
+
 // wait is how long from now until the next prime could fall due, as
 // nextLook says, primeLookEvery at most.
 func (p *primer) wait(now time.Time) time.Duration {

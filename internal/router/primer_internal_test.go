@@ -558,7 +558,8 @@ func (c *bubbleClock) sleep(d time.Duration) {
 // isn't running, at the ten-minute mark it falls in, and it resets five hours
 // after that mark. It notes when each token was
 // probed, refuses the tokens it's told to, and starts no session on those it's
-// told to leave idle.
+// told to leave idle. Every account's week reads as week does, unless it's
+// told otherwise.
 type windowsUpstream struct {
 	clock *bubbleClock
 
@@ -567,6 +568,7 @@ type windowsUpstream struct {
 	refused  map[string]bool
 	idle     map[string]bool
 	probed   map[string][]time.Time
+	week     quota.Window
 }
 
 func newWindowsUpstream(clock *bubbleClock) *windowsUpstream {
@@ -576,6 +578,7 @@ func newWindowsUpstream(clock *bubbleClock) *windowsUpstream {
 		refused:  make(map[string]bool),
 		idle:     make(map[string]bool),
 		probed:   make(map[string][]time.Time),
+		week:     week,
 	}
 }
 
@@ -591,7 +594,14 @@ func (u *windowsUpstream) Probe(_ context.Context, token string) (quota.Probe, e
 		u.sessions[token] = now.Truncate(10 * time.Minute).Add(5 * time.Hour)
 	}
 	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: u.sessions[token].UTC(), Status: quota.StatusAllowed}
-	return probed(nil, session, week), nil
+	return probed(nil, session, u.week), nil
+}
+
+// readWeek has every account's week read as w from now on.
+func (u *windowsUpstream) readWeek(w quota.Window) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.week = w
 }
 
 // refuse has the upstream refuse token from now on.

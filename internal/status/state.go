@@ -340,8 +340,7 @@ func (d Document) nearing(a Account) (quota.Window, bool) {
 		return quota.Window{}, false
 	}
 	i := slices.IndexFunc(a.Windows, func(w quota.Window) bool {
-		length, ok := quota.Length(w.Key)
-		return ok && length > day && w.Utilization >= 1-a.Reserve-Near-score.Tolerance
+		return quota.MultiDay(w.Key) && w.Utilization >= 1-a.Reserve-Near-score.Tolerance
 	})
 	if i < 0 {
 		return quota.Window{}, false
