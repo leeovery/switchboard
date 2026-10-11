@@ -289,7 +289,7 @@ func TestB9C4sPageIsItsFrameFromYesterdaysLines(t *testing.T) {
 
 func TestF41AsPageIsItsFrameFromItsLinesOfYesterdayAndToday(t *testing.T) {
 	now := localMoment()
-	r := &records{lines: heldAsWritten(resumedPlan(now).lines())}
+	r := &records{lines: filedOf(heldAsWritten(resumedPlan(now).lines()))}
 	routed := resumedRouted(now)
 	page := pageOf(t, r, idF41A, &routed, now)
 

@@ -18,12 +18,12 @@ import (
 // records are what a world's readers serve, each as the router and the
 // ledger make them: the summaries of the days before today's, oldest first;
 // every line the ledger keeps, of whatever day, in the order the router wrote
-// them; the readings history, in the order its readings were read; and the
-// router's events, every version of each in the order it was filed. caps are
-// the accounts' caps today is summarised with.
+// them, each as it's filed; the readings history, in the order its readings
+// were read; and the router's events, every version of each in the order it
+// was filed. caps are the accounts' caps today is summarised with.
 type records struct {
 	days     []ledger.Summary
-	lines    []ledger.Held
+	lines    []filed
 	readings history
 	events   []events.Line
 	caps     ledger.Caps
@@ -63,14 +63,23 @@ type filed struct {
 	place int
 }
 
-// arrived returns the records' lines that arrived by now, each with the date
-// of the day its request arrived on, as the ledger files it, in the order
-// they were written.
+// filedOf are the lines given, in the order they were written, each as the
+// ledger files it: under the date of the day its request arrived on.
+func filedOf(held []ledger.Held) []filed {
+	lines := make([]filed, len(held))
+	for i, h := range held {
+		lines[i] = filed{Held: h, date: dayfile.DateOf(h.At), place: i}
+	}
+	return lines
+}
+
+// arrived returns the records' lines that arrived by now, in the order they
+// were written.
 func (l heldLedger) arrived(now time.Time) []filed {
 	var lines []filed
-	for i, h := range l.records.lines {
-		if !h.At.After(now) {
-			lines = append(lines, filed{Held: h, date: dayfile.DateOf(h.At), place: i})
+	for _, f := range l.records.lines {
+		if !f.At.After(now) {
+			lines = append(lines, f)
 		}
 	}
 	return lines

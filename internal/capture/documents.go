@@ -9,7 +9,6 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
@@ -158,13 +157,13 @@ type accountWorlds struct {
 	now     time.Time
 	year    year
 	past    history
-	traffic func() ([]ledger.Held, []events.Line)
+	traffic func() ([]filed, []events.Line)
 }
 
 // newAccountWorlds are the accounts' worlds at now.
 func newAccountWorlds(now time.Time) accountWorlds {
 	y := newYear(now)
-	traffic := sync.OnceValues(func() ([]ledger.Held, []events.Line) { return heldAsWritten(sessionsLines(now)), routerEvents(now) })
+	traffic := sync.OnceValues(func() ([]filed, []events.Line) { return filedOf(heldAsWritten(sessionsLines(now))), routerEvents(now) })
 	return accountWorlds{now: now, year: y, past: y.readings().history(), traffic: traffic}
 }
 

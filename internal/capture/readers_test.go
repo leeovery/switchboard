@@ -61,7 +61,7 @@ func readersAt(days, hour, minute, second int) time.Time {
 func heldRecords(t *testing.T) *records {
 	t.Helper()
 	return &records{
-		lines: []ledger.Held{
+		lines: filedOf([]ledger.Held{
 			heldLine(t, "r1", sessionAsked, ledger.KindMessage, readersAt(-2, 9, 0, 0)),
 			heldLine(t, "r2", sessionUnasked, ledger.KindMessage, readersAt(-2, 10, 0, 0)),
 			heldLine(t, "r3", sessionChecked, ledger.KindCheck, readersAt(-2, 11, 0, 0)),
@@ -71,7 +71,7 @@ func heldRecords(t *testing.T) *records {
 			heldLine(t, "r7", sessionBoth, ledger.KindCount, readersAt(0, 10, 0, 0)),
 			heldLine(t, "r8", sessionBoth, ledger.KindMessage, readersAt(0, 11, 0, 0)),
 			heldLine(t, "r9", sessionToday, ledger.KindMessage, readersAt(0, 15, 0, 0)),
-		},
+		}),
 		readings: []readings.Reading{
 			{At: readersAt(0, 8, 0, 0), Account: "work", Key: "5h", Utilization: 0.2, ResetsAt: readersAt(0, 12, 0, 0), Source: readings.FromAnswer},
 			{At: readersAt(0, 12, 0, 0), Account: "work", Key: "5h", Utilization: 0.4, ResetsAt: readersAt(0, 17, 0, 0), Source: readings.FromAnswer},

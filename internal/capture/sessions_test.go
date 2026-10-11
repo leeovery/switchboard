@@ -20,7 +20,7 @@ type runningSaid struct {
 // runningOf is what the List says of the sessions running at now, the router
 // listing those given, the ledger holding the lines given.
 func runningOf(sessions []status.Session, lines []ledger.Line, now time.Time) map[string]runningSaid {
-	l, _, _ := (&records{lines: heldAsWritten(lines)}).readers(func() time.Time { return now })
+	l, _, _ := (&records{lines: filedOf(heldAsWritten(lines))}).readers(func() time.Time { return now })
 	list := views.ListSessions(views.SessionSources{Running: sessions, Ledger: l, Prices: drawnPrices, Now: now})
 	said := make(map[string]runningSaid)
 	for _, s := range list.Sessions {
