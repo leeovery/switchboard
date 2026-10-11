@@ -16,24 +16,23 @@ import (
 )
 
 // accountWorld is a frame's accounts at its moment: as configured; as the
-// readings history read them, held whole and, as reading indexes it, each
-// account's alone; and as the router stands with them then, which the
-// readings don't hold: its pin, the limits and refusals in force, when it
+// readings history read them, which its document and its records are both
+// made from; and as the router stands with them then, which the readings
+// don't hold: its pin, the limits and refusals in force, when it
 // last read an account it couldn't read since, how many sessions it sent
 // each in the last hour, and where it sends new sessions, where the frames
 // say so; and whether today's traffic of the three, the sessions' world's,
 // is the world's.
 type accountWorld struct {
-	accounts  config.Accounts
-	history   history
-	histories map[string]history
-	pin       status.Pin
-	limits    map[string]status.Limit
-	refused   map[string]status.Refusal
-	stale     map[string]time.Time
-	sessions  map[string]int
-	best      string
-	traffic   bool
+	accounts config.Accounts
+	history  history
+	pin      status.Pin
+	limits   map[string]status.Limit
+	refused  map[string]status.Refusal
+	stale    map[string]time.Time
+	sessions map[string]int
+	best     string
+	traffic  bool
 }
 
 // document is the router's status document of the world at now, read
@@ -49,8 +48,9 @@ func (w accountWorld) document(now time.Time) status.Document {
 		GeneratedAt: at.UTC(), Source: status.SourceRouter, Pin: w.pin, Router: status.Health{Healthy: true},
 	}
 	var open []status.Account
+	held := w.history.byAccount()
 	for _, a := range w.accounts {
-		st := w.account(a, at)
+		st := w.account(a, held[a.ID], at)
 		doc.Accounts = append(doc.Accounts, st)
 		doc.Sessions += st.Sessions
 		if !st.Shut(at, claude.Policy) {
@@ -62,17 +62,18 @@ func (w accountWorld) document(now time.Time) status.Document {
 	return doc.WorkedOut(claude.Policy)
 }
 
-// account is the account a's status at at, as the router gives it: as last
-// read at at, or, where the world has the router unable to read it since a
-// time, then, its rates and pressure worked out from its readings to then.
-func (w accountWorld) account(a config.Account, at time.Time) status.Account {
+// account is the account a's status at at, its readings history h, as the
+// router gives it: as last read at at, or, where the world has the router
+// unable to read it since a time, then, its rates and pressure worked out
+// from its readings to then.
+func (w accountWorld) account(a config.Account, h history, at time.Time) status.Account {
 	read := at
 	if stale, ok := w.stale[a.ID]; ok {
 		read = stale
 	}
 	st := status.Configured(a)
 	st.TokenSet, st.FetchedAt = true, read.UTC()
-	held := w.histories[a.ID].before(read)
+	held := h.before(read)
 	latest := held.windows(claude.WindowLabel)
 	st.Windows = latest
 	st = st.AsOf(claude.Policy, at)
@@ -81,16 +82,6 @@ func (w accountWorld) account(a config.Account, at time.Time) status.Account {
 	st.Rates = status.RatesOf(latest, trails, at)
 	st.Pressure = pressureOf(st, latest, trails, w.pin.Has(a.ID), at)
 	return st
-}
-
-// reading is the world with h its readings history, each account's indexed
-// by its id.
-func (w accountWorld) reading(h history) accountWorld {
-	w.history, w.histories = h, make(map[string]history)
-	for _, r := range h {
-		w.histories[r.Account] = append(w.histories[r.Account], r)
-	}
-	return w
 }
 
 // trails are how each of the windows of the account whose readings history h
@@ -270,7 +261,7 @@ const framesChoice = "side"
 // traffic is the sessions' world's.
 func (a accountWorlds) auto() accountWorld {
 	accounts := firstAccounts(3)
-	return accountWorld{accounts: accounts, sessions: autoSessions, best: framesChoice, traffic: true}.reading(a.today().three(true).history(accounts))
+	return accountWorld{accounts: accounts, history: a.today().three(true).history(accounts), sessions: autoSessions, best: framesChoice, traffic: true}
 }
 
 // pinned is the auto world's accounts, read as it reads them, with new
@@ -279,9 +270,10 @@ func (a accountWorlds) pinned() accountWorld {
 	accounts := firstAccounts(3)
 	return accountWorld{
 		accounts: accounts,
+		history:  a.today().three(true).history(accounts),
 		pin:      status.Pin{Accounts: []string{"personal"}, Since: dayAt(a.now, today, 14, 2, 0).UTC()},
 		sessions: map[string]int{"personal": 3, "side": 3},
-	}.reading(a.today().three(true).history(accounts))
+	}
 }
 
 // limit is routing's world of a limit: the auto world with personal at its
@@ -290,9 +282,10 @@ func (a accountWorlds) limit() accountWorld {
 	accounts := firstAccounts(3)
 	return accountWorld{
 		accounts: accounts,
+		history:  a.today().three(false).limited().history(accounts),
 		limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
 		sessions: map[string]int{"side": 6},
-	}.reading(a.today().three(false).limited().history(accounts))
+	}
 }
 
 // personalLimited is personal's limit, reached at 14:12, till 15:54.
@@ -319,12 +312,13 @@ func (a accountWorlds) badHour() accountWorld {
 	refused := dayAt(a.now, today, 14, 41, 0)
 	return accountWorld{
 		accounts: accounts,
+		history:  t.history(accounts),
 		pin:      status.Pin{Accounts: []string{"personal", "side"}, Since: dayAt(a.now, today, 13, 40, 0).UTC()},
 		limits:   map[string]status.Limit{"personal": personalLimited(a.now)},
 		refused:  map[string]status.Refusal{"work": {Until: refused.Add(10 * time.Minute).UTC(), Status: 401}},
 		stale:    map[string]time.Time{"work": dayAt(a.now, today, 14, 20, 0)},
 		sessions: map[string]int{"side": 6},
-	}.reading(t.history(accounts))
+	}
 }
 
 // many is the world of the frames of six or ten accounts: the auto world's
@@ -354,7 +348,7 @@ func (a accountWorlds) many(n int) accountWorld {
 	t.session("studio", t.at(6, 15, 0), false, level{t.at(10, 15, 0), .30})
 	t.session("studio", t.at(11, 20, 0), false, level{t.at(14, 41, 59), .33})
 	t.week("studio", .10, level{t.at(14, 41, 59), .41})
-	w := accountWorld{accounts: accounts, sessions: autoSessions, best: framesChoice, traffic: true}.reading(t.history(accounts))
+	w := accountWorld{accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice, traffic: true}
 	if n > slices.IndexFunc(tenAccounts, func(a config.Account) bool { return a.ID == "team" }) {
 		w.limits = map[string]status.Limit{"team": {ID: 1, Windows: []string{sessionKey}, Until: dayAt(a.now, today, 15, 30, 0).UTC()}}
 	}
@@ -376,5 +370,5 @@ func (a accountWorlds) one() accountWorld {
 	h := slices.DeleteFunc(t.history(accounts), func(r readings.Reading) bool {
 		return r.Key == modelKey && r.ResetsAt.Equal(week.resets.UTC()) && r.Utilization > 0
 	})
-	return accountWorld{accounts: accounts, sessions: map[string]int{"work": 5}}.reading(h)
+	return accountWorld{accounts: accounts, history: h, sessions: map[string]int{"work": 5}}
 }
