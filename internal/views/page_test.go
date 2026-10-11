@@ -281,8 +281,7 @@ func TestATurnCountsItsToolsTokensWorthAndAccounts(t *testing.T) {
 	want := []views.Turn{{
 		Turn: 1, Started: utc(local(10, 0, 0)), Ended: utc(local(10, 3, 0)), Requests: 3,
 		Tools: []views.ToolCalls{{Tool: "Bash", Times: 2}, {Tool: "Read", Times: 2}, {Tool: "Grep", Times: 1}},
-		Read:  100000, Written: 1000, Out: 500 + 10 + 10, Worth: micro(hourWorth + smallWorth),
-		Unpriced: []string{"input_tokens", "output_tokens"}, Accounts: []string{"side"},
+		Read:  100000, Written: 1000, Out: 500 + 10 + 10, Worth: priced(hourWorth+smallWorth, "claude-opus-9"), Accounts: []string{"side"},
 	}}
 	if got := pageOf(t, lines, nil).Turns; !reflect.DeepEqual(got, want) {
 		t.Errorf("the turns are\n%+v\nwant\n%+v", got, want)
@@ -304,13 +303,13 @@ func TestTheAccountsItRanOnFollowItsRequestsWhicheverModelEachWas(t *testing.T) 
 	}
 	page := pageOf(t, lines, nil)
 	want := []views.SessionAccount{
-		{Account: "work", From: utc(local(10, 0, 0)), To: utc(local(10, 0, 0)), Requests: 1, Worth: micro(hourWorth)},
-		{Account: "side", From: utc(local(10, 1, 0)), To: utc(local(11, 0, 0)), Requests: 3, Worth: micro(2*hourWorth + smallWorth)},
+		{Account: "work", From: utc(local(10, 0, 0)), To: utc(local(10, 0, 0)), Requests: 1, Worth: priced(hourWorth)},
+		{Account: "side", From: utc(local(10, 1, 0)), To: utc(local(11, 0, 0)), Requests: 3, Worth: priced(2*hourWorth + smallWorth)},
 	}
 	if !reflect.DeepEqual(page.Accounts, want) {
 		t.Errorf("the accounts are\n%+v\nwant\n%+v", page.Accounts, want)
 	}
-	totals := views.SessionTotals{Requests: 5, FromCache: 300000.0 / (3*101010 + 100), Worth: micro(3*hourWorth + smallWorth)}
+	totals := views.SessionTotals{Requests: 5, FromCache: 300000.0 / (3*101010 + 100), Worth: priced(3*hourWorth + smallWorth)}
 	if !reflect.DeepEqual(page.Totals, totals) {
 		t.Errorf("the totals are %+v, want %+v, the request no account answered among them", page.Totals, totals)
 	}
@@ -678,13 +677,13 @@ func TestTheRoutersSayJoinsWhatItsLinesTell(t *testing.T) {
 		Models: []views.SessionModel{{Model: opus, Account: "side", Reason: "pinned"}}, State: status.Asking, MoveCost: cost(hourRewrite),
 		Pin: "side", Started: utc(local(13, 0, 0)),
 		Accounts: []views.SessionAccount{
-			{Account: "work", From: utc(local(13, 0, 0)), To: utc(local(13, 0, 0)), Requests: 1, Worth: micro(hourWorth)},
-			{Account: "side", From: utc(local(13, 5, 0)), To: utc(local(13, 5, 0)), Requests: 1, Worth: micro(hourWorth)},
+			{Account: "work", From: utc(local(13, 0, 0)), To: utc(local(13, 0, 0)), Requests: 1, Worth: priced(hourWorth)},
+			{Account: "side", From: utc(local(13, 5, 0)), To: utc(local(13, 5, 0)), Requests: 1, Worth: priced(hourWorth)},
 		},
 		Moves: []views.SessionMove{{At: utc(local(13, 5, 0)), Model: opus, From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite)}},
 		Turns: []views.Turn{{Turn: 1, Started: utc(local(13, 0, 0)), Ended: utc(local(13, 5, 0)), Requests: 2, Tools: []views.ToolCalls{},
-			Read: 200000, Written: 2000, Out: 1000, Worth: micro(2 * hourWorth), Accounts: []string{"work", "side"}}},
-		Totals: views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: micro(2 * hourWorth)},
+			Read: 200000, Written: 2000, Out: 1000, Worth: priced(2 * hourWorth), Accounts: []string{"work", "side"}}},
+		Totals: views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: priced(2 * hourWorth)},
 	}
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")

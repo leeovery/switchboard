@@ -251,24 +251,26 @@ func TestWhatThePricesCantPriceIsLeftUnpricedNotGuessed(t *testing.T) {
 	}
 }
 
-func TestAnAmountIsShownToTheCentAndGivenInDollarsExactly(t *testing.T) {
+func TestAnAmountIsShownToTheCentOrTheDollarAndGivenInDollarsExactly(t *testing.T) {
 	tests := []struct {
-		amount ledger.Picodollars
-		cents  string
-		json   string
+		amount         ledger.Picodollars
+		cents, dollars string
+		json           string
 	}{
-		{amount: 0, cents: "$0.00", json: "0"},
-		{amount: 1, cents: "$0.00", json: "0.000000000001"},
-		{amount: dollars(0.004999), cents: "$0.00", json: "0.004999"},
-		{amount: dollars(0.005), cents: "$0.01", json: "0.005"},
-		{amount: dollars(412.532118), cents: "$412.53", json: "412.532118"},
-		{amount: dollars(12), cents: "$12.00", json: "12"},
-		{amount: -dollars(1.25), cents: "-$1.25", json: "-1.25"},
+		{amount: 0, cents: "$0.00", dollars: "$0", json: "0"},
+		{amount: 1, cents: "$0.00", dollars: "$0", json: "0.000000000001"},
+		{amount: dollars(0.004999), cents: "$0.00", dollars: "$0", json: "0.004999"},
+		{amount: dollars(0.005), cents: "$0.01", dollars: "$0", json: "0.005"},
+		{amount: dollars(46.153846), cents: "$46.15", dollars: "$46", json: "46.153846"},
+		{amount: dollars(412.532118), cents: "$412.53", dollars: "$413", json: "412.532118"},
+		{amount: dollars(12), cents: "$12.00", dollars: "$12", json: "12"},
+		{amount: -dollars(1.5), cents: "-$1.50", dollars: "-$2", json: "-1.5"},
 	}
 	for _, tt := range tests {
 		got, err := json.Marshal(tt.amount)
-		if tt.amount.Cents() != tt.cents || err != nil || string(got) != tt.json {
-			t.Errorf("%d picodollars shows as %s and is given as %s (%v), want %s and %s", tt.amount, tt.amount.Cents(), got, err, tt.cents, tt.json)
+		if tt.amount.Cents() != tt.cents || tt.amount.Dollars() != tt.dollars || err != nil || string(got) != tt.json {
+			t.Errorf("%d picodollars shows as %s and %s and is given as %s (%v), want %s, %s and %s",
+				tt.amount, tt.amount.Cents(), tt.amount.Dollars(), got, err, tt.cents, tt.dollars, tt.json)
 		}
 	}
 }
@@ -295,7 +297,7 @@ func TestASummaryIsPricedModelByModel(t *testing.T) {
 		`{"model":"claude-opus-5-5","upstream":2,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.006},` +
 		`{"model":"claude-opus-5-5","inference_geo":"us","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,` +
 		`"usage":{"input_tokens":1000,"output_tokens":100},"worth":0.0066},` +
-		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000}},` +
+		`{"model":"claude-opus-9","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000},"unpriced":["claude-opus-9"]},` +
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,"sessions":0,` +
 		`"usage":{"input_tokens":8,"output_tokens":1,"server_tool_use":{"code_execution_requests":1}},"worth":0.000013,"unpriced":["server_tool_use.code_execution_requests"]},` +
 		`{"model":"claude-sonnet-5-5","upstream":2,"no_usage":1,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100},` +
@@ -305,6 +307,33 @@ func TestASummaryIsPricedModelByModel(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("the priced summary is\n%s\nwant\n%s: each model's worth beside it, none where the model is unpriced, and the requests that went "+
 			"upstream without usage named unpriced, never free", got, want)
+	}
+}
+
+func TestAModelsDayTheTablePricesNoneOfNamesWhy(t *testing.T) {
+	spent := usage(`{"input_tokens":1000}`)
+	tests := []struct {
+		name  string
+		model ledger.ModelDay
+		want  []string
+	}{
+		{name: "a model the table doesn't know, by its id", model: ledger.ModelDay{Model: "claude-opus-9", Upstream: 1, Usage: spent},
+			want: []string{"claude-opus-9"}},
+		{name: "a geo the table doesn't price a model it knows in, by the geo", model: ledger.ModelDay{Model: "claude-opus-5-5", InferenceGeo: "eu", Upstream: 1, Usage: spent},
+			want: []string{"inference_geo:eu"}},
+		{name: "requests that named no model", model: ledger.ModelDay{Upstream: 1, Usage: spent}, want: []string{"no_model"}},
+		{name: "and requests that went upstream without usage", model: ledger.ModelDay{Model: "claude-opus-9", Upstream: 1, NoUsage: 1},
+			want: []string{"claude-opus-9", "no_usage"}},
+		{name: "none where they spent nothing, their worth none", model: ledger.ModelDay{Model: "claude-opus-9", Unsent: 2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			summary := ledger.Summary{Version: 2, Day: date, Accounts: []ledger.AccountDay{{Account: "work", Models: []ledger.ModelDay{tt.model}}}}
+			got := ledger.Pricing.Priced(summary, today).Accounts[0].Models[0]
+			if got.Worth != nil || !slices.Equal(got.Unpriced, tt.want) {
+				t.Errorf("the model's day is worth %v, unpriced %q, want no worth, unpriced %q", got.Worth, got.Unpriced, tt.want)
+			}
+		})
 	}
 }
 
@@ -392,32 +421,37 @@ func TestAMovesCostIsUnpricedWhereItsRequestIs(t *testing.T) {
 
 func TestASumOfRequestsNamesWhatItCantPrice(t *testing.T) {
 	tests := []struct {
-		name string
-		edit func(l *ledger.Line)
-		want ledger.Worth
+		name   string
+		edit   func(l *ledger.Line)
+		want   ledger.Worth
+		priced bool
 	}{
-		{name: "one the table prices, at its worth", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}},
+		{name: "one the table prices, at its worth", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}, priced: true},
 		{name: "one the table prices, but without usage", edit: func(l *ledger.Line) { l.Usage, l.CutOff = nil, true },
-			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
-		{name: "one of a model the table doesn't know, its every count that costs anything", edit: func(l *ledger.Line) {
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}, priced: true},
+		{name: "one of a model the table doesn't know, by its id", edit: func(l *ledger.Line) {
 			l.Model = "claude-opus-9"
 			l.Usage = usage(`{"input_tokens":10,"cache_read_input_tokens":0,"output_tokens":20,"output_tokens_details":{"thinking_tokens":5},` +
 				`"server_tool_use":{"web_fetch_requests":1,"web_search_requests":1}}`)
-		}, want: ledger.Worth{Unpriced: []string{"input_tokens", "output_tokens", "server_tool_use.web_search_requests"}}},
+		}, want: ledger.Worth{Unpriced: []string{"claude-opus-9"}}},
 		{name: "one of a model the table doesn't know, without usage", edit: func(l *ledger.Line) { l.Model, l.Usage = "claude-opus-9", nil },
-			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+			want: ledger.Worth{Unpriced: []string{"claude-opus-9", "no_usage"}}},
+		{name: "one of a model the table doesn't know whose usage costs nothing, none", edit: func(l *ledger.Line) {
+			l.Model, l.Usage = "claude-opus-9", usage(`{"input_tokens":0,"server_tool_use":{"web_fetch_requests":1}}`)
+		}},
 		{name: "one of a model the table doesn't know, the router answered itself", edit: func(l *ledger.Line) {
 			l.Model, l.Usage, l.Attempts, l.Status = "claude-opus-9", nil, 0, 429
 		}},
-		{name: "one in a geo the table doesn't price its model in", edit: func(l *ledger.Line) { l.Model, l.Shape.InferenceGeo = "claude-haiku-4-5", "us" },
-			want: ledger.Worth{Unpriced: []string{"input_tokens", "output_tokens"}}},
+		{name: "one in a geo the table doesn't price its model in, by the geo", edit: func(l *ledger.Line) { l.Model, l.Shape.InferenceGeo = "claude-haiku-4-5", "us" },
+			want: ledger.Worth{Unpriced: []string{"inference_geo:us"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			line := asked("1", on(0, 9, 0))
 			tt.edit(&line)
-			if got := ledger.Pricing.Summed(&line, today); got.Cost != tt.want.Cost || !slices.Equal(got.Unpriced, tt.want.Unpriced) {
-				t.Errorf("Summed() = %+v, want %+v", got, tt.want)
+			got, priced := ledger.Pricing.Summed(&line, today)
+			if got.Cost != tt.want.Cost || !slices.Equal(got.Unpriced, tt.want.Unpriced) || priced != tt.priced {
+				t.Errorf("Summed() = %+v, priced: %v, want %+v, priced: %v", got, priced, tt.want, tt.priced)
 			}
 		})
 	}

@@ -76,7 +76,7 @@ type turnTally struct {
 	requests               int
 	tools                  map[string]int
 	read, written, out     int
-	worth                  worthSum
+	worth                  Worth
 	accounts, mainAccounts []string
 }
 
@@ -113,7 +113,7 @@ func (t *turnTally) calling() bool {
 func (t *turnTally) turn(n int, going bool) Turn {
 	turn := Turn{
 		Turn: n, Started: t.started.UTC(), Requests: t.requests, Tools: toolsCalled(t.tools), Read: t.read, Written: t.written, Out: t.out,
-		Worth: t.worth.cost, Unpriced: t.worth.unpriced, Accounts: t.accounts,
+		Worth: t.worth, Accounts: t.accounts,
 	}
 	if t.lastMain != nil {
 		turn.Accounts = t.mainAccounts

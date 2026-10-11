@@ -228,7 +228,7 @@ func (l *Ledger) writeSummary(day dueDay, history Readings) error {
 	if err := l.days.mark(summary, stat); err != nil {
 		return err
 	}
-	l.days.logger.Info("summarised a day of the request ledger", "day", day.date, "requests", summary.requests())
+	l.days.logger.Info("summarised a day of the request ledger", "day", day.date, "lines", summary.linesCounted())
 	return nil
 }
 

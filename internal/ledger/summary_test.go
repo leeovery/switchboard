@@ -745,7 +745,7 @@ func TestADayIsSummarisedOnTheFirstRoundAnHourAfterItEndsAndTodayNever(t *testin
 		if got := heldSummary(t, dir, "2026-10-06"); got != "" {
 			t.Errorf("today was summarised, as\n%s\nwant it never, as it hasn't ended", got)
 		}
-		if !log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "day="+date, "requests=2") {
+		if !log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "day="+date, "lines=2") {
 			t.Errorf("log reads\n%s\nwant the day summarised noted, with its requests", log)
 		}
 	})
@@ -1403,7 +1403,7 @@ func TestARoundSummarisesADayOfNoRequestsTheReadingsHistoryTellsOf(t *testing.T)
 			wholeSeconds(t, summaryFile(dir, date))
 			unopenable(t, dir, "day-"+date+".json")
 			l.SummariseEnded(tt.at.Add(time.Hour))
-			if n := opened(log); n != 0 || !log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "day="+date, "requests=0") {
+			if n := opened(log); n != 0 || !log.Has("level=INFO", `msg="summarised a day of the request ledger"`, "day="+date, "lines=0") {
 				t.Errorf("log reads\n%s\nwant the day summarised noted, and the round after reading its summary %d times, none: its stamp tells it stands", log, n)
 			}
 		})

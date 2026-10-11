@@ -253,6 +253,23 @@ func TestTheTokensAreThoseTheUsageCounts(t *testing.T) {
 	}
 }
 
+func TestAModelsDaysRequestsAreItsMessagesAlone(t *testing.T) {
+	tests := []struct {
+		name string
+		day  ledger.ModelDay
+		want int
+	}{
+		{name: "those that went upstream and those the router answered", day: ledger.ModelDay{Upstream: 412, NoUsage: 2, Unsent: 3}, want: 415},
+		{name: "never the checks or the counts", day: ledger.ModelDay{Upstream: 1, Checks: 3, Counts: 9}, want: 1},
+		{name: "none", day: ledger.ModelDay{Checks: 1}, want: 0},
+	}
+	for _, tt := range tests {
+		if got := tt.day.Requests(); got != tt.want {
+			t.Errorf("of %s, a model's day's Requests() = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
 // write has a ledger kept in dir, by now's clock, note lines, and returns once
 // it has written every one it can.
 func write(t *testing.T, dir string, lines ...*ledger.Line) {

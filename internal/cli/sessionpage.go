@@ -90,8 +90,8 @@ func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 		}
 	}
 	t := p.Totals
-	fmt.Fprintf(&b, "\n%s%s%s%s%d%% from cache%s%s at API prices\n", turnsCount(t.Turns), status.Separator, requestsCount(t.Requests), status.Separator,
-		int(math.Round(t.FromCache*100)), status.Separator, worthSaid(t.Worth, t.Unpriced))
+	fmt.Fprintf(&b, "\n%s%s%s%s%d%% from cache%s%s at API prices\n", prose.Counted(t.Turns, "turn"), status.Separator, prose.Counted(t.Requests, "request"), status.Separator,
+		int(math.Round(t.FromCache*100)), status.Separator, worthSaid(t.Worth))
 	if len(p.Turns) > 0 {
 		if err := writeTable(&b, turnRows(p, now)); err != nil {
 			return err
@@ -227,8 +227,8 @@ func ranOnRows(p views.SessionPage, now time.Time) [][]string {
 	spans := !sameDay(now, first, last.To)
 	rows := make([][]string, len(p.Accounts))
 	for i, a := range p.Accounts {
-		rows[i] = []string{status.Clean(a.Account), stint(a, p.Running && a.Account == last.Account, spans, now), requestsCount(a.Requests),
-			pointsSaid(a.Points), worthSaid(a.Worth, a.Unpriced)}
+		rows[i] = []string{status.Clean(a.Account), stint(a, p.Running && a.Account == last.Account, spans, now), prose.Counted(a.Requests, "request"),
+			pointsSaid(a.Points), worthSaid(a.Worth)}
 	}
 	return rows
 }
@@ -294,8 +294,8 @@ var turnHeads = []string{"#", "started", "took", "requests", "tools", "read", "w
 func turnRows(p views.SessionPage, now time.Time) [][]string {
 	rows := [][]string{turnHeads}
 	for _, t := range p.Turns {
-		rows = append(rows, []string{strconv.Itoa(t.Turn), status.Past(now, t.Started), turnTook(t, now), thousands(t.Requests), toolsSaid(t.Tools),
-			prose.Count(t.Read), prose.Count(t.Written), prose.Count(t.Out), worthSaid(t.Worth, t.Unpriced), accountsSaid(t.Accounts)})
+		rows = append(rows, []string{strconv.Itoa(t.Turn), status.Past(now, t.Started), turnTook(t, now), prose.Grouped(t.Requests), toolsSaid(t.Tools),
+			prose.Count(t.Read), prose.Count(t.Written), prose.Count(t.Out), worthSaid(t.Worth), accountsSaid(t.Accounts)})
 	}
 	return rows
 }
@@ -333,11 +333,4 @@ func accountsSaid(accounts []string) string {
 		said[i] = status.Clean(a)
 	}
 	return strings.Join(said, " → ")
-}
-
-func turnsCount(n int) string {
-	if n == 1 {
-		return "1 turn"
-	}
-	return thousands(n) + " turns"
 }
