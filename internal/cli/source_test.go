@@ -17,7 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -146,18 +147,29 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	tests := []struct {
 		args   []string
 		probes bool
+		// status is the printout's status line, and next the account new
+		// sessions go to, which carries ▲.
+		status, next string
 	}{
-		{},
-		{args: []string{"--probe"}, probes: true},
+		{status: "● healthy  ·  pinned to Side  ·  1 session  ·  new sessions → ▲ Side", next: "Side"},
+		{args: []string{"--probe"}, probes: true, status: "○ probed, as asked", next: "Work"},
 	}
 	for _, tt := range tests {
 		before := len(api.questions())
 		got := run(t, srv.deps, append([]string{"usage"}, tt.args...)...)
-		if got.code != 0 || got.stderr != "" || !strings.HasPrefix(got.stdout, "\n") {
-			t.Errorf("switchboard usage %s = %+v, want exit status 0, nothing on stderr, and the printout after a blank line", strings.Join(tt.args, " "), got)
+		printed := ansi.Strip(got.stdout)
+		if got.code != 0 || got.stderr != "" || !strings.HasPrefix(printed, "\n SWITCHBOARD ") || !strings.Contains(printed, "\n"+tt.status+"\n") {
+			t.Errorf("switchboard usage %s = %+v, want exit status 0, nothing on stderr, and the printout after a blank line, its status %q",
+				strings.Join(tt.args, " "), got, tt.status)
 		}
 		if probed := len(api.questions()) > before; probed != tt.probes {
 			t.Errorf("switchboard usage %s probed the accounts: %v, want %v", strings.Join(tt.args, " "), probed, tt.probes)
+		}
+		for _, label := range []string{"Work", "Personal", "Side"} {
+			row := printedRow(got.stdout, "5-HOUR", label)
+			if marked := strings.Contains(row, "▲"); marked != (label == tt.next) {
+				t.Errorf("switchboard usage %s printed %s's row as %q, marked ▲: %v, want ▲ on %s alone", strings.Join(tt.args, " "), label, row, marked, tt.next)
+			}
 		}
 	}
 }
@@ -224,20 +236,20 @@ func TestUsageRefreshHasTheRouterReadWhatItHasntInAMinute(t *testing.T) {
 		used := fmt.Sprintf("0.%d", 31+i)
 		api.readSessionAs(used)
 		asked := len(api.questions())
-		if got := run(t, srv.deps, args...); got.code != 0 || got.stderr != "" {
+		got := run(t, srv.deps, args...)
+		if got.code != 0 || got.stderr != "" {
 			t.Fatalf("switchboard %s = %+v, want exit status 0 and nothing on stderr", strings.Join(args, " "), got)
 		}
 		refreshed := len(api.questions()) > asked
 		if want := len(args) > 1; refreshed != want {
 			t.Errorf("after switchboard %s, the router probed = %v, want %v", strings.Join(args, " "), refreshed, want)
 		}
-		shown := "0.23"
+		shown := " 23% "
 		if refreshed {
-			shown = used
+			shown = fmt.Sprintf(" %d%% ", 31+i)
 		}
-		doc := statusJSON(t, srv.deps)
-		if work, _ := doc.Account("work"); len(work.Windows) == 0 || fmt.Sprint(work.Windows[0].Utilization) != shown {
-			t.Errorf("after switchboard %s, the router's document is\n%+v\nwant work's session at %s, as the router last read it", strings.Join(args, " "), doc, shown)
+		if row := printedRow(got.stdout, "5-HOUR", "Work"); !strings.Contains(row, shown) {
+			t.Errorf("switchboard %s printed work's 5-hour window as %q, want it at%s as the router last read it", strings.Join(args, " "), row, shown)
 		}
 	}
 }
@@ -258,17 +270,17 @@ func TestUsageRefreshSeesALimitResetByHand(t *testing.T) {
 	later.Store(int64(5 * time.Hour))
 	api.limitWeek(false)
 
-	// Work's limit holds it back from every request: its Fable week's, the
-	// fake API's, holds back that model's alone.
-	shut := func() bool {
-		work, _ := statusJSON(t, srv.deps).Account("work")
-		return work.Shut(srv.deps.Now(), claude.Policy)
+	// Work's limit, of its week, holds it back from every request: its Fable
+	// week's, the fake API's, holds back that model's alone.
+	const limited = "limit · back Fri 21:00"
+	got := run(t, srv.deps, "usage")
+	if row := printedRow(got.stdout, "WEEK", "Work"); got.code != 0 || !strings.HasSuffix(row, limited) {
+		t.Fatalf("switchboard usage = %+v, printing work's week as %q; want it to end %q, the limit the router hasn't read since", got, row, limited)
 	}
-	if got := run(t, srv.deps, "usage"); got.code != 0 || !shut() {
-		t.Fatalf("switchboard usage = %+v, leaving work shut %v; want work's limit, which the router hasn't read since", got, shut())
-	}
-	if got := run(t, srv.deps, "usage", "--refresh"); got.code != 0 || shut() {
-		t.Errorf("switchboard usage --refresh = %+v, leaving work shut; want work's limit lifted: its probe, though its session has lapsed, read the reset", got)
+	got = run(t, srv.deps, "usage", "--refresh")
+	if row := printedRow(got.stdout, "WEEK", "Work"); got.code != 0 || strings.Contains(row, "limit") || !strings.Contains(row, " 93% ") {
+		t.Errorf("switchboard usage --refresh = %+v, printing work's week as %q; want it at 93%%, its limit lifted: its probe, though its session has lapsed, read the reset",
+			got, row)
 	}
 }
 

@@ -80,8 +80,14 @@ func TestSetup(t *testing.T) {
 			t.Errorf("switchboard setup printed\n%s\nwant it to hold\n%s", got.stdout, want)
 		}
 	}
-	if _, usage, _ := strings.Cut(got.stdout, "\n6. Usage\n"); !strings.HasPrefix(usage, "\n SWITCHBOARD ") {
-		t.Errorf("setup ended\n%s\nwant it to end printing usage", usage)
+	_, usage, _ := strings.Cut(got.stdout, "\n6. Usage\n")
+	if !strings.HasPrefix(usage, "\n SWITCHBOARD ") || !strings.HasSuffix(usage, "even pace: where you would be now, used evenly\n╎ cap: Work at 95%\n") {
+		t.Errorf("setup ended\n%s\nwant it to end printing usage, from its header to its key line", usage)
+	}
+	for _, label := range []string{"Work", "Personal", "Side"} {
+		if printedRow(usage, "5-HOUR", label) == "" || printedRow(usage, "WEEK", label) == "" {
+			t.Errorf("setup ended\n%s\nwant it to show %s's windows", usage, label)
+		}
 	}
 	if config := readFile(t, s.srv.config); !strings.Contains(config, "id      = \"work\"\nlabel   = \"Work\"\nreserve = 0.05\nprimary = true\n") {
 		t.Errorf("the config reads\n%s\nwant work marked the primary", config)

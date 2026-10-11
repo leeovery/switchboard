@@ -40,9 +40,20 @@ func TestUsagePrettyOffATerminalIsPrintedWithoutColourUnlessCLIColorForceAsks(t 
 			if got.code != 0 || coloured != tt.wantColour || escaped != tt.wantColour {
 				t.Fatalf("switchboard usage --pretty, off a terminal, = %+v, want exit status 0, and in colour: %v", got, tt.wantColour)
 			}
-			if want := ansi.Strip(run(t, goldenDeps(t, env), "usage").stdout); ansi.Strip(got.stdout) != want {
-				t.Errorf("switchboard usage --pretty, off a terminal, printed, stripped of its escapes,\n%s\nwant what it prints on one\n%s",
-					ansi.Strip(got.stdout), want)
+			// Without colour, a bar's fill is drawn in █; in colour, its cells
+			// are spaces on the ramp's colours.
+			noColour := maps.Clone(env)
+			noColour["NO_COLOR"] = "1"
+			want := ansi.Strip(run(t, goldenDeps(t, noColour), "usage").stdout)
+			if tt.wantColour {
+				want = strings.ReplaceAll(want, "█", " ")
+			}
+			if !strings.Contains(want, "█") && !tt.wantColour {
+				t.Fatalf("switchboard usage under NO_COLOR printed\n%s\nwant its bars' fills drawn in █", want)
+			}
+			if ansi.Strip(got.stdout) != want {
+				t.Errorf("switchboard usage --pretty, off a terminal, printed, stripped of its escapes,\n%s\nwant what it prints on one under NO_COLOR%s\n%s",
+					ansi.Strip(got.stdout), map[bool]string{true: ", its █ fills spaces", false: ""}[tt.wantColour], want)
 			}
 		})
 	}
@@ -59,8 +70,13 @@ func TestUsageRefreshWithoutTheRouterProbesAsUsageDoes(t *testing.T) {
 		return run(t, deps, append([]string{"usage"}, args...)...), api.questions()
 	}
 	want, probes := usage()
-	if want.code != 0 || want.stderr != "" || len(probes) == 0 {
-		t.Fatalf("switchboard usage = %+v, asking the API %q; want exit status 0, nothing on stderr, and every account probed", want, probes)
+	if want.code != 0 || want.stderr != "" || len(probes) == 0 || !strings.Contains(want.stdout, "\n○ probed · router not running\n") {
+		t.Fatalf("switchboard usage = %+v, asking the API %q; want exit status 0, nothing on stderr, and every account probed, as the printout says", want, probes)
+	}
+	for _, label := range []string{"Work", "Personal", "Side"} {
+		if printedRow(want.stdout, "5-HOUR", label) == "" {
+			t.Errorf("switchboard usage printed\n%s\nwant a row of %s's 5-hour window", want.stdout, label)
+		}
 	}
 	for _, flag := range []string{"--refresh", "-r"} {
 		t.Run(flag, func(t *testing.T) {
@@ -239,6 +255,22 @@ func refusingAPI(t *testing.T) string {
 	}))
 	t.Cleanup(srv.Close)
 	return srv.URL
+}
+
+// printedRow is the row usage printed on stdout, stripped of its escapes and
+// of the spaces it ends with, of the account labelled, in the section under
+// heading, as the windows stacked print it: "" where there's none.
+func printedRow(stdout, heading, label string) string {
+	_, section, ok := strings.Cut(ansi.Strip(stdout), "\n"+heading+"\n")
+	if !ok {
+		return ""
+	}
+	for row := range strings.SplitSeq(section, "\n") {
+		if fields := strings.Fields(row); len(fields) > 1 && fields[1] == label {
+			return strings.TrimRight(row, " ")
+		}
+	}
+	return ""
 }
 
 // goldenDeps are statusDeps on a terminal, so usage draws its printout, with
