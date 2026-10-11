@@ -31,7 +31,8 @@ type usageBar struct {
 // draw draws the bar cells long from x along row y, as look draws its cells:
 // its fill, eighths of a cell at a time, each cell in the ramp's colour where
 // it sits; its track; its cap's mark on the cell's own background; and even
-// pace's mark last, over the rest, on no background.
+// pace's mark last, over the rest, on no background. A bar of no cells draws
+// nothing, no mark either.
 func (b usageBar) draw(c *canvas, look Look, x, y, cells int) {
 	filled := 0
 	if !b.empty {
@@ -41,7 +42,7 @@ func (b usageBar) draw(c *canvas, look Look, x, y, cells int) {
 		glyph, k := barCell(look, min(max(filled-8*i, 0), 8), rampStep(i, cells))
 		c.text(x+i, y, glyph, b.faded(k))
 	}
-	if b.empty {
+	if b.empty || cells <= 0 {
 		return
 	}
 	if at := halfEven(b.capAt * float64(cells)); at < cells {

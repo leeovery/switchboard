@@ -403,6 +403,28 @@ func TestAPinSpendsTheCapsOfTheAccountsItNamesKeepingTheirMarks(t *testing.T) {
 	}
 }
 
+func TestABarOfNoCellsDrawsNoMarkOutsideIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		by    By
+		width int
+	}{
+		{name: "stacked, the bar just gone", by: ByWindow, width: 38},
+		{name: "stacked, narrower still", by: ByWindow, width: 30},
+		{name: "by account, the bar just gone", by: ByAccount, width: 34},
+		{name: "by account, narrower still", by: ByAccount, width: 30},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := printed(trio(), tt.width, tt.by)
+			block := rows[:len(rows)-2]
+			if i := slices.IndexFunc(block, func(r string) bool { return strings.ContainsAny(r, paceMark+capMark) }); i >= 0 {
+				t.Errorf("at %d columns, with no cells to its bars, row %d draws a mark: %q", tt.width, i, block[i])
+			}
+		})
+	}
+}
+
 func TestTheKeyLineSaysWhatTheMarksMean(t *testing.T) {
 	pace := "┃ even pace: where you would be now, used evenly"
 	capped := func(id string, reserve float64) func(*status.Document) {
