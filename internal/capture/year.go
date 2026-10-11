@@ -412,8 +412,9 @@ func (y year) spendThisWeek() {
 // spendAsThisWeek spends the account with the given id's days as it spent
 // this week before today, worth and requests alike, for each point of its
 // week used: this week's days as spent shares them, and every day before no
-// worth where too little used for a request. It panics where its week rose
-// none this week, to spend by.
+// worth where too little used for a request. An account that spent nothing
+// this week spends nothing on any day; one whose week rose none this week,
+// with something to spend, panics as spent does.
 func (y year) spendAsThisWeek(id string) {
 	days := y.days[id]
 	requests, worth := weekUses[id].beforeToday()
@@ -422,14 +423,14 @@ func (y year) spendAsThisWeek(id string) {
 	for _, day := range days[thisWeek:today] {
 		rises, risen = append(rises, day.rise), risen+day.rise
 	}
-	if risen == 0 {
-		panic(fmt.Sprintf("capture: %s's week rose none from %s to %s, to spend its days by as it spent those", id, dateOf(thisWeek), dateOf(today-1)))
-	}
 	worths, counts := spent(worth, requests, rises, fmt.Sprintf("%s's days from %s to %s", id, dateOf(thisWeek), dateOf(today-1)))
 	for i := range worths {
 		days[thisWeek+i].worth, days[thisWeek+i].requests = worths[i], counts[i]
 	}
-	worthAPoint, requestsAPoint := worth/risen, float64(requests)/risen
+	var worthAPoint, requestsAPoint float64
+	if risen > 0 {
+		worthAPoint, requestsAPoint = worth/risen, float64(requests)/risen
+	}
 	for d := firstDay(id); d < thisWeek; d++ {
 		days[d].requests = int(math.Round(days[d].rise * requestsAPoint))
 		days[d].worth = days[d].rise * worthAPoint * float64(min(days[d].requests, 1))
@@ -438,10 +439,15 @@ func (y year) spendAsThisWeek(id string) {
 
 // spent shares worth and requests among parts as their weights are: the
 // requests in whole ones, as apportion shares them, and the worth among the
-// parts that had one, none on a part too little used for a request. It
-// panics, naming the parts as parts does, where there's less than none to
-// share, or worth or a request and no part that had one to put it on.
+// parts that had one, none on a part too little used for a request. A worth
+// within a hundredth of a cent of none, as a difference of worths can leave,
+// is none. It panics, naming the parts as parts does, where there's less than
+// none to share, requests and no part that rose to put one on, or worth and
+// no request to put it on.
 func spent(worth float64, requests int, weights []float64, parts string) ([]float64, []int) {
+	if math.Abs(worth) < aHundredthOfACent {
+		worth = 0
+	}
 	if worth < 0 || requests < 0 {
 		panic(fmt.Sprintf("capture: %d requests and $%.2f to spend over %s, less than none", requests, worth, parts))
 	}
@@ -452,8 +458,11 @@ func spent(worth float64, requests int, weights []float64, parts string) ([]floa
 			had += w
 		}
 	}
-	if had == 0 && (worth > 0 || requests > 0) {
-		panic(fmt.Sprintf("capture: %d requests and $%.2f to spend over %s, none of which rose its week enough for a request", requests, worth, parts))
+	if had == 0 && requests > 0 {
+		panic(fmt.Sprintf("capture: %d requests and $%.2f to spend over %s, none of which rose its week to put a request on", requests, worth, parts))
+	}
+	if had == 0 && worth > 0 {
+		panic(fmt.Sprintf("capture: $%.2f to spend over %s, with no request to put it on", worth, parts))
 	}
 	worths := make([]float64, len(weights))
 	for i, w := range weights {
@@ -463,6 +472,9 @@ func spent(worth float64, requests int, weights []float64, parts string) ([]floa
 	}
 	return worths, counts
 }
+
+// aHundredthOfACent is the least worth spent tells from none, in dollars.
+const aHundredthOfACent = 1e-4
 
 // weightsOf are what weigh gives each of days.
 func weightsOf(days []int, weigh func(int) float64) []float64 {
