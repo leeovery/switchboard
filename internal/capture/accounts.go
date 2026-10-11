@@ -29,9 +29,10 @@ var tenAccounts = config.Accounts{
 	{ID: "studio", Label: "studio", Plan: max20x},
 }
 
-// firstAccounts are the first n of tenAccounts, as the frames of one, three
-// and six accounts configure them. With one, work is alone, and the primary,
-// as the config makes the first account the primary where it marks none.
+// firstAccounts are the first n of tenAccounts, a world's own, as the frames
+// of one, three, six and ten accounts configure them. With one, work is
+// alone, and the primary, as the config makes the first account the primary
+// where it marks none.
 func firstAccounts(n int) config.Accounts {
 	accounts := slices.Clone(tenAccounts[:n])
 	if !slices.ContainsFunc(accounts, func(a config.Account) bool { return a.Primary }) {

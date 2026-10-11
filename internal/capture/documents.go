@@ -324,7 +324,7 @@ func (a accountWorlds) badHour() accountWorld {
 // since 13:58 till 15:30, extra, ops and studio. Today's traffic is the
 // auto world's, the seven having none.
 func (a accountWorlds) many(n int) accountWorld {
-	accounts := tenAccounts[:n]
+	accounts := firstAccounts(n)
 	t := a.today().three(true)
 	t.session("client", t.at(7, 35, 0), false, level{t.at(11, 35, 0), .30})
 	t.session("client", t.at(12, 40, 0), false, level{t.at(14, 40, 0), .52})

@@ -220,6 +220,30 @@ func TestAnAccountReadLongAgoIsWorkedOutFromItsReadingsToThen(t *testing.T) {
 	}
 }
 
+// A world's accounts are its own: changing them changes no other's, nor the
+// ten the frames number.
+func TestAWorldsAccountsAreItsOwn(t *testing.T) {
+	worlds := worldsNow()
+	numbered := slices.Clone(tenAccounts)
+	t.Cleanup(func() { copy(tenAccounts, numbered) })
+	tests := []struct {
+		name  string
+		world accountWorld
+	}{
+		{name: "work alone", world: worlds.one()},
+		{name: "auto", world: worlds.auto()},
+		{name: "six accounts", world: worlds.many(6)},
+		{name: "ten accounts", world: worlds.many(10)},
+	}
+	for _, tt := range tests {
+		tt.world.accounts[0].Label = "changed"
+		if !reflect.DeepEqual(tenAccounts, numbered) {
+			t.Errorf("changing the accounts of %s changed the ten the frames number, to %+v", tt.name, tenAccounts)
+			copy(tenAccounts, numbered)
+		}
+	}
+}
+
 func TestTheWorldsAccountsAreTheSpecsInConfigOrder(t *testing.T) {
 	want := []string{
 		"work reserve 0.05 max20x", "personal primary max20x", "side max20x", "client max20x", "spare max5x",
