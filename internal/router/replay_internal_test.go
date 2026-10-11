@@ -202,10 +202,12 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *t
 		// rewritten, and what has the router take it up, as its look at the
 		// token files does. Side serves every request.
 		script func(holds func(token string) func(), lookAt func()) map[string][]answer
-		// wantTokens are the tokens the request went out with, in turn, and
-		// wantRefused whether work is barred for it.
+		// wantTokens are the tokens the request went out with, in turn,
+		// wantRefused whether work is barred for it, and wantMove the reason
+		// the stream gives for the session's move off work, "" for none.
 		wantTokens  []string
 		wantRefused bool
+		wantMove    string
 	}{
 		{
 			name: "replaced as the request was out, its file caught as it's rewritten as it's read again",
@@ -218,7 +220,7 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *t
 			wantTokens: []string{workToken, renewedToken},
 		},
 		{
-			name: "a new token its file held as it was read again, replaced in its turn as the request went out on it, which bars it",
+			name: "a new token its file held as it was read again, replaced in its turn as the request went out on it, which moves it on unbarred",
 			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
 				return map[string][]answer{
 					workToken:    {refusedAs(holds(renewedToken))},
@@ -226,11 +228,11 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *t
 					rotatedToken: {served},
 				}
 			},
-			wantTokens:  []string{workToken, renewedToken, sideToken},
-			wantRefused: true,
+			wantTokens: []string{workToken, renewedToken, sideToken},
+			wantMove:   "moved: work has a new token",
 		},
 		{
-			name: "a new token the router took up as the request was out, replaced in its turn as it went out on that, which bars it",
+			name: "a new token the router took up as the request was out, replaced in its turn as it went out on that, which moves it on unbarred",
 			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
 				return map[string][]answer{
 					workToken:    {refusedAs(holds(renewedToken), lookAt, holds(""))},
@@ -238,16 +240,29 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *t
 					rotatedToken: {served},
 				}
 			},
-			wantTokens:  []string{workToken, renewedToken, sideToken},
-			wantRefused: true,
+			wantTokens: []string{workToken, renewedToken, sideToken},
+			wantMove:   "moved: work has a new token",
 		},
 		{
-			name: "not the token it goes out on now, which bars it",
+			name: "a new token its file held as it was read again, refused in its turn, which bars it",
+			script: func(holds func(string) func(), _ func()) map[string][]answer {
+				return map[string][]answer{
+					workToken:    {refusedAs(holds(renewedToken))},
+					renewedToken: {unauthorized},
+				}
+			},
+			wantTokens:  []string{workToken, renewedToken, sideToken},
+			wantRefused: true,
+			wantMove:    "moved: work was refused",
+		},
+		{
+			name: "the token it goes out on now, which bars it",
 			script: func(func(string) func(), func()) map[string][]answer {
 				return map[string][]answer{workToken: {unauthorized}}
 			},
 			wantTokens:  []string{workToken, sideToken},
 			wantRefused: true,
+			wantMove:    "moved: work was refused",
 		},
 	}
 	for _, tt := range tests {
@@ -283,8 +298,18 @@ func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccountOnce(t *t
 				if sent := slices.ContainsFunc(events, func(e Event) bool { _, ok := e.(Refused); return ok }); sent != tt.wantRefused {
 					t.Errorf("events = %+v, want a refusal: %v", events, tt.wantRefused)
 				}
-				if told := slices.ContainsFunc(heard(reader), func(e StreamEvent) bool { return e.Kind == StreamRefused }); told != tt.wantRefused {
-					t.Errorf("the stream told of a refusal: %v, want %v", told, tt.wantRefused)
+				told := heard(reader)
+				if refusal := slices.ContainsFunc(told, func(e StreamEvent) bool { return e.Kind == StreamRefused }); refusal != tt.wantRefused {
+					t.Errorf("the stream told of a refusal: %v, want %v", refusal, tt.wantRefused)
+				}
+				var moves []string
+				for _, e := range told {
+					if e.Kind == StreamMoved {
+						moves = append(moves, e.Reason)
+					}
+				}
+				if want := slices.DeleteFunc([]string{tt.wantMove}, func(m string) bool { return m == "" }); !slices.Equal(moves, want) {
+					t.Errorf("the stream told of moves %q, want %q", moves, want)
 				}
 				if logged := log.Has("level=WARN", `msg="upstream refused the account's token"`, "account=work"); logged != tt.wantRefused {
 					t.Errorf("log reads\n%s\nwant the refusal of work's token logged: %v", log, tt.wantRefused)

@@ -487,30 +487,40 @@ func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
 func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 	higher := week
 	higher.Utilization = 0.97
+	// partly read side's session and week, not its Fable week.
+	partly := probed(nil, session, higher)
+	partly.Failures = []quota.Failure{{Label: "Fable", Window: fableWeek.Key, Error: errUnreadable.Error()}}
 	outcomes := []struct {
 		name string
 		// reading and err are what the probe on the token before finds.
 		reading quota.Probe
 		err     error
-		// wantWeek is what side's week reads once the probe has ended, and
-		// wantLog what the log says of the probe.
-		wantWeek float64
-		wantLog  []string
+		// wantWeek is what side's week reads once the probe has ended,
+		// wantLogs the lines the log has of the probe, and unwantedLogs those
+		// it hasn't.
+		wantWeek     float64
+		wantLogs     [][]string
+		unwantedLogs [][]string
 		// wantDue is whether side is due on the next round, a minute on.
 		wantDue bool
 	}{
 		{
-			name:     "refused, which says nothing of the token side goes out on now",
-			err:      errors.New("HTTP 401 · Invalid bearer token"),
-			wantWeek: week.Utilization,
-			wantLog:  []string{"level=DEBUG", `msg="probe on the token before failed; its failure isn't kept"`, "account=side", `error="HTTP 401 · Invalid bearer token"`},
-			wantDue:  true,
+			name:         "refused, which says nothing of the token side goes out on now",
+			err:          errors.New("HTTP 401 · Invalid bearer token"),
+			wantWeek:     week.Utilization,
+			wantLogs:     [][]string{{"level=DEBUG", `msg="probe on the token before failed; its failure isn't kept"`, "account=side", `error="HTTP 401 · Invalid bearer token"`}},
+			unwantedLogs: [][]string{{`msg="probe failed"`}},
+			wantDue:      true,
 		},
 		{
-			name:     "reading its windows, which read the same on either token",
-			reading:  probed(nil, session, higher),
+			name:     "reading its windows, which read the same on either token, but its Fable week",
+			reading:  partly,
 			wantWeek: higher.Utilization,
-			wantLog:  []string{"level=DEBUG", `msg="probed account"`, "account=side", "windows=2"},
+			wantLogs: [][]string{
+				{"level=DEBUG", `msg="probed account"`, "account=side", "windows=2"},
+				{"level=DEBUG", `msg="window unread"`, "account=side", "window=7d_oi"},
+			},
+			unwantedLogs: [][]string{{"level=WARN", `msg="window unread"`}},
 			// The probe read side a minute before, as the rounds count it.
 			wantDue: false,
 		},
@@ -554,8 +564,18 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 					if got := side.Windows[1].Utilization; got != o.wantWeek {
 						t.Errorf("side's week reads %v, want %v", got, o.wantWeek)
 					}
-					if !log.Has(o.wantLog...) || log.Has(`msg="probe failed"`) {
-						t.Errorf("log reads\n%s\nwant a line with %q, and no probe failed", log, o.wantLog)
+					if len(side.Failures) > 0 {
+						t.Errorf("side's windows unread are %+v, want none: they were the token before's", side.Failures)
+					}
+					for _, want := range o.wantLogs {
+						if !log.Has(want...) {
+							t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+						}
+					}
+					for _, unwanted := range o.unwantedLogs {
+						if log.Has(unwanted...) {
+							t.Errorf("log reads\n%s\nwant no line with %q", log, unwanted)
+						}
 					}
 
 					clock.now = start.Add(roundEvery)
@@ -760,7 +780,7 @@ func refusedSide(ago time.Duration) step {
 func refusedAt(at time.Time) step {
 	return func(r *Router, clock *testClock) {
 		clock.now = at
-		r.state.refuse("side", http.StatusUnauthorized, someRequest)
+		r.state.refuse("side", http.StatusUnauthorized, someRequest, r.state.mark())
 	}
 }
 
