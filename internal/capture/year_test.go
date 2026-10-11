@@ -336,6 +336,30 @@ func TestTheModelVersionsShareTheWeekAndTheThirtyDaysAsAccountsDraws(t *testing.
 	}
 }
 
+// Each account's day of the year is worth, through the views, what the year
+// spent on it, its versions' worths summed: none lost to a version too little
+// used for a request of its own, whose worth goes to the version used most.
+func TestEachDaysVersionsSumToItsWorth(t *testing.T) {
+	y, days := worldsNow().year, historyFrom(tenWorld(), 0).Days
+	for _, id := range tenAccounts.IDs() {
+		for d, made := range y.days[id][:today] {
+			var worth ledger.Picodollars
+			if i := slices.IndexFunc(days[d].Accounts, func(a ledger.PricedAccount) bool { return a.Account == id }); i >= 0 {
+				for _, m := range days[d].Accounts[i].Models {
+					if m.Worth == nil {
+						t.Fatalf("%s's %s on %s is unpriced", id, m.Model, days[d].Day)
+					}
+					worth += *m.Worth
+				}
+			}
+			// Within what rounding each version's tokens to a whole one loses.
+			if got := float64(worth) / 1e12; math.Abs(got-made.worth) > 0.001 {
+				t.Errorf("%s's day of %s is worth $%.4f by its versions, want $%.4f, the year's", id, days[d].Day, got, made.worth)
+			}
+		}
+	}
+}
+
 // dayOfYear is an account's day of the year: its requests, its sessions and
 // those moved onto it and off it; when it reached each 5-hour limit; and when
 // each of its 5-hour windows and its own weeks reset, each list in order.

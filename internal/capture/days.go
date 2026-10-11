@@ -76,7 +76,9 @@ func modelsOf(use accountDay) []ledger.ModelDay {
 	worths := make([]float64, len(versions))
 	for i, v := range versions {
 		worths[i] = use.worth * use.versions[v]
-		if counts[i] == 0 {
+	}
+	for i, n := range counts {
+		if n == 0 {
 			worths[most] += worths[i]
 		}
 	}
