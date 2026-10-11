@@ -66,17 +66,29 @@ func probedLine(doc status.Document) statusLine {
 
 // destination says where the router sends new sessions: ▲ and the account,
 // or, where none has room, that none has, or before anything has been read of
-// any, that nothing has.
+// any, that nothing has; a lone account it names regardless, as its row
+// carries ▲ regardless.
 func destination(doc status.Document) line {
 	read := slices.ContainsFunc(doc.Accounts, func(a status.Account) bool { return !a.FetchedAt.IsZero() })
+	to := bestOf(doc)
 	switch {
-	case !read:
+	case len(doc.Accounts) != 1 && !read:
 		return line{{"nothing read yet", dimInk}}
-	case doc.Best == "":
+	case to == "":
 		return line{{"no account has room", exhaustedInk}}
 	default:
-		return line{{"▲ " + named(doc, doc.Best), nameInk}}
+		return line{{"▲ " + named(doc, to), nameInk}}
 	}
+}
+
+// bestOf is the id of the account ▲ marks as where new sessions go:
+// doc's best, "" where none has room; or with one account, that one, whatever
+// its room, as there's nowhere else for them to go.
+func bestOf(doc status.Document) string {
+	if len(doc.Accounts) == 1 {
+		return doc.Accounts[0].ID
+	}
+	return doc.Best
 }
 
 // fit is the line in width cells at most: in full where it fits; else as a

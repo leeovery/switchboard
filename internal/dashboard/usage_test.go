@@ -263,6 +263,30 @@ func TestALongLabelIsCutKeepingItsNumberItsMarksAndRoomForTheBestsMark(t *testin
 	}
 }
 
+func TestALoneAccountCarriesTheBestsMarkAndTheHeaderNamesItWhateverItsRoom(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(*status.Document)
+	}{
+		{name: "with room", change: func(d *status.Document) { d.Best = "work" }},
+		{name: "its room spent", change: func(d *status.Document) { d.Best = "" }},
+		{name: "nothing read of it yet", change: func(d *status.Document) {
+			d.Best, d.Accounts[0].FetchedAt = "", time.Time{}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := printed(trio(func(d *status.Document) { d.Accounts = d.Accounts[:1] }, tt.change), 160, ByWindow)
+			if got, want := colAt(rows[4], 0, 9), "1 work ▲ "; got != want {
+				t.Errorf("the lone account's row starts %q, want %q", got, want)
+			}
+			if want := "new sessions → ▲ work"; !strings.HasSuffix(rows[0], want) {
+				t.Errorf("the header reads %q, want it to end %q", rows[0], want)
+			}
+		})
+	}
+}
+
 func TestEveryAccountIsNumberedRightAlignedOnceThereAreTen(t *testing.T) {
 	ten := trio(func(d *status.Document) {
 		for i := len(d.Accounts); i < 10; i++ {

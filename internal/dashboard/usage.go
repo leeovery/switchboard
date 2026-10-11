@@ -216,6 +216,7 @@ type accountName struct {
 // right-aligned once there are ten.
 func namesOf(doc status.Document) []accountName {
 	digits := len(strconv.Itoa(len(doc.Accounts)))
+	best := bestOf(doc)
 	names := make([]accountName, len(doc.Accounts))
 	for i, a := range doc.Accounts {
 		k := dimInk
@@ -223,7 +224,7 @@ func namesOf(doc status.Document) []accountName {
 			k = faintInk
 		}
 		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, i+1), numberInk: k, label: name(a), primary: a.Primary, best: a.ID == doc.Best,
+			number: fmt.Sprintf("%*d", digits, i+1), numberInk: k, label: name(a), primary: a.Primary, best: a.ID == best,
 		}
 	}
 	return names

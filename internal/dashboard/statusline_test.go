@@ -85,6 +85,24 @@ func TestTheStatusLineSaysHowTheRouterStands(t *testing.T) {
 			want: "○ probed · router unhealthy: no answer within 500ms",
 		},
 		{name: "probed, as asked", doc: routed(probedAs(status.Fallback{})), want: "○ probed, as asked"},
+		{
+			name: "one account with room",
+			doc:  routed(func(d *status.Document) { d.Accounts, d.Best = d.Accounts[:1], "work" }),
+			want: "● healthy  ·  6 sessions  ·  new sessions → ▲ work",
+		},
+		{
+			name: "one account without room, named all the same",
+			doc:  routed(func(d *status.Document) { d.Accounts, d.Best = d.Accounts[:1], "" }),
+			want: "● healthy  ·  6 sessions  ·  new sessions → ▲ work",
+		},
+		{
+			name: "one account not read yet, named all the same",
+			doc: routed(func(d *status.Document) {
+				d.Accounts, d.Best = d.Accounts[:1], ""
+				d.Accounts[0].FetchedAt = time.Time{}
+			}),
+			want: "● healthy  ·  6 sessions  ·  new sessions → ▲ work",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
