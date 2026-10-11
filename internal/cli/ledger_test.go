@@ -77,7 +77,7 @@ var fixtureLines = map[string][]ledger.Line{
 
 // heldSummary is the summary the ledger holds of the 4th, as the router wrote
 // it.
-const heldSummary = `{"version":2,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
+const heldSummary = `{"version":3,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
 	`"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},` +
 	`"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,"input_tokens":12,"output_tokens":845}}],"sessions":1,` +
 	`"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0}]}`
@@ -440,19 +440,50 @@ func TestHistoryPrintsEachDayByAccountAndModel(t *testing.T) {
 	}
 }
 
+func TestHistoryPrintsNoTableOfADayOfNoRequestsItsReadingsTellOf(t *testing.T) {
+	deps, _ := ledgerDeps(t)
+	// The 5th, of no requests: side's session read in it, as the router's
+	// rounds read it.
+	read, err := json.Marshal(readings.Reading{At: october(5, 12, 0, 0).UTC(), Account: "side", Key: "5h", Utilization: 0.2,
+		ResetsAt: october(5, 15, 0, 0).UTC(), Status: quota.StatusAllowed, Source: readings.FromProbe})
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendStateFile(t, readings.Dir(stateDir(t, deps)), "readings-2026-10-05.jsonl", append(read, '\n'))
+
+	for _, form := range prettyForms() {
+		t.Run(form.name, func(t *testing.T) {
+			if got := form.run(t, deps, "history", "--since", "2026-10-05"); got.stdout != historyFromThe6th || got.code != 0 {
+				t.Errorf("switchboard history printed\n%s(%d, %s)\nwant\n%s: no table of the 5th, which served no request", got.stdout, got.code, got.stderr,
+					historyFromThe6th)
+			}
+		})
+	}
+	got := jsonForms()[0].run(t, deps, "history", "--since", "2026-10-05")
+	var document struct {
+		Days []ledger.Summary `json:"days"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &document); err != nil || len(document.Days) == 0 {
+		t.Fatalf("switchboard history printed %+v (%v), want its JSON", got, err)
+	}
+	if quiet := document.Days[0]; len(quiet.Accounts) != 1 || quiet.Accounts[0].Account != "side" || quiet.Accounts[0].Highest["5h"] != 0.2 {
+		t.Errorf("the 5th's summary is %+v, want side's day in it, as the readings history tells of it", quiet)
+	}
+}
+
 func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"prices_as_of":"2026-10-07","days":[` +
-		`{"version":2,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+		`{"version":3,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_creation":` +
 		`{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}]},` +
-		`{"version":2,"day":"2026-10-05","lines":0},` +
-		`{"version":2,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`{"version":3,"day":"2026-10-05","lines":0},` +
+		`{"version":3,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"cache_read_input_tokens":20000,` +
 		`"input_tokens":5,"output_tokens":50,"server_tool_use":{"web_search_requests":1}},"worth":0.01502}]},` +
@@ -461,7 +492,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`{"account":"work","sessions":0,"session_ids":[],"moved_on":0,"moved_off":1,"highest":{"5h":1},"rise":{"5h":1},` +
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
 		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}]},` +
-		`{"version":2,"day":"2026-10-07","lines":6,"accounts":[` +
+		`{"version":3,"day":"2026-10-07","lines":6,"accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
 		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` +
@@ -695,7 +726,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		}
 		days = append(days, compact.String())
 	}
-	if want := []string{`{"version":2,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+	if want := []string{`{"version":3,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
 		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
 	}
 }

@@ -30,6 +30,12 @@ func (f *Files) Ended(now time.Time, ago time.Duration) []string {
 	return f.dates(func(day time.Time) bool { return now.Sub(endOf(day)) >= ago })
 }
 
+// All returns the dates of every day the files hold lines of, oldest first,
+// by the dates the files' names give.
+func (f *Files) All() []string {
+	return f.dates(func(time.Time) bool { return true })
+}
+
 // dates returns the dates of the local days the files are of, each once,
 // oldest first, but for those whose day, by its start, keep reports false
 // of.

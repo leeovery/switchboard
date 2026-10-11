@@ -115,14 +115,24 @@ func (h *history) readBack(now time.Time) iter.Seq[readings.Reading] {
 	}
 }
 
-// readings returns the readings the history holds of times from from up to
+// Between returns the readings the history holds of times from from up to
 // to, as readings.Between gives them, as the request ledger summarises a day
 // with them: none before the history is opened.
-func (h *history) readings(from, to time.Time) iter.Seq[readings.Reading] {
+func (h *history) Between(from, to time.Time) iter.Seq[readings.Reading] {
 	if !h.opened.Load() {
 		return func(func(readings.Reading) bool) {}
 	}
 	return readings.Between(h.files, from, to)
+}
+
+// Dates returns the dates of the local days the history holds readings of,
+// oldest first, as its files' names give them, as the request ledger finds
+// the days to summarise by them: none before the history is opened.
+func (h *history) Dates() []string {
+	if !h.opened.Load() {
+		return nil
+	}
+	return h.files.All()
 }
 
 // windowReadings returns the readings the history holds of the window with

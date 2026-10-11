@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -393,6 +394,26 @@ func TestEndedTakesTheDaysThatEndedAsLongAgoAsAsked(t *testing.T) {
 		if got := f.Ended(now, tt.ago); !slices.Equal(got, tt.want) {
 			t.Errorf("Ended(%v) = %q, want %q: each day once, oldest first, that ended %v or more before", tt.ago, got, tt.want, tt.ago)
 		}
+	}
+}
+
+func TestAllTakesEveryDayByItsFilesNames(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	// Days done with, compressed and plain, today's, and a day after
+	// tomorrow's, as a clock once set ahead names one.
+	for _, file := range []dayFile{compressedFile("2026-09-20"), compressedFile("2026-09-26"), plainFile("2026-09-26"), plainFile("2026-09-28"),
+		plainFile("2026-09-30")} {
+		writeDay(t, f, file, linesOf("a"))
+	}
+	if err := os.WriteFile(f.path(plainFile("2026-09-25"))+".tmp", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := f.All(), []string{"2026-09-20", "2026-09-26", "2026-09-28", "2026-09-30"}; !slices.Equal(got, want) {
+		t.Errorf("All() = %q, want %q: each day the files are of once, oldest first", got, want)
+	}
+	if got := readingsHistory(filepath.Join(t.TempDir(), "none")).All(); len(got) > 0 {
+		t.Errorf("All() of files with no directory = %q, want none", got)
 	}
 }
 

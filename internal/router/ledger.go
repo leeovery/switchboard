@@ -34,9 +34,9 @@ func newRequestLedger(settings config.Ledger, caps ledger.Caps, now func() time.
 }
 
 // open has the ledger kept in dir from now on, its days summarised with the
-// readings readings gives.
-func (l *requestLedger) open(dir string, readings ledger.Readings) {
-	l.opened.Store(ledger.Open(dir, l.keep, l.now, readings, l.caps, logger))
+// readings history.
+func (l *requestLedger) open(dir string, history ledger.History) {
+	l.opened.Store(ledger.Open(dir, l.keep, l.now, history, l.caps, logger))
 }
 
 // note queues a request's line for run to write. It never waits.

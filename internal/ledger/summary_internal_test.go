@@ -19,7 +19,7 @@ func TestASummaryThatCantBeStampedIsWarnedOf(t *testing.T) {
 
 	// There's no summary of the day to stamp, as when it was removed once
 	// written.
-	d.stamp("2026-10-05", time.Date(2026, 10, 5, 23, 59, 0, 0, time.Local))
+	d.stamp("2026-10-05", dayfile.DayStat{CompressedSize: 120, CompressedModified: time.Date(2026, 10, 5, 23, 59, 0, 0, time.Local)})
 	want := []string{"level=WARN", `msg="can't stamp the request ledger's summary of a day; it's read again at the next round"`, "day=2026-10-05"}
 	if !log.Has(want...) {
 		t.Errorf("log reads\n%s\nwant the summary that couldn't be stamped warned of: a line with %q", log, want)

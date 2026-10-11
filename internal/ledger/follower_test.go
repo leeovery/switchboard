@@ -186,10 +186,22 @@ func removeFile(t *testing.T, dir, name string) {
 	}
 }
 
+// historyFiles is the readings history in its files, as the router reads it.
+type historyFiles struct {
+	files *dayfile.Files
+}
+
+func (h historyFiles) Between(from, to time.Time) iter.Seq[readings.Reading] {
+	return readings.Between(h.files, from, to)
+}
+
+func (h historyFiles) Dates() []string {
+	return h.files.All()
+}
+
 // historyIn is the readings history in dir, as the router reads it.
-func historyIn(dir string) ledger.Readings {
-	files := readings.Files(dir, logs.For("router"))
-	return func(from, to time.Time) iter.Seq[readings.Reading] { return readings.Between(files, from, to) }
+func historyIn(dir string) historyFiles {
+	return historyFiles{files: readings.Files(dir, logs.For("router"))}
 }
 
 // summariseAt has the router's ledger in dir summarise the days that have

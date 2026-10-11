@@ -228,7 +228,7 @@ func (l look) tells(held stamped) (stands, told bool, err error) {
 	switch {
 	case l.err != nil:
 		return false, false, l.err
-	case l.none || unchanged(l.files, held.stamp):
+	case l.none || unchanged(held.Day, l.files, held.stamp):
 		return true, true, nil
 	}
 	stands, told = standsUncounted(held.Summary, l.files)

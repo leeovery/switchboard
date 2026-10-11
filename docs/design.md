@@ -722,7 +722,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, and every interval has the router read the accounts it hasn't read in that time (see Live updates): 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. Without the router, or with `--probe`, it probes every account instead, each interval. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached and windows' highest use; today's from its lines, as far as it's gone. Then, over those days, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, and Weeks' verdicts on the accounts (see Accounts, History). `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 2, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
+| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached and windows' highest use; today's from its lines, as far as it's gone. Then, over those days, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, and Weeks' verdicts on the accounts (see Accounts, History). `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 2, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
@@ -4174,58 +4174,76 @@ from the first day a router that has it runs, so nothing before then is in it.
 - **A summary a day:** once a day has ended, on the first round an hour or more after, as a
   request still in flight as the day ends has its line filed under the day once it's done, the
   router writes the day's summary from the day's lines and the day's readings history, as one JSON
-  object. The rounds are those that compress and prune the ledger's files, every hour and as the
-  first line of a day is written, each made before its files are pruned; and the readings
-  history's writer has the ledger summarise the days that have ended just before each prune of
-  its own files, once a day, rather than at every round: so neither a line nor a reading a summary
-  needs is pruned before its day is summarised, however long the router was stopped, or the Mac
-  asleep, which holds the hourly rounds back. Summarising several days reads the readings history
-  once for each run of them, days whose weeks before overlap the day before them, ahead, as the
-  days ask for their readings, oldest first, holding a week and a day of them at a time: never
-  the readings of a year between a day left unsummarised and yesterday. Its object:
+  object: of each day it holds lines of, and, from the first day it holds on, as nothing before it
+  is in it, of each whose readings, or whose week before's, the readings history holds, requests or
+  not, so a day the router served nothing, but read an account, or saw one's window reset, has a
+  summary of those accounts. The rounds are those that compress and prune the ledger's files, every
+  hour and as the first line of a day is written, each made before its files are pruned; and the
+  readings history's writer has the ledger summarise the days that have ended just before each
+  prune of its own files, once a day, rather than at every round: so neither a line nor a reading a
+  summary needs is pruned before its day is summarised, however long the router was stopped, or
+  the Mac asleep, which holds the hourly rounds back. Summarising several days reads the readings
+  history once for each run of them, days whose weeks before overlap the day before them, ahead,
+  as the days ask for their readings, oldest first, holding a week and a day of them at a time:
+  never the readings of a year between a day left unsummarised and yesterday. Its object:
 
   ```json
-  {"version": 2, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
+  {"version": 3, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "sessions": 6, "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
   ```
 
-  - `version`: the summaries' version: 2 since milestone 7, which added `session_ids`, `rise`,
-    `resets`, `minutes_at_cap` and `minutes_at_limit`, and 1 before it. A release that summarises a
-    day otherwise, or keeps more of it, writes another, so the summaries written before it can be
-    told: a day whose summary is of an older version is read, and summarised again from its lines
-    while they're kept, once, on the first round under the new version, as the round's stamp holds
-    the summary's version (see below); a reader that meets an older version's summary, its lines
-    kept, summarises the day from its lines, as it does today's; and of the rest, whose lines are
-    gone, a reader knows what they never counted, rather than taking it for none. Version 2 only
-    adds fields, so a release from before it reads a summary of version 2 as one of its own, passing
-    over what it doesn't know, and keeps those fields when it marks the summary afresh; where it
-    summarises the day again, as lines come to be filed under it, it writes version 1, which the
-    next release to run summarises again while the day's lines are kept. Of a summary of version 1
-    whose lines are gone, a reader counts its accounts' `sessions` as distinct, as the nearest there
-    is, and takes its rises, resets and minutes as never read, never as none.
+  - `version`: the summaries' version: 3 since milestone 7's stage 3, which gives every day the
+    accounts the readings history tells of, a day of no requests among them, and climbs each
+    window by one rule, a reading of a run that has reset since, read late, kept out of its rise
+    (see `rise`); 2 since milestone 7, which added `session_ids`, `rise`, `resets`,
+    `minutes_at_cap` and `minutes_at_limit`; and 1 before it. A release that summarises a day
+    otherwise, or keeps more of it, writes another, so the summaries written before it can be told:
+    a day whose summary is of an older version is read, and summarised again from its lines and its
+    readings while either is kept, once, on the first round under the new version, as the round's
+    stamp holds the summary's version (see below), knowing no less than it, as any summary written
+    again does: so a day whose readings the history has pruned is summarised again from its lines,
+    and keeps what the summary before took from the readings; one whose lines are pruned, from its
+    readings, and keeps its requests as the summary before gave them; and one whose lines and
+    readings are both gone keeps the summary it has. A reader that meets an older version's
+    summary, its lines kept, summarises the day from its lines, as it does today's; and of the
+    rest, whose lines are gone, a reader knows what they never counted, rather than taking it for
+    none. Versions 2 and 3 only add fields, and accounts, so a release from before one reads a
+    summary of it as one of its own, passing over what it doesn't know, and keeps those fields when
+    it marks the summary afresh; where it summarises the day again, as lines come to be filed under
+    it, it writes its own version, which the next release to run summarises again while the day's
+    lines are kept. Of a summary of version 1 whose lines are gone, a reader counts its accounts'
+    `sessions` as distinct, as the nearest there is, and takes its rises, resets and minutes as
+    never read, never as none.
   - `day`: the local date the day's lines are filed under.
   - `lines`: how many of the day's lines it was made from, those that didn't read as a line among
     them, which are warned of as it's made: what the summary is checked against, as below.
   - `bytes`: the sizes of the day's files, its plain file's and its compressed file's, as the
     summary was made from them, or last found to stand: a round that finds them so counts none of
     the day's lines, as below. A summary made as it's read, never written, has none.
-  - `accounts`: each account's day, in the order of their ids; one without an `account` holds the
-    requests the router answered without one, as when no account had room, or a body couldn't be
-    read. A day of no requests has none. Its `models` are its requests by the model each asked
-    for, one without a `model` holding those whose bodies couldn't be read, in the order of their
-    names: `upstream` counts those that spend quota that went upstream, and `no_usage` those of
-    them whose answers gave no usage, as one canceled, cut off or an error gives none, so what
-    they spent is unknown, and their worth unpriced, never taken for none (see Worth); `unsent`
-    counts those the router answered itself, never sending them; `checks` counts Claude Code's
-    quota checks, and `counts` the counts of tokens, however each went; `sessions` counts the
-    sessions they were of, but for the checks', as Claude Code
-    sends one as it resumes a session under an id it never uses again; and `usage` is their usage
-    summed, field for field as the API gives it, an object's fields within it, and the objects of a
-    list that give their types, as an answer's `iterations` do, within it by their types, what
-    isn't a count, as the service tier, left out. A model's requests that asked for an inference
-    geo, as their shapes' `inference_geo` gives it, are a day of their own, after its others,
-    naming it in `inference_geo`, as US-only inference costs more (see Worth): the usage summed
-    keeps no text, so couldn't tell them apart, and a day of the requests Claude Code sends, which
-    ask for none, reads as it would without them.
+  - `accounts`: each account's day, in the order of their ids: every account that served a request
+    that day, and every account the readings history tells of that day, requests or not, each it
+    read that day, and each a window of which began the day at the use its last reading of the
+    week before gave, its reset still to come, one whose window reset that day by the reset that
+    reading gave among them; one without an `account` holds the requests the router answered
+    without one, as when no account had room, or a body couldn't be read. A day of no requests,
+    the readings history telling of no account that day, has none; an account's day with no
+    requests has no `models`, no sessions and no moves, and its readings' facts as any account's
+    day has them, so a week's reset on a day its account served nothing keeps the week's peak, as
+    a limit reached by use outside the router keeps its minutes. Its `models` are its requests by
+    the model each asked for, one without a `model` holding those whose bodies couldn't be read, in
+    the order of their names: `upstream` counts those that spend quota that went upstream, and
+    `no_usage` those of them whose answers gave no usage, as one canceled, cut off or an error
+    gives none, so what they spent is unknown, and their worth unpriced, never taken for none (see
+    Worth); `unsent` counts those the router answered itself, never sending them; `checks` counts
+    Claude Code's quota checks, and `counts` the counts of tokens, however each went; `sessions`
+    counts the sessions they were of, but for the checks', as Claude Code sends one as it resumes a
+    session under an id it never uses again; and `usage` is their usage summed, field for field as
+    the API gives it, an object's fields within it, and the objects of a list that give their
+    types, as an answer's `iterations` do, within it by their types, what isn't a count, as the
+    service tier, left out. A model's requests that asked for an inference geo, as their shapes'
+    `inference_geo` gives it, are a day of their own, after its others, naming it in
+    `inference_geo`, as US-only inference costs more (see Worth): the usage summed keeps no text,
+    so couldn't tell them apart, and a day of the requests Claude Code sends, which ask for none,
+    reads as it would without them.
   - Of the account as a whole: `sessions`, counted as its models' are; `moved_on` and `moved_off`,
     the sessions its requests moved onto it and off it, as their lines' `from` says; `highest`,
     each window's highest use that day, by its key, counting the use it began the day at, as the
@@ -4242,7 +4260,12 @@ from the first day a router that has it runs, so nothing before then is in it.
       page).
     - `rise`: how far each window's use rose that day, by its key, from the use it began the day at,
       as `highest` counts it, to its highest before each reset, and from nothing after it, the rises
-      added together: the points of the window the day used.
+      added together: the points of the window the day used. Since version 3, a reading of a run
+      that has reset since, read late, as an answer that began before the reset and ended after it
+      gives, is kept out of the rise of the run since, as a session's points keep it (see A
+      session's page); it counts toward `highest` and the `limits` all the same, a limit once, as
+      the true reading of its own run it is, and raises the `before` of that run's reset where it
+      reads higher.
     - `resets`: each reset of a window the readings history saw that day, in the order they came:
       the window's key; when it reset, its reset time where it was read, or when the reading that
       showed a reset made by hand came (see Choosing an account); and `before`, its use as last read
@@ -4263,38 +4286,47 @@ from the first day a router that has it runs, so nothing before then is in it.
   `history` would never count otherwise. So, at each round, while a day's lines are kept, a day
   whose files hold more lines than its summary's `lines` is summarised again, over it. None is
   taken away while they're kept, so fewer means some were lost since, as to a damaged file, and
-  the summary made from more stands; once they're pruned, it's kept for good: a year of them runs
-  to a few megabytes.
+  the summary made from more stands; once they're pruned, it's kept for good, summarised again only
+  as a new version summarises it from the day's readings, while those are kept (see `version`): a
+  year of them runs to a few megabytes.
 
   A summary written again knows no less than the one it replaces. Each count it holds, a model's
   requests, sessions and usage, field for field, and an account's sessions and moves, is the one
   before's where that's more, as fewer means lines were lost since, and an account or a model the
-  lines no longer give is kept as it was. Which lines were lost can't be told from those filed
-  since, though: where some of a model's requests were lost, and others of it filed since, it
-  counts the more of the two summaries', fewer than there were. Its `lines` are as many as the
-  more of the two were made from, and never fewer than its requests, as those of lines lost count
-  among them. Each window's highest use is the one before's where that's higher, and the limits
-  and the `read_before` the one before held are among its own. Its `session_ids` are its own and the
-  one before's together; each window's rise, and each of its minutes, are the one before's where
-  that's more; and the resets the one before held are among its own, a reset being the same where
-  its window and the time it reset are, its `before` the higher of the two. The readings history
-  prunes the readings of a day past its own keep, whatever the ledger's, and a clock moved can leave
-  it short of them, so what the readings gave can't be had again from them: a limit whose window has
-  no reading before it, in the day or the week before, which a summary takes for one reached, is its
-  own only where the summary before read none of that window in the week before either, as its
-  `read_before` says, as the reading it read may be one pruned since, which would have said the
-  limit held already. So one read first where the summary before read no readings, as of a day whose
-  only line was torn, or while the history couldn't be read, is kept.
+  lines, or the readings, no longer give is kept as it was, an account the readings alone told of
+  among them. Which lines were lost can't be told from those filed since, though: where some of a
+  model's requests were lost, and others of it filed since, it counts the more of the two
+  summaries', fewer than there were. Its `lines` are as many as the more of the two were made
+  from, and never fewer than its requests, as those of lines lost count among them. Each window's
+  highest use is the one before's where that's higher, and the limits and the `read_before` the
+  one before held are among its own. Its `session_ids` are its own and the one before's together;
+  each window's rise, and each of its minutes, are the one before's where that's more; and the
+  resets the one before held are among its own, a reset being the same where its window and the
+  time it reset are, its `before` the higher of the two. So a summary of version 2 summarised again
+  keeps what version 3 counts otherwise, as a rise a reading read late added to, where that's more
+  (see `rise`). The readings history prunes the readings of a day past its own keep, whatever the
+  ledger's, and a clock moved can leave it short of them, so what the readings gave can't be had
+  again from them: a limit whose window has no reading before it, in the day or the week before,
+  which a summary takes for one reached, is its own only where the summary before read none of
+  that window in the week before either, as its `read_before` says, as the reading it read may be
+  one pruned since, which would have said the limit held already. So one read first where the
+  summary before read no readings, as of a day whose only line was torn, or while the history
+  couldn't be read, is kept.
 
   A round counts a day's lines only where its files have changed since its summary was marked: the
   summary holds their sizes, as `bytes`, and its modification time, its stamp, is set to when the
   day's compressed file was last modified, as they were when it was made, or last counted and found
-  to stand. The stamp holds the summary's version too, a second later than that time for each
-  version past the first, which a file system that keeps whole seconds keeps: a day whose summary is
-  of an older version is read, and summarised again from its lines while they're kept, once, on the
-  first round under the new version. A day with no plain file, whose compressed file still gives
-  that time, costs a look at its files and its summary's, reading none of them: compressing a day
-  writes its compressed file anew, once a day at most. That look reads no summary, so it takes one
+  to stand, or, where the day has neither file, as one of no requests, or one whose lines are
+  pruned, to when the day began. The stamp holds the summary's version too, a second later than
+  that time for each version past the first, which a file system that keeps whole seconds keeps: a
+  day whose summary is of an older version is read, and summarised again from its lines and its
+  readings while either is kept, once, on the first round under the new version. A summary of
+  version 2 of a day with neither file was never stamped, so the first round of version 3 reads it.
+  A day with no plain file, whose compressed file still gives that time, or with neither file,
+  costs a look at its files and its summary's, reading none of them: compressing a day writes its
+  compressed file anew, once a day at most. A day with neither file is looked at only while the
+  readings history holds readings its summary would read: once they're pruned too, its summary is
+  kept as it is, and never looked at again. That look reads no summary, so it takes one
   damaged in place, or of another day, as by a restore or a copy that keeps its time, as it stands;
   what reads it, a reader, or a round that must, warns of it, and summarises its day from its lines,
   while they're kept. Any other has its summary read, and its lines counted only where its files'
@@ -4307,14 +4339,16 @@ from the first day a router that has it runs, so nothing before then is in it.
   days runs to gigabytes. The time must be the same, not merely no later, as a clock set back, or
   set ahead and right again, can give a file changed since its summary an earlier time. Fields may
   be added to a summary, never renamed. A day left without one, as when the router was stopped as
-  the day ended, is summarised by the next round that finds its lines, compressed or not. A day one
-  of whose files can't be opened isn't summarised from the rest, as that would be taken for the
-  whole day, but left for a later round, as is one whose summary, or lines, can't be read to tell
-  whether it stands, each warned of at each round until it can be; one whose summary, read, doesn't
-  read as the day's, as one damaged or of another day, is warned of, and summarised again. A day
-  whose files hold no line that reads is summarised as one of no requests, and again once a line
-  comes that does. Views over weeks and months read the summaries; today, and any day not summarised
-  since lines came to be filed under it, is summarised from its lines as it's read.
+  the day ended, is summarised by the next round that finds its lines, compressed or not, or, of a
+  day of no requests, its readings. A day one of whose files can't be opened isn't summarised from
+  the rest, as that would be taken for the whole day, but left for a later round, as is one whose
+  summary, or lines, can't be read to tell whether it stands, each warned of at each round until
+  it can be; one whose summary, read, doesn't read as the day's, as one damaged or of another day,
+  is warned of, and summarised again. A day whose files hold no line that reads is summarised as
+  one of no requests, of the accounts its readings tell of, and again once a line comes that does.
+  Views over weeks and months read the summaries; today, and any day not summarised since lines
+  came to be filed under it, is summarised from its lines, and its readings, as it's read, as is a
+  day of no requests the router hasn't summarised.
 - **Worth** is what a request would have cost through the API, priced from a table built into
   switchboard, read from Anthropic's pricing page on 7 October 2026: each model's prices of input,
   output, cache reads, and cache writes for five minutes and for an hour, each as the page gives
@@ -4383,19 +4417,23 @@ from the first day a router that has it runs, so nothing before then is in it.
   ordering them holds a day or two of those asked for at a time, a line of another time, as one of
   the day before the first asked for, whose file is read for those filed under it, passed over as
   it's read, never held; and so does ordering the readings history's.
-  A day's summary is read as the ledger holds it while it stands: its lines are pruned, or are as
-  its stamp, or its `bytes`, say, or number no more than its `lines`, or can't be counted, which is
-  warned of. One of an older version, its day's lines kept, doesn't stand: the day is summarised
-  from its lines as it's read, as today's is. Today, and any day not summarised since lines came to
-  be filed under it, is summarised from its lines as it's read, knowing no less than any summary it
-  would replace, the readings history read ahead for them all, as the router reads it, and never
-  written, nor marked, as summaries are the router's to write. A summary that can't be read, or
-  doesn't read as its day's, as one damaged in place or of another day, whatever its stamp, is
-  warned of, and its day summarised from its lines, while they're kept: once they're pruned, there's
-  nothing to give of the day. A read starts at the first day the ledger holds, the earliest its
-  files of lines and its summaries are of, where that's later than the start asked for, as no day
-  before it holds anything; at today where it holds none. Every day asked for from there is given,
-  so the last is today, one of no requests as a summary of no accounts: none from before the ledger
+  A day's summary is read as the ledger holds it while it stands: its lines are pruned, or none
+  were written, or are as its stamp, or its `bytes`, say, or number no more than its `lines`, or
+  can't be counted, which is warned of. One of an older version, its day's lines kept, doesn't
+  stand: the day is summarised from its lines as it's read, as today's is; one whose lines are
+  gone is read as it's held, of whatever version, as the router alone summarises it again from its
+  readings. Today, and any day not summarised since lines came to be filed under it, or not
+  summarised at all, as a day of no requests the router hasn't summarised, is summarised from its
+  lines and its readings as it's read, knowing no less than any summary it would replace, the
+  readings history read ahead for them all, as the router reads it, and never written, nor
+  marked, as summaries are the router's to write. A summary that can't be read, or doesn't read as
+  its day's, as one damaged in place or of another day, whatever its stamp, is warned of, and its
+  day summarised from its lines, while they're kept: once they're pruned, there's nothing to give
+  of the day but what its readings tell. A read starts at the first day the ledger holds, the
+  earliest its files of lines and its summaries are of, where that's later than the start asked
+  for, as no day before it holds anything; at today where it holds none. Every day asked for from
+  there is given, so the last is today, one of no requests as a summary of the accounts the
+  readings history tells of alone, of none where it tells of none: none from before the ledger
   began. A session's page reads the lines of its own days; History and Accounts read the summaries.
 
 ## Logging
@@ -5472,7 +5510,9 @@ no code left commented out. After every stage, every gate in `CLAUDE.md` passes,
    the pages will draw; and the skill telling agents of them, its version moved on. Tests hold each
    verb's JSON to its shape. Decided with the owner as it was built (9 October 2026), as recording
    can't be done after: the router reads every account on rounds of its own, each nothing has read
-   in 30 minutes and each before its weeks reset (see The router's rounds).
+   in 30 minutes and each before its weeks reset (see The router's rounds); and (11 October 2026)
+   every day's summary covers every account the router read, a day of no requests among them, as
+   version 3 (see The request ledger).
 4. **The capture harness, rebuilt.** Its samples are the specs' worlds, and its fakes hold a year of
    days, a session's lines and the router's events, the prices injected and each frame's fixed
    scales pinned. `reference/` holds the 77 signed-off stems in place of milestone 5's frames. A

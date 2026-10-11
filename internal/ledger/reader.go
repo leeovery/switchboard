@@ -147,7 +147,8 @@ func arrived(h Held) time.Time {
 // says; else the day summarised from its lines and the readings history, as
 // they're read, as of today as far as it has gone, knowing no less than any
 // summary held of it, as knowing says, the history read ahead for them all,
-// as readingAhead says. A day of no requests is a summary of no accounts.
+// as readingAhead says. A day of no requests is a summary of the accounts the
+// readings history tells of alone, of none where it tells of none.
 func (r *Reader) Days(from time.Time) []Summary {
 	now := r.now()
 	dates := dayfile.Span(r.days.start(from, now), now)

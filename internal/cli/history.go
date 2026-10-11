@@ -136,7 +136,7 @@ func pricedAt(prices ledger.Table) (string, error) {
 func historyTables(days []ledger.Priced, now time.Time) ([]dayTable, error) {
 	var tables []dayTable
 	for _, day := range days {
-		if len(day.Accounts) == 0 {
+		if !served(day) {
 			continue
 		}
 		table, err := historyTable(day, now)
@@ -146,6 +146,12 @@ func historyTables(days []ledger.Priced, now time.Time) ([]dayTable, error) {
 		tables = append(tables, table)
 	}
 	return tables, nil
+}
+
+// served reports whether the day had requests: an account of its served one,
+// as a day the readings history alone tells of the accounts of has none.
+func served(day ledger.Priced) bool {
+	return slices.ContainsFunc(day.Accounts, func(a ledger.PricedAccount) bool { return len(a.Models) > 0 })
 }
 
 // historyTable is the day's table: a row for each account's model, the
