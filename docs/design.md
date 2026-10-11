@@ -5531,7 +5531,14 @@ kind of cost a round's recount of every kept day was until it learned to look on
 lines changed. Stage 2's review left it four: today's ledger file tailed twice, for today's lines
 and for today's tally; today's readings worked out afresh at each read of the days; every day a
 follower has read held for the run; and a session's days found by looking at the summary of every
-day kept, back to the first, at each read of its lines. Then the release.
+day kept, back to the first, at each read of its lines. Stage 3's reviews added five: each listed
+session's start found by looking at the summary of every day kept before yesterday, at each run of
+`sessions`, summarising afresh any day the router never did; the earlier days of every session
+running today read for `sessions <id>`, not the named session's alone; every request of each
+session `sessions` lists priced, across all its days, where only today's worth is shown; each round
+of the ledger listing its directory twice and the readings history's once, and walking the dates
+from the ledger's first day; and a follower reading a day of no requests not yet summarised looking
+at about eleven readings files at each read. Then the release.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
