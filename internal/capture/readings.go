@@ -39,6 +39,15 @@ func (h history) before(t time.Time) history {
 	return h[:i]
 }
 
+// byAccount is each account's history, by its id.
+func (h history) byAccount() map[string]history {
+	held := make(map[string]history)
+	for _, r := range h {
+		held[r.Account] = append(held[r.Account], r)
+	}
+	return held
+}
+
 // windows are the windows of the account whose readings history h is, as
 // last read, in quota.Sort's order, labelled as Claude labels them.
 func (h history) windows(label func(key string) string) []quota.Window {

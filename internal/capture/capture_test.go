@@ -39,13 +39,21 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 	}
 }
 
+func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
+	all := []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}
+
+	if got, want := panicked(t, func() { setOf(all) }), `capture: two fixtures named "accounts-1"`; got != want {
+		t.Errorf("setOf panicked with %q, want %q", got, want)
+	}
+}
+
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
 	f := fixture(t, "accounts-3-week")
-	want := fixture(t, "accounts-3-week")
+	keys, size := slices.Clone(f.keys), f.Size
 	f.keys[0], f.Size = tea.KeyPressMsg{Code: '2', Text: "2"}, wide(10)
 
-	if got := fixture(t, "accounts-3-week"); !reflect.DeepEqual(got.keys, want.keys) || got.Size != want.Size {
-		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, want.keys, want.Size)
+	if got := fixture(t, "accounts-3-week"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
+		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, keys, size)
 	}
 }
 
@@ -96,6 +104,7 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			drawn := f.Frame(f.Size)
 			if f.records != nil {
 				// The ledger and the views split its days in time.Local, which a
 				// test can't change in process: its zone is varied by running the
@@ -103,9 +112,14 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 				if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
 					t.Errorf("%s, over records, is drawn at %s, want the frames' moment in the machine's zone", name, f.now)
 				}
+				// Its moment can be right while part of its world is still built
+				// in the zone asked for, drawing otherwise in UTC than in the
+				// machine's zone wherever the machine isn't in UTC.
+				if mine := frameOf(t, local(), name); drawn != mine {
+					t.Errorf("%s, over records, asked for in UTC, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, drawn, mine)
+				}
 				return
 			}
-			drawn := f.Frame(f.Size)
 			for _, other := range others {
 				if frame := frameOf(t, other, name); frame != drawn {
 					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, drawn, other[name].now.Location(), frame)

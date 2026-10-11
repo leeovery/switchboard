@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -52,25 +53,33 @@ func TestTheReadingsAreTheWindowsTheFramesTellOf(t *testing.T) {
 	}
 }
 
-func TestTheWorldsDocumentsAgreeWithTheirReadings(t *testing.T) {
+// A world's document stands each account's windows as its records' readings
+// last read them, however the world was built, so the two can't tell of
+// different readings.
+func TestTheWorldsDocumentsAgreeWithTheirRecordsReadings(t *testing.T) {
 	worlds := worldsNow()
 	for name, world := range map[string]accountWorld{
 		"auto": worlds.auto(), "pinned": worlds.pinned(), "routing's limit": worlds.limit(), "the bad hour": worlds.badHour(),
 		"ten accounts": worlds.many(10), "work alone": worlds.one(),
+		"built of its fields alone": {accounts: firstAccounts(3), history: worlds.auto().history},
 	} {
 		t.Run(name, func(t *testing.T) {
 			doc := world.document(worlds.now)
+			_, read, _ := worlds.recordsOf(world).readers(func() time.Time { return worlds.now })
+			last := make(map[string]map[string]float64)
+			for r := range read.Between(time.Time{}, doc.GeneratedAt.Add(time.Nanosecond)) {
+				if last[r.Account] == nil {
+					last[r.Account] = make(map[string]float64)
+				}
+				last[r.Account][r.Key] = r.Utilization
+			}
 			for _, a := range doc.Accounts {
+				standing := make(map[string]float64)
 				for _, w := range a.Windows {
-					var last float64
-					for r := range world.history.Between(time.Time{}, doc.GeneratedAt.Add(time.Nanosecond)) {
-						if r.Account == a.ID && r.Key == w.Key {
-							last = r.Utilization
-						}
-					}
-					if last != w.Utilization {
-						t.Errorf("%s's %s stands at %v, but was last read at %v", a.ID, w.Key, w.Utilization, last)
-					}
+					standing[w.Key] = w.Utilization
+				}
+				if len(last[a.ID]) == 0 || !maps.Equal(standing, last[a.ID]) {
+					t.Errorf("%s's windows stand at %v, but its records last read them at %v", a.ID, standing, last[a.ID])
 				}
 			}
 		})
