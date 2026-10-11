@@ -50,19 +50,23 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 	return min(max(min(at, s.Most)+by.rows+by.pages*s.Page, 0), s.Most)
 }
 
-// wheeled scrolls what the wheel turns: while help is open, help; while the
-// routing card or the theme picker is, nothing; else the view.
+// wheeled scrolls what the wheel turns under the pointer, as the screen
+// draws it: help, over its card; the view, over its rows, while no card is
+// open; and nothing else, the routing card among it, nor anything while the
+// theme picker is open.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	by, ok := wheelTurn(msg.Button)
-	switch {
-	case !ok || m.picker.open:
-		return m
-	case m.open == helpOpen:
-		return m.scrollHelp(by)
-	case m.open != nothingOpen:
+	if !ok || m.picker.open {
 		return m
 	}
-	return m.scrollView(by)
+	f, _, _ := m.screen(m.now())
+	switch under := f.Under(msg.X, msg.Y); {
+	case under == dashboard.UnderCard && m.open == helpOpen:
+		return m.scrollHelp(by)
+	case under == dashboard.UnderView:
+		return m.scrollView(by)
+	}
+	return m
 }
 
 // scrollView scrolls the view shown by.

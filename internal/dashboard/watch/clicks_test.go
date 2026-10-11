@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
@@ -190,6 +191,65 @@ func TestAClickOnAPairOfArrowsMovesOn(t *testing.T) {
 	h.clickOn(keyTarget("←→"))
 	if h.model.focus != "personal" {
 		t.Errorf("two clicks on ←→ put the focus on %q, want personal, a card on from work, as → moves it", h.model.focus)
+	}
+}
+
+func TestAClickOnTheCellsOfAKeyOnTheKeyLineActsAsTheKey(t *testing.T) {
+	wide, phone := tea.WindowSizeMsg{Width: 150, Height: 50}, tea.WindowSizeMsg{Width: 52, Height: 50}
+	helpOpened := func(m Model) bool { return m.open == helpOpen }
+	tests := []struct {
+		size  tea.WindowSizeMsg
+		drawn string
+		// acted reports whether the key acted, as the model now stands.
+		acted func(m Model) bool
+	}{
+		{size: wide, drawn: "tab views", acted: func(m Model) bool { return m.view == dashboard.Accounts }},
+		{size: wide, drawn: "? help", acted: helpOpened},
+		{size: wide, drawn: "g chart", acted: func(m Model) bool { return m.chart != dashboard.Burndown }},
+		{size: phone, drawn: "? keys and toggles", acted: helpOpened},
+		{size: phone, drawn: "w window: auto", acted: func(m Model) bool { return m.featured != dashboard.Auto }},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s at %dx%d", tt.drawn, tt.size.Width, tt.size.Height), func(t *testing.T) {
+			for _, at := range []string{"first", "last"} {
+				h := routedHarness(t, routerDocument(three()...))
+				h.update(tt.size)
+				h.start()
+				x, y := h.drawnAt(tt.drawn)
+				if y != tt.size.Height-1 {
+					t.Fatalf("%q is drawn on row %d, want the key line's, %d", tt.drawn, y, tt.size.Height-1)
+				}
+				if at == "last" {
+					x += ansi.StringWidth(tt.drawn) - 1
+				}
+				if h.click(x, y) || !tt.acted(h.model) {
+					t.Errorf("a click on the %s cell of %q, at %d,%d, didn't act as its key does", at, tt.drawn, x, y)
+				}
+			}
+		})
+	}
+}
+
+func TestAClickOnTheCellsOfPPinOrQQuitDoesNothing(t *testing.T) {
+	tests := []struct {
+		size  tea.WindowSizeMsg
+		drawn []string
+	}{
+		{size: tea.WindowSizeMsg{Width: 150, Height: 50}, drawn: []string{"p pin", "q quit"}},
+		{size: tea.WindowSizeMsg{Width: 52, Height: 50}, drawn: []string{"q quit"}},
+	}
+	for _, tt := range tests {
+		h := routedHarness(t, routerDocument(three()...))
+		h.update(tt.size)
+		h.start()
+		for _, drawn := range tt.drawn {
+			x, y := h.drawnAt(drawn)
+			for cell := x; cell < x+ansi.StringWidth(drawn); cell++ {
+				if h.click(cell, y) || h.model.open != nothingOpen || len(h.source.orders) > 0 {
+					t.Errorf("at %d columns, a click at %d,%d, on %q, quit, or opened %v, or ordered %q; want nothing", tt.size.Width, cell, y, drawn, h.model.open, h.source.orders)
+				}
+			}
+		}
 	}
 }
 

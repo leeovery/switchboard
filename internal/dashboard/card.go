@@ -84,12 +84,19 @@ func (f Frame) CardScrolling() Scrolling {
 	return Scrolling{Most: card.scroll.above + card.scroll.below, Page: len(card.body)}
 }
 
-// draw draws the card over what's drawn on c, centred across it and down it,
-// the cells inside its line blank.
+// box is the cells the card takes on a page width × height, its edges
+// included: from x along row y, w cells across and h down, centred across
+// the page and down it.
+func (k Card) box(width, height int) (x, y, w, h int) {
+	h = len(k.body) + chrome(len(k.keys) > 0)
+	return (width - k.width) / 2, (height - h) / 2, k.width, h
+}
+
+// draw draws the card over what's drawn on c, in its box, the cells inside
+// its line blank.
 func (k Card) draw(c *canvas) {
 	keys := len(k.keys) > 0
-	height := len(k.body) + chrome(keys)
-	x, y := (c.width-k.width)/2, (c.height()-height)/2
+	x, y, _, height := k.box(c.width, c.height())
 	inside, content := max(k.width-2, 0), max(k.width-2*cardInset, 0)
 	title := line{{"─ " + k.title + " ", dimInk}}.fit(inside)
 	c.text(x, y, "╭", dimInk)

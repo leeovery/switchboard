@@ -63,21 +63,35 @@ type spaced struct {
 	gap int
 }
 
-// keyLine draws the key line on the frame's last row, where that's under
-// the title row, from column 0: its note, while it has one, else its keys,
-// as keysAt lays them out.
+// keyLine draws the key line on its row, as keyLineRow has it, from column
+// 0: its note, while it has one, else its keys, as keysAt lays them out.
 func (f Frame) keyLine(c *canvas) {
-	y := f.Height - 1
-	if y < f.titleRows() {
+	y, keys, ok := f.keyLineRow()
+	if !ok {
 		return
 	}
 	if note := f.KeyLine.Note; note != "" {
 		c.line(0, y, line{{note, noteInk}}.fit(f.Width))
 		return
 	}
-	for _, k := range f.keysAt() {
+	for _, k := range keys {
 		c.line(k.x, y, k.key.words())
 	}
+}
+
+// keyLineRow is the row the key line is on, the frame's last, and the keys
+// it shows there, as keysAt lays them out: none while a note takes their
+// place. It reports false where that row isn't under the title rows, which
+// leaves the line no row of its own.
+func (f Frame) keyLineRow() (y int, keys []keyAt, ok bool) {
+	y = f.Height - 1
+	switch {
+	case y < f.titleRows():
+		return y, nil, false
+	case f.KeyLine.Note != "":
+		return y, nil, true
+	}
+	return y, f.keysAt(), true
 }
 
 // keysAt are the key line's keys as it lays them out from column 0, each
