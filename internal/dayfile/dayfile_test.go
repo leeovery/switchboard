@@ -45,6 +45,16 @@ func at(t time.Time) func() time.Time {
 	return func() time.Time { return t }
 }
 
+// zone loads the time zone with the given name.
+func zone(t *testing.T, name string) *time.Location {
+	t.Helper()
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		t.Fatalf("load %s: %v", name, err)
+	}
+	return loc
+}
+
 // linesOf returns texts as lines, a line each.
 func linesOf(texts ...string) string {
 	var lines strings.Builder
@@ -178,10 +188,7 @@ func TestADayStartsAtItsFirstInstantWhereTheClocksGoForwardAtMidnight(t *testing
 	}
 	for _, tt := range tests {
 		t.Run(tt.zone, func(t *testing.T) {
-			loc, err := time.LoadLocation(tt.zone)
-			if err != nil {
-				t.Fatalf("load %s: %v", tt.zone, err)
-			}
+			loc := zone(t, tt.zone)
 			day, _ := time.Parse(time.DateOnly, tt.date)
 			y, m, d := day.Date()
 			forward, nextMidnight := time.Date(y, m, d, 1, 0, 0, 0, loc), time.Date(y, m, d+1, 0, 0, 0, 0, loc)
@@ -225,10 +232,7 @@ func TestADayStartsAtTheFirstOfItsMidnightsWhereTheClocksGoBackOverIt(t *testing
 	}
 	for _, tt := range tests {
 		t.Run(tt.zone, func(t *testing.T) {
-			loc, err := time.LoadLocation(tt.zone)
-			if err != nil {
-				t.Fatalf("load %s: %v", tt.zone, err)
-			}
+			loc := zone(t, tt.zone)
 			day, _ := time.Parse(time.DateOnly, tt.date)
 			y, m, d := day.Date()
 			nextMidnight := time.Date(y, m, d+1, 0, 0, 0, 0, loc)
@@ -279,10 +283,7 @@ func TestATimeOfDayIsWhenTheClocksFirstReadIt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			loc, err := time.LoadLocation(tt.zone)
-			if err != nil {
-				t.Fatalf("load %s: %v", tt.zone, err)
-			}
+			loc := zone(t, tt.zone)
 			day, _ := time.Parse(time.DateOnly, tt.date)
 			clock, _ := time.Parse("15:04", tt.clock)
 			y, m, d := day.Date()
@@ -295,10 +296,7 @@ func TestATimeOfDayIsWhenTheClocksFirstReadIt(t *testing.T) {
 }
 
 func TestADayEndsAtTheNextOnesStartWhereTheClocksGoBackAtMidnight(t *testing.T) {
-	santiago, err := time.LoadLocation("America/Santiago")
-	if err != nil {
-		t.Fatalf("load America/Santiago: %v", err)
-	}
+	santiago := zone(t, "America/Santiago")
 	// Chile's clocks went back from 00:00 on 5 April 2026 to 23:00 on the 4th,
 	// which ran 25 hours.
 	start, end, ok := dayIn("2026-04-04", santiago)
@@ -457,8 +455,9 @@ func TestADaysFilesKeptForeverAreCompressedButNeverGo(t *testing.T) {
 // keptInZones are days' files kept as long as keep says, in a time zone, and
 // the date of the last day there they're kept on: whole days by the calendar,
 // wherever the clocks change between, and part of a day as a whole one. The
-// clocks go back in London on 25 Oct 2026, and forward on 28 Mar 2027, and
-// forward in Sydney on 4 Oct 2026.
+// clocks go back in London on 25 Oct 2026, and forward on 28 Mar 2027,
+// forward in Sydney on 4 Oct 2026, and forward over midnight in Santiago on 6
+// Sep 2026, so that day starts at 01:00.
 var keptInZones = []struct {
 	name, zone, date string
 	keep             time.Duration
@@ -473,16 +472,7 @@ var keptInZones = []struct {
 	{name: "a week and a day, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-01", keep: 8 * 24 * time.Hour, until: "2026-10-09"},
 	{name: "90 days, the clocks going forward between", zone: "Australia/Sydney", date: "2026-09-30", keep: 90 * 24 * time.Hour, until: "2026-12-29"},
 	{name: "a day and a half, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-03", keep: 36 * time.Hour, until: "2026-10-05"},
-}
-
-// zone loads the time zone with the given name.
-func zone(t *testing.T, name string) *time.Location {
-	t.Helper()
-	loc, err := time.LoadLocation(name)
-	if err != nil {
-		t.Fatalf("load %s: %v", name, err)
-	}
-	return loc
+	{name: "a week and a day, until the clocks go forward over midnight", zone: "America/Santiago", date: "2026-08-28", keep: 8 * 24 * time.Hour, until: "2026-09-05"},
 }
 
 func TestADaysFilesAreKeptUntilTheDayOfTheirLastInstantKept(t *testing.T) {
@@ -582,27 +572,30 @@ func TestPruningLeavesAnythingButItsOwnFilesAlone(t *testing.T) {
 }
 
 func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
-	day := time.Date(2026, 9, 25, 0, 0, 0, 0, time.Local)
-	date := day.Format(time.DateOnly)
+	const date = "2026-09-25"
+	day, _, _ := Day(date)
+	// twoDaysOn is the start of the second day after the day ends, by the
+	// calendar.
+	twoDaysOn := DayStart(day, 3)
 	lines := linesOf("nine", "ten")
 	tests := []struct {
 		name string
-		// ended is how long before now the day ended.
-		ended time.Duration
+		// since is how long after twoDaysOn now is.
+		since time.Duration
 		// in is the day's file that holds its lines once the files are pruned,
 		// and gone the one that isn't there.
 		in, gone dayFile
 	}{
-		{name: "plain, a minute short of two days on", ended: 48*time.Hour - time.Minute, in: plainFile(date), gone: compressedFile(date)},
-		{name: "compressed, two days on", ended: 48 * time.Hour, in: compressedFile(date), gone: plainFile(date)},
-		{name: "compressed, a minute past two days on", ended: 48*time.Hour + time.Minute, in: compressedFile(date), gone: plainFile(date)},
+		{name: "plain, a minute short of two days on", since: -time.Minute, in: plainFile(date), gone: compressedFile(date)},
+		{name: "compressed, two days on", in: compressedFile(date), gone: plainFile(date)},
+		{name: "compressed, a minute past two days on", since: time.Minute, in: compressedFile(date), gone: plainFile(date)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := readingsHistory(t.TempDir())
 			writeDay(t, f, plainFile(date), lines)
 
-			f.prune(day.AddDate(0, 0, 1).Add(tt.ended), twoWeeks, nil)
+			f.prune(twoDaysOn.Add(tt.since), twoWeeks, nil)
 			if got := heldIn(t, f, tt.in); got != lines {
 				t.Errorf("%s holds\n%s\nwant the day's lines\n%s", tt.in.name(f.Prefix), got, lines)
 			}
@@ -621,8 +614,9 @@ func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
 }
 
 func TestADaysFileIsCompressedAsTheDayTwoDaysAfterItsEndStartsInItsZone(t *testing.T) {
-	// The clocks go back in London on 25 Oct 2026, and forward in Sydney on 4
-	// Oct 2026. done is the date of the day whose start the file is
+	// The clocks go back in London on 25 Oct 2026, forward in Sydney on 4 Oct
+	// 2026, and forward over midnight in Santiago on 6 Sep 2026, so that day
+	// starts at 01:00. done is the date of the day whose start the file is
 	// compressed at.
 	tests := []struct {
 		name, zone, date, done string
@@ -630,6 +624,7 @@ func TestADaysFileIsCompressedAsTheDayTwoDaysAfterItsEndStartsInItsZone(t *testi
 		{name: "two days on", zone: "UTC", date: "2026-10-07", done: "2026-10-10"},
 		{name: "two days on, the clocks going back between", zone: "Europe/London", date: "2026-10-24", done: "2026-10-27"},
 		{name: "two days on, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-02", done: "2026-10-05"},
+		{name: "two days on, as the clocks go forward over midnight", zone: "America/Santiago", date: "2026-09-03", done: "2026-09-06"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {

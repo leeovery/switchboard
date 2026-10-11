@@ -172,7 +172,7 @@ func TestTheFilesArePrunedOnTheFirstWriteOfANewDay(t *testing.T) {
 	if !holdsDay(f, old) {
 		t.Fatal("the day's file went on a day it's kept")
 	}
-	clock.now = start.Add(24 * time.Hour)
+	clock.now = start.Local().AddDate(0, 0, 1)
 	w.write(noted{at: clock.now, text: "two"})
 	if holdsDay(f, old) {
 		t.Error("the day's file stayed on the day after, want it pruned with that day's first write")
@@ -312,7 +312,7 @@ func TestTheFirstWriteOfANewDayMakesTheRoundBeforeItPrunes(t *testing.T) {
 
 	// A day on, the first write comes before the hourly round, as after a
 	// sleep, which holds that back.
-	clock.now = start.Add(24 * time.Hour)
+	clock.now = start.Local().AddDate(0, 0, 1)
 	w.write(noted{at: clock.now, text: "one"})
 	if want := []time.Time{start, clock.now}; !slices.EqualFunc(rounds, want, time.Time.Equal) || !slices.Equal(held, []bool{true, true}) {
 		t.Errorf("rounds were made at %v, the day past keeping there for each = %v; want %v, the second as the write came, before the prune", rounds, held, want)
@@ -323,7 +323,7 @@ func TestTheFirstWriteOfANewDayMakesTheRoundBeforeItPrunes(t *testing.T) {
 }
 
 func TestWhatsLoggedNamesTheFilesAndWhatTheyHold(t *testing.T) {
-	old, done, today := DateOf(start.AddDate(0, 0, -30)), DateOf(start.AddDate(0, 0, -3)), DateOf(start)
+	old, done, today := DateOf(start.Local().AddDate(0, 0, -30)), DateOf(start.Local().AddDate(0, 0, -3)), DateOf(start)
 	// blockedDir returns a directory that can't be made, nor read, as a file
 	// stands in its path.
 	blockedDir := func(t *testing.T) string {
