@@ -49,17 +49,16 @@ type SessionPage struct {
 
 // SessionAccount is an account a session ran on: its first and last request
 // there, how many it made, what they'd have cost through the API at today's
-// prices, Unpriced naming the counts that leaves out, and the points of each
+// prices, as Worth sums it, and the points of each
 // of the account's windows they took, by its key, an estimate, as pointsOf
 // shares them out: none where no window of it was read.
 type SessionAccount struct {
-	Account  string             `json:"account"`
-	From     time.Time          `json:"from"`
-	To       time.Time          `json:"to"`
-	Requests int                `json:"requests"`
-	Worth    ledger.Picodollars `json:"worth"`
-	Unpriced []string           `json:"unpriced,omitempty"`
-	Points   map[string]int     `json:"points,omitempty"`
+	Account  string    `json:"account"`
+	From     time.Time `json:"from"`
+	To       time.Time `json:"to"`
+	Requests int       `json:"requests"`
+	Worth
+	Points map[string]int `json:"points,omitempty"`
 }
 
 // SessionMove is a request's move of its session from one account onto
@@ -82,23 +81,22 @@ type SessionMove struct {
 // request came, and when it ended, zero while it's still going; its requests;
 // the tools its answers called, most first; the tokens it read from the
 // cache, wrote to it and put out; what it'd have cost through the API at
-// today's prices, Unpriced naming the counts that leaves out; and the
+// today's prices, as Worth sums it; and the
 // accounts its own conversation's requests went to, in the order they did,
 // one gone back to coming again, so a subagent on another account, its model
 // routed apart, doesn't read as a move: those of its requests where it has
 // none of its own conversation.
 type Turn struct {
-	Turn     int                `json:"turn"`
-	Started  time.Time          `json:"started"`
-	Ended    time.Time          `json:"ended,omitzero"`
-	Requests int                `json:"requests"`
-	Tools    []ToolCalls        `json:"tools"`
-	Read     int                `json:"read"`
-	Written  int                `json:"written"`
-	Out      int                `json:"out"`
-	Worth    ledger.Picodollars `json:"worth"`
-	Unpriced []string           `json:"unpriced,omitempty"`
-	Accounts []string           `json:"accounts"`
+	Turn     int         `json:"turn"`
+	Started  time.Time   `json:"started"`
+	Ended    time.Time   `json:"ended,omitzero"`
+	Requests int         `json:"requests"`
+	Tools    []ToolCalls `json:"tools"`
+	Read     int         `json:"read"`
+	Written  int         `json:"written"`
+	Out      int         `json:"out"`
+	Worth
+	Accounts []string `json:"accounts"`
 }
 
 // ToolCalls are a tool's calls, by its name, and how many times it was
@@ -110,14 +108,12 @@ type ToolCalls struct {
 
 // SessionTotals sum a session: its turns, its requests, the share of the
 // tokens it sent that the cache served, and what its requests would have
-// cost through the API at today's prices, Unpriced naming the counts that
-// leaves out.
+// cost through the API at today's prices, as Worth sums it.
 type SessionTotals struct {
-	Turns     int                `json:"turns"`
-	Requests  int                `json:"requests"`
-	FromCache float64            `json:"from_cache"`
-	Worth     ledger.Picodollars `json:"worth"`
-	Unpriced  []string           `json:"unpriced,omitempty"`
+	Turns     int     `json:"turns"`
+	Requests  int     `json:"requests"`
+	FromCache float64 `json:"from_cache"`
+	Worth
 }
 
 // PageSources are what a session's page is built from.
@@ -226,7 +222,7 @@ func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 // counts, metered where it gave usage, none where it gave none.
 type request struct {
 	*ledger.Line
-	worth   ledger.Worth
+	worth   Worth
 	tokens  quota.Tokens
 	metered bool
 }
@@ -242,7 +238,7 @@ func requestsOf(lines []ledger.Line, prices ledger.Table, date string) []request
 			continue
 		}
 		tokens, metered := l.Tokens()
-		requests = append(requests, request{Line: l, worth: prices.Summed(l, date), tokens: tokens, metered: metered})
+		requests = append(requests, request{Line: l, worth: summed(prices, l, date), tokens: tokens, metered: metered})
 	}
 	return requests
 }
@@ -269,7 +265,6 @@ func resumedAt(requests []request) time.Time {
 // none.
 func accountsOf(requests []request) []SessionAccount {
 	var accounts []SessionAccount
-	var worth []worthSum
 	for _, r := range requests {
 		if r.Account == "" {
 			continue
@@ -277,14 +272,11 @@ func accountsOf(requests []request) []SessionAccount {
 		i := slices.IndexFunc(accounts, func(a SessionAccount) bool { return a.Account == r.Account })
 		if i < 0 {
 			i = len(accounts)
-			accounts, worth = append(accounts, SessionAccount{Account: r.Account, From: r.At.UTC()}), append(worth, worthSum{})
+			accounts = append(accounts, SessionAccount{Account: r.Account, From: r.At.UTC()})
 		}
 		accounts[i].To = r.At.UTC()
 		accounts[i].Requests++
-		worth[i].add(r.worth)
-	}
-	for i := range accounts {
-		accounts[i].Worth, accounts[i].Unpriced = worth[i].cost, worth[i].unpriced
+		accounts[i].add(r.worth)
 	}
 	if accounts == nil {
 		return []SessionAccount{}
@@ -305,14 +297,14 @@ func movesOf(s *story) []SessionMove {
 // over their input, those reads and their writes to it together, none where
 // they sent none.
 func totalsOf(requests []request, turns int) SessionTotals {
-	var worth worthSum
+	var worth Worth
 	var read, sent int
 	for _, r := range requests {
 		worth.add(r.worth)
 		read += r.tokens.CacheRead
 		sent += r.tokens.Input + r.tokens.CacheRead + r.tokens.CacheWrite
 	}
-	totals := SessionTotals{Turns: turns, Requests: len(requests), Worth: worth.cost, Unpriced: worth.unpriced}
+	totals := SessionTotals{Turns: turns, Requests: len(requests), Worth: worth}
 	if sent > 0 {
 		totals.FromCache = float64(read) / float64(sent)
 	}

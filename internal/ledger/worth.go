@@ -151,26 +151,16 @@ func (t Table) CacheWrite(l *Line, date string) (Worth, bool) {
 }
 
 // Summed returns what the line's request adds to a sum of requests' worth at
-// the prices in effect on the local day with the given date: its worth, as
-// Request gives it; or, where the table can't price it, as of a model it
-// doesn't know, nothing, every count its usage holds that costs anything
-// named unpriced, and noUsage where it went upstream without usage, so the
+// the prices in effect on the local day with the given date, reporting
+// whether the table priced it: its worth, as Request gives it; or, where the
+// table can't price it, as of a model it doesn't know, none, naming what it
+// leaves unpriced as a summary's model's day names it, as wholly says, so the
 // sum names what it leaves out.
-func (t Table) Summed(l *Line, date string) Worth {
+func (t Table) Summed(l *Line, date string) (Worth, bool) {
 	if w, ok := t.Request(l, date); ok {
-		return w
+		return w, true
 	}
-	var w Worth
-	countsOf(l.Usage).each("", func(path string, n int64) {
-		if n != 0 && !free(path) {
-			w.Unpriced = append(w.Unpriced, path)
-		}
-	})
-	if l.unmetered() {
-		w.Unpriced = append(w.Unpriced, noUsage)
-	}
-	slices.Sort(w.Unpriced)
-	return w
+	return Worth{Unpriced: t.wholly(l.Model, l.Shape.InferenceGeo, countsOf(l.Usage), l.unmetered(), date)}, false
 }
 
 // Rewrite returns what writing the line's request's whole prompt into the
@@ -450,10 +440,11 @@ func (t Table) Priced(s Summary, date string) Priced {
 		account := PricedAccount{AccountDay: a}
 		for _, m := range a.Models {
 			model := PricedModel{ModelDay: m}
-			if w, ok := t.worth(m.Model, m.InferenceGeo, countsOf(m.Usage), m.NoUsage > 0, date); ok {
+			held := countsOf(m.Usage)
+			if w, ok := t.worth(m.Model, m.InferenceGeo, held, m.NoUsage > 0, date); ok {
 				model.Worth, model.Unpriced = &w.Cost, w.Unpriced
 			} else {
-				model.Unpriced = t.wholly(m, date)
+				model.Unpriced = t.wholly(m.Model, m.InferenceGeo, held, m.NoUsage > 0, date)
 			}
 			account.Models = append(account.Models, model)
 		}
@@ -462,30 +453,39 @@ func (t Table) Priced(s Summary, date string) Priced {
 	return priced
 }
 
-// wholly names why a model's day the table prices none of is unpriced, on
-// the local day with the given date: noModel where its requests named none;
-// the geo they asked for, as inference_geo:eu, where the table knows the
-// model but doesn't price it there; else the model's id; and noUsage beside
-// it where some went upstream without usage. It's none where the day spent
-// nothing, giving no usage and none upstream without it, so its worth is
-// none, not unknown.
-func (t Table) wholly(m ModelDay, date string) []string {
+// wholly names why requests the table prices none of, of the model with the
+// given id that asked for the geo given, are unpriced on the local day with
+// the given date, their usage counting held, unmetered where some went
+// upstream without usage: noModel where they named no model; the geo, as
+// inference_geo:eu, where the table knows the model but doesn't price it
+// there; else the model's id; and noUsage beside it where unmetered. It's
+// none where they spent nothing, their usage holding no count that costs
+// anything and none upstream without it, so their worth is none, not
+// unknown.
+func (t Table) wholly(model, geo string, held counts, unmetered bool, date string) []string {
 	var named string
-	_, known := t.prices(m.Model, date)
+	_, known := t.prices(model, date)
 	switch {
-	case len(m.Usage) == 0 && m.NoUsage == 0:
+	case !held.costly() && !unmetered:
 		return nil
-	case m.Model == "":
+	case model == "":
 		named = noModel
 	case known:
-		named = inferenceGeo + m.InferenceGeo
+		named = inferenceGeo + geo
 	default:
-		named = m.Model
+		named = model
 	}
 	unpriced := []string{named}
-	if m.NoUsage > 0 {
+	if unmetered {
 		unpriced = append(unpriced, noUsage)
 	}
 	slices.Sort(unpriced)
 	return unpriced
+}
+
+// costly reports whether c holds a count that costs anything.
+func (c counts) costly() bool {
+	costly := false
+	c.each("", func(path string, n int64) { costly = costly || n != 0 && !free(path) })
+	return costly
 }

@@ -42,11 +42,26 @@ func TestACountedNounIsOneOrMany(t *testing.T) {
 		n    int
 		want string
 	}{
-		{n: 0, want: "0 weeks"}, {n: 1, want: "1 week"}, {n: 2, want: "2 weeks"}, {n: 11, want: "11 weeks"},
+		{n: 0, want: "0 weeks"}, {n: 1, want: "1 week"}, {n: 2, want: "2 weeks"}, {n: 11, want: "11 weeks"}, {n: 1240, want: "1,240 weeks"},
 	}
 	for _, tt := range tests {
 		if got := prose.Counted(tt.n, "week"); got != tt.want {
 			t.Errorf("Counted(%d, week) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestANumberGroupedSetsItsThousandsApart(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 0, want: "0"}, {n: 999, want: "999"}, {n: 1000, want: "1,000"}, {n: 1240, want: "1,240"},
+		{n: 1234567, want: "1,234,567"}, {n: -1240, want: "-1,240"},
+	}
+	for _, tt := range tests {
+		if got := prose.Grouped(tt.n); got != tt.want {
+			t.Errorf("Grouped(%d) = %q, want %q", tt.n, got, tt.want)
 		}
 	}
 }

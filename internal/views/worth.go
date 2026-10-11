@@ -6,17 +6,31 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// Worth is what requests would have cost through the API, summed exactly:
-// Amount, of those the price table priced, left out where it priced none;
-// and Unpriced, what Amount leaves out as it can't be priced, never taken
-// for free, as the ledger's priced days name it: the paths of the counts it
-// can't price, no_usage where requests went upstream without usage, and of
-// requests that spent anything, the id of a model it doesn't know,
-// inference_geo and the geo where it doesn't price a model in the geo they
-// asked for, and no_model where they named none.
+// Worth is what requests would have cost through the API, summed exactly,
+// every verb's sum of it, a day's model's or a line's: Amount, of those the
+// price table priced, left out where it priced none; and Unpriced, what
+// Amount leaves out as it can't be priced, never taken for free, as the
+// ledger names it: the paths of the counts it can't price, no_usage where
+// requests went upstream without usage, and of requests it prices none of
+// that spent anything, the id of a model it doesn't know, inference_geo and
+// the geo where it doesn't price a model in the geo they asked for, and
+// no_model where they named none.
 type Worth struct {
 	Amount   *ledger.Picodollars `json:"worth,omitempty"`
 	Unpriced []string            `json:"unpriced,omitempty"`
+}
+
+// summed is what the line's request was worth, at the prices in effect on
+// the local day with the given date, as ledger.Table.Summed gives it: no
+// Amount where the table priced none of it.
+func summed(prices ledger.Table, l *ledger.Line, date string) Worth {
+	var w Worth
+	worth, priced := prices.Summed(l, date)
+	if priced {
+		w.addAmount(worth.Cost)
+	}
+	w.unprice(worth.Unpriced...)
+	return w
 }
 
 // addModel adds what a model's day was worth.

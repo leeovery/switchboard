@@ -421,32 +421,37 @@ func TestAMovesCostIsUnpricedWhereItsRequestIs(t *testing.T) {
 
 func TestASumOfRequestsNamesWhatItCantPrice(t *testing.T) {
 	tests := []struct {
-		name string
-		edit func(l *ledger.Line)
-		want ledger.Worth
+		name   string
+		edit   func(l *ledger.Line)
+		want   ledger.Worth
+		priced bool
 	}{
-		{name: "one the table prices, at its worth", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}},
+		{name: "one the table prices, at its worth", edit: func(*ledger.Line) {}, want: ledger.Worth{Cost: dollars(10*4e-6 + 20*20e-6)}, priced: true},
 		{name: "one the table prices, but without usage", edit: func(l *ledger.Line) { l.Usage, l.CutOff = nil, true },
-			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
-		{name: "one of a model the table doesn't know, its every count that costs anything", edit: func(l *ledger.Line) {
+			want: ledger.Worth{Unpriced: []string{"no_usage"}}, priced: true},
+		{name: "one of a model the table doesn't know, by its id", edit: func(l *ledger.Line) {
 			l.Model = "claude-opus-9"
 			l.Usage = usage(`{"input_tokens":10,"cache_read_input_tokens":0,"output_tokens":20,"output_tokens_details":{"thinking_tokens":5},` +
 				`"server_tool_use":{"web_fetch_requests":1,"web_search_requests":1}}`)
-		}, want: ledger.Worth{Unpriced: []string{"input_tokens", "output_tokens", "server_tool_use.web_search_requests"}}},
+		}, want: ledger.Worth{Unpriced: []string{"claude-opus-9"}}},
 		{name: "one of a model the table doesn't know, without usage", edit: func(l *ledger.Line) { l.Model, l.Usage = "claude-opus-9", nil },
-			want: ledger.Worth{Unpriced: []string{"no_usage"}}},
+			want: ledger.Worth{Unpriced: []string{"claude-opus-9", "no_usage"}}},
+		{name: "one of a model the table doesn't know whose usage costs nothing, none", edit: func(l *ledger.Line) {
+			l.Model, l.Usage = "claude-opus-9", usage(`{"input_tokens":0,"server_tool_use":{"web_fetch_requests":1}}`)
+		}},
 		{name: "one of a model the table doesn't know, the router answered itself", edit: func(l *ledger.Line) {
 			l.Model, l.Usage, l.Attempts, l.Status = "claude-opus-9", nil, 0, 429
 		}},
-		{name: "one in a geo the table doesn't price its model in", edit: func(l *ledger.Line) { l.Model, l.Shape.InferenceGeo = "claude-haiku-4-5", "us" },
-			want: ledger.Worth{Unpriced: []string{"input_tokens", "output_tokens"}}},
+		{name: "one in a geo the table doesn't price its model in, by the geo", edit: func(l *ledger.Line) { l.Model, l.Shape.InferenceGeo = "claude-haiku-4-5", "us" },
+			want: ledger.Worth{Unpriced: []string{"inference_geo:us"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			line := asked("1", on(0, 9, 0))
 			tt.edit(&line)
-			if got := ledger.Pricing.Summed(&line, today); got.Cost != tt.want.Cost || !slices.Equal(got.Unpriced, tt.want.Unpriced) {
-				t.Errorf("Summed() = %+v, want %+v", got, tt.want)
+			got, priced := ledger.Pricing.Summed(&line, today)
+			if got.Cost != tt.want.Cost || !slices.Equal(got.Unpriced, tt.want.Unpriced) || priced != tt.priced {
+				t.Errorf("Summed() = %+v, priced: %v, want %+v, priced: %v", got, priced, tt.want, tt.priced)
 			}
 		})
 	}

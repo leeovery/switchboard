@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -127,5 +128,28 @@ func TestAModelsShareOfUseIsLeftOutWhereItsWorthIsUnpriced(t *testing.T) {
 		`{"model":"claude-opus-9","unpriced":["claude-opus-9"]}]`
 	if got := jsonOf(t, views.NewHistory(input(days)).Totals.Accounts[0].ByModel); got != want {
 		t.Errorf("work's use by model is\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestAnAccountsDayOfNoRequestsCountsNone(t *testing.T) {
+	// Side's windows were read yesterday and today, and work's today, none
+	// of them used but work yesterday.
+	read := windowsDay{highest: map[string]float64{"5h": 0.2}}
+	days := daysFrom("2026-10-06",
+		day("2026-10-06", read.of("side"), account("work", sent("claude-opus-5-5", 1, inputUsage))),
+		day("2026-10-07", read.of("side"), read.of("work")))
+	history := views.NewHistory(input(days))
+
+	var year []int
+	for _, d := range history.Year.Days {
+		year = append(year, d.Requests)
+	}
+	work, side, all := history.Totals.Accounts[0], history.Totals.Accounts[1], history.Totals.Accounts[3]
+	got := []int{year[0], year[1], history.Months[0].Requests, work.Requests, work.LongestRun, side.Requests, side.LongestRun, all.Requests, all.LongestRun}
+	if want := []int{1, 0, 1, 1, 1, 0, 0, 1, 1}; !slices.Equal(got, want) {
+		t.Errorf("the year's days, the month and work's, side's and every account's totals count %v requests and runs, want %v", got, want)
+	}
+	if side.BusiestDay != "" || all.BusiestDay != "2026-10-06" {
+		t.Errorf("side's busiest day is %q and every account's %q, want none and 2026-10-06", side.BusiestDay, all.BusiestDay)
 	}
 }

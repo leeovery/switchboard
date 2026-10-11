@@ -23,7 +23,7 @@ import (
 // its own, as the readings they came from may have been pruned since.
 func (s Summary) knowing(held Summary) Summary {
 	s.Accounts = knowingAll(s.Accounts, held.Accounts, func(a AccountDay) string { return a.Account }, AccountDay.knowing, strings.Compare)
-	s.Lines = max(s.Lines, held.Lines, s.counted())
+	s.Lines = max(s.Lines, held.Lines, s.linesCounted())
 	return s
 }
 

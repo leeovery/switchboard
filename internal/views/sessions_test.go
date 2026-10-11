@@ -21,7 +21,7 @@ func october(day, hour, minute int) time.Time {
 	return time.Date(2026, 10, day, hour, minute, 0, 0, time.Local)
 }
 
-// now is the time by the clock in the List's tests: Wednesday 7 October,
+// now is the time by the clock in the views' tests: Wednesday 7 October,
 // 13:12 local time.
 var now = october(7, 13, 12)
 
@@ -61,6 +61,13 @@ const (
 // micro is an amount of millionths of a dollar, as picodollars.
 func micro(n int64) ledger.Picodollars {
 	return ledger.Picodollars(n * 1_000_000)
+}
+
+// priced is a worth of n millionths of a dollar priced, the counts given left
+// unpriced.
+func priced(n int64, unpriced ...string) views.Worth {
+	amount := micro(n)
+	return views.Worth{Amount: &amount, Unpriced: unpriced}
 }
 
 // cost is a pointer to an amount of millionths of a dollar.
@@ -234,7 +241,7 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			// Its last request ended at 9:00, and its cache with it, however
 			// lately the router saw it.
 			Models:  []views.SessionModel{{Model: opus, Account: "work", Reason: "sticky"}},
-			Started: utc(october(6, 22, 0)), Requests: 1, Worth: micro(hourWorth),
+			Started: utc(october(6, 22, 0)), Requests: 1, Worth: priced(hourWorth),
 		},
 		{
 			Session: mover, Dir: "~/Code/cli", Account: "side", Model: opus, Running: true, LastSeen: utc(october(7, 13, 11)),
@@ -242,7 +249,7 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 				{Model: opus, Account: "side", Reason: "moved: work hit its limit"},
 				{Model: haiku, Account: "work", Reason: "sticky"},
 			},
-			State: status.Answering, MoveCost: cost(hourRewrite), Started: utc(october(7, 10, 0)), Requests: 4, Worth: micro(3*hourWorth + smallWorth),
+			State: status.Answering, MoveCost: cost(hourRewrite), Started: utc(october(7, 10, 0)), Requests: 4, Worth: priced(3*hourWorth + smallWorth),
 			Moved: &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "moved: work hit its limit", Cost: cost(hourWrite)},
 		},
 		{
@@ -250,15 +257,14 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			Models: []views.SessionModel{{Model: "claude-sonnet-5-5", Account: "side", Reason: "new"}},
 		},
 		{
-			Session: rescored, Account: "side", Model: opus, Ended: utc(october(7, 12, 0)), Started: utc(october(7, 9, 0)), Requests: 2, Worth: micro(2 * hourWorth),
+			Session: rescored, Account: "side", Model: opus, Ended: utc(october(7, 12, 0)), Started: utc(october(7, 9, 0)), Requests: 2, Worth: priced(2 * hourWorth),
 			Moved: &views.Move{At: utc(october(7, 12, 0)), From: "work", Reason: "rescored after 3h idle"},
 		},
 		{
 			Session: early, Dir: "~/Code/web", Account: "work", Model: opus, Ended: utc(october(7, 11, 0)), Started: utc(october(7, 8, 0)),
-			Requests: 3, Worth: micro(hourWorth), Unpriced: []string{"input_tokens", "no_usage", "output_tokens"},
+			Requests: 3, Worth: priced(hourWorth, "claude-opus-9", "no_usage"),
 		},
-	}, Today: views.SessionsToday{Sessions: 5, Requests: 10, Worth: micro(5*hourWorth + smallWorth + 2*hourWorth),
-		Unpriced: []string{"input_tokens", "no_usage", "output_tokens"}}}
+	}, Today: views.SessionsToday{Sessions: 5, Requests: 10, Worth: priced(5*hourWorth+smallWorth+2*hourWorth, "claude-opus-9", "no_usage")}}
 	assertList(t, got, want)
 }
 
@@ -281,7 +287,7 @@ func TestWithoutTheRouterTheListHoldsTodaysSessionsAsEnded(t *testing.T) {
 	if older := got.Sessions[3]; !older.Started.Equal(october(6, 22, 0)) || older.Requests != 1 {
 		t.Errorf("without the router, older is %+v, want it started yesterday, with today's one request", older)
 	}
-	want := views.SessionsToday{Sessions: 4, Requests: 10, Worth: micro(7*hourWorth + smallWorth), Unpriced: []string{"input_tokens", "no_usage", "output_tokens"}}
+	want := views.SessionsToday{Sessions: 4, Requests: 10, Worth: priced(7*hourWorth+smallWorth, "claude-opus-9", "no_usage")}
 	if !reflect.DeepEqual(got.Today, want) {
 		t.Errorf("without the router, today sums to %+v, want %+v", got.Today, want)
 	}

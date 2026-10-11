@@ -1,10 +1,11 @@
 // Package prose words what switchboard tells people the same way wherever it
 // tells it: a list run together as English runs one, a count as briefly as a
-// row has room for, and text cut short.
+// row has room for, or in full, its thousands set apart, and text cut short.
 package prose
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -44,12 +45,30 @@ func Number(n int) string {
 }
 
 // Counted counts n of the thing a noun names, one or many, as "1 week" or
-// "3 weeks": a noun whose plural takes an s, as every one counted does.
+// "1,240 requests", its thousands set apart as Grouped sets them: a noun
+// whose plural takes an s, as every one counted does.
 func Counted(n int, noun string) string {
 	if n == 1 {
 		return "1 " + noun
 	}
-	return fmt.Sprintf("%d %ss", n, noun)
+	return Grouped(n) + " " + noun + "s"
+}
+
+// Grouped writes n with its thousands set apart by commas, as "1,240".
+func Grouped(n int) string {
+	digits := strconv.Itoa(n)
+	sign := ""
+	if n < 0 {
+		sign, digits = "-", digits[1:]
+	}
+	var b strings.Builder
+	for i, d := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(d)
+	}
+	return sign + b.String()
 }
 
 // List runs items together as a list: "a", "a and b", "a, b and c", or ""
