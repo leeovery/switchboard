@@ -513,19 +513,18 @@ func (r RoutingCard) names(ids []string) []string {
 	return names
 }
 
-// keys are the card's keys row, as many of them as fit width cells, those
-// first in it the first to go, enter apply and esc cancel always kept: the
-// numbers name the accounts there are, up to the ninth.
+// keys are the card's keys row, as many of them as fit width cells: ↑↓ move
+// the first to go, then m move running, as m's row names its key, then the
+// numbers, which nothing else says pick; enter apply and esc cancel always
+// kept. The numbers name the accounts there are, up to the ninth.
 func (r RoutingCard) keys(width int) []Key {
-	keys := []Key{
-		{Key: "↑↓", Does: "move"},
-		{Key: "space 0-" + strconv.Itoa(min(max(len(r.Rows)-1, 0), numbered)), Does: "tick"},
-		{Key: "m", Does: "move running"},
-		{Key: "enter", Does: "apply"},
-		{Key: "esc", Does: "cancel"},
+	move, running := Key{Key: "↑↓", Does: "move"}, Key{Key: "m", Does: "move running"}
+	tick := Key{Key: "space 0-" + strconv.Itoa(min(max(len(r.Rows)-1, 0), numbered)), Does: "tick"}
+	kept := []Key{{Key: "enter", Does: "apply"}, {Key: "esc", Does: "cancel"}}
+	for _, keys := range [][]Key{slices.Concat([]Key{move, tick, running}, kept), slices.Concat([]Key{tick, running}, kept), slices.Concat([]Key{tick}, kept)} {
+		if keyRow(keys).width() <= width {
+			return keys
+		}
 	}
-	for len(keys) > 2 && keyRow(keys).width() > width {
-		keys = keys[1:]
-	}
-	return keys
+	return kept
 }
