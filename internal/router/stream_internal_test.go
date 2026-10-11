@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/iotest"
@@ -402,6 +403,77 @@ func TestAReaderThatFallsBehindIsDropped(t *testing.T) {
 	}
 }
 
+func TestEndingTheStreamWaitsForEachReaderToWriteWhatItWasToldOf(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := &Router{stream: newStream(at(start))}
+		w := reading(r)
+		<-w.flushing
+		const told = 3
+		for i := range told {
+			r.stream.publish(StreamEvent{Kind: StreamSent, Request: strconv.Itoa(i), Attempt: 1})
+		}
+		ended := make(chan struct{})
+		go func() {
+			r.stream.end(time.Hour)
+			close(ended)
+		}()
+		w.release()
+		<-w.flushing
+		synctest.Wait()
+		select {
+		case <-ended:
+			t.Error("the stream ended while its reader was still writing what it was told of, want it to wait")
+		default:
+		}
+		w.release()
+		<-ended
+		if got := strings.Count(w.written(), "\n"); got != told {
+			t.Errorf("the reader wrote %d events before the stream ended, want all %d it was told of:\n%s", got, told, w.written())
+		}
+	})
+}
+
+func TestEndingTheStreamWaitsForAReaderThatTakesNothingOnlySoLong(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := &Router{stream: newStream(at(start))}
+		w := reading(r)
+		<-w.flushing
+		r.stream.publish(StreamEvent{Kind: StreamSent, Request: "r", Attempt: 1})
+
+		began := time.Now()
+		r.stream.end(streamEndWait)
+		if waited := time.Since(began); waited != streamEndWait {
+			t.Errorf("ending the stream waited %v for a reader that takes nothing, want %v", waited, streamEndWait)
+		}
+		w.release()
+		<-w.flushing
+		w.release()
+	})
+}
+
+func TestAReaderJoiningOnceTheStreamHasEndedIsToldOfNothing(t *testing.T) {
+	s := newStream(at(start))
+	s.publish(StreamEvent{Kind: StreamSent, Request: "r", Attempt: 1})
+	s.end(streamEndWait)
+
+	inFlight, reader := s.join()
+	defer s.leave(reader)
+	if len(inFlight) > 0 {
+		t.Errorf("join() = %+v, want nothing in flight told of once the stream has ended", inFlight)
+	}
+	select {
+	case e, open := <-reader.events:
+		if open {
+			t.Errorf("a reader joining once the stream has ended was told of %+v, want its events closed", e)
+		}
+	default:
+		t.Error("a reader joining once the stream has ended waits for events, want them closed at once")
+	}
+	if s.pacing != nil {
+		t.Error("the stream tells of progress once it has ended, want it not to")
+	}
+}
+
 func TestDoingSaysWhatEachSessionAndModelsRequestsInFlightAreDoing(t *testing.T) {
 	s := newStream(at(start))
 	// one and two are sessions whose ids differ only past what an event
@@ -628,6 +700,52 @@ func joined(t *testing.T, r *Router) *streamReader {
 	}
 	t.Cleanup(func() { r.stream.leave(reader) })
 	return reader
+}
+
+// reading serves the router's request stream to a reader, as GET /stream
+// does, writing to a heldWriter, which it returns.
+func reading(r *Router) *heldWriter {
+	w := &heldWriter{header: make(http.Header), flushing: make(chan struct{}), released: make(chan struct{})}
+	go r.serveStream(w, httptest.NewRequest(http.MethodGet, "/stream", nil))
+	return w
+}
+
+// heldWriter is a response that holds each flush, having said on flushing it
+// has come, until it's released.
+type heldWriter struct {
+	header             http.Header
+	flushing, released chan struct{}
+
+	mu   sync.Mutex
+	body strings.Builder
+}
+
+func (w *heldWriter) Header() http.Header { return w.header }
+
+func (w *heldWriter) WriteHeader(int) {}
+
+func (w *heldWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.body.Write(p)
+}
+
+func (w *heldWriter) FlushError() error {
+	w.flushing <- struct{}{}
+	<-w.released
+	return nil
+}
+
+// release lets the flush held go on.
+func (w *heldWriter) release() {
+	w.released <- struct{}{}
+}
+
+// written is what has been written.
+func (w *heldWriter) written() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.body.String()
 }
 
 // heard returns the events the stream has told reader of, once everything
