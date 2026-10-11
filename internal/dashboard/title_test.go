@@ -17,14 +17,23 @@ func TestTheTitleRow(t *testing.T) {
 		want     []string
 		wantRows int
 	}{
-		{name: "the six tabs, in their order, and the hint to move between them", width: 160, shown: Overview, want: []string{
-			"  SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(59) + "Mon 28 Sep  13:12:00",
+		{name: "the badge at the first column, the six tabs two cells after it, the hint, and the clock ending at the last", width: 160, shown: Overview, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(61) + "Mon 28 Sep  13:12:00",
 		}, wantRows: 1},
-		{name: "on a phone, the tabs on a row of their own, filling it", width: 52, shown: Sessions, want: []string{
-			"  SWITCHBOARD" + blanks(33) + "13:12",
-			"",
+		{name: "the clock two cells clear of the hint", width: 101, shown: Overview, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥  Mon 28 Sep  13:12:00",
+		}, wantRows: 1},
+		{name: "the time alone, where a date of two digits leaves too little room for the date", width: 100, shown: Overview, want: []string{
+			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥" + blanks(13) + "13:12:00",
+		}, wantRows: 1},
+		{name: "on a phone, the clock on row 0, and the tabs filling a row of their own, touching, without the hint", width: 52, shown: Sessions, want: []string{
+			" SWITCHBOARD" + blanks(20) + "Mon 28 Sep  13:12:00",
 			" Overview  Accounts  History  Sessions  Runway  Log",
-		}, wantRows: 3},
+		}, wantRows: 2},
+		{name: "on a phone too narrow for the date, the time alone", width: 33, shown: Overview, want: []string{
+			" SWITCHBOARD" + blanks(13) + "13:12:00",
+			" Overview  Accounts  History  Ses",
+		}, wantRows: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -41,37 +50,34 @@ func TestTheTitleRow(t *testing.T) {
 	}
 }
 
-func TestTheTitleRowFallsBackToTheTimeAlone(t *testing.T) {
-	f := Frame{Width: 100, Height: 1, View: Overview}
-	c := newCanvas(f.Width, f.Height)
-	f.title(c, now)
-
-	if row := c.rows(Look{})[0]; !strings.HasSuffix(row, " 13:12:00") || strings.Contains(row, "Mon 28 Sep") {
-		t.Errorf("the title reads %q, want the time alone, the date not fitting beside the tabs", row)
-	}
-}
-
-func TestTheShownTabIsPickedOut(t *testing.T) {
-	f := Frame{Width: 160, Height: 1, View: Sessions}
-	c := newCanvas(f.Width, f.Height)
-	f.title(c, now)
-
+func TestTheTitleRowsInks(t *testing.T) {
 	tests := []struct {
-		x    int
-		want ink
+		name  string
+		width int
+		x, y  int
+		want  ink
 	}{
-		{x: 1, want: ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}},
-		{x: 17, want: tabInk},
-		{x: 50, want: shownTabInk},
-		{x: 75, want: faintInk},
+		{name: "the badge", width: 160, x: 0, want: ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}},
+		{name: "a tab not shown", width: 160, x: 15, want: tabInk},
+		{name: "the tab shown", width: 160, x: 47, want: shownTabInk},
+		{name: "the hint", width: 160, x: 74, want: faintInk},
+		{name: "the date", width: 160, x: 140, want: mutedInk},
+		{name: "the time, bold", width: 160, x: 159, want: strongInk},
+		{name: "a phone's tab shown", width: 52, x: 30, y: 1, want: shownTabInk},
+		{name: "a phone's time", width: 52, x: 51, want: strongInk},
 	}
 	for _, tt := range tests {
-		if got := c.at(tt.x, 0).ink; got != tt.want {
-			t.Errorf("column %d is in %+v, want %+v", tt.x, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: 2, View: Sessions}
+			c := newCanvas(f.Width, f.Height)
+			f.title(c, now)
+			if got := c.at(tt.x, tt.y).ink; got != tt.want {
+				t.Errorf("column %d of row %d is in %+v, want %+v", tt.x, tt.y, got, tt.want)
+			}
+		})
 	}
-	if shownTabInk.on != (hue{token: theme.BgSelection}) {
-		t.Errorf("the tab shown is on %v, want bg.selection", shownTabInk.on)
+	if shownTabInk.on != (hue{token: theme.BgSelection}) || strongInk != (ink{token: theme.TextSecondary, bold: true}) {
+		t.Errorf("the tab shown is on %v and the time in %+v, want bg.selection, and bold text.secondary", shownTabInk.on, strongInk)
 	}
 }
 

@@ -684,7 +684,7 @@ func TestACardWhoseStateChangedHasItsStateLinePickedOutFadingBack(t *testing.T) 
 	f := frameOf(160, 40)
 	f.Changed = map[string]float64{"work": 0.25}
 	c := newCanvas(f.Width, f.Height)
-	top := f.top(threeRouted())
+	top := f.top()
 	f.accounts(c, threeRouted(), now, top)
 
 	want := hue{token: theme.BgAttention, fade: 0.25}

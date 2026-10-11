@@ -174,7 +174,7 @@ func TestAnHourglassFallsWhereItShowsAlone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := frameOf(160, 28)
+			f := frameOf(160, 25)
 			f.Chart, f.Sessions, f.Card = Hourglass, busyOn(tt.busy), tt.card
 			doc := accountsOf(8, false)
 			if tt.scrolled {

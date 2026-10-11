@@ -100,6 +100,7 @@ func TestTabTurnsRoundTheSixTabs(t *testing.T) {
 func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	h := newHarness(t, twelve())
 	h.start()
+	h.update(tea.WindowSizeMsg{Width: 150, Height: 49})
 	h.press("j")
 	h.press("j")
 
