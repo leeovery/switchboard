@@ -39,7 +39,7 @@ func todaysPlanned(now time.Time) []ledger.Line {
 }
 
 func TestTheRoutersSessionsAtTheLimitAreTheSessionsFrames(t *testing.T) {
-	limit := clockAt(moment(time.Local), 0, 16, 5, 41)
+	limit := clockAt(localMoment(), 0, 16, 5, 41)
 	tests := []struct {
 		name     string
 		sessions []status.Session

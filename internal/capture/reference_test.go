@@ -219,6 +219,8 @@ func TestEveryFixtureNamedAfterAFrameDrawsItCellForCell(t *testing.T) {
 		}
 		t.Run(stem, func(t *testing.T) {
 			frame, _ := reference(t, stem)
+			// A fixture over records is drawn in time.Local whatever the zone
+			// asked, as fixtures builds it.
 			drawn, err := parse(frameOf(t, stem, time.UTC))
 			if err != nil {
 				t.Fatalf("parsing what %s draws: %v", stem, err)

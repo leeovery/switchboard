@@ -30,7 +30,7 @@ func toldBetween(from, to time.Time) []toldEvent {
 }
 
 func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	today := dayfile.DayStart(now, 0)
 	told := toldBetween(clockAt(now, -1, 16, 55, 0), now)
 	// The Log's Events (log-events-160), yesterday's from 16:55 and today's

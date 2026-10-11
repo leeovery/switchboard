@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
@@ -329,6 +330,120 @@ func TestTheModelVersionsShareTheWeekAndTheThirtyDaysAsAccountsDraws(t *testing.
 				}
 				if got != want {
 					t.Errorf("%s's worth by version is %v%%, to a tenth, want %v%%", id, got, want)
+				}
+			}
+		})
+	}
+}
+
+// dayOfYear is an account's day of the year: its requests, its sessions and
+// those moved onto it and off it; when it reached each 5-hour limit; and when
+// each of its 5-hour windows and its own weeks reset, each list in order.
+type dayOfYear struct {
+	requests, sessions, movedOn, movedOff int
+	limits, resets                        string
+}
+
+// instants are the times given, in order, as the machine's clock reads them.
+func instants(times []time.Time) string {
+	slices.SortFunc(times, time.Time.Compare)
+	var read []string
+	for _, t := range times {
+		read = append(read, t.In(time.Local).Format("Mon 2 Jan 15:04:05"))
+	}
+	return strings.Join(read, ", ")
+}
+
+// madeDays are the account with the given id's days of the year to today's
+// as the year makes them, each holding the limits and resets that fall in it
+// as the year places it: of its 5-hour windows that rose, and the ends of its
+// own weeks.
+func (y year) madeDays(id string) []dayOfYear {
+	limits, resets := make([][]time.Time, today), make([][]time.Time, today)
+	onDay := func(held [][]time.Time, t time.Time) {
+		if d := daysBetween(dayStart(y.now, 0), t.In(y.now.Location())); d >= 0 && d < today {
+			held[d] = append(held[d], t)
+		}
+	}
+	made := make([]dayOfYear, today)
+	for d, day := range y.days[id][:today] {
+		made[d] = dayOfYear{requests: day.requests, sessions: len(day.sessions), movedOn: day.movedOn, movedOff: day.movedOff}
+		for _, s := range day.windows {
+			if !s.limited.IsZero() {
+				onDay(limits, s.limited)
+			}
+			if s.use > 0 || !s.limited.IsZero() {
+				onDay(resets, s.resets())
+			}
+		}
+	}
+	for _, w := range y.weeksOf(id) {
+		onDay(resets, w.end)
+	}
+	for d := range made {
+		made[d].limits, made[d].resets = instants(limits[d]), instants(resets[d])
+	}
+	return made
+}
+
+// readDay is the account with the given id's day as the views read it, of
+// its 5-hour windows and its weeks.
+func readDay(day views.Day, id string) dayOfYear {
+	i := slices.IndexFunc(day.Accounts, func(a ledger.PricedAccount) bool { return a.Account == id })
+	if i < 0 {
+		return dayOfYear{}
+	}
+	a := day.Accounts[i]
+	read := dayOfYear{sessions: a.Sessions, movedOn: a.MovedOn, movedOff: a.MovedOff}
+	for _, m := range a.Models {
+		read.requests += m.Requests()
+	}
+	var limits, resets []time.Time
+	for _, l := range a.Limits {
+		if l.Window == sessionKey {
+			limits = append(limits, l.At)
+		}
+	}
+	for _, r := range a.Resets {
+		if r.Window == sessionKey || r.Window == accountKey {
+			resets = append(resets, r.At)
+		}
+	}
+	read.limits, read.resets = instants(limits), instants(resets)
+	return read
+}
+
+// Each day of the year reads through the views as the year made it, on its
+// own date, wherever the machine is: each account's requests, its sessions and
+// those moved onto it and off it, when it reached each 5-hour limit, and when
+// its 5-hour windows and its weeks reset. The ledger and the views split days
+// in the machine's zone, and the year is placed in it, so run under TZ, this
+// shows the worlds read the same in each zone.
+func TestEachDayOfTheYearReadsAsTheYearMadeIt(t *testing.T) {
+	y := worldsNow().year
+	tests := []struct {
+		name  string
+		world recordedWorld
+	}{
+		{name: "three accounts", world: autoWorld()},
+		{name: "ten accounts", world: tenWorld()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			days := historyFrom(tt.world, 0).Days
+			if len(days) != today+1 {
+				t.Fatalf("History reads %d days, want the year's %d", len(days), today+1)
+			}
+			for d, day := range days[:today] {
+				if want := time.Date(2025, time.September, 29+d, 12, 0, 0, 0, time.UTC).Format(time.DateOnly); day.Day != want {
+					t.Fatalf("day %d of the year is dated %s, want %s", d, day.Day, want)
+				}
+			}
+			for _, id := range tt.world.accounts.IDs() {
+				for d, want := range y.madeDays(id) {
+					if got := readDay(days[d], id); got != want {
+						t.Errorf("%s's day of %s reads\n%+v, want\n%+v", id, days[d].Day, got, want)
+					}
 				}
 			}
 		})

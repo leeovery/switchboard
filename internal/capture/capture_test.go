@@ -78,6 +78,17 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 	}
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
+			if f := fixture(t, name); f.records != nil {
+				// The ledger and the views split its days in time.Local, which a
+				// test can't change in process: run the tests under TZ to vary it.
+				if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
+					t.Errorf("%s, over records, is drawn at %s, want the frames' moment in the machine's zone", name, f.now)
+				}
+				if frame, local := frameOf(t, name, time.UTC), f.Frame(f.Size); frame != local {
+					t.Errorf("%s, over records, asked for in UTC, is drawn\n%s\nwant it in the machine's zone\n%s", name, frame, local)
+				}
+				return
+			}
 			utc := frameOf(t, name, time.UTC)
 			for _, loc := range []*time.Location{time.FixedZone("UTC+10", 10*60*60), sydney} {
 				if frame := frameOf(t, name, loc); frame != utc {

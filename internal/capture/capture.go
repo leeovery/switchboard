@@ -68,7 +68,7 @@ func (f Fixture) WithoutColour() Fixture {
 // Names lists every fixture's name, sorted.
 func Names() []string {
 	var names []string
-	for _, f := range fixtures(moment(time.Local)) {
+	for _, f := range fixtures(time.Local) {
 		names = append(names, f.Name)
 	}
 	slices.Sort(names)
@@ -76,19 +76,19 @@ func Names() []string {
 }
 
 // ByName returns the fixture with the given name, drawn in the local time
-// zone, as moment fixes it. An empty or unknown name is an error that lists
-// the fixtures.
+// zone, as fixtures says. An empty or unknown name is an error that lists the
+// fixtures.
 func ByName(name string) (Fixture, error) {
 	return named(name, time.Local)
 }
 
 // named returns the fixture with the given name, drawn in the time zone
-// given, as moment fixes it.
+// given, as fixtures says.
 func named(name string, loc *time.Location) (Fixture, error) {
 	if name == "" {
 		return Fixture{}, fmt.Errorf("name a fixture (available: %s)", strings.Join(Names(), ", "))
 	}
-	all := fixtures(moment(loc))
+	all := fixtures(loc)
 	i := slices.IndexFunc(all, func(f Fixture) bool { return f.Name == name })
 	if i < 0 {
 		return Fixture{}, fmt.Errorf("unknown fixture %q (available: %s)", name, strings.Join(Names(), ", "))
@@ -96,27 +96,40 @@ func named(name string, loc *time.Location) (Fixture, error) {
 	return all[i], nil
 }
 
-// moment is when every fixture is drawn, as the frames are: Thursday 1
-// October 2026, 14:42:07, in the time zone given, fixed as its clocks are
-// then. A fixture is built and drawn in that, a zone whose clocks never
-// change: where the given zone's change within the fixtures' week, as
-// Sydney's do on the Sunday, their resets would move by an hour.
+// moment is when every fixture over no records is drawn, as the frames are:
+// Thursday 1 October 2026, 14:42:07, in the time zone given, fixed as its
+// clocks are then. Such a fixture is built and drawn in that, a zone whose
+// clocks never change: where the given zone's change within the fixtures'
+// week, as Sydney's do on the Sunday, their resets would move by an hour.
 func moment(loc *time.Location) time.Time {
 	name, offset := time.Date(2026, time.October, 1, 14, 42, 7, 0, loc).Zone()
 	return time.Date(2026, time.October, 1, 14, 42, 7, 0, time.FixedZone(name, offset))
 }
 
-// fixtures are every fixture, at now, in the frames' theme: one for each set
-// of accounts the frames draw, at the size of the frame it mirrors, or for
-// five accounts, which the final page draws only in Sessions and Runway, at
-// Sessions'. A frame of another view, or reached by a key, is a fixture with
-// its own size and keys over one of these sets: as every card flipped with
-// s; work's card flipped with space, and d28c, its second session as the
-// router lists them, picked out with ↓ twice; the theme picker, open, its
-// cursor moved up a theme from the frames' to show the one before; the
-// help, which the frames don't draw; and Runway, with tab, over the day,
-// and with w, over the week.
-func fixtures(now time.Time) []Fixture {
+// localMoment is when every fixture over records is drawn: the frames'
+// moment in the machine's own zone, time.Local itself, whose clocks change as
+// they do there. The ledger, its readers and the views split days in it, so a
+// world whose days they read is built in it too, placed wall clock by wall
+// clock, its days falling where they put them through a year that crosses
+// summer time where the machine's zone does.
+func localMoment() time.Time {
+	return time.Date(2026, time.October, 1, 14, 42, 7, 0, time.Local)
+}
+
+// fixtures are every fixture, in the frames' theme: those over no records at
+// the frames' moment in the zone given, as moment fixes it, and those over
+// records at it in the machine's, as localMoment fixes it, whatever the zone
+// given. There's one for each set of accounts the frames draw, at the size of
+// the frame it mirrors, or for five accounts, which the final page draws only
+// in Sessions and Runway, at Sessions'. A frame of another view, or reached
+// by a key, is a fixture with its own size and keys over one of these sets:
+// as every card flipped with s; work's card flipped with space, and d28c, its
+// second session as the router lists them, picked out with ↓ twice; the
+// theme picker, open, its cursor moved up a theme from the frames' to show
+// the one before; the help, which the frames don't draw; and Runway, with
+// tab, over the day, and with w, over the week.
+func fixtures(loc *time.Location) []Fixture {
+	now := moment(loc)
 	nord, _ := theme.Builtin(theme.DefaultDark)
 	w, g, tab := tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"}, tea.KeyPressMsg{Code: tea.KeyTab}
 	space, down := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: tea.KeyDown}

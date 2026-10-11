@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // monthWorths are BY MONTH's months as the frames draw them, from October
@@ -228,7 +229,7 @@ func (y year) column(w ownWeek) int {
 	monday := dayStart(y.now, eightWeeks)
 	began := time.Date(w.start.Year(), w.start.Month(), w.start.Day(), 0, 0, 0, 0, y.now.Location())
 	week := began.AddDate(0, 0, -((int(began.Weekday()) + 6) % 7))
-	if began.Sub(week) > 7*24*time.Hour/2 {
+	if daysBetween(week, began) > 3 {
 		week = week.AddDate(0, 0, 7)
 	}
 	column := daysBetween(monday, week) / 7
@@ -377,9 +378,15 @@ func (y year) monthDays(i int) (int, int) {
 	return daysBetween(start, first), daysBetween(start, next)
 }
 
-// daysBetween counts the days from one midnight to another.
+// daysBetween counts the days from the day one time falls on to the day
+// another does, in their time zone, by the calendar: a day where the clocks
+// change is a day, however long.
 func daysBetween(from, to time.Time) int {
-	return int(math.Round(to.Sub(from).Hours() / 24))
+	civil := func(t time.Time) time.Time {
+		y, m, d := t.Date()
+		return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	}
+	return int(civil(to).Sub(civil(from)) / (24 * time.Hour))
 }
 
 // share shares a day's worth and requests among the accounts given, each as
@@ -716,9 +723,9 @@ func sessionIDs(date, account string, n int) []string {
 	return ids
 }
 
-// dateOf is day d of the year's date.
+// dateOf is day d of the year's date, as the ledger files its days.
 func (y year) dateOf(d int) string {
-	return dayStart(y.now, d).Format(time.DateOnly)
+	return dayfile.DateOf(dayStart(y.now, d))
 }
 
 // --------------------------------------------------------- versions

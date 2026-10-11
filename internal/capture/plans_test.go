@@ -151,7 +151,7 @@ func checkMove(t *testing.T, page views.SessionPage, now time.Time, at, from, to
 }
 
 func TestD28CsPageIsItsFramesFromTodaysLines(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	page := pageOf(t, autoWorld().records, idD28C, routedAs(t, routedSessions(now), idD28C), now)
 
 	if page.Totals.Turns != 13 || page.Totals.Requests != 445 || shownWorth(page.Totals.Worth) != "$48.20" {
@@ -188,7 +188,7 @@ func TestD28CsPageIsItsFramesFromTodaysLines(t *testing.T) {
 }
 
 func TestD28CsTurnTwelveOpensOnTheRequestsItsFrameDraws(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	l := autoWorld().ledger()
 	var lines []ledger.Line
 	for h := range l.Session(idD28C) {
@@ -224,7 +224,7 @@ func TestD28CsTurnTwelveOpensOnTheRequestsItsFrameDraws(t *testing.T) {
 }
 
 func TestNineC2EsPageIsItsFrameFromTodaysLines(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	page := pageOf(t, autoWorld().records, id9C2E, routedAs(t, routedSessions(now), id9C2E), now)
 
 	if page.Totals.Turns != 10 || page.Totals.Requests != 267 || shownWorth(page.Totals.Worth) != "$27.15" {
@@ -252,7 +252,7 @@ func TestNineC2EsPageIsItsFrameFromTodaysLines(t *testing.T) {
 }
 
 func TestB9C4sPageIsItsFrameFromYesterdaysLines(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	page := pageOf(t, autoWorld().records, idB9C4, nil, now)
 
 	if page.Totals.Turns != 16 || page.Totals.Requests != 595 || shownWorth(page.Totals.Worth) != "$73.00" {
@@ -288,7 +288,7 @@ func TestB9C4sPageIsItsFrameFromYesterdaysLines(t *testing.T) {
 }
 
 func TestF41AsPageIsItsFrameFromItsLinesOfYesterdayAndToday(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	r := &records{lines: heldAsWritten(resumedPlan(now).lines())}
 	routed := resumedRouted(now)
 	page := pageOf(t, r, idF41A, &routed, now)

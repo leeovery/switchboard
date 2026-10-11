@@ -36,7 +36,7 @@ func short(id string) string {
 // has four lines, its fifth request answering at 14:42:07 as log1.tail draws
 // it, not yet a line.
 func TestTheLogCountsTodaysLinesAsItsPanelsDo(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	l := autoWorld().ledger()
 	lines, _, _ := l.Today(ledger.Mark{})
 	kinds, failed, requests := make(map[string]int), 0, make(map[string]int)
@@ -85,7 +85,7 @@ func TestTheLogCountsTodaysLinesAsItsPanelsDo(t *testing.T) {
 // version's worth as weekUses has it, to a tenth of a cent; and none on the
 // seven more of the frames of ten, whose world holds the three's lines.
 func TestTodaysLinesSumOnEachAccountAsAccountsWeekTakesThem(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	priced := drawnPrices.Priced(todaysSummary(t, tenWorld().ledger(), now), now.Format(time.DateOnly))
 	drawn := map[string]string{"work": "592 requests, $57.08", "personal": "463 requests, $48.13", "side": "184 requests, $20.74"}
 	for _, a := range priced.Accounts {
@@ -155,7 +155,7 @@ func listedOf(s views.ListedSession, now time.Time) listedAs {
 // the List says only a move today; and the today line's 1,240 requests,
 // $126.02 (1,239, $125.94, c61b's fifth not among them).
 func TestTheListIsTodaysSessionsAsTheRouterAndTheLedgerTellThem(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	at := func(days, hour, minute, second int) time.Time { return clockAt(now, days, hour, minute, second) }
 	want := map[string]listedAs{
 		"41e0": {"personal", "", at(0, 12, 47, 12), "", 158, "$17.86", "", ""},
@@ -196,7 +196,7 @@ func TestTheListIsTodaysSessionsAsTheRouterAndTheLedgerTellThem(t *testing.T) {
 // the request that moved it came: the lines of the auto world's records are
 // the ones its events tell of.
 func TestTheRoutersEventsTellOfTheSessionsLines(t *testing.T) {
-	now := moment(time.Local)
+	now := localMoment()
 	held, told := autoWorld().records.lines, autoWorld().records.events
 	lines := make([]ledger.Line, len(held))
 	for i, h := range held {
