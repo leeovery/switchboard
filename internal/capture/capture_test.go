@@ -96,36 +96,59 @@ func TestFramesReadTheSameInEveryTimeZone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	utc := fixturesIn(time.UTC)
-	others := []fixtureSet{fixturesIn(time.FixedZone("UTC+10", 10*60*60)), fixturesIn(sydney)}
+	utc := askedIn(time.UTC)
+	others := []zonedSet{askedIn(time.FixedZone("UTC+10", 10*60*60)), askedIn(sydney)}
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
-			f, err := utc.named(name)
+			f, err := utc.set.named(name)
 			if err != nil {
 				t.Fatal(err)
 			}
-			drawn := f.Frame(f.Size)
 			if f.records != nil {
-				// The ledger and the views split its days in time.Local, which a
-				// test can't change in process: its zone is varied by running the
-				// tests under TZ, as testdata/vhs/README.md says.
-				if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
-					t.Errorf("%s, over records, is drawn at %s, want the frames' moment in the machine's zone", name, f.now)
-				}
-				// Its moment can be right while part of its world is still built
-				// in the zone asked for, drawing otherwise in UTC than in the
-				// machine's zone wherever the machine isn't in UTC.
-				if mine := frameOf(t, local(), name); drawn != mine {
-					t.Errorf("%s, over records, asked for in UTC, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, drawn, mine)
-				}
+				drawnInTheMachinesZone(t, name, append([]zonedSet{utc}, others...))
 				return
 			}
+			drawn := f.Frame(f.Size)
 			for _, other := range others {
-				if frame := frameOf(t, other, name); frame != drawn {
-					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, drawn, other[name].now.Location(), frame)
+				if frame := frameOf(t, other.set, name); frame != drawn {
+					t.Errorf("%s drawn in UTC\n%s\ndiffers from it drawn in %s\n%s", name, drawn, other.zone, frame)
 				}
 			}
 		})
+	}
+}
+
+// zonedSet is every fixture, asked for in a zone.
+type zonedSet struct {
+	zone *time.Location
+	set  fixtureSet
+}
+
+func askedIn(zone *time.Location) zonedSet {
+	return zonedSet{zone: zone, set: fixturesIn(zone)}
+}
+
+// drawnInTheMachinesZone checks the fixture over records with the given name,
+// asked for in each zone given, is drawn as when asked for in the machine's,
+// at the frames' moment there. The ledger and the views split its days in
+// time.Local, which a test can't change in process: its zone is varied by
+// running the tests under TZ, as testdata/vhs/README.md says. Its moment can
+// be right while part of its world is still built in the zone asked for, which
+// a zone not the machine's shows, wherever the machine is.
+func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
+	t.Helper()
+	mine := frameOf(t, local(), name)
+	for _, a := range asked {
+		f, err := a.set.named(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.now.Location() != time.Local || !f.now.Equal(localMoment()) {
+			t.Errorf("%s, over records, asked for in %s, is drawn at %s, want the frames' moment in the machine's zone", name, a.zone, f.now)
+		}
+		if drawn := f.Frame(f.Size); drawn != mine {
+			t.Errorf("%s, over records, asked for in %s, is drawn\n%s\nwant it as asked for in the machine's zone\n%s", name, a.zone, drawn, mine)
+		}
 	}
 }
 
