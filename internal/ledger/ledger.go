@@ -109,8 +109,9 @@ type Ledger struct {
 	// summarising, touches them.
 	left      map[string]fs.FileInfo
 	postponed map[string]time.Time
-	// unlisted is how the rounds' listings of the readings history went.
-	unlisted failing
+	// unlisted is how the rounds' listings of the readings history went, and
+	// unlistedDir how those of the ledger's own directory did.
+	unlisted, unlistedDir failing
 	// looked, where it's set, is called with the date of each day a round
 	// summarises once it has looked at the day's files, before it reads them:
 	// a prune may come between the two, as tests have it there.
@@ -262,14 +263,16 @@ func (l *Ledger) warnLeft(date string, err error) fs.FileInfo {
 // before it is in it, those whose readings the readings history covers, as
 // held, one listing of its files, tells, as reach says, requests or not.
 // Those it walks from the first day the history holds readings of, where
-// that's later, as it covers none before.
+// that's later, as it covers none before. Where the ledger's directory can't
+// be listed, it returns none, which is warned of once, until it can be.
 func (l *Ledger) ended(now time.Time, held readingsHeld) []string {
 	lines, first, err := l.days.listed()
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		return nil
-	case err != nil:
-		l.days.logger.Warn("can't read the request ledger", "dir", l.days.files.Dir, "error", err)
+	unlisted := err
+	if errors.Is(err, fs.ErrNotExist) {
+		unlisted = nil
+	}
+	l.unlistedDir.note(l.days.logger, "can't read the request ledger", unlisted, "dir", l.days.files.Dir)
+	if err != nil {
 		return nil
 	}
 	lastDay := dayfile.DayStart(now.Add(-summariseAfter).Local(), -1)

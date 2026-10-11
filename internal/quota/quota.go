@@ -218,6 +218,14 @@ func MultiDay(key string) bool {
 	return ok && length > Day
 }
 
+// WeekLong reports whether the window named key lasts a week, as an
+// account's week does, and a model's own week, its length read as Length
+// reads it. A key that doesn't give its length doesn't.
+func WeekLong(key string) bool {
+	length, ok := Length(key)
+	return ok && length == 7*Day
+}
+
 // Sort orders windows shortest first, then by key, with windows whose length
 // can't be read from their key last: 5h, 7d, 7d_oi.
 func Sort(windows []Window) {

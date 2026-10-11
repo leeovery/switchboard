@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // day is the local day a view is built on, by its clock: when it starts, and
@@ -108,7 +109,7 @@ func (s *story) add(r request) {
 		s.rewrites(l)
 	}
 	thread := threadOf(l)
-	s.ends[thread] = latest(s.ends[thread], ended(l))
+	s.ends[thread] = score.Later(s.ends[thread], ended(l))
 	if life, ok := l.CacheLife(); ok {
 		s.lives[thread] = life
 	}

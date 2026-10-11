@@ -140,6 +140,24 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 	}
 }
 
+func TestCOMINGUPListsNoWindowEveryCardHides(t *testing.T) {
+	doc := routerDoc("work", 0, readAccount("work", sessionOf(0.1, 2*time.Hour), weekOf(0.2, 3*day), windowOf("7d_oi", "Fable week", 0, 2*day)))
+	if hidden := hiddenWindows(doc, now, claudeLike); !slices.Equal(hidden, []string{"7d_oi"}) {
+		t.Fatalf("hiddenWindows() = %q, want the Fable week, unused on every account", hidden)
+	}
+	if !slices.ContainsFunc(doc.ComingUp, func(u status.Upcoming) bool { return u.Kind == status.UpcomingReset && u.Window == "7d_oi" }) {
+		t.Fatalf("the document's COMING UP = %+v, want the Fable week's reset, apart from the week's", doc.ComingUp)
+	}
+
+	var got []string
+	for _, h := range upcoming(doc, now, claudeLike) {
+		got = append(got, status.When(now, h.at)+" "+h.name+h.what)
+	}
+	if want := []string{"15:12 work's session resets", "Thu 13:12 work's week resets"}; !slices.Equal(got, want) {
+		t.Errorf("upcoming() = %q, want %q: nothing of the Fable week, which every card hides", got, want)
+	}
+}
+
 func TestCOMINGUPsInks(t *testing.T) {
 	doc := threeRouted()
 	doc.Prime = status.Prime{Slots: []status.Slot{{Account: "side", Next: now.Add(time.Minute)}}}

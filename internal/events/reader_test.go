@@ -190,6 +190,36 @@ func TestAnEventIsReadAsItsLastVersionWasFiled(t *testing.T) {
 	}
 }
 
+func TestATailedDayIsReadThroughItsTailAlone(t *testing.T) {
+	log := logstest.Capture(t)
+	a := func(count int) events.Line { return limit(firstRun, 1, september(10, 9, 0), count) }
+	b := limit(firstRun, 2, september(11, 9, 0), 1)
+	c := limit(firstRun, 3, september(12, 9, 0), 1)
+	state := t.TempDir()
+	fileDays(t, state,
+		filed{day: 10, lines: []string{jsonOf(t, a(1))}},
+		filed{day: 11, lines: []string{jsonOf(t, a(2)), jsonOf(t, b)}},
+		filed{day: 12, lines: []string{jsonOf(t, c)}},
+	)
+	tailed := events.Tailed{Date: dateOf(september(11, 12, 0)), Read: func(take func(events.Held)) int {
+		take(events.Held{Line: b})
+		return 3
+	}}
+
+	var got []events.Line
+	for held := range events.NewReader(state, func() time.Time { return now }, logs.For("cli")).HeldTailing(september(10, 0, 0), september(13, 0, 0), tailed) {
+		got = append(got, held.Line)
+	}
+	// The 11th's version of a is never read: its tail hands on b alone.
+	if want := jsonsOf(t, []events.Line{a(1), b, c}); !slices.Equal(jsonsOf(t, got), want) {
+		t.Errorf("read\n%s\nwant the tailed day's lines as its tail read them, the others' from their files\n%s",
+			strings.Join(jsonsOf(t, got), "\n"), strings.Join(want, "\n"))
+	}
+	if want := []string{"level=WARN", `msg="lines of the router's events unread"`, "lines=3"}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant the lines the tail couldn't read counted, a line with %q", log, want)
+	}
+}
+
 func TestADamagedCompressedFileIsReadUpToTheDamage(t *testing.T) {
 	log := logstest.Capture(t)
 	a, b := limit(firstRun, 1, september(10, 9, 0), 1), limit(firstRun, 2, september(11, 9, 0), 1)
