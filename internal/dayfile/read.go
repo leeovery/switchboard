@@ -103,14 +103,9 @@ func noon(t time.Time) time.Time {
 // none, which is warned of, and one damaged, as a compressed file cut short,
 // the lines before the damage, which is warned of too: each once until it
 // reads to its end again, as filesWarned says. The files are read as openDay
-// opens them.
-func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), at func(T) time.Time, keep, take func(T) bool) (unread int) {
-	return ReadNoting(f, dates, decode, at, keep, take, nil)
-}
-
-// ReadNoting reads as Read does, noting in faults, where it's given, the
-// days whose files it couldn't read whole, as Faults says, as it reads them.
-func ReadNoting[T any](f *Files, dates []string, decode func(line []byte) (T, bool), at func(T) time.Time, keep, take func(T) bool,
+// opens them. faults, where they're given, note the days whose files it
+// couldn't read whole, as Faults says, as it reads them.
+func Read[T any](f *Files, dates []string, decode func(line []byte) (T, bool), at func(T) time.Time, keep, take func(T) bool,
 	faults *Faults) (unread int) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -158,9 +153,10 @@ func readFiled[T any](f *Files, dates []string, decode func(line []byte) (T, boo
 			f.warn("can't read the "+f.Name, e.file, e.err)
 		}
 		more = true
+		gone := len(opened) == 0 && len(failed) == 0 && faults.listing(date)
 		_, skipped, short := readOpened(f, opened, decode, taking)
 		unread += skipped
-		if len(failed) > 0 || skipped > 0 || short {
+		if gone || len(failed) > 0 || skipped > 0 || short {
 			faults.note(date)
 		}
 		if !more || !read(date) {
@@ -293,16 +289,35 @@ func (f *Files) readFile(file openFile, take func(line []byte) bool) (handed, lo
 
 // Faults are the dates of the local days whose files a read couldn't read
 // whole: one of them couldn't be opened, or read short, as one damaged, or
-// held a line passed over, too long to hold or made nothing of. A read notes
-// each day's as it reads its files, before it hands on any line of a day
-// after it. The zero Faults holds none.
+// held a line passed over, too long to hold or made nothing of; or, of a day
+// a listing of the files taken before the read gave, as NewFaults has it, its
+// files had gone by the time the read came to them, as after a prune. A read
+// notes each day's as it reads its files, under its own hold on them, before
+// it hands on any line of a day after it.
 type Faults struct {
-	dates map[string]bool
+	listed map[string]bool
+	dates  map[string]bool
+}
+
+// NewFaults returns the faults of a read of files a listing of which, taken
+// before it, gave the dates listed: none noted yet.
+func NewFaults(listed []string) *Faults {
+	f := &Faults{listed: make(map[string]bool, len(listed))}
+	for _, date := range listed {
+		f.listed[date] = true
+	}
+	return f
 }
 
 // Any reports whether any of the days with the given dates is among them.
 func (f *Faults) Any(dates []string) bool {
 	return f != nil && slices.ContainsFunc(dates, func(date string) bool { return f.dates[date] })
+}
+
+// listing reports whether the listing taken before the read gave the day
+// with the given date.
+func (f *Faults) listing(date string) bool {
+	return f != nil && f.listed[date]
 }
 
 // note notes the day with the given date among them, where there are any to
@@ -315,6 +330,17 @@ func (f *Faults) note(date string) {
 		f.dates = make(map[string]bool)
 	}
 	f.dates[date] = true
+}
+
+// Waiting reports whether a prune of the files holds them, or waits to, as
+// one does on a read under way: a read begun now would wait on it. It's for
+// a test of what waits on a read.
+func (f *Files) Waiting() bool {
+	if f.mu.TryRLock() {
+		f.mu.RUnlock()
+		return false
+	}
+	return true
 }
 
 // inOrder hands on what's read that keep reports true of, oldest first by the

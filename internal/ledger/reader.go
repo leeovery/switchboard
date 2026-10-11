@@ -39,21 +39,34 @@ func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Lo
 // logger.
 func daysIn(stateDir string, caps Caps, logger *slog.Logger) (d days, history *dayfile.Files) {
 	history = readings.Files(readings.Dir(stateDir), logger)
-	return days{files: filesIn(Dir(stateDir), logger), history: readingsFiles{files: history}, caps: caps, logger: logger}, history
+	return days{files: filesIn(Dir(stateDir), logger), history: HistoryIn(history), caps: caps, logger: logger}, history
 }
 
-// readingsFiles is the readings history in its files, as a reader of the
-// ledger reads it.
-type readingsFiles struct {
+// HistoryIn returns the readings history in files, as readings.Files gives
+// them, as the ledger summarises its days with it: one that holds no readings
+// where files is nil, as before the router opens its history.
+func HistoryIn(files *dayfile.Files) History {
+	return filedHistory{files: files}
+}
+
+// filedHistory is the readings history in files, as HistoryIn says.
+type filedHistory struct {
 	files *dayfile.Files
 }
 
-func (r readingsFiles) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
-	return readings.BetweenNoting(r.files, from, to, faults)
+func (h filedHistory) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
+	return func(yield func(readings.Reading) bool) {
+		if h.files != nil {
+			readings.Read(h.files, dayfile.Dates(from, to), func(r readings.Reading) bool { return !r.At.Before(from) && r.At.Before(to) }, yield, faults)
+		}
+	}
 }
 
-func (r readingsFiles) Dates() []string {
-	return r.files.All()
+func (h filedHistory) Dates() []string {
+	if h.files == nil {
+		return nil
+	}
+	return h.files.All()
 }
 
 // reaching returns what reports whether the readings history's readings
@@ -84,7 +97,7 @@ func (r *Reader) Lines(from time.Time) iter.Seq[Held] {
 	return func(yield func(Held) bool) {
 		now := r.now()
 		within := func(h Held) bool { return !h.At.Before(from) && !h.At.After(now) }
-		unread := dayfile.Read(r.days.files, dayfile.Dates(r.days.start(from, now), now), heldIn, arrived, within, yield)
+		unread := dayfile.Read(r.days.files, dayfile.Dates(r.days.start(from, now), now), heldIn, arrived, within, yield, nil)
 		if unread > 0 {
 			r.days.logger.Warn("request ledger lines unread", "lines", unread)
 		}
@@ -178,11 +191,10 @@ func arrived(h Held) time.Time {
 // says; else the day summarised from its lines and the readings history, as
 // they're read, as of today as far as it has gone, knowing no less than any
 // summary held of it, as knowing says, the history read ahead for them all,
-// as readingAhead says. A day of no requests is a summary of the accounts the
-// readings history tells of alone, of none where it tells of none. A reader
-// never takes an older version's facts of the readings afresh, as the
-// router's rounds do: summaries are the router's to write, which it does on
-// its first round under a new version.
+// as readingAhead says, of those days alone whose readings it holds, as
+// readingsHeld.reaches says. A day of no requests is a summary of the
+// accounts the readings history tells of alone, of none where it tells of
+// none.
 func (r *Reader) Days(from time.Time) []Summary {
 	now := r.now()
 	dates := dayfile.Span(r.days.start(from, now), now)
@@ -191,14 +203,14 @@ func (r *Reader) Days(from time.Time) []Summary {
 	var at []int
 	reaches := r.days.reaching()
 	for i, date := range dates {
-		summary, stands := r.standing(date, reaches)
+		summary, stands := r.standing(date)
 		if stands {
 			days[i] = *summary
 			continue
 		}
-		due, at = append(due, dueDay{date: date, held: summary, asOf: now}), append(at, i)
+		due, at = append(due, dueDay{date: date, held: summary, asOf: now, reached: reaches(date)}), append(at, i)
 	}
-	for k, summary := range readingAhead(r.days.history, due, r.summarised) {
+	for k, summary := range readingAhead(r.days.history, due, r.summarised, nil) {
 		days[at[k]] = summary
 	}
 	return days
@@ -210,16 +222,18 @@ func (r *Reader) Days(from time.Time) []Summary {
 // day's, as one damaged or of another day, which is warned of, both nil; or
 // one that doesn't stand, as stands says, after a look at the day's files as
 // glance gives it, given for the day's summary from its lines to know no
-// less, reaches reporting which days the readings history's readings reach.
-// One that can't be told to stand, as its day's files can't be looked at or
-// its lines counted, is taken as it's held, which is warned of too. It marks
-// no summary, as summaries are the router's to write.
-func (r *Reader) standing(date string, reaches func(date string) bool) (*Summary, bool) {
+// less. One whose day has no lines stands, whatever its version, as the
+// router alone summarises it again. One that can't be told to stand, as its
+// day's files can't be looked at or its lines counted, is taken as it's
+// held, which is warned of too. It marks no summary, as summaries are the
+// router's to write.
+func (r *Reader) standing(date string) (*Summary, bool) {
 	held, ok := r.days.readable(date)
 	if !ok {
 		return nil, false
 	}
-	stat, _, stands, err := r.days.glance(date, held.stamp, reaches)
+	stat, none, marked, err := r.days.glance(date, held.stamp)
+	stands := none || marked
 	if err == nil && !stands {
 		stands, err = r.days.stands(held.Summary, stat)
 	}
@@ -252,7 +266,7 @@ func (d days) readable(date string) (stamped, bool) {
 // it, where there's one, as knowing says: of those of its files that can be
 // read, where one can't, which is warned of.
 func (r *Reader) summarised(day dueDay, read *ahead) Summary {
-	summary, err := r.days.summarise(day, read, false)
+	summary, err := r.days.summarise(day, read)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		r.days.logger.Warn("can't read the request ledger", "day", day.date, "error", err)
 	}

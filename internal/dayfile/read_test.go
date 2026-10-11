@@ -57,7 +57,7 @@ func readTimed(f *Files, dates ...string) []string {
 	Read(f, dates, asTimed, func(l timed) time.Time { return l.at }, every[timed], func(l timed) bool {
 		texts = append(texts, l.text)
 		return true
-	})
+	}, nil)
 	return texts
 }
 
@@ -69,7 +69,7 @@ func readJSON(f *Files, dates ...string) (lines []string, unread int) {
 	unread = Read(f, dates, asJSON, untimed, every[string], func(line string) bool {
 		lines = append(lines, line)
 		return true
-	})
+	}, nil)
 	return lines, unread
 }
 
@@ -80,19 +80,22 @@ func readAll(f *Files, dates ...string) []string {
 	Read(f, dates, asText, untimed, every[string], func(line string) bool {
 		lines = append(lines, line)
 		return true
-	})
+	}, nil)
 	return lines
 }
 
 func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
 	tests := []struct {
 		name string
-		// lay lays the day's files out in f.
-		lay   func(t *testing.T, f *Files)
-		fault bool
+		// lay lays the day's files out in f, and listed is set where a listing
+		// of them before the read gave the day.
+		lay    func(t *testing.T, f *Files)
+		listed bool
+		fault  bool
 	}{
-		{name: "none of a day read whole", lay: func(t *testing.T, f *Files) { writeDay(t, f, plainFile("2026-09-27"), linesOf(`{"n":1}`)) }},
-		{name: "none of a day with no files", lay: func(*testing.T, *Files) {}},
+		{name: "none of a day read whole", lay: func(t *testing.T, f *Files) { writeDay(t, f, plainFile("2026-09-27"), linesOf(`{"n":1}`)) }, listed: true},
+		{name: "none of a day with no files, never listed", lay: func(*testing.T, *Files) {}},
+		{name: "a day listed whose files have gone since", lay: func(*testing.T, *Files) {}, listed: true, fault: true},
 		{
 			name: "a day one of whose files couldn't be opened", fault: true,
 			lay: func(t *testing.T, f *Files) {
@@ -126,9 +129,13 @@ func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
 			tt.lay(t, f)
 			writeDay(t, f, plainFile("2026-09-28"), linesOf(`{"n":3}`))
 			asJSON := func(line []byte) (string, bool) { return string(line), json.Valid(line) }
-			var faults Faults
+			listed := []string{"2026-09-28"}
+			if tt.listed {
+				listed = append(listed, "2026-09-27")
+			}
+			faults := NewFaults(listed)
 
-			ReadNoting(f, []string{"2026-09-27", "2026-09-28"}, asJSON, untimed, every[string], every[string], &faults)
+			Read(f, []string{"2026-09-27", "2026-09-28"}, asJSON, untimed, every[string], every[string], faults)
 			if got := faults.Any([]string{"2026-09-27"}); got != tt.fault {
 				t.Errorf("the 27th among the faults = %v, want %v", got, tt.fault)
 			}
@@ -136,6 +143,18 @@ func TestAReadNotesTheDaysWhoseFilesItCouldntReadWhole(t *testing.T) {
 				t.Error("the 28th among the faults, want it read whole")
 			}
 		})
+	}
+}
+
+func TestWaitingTellsAPruneHoldsTheFilesOrWaitsTo(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	if f.Waiting() {
+		t.Error("Waiting() of files no prune holds = true, want false")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.Waiting() {
+		t.Error("Waiting() of files a prune holds = false, want true")
 	}
 }
 
@@ -221,7 +240,7 @@ func TestReadHandsALineOnOnceNoLaterDaysFileCanHoldOneBeforeIt(t *testing.T) {
 	Read(f, []string{"2026-09-27", "2026-09-28", "2026-09-29"}, asTimed, func(l timed) time.Time { return l.at }, every[timed], func(l timed) bool {
 		got = append(got, l.text)
 		return false
-	})
+	}, nil)
 	if !slices.Equal(got, []string{"first"}) || log.Has(`msg="can't read the readings history"`) {
 		t.Errorf("read %q, logging\n%s\nwant the first line handed on once the next day's file was read, and the day after's never opened", got, log)
 	}
@@ -343,7 +362,7 @@ func TestReadNeverHoldsALineKeepPassesOver(t *testing.T) {
 	Read(f, []string{"2026-09-27", "2026-09-28", "2026-09-29"}, asTimed, ordered, within, func(l timed) bool {
 		got = append(got, l.text)
 		return true
-	})
+	}, nil)
 	if want := []string{"the 28th's, filed under the 27th", "the 28th's"}; !slices.Equal(got, want) {
 		t.Errorf("read %q, want %q: the lines of the 28th alone, whichever day's file each is in", got, want)
 	}
@@ -363,7 +382,7 @@ func TestReadPassesOverWhatDecodeMakesNothingOf(t *testing.T) {
 	unread := Read(f, []string{"2026-09-28"}, answers, untimed, every[string], func(line string) bool {
 		got = append(got, line)
 		return true
-	})
+	}, nil)
 	if want := []string{"one", "two"}; !slices.Equal(got, want) || unread != 3 {
 		t.Errorf("read %q, %d unread; want %q, and the 3 made nothing of, the empty line among them, unread", got, unread, want)
 	}
@@ -378,7 +397,7 @@ func TestReadStopsOnceTakeHasEnough(t *testing.T) {
 	Read(f, []string{"2026-09-27", "2026-09-28"}, asText, untimed, every[string], func(line string) bool {
 		got = append(got, line)
 		return line != "two"
-	})
+	}, nil)
 	if want := []string{"one", "two"}; !slices.Equal(got, want) {
 		t.Errorf("read %q, want %q, and nothing after take had enough", got, want)
 	}
@@ -394,7 +413,7 @@ func TestALineLongerThanLineMaxIsSkippedWithoutBeingHeld(t *testing.T) {
 	unread := Read(f, []string{"2026-09-28"}, asText, untimed, every[string], func(line string) bool {
 		got = append(got, line)
 		return true
-	})
+	}, nil)
 	if want := []string{"fifteen bytes..", "short"}; !slices.Equal(got, want) || unread != 2 {
 		t.Errorf("read %q, %d unread; want %q, and the 2 lines too long unread", got, unread, want)
 	}

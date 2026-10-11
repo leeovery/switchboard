@@ -108,32 +108,11 @@ func (h *history) lines(taken []readings.Reading) dayfile.Lines {
 // read as a reading that can be is left out.
 func (h *history) readBack(now time.Time) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
-		unread := readings.Read(h.files, h.files.Newest(now, 2), func(r readings.Reading) bool { return !r.At.After(now) }, yield)
+		unread := readings.Read(h.files, h.files.Newest(now, 2), func(r readings.Reading) bool { return !r.At.After(now) }, yield, nil)
 		if unread > 0 {
 			logger.Warn("readings history lines unread", "lines", unread)
 		}
 	}
-}
-
-// Between returns the readings the history holds of times from from up to
-// to, as readings.BetweenNoting gives them, noting in faults the days whose
-// files it couldn't read whole, as the request ledger summarises a day with
-// them: none before the history is opened.
-func (h *history) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
-	if !h.opened.Load() {
-		return func(func(readings.Reading) bool) {}
-	}
-	return readings.BetweenNoting(h.files, from, to, faults)
-}
-
-// Dates returns the dates of the local days the history holds readings of,
-// oldest first, as its files' names give them, as the request ledger finds
-// the days to summarise by them: none before the history is opened.
-func (h *history) Dates() []string {
-	if !h.opened.Load() {
-		return nil
-	}
-	return h.files.All()
 }
 
 // windowReadings returns the readings the history holds of the window with
@@ -151,6 +130,6 @@ func (h *history) windowReadings(key string, ids []string, from, to time.Time) m
 		func(r readings.Reading) bool {
 			read[r.Account] = append(read[r.Account], r)
 			return true
-		})
+		}, nil)
 	return read
 }

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
-	"iter"
 	"maps"
 	"os"
 	"path/filepath"
@@ -186,22 +185,9 @@ func removeFile(t *testing.T, dir, name string) {
 	}
 }
 
-// historyFiles is the readings history in its files, as the router reads it.
-type historyFiles struct {
-	files *dayfile.Files
-}
-
-func (h historyFiles) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
-	return readings.BetweenNoting(h.files, from, to, faults)
-}
-
-func (h historyFiles) Dates() []string {
-	return h.files.All()
-}
-
 // historyIn is the readings history in dir, as the router reads it.
-func historyIn(dir string) historyFiles {
-	return historyFiles{files: readings.Files(dir, logs.For("router"))}
+func historyIn(dir string) ledger.History {
+	return ledger.HistoryIn(readings.Files(dir, logs.For("router")))
 }
 
 // summariseAt has the router's ledger in dir summarise the days that have
@@ -696,10 +682,10 @@ func TestAReadOfTheDaysListsTheReadingsHistoryOnce(t *testing.T) {
 		t.Run("by "+by, func(t *testing.T) {
 			log := logstest.Capture(t)
 			state, dir, history := stateDirs(t)
-			// Days whose lines are pruned, their summaries of version 2, each of
-			// which a look at its files asks the history after.
-			for _, day := range []string{"2026-10-02", "2026-10-03", "2026-10-04"} {
-				writeFile(t, dir, "day-"+day+".json", []byte(ofVersion(summaryOf(day, 1, 1, windowsRead{}), 2)+"\n"))
+			// Days not yet summarised, each of which asks the history whether it
+			// reaches it, as its readings are read only where it does.
+			for back := 3; back >= 1; back-- {
+				holdLines(t, dir, on(-back, 0, 0).Format(time.DateOnly), asked("1", on(-back, 9, 0)))
 			}
 			// The history's files can be opened by name, but not listed, so a
 			// listing of them warns that it can't.

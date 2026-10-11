@@ -2,10 +2,13 @@ package ledger_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -190,7 +193,7 @@ func TestADaySummarisedUnderVersionTwoIsSummarisedAgainOnceFromWhatsKept(t *test
 	}
 }
 
-func TestANewerVersionRightsAnOlderOnesFactsOfTheReadingsWhereTheyreKept(t *testing.T) {
+func TestADaySummarisedUnderVersionTwoKeepsWhatItCountedOfALateReading(t *testing.T) {
 	week := workRead(on(-3, 12, 0), "7d", 0.41, on(2, 10, 0), quota.StatusAllowed)
 	// Work's session, at its limit from 10:02, a reading of the run before
 	// it, which reset at 15:30, read late between.
@@ -201,37 +204,32 @@ func TestANewerVersionRightsAnOlderOnesFactsOfTheReadingsWhereTheyreKept(t *test
 	// countedAgain is the day as version 2 summarised it: the late reading
 	// taken for a run of its own, its limit counted again, and again as the
 	// run it broke went on, a reset of that run at 10:08, and the rise from
-	// nothing after it; righted, as version 3 summarises it.
+	// nothing after it. Version 3 counts its rise 1, its one reset at 15:40,
+	// and its one limit at 10:02, but knows no less than version 2 did.
 	countedAgain := windowsRead{read: true, highest: `{"5h":1}`, rise: `{"5h":2}`,
 		resets: `[` + resetJSON("5h", on(0, 10, 8), 1) + `,` + resetJSON("5h", on(0, 15, 40), 1) + `]`, limits: limits, atLimit: 338}
-	righted := windowsRead{read: true, highest: `{"5h":1,"7d":0.41}`, rise: `{"5h":1,"7d":0}`, resets: `[` + resetJSON("5h", on(0, 15, 40), 1) + `]`,
-		limits: `[` + limitJSON("5h", on(0, 10, 2), on(0, 15, 40)) + `]`, atLimit: 338, before: `["7d"]`}
 	withWeek := countedAgain
 	withWeek.highest, withWeek.rise, withWeek.before = `{"5h":1,"7d":0.41}`, `{"5h":2,"7d":0}`, `["7d"]`
 	whole := append([]readings.Reading{week}, session...)
-	// limitsKept is righted, but for the limits version 1 counted, which it
-	// keeps.
-	limitsKept := righted
-	limitsKept.limits = limits
+	// limitsKept is the day as version 3 counts it, but for the limits version
+	// 1 counted, which it keeps.
+	limitsKept := windowsRead{read: true, highest: `{"5h":1,"7d":0.41}`, rise: `{"5h":1,"7d":0}`, resets: `[` + resetJSON("5h", on(0, 15, 40), 1) + `]`,
+		limits: limits, atLimit: 338, before: `["7d"]`}
 	tests := []struct {
 		name string
 		// held is the day's summary before, and readings those the readings
-		// history holds now, damaged where damage is set.
+		// history holds now, damaged where damaged is set.
 		held     string
 		readings []readings.Reading
 		damaged  bool
 		want     windowsRead
 	}{
-		{name: "its readings kept, the late reading's rise and limits righted", held: ofVersion(summaryOf(date, 2, 2, withWeek), 2), readings: whole,
-			want: righted},
-		{name: "the week before's readings pruned, kept as version 2 had them", held: ofVersion(summaryOf(date, 2, 2, withWeek), 2), readings: session,
-			want: withWeek},
-		{name: "the day's readings pruned, a later day's kept, kept as version 2 had them", held: ofVersion(summaryOf(date, 2, 2, countedAgain), 2),
+		{name: "its readings kept", held: ofVersion(summaryOf(date, 2, 2, withWeek), 2), readings: whole, want: withWeek},
+		{name: "the week before's readings pruned", held: ofVersion(summaryOf(date, 2, 2, withWeek), 2), readings: session, want: withWeek},
+		{name: "the day's readings pruned, a later day's kept", held: ofVersion(summaryOf(date, 2, 2, countedAgain), 2),
 			readings: []readings.Reading{workRead(on(2, 9, 0), "5h", 0.1, on(2, 13, 0), quota.StatusAllowed)}, want: countedAgain},
-		{name: "the day's file of readings damaged, kept as version 2 had them", held: ofVersion(summaryOf(date, 2, 2, withWeek), 2), readings: whole,
-			damaged: true, want: withWeek},
-		{name: "of version 1, which never noted what it read before the day, kept as it had them",
-			held: versionOne(date, 2, 2, `,"highest":{"5h":1},"limits":`+limits), readings: whole, want: limitsKept},
+		{name: "the day's file of readings damaged", held: ofVersion(summaryOf(date, 2, 2, withWeek), 2), readings: whole, damaged: true, want: withWeek},
+		{name: "of version 1", held: versionOne(date, 2, 2, `,"highest":{"5h":1},"limits":`+limits), readings: whole, want: limitsKept},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -254,27 +252,48 @@ func TestANewerVersionRightsAnOlderOnesFactsOfTheReadingsWhereTheyreKept(t *test
 
 			summariseAt(dir, history, on(1, 11, 0))
 			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), summaryOf(date, 2, 2, tt.want); got != want {
-				t.Errorf("the day's summary is\n%s\nwant\n%s", got, want)
+				t.Errorf("the day's summary is\n%s\nwant it of version 3, knowing no less than the one before\n%s", got, want)
 			}
 		})
 	}
 }
 
-func TestSessionsASummaryOfVersionOneNeverNamedStayUnknownWhereItsLinesAreGone(t *testing.T) {
-	for _, by := range []string{"the router", "a reader"} {
-		t.Run("by "+by, func(t *testing.T) {
-			state, dir, _ := stateDirs(t)
-			// Version 1's day of work's two requests, of one session it never
-			// named; its lines pruned since, its readings kept.
-			writeFile(t, dir, "day-"+date+".json", []byte(heldVersionOne+"\n"))
+func TestSessionsASummaryOfVersionOneNeverNamedAreNamedOnlyWhereTheIDsAccountForItsCount(t *testing.T) {
+	// counted is version 1's day of work's two requests, of as many sessions
+	// as it gives, which it never named.
+	counted := func(sessions int) string {
+		return strings.Replace(heldVersionOne, `"sessions":1,"moved_on"`, fmt.Sprintf(`"sessions":%d,"moved_on"`, sessions), 1)
+	}
+	tests := []struct {
+		name string
+		held string
+		// lines lays the day's lines out in dir, where they're kept.
+		lines    func(t *testing.T, dir string)
+		ids      []string
+		sessions int
+	}{
+		{name: "its lines pruned, its readings alone named none", held: heldVersionOne, lines: func(*testing.T, string) {}, sessions: 1},
+		{name: "its lines kept, naming fewer than it counted", held: counted(2), lines: plainLines, sessions: 2},
+		{name: "its lines kept, naming as many as it counted", held: counted(1), lines: plainLines, ids: []string{"one"}, sessions: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.lines(t, dir)
+			writeFile(t, dir, "day-"+date+".json", []byte(tt.held+"\n"))
 
-			got := summaryAgain(t, by, state, dir, on(3, 10, 0), []readings.Reading{workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)})
-			read := windowsRead{read: true, highest: `{"5h":0.9}`, rise: `{"5h":0.3}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.3) + `]`}
-			want := fmt.Sprintf(`{"version":3,"day":"%s","lines":2,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":2,`+
-				`"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":20,"output_tokens":40}}],"sessions":1,`+
-				`"moved_on":0,"moved_off":0%s}]}`, date, read.json())
-			if got != want {
-				t.Errorf("the day's summary is\n%s\nwant its session never named, as it was, not named as none\n%s", got, want)
+			writeAt(t, dir, on(3, 10, 0), readingsOf(workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)))
+			data, err := os.ReadFile(summaryFile(dir, date))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got ledger.Summary
+			if err := json.Unmarshal(data, &got); err != nil || got.Version != 3 || len(got.Accounts) != 1 {
+				t.Fatalf("the day's summary is %s (%v), want work's day, of version 3", data, err)
+			}
+			if a := got.Accounts[0]; !reflect.DeepEqual(a.SessionIDs, tt.ids) || a.Sessions != tt.sessions {
+				t.Errorf("work's sessions are %d, named %#v; want %d, named %#v: never named but where their ids account for their count",
+					a.Sessions, a.SessionIDs, tt.sessions, tt.ids)
 			}
 		})
 	}
@@ -284,14 +303,14 @@ func TestSessionsASummaryOfVersionOneNeverNamedStayUnknownWhereItsLinesAreGone(t
 // that has prune start a prune of them as a read hands on its first reading,
 // as the history's writer prunes on a goroutine of its own.
 type pruneAsRead struct {
-	historyFiles
+	ledger.History
 	prune func()
 	once  sync.Once
 }
 
 func (p *pruneAsRead) Between(from, to time.Time, faults *dayfile.Faults) iter.Seq[readings.Reading] {
 	return func(yield func(readings.Reading) bool) {
-		for r := range p.historyFiles.Between(from, to, faults) {
+		for r := range p.History.Between(from, to, faults) {
 			p.once.Do(p.prune)
 			if !yield(r) {
 				return
@@ -300,7 +319,7 @@ func (p *pruneAsRead) Between(from, to time.Time, faults *dayfile.Faults) iter.S
 	}
 }
 
-func TestARoundSummarisingAnOlderVersionsDayFinishesAsAPruneOfTheReadingsWaits(t *testing.T) {
+func TestARoundFinishesAsAPruneOfTheReadingsWaitsOnItsRead(t *testing.T) {
 	_, dir, history := stateDirs(t)
 	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
 	markVersionTwo(t, dir, ofVersion(summaryOf(date, 2, 2, windowsRead{}), 2))
@@ -315,13 +334,15 @@ func TestARoundSummarisingAnOlderVersionsDayFinishesAsAPruneOfTheReadingsWaits(t
 		dayfile.WriterOptions{Queue: 1, Keep: 400 * 24 * time.Hour, Now: func() time.Time { return on(2, 11, 0) }, Items: "readings"})
 	ctx, cancel := context.WithCancel(t.Context())
 	pruned := make(chan struct{})
-	h := &pruneAsRead{files: files, prune: func() {
+	h := &pruneAsRead{History: ledger.HistoryIn(files), prune: func() {
 		go func() {
 			pruner.Run(ctx)
 			close(pruned)
 		}()
-		// Long enough for the prune to be waiting on the read.
-		time.Sleep(100 * time.Millisecond)
+		// The read holds the files, so the prune comes to wait on it.
+		for !files.Waiting() {
+			runtime.Gosched()
+		}
 	}}
 	l := ledger.Open(dir, 400*24*time.Hour, func() time.Time { return on(2, 11, 0) }, h, caps, logs.For("router"))
 
@@ -339,28 +360,6 @@ func TestARoundSummarisingAnOlderVersionsDayFinishesAsAPruneOfTheReadingsWaits(t
 	<-pruned
 	if got := heldSummary(t, dir, date); !strings.Contains(got, `"version":3`) {
 		t.Errorf("the day's summary is\n%s\nwant it summarised again, as version 3", got)
-	}
-}
-
-func TestAReaderNeverRightsAnOlderVersionsFactsOfTheReadings(t *testing.T) {
-	state, dir, history := stateDirs(t)
-	holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)))
-	// Version 2's day of a reading read late, its readings kept, as the router
-	// would right them.
-	held := windowsRead{read: true, highest: `{"5h":1}`, rise: `{"5h":2}`, resets: `[` + resetJSON("5h", on(0, 15, 40), 1) + `]`, atLimit: 338}
-	markVersionTwo(t, dir, ofVersion(summaryOf(date, 2, 2, held), 2))
-	holdReadings(t, history, date, rejected(on(0, 10, 2), "5h", 1, on(0, 15, 40)), rejected(on(0, 10, 5), "5h", 1, on(0, 15, 30)),
-		rejected(on(0, 10, 8), "5h", 1, on(0, 15, 40)))
-	held.limits = `[` + limitJSON("5h", on(0, 10, 2), on(0, 15, 40)) + `]`
-
-	for _, by := range []string{"a reader", "a follower"} {
-		days := readerAt(state, on(1, 11, 0)).Days
-		if by == "a follower" {
-			days = followerOf(state, &testClock{at: on(1, 11, 0)}, caps).Days
-		}
-		if got, want := summariesJSON(t, days(on(0, 0, 0))[:1])[0], summaryOf(date, 2, 2, held); got != want {
-			t.Errorf("by %s, the day is\n%s\nwant it knowing no less than version 2 did, as only the router rights it\n%s", by, got, want)
-		}
 	}
 }
 
@@ -387,6 +386,31 @@ func TestAReaderReadsASummaryOfVersionOneAsItIsOnceItsLinesAreGone(t *testing.T)
 			}
 			if got := heldSummary(t, dir, date); got != held {
 				t.Errorf("the ledger holds the day's summary as\n%s\nwant it as it was\n%s", got, held)
+			}
+		})
+	}
+}
+
+func TestAReaderTakesASummaryOfADayWithNoLinesAsItStandsWhateverItsVersion(t *testing.T) {
+	for _, by := range []string{"a reader", "a follower"} {
+		t.Run("by "+by, func(t *testing.T) {
+			log := logstest.Capture(t)
+			state, dir, history := stateDirs(t)
+			// The day's lines are pruned, its summary of version 2, and readings
+			// in its reach kept, those of the day before its week, which reach no
+			// day after it, open to no one, so a read of them warns that it
+			// can't.
+			held := ofVersion(summaryOf(date, 2, 2, windowsRead{}), 2)
+			writeFile(t, dir, "day-"+date+".json", []byte(held+"\n"))
+			holdReadings(t, history, "2026-09-27", workRead(on(-8, 10, 0), "7d", 0.3, on(-2, 10, 0), quota.StatusAllowed))
+			unopenable(t, history, "readings-*")
+			days := readerAt(state, on(3, 10, 0)).Days
+			if by == "a follower" {
+				days = followerOf(state, &testClock{at: on(3, 10, 0)}, caps).Days
+			}
+
+			if got := summariesJSON(t, days(on(0, 0, 0))[:1])[0]; got != held || opened(log) != 0 {
+				t.Errorf("log reads\n%s\nthe day is\n%s\nwant it as it stands, its readings unread, as the router alone summarises it again\n%s", log, got, held)
 			}
 		})
 	}

@@ -107,15 +107,16 @@ func (f *Follower) dates(from, now time.Time) []string {
 // summaryOf returns the summary of the local day with the given date, as
 // Reader.Days gives it, at now: the summary the ledger holds of it, where it
 // stands, as follow finds; else the day summarised from its lines as they
-// grow, and the readings history.
+// grow, and the readings history, where it reaches the day, as reaches
+// reports.
 func (f *Follower) summaryOf(date string, now time.Time, reaches func(date string) bool) Summary {
-	d := f.follow(date, reaches)
+	d := f.follow(date)
 	if d.stands {
 		return *d.held
 	}
 	live := d.liveDay(f)
 	live.read(f.days.logger)
-	return live.summary(f, d.held, now)
+	return live.summary(f, d.held, now, reaches(date))
 }
 
 // names reports whether the local day with the given date, as Days gives it,
@@ -124,8 +125,8 @@ func (f *Follower) summaryOf(date string, now time.Time, reaches func(date strin
 // stands, as follow finds; else from its lines as they grow, and the summary
 // held of it, which the day's knows no less than. It never reads the
 // readings history, which names no session.
-func (f *Follower) names(date string, wanted map[string]bool, reaches func(date string) bool) bool {
-	d := f.follow(date, reaches)
+func (f *Follower) names(date string, wanted map[string]bool) bool {
+	d := f.follow(date)
 	if d.stands {
 		return d.held.names(wanted)
 	}
@@ -137,16 +138,15 @@ func (f *Follower) names(date string, wanted map[string]bool, reaches func(date 
 // follow returns the local day with the given date as the follower follows
 // it, whether the summary the ledger holds of it stands found afresh, as
 // standing says, only where the summary's file or the day's files look
-// otherwise than they did, reaches reporting which days the readings
-// history's readings reach.
-func (f *Follower) follow(date string, reaches func(date string) bool) *followedDay {
+// otherwise than they did.
+func (f *Follower) follow(date string) *followedDay {
 	d, ok := f.followed[date]
 	if !ok {
 		d = &followedDay{date: date}
 		f.followed[date] = d
 	}
 	if l := f.lookAt(date); !d.looked || !l.same(d.look) {
-		f.standing(d, l, reaches)
+		f.standing(d, l)
 	}
 	return d
 }
@@ -180,9 +180,8 @@ func (d *followedDay) liveDay(f *Follower) *liveDay {
 // Reader.standing does, its summary's file and its files as l looks at them:
 // counting the day's lines, where only a count tells, as the day's live
 // lines are read, kept to count again as they grow; letting go of them where
-// it stands without. reaches reports which days the readings history's
-// readings reach.
-func (f *Follower) standing(d *followedDay, l look, reaches func(date string) bool) {
+// it stands without.
+func (f *Follower) standing(d *followedDay, l look) {
 	d.look, d.looked = l, true
 	held, ok := f.days.readable(d.date)
 	if !ok {
@@ -190,7 +189,7 @@ func (f *Follower) standing(d *followedDay, l look, reaches func(date string) bo
 		return
 	}
 	d.held = &held.Summary
-	stands, told, err := l.tells(held, reaches)
+	stands, told, err := l.tells(held)
 	switch {
 	case err != nil:
 		f.days.logger.Warn("can't read the request ledger", "day", d.date, "error", err)
@@ -243,15 +242,15 @@ func (l look) same(other look) bool {
 
 // tells reports whether held, the summary the ledger holds of a day whose
 // files l looks at, stands, as stands says, and whether the look tells,
-// without its lines counted: it stands at a look, as standsAtALook says,
-// reaches reporting which days the readings history's readings reach, or is
-// marked with them, or of an older version, as standsUncounted says. It
-// fails where the day's files can't be looked at.
-func (l look) tells(held stamped, reaches func(date string) bool) (stands, told bool, err error) {
+// without its lines counted, as Reader.standing has it: the day has no
+// lines, or its files are as they were when it was marked, as unchanged and
+// standsUncounted say, or it's of an older version. It fails where the day's
+// files can't be looked at.
+func (l look) tells(held stamped) (stands, told bool, err error) {
 	switch {
 	case l.err != nil:
 		return false, false, l.err
-	case standsAtALook(held.Day, l.files, l.none, held.stamp, reaches):
+	case l.none || unchanged(held.Day, l.files, held.stamp):
 		return true, true, nil
 	}
 	stands, told = standsUncounted(held.Summary, l.files)
@@ -307,14 +306,14 @@ func (d *liveDay) countsNoMore(logger *slog.Logger, held int) bool {
 }
 
 // summary returns the day summarised from its lines as last read, and the
-// readings history as it's read now, as of asOf, as Reader.Days summarises a
-// day from its lines, knowing no less than held, where it's given, as
-// knowing says: its tally, and the line the day's plain file ends in, cut
-// short, where it reads as one, as a read of the day whole would read it. So
-// the minutes at each account's cap and at a limit, and each window's last
-// reading standing, move on with the clock, as summarising the day afresh
-// moves them.
-func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time) Summary {
+// readings history as it's read now, where reached reports it reaches the
+// day, as of asOf, as Reader.Days summarises a day from its lines, knowing no
+// less than held, where it's given: its tally, and the line the day's plain
+// file ends in, cut short, where it reads as one, as a read of the day whole
+// would read it. So the minutes at each account's cap and at a limit, and
+// each window's last reading standing, move on with the clock, as
+// summarising the day afresh moves them.
+func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reached bool) Summary {
 	t, n := d.tally.clone(), d.tallied
 	if cut, ok := d.lines.Cut(); ok {
 		t.line(&cut)
@@ -322,13 +321,16 @@ func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time) Summary {
 	}
 	lines, _ := d.lines.Lines()
 	read := func() iter.Seq[readings.Reading] {
+		if !reached {
+			return slices.Values([]readings.Reading(nil))
+		}
 		if d.history == nil {
 			start, end, _ := dayfile.Day(d.date)
 			d.history = readings.NewDay(f.history, start.Add(-readingsBefore), start, end)
 		}
 		return slices.Values(d.history.Read())
 	}
-	return t.day(d.date, n, read, held, f.days.caps, asOf).made(lines, held, false)
+	return t.day(d.date, n, read, held, f.days.caps, asOf).made(lines, held)
 }
 
 // tailed is the ledger's files of a local day, by its date, read as they
@@ -533,10 +535,10 @@ func (f *Follower) Session(id string) iter.Seq[Held] {
 		f.mu.Lock()
 		dates := f.linesDates(now)
 		f.mu.Unlock()
-		reaches := f.days.reaching()
+		wanted := map[string]bool{id: true}
 		for _, date := range slices.Backward(dates) {
 			start, end, _ := dayfile.Day(date)
-			if start.After(now) || f.namesSession(date, id, reaches) {
+			if start.After(now) || f.namesLocked(date, wanted) {
 				unread += f.readSession(date, id, now, &lines)
 			}
 			// No earlier day's file holds a line of a later day than this one.
@@ -566,12 +568,12 @@ func (f *Follower) linesDates(now time.Time) []string {
 	return dayfile.Dates(start, now)
 }
 
-// namesSession reports whether the local day with the given date names the
-// session with the given id, as names says.
-func (f *Follower) namesSession(date, id string, reaches func(date string) bool) bool {
+// namesLocked reports whether the local day with the given date names any of
+// the sessions wanted, as names says, holding the follower as it looks.
+func (f *Follower) namesLocked(date string, wanted map[string]bool) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.names(date, map[string]bool{id: true}, reaches)
+	return f.names(date, wanted)
 }
 
 // names reports whether the summary names any of the sessions wanted among

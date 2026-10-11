@@ -59,10 +59,9 @@ func (f *Follower) namingBefore(date string, wanted map[string]bool, now time.Ti
 		return nil
 	}
 	before, _, _ := dayfile.Day(date)
-	reaches := f.days.reaching()
 	var dates []string
 	for _, d := range dayfile.Span(first, dayfile.DayStart(before, -1)) {
-		if f.names(d, wanted, reaches) {
+		if f.names(d, wanted) {
 			dates = append(dates, d)
 		}
 	}

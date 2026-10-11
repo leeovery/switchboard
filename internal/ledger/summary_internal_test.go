@@ -70,19 +70,25 @@ func TestReadingsReadAheadGiveThoseOfEachDayAndTheWeekBeforeOnceForEachRunOfDays
 	day := func(n int) time.Time { return dayfile.DayStart(start, n) }
 	history := &asking{held: hourly(start.Add(-time.Hour), 61*24)}
 	var due []dueDay
-	// Days 10 to 14, then day 30, well after them.
-	for _, n := range []int{10, 11, 12, 13, 14, 30} {
-		due = append(due, dueDay{date: day(n).Format(time.DateOnly)})
+	// Days 10 to 14, then day 30, well after them; and day 20, which the
+	// history doesn't reach.
+	for _, n := range []int{10, 11, 12, 13, 14, 20, 30} {
+		due = append(due, dueDay{date: day(n).Format(time.DateOnly), reached: n != 20})
 	}
 
 	got := readingAhead(history, due, func(d dueDay, read *ahead) []readings.Reading {
 		from, to, _ := dayfile.Day(d.date)
 		return slices.Collect(read.readings(from.Add(-readingsBefore), to))
-	})
+	}, nil)
 	for i, d := range due {
 		from, to, _ := dayfile.Day(d.date)
-		if want := between(history.held, from.Add(-readingsBefore), to); !slices.Equal(got[i], want) {
-			t.Errorf("%s: gave %d readings, want the %d the history holds of the day and the week before", d.date, len(got[i]), len(want))
+		want := between(history.held, from.Add(-readingsBefore), to)
+		if !d.reached {
+			want = nil
+		}
+		if !slices.Equal(got[i], want) {
+			t.Errorf("%s: gave %d readings, want the %d the history holds of the day and the week before, none where it doesn't reach the day",
+				d.date, len(got[i]), len(want))
 		}
 	}
 	runs := [][2]time.Time{{day(10).Add(-readingsBefore), day(15)}, {day(30).Add(-readingsBefore), day(31)}}

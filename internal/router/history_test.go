@@ -399,17 +399,18 @@ func TestTheHistoryGivesTheLedgerTheReadingsOfATimeAndTheDaysItHolds(t *testing.
 	writeDay(t, dir, plainFile("2026-09-28"), linesOf(t, after))
 	h := newHistory(config.History{}, at(start))
 
-	if got, dates := slices.Collect(h.Between(from, to, nil)), h.Dates(); len(got) > 0 || len(dates) > 0 {
-		t.Errorf("before the history was opened, Between() = %+v and Dates() = %q, want none", got, dates)
+	if history := ledger.HistoryIn(h.files); len(slices.Collect(history.Between(from, to, nil))) > 0 || len(history.Dates()) > 0 {
+		t.Error("before the history was opened, it gave the ledger readings, want none")
 	}
 	h.open(dir)
-	got := slices.Collect(h.Between(from, to, nil))
+	history := ledger.HistoryIn(h.files)
+	got := slices.Collect(history.Between(from, to, nil))
 	if want := []readings.Reading{first, last}; !slices.EqualFunc(got, want, func(a, b readings.Reading) bool {
 		return a.At.Equal(b.At) && a.Account == b.Account && a.Window() == b.Window()
 	}) {
 		t.Errorf("Between() = %+v, want %+v: those of the time asked for, in the order they came, whatever day's file they're in", got, want)
 	}
-	if got, want := h.Dates(), []string{"2026-09-26", "2026-09-27", "2026-09-28"}; !slices.Equal(got, want) {
+	if got, want := history.Dates(), []string{"2026-09-26", "2026-09-27", "2026-09-28"}; !slices.Equal(got, want) {
 		t.Errorf("Dates() = %q, want %q: the days the history holds readings of, oldest first", got, want)
 	}
 }
@@ -683,7 +684,7 @@ func TestTheHistoryHasTheLedgerSummariseTheDaysThatEndedBeforeItPrunesTheirReadi
 					Status: quota.StatusAllowed, Source: readings.FromAnswer}
 				writeDay(t, historyDir, plainFile(date), linesOf(t, read))
 				r.history.open(historyDir)
-				r.ledger.open(ledgerDir, r.history)
+				r.ledger.open(ledgerDir, ledger.HistoryIn(r.history.files))
 
 				stop := keeping(t, r.history)
 				synctest.Wait()

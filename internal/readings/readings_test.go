@@ -151,12 +151,17 @@ func TestTheHistorysFilesPassOverALineTooLongToHoldNotingItsDay(t *testing.T) {
 	writeDay(t, dir, "readings-2026-09-26.jsonl.gz", damaged)
 
 	writeDay(t, dir, "readings-2026-09-25.jsonl", []byte(linesOf(t, workRead(at.AddDate(0, 0, -2), 0.01))))
-	var faults dayfile.Faults
+	faults := dayfile.NewFaults(nil)
 
-	got := slices.Collect(readings.BetweenNoting(readings.Files(dir, logs.For("cli")), at.AddDate(0, 0, -2), at.Add(time.Hour), &faults))
+	var got []readings.Reading
+	readings.Read(readings.Files(dir, logs.For("cli")), []string{"2026-09-25", "2026-09-26", "2026-09-27"}, func(readings.Reading) bool { return true },
+		func(r readings.Reading) bool {
+			got = append(got, r)
+			return true
+		}, faults)
 	want := []readings.Reading{workRead(at.AddDate(0, 0, -2), 0.01), workRead(at.AddDate(0, 0, -1), 0.05), workRead(at, 0.1), workRead(at, 0.2)}
 	if !slices.EqualFunc(got, want, sameReading) {
-		t.Errorf("BetweenNoting() = %+v, want %+v: the lines either side of the one too long to hold, and those before the damage", got, want)
+		t.Errorf("Read() = %+v, want %+v: the lines either side of the one too long to hold, and those before the damage", got, want)
 	}
 	for date, fault := range map[string]bool{"2026-09-25": false, "2026-09-26": true, "2026-09-27": true} {
 		if got := faults.Any([]string{date}); got != fault {

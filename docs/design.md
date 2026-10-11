@@ -4199,25 +4199,21 @@ from the first day a router that has it runs, so nothing before then is in it.
     otherwise, or keeps more of it, writes another, so the summaries written before it can be told:
     a day whose summary is of an older version is read, and summarised again from its lines and its
     readings while either is kept, once, on the first round under the new version, as the round's
-    stamp holds the summary's version (see below), knowing no less than it of what came of the
-    lines, as any summary written again does, as lines can be lost. What came of the readings,
-    though, its windows' `highest`, `rise`, `resets`, `limits`, minutes and `read_before`, it takes
-    afresh where the readings are whole: the day's kept, as the history's files say, the week
-    before's as far as the summary before read them, as its `read_before` says, and every file of
-    them read with none failing to open, none damaged and no line passed over. A newer version
-    rights an older one's facts of the readings where they can be read again, as version 3 rights a
-    rise a reading read late added to, or a limit it counted again, as the data's being right comes
-    before keeping an older version's errors. A summary of version 1, which never noted the windows
-    it read in the week before, is never so. So a day whose readings the history has pruned, even
-    in part, or that couldn't be read whole, is summarised again from its lines, and keeps what the
-    summary before took from the readings; one whose lines are pruned, from its readings, and keeps
-    its requests as the summary before gave them, sessions it never named left unnamed; and one
-    whose lines and readings are both gone keeps the summary it has. Only the router's rounds,
-    which write the summaries, right an older version's facts of the readings: a reader that meets
-    an older version's summary, its lines or its readings kept, summarises the day as it's read, as
-    it does today's, knowing no less than it, until a round writes it afresh; and of the rest,
-    whose lines are gone, a reader knows what they never counted, rather than taking it for none.
-    Versions 2 and 3 only add fields, and accounts, so a release from before one reads a summary of
+    stamp holds the summary's version (see below), knowing no less than it, as any summary
+    written again does, every field of it. So a day whose readings the history has pruned is
+    summarised again from its lines, and keeps what the summary before took from the readings; one
+    whose lines are pruned, from its readings, and keeps its requests as the summary before gave
+    them; and one whose lines and readings are both gone keeps the summary it has. So too the days
+    summarised under version 2, from 8 to 11 October 2026, may keep small over-counts from a
+    reading read late, in their rises, resets and limits, which version 3's rule for the climb
+    would count otherwise: a summary written again knows no less, as what it held can't always be
+    had again, and righting what it may have over-counted has more ways to lose what it counted
+    right. Version 3 stands for that rule and for every account read, for the days it summarises. A
+    reader that meets an older version's summary, its lines kept, summarises the day from its
+    lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
+    version, as only the router writes summaries again, a reader knowing of the rest what they
+    never counted, rather than taking it for none. Versions 2 and 3 only add fields, and accounts,
+    so a release from before one reads a summary of
     it as one of its own, passing over what it doesn't know, and keeps those fields when it marks
     the summary afresh; where it summarises the day again, as lines come to be filed under it, it
     writes its own version, which the next release to run summarises again while the day's lines
@@ -4298,8 +4294,8 @@ from the first day a router that has it runs, so nothing before then is in it.
   whose files hold more lines than its summary's `lines` is summarised again, over it. None is
   taken away while they're kept, so fewer means some were lost since, as to a damaged file, and
   the summary made from more stands; once they're pruned, it's kept for good, summarised again only
-  as a new version summarises it from the day's readings, while those are kept (see `version`): a
-  year of them runs to a few megabytes.
+  as a new version summarises it from the day's readings, while those are kept, knowing no less
+  than it (see `version`): a year of them runs to a few megabytes.
 
   A summary written again knows no less than the one it replaces. Each count it holds, a model's
   requests, sessions and usage, field for field, and an account's sessions and moves, is the one
@@ -4313,18 +4309,16 @@ from the first day a router that has it runs, so nothing before then is in it.
   one before held are among its own. Its `session_ids` are its own and the one before's together;
   each window's rise, and each of its minutes, are the one before's where that's more; and the
   resets the one before held are among its own, a reset being the same where its window and the
-  time it reset are, its `before` the higher of the two. All but where a round summarises again
-  one of an older version, the readings it was made from read whole again: what came of them is
-  then taken afresh, as `version` says, as a newer version rights an older one's errors, which
-  knowing no less would keep. Sessions the one before never named, merged with none, are unnamed
-  still, never named as none. The readings history prunes the readings of a day past its own
-  keep, whatever the ledger's, and a clock moved can leave it short of them, so what the readings
-  gave can't be had again from them: a limit whose window has no reading before it, in the day or
-  the week before, which a summary takes for one reached, is its own only where the summary before
-  read none of that window in the week before either, as its `read_before` says, as the reading it
-  read may be one pruned since, which would have said the limit held already. So one read first
-  where the summary before read no readings, as of a day whose only line was torn, or while the
-  history couldn't be read, is kept.
+  time it reset are, its `before` the higher of the two. Where the one before never named its
+  sessions, as one of version 1, the ids are named only where they number as many as it counted,
+  else left unnamed, as which they were is unknown. The readings history prunes the readings of a
+  day past its own keep, whatever the ledger's, and a clock moved can leave it short of them, so
+  what the readings gave can't be had again from them: a limit whose window has no reading before
+  it, in the day or the week before, which a summary takes for one reached, is its own only where
+  the summary before read none of that window in the week before either, as its `read_before`
+  says, as the reading it read may be one pruned since, which would have said the limit held
+  already. So one read first where the summary before read no readings, as of a day whose only
+  line was torn, or while the history couldn't be read, is kept.
 
   A round counts a day's lines only where its files have changed since its summary was marked: the
   summary holds their sizes, as `bytes`, and its modification time, its stamp, is set to when the
@@ -4337,13 +4331,16 @@ from the first day a router that has it runs, so nothing before then is in it.
   version 2 of a day with neither file was never stamped, so the first round of version 3 reads it.
   A day with no plain file, whose compressed file still gives that time, or with neither file,
   costs a look at its files and its summary's, reading none of them: compressing a day writes its
-  compressed file anew, once a day at most. A day with neither file is looked at only while the
-  readings history holds readings its summary would read, of the day or the week before it: once
-  they're pruned too, its summary is kept as it is, and never looked at again. A round lists the
-  ledger's directory and the history's once each, the history's before it reads any of its
-  files, and finds the days to summarise from them: each the ledger holds lines of, and each the
-  history holds readings of, and the week after each, from the first day the ledger holds to
-  yesterday. That look reads no summary, so it takes one
+  compressed file anew, once a day at most. A day's summary reads the readings history's files
+  from the day before its week to the day after it, as a change of time zone files a reading
+  under a date beside its own: its reach, which a round, a reader and a read alike go by. A day
+  with neither file is looked at by a round only while the history holds readings in its reach:
+  once they're pruned too, its summary is kept as it is, and never looked at again. A round lists
+  the ledger's directory and the history's once each, the history's before it reads any of its
+  files, and finds the days to summarise from them: each the ledger holds lines of, and each whose
+  reach takes in a day the history holds readings of, from the day before it to a week and a day
+  after it, from the first day the ledger holds to yesterday; and reads the readings of those
+  days alone the history reaches. That look reads no summary, so it takes one
   damaged in place, or of another day, as by a restore or a copy that keeps its time, as it stands;
   what reads it, a reader, or a round that must, warns of it, and summarises its day from its lines,
   while they're kept. Any other has its summary read, and its lines counted only where its files'
@@ -4362,12 +4359,18 @@ from the first day a router that has it runs, so nothing before then is in it.
   summary, or lines, can't be read to tell whether it stands, each warned of at each round until
   it can be; one whose summary, read, doesn't read as the day's, as one damaged or of another day,
   is warned of, and summarised again while its lines are kept: once they're gone, it's warned of
-  at each round, and left as it is, never replaced by one of the readings alone, as what it held
-  can't be had again. A day whose files hold no line that reads is summarised as
-  one of no requests, of the accounts its readings tell of, and again once a line comes that does.
-  Views over weeks and months read the summaries; today, and any day not summarised since lines
-  came to be filed under it, is summarised from its lines, and its readings, as it's read, as is a
-  day of no requests the router hasn't summarised.
+  once a run, until its file changes, and left as it is, never replaced by one of the readings
+  alone, as what it held can't be had again; so is one whose lines go between the round finding
+  it doesn't read as the day's and its writing, which writes nothing. A summary of a day with no
+  lines, made from its readings alone, is written only where the round's read read them whole:
+  none of their files failing to open, damaged or holding a line passed over, nor gone since the
+  round listed them, as the read finds as it reads them, under its own hold on them; else the day
+  is left for a later round, warned of at each round until it can be. A day whose files hold no
+  line that reads is summarised as one of no requests, of the accounts its readings tell of, and
+  again once a line comes that does. Views over weeks and months read the summaries; today, and
+  any day not summarised since lines came to be filed under it, is summarised from its lines, and
+  its readings where the history reaches it, as it's read, as is a day of no requests the router
+  hasn't summarised.
 - **Worth** is what a request would have cost through the API, priced from a table built into
   switchboard, read from Anthropic's pricing page on 7 October 2026: each model's prices of input,
   output, cache reads, and cache writes for five minutes and for an hour, each as the page gives
@@ -4436,20 +4439,20 @@ from the first day a router that has it runs, so nothing before then is in it.
   ordering them holds a day or two of those asked for at a time, a line of another time, as one of
   the day before the first asked for, whose file is read for those filed under it, passed over as
   it's read, never held; and so does ordering the readings history's.
-  A day's summary is read as the ledger holds it while it stands, as a round looks at it: its
-  lines are pruned, or none were written, and the readings history holds none of the day's
-  readings or the week before's, as one listing of its files a read says; or its files are as its
-  stamp, or its `bytes`, say, or number no more than its `lines`, or can't be counted, which is
-  warned of. One of an older version, its day's lines or its readings kept, doesn't stand: the
-  day is summarised as it's read, as today's is. Today, and any day not summarised since lines
-  came to be filed under it, or not summarised at all, as a day of no requests the router hasn't
-  summarised, is summarised from its lines and its readings as it's read, knowing no less than
-  any summary it would replace, an older version's facts of the readings among them, the
-  readings history read ahead for them all, as the router reads it, and never written, nor
-  marked, as summaries are the router's to write. A session's days are found by their summaries'
-  session ids, or, where a day must be summarised as it's read, by its lines alone, never its
-  readings, which name no session. A summary that can't be read, or doesn't read as
-  its day's, as one damaged in place or of another day, whatever its stamp, is warned of, and its
+  A day's summary is read as the ledger holds it while it stands: its lines are pruned, or none
+  were written, whatever its version, as only the router summarises such a day again, so a
+  reader's look at it asks nothing of the readings history; or its files are as its stamp, or its
+  `bytes`, say, or number no more than its `lines`, or can't be counted, which is warned of. One
+  of an older version, its day's lines kept, doesn't stand: the day is summarised from its lines
+  as it's read, as today's is. Today, and any day not summarised since lines came to be filed
+  under it, or not summarised at all, as a day of no requests the router hasn't summarised, is
+  summarised from its lines as it's read, and from its readings where the readings history
+  reaches it, as one listing of the history's files a read says, knowing no less than any summary
+  it would replace, the history read ahead for them all, as the router reads it, and never
+  written, nor marked, as summaries are the router's to write. A session's days are found by
+  their summaries' session ids, or, where a day must be summarised as it's read, by its lines
+  alone, never its readings, which name no session. A summary that can't be read, or doesn't read
+  as its day's, as one damaged in place or of another day, whatever its stamp, is warned of, and its
   day summarised from its lines, while they're kept: once they're pruned, there's nothing to give
   of the day but what its readings tell. A read starts at the first day the ledger holds, the
   earliest its files of lines and its summaries are of, where that's later than the start asked
