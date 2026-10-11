@@ -15,11 +15,11 @@ type toldEvent struct {
 	at, kind, account, what string
 }
 
-// toldBetween is what the world's events reader gives from from up to to, as
-// the Log's Events tells each, at now.
-func toldBetween(now, from, to time.Time) []toldEvent {
-	r := &records{events: routerEvents(now)}
-	_, _, happened := r.readers(func() time.Time { return now })
+// toldBetween is what the auto world's events reader gives from from up to
+// to, as the Log's Events tells each, at the frames' moment.
+func toldBetween(from, to time.Time) []toldEvent {
+	now := worldsNow().now
+	_, _, happened := autoWorld().readers()
 	telling := views.NewTelling(claude.WindowName)
 	var told []toldEvent
 	for e := range happened.Between(from, to) {
@@ -32,7 +32,7 @@ func toldBetween(now, from, to time.Time) []toldEvent {
 func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 	now := moment(time.Local)
 	today := dayfile.DayStart(now, 0)
-	told := toldBetween(now, clockAt(now, -1, 16, 55, 0), now)
+	told := toldBetween(clockAt(now, -1, 16, 55, 0), now)
 	// The Log's Events (log-events-160), yesterday's from 16:55 and today's
 	// 20, but db8a's move under pressure, which the frame says ran out at
 	// 15:10: no pressure event is told today to say when, and the frame's
@@ -77,7 +77,7 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 	}
 
 	kinds := make(map[string]int)
-	for _, e := range toldBetween(now, today, now) {
+	for _, e := range toldBetween(today, now) {
 		kinds[e.kind]++
 	}
 	wantKinds := map[string]int{"started": 10, "moved": 4, "cap": 1, "primed": 5}

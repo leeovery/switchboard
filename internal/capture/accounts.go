@@ -39,15 +39,3 @@ func firstAccounts(n int) config.Accounts {
 	}
 	return accounts
 }
-
-// reserves are the accounts' reserves, by id, as the ledger takes them for
-// their caps.
-func reserves(accounts config.Accounts) map[string]float64 {
-	held := make(map[string]float64)
-	for _, a := range accounts {
-		if a.Reserve > 0 {
-			held[a.ID] = a.Reserve
-		}
-	}
-	return held
-}

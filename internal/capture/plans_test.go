@@ -152,8 +152,7 @@ func checkMove(t *testing.T, page views.SessionPage, now time.Time, at, from, to
 
 func TestD28CsPageIsItsFramesFromTodaysLines(t *testing.T) {
 	now := moment(time.Local)
-	r := &records{lines: heldAsWritten(d28cPlan(now).lines())}
-	page := pageOf(t, r, idD28C, routedAs(t, routedSessions(now), idD28C), now)
+	page := pageOf(t, autoWorld().records, idD28C, routedAs(t, routedSessions(now), idD28C), now)
 
 	if page.Totals.Turns != 13 || page.Totals.Requests != 445 || shownWorth(page.Totals.Worth) != "$48.20" {
 		t.Errorf("TURNS sums %d turns, %d requests, %s, want 13 turns, 445 requests, $48.20", page.Totals.Turns, page.Totals.Requests,
@@ -190,7 +189,7 @@ func TestD28CsPageIsItsFramesFromTodaysLines(t *testing.T) {
 
 func TestD28CsTurnTwelveOpensOnTheRequestsItsFrameDraws(t *testing.T) {
 	now := moment(time.Local)
-	l, _, _ := (&records{lines: heldAsWritten(d28cPlan(now).lines())}).readers(func() time.Time { return now })
+	l := autoWorld().ledger()
 	var lines []ledger.Line
 	for h := range l.Session(idD28C) {
 		lines = append(lines, h.Line)
@@ -226,8 +225,7 @@ func TestD28CsTurnTwelveOpensOnTheRequestsItsFrameDraws(t *testing.T) {
 
 func TestNineC2EsPageIsItsFrameFromTodaysLines(t *testing.T) {
 	now := moment(time.Local)
-	r := &records{lines: heldAsWritten(quietPlan(now).lines())}
-	page := pageOf(t, r, id9C2E, routedAs(t, routedSessions(now), id9C2E), now)
+	page := pageOf(t, autoWorld().records, id9C2E, routedAs(t, routedSessions(now), id9C2E), now)
 
 	if page.Totals.Turns != 10 || page.Totals.Requests != 267 || shownWorth(page.Totals.Worth) != "$27.15" {
 		t.Errorf("TURNS sums %d turns, %d requests, %s, want 10 turns, 267 requests, $27.15", page.Totals.Turns, page.Totals.Requests,
@@ -255,8 +253,7 @@ func TestNineC2EsPageIsItsFrameFromTodaysLines(t *testing.T) {
 
 func TestB9C4sPageIsItsFrameFromYesterdaysLines(t *testing.T) {
 	now := moment(time.Local)
-	r := &records{lines: heldAsWritten(endedPlan(now).lines())}
-	page := pageOf(t, r, idB9C4, nil, now)
+	page := pageOf(t, autoWorld().records, idB9C4, nil, now)
 
 	if page.Totals.Turns != 16 || page.Totals.Requests != 595 || shownWorth(page.Totals.Worth) != "$73.00" {
 		t.Errorf("TURNS sums %d turns, %d requests, %s, want 16 turns, 595 requests, $73.00", page.Totals.Turns, page.Totals.Requests,

@@ -1,8 +1,11 @@
 package capture
 
 import (
+	"cmp"
+	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -29,7 +32,7 @@ func accountTotals(t *testing.T, h views.History, id string) views.AccountTotals
 }
 
 func TestTheYearsMonthsAreThoseBYMONTHDraws(t *testing.T) {
-	h := historyFrom(threeDays(), worldsNow().auto(), lastTwelveMonths)
+	h := historyFrom(autoWorld(), lastTwelveMonths)
 	tests := []struct {
 		month    string
 		requests int
@@ -59,14 +62,14 @@ func TestTheYearsMonthsAreThoseBYMONTHDraws(t *testing.T) {
 }
 
 func TestTheYearIsTheOneYearDraws(t *testing.T) {
-	days := threeDays()
-	h := historyFrom(days, worldsNow().auto(), lastTwelveMonths)
+	days := autoWorld().ledger().Days(dayStart(worldsNow().now, 0))
+	h := historyFrom(autoWorld(), lastTwelveMonths)
 	all := slices.IndexFunc(h.Plans, func(p views.PlanCost) bool { return p.All })
 	if cost := h.Plans[all].Cost; cost == nil || *cost != 7200e12 {
 		t.Errorf("the plans cost %v over the year, want $7,200", cost)
 	}
-	if n := accountTotals(t, h, "").Sessions; n != yearSessions-todaysNewSessions {
-		t.Errorf("the year to yesterday had %d sessions, want %d, to be %d with today's", n, yearSessions-todaysNewSessions, yearSessions)
+	if n := accountTotals(t, h, "").Sessions; n != yearSessions {
+		t.Errorf("the last 12 months had %d sessions, today's among them, want %d", n, yearSessions)
 	}
 	first := slices.IndexFunc(days, func(s ledger.Summary) bool { return usedModel(s, opus55) })
 	if first < 0 || days[first].Day != "2026-06-22" {
@@ -82,8 +85,7 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		world accountWorld
-		days  ledgerDays
+		world recordedWorld
 		// weeks are how many of the eight's first the frames' peaks hold of:
 		// spare's week resets on a Thursday: its week from 17 September is
 		// placed under 14 September's and its week from 24 September, still
@@ -96,7 +98,7 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 		peaks []accountPeaks
 	}{
 		{
-			name: "three accounts", world: worldsNow().auto(), days: threeDays(), weeks: 7,
+			name: "three accounts", world: autoWorld(), weeks: 7,
 			pool: [7]int{527, 643, 663, 670, 737, 727, 817},
 			peaks: []accountPeaks{
 				// acct3.limit_day, which the strips draw, marks a weekday's limit,
@@ -108,7 +110,7 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 			},
 		},
 		{
-			name: "ten accounts", world: worldsNow().many(10), days: tenDays(), weeks: 6,
+			name: "ten accounts", world: tenWorld(), weeks: 6,
 			pool: [7]int{433, 524, 528, 545, 576, 565},
 			peaks: []accountPeaks{
 				{"client", [7]int{40, 52, 48, 61, 55, 58}, [7]int{0, 0, 0, 1, 0, 0}},
@@ -123,7 +125,7 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := historyFrom(tt.days, tt.world, eightWeeks)
+			h := historyFrom(tt.world, eightWeeks)
 			if len(h.Weeks) != 8 {
 				t.Fatalf("Weeks has %d weeks, want the eight", len(h.Weeks))
 			}
@@ -153,7 +155,7 @@ func TestTheEightWeeksAreThoseWeeksDraws(t *testing.T) {
 }
 
 func TestTheCapacityIsTheOneWeeksDraws(t *testing.T) {
-	c := historyFrom(threeDays(), worldsNow().auto(), eightWeeks).Capacity
+	c := historyFrom(autoWorld(), eightWeeks).Capacity
 	if c.Weeks != 7 || c.Short != 3 || c.WithOneFewer == nil || *c.WithOneFewer != 6 || c.WithOneMore != 0 || c.Verdict != "about right" {
 		t.Errorf("capacity is %+v, want short on 3 of 7 weeks as now, 6 with one fewer, none with one more, about right", c)
 	}
@@ -175,101 +177,158 @@ func TestTheCapacityIsTheOneWeeksDraws(t *testing.T) {
 			t.Errorf("%s's verdict is %q, %d limits, %v left, want %q, %d, %d%%", a.Account, a.Verdict, a.Limits, a.LeftAtReset, w.verdict, w.limits, w.left)
 		}
 	}
-	if ten := historyFrom(tenDays(), worldsNow().many(10), eightWeeks).Capacity; ten.Drop != "spare" {
+	if ten := historyFrom(tenWorld(), eightWeeks).Capacity; ten.Drop != "spare" {
 		t.Errorf("of the ten, the one to drop is %q, want spare", ten.Drop)
 	}
 }
 
+// Yesterday is as the Log's line between the days tells it, read off its
+// summary as History's Days prices it: 1,912 requests, 17 sessions, 2 limits
+// reached, $212 at API prices.
 func TestYesterdayIsTheLogs(t *testing.T) {
-	all := accountTotals(t, historyFrom(threeDays(), worldsNow().auto(), today-1), "")
-	if all.Requests != 1912 || dollars(t, all.Worth) != 212 || all.Sessions != 17 {
-		t.Errorf("yesterday had %d requests, $%d, %d sessions, want 1,912, $212, 17", all.Requests, dollars(t, all.Worth), all.Sessions)
+	day := historyFrom(autoWorld(), today-1).Days[0]
+	requests, limits, sessions := 0, 0, make(map[string]bool)
+	var worth ledger.Picodollars
+	for _, a := range day.Accounts {
+		limits += len(a.Limits)
+		for _, id := range a.SessionIDs {
+			sessions[id] = true
+		}
+		for _, m := range a.Models {
+			requests, worth = requests+m.Requests(), worth+*m.Worth
+		}
+	}
+	if day.Day != "2026-09-30" || requests != 1912 || len(sessions) != 17 || limits != 2 || dollars(t, views.Worth{Amount: &worth}) != 212 {
+		t.Errorf("%s had %d requests, %d sessions, %d limits, $%d, want 30 Sep: 1,912, 17, 2, $212", day.Day, requests, len(sessions), limits,
+			dollars(t, views.Worth{Amount: &worth}))
 	}
 }
 
-// weekToYesterday is an account's week to yesterday, as Accounts counts it:
-// its requests, its worth, in whole dollars, and its sessions, where they're
-// checked.
-type weekToYesterday struct {
-	id                 string
-	requests, sessions int
-	worth              int
+// hoursMinutes is a span of minutes as the frames draw it: 3h 10m, or 52m.
+func hoursMinutes(minutes int) string {
+	if minutes < 60 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	return fmt.Sprintf("%dh %02dm", minutes/60, minutes%60)
 }
 
-func TestThisWeekToYesterdayIsAccountsLessTodaysLines(t *testing.T) {
+// weekWords are how the world's week to now, today's lines and all, reads
+// through the views, as Accounts' Compare draws it: each account's, and every
+// account's, requests, sessions, moves off and on, 5-hour limits, time at its
+// cap or a limit, the share of its week left at its week's last reset, worth,
+// and that worth against its plan's week.
+func weekWords(t *testing.T, w recordedWorld) []string {
+	t.Helper()
+	h := historyFrom(w, thisWeek)
+	var words []string
+	for _, a := range h.Totals.Accounts {
+		name := cmp.Or(a.Account, "all")
+		words = append(words, fmt.Sprintf("%s requests %d", name, a.Requests), fmt.Sprintf("%s sessions %d", name, a.Sessions),
+			fmt.Sprintf("%s moved off %d", name, a.MovedOff), fmt.Sprintf("%s moved on %d", name, a.MovedOn),
+			fmt.Sprintf("%s 5-hour limits %d", name, a.Limits[sessionKey]), fmt.Sprintf("%s worth $%d", name, dollars(t, a.Worth)))
+		if a.MinutesAtCap != nil {
+			words = append(words, fmt.Sprintf("%s at its cap or a limit %s", name, hoursMinutes(*a.MinutesAtCap+*a.MinutesAtLimit)))
+		}
+		if left, ok := a.LeftAtReset[accountKey]; ok {
+			words = append(words, fmt.Sprintf("%s left at its last reset %d%%", name, percent(left)))
+		}
+	}
+	for _, p := range h.Plans {
+		words = append(words, fmt.Sprintf("%s against its plan %.1f×", cmp.Or(p.Account, "all"), tenths(p.Ratio)))
+	}
+	return words
+}
+
+// This week, Monday to now, today's lines and all, is as Accounts' Compare
+// draws it, but what no world the views read can give, where the frames'
+// figures disagree with the Log's (LOG-SPEC.md) or with each other; the views
+// give:
+//   - sessions served: 8 on work, 10 on personal, 14 on side, 27 in all, where
+//     the frame draws 9, 6, 11 and 19: the Log's 17 sessions yesterday and its
+//     14 today, 4 of them yesterday's, are 27;
+//   - moves: 2 off personal and 5 in all, where it draws 1 out and 4 moves:
+//     the Log tells of 8a2c's off personal at its limit yesterday and db8a's
+//     under pressure today, besides work's three;
+//   - personal's 5-hour limit, and 4h 45m at it, where it draws none and —;
+//     and in all 4 limits and 8h 47m at a cap or a limit, where it draws 3
+//     and 4h 02m: personal's limit at 19:12:40 yesterday, which the Log tells;
+//   - no share of work's or personal's week left at a reset this week, where
+//     it draws 0% and 15%: their weeks reset on Sunday, before Monday's start;
+//   - of the ten, in all, 11,698 requests, 53 sessions, 5 moves, 13h 31m at a
+//     cap or a limit, $1,310 and 3.3× its plans' week, where it draws 12,598,
+//     51, 10, 9h 57m, $1,342 and 3.4×: acct9.TEN's figures, typed, aren't the
+//     sum of its accounts'.
+func TestThisWeekIsAccountsTodaysLinesAndAll(t *testing.T) {
 	tests := []struct {
 		name  string
-		world accountWorld
-		days  ledgerDays
-		// accounts are as Accounts draws them less what today's lines hold,
-		// which the sessions' world gives: the three's sessions run on into
-		// today, so only the sessions' world can count them.
-		accounts []weekToYesterday
-		// limits are the 5-hour limits the accounts named reached; personal's
-		// at 19:12:40 yesterday, which the Log tells of, isn't among STATS'.
-		limits map[string]int
+		world recordedWorld
+		words []string
 	}{
 		{
-			name: "three accounts", world: worldsNow().auto(), days: threeDays(),
-			accounts: []weekToYesterday{{"work", 1204 - 592, 0, 184 - 60}, {"personal", 2330 - 463, 0, 212 - 48}, {"side", 1876 - 185, 0, 239 - 18}},
-			limits:   map[string]int{"work": 2, "side": 1},
+			name: "three accounts", world: autoWorld(),
+			words: []string{
+				"work requests 1204", "work moved off 3", "work 5-hour limits 2", "work at its cap or a limit 3h 10m", "work worth $184",
+				"work against its plan 4.0×",
+				"personal requests 2330", "personal worth $212", "personal against its plan 4.6×",
+				"side requests 1876", "side moved on 4", "side 5-hour limits 1", "side at its cap or a limit 52m", "side left at its last reset 40%",
+				"side worth $239", "side against its plan 5.2×",
+				"all requests 5410", "all worth $635", "all against its plan 4.6×",
+			},
 		},
 		{
-			name: "ten accounts", world: worldsNow().many(10), days: tenDays(),
-			accounts: []weekToYesterday{
-				{"client", 1410, 5, 151}, {"spare", 96, 1, 9}, {"lab", 1102, 4, 133}, {"team", 1980, 7, 201},
-				{"extra", 310, 2, 31}, {"ops", 520, 3, 52}, {"studio", 870, 4, 98},
+			name: "ten accounts", world: tenWorld(),
+			words: []string{
+				"client requests 1410", "client sessions 5", "client 5-hour limits 0", "client worth $151", "client against its plan 3.3×",
+				"spare requests 96", "spare sessions 1", "spare 5-hour limits 0", "spare worth $9", "spare against its plan 0.4×",
+				"lab requests 1102", "lab sessions 4", "lab 5-hour limits 1", "lab worth $133", "lab against its plan 2.9×",
+				"team requests 1980", "team sessions 7", "team 5-hour limits 2", "team worth $201",
+				"extra requests 310", "extra sessions 2", "extra 5-hour limits 0", "extra worth $31",
+				"ops requests 520", "ops sessions 3", "ops 5-hour limits 0", "ops worth $52",
+				"studio requests 870", "studio sessions 4", "studio 5-hour limits 0", "studio worth $98",
+				"all 5-hour limits 7",
 			},
-			limits: map[string]int{"client": 0, "spare": 0, "lab": 1, "team": 1, "extra": 0, "ops": 0, "studio": 0},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := historyFrom(tt.days, tt.world, thisWeek)
-			for _, want := range tt.accounts {
-				a := accountTotals(t, h, want.id)
-				if a.Requests != want.requests || dollars(t, a.Worth) != want.worth {
-					t.Errorf("%s's week to yesterday is %d requests, $%d, want %d, $%d", want.id, a.Requests, dollars(t, a.Worth), want.requests, want.worth)
-				}
-				if want.sessions > 0 && a.Sessions != want.sessions {
-					t.Errorf("%s's week to yesterday had %d sessions, want %d", want.id, a.Sessions, want.sessions)
-				}
-			}
-			for id, want := range tt.limits {
-				if got := accountTotals(t, h, id).Limits[sessionKey]; got != want {
-					t.Errorf("%s reached %d 5-hour limits this week to yesterday, want %d", id, got, want)
+			words := weekWords(t, tt.world)
+			for _, want := range tt.words {
+				if !slices.Contains(words, want) {
+					t.Errorf("this week reads\n%s\nwith no %q", strings.Join(words, "\n"), want)
 				}
 			}
 		})
 	}
 }
 
+// The week and the 30 days share their worth by model version as Accounts
+// draws them, today's lines and all, to a tenth of a percent, as the days
+// before today are made to leave them whole.
 func TestTheModelVersionsShareTheWeekAndTheThirtyDaysAsAccountsDraws(t *testing.T) {
 	tests := []struct {
 		name   string
-		days   ledgerDays
 		from   int
-		shares map[string][6]int
+		shares map[string][6]float64
 	}{
-		{name: "this week", days: threeDays(), from: thisWeek, shares: map[string][6]int{
+		{name: "this week", from: thisWeek, shares: map[string][6]float64{
 			"work": {55, 7, 28, 3, 5, 2}, "personal": {29, 0, 60, 7, 0, 4}, "side": {82, 0, 16, 0, 1, 1},
 		}},
-		{name: "the last 30 days", days: threeDays(), from: thirtyDays, shares: map[string][6]int{
+		{name: "the last 30 days", from: thirtyDays, shares: map[string][6]float64{
 			"work": {52, 8, 30, 3, 5, 2}, "personal": {31, 0, 57, 7, 1, 4}, "side": {79, 0, 19, 0, 1, 1},
 		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := historyFrom(tt.days, worldsNow().auto(), tt.from)
+			h := historyFrom(autoWorld(), tt.from)
 			for id, want := range tt.shares {
-				var got [6]int
+				var got [6]float64
 				for _, m := range accountTotals(t, h, id).ByModel {
 					if m.Share != nil {
-						got[slices.Index(versionOrder, m.Model)] = percent(*m.Share)
+						got[slices.Index(versionOrder, m.Model)] = math.Round(*m.Share*1000) / 10
 					}
 				}
 				if got != want {
-					t.Errorf("%s's worth by version is %v%%, want %v%%", id, got, want)
+					t.Errorf("%s's worth by version is %v%%, to a tenth, want %v%%", id, got, want)
 				}
 			}
 		})

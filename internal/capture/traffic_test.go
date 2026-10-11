@@ -1,6 +1,9 @@
 package capture
 
 import (
+	"fmt"
+	"maps"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -10,12 +13,6 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
-
-// sessionsAt reads the sessions' world's ledger at now.
-func sessionsAt(now time.Time) views.Ledger {
-	l, _, _ := sessionsRecords(now).readers(func() time.Time { return now })
-	return l
-}
 
 // todaysSummary is the summary of the day now falls on, as the ledger reads
 // its lines into it.
@@ -33,13 +30,14 @@ func short(id string) string {
 	return status.ShortID(id)[:4]
 }
 
-// The Log's counts are today's lines read as it reads them, by kind, status
-// and session, and today's summary agrees. The Log's 1,275 lines and 1,240
-// requests, and c61b's 5, are left out: c61b has four lines, its fifth
-// request answering at 14:42:07 as log1.tail draws it, not yet a line.
+// The Log's counts are today's lines read as it reads them, through the auto
+// world's readers, by kind, status and session, and today's summary agrees.
+// The Log's 1,275 lines and 1,240 requests, and c61b's 5, are left out: c61b
+// has four lines, its fifth request answering at 14:42:07 as log1.tail draws
+// it, not yet a line.
 func TestTheLogCountsTodaysLinesAsItsPanelsDo(t *testing.T) {
 	now := moment(time.Local)
-	l := sessionsAt(now)
+	l := autoWorld().ledger()
 	lines, _, _ := l.Today(ledger.Mark{})
 	kinds, failed, requests := make(map[string]int), 0, make(map[string]int)
 	for _, h := range lines {
@@ -81,30 +79,44 @@ func TestTheLogCountsTodaysLinesAsItsPanelsDo(t *testing.T) {
 	}
 }
 
-// What today's lines sum to on work and personal is what Accounts' week takes
-// today's to be. Side's 185 requests and $18.07, and work's $59.82, are left
-// out: side has c61b's four lines, not five, and the requests of 7f3a and
-// db8a there read back the contexts their moves wrote, so are worth more
-// than the week takes them to be, and theirs on work less.
+// What today's lines sum to on each account is what Accounts' week takes
+// today's to be, its days before today holding the rest: 592 requests, $57.08,
+// on work, 463, $48.13, on personal, and 184, $20.74, on side, each model
+// version's worth as weekUses has it, to a tenth of a cent; and none on the
+// seven more of the frames of ten, whose world holds the three's lines.
 func TestTodaysLinesSumOnEachAccountAsAccountsWeekTakesThem(t *testing.T) {
 	now := moment(time.Local)
-	priced := drawnPrices.Priced(todaysSummary(t, sessionsAt(now), now), now.Format(time.DateOnly))
-	type summed struct {
-		requests int
-		worth    string
-	}
-	got := make(map[string]summed)
+	priced := drawnPrices.Priced(todaysSummary(t, tenWorld().ledger(), now), now.Format(time.DateOnly))
+	drawn := map[string]string{"work": "592 requests, $57.08", "personal": "463 requests, $48.13", "side": "184 requests, $20.74"}
 	for _, a := range priced.Accounts {
 		var requests int
 		var worth ledger.Picodollars
+		byModel := make(map[string]ledger.Picodollars)
 		for _, m := range a.Models {
 			requests += m.Requests()
 			worth += *m.Worth
+			byModel[m.Model] += *m.Worth
 		}
-		got[a.Account] = summed{requests, worth.Cents()}
+		mills := make(map[string]int64)
+		for model, w := range byModel {
+			mills[model] = int64(math.Round(float64(w) / 1e9))
+		}
+		if want, ok := drawn[a.Account]; ok && fmt.Sprintf("%d requests, %s", requests, worth.Cents()) != want {
+			t.Errorf("today's lines sum to %d requests, %s, on %s, want %s", requests, worth.Cents(), a.Account, want)
+		}
+		delete(drawn, a.Account)
+		want := weekUses[a.Account].today
+		wantMills := make(map[string]int64)
+		for v, w := range want.worths {
+			wantMills[v] = int64(math.Round(w * 1000))
+		}
+		if requests != want.requests || !maps.Equal(mills, wantMills) {
+			t.Errorf("today's lines on %s are %d requests worth %v mills by version, want %d worth %v, as Accounts' week takes them",
+				a.Account, requests, mills, want.requests, wantMills)
+		}
 	}
-	if got["work"].requests != 592 || got["personal"] != (summed{463, "$48.13"}) {
-		t.Errorf("today's lines sum to %+v on work and %+v on personal, want 592 requests and 463, $48.13", got["work"], got["personal"])
+	if len(drawn) > 0 {
+		t.Errorf("today's summary has no day of %v", slices.Sorted(maps.Keys(drawn)))
 	}
 }
 
@@ -160,7 +172,7 @@ func TestTheListIsTodaysSessionsAsTheRouterAndTheLedgerTellThem(t *testing.T) {
 		"4b0e": {"work", "", at(-1, 15, 52, 14), "00:31", 5, "$0.31", "", ""},
 		"8a2c": {"side", "", at(-1, 16, 55, 20), "00:18", 9, "$0.63", "", ""},
 	}
-	list := views.ListSessions(views.SessionSources{Running: listedSessions(now), Ledger: sessionsAt(now), Prices: drawnPrices, Now: now})
+	list := views.ListSessions(views.SessionSources{Running: listedSessions(now), Ledger: autoWorld().ledger(), Prices: drawnPrices, Now: now})
 	if len(list.Sessions) != 14 || list.Today.Sessions != 14 {
 		t.Errorf("the List has %d sessions, its today line %d, want 14", len(list.Sessions), list.Today.Sessions)
 	}
@@ -181,11 +193,15 @@ func TestTheListIsTodaysSessionsAsTheRouterAndTheLedgerTellThem(t *testing.T) {
 
 // The router tells each session started as its first answer comes, 0.7s
 // after its first request, and each move of a session's own conversation as
-// the request that moved it came: the lines of the sessions' world are the
-// ones its events tell of.
+// the request that moved it came: the lines of the auto world's records are
+// the ones its events tell of.
 func TestTheRoutersEventsTellOfTheSessionsLines(t *testing.T) {
 	now := moment(time.Local)
-	lines, told := sessionsLines(now), routerEvents(now)
+	held, told := autoWorld().records.lines, autoWorld().records.events
+	lines := make([]ledger.Line, len(held))
+	for i, h := range held {
+		lines[i] = h.Line
+	}
 	for _, e := range told {
 		switch e.Kind {
 		case status.EventStarted:

@@ -201,9 +201,3 @@ func sessionsLines(now time.Time) []ledger.Line {
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return a.At.Compare(b.At) })
 	return lines
 }
-
-// sessionsRecords are the sessions' world's records: every line it holds, and
-// the router's events.
-func sessionsRecords(now time.Time) *records {
-	return &records{lines: heldAsWritten(sessionsLines(now)), events: routerEvents(now)}
-}

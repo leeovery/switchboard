@@ -54,7 +54,7 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 		words, comingUp []string
 	}{
 		{
-			name: "auto, as usage and the Overview draw it", world: worlds.auto(),
+			name: "auto, as usage and the Overview draw it", world: worlds.auto(), best: "side",
 			words: []string{
 				"work 5h 95% pace 51%", "work 7d 34% pace 53% 19%/day", "work 7d_oi 12% pace 53% 25%/day",
 				"personal 5h 39% pace 64% 34%/hour", "personal 7d 66% pace 65% out Sat 06:00", "personal 7d_oi 0% pace 65% 40%/day",
@@ -81,7 +81,12 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 			comingUp: []string{"Thu 15:54 personal back", "Thu 18:50 side reset 5h"},
 		},
 		{
-			name: "ten accounts, lab under pressure and team at its limit", world: worlds.many(10),
+			// The pool's 5-hour window is drawn 46% used, where it works out 47%.
+			name: "six accounts, lab under pressure", world: worlds.many(6), best: "side",
+			words: []string{"pool 7d 49% 3.1 left", "pool 7d_oi 8% 5.5 left"},
+		},
+		{
+			name: "ten accounts, lab under pressure and team at its limit", world: worlds.many(10), best: "side",
 			words: []string{
 				"client 5h 52%", "client 7d 47%", "spare 5h 4%", "spare 7d 5%", "lab 5h 71% pace 56% out Thu 16:05", "lab 7d 58%",
 				"team 5h 100%", "team 7d 83%", "extra 5h 22%", "extra 7d 12%", "ops 5h 6%", "ops 7d 29%", "studio 5h 33%", "studio 7d 41%",

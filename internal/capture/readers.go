@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -26,6 +27,18 @@ type records struct {
 	readings []readings.Reading
 	events   []events.Line
 	caps     ledger.Caps
+}
+
+// recordsOf are the world's records: the year's days of its accounts,
+// summarised from its readings history, that history, and its accounts'
+// caps; and, where today's traffic of the three is the world's, every line
+// the sessions' world holds, and the router's events.
+func (a accountWorlds) recordsOf(w accountWorld) *records {
+	r := &records{days: a.year.summaries(w.history, w.accounts), readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows)}
+	if w.traffic {
+		r.lines, r.events = a.traffic()
+	}
+	return r
 }
 
 // readers are the records' readers by now's clock, as the watch takes them:

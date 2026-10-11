@@ -37,21 +37,37 @@ type weekUse struct {
 }
 
 // weekToday is what today's lines hold of an account's week: its requests,
-// and their worth, in dollars.
+// and their worth by model version, in dollars.
 type weekToday struct {
 	requests int
-	worth    float64
+	worths   map[string]float64
 }
 
-// weekUses are each account's use this week. Today's lines are the sessions'
-// world's: the Log's 1,240 requests, $126.02, by the sessions on each account,
-// d28c, 7f3a and db8a's on work until work reached its cap at 14:31, 130 of
-// their requests, $13.92 with the $3.46 their moves cost, on side since; no
-// request today of the seven accounts the frames of six and ten add.
+// worth is what today's lines are worth, in dollars.
+func (t weekToday) worth() float64 {
+	sum := 0.0
+	for _, v := range versionOrder {
+		sum += t.worths[v]
+	}
+	return sum
+}
+
+// beforeToday is the account's use this week but what today's lines hold: its
+// requests, and their worth, in dollars.
+func (u weekUse) beforeToday() (int, float64) {
+	return u.requests - u.today.requests, u.worth - u.today.worth()
+}
+
+// weekUses are each account's use this week. Today's is what the sessions'
+// world's lines make it, to a tenth of a cent: work's 592 requests, $57.08,
+// personal's 463, $48.13, and side's 184, $20.74, a request short of what the
+// Log counts, as c61b's fifth is still answering at 14:42:07, all of Opus 5.5
+// but their side requests, of Haiku 4.5; and none of the seven accounts the
+// frames of six and ten add.
 var weekUses = map[string]weekUse{
-	"work":     {requests: 1204, worth: 184, today: weekToday{592, 59.82}},
-	"personal": {requests: 2330, worth: 212, today: weekToday{463, 48.13}},
-	"side":     {requests: 1876, worth: 239, today: weekToday{185, 18.07}},
+	"work":     {requests: 1204, worth: 184, today: weekToday{592, map[string]float64{opus55: 57.036, haiku45: 0.041}}},
+	"personal": {requests: 2330, worth: 212, today: weekToday{463, map[string]float64{opus55: 48.097, haiku45: 0.030}}},
+	"side":     {requests: 1876, worth: 239, today: weekToday{184, map[string]float64{opus55: 20.717, haiku45: 0.025}}},
 	"client":   {requests: 1410, worth: 151},
 	"spare":    {requests: 96, worth: 9},
 	"lab":      {requests: 1102, worth: 133},
@@ -316,9 +332,9 @@ func (y year) monthsSpent() ([]float64, []int) {
 	worths, requests := make([]float64, thisWeek), make([]int, thisWeek)
 	thisWeeks, thisWeeksRequests := 0.0, 0
 	for _, id := range three {
-		u := weekUses[id]
-		thisWeeks += u.worth - u.today.worth
-		thisWeeksRequests += u.requests - u.today.requests
+		requests, worth := weekUses[id].beforeToday()
+		thisWeeks += worth
+		thisWeeksRequests += requests
 	}
 	for i, worth := range monthWorths {
 		first, last := y.monthDays(i)
@@ -399,9 +415,10 @@ func (y year) spendThisWeek() {
 	wednesday := today - 1
 	y.share(three, wednesday, yesterday.worth, yesterday.requests)
 	for _, id := range three {
-		u, days := weekUses[id], y.days[id]
-		worth := u.worth - u.today.worth - days[wednesday].worth
-		requests := u.requests - u.today.requests - days[wednesday].requests
+		days := y.days[id]
+		requests, worth := weekUses[id].beforeToday()
+		requests -= days[wednesday].requests
+		worth -= days[wednesday].worth
 		rises := []float64{days[thisWeek].rise, days[thisWeek+1].rise}
 		counts := apportion(requests, rises)
 		for i, rise := range rises {
@@ -415,13 +432,14 @@ func (y year) spendThisWeek() {
 // this week before today, worth and requests alike, for each point of its
 // week used: no worth on a day of too little use for a request.
 func (y year) spendAsThisWeek(id string) {
-	days, u := y.days[id], weekUses[id]
+	days := y.days[id]
+	requests, worth := weekUses[id].beforeToday()
 	risen := 0.0
 	for d := thisWeek; d < today; d++ {
 		risen += days[d].rise
 	}
-	worthAPoint := (u.worth - u.today.worth) / risen
-	requestsAPoint := float64(u.requests-u.today.requests) / risen
+	worthAPoint := worth / risen
+	requestsAPoint := float64(requests) / risen
 	rises := make([]float64, 0, today-thisWeek)
 	for d := firstDay(id); d < today; d++ {
 		days[d].worth = days[d].rise * worthAPoint
@@ -432,7 +450,7 @@ func (y year) spendAsThisWeek(id string) {
 			rises = append(rises, days[d].rise)
 		}
 	}
-	for i, n := range apportion(u.requests-u.today.requests, rises) {
+	for i, n := range apportion(requests, rises) {
 		days[thisWeek+i].requests = n
 	}
 }
@@ -741,10 +759,11 @@ const thirtyDays = today - 29
 
 // version sets each account's day's worth by model version: this week's as
 // Accounts draws it, of every account, and every day of the seven of the
-// frames of six and ten so; of the three, the rest of the last 30 days as
-// leaves them their 30 days' as Accounts draws it, and the days before as
-// the families drift from Sonnet to Opus over the months, Opus 5.5 from 22
-// June taking a share of each day's worth from 45% to 58%.
+// frames of six and ten so; of the three, this week's days before today as
+// leaves the week, today's lines and all, as Accounts draws it, the rest of
+// the last 30 days as leaves them their 30 days' as Accounts draws it, and
+// the days before as the families drift from Sonnet to Opus over the months,
+// Opus 5.5 from 22 June taking a share of each day's worth from 45% to 58%.
 func (y year) version() {
 	for _, a := range tenAccounts {
 		if !slices.Contains(three, a.ID) {
@@ -756,8 +775,21 @@ func (y year) version() {
 			y.days[id][d].versions = drifted(d)
 		}
 		y.spread(id, thirtyDays, thisWeek, y.leaving(id))
-		y.spread(id, thisWeek, today, weekVersions[id])
+		y.spread(id, thisWeek, today, weekLeaving(id))
 	}
+}
+
+// weekLeaving are the versions, in versionOrder's order, in dollars, the
+// account with the given id's days of this week before today must be worth
+// by for its week to be worth by weekVersions's: what the week's worth less
+// today's lines' leaves of each, none of a version less than none.
+func weekLeaving(id string) []float64 {
+	u := weekUses[id]
+	shares := make([]float64, len(versionOrder))
+	for i, v := range versionOrder {
+		shares[i] = max(weekVersions[id][i]/100*u.worth-u.today.worths[v], 0)
+	}
+	return shares
 }
 
 // spread gives the account with the given id's days from one day of the year
@@ -770,11 +802,12 @@ func (y year) spread(id string, from, to int, shares []float64) {
 
 // leaving are the versions, in versionOrder's order, the account with the
 // given id's days of the last 30 days before this week must be worth by for
-// its 30 days to be worth by monthVersions's, this week's being worth by
-// weekVersions's: what the 30 days' worth less this week's leaves of each,
-// none of a version less than none.
+// its 30 days to be worth by monthVersions's, this week's, today's lines and
+// all, being worth by weekVersions's: what the 30 days' worth less this
+// week's leaves of each, none of a version less than none.
 func (y year) leaving(id string) []float64 {
-	month, week := 0.0, 0.0
+	todays := weekUses[id].today.worth()
+	month, week := todays, todays
 	for d := thirtyDays; d < today; d++ {
 		month += y.days[id][d].worth
 		if d >= thisWeek {

@@ -26,9 +26,9 @@ func readingOf(t *testing.T, w views.Windows, account, key string, at time.Time)
 }
 
 func TestTheReadingsAreTheWindowsTheFramesTellOf(t *testing.T) {
-	worlds := worldsNow()
-	world := worlds.auto()
-	windows := views.NewWindows(world.history, world.accounts, dayStart(worlds.now, today-1), worlds.now)
+	worlds, world := worldsNow(), autoWorld()
+	_, read, _ := world.readers()
+	windows := views.NewWindows(read, world.accounts, dayStart(worlds.now, today-1), worlds.now)
 	at := func(d, hour, minute, second int) time.Time { return dayAt(worlds.now, d, hour, minute, second).UTC() }
 	tests := []struct {
 		name         string
