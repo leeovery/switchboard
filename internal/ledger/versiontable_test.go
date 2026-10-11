@@ -25,6 +25,7 @@ func TestTheVersionTableNamesEachVersionByFamilyNewestFirst(t *testing.T) {
 		{name: "Sonnet 4.5", family: "sonnet", ids: []string{"claude-sonnet-4-5-20250929", "claude-sonnet-4-5"}},
 		{name: "Fable 5.1", family: "fable", ids: []string{"claude-fable-5-1"}},
 		{name: "Fable 5", family: "fable", ids: []string{"claude-fable-5"}},
+		{name: "Haiku 5.5", family: "haiku", ids: []string{"claude-haiku-5-5"}},
 		{name: "Haiku 4.5", family: "haiku", ids: []string{"claude-haiku-4-5-20251001", "claude-haiku-4-5"}},
 		{name: "Mythos 5.1", family: "mythos", ids: []string{"claude-mythos-5-1"}},
 		{name: "Mythos 5", family: "mythos", ids: []string{"claude-mythos-5"}},

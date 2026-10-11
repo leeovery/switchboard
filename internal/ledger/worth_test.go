@@ -68,9 +68,10 @@ func TestEachKindOfCountIsWorthItsPrice(t *testing.T) {
 }
 
 func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
-	// The prices Anthropic's pricing page gave on 7 October 2026, as dollars a
-	// million tokens: of input, writing the cache for five minutes and for an
-	// hour, reading it, and output.
+	// The prices Anthropic's pricing page gave on 11 October 2026, as dollars
+	// a million tokens: of input, writing the cache for five minutes and for
+	// an hour, reading it, and output; Claude Haiku 5.5's for a prompt up to
+	// 100,000 tokens.
 	page := []struct {
 		ids                                   []string
 		input, write5m, write1h, read, output float64
@@ -85,10 +86,11 @@ func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
 		{ids: []string{"claude-opus-4-7"}, input: 5, write5m: 6.25, write1h: 10, read: 0.50, output: 25},
 		{ids: []string{"claude-opus-4-6"}, input: 5, write5m: 6.25, write1h: 10, read: 0.50, output: 25},
 		{ids: []string{"claude-opus-4-5-20251101", "claude-opus-4-5"}, input: 5, write5m: 6.25, write1h: 10, read: 0.50, output: 25},
-		{ids: []string{"claude-sonnet-5-5"}, input: 2, write5m: 2.50, write1h: 4, read: 0.20, output: 10},
+		{ids: []string{"claude-sonnet-5-5"}, input: 2, write5m: 2.50, write1h: 4, read: 0.10, output: 10},
 		{ids: []string{"claude-sonnet-5"}, input: 2, write5m: 2.50, write1h: 4, read: 0.20, output: 10},
 		{ids: []string{"claude-sonnet-4-6"}, input: 3, write5m: 3.75, write1h: 6, read: 0.30, output: 15},
 		{ids: []string{"claude-sonnet-4-5-20250929", "claude-sonnet-4-5"}, input: 3, write5m: 3.75, write1h: 6, read: 0.30, output: 15},
+		{ids: []string{"claude-haiku-5-5"}, input: 0.10, write5m: 0.125, write1h: 0.20, read: 0.01, output: 0.50},
 		{ids: []string{"claude-haiku-4-5-20251001", "claude-haiku-4-5"}, input: 1, write5m: 1.25, write1h: 2, read: 0.10, output: 5},
 	}
 	// cacheWrite is a usage of a million tokens written to the cache to last
@@ -122,6 +124,26 @@ func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
 	}
 }
 
+func TestClaudeSonnet55sCacheReadsCostLessFromTheDayTheirPriceFell(t *testing.T) {
+	tests := []struct {
+		date string
+		want ledger.Picodollars
+	}{
+		{date: "2026-09-28", want: dollars(0.20)},
+		{date: "2026-10-06", want: dollars(0.20)},
+		{date: "2026-10-07", want: dollars(0.10)},
+		{date: "2026-10-11", want: dollars(0.10)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.date, func(t *testing.T) {
+			got := worthOf(t, ledger.Pricing, "claude-sonnet-5-5", "", `{"cache_read_input_tokens":1000000}`, tt.date)
+			if got.Cost != tt.want {
+				t.Errorf("a million tokens read from the cache on %s are worth %s, want %s", tt.date, got.Cost.Cents(), tt.want.Cents())
+			}
+		})
+	}
+}
+
 func TestARequestIsPricedAtTheDayAskedFor(t *testing.T) {
 	// A model whose output price fell the day after the request.
 	changed := ledger.Table{AsOf: today, Models: []ledger.Model{{IDs: []string{"claude-test-1"}, Prices: []ledger.Prices{
@@ -151,8 +173,11 @@ func TestARequestIsPricedAtTheDayAskedFor(t *testing.T) {
 func TestUSOnlyInferenceCostsATenthMoreOnTheModelsThatOfferIt(t *testing.T) {
 	tokens := `{"input_tokens":1000,"cache_creation_input_tokens":2000,"cache_creation":{"ephemeral_5m_input_tokens":1000,"ephemeral_1h_input_tokens":1000},` +
 		`"cache_read_input_tokens":10000,"output_tokens":500,"server_tool_use":{"web_search_requests":2}}`
-	// Claude Opus 5.5's prices of these tokens, and of the web searches.
-	opusTokens, searches := 1000*4e-6+1000*5e-6+1000*8e-6+10000*0.2e-6+500*20e-6, 0.02
+	// Claude Opus 5.5's and Claude Haiku 5.5's prices of these tokens, and of
+	// the web searches.
+	opusTokens := 1000*4e-6 + 1000*5e-6 + 1000*8e-6 + 10000*0.2e-6 + 500*20e-6
+	haikuTokens := 1000*0.1e-6 + 1000*0.125e-6 + 1000*0.2e-6 + 10000*0.01e-6 + 500*0.5e-6
+	searches := 0.02
 	tests := []struct {
 		name   string
 		model  string
@@ -164,6 +189,9 @@ func TestUSOnlyInferenceCostsATenthMoreOnTheModelsThatOfferIt(t *testing.T) {
 		{name: "asked for globally", model: "claude-opus-5-5", geo: "global", want: dollars(opusTokens + searches), priced: true},
 		{name: "asked for in the US, each token a tenth more, the searches as they were", model: "claude-opus-5-5", geo: "us",
 			want: dollars(opusTokens*1.1 + searches), priced: true},
+		{name: "asked for nowhere on Claude Haiku 5.5", model: "claude-haiku-5-5", want: dollars(haikuTokens + searches), priced: true},
+		{name: "asked for in the US on Claude Haiku 5.5, each token a tenth more", model: "claude-haiku-5-5", geo: "us",
+			want: dollars(haikuTokens*1.1 + searches), priced: true},
 		{name: "asked for in the US on a model that doesn't offer it", model: "claude-haiku-4-5", geo: "us"},
 		{name: "asked for in a geo the table doesn't know", model: "claude-opus-5-5", geo: "eu"},
 	}
@@ -180,8 +208,10 @@ func TestUSOnlyInferenceCostsATenthMoreOnTheModelsThatOfferIt(t *testing.T) {
 func TestALongRequestIsPricedAtTheStandardRates(t *testing.T) {
 	// 900,000 tokens of input, asking for the 1M-token context window's beta,
 	// which charged more on Claude Sonnet 4.5 until it was retired, before the
-	// ledger began recording.
-	for _, model := range []string{"claude-sonnet-4-5", "claude-sonnet-4-6", "claude-opus-5-5"} {
+	// ledger began recording; and on Claude Haiku 5.5, which charges more for
+	// a prompt over 100,000 tokens, though the table keeps only its rate for
+	// one up to them.
+	for _, model := range []string{"claude-sonnet-4-5", "claude-sonnet-4-6", "claude-opus-5-5", "claude-haiku-5-5"} {
 		t.Run(model, func(t *testing.T) {
 			long := ledger.Line{At: on(0, 9, 0), Model: model, Betas: []string{"context-1m-2025-08-07"},
 				Usage: usage(`{"input_tokens":900000,"output_tokens":1000}`)}
