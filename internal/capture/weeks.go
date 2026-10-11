@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // The year's days, counted as the frames' generator counts them: day 0 is
@@ -45,11 +46,13 @@ func dayAt(now time.Time, d, hour, minute, second int) time.Time {
 // clockOn is when the clocks in loc first read the time of day given on
 // date's date, as dayfile.TimeOfDay says, or went forward over it: always on
 // that date, where time.Date puts a midnight they go forward over on the day
-// before.
+// before. A time they skip comes no later than the first after the skip, so
+// times keep the order the clocks give them.
 func clockOn(date time.Time, hour, minute, second int, loc *time.Location) time.Time {
 	y, m, d := date.Date()
 	noon := time.Date(y, m, d, 12, 0, 0, 0, loc)
-	return dayfile.TimeOfDay(noon, hour, minute).Add(time.Duration(second) * time.Second)
+	at := dayfile.TimeOfDay(noon, hour, minute).Add(time.Duration(second) * time.Second)
+	return score.Earlier(at, dayfile.TimeOfDay(noon, hour, minute+1))
 }
 
 // weekdayWeights weigh a day's use by its day of the week, from Monday, as
