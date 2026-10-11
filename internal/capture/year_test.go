@@ -408,6 +408,91 @@ func TestEachAccountsWeekIsWorthWhatAccountsDraws(t *testing.T) {
 	}
 }
 
+// panicked is the message f panicked with, failing the test where it didn't
+// panic, or panicked with other than a message, as a runtime error.
+func panicked(t *testing.T, f func()) (message string) {
+	t.Helper()
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("it didn't panic")
+		}
+		s, ok := r.(string)
+		if !ok {
+			t.Fatalf("it panicked with %v, want a message", r)
+		}
+		message = s
+	}()
+	f()
+	return ""
+}
+
+// A year whose data can't give what building it needs panics, naming the
+// account, the day and what's missing: never an index out of range, nor a
+// NaN carried on.
+func TestAYearItsDataCantBuildPanicsSayingWhatsMissing(t *testing.T) {
+	// thisWeeks are how far each account's week rose on Monday, Tuesday and
+	// Wednesday, Wednesday's as yesterday's requests were shared.
+	thisWeeks := map[string][3]float64{"work": {.1, .1, .02}, "personal": {.1, .1, .07}, "side": {.1, .1, .09}, "spare": {.1, .1, .1}}
+	tests := []struct {
+		name string
+		// rose are the accounts whose weeks rose otherwise than thisWeeks.
+		rose  map[string][3]float64
+		build func(y year)
+		want  []string
+	}{
+		{
+			name: "work's Tuesday, with no 5-hour window", rose: map[string][3]float64{"work": {.1, 0, .02}}, build: year.limitThisWeek,
+			want: []string{"work's week rose none on 2026-09-29", "no 5-hour window"},
+		},
+		{
+			name: "side's Tuesday, with no 5-hour window", rose: map[string][3]float64{"side": {.1, 0, .09}}, build: year.limitThisWeek,
+			want: []string{"side's week rose none on 2026-09-29", "no 5-hour window"},
+		},
+		{
+			name: "side's Monday and Tuesday, with no rise to spend its week over", rose: map[string][3]float64{"side": {0, 0, .09}},
+			build: year.spendThisWeek,
+			want:  []string{"over side's Monday and Tuesday, 2026-09-28 and 2026-09-29", "rose its week"},
+		},
+		{
+			name: "work's Monday and Tuesday, after more of yesterday's than its week holds", rose: map[string][3]float64{"personal": {.1, .1, 0}, "side": {.1, .1, 0}},
+			build: year.spendThisWeek,
+			want:  []string{"-1300 requests", "over work's Monday and Tuesday, 2026-09-28 and 2026-09-29", "less than none"},
+		},
+		{
+			name: "yesterday, with no account risen to share it", rose: map[string][3]float64{"work": {.1, .1, 0}, "personal": {.1, .1, 0}, "side": {.1, .1, 0}},
+			build: year.spendThisWeek,
+			want:  []string{"1912 requests and $212.00", "over work, personal, side on 2026-09-30", "rose its week"},
+		},
+		{
+			name: "spare's week, with no rise to spend its days by", rose: map[string][3]float64{"spare": {}},
+			build: func(y year) { y.spendAsThisWeek("spare") },
+			want:  []string{"spare's week rose none from 2026-09-28 to 2026-09-30"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			y := year{now: localMoment(), days: make(map[string][]accountDay)}
+			for id, rises := range thisWeeks {
+				if rose, ok := tt.rose[id]; ok {
+					rises = rose
+				}
+				y.days[id] = make([]accountDay, today)
+				for i, rise := range rises {
+					y.days[id][thisWeek+i].rise = rise
+				}
+			}
+
+			message := panicked(t, func() { tt.build(y) })
+			for _, want := range tt.want {
+				if !strings.Contains(message, want) {
+					t.Errorf("it panicked with %q, which doesn't say %q", message, want)
+				}
+			}
+		})
+	}
+}
+
 // An account spent as it spent this week has no worth on a day of this week
 // too little used for a request, its week's worth all on the days that had
 // one, as on the days before this week.

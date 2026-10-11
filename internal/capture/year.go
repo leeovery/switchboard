@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -382,7 +383,7 @@ func (y year) share(ids []string, d int, worth float64, requests int) {
 	for i, id := range ids {
 		rises[i] = y.days[id][d].rise
 	}
-	worths, counts := spent(worth, requests, rises)
+	worths, counts := spent(worth, requests, rises, fmt.Sprintf("%s on %s", strings.Join(ids, ", "), dateOf(d)))
 	for i, id := range ids {
 		y.days[id][d].worth, y.days[id][d].requests = worths[i], counts[i]
 	}
@@ -399,7 +400,9 @@ func (y year) spendThisWeek() {
 	for _, id := range three {
 		days := y.days[id]
 		requests, worth := weekUses[id].beforeToday()
-		worths, counts := spent(worth-days[wednesday].worth, requests-days[wednesday].requests, []float64{days[thisWeek].rise, days[thisWeek+1].rise})
+		worths, counts := spent(worth-days[wednesday].worth, requests-days[wednesday].requests,
+			[]float64{days[thisWeek].rise, days[thisWeek+1].rise},
+			fmt.Sprintf("%s's Monday and Tuesday, %s and %s", id, dateOf(thisWeek), dateOf(thisWeek+1)))
 		for i := range worths {
 			days[thisWeek+i].worth, days[thisWeek+i].requests = worths[i], counts[i]
 		}
@@ -409,7 +412,8 @@ func (y year) spendThisWeek() {
 // spendAsThisWeek spends the account with the given id's days as it spent
 // this week before today, worth and requests alike, for each point of its
 // week used: this week's days as spent shares them, and every day before no
-// worth where too little used for a request.
+// worth where too little used for a request. It panics where its week rose
+// none this week, to spend by.
 func (y year) spendAsThisWeek(id string) {
 	days := y.days[id]
 	requests, worth := weekUses[id].beforeToday()
@@ -418,7 +422,10 @@ func (y year) spendAsThisWeek(id string) {
 	for _, day := range days[thisWeek:today] {
 		rises, risen = append(rises, day.rise), risen+day.rise
 	}
-	worths, counts := spent(worth, requests, rises)
+	if risen == 0 {
+		panic(fmt.Sprintf("capture: %s's week rose none from %s to %s, to spend its days by as it spent those", id, dateOf(thisWeek), dateOf(today-1)))
+	}
+	worths, counts := spent(worth, requests, rises, fmt.Sprintf("%s's days from %s to %s", id, dateOf(thisWeek), dateOf(today-1)))
 	for i := range worths {
 		days[thisWeek+i].worth, days[thisWeek+i].requests = worths[i], counts[i]
 	}
@@ -431,14 +438,22 @@ func (y year) spendAsThisWeek(id string) {
 
 // spent shares worth and requests among parts as their weights are: the
 // requests in whole ones, as apportion shares them, and the worth among the
-// parts that had one, none on a part too little used for a request.
-func spent(worth float64, requests int, weights []float64) ([]float64, []int) {
+// parts that had one, none on a part too little used for a request. It
+// panics, naming the parts as parts does, where there's less than none to
+// share, or worth or a request and no part that had one to put it on.
+func spent(worth float64, requests int, weights []float64, parts string) ([]float64, []int) {
+	if worth < 0 || requests < 0 {
+		panic(fmt.Sprintf("capture: %d requests and $%.2f to spend over %s, less than none", requests, worth, parts))
+	}
 	counts := apportion(requests, weights)
 	had := 0.0
 	for i, w := range weights {
 		if counts[i] > 0 {
 			had += w
 		}
+	}
+	if had == 0 && (worth > 0 || requests > 0) {
+		panic(fmt.Sprintf("capture: %d requests and $%.2f to spend over %s, none of which rose its week enough for a request", requests, worth, parts))
 	}
 	worths := make([]float64, len(weights))
 	for i, w := range weights {
@@ -595,12 +610,23 @@ func (y year) limitThisWeek() {
 			y.days[id][d].windows = windows
 		}
 	}
-	work, side := y.days["work"][tuesday].windows, y.days["side"][tuesday].windows
-	work[1].capped, work[1].limited = at(tuesday, 16, 23, 0), at(tuesday, 16, 27, 0)
-	side[1].limited = at(tuesday, 17, 58, 0)
+	work, side := y.afternoon("work", tuesday), y.afternoon("side", tuesday)
+	work.capped, work.limited = at(tuesday, 16, 23, 0), at(tuesday, 16, 27, 0)
+	side.limited = at(tuesday, 17, 58, 0)
 	y.days["work"][wednesday].windows = []session{{start: at(wednesday, 12, 10, 0), capped: at(wednesday, 14, 58, 0), limited: at(wednesday, 15, 2, 0)}}
 	y.days["personal"][wednesday].windows = []session{{start: at(wednesday, 18, 58, 0), limited: at(wednesday, 19, 12, 40)}}
 	y.days["side"][wednesday].windows = []session{{start: at(wednesday, 19, 30, 0), use: 0.62, ran: 4*time.Hour + 50*time.Minute}}
+}
+
+// afternoon is the account with the given id's afternoon 5-hour window on day
+// d of the year, its last. It panics where the account has none that day, its
+// week having risen none.
+func (y year) afternoon(id string, d int) *session {
+	windows := y.days[id][d].windows
+	if len(windows) == 0 {
+		panic(fmt.Sprintf("capture: %s's week rose none on %s, so it had no 5-hour window then to reach its limit in", id, dateOf(d)))
+	}
+	return &windows[len(windows)-1]
 }
 
 // --------------------------------------------------------- sessions
