@@ -407,7 +407,6 @@ func TestClientSession(t *testing.T) {
 	r.ask(t, sessionID, haiku, "side")
 	r.clock.advance(time.Minute)
 	r.ask(t, sessionID, opus, "work")
-	r.settle(t)
 
 	got, err := client.Session(t.Context(), sessionID)
 	if err != nil {
@@ -464,7 +463,6 @@ func TestClientSessions(t *testing.T) {
 	r.ask(t, "earlier", opus, "")
 	r.clock.advance(31 * time.Minute)
 	r.ask(t, "latest", haiku, "side")
-	r.settle(t)
 
 	got, err := client.Sessions(t.Context())
 	if err != nil {
@@ -506,7 +504,6 @@ func TestClientPinSession(t *testing.T) {
 	r.readsAs(sideToken, session, week)
 	client := router.NewClient(serveControl(t, r.rt))
 	r.ask(t, sessionID, opus, "work")
-	r.settle(t)
 
 	got, err := client.PinSession(t.Context(), sessionID, "side", "")
 	want := status.Session{
