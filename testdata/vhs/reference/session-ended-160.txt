@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Log   tab ⇥                                                              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+SESSION   b9c4   switchboard  ~/Code/switchboard ─────────────────────────────────────────────────────────────────────────────────────────────────────  esc back
+
+ended yesterday 18:47   ran on work, then side from 16:02: work reached its cap                                             started yesterday 13:20 · ran 5h 27m
+opus-5-5 · haiku-4-5   kept until 29 Dec
+
+STORY   requests a minute ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                 work reached its cap → side · 188k cached again, $1.88  16:02 ┊
+  ▂▂                                       ▁▃       ▂                          ┊           ▂
+ ▅  ▅                                     ▄   ▁    ▂ ▂                        ▂▂          ▄ ▄                      ▃                                        ▂▃
+▁    ▃     ▃▅▃         ▃▅▃       ▄       ▅     ▁                     ▄                              ▄▄          ▆           ▁▄▄▁        ▁▄▄▁               ▂  ▆
+          ▅   ▅       ▅   ▇             ▅                   ▁ ▁              ▆  ▆        ▇   ▇    ▁    ▁            ▂      ▄    ▄      ▃    ▃                  ▄
+      ▅▁▁▃     ▃▁▁▁▁▁▃      ▁▁▁▁▁ ▁▁▁▁▁▁        ▅▁▇   ▇▁▁▁▁▁   ▁▁▁▁▁▁ ▁▁▁▁▁▁▁    ▁▁▁▁▁▁▁▁     ▁▁▁▁      ▁▁▁▁▁▁▁▁  ▁  ▁▁▁▁▁▃      ▃▁▁▁▁▃      ▃▁▁▁▁▁▁▁▁▁▁▁▁▅
+├──────────────────────────────────── work ───────────────────────────────────┤├───────────────────────────────────── side ────────────────────────────────────┤
+13:20              14:00                        15:00                         16:00                        17:00                         18:00             ended
+
+1 work        yesterday 13:20 – 16:02   330 requests    ≈ 52 points of its 5-hour · 8 of its week                                                         $32.51
+3 side ▲      yesterday 16:02 – 18:47   265 requests    ≈ 38 points of its 5-hour · 6 of its week                                                         $40.49
+
+TURNS    ──────────────────────────────────────────────────────────────────────────────────────  16 turns · 595 requests · 97% from cache · $73.00 at API prices
+
+  #  started  took   requests   tools                              read  written     out    worth   on
+ 16  18:36    11m          44   Edit ×14, Bash ×11, Read ×8        8.4M     132k     40k    $6.49   side
+ 15  17:55    15m          45   Bash ×15, Edit ×11, Read ×9        8.6M     135k     40k    $6.64   side
+ 14  17:31    14m          42   Edit ×14, Bash ×10, Read ×8        8.0M     126k     38k    $6.20   side
+ 13  17:16    3m           15   Bash ×5, Edit ×3, Read ×3          2.9M      45k     14k    $2.21   side
+ 12  17:09    3m           12   Edit ×4, Bash ×3, Read ×2          2.3M      36k     11k    $1.77   side
+ 11  16:41    12m          36   Bash ×12, Edit ×9, Read ×7         6.8M     108k     32k    $5.31   side
+ 10  16:22    11m          55   Edit ×18, Bash ×13, Read ×11       9.9M     165k     50k    $7.86   side
+  9  15:58    8m           32   Bash ×10, Edit ×8, Read ×6         5.2M     284k     29k    $6.14   work → side
+  8  15:42    2m            8   Edit ×2, Bash ×2, Read ×1          1.2M      24k    7.2k    $1.01   work
+  7  15:24    4m           20   Bash ×6, Edit ×5, Read ×4          2.7M      60k     18k    $2.40   work
+▼ 6 more turns   ·   j/k to scroll
+esc back    ↑↓ turn  enter its requests    ? help  q quit

@@ -1,0 +1,66 @@
+ SWITCHBOARD                     Thu 1 Oct  14:42:07
+ Overview  Accounts  History  Sessions  Runway  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+USAGE  ─────────────────────────────────────────── u
+
+5-HOUR
+
+ 1 work                ┃     ╎  95%  back 17:10
+
+ 2 personal ◆        ▌   ┃      39%  34%/h · 16:30
+
+ 3 side ▲        ▉┃             13%  21%/h · 18:50
+────────────────────────────────────────────────────
+ Σ pool               ┃▏        51%  1.5 of 3 left
+
+
+WEEK
+
+ 1 work             ▊  ┃     ╎  34%  19%/day · Sun
+
+ 2 personal ◆            ┃      66%  out ~Sat
+
+ 3 side ▲             ┃   ▉     78%  6%/day · Mon
+────────────────────────────────────────────────────
+ Σ pool                 ┃       61%  1.2 of 3 left
+
+
+FABLE WEEK
+
+ 1 work          ▋     ┃     ╎  12%  25%/day · Sun
+
+ 2 personal ◆            ┃       0%  40%/day · Sun
+
+ 3 side ▲       ▌     ┃          4%  25%/day · Mon
+────────────────────────────────────────────────────
+ Σ pool                 ┃        7%  2.8 of 3 left
+
+┃ even pace: where you would be now, used evenly
+╎ cap: work at 95%   ◆ primary   ▲ new
+
+ROUTING   auto ─────────────────────────────────── r
+
+ 1 work         ● at its cap · 17:10
+                ▅▄▄▅▄▄▅▄▄▅▁▁▁▁▁▁   0 sessions  0/min
+
+ 2 personal ◆   ● open
+                ▁▁▂▂▁▂▂▁▂▂▁▂▂▁▂▂   2 sessions  2/min
+
+ 3 side ▲       ● open · next
+                ▁▁▁▁▁▁▁▁▁▁▄▆▅▅▆▆  4 sessions  15/min
+
+COMING UP  ─────────────────────────────────────── c
+
+16:30  personal's 5-hour resets            in 1h 48m
+17:10  work back from its cap              in 2h 28m
+18:50  side's 5-hour resets                in 4h 08m
+
+LATELY  ────────────────────────────────────────── l
+
+14:41  ▲ c61b started on side
+14:31  ╎ work at its cap: 3 moved to side
+14:12  ▲ 7f3a started on work
+
+tab views   ? keys and toggles   q quit
