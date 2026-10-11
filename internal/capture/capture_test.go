@@ -39,6 +39,14 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 	}
 }
 
+func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
+	all := []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}
+
+	if got, want := panicked(t, func() { setOf(all) }), `capture: two fixtures named "accounts-1"`; got != want {
+		t.Errorf("setOf panicked with %q, want %q", got, want)
+	}
+}
+
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
 	f := fixture(t, "accounts-3-week")
 	keys, size := slices.Clone(f.keys), f.Size

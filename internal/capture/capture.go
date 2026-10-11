@@ -87,8 +87,17 @@ type fixtureSet map[string]Fixture
 
 // fixturesIn is every fixture drawn in the time zone given, as fixtures says.
 func fixturesIn(loc *time.Location) fixtureSet {
-	set := make(fixtureSet)
-	for _, f := range fixtures(loc) {
+	return setOf(fixtures(loc))
+}
+
+// setOf is the fixtures given, by name. It panics on a name given twice, as
+// the second would hide the first.
+func setOf(all []Fixture) fixtureSet {
+	set := make(fixtureSet, len(all))
+	for _, f := range all {
+		if _, ok := set[f.Name]; ok {
+			panic(fmt.Sprintf("capture: two fixtures named %q", f.Name))
+		}
 		set[f.Name] = f
 	}
 	return set
