@@ -74,6 +74,15 @@ var anIdleSession = []readings.Reading{
 // anIdleSessionOpened is anIdleSession until a request opens it, at 22:00.
 var anIdleSessionOpened = slices.Concat(anIdleSession, []readings.Reading{allowed(on(0, 22, 0), "5h", 0.05, on(1, 3, 0))})
 
+// aDippedRun is work's session window read at 0.05, then at nothing, its
+// reset the same, a dip short of a reset by hand, then at 0.03 of a later
+// reset, as it started again.
+var aDippedRun = []readings.Reading{
+	allowed(on(0, 20, 0), "5h", 0.05, on(1, 0, 30)),
+	allowed(on(0, 20, 30), "5h", 0, on(1, 0, 30)),
+	allowed(on(0, 21, 0), "5h", 0.03, on(1, 1, 0)),
+}
+
 // aWeekRefused is a day of work's whose week was refused from 20:07 to the
 // day's end, its session read idle as anIdleSession has it.
 var aWeekRefused = slices.Concat([]readings.Reading{rejected(on(0, 20, 7), "7d", 1, on(3, 10, 0))}, anIdleSession)
@@ -218,6 +227,11 @@ func TestASummaryHoldsHowFarEachWindowRose(t *testing.T) {
 			want:     map[string]float64{"5h": 0.05},
 		},
 		{
+			name:     "from the highest of a run that last read nothing, to the next run's, as it started again",
+			readings: aDippedRun,
+			want:     map[string]float64{"5h": 0.08},
+		},
+		{
 			name:     "none of a window read only before the day, reset by its start",
 			readings: []readings.Reading{allowed(on(-1, 12, 0), "5h", 0.6, on(-1, 16, 0)), allowed(on(0, 10, 0), "7d", 0.4, on(3, 10, 0))},
 			want:     map[string]float64{"7d": 0},
@@ -301,6 +315,20 @@ func TestASummaryHoldsEachResetOfAWindowTheReadingsHistorySaw(t *testing.T) {
 		{
 			name:     "none of a window read at nothing, its reset moving on, as a request opens it",
 			readings: anIdleSessionOpened,
+		},
+		{
+			name:     "none of a window read at nothing, its readings further apart than its reset moving on, as a machine asleep gives",
+			readings: []readings.Reading{allowed(on(0, 0, 37), "5h", 0, on(0, 5, 30)), allowed(on(0, 8, 0), "5h", 0, on(0, 13, 0))},
+			asOf:     on(0, 8, 30),
+		},
+		{
+			name:     "none of a window read at nothing, its reset moving on, last read before the reset it read, the day ending after it",
+			readings: []readings.Reading{allowed(on(0, 10, 7), "5h", 0, on(0, 15, 0)), allowed(on(0, 10, 37), "5h", 0, on(0, 15, 30))},
+		},
+		{
+			name:     "when the reading that showed a later reset came, of a run that rose above nothing though it last read nothing",
+			readings: aDippedRun,
+			want:     []ledger.Reset{reset("5h", on(0, 21, 0), 0)},
 		},
 		{
 			name:     "of a model's own window, as of one every model shares, in the order they came",

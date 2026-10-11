@@ -139,8 +139,8 @@ type Climb struct {
 	based  bool
 	latest time.Time
 	rise   float64
-	// resets are the resets that ended its runs, and ended each run's reset
-	// as its readings gave it.
+	// resets are the resets that ended its runs that rose above nothing, and
+	// ended each such run's reset as its readings gave it.
 	resets []Reset
 	ended  []time.Time
 }
@@ -244,10 +244,14 @@ func (c *Climb) Rise() float64 {
 }
 
 // reset notes the window's reset at at, its use as last read before it, and
-// ends the run it was in, the next beginning at nothing.
+// ends the run it was in, the next beginning at nothing. A run that never
+// rose above nothing notes none: nothing was open to reset, as of a window no
+// request opened, its reset moving on with each reading.
 func (c *Climb) reset(at time.Time) {
-	c.resets = append(c.resets, Reset{Window: c.key, At: at.UTC(), Before: c.last.Utilization})
-	c.ended = append(c.ended, c.last.ResetsAt)
+	if c.top != 0 {
+		c.resets = append(c.resets, Reset{Window: c.key, At: at.UTC(), Before: c.last.Utilization})
+		c.ended = append(c.ended, c.last.ResetsAt)
+	}
 	c.top = 0
 }
 
@@ -256,8 +260,7 @@ func (c *Climb) reset(at time.Time) {
 // w shows it reset by hand, as score.ResetByHand says, at at; was's reset had
 // passed by at, w being of another window, or of none, at was's reset; or w's
 // reset is later than was's, which hadn't come, the window having started
-// again before it, at at, where was read some use: read at nothing, nothing
-// was open to reset, the later reset an unopened window's moving on.
+// again before it, at at.
 func resetBetween(was, w quota.Window, at time.Time) (time.Time, bool) {
 	switch {
 	case score.ResetByHand(was, w):
@@ -266,7 +269,7 @@ func resetBetween(was, w quota.Window, at time.Time) (time.Time, bool) {
 		return time.Time{}, false
 	case was.ResetBy(at):
 		return was.ResetsAt, true
-	case w.ResetsAt.After(was.ResetsAt) && was.Utilization != 0:
+	case w.ResetsAt.After(was.ResetsAt):
 		return at, true
 	}
 	return time.Time{}, false
