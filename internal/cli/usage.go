@@ -186,7 +186,10 @@ type windowFlags []*windowFlag
 // --5h, --week, and one for each model's own window internal/claude knows,
 // so each is known as the command line is parsed.
 func addWindowFlags(cmd *cobra.Command) windowFlags {
-	flags := windowFlags{{name: "5h", key: "5h", what: "the 5-hour window"}, {name: "week", key: claude.WeekWindow, what: "the week"}}
+	flags := windowFlags{
+		{name: "5h", key: claude.FiveHourWindow, what: "the " + claude.WindowName(claude.FiveHourWindow) + " window"},
+		{name: "week", key: claude.WeekWindow, what: "the week"},
+	}
 	for _, w := range claude.ModelWindows() {
 		flags = append(flags, &windowFlag{name: strings.ToLower(w.Name), key: w.Key, what: "the " + claude.WindowName(w.Key)})
 	}
