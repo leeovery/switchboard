@@ -271,7 +271,7 @@ func TestAnAccountThatCantStartAWindowIsntPrimed(t *testing.T) {
 		{name: "a limit holding back every request", holdBack: func(s *state) { s.limit("side", []string{"7d"}, far, s.mark()) }},
 		{name: "a limit in no window named", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{spentWeek}, s.mark()) }},
-		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) }},
 		{
 			name:     "a limit on its Fable week alone, which other models' requests go out beside",
 			holdBack: func(s *state) { s.limit("side", []string{"7d_oi"}, far, s.mark()) },
@@ -318,7 +318,7 @@ func TestAnAccountThatCantStartAWindowIsPrimedOnceItCan(t *testing.T) {
 		},
 		{
 			name:     "its token refused",
-			holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) },
+			holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) },
 			want:     freed,
 		},
 	}
@@ -402,7 +402,7 @@ func TestTheRoutersDocumentSaysNothingOfWhenAnAccountThatCantStartAWindowIsNextP
 		// holdBack holds side back.
 		holdBack func(s *state)
 	}{
-		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest) }},
+		{name: "its token refused", holdBack: func(s *state) { s.refuse("side", http.StatusUnauthorized, someRequest, s.mark()) }},
 		{name: "a limit holding back its every request", holdBack: func(s *state) { s.limit("side", nil, far, s.mark()) }},
 		{name: "its week spent", holdBack: func(s *state) { s.record("side", []quota.Window{lapsed, spentWeek}, s.mark()) }},
 	}

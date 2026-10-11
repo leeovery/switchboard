@@ -212,8 +212,13 @@ func (p *probes) stop() {
 	p.wg.Wait()
 }
 
-// probe reads an account's usage, as r, and notes how that went.
+// probe reads an account's usage, as r, and notes how that went: not at all
+// when the account has gone out on a token it didn't have since the probe was
+// sent, as what the probe found is the token before's.
 func (p *probes) probe(a account, r *run) {
+	// sent is marked before the token is read, so a token the account takes up
+	// after the read is marked after sent, and recordProbe takes nothing in of
+	// a probe on the token before.
 	started, at, sent := time.Now(), p.now(), p.state.mark()
 	probed, err := p.prober.Probe(p.ctx, a.token().Reveal())
 	took := time.Since(started).Round(time.Millisecond)
@@ -221,7 +226,10 @@ func (p *probes) probe(a account, r *run) {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
-	p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
+	if !p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r)) {
+		logger.Debug("token taken up as the account was probed; what the probe found isn't kept", "account", a.ID, "duration", took)
+		return
+	}
 	p.told(r)(a, probed, err, at, took)
 }
 
