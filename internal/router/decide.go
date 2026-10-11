@@ -108,7 +108,7 @@ func decide(s situation) decision {
 	s.accounts = s.accounts.spend(s.req.Pin).spend(s.pin.Accounts...)
 	d := s.choose()
 	if d.passedOver != "" {
-		d.reason += ", " + d.passedOver + " under pressure"
+		d.reason = status.PassingOver(d.reason, d.passedOver)
 	}
 	return d
 }
