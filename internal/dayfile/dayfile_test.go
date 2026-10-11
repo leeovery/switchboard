@@ -620,6 +620,40 @@ func TestADaysFileIsCompressedOnceItEndedTwoDaysAgo(t *testing.T) {
 	}
 }
 
+func TestADaysFileIsCompressedAsTheDayTwoDaysAfterItsEndStartsInItsZone(t *testing.T) {
+	// The clocks go back in London on 25 Oct 2026, and forward in Sydney on 4
+	// Oct 2026. done is the date of the day whose start the file is
+	// compressed at.
+	tests := []struct {
+		name, zone, date, done string
+	}{
+		{name: "two days on", zone: "UTC", date: "2026-10-07", done: "2026-10-10"},
+		{name: "two days on, the clocks going back between", zone: "Europe/London", date: "2026-10-24", done: "2026-10-27"},
+		{name: "two days on, the clocks going forward between", zone: "Australia/Sydney", date: "2026-10-02", done: "2026-10-05"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+", "+tt.zone, func(t *testing.T) {
+			loc := zone(t, tt.zone)
+			day, _, _ := dayIn(tt.date, loc)
+			done, _, _ := dayIn(tt.done, loc)
+			for _, at := range []struct {
+				now        time.Time
+				compressed bool
+			}{{now: done.Add(-time.Nanosecond), compressed: false}, {now: done, compressed: true}} {
+				f := readingsHistory(t.TempDir())
+				writeDay(t, f, plainFile(tt.date), linesOf("a"))
+				f.tend(plainFile(tt.date), day, at.now, twoWeeks, false)
+				_, plainErr := os.Stat(f.path(plainFile(tt.date)))
+				_, compressedErr := os.Stat(f.path(compressedFile(tt.date)))
+				if plain, compressed := plainErr == nil, compressedErr == nil; plain == at.compressed || compressed != at.compressed {
+					t.Errorf("tended at %v, the day of %s has a plain file = %v and a compressed one = %v; want it compressed = %v, from the start of %s",
+						at.now, tt.date, plain, compressed, at.compressed, tt.done)
+				}
+			}
+		})
+	}
+}
+
 func TestCompressingADayAddsItsLinesToTheEndOfItsCompressedFile(t *testing.T) {
 	day := time.Date(2026, 9, 25, 12, 0, 0, 0, time.Local)
 	date := day.Format(time.DateOnly)
