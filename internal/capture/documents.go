@@ -51,7 +51,7 @@ func (w accountWorld) document(now time.Time) status.Document {
 		st := w.account(a, at)
 		doc.Accounts = append(doc.Accounts, st)
 		doc.Sessions += st.Sessions
-		if !shut(st, at) {
+		if !st.Shut(at, claude.Policy) {
 			open = append(open, st)
 		}
 	}
@@ -75,50 +75,34 @@ func (w accountWorld) account(a config.Account, at time.Time) status.Account {
 	st = st.AsOf(claude.Policy, at)
 	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
 	trails := w.trails(a.ID, read)
-	for _, l := range latest {
-		if rate, since, ok := score.RecentRate(l, trails[l.Key], at); ok {
-			st.Rates = append(st.Rates, status.Rate{Window: l.Key, Rate: rate, Since: since.UTC()})
-		}
-	}
+	st.Rates = status.RatesOf(latest, trails, at)
 	st.Pressure = pressureOf(st, latest, trails, w.pin.Has(a.ID), at)
 	return st
 }
 
 // trails are how each of the account with the given id's windows has been
 // read lately, by the window's key, as a router that took up the readings
-// history as it started holds them: each level its use was read at, its
-// baseline among them, a window that started afresh keeping none of those
-// before.
+// history as it started holds them: each reading taken in, in turn, as
+// score.Noted takes it.
 func (w accountWorld) trails(id string, at time.Time) map[string][]score.Reading {
 	trails := make(map[string][]score.Reading)
 	last := make(map[string]quota.Window)
 	for _, r := range w.history.before(at) {
-		if r.Account != id {
-			continue
+		if r.Account == id {
+			kept := r.Window()
+			trails[r.Key], last[r.Key] = score.Noted(trails[r.Key], last[r.Key], kept, r.At), kept
 		}
-		held, kept := last[r.Key], r.Window()
-		trail := trails[r.Key]
-		if !kept.ResetsAt.Equal(held.ResetsAt) || score.ResetByHand(held, kept) {
-			trail = nil
-		}
-		trail = score.Lately(trail, r.At)
-		switch n := len(trail); {
-		case n == 0 || kept.Utilization > trail[n-1].Utilization:
-			trail = append(trail, score.Reading{At: r.At, Utilization: kept.Utilization, Last: r.At})
-		case kept.Utilization == trail[n-1].Utilization:
-			trail[n-1].Last = r.At
-		}
-		trails[r.Key], last[r.Key] = trail, kept
 	}
 	return trails
 }
 
 // pressureOf is how the account st's pressure window stands at at, its windows
-// as last read latest, as the router gives it: how fast it's being used, and
-// when, at that rate, it reaches where the account's room ends, its reserve,
-// or, pinned, its limit; under pressure where that's before it resets while
-// the account can take a request.
+// as last read latest, as the router gives it, as status.PressureOf says: at
+// its pace over its trail, and, pinned, spending its reserve.
 func pressureOf(st status.Account, latest []quota.Window, trails map[string][]score.Reading, pinned bool, at time.Time) status.Pressure {
+	// This mirrors the router's usage.pressure and takesAny, which find the
+	// window, its pace and whether the account takes a request in the state
+	// the router holds, where this has only the account's status to go by.
 	i := slices.IndexFunc(latest, func(w quota.Window) bool { return w.Key == claude.Policy.Pressure })
 	if i < 0 {
 		return status.Pressure{}
@@ -131,19 +115,10 @@ func pressureOf(st status.Account, latest []quota.Window, trails map[string][]sc
 	if pinned {
 		c.Reserve = 0
 	}
-	p := claude.Policy.PressureOf(c, at)
-	takes := !shut(st, at) && score.Available(st.Windows, c.Reserve, claude.Policy.IsShared, at)
-	return status.Pressure{
-		Window: claude.Policy.Pressure, Rate: pace.Rate, Recent: pace.Recent, Since: pace.Since.UTC(),
-		RunsOut: p.RunsOut.UTC(), Under: p.Under && takes,
+	takes := func(reserve float64) bool {
+		return !st.Shut(at, claude.Policy) && score.Available(st.Windows, reserve, claude.Policy.IsShared, at)
 	}
-}
-
-// shut reports whether the account can take no request of any model at at:
-// a limit holds back every request, or the upstream refuses its token.
-func shut(st status.Account, at time.Time) bool {
-	limited := st.Limit.Holds(at) && (len(st.Limit.Windows) == 0 || slices.ContainsFunc(st.Limit.Windows, claude.Policy.IsShared))
-	return limited || st.TokenRefused(at)
+	return status.PressureOf(claude.Policy, pace, c, takes, at)
 }
 
 // --------------------------------------------------------- the worlds

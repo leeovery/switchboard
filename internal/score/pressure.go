@@ -69,6 +69,36 @@ func Lately(readings []Reading, now time.Time) []Reading {
 	return readings[max(since-1, 0):]
 }
 
+// Noted returns a window's trail, the levels its use was read at lately, each
+// with when it was first and last read so, its baseline among them, having
+// taken in kept, the reading of the window it now stands as, taken in at at,
+// held being the one it stood as before: a reading that starts the window
+// afresh, as startsAfresh says, leaves none of its levels before it; one that
+// reads its use as its latest level does reads that level again; and one that
+// reads it lower, a dip too small to be a reset made by hand, leaves the trail
+// as it was, as rising back from it is no use. What the half hour before at
+// has passed by goes, as Lately says.
+func Noted(trail []Reading, held, kept quota.Window, at time.Time) []Reading {
+	if startsAfresh(held, kept) {
+		trail = nil
+	}
+	trail = Lately(trail, at)
+	switch n := len(trail); {
+	case n == 0 || kept.Utilization > trail[n-1].Utilization:
+		trail = append(trail, Reading{At: at, Utilization: kept.Utilization, Last: at})
+	case kept.Utilization == trail[n-1].Utilization:
+		trail[n-1].Last = at
+	}
+	return trail
+}
+
+// startsAfresh reports whether kept, the reading a window now stands as, starts
+// it afresh from held, as it stood before: kept has another reset, a new
+// window, or shows it reset by hand, as ResetByHand says.
+func startsAfresh(held, kept quota.Window) bool {
+	return !kept.ResetsAt.Equal(held.ResetsAt) || ResetByHand(held, kept)
+}
+
 // RecentRate returns how fast w has been used lately, at now, a share of it
 // an hour, never less than none, and when that's measured from. It's the
 // rise from its baseline, the level read last before the last half hour, to
