@@ -172,6 +172,69 @@ as Keys has them:
 before each kind of event had a mark of its own, where the Log's marks give `◔`, in
 `accent.attention`.
 
+## What the worlds give otherwise than the frames
+
+`internal/capture` builds the worlds the frames were drawn from (its `testdata/README.md` says where
+their data came from), and the real code works out what each frame shows from them. The generators
+typed some figures by hand, and some disagree with each other or with the design's rules, so no
+world gives them. Each stage that adds a view's fixtures fits what it can and passes over the rest,
+cell by cell, listing each under The cells passed over with what the dashboard draws in its place
+(the owner's call, 11 October 2026). Known when the worlds were built:
+
+- **Where new sessions go.** Every frame drawn in auto marks side `▲`, though by the design's
+  scoring the router would choose personal, as its week resets sooner with more left, or, of six or
+  ten accounts, spare. The fake router says side, as the frames draw it (`framesChoice`): the
+  document's choice is the frame's, not the scoring's (the owner's call). Where the scoring agrees
+  with a frame, it's worked out.
+- **`usage` and the Overview (stages 5 and 7):** personal's week running out ~Sat 06:00 is missing
+  from COMING UP in the bad hour and under routing's limit; personal's week reads 66% under
+  routing's limit, where the frame's card draws 64%; side's week runs out ~Fri 12:20 at its average
+  pace, which COMING UP lists; the six accounts' pooled 5-hour window works out 47%, drawn 46%; the
+  ten's extras' rates and run-outs (client, lab, team, spare, extra, ops, studio) differ from what
+  their rows draw. LATELY (`dash2.LATELY_ALL`) and the Log's events (`log2.TODAY`) disagree:
+  LATELY lacks d28c's start at 12:02:10, has a prime of personal's at 06:25 the Log lacks, and
+  draws work's cap without its three moves. The Overview's sessions (41e0 sonnet answering, 7f3a
+  sonnet idle) and the List's and the Log's (every session opus, 41e0 idle, 7f3a answering) are two
+  listings at one moment: each frame's world holds its own.
+- **History (stage 8):** the year's $27,480 and 236,410 requests, where its own months and today
+  come to $24,736 and 212,885; against 3.8× (3.4×); limits; the busiest day (Tue 22 Sep, the
+  world's Wed 30 Sep); the longest run (58 days, the world's 20); the Year's cuts; August's and
+  September's limits; October so far, drawn 1,548 requests, $180 and 2 limits, where today's lines
+  give 1,239, $126 and none, and Opus 5.5's October, drawn 640, $120 and 67%, today's lines being
+  nearly all Opus 5.5; Opus 5.5's 48,880 requests, $5,760 and 21% (40,749, $4,761, 19%), and its
+  352 sessions, which no summary holds by version; Tokens this week, work's drawn 1.2M, 0.8M,
+  11.0M, 178M and 191M (the world's 0.83M, 1.13M, 9.1M, 177M and 188M, today's lines writing the
+  hour's cache and putting out more), and all accounts' 4.2M, 2.9M, 38.0M, 615M and 660M (3.3M,
+  3.4M, 33.8M, 618M and 658M), and earlier weeks' Tokens against BY MONTH; the weeks' 5-hour limits
+  where one weekday holds two; the ten's capacity, counting six weeks where spare's column is empty.
+- **The Log (stage 9):** 1,275 lines and 1,240 requests today, where the lines are 1,274 and
+  1,239, c61b's fifth request still answering; the Log's rows of d28c and 9c2e in its tail and
+  around the cap, against the sessions' own lines (d28c at 14:31:49 in the Log, 14:31:58 on its
+  page); a request of db8a's on work at 14:31:06, after work's cap at 14:31:03, as
+  `log1.around_the_cap` made it, which no frame draws; db8a's move of 13:22:40 (no pressure event
+  behind "out at 15:10", no cost of a move made afresh after 21 hours idle, and its reason the
+  idle's); `log-not-live-160`, a world of its own, not built yet.
+- **A session's page (stage 10):** d28c's split, $41.09 and $7.12 (drawn $41.06 and $7.14), its
+  work ending 14:30; b9c4's stretches ending 16:01 and 18:46, ended 18:46, 5h 26m; turn 8's tools
+  in another order; f41a's side stretch ending 18:04; the `% from cache` figures, written in.
+- **Accounts (stage 11):** this week's sessions served, drawn 9, 6, 11 and 19 in all, where the
+  world gives 8, 10, 14 and 27 (yesterday's 17 and today's 14, 4 of them both, are 27); personal's
+  moves, drawn 1 out and 4 in all (2 and 5: db8a's move under pressure at 13:22:40 as well as
+  8a2c's); personal's 5-hour limit and 4h 45m at it, from the Log's limit of 19:12:40 yesterday,
+  where Accounts draws none (all accounts 4 and 8h 47m, drawn 3 and 4h 02m); work's 0% and
+  personal's 15% left at their last reset, whose weeks reset on Sunday, before this week's Monday;
+  the 30 days; the share left at a reset (32%, drawn 30%); lab's and team's minutes at a limit; the
+  ten's all-accounts row (drawn 12,598 requests, 51 sessions, 10 moves, 9h 57m, $1,342 and 3.4×,
+  the world 11,698, 53, 5, 13h 31m, $1,310 and 3.3×), typed, not summed from its rows; all
+  accounts' BY MODEL this week (drawn 57/2/33/3/2/3, the world 56/2/34/3/2/2); Detail's BY DAY
+  marks; `accounts-detail-one-160`'s `[ ]` on its heading row, where the design gives one account
+  Detail alone.
+- **Sessions (stage 12):** c61b's worth ($0.22, drawn $0.29) and today's ($125.94, drawn
+  $126.02); 8a2c's move, made yesterday, which the List shows only of today's; b9c4's move of
+  yesterday, which yesterday's summary doesn't hold.
+- **Runway (stage 13):** work at its 5-hour limit Wed 15:02–17:10, while b9c4 and 4b0e ran on it
+  then.
+
 ## Setting up
 
 `vhs` needs `ttyd` and `ffmpeg`, which Homebrew installs with it. Comparing a capture with its
@@ -393,9 +456,11 @@ own rules, which the test holds to the frame's, cell for cell.
    read that one list.
 2. Delete its stem from `owed` in `internal/capture/reference_test.go`: from then on, the test
    holds it to its frame.
-3. Where the frame drew a cell otherwise than the design says, the design holds: pass over it in
-   `passedOver`, beside `owed`, and list it here, under The cells passed over, with what the
-   dashboard draws in its place. Never patch the frame.
+3. Where the frame drew a cell otherwise than the design says, the design holds; where its world
+   can't give a figure the frame draws (see What the worlds give otherwise than the frames), fit
+   the world where it can. Either way, pass over what's left in `passedOver`, beside `owed`, and
+   list it here, under The cells passed over, with what the dashboard draws in its place. Never
+   patch the frame.
 4. To judge it by eye too, write its tape, modelled on `accounts-3.tape`, its `Width` and `Height`
    from the fixture's size, as the calibrated settings say; clear the tape and its capture at the
    milestone's sign-off. Leave the fixture.
