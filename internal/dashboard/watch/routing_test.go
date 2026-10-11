@@ -160,9 +160,10 @@ func TestEnterSendsThePicks(t *testing.T) {
 		{name: "auto, from a pin", doc: pinnedTo(routerDocument(three()...), "side"), keys: "0 enter", want: []string{"unpin"}},
 		{name: "the pin's account cleared, which is auto", doc: pinnedTo(routerDocument(three()...), "side"), keys: "3 enter", want: []string{"unpin"}},
 		{name: "auto with m, which moves nothing", doc: pinnedTo(routerDocument(three()...), "side"), keys: "0 m enter", want: []string{"unpin"}},
-		{name: "auto as it opened, with m", doc: routerDocument(three()...), keys: "m enter", want: []string{"unpin"}},
 		{name: "the pin as it stands, with m", doc: pinnedTo(routerDocument(three()...), "side"), keys: "m enter", want: []string{"move side"}},
 		{name: "nothing changed", doc: routerDocument(three()...), keys: "enter"},
+		{name: "auto as it opened, with m, which moves nothing", doc: routerDocument(three()...), keys: "m enter"},
+		{name: "auto as it opened, an account picked and cleared, with m", doc: routerDocument(three()...), keys: "1 m 1 enter"},
 		{name: "the pin as it stands", doc: pinnedTo(routerDocument(three()...), "personal", "side"), keys: "enter"},
 		{name: "picks changed and changed back", doc: pinnedTo(routerDocument(three()...), "side"), keys: "1 1 m m enter"},
 	}
@@ -246,6 +247,75 @@ func TestARefusalLandingOnceTheCardHasClosedSaysWhyInTheKeyLinesPlace(t *testing
 	}
 	if got := h.keyLine(); got != refusal.Error() {
 		t.Errorf("the key line reads %q, want %q in its place", got, refusal)
+	}
+}
+
+func TestALateOrdersAnswerLeavesTheCardOpenedSinceAlone(t *testing.T) {
+	refusal := errors.New("account personal has no usable token, so nothing can go out on it: token missing")
+	tests := []struct {
+		name     string
+		refuse   error
+		wantNote string
+	}{
+		{name: "taken"},
+		{name: "refused, saying why in the key line's place", refuse: refusal, wantNote: refusal.Error()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.start()
+			h.source.refuse = tt.refuse
+			h.keyed("p 2")
+			answer := h.update(namedKeys["enter"])
+			h.keyed("esc p 3")
+			looks := h.source.looks()
+			h.deliver(answer...)
+
+			if got := h.card(); h.model.open != routingOpen || !slices.Equal(got.Picked, []string{"side"}) || got.Refused != "" {
+				t.Errorf("the card is open %v, picking %q, saying %q; want the card opened since open, picking side, saying nothing",
+					h.model.open == routingOpen, got.Picked, got.Refused)
+			}
+			if h.model.note != tt.wantNote {
+				t.Errorf("the key line notes %q, want %q", h.model.note, tt.wantNote)
+			}
+			if got := h.source.looks() - looks; got != 1 {
+				t.Errorf("looked at the router's document %d times once the answer landed, want once", got)
+			}
+		})
+	}
+}
+
+func TestEnterWhileTheRouterCarriesOutAnOrderSaysSoInTheCard(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.keyed("p 2")
+	answer := h.update(namedKeys["enter"])
+	h.keyed("esc p 3 enter")
+
+	if got, want := h.card().Refused, errOrdering.Error(); h.model.open != routingOpen || got != want {
+		t.Fatalf("the card is open %v, saying %q; want it open, saying %q", h.model.open == routingOpen, got, want)
+	}
+	h.deliver(answer...)
+	if got := h.card().Refused; got != "" {
+		t.Errorf("once the router carried out the last order, the card says %q, want nothing", got)
+	}
+	h.keyed("enter")
+	if want := []string{"pin personal", "pin side"}; !slices.Equal(h.source.orders, want) {
+		t.Errorf("orders = %q, want %q: the second card's sent once the first's was carried out", h.source.orders, want)
+	}
+}
+
+func TestProbingAsAskedThereIsNoP(t *testing.T) {
+	h := newHarness(t, document(three()...))
+	h.model.cfg.ProbeOnly = true
+	h.start()
+
+	if slices.Contains(h.listed(), "p") || slices.Contains(listedKeys(h.model.helpKeys()), "p") {
+		t.Errorf("the key line lists %q, and help %q; want neither to list p: there's no router to pin through", h.listed(), listedKeys(h.model.helpKeys()))
+	}
+	h.keyed("p")
+	if h.model.open != nothingOpen || h.model.note != "" {
+		t.Errorf("p opened %v, noting %q; want nothing", h.model.open, h.model.note)
 	}
 }
 

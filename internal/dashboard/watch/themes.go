@@ -260,10 +260,14 @@ func (m Model) openPicker() (Model, tea.Cmd) {
 
 // listed opens the picker on the themes listed, the theme in force found
 // again among them, and the cursor on it: on a terminal now too small for
-// it, it says so instead.
+// it, it says so instead; and with a card opened over the page since t was
+// pressed, it stays shut, as the card's keys alone act.
 func (m Model) listed(msg listedMsg) (Model, tea.Cmd) {
 	m.picker.opening = false
-	if !dashboard.PickerFits(m.size.Width, m.size.Height) {
+	switch {
+	case m.open != nothingOpen:
+		return m, nil
+	case !dashboard.PickerFits(m.size.Width, m.size.Height):
 		return m.noting(tooSmall)
 	}
 	m.pair = msg.listing.Pair(m.choice)
