@@ -4282,7 +4282,9 @@ from the first day a router that has it runs, so nothing before then is in it.
     - `resets`: each reset of a window the readings history saw that day, in the order they came:
       the window's key; when it reset, its reset time where it was read, or when the reading that
       showed a reset made by hand came (see Choosing an account); and `before`, its use as last read
-      before it reset. A week's peak is the `before` of the reset that ended it.
+      before it reset. A week's peak is the `before` of the reset that ended it. A window read at
+      nothing whose reset moves later hasn't reset: none is open, and the reset it reads moves on
+      with each reading (see Observed).
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a
       window read `rejected` or used up, each from the reading that put it there to the one that
@@ -5730,6 +5732,11 @@ any of it. Times are the Mac's, UTC+1.
 - **9 October 2026: a request without messages.** A request refused for want of messages, a 400
   `invalid_request_error`, carried no usage headers. So no free reading of an account's usage was
   found: every reading is a request, as the router's rounds spend (see Priming).
+- **10 October 2026: an unopened window's reset moves on.** Two accounts at their weekly limit,
+  every request on them refused, opened no 5-hour window for a day. Each half hour's probe read
+  the window at 0%, allowed, its reset five hours on, cut back to a ten-minute mark: 01:30 for a
+  probe at 20:37, 02:00 for one at 21:01, the reset a window opened then would have. Hence a
+  summary takes no reset from a window read at nothing whose reset moves later (see The request ledger).
 
 ## Checks owed
 
