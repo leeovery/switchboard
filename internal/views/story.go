@@ -43,7 +43,7 @@ type story struct {
 	// and a router that tell prompts apart have each say.
 	classed  bool
 	requests int
-	worth    worthSum
+	worth    Worth
 	moves    []move
 	// ends are when each thread's last request so far ended, and lives how
 	// long its writes to the cache last, as its last request that wrote to
@@ -254,22 +254,4 @@ func (s *story) moveCost(now time.Time, flying func(model string) bool) (ledger.
 		return 0, false
 	}
 	return s.prices.Rewrite(prompt, life, s.day.date)
-}
-
-// worthSum sums requests' worth exactly, and names, once each, the counts
-// any of them leaves unpriced.
-type worthSum struct {
-	cost     ledger.Picodollars
-	unpriced []string
-}
-
-// add adds w to the sum.
-func (s *worthSum) add(w ledger.Worth) {
-	s.cost += w.Cost
-	for _, path := range w.Unpriced {
-		if !slices.Contains(s.unpriced, path) {
-			s.unpriced = append(s.unpriced, path)
-		}
-	}
-	slices.Sort(s.unpriced)
 }

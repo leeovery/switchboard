@@ -185,8 +185,8 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 		`"started":"` + at(october(7, 10, 15, 0)) + `","requests":2,"worth":0.07608,` +
 		`"moved":{"at":"` + at(october(7, 11, 0, 0)) + `","from":"work","reason":"moved: work is at its reserve","cost":0.008}},` +
 		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
-		`"started":"` + at(october(7, 8, 0, 0)) + `","requests":2,"worth":0.03804,"unpriced":["input_tokens","output_tokens"]}],` +
-		`"today":{"sessions":3,"requests":5,"worth":0.15216,"unpriced":["input_tokens","output_tokens"]}}`
+		`"started":"` + at(october(7, 8, 0, 0)) + `","requests":2,"worth":0.03804,"unpriced":["claude-opus-9"]}],` +
+		`"today":{"sessions":3,"requests":5,"worth":0.15216,"unpriced":["claude-opus-9"]}}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "sessions")
@@ -250,7 +250,7 @@ func TestSessionsNeedsNeitherTheRouterNorTheLedger(t *testing.T) {
 	if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || got.stderr != notice {
 		t.Fatalf("switchboard sessions --json = %+v (%v), want JSON, and the notice", got, err)
 	}
-	want := `{"generated_at":"` + ledgerNow.UTC().Format(time.RFC3339) + `","prices_as_of":"2026-10-07","sessions":[],"today":{"sessions":0,"requests":0,"worth":0}}`
+	want := `{"generated_at":"` + ledgerNow.UTC().Format(time.RFC3339) + `","prices_as_of":"2026-10-07","sessions":[],"today":{"sessions":0,"requests":0}}`
 	if compact.String() != want {
 		t.Errorf("switchboard sessions --json printed\n%s\nwant\n%s", compact.String(), want)
 	}

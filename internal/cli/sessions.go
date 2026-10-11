@@ -7,13 +7,13 @@ import (
 	"io"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -130,7 +130,7 @@ func writeSessions(out io.Writer, list views.SessionList, now time.Time) error {
 		return err
 	}
 	_, err := fmt.Fprintf(out, "\ntoday  %s%s%s%s%s at API prices\n", status.SessionCount(list.Today.Sessions), status.Separator,
-		requestsCount(list.Today.Requests), status.Separator, worthSaid(list.Today.Worth, list.Today.Unpriced))
+		prose.Counted(list.Today.Requests, "request"), status.Separator, worthSaid(list.Today.Worth))
 	return err
 }
 
@@ -148,7 +148,7 @@ func sessionRow(s views.ListedSession, now time.Time) []string {
 		started = status.Past(now, s.Started)
 	}
 	return []string{mark(s), session, orNone(status.Clean(s.Account)), orNone(ledger.ShortModelID(status.Clean(s.Model))),
-		doing(s.State, s.Running, s.LastSeen, s.Ended, now), started, thousands(s.Requests), worthSaid(s.Worth, s.Unpriced), routing(s, now)}
+		doing(s.State, s.Running, s.LastSeen, s.Ended, now), started, prose.Grouped(s.Requests), worthSaid(s.Worth), routing(s, now)}
 }
 
 // mark is the mark a session's row starts with, the first that applies: ↑
@@ -193,16 +193,20 @@ func span(since, now time.Time) string {
 }
 
 // worthSaid says what requests were worth, to the cent, as "$17.86", "+"
-// after it where unpriced names counts it leaves out, and "unpriced" where it
-// prices none of them.
-func worthSaid(worth ledger.Picodollars, unpriced []string) string {
+// after it where it leaves anything unpriced, and "unpriced" where it prices
+// none of them: "$0.00" where there were none.
+func worthSaid(w views.Worth) string {
+	var amount ledger.Picodollars
+	if w.Amount != nil {
+		amount = *w.Amount
+	}
 	switch {
-	case len(unpriced) == 0:
-		return worth.Cents()
-	case worth == 0:
+	case len(w.Unpriced) == 0:
+		return amount.Cents()
+	case w.Amount == nil:
 		return "unpriced"
 	}
-	return worth.Cents() + "+"
+	return amount.Cents() + "+"
 }
 
 // routing says how a session came to the account it's on, in the routing
@@ -222,24 +226,4 @@ func routing(s views.ListedSession, now time.Time) string {
 		return "pinned here"
 	}
 	return ""
-}
-
-func requestsCount(n int) string {
-	if n == 1 {
-		return "1 request"
-	}
-	return thousands(n) + " requests"
-}
-
-// thousands writes n with its thousands set apart by commas, as "1,240".
-func thousands(n int) string {
-	digits := strconv.Itoa(n)
-	var b strings.Builder
-	for i, d := range digits {
-		if i > 0 && (len(digits)-i)%3 == 0 {
-			b.WriteByte(',')
-		}
-		b.WriteRune(d)
-	}
-	return b.String()
 }

@@ -4455,7 +4455,7 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   the readings history`); and a file, or the directory, that couldn't be pruned (`can't prune the
   readings history`). Of the request ledger (see The request ledger): at `info`, each day it
   summarises, and summarises again (`summarised a day of the request ledger`, with the day and its
-  requests), and that it's written again after failing (`writing the request ledger again`); at
+  lines), and that it's written again after failing (`writing the request ledger again`); at
   `warn`, that its directory can't be made private, that it can't be written, once until it can be
   (`can't write the request ledger`), that lines were dropped from it for its falling behind, once
   until it catches up (`request ledger fell behind`), that a request's line can't be put as JSON,

@@ -15,11 +15,17 @@ import (
 	"github.com/leeovery/switchboard/internal/readings"
 )
 
+// LedgerDays reads the request ledger's days where they lie, with no router,
+// as a ledger.Reader does.
+type LedgerDays interface {
+	// Days gives the summaries of the local days from from's to today's.
+	Days(from time.Time) []ledger.Summary
+}
+
 // Ledger reads the request ledger where it lies, with no router, as it
 // grows, as a ledger.Follower does.
 type Ledger interface {
-	// Days gives the summaries of the local days from from's to today's.
-	Days(from time.Time) []ledger.Summary
+	LedgerDays
 	// Today gives today's lines read since mark, and the Mark they're read
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of.

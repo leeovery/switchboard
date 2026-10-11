@@ -55,11 +55,9 @@ type ListedSession struct {
 	// zero where the ledger holds none.
 	Started time.Time `json:"started,omitzero"`
 	// Requests counts its requests today, and Worth is what they'd have cost
-	// through the API at today's prices, Unpriced naming the counts it leaves
-	// out, as it can't price them.
-	Requests int                `json:"requests"`
-	Worth    ledger.Picodollars `json:"worth"`
-	Unpriced []string           `json:"unpriced,omitempty"`
+	// through the API at today's prices, as Worth sums it.
+	Requests int `json:"requests"`
+	Worth
 	// Moved is the move that brought it to Account, where a request of it
 	// today made it: nil where none did.
 	Moved *Move `json:"moved,omitempty"`
@@ -85,13 +83,11 @@ type Move struct {
 }
 
 // SessionsToday sums the List's sessions: how many there are, their requests
-// today, and what those would have cost through the API, Unpriced naming the
-// counts any session's worth leaves out.
+// today, and what those would have cost through the API, as Worth sums it.
 type SessionsToday struct {
-	Sessions int                `json:"sessions"`
-	Requests int                `json:"requests"`
-	Worth    ledger.Picodollars `json:"worth"`
-	Unpriced []string           `json:"unpriced,omitempty"`
+	Sessions int `json:"sessions"`
+	Requests int `json:"requests"`
+	Worth
 }
 
 // SessionSources are what the List is built from.
@@ -118,7 +114,6 @@ func ListSessions(src SessionSources) SessionList {
 		routed[s.ID] = s
 	}
 	list := SessionList{GeneratedAt: src.Now.UTC(), PricesAsOf: src.Prices.AsOf, Sessions: []ListedSession{}}
-	var worth worthSum
 	for _, id := range listedIDs(read, src.Running) {
 		s := storyOf(requestsOf(read[id], src.Prices, today.date), src.Prices, today)
 		session, running := routed[id]
@@ -132,9 +127,9 @@ func ListSessions(src SessionSources) SessionList {
 		listed.Moved = s.movedOnto(listed.Model, listed.Account)
 		list.Sessions = append(list.Sessions, listed)
 		list.Today.Requests += listed.Requests
-		worth.add(ledger.Worth{Cost: listed.Worth, Unpriced: listed.Unpriced})
+		list.Today.add(listed.Worth)
 	}
-	list.Today.Sessions, list.Today.Worth, list.Today.Unpriced = len(list.Sessions), worth.cost, worth.unpriced
+	list.Today.Sessions = len(list.Sessions)
 	slices.SortFunc(list.Sessions, inListOrder)
 	return list
 }
@@ -163,7 +158,7 @@ func listedIDs(read map[string][]ledger.Line, running []status.Session) []string
 // ended at its last request, the account and model its own its
 // conversation's, as story.conversation says.
 func listedFrom(id string, s *story) ListedSession {
-	listed := ListedSession{Session: id, Dir: s.dir, Requests: s.requests, Worth: s.worth.cost, Unpriced: s.worth.unpriced}
+	listed := ListedSession{Session: id, Dir: s.dir, Requests: s.requests, Worth: s.worth}
 	if s.first != nil {
 		listed.Started = s.first.At.UTC()
 	}
