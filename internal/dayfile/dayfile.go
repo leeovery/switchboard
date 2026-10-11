@@ -318,26 +318,49 @@ func (f *Files) prune(now time.Time, keep time.Duration) {
 	}
 }
 
-// tend removes the file, of the local day given, once the day ended keep or
-// more before now, never when keep is Forever, and compresses it, a plain
-// file, once the day ended two days or more before now. A file of a day after
-// tomorrow, as a clock once set ahead names one, stays until its day is past
-// keeping too: the clock may be the one that's wrong, set back, and Newest
-// passes such a file over meanwhile. What it can't do is logged, and left to
-// the next prune.
+// tend removes the file, of the local day given, once the day is past
+// keeping at now, as pastKeeping says, never when keep is Forever, and
+// compresses it, a plain file, once the day ended two days or more before
+// now. A file of a day after tomorrow, as a clock once set ahead names one,
+// stays until its day is past keeping too: the clock may be the one that's
+// wrong, set back, and Newest passes such a file over meanwhile. What it
+// can't do is logged, and left to the next prune.
 func (f *Files) tend(file dayFile, day, now time.Time, keep time.Duration) {
-	switch ended := now.Sub(endOf(day)); {
-	// Sub gives Forever itself for a day that ended longer ago than a
-	// duration holds.
-	case keep != Forever && ended >= keep:
+	switch {
+	case keep != Forever && !now.Before(pastKeeping(day, keep)):
 		if err := os.Remove(f.path(file)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			f.Logger.Warn("can't prune the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}
-	case ended >= compressAfter && !file.compressed:
+	case now.Sub(endOf(day)) >= compressAfter && !file.compressed:
 		if err := f.compress(file.date); err != nil {
 			f.Logger.Warn("can't compress the "+f.Name, "file", file.name(f.Prefix), "error", err)
 		}
 	}
+}
+
+// pastKeeping returns when the files of the local day that starts at day
+// are past keeping, kept as long as keep says: keep after the day ends.
+func pastKeeping(day time.Time, keep time.Duration) time.Time {
+	return endOf(day).Add(keep)
+}
+
+// KeptUntil returns the date of the last local day the files of the local day
+// with the given date are kept on, kept as long as keep says: the day of the
+// last instant before they're past keeping, as a prune removes them from
+// then. It reports false where keep is Forever, which keeps them for good, or
+// the date isn't one.
+func KeptUntil(date string, keep time.Duration) (string, bool) {
+	return keptUntilIn(date, keep, time.Local)
+}
+
+// keptUntilIn returns the date of the last day in loc the files of the day in
+// loc with the given date are kept on, as KeptUntil says.
+func keptUntilIn(date string, keep time.Duration, loc *time.Location) (string, bool) {
+	day, _, ok := dayIn(date, loc)
+	if !ok || keep == Forever {
+		return "", false
+	}
+	return pastKeeping(day, keep).Add(-time.Nanosecond).In(loc).Format(dateLayout), true
 }
 
 // compress moves the lines of the plain file of the local day with the given

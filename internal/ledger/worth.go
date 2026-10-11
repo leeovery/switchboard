@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"time"
 )
 
 // Picodollars are an amount of US dollars, in millionths of a millionth of a
@@ -144,6 +145,81 @@ func (t Table) CacheWrite(l *Line, date string) (Worth, bool) {
 	return t.worth(l.Model, l.Shape.InferenceGeo, countsOf(l.Usage).only(cacheWrites, cacheTTLs), l.unmetered(), date)
 }
 
+// Summed returns what the line's request adds to a sum of requests' worth at
+// the prices in effect on the local day with the given date: its worth, as
+// Request gives it; or, where the table can't price it, as of a model it
+// doesn't know, nothing, every count its usage holds that costs anything
+// named unpriced, and noUsage where it went upstream without usage, so the
+// sum names what it leaves out.
+func (t Table) Summed(l *Line, date string) Worth {
+	if w, ok := t.Request(l, date); ok {
+		return w
+	}
+	var w Worth
+	countsOf(l.Usage).each("", func(path string, n int64) {
+		if n != 0 && !free(path) {
+			w.Unpriced = append(w.Unpriced, path)
+		}
+	})
+	if l.unmetered() {
+		w.Unpriced = append(w.Unpriced, noUsage)
+	}
+	slices.Sort(w.Unpriced)
+	return w
+}
+
+// Rewrite returns what writing the line's request's whole prompt into the
+// prompt cache again would cost through the API, at the prices in effect on
+// the local day with the given date: its input, reads from the cache and
+// writes to it together, each at its model's price of a write that lasts as
+// long as life says, five minutes or an hour. It's what moving its session
+// would cost, as the account it moved to holds none of its cache. It reports
+// false where the table can't price the request, and where its answer gave
+// no usage, as what it was then is unknown.
+func (t Table) Rewrite(l *Line, life time.Duration, date string) (Picodollars, bool) {
+	tokens, ok := l.Tokens()
+	prices, priced := t.prices(l.Model, date)
+	if priced {
+		prices, priced = prices.in(l.Shape.InferenceGeo)
+	}
+	if !ok || !priced {
+		return 0, false
+	}
+	price := prices.CacheWrite1h
+	if life == ShortCache {
+		price = prices.CacheWrite5m
+	}
+	return Picodollars(tokens.Input+tokens.CacheRead+tokens.CacheWrite) * price, true
+}
+
+// ShortCache and LongCache are how long the prompt cache's writes last: five
+// minutes, or an hour, as Claude Code has a subscription's last, and as
+// they're taken to where nothing says.
+const (
+	ShortCache = 5 * time.Minute
+	LongCache  = time.Hour
+)
+
+// CacheLife returns how long the prompt cache's writes of the reply's usage
+// last: five minutes where every write is a five-minute one, else an hour, as
+// Claude Code has a subscription's last, writes it doesn't break down by how
+// long they last counting as an hour's. It reports false where the reply
+// wrote nothing to the cache, as one that only read from it, which says
+// nothing of how long its writes last.
+func (r Reply) CacheLife() (time.Duration, bool) {
+	held := countsOf(r.Usage)
+	written, _ := held[cacheWrites].(int64)
+	ttls, _ := held[cacheTTLs].(counts)
+	short, _ := ttls[shortWrites].(int64)
+	switch written = max(written, held.total(cacheTTLs)); {
+	case written == 0:
+		return 0, false
+	case short == written:
+		return ShortCache, true
+	}
+	return LongCache, true
+}
+
 // worth returns what the counts held would have cost, as Worth says, naming
 // noUsage among what it leaves unpriced where unmetered says requests they're
 // of went upstream without usage.
@@ -243,6 +319,9 @@ const (
 	// write lasts.
 	cacheWrites = "cache_creation_input_tokens"
 	cacheTTLs   = "cache_creation"
+	// shortWrites is the name, within cacheTTLs, of the count of the writes
+	// that last five minutes.
+	shortWrites = "ephemeral_5m_input_tokens"
 )
 
 // uncharged are the counts a usage holds that cost nothing of their own, by
@@ -258,7 +337,7 @@ func (p Prices) charge(path string) (Picodollars, bool) {
 	switch path {
 	case "input_tokens":
 		return p.Input, true
-	case cacheTTLs + ".ephemeral_5m_input_tokens":
+	case cacheTTLs + "." + shortWrites:
 		return p.CacheWrite5m, true
 	case cacheTTLs + ".ephemeral_1h_input_tokens":
 		return p.CacheWrite1h, true

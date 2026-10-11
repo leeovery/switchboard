@@ -40,3 +40,8 @@ func (Empty) Today(mark Mark) (lines []Held, next Mark, afresh bool) {
 func (Empty) Session(string) iter.Seq[Held] {
 	return func(func(Held) bool) {}
 }
+
+// Sessions returns no session's lines, and hands take none.
+func (Empty) Sessions([]string, func(string, Line)) map[string][]Line {
+	return map[string][]Line{}
+}

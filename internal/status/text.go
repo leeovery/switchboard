@@ -385,6 +385,33 @@ func Dated(now, t time.Time) string {
 	return Clock(now, t)
 }
 
+// Past shows t, before now, in now's time zone, by how far back its day is,
+// as when a session started: its time of day, such as "12:47", on now's day;
+// "yesterday 15:08" on the day before; its weekday too, such as "Tue 15:08",
+// within the week; else its date, such as "28 Sep 15:08".
+func Past(now, t time.Time) string {
+	t = t.In(now.Location())
+	switch days := daysBetween(t, now); {
+	case days == 0:
+		return TimeOfDay(now, t)
+	case days == 1:
+		return "yesterday " + TimeOfDay(now, t)
+	case days < 7:
+		return Clock(now, t)
+	}
+	return t.Format("2 Jan 15:04")
+}
+
+// daysBetween counts the days from the one t falls on to the one now does,
+// in now's time zone, however long the days between ran.
+func daysBetween(t, now time.Time) int {
+	noon := func(t time.Time) time.Time {
+		y, m, d := t.In(now.Location()).Date()
+		return time.Date(y, m, d, 12, 0, 0, 0, time.UTC)
+	}
+	return int(noon(now).Sub(noon(t)).Round(day) / day)
+}
+
 // Until counts down from now to t, as "in 1h 12m": "now" once t has come.
 func Until(now, t time.Time) string {
 	if !t.After(now) {
