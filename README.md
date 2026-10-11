@@ -598,7 +598,7 @@ One table per subscription, and at least one.
 | `label` | the id | what it's shown as; nothing shaped like a token |
 | `primary` | the first account | the account the browser and the Claude apps are signed into; one at most |
 | `reserve` | `0` | the share of every window the router leaves unused: `0`, or more than `0` and less than `1` |
-| `plan` | none: unknown | the plan its subscription is on, which switchboard can't read from Anthropic: `pro`, `max5x` or `max20x`. It prices the account against its worth, and sizes it in [`history`](#history)'s replay of a week; without it, the account's plan shows as `—`, and nothing is priced against it |
+| `plan` | none: unknown | the plan its subscription is on, which switchboard can't read from Anthropic: `pro`, `max5x` or `max20x`. It prices the account against its worth, and sizes it in [`history`](#history)'s replay of a week; without it, the account's plan shows as `-`, and nothing is priced against it |
 
 ### `[prime]` keys
 

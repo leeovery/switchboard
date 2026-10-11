@@ -25,12 +25,13 @@ func newSessionsCommand(a *app) *cobra.Command {
 		Use:   "sessions [<id>]",
 		Short: "List today's sessions, or show one: where each runs, what it's doing, and what it has been worth",
 		Long: `List today's sessions: those running, the oldest started first, then those
-that ended today, the latest ended first, a line each with its id cut short and
-its directory, the account it's on, its model, what it's doing, when it
-started, its requests today and what they'd have cost through the API, and how
-it came to its account; then a line summing them. It reads the ledger's files,
-and the router's sessions where it answers: without the router, it lists
-today's sessions from the ledger alone, none as running.
+that ended today, the latest ended first, a line each with its id cut short
+and its directory, the account it's on, its model, what it's doing, when it
+started, its requests today and what they'd have cost through the API, at the
+prices switchboard carries, or the config's [prices] where it gives them, and
+how it came to its account; then a line summing them. It reads the ledger's
+files, and the router's sessions where it answers: without the router, it
+lists today's sessions from the ledger alone, none as running.
 
 Given a session, by its id or as much of it as is unique among today's
 sessions, it shows that session as its page has it: what it's doing, where it

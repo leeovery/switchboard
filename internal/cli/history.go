@@ -47,17 +47,16 @@ func newHistoryCommand(a *app) *cobra.Command {
 otherwise, a row for each account and model with its requests, tokens,
 sessions and worth, what they'd have cost through the API, at the prices
 switchboard carries, or the config's [prices] where it gives them; then of
-each account, its sessions, those moved onto it
-and off it, the limits it reached, and its windows' highest use. Requests are
-messages, whether they went upstream or the router answered them itself:
-Claude Code's quota checks and its counts of tokens are never among them.
-Today's is summarised from its lines, as far as it has gone. Then, over those
-days, each account's totals, its plan and its worth against it, as the
-dashboard's Accounts sets them side by side; each week's peaks, each
-account's own week, from one reset of its week to the next, placed under the
-calendar week it began nearest; and the verdicts of History's Weeks, from
-replaying each whole week with an account fewer or more. It reads the
-ledger's files, so it needs no router.
+each account, its sessions, those moved onto it and off it, the limits it
+reached, and its windows' highest use. Requests are messages, whether they
+went upstream or the router answered them itself: Claude Code's quota checks
+and its counts of tokens are never among them. Today's is summarised from its
+lines, as far as it has gone. Then, over those days, each account's totals,
+its plan and its worth against it, as the dashboard's Accounts sets them side
+by side; each week's peaks, each account's own week, from one reset of its
+week to the next, placed under the calendar week it began nearest; and the
+verdicts of History's Weeks, from replaying each whole week with an account
+fewer or more. It reads the ledger's files, so it needs no router.
 
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
