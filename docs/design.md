@@ -5615,8 +5615,9 @@ session's start found by looking at the summary of every day kept before yesterd
 running today read for `sessions <id>`, not the named session's alone; every request of each
 session `sessions` lists priced, across all its days, where only today's worth is shown; each round
 of the ledger listing its directory twice and the readings history's once, and walking the dates
-from the ledger's first day; and a follower reading a day of no requests not yet summarised looking
-at about eleven readings files at each read. Then the release.
+from the later of the ledger's first day and the readings history's; and a follower reading a day of
+no requests not yet summarised, within the history's reach, opening its readings files afresh at
+each read. Then the release.
 
 The release, through GoReleaser, a Homebrew tap and mint, follows milestone 3.
 
