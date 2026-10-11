@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 func TestAThrottledRequestIsSentAgainOnItsAccountAfterAPause(t *testing.T) {
@@ -191,6 +192,106 @@ func TestA429WithoutUsageHeadersIsTheClientsAtOnce(t *testing.T) {
 	})
 }
 
+func TestA401ToATokenItsAccountHasReplacedSinceGoesOutAgainOnTheAccount(t *testing.T) {
+	// rotatedToken is work's token once renewedToken is replaced in its turn.
+	const rotatedToken = "test-token-work-rotated"
+	tests := []struct {
+		name string
+		// script returns work's answers, by the token each goes out with,
+		// given what has work's file hold a token, "" for one caught as it's
+		// rewritten, and what has the router take it up, as its look at the
+		// token files does. Side serves every request.
+		script func(holds func(token string) func(), lookAt func()) map[string][]answer
+		// wantTokens are the tokens the request went out with, in turn, and
+		// wantRefused whether work is barred for it.
+		wantTokens  []string
+		wantRefused bool
+	}{
+		{
+			name: "the token its file held as it was read again, replaced as the request went out on it again",
+			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
+				return map[string][]answer{
+					workToken:    {refusedAs(holds(renewedToken))},
+					renewedToken: {refusedAs(holds(rotatedToken), lookAt)},
+					rotatedToken: {served},
+				}
+			},
+			wantTokens: []string{workToken, renewedToken, rotatedToken},
+		},
+		{
+			name: "replaced as the request was out, its file caught as it's rewritten as it's read again",
+			script: func(holds func(string) func(), lookAt func()) map[string][]answer {
+				return map[string][]answer{
+					workToken:    {refusedAs(holds(renewedToken), lookAt, holds(""))},
+					renewedToken: {served},
+				}
+			},
+			wantTokens: []string{workToken, renewedToken},
+		},
+		{
+			name: "not the token it goes out on now, which bars it",
+			script: func(func(string) func(), func()) map[string][]answer {
+				return map[string][]answer{workToken: {unauthorized}}
+			},
+			wantTokens:  []string{workToken, sideToken},
+			wantRefused: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				files := &changingFiles{files: testTokens}
+				r := newTestRouterReading(t, at(start), &stubProber{}, files.read)
+				r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+				r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+				holds := func(token string) func() {
+					return func() { files.set(tokenstest.Files{"work": token, "side": sideToken}) }
+				}
+				answers := tt.script(holds, r.upkeep.tokens.look)
+				answers[sideToken] = []answer{served}
+				upstream := &scriptedUpstream{answers: answers}
+				r.proxy.transport = upstream
+				var events []Event
+				r.proxy.emit = func(e Event) { events = append(events, e) }
+				reader := joined(t, r)
+
+				if rec := routeAsking(t.Context(), r, "one", opusAsked); rec.Code != http.StatusOK {
+					t.Errorf("answered %d %s, want a 200", rec.Code, rec.Body)
+				}
+				if got := upstream.sentWith(); !slices.Equal(got, tt.wantTokens) {
+					t.Errorf("the request went out with %q, want %q", got, tt.wantTokens)
+				}
+				work, _ := r.Status().Account("work")
+				if barred := work.Refused.Status == http.StatusUnauthorized; barred != tt.wantRefused {
+					t.Errorf("work's refusal = %+v, want its token barred: %v", work.Refused, tt.wantRefused)
+				}
+				if sent := slices.ContainsFunc(events, func(e Event) bool { _, ok := e.(Refused); return ok }); sent != tt.wantRefused {
+					t.Errorf("events = %+v, want a refusal: %v", events, tt.wantRefused)
+				}
+				if told := slices.ContainsFunc(heard(reader), func(e StreamEvent) bool { return e.Kind == StreamRefused }); told != tt.wantRefused {
+					t.Errorf("the stream told of a refusal: %v, want %v", told, tt.wantRefused)
+				}
+				if logged := log.Has("level=WARN", `msg="upstream refused the account's token"`, "account=work"); logged != tt.wantRefused {
+					t.Errorf("log reads\n%s\nwant the refusal of work's token logged: %v", log, tt.wantRefused)
+				}
+			})
+		})
+	}
+}
+
+// refusedAs answers with a 401, refusing the account's token, once what's
+// given has happened as the request was out.
+func refusedAs(happen ...func()) answer {
+	return func(r *http.Request) *http.Response {
+		for _, h := range happen {
+			h()
+		}
+		return unauthorized(r)
+	}
+}
+
 func TestHoldKeepsAnAnswersBodyWholeOrNotAtAll(t *testing.T) {
 	tests := []struct {
 		name string
@@ -308,12 +409,13 @@ func respond(r *http.Request, status int, h http.Header, body string) *http.Resp
 // it over a network, as those whose clock is synctest's can't: it answers
 // each request, by the token it carries, with the account's next answer, the
 // last answering every request after, failing where the answer is none, and
-// notes the account each went out on. An answer that waits holds up no
-// other.
+// notes the account each went out on, and the token. An answer that waits
+// holds up no other.
 type scriptedUpstream struct {
 	mu       sync.Mutex
 	answers  map[string][]answer
 	accounts []string
+	tokens   []string
 }
 
 // scripted is an upstream that answers work's requests and side's as given.
@@ -336,6 +438,7 @@ func (u *scriptedUpstream) next(r *http.Request) answer {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.accounts = append(u.accounts, map[string]string{workToken: "work", personalToken: "personal", sideToken: "side"}[token])
+	u.tokens = append(u.tokens, token)
 	answers := u.answers[token]
 	if len(answers) > 1 {
 		u.answers[token] = answers[1:]
@@ -348,6 +451,13 @@ func (u *scriptedUpstream) sent() []string {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return slices.Clone(u.accounts)
+}
+
+// sentWith returns the token each request went out with, in order.
+func (u *scriptedUpstream) sentWith() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return slices.Clone(u.tokens)
 }
 
 // routeAlone has the router's proxy route a messages request of session on

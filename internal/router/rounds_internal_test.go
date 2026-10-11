@@ -453,9 +453,10 @@ func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
 			clock := &testClock{now: start}
 			files := &changingFiles{files: testTokens}
 			r := newTestRouterReading(t, clock.read, &stubProber{}, files.read)
-			// Read 40 minutes ago, side's probes have read nothing since,
-			// three in a row, the last three minutes ago: it waits eight.
-			for _, s := range []step{answered(40 * time.Minute), unread(20 * time.Minute), unread(10 * time.Minute), unread(3 * time.Minute)} {
+			// Read 30 minutes ago by a probe that couldn't read its Fable
+			// week, side's probes have read nothing since, three in a row,
+			// the last three minutes ago: it waits eight.
+			for _, s := range []step{partlyRead(30 * time.Minute), unread(20 * time.Minute), unread(10 * time.Minute), unread(3 * time.Minute)} {
 				s(r, clock)
 			}
 			clock.now = start
@@ -463,13 +464,20 @@ func TestAnAccountOnAnotherTokenIsProbedAfresh(t *testing.T) {
 			if due("side", start) {
 				t.Fatal("side due on the rounds before its token changed, want it backing off")
 			}
+			if side, _ := r.Status().Account("side"); len(side.Failures) == 0 {
+				t.Fatal("side's Fable week reads as read before its token changed, want it unread")
+			}
 
 			tt.do(r, files)
 			if !due("side", start) {
 				t.Error("side not due on the rounds, want it probed afresh on the token it goes out on now")
 			}
-			if side, _ := r.Status().Account("side"); side.Error != "" {
+			side, _ := r.Status().Account("side")
+			if side.Error != "" {
 				t.Errorf("side's error reads %q, want none: it was the token before's", side.Error)
+			}
+			if len(side.Failures) > 0 {
+				t.Errorf("side's windows unread are %+v, want none: they were the token before's", side.Failures)
 			}
 		})
 	}
@@ -692,6 +700,17 @@ func probedSide(ago time.Duration, from readings.Source) step {
 	}
 }
 
+// partlyRead has a probe of side read its session and week ago before start,
+// but not its Fable week.
+func partlyRead(ago time.Duration) step {
+	return func(r *Router, clock *testClock) {
+		clock.now = start.Add(-ago)
+		reading := probed(nil, session, week)
+		reading.Failures = []quota.Failure{{Label: "Fable", Window: fableWeek.Key, Error: errUnreadable.Error()}}
+		r.state.recordProbe("side", reading, nil, r.state.mark(), readings.FromProbe)
+	}
+}
+
 // unread has a probe of side read nothing ago before start.
 func unread(ago time.Duration) step {
 	return unreadAt(start.Add(-ago))
@@ -714,7 +733,7 @@ func refusedSide(ago time.Duration) step {
 func refusedAt(at time.Time) step {
 	return func(r *Router, clock *testClock) {
 		clock.now = at
-		r.state.refuse("side", http.StatusUnauthorized, someRequest)
+		r.state.refuse("side", http.StatusUnauthorized, someRequest, r.state.mark())
 	}
 }
 
