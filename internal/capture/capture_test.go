@@ -41,11 +41,11 @@ func TestNamesNameEveryFixtureOnceSorted(t *testing.T) {
 
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
 	f := fixture(t, "accounts-3-week")
-	want := fixture(t, "accounts-3-week")
+	keys, size := slices.Clone(f.keys), f.Size
 	f.keys[0], f.Size = tea.KeyPressMsg{Code: '2', Text: "2"}, wide(10)
 
-	if got := fixture(t, "accounts-3-week"); !reflect.DeepEqual(got.keys, want.keys) || got.Size != want.Size {
-		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, want.keys, want.Size)
+	if got := fixture(t, "accounts-3-week"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
+		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, keys, size)
 	}
 }
 
