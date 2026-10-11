@@ -13,11 +13,12 @@ It builds the dashboard's real watch model through `watch.New`, as the dashboard
 seam faked by `internal/capture`: the router's status document, sessions, history and request
 stream, the ledger's, the readings history's and the events' readers, the price table, the clock
 and its timers, the notifier, the terminal's size and background, and the themes; a fixture of
-`usage`'s printout is drawn through a path of its own, outside the watch. It never dials the
-router's socket, probes, touches the network, reads or writes the real config, themes, state,
-ledger, prefs or tokens, or runs another process, so it's safe to run beside a live router. A theme
-picked in it is kept for the run alone. Switchboard's own binary never imports `internal/capture`:
-`cmd/capturetool`'s import guard test fails if anything `cmd/switchboard` builds ever does.
+`usage`'s printout is drawn through a path of its own, outside the watch, its fake router read as
+`usage` reads one, through `watch.Once`. It never dials the router's socket, probes, touches the
+network, reads or writes the real config, themes, state, ledger, prefs or tokens, or runs another
+process, so it's safe to run beside a live router. A theme picked in it is kept for the run alone.
+Switchboard's own binary never imports `internal/capture`: `cmd/capturetool`'s import guard test
+fails if anything `cmd/switchboard` builds ever does.
 
 ## What lives here, and for how long
 

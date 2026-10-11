@@ -1,20 +1,24 @@
 package capture
 
 import (
-	"slices"
+	"context"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // printout draws the fixture as usage prints it on a terminal as wide as
-// given: from what its router gives, read directly, in its print look, as
-// tall as it is, a line for each of its rows, each ending in a newline.
+// given: its router read as usage reads one, through watch.Once, in its print
+// look, as tall as it is, a line for each of its rows, each ending in a
+// newline.
 func (f Fixture) printout(width int) string {
+	// The fixture's router answers every read, so Once never fails.
+	snap, _ := watch.Once(context.Background(), f.router, status.Read{Probe: true})
 	p := dashboard.Printout{Width: width, Look: f.printLook(), Policy: claude.Policy}
-	return strings.Join(p.Draw(f.router.snapshot(), f.now), "\n") + "\n"
+	return strings.Join(p.Draw(snap, f.now), "\n") + "\n"
 }
 
 // printLook is the look usage prints the fixture in: its theme's, painting
@@ -25,19 +29,4 @@ func (f Fixture) printLook() dashboard.Look {
 		return dashboard.NoColour()
 	}
 	return dashboard.Print(f.theme, nil)
-}
-
-// snapshot is what usage reads of the router: its document, as Read gives
-// it, the sessions it lists, and the history of its accounts' windows, each
-// as it was read.
-func (s source) snapshot() dashboard.Snapshot {
-	history := make(dashboard.History, len(s.trails))
-	for _, t := range s.trails {
-		readings := make([]score.Reading, len(t.readings))
-		for i, p := range t.readings {
-			readings[i] = score.Reading{At: p.At, Utilization: p.Utilization}
-		}
-		history[dashboard.Ref{Account: t.account, Window: t.window}] = dashboard.Trail{Start: t.start, Readings: readings}
-	}
-	return dashboard.Snapshot{Doc: s.doc.WorkedOut(claude.Policy), Sessions: slices.Clone(s.sessions), History: history}
 }
