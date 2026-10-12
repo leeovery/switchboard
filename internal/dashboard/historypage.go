@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -67,6 +68,9 @@ type HistoryPage struct {
 	WeeksShape  WeeksShape
 	TokensAsk   views.TokensAsk
 	TokensSplit TokensSplit
+	// Accounts are the configured accounts, in the config's order, which ←
+	// and → step the Year shown for one through, and whose labels name it.
+	Accounts config.Accounts
 	// Read is set once the year's days are read: till then, the view is
 	// blank.
 	Read bool
@@ -79,20 +83,33 @@ type HistoryPage struct {
 }
 
 // heading is History's heading row: its name and its sub-tabs, the one shown
-// picked out; and at its right, the Year's period, last 12 months or a
-// calendar year, and Tokens', between < and >; else eight weeks, which Weeks
-// and Days keep to.
+// picked out, set tight on a phone, as the rule Accounts and History share
+// has them; after [ ], what the Year is shown for, where it's shown for one
+// version or account; and at its right, the period of the sub-tab shown, as
+// Period names it, between < and >; else eight weeks, which Weeks and Days
+// keep to.
 func (p HistoryPage) heading() heading {
-	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown)}
-	switch p.Shown {
-	case HistoryYear:
-		h.period = yearPeriod(p.YearAsk.Year)
-	case HistoryTokens:
-		h.period = "by " + p.TokensAsk.Period.Name()
-	default:
+	h := heading{name: strings.ToUpper(History.Title()), subTabs: historyViews, shown: int(p.Shown), tight: true, state: p.state()}
+	if h.period = p.Period(); h.period == "" {
 		h.right = line{{"eight weeks", mutedInk}}
 	}
 	return h
+}
+
+// state is what the heading says after [ ] that the screen can't otherwise
+// show: on the Year shown for one version, or one account, which it shows,
+// and that v shows the rest, as "Opus 5.5 only, every account  ·  v for all,
+// a model or an account"; and nothing otherwise.
+func (p HistoryPage) state() line {
+	shown := p.yearShown()
+	if p.Shown != HistoryYear || shown == "" {
+		return nil
+	}
+	every := "every account"
+	if p.YearAsk.Account != "" {
+		every = "every model"
+	}
+	return line{{shown + " only, " + every + "  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}}
 }
 
 // yearPeriod is the Year's period as the heading names it: the calendar year
@@ -105,14 +122,17 @@ func yearPeriod(year int) string {
 }
 
 // history draws History's sub-tab shown from row top, once the year's days
-// are read: till then, the view is blank.
+// are read: till then, the view is blank. The Year is drawn whole, then as
+// many of its rows as the view has, from as far down as it's scrolled.
 func (f Frame) history(c *canvas, top int) {
 	if !f.History.Read {
 		return
 	}
 	switch f.History.Shown {
 	case HistoryYear:
-		f.historyYear(c, top)
+		year := f.wholeYear()
+		scrolled := byRows(year.height(), f.viewRows())
+		c.paste(year, scrolled.clamped(f.Scroll), top, scrolled.Page)
 	case HistoryWeeks:
 		f.historyWeeks(c, top)
 	case HistoryDays:
@@ -120,6 +140,49 @@ func (f Frame) history(c *canvas, top int) {
 	case HistoryTokens:
 		f.historyTokens(c, top)
 	}
+}
+
+// wholeYear is the Year drawn whole on a canvas of its own, from its first
+// row, as tall as it runs.
+func (f Frame) wholeYear() *canvas {
+	year := growing(f.Width)
+	f.historyYear(year, 0)
+	return year
+}
+
+// historyScrolling is how far History's sub-tab shown, from row top,
+// scrolls, scrolled to each offset given: the Year by rows, as far as it
+// runs past the view; Weeks by accounts, and Days, within BY ACCOUNT; and
+// Tokens by periods. None scrolls before its page is built.
+func (f Frame) historyScrolling(top int) func(offset int) Scrolling {
+	var s Scrolling
+	switch f.History.Shown {
+	case HistoryYear:
+		s = byRows(f.wholeYear().height(), f.viewRows())
+	case HistoryWeeks:
+		s = f.weeksScrolling()
+	case HistoryDays:
+		s = f.daysScrolling()
+	case HistoryTokens:
+		return f.tokensScrolling(top)
+	}
+	return func(int) Scrolling { return s }
+}
+
+// historyScrolls is what of History's sub-tab shown scrolls, from row y,
+// rows tall, across the frame: the Year's view whole; the accounts Weeks
+// shows, and BY ACCOUNT's on Days; and the periods Tokens shows.
+func (f Frame) historyScrolls() (y, rows int) {
+	switch f.History.Shown {
+	case HistoryWeeks:
+		return f.weeksScrolls()
+	case HistoryDays:
+		return f.daysScrolls()
+	case HistoryTokens:
+		placed, _ := f.tokensPlaced(f.top())
+		return placed.first, placed.rows
+	}
+	return f.top(), f.viewRows()
 }
 
 // moreBelow says how many more of a view's rows, each one of the thing noun

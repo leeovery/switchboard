@@ -259,6 +259,32 @@ func TestTokensNamesEachPeriodAsItIs(t *testing.T) {
 	}
 }
 
+// Tokens names each account as Weeks and Days do, by its label, else
+// its id: its row, split by account, and among those a version ran on, split
+// by model; and the requests none answered, no account.
+func TestTokensNamesTheAccountsByTheirLabels(t *testing.T) {
+	tests := []struct {
+		split TokensSplit
+		want  []string
+	}{
+		{split: TokensByAccount, want: []string{"└ Laptop      2 models", "└ personal    1 model", "└ no account  1 model"}},
+		{split: TokensByModel, want: []string{"└ opus-5-5    no account Laptop", "└ sonnet-5-5  personal Laptop"}},
+	}
+	for _, tt := range tests {
+		f := tokensFrame(160, 37, tt.split)
+		period := &f.History.Tokens.Periods[0]
+		period.ByAccount[0].Label = "Laptop"
+		period.ByAccount[2].Account = ""
+		period.ByModel[0].On = []string{"", "work"}
+		rows := tokensRowsOf(f)
+		for _, want := range tt.want {
+			if !slices.ContainsFunc(rows, func(row string) bool { return strings.HasPrefix(row, want) }) {
+				t.Errorf("split %d, Tokens reads\n%s\nwant a row starting %q", tt.split, strings.Join(rows, "\n"), want)
+			}
+		}
+	}
+}
+
 // Tokens' inks, as history-tokens-160 draws them: the heads in text.subtle;
 // a period bold text.primary, its versions' count text.muted, and against
 // its price bold, state.positive at 1× or more and accent.attention under,

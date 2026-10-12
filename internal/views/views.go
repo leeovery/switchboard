@@ -22,6 +22,15 @@ type LedgerDays interface {
 	Days(from time.Time) []ledger.Summary
 }
 
+// LedgerStart tells where the request ledger begins, as a ledger.Follower
+// does: History's Year steps back through the calendar years from its
+// first.
+type LedgerStart interface {
+	// FirstDay gives the start of the first local day the ledger holds, at
+	// now, failing where it holds none.
+	FirstDay(now time.Time) (time.Time, error)
+}
+
 // Ledger reads the request ledger where it lies, with no router, as it
 // grows, as a ledger.Follower does.
 type Ledger interface {

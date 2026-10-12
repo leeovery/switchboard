@@ -90,37 +90,66 @@ func (f Frame) weeksScrolling() Scrolling {
 	return Scrolling{Most: max(len(p.Accounts)-page, 0), Page: page}
 }
 
-// weeksPage is how many accounts Weeks shows at once: in the table, those
-// that fit from their row to the one over the scroll line, over the legend;
-// in columns, the blocks that fit after every account's, the last one's
-// dates under it; and on a phone, those that fit under the verdict and the
-// table's heads to the scroll line, the view's last row. It's one at least.
-func (f Frame) weeksPage(w weeksDrawn) int {
+// weeksScrolls is what of Weeks scrolls, from row y, rows tall: the rows of
+// the accounts it shows, from the first's, none before its page is built or
+// a whole week recorded.
+func (f Frame) weeksScrolls() (y, rows int) {
+	p := f.History.Weeks
+	if p == nil || p.Capacity.Weeks == 0 {
+		return 0, 0
+	}
+	w := f.weeksDrawn(*p)
+	if rows = f.weeksPage(w); w.columns {
+		rows *= blockRows
+	}
+	return f.weeksFirst(w), rows
+}
+
+// weeksFirst is the row of the first account Weeks shows: under the table's
+// every account's, after the verdict, or on a phone, after the verdict's
+// rows; or in columns, the first block after every account's.
+func (f Frame) weeksFirst(w weeksDrawn) int {
 	top := f.top()
-	foot := top + f.viewRows() - 1
 	switch {
 	case f.phone():
-		return max(foot-(top+len(w.phoneVerdict())+1+weeksFirstRow-weeksHeadRow), 1)
+		return top + len(w.phoneVerdict()) + 1 + weeksFirstRow - weeksHeadRow
 	case w.columns:
-		return max((foot-top-blockRows)/blockRows, 1)
+		return top + blockRows
 	}
-	return max(foot-1-(top+weeksFirstRow), 1)
+	return top + weeksFirstRow
+}
+
+// weeksPage is how many accounts Weeks shows at once, from the first's row:
+// in the table, those that fit to the one over the scroll line, over the
+// legend; in columns, the blocks that fit, the last one's dates under it;
+// and on a phone, those that fit to the scroll line, the view's last row.
+// It's one at least.
+func (f Frame) weeksPage(w weeksDrawn) int {
+	first, foot := f.weeksFirst(w), f.top()+f.viewRows()-1
+	switch {
+	case f.phone():
+		return max(foot-first, 1)
+	case w.columns:
+		return max((foot-first)/blockRows, 1)
+	}
+	return max(foot-1-first, 1)
 }
 
 // weeksShown is the accounts of the page Weeks shows, scrolled as the frame
-// has it, page of them at once; and how many more there are below.
-func (f Frame) weeksShown(w weeksDrawn) (shown []views.WeeksRow, below int) {
+// has it, page of them at once; and how many more there are above them, and
+// below.
+func (f Frame) weeksShown(w weeksDrawn) (shown []views.WeeksRow, above, below int) {
 	page := f.weeksPage(w)
 	at := min(max(f.Scroll, 0), max(len(w.page.Accounts)-page, 0))
 	end := min(at+page, len(w.page.Accounts))
-	return w.page.Accounts[at:end], len(w.page.Accounts) - end
+	return w.page.Accounts[at:end], at, len(w.page.Accounts) - end
 }
 
-// accountsBelow draws, on row y, how many more accounts there are below
-// those shown, where there are any.
-func (weeksDrawn) accountsBelow(c *canvas, y, below int) {
-	if below > 0 {
-		c.line(0, y, accountsOutOfView(0, below))
+// accountsOut draws, on row y, how many more accounts there are above those
+// shown, and below, where there are any, as Days and USAGE say it.
+func (weeksDrawn) accountsOut(c *canvas, y, above, below int) {
+	if above+below > 0 {
+		c.line(0, y, accountsOutOfView(above, below))
 	}
 }
 
@@ -131,9 +160,9 @@ func (f Frame) weeksTable(c *canvas, w weeksDrawn, top, foot int) {
 	c.line(0, top, w.headline())
 	w.put(c, 0, top+1, joined(span{"   ·   ", dimInk}, slices.Concat([]line{w.asNow()}, w.replays())...))
 	w.put(c, 0, top+2, w.thirdRow())
-	shown, below := f.weeksShown(w)
+	shown, above, below := f.weeksShown(w)
 	w.table(c, top+weeksHeadRow, len(w.page.Weeks), shown, true)
-	w.accountsBelow(c, foot-1, below)
+	w.accountsOut(c, foot-1, above, below)
 	c.line(0, foot, w.legend())
 }
 
@@ -174,7 +203,7 @@ func (f Frame) weeksColumns(c *canvas, w weeksDrawn, top, foot int) {
 	for i, l := range w.allAside() {
 		w.put(c, verdictsAt, top+i, l)
 	}
-	shown, below := f.weeksShown(w)
+	shown, above, below := f.weeksShown(w)
 	y := top
 	for _, row := range shown {
 		y += blockRows
@@ -187,7 +216,7 @@ func (f Frame) weeksColumns(c *canvas, w weeksDrawn, top, foot int) {
 	for i := range w.page.Weeks {
 		c.line(peaksFrom+peaksApart*i, y+columnRows+1, w.head(i))
 	}
-	w.accountsBelow(c, foot-1, below)
+	w.accountsOut(c, foot-1, above, below)
 	c.line(0, foot, w.legend())
 }
 
@@ -199,9 +228,9 @@ func (f Frame) weeksOnAPhone(c *canvas, w weeksDrawn, top, foot int) {
 	for i, l := range verdict {
 		c.line(0, top+i, l)
 	}
-	shown, below := f.weeksShown(w)
+	shown, above, below := f.weeksShown(w)
 	w.table(c, top+len(verdict)+1, min(weeksPhoneWeeks, len(w.page.Weeks)), shown, false)
-	w.accountsBelow(c, foot, below)
+	w.accountsOut(c, foot, above, below)
 }
 
 // weeksDrawn is Weeks' page as it's drawn: in columns, or as a table, its

@@ -38,11 +38,12 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 
 // clickedOn does what a click on the target does, which is what its key
 // does, the page acting as acting has it: on a tab, it shows it, unless the
-// theme picker is open, as the tab key does nothing then; on a key of the
-// key line, it presses it, as pressOf says; on an Overview's section's
-// heading, it hides the section, as its key does; and on an account's row
-// there, it moves the focus to it, as focusOn has it. Nothing else on the
-// page takes a click yet.
+// theme picker is open, as the tab key does nothing then; on a sub-tab, it
+// shows it, as showSubTab has it; on < or > by a period, it presses it; on a
+// key of the key line, it presses it, as pressOf says; on an Overview's
+// section's heading, it hides the section, as its key does; and on an
+// account's row there, it moves the focus to it, as focusOn has it. Nothing
+// else on the page takes a click yet.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	switch t.On {
 	case dashboard.OnTab:
@@ -50,6 +51,10 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.acting().showTab(t.Tab), nil
+	case dashboard.OnSubTab:
+		return m.acting().showSubTab(t.SubTab), nil
+	case dashboard.OnStep:
+		return m.pressed(stepPress(t.Step))
 	case dashboard.OnKey:
 		if press, ok := pressOf(t.Key); ok {
 			return m.pressed(press)
@@ -69,13 +74,25 @@ func (m Model) onPicker(x int) bool {
 }
 
 // namedPresses are the presses of the keys the key line names by a word or
-// by a pair of arrows. A pair, which moves either way, is pressed as the way
-// on: ↓.
+// by a pair. A pair, which moves either way, is pressed as the way on: ↓, ],
+// > and →.
 var namedPresses = map[string]tea.KeyPressMsg{
 	"tab":   {Code: tea.KeyTab},
 	"enter": {Code: tea.KeyEnter},
 	"esc":   {Code: tea.KeyEscape},
 	"↑↓":    {Code: tea.KeyDown},
+	"[ ]":   {Code: ']', Text: "]"},
+	"< >":   {Code: '>', Text: ">"},
+	"←→":    {Code: tea.KeyRight},
+}
+
+// stepPress is the press of the key that steps a period the way given, as
+// a click on < or > by it does: < back, for -1, and > on.
+func stepPress(way int) tea.KeyPressMsg {
+	if way < 0 {
+		return tea.KeyPressMsg{Code: '<', Text: "<"}
+	}
+	return namedPresses["< >"]
 }
 
 // pressOf is the key press a click on a key of the key line, named as the

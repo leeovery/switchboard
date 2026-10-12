@@ -72,20 +72,21 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 		}
 	case nothingOpen:
 		if f, at := m.onScreen(); f.Under(m.doc, at, msg.X, msg.Y) == dashboard.UnderView {
-			return m.scrollView(m.notch(way))
+			return m.scrollView(notch(f, way))
 		}
 	}
 	return m
 }
 
-// notch is how far a turn of the wheel the way given scrolls the view shown:
-// on the Overview, an account, as its USAGE scrolls an account at a time, as
-// j and k do; else wheelRows rows.
-func (m Model) notch(way int) scrollStep {
-	if m.view == dashboard.Overview {
-		return scrollStep{rows: way}
+// notch is how far a turn of the wheel the way given scrolls the view f
+// shows: wheelRows rows, where it scrolls a row at a time; else a thing, as
+// j and k do, as the Overview's USAGE scrolls an account at a time, and
+// History's Tokens a period.
+func notch(f dashboard.Frame, way int) scrollStep {
+	if f.ScrollsRows() {
+		return scrollStep{rows: way * wheelRows}
 	}
-	return scrollStep{rows: way * wheelRows}
+	return scrollStep{rows: way}
 }
 
 // scrollView scrolls the view shown by, the page acting as acting has it

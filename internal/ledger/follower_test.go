@@ -539,6 +539,22 @@ func TestASessionsLinesFiledUnderTheDayAfterTodaysAreRead(t *testing.T) {
 	}
 }
 
+// FirstDay tells the start of the first day the ledger holds, as Days reads
+// from it, failing with fs.ErrNotExist while it holds none.
+func TestTheFollowerTellsTheFirstDayTheLedgerHolds(t *testing.T) {
+	state, dir, _ := stateDirs(t)
+	at := on(0, 12, 0)
+	follower := followerOf(state, &testClock{at: at}, caps)
+	if _, err := follower.FirstDay(at); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("FirstDay() of a ledger holding nothing fails with %v, want fs.ErrNotExist", err)
+	}
+	holdLines(t, dir, "2026-10-03", asked("1", on(-2, 9, 0)))
+	holdLines(t, dir, "2026-10-04", asked("2", on(-1, 9, 0)))
+	if got, err := follower.FirstDay(at); err != nil || !got.Equal(on(-2, 0, 0)) {
+		t.Errorf("FirstDay() = %v, %v; want the start of 3 October", got, err)
+	}
+}
+
 func TestTheFirstDayTheLedgerHoldsIsHeldUntilItsDirectoryChanges(t *testing.T) {
 	at := on(0, 12, 0)
 	tests := []struct {

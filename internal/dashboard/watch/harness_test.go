@@ -72,11 +72,17 @@ func newHarness(t *testing.T, doc status.Document) *harness {
 func unsizedHarness(t *testing.T, doc status.Document, size Size) *harness {
 	t.Helper()
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: doc}, notifier: &fakeNotifier{}}
-	h.model = New(t.Context(), Config{
+	h.model = New(t.Context(), h.config(size))
+	return h
+}
+
+// config is the watch's config the harness's models are made of, drawing
+// at size till the terminal gives its own, reading an empty ledger.
+func (h *harness) config(size Size) Config {
+	return Config{
 		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await,
 		Interval: interval, Policy: policy, Size: size, Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
-	})
-	return h
+	}
 }
 
 // arm records a timer instead of starting one.

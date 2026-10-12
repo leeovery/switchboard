@@ -117,6 +117,17 @@ func (l heldLedger) Days(from time.Time) []ledger.Summary {
 	return append(days, summary)
 }
 
+// FirstDay gives the start of the first day the records hold a summary of,
+// else today's, as a Follower finds the first day its files are of.
+func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {
+	first := dayfile.DateOf(now)
+	if len(l.records.days) > 0 {
+		first = min(first, l.records.days[0].Day)
+	}
+	start, _, _ := dayfile.Day(first)
+	return start, nil
+}
+
 // Today gives every line that arrived from today's start to now, oldest
 // first, as a Follower orders them, afresh, whatever mark says, as a Follower
 // gives them where today's files were replaced: a ledger.Mark is the ledger

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"slices"
@@ -198,8 +199,9 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 			rows = append(rows, split.ofAccount(a))
 		}
 	case TokensByModel:
+		named := tokensAccounts(t.ByAccount)
 		for _, m := range t.ByModel {
-			rows = append(rows, split.ofModel(m, "└ ").on(m.On))
+			rows = append(rows, split.ofModel(m, "└ ").on(m.On, named))
 		}
 	case TokensByAccountAndModel:
 		for _, a := range t.ByAccount {
@@ -217,7 +219,7 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 // ofAccount is the row, as split, of an account: its name, its versions'
 // count, its counts and its worth.
 func (r tokensRow) ofAccount(a views.AccountTokens) tokensRow {
-	r.name = line{{"└ ", faintInk}, {tokensAccount(a.Account), secondaryInk}}
+	r.name = line{{"└ ", faintInk}, {tokensAccount(a), secondaryInk}}
 	r.of, r.ofIs = line{{prose.Counted(len(a.ByModel), "model"), dimInk}}, "models"
 	r.tokens, r.worth, r.account = a.Tokens, a.Worth, a.Account
 	return r
@@ -231,24 +233,34 @@ func (r tokensRow) ofModel(m views.ModelTokens, branch string) tokensRow {
 	return r
 }
 
-// on is the row naming the accounts given, those its version ran on, at the
-// split's column.
-func (r tokensRow) on(accounts []string) tokensRow {
+// on is the row naming the accounts given, by their ids, those its version
+// ran on, at the split's column, each as named names it, else by its id.
+func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
 	names := make([]string, len(accounts))
 	for i, id := range accounts {
-		names[i] = tokensAccount(id)
+		names[i] = cmp.Or(named[id], tokensAccount(views.AccountTokens{Account: id}))
 	}
 	r.of, r.ofIs = line{{strings.Join(names, " "), dimInk}}, "on"
 	return r
 }
 
-// tokensAccount is an account's name as Tokens shows it, cleaned: "no
-// account" for the requests none answered.
-func tokensAccount(id string) string {
-	if id == "" {
+// tokensAccount is an account's name as Tokens shows it: its label, cleaned,
+// as Weeks and Days name it, else its id; "no account" for the requests none
+// answered.
+func tokensAccount(a views.AccountTokens) string {
+	if a.Account == "" {
 		return "no account"
 	}
-	return status.Clean(id)
+	return status.Clean(cmp.Or(a.Label, a.Account))
+}
+
+// tokensAccounts are the accounts' names, as Tokens shows them, by their ids.
+func tokensAccounts(accounts []views.AccountTokens) map[string]string {
+	named := make(map[string]string, len(accounts))
+	for _, a := range accounts {
+		named[a.Account] = tokensAccount(a)
+	}
+	return named
 }
 
 // periodName names a period by its first day, as 28 Sep, or by day its day,
