@@ -368,6 +368,29 @@ func TestROUTINGIsBesideUSAGEOnlyWhereBothShowByAccountFrom150Columns(t *testing
 	}
 }
 
+func TestAcrossAResetBetweenReadsROUTINGUSAGEAndTheRoutingCardAgree(t *testing.T) {
+	// Work is at its cap in its 5-hour, read at 14:42, which resets at 17:10.
+	doc, _ := autoRouting()
+	work, reset := doc.Accounts[0], routedClock(1, 17, 10)
+	f := Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike}
+	tests := []struct {
+		name   string
+		now    time.Time
+		capped bool
+	}{
+		{name: "a moment before it resets", now: reset.Add(-time.Second), capped: true},
+		{name: "a moment after, before it's read again", now: reset.Add(time.Second)},
+	}
+	for _, tt := range tests {
+		routing := f.routingTableOf(doc, tt.now).accounts[0].standing.Kind == status.RoutingCapped
+		usage := strings.HasPrefix(wordsOf(doc.WindowStateOf(work, "5h", tt.now), quota.Allowance{}, tt.now).full.plain(), "at cap")
+		card := RoutingRows(doc, nil, tt.now, claudeLike)[1].Capped
+		if routing != tt.capped || usage != tt.capped || card != tt.capped {
+			t.Errorf("%s: ROUTING capped %t, USAGE's words %t, the routing card %t; want each %t", tt.name, routing, usage, card, tt.capped)
+		}
+	}
+}
+
 func TestAnAccountsSessionsAreTheListingsElseTheDocuments(t *testing.T) {
 	doc, sessions := autoRouting()
 	doc.Accounts[0].Sessions, doc.Accounts[1].Sessions, doc.Accounts[2].Sessions = 7, 1, 0

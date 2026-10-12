@@ -1,6 +1,7 @@
 package status
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -71,7 +72,7 @@ func (d Document) WindowStateOf(a Account, key string, now time.Time) WindowStat
 	switch {
 	case held && hold.Holds(key):
 		state.Kind, state.At = WindowLimited, hold.Lifts(key)
-	case d.ReserveHolds(a) && score.HeldByReserve(w, a.Reserve) && !w.ResetBy(now):
+	case d.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), key):
 		state.Kind, state.At = WindowCapped, w.ResetsAt
 	case runsOut:
 		state.Kind, state.At = WindowRunsOut, out.At

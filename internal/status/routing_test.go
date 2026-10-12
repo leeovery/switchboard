@@ -253,7 +253,7 @@ func TestROUTINGAndAnAccountsStateJudgeItsCapAlike(t *testing.T) {
 		{name: "at its reserve", session: 0.9, built: stateNow, now: stateNow, capped: true},
 		{name: "past it", session: 0.95, built: stateNow, now: stateNow, capped: true},
 		{name: "a moment before the session resets", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(-time.Second), capped: true},
-		{name: "a moment after it resets, before it's read again", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(time.Second), capped: true},
+		{name: "a moment after it resets, before it's read again", session: 0.95, built: reset.Add(-10 * time.Second), now: reset.Add(time.Second)},
 	}
 	for _, tt := range tests {
 		for _, noted := range []bool{true, false} {
@@ -266,20 +266,19 @@ func TestROUTINGAndAnAccountsStateJudgeItsCapAlike(t *testing.T) {
 			want := [2]bool{tt.capped, !tt.capped}
 			got := [2]bool{routing == status.RoutingCapped && state == status.Reserved, routing == status.RoutingOpen && state == status.Open}
 			if got != want {
-				t.Errorf("%s, the router noting its reserve %t: ROUTING says %d, its state %d; want both capped %t", tt.name, noted, routing, state, tt.capped)
+				t.Errorf("%s, the router noting its reserve as built %t: ROUTING says %d, its state %d; want both capped %t", tt.name, noted, routing, state, tt.capped)
 			}
 		}
 	}
 }
 
-func TestAnAccountAtItsCapIsBackAsItWasLastRead(t *testing.T) {
+func TestAnAccountAtItsCapIsOpenOnTheTickItsWindowResets(t *testing.T) {
 	built := at(1, 17, 9)
 	a := with(readNow(0.95, 0.3, 0), func(a *status.Account) { a.Reserve = 0.1 }).AsOf(policy, built)
 	doc := status.Document{GeneratedAt: built.UTC(), Source: status.SourceRouter, Accounts: []status.Account{a}}
-	// A moment after its session resets, before it's read again.
-	got := doc.RoutingOf(a, at(1, 17, 11), policy)
-	if want := []string{"back 17:10", "new sessions go elsewhere"}; got.Kind != status.RoutingCapped || !slices.Equal(got.Clauses, want) {
-		t.Errorf("RoutingOf() = %+v, want at its cap, %q", got, want)
+	// A moment after its session resets at 17:10, before it's read again.
+	if got := doc.RoutingOf(a, at(1, 17, 10).Add(time.Second), policy); got.Kind != status.RoutingOpen || len(got.Clauses) > 0 {
+		t.Errorf("RoutingOf() = %+v, want open, no time to be back", got)
 	}
 }
 

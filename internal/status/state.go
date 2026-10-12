@@ -85,8 +85,8 @@ func (d Document) StateOf(a Account, now time.Time, policy score.Policy) State {
 	if unread, ok := a.Unread(); ok {
 		return unread
 	}
-	if reserved := d.Reserved(a); reserved != "" {
-		return d.reservedState(a, reserved, policy)
+	if reserved := d.Reserved(a, now); reserved != "" {
+		return d.reservedState(a, reserved, now, policy)
 	}
 	if a.Pressure.Under {
 		return d.pressed(a, now)
@@ -129,8 +129,8 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 		return State{Condition: Limited, Says: "limit reached", Then: then}, true
 	case refused && a.Refused.Family == "":
 		return State{Condition: Limited, Says: a.Refused.Answer(), Then: "until " + Dated(now, a.Refused.Until)}, true
-	case (limited || refused) && d.capHolds(a, policy):
-		return d.reservedState(a, d.Reserved(a), policy), true
+	case (limited || refused) && d.CapHolds(a, now, policy):
+		return d.reservedState(a, d.Reserved(a, now), now, policy), true
 	case limited:
 		says := Short(a.label(held.Windows[0])) + " limit"
 		return State{Condition: PartlyLimited, Says: says, Then: dotted(back(now, held.Until), stillComes)}, true
@@ -144,15 +144,15 @@ func (d Document) heldBack(a Account, now time.Time, policy score.Policy) (State
 // requests alone, while another model's can still go there.
 const stillComes = "other models still come here"
 
-// reservedState is the state of account a at its reserve, as Reserved says
-// it: held back from every request where a window every model shares has
-// reached it, or spending it, the global pin naming the account; else from
-// some models' requests alone, their own window naming them, which says
-// other models still come here, as in "Fable wk at its reserve (90%) ·
+// reservedState is the state of account a at its reserve at now, as
+// Reserved says it: held back from every request where a window every model
+// shares has reached it, or spending it, the global pin naming the account;
+// else from some models' requests alone, their own window naming them, which
+// says other models still come here, as in "Fable wk at its reserve (90%) ·
 // other models still come here".
-func (d Document) reservedState(a Account, reserved string, policy score.Policy) State {
+func (d Document) reservedState(a Account, reserved string, now time.Time, policy score.Policy) State {
 	s := State{Condition: Reserved, Says: reserved}
-	keys := d.atReserve(a)
+	keys := a.ReachedReserve(now)
 	if d.Pin.Has(a.ID) || slices.ContainsFunc(keys, policy.IsShared) {
 		return s
 	}
@@ -160,24 +160,21 @@ func (d Document) reservedState(a Account, reserved string, policy score.Policy)
 	return s
 }
 
-// atReserve are the keys of account a's windows that have reached its
-// reserve, as doc judges them as of when it was built, in Usage's order: as
-// the router noted them, where it noted any; else as the router reckons
-// them, of its windows as read. A document the router built noting none
-// reckons none, as the router reckoned them of the same windows at the same
-// moment.
-func (d Document) atReserve(a Account) []string {
-	if a.AtReserve != nil {
-		return a.AtReserve
-	}
-	return score.AtReserve(a.Windows, a.Reserve, d.GeneratedAt)
+// ReachedReserve are the keys of account a's windows that have reached its
+// reserve at now, in Usage's order, as the router judges them afresh at each
+// request: a window that has reset by now is none of them, though it isn't
+// read again till later. Whatever says whether its cap holds judges it so, on
+// the clock's tick, rather than as AtReserve noted it when the document was
+// built.
+func (a Account) ReachedReserve(now time.Time) []string {
+	return score.AtReserve(a.Windows, a.Reserve, now)
 }
 
-// capHolds reports whether account a's cap holds it back from every request:
-// a window every model shares, as policy says, has reached its reserve, as
-// atReserve judges, and the global pin doesn't spend it.
-func (d Document) capHolds(a Account, policy score.Policy) bool {
-	return d.ReserveHolds(a) && slices.ContainsFunc(d.atReserve(a), policy.IsShared)
+// CapHolds reports whether doc's account a's cap holds it back from every
+// request at now: a window every model shares, as policy says, has reached
+// its reserve, as ReachedReserve judges, and the global pin doesn't spend it.
+func (d Document) CapHolds(a Account, now time.Time, policy score.Policy) bool {
+	return d.ReserveHolds(a) && slices.ContainsFunc(a.ReachedReserve(now), policy.IsShared)
 }
 
 // back says when an account held back at now has room again, at t, as in
