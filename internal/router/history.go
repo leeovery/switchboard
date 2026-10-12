@@ -3,7 +3,6 @@ package router
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"iter"
 	"slices"
 	"sync/atomic"
@@ -14,21 +13,16 @@ import (
 	"github.com/leeovery/switchboard/internal/readings"
 )
 
-// historyQueue is how many takings in of readings, an answer's or a probe's
-// each, can wait to be written. Past that, their readings are dropped from
-// the history rather than hold the router up.
-const historyQueue = 1024
-
 // history is the readings history: each change to an account's windows, as
 // the router takes its readings in, a JSON line in a file a day, by local
 // date, in the state directory, compressed once its day ended two days
 // before, and kept as long as the config says, as dayfile keeps them, in the
-// format internal/readings owns. It's for looking back at how the accounts
-// were used, and for the recent rates, which the router takes up from it as
-// it starts. Noting a reading never holds the router up: the readings queue
-// for run's goroutine, which writes them. A write that fails is logged, once
-// until one succeeds, and the reading goes unwritten: the history never
-// stands in routing's way.
+// format internal/readings owns, written by its Writer. It's for looking back
+// at how the accounts were used, and for the recent rates, which the router
+// takes up from it as it starts. Noting a reading never holds the router up:
+// the readings queue for run's goroutine, where the writer writes them. A
+// write that fails is logged, once until one succeeds, and the reading goes
+// unwritten: the history never stands in routing's way.
 type history struct {
 	now func() time.Time
 	// keep is how long a day's file is kept, from the end of its day.
@@ -42,11 +36,8 @@ type history struct {
 	// noted to them: both are made as the history is opened, once the router
 	// has its state directory, before run starts.
 	files  *dayfile.Files
-	writer *dayfile.Writer[[]readings.Reading]
+	writer *readings.Writer
 	opened atomic.Bool
-	// unmarshalled is set once a reading couldn't be put as a line, which is
-	// logged once. Only run's goroutine touches it.
-	unmarshalled bool
 }
 
 // newHistory returns a history kept as settings say, by now's clock: a zero
@@ -58,7 +49,7 @@ func newHistory(settings config.History, now func() time.Time) *history {
 // open has the history kept in dir from now on.
 func (h *history) open(dir string) {
 	h.files = readings.Files(dir, logger)
-	h.writer = dayfile.NewWriter(h.files, h.lines, dayfile.WriterOptions{Queue: historyQueue, Keep: h.keep, Now: h.now, Items: "readings", Pruning: h.pruning})
+	h.writer = readings.Open(h.files, h.keep, h.now, h.pruning)
 	h.opened.Store(true)
 }
 
@@ -76,25 +67,6 @@ func (h *history) note(taken []readings.Reading) {
 // writer's Run does, until ctx ends.
 func (h *history) run(ctx context.Context) {
 	h.writer.Run(ctx)
-}
-
-// lines returns taken as the history's lines, each filed under the local day
-// it was read on. A reading that can't be put as a line, as one of a use that
-// isn't a number, goes unwritten, logged once.
-func (h *history) lines(taken []readings.Reading) dayfile.Lines {
-	lines := make(dayfile.Lines)
-	for _, r := range taken {
-		line, err := json.Marshal(r)
-		if err != nil {
-			if !h.unmarshalled {
-				logger.Warn("readings history can't hold a reading; it goes unwritten", "account", r.Account, "window", r.Key, "error", err)
-			}
-			h.unmarshalled = true
-			continue
-		}
-		lines.Add(r.At, line)
-	}
-	return lines
 }
 
 // readBack returns the readings the history's two newest days hold, taken at

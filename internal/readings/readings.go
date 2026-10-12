@@ -1,9 +1,10 @@
 // Package readings is the readings history's format: a line for each reading
 // that changed how a window of an account reads, its use, its reset or its
 // status, in files a day in a directory of the state directory, as
-// internal/dayfile keeps them, and reading them back. The router writes the
-// history and takes it up as it starts, and the request ledger summarises its
-// days with it, whether or not the router runs, a Day's as it grows.
+// internal/dayfile keeps them, writing them and reading them back. Its Writer
+// writes the history for the router, which takes it up as it starts, and the
+// request ledger summarises its days with it, whether or not the router runs,
+// a Day's as it grows.
 package readings
 
 import (
