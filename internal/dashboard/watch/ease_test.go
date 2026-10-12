@@ -207,6 +207,26 @@ func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
 	}
 }
 
+// USAGE draws a window of an account without a usable token as an empty
+// bar, whatever was read of it before: a read that empties it moves nothing
+// on screen, so it eases nothing and starts no frames.
+func TestAReadLeavingABarEmptyStartsNoFrames(t *testing.T) {
+	using := func(a *status.Account) { a.Windows[0].Utilization = 0.75 }
+	h := tenOnAShortScreen(t, tenWith(using))
+	tokenless := func(a *status.Account) {
+		using(a)
+		a.TokenSet = false
+	}
+	h.startRouter(tenWith(tokenless, "work"))
+	seen := h.tickUntilAsked()
+	if got := h.model.ease.eased(h.model.frame(seen), h.model.doc, seen); len(got) > 0 {
+		t.Errorf("the read eased %v, want no bar easing, work's left empty", got)
+	}
+	if _, framing := h.pendingFrame(); framing {
+		t.Error("a read leaving work's bars empty started frames")
+	}
+}
+
 // drawnAfresh is the screen as View draws it of the model as it stands,
 // keeping nothing Update drew.
 func (h *harness) drawnAfresh() string {

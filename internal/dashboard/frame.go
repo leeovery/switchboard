@@ -108,36 +108,53 @@ type Frame struct {
 	built  *sectionsBuilt
 }
 
+// docAt is a document at a moment, as a frame's pool is judged and its
+// sections built of: the document known by when it was generated.
+type docAt struct {
+	generated, at time.Time
+}
+
+// docAtOf is doc at now, as docAt has it.
+func docAtOf(doc status.Document, now time.Time) docAt {
+	return docAt{generated: doc.GeneratedAt, at: now}
+}
+
+// is reports whether d is doc at now.
+func (d docAt) is(doc status.Document, now time.Time) bool {
+	return d.generated.Equal(doc.GeneratedAt) && d.at.Equal(now)
+}
+
 // poolJudged is the pool of a document as Judged judges it at a moment:
 // judged once, the first time it's asked for.
 type poolJudged struct {
-	at   time.Time
+	of   docAt
 	pool func() status.Pool
 }
 
 // Judged is the frame with the pool of doc judged at now once, as its Policy
 // judges it, the first time a look asks, and shared by every look it, or a
 // copy of it, takes of doc at now after: wherever the Overview reads it, and
-// the bars eased to it, as Filled has them. A frame judged at now already is
-// as it was; a look at another moment judges it afresh.
+// the bars eased to it, as Filled has them. A frame judged of doc at now
+// already is as it was; a look at another moment, or of another document,
+// judges it afresh.
 func (f Frame) Judged(doc status.Document, now time.Time) Frame {
-	if f.judges(now) {
+	if f.judges(doc, now) {
 		return f
 	}
 	policy := f.Policy
-	f.judged = &poolJudged{at: now, pool: sync.OnceValue(func() status.Pool { return doc.PoolAt(now, policy) })}
+	f.judged = &poolJudged{of: docAtOf(doc, now), pool: sync.OnceValue(func() status.Pool { return doc.PoolAt(now, policy) })}
 	return f
 }
 
-// judges reports whether the frame has judged its document's pool at now.
-func (f Frame) judges(now time.Time) bool {
-	return f.judged != nil && f.judged.at.Equal(now)
+// judges reports whether the frame has judged the pool of doc at now.
+func (f Frame) judges(doc status.Document, now time.Time) bool {
+	return f.judged != nil && f.judged.of.is(doc, now)
 }
 
-// pool is the pool of doc at now: as Judged judged it, where it judged it at
-// now, else judged afresh, as the frame's Policy judges it.
+// pool is the pool of doc at now: as Judged judged it, where it judged it of
+// doc at now, else judged afresh, as the frame's Policy judges it.
 func (f Frame) pool(doc status.Document, now time.Time) status.Pool {
-	if f.judges(now) {
+	if f.judges(doc, now) {
 		return f.judged.pool()
 	}
 	return doc.PoolAt(now, f.Policy)

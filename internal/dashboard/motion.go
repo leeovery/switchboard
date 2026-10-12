@@ -60,8 +60,9 @@ func (f Frame) MaySettle() bool {
 // pool's by its key alone, for a watch to ease each bar from and to: on the
 // Overview, as USAGE draws them, each account's window as it stands at now,
 // which reads empty once it has reset since it was read, and the pool's as
-// the frame judges it at now; on Sessions, as last read; and none on a view
-// that draws no bar.
+// the frame judges it at now, but none of a bar USAGE draws empty, which has
+// nothing to ease; on Sessions, as last read; and none on a view that draws
+// no bar.
 func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
 	switch f.View {
 	case Overview:
@@ -79,7 +80,9 @@ func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float6
 	for _, a := range doc.Accounts {
 		states := doc.WindowStatesOf(a, now)
 		for _, w := range a.Windows {
-			filled[Ref{Account: a.ID, Window: w.Key}] = states.Of(w.Key).Used
+			if st := states.Of(w.Key); !drawsEmpty(st) {
+				filled[Ref{Account: a.ID, Window: w.Key}] = st.Used
+			}
 		}
 	}
 	for _, p := range f.pool(doc, now).Windows {
