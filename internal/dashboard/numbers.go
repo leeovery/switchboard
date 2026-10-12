@@ -32,6 +32,13 @@ const (
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
+	// NumberTokens is a figure of Tokens' period still running, by its
+	// column, as "input" or "against".
+	NumberTokens
+	// NumberTokensSplit is a figure of a row Tokens splits its period still
+	// running into: of an account, or of a model version, by its id before
+	// the column, as "claude-opus-5-5 input", or of both.
+	NumberTokensSplit
 )
 
 // Number names a number the page draws, which brightens as it changes:
