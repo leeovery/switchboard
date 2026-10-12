@@ -55,7 +55,7 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	case key.Off:
 		return m.noting(status.ErrNoRouter.Error())
 	}
-	picked, _ := m.standing()
+	picked := m.standing()
 	rows := m.routingRows(m.now())
 	cursor := max(slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return slices.Contains(picked, row.Account) }), 0)
 	m.routing = routing{card: m.routing.card + 1, cursor: cursor, priced: pricing{listing: m.routing.priced.listing}}
@@ -63,34 +63,41 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 }
 
 // standing are the ids of the accounts the pin standing now names, in the
-// config's order: those it can be sent with, sendable, which have a usable
-// token, as the router refuses a pin naming any without, as one that lost
-// its token since it was pinned; and every one, named. One held at its
-// limit, or its token refused, can be sent, as the router takes it.
-func (m Model) standing() (sendable, named []string) {
+// config's order, whether they can be picked or not.
+func (m Model) standing() []string {
+	var ids []string
 	for _, a := range m.doc.Accounts {
-		if !m.doc.Pin.Has(a.ID) {
-			continue
-		}
-		named = append(named, a.ID)
-		if a.TokenSet {
-			sendable = append(sendable, a.ID)
+		if m.doc.Pin.Has(a.ID) {
+			ids = append(ids, a.ID)
 		}
 	}
-	return sendable, named
+	return ids
+}
+
+// sendable are the ids given that a pin can be sent with, in the config's
+// order: those of the accounts with a usable token, as the router refuses a
+// pin naming any without, as one that lost its token since it was pinned.
+// One held at its limit, or its token refused, can be sent, as the router
+// takes it.
+func (m Model) sendable(ids []string) []string {
+	var sent []string
+	for _, a := range m.doc.Accounts {
+		if a.TokenSet && slices.Contains(ids, a.ID) {
+			sent = append(sent, a.ID)
+		}
+	}
+	return sent
 }
 
 // picks are the ids of the accounts the routing card picks, in the config's
 // order, none picking auto: those a key picked, once one has; till then,
-// those the pin standing now can be sent with, as standing says, so a card
-// opened before an order lands, or before a pin's set from the command
-// line, follows the pin.
+// those the pin standing now names, so a card opened before an order lands,
+// or before a pin's set from the command line, follows the pin.
 func (m Model) picks() []string {
 	if m.routing.chosen {
 		return m.routing.picked
 	}
-	picked, _ := m.standing()
-	return picked
+	return m.standing()
 }
 
 // routingKey acts on a key while the routing card is open, which takes
@@ -169,20 +176,20 @@ func toggled(picked []string, id string, rows []dashboard.RoutingRow) []string {
 	return ids
 }
 
-// apply gives the router the picks, as enter does: the accounts picked, in
-// the config's order, moving the sessions running as m is ticked; or, with
-// none picked, auto, which moves none, m ticked or not. Where it changes
-// nothing, it sends nothing, and closes the card.
+// apply gives the router the picks, as enter does: the accounts picked
+// that can be sent, as sendable says, in the config's order, moving the
+// sessions running as m is ticked; or, with none, auto, which moves none, m
+// ticked or not. Where it changes nothing of the pin standing, an account
+// it names without a token and all, it sends nothing, and closes the card.
 func (m Model) apply() (Model, tea.Cmd) {
 	picked, move := m.picks(), m.routing.move
-	_, named := m.standing()
-	switch {
-	case !alters(picked, named, move):
+	if !alters(picked, m.standing(), move) {
 		return m.uncover()
-	case len(picked) == 0:
-		return m.command(order{})
 	}
-	return m.command(order{accounts: picked, move: move})
+	if sent := m.sendable(picked); len(sent) > 0 {
+		return m.command(order{accounts: sent, move: move})
+	}
+	return m.command(order{})
 }
 
 // alters reports whether applying the accounts picked, with m ticked as

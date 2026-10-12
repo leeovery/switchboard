@@ -64,12 +64,6 @@ func (m Model) keysAt(now time.Time) pageKeys {
 	return pageKeys{w: m.wKey(now), cards: m.view == dashboard.Overview, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
 
-// listings are the page's own keys, as m stands at now, its page drawn as f,
-// as pageKeys' listings has them.
-func (m Model) listings(f dashboard.Frame, now time.Time) []keyListing {
-	return m.keysAt(now).listings(f.Scrolling(m.doc, now).Most > 0)
-}
-
 // listings are the page's own keys, where its view scrolls or not, in the
 // design's order: w; on the Overview, the arrows and space, s, and g; and j
 // and k, PgUp and PgDn, and the wheel, where the view scrolls, which the key
@@ -114,8 +108,9 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		l.Lead, l.PhoneHelp = 5, "keys and toggles"
 	}
 	l.Groups = [][]dashboard.Key{{{Key: "tab", Does: "views"}}}
+	keys := m.keysAt(now)
 	var page []dashboard.Key
-	for _, k := range m.listings(f, now) {
+	for _, k := range keys.listings(f.Scrolling(m.doc, now).Most > 0) {
 		if k.works && !k.helpful {
 			page = append(page, dashboard.Key{Key: k.key, Does: k.word})
 		}
@@ -123,8 +118,8 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if len(page) > 0 {
 		l.Groups, l.Phone = append(l.Groups, page), page
 	}
-	if pin, ok := m.pinKey(); ok {
-		l.Groups = append(l.Groups, []dashboard.Key{pin})
+	if keys.pinned {
+		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})
 	}
 	l.Groups = append(l.Groups, []dashboard.Key{{Key: "?", Does: "help"}, dashboard.Quit})
 	return l
