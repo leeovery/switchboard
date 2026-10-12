@@ -438,14 +438,24 @@ func TestWeeksScrollsAccountsPastWhatFits(t *testing.T) {
 		scroll int
 		want   Scrolling
 		// first is the first account shown, on the view's row given, and
-		// below what the row over the legend says.
+		// out what the row over the legend says is out of view, above and
+		// below.
 		first, at int
-		below     string
+		out       string
 	}{
-		{name: "the table", want: Scrolling{Most: 6, Page: 19}, first: 1, at: weeksFirstRow, below: "▼ 6 more accounts below   ·   " + scroll},
-		{name: "the table scrolled", scroll: 4, want: Scrolling{Most: 6, Page: 19}, first: 5, at: weeksFirstRow, below: "▼ 2 more accounts below   ·   " + scroll},
-		{name: "the table scrolled to its end, and past", scroll: 9, want: Scrolling{Most: 6, Page: 19}, first: 7, at: weeksFirstRow},
-		{name: "columns", shape: WeeksColumns, scroll: 1, want: Scrolling{Most: 22, Page: 3}, first: 2, at: blockRows, below: "▼ 21 more accounts below   ·   " + scroll},
+		{name: "the table", want: Scrolling{Most: 6, Page: 19}, first: 1, at: weeksFirstRow, out: "▼ 6 more accounts below   ·   " + scroll},
+		{
+			name: "the table scrolled", scroll: 4, want: Scrolling{Most: 6, Page: 19}, first: 5, at: weeksFirstRow,
+			out: "▲ 4 more accounts above   ·   ▼ 2 more accounts below   ·   " + scroll,
+		},
+		{
+			name: "the table scrolled to its end, and past", scroll: 9, want: Scrolling{Most: 6, Page: 19}, first: 7, at: weeksFirstRow,
+			out: "▲ 6 more accounts above   ·   " + scroll,
+		},
+		{
+			name: "columns", shape: WeeksColumns, scroll: 1, want: Scrolling{Most: 22, Page: 3}, first: 2, at: blockRows,
+			out: "▲ 1 more account above   ·   ▼ 21 more accounts below   ·   " + scroll,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -458,8 +468,8 @@ func TestWeeksScrollsAccountsPastWhatFits(t *testing.T) {
 			if first := "a" + strconv.Itoa(tt.first) + " "; !strings.HasPrefix(rows[tt.at], first) {
 				t.Errorf("row %d reads %q, want account %s first", tt.at, rows[tt.at], first)
 			}
-			if got := rows[f.viewRows()-2]; got != tt.below {
-				t.Errorf("the row over the legend reads %q, want %q", got, tt.below)
+			if got := rows[f.viewRows()-2]; got != tt.out {
+				t.Errorf("the row over the legend reads %q, want %q", got, tt.out)
 			}
 		})
 	}

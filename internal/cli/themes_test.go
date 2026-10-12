@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // lakeTheme is a theme file of Nord's base tokens, its canvas its own.
@@ -177,6 +178,40 @@ func TestDashboardGroupsTheOverviewsWindowsAsKeptElseAsConfigured(t *testing.T) 
 
 			if cfg.By != tt.want {
 				t.Errorf("the dashboard groups the Overview's windows by %v, want %v", cfg.By, tt.want)
+			}
+		})
+	}
+}
+
+// History opens on what prefs.json keeps of its views, the Year's account
+// among those the config gives; none kept, as it opens at first.
+func TestDashboardShowsHistoryAsKept(t *testing.T) {
+	kept := `{"history": {"view": "tokens", "year": "side", "weeks": "columns", "tokens": {"period": "month", "split": "model"}}}`
+	tests := []struct {
+		name, prefs string
+		want        dashboard.HistoryPage
+	}{
+		{name: "none kept", prefs: `{}`},
+		{
+			name: "as kept", prefs: kept,
+			want: dashboard.HistoryPage{
+				Shown: dashboard.HistoryTokens, YearAsk: views.YearAsk{Account: "side"}, WeeksShape: dashboard.WeeksColumns,
+				TokensAsk: views.TokensAsk{Period: views.TokensByMonth}, TokensSplit: dashboard.TokensByModel,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := fakeClaudeAPI(t)
+			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts)})
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			run(t, deps, "dashboard")
+
+			got := cfg.History
+			if got.Shown != tt.want.Shown || got.YearAsk != tt.want.YearAsk || got.WeeksShape != tt.want.WeeksShape ||
+				got.TokensAsk != tt.want.TokensAsk || got.TokensSplit != tt.want.TokensSplit {
+				t.Errorf("the dashboard opens History on %+v, want %+v", got, tt.want)
 			}
 		})
 	}

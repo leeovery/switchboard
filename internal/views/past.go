@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -23,6 +24,23 @@ func NewPast(in HistoryInput, days []ledger.Summary) Past {
 	today := dateOf(in.Now).Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	return Past{in: in, days: pricedDays(days, in.Prices, today, v)}
+}
+
+// Since is the Past at now, the days given, the summaries the ledger holds of
+// the days from the first of them to today, oldest first, in place of those
+// it held from that day on. Only they are priced, at now's day's prices, as
+// they're given: the days held before them stand as they were priced, so a
+// look that reads today alone prices today alone.
+func (p Past) Since(days []ledger.Summary, now time.Time) Past {
+	p.in.Now = now
+	if len(days) == 0 {
+		return p
+	}
+	today := dateOf(now).Format(time.DateOnly)
+	v := versions{table: p.in.Prices, family: p.in.Family}
+	before, _ := splitAt(p.days, days[0].Day)
+	p.days = slices.Concat(before, pricedDays(days, p.in.Prices, today, v))
+	return p
 }
 
 // Year is the Year's page, as asked for.

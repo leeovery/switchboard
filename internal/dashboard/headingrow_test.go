@@ -21,16 +21,18 @@ func laidOn(h heading, width int, phone bool) (*canvas, []piece) {
 
 // The headings of the frames the tests hold the heading row to: the Log's,
 // filtered, its count and f at its right; Runway's, stepped back a day, and
-// over the week; and Accounts', its period between its keys.
+// over the week; Accounts', its period between its keys; and History's, its
+// sub-tabs set tight on a phone.
 var (
 	filteredLog = heading{
 		name: "LOG", subTabs: []string{"Requests", "Events"},
 		state: line{{"only d28c switchboard", faintInk}},
 		right: line{{"830 hidden", secondaryInk}, spaces(3), {"f", keyInk}, {" what it shows", mutedInk}},
 	}
-	steppedBack = heading{name: "RUNWAY", state: line{{"Wed 30 Sep", faintInk}}, period: "5-hour"}
-	overTheWeek = heading{name: "RUNWAY", period: "week"}
-	comparing   = heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, period: "this week"}
+	steppedBack  = heading{name: "RUNWAY", state: line{{"Wed 30 Sep", faintInk}}, period: "5-hour"}
+	overTheWeek  = heading{name: "RUNWAY", period: "week"}
+	comparing    = heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, period: "this week"}
+	tightHistory = heading{name: "HISTORY", subTabs: historyViews, tight: true, period: "last 12 months"}
 )
 
 func TestTheHeadingRow(t *testing.T) {
@@ -58,6 +60,15 @@ func TestTheHeadingRow(t *testing.T) {
 		{
 			name: "on a phone, the sub-tabs without [ ] or a rule, the period on the row under them", heading: comparing, width: 52, phone: true,
 			want: []string{"ACCOUNTS    Compare  Detail", blanks(39) + "< this week >"},
+		},
+		{
+			name:    "on a phone, the sub-tabs set tight, two cells after the name, each its name and a space, as history-phone-year-52 draws them",
+			heading: tightHistory, width: 52, phone: true,
+			want: []string{"HISTORY  Year Weeks Days Tokens", blanks(34) + "< last 12 months >"},
+		},
+		{
+			name: "sub-tabs set tight on a phone, set as any others wider", heading: tightHistory, width: 160,
+			want: []string{"HISTORY    Year  Weeks  Days  Tokens  [ ]  " + rule(97) + "  < last 12 months >"},
 		},
 		{
 			name: "on a phone, a line at the right on the sub-tabs' row", width: 52, phone: true,
@@ -154,6 +165,28 @@ func TestTheHeadingRowsSubTabsAndStepsAreTargetsWhereTheyreDrawn(t *testing.T) {
 			if tt.On != w.on || tt.SubTab != w.sub || tt.Step != w.step || under(rows, tt) != w.text {
 				t.Errorf("on a phone: %v, target %+v is over %q, want %q", phone, tt, under(rows, tt), w.text)
 			}
+		}
+	}
+}
+
+// On a phone, sub-tabs set tight are each a target over its name and the
+// space after it, the one shown picked out, its space with it, as
+// history-phone-year-52 draws them.
+func TestSubTabsSetTightAreTargetsOverTheirNamesAndTheSpaceAfter(t *testing.T) {
+	c, pieces := laidOn(tightHistory, 52, true)
+	rows := c.rows(Look{})
+	var subTabs []string
+	for _, p := range pieces {
+		if p.click.On == OnSubTab {
+			subTabs = append(subTabs, under(rows, p.target()))
+		}
+	}
+	if want := []string{"Year ", "Weeks ", "Days ", "Tokens "}; !slices.Equal(subTabs, want) {
+		t.Errorf("the sub-tabs' targets are over %q, want %q", subTabs, want)
+	}
+	for x, want := range map[int]ink{9: shownSubTabInk, 13: shownSubTabInk, 14: tabInk} {
+		if got := c.at(x, 0).ink; got != want {
+			t.Errorf("column %d is in %+v, want %+v", x, got, want)
 		}
 	}
 }

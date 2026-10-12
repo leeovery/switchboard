@@ -74,9 +74,11 @@ type Frame struct {
 	// look to look: a seat keeps its row while the router lists it there,
 	// and one new to its account joins its group's foot.
 	Order Order
-	// Scroll is how many rows the view is scrolled down by, where it doesn't
-	// fit, or on the Overview, how many accounts USAGE is scrolled down by
-	// within its section: no further than Scrolling says it goes.
+	// Scroll is how far the view is scrolled down, where it doesn't fit: in
+	// rows; on the Overview, in accounts, USAGE's, within its section; and
+	// on History, the Year in rows, Weeks in accounts, Days in accounts too,
+	// BY ACCOUNT's, within it, and Tokens in periods. It goes no further than
+	// Scrolling says it goes.
 	Scroll int
 	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
 	// move and GRAPHS follows: "" while it's on none.
@@ -285,10 +287,15 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 
 // scrolls is what of the view of doc at now scrolls, from column x along row
 // y, width cells wide and rows tall: on the Overview, USAGE's body, as
-// overviewScrolls has it; elsewhere, the view's rows.
+// overviewScrolls has it; on History, what of its sub-tab shown does, as
+// historyScrolls has it, across the frame; elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {
-	if f.View == Overview {
+	switch f.View {
+	case Overview:
 		return f.overviewScrolls(doc, now)
+	case History:
+		y, rows = f.historyScrolls()
+		return 0, y, f.Width, rows
 	}
 	return 0, f.top(), f.Width, f.viewRows()
 }

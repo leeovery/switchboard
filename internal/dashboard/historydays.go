@@ -147,6 +147,18 @@ func (f Frame) daysScrolling() Scrolling {
 	return f.layOutDays(*p, f.top()).scrolling()
 }
 
+// daysScrolls is what of Days scrolls, from row y, rows tall: BY ACCOUNT's
+// strips, from the first's to the row over what's out of view, none where
+// there's nothing to draw.
+func (f Frame) daysScrolls() (y, rows int) {
+	p := f.History.Days
+	if p == nil || !p.Recorded() {
+		return 0, 0
+	}
+	l := f.layOutDays(*p, f.top())
+	return l.accountsAt, l.scrollRow - l.accountsAt
+}
+
 // daysWeeks draws the weeks shown along Days' top row, each headed over it
 // by its first day; and on the row under it, over this week's days, their
 // initials, in text.faint.

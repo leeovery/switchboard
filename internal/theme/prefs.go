@@ -19,7 +19,8 @@ const prefsName = "prefs.json"
 
 // Prefs are the dashboard's preferences, which it keeps as they change, and
 // the user never needs to write: the themes it's drawn in, the tab it
-// shows, the Overview's sections shown, and how its windows are grouped.
+// shows, the Overview's sections shown, how its windows are grouped, and
+// what History's views show.
 type Prefs struct {
 	Choice
 	// Tab names the tab shown, one of overview, accounts, history, sessions,
@@ -36,6 +37,28 @@ type Prefs struct {
 	// By names how the Overview's windows are grouped, window or account, as
 	// b last left it: "" for the config's [usage] by.
 	By string `json:"by,omitempty"`
+	// History is what History's views show, as their keys last left them.
+	History HistoryPrefs `json:"history,omitzero"`
+}
+
+// HistoryPrefs are what History's views show, each by its name: the view
+// shown, of year, weeks, days and tokens; what the Year shows, a model
+// version by its name, as Opus 5.5, or an account by its id, "" for all use;
+// Weeks' shape, table or columns; and Tokens' period and split. A name the
+// dashboard doesn't know reads as the default, as does a version or an
+// account no longer there to show.
+type HistoryPrefs struct {
+	View   string      `json:"view,omitempty"`
+	Year   string      `json:"year,omitempty"`
+	Weeks  string      `json:"weeks,omitempty"`
+	Tokens TokensPrefs `json:"tokens,omitzero"`
+}
+
+// TokensPrefs are how History's Tokens shows its periods: Period, day, week
+// or month; and Split, account, model, account+model or none.
+type TokensPrefs struct {
+	Period string `json:"period,omitempty"`
+	Split  string `json:"split,omitempty"`
 }
 
 // PrefsFile is the preferences file, prefs.json in the state directory,

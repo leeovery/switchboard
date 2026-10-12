@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -123,6 +124,27 @@ func TestTokensListsTheAccountsInTheConfigsOrder(t *testing.T) {
 	}
 	if want := []string{"work", "side", "", "extra"}; !slices.Equal(listed, want) {
 		t.Errorf("today's tokens are by the accounts %q, want %q", listed, want)
+	}
+}
+
+// Each of Tokens' accounts carries what the dashboard calls it: the config's
+// label for it, else its id, as for one it doesn't configure, and nothing
+// for the requests none answered.
+func TestTokensLabelsEachAccountAsTheConfigDoes(t *testing.T) {
+	days := daysFrom("2026-10-07", day("2026-10-07",
+		account("", sent("claude-opus-5-5", 1, "")),
+		account("extra", sent("claude-opus-5-5", 1, inputUsage)),
+		account("side", sent("claude-opus-5-5", 1, inputUsage)),
+		account("work", sent("claude-opus-5-5", 1, inputUsage))))
+	in := input(days)
+	in.Accounts = config.Accounts{{ID: "work", Label: "Work laptop"}, {ID: "side"}}
+
+	var labels []string
+	for _, a := range views.NewPast(in, days).Tokens(views.TokensAsk{}).Periods[0].ByAccount {
+		labels = append(labels, a.Label)
+	}
+	if want := []string{"Work laptop", "side", "", "extra"}; !slices.Equal(labels, want) {
+		t.Errorf("today's accounts are labelled %q, want %q", labels, want)
 	}
 }
 

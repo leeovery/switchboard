@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 )
@@ -45,9 +46,11 @@ type TokenWeek struct {
 
 // AccountTokens are an account's tokens in a week, and their worth, then by
 // model version. The account is left out of those the router answered with
-// none.
+// none. Label is what the dashboard calls it, its id unless the config gives
+// it another: the JSON names an account by its id alone, as everywhere.
 type AccountTokens struct {
 	Account string `json:"account,omitempty"`
+	Label   string `json:"-"`
 	Tokens
 	Worth
 	ByModel []ModelTokens `json:"by_model,omitempty"`
@@ -118,7 +121,7 @@ func tokenPeriodOf(s span, p plans, v versions) TokenPeriod {
 			}
 		}
 	}
-	period.ByAccount, period.ByModel = accounts.list(byConfig(p.accounts)), models.list()
+	period.ByAccount, period.ByModel = accounts.list(p.accounts), models.list()
 	period.Versions = len(period.ByModel)
 	return period
 }
@@ -143,15 +146,25 @@ func (t accountTally) of(id string) *talliedAccount {
 	return account
 }
 
-// list lists the accounts in the order given, each with its model versions.
-func (t accountTally) list(order func(a, b string) int) []AccountTokens {
+// list lists the accounts in the config's order, those it doesn't configure
+// after, by id, each with its label and its model versions.
+func (t accountTally) list(configured config.Accounts) []AccountTokens {
 	listed := make([]AccountTokens, 0, len(t))
-	for _, id := range slices.SortedFunc(maps.Keys(t), order) {
+	for _, id := range slices.SortedFunc(maps.Keys(t), byConfig(configured)) {
 		account := t[id].AccountTokens
-		account.ByModel = t[id].models.list()
+		account.Label, account.ByModel = labelOf(configured, id), t[id].models.list()
 		listed = append(listed, account)
 	}
 	return listed
+}
+
+// labelOf is what the dashboard calls the account with the given id: the
+// config's label for it, else its id.
+func labelOf(configured config.Accounts, id string) string {
+	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == id }); i >= 0 {
+		return cmp.Or(configured[i].Label, id)
+	}
+	return id
 }
 
 // weekKey is a key giving the first day of the week a day falls in, weeks

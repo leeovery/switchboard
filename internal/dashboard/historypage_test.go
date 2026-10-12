@@ -2,8 +2,11 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -67,6 +70,137 @@ func TestHistorysHeadingRow(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Shown for one version, or one account, the Year's heading says so after
+// [ ], in text.faint, its v bold accent.key, the rule from a cell after it, as
+// history-year-opus-160 draws it: an account by its label. Nothing's said of
+// all use, nor on another sub-tab.
+func TestHistorysHeadingSaysWhatTheYearIsShownForAlone(t *testing.T) {
+	const named = "HISTORY    Year  Weeks  Days  Tokens  [ ]   "
+	labelled := config.Accounts{{ID: "work", Label: "Work"}, {ID: "side"}}
+	tests := []struct {
+		name string
+		page HistoryPage
+		want string
+		// v is the column v is drawn at.
+		v int
+	}{
+		{
+			name: "a version", page: HistoryPage{YearAsk: views.YearAsk{Version: "Opus 5.5"}}, v: 77,
+			want: named + "Opus 5.5 only, every account  ·  v for all, a model or an account " + rule(30) + "  < last 12 months >",
+		},
+		{
+			name: "an account, by its label", page: HistoryPage{YearAsk: views.YearAsk{Account: "work"}, Accounts: labelled}, v: 71,
+			want: named + "Work only, every model  ·  v for all, a model or an account " + rule(36) + "  < last 12 months >",
+		},
+		{
+			name: "an account the config labels with its id", page: HistoryPage{YearAsk: views.YearAsk{Account: "side", Year: 2025}, Accounts: labelled}, v: 71,
+			want: named + "side only, every model  ·  v for all, a model or an account " + rule(46) + "  < 2025 >",
+		},
+		{
+			name: "on Weeks, nothing", page: HistoryPage{Shown: HistoryWeeks, YearAsk: views.YearAsk{Version: "Opus 5.5"}},
+			want: "HISTORY    Year  Weeks  Days  Tokens  [ ]  " + rule(104) + "  eight weeks",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := frameOf(160, 37)
+			f.View, f.History = History, tt.page
+			c := f.page(threeRouted(), now)
+			if got := c.rows(Look{})[4]; got != tt.want {
+				t.Errorf("row 5 reads\n%q\nwant\n%q", got, tt.want)
+			}
+			if tt.v == 0 {
+				return
+			}
+			for x, want := range map[int]ink{44: faintInk, tt.v - 1: faintInk, tt.v: keyInk, tt.v + 1: faintInk} {
+				if got := c.at(x, 4).ink; got != want {
+					t.Errorf("column %d is in %+v, want %+v", x, got, want)
+				}
+			}
+		})
+	}
+}
+
+// On a phone, History's heading sets its sub-tabs tight after its name, its
+// period on the row under them, at the right, and the view starts two rows
+// on, as history-phone-year-52 draws it.
+func TestHistorysHeadingOnAPhone(t *testing.T) {
+	f := frameOf(52, 35)
+	f.View = History
+	rows := f.page(threeRouted(), now).rows(Look{})
+
+	if got, want := rows[5], "HISTORY  Year Weeks Days Tokens"; strings.TrimRight(got, " ") != want {
+		t.Errorf("row 6 reads %q, want %q", got, want)
+	}
+	if got, want := rows[6], blanks(34)+"< last 12 months >"; got != want {
+		t.Errorf("row 7 reads %q, want %q", got, want)
+	}
+	if top := f.top(); top != 8 {
+		t.Errorf("the view starts at row %d, want row 9", top+1)
+	}
+}
+
+// History scrolls as its sub-tab shown does, whatever the router's document
+// holds, as it's drawn of the ledger's days alone: the Year a row at a time,
+// as far as it runs past the view, Weeks and Days an account at a time, and
+// Tokens a period at a time; and the wheel scrolls it over what of it
+// scrolls alone: the Year's view, the accounts Weeks shows, BY ACCOUNT, and
+// the periods Tokens shows.
+func TestHistoryScrollsAsItsSubTabShownDoes(t *testing.T) {
+	tokens := tokensFrame(160, 37, TokensByAccount)
+	for range 3 {
+		tokens.History.Tokens.Periods = append(tokens.History.Tokens.Periods, pastTokens().Periods...)
+	}
+	tests := []struct {
+		name string
+		f    Frame
+		want Scrolling
+		rows bool
+		// over is a row of what scrolls, and past one of the view's that
+		// doesn't.
+		over, past int
+	}{
+		{name: "the Year, below 37 rows", f: yearFrame(t, 160, 30, views.YearAsk{}, plainYear()), want: Scrolling{Most: 6, Page: 22}, rows: true, over: 6, past: 28},
+		{name: "the Year, at 37 rows", f: yearFrame(t, 160, 37, views.YearAsk{}, plainYear()), want: Scrolling{Page: 29}, rows: true, over: 34, past: 35},
+		{name: "Weeks", f: weeksFrame(manyWeeks(25), WeeksTable, 160, 37, Look{}), want: Scrolling{Most: 6, Page: 19}, over: 14, past: 6},
+		{name: "Days", f: daysFrame(t, daysWorld(tenDays...), 160, 37), want: Scrolling{Most: 4, Page: 6}, over: 21, past: 12},
+		{name: "Tokens", f: tokens, want: Scrolling{Most: 6, Page: 6}, over: 8, past: 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, doc := range []status.Document{threeRouted(), {}} {
+				if got := tt.f.Scrolling(doc, now); got != tt.want {
+					t.Errorf("of %d accounts, it scrolls %+v, want %+v", len(doc.Accounts), got, tt.want)
+				}
+				if got := tt.f.Under(doc, now, 10, tt.over); got != UnderView {
+					t.Errorf("row %d is under %v, want what scrolls", tt.over+1, got)
+				}
+				if got := tt.f.Under(doc, now, 10, tt.past); got != UnderNothing {
+					t.Errorf("row %d is under %v, want nothing that scrolls", tt.past+1, got)
+				}
+			}
+			if got := tt.f.ScrollsRows(); got != tt.rows {
+				t.Errorf("ScrollsRows() = %v, want %v", got, tt.rows)
+			}
+		})
+	}
+}
+
+// Scrolled, the Year shows its rows from as far down as it's scrolled, cut
+// at the view's foot, the rows under it left to the key line; scrolled past
+// its end, as far as it goes.
+func TestAScrolledYearShowsItsRowsFromWhereItsScrolledTo(t *testing.T) {
+	whole := textOf(historyDrawn(yearFrame(t, 160, 37, views.YearAsk{}, plainYear())).rows(Look{}))[6:]
+	for _, tt := range []struct{ scroll, from int }{{scroll: 4, from: 4}, {scroll: 99, from: 6}} {
+		f := yearFrame(t, 160, 30, views.YearAsk{}, plainYear())
+		f.Scroll = tt.scroll
+		rows := textOf(historyDrawn(f).rows(Look{}))
+		if !slices.Equal(rows[6:28], whole[tt.from:tt.from+22]) || rows[28] != "" || rows[29] != "" {
+			t.Errorf("scrolled %d, the Year reads\n%s\nwant its rows from row %d of\n%s", tt.scroll, strings.Join(rows, "\n"), tt.from, strings.Join(whole, "\n"))
+		}
 	}
 }
 

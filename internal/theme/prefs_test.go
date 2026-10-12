@@ -125,6 +125,38 @@ func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 	}
 }
 
+// What History's views show is kept under a key of its own, each choice by
+// its name, beside the rest and the keys of another build, and left out
+// where none is made.
+func TestHistorysViewsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	prefs := theme.NewPrefsFile(state, clock)
+	history := theme.HistoryPrefs{View: "tokens", Year: "Opus 5.5", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "month", Split: "account+model"}}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.History = history }); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), History: history}); !reflect.DeepEqual(got, want) {
+		t.Errorf("Read() = %+v, want %+v", got, want)
+	}
+	data, err := os.ReadFile(path)
+	want := "{\n  \"history\": {\n    \"view\": \"tokens\",\n    \"year\": \"Opus 5.5\",\n    \"weeks\": \"columns\",\n" +
+		"    \"tokens\": {\n      \"period\": \"month\",\n      \"split\": \"account+model\"\n    }\n  },\n" +
+		"  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\"\n}\n"
+	if err != nil || string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+
+	if err := prefs.Update(func(p *theme.Prefs) { p.History = theme.HistoryPrefs{} }); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "history") {
+		t.Errorf("prefs.json holds %s, %v; want no choice of History's kept", data, err)
+	}
+}
+
 func TestACorruptPreferencesFileIsSetAsideAndTheDefaultsStand(t *testing.T) {
 	tests := []struct {
 		name, content string
