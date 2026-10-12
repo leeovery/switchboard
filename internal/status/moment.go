@@ -206,11 +206,17 @@ type WindowNow struct {
 	// as AtReserve has it, which holds the account back: history, which
 	// stands as noted after the window resets.
 	Capped, CappedAsRead bool
+	// RunsOut is set where it runs out at Now, as a view says it does: its
+	// Kind is WindowRunsOut, the first of the kinds that holds, and At says
+	// when. A window a limit holds, at its cap, not started, or of an account
+	// whose token is refused or whose last read failed doesn't, whatever its
+	// projection says.
+	RunsOut bool
 	// Out is where it runs out at Now at the pace it's heading at, as
 	// RunsOut says, projected from when the document was read, whatever
 	// holds it: At zero where it doesn't before it resets, as once it has
 	// reset since it was read. Its Heading is where it's heading, as the
-	// document's Project says.
+	// document's Project says. A bar's projection goes by it.
 	Out RunOut
 	// Projected is the share of it it's heading for by its reset at Now, as
 	// a bar's projection fills to: all of it where it runs out at its limit;
@@ -412,7 +418,7 @@ func (m Moment) windowNow(s WindowStates, w judged, name WindowName) WindowNow {
 		wn.Back, wn.Since = wn.At, eventAt(m.doc.reachedIn(a, w.window, m.Now))
 	}
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.ReserveHolds(a) && slices.Contains(a.AtReserve, key)
-	wn.Out, wn.Projected = w.out, projected(wn.Kind, w.out.Projection)
+	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
 	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.Floor(a)-Near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)
 	return wn

@@ -133,14 +133,15 @@ type windowWant struct {
 	held                   bool
 	since                  time.Time
 	capped, cappedAsRead   bool
+	runsOut                bool
 	out                    time.Time
 }
 
 // String says what's wanted of the window, its times as sinceBuilt has them.
 func (w windowWant) String() string {
-	return fmt.Sprintf("{kind:%d at:%s used:%v next:%s resetSinceRead:%v lapsed:%v held:%v since:%s capped:%v cappedAsRead:%v out:%s}",
+	return fmt.Sprintf("{kind:%d at:%s used:%v next:%s resetSinceRead:%v lapsed:%v held:%v since:%s capped:%v cappedAsRead:%v runsOut:%v out:%s}",
 		w.kind, sinceBuilt(w.at), w.used, sinceBuilt(w.next), w.resetSinceRead, w.lapsed, w.held, sinceBuilt(w.since),
-		w.capped, w.cappedAsRead, sinceBuilt(w.out))
+		w.capped, w.cappedAsRead, w.runsOut, sinceBuilt(w.out))
 }
 
 // sinceBuilt shows t as how long after the documents were built it is, as
@@ -249,11 +250,11 @@ func hardMoments() []hardMoment {
 			accounts: map[string]accountWant{
 				"work": {routing: status.RoutingIdle, idle: true, canRise: true, windows: map[string]windowWant{
 					"5h": {kind: status.WindowNotStarted, resetSinceRead: true, lapsed: true},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(2 * day), used: 0.6, next: built.Add(4 * day), out: built.Add(2 * day)},
+					"7d": {kind: status.WindowRunsOut, at: built.Add(2 * day), used: 0.6, next: built.Add(4 * day), runsOut: true, out: built.Add(2 * day)},
 				}},
 				"side": {routing: status.RoutingNext, canRise: true, windows: map[string]windowWant{
 					"5h": {kind: status.WindowOpen, at: built.Add(4 * time.Hour), used: 0.1, next: built.Add(4 * time.Hour)},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(112 * time.Hour), used: 0.3, next: built.Add(5 * day), out: built.Add(112 * time.Hour)},
+					"7d": {kind: status.WindowRunsOut, at: built.Add(112 * time.Hour), used: 0.3, next: built.Add(5 * day), runsOut: true, out: built.Add(112 * time.Hour)},
 				}},
 			},
 		},
@@ -307,7 +308,7 @@ func hardMoments() []hardMoment {
 						kind: status.WindowLimited, at: built.Add(40 * time.Minute), used: 1, next: built.Add(40 * time.Minute),
 						held: true, since: built.Add(-20 * time.Minute),
 					},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(64 * time.Hour), used: 0.6, next: built.Add(3 * day), out: built.Add(64 * time.Hour)},
+					"7d": {kind: status.WindowRunsOut, at: built.Add(64 * time.Hour), used: 0.6, next: built.Add(3 * day), runsOut: true, out: built.Add(64 * time.Hour)},
 				}},
 				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
 			},
@@ -320,7 +321,7 @@ func hardMoments() []hardMoment {
 			accounts: map[string]accountWant{
 				"work": {routing: status.RoutingIdle, idle: true, canRise: true, windows: map[string]windowWant{
 					"5h": {kind: status.WindowNotStarted, resetSinceRead: true, lapsed: true},
-					"7d": {kind: status.WindowRunsOut, at: built.Add(64 * time.Hour), used: 0.6, next: built.Add(3 * day), out: built.Add(64 * time.Hour)},
+					"7d": {kind: status.WindowRunsOut, at: built.Add(64 * time.Hour), used: 0.6, next: built.Add(3 * day), runsOut: true, out: built.Add(64 * time.Hour)},
 				}},
 				"side": {routing: status.RoutingNext, canRise: true, windows: stillSide},
 			},
@@ -397,7 +398,7 @@ func checkWanted(t *testing.T, tt hardMoment, m status.Moment) {
 		for _, w := range a.Windows {
 			got := windowWant{
 				kind: w.Kind, at: w.At, used: w.Used, next: w.Next, resetSinceRead: w.ResetSinceRead, lapsed: w.Lapsed,
-				held: w.Held, since: w.Since, capped: w.Capped, cappedAsRead: w.CappedAsRead, out: w.Out.At,
+				held: w.Held, since: w.Since, capped: w.Capped, cappedAsRead: w.CappedAsRead, runsOut: w.RunsOut, out: w.Out.At,
 			}
 			if want := want.windows[w.Key]; !reflect.DeepEqual(got, want) {
 				t.Errorf("%s's %s stands as\n%+v\nwant\n%+v", a.ID, w.Key, got, want)
@@ -538,7 +539,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		}
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
-		want.Out = out
+		want.RunsOut, want.Out = st.Kind == status.WindowRunsOut, out
 		if share, ok := dashboardProjected(st, out.Projection); ok {
 			want.Projected = &share
 		}
@@ -794,6 +795,52 @@ func TestAMomentsPoolIsThePoolAtItsMomentOnceWorkedOut(t *testing.T) {
 	}
 	if got := (status.Moment{}).Pool(); !reflect.DeepEqual(got, status.Pool{}) {
 		t.Errorf("the zero moment's Pool() = %+v, want none", got)
+	}
+}
+
+// A window runs out where a view says so only where nothing before running
+// out holds, the first of the kinds that holds winning: a limit, a refused
+// token or a failed read says more than its projection, which it keeps for
+// the bar's projected fill.
+func TestAWindowRunsOutWhereNothingBeforeItHolds(t *testing.T) {
+	// The week, 60% used three days in, runs out two days on at its pace.
+	running := readAt("work", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.6, 4*day))
+	out := built.Add(2 * day)
+	tests := []struct {
+		name    string
+		account status.Account
+		kind    status.WindowKind
+		runsOut bool
+	}{
+		{name: "with nothing before it", account: running, kind: status.WindowRunsOut, runsOut: true},
+		{
+			name:    "its last read failed",
+			account: with(running, func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }),
+			kind:    status.WindowStale,
+		},
+		{
+			name:    "its token refused",
+			account: with(running, func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401} }),
+			kind:    status.WindowStale,
+		},
+		{
+			name:    "a limit naming no window holding it",
+			account: with(running, func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }),
+			kind:    status.WindowLimited,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, _ := asTheRouterBuilds(built, nil, routed{Account: tt.account}).WorkedOut(policy).At(built.Add(time.Minute), policy).Account("work")
+			w, _ := a.Window("7d")
+			if w.Kind != tt.kind || w.RunsOut != tt.runsOut || !w.Out.At.Equal(out) {
+				t.Errorf("the week stands as kind %d, running out %v, its projection out at %v; want kind %d, %v, and out at %v",
+					w.Kind, w.RunsOut, w.Out.At, tt.kind, tt.runsOut, out)
+			}
+			if tt.runsOut && !w.At.Equal(w.Out.At) {
+				t.Errorf("the week runs out at %v, want %v, as its projection has it", w.At, w.Out.At)
+			}
+		})
 	}
 }
 
