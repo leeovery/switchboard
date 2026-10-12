@@ -143,28 +143,12 @@ func (h history) trails() map[string][]score.Reading {
 }
 
 // pressureOf is how the account st's pressure window stands at at, its windows
-// as last read latest, as the router gives it, as status.PressureOf says: at
+// as last read latest, as the router gives it, as status.PressureFrom says: at
 // its pace over its trail, and, pinned, spending its reserve.
 func pressureOf(st status.Account, latest []quota.Window, trails map[string][]score.Reading, pinned bool, at time.Time) status.Pressure {
-	// This mirrors the router's usage.pressure and takesAny, which find the
-	// window, its pace and whether the account takes a request in the state
-	// the router holds, where this has only the account's status to go by.
-	i := slices.IndexFunc(latest, func(w quota.Window) bool { return w.Key == claude.Policy.Pressure })
-	if i < 0 {
-		return status.Pressure{}
-	}
-	pace, ok := score.PaceOf(latest[i], trails[latest[i].Key], at)
-	if !ok {
-		return status.Pressure{}
-	}
-	c := score.Candidate{ID: st.ID, Windows: st.Windows, Reserve: st.Reserve, Rate: pace.Rate}
-	if pinned {
-		c.Reserve = 0
-	}
-	takes := func(reserve float64) bool {
-		return !st.Shut(at, claude.Policy) && score.Available(st.Windows, reserve, claude.Policy.IsShared, at)
-	}
-	return status.PressureOf(claude.Policy, pace, c, takes, at)
+	return status.PressureFrom(claude.Policy, status.Pressing{
+		ID: st.ID, Reserve: st.Reserve, Latest: latest, Trails: trails, Spent: pinned, Shut: st.Shut(at, claude.Policy),
+	}, at)
 }
 
 // --------------------------------------------------------- the worlds

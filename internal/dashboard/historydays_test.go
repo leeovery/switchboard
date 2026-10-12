@@ -356,7 +356,7 @@ func TestDaysNamesEachFamily(t *testing.T) {
 			t.Errorf("familyDot(%q) = %+v, want %+v", tt.family, got, tt.want)
 		}
 	}
-	unpriced := shareOfUse(views.DaysStrip{Of: "fable"})
+	unpriced := fitParts(80, shareOfUse(views.DaysStrip{Of: "fable"})...)
 	if want := (line{{"—", faintInk.numbered(Number{Kind: NumberShareOfUse, Of: "fable"})}, {" of use", dimInk}}); !slices.Equal(unpriced, want) {
 		t.Errorf("an unpriced share is %+v, want %+v", unpriced, want)
 	}
@@ -389,5 +389,23 @@ func TestDaysNamesEachAccount(t *testing.T) {
 				t.Errorf("the account's row reads %q, want it to start %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// Narrower than a phone, Days shows the latest of its three weeks that fit
+// short of the edge, each headed by its first day; and a strip's count, at
+// the edge, is cut there, its share a figure, numbered only where it's
+// drawn whole.
+func TestDaysOnANarrowPhoneFitsItsWeeksAndCounts(t *testing.T) {
+	f := daysFrame(t, daysWorld(workDays, personalDays, sideDays), 40, 40)
+	if rows := textOf(historyDrawn(f).rows(Look{})); rows[f.top()] != "21 Sep         28 Sep" {
+		t.Errorf("at 40 columns, Days' weeks read %q, want the last two, %q", rows[f.top()], "21 Sep         28 Sep")
+	}
+	opus := Number{Kind: NumberShareOfUse, Of: "opus"}
+	for width, want := range map[int]string{4: "59%", 3: ""} {
+		f := daysFrame(t, daysWorld(workDays, personalDays, sideDays), width, 40)
+		if got := f.Numbers(threeRouted(), now)[opus]; got != want {
+			t.Errorf("at %d columns, Opus's share is numbered %q, want %q", width, got, want)
+		}
 	}
 }

@@ -166,6 +166,15 @@ func (c *canvas) right(end, y int, l line) int {
 	return start
 }
 
+// rightFit draws the parts along row y to end before the column end, as
+// right does, but where they'd run past the column edge, cut as fitParts
+// cuts them in the cells from where they'd start, and ending at the edge;
+// and returns the column they start at.
+func (c *canvas) rightFit(end, edge, y int, parts ...part) int {
+	fitted := fitParts(edge-(end-partsWidth(parts)), parts...)
+	return c.right(min(end, edge), y, fitted)
+}
+
 // surface lays a surface under the width cells from x along row y, as a
 // highlighted row has, their glyphs and colours as they were.
 func (c *canvas) surface(x, y, width int, on hue) {

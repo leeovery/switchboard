@@ -36,7 +36,7 @@ const (
 
 // Days' accounts, as many as show at once, past which BY ACCOUNT scrolls
 // within itself; and daysPhoneWeeks, the weeks a phone shows, the last of
-// the eight.
+// the eight, or as many of them as fit.
 const (
 	daysAccounts   = 6
 	daysPhoneWeeks = 3
@@ -69,17 +69,17 @@ const (
 func (f Frame) historyDays(c *canvas, top int) {
 	p := f.History.Days
 	if p == nil || !p.Recorded() {
-		c.line(0, top, line{{"nothing recorded yet", dimInk}})
+		c.line(0, top, line{{"nothing recorded yet", dimInk}}.fit(f.edge()))
 		return
 	}
 	l := f.layOutDays(*p, top)
 	f.daysWeeks(c, l)
-	c.line(0, top+byModelRow, groupHead("BY MODEL", byModelSays, l.phone))
+	c.line(0, top+byModelRow, groupHead("BY MODEL", byModelSays, l.phone).fit(f.edge()))
 	for i, s := range p.ByModel {
 		hue := familyHue(s.Of)
 		f.daysStrip(c, l, l.familyRow(i), familyDot(s.Of, secondaryInk).fit, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
 	}
-	c.line(0, l.byAccount, groupHead("BY ACCOUNT", byAccountSays, l.phone))
+	c.line(0, l.byAccount, groupHead("BY ACCOUNT", byAccountSays, l.phone).fit(f.edge()))
 	from, to := l.shown()
 	for i, s := range p.ByAccount[from:to] {
 		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
@@ -114,14 +114,16 @@ func (f Frame) layOutDays(p views.DaysPage, top int) daysLayout {
 }
 
 // daysLaidOut lays out Days of the page given from row top: in its phone
-// form, the last three weeks under each strip's name, its key two rows; else
-// every week from column 14 beside it, its key a row; the key on the view's
-// last rows, and what's out of view of BY ACCOUNT on the row over them.
+// form, the last three weeks, or as many as fit short of the edge, under
+// each strip's name, its key two rows; else every week from column 14
+// beside it, its key a row; the key on the view's last rows, and what's out
+// of view of BY ACCOUNT on the row over them.
 func (f Frame) daysLaidOut(p views.DaysPage, top int, phone bool) daysLayout {
 	l := daysLayout{page: p, phone: phone, top: top, x: daysAt}
 	keyRows := 1
 	if l.phone {
-		l.x, l.first, keyRows = 0, (len(p.Weeks)-daysPhoneWeeks)*7, 2
+		weeks := min(daysPhoneWeeks, max((f.edge()+1)/weekCells, 0))
+		l.x, l.first, keyRows = 0, max(len(p.Weeks)-weeks, 0)*7, 2
 	}
 	l.byAccount = l.familyRow(len(p.ByModel)-1) + byAccountGap
 	l.accountsAt = l.byAccount + stripStride
@@ -222,7 +224,7 @@ func (f Frame) daysWeeks(c *canvas, l daysLayout) {
 	weeks := l.page.Weeks[l.first/7:]
 	for i, week := range weeks {
 		x, this := l.x+i*weekCells, i == len(weeks)-1
-		c.line(x, l.top, weekHead(week, this))
+		c.line(x, l.top, fitParts(weekCells-1, figurePart(weekHead(week, this), Number{})))
 		if day, ok := civilDay(week); ok && this {
 			initials(c, day, x, l.top+1)
 		}
@@ -240,14 +242,16 @@ func initials(c *canvas, from time.Time, x, y int) {
 // daysStrip draws a strip along row y, or on a phone, its name on row y and
 // the strip under it: its name at column 0, as name gives it in the cells
 // that leave a blank one before what follows it; each of its days shown, in
-// the ink shade gives at the day's level, those to come ··; and its count, at
-// column 136, or on a phone at the right.
-func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count line, shade func(level int) ink, days []views.StripDay) {
+// the ink shade gives at the day's level, those to come ··; and its count,
+// its number a figure, at column 136, or on a phone at the right, cut short
+// of the edge.
+func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count []part, shade func(level int) ink, days []views.StripDay) {
 	strip, room := y, l.x-1
 	if l.phone {
-		strip, room = y+1, c.right(f.edge(), y, count)-1
+		counted := fitParts(f.edge(), count...)
+		strip, room = y+1, c.right(f.edge(), y, counted)-1
 	} else {
-		c.line(countAt(count), y, count)
+		c.line(countAt(count), y, fitParts(f.edge()-countAt(count), count...))
 	}
 	c.line(0, y, name(room))
 	coming := len(days) - l.page.ToCome
@@ -269,8 +273,8 @@ func (l daysLayout) dayAt(i int) int {
 
 // countAt is the column a wide strip's count starts at: its first part, the
 // number, right-aligned in daysCountCells from column 136.
-func countAt(count line) int {
-	return daysCount + daysCountCells - count[:1].width()
+func countAt(count []part) int {
+	return daysCount + daysCountCells - partsWidth(count[:1])
 }
 
 // swatch is a day swatchCells wide in its shade's ink, k, at its level: spaces
@@ -287,16 +291,15 @@ func (f Frame) swatch(k ink, level int, limited bool) line {
 	return line{{strings.Repeat(glyph, swatchCells), drawn}}
 }
 
-// shareOfUse is a family's share of the eight weeks' worth, bold
+// shareOfUse is a family's share of the eight weeks' worth, a figure, bold
 // text.secondary, or — where none of it is priced, then of use.
-func shareOfUse(s views.DaysStrip) line {
-	share := shareSaid(s.Share, strongInk).numbered(Number{Kind: NumberShareOfUse, Of: s.Of})
-	return append(share, span{ofUse, dimInk})
+func shareOfUse(s views.DaysStrip) []part {
+	return []part{figurePart(shareSaid(s.Share, strongInk), Number{Kind: NumberShareOfUse, Of: s.Of}), wordsIn(ofUse, dimInk)}
 }
 
-// limitsHit is how many 5-hour limits an account hit in the eight weeks,
-// bold state.destructive, or text.faint at none, then 5-hour limits.
-func (f Frame) limitsHit(s views.DaysStrip) line {
+// limitsHit is how many 5-hour limits an account hit in the eight weeks, a
+// figure, bold state.destructive, or text.faint at none, then 5-hour limits.
+func (f Frame) limitsHit(s views.DaysStrip) []part {
 	count, noun := exhaustedInk, fiveHourLimits
 	switch s.Limits {
 	case 0:
@@ -304,7 +307,8 @@ func (f Frame) limitsHit(s views.DaysStrip) line {
 	case 1:
 		noun = fiveHourLimit
 	}
-	return line{{strconv.Itoa(s.Limits), count.numbered(Number{Kind: NumberLimitsHit, Account: s.Of, Of: f.Policy.Started})}, {noun, dimInk}}
+	n := Number{Kind: NumberLimitsHit, Account: s.Of, Of: f.Policy.Started}
+	return []part{figurePart(line{{strconv.Itoa(s.Limits), count}}, n), wordsIn(noun, dimInk)}
 }
 
 // daysKey draws Days' key from its row: the five shades from less to more,
@@ -313,11 +317,11 @@ func (f Frame) limitsHit(s views.DaysStrip) line {
 func (f Frame) daysKey(c *canvas, l daysLayout) {
 	shades, marks := f.daysKeyParts()
 	if l.phone {
-		c.line(0, l.keyRow, shades)
-		c.line(0, l.keyRow+1, marks)
+		c.line(0, l.keyRow, shades.fit(f.edge()))
+		c.line(0, l.keyRow+1, marks.fit(f.edge()))
 		return
 	}
-	c.line(0, l.keyRow, f.wideDaysKey())
+	c.line(0, l.keyRow, f.wideDaysKey().fit(f.edge()))
 }
 
 // daysKeyParts are the parts of Days' key: the shades, and the marks.

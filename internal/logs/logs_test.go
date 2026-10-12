@@ -232,6 +232,34 @@ func TestLogFilesArePrivate(t *testing.T) {
 	}
 }
 
+func TestMakeDirMakesALogDirectoryAsTheLogsMakeTheirs(t *testing.T) {
+	state := filepath.Join(t.TempDir(), "state")
+	dir := logs.Dir(state)
+
+	for range 2 {
+		if err := logs.MakeDir(dir); err != nil {
+			t.Fatalf("MakeDir() error = %v, want none, whether or not it's there", err)
+		}
+	}
+	for _, name := range []string{state, dir} {
+		info, err := os.Stat(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !info.IsDir() || info.Mode().Perm() != 0o700 {
+			t.Errorf("%s has mode %v, want a directory only its owner can use", name, info.Mode())
+		}
+	}
+
+	blocked := filepath.Join(t.TempDir(), "logs")
+	if err := os.WriteFile(blocked, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := logs.MakeDir(blocked); err == nil || !strings.HasPrefix(err.Error(), "create the log directory: ") {
+		t.Errorf("MakeDir() error = %v, want it can't create the log directory, where a file is", err)
+	}
+}
+
 func TestMirror(t *testing.T) {
 	var mirror bytes.Buffer
 	path := start(t, logs.Options{Role: logs.RoleRouter, Mirror: &mirror})

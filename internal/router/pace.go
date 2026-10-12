@@ -78,24 +78,12 @@ func (u *usage) rates(now time.Time) []status.Rate {
 // document gives it: how fast it's being used, and when, at that rate, it
 // reaches where the account's room ends, at its reserve, or, when spent is
 // set, as a pin spends the reserve, at its limit; and whether that's before
-// it resets while the account can take a request of some model, as then
-// pressure is what passes it over. It's zero when the pace can't be said.
+// it resets while the account can take a request of some model, no limit,
+// nor refusal of its token, holding back every request, as then pressure is
+// what passes it over, as status.PressureFrom says. It's zero when the pace
+// can't be said.
 func (u *usage) pressure(a account, policy score.Policy, spent bool, now time.Time) status.Pressure {
-	pace, ok := u.pace(policy, now)
-	if !ok {
-		return status.Pressure{}
-	}
-	c := score.Candidate{ID: a.ID, Windows: u.current(policy, now), Reserve: a.Reserve, Rate: pace.Rate}
-	if spent {
-		c.Reserve = 0
-	}
-	return status.PressureOf(policy, pace, c, func(reserve float64) bool { return u.takesAny(policy, reserve, now) }, now)
-}
-
-// takesAny reports whether the account can take a request of some model at
-// now: no limit, nor refusal of its token, holds back every request, and no
-// window every model shares is spent, or at reserve, the share of it left
-// unused.
-func (u *usage) takesAny(policy score.Policy, reserve float64, now time.Time) bool {
-	return !u.shut(now, policy.IsShared) && score.Available(u.current(policy, now), reserve, policy.IsShared, now)
+	return status.PressureFrom(policy, status.Pressing{
+		ID: a.ID, Reserve: a.Reserve, Latest: u.latest(), Trails: u.trails, Spent: spent, Shut: u.shut(now, policy.IsShared),
+	}, now)
 }
