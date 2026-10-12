@@ -6,11 +6,12 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 )
 
-// Weeks' headlines, by whether there are as many accounts as the use needs.
+// Weeks' headlines, by whether there are as many accounts as the use needs:
+// what a Capacity's Verdict says, which the dashboard colours it by.
 const (
-	oneMoreThanYouNeed = "one more than you need"
-	oneTooFew          = "one too few"
-	aboutRight         = "about right"
+	OneMoreThanYouNeed = "one more than you need"
+	OneTooFew          = "one too few"
+	AboutRight         = "about right"
 )
 
 // Weeks' verdicts on an account, and Accounts' on every account together.
@@ -79,7 +80,7 @@ func capacityOf(placed []placedWeek, isWhole func(week string) bool, accounts co
 	c.Accounts = make([]AccountVerdict, 0, len(accounts)+1)
 	several := len(accounts) > 1
 	for x, a := range accounts {
-		v := recordOf(placed, isWhole, x, key).verdict(c.Verdict == oneMoreThanYouNeed && without[x] <= c.Short)
+		v := recordOf(placed, isWhole, x, key).verdict(c.Verdict == OneMoreThanYouNeed && without[x] <= c.Short)
 		v.Account = a.ID
 		if several {
 			v.WithoutIt = &without[x]
@@ -105,7 +106,7 @@ func (c *Capacity) judge(r replay, accounts config.Accounts, without []int) {
 	if c.Weeks == 0 {
 		return
 	}
-	if c.Verdict = c.headline(); c.Verdict != oneMoreThanYouNeed {
+	if c.Verdict = c.headline(); c.Verdict != OneMoreThanYouNeed {
 		return
 	}
 	c.Drop = accounts[dropped].ID
@@ -124,11 +125,11 @@ func (c Capacity) headline() string {
 	short := 7*c.Short >= 4*c.Weeks
 	switch {
 	case short && 2*c.WithOneMore <= c.Short:
-		return oneTooFew
+		return OneTooFew
 	case !short && c.WithOneFewer != nil && *c.WithOneFewer <= c.Short:
-		return oneMoreThanYouNeed
+		return OneMoreThanYouNeed
 	}
-	return aboutRight
+	return AboutRight
 }
 
 // replay is the weeks Weeks replays, each account's week's peak in each, in

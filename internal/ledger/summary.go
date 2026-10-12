@@ -143,8 +143,11 @@ type ModelDay struct {
 	Unsent   int `json:"unsent"`
 	Checks   int `json:"checks"`
 	Counts   int `json:"counts"`
-	// Sessions counts the sessions the requests were of, as counted says.
-	Sessions int `json:"sessions"`
+	// Sessions counts the sessions the requests were of, as counted says,
+	// and SessionIDs are their ids, in order, each once, so a span of days,
+	// or every account, counts a model's session once.
+	Sessions   int      `json:"sessions"`
+	SessionIDs []string `json:"session_ids,omitzero"`
 	// Usage is the requests' usage, summed field for field as the API gives
 	// it, an object's fields within it, and a list's objects by their types,
 	// as an answer's iterations give theirs: what isn't a count, as the

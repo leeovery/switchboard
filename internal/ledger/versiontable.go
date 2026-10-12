@@ -15,6 +15,10 @@ type Version struct {
 	// Family is its family, as internal/claude reads it from its ids, as
 	// opus.
 	Family string
+	// Shade is its shade among the versions' six, viz.version.1 to
+	// viz.version.6, as the table assigns them, a family's newest first: 0
+	// for none.
+	Shade int
 }
 
 // Version returns the version the table names with the id given, reporting

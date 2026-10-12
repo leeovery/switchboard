@@ -73,10 +73,14 @@ type helpPart struct {
 
 // helpParts are the parts of the page help explains after its keys: of the
 // Overview, a part a section, in the page's order, as overviewHelp has them;
-// of the other views built, a part a group of the glyphs their key explains.
+// of History, as historyHelp has them; of the other views built, a part a
+// group of the glyphs their key explains.
 func (f Frame) helpParts() []helpPart {
-	if f.View == Overview {
+	switch f.View {
+	case Overview:
 		return overviewHelp()
+	case History:
+		return historyHelp()
 	}
 	var parts []helpPart
 	for _, group := range f.glyphs() {

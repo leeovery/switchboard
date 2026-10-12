@@ -97,6 +97,9 @@ type Frame struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document, as nameOfWindow has it.
 	WindowName func(key string) string
+	// History is History's sub-tab shown, what each of its views shows, and
+	// their pages.
+	History HistoryPage
 
 	// built are the Overview's sections as Built built them, for every look
 	// the frame takes of their document at their moment to share: nil, where
@@ -149,8 +152,8 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: the Overview, Sessions and Runway; and
-// nothing of a tab not built yet.
+// room for it, as cramped says: the Overview, History, Sessions and Runway;
+// and nothing of a tab not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -159,6 +162,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	switch f.View {
 	case Overview:
 		f.overview(c, doc, now, top)
+	case History:
+		f.history(c, top)
 	case Sessions:
 		f.sessions(c, doc, now, top)
 	case Runway:
