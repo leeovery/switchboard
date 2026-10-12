@@ -291,11 +291,7 @@ func (w weeksDrawn) replays() []line {
 // replay is a replay's label and the weeks it finds short, n of those
 // judged, and what follows them.
 func (w weeksDrawn) replay(label string, n int, after string) line {
-	count := "short on none"
-	if n > 0 {
-		count = fmt.Sprintf("short on %d of %d", n, w.page.Capacity.Weeks)
-	}
-	return line{{label, dimInk}, {count + after, w.countInk(n)}}
+	return line{{label, dimInk}, {w.shortOn(n, w.page.Capacity.Weeks) + after, w.countInk(n)}}
 }
 
 // countInk is the ink of a count of weeks short, n of them: text.muted, or
