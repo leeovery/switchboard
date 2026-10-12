@@ -406,7 +406,7 @@ func (f Frame) badge(doc status.Document, l lane, now time.Time) line {
 	if len(weeks) == 0 {
 		return nil
 	}
-	s := standingOf(doc, l.account, weeks[0], now, f.Policy)
+	s := standingOf(doc, l.account, weeks[0], l.states, now)
 	if s.runsOut {
 		return line{s.use(warningInk)}
 	}
@@ -495,7 +495,7 @@ func (f Frame) laneWords(c *canvas, doc status.Document, ln lane, l runwayLayout
 		if col < 0 || col >= tl.columns || back {
 			continue
 		}
-		says := resetSays(standingOf(doc, ln.account, w, now, f.Policy), now)
+		says := resetSays(standingOf(doc, ln.account, w, ln.states, now), now)
 		words = append(words, placed{col: max(col-says.width()+1, 0), words: says})
 	}
 	if len(words) == 0 {

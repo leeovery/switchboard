@@ -40,11 +40,11 @@ const (
 // linePanel is an account's panel among the lines: the account and its
 // place, its state, whether new sessions go to it and whether the global
 // pin names it, when the router next primes it, zero where unknown; the
-// windows it shows, and the policy that judges them, which names the one a
-// request starts; its top edge's row, and how many rows it has between its
-// edges, a jack each: one for each window shown, and one more for each of
-// its calls past those. A boxed panel, as the plain list has, has no jacks,
-// its left side a side like its right.
+// windows it shows, how they stand, and the policy that judges them, which
+// names the one a request starts; its top edge's row, and how many rows it
+// has between its edges, a jack each: one for each window shown, and one
+// more for each of its calls past those. A boxed panel, as the plain list
+// has, has no jacks, its left side a side like its right.
 type linePanel struct {
 	account      status.Account
 	place        int
@@ -52,6 +52,7 @@ type linePanel struct {
 	next, pinned bool
 	primed       time.Time
 	windows      []string
+	states       status.WindowStates
 	policy       score.Policy
 	top, rows    int
 	boxed        bool
@@ -63,7 +64,7 @@ func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time,
 	return linePanel{
 		account: a, place: place(doc, a.ID), state: doc.StateOf(a, now, f.Policy),
 		next: len(doc.Accounts) > 1 && doc.Best == a.ID, pinned: doc.Pin.Has(a.ID), primed: primedNext(doc, a.ID),
-		windows: shown, policy: f.Policy,
+		windows: shown, states: doc.WindowStatesOf(a, now, f.Policy), policy: f.Policy,
 	}
 }
 
@@ -184,17 +185,18 @@ func (p linePanel) badges() []span {
 }
 
 // panelRow draws the row of a panel's window with the given key from x along
-// row y, width cells to the panel's side: its label; its bar, where bars is
-// set, as bar draws it; its use, toned as panelUse says; and where
-// it's heading, in full. A window that has lapsed says it hasn't started
-// where its bar would be, and one the account hasn't read leaves its row
-// blank.
+// row y, width cells to the panel's side, standing as the panel's states have
+// it: its label; its bar, where bars is set, as bar draws it; its use, toned
+// as panelUse says; and where it's heading, in full. A window standing not
+// started, lapsed with no limit holding it and its token not refused, says
+// so where its bar would be, and one the account hasn't reported leaves its
+// row blank.
 func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string, now time.Time, x, y, width int, bars bool) {
 	w, ok := p.account.Window(key)
 	if !ok {
 		return
 	}
-	s := standingOf(doc, p.account, w, now, f.Policy)
+	s := standingOf(doc, p.account, w, p.states, now)
 	c.line(x, y, line{{truncate(status.Short(w.Label), labelColumn-1), panelLabelInk}})
 	at := x + labelColumn
 	if s.lapsed {
@@ -213,7 +215,7 @@ func (f Frame) panelRow(c *canvas, doc status.Document, p linePanel, key string,
 // panelUse is how much of a window standing as s is used, a whole
 // percentage, bold, toned as usedInk tones it, below 70% in text.primary.
 func panelUse(s standing) span {
-	shown := status.WholePercent(s.window.Utilization)
+	shown := status.WholePercent(s.used)
 	return span{strconv.Itoa(shown) + "%", usedInk(shown, ink{token: theme.TextPrimary, bold: true})}
 }
 

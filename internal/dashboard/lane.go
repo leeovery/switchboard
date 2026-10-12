@@ -185,13 +185,14 @@ func (s stretch) backFrom() int {
 }
 
 // lane is an account's room over the time Runway shows, as the document has
-// it at a moment: the account, and its place; whether anything is known of
-// it; the stretches it can't take a session, in order; and until when, from
-// now, it's heading to run out, zero where it isn't, and in words, as in
-// "week runs out ~Sun 04:06".
+// it at a moment: the account, its place, and how its windows stand; whether
+// anything is known of it; the stretches it can't take a session, in order;
+// and until when, from now, it's heading to run out, zero where it isn't, and
+// in words, as in "week runs out ~Sun 04:06".
 type lane struct {
 	account   status.Account
 	place     int
+	states    status.WindowStates
 	known     bool
 	stretches []stretch
 	drains    time.Time
@@ -207,7 +208,7 @@ type lane struct {
 // heading to run out until the last of those windows that run out before
 // they reset does.
 func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
-	l := lane{account: a, place: place(doc, a.ID), known: true}
+	l := lane{account: a, place: place(doc, a.ID), states: doc.WindowStatesOf(a, now, f.Policy), known: true}
 	state := doc.StateOf(a, now, f.Policy)
 	if unread, ok := a.Unread(); ok && a.TokenSet {
 		state = unread
@@ -225,7 +226,7 @@ func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane
 		if !f.counts(w) {
 			continue
 		}
-		s := standingOf(doc, a, w, now, f.Policy)
+		s := standingOf(doc, a, w, l.states, now)
 		if s.runsOut && s.out.At.After(l.drains) {
 			l.drains, l.drained = s.out.At, f.runOutSaid(s, now)
 		}

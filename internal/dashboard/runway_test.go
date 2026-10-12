@@ -494,6 +494,8 @@ func TestTheStripsFewWithRoomFillItsLowestEighth(t *testing.T) {
 func TestALanesBadge(t *testing.T) {
 	held := runwayThree()
 	held.Accounts[2].Windows[1].Utilization, held.Accounts[2].Windows[1].Status = 1, quota.StatusRejected
+	reset := runwayThree()
+	reset.Accounts[0].Windows[1].ResetsAt = now.Add(-time.Hour).UTC()
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -507,6 +509,7 @@ func TestALanesBadge(t *testing.T) {
 		{name: "over the week, its week's use", doc: runwayThree(), span: Week, i: 0, want: line{{"34%", strongInk}}},
 		{name: "over the week, a week running out", doc: runwayThree(), span: Week, i: 1, want: line{{"89%", alertInk}}},
 		{name: "over the week, a week at its limit", doc: held, span: Week, i: 2, want: line{{"100%", exhaustedInk}}},
+		{name: "over the week, a week reset since it was read: empty, as it runs", doc: reset, span: Week, i: 0, want: line{{"0%", strongInk}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
