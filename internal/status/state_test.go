@@ -217,6 +217,7 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 		{
 			name:    "under pressure, new sessions going to another",
 			account: with(readNow(0.58, 0.34, 0.12), pressing),
+			others:  []status.Account{{ID: "side"}},
 			best:    "side",
 			want:    status.State{Condition: status.Pressed, Says: "under pressure", Then: "new sessions go elsewhere"},
 		},
@@ -306,7 +307,7 @@ func TestTheStateAnAccountIsIn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{
-				Best: tt.best, Pin: status.Pin{Accounts: tt.pin}, Prime: status.Prime{Window: "5h", Slots: tt.prime},
+				Source: status.SourceRouter, Best: tt.best, Pin: status.Pin{Accounts: tt.pin}, Prime: status.Prime{Window: "5h", Slots: tt.prime},
 				Accounts: append([]status.Account{tt.account}, tt.others...),
 			}
 			got := doc.StateOf(tt.account, stateNow, policy)
