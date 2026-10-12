@@ -3,11 +3,8 @@ package dashboard
 import (
 	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -125,22 +122,6 @@ func (f Frame) history(c *canvas, top int) {
 	}
 }
 
-// familyName is a family's name as History shows it, its first letter
-// capital: Opus.
-func familyName(family string) string {
-	name := status.Clean(family)
-	if first, size := utf8.DecodeRuneInString(name); size > 0 {
-		name = string(unicode.ToUpper(first)) + name[size:]
-	}
-	return name
-}
-
-// familyDot is a family as History's keys and strips name it: its dot in
-// its hue, then its name in the ink given, as ● Opus.
-func familyDot(family string, name ink) line {
-	return line{{"●", familyHue(family).ink()}, {" " + familyName(family), name}}
-}
-
 // moreBelow says how many more of a view's rows, each one of the thing noun
 // names, are out of view below, and how to scroll to them, what toScroll says
 // following j/k: "▼ 3 more weeks below   ·   j/k to scroll".
@@ -152,4 +133,31 @@ func moreBelow(n int, noun, toScroll string) line {
 		{"j/k", keyInk},
 		{toScroll, mutedInk},
 	}
+}
+
+// accountsToScroll is how History says to scroll to its accounts out of
+// view, following j/k.
+const accountsToScroll = " or the wheel to scroll them"
+
+// accountsOutOfView says how many of a view's accounts are out of view above
+// and below, and how to scroll to them: "▼ 4 more accounts below   ·   j/k
+// or the wheel to scroll them".
+func accountsOutOfView(above, below int) line {
+	var l line
+	if above > 0 {
+		l = line{{"▲", keyMarkInk}, {" " + moreAccounts(above) + " above", mutedInk}, {"   ·   ", faintInk}}
+	}
+	if below > 0 {
+		return append(l, moreBelow(below, "account", accountsToScroll)...)
+	}
+	return append(l, span{"j/k", keyInk}, span{accountsToScroll, mutedInk})
+}
+
+// groupHead is a group's heading, as BY MONTH and BY MODEL, in text.subtle,
+// and after it, but on a phone, what it shows, in text.faint.
+func groupHead(name, says string, phone bool) line {
+	if phone {
+		return line{{name, dimInk}}
+	}
+	return line{{name, dimInk}, {"  " + says, faintInk}}
 }

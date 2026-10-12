@@ -5,19 +5,10 @@ import (
 	"math"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
-)
-
-var (
-	// periodInk is a period's row of Tokens, and aheadInk its worth against
-	// its price at 1× or more.
-	periodInk = ink{token: theme.TextPrimary, bold: true}
-	aheadInk  = ink{token: theme.StatePositive, bold: true}
 )
 
 // tokensCount is a column of Tokens' counts: its head, the column it ends
@@ -166,7 +157,7 @@ func (f Frame) tokensHeads(c *canvas, y int, cols tokensColumns) {
 // tokensFootnote says what worth is, as of the price table's date, and
 // where the rows are split by model, that each version is at its own price.
 func (f Frame) tokensFootnote(asOf string) line {
-	if day, err := time.Parse(time.DateOnly, asOf); err == nil {
+	if day, ok := civilDay(asOf); ok {
 		asOf = day.Format("2 Jan 2006")
 	}
 	note := "worth: what the same tokens would cost through the API, at its prices as of " + asOf
@@ -187,7 +178,7 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 	for _, count := range cols.counts {
 		c.right(count.end, y, r.figure(count.head, line{{tokenCount(count.count(r.tokens)), r.ink}}))
 	}
-	c.line(cols.worth, y, r.figure("worth", worthLine(r.worth, r.ink)))
+	c.line(cols.worth, y, r.figure("worth", worthSaid(r.worth, r.ink)))
 	if cols.against > 0 && r.against != nil {
 		c.line(cols.against, y, r.figure("against", r.against))
 	}
@@ -198,8 +189,8 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 	split := tokensRow{ink: mutedInk, lit: t.SoFar, split: true}
 	rows := []tokensRow{{
-		name: line{{periodName(t.First, f.History.TokensAsk.Period), periodInk}}, of: line{{prose.Counted(t.Versions, "model"), mutedInk}}, ofIs: "models",
-		tokens: t.Tokens, worth: t.Worth, ink: periodInk, against: againstLine(t.Against, f.History.TokensAsk.Period.Name()), lit: t.SoFar,
+		name: line{{periodName(t.First, f.History.TokensAsk.Period), titleInk}}, of: line{{prose.Counted(t.Versions, "model"), mutedInk}}, ofIs: "models",
+		tokens: t.Tokens, worth: t.Worth, ink: titleInk, against: againstItsPrice(t.Against, f.History.TokensAsk.Period.Name()), lit: t.SoFar,
 	}}
 	switch f.History.TokensSplit {
 	case TokensByAccount:
@@ -263,18 +254,17 @@ func tokensAccount(id string) string {
 // periodName names a period by its first day, as 28 Sep, or by day its day,
 // Thu 1 Oct, or by month its month, Oct 2026.
 func periodName(first string, period views.TokensPeriod) string {
-	layout, named := time.DateOnly, "2 Jan"
-	switch period {
-	case views.TokensByDay:
-		named = "Mon 2 Jan"
-	case views.TokensByMonth:
-		layout, named = "2006-01", "Jan 2006"
+	if period == views.TokensByMonth {
+		return monthName(first, true)
 	}
-	day, err := time.Parse(layout, first)
-	if err != nil {
+	day, ok := civilDay(first)
+	switch {
+	case !ok:
 		return first
+	case period == views.TokensByDay:
+		return day.Format(dayLayout)
 	}
-	return day.Format(named)
+	return day.Format(weekLayout)
 }
 
 // tokenCount writes a count of tokens: under 100 million in millions to one
@@ -291,33 +281,15 @@ func tokenCount(n int) string {
 	return fmt.Sprintf("%.2fB", millions/1000)
 }
 
-// worthLine writes worth to the dollar in the ink given, $635, a part of it
-// unpriced $184+, the + faint, and wholly unpriced, unpriced.
-func worthLine(w views.Worth, k ink) line {
-	switch {
-	case w.Amount == nil && len(w.Unpriced) > 0:
-		return line{{"unpriced", k}}
-	case w.Amount == nil:
-		return line{{"$0", k}}
-	case len(w.Unpriced) > 0:
-		return line{{w.Amount.Dollars(), k}, {"+", faintInk}}
-	}
-	return line{{w.Amount.Dollars(), k}}
-}
-
-// againstLine writes worth against what the plans cost over a period the
-// unit names, 4.6× its $138 week, the ratio bold, in state.positive at 1× or
-// more and accent.attention under: a faint dash where no plan is known, or
-// they cost nothing.
-func againstLine(a views.Against, unit string) line {
+// againstItsPrice is a period's worth against what the plans cost over it,
+// as againstSaid writes it, then the price, the period named by unit:
+// "4.6× its $138 week". It's a dash where no plan is known, or they cost
+// nothing.
+func againstItsPrice(a views.Against, unit string) line {
 	if a.Ratio == nil || a.Cost == nil {
-		return line{{"—", faintInk}}
+		return line{noFigure}
 	}
-	ratio := alertInk
-	if *a.Ratio >= 1 {
-		ratio = aheadInk
-	}
-	return line{{fmt.Sprintf("%.1f×", *a.Ratio), ratio}, {" its " + a.Cost.Dollars() + " " + unit, dimInk}}
+	return append(againstSaid(a.Ratio), span{" its " + a.Cost.GroupedDollars() + " " + unit, dimInk})
 }
 
 // tokensPlaced is how Tokens' periods fit in the rows they have, from row

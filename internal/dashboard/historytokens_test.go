@@ -17,14 +17,12 @@ func byKind(input, output, cacheWrite, cacheRead int) views.Tokens {
 
 // worthIn is worth of the dollars given, what it names unpriced left out.
 func worthIn(n float64, unpriced ...string) views.Worth {
-	amount := ledger.Picodollars(n * 1e12)
-	return views.Worth{Amount: &amount, Unpriced: unpriced}
+	return views.Worth{Amount: usd(n), Unpriced: unpriced}
 }
 
 // againstAt is worth ratio times what the plans cost, cost dollars.
 func againstAt(ratio, cost float64) views.Against {
-	c := ledger.Picodollars(cost * 1e12)
-	return views.Against{Cost: &c, Ratio: &ratio}
+	return views.Against{Cost: usd(cost), Ratio: &ratio}
 }
 
 // versionTokens is a model version's tokens and worth, by its id, on the accounts
@@ -439,23 +437,20 @@ func TestTokenCounts(t *testing.T) {
 	}
 }
 
-// Worth is to the dollar, a part unpriced with a faint +, wholly unpriced
-// unpriced; against its price is a faint dash where no plan is known.
-func TestWorthAndAgainstAsTokensWritesThem(t *testing.T) {
-	k := mutedInk
-	var none views.Worth
+// Against its price is the ratio as History writes it, then the price, to
+// the dollar, its thousands set apart, the period named; a faint dash where
+// no plan is known.
+func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
 	tests := []struct {
 		name string
 		got  line
 		want line
 	}{
-		{name: "priced", got: worthLine(worthIn(634.5), k), want: line{{"$635", k}}},
-		{name: "part unpriced", got: worthLine(worthIn(184, "no_usage"), k), want: line{{"$184", k}, {"+", faintInk}}},
-		{name: "wholly unpriced", got: worthLine(views.Worth{Unpriced: []string{"claude-opus-9"}}, k), want: line{{"unpriced", k}}},
-		{name: "nothing", got: worthLine(none, k), want: line{{"$0", k}}},
-		{name: "no plan known", got: againstLine(views.Against{}, "week"), want: line{{"—", faintInk}}},
-		{name: "plans that cost nothing", got: againstLine(views.Against{Cost: new(ledger.Picodollars)}, "month"), want: line{{"—", faintInk}}},
-		{name: "a month's", got: againstLine(againstAt(0.95, 600), "month"), want: line{{"0.9×", alertInk}, {" its $600 month", dimInk}}},
+		{name: "no plan known", got: againstItsPrice(views.Against{}, "week"), want: line{noFigure}},
+		{name: "plans that cost nothing", got: againstItsPrice(views.Against{Cost: new(ledger.Picodollars)}, "month"), want: line{noFigure}},
+		{name: "a week's", got: againstItsPrice(againstAt(4.6, 138), "week"), want: line{{"4.6×", boldPositiveInk}, {" its $138 week", dimInk}}},
+		{name: "a month's, short of it", got: againstItsPrice(againstAt(0.94, 600), "month"), want: line{{"0.9×", alertInk}, {" its $600 month", dimInk}}},
+		{name: "a month's of a thousand or more", got: againstItsPrice(againstAt(1.2, 1800), "month"), want: line{{"1.2×", boldPositiveInk}, {" its $1,800 month", dimInk}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

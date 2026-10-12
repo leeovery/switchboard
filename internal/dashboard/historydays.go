@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -42,12 +41,11 @@ const (
 )
 
 // The words Days says: under the shades, of a day it hit a 5-hour limit and
-// of the days to come; and how to scroll to the accounts out of view.
+// of the days to come.
 const (
 	daysShadesNote = "each shade a quarter of the active days"
 	daysLimitNote  = "a day it hit a 5-hour limit"
 	daysToComeNote = "days to come"
-	daysToScroll   = " or the wheel to scroll them"
 	toCome         = "··"
 	limitMark      = "▪"
 )
@@ -72,7 +70,7 @@ func (f Frame) historyDays(c *canvas, top int) {
 	c.line(0, l.byAccount, groupHead("BY ACCOUNT", "the share of its week each day used, on one scale", l.phone))
 	from, to := l.shown()
 	for i, s := range p.ByAccount[from:to] {
-		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return stripName(s, room) }, f.limitsHit(s), dayInk, s.Days)
+		f.daysStrip(c, l, l.accountRow(i), func(room int) line { return historyAccount(s.Label, s.Primary, room) }, f.limitsHit(s), dayInk, s.Days)
 	}
 	if above, below := from, len(p.ByAccount)-to; above+below > 0 {
 		c.line(0, l.scrollRow, accountsOutOfView(above, below))
@@ -149,31 +147,17 @@ func (f Frame) daysScrolling() Scrolling {
 	return f.layOutDays(*p, f.top()).scrolling()
 }
 
-// groupHead is a group's heading, in text.subtle, and after it, but on a
-// phone, what's on one scale, in text.faint.
-func groupHead(name, scale string, phone bool) line {
-	if phone {
-		return line{{name, dimInk}}
-	}
-	return line{{name, dimInk}, {"  " + scale, faintInk}}
-}
-
-// daysWeeks draws the weeks shown along Days' top row: each week's first day
-// over it, in text.faint, this week's in bold text.secondary; and on the row
-// under it, over this week's days, their initials, in text.faint.
+// daysWeeks draws the weeks shown along Days' top row, each headed over it
+// by its first day; and on the row under it, over this week's days, their
+// initials, in text.faint.
 func (f Frame) daysWeeks(c *canvas, l daysLayout) {
 	weeks := l.page.Weeks[l.first/7:]
 	for i, week := range weeks {
-		day, err := time.Parse(time.DateOnly, week)
-		if err != nil {
-			continue
-		}
-		x, k := l.x+i*weekCells, faintInk
-		if i == len(weeks)-1 {
-			k = strongInk
+		x, this := l.x+i*weekCells, i == len(weeks)-1
+		c.line(x, l.top, weekHead(week, this))
+		if day, ok := civilDay(week); ok && this {
 			initials(c, day, x, l.top+1)
 		}
-		c.text(x, l.top, day.Format("2 Jan"), k)
 	}
 }
 
@@ -181,7 +165,7 @@ func (f Frame) daysWeeks(c *canvas, l daysLayout) {
 // every swatchCells from x along row y, in text.faint.
 func initials(c *canvas, from time.Time, x, y int) {
 	for d := range 7 {
-		c.text(x+d*swatchCells, y, from.AddDate(0, 0, d).Weekday().String()[:1], faintInk)
+		c.text(x+d*swatchCells, y, dayInitial(from.AddDate(0, 0, d).Weekday()), faintInk)
 	}
 }
 
@@ -226,11 +210,8 @@ func (f Frame) swatch(k ink, level int, limited bool) line {
 // shareOfUse is a family's share of the eight weeks' worth, bold
 // text.secondary, or — where none of it is priced, then of use.
 func shareOfUse(s views.DaysStrip) line {
-	share := span{"—", faintInk}
-	if s.Share != nil {
-		share = span{status.Percent(*s.Share), strongInk}
-	}
-	return line{share.numbered(Number{Kind: NumberShareOfUse, Of: s.Of}), {" of use", dimInk}}
+	share := shareSaid(s.Share, strongInk).numbered(Number{Kind: NumberShareOfUse, Of: s.Of})
+	return append(share, span{" of use", dimInk})
 }
 
 // limitsHit is how many 5-hour limits an account hit in the eight weeks,
@@ -244,20 +225,6 @@ func (f Frame) limitsHit(s views.DaysStrip) line {
 		noun = " 5-hour limit"
 	}
 	return line{{strconv.Itoa(s.Limits), count.numbered(Number{Kind: NumberLimitsHit, Account: s.Of, Of: f.Policy.Started})}, {noun, dimInk}}
-}
-
-// accountsOutOfView says how many of BY ACCOUNT's accounts are out of view
-// above and below, and how to scroll to them: "▼ 4 more accounts below   ·
-// j/k or the wheel to scroll them".
-func accountsOutOfView(above, below int) line {
-	var l line
-	if above > 0 {
-		l = line{{"▲", keyMarkInk}, {" " + moreAccounts(above) + " above", mutedInk}, {"   ·   ", faintInk}}
-	}
-	if below > 0 {
-		return append(l, moreBelow(below, "account", daysToScroll)...)
-	}
-	return append(l, span{"j/k", keyInk}, span{daysToScroll, mutedInk})
 }
 
 // daysKey draws Days' key from its row: the five shades from less to more,
@@ -279,15 +246,4 @@ func (f Frame) daysKey(c *canvas, l daysLayout) {
 		return
 	}
 	c.line(0, l.keyRow, slices.Concat(shades, line{{"  " + daysShadesNote, faintInk}, {"    ", ink{}}}, marks))
-}
-
-// stripName is an account's name as BY ACCOUNT shows it, in room cells: its
-// label, bold text.primary, cut to keep the ◆ after the primary's, in
-// text.tertiary. History shows no routing, so no ▲.
-func stripName(s views.DaysStrip, room int) line {
-	var mark line
-	if s.Primary {
-		mark = line{{" ◆", primaryInk}}
-	}
-	return append(line{{truncate(status.Clean(s.Label), room-mark.width()), titleInk}}, mark...)
 }

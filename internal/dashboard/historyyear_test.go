@@ -10,12 +10,6 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// usd is an amount of dollars, as the ledger counts money.
-func usd(dollars float64) *ledger.Picodollars {
-	p := ledger.Picodollars(dollars * float64(aDollar))
-	return &p
-}
-
 // ratioOf is worth over cost, as Against gives it.
 func ratioOf(worth, cost float64) *float64 {
 	r := worth / cost
@@ -152,15 +146,6 @@ func yearFrame(t *testing.T, width, height int, ask views.YearAsk, page views.Ye
 	return f
 }
 
-// drawnYear is the Year as the frame draws it alone, from its view's top, as
-// a terminal shows it.
-func drawnYear(t *testing.T, f Frame) [][]seen {
-	t.Helper()
-	c := newCanvas(f.Width, f.Height)
-	f.historyYear(c, f.top())
-	return screenOf(t, c.rows(f.Look))
-}
-
 // The Year is drawn as its frames are, cell for cell, but where they light
 // September, the frames' month before, where the design lights today's,
 // October: its name over the grid and bold in BY MONTH.
@@ -214,7 +199,7 @@ func TestTheYearIsDrawnAsItsFrames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
 			f := yearFrame(t, tt.width, tt.height, tt.ask, tt.page())
-			heldTo(t, tt.stem, reference(t, tt.stem), drawnYear(t, f), tt.in, shadeOf(nord.Canvas()), tt.current, nil)
+			heldTo(t, tt.stem, reference(t, tt.stem), screenOf(t, historyDrawn(f).rows(f.Look)), tt.in, shadeOf(nord.Canvas()), tt.current, nil)
 		})
 	}
 }
@@ -252,13 +237,6 @@ func opusYear() views.YearPage {
 	return page
 }
 
-// yearCanvas is the Year of the frame drawn alone, from its view's top.
-func yearCanvas(f Frame) *canvas {
-	c := newCanvas(f.Width, f.Height)
-	f.historyYear(c, f.top())
-	return c
-}
-
 // Today's month is the current one, its name over the grid in
 // text.secondary, the rest faint, and its row of BY MONTH bold.
 func TestTheCurrentMonthIsLitOverTheGridAndBoldInByMonth(t *testing.T) {
@@ -272,7 +250,7 @@ func TestTheCurrentMonthIsLitOverTheGridAndBoldInByMonth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := yearFrame(t, tt.width, 37, views.YearAsk{}, plainYear())
-		c, top := yearCanvas(f), f.top()
+		c, top := historyDrawn(f), f.top()
 		inks := []struct {
 			what string
 			x, y int
@@ -304,7 +282,7 @@ func TestWithoutShadesADaysLevelIsToldByItsGlyph(t *testing.T) {
 	for _, look := range []Look{Screen(builtin(t, "terminal")), NoColour()} {
 		f := yearFrame(t, 160, 37, views.YearAsk{}, page)
 		f.Look = look
-		rows, top := textOf(yearCanvas(f).rows(Look{})), f.top()
+		rows, top := textOf(historyDrawn(f).rows(Look{})), f.top()
 		if got, want := []rune(rows[top+1])[yearGridX], '·'; got != want {
 			t.Errorf("a day at level 0 is %q, want %q", got, want)
 		}
@@ -384,7 +362,7 @@ func TestAnEmptyYearsNumbersAreDashes(t *testing.T) {
 	page := plainYear()
 	page.Numbers, page.KeyCuts = views.YearNumbers{Cost: usd(7200)}, nil
 	f := yearFrame(t, 160, 37, views.YearAsk{}, page)
-	c, top := yearCanvas(f), f.top()
+	c, top := historyDrawn(f), f.top()
 	rows := textOf(c.rows(Look{}))
 	for i, label := range []string{"requests", "sessions", "limits hit", "worth", "plans cost", "against it", "busiest day", "longest run"} {
 		if got, want := rows[top+1+i], textsAt(160, map[int]string{yearNumbersX: padded(label, yearLabelCells) + "—"}); !strings.HasSuffix(got, want[yearNumbersX:]) {
@@ -414,7 +392,7 @@ func TestTheNumbersAndTheKeyNameWhatsShown(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := yearFrame(t, 160, 37, tt.ask, plainYear())
-		rows, top := textOf(yearCanvas(f).rows(Look{})), f.top()
+		rows, top := textOf(historyDrawn(f).rows(Look{})), f.top()
 		if got := strings.TrimSpace(string([]rune(rows[top])[yearNumbersX:])); got != tt.heading {
 			t.Errorf("%+v: the numbers are headed %q, want %q", tt.ask, got, tt.heading)
 		}
@@ -496,47 +474,11 @@ func TestByMonthsNotesAndTheRowBefore(t *testing.T) {
 	}
 }
 
-// Against its price is bold, in state.positive at 1× or more as it's
-// written, and accent.attention under; a dash where there's none. A phone's
-// key writes a thousand as k.
-func TestAgainstItsPriceIsColouredAsItsWritten(t *testing.T) {
-	tests := []struct {
-		ratio *float64
-		want  line
-	}{
-		{ratio: new(3.8166), want: line{{"3.8×", boldPositiveInk}}},
-		{ratio: new(0.96), want: line{{"1.0×", boldPositiveInk}}},
-		{ratio: new(0.94), want: line{{"0.9×", alertInk}}},
-		{want: line{noFigure}},
-	}
-	for _, tt := range tests {
-		if got := againstSaid(tt.ratio); !slices.Equal(got, tt.want) {
-			t.Errorf("againstSaid(%v) = %+v, want %+v", tt.ratio, got, tt.want)
-		}
-	}
+// A phone's key writes a thousand as k.
+func TestAPhonesKeyWritesAThousandAsK(t *testing.T) {
 	for n, want := range map[int]string{450: "450", 1000: "1k", 1250: "1.25k", 12000: "12k"} {
 		if got := kilo(n); got != want {
 			t.Errorf("kilo(%d) = %q, want %q", n, got, want)
-		}
-	}
-}
-
-// A worth is written to the dollar, its thousands set apart: a faint +
-// after it where part is unpriced, unpriced where all is, and a dash for
-// none.
-func TestAWorthIsWrittenToTheDollar(t *testing.T) {
-	tests := []struct {
-		worth views.Worth
-		want  line
-	}{
-		{worth: views.Worth{Amount: usd(27479.5)}, want: line{{"$27,480", secondaryInk}}},
-		{worth: views.Worth{Amount: usd(184), Unpriced: []string{"claude-opus-9"}}, want: line{{"$184", secondaryInk}, {"+", faintInk}}},
-		{worth: views.Worth{Unpriced: []string{"claude-opus-9"}}, want: line{{"unpriced", secondaryInk}}},
-		{worth: views.Worth{}, want: line{noFigure}},
-	}
-	for _, tt := range tests {
-		if got := worthSaid(tt.worth); !slices.Equal(got, tt.want) {
-			t.Errorf("worthSaid(%+v) = %+v, want %+v", tt.worth, got, tt.want)
 		}
 	}
 }

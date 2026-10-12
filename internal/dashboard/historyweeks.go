@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -121,7 +120,7 @@ func (f Frame) weeksShown(w weeksDrawn) (shown []views.WeeksRow, below int) {
 // those shown, where there are any.
 func (weeksDrawn) accountsBelow(c *canvas, y, below int) {
 	if below > 0 {
-		c.line(0, y, moreBelow(below, "account", " or the wheel to scroll them"))
+		c.line(0, y, accountsOutOfView(0, below))
 	}
 }
 
@@ -233,7 +232,7 @@ func (w weeksDrawn) many() bool {
 // headline is the verdict's headline, bold, as "three is about right": in
 // accent.attention where there are too few, else in state.positive.
 func (w weeksDrawn) headline() line {
-	k := ink{token: theme.StatePositive, bold: true}
+	k := boldPositiveInk
 	if v := w.page.Capacity.Verdict; v == views.OneTooFew || v == views.TooFew {
 		k = alertInk
 	}
@@ -346,7 +345,7 @@ func (w weeksDrawn) estimate() line {
 func (w weeksDrawn) dropped() line {
 	var facts []string
 	if p := w.page.DropPrice; p != nil {
-		facts = append(facts, p.Dollars()+"/mo")
+		facts = append(facts, p.GroupedDollars()+"/mo")
 	}
 	if used := w.row(w.page.Capacity.Drop).Used; used != nil {
 		facts = append(facts, status.Percent(*used)+" used on average")
@@ -413,7 +412,7 @@ func (weeksDrawn) verdictInk(verdict string) ink {
 	case views.HitsItsLimit:
 		return exhaustedInk
 	case views.PlentyToSpare:
-		return ink{token: theme.StatePositive, bold: true}
+		return boldPositiveInk
 	case views.CouldGo, views.BarelyUsed:
 		return alertInk
 	}
@@ -526,15 +525,10 @@ func (w weeksDrawn) named(id string) string {
 	return status.Clean(cmp.Or(w.row(id).Label, id))
 }
 
-// name is an account's name and marks at the start of its row, bold
-// text.primary, cut to keep its marks short of the weeks.
+// name is an account's name and mark at the start of its row, cut short of
+// the weeks.
 func (w weeksDrawn) name(row views.WeeksRow) line {
-	var marks line
-	if row.Primary {
-		marks = line{{" ◆", primaryInk}}
-	}
-	label := truncate(w.named(row.Account), weeksNameCells-marks.width())
-	return slices.Concat(line{{label, titleInk}}, marks)
+	return historyAccount(w.named(row.Account), row.Primary, weeksNameCells)
 }
 
 // weekHeads draws the first days of the last weeks of the page's along row
@@ -546,19 +540,9 @@ func (w weeksDrawn) weekHeads(c *canvas, y, weeks int) {
 	}
 }
 
-// head is the first day of the page's week with index i, as Weeks heads the
-// week, "10 Aug": in text.faint, this week's bold text.secondary; as it is,
-// cleaned, where it isn't a date.
+// head is the page's week with index i, headed by its first day.
 func (w weeksDrawn) head(i int) line {
-	k := faintInk
-	if i == len(w.page.Weeks)-1 {
-		k = strongInk
-	}
-	date := w.page.Weeks[i]
-	if day, err := time.Parse(time.DateOnly, date); err == nil {
-		return line{{day.Format("2 Jan"), k}}
-	}
-	return line{{status.Clean(date), k}}
+	return weekHead(w.page.Weeks[i], i == len(w.page.Weeks)-1)
 }
 
 // tablePeaks draws the row's peaks in the last weeks of the page's along row
@@ -575,7 +559,7 @@ func (w weeksDrawn) tablePeaks(c *canvas, y int, row views.WeeksRow, weeks int) 
 // brightens as it changes; and — in text.faint where it isn't known.
 func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) line {
 	if p.Share == nil {
-		return line{{"—", faintInk}}
+		return line{noFigure}
 	}
 	shown := status.WholePercent(*p.Share)
 	text := strconv.Itoa(shown) + "%"
@@ -618,7 +602,7 @@ func (w weeksDrawn) block(c *canvas, look Look, y int, row views.WeeksRow) {
 func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) line {
 	switch {
 	case p.Share == nil:
-		return line{{"—", faintInk}}
+		return line{noFigure}
 	case p.Open:
 		return line{{status.Percent(*p.Share) + "…", secondaryInk}}.numbered(w.number(row))
 	case status.WholePercent(*p.Share) >= 100:

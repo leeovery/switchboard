@@ -8,6 +8,14 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// historyDrawn is the sub-tab of History f shows, drawn alone on a canvas of
+// its own, from its view's top.
+func historyDrawn(f Frame) *canvas {
+	c := newCanvas(f.Width, f.Height)
+	f.history(c, f.top())
+	return c
+}
+
 // History's heading row names it and its sub-tabs, the one shown picked out,
 // and at its right the Year's period, the last 12 months or a calendar year,
 // and Tokens', between < and >, or eight weeks, which Weeks and Days keep to.

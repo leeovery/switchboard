@@ -77,13 +77,6 @@ func daysFrame(t *testing.T, page views.DaysPage, width, height int) Frame {
 	return f
 }
 
-// daysDrawn is Days as f draws it, on a canvas of its own from its top.
-func daysDrawn(f Frame) *canvas {
-	c := newCanvas(f.Width, f.Height)
-	f.historyDays(c, f.top())
-	return c
-}
-
 // Days draws its frames' text, from the weeks' first days on row 7 to the
 // key on row 35. The frames' ▲ after side, where new sessions go, is
 // routing, which History never shows, as the design holds: it's passed over.
@@ -98,7 +91,7 @@ func TestDaysDrawsItsFramesText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
 			f := daysFrame(t, tt.page, 160, 37)
-			drawn, frame := textOf(daysDrawn(f).rows(f.Look)), referenceRows(t, tt.stem, "txt")
+			drawn, frame := textOf(historyDrawn(f).rows(f.Look)), referenceRows(t, tt.stem, "txt")
 			unmarked := strings.NewReplacer(" ▲", "  ")
 			for y := 6; y < 35; y++ {
 				want := strings.TrimRight(unmarked.Replace(frame[y]), " ")
@@ -129,7 +122,7 @@ func TestDaysHoldsToItsFramesCells(t *testing.T) {
 			for _, row := range []int{10, 12, 14, 16, 21, 23, 25, 27, 29, 31} {
 				passed = append(passed, spot{row: row, first: daysAt, last: 126})
 			}
-			drawn := screenOf(t, daysDrawn(f).rows(f.Look))
+			drawn := screenOf(t, historyDrawn(f).rows(f.Look))
 			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 6, bottom: 34, left: 0, right: 159}, shadeOf(f.Look.Canvas()), passed, nil)
 		})
 	}
@@ -139,7 +132,7 @@ func TestDaysHoldsToItsFramesCells(t *testing.T) {
 // days' shades, as the frames draw them in nord.
 func TestDaysShadesEachStripsDays(t *testing.T) {
 	f := daysFrame(t, daysWorld(workDays), 160, 37)
-	drawn := screenOf(t, daysDrawn(f).rows(f.Look))
+	drawn := screenOf(t, historyDrawn(f).rows(f.Look))
 	tests := []struct {
 		name string
 		y    int
@@ -160,7 +153,7 @@ func TestDaysShadesEachStripsDays(t *testing.T) {
 // Each part of Days is in the ink the design gives it.
 func TestDaysDrawsEachPartInItsInk(t *testing.T) {
 	f := daysFrame(t, daysWorld(workDays, personalDays, sideDays, views.DaysStrip{Of: "spare", Days: stripOf("0")}), 160, 37)
-	c := daysDrawn(f)
+	c := historyDrawn(f)
 	opus := familyHue("opus")
 	limitOn := func(level int) ink { return ink{token: theme.StateDestructive, on: dayInk(level).hue()} }
 	tests := []struct {
@@ -217,7 +210,7 @@ func TestDaysToldByGlyphsWhereTheLookBlendsNothing(t *testing.T) {
 	for _, look := range []Look{NoColour(), Screen(builtin(t, "terminal"))} {
 		f := daysFrame(t, page, 160, 37)
 		f.Look = look
-		c := daysDrawn(f)
+		c := historyDrawn(f)
 		rows := textOf(c.rows(Look{}))
 		if got, want := string([]rune(rows[21])[14:24]), "··░░▪▒▓▓██"; got != want {
 			t.Errorf("work's first days read %q, want %q", got, want)
@@ -265,7 +258,7 @@ func TestDaysByAccountScrollsPastSixAccounts(t *testing.T) {
 			if got := f.daysScrolling(); got != tt.want {
 				t.Errorf("it scrolls %+v, want %+v", got, tt.want)
 			}
-			rows := textOf(daysDrawn(f).rows(f.Look))
+			rows := textOf(historyDrawn(f).rows(f.Look))
 			if got := strings.Fields(rows[21])[0]; got != tt.first {
 				t.Errorf("the first account shown is %q, want %q", got, tt.first)
 			}
@@ -293,7 +286,7 @@ func TestDaysOnAPhone(t *testing.T) {
 	f := daysFrame(t, page, 52, 35)
 	f.Look = NoColour()
 	top := f.top()
-	rows := textOf(daysDrawn(f).rows(Look{}))
+	rows := textOf(historyDrawn(f).rows(Look{}))
 	wantFrom := []string{
 		"14 Sep         21 Sep         28 Sep",
 		"                              M T W T F S S",
@@ -328,7 +321,7 @@ func TestDaysSaysNothingIsRecordedYet(t *testing.T) {
 	for name, page := range map[string]*views.DaysPage{"no page": nil, "an empty page": {Weeks: daysWorld().Weeks, ByAccount: []views.DaysStrip{{Of: "work", Days: stripOf("")}}}} {
 		f := daysFrame(t, views.DaysPage{}, 160, 37)
 		f.History.Days = page
-		c := daysDrawn(f)
+		c := historyDrawn(f)
 		rows := textOf(c.rows(Look{}))
 		if got := rows[f.top()]; got != "nothing recorded yet" || c.at(0, f.top()).ink != dimInk {
 			t.Errorf("%s: row %d reads %q in %+v, want nothing recorded yet in text.subtle", name, f.top()+1, got, c.at(0, f.top()).ink)
@@ -348,7 +341,7 @@ func TestDaysNumbersBrighten(t *testing.T) {
 		{Kind: NumberShareOfUse, Of: "fable"}: "2%", {Kind: NumberShareOfUse, Of: "haiku"}: "2%",
 		{Kind: NumberLimitsHit, Account: "work", Of: "5h"}: "33", {Kind: NumberLimitsHit, Account: "spare", Of: "5h"}: "0",
 	}
-	if got := daysDrawn(f).numbers(); !maps.Equal(got, want) {
+	if got := historyDrawn(f).numbers(); !maps.Equal(got, want) {
 		t.Errorf("Days' numbers are %v, want %v", got, want)
 	}
 }
@@ -398,7 +391,7 @@ func TestDaysNamesEachAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := daysFrame(t, daysWorld(tt.account), tt.width, 37)
 			row := f.layOutDays(*f.History.Days, f.top()).accountRow(0)
-			if got := textOf(daysDrawn(f).rows(f.Look))[row]; !strings.HasPrefix(got, tt.want) {
+			if got := textOf(historyDrawn(f).rows(f.Look))[row]; !strings.HasPrefix(got, tt.want) {
 				t.Errorf("the account's row reads %q, want it to start %q", got, tt.want)
 			}
 		})

@@ -98,13 +98,6 @@ func weeksFrame(page views.WeeksPage, shape WeeksShape, width, height int, look 
 	return f
 }
 
-// weeksDrawnOn is the canvas f's view of Weeks is drawn on, alone.
-func weeksDrawnOn(f Frame) *canvas {
-	c := newCanvas(f.Width, f.Height)
-	f.historyWeeks(c, f.top())
-	return c
-}
-
 func TestWeeksIsDrawnAsItsFrames(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	tests := []struct {
@@ -137,7 +130,7 @@ func TestWeeksIsDrawnAsItsFrames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.stem, func(t *testing.T) {
 			f := weeksFrame(tt.page, tt.shape, 160, 37, nord)
-			drawn := screenOf(t, weeksDrawnOn(f).rows(nord))
+			drawn := screenOf(t, historyDrawn(f).rows(nord))
 			heldTo(t, tt.stem, reference(t, tt.stem), drawn, region{top: 6, bottom: 34, right: 159}, shadeOf(nord.Canvas()), tt.whole, tt.foreground)
 		})
 	}
@@ -146,7 +139,7 @@ func TestWeeksIsDrawnAsItsFrames(t *testing.T) {
 // weeksText is f's view of Weeks drawn as text alone, a row each from the
 // view's top, without the blanks at their ends.
 func weeksText(f Frame) []string {
-	return textOf(weeksDrawnOn(f).rows(Look{}))[f.top():]
+	return textOf(historyDrawn(f).rows(Look{}))[f.top():]
 }
 
 // shortOf is Weeks' page of the auto world as short as given: now, with one
@@ -181,7 +174,7 @@ func TestWeeksHeadlineIsBoldInItsVerdictsColourItsCountAWordToTen(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := weeksFrame(tt.page, WeeksTable, 160, 37, Look{})
-			c := weeksDrawnOn(f)
+			c := historyDrawn(f)
 			if got := weeksText(f)[0]; got != tt.want {
 				t.Errorf("the headline reads %q, want %q", got, tt.want)
 			}
@@ -232,7 +225,7 @@ func TestWeeksVerdictSaysHowShortEachReplayIsTheWorstBold(t *testing.T) {
 			if got := weeksText(f)[1:3]; got[0] != tt.want[0] || got[1] != tt.want[1] {
 				t.Errorf("the verdict reads\n%q\n%q\nwant\n%q\n%q", got[0], got[1], tt.want[0], tt.want[1])
 			}
-			row := weeksDrawnOn(f).cells[f.top()+1]
+			row := historyDrawn(f).cells[f.top()+1]
 			for _, want := range []struct {
 				counts []string
 				ink    ink
@@ -385,7 +378,7 @@ func TestWeeksThisWeeksPeaksBrightenAsTheyChange(t *testing.T) {
 		{Kind: NumberUsed, Of: "7d"}:                      "59%…",
 	}
 	for _, shape := range []WeeksShape{WeeksTable, WeeksColumns} {
-		if got := weeksDrawnOn(weeksFrame(threeWeeks(), shape, 160, 37, Look{})).numbers(); !maps.Equal(got, want) {
+		if got := historyDrawn(weeksFrame(threeWeeks(), shape, 160, 37, Look{})).numbers(); !maps.Equal(got, want) {
 			t.Errorf("shape %d draws the numbers %v, want this week's peaks so far alone, %v", shape, got, want)
 		}
 	}
@@ -396,7 +389,7 @@ func TestWeeksSaysThereArentEnoughWeeksTillAWholeOneIsJudged(t *testing.T) {
 	if rows := weeksText(f); rows[0] != "not enough weeks yet" || slices.ContainsFunc(rows[1:], func(r string) bool { return r != "" }) {
 		t.Errorf("Weeks of no whole week reads\n%s\nwant not enough weeks yet alone", strings.Join(rows, "\n"))
 	}
-	if got := weeksDrawnOn(f).at(0, f.top()).ink; got != dimInk {
+	if got := historyDrawn(f).at(0, f.top()).ink; got != dimInk {
 		t.Errorf("not enough weeks yet is in %+v, want text.subtle", got)
 	}
 	f.History.Weeks = nil
@@ -416,7 +409,7 @@ func TestWeeksLegendKeysEachMarkAsItsDrawn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := weeksFrame(threeWeeks(), tt.shape, 160, 37, Look{})
-		c := weeksDrawnOn(f)
+		c := historyDrawn(f)
 		foot := f.top() + f.viewRows() - 1
 		if got := textOf(c.rows(Look{}))[foot]; got != tt.want {
 			t.Errorf("shape %d: the legend on row %d reads %q, want %q", tt.shape, foot+1, got, tt.want)

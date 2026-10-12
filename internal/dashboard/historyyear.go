@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"cmp"
-	"fmt"
 	"maps"
 	"math"
 	"slices"
@@ -14,7 +13,6 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -50,16 +48,6 @@ const (
 	byMonthPhoneBarX     = 32
 	byMonthPhoneBarCells = 18
 	byMonthPhoneMonths   = 6
-)
-
-// aDollar is a dollar, as the ledger counts money.
-const aDollar ledger.Picodollars = 1_000_000_000_000
-
-var (
-	// boldPositiveInk is against its price at 1× or more; alertInk under.
-	boldPositiveInk = ink{token: theme.StatePositive, bold: true}
-	// noFigure is a figure that isn't known, or isn't yet.
-	noFigure = span{"—", faintInk}
 )
 
 // historyYear draws the Year from row top, once its page is built: on a
@@ -274,15 +262,15 @@ func (y yearDrawn) figures() []yearFigure {
 	}
 	if y.ofVersion() {
 		figures = append(figures,
-			yearFigure{"worth", "worth", worthSaid(n.Worth), true},
-			yearFigure{"of all use", "share", shareSaid(n.Share), true},
+			yearFigure{"worth", "worth", worthSaid(n.Worth, secondaryInk), true},
+			yearFigure{"of all use", "share", shareSaid(n.Share, secondaryInk), true},
 			yearFigure{"first used", "first", daySaid(n.FirstUsed), true},
 			yearFigure{"busiest day", "busiest", daySaid(n.BusiestDay), true},
 		)
 	} else {
 		figures = append(figures,
 			yearFigure{"limits hit", "limits", y.limitsSaid(n.Limits), true},
-			yearFigure{"worth", "worth", worthSaid(n.Worth), true},
+			yearFigure{"worth", "worth", worthSaid(n.Worth, secondaryInk), true},
 			yearFigure{"plans cost", "plans", costSaid(n.Cost), false},
 			yearFigure{"against it", "against", againstSaid(n.Ratio), true},
 			yearFigure{"busiest day", "busiest", daySaid(n.BusiestDay), true},
@@ -331,87 +319,13 @@ func (y yearDrawn) windowName(key string) string {
 	return status.InProse(nameOfWindow(key, ""))
 }
 
-// monthLayout lays out a month as views names it, as 2026-10.
-const monthLayout = "2006-01"
-
-// monthName is the month, as views names it, as the Year names it: Oct, or
-// with its year, Oct 2025.
-func monthName(month string, withYear bool) string {
-	m, err := time.Parse(monthLayout, month)
-	if err != nil {
-		return month
-	}
-	if withYear {
-		return m.Format("Jan 2006")
-	}
-	return m.Format("Jan")
-}
-
-// civilDay is the day with the given date, reporting false for one that
-// isn't.
-func civilDay(date string) (time.Time, bool) {
-	day, err := time.Parse(time.DateOnly, date)
-	return day, err == nil
-}
-
-// dayAbbreviation and dayInitial name a weekday as the grid does, wide and on
-// a phone: Mon, M.
-func dayAbbreviation(d time.Weekday) string { return d.String()[:3] }
-func dayInitial(d time.Weekday) string      { return d.String()[:1] }
-
-// worthSaid is a worth as History writes it, in text.secondary: to the
-// dollar, its thousands set apart, as "$27,480"; a faint + after it where
-// part of it is unpriced, as "$184+"; unpriced where all of it is; and a
-// dash for none.
-func worthSaid(w views.Worth) line {
-	switch {
-	case w.Amount == nil && len(w.Unpriced) > 0:
-		return line{{"unpriced", secondaryInk}}
-	case w.Amount == nil:
-		return line{noFigure}
-	case len(w.Unpriced) > 0:
-		return line{{dollarsSaid(*w.Amount), secondaryInk}, {"+", faintInk}}
-	}
-	return line{{dollarsSaid(*w.Amount), secondaryInk}}
-}
-
 // costSaid is what the plans cost, as worthSaid writes a priced worth: a
 // dash where no plan is known.
 func costSaid(cost *ledger.Picodollars) line {
 	if cost == nil {
 		return line{noFigure}
 	}
-	return line{{dollarsSaid(*cost), secondaryInk}}
-}
-
-// dollarsSaid writes an amount to the dollar, its thousands set apart, as
-// "$27,480".
-func dollarsSaid(p ledger.Picodollars) string {
-	return "$" + prose.Grouped(int((p+aDollar/2)/aDollar))
-}
-
-// againstSaid is a worth against its price, as "3.8×", bold, in
-// state.positive at 1× or more as it's written, and accent.attention under: a
-// dash where there's none.
-func againstSaid(ratio *float64) line {
-	if ratio == nil {
-		return line{noFigure}
-	}
-	shown := math.Round(*ratio*10) / 10
-	k := boldPositiveInk
-	if shown < 1 {
-		k = alertInk
-	}
-	return line{{fmt.Sprintf("%.1f×", shown), k}}
-}
-
-// shareSaid is a share as a whole percentage, as "21%": a dash where it isn't
-// known.
-func shareSaid(share *float64) line {
-	if share == nil {
-		return line{noFigure}
-	}
-	return line{{status.Percent(*share), secondaryInk}}
+	return line{{cost.GroupedDollars(), secondaryInk}}
 }
 
 // daySaid names the day with the given date, as "Tue 22 Sep": a dash for
@@ -421,7 +335,7 @@ func daySaid(date string) line {
 	if !ok {
 		return line{noFigure}
 	}
-	return line{{day.Format("Mon 2 Jan"), secondaryInk}}
+	return line{{day.Format(dayLayout), secondaryInk}}
 }
 
 // runSaid says how many days in a row there were, as "58 days": a dash for
@@ -492,9 +406,9 @@ const (
 func (y yearDrawn) monthColumns(f byMonthForm) []monthColumn {
 	third := monthColumn{head: "against", of: monthAgainst}
 	if y.ofVersion() {
-		third = monthColumn{head: "share", of: func(m views.MonthRow) line { return shareSaid(m.Share) }, changes: true}
+		third = monthColumn{head: "share", of: func(m views.MonthRow) line { return shareSaid(m.Share, secondaryInk) }, changes: true}
 	}
-	worth := monthColumn{head: "worth", of: func(m views.MonthRow) line { return worthSaid(m.Worth) }, changes: true}
+	worth := monthColumn{head: "worth", of: func(m views.MonthRow) line { return worthSaid(m.Worth, secondaryInk) }, changes: true}
 	if f.phone {
 		worth.x, third.x = byMonthPhoneWorthX, byMonthPhoneThirdX
 		return []monthColumn{worth, third}
@@ -517,10 +431,7 @@ func (y yearDrawn) byMonth(c *canvas, row int, f byMonthForm) int {
 	if f.phone {
 		heads = row
 	}
-	c.text(0, row, "BY MONTH", dimInk)
-	if !f.phone {
-		c.text(len("BY MONTH")+2, row, y.byMonthSays(), faintInk)
-	}
+	c.line(0, row, groupHead("BY MONTH", y.byMonthSays(), f.phone))
 	columns := y.monthColumns(f)
 	for _, col := range columns {
 		c.text(col.x, heads, col.head, dimInk)
