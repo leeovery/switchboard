@@ -46,7 +46,8 @@ func (f Frame) graphsSection(doc status.Document, now time.Time) section {
 // as the Overview names it: by window or by account alike, each window's
 // chart drawn from its trail.
 func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
-	names := overviewNames(doc, f.pool(doc, now))
+	m := f.moment(doc, now)
+	names := overviewNames(m)
 	g := graphs{names: nameColumn(names, f.Width), phone: f.phone(), look: f.Look}
 	account, focused := doc.Account(f.Focus)
 	if !focused && len(doc.Accounts) > 0 {
@@ -55,8 +56,8 @@ func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
 	if !focused {
 		return g
 	}
-	g.name, g.focused = overviewNamed(doc, names, account.ID, titleInk), true
-	for _, w := range f.overviewWindows(doc) {
+	g.name, g.focused = overviewNamed(m, names, account.ID, titleInk), true
+	for _, w := range f.overviewWindows(doc, now) {
 		g.charts = append(g.charts, chartOf(account, w, f.Trails[Ref{Account: account.ID, Window: w.key}], now, f.Policy))
 	}
 	return g

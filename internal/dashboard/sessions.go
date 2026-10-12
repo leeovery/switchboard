@@ -132,7 +132,7 @@ func (f Frame) overKeyLine(c *canvas, doc status.Document, now time.Time, top, c
 		scrollbar(c, f.Width-1, over-view, view, content, offset)
 	}
 	above, below := hidden(offset, view)
-	switch note := hiddenNote(doc, hiddenWindows(doc, now, f.Policy)); {
+	switch note := hiddenNote(f.moment(doc, now).Hidden); {
 	case content > view && above+below > 0:
 		says := outOfView(above, below).fit(f.edge() - margin)
 		c.line((f.Width-says.width())/2, over, says)
@@ -231,7 +231,7 @@ func (f Frame) bayOfWidth(doc status.Document, now time.Time, top, width int, ba
 // the cords' bends don't fit.
 func (f Frame) layOutBay(doc status.Document, now time.Time, x, width int, bars bool, view int) (bay, bool) {
 	b := bay{x: x, width: width, bars: bars}
-	shown := shownWindows(doc, now, f.Policy)
+	shown := windowKeys(f.moment(doc, now).Shown)
 	groups, firsts := f.groupsOf(doc), make([]int, len(doc.Accounts))
 	row := 1
 	for i, g := range groups {
@@ -456,7 +456,7 @@ func noCalls(doc status.Document) string {
 func (f Frame) drawCall(c *canvas, doc status.Document, r callRow, now time.Time) {
 	id := sessionID(r.session.ID)
 	if r.gone {
-		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + named(doc, r.to), goneInk}}.fit(plugAt-callsAt))
+		c.line(callsAt, r.row, line{{id, goneIDInk}, {"  ↪ moved to " + docNamed(doc, r.to), goneInk}}.fit(plugAt-callsAt))
 		return
 	}
 	idInk := titleInk

@@ -51,7 +51,7 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 	e.At = e.At.In(now.Location())
 	switch e.Kind {
 	case status.EventStarted:
-		return span{"▲", accentInk}, slices.Concat(line{{sessionID(e.Session), titleInk}, {" started on ", mutedInk}, {named(doc, e.Account), strongInk}}, why(doc, e.Reason)), true
+		return span{"▲", accentInk}, slices.Concat(line{{sessionID(e.Session), titleInk}, {" started on ", mutedInk}, {docNamed(doc, e.Account), strongInk}}, why(doc, e.Reason)), true
 	case status.EventMoved:
 		return movedMark, moveSaid(e, doc, why(doc, e.Reason)), true
 	case status.EventRestart:
@@ -63,7 +63,7 @@ func told(e status.Event, doc status.Document, now time.Time) (span, line, bool)
 		return span{"●", positiveInk}, line{{"the router is healthy again", mutedInk}}, true
 	}
 	if mark, gist, tail, ok := aside(e, doc); ok {
-		return mark, slices.Concat(line{{named(doc, e.Account), strongInk}, {" " + gist, mutedInk}}, tail), true
+		return mark, slices.Concat(line{{docNamed(doc, e.Account), strongInk}, {" " + gist, mutedInk}}, tail), true
 	}
 	return span{}, nil, false
 }
@@ -97,7 +97,7 @@ var movedMark = span{"▸", dimInk}
 // moveSaid says a session's model moved, from where to where, as in "d28c
 // moved work → side", then why, as said gives it.
 func moveSaid(e status.Event, doc status.Document, said line) line {
-	return slices.Concat(line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {named(doc, e.From), strongInk}, {" → ", mutedInk}, {named(doc, e.To), strongInk}}, said)
+	return slices.Concat(line{{sessionID(e.Session), titleInk}, {" moved ", mutedInk}, {docNamed(doc, e.From), strongInk}, {" → ", mutedInk}, {docNamed(doc, e.To), strongInk}}, said)
 }
 
 // why says why a session went where it did, as the router's reason gives it,
@@ -137,7 +137,7 @@ func namedIn(doc status.Document, said string) string {
 // namedFirst is words led by an account's id, the id named as doc names it.
 func namedFirst(doc status.Document, words string) string {
 	id, _, _ := strings.Cut(words, " ")
-	return named(doc, id) + words[len(id):]
+	return docNamed(doc, id) + words[len(id):]
 }
 
 // passedOverIn parts the reason the router gives for where a session went,
@@ -159,7 +159,7 @@ func passing(doc status.Document, passed string) line {
 		return nil
 	}
 	name, pressed, _ := strings.Cut(passed, " ")
-	return line{{", passing over " + named(doc, name) + " " + pressed, mutedInk}}
+	return line{{", passing over " + docNamed(doc, name) + " " + pressed, mutedInk}}
 }
 
 // runsOut says when, at the rate an account came under pressure at, its
@@ -221,7 +221,7 @@ func moves(e status.Event, doc status.Document) line {
 	}
 	l := line{{"; ", mutedInk}, {status.SessionCount(e.Count), secondaryInk}, {" moved", mutedInk}}
 	if e.To != "" {
-		l = append(l, span{" to ", mutedInk}, span{named(doc, e.To), strongInk})
+		l = append(l, span{" to ", mutedInk}, span{docNamed(doc, e.To), strongInk})
 	}
 	return l
 }
@@ -232,7 +232,7 @@ func movedTo(doc status.Document, e status.Event) string {
 	if e.To == "" {
 		return ""
 	}
-	return " to " + named(doc, e.To)
+	return " to " + docNamed(doc, e.To)
 }
 
 // refusal is what's said of the upstream refusing requests on an account,

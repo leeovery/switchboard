@@ -132,7 +132,7 @@ func retriedWhy(e status.Event, doc status.Document) line {
 	if rest, ok := strings.CutPrefix(said, status.ReasonMovedOff); ok {
 		account, befell, _ := strings.Cut(rest, " ")
 		if words, ok := retried[befell]; ok {
-			retry := line{{": " + named(doc, account) + " " + words + ", so its request was retried on " + named(doc, e.To), mutedInk}}
+			retry := line{{": " + docNamed(doc, account) + " " + words + ", so its request was retried on " + docNamed(doc, e.To), mutedInk}}
 			return slices.Concat(retry, passing(doc, passed))
 		}
 	}

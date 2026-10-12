@@ -104,12 +104,13 @@ func (f Frame) drawRunning(c *canvas, doc status.Document, running []views.Runni
 	if shown*form.rows > body.rows {
 		shown = max(body.rows-1, 0) / form.rows
 	}
-	names := overviewNames(doc, f.pool(doc, now))
+	m := f.moment(doc, now)
+	names := overviewNames(m)
 	column := nameColumn(names, f.Width)
 	for i, r := range running[:shown] {
 		y := body.y + i*form.rows
 		if i == 0 || running[i-1].Account != r.Account {
-			c.line(form.nameAt, y, names[place(doc, r.Account)-1].line(column))
+			c.line(form.nameAt, y, names[place(m, r.Account)-1].line(column))
 		}
 		form.draw(c, doc, r, column, now, y)
 	}
@@ -134,7 +135,7 @@ func (f Frame) wideRunning(c *canvas, doc status.Document, r views.Running, colu
 	})
 	why := column + runningWhy
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
-	faded, t := outOfPool(f.pool(doc, now), r.Account), f.Traces.Sessions[r.Session]
+	faded, t := outOfPool(f.moment(doc, now), r.Account), f.Traces.Sessions[r.Session]
 	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, faded)
 	c.right(f.Width, y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
 }
@@ -227,14 +228,15 @@ func runningCount(doc status.Document, running []views.Running) string {
 	var on []string
 	for _, a := range doc.Accounts {
 		if n := byAccount[a.ID]; n > 0 {
-			on = append(on, strconv.Itoa(n)+" on "+name(a))
+			on = append(on, strconv.Itoa(n)+" on "+docName(a))
 		}
 	}
 	return strconv.Itoa(len(sessions)) + " running: " + strings.Join(on, ", ")
 }
 
-// outOfPool reports whether the account with the given id is out of the
-// pool, where there's one.
-func outOfPool(pool status.Pool, id string) bool {
-	return len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, id)
+// outOfPool reports whether the account of m with the given id is out of the
+// pool, as its OutOfPool says: not where m lacks it.
+func outOfPool(m status.Moment, id string) bool {
+	a, _ := m.Account(id)
+	return a.OutOfPool
 }

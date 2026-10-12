@@ -141,8 +141,8 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 
 func TestCOMINGUPListsEverythingTheDocumentGivesWhateverItsWindow(t *testing.T) {
 	doc := routerDoc("work", 0, readAccount("work", sessionOf(0.1, 2*time.Hour), windowOf("7d_oi", "Fable week", 0, 2*day)))
-	if windows := hiddenWindows(doc, now, claudeLike); !slices.Equal(windows, []string{"7d_oi"}) {
-		t.Fatalf("hiddenWindows() = %q, want the Fable week, unused on every account", windows)
+	if windows := windowKeys(doc.At(now, claudeLike).Hidden); !slices.Equal(windows, []string{"7d_oi"}) {
+		t.Fatalf("the hidden windows = %q, want the Fable week, unused on every account", windows)
 	}
 	doc.ComingUp = []status.Upcoming{
 		{At: now.Add(time.Hour).UTC(), Account: "work", Kind: status.UpcomingRunsOut, Window: "7d_oi"},

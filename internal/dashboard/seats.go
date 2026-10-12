@@ -213,9 +213,9 @@ func note(doc status.Document, id string, s seated, now time.Time) string {
 	pin := s.session.Pin
 	switch {
 	case pin != "" && pin != id && s.assignment.Yielded:
-		return "its pin to " + named(doc, pin) + " yielded here"
+		return "its pin to " + docNamed(doc, pin) + " yielded here"
 	case pin != "" && pin != id:
-		return "goes to " + named(doc, pin) + " from its next request"
+		return "goes to " + docNamed(doc, pin) + " from its next request"
 	}
 	if others := elsewhere(doc, s.session, id); others != "" {
 		return others
@@ -228,7 +228,7 @@ func note(doc status.Document, id string, s seated, now time.Time) string {
 	case pinned:
 		return "pinned here"
 	case moved:
-		return "moved from " + named(doc, move.From) + " at " + status.Dated(now, move.At)
+		return "moved from " + docNamed(doc, move.From) + " at " + status.Dated(now, move.At)
 	default:
 		return "here since " + status.Dated(now, s.assignment.AssignedAt)
 	}
@@ -251,7 +251,7 @@ func elsewhere(doc status.Document, s status.Session, id string) string {
 		default:
 			verb = " is"
 		}
-		said = append(said, "its "+prose.List(models.Names)+verb+" on "+named(doc, models.Account))
+		said = append(said, "its "+prose.List(models.Names)+verb+" on "+docNamed(doc, models.Account))
 	}
 	return strings.Join(said, ", ")
 }
@@ -293,7 +293,7 @@ func (f Frame) unseatedBy(doc status.Document, id string, now time.Time) []chunk
 		case e.Kind == status.EventLimit && e.Account == id && e.Count > 0:
 			return limitMoved(doc, e, id, now)
 		case e.Kind == status.EventMoved && !counted(e) && e.From == id:
-			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + named(doc, e.To) + " at " + status.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
+			return []chunk{{text: slices.Concat(line{{sessionID(e.Session) + " moved to " + docNamed(doc, e.To) + " at " + status.Dated(now, e.At), mutedInk}}, why(doc, e.Reason))}}
 		}
 	}
 	return nil
@@ -306,7 +306,7 @@ func limitMoved(doc status.Document, e status.Event, id string, now time.Time) [
 	to := cmp.Or(movedTo(doc, e), " to other accounts")
 	return []chunk{
 		{text: line{{strconv.Itoa(e.Count) + " moved" + to + " at " + status.Dated(now, e.At) + ",", mutedInk}}},
-		{text: line{{"when " + named(doc, id) + " reached its limit", mutedInk}}},
+		{text: line{{"when " + docNamed(doc, id) + " reached its limit", mutedInk}}},
 	}
 }
 

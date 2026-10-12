@@ -680,9 +680,9 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // windows are grouped, the requests its traces count and its layout as
 // kept, how far ahead Runway looks, the sessions listed, what the request
 // stream tells of their requests and the order Sessions' calls keep, how far
-// the view is scrolled, and the account the focus is on. Its pool is judged
-// at now once, as Judged has it, for its bars eased to it and every look at
-// it to share.
+// the view is scrolled, and the account the focus is on. It holds the one
+// moment of the document at now, as At has it, for its bars eased to it and
+// every look at it to share.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
@@ -694,7 +694,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
 		History:    m.past.page,
-	}.Judged(m.doc, now)
+	}.At(m.doc, now)
 	f.Eased = m.ease.eased(f, m.doc, now)
 	return f
 }

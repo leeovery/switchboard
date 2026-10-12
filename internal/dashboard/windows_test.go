@@ -64,19 +64,19 @@ func TestTheWindowsShown(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			doc := routerDoc("", 0, tt.accounts...)
-			if got := shownWindows(doc, now, claudeLike); !slices.Equal(got, tt.wantShown) {
-				t.Errorf("shownWindows() = %q, want %q", got, tt.wantShown)
+			m := routerDoc("", 0, tt.accounts...).At(now, claudeLike)
+			if got := windowKeys(m.Shown); !slices.Equal(got, tt.wantShown) {
+				t.Errorf("the windows shown are %q, want %q", got, tt.wantShown)
 			}
-			if got := hiddenWindows(doc, now, claudeLike); !slices.Equal(got, tt.wantHidden) {
-				t.Errorf("hiddenWindows() = %q, want %q", got, tt.wantHidden)
+			if got := windowKeys(m.Hidden); !slices.Equal(got, tt.wantHidden) {
+				t.Errorf("the windows hidden are %q, want %q", got, tt.wantHidden)
 			}
 		})
 	}
 }
 
 func TestTheLineOverTheKeyLineSaysWhichWindowsHide(t *testing.T) {
-	doc := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), fableOf(0, 4*day), windowOf("7d_opus", "Opus week", 0, 4*day)))
+	m := routerDoc("", 0, readAccount("work", sessionOf(0.2, time.Hour), fableOf(0, 4*day), windowOf("7d_opus", "Opus week", 0, 4*day))).At(now, claudeLike)
 	tests := []struct {
 		keys []string
 		want string
@@ -86,8 +86,37 @@ func TestTheLineOverTheKeyLineSaysWhichWindowsHide(t *testing.T) {
 		{keys: nil, want: ""},
 	}
 	for _, tt := range tests {
-		if got := text(hiddenNote(doc, tt.keys)); got != tt.want {
+		var hidden []status.WindowName
+		for _, key := range tt.keys {
+			hidden = append(hidden, windowNamed(m, key))
+		}
+		if got := text(hiddenNote(hidden)); got != tt.want {
 			t.Errorf("hiddenNote(%q) = %q, want %q", tt.keys, got, tt.want)
+		}
+	}
+}
+
+func TestAWindowIsNamedAsTheMomentNamesIt(t *testing.T) {
+	m := routerDoc("", 0,
+		readAccount("work", windowOf("5h", "", 0.2, time.Hour), fableOf(0, 4*day)),
+		readAccount("side", windowOf("7d", "Week\x1b[2J", 0.3, 4*day)),
+	).At(now, claudeLike)
+	tests := []struct {
+		key  string
+		want status.WindowName
+	}{
+		{key: "5h", want: status.WindowName{Key: "5h", Label: "5h", Name: "5-hour"}},
+		{key: "7d", want: status.WindowName{Key: "7d", Label: "Week\x1b[2J", Name: "Week [2J"}},
+		{key: "7d_oi", want: status.WindowName{Key: "7d_oi", Label: "Fable week", Name: "Fable week"}},
+		{key: "1h", want: status.WindowName{Key: "1h", Label: "1h", Name: "1-hour"}},
+		{key: "7d_new", want: status.WindowName{Key: "7d_new", Label: "7d_new", Name: "7d_new"}},
+	}
+	for _, tt := range tests {
+		if got := windowNamed(m, tt.key); got != tt.want {
+			t.Errorf("windowNamed(%q) = %+v, want %+v: as the moment names it, or one it lacks by its key", tt.key, got, tt.want)
+		}
+		if got, want := labelsOf(m)(tt.key), tt.want.Label; got != want {
+			t.Errorf("labelsOf()(%q) = %q, want %q", tt.key, got, want)
 		}
 	}
 }

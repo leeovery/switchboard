@@ -225,7 +225,7 @@ type laneWindow struct {
 // heading to run out until the last of those windows that run out before
 // they reset does.
 func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
-	l := lane{account: a, place: place(doc, a.ID), states: doc.WindowStatesOf(a, now, f.Policy)}
+	l := lane{account: a, place: docPlace(doc, a.ID), states: doc.WindowStatesOf(a, now, f.Policy)}
 	state, unknown := a.NoToken()
 	if !unknown {
 		state, unknown = a.Unread()
