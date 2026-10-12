@@ -24,10 +24,6 @@ func TestTheSamplesReadAsTheFramesHaveThem(t *testing.T) {
 		{sample: side(now), window: weekKey, used: "33%", projected: "on pace for 72%"},
 		{sample: side(now), window: fableKey, used: "4%", projected: "on pace for 9%"},
 		{sample: client(now), window: fiveHourKey, used: "31%", projected: "on pace for 48%"},
-		{sample: lab(now), window: fiveHourKey, used: "44%", projected: "on pace for 71%"},
-		{sample: lab(now), window: weekKey, used: "52%", projected: "on pace for 75%"},
-		{sample: team(now), window: fiveHourKey, used: "8%", projected: "on pace for 20%"},
-		{sample: team(now), window: weekKey, used: "21%", projected: "on pace for 28%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.sample.id+" "+tt.window, func(t *testing.T) {
@@ -49,12 +45,12 @@ func TestTheSamplesReadAsTheFramesHaveThem(t *testing.T) {
 func TestTheSamplesStandAsTheFramesHaveThem(t *testing.T) {
 	now := moment(time.UTC)
 	byID := make(map[string]status.Account)
-	for _, s := range []sample{work(now), personal(now), side(now), client(now), spare(now), lab(now), team(now), extra(now)} {
+	for _, s := range []sample{work(now), personal(now), side(now), client(now), spare(now)} {
 		byID[s.id] = s.account(now)
 	}
 
 	var pressed, lapsed []string
-	for _, id := range []string{"work", "personal", "side", "client", "spare", "lab", "team", "extra"} {
+	for _, id := range []string{"work", "personal", "side", "client", "spare"} {
 		if byID[id].Pressure.Under {
 			pressed = append(pressed, id)
 		}
@@ -65,7 +61,7 @@ func TestTheSamplesStandAsTheFramesHaveThem(t *testing.T) {
 	if want := []string{"work"}; !slices.Equal(pressed, want) {
 		t.Errorf("under pressure are %v, want %v", pressed, want)
 	}
-	if want := []string{"spare", "extra"}; !slices.Equal(lapsed, want) {
+	if want := []string{"spare"}; !slices.Equal(lapsed, want) {
 		t.Errorf("lapsed are %v, want %v", lapsed, want)
 	}
 	if limit := byID["personal"].Limit; !limit.Holds(now) || !limit.Until.Equal(on(now, 1, 15, 54)) {

@@ -77,6 +77,23 @@ func cordOf(t *testing.T, b bay, shown, account string) cord {
 	return b.cords[i]
 }
 
+// accountsOf are n accounts read a minute ago, each with a session and a
+// week, and Fable's week, used where fable is set, else unused, and so
+// hidden. A recent event is told of.
+func accountsOf(n int, fable bool) status.Document {
+	used := 0.0
+	if fable {
+		used = 0.1
+	}
+	accounts := make([]status.Account, n)
+	for i := range accounts {
+		accounts[i] = readAccount(string(rune('a'+i)), sessionOf(0.2, 3*time.Hour), weekOf(0.3, 4*day), fableOf(used, 4*day))
+	}
+	doc := routerDoc("a", 0, accounts...)
+	doc.Events = []status.Event{{ID: 1, At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "a"}}
+	return doc
+}
+
 func TestTheCallsAreGroupedByTheLineTheyreOn(t *testing.T) {
 	b := bayOfFrame(t, switchboard(160, 40, flippingSessions(), Traffic{}), threeRouted())
 

@@ -158,7 +158,11 @@ func (s source) History(_ context.Context, window string, step time.Duration) (r
 // Stream opens the router's request stream, as GET /stream does: it tells of
 // the requests the fixture has in flight, and what has befallen them, then
 // ends, as a router ends it. The watch keeps what it told until it asks for
-// it again, which a capture never has it do, as its timers never fire.
+// it again, which a capture never has it do, as its timers never fire. Each
+// opening tells all of it again, moves too, as no router does: a fixture
+// drawing a view that reads the stream opens on it, as the Overview reads it
+// too, and passing through it, the stream opened twice, would tell its
+// moves twice.
 func (s source) Stream(context.Context) (<-chan router.StreamEvent, error) {
 	events := make(chan router.StreamEvent, len(s.stream))
 	for _, e := range s.stream {

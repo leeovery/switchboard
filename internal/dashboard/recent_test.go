@@ -238,13 +238,13 @@ func TestRECENTShowsAMoveALimitForcedWhereTheLimitsLineDoesnt(t *testing.T) {
 	}
 }
 
-func TestRECENTsTimesAreDatedAsTheCardsAre(t *testing.T) {
+func TestRECENTsTimesAreDated(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 2, At: now.Add(-time.Hour).UTC(), Kind: status.EventRoom, Account: "work"},
 		{ID: 1, At: now.Add(-20 * time.Hour).UTC(), Kind: status.EventRoom, Account: "side"},
 	}
-	tellings := frameOf(160, 40).tellings(doc, now, 4)
+	tellings := frameOf(160, 40).tellingsOf(recent(doc, now, 4), doc, now, told)
 	for i, want := range []string{"12:12      ● ", "Sun 17:12  ● "} {
 		if got := tellings[i].lead.plain(); got != want {
 			t.Errorf("event %d is led by %q, want %q: yesterday's with its weekday", i+1, got, want)
@@ -318,7 +318,7 @@ func TestRECENTSaysWhyThereAreNone(t *testing.T) {
 	}
 }
 
-func TestRECENTsStrip(t *testing.T) {
+func TestLOGsLinesHaveTheirTimesInAColumn(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 5, At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b", Reason: "new"},
@@ -332,13 +332,13 @@ func TestRECENTsStrip(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{name: "its four newest, their times in a column", width: 120, want: []string{
+		{name: "its four newest, their times in a column", width: 122, want: []string{
 			"13:11      ▲ c61b started on side, the best",
 			"13:08      ● work has room again",
 			"Sun 12:12  ◇ side primed: its 5-hour window started",
 			"Sat 13:12  ● side has room again",
 		}},
-		{name: "on a phone, a single blank after its times, cut short", width: 40, want: []string{
+		{name: "on a phone, a single blank after its times, cut short", width: 42, want: []string{
 			"13:11     ▲ c61b started on side, the…",
 			"13:08     ● work has room again",
 			"Sun 12:12 ◇ side primed: its 5-hour wi…",
@@ -349,18 +349,19 @@ func TestRECENTsStrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 6)
 			c := newCanvas(f.Width, f.Height)
-			if got := f.recentStrip(c, doc, now, 0, 1, f.edge(), recentLines); got != 4 {
-				t.Errorf("recentStrip() = %d, want 4 lines", got)
+			f.drawLog(c, doc, logBlock{row: 0, lines: 4, end: f.edge()}, now)
+			var rows []string
+			for _, row := range c.rows(Look{})[1:5] {
+				rows = append(rows, strings.TrimPrefix(row, strings.Repeat(" ", callsAt)))
 			}
-			rows := c.rows(Look{})[1:5]
 			if !slices.Equal(rows, tt.want) {
-				t.Errorf("RECENT reads\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
+				t.Errorf("LOG reads\n%s\nwant\n%s", strings.Join(rows, "\n"), strings.Join(tt.want, "\n"))
 			}
 		})
 	}
 }
 
-func TestRECENTsNewestTimeStandsOut(t *testing.T) {
+func TestLOGsNewestTimeStandsOut(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 2, At: now.UTC(), Kind: status.EventRoom, Account: "work"},
@@ -368,40 +369,40 @@ func TestRECENTsNewestTimeStandsOut(t *testing.T) {
 	}
 	f := frameOf(80, 4)
 	c := newCanvas(f.Width, f.Height)
-	f.recentStrip(c, doc, now, 0, 0, f.edge(), recentLines)
+	f.drawLog(c, doc, logBlock{row: 0, lines: 2, end: f.edge()}, now)
 
-	if got := c.at(0, 0).ink.token; got != theme.TextSecondary {
+	if got := c.at(callsAt, 1).ink.token; got != theme.TextSecondary {
 		t.Errorf("the newest's time is in %v, want text.secondary", got)
 	}
-	if got := c.at(0, 1).ink.token; got != theme.TextSubtle {
+	if got := c.at(callsAt, 2).ink.token; got != theme.TextSubtle {
 		t.Errorf("the next's time is in %v, want text.subtle", got)
 	}
 }
 
-func TestRECENTPicksOutFreshEventsFadingBack(t *testing.T) {
+func TestLOGPicksOutFreshEventsFadingBack(t *testing.T) {
 	doc := threeRouted()
 	doc.Events = []status.Event{
 		{ID: 7, At: now.UTC(), Kind: status.EventRoom, Account: "work"},
 		{ID: 6, At: now.UTC(), Kind: status.EventRoom, Account: "side"},
 		{ID: 5, At: now.UTC(), Kind: status.EventRoom, Account: "personal"},
 	}
-	f := frameOf(80, 4)
+	f := frameOf(80, 5)
 	f.Fresh = map[int]float64{7: 0, 6: 0.75}
 	c := newCanvas(f.Width, f.Height)
-	f.recentStrip(c, doc, now, 10, 0, 60, recentLines)
+	f.drawLog(c, doc, logBlock{row: 0, lines: 3, end: 60}, now)
 
 	tests := []struct {
 		row int
 		on  hue
-	}{{row: 0, on: hue{token: theme.BgAttention}}, {row: 1, on: hue{token: theme.BgAttention, fade: 0.75}}, {row: 2}}
+	}{{row: 1, on: hue{token: theme.BgAttention}}, {row: 2, on: hue{token: theme.BgAttention, fade: 0.75}}, {row: 3}}
 	for _, tt := range tests {
-		for _, x := range []int{10, 40, 59} {
+		for _, x := range []int{callsAt, 40, 59} {
 			if got := c.at(x, tt.row).ink.on; got != tt.on {
 				t.Errorf("row %d, column %d, is on %+v, want on %+v", tt.row+1, x, got, tt.on)
 			}
 		}
-		if got := c.at(9, tt.row).ink.on; got != (hue{}) {
-			t.Errorf("row %d is picked out before its strip, at column 9, want from where its lines start", tt.row+1)
+		if got := c.at(callsAt-1, tt.row).ink.on; got != (hue{}) {
+			t.Errorf("row %d is picked out before its lines start, at column %d", tt.row+1, callsAt-1)
 		}
 	}
 }

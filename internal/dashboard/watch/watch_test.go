@@ -19,7 +19,7 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.keyLine(), unreadKeys; got != want {
 		t.Errorf("before the first read, the key line reads %q, want %q", got, want)
 	}
-	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "╭─ 1 Work ") {
+	if view := h.view(); !strings.Contains(view, "SWITCHBOARD") || strings.Contains(view, "1 Work") {
 		t.Errorf("before the first read, the screen is\n%s\nwant the title row, and no account", view)
 	}
 	read := h.init()
@@ -30,8 +30,8 @@ func TestStartsByReading(t *testing.T) {
 	if got, want := h.keyLine(), oneKeys; got != want {
 		t.Errorf("after the first read, the key line reads %q, want %q", got, want)
 	}
-	if !strings.Contains(h.view(), "╭─ 1 Work ") {
-		t.Errorf("after the first read, the screen is\n%s\nwant the account's card", h.view())
+	if !strings.Contains(h.view(), "1 Work") {
+		t.Errorf("after the first read, the screen is\n%s\nwant the account", h.view())
 	}
 }
 
@@ -252,27 +252,6 @@ func TestTicksEverySecond(t *testing.T) {
 	}
 }
 
-func TestCountdownShowsSecondsBetweenTicks(t *testing.T) {
-	h := newHarness(t, document(account("work", "Work", refused(session(1, 12*time.Minute)), week(0.5))))
-	h.start()
-
-	for h.clock.now.Before(at(13, 16, 17)) {
-		h.fire(h.lastTick())
-	}
-	before := between(h.view())
-	h.fire(h.lastTick())
-	if after := between(h.view()); after == before {
-		t.Errorf("at %s, a second on, the screen is\n%s\nwant the session's countdown, its last ten minutes in seconds, moved on", h.clock.now.Format(time.StampMilli), after)
-	}
-}
-
-// between is the screen between its title row, which tells the time, and its
-// key line.
-func between(screen string) string {
-	rows := strings.Split(screen, "\n")
-	return strings.Join(rows[1:len(rows)-1], "\n")
-}
-
 func TestATickFromBeforeAReadIsDropped(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
@@ -298,8 +277,8 @@ func TestAFailedReadKeepsWhatWasReadOnScreen(t *testing.T) {
 	h.clock.now = at(13, 20, 0)
 	h.read(calm())
 
-	if !strings.Contains(h.view(), "╭─ 1 Work ") {
-		t.Errorf("screen is\n%s\nwant the account's card still", h.view())
+	if !strings.Contains(h.view(), "1 Work") {
+		t.Errorf("screen is\n%s\nwant the account still", h.view())
 	}
 	if got, want := h.nextRead(), "13:22"; got != want {
 		t.Errorf("the next read is due at %s, want %s", got, want)
@@ -314,7 +293,7 @@ func TestFirstReadFails(t *testing.T) {
 	if got, want := h.keyLine(), unreadKeys; got != want {
 		t.Errorf("the key line reads %q, want %q", got, want)
 	}
-	if strings.Contains(h.view(), "╭─ 1 Work ") {
+	if strings.Contains(h.view(), "1 Work") {
 		t.Errorf("screen is\n%s\nwant no account, nothing having been read", h.view())
 	}
 	h.source.err = nil
@@ -400,10 +379,6 @@ func TestDrawsAtTheGivenSizeUntilTheTerminalGivesOne(t *testing.T) {
 	}
 }
 
-// cardKeys are the Overview's own keys, as its key line lists them while
-// its cards feature each its own window.
-var cardKeys = []dashboard.Key{{Key: "w", Does: "window: auto"}, {Key: "←→", Does: "focus"}, {Key: "space", Does: "flip"}, {Key: "g", Does: "chart"}}
-
 // calmScreen is the screen of calm read at now, its windows used as trails
 // says, as a terminal of the size given shows it without colour, probing,
 // with nothing more to say.
@@ -413,9 +388,8 @@ func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 		View: dashboard.Overview, Trails: trails,
 		KeyLine: dashboard.KeyLine{Lead: 5, Groups: [][]dashboard.Key{
 			{{Key: "tab", Does: "views"}},
-			cardKeys,
 			{{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}},
-		}, Phone: cardKeys, PhoneHelp: "keys and toggles"},
+		}, PhoneHelp: "keys and toggles"},
 		Policy: policy,
 	}.Draw(calm(), now), "\n")
 }

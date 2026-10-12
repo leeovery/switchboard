@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -25,10 +26,18 @@ var (
 
 // streamingHarness is a model of the router of three, d28c busy on work and
 // 7f3a idle there, in a terminal 160 columns wide and 40 tall, started on
-// the Accounts view.
+// the Overview, ROUTING hidden there, so the stream opens once Sessions
+// shows.
 func streamingHarness(t *testing.T) *harness {
 	t.Helper()
+	return streamingOn(t, dashboard.Sections{}.Toggled(dashboard.SectionRouting))
+}
+
+// streamingOn is streamingHarness, the Overview showing the sections given.
+func streamingOn(t *testing.T, sections dashboard.Sections) *harness {
+	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
+	h.model.sections = sections
 	h.source.sessions = []status.Session{
 		sessionOn(idD28C, opus, "work", 10*time.Second),
 		sessionOn(id7F3A, "claude-haiku-4-5", "work", 9*time.Minute),
@@ -60,8 +69,8 @@ func (h *harness) pendingRejoin() (*timer, bool) {
 	return nil, false
 }
 
-func TestTheStreamIsReadWhileSessionsShowsOrACardIsFlipped(t *testing.T) {
-	h := streamingHarness(t)
+func TestTheStreamIsReadWhileSessionsOrTheOverviewsROUTINGShows(t *testing.T) {
+	h := streamingOn(t, dashboard.Sections{})
 
 	steps := []struct {
 		key string
@@ -70,16 +79,13 @@ func TestTheStreamIsReadWhileSessionsShowsOrACardIsFlipped(t *testing.T) {
 		opened int
 		open   bool
 	}{
-		{key: "", opened: 0},
-		{key: "tab", opened: 0},
-		{key: "tab", opened: 0},
-		{key: "tab", opened: 1, open: true},
+		{key: "", opened: 1, open: true},
 		{key: "tab", opened: 1},
 		{key: "tab", opened: 1},
-		{key: "tab", opened: 1},
-		{key: " ", opened: 2, open: true},
-		{key: " ", opened: 2},
-		{key: "s", opened: 3, open: true},
+		{key: "tab", opened: 2, open: true},
+		{key: "tab", opened: 2},
+		{key: "tab", opened: 2},
+		{key: "tab", opened: 3, open: true},
 		{key: "shift+tab", opened: 3},
 	}
 	for _, step := range steps {
@@ -87,18 +93,37 @@ func TestTheStreamIsReadWhileSessionsShowsOrACardIsFlipped(t *testing.T) {
 		case "":
 		case "shift+tab":
 			h.deliver(h.update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})...)
-		case " ":
-			h.keys(spaceKey)
 		case "tab":
 			h.keys(tabKey)
-		default:
-			h.deliver(h.press(step.key)...)
 		}
 		open := h.opened() > 0 && !h.closed(h.opened())
 		if h.opened() != step.opened || open != step.open {
-			t.Errorf("after %q, showing %s, flipped %v, the stream was opened %d times, the last open %v; want %d, open %v",
-				step.key, h.model.view, h.model.flipped, h.opened(), open, step.opened, step.open)
+			t.Errorf("after %q, showing %s, the stream was opened %d times, the last open %v; want %d, open %v",
+				step.key, h.model.view, h.opened(), open, step.opened, step.open)
 		}
+	}
+}
+
+func TestTheOverviewReadsTheStreamWhileROUTINGOrSESSIONSShows(t *testing.T) {
+	none := dashboard.Sections{}.Toggled(dashboard.SectionRouting)
+	tests := []struct {
+		name     string
+		sections dashboard.Sections
+		want     bool
+	}{
+		{name: "ROUTING, as at first", sections: dashboard.Sections{}, want: true},
+		{name: "SESSIONS alone", sections: none.Toggled(dashboard.SectionSessions), want: true},
+		{name: "neither", sections: none},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.model.sections = tt.sections
+			h.start()
+			if open := h.opened() > 0 && !h.closed(h.opened()); open != tt.want {
+				t.Errorf("showing %v, the stream is open: %v, want %v", tt.sections.Names(), open, tt.want)
+			}
+		})
 	}
 }
 
@@ -219,7 +244,7 @@ func TestARouterFromBeforeTheStreamGoesWithoutIt(t *testing.T) {
 	if row := "d28c  opus    now          ●━"; !strings.Contains(h.view(), row) {
 		t.Errorf("without the stream, the screen is\n%s\nwant d28c's call as the look read it, %q, nothing travelling", h.view(), row)
 	}
-	if !log.Has("level=INFO", `msg="the router is from before GET /stream: the cords and the cards' backs draw the sessions as each look reads them"`) {
+	if !log.Has("level=INFO", `msg="the router is from before GET /stream: the sessions are drawn as each look reads them"`) {
 		t.Errorf("log reads\n%s\nwant it to say the router has no stream", log)
 	}
 
@@ -261,64 +286,16 @@ func TestAnotherRouterAnsweringForgetsWhatTheLastOnesStreamTold(t *testing.T) {
 	h := streamingHarness(t)
 	h.source.health = router.Health{OK: true, PID: 100, StartedAt: start.UTC()}
 	h.tickUntilAsked()
-	h.keys(rightKey, rightKey, spaceKey)
+	h.keys(toSessions...)
 	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", time.Second))
 	h.endStream()
 
-	// It restarts without personal, whose card, flipped, was all that
-	// wanted the stream: d28c's request went with the router it was on.
-	restarted := routerDocument(three()[0], three()[2])
-	h.source.router, h.source.health = &restarted, router.Health{OK: true, PID: 200, StartedAt: start.Add(time.Minute).UTC()}
+	// It restarts: d28c's request went with the router it was on.
+	h.source.health = router.Health{OK: true, PID: 200, StartedAt: start.Add(time.Minute).UTC()}
 	h.tickUntilAsked()
 	h.tickUntil(past(3 * time.Minute))
-	if !strings.Contains(h.view(), "╰─ ○ ○ ─") {
-		t.Errorf("minutes after d28c was last seen, the screen is\n%s\nwant work's sessions idle, d28c's request that went with the last router no longer in flight", h.view())
-	}
-}
-
-func TestTheCardsBacksSayWhatTheStreamTells(t *testing.T) {
-	h := gridHarness(t)
-	h.keys(spaceKey)
-	h.hear(
-		alter(told(router.StreamInFlight, "r1", "work", 0), func(e *router.StreamEvent) {
-			e.SentAt, e.FirstAt, e.Chars = past(-time.Minute), past(-50*time.Second), 4936
-		}),
-		alter(told(router.StreamInFlight, "r2", "work", 0), func(e *router.StreamEvent) {
-			e.Session, e.Model, e.SentAt = id7F3A, "claude-haiku-4-5", past(-38*time.Second)
-		}),
-	)
-
-	for _, want := range []string{"● d28c  opus    streaming  ↓ ~1.2k", "● 7f3a  haiku   waiting    38s"} {
-		if !strings.Contains(h.view(), want) {
-			t.Errorf("the screen is\n%s\nwant %q", h.view(), want)
-		}
-	}
-	h.fire(h.lastTick())
-	if want := "● 7f3a  haiku   waiting    39s"; !strings.Contains(h.view(), want) {
-		t.Errorf("a second on, the screen is\n%s\nwant the wait counting on, %q", h.view(), want)
-	}
-
-	h.hear(alter(told(router.StreamDone, "r1", "work", time.Second), func(e *router.StreamEvent) {
-		e.Status, e.Tokens = 200, &quota.Tokens{Output: 1321}
-	}))
-	if want := "● d28c  opus    ↓ 1.3k"; !strings.Contains(h.view(), want) {
-		t.Errorf("as d28c's answer ends, the screen is\n%s\nwant its tokens, exact, %q", h.view(), want)
-	}
-	h.tickUntil(past(time.Second + answeredFor + 100*time.Millisecond))
-	if want := "● d28c  opus    idle       2s"; !strings.Contains(h.view(), want) {
-		t.Errorf("answeredFor on, the screen is\n%s\nwant how long it has been idle since, %q", h.view(), want)
-	}
-}
-
-func TestWithoutTheStreamABackSaysWhenItsSessionsWereSeen(t *testing.T) {
-	h := streamingHarness(t)
-	h.source.streamErr = fmt.Errorf("%w: the router answered GET /stream with 404 Not Found", router.ErrNoStream)
-	h.keys(spaceKey)
-
-	for _, want := range []string{"● d28c  opus    seen       now", "○ 7f3a  haiku   idle       9m"} {
-		if !strings.Contains(h.view(), want) {
-			t.Errorf("without the stream, the screen is\n%s\nwant %q", h.view(), want)
-		}
+	if strings.Contains(h.view(), "d28c  opus    now") {
+		t.Errorf("minutes after d28c was last seen, the screen is\n%s\nwant d28c idle, its request that went with the last router no longer in flight", h.view())
 	}
 }
 
@@ -355,7 +332,7 @@ func TestTheCordsDrawFramesOnSessionsSwitchboardAlone(t *testing.T) {
 		want    bool
 	}{
 		{name: "Sessions' switchboard, its cord shimmering", harness: streamingHarness, keys: toSessions, want: true},
-		{name: "a card's back", harness: streamingHarness, keys: []tea.KeyPressMsg{spaceKey}},
+		{name: "the Overview", harness: func(t *testing.T) *harness { return streamingOn(t, dashboard.Sections{}) }},
 		{name: "Sessions' plain list of one account", harness: alone, keys: toSessions},
 		{name: "Sessions' plain list, under 90 columns", harness: narrow, keys: toSessions},
 	}

@@ -66,6 +66,16 @@ func (f Frame) linePanelOf(doc status.Document, a status.Account, now time.Time,
 	}
 }
 
+// primedNext is when the router next primes the account with the given id,
+// as doc's priming schedule says: zero where it doesn't.
+func primedNext(doc status.Document, id string) time.Time {
+	i := slices.IndexFunc(doc.Prime.Slots, func(s status.Slot) bool { return s.Account == id })
+	if i < 0 {
+		return time.Time{}
+	}
+	return doc.Prime.Slots[i].Next
+}
+
 // bottom is the panel's bottom edge's row.
 func (p linePanel) bottom() int {
 	return p.top + p.rows + 1
@@ -103,11 +113,11 @@ func (f Frame) drawPanel(c *canvas, doc status.Document, p linePanel, x, width i
 }
 
 // panelTop draws the panel's top edge from x along its top row, width cells
-// wide: its place and its account's name, in capitals; its state, its mark
-// and its words, as its card leads with them, but idle's in text.tertiary,
-// and nothing read yet's dim; and at its right its badges, those leavingOff
-// leaves where they don't all fit, the name and the state cut short where
-// even they don't.
+// wide: its place and its account's name, in capitals; its state, its mark,
+// as marked has it, and its words, bold in its colour, but idle's in
+// text.tertiary, and nothing read yet's dim; and at its right its badges,
+// those leavingOff leaves where they don't all fit, the name and the state
+// cut short where even they don't.
 func panelTop(c *canvas, p linePanel, x, width int) {
 	edge := p.edges()
 	mark, tone := marked(p.state.Condition)
@@ -133,8 +143,31 @@ func panelTop(c *canvas, p linePanel, x, width int) {
 	c.right(x+width, p.top, end)
 }
 
-// badges are the badges on the panel's top edge, in order, as a card's are:
-// the primary's, the pin's, and the next account's.
+// marked is how a panel marks its account's state: the glyph its words lead
+// with, and its colour.
+func marked(c status.Condition) (string, theme.Token) {
+	switch c {
+	case status.Tokenless:
+		return "✕", theme.StateDestructive
+	case status.Unreadable:
+		return "!", theme.StateDestructive
+	case status.Unread:
+		return "…", theme.TextSubtle
+	case status.Limited:
+		return "■", theme.StateDestructive
+	case status.PartlyLimited:
+		return "■", theme.AccentAttention
+	case status.Reserved, status.Pressed:
+		return "●", theme.AccentAttention
+	case status.Idle:
+		return "○", theme.TextSubtle
+	default:
+		return "●", theme.StatePositive
+	}
+}
+
+// badges are the badges on the panel's top edge, in order: the primary's, the
+// pin's, and the next account's.
 func (p linePanel) badges() []span {
 	var badges []span
 	if p.account.Primary {
@@ -151,7 +184,7 @@ func (p linePanel) badges() []span {
 
 // panelRow draws the row of a panel's window with the given key from x along
 // row y, width cells to the panel's side: its label; its bar, where bars is
-// set, as a card's bar is drawn; its use, toned as panelUse says; and where
+// set, as bar draws it; its use, toned as panelUse says; and where
 // it's heading, in full. A window that has lapsed says it hasn't started
 // where its bar would be, and one the account hasn't read leaves its row
 // blank.

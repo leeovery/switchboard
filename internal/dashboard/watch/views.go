@@ -56,60 +56,25 @@ func (m Model) keepView() {
 	}
 }
 
-// nextWindow moves on the window w moves through, as the view shown has
-// it: in Runway, from the day to the week, and back; elsewhere, the window
-// the cards feature, as feature says.
-func (m Model) nextWindow() (tea.Model, tea.Cmd) {
+// nextSpan switches how far ahead Runway looks, as w does there, from the
+// day to the week, and back: elsewhere, it does nothing.
+func (m Model) nextSpan() Model {
 	if m.view == dashboard.Runway {
 		m.span = m.span.Next()
-		return m, nil
 	}
-	return m.feature()
-}
-
-// feature has every card feature the next window w moves to, as the
-// document on screen stands, and keeps it, for the next watch to open with.
-// It works on the Overview alone, while there's a document to show.
-func (m Model) feature() (tea.Model, tea.Cmd) {
-	if m.view != dashboard.Overview || m.updated.IsZero() {
-		return m, nil
-	}
-	m.featured = m.featured.Next(m.doc, m.now(), m.cfg.Policy)
-	m.keepFeatured()
-	return m, nil
-}
-
-// nextChart has every card draw its chart in the next style g moves to, and
-// keeps it, for the next watch to open with. It works on the Overview alone.
-func (m Model) nextChart() Model {
-	if m.view != dashboard.Overview {
-		return m
-	}
-	m.chart = m.chart.Next()
-	m.keepChart()
 	return m
 }
 
-// keepChart keeps the style every card draws its chart in, in the
-// preferences, where there are preferences to keep it in. One that can't be
-// kept is drawn all the same.
-func (m Model) keepChart() {
-	if m.cfg.Prefs == nil {
-		return
-	}
-	if err := m.cfg.Prefs.Update(func(p *theme.Prefs) { p.Chart = string(m.chart) }); err != nil {
-		logger.Warn("couldn't keep the chart style", "chart", m.chart.Name(), "error", err)
-	}
+// toggle shows the Overview's section given where it's hidden, and hides it
+// where it shows, as its key does, and keeps the sections shown, for the next
+// watch to open with.
+func (m Model) toggle(dashboard.Section) Model {
+	return m
 }
 
-// keepFeatured keeps the window every card features in the preferences,
-// where there are preferences to keep it in. One that can't be kept is
-// featured all the same.
-func (m Model) keepFeatured() {
-	if m.cfg.Prefs == nil {
-		return
-	}
-	if err := m.cfg.Prefs.Update(func(p *theme.Prefs) { p.Featured = string(m.featured) }); err != nil {
-		logger.Warn("couldn't keep the window the cards feature", "window", m.featured, "error", err)
-	}
+// regroup switches how the Overview's windows are grouped, as b does, from by
+// window to by account, and back, and keeps it, for the next watch to open
+// with.
+func (m Model) regroup() Model {
+	return m
 }

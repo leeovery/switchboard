@@ -27,13 +27,15 @@ const (
 )
 
 // The labels at the lanes' left: the strip's, over the day and over the
-// week, under its heading; the most cells a name takes; the blank cells
-// between a badge, at the labels' right, and the lane; and the next
-// account's badge, briefly, where its name has too little room beside it.
+// week, under its heading, and the blank cells after them; the most cells a
+// name takes; the blank cells between a badge, at the labels' right, and the
+// lane; and the next account's badge, briefly, where its name has too little
+// room beside it.
 const (
 	stripHead      = "ROOM"
 	dayStripLabel  = "accounts with room"
 	weekStripLabel = "weeks with room"
+	labelGap       = 3
 	nameCells      = 24
 	badgeGap       = 2
 	briefNext      = "▲"
@@ -141,6 +143,12 @@ func (l runwayLayout) hidden(offset int) (above, below int) {
 		}
 	}
 	return above, below
+}
+
+// foot is where Runway's legend goes, over the line over the key line, and
+// where that line goes, over the key line.
+func (f Frame) foot() (legend, over int) {
+	return f.Height - 3, f.Height - 2
 }
 
 // lanesAt is the column lanes start at, as their labels leave it, on a

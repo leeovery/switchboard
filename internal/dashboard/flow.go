@@ -68,18 +68,3 @@ func broken(l line, widths []int) []line {
 	}
 	return lines
 }
-
-// together runs the chunks together on one line, sep between each.
-func together(chunks []chunk, sep string) line {
-	var l line
-	for _, c := range chunks {
-		if len(c.text) == 0 {
-			continue
-		}
-		if l != nil {
-			l = append(l, span{sep, mutedInk})
-		}
-		l = append(l, c.text...)
-	}
-	return l
-}

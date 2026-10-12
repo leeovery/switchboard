@@ -60,6 +60,17 @@ func textsAt(cells int, texts map[int]string) string {
 	return strings.TrimRight(strings.Join(row, ""), " ")
 }
 
+// cellsOf lists the cells of a row where glyph is drawn.
+func cellsOf(row string, glyph rune) []int {
+	var cells []int
+	for i, r := range []rune(row) {
+		if r == glyph {
+			cells = append(cells, i)
+		}
+	}
+	return cells
+}
+
 // repeated runs the glyphs given, each as many times as its count, in turn.
 func repeated(runs ...any) string {
 	var b strings.Builder

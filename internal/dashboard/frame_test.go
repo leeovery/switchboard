@@ -116,12 +116,12 @@ func TestAFrameFitsEveryWidth(t *testing.T) {
 		"nothing yet": {},
 	}
 	for name, doc := range docs {
-		for _, style := range charts {
-			t.Run(name+", "+style.Name(), func(t *testing.T) {
+		for _, view := range Views() {
+			t.Run(name+", "+view.Title(), func(t *testing.T) {
 				for width := 1; width <= 200; width++ {
 					for _, height := range []int{1, 3, 8, 40} {
 						f := frameOf(width, height)
-						f.Chart = style
+						f.View = view
 						rows := f.Draw(doc, now)
 						if len(rows) != height {
 							t.Errorf("at %d×%d, drew %d rows", width, height, len(rows))
@@ -149,10 +149,10 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 		tabs, status, heading, top int
 		first                      string
 	}{
-		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: " ╭─ 1 work "},
+		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: "USAGE"},
 		{name: "Sessions", width: 160, view: Sessions, status: 2, heading: 4, top: 6, first: "  CALLS"},
 		{name: "Runway", width: 160, view: Runway, status: 2, heading: 4, top: 6, first: textsAt(160, map[int]string{27: "now"})},
-		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: " ╭─ 1 work "},
+		{name: "the Overview on a phone", width: 52, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
 		{name: "Sessions on a phone", width: 52, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: " ┌─ 1 · WORK "},
 		{name: "a phone of 99 columns", width: 99, view: Sessions, tabs: 1, status: 3, heading: 5, top: 7, first: "  CALLS"},
 	}
@@ -267,42 +267,6 @@ func TestATerminalOfAFewRowsDrawsWhatFits(t *testing.T) {
 		if !slices.Equal(got, tt.want) {
 			t.Errorf("at %d×%d, drew %q, want %q", tt.width, tt.height, got, tt.want)
 		}
-	}
-}
-
-func TestOneAccountUnder150ColumnsHasCOMINGUPUnderItsCardBeforeRECENT(t *testing.T) {
-	doc := routerDoc("work", 3, pressedAccount("work"))
-	doc.Events = []status.Event{{ID: 1, At: now.Add(-4 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"}}
-	rows := frameOf(149, 40).Draw(doc, now)
-
-	coming := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " COMING UP") })
-	recent := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, " RECENT") })
-	if coming < 0 || recent < coming {
-		t.Fatalf("rows are\n%s\nwant COMING UP, then RECENT", strings.Join(rows, "\n"))
-	}
-	if got, want := rows[coming], " COMING UP   14:42      work runs out at its pace"; !strings.HasPrefix(got, want) {
-		t.Errorf("COMING UP reads %q, want %q, the strips' lines in one column", got, want)
-	}
-	if got, want := rows[recent], " RECENT      13:08  ● work has room again"; got != want {
-		t.Errorf("RECENT reads %q, want %q", got, want)
-	}
-}
-
-func TestTheLineOverTheKeyLineSaysWhichWindowsHideFromEveryCard(t *testing.T) {
-	doc := threeRouted()
-	for i := range doc.Accounts {
-		doc.Accounts[i].Windows = append(doc.Accounts[i].Windows, windowOf("7d_oi", "Fable week", 0, 4*day))
-	}
-	rows := frameOf(160, 40).Draw(doc, now)
-
-	if got, want := rows[38], "Fable wk hidden: unused on every account"; !strings.HasSuffix(got, want) {
-		t.Errorf("row 39 = %q, want it to end %q", got, want)
-	}
-	if strings.Contains(strings.Join(rows[:38], "\n"), "Fable wk ") {
-		t.Errorf("rows are\n%s\nwant Fable's week on no card", strings.Join(rows, "\n"))
-	}
-	if rows := frameOf(160, 40).Draw(threeRouted(), now); strings.TrimSpace(rows[38]) != "" {
-		t.Errorf("without a window hidden, row 39 = %q, want it blank", rows[38])
 	}
 }
 

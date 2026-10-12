@@ -9,7 +9,7 @@ import (
 )
 
 func TestKeysThePageNoLongerTakesDoNothing(t *testing.T) {
-	for _, key := range []string{"1", "3", "0", "a", "m", "r", "Q", "W", "G", "T", "S", "J", "K", "A", "M"} {
+	for _, key := range []string{"1", "3", "0", "a", "m", "Q", "W", "G", "T", "S", "J", "K", "A", "M", "U", "B"} {
 		t.Run(key, func(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))
 			h.start()
@@ -18,10 +18,10 @@ func TestKeysThePageNoLongerTakesDoNothing(t *testing.T) {
 			msgs := h.press(key)
 			h.deliver(msgs...)
 			if quits(msgs) || len(h.source.orders) > 0 || len(h.source.asked) > asked || h.model.note != "" || h.model.open != nothingOpen ||
-				h.model.featured != dashboard.Auto || h.model.chart != dashboard.Burndown || h.model.view != dashboard.Overview ||
-				h.model.picker.open || h.model.flipped != nil || h.model.focus != "" {
-				t.Errorf("%s acted: orders %q, read %d times, note %q, open %v, featuring %q, drawing %q, showing %q, picker open %v, flipped %v, focus on %q; want nothing",
-					key, h.source.orders, len(h.source.asked)-asked, h.model.note, h.model.open, h.model.featured, h.model.chart, h.model.view, h.model.picker.open, h.model.flipped, h.model.focus)
+				h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.view != dashboard.Overview ||
+				h.model.picker.open || h.model.focus != "" {
+				t.Errorf("%s acted: orders %q, read %d times, note %q, open %v, sections %v, by %v, showing %q, picker open %v, focus on %q; want nothing",
+					key, h.source.orders, len(h.source.asked)-asked, h.model.note, h.model.open, h.model.sections.Names(), h.model.by, h.model.view, h.model.picker.open, h.model.focus)
 			}
 		})
 	}
@@ -37,7 +37,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 		wantPhone []string
 		wantHelp  string
 	}{
-		{view: dashboard.Overview, lead: 5, want: [][]string{{"tab"}, {"w", "←→", "space", "g"}, {"p"}, {"?", "q"}}, wantPhone: []string{"w", "←→", "space", "g"}, wantHelp: "keys and toggles"},
+		{view: dashboard.Overview, lead: 5, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys and toggles"},
 		{view: dashboard.Accounts, lead: 3, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys"},
 		{view: dashboard.History, lead: 3, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys"},
 		{view: dashboard.Sessions, lead: 3, want: [][]string{{"tab"}, {"p"}, {"?", "q"}}, wantHelp: "keys"},

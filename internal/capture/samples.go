@@ -20,8 +20,6 @@ const (
 	idC61B = "c61b2f8d-04a7-4e93-9b5c-d81e6a7f2c34"
 	id41E0 = "41e0b6c2-8d3f-4a71-95e4-2c7b0f9a1d68"
 	id9E21 = "9e21d4a8-6b0c-4f35-8e72-a39c5d1f0b47"
-	id5C7A = "5c7a93f1-2e6d-4b08-a4c9-7f1e0d3b8a26"
-	idE4B0 = "e4b06a2d-c71f-4e98-b3d5-0a8f2e6c9b14"
 )
 
 // The models the sample sessions use, one of each family the frames name.
@@ -198,56 +196,6 @@ func spare(now time.Time) sample {
 	}
 }
 
-// lab has a session busy on it.
-func lab(now time.Time) sample {
-	return sample{
-		id: "lab", seed: 6,
-		session: fiveHours{used: 0.44, resets: on(now, 1, 17, 30), heading: 0.71},
-		week:    weekly{used: 0.52, resets: on(now, 3, 18, 0)},
-		fable:   weekly{resets: on(now, 3, 18, 0)},
-		prime:   on(now, 2, 9, 10),
-		seats: []seat{
-			{session: id5C7A, model: sonnet, assigned: on(now, 1, 14, 20), seen: ago(now, 6*time.Second)},
-		},
-	}
-}
-
-// team's session was started at 14:05 by the session on it, idle since.
-func team(now time.Time) sample {
-	return sample{
-		id: "team", seed: 7,
-		session: fiveHours{used: 0.08, resets: on(now, 1, 19, 5), heading: 0.2},
-		week:    weekly{used: 0.21, resets: on(now, 3, 8, 0)},
-		fable:   weekly{resets: on(now, 3, 8, 0)},
-		prime:   on(now, 2, 9, 50),
-		seats: []seat{
-			{session: idE4B0, model: haiku, assigned: on(now, 1, 14, 5), seen: ago(now, 12*time.Minute)},
-		},
-	}
-}
-
-// extra is idle, as spare is: its session lapsed at 12:40, nothing read of it
-// since 08:40, and the router primes it at 17:40.
-func extra(now time.Time) sample {
-	return sample{
-		id: "extra", seed: 8, read: on(now, 1, 8, 40),
-		session: fiveHours{resets: on(now, 1, 12, 40)},
-		week:    weekly{used: 0.02, resets: on(now, 6, 22, 0)},
-		fable:   weekly{resets: on(now, 6, 22, 0)},
-		prime:   on(now, 1, 17, 40),
-	}
-}
-
-// withoutFable is the samples with nothing used of Fable's week, as the
-// frames of four, six and eight accounts have them, so it hides from every
-// card.
-func withoutFable(samples ...sample) []sample {
-	for i := range samples {
-		samples[i].fable.used = 0
-	}
-	return samples
-}
-
 // oneAccount is work alone, which new sessions go to under pressure as it is:
 // there's no other.
 func oneAccount(now time.Time) source {
@@ -262,11 +210,6 @@ func threeAccounts(now time.Time) source {
 	return newSource(now, []sample{work(now), personal(now), side(now)}, "side", lately(now)...)
 }
 
-// fourAccounts are threeAccounts and client, nothing used of Fable's week.
-func fourAccounts(now time.Time) source {
-	return newSource(now, withoutFable(work(now), personal(now), side(now), client(now)), "side", lately(now)...)
-}
-
 // fiveAccounts are threeAccounts, client and spare, and among what the router
 // tells of lately, client's session pinned to it, from side.
 func fiveAccounts(now time.Time) source {
@@ -278,25 +221,12 @@ func fiveAccounts(now time.Time) source {
 	return newSource(now, []sample{work(now), personal(now), side(now), client(now), spare(now)}, "side", events...)
 }
 
-// sixAccounts are fourAccounts, spare and lab, nothing used of Fable's week.
-func sixAccounts(now time.Time) source {
-	return newSource(now, withoutFable(work(now), personal(now), side(now), client(now), spare(now), lab(now)), "side", lately(now)...)
-}
-
-// eightAccounts are sixAccounts, team and extra, nothing used of Fable's
-// week.
-func eightAccounts(now time.Time) source {
-	samples := withoutFable(work(now), personal(now), side(now), client(now), spare(now), lab(now), team(now), extra(now))
-	return newSource(now, samples, "side", lately(now)...)
-}
-
 // lately is what the router tells of lately, the newest first, as the frames
 // of three or more accounts have it: c61b starting on side, work coming under
 // pressure, personal reaching its limit, moving its three sessions to side,
 // and side's prime, which RECENT tells of; and, older, or counted in the
-// limit, what the cards' backs tell of besides: db8a's opus and 41e0 among
-// the sessions the limit moved, d28c starting on work, and work's and
-// personal's primes.
+// limit: db8a's opus and 41e0 among the sessions the limit moved, d28c
+// starting on work, and work's and personal's primes.
 func lately(now time.Time) []status.Event {
 	return []status.Event{
 		{At: on(now, 1, 14, 41), Kind: status.EventStarted, Account: "side", Session: idC61B, Model: opus, Reason: status.ReasonNew},

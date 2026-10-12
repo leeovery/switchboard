@@ -8,23 +8,24 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// changes is what the watch knows of the cards' states: where the last look
-// read them from, each account's as that look found it, and when each that a
-// look saw change was seen to, while it's picked out.
+// changes is what the watch knows of the accounts' states: where the last
+// look read them from, each account's as that look found it, and when each
+// that a look saw change was seen to, while it's picked out.
 type changes struct {
 	// read is set once a document has been read; routed whether it was the
 	// router's, and router which router's, as its health check said.
 	read   bool
 	routed bool
 	router router.Health
-	states map[string]cardState
+	states map[string]accountState
 	since  map[string]time.Time
 }
 
-// cardState is an account's state as a card says it, for telling whether it
-// changed: its condition, and what holds it back or what it's doing, without
-// what that means, whose countdowns move on with nothing changed.
-type cardState struct {
+// accountState is an account's state as its words say it, for telling
+// whether it changed: its condition, and what holds it back or what it's
+// doing, without what that means, whose countdowns move on with nothing
+// changed.
+type accountState struct {
 	condition status.Condition
 	says      string
 }
@@ -61,7 +62,7 @@ func (c changes) ticked(doc status.Document, now time.Time, policy score.Policy)
 // changed are when each account picked out was seen to change at now, of
 // states as found against those found last: those already picked out while
 // they're picked out still, and those whose states differ, from now.
-func (c changes) changed(states map[string]cardState, now time.Time) map[string]time.Time {
+func (c changes) changed(states map[string]accountState, now time.Time) map[string]time.Time {
 	since := make(map[string]time.Time)
 	for id, at := range c.since {
 		if now.Sub(at) < highlightFor {
@@ -78,11 +79,11 @@ func (c changes) changed(states map[string]cardState, now time.Time) map[string]
 
 // statesOf are the states of doc's accounts at now, as policy judges them,
 // by id.
-func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]cardState {
-	states := make(map[string]cardState, len(doc.Accounts))
+func statesOf(doc status.Document, now time.Time, policy score.Policy) map[string]accountState {
+	states := make(map[string]accountState, len(doc.Accounts))
 	for _, a := range doc.Accounts {
 		s := doc.StateOf(a, now, policy)
-		states[a.ID] = cardState{condition: s.Condition, says: s.Says}
+		states[a.ID] = accountState{condition: s.Condition, says: s.Says}
 	}
 	return states
 }

@@ -8,28 +8,20 @@ import (
 
 // Motion is what moves on screen in a frame, which a watch draws frames of:
 // Smooth while anything moves frame by frame, as a pulse along a cord, or a
-// cord a move let go fading; Shimmer while the shimmer down a cord steps on
-// as its answer streams back, and Falling while the sand falls in a card's
-// hourglass, each a step at a time.
+// cord a move let go fading; and Shimmer while the shimmer down a cord steps
+// on as its answer streams back, a step at a time.
 type Motion struct {
-	Smooth, Shimmer, Falling bool
+	Smooth, Shimmer bool
 }
 
 // Motion is what moves on screen of the frame of doc at now: what travels
-// the cords Sessions' switchboard shows, as travelling has it; or the sand
-// falling in the hourglasses of the Overview's cards, as falling has it.
-// Nothing moves of a view too short to be drawn, as cramped says.
+// the cords Sessions' switchboard shows, as travelling has it. Nothing moves
+// of a view too short to be drawn, as cramped says.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
-	switch {
-	case f.cramped():
-		return Motion{}
-	case f.View == Sessions:
-		return f.travelling(doc, now)
-	case f.View == Overview:
-		return Motion{Falling: f.falling(doc, now)}
-	default:
+	if f.cramped() || f.View != Sessions {
 		return Motion{}
 	}
+	return f.travelling(doc, now)
 }
 
 // sight is how a view's content shows on screen: rows of its rows, from the

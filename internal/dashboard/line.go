@@ -109,25 +109,8 @@ func (l line) words() []worded {
 	return words
 }
 
-// fitHead cuts the line to width cells as fit does, but keeps its first span
-// whole where that fits by itself: what follows is cut short, or left off
-// where fewer than leastShown cells of it would show.
-func (l line) fitHead(width int) line {
-	if l.width() <= width || len(l) == 0 {
-		return l
-	}
-	left := width - l[:1].width()
-	switch {
-	case left < 0:
-		return l.fit(width)
-	case left < leastShown:
-		return l[:1]
-	default:
-		return slices.Concat(l[:1], l[1:].fit(left))
-	}
-}
-
-// leastShown is the fewest cells of a line's tail fitHead shows, cut short.
+// leastShown is the fewest cells of words cut short worth showing: where
+// fewer would show, they're left off.
 const leastShown = 5
 
 // fitWhole cuts the line to width cells by leaving off its last spans, each

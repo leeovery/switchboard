@@ -40,15 +40,15 @@ func TestHelpTakesEveryKeyButCtrlC(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 	h.press("?")
-	for _, key := range []string{"w", "1", "a", "m", "r", "R", "t", "j", "g", "p", "tab", " ", "s", "q"} {
+	for _, key := range []string{"w", "1", "a", "m", "r", "R", "t", "j", "g", "u", "b", "down", "p", "tab", " ", "s", "q"} {
 		if quits(h.press(key)) {
 			t.Errorf("with help open, %q quit, want it taken by help", key)
 		}
 	}
-	if !h.inHelp() || h.model.featured != dashboard.Auto || h.model.chart != dashboard.Burndown || h.model.view != dashboard.Overview ||
-		len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open || h.model.flipped != nil {
-		t.Errorf("with help open, keys acted: featuring %q, drawing %q, showing %q, orders %q, reading %v, picker open %v, flipped %v; want them all taken by help",
-			h.model.featured, h.model.chart, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open, h.model.flipped)
+	if !h.inHelp() || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.focus != "" || h.model.view != dashboard.Overview ||
+		len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open {
+		t.Errorf("with help open, keys acted: sections %v, by %v, focus %q, showing %q, orders %q, reading %v, picker open %v; want them all taken by help",
+			h.model.sections.Names(), h.model.by, h.model.focus, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
 	}
 	if !quits(h.press("ctrl+c")) {
 		t.Error("with help open, ctrl+c didn't quit, want it to")
@@ -68,26 +68,31 @@ func TestHelpListsEveryKeyThatWorksAndTheKeyLineTheMostUsed(t *testing.T) {
 		{
 			name:     "the router of three",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()...)) },
-			wantHelp: []string{"tab", "w", "←→", "space", "s", "g", "p", "R", "?", "q"},
-			wantLine: []string{"tab", "w", "←→", "space", "g", "p", "?", "q"},
+			wantHelp: []string{"tab", "p", "R", "?", "q"},
+			wantLine: []string{"tab", "p", "?", "q"},
 		},
 		{
-			name:     "probing twelve, which scroll",
-			h:        func(t *testing.T) *harness { return newHarness(t, twelve()) },
-			wantHelp: []string{"tab", "w", "←→", "space", "s", "g", "j k", "PgUp PgDn", "wheel", "p", "R", "?", "q"},
-			wantLine: []string{"tab", "w", "←→", "space", "g", "p", "?", "q"},
+			name: "probing twelve in Runway, which scroll",
+			h: func(t *testing.T) *harness {
+				h := newHarness(t, twelve())
+				h.model.view = dashboard.Runway
+				h.update(runwaySize)
+				return h
+			},
+			wantHelp: []string{"tab", "w", "j k", "PgUp PgDn", "wheel", "p", "R", "?", "q"},
+			wantLine: []string{"tab", "w", "p", "?", "q"},
 		},
 		{
 			name:     "one account, with nowhere else to pin",
 			h:        func(t *testing.T) *harness { return routedHarness(t, routerDocument(three()[0])) },
-			wantHelp: []string{"tab", "w", "←→", "space", "s", "g", "R", "?", "q"},
-			wantLine: []string{"tab", "w", "←→", "space", "g", "?", "q"},
+			wantHelp: []string{"tab", "R", "?", "q"},
+			wantLine: []string{"tab", "?", "q"},
 		},
 		{
 			name:     "one account, pinned from the command line",
 			h:        func(t *testing.T) *harness { return routedHarness(t, pinned) },
-			wantHelp: []string{"tab", "w", "←→", "space", "s", "g", "p", "R", "?", "q"},
-			wantLine: []string{"tab", "w", "←→", "space", "g", "p", "?", "q"},
+			wantHelp: []string{"tab", "p", "R", "?", "q"},
+			wantLine: []string{"tab", "p", "?", "q"},
 		},
 	}
 	for _, tt := range tests {

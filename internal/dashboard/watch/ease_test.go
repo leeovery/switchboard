@@ -62,8 +62,7 @@ func TestLerp(t *testing.T) {
 }
 
 func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
-	h := newHarness(t, sessionAndWeek(0.5, 0.25))
-	h.start()
+	h := easingHarness(t, sessionAndWeek(0.5, 0.25))
 
 	tests := []struct {
 		name          string
@@ -79,7 +78,7 @@ func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h.clock.now = start.Add(tt.after)
 			checkScreen(t, h, tt.session, tt.week)
-			if view := h.view(); !strings.Contains(view, "  25% → 44%") {
+			if view := h.view(); !strings.Contains(view, "  25%  → 44%") {
 				t.Errorf("the screen is\n%s\nwant the room left as read, the bars alone easing", view)
 			}
 		})
@@ -87,8 +86,7 @@ func TestBarsRiseFromNothingOnTheFirstRead(t *testing.T) {
 }
 
 func TestBarsEaseFromWhereTheyStand(t *testing.T) {
-	h := newHarness(t, sessionAndWeek(0.5, 0.25))
-	h.start()
+	h := easingHarness(t, sessionAndWeek(0.5, 0.25))
 	h.settle()
 
 	h.clock.now = at(13, 20, 0)
@@ -142,8 +140,7 @@ func TestFramesRunOnlyWhileBarsMove(t *testing.T) {
 }
 
 func TestFramesRunOnWhereTheClockReadsALittleBehindTheirTimers(t *testing.T) {
-	h := newHarness(t, sessionAndWeek(0.5, 0.25))
-	h.start()
+	h := easingHarness(t, sessionAndWeek(0.5, 0.25))
 
 	const lag = 30 * time.Microsecond
 	for frames := 0; ; frames++ {
@@ -172,6 +169,16 @@ func TestEasingLeavesTheDocumentAlone(t *testing.T) {
 	if got := doc.Accounts[0].Windows[0].Utilization; got != 0.5 {
 		t.Errorf("drawing the bars part way changed the document's session to %v, want 0.5", got)
 	}
+}
+
+// easingHarness is a model of a source that reads doc, showing Sessions,
+// whose panels draw the bars as they ease, started.
+func easingHarness(t *testing.T, doc status.Document) *harness {
+	t.Helper()
+	h := newHarness(t, doc)
+	h.model.view = dashboard.Sessions
+	h.start()
+	return h
 }
 
 // sessionAndWeek is an account using session of its session and week of its

@@ -26,18 +26,19 @@ import (
 // whatever size, in real time from now: its clock reading the scenario's
 // start as it starts, and running on from there; its router telling of what
 // its cues have it do as each comes, and taking the orders keys give; the
-// watch's timers running, so bars ease, pulses travel the cords, sand falls
-// and highlights fade; and each key shown as it's pressed, so a recording
-// shows what was typed.
+// watch's timers running, so bars ease, pulses travel the cords and
+// highlights fade; and each key shown as it's pressed, so a recording shows
+// what was typed.
 func (s Scenario) Model() tea.Model {
 	began := time.Now()
-	return s.play(func() time.Duration { return time.Since(began) }, waitFor, nil)
+	return s.play(context.Background(), func() time.Duration { return time.Since(began) }, waitFor, nil, nil)
 }
 
-// play is the scenario as Bubble Tea plays it, elapsed saying how long it has
-// been playing, wait waiting for a while to pass as it plays, and after the
-// watch's timers: nil runs them on the clock.
-func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, time.Duration) bool, after func(time.Duration, tea.Msg) tea.Cmd) live {
+// play is the scenario as Bubble Tea plays it, until ctx ends, elapsed saying
+// how long it has been playing, wait waiting for a while to pass as it plays,
+// after the watch's timers, and await its waits on the request stream: nil
+// runs the timers on the clock, and the waits as any command is run.
+func (s Scenario) play(ctx context.Context, elapsed func() time.Duration, wait func(context.Context, time.Duration) bool, after func(time.Duration, tea.Msg) tea.Cmd, await func(tea.Cmd) tea.Cmd) live {
 	now := func() time.Time { return s.start.Add(elapsed()) }
 	t := &timeline{scenario: s, now: now, wait: wait}
 	cfg := watch.Config{
@@ -45,6 +46,7 @@ func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, 
 		Notifier: quiet{},
 		Now:      now,
 		After:    after,
+		Await:    await,
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     s.Size,
@@ -54,7 +56,7 @@ func (s Scenario) play(elapsed func() time.Duration, wait func(context.Context, 
 		Prices:   drawnPrices,
 	}
 	dressed(&cfg, s.theme, s.colourless)
-	return live{Model: watch.New(context.Background(), cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}
+	return live{Model: watch.New(ctx, cfg), now: now, after: after, theme: s.theme, coloured: !s.colourless}
 }
 
 // waitFor waits for d to pass, reporting false where ctx ends first.

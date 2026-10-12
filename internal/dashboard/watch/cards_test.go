@@ -31,15 +31,15 @@ func TestTheRoutingCardTakesEveryKeyButCtrlC(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 	h.press("p")
-	for _, key := range []string{"w", "g", "t", "j", "s", " ", "tab", "?", "r", "R", "1", "a", "m", "q"} {
+	for _, key := range []string{"w", "u", "g", "b", "down", "t", "j", "s", " ", "tab", "?", "r", "R", "1", "a", "m", "q"} {
 		if quits(h.press(key)) {
 			t.Errorf("with the routing card open, %q quit, want it taken by the card", key)
 		}
 	}
-	if h.model.open != routingOpen || h.model.featured != dashboard.Auto || h.model.chart != dashboard.Burndown || h.model.view != dashboard.Overview ||
-		len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open || h.model.flipped != nil {
-		t.Errorf("with the routing card open, keys acted: open %v, featuring %q, drawing %q, showing %q, orders %q, reading %v, picker open %v, flipped %v; want them all taken by the card",
-			h.model.open, h.model.featured, h.model.chart, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open, h.model.flipped)
+	if h.model.open != routingOpen || h.model.sections != (dashboard.Sections{}) || h.model.by != dashboard.ByWindow || h.model.focus != "" ||
+		h.model.view != dashboard.Overview || len(h.source.orders) > 0 || h.model.fetching || h.model.picker.open {
+		t.Errorf("with the routing card open, keys acted: open %v, sections %v, by %v, focus %q, showing %q, orders %q, reading %v, picker open %v; want them all taken by the card",
+			h.model.open, h.model.sections.Names(), h.model.by, h.model.focus, h.model.view, h.source.orders, h.model.fetching, h.model.picker.open)
 	}
 	if !quits(h.press("ctrl+c")) {
 		t.Error("with the routing card open, ctrl+c didn't quit, want it to")

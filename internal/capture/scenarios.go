@@ -144,7 +144,7 @@ var routingCues = []cue{
 }
 
 // usageWorld is the router the usage scenario starts with, at now: work
-// alone, as accounts-1 has it, labelled as the routing scenario's is, under
+// alone, as oneAccount has it, labelled as the routing scenario's is, under
 // pressure, at its last half hour's rate reaching its reserve at 15:45,
 // before its reset at 17:10.
 func usageWorld(now time.Time) world {

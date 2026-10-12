@@ -10,7 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// standing is how an account's window stands at a moment, as its card shows
+// standing is how an account's window stands at a moment, as its panel shows
 // it: where it's heading, where it runs out, and whether it's at its limit or
 // has lapsed.
 type standing struct {
@@ -146,12 +146,6 @@ func (s standing) use(k ink) span {
 	}
 	k.bold = true
 	return span{status.Percent(s.window.Utilization), k}
-}
-
-// whither says in brief where the window is heading at now, as a bar line or
-// a card's header does, its times as brief shows them, as headed says it.
-func (s standing) whither(now time.Time, tilde string) span {
-	return s.headed(now, tilde, brief)
 }
 
 // headed says where the window is heading at now, its times as when shows

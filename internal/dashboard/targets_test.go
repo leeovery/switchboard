@@ -30,7 +30,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 		rows := textOf(f.Draw(threeRouted(), now))
 		var tabs []View
 		var keys []string
-		for _, tt := range f.Targets() {
+		for _, tt := range f.Targets(threeRouted(), now) {
 			var want string
 			switch tt.On {
 			case OnTab:
@@ -53,7 +53,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 }
 
 func TestAPhonesTabsAreTargetsOnTheRowOfTheirOwn(t *testing.T) {
-	for _, tt := range clickable(52, 33, Overview).Targets() {
+	for _, tt := range clickable(52, 33, Overview).Targets(threeRouted(), now) {
 		if tt.On == OnTab && tt.Y != 1 {
 			t.Errorf("on a phone, %s's tab is a target on row %d, want row 2", tt.Tab, tt.Y+1)
 		}
@@ -68,8 +68,8 @@ func TestTheKeyLinesKeysAreNoTargetsWhereTheyArentDrawn(t *testing.T) {
 		"where the line has no row of its own": clickable(160, 1, Overview),
 	}
 	for name, f := range tests {
-		if i := slices.IndexFunc(f.Targets(), func(t Target) bool { return t.On == OnKey }); i >= 0 {
-			t.Errorf("%s, %+v is a target, want no key", name, f.Targets()[i])
+		if targets := f.Targets(threeRouted(), now); slices.ContainsFunc(targets, func(t Target) bool { return t.On == OnKey }) {
+			t.Errorf("%s, the targets are %+v, want no key", name, targets)
 		}
 	}
 }

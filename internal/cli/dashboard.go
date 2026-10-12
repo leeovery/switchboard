@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/notify"
@@ -138,8 +139,8 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Policy:        claude.Policy,
 		Size:          a.environSize(),
 		View:          dashboard.View(kept.View),
-		Featured:      dashboard.Feature(kept.Featured),
-		Chart:         dashboard.Chart(kept.Chart),
+		Sections:      dashboard.SectionsNamed(kept.Sections),
+		By:            keptBy(kept.By, cfg.Usage.By),
 		Prices:        pricing(cfg),
 	}
 	a.readers(&wc, cfg)
@@ -156,4 +157,12 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		return errors.New("dashboard needs a terminal, and stdout isn't one")
 	}
 	return err
+}
+
+// keptBy is how the Overview groups its windows: as the preferences keep it,
+// where they name window or account, else as the config's [usage] by has it.
+func keptBy(kept string, configured config.Layout) dashboard.By {
+	layout, _ := config.ParseLayout(kept)
+	given := layoutFlag(layout)
+	return given.or(configured)
 }

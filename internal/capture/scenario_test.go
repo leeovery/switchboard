@@ -33,7 +33,7 @@ func TestAnEmptyOrUnknownScenarioNameListsTheScenarios(t *testing.T) {
 		name, want string
 	}{
 		{name: "", want: "name a scenario " + available},
-		{name: "accounts-3", want: `unknown scenario "accounts-3" ` + available},
+		{name: "sessions-3", want: `unknown scenario "sessions-3" ` + available},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

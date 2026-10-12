@@ -17,8 +17,8 @@ func (m Model) clicked(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	if click.Button != tea.MouseLeft || m.open != nothingOpen || m.onPicker(click.X) {
 		return m, nil
 	}
-	f, _, _ := m.screen(m.now())
-	t, ok := targetAt(f.Targets(), click.X, click.Y)
+	f, doc, at := m.screen(m.now())
+	t, ok := targetAt(f.Targets(doc, at), click.X, click.Y)
 	if !ok {
 		return m, nil
 	}
@@ -39,7 +39,9 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // clickedOn does what a click on the target does, which is what its key
 // does: on a tab, it shows it, unless the theme picker is open, as the tab
 // key does nothing then; on a key of the key line, it presses it, as
-// pressOf says. Nothing else on the page takes a click yet.
+// pressOf says; on an Overview's section's heading, it hides the section, as
+// its key does; and on an account's row there, it moves the focus to it, as
+// focusOn has it. Nothing else on the page takes a click yet.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	switch t.On {
 	case dashboard.OnTab:
@@ -51,6 +53,10 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 		if press, ok := pressOf(t.Key); ok {
 			return m.pressed(press)
 		}
+	case dashboard.OnSection:
+		return m.toggle(t.Section), nil
+	case dashboard.OnAccount:
+		return m.focusOn(t.Account), nil
 	}
 	return m, nil
 }
@@ -63,13 +69,11 @@ func (m Model) onPicker(x int) bool {
 
 // namedPresses are the presses of the keys the key line names by a word or
 // by a pair of arrows. A pair, which moves either way, is pressed as the way
-// on: → or ↓.
+// on: ↓.
 var namedPresses = map[string]tea.KeyPressMsg{
 	"tab":   {Code: tea.KeyTab},
-	"space": {Code: tea.KeySpace, Text: " "},
 	"enter": {Code: tea.KeyEnter},
 	"esc":   {Code: tea.KeyEscape},
-	"←→":    {Code: tea.KeyRight},
 	"↑↓":    {Code: tea.KeyDown},
 }
 

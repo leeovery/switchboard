@@ -9,18 +9,18 @@ import (
 )
 
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
-// PgUp scroll the view where it doesn't fit; the arrows, space and s act on
-// the Overview's cards, as cardKey says; tab and shift-tab show the next tab
-// and the one before; t opens the theme picker; w has the cards feature the
-// next window, or in Runway, switches between the day and the week; and g
-// has the cards draw their charts in the next style. The rest do nothing:
-// the number keys and m among them, which act in the routing card alone.
+// PgUp scroll the view where it doesn't fit; on the Overview, u, g, r, s, c
+// and l show and hide its sections, b switches how its windows are grouped,
+// and ↑ and ↓ move the focus, as overviewKey says; tab and shift-tab show the
+// next tab and the one before; t opens the theme picker; and w, in Runway,
+// switches between the day and the week. The rest do nothing: the number
+// keys and m among them, which act in the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if by, ok := scrollKey(k); ok {
 		return m.scrollView(by), nil
 	}
-	if next, ok := m.cardKey(k); ok {
+	if next, ok := m.overviewKey(k); ok {
 		return next, nil
 	}
 	switch k {
@@ -31,11 +31,31 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "t":
 		return m.openPicker()
 	case "w":
-		return m.nextWindow()
-	case "g":
-		return m.nextChart(), nil
+		return m.nextSpan(), nil
 	}
 	return m, nil
+}
+
+// overviewKey acts on a key of the Overview's, reporting false for a key it
+// doesn't take, or on another tab: a section's key shows or hides it, as
+// toggle has it; b switches how its windows are grouped, as regroup has it;
+// and ↑ and ↓ move the focus, as moveFocus has it.
+func (m Model) overviewKey(key string) (Model, bool) {
+	if m.view != dashboard.Overview {
+		return m, false
+	}
+	if section, ok := dashboard.SectionKeyed(key); ok {
+		return m.toggle(section), true
+	}
+	switch key {
+	case "b":
+		return m.regroup(), true
+	case "up":
+		return m.moveFocus(-1), true
+	case "down":
+		return m.moveFocus(1), true
+	}
+	return m, false
 }
 
 // keyListing is a key of the page's own, as the key line and help list it:
@@ -47,33 +67,17 @@ type keyListing struct {
 }
 
 // listings are the page's own keys, as m stands, in the design's order: w,
-// as wKey says; on the Overview, the arrows and space, s, and g; and j and
-// k, PgUp and PgDn, and the wheel, where the view scrolls, which the key
-// line leaves to help, as it does s.
+// in Runway, switching between the day and the week, its word saying which
+// it shows; and j and k, PgUp and PgDn, and the wheel, where the view
+// scrolls, which the key line leaves to help.
 func (m Model) listings() []keyListing {
-	cards, scrolls := m.view == dashboard.Overview, m.scrolling().Most > 0
+	scrolls := m.scrolling().Most > 0
 	return []keyListing{
-		m.wKey(),
-		{key: "←→", word: "focus", works: cards},
-		{key: "space", word: "flip", works: cards},
-		{key: "s", word: "flip all", works: cards, helpful: true},
-		{key: "g", word: "chart", works: cards},
+		{key: "w", word: "window: " + m.span.Name(), works: m.view == dashboard.Runway},
 		{key: "j k", word: "scroll", works: scrolls, helpful: true},
 		{key: "PgUp PgDn", word: "page", works: scrolls, helpful: true},
 		{key: "wheel", word: "scroll", works: scrolls, helpful: true},
 	}
-}
-
-// wKey is w as the tab shown has it: in Runway, switching between the day
-// and the week, its word saying which it shows; on the Overview, once a
-// document has been read, as it does nothing before, cycling the window
-// every card features, its word saying which; and elsewhere, nothing.
-func (m Model) wKey() keyListing {
-	if m.view == dashboard.Runway {
-		return keyListing{key: "w", word: "window: " + m.span.Name(), works: true}
-	}
-	window := m.featured.Name(m.doc, m.now(), m.cfg.Policy)
-	return keyListing{key: "w", word: "window: " + window, works: m.view == dashboard.Overview && !m.updated.IsZero()}
 }
 
 // keyLine is the key line as m stands at now: while the theme picker is

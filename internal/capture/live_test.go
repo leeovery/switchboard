@@ -220,14 +220,14 @@ func TestTheStreamClosesAsItsContextEnds(t *testing.T) {
 
 func TestTheClockRunsFromTheScenariosStart(t *testing.T) {
 	s := testScenario()
-	var elapsed time.Duration
-	l := s.play(func() time.Duration { return elapsed }, waitFor, held)
+	clock := &testClock{now: s.start}
+	l := s.play(t.Context(), clock.since(s.start), waitFor, held, heldStream)
 
 	l = drive(l, l.Init())
 	if frame := ansi.Strip(l.View().Content); !strings.Contains(frame, "Thu 1 Oct  14:42:07") {
 		t.Fatalf("starting, it draws\n%s\nwant it drawn at once, at the scenario's start", frame)
 	}
-	elapsed = 12 * time.Second
+	clock.advance(12 * time.Second)
 	if frame := ansi.Strip(l.View().Content); !strings.Contains(frame, "Thu 1 Oct  14:42:19") {
 		t.Errorf("12s in, it draws\n%s\nwant its clock 12s on", frame)
 	}
@@ -235,12 +235,12 @@ func TestTheClockRunsFromTheScenariosStart(t *testing.T) {
 
 func TestKeysAreShownAsTheyrePressedTillTheyveHadTheirTime(t *testing.T) {
 	s := testScenario()
-	var elapsed time.Duration
-	l := s.play(func() time.Duration { return elapsed }, waitFor, held)
+	clock := &testClock{now: s.start}
+	l := s.play(t.Context(), clock.since(s.start), waitFor, held, heldStream)
 	l = drive(l, l.Init())
 
 	l = drive(l, nil, tea.KeyPressMsg{Code: tea.KeyRight}, tea.KeyPressMsg{Code: tea.KeyRight})
-	elapsed = typedFor - time.Millisecond
+	clock.advance(typedFor - time.Millisecond)
 	l = drive(l, nil, tea.KeyPressMsg{Code: 'w', Text: "w"})
 	if last := lastRow(l); !strings.HasSuffix(last, " →   →   w  ") {
 		t.Errorf("the last row reads %q, want the keys pressed, in turn, at its right", last)
@@ -248,11 +248,11 @@ func TestKeysAreShownAsTheyrePressedTillTheyveHadTheirTime(t *testing.T) {
 	if last := lastRow(l); strings.Contains(last, "read") || !strings.Contains(last, "q quit") {
 		t.Errorf("the last row reads %q, want the key line's keys, but nothing of how long ago it was read, which the keys cut into", last)
 	}
-	elapsed += typedFor - time.Millisecond
+	clock.advance(typedFor - time.Millisecond)
 	if last := lastRow(l); !strings.HasSuffix(last, " w  ") {
 		t.Errorf("as w has its time, the last row reads %q, want it still shown", last)
 	}
-	elapsed += time.Millisecond
+	clock.advance(time.Millisecond)
 	if last := lastRow(l); strings.HasSuffix(last, " w  ") {
 		t.Errorf("once the keys have had their time, the last row reads %q, want them gone", last)
 	}
@@ -300,18 +300,24 @@ func TestKeysAreNamedAsTheKeyLineNamesThem(t *testing.T) {
 
 func TestKeycapsAreDrawnInTheThemeShown(t *testing.T) {
 	s := testScenario()
-	l := s.play(func() time.Duration { return 0 }, waitFor, held)
+	l := s.play(t.Context(), func() time.Duration { return 0 }, waitFor, held, heldStream)
 	l = drive(l, l.Init(), tea.KeyPressMsg{Code: 'g', Text: "g"})
 
 	content := l.View().Content
 	if last := content[strings.LastIndex(content, "\n")+1:]; !strings.Contains(last, "48;2;129;161;193") {
 		t.Errorf("the keycap is drawn %q, want it on nord's accent.key, the theme shown", last)
 	}
-	plain := s.WithoutColour().play(func() time.Duration { return 0 }, waitFor, held)
+	plain := s.WithoutColour().play(t.Context(), func() time.Duration { return 0 }, waitFor, held, heldStream)
 	plain = drive(plain, plain.Init(), tea.KeyPressMsg{Code: 'g', Text: "g"})
 	if last := lastRow(plain); !strings.HasSuffix(last, " g  ") {
 		t.Errorf("without colour, the last row reads %q, want the keycap all the same", last)
 	}
+}
+
+// heldStream is the watch's waits on the request stream as a test holds
+// them: none runs, so the stream never blocks a test driving the model.
+func heldStream(tea.Cmd) tea.Cmd {
+	return nil
 }
 
 // testClock is a scenario's clock in a test: a wait moves it on at once, but
@@ -336,6 +342,13 @@ func (c *testClock) advance(d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.now = c.now.Add(d)
+}
+
+// since reads how long the clock has run from start, as a scenario's elapsed
+// does: safe to read as the stream it opens reads it, from a goroutine of its
+// own.
+func (c *testClock) since(start time.Time) func() time.Duration {
+	return func() time.Duration { return c.read().Sub(start) }
 }
 
 // wait moves the clock on by d, as a stream's wait does, once held is

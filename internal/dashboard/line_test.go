@@ -84,7 +84,7 @@ func TestSpread(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := spread(line{{tt.left, textInk}}, line{{tt.right, textInk}}, 12)
+			got := spread(line{{tt.left, secondaryInk}}, line{{tt.right, secondaryInk}}, 12)
 			if got.plain() != tt.want {
 				t.Errorf("spread(%q, %q, 12) = %q, want %q", tt.left, tt.right, got.plain(), tt.want)
 			}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -114,6 +115,7 @@ func TestAProbeBetweenLooksAtOneRouterForgetsNothingSeen(t *testing.T) {
 
 func TestAFreshEventIsPickedOutOnScreen(t *testing.T) {
 	h, _ := themedHarness(t, theme.Choice{})
+	h.model.view = dashboard.Sessions
 	h.startRouter(withEvents(2, 1))
 	h.start()
 	h.answer(darkBackground)

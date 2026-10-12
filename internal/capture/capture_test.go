@@ -46,13 +46,13 @@ func TestTwoFixturesOfANamePanicNamingIt(t *testing.T) {
 		watched []Fixture
 		over    []overWorld
 	}{
-		{name: "two the watch draws", watched: []Fixture{{Name: "accounts-1"}, {Name: "accounts-3"}, {Name: "accounts-1", Size: wide(10)}}},
-		{name: "one the watch draws, and a printout", watched: []Fixture{{Name: "accounts-1"}}, over: []overWorld{printout{name: "usage-160"}, printout{name: "accounts-1"}}},
-		{name: "a printout, and a page", over: []overWorld{printout{name: "accounts-1"}, page{name: "page-log"}, page{name: "accounts-1"}}},
+		{name: "two the watch draws", watched: []Fixture{{Name: "sessions-1"}, {Name: "sessions-3"}, {Name: "sessions-1", Size: wide(10)}}},
+		{name: "one the watch draws, and a printout", watched: []Fixture{{Name: "sessions-1"}}, over: []overWorld{printout{name: "usage-160"}, printout{name: "sessions-1"}}},
+		{name: "a printout, and a page", over: []overWorld{printout{name: "sessions-1"}, page{name: "page-log"}, page{name: "sessions-1"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, want := panicked(t, func() { setOf(tt.watched, tt.over, worldsNow) }), `capture: two fixtures named "accounts-1"`; got != want {
+			if got, want := panicked(t, func() { setOf(tt.watched, tt.over, worldsNow) }), `capture: two fixtures named "sessions-1"`; got != want {
 				t.Errorf("setOf panicked with %q, want %q", got, want)
 			}
 		})
@@ -67,12 +67,12 @@ func TestOnlyAFixtureOverTheWorldsBuildsThem(t *testing.T) {
 	})
 
 	names := set.names()
-	for _, name := range []string{"accounts-3", "usage-160", "page-routing"} {
+	for _, name := range []string{"sessions-3", "usage-160", "page-routing"} {
 		if !slices.Contains(names, name) {
 			t.Fatalf("names() = %v, want %s among them", names, name)
 		}
 	}
-	if _, err := set.named("accounts-3"); err != nil {
+	if _, err := set.named("sessions-3"); err != nil {
 		t.Fatal(err)
 	}
 	if built != 0 {
@@ -89,11 +89,11 @@ func TestOnlyAFixtureOverTheWorldsBuildsThem(t *testing.T) {
 }
 
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
-	f, p := fixture(t, "accounts-3-week"), fixture(t, "usage-5h-160")
+	f, p := fixture(t, "runway-week-3"), fixture(t, "usage-5h-160")
 	keys, size, windows := slices.Clone(f.keys), f.Size, slices.Clone(p.windows)
 	f.keys[0], f.Size, p.windows[0] = tea.KeyPressMsg{Code: '2', Text: "2"}, wide(10), accountKey
 
-	if got := fixture(t, "accounts-3-week"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
+	if got := fixture(t, "runway-week-3"); !reflect.DeepEqual(got.keys, keys) || got.Size != size {
 		t.Errorf("having changed one caller's, another's keys are %v at %v, want %v at %v", got.keys, got.Size, keys, size)
 	}
 	if got := fixture(t, "usage-5h-160").windows; !slices.Equal(got, windows) {
@@ -107,7 +107,7 @@ func TestAnEmptyOrUnknownNameListsTheFixtures(t *testing.T) {
 		name, want string
 	}{
 		{name: "", want: "name a fixture " + available},
-		{name: "accounts-2", want: `unknown fixture "accounts-2" ` + available},
+		{name: "sessions-2", want: `unknown fixture "sessions-2" ` + available},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -205,7 +205,7 @@ func drawnInTheMachinesZone(t *testing.T, name string, asked []zonedSet) {
 }
 
 func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
-	frame := ansi.Strip(frameOf(t, local(), "accounts-3"))
+	frame := ansi.Strip(frameOf(t, local(), "sessions-3"))
 
 	for _, want := range []string{
 		// The clock the frames read.
@@ -213,7 +213,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		// The document read, rather than still being read.
 		"● healthy",
 		// side's session at its reading, its bar eased all the way there.
-		"Session  ██▏┃█████▊░░░░░░░░  12% → 54%",
+		"Session  ██▉█┃████████░░░░░░░░░░░  12%  → 54%",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
 		"14:41  ▲ c61b started on side, the best",
@@ -228,7 +228,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 }
 
 func TestAFrameFillsATerminalOfTheSizeGiven(t *testing.T) {
-	f := fixture(t, "accounts-3")
+	f := fixture(t, "sessions-3")
 	for _, size := range []watch.Size{f.Size, {Width: 160, Height: 10}, {Width: 200, Height: 80}} {
 		frame := f.Frame(size)
 		if !strings.HasSuffix(frame, "\n") {
@@ -241,17 +241,17 @@ func TestAFrameFillsATerminalOfTheSizeGiven(t *testing.T) {
 }
 
 func TestAFixturesKeysArePressedOnceItsDocumentIsRead(t *testing.T) {
-	f := fixture(t, "accounts-3")
-	f.keys = []tea.KeyPressMsg{{Code: 'w', Text: "w"}}
+	f := fixture(t, "sessions-3")
+	f.keys = []tea.KeyPressMsg{{Code: 'p', Text: "p"}}
 
-	if frame, want := ansi.Strip(f.Frame(f.Size)), "w window: 5h"; !strings.Contains(frame, want) {
-		t.Errorf("having pressed w, which does nothing till a document is read, the frame\n%s\nhas no %q", frame, want)
+	if frame, want := ansi.Strip(f.Frame(f.Size)), "╭─ ROUTING · "; !strings.Contains(frame, want) {
+		t.Errorf("having pressed p, which does nothing till a document is read, the frame\n%s\nhas no %q", frame, want)
 	}
 }
 
 func TestAFixtureIsDrawnInItsTheme(t *testing.T) {
 	amber, _ := theme.Builtin("amber")
-	f := fixture(t, "accounts-3")
+	f := fixture(t, "sessions-3")
 	tests := []struct {
 		name    string
 		fixture Fixture
@@ -306,39 +306,6 @@ func TestAThemeFileTakingABuiltInsSlugIsListedAsReserved(t *testing.T) {
 	}
 }
 
-func TestTheThemesFixtureHasThePickerOpenOnTheThemeBeforeTheFrames(t *testing.T) {
-	frame := ansi.Strip(fixture(t, "accounts-3-themes").Frame(wide(34)))
-
-	for _, want := range []string{"│ Themes", "│ ▌ exchange", "│   nord                     ●", "╭─ 1 work ─"} {
-		if !strings.Contains(frame, want) {
-			t.Errorf("the frame\n%s\nhas no %q", frame, want)
-		}
-	}
-}
-
-func TestTheFlippedFixturesTurnTheCardsOverWithTheirKeys(t *testing.T) {
-	utc := fixturesIn(time.UTC)
-	tests := []struct {
-		name string
-		want []string
-	}{
-		{name: "accounts-flipped-all", want: []string{
-			"┏━ 1 work ━", "sessions · ◆ primary ━┓", "─ sessions ─╮", "sessions · ▲ next ─╮",
-			"3 moved to side at 14:12,", "when personal reached its limit",
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, utc, tt.name))
-			for _, want := range tt.want {
-				if !strings.Contains(frame, want) {
-					t.Errorf("the frame\n%s\nhas no %q", frame, want)
-				}
-			}
-		})
-	}
-}
-
 func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
 	utc := fixturesIn(time.UTC)
 	tests := []struct {
@@ -354,33 +321,6 @@ func TestTheRunwayFixturesShowRunwayWithTheirKeys(t *testing.T) {
 			"weeks with room", "w window: week", "resets Mon 21:00  ·  87% used by then",
 			"runs out ~Fri 04:06  ·  back Sun 02:00, as it resets", "one column ≈ 75 min · yesterday dimmed",
 		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			frame := ansi.Strip(frameOf(t, utc, tt.name))
-			for _, want := range tt.want {
-				if !strings.Contains(frame, want) {
-					t.Errorf("the frame\n%s\nhas no %q", frame, want)
-				}
-			}
-		})
-	}
-}
-
-func TestTheChartFixturesDrawEachStyleWithTheirKeys(t *testing.T) {
-	utc := fixturesIn(time.UTC)
-	rate := "KEY      ▃▅ use per 10 min   ▆▆ too fast to last   ⠂⠂⠂ fastest that lasts   │"
-	hourglass := "KEY      ▀▀ room left   ▄▄ used   ▐▌ its recent rate, falling while busy   │"
-	tests := []struct {
-		name string
-		want []string
-	}{
-		{name: "accounts-3-rate", want: []string{rate, "g chart", "│  12:10                now               17:10  │", "█▁▁▁▁▁▁▁▁▁│▁▁▁▁▁▁▁▁▁"}},
-		{name: "accounts-3-hourglass", want: []string{hourglass, "│                    ▜████████▛                  │", "│  12:10                now               17:10  │"}},
-		{name: "accounts-4-rate", want: []string{rate, "│  12:10                now               17:10  │"}},
-		{name: "accounts-4-hourglass", want: []string{hourglass, "│                  ▜████████████▛                │"}},
-		{name: "accounts-8-rate", want: []string{rate, "│  Session  58%  → out ~15:45      resets 17:10  │"}},
-		{name: "accounts-8-hourglass", want: []string{hourglass, "│                     ▗▄▟▟▟▄▄▖                   │"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -416,7 +356,6 @@ func TestTheSessionsFixturesShowSessionsWithTheirKeys(t *testing.T) {
 			"  d28c  ↪ moved to side", "╌╌╌╌╌╌╌╌╌○  Session", "  d28c  opus    now  ↪ new   ●━",
 			"  14:43  ▸ d28c moved work → side: work reached its limit, so",
 		}},
-		{name: "accounts-flipped-all", want: []string{"● d28c  opus    streaming  ↓ ~1.2k", "● db8a  sonnet  waiting    38s", "● c61b  opus    streaming  ↓ ~3.4k", "● db8a  opus    waiting    12s"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -515,7 +454,8 @@ var everyInput = []tea.Msg{
 	tea.KeyPressMsg{Code: tea.KeyTab}, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift},
 	tea.KeyPressMsg{Code: 'w', Text: "w"}, tea.KeyPressMsg{Code: 'g', Text: "g"},
 	tea.KeyPressMsg{Code: tea.KeyLeft}, tea.KeyPressMsg{Code: tea.KeyRight}, tea.KeyPressMsg{Code: tea.KeyUp}, tea.KeyPressMsg{Code: tea.KeyDown},
-	tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: 's', Text: "s"},
+	tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: 's', Text: "s"}, tea.KeyPressMsg{Code: 'u', Text: "u"},
+	tea.KeyPressMsg{Code: 'c', Text: "c"}, tea.KeyPressMsg{Code: 'b', Text: "b"},
 	tea.KeyPressMsg{Code: tea.KeyEscape}, tea.KeyPressMsg{Code: tea.KeyEnter},
 	tea.KeyPressMsg{Code: 'j', Text: "j"}, tea.KeyPressMsg{Code: 'k', Text: "k"}, tea.KeyPressMsg{Code: tea.KeyPgDown}, tea.KeyPressMsg{Code: tea.KeyPgUp},
 	tea.KeyPressMsg{Code: '1', Text: "1"}, tea.KeyPressMsg{Code: '2', Text: "2"}, tea.KeyPressMsg{Code: '3', Text: "3"},
@@ -529,13 +469,11 @@ var everyInput = []tea.Msg{
 	tea.MouseWheelMsg{X: 40, Y: 12, Button: tea.MouseWheelDown}, tea.MouseWheelMsg{X: 40, Y: 12, Button: tea.MouseWheelUp},
 }
 
-// TestNoFixtureChartStyleKeyOrWidthPanics draws every fixture at every width
-// from 1 to 240, at its height, so with their -rate and -hourglass fixtures,
-// the cards of three, four and eight accounts draw each chart style at every
-// width; then from each fixture, every key, click and turn of the wheel in
-// turn, at every fourth width. A printout, which takes no keys, is drawn as
-// tall as it is.
-func TestNoFixtureChartStyleKeyOrWidthPanics(t *testing.T) {
+// TestNoFixtureKeyOrWidthPanics draws every fixture at every width from 1 to
+// 240, at its height; then from each fixture, every key, click and turn of
+// the wheel in turn, at every fourth width. A printout, which takes no keys,
+// is drawn as tall as it is.
+func TestNoFixtureKeyOrWidthPanics(t *testing.T) {
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -588,7 +526,7 @@ func printedAt(t *testing.T, f Fixture, width int) {
 }
 
 func TestAFixturesModelStartsWhereItsFrameIs(t *testing.T) {
-	f := fixture(t, "accounts-3")
+	f := fixture(t, "sessions-3")
 	m := f.Model()
 
 	if cmd := m.Init(); cmd != nil {

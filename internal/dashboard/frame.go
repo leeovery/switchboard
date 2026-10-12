@@ -1,21 +1,15 @@
 package dashboard
 
 import (
-	"slices"
-	"strconv"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The widths the frame's arrangement changes at: from besideFrom columns,
-// one account's card has a column beside it; under phoneUnder, the frame is
-// a phone's.
-const (
-	besideFrom = 150
-	phoneUnder = 100
-)
+// phoneUnder is the width the frame is a phone's under.
+const phoneUnder = 100
 
 // Frame is the dashboard drawn from the document, the clock, and what the
 // watch knows besides: full screen, as a watch draws it, the page of the tab
@@ -33,8 +27,8 @@ type Frame struct {
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool
 	// Fresh are the events looks saw newly, by id, and Changed the accounts
-	// whose cards' states looks saw change, by id, each as far as the
-	// highlight on its row has faded, from 0, just seen, to 1, gone.
+	// whose states looks saw change, by id, each as far as the highlight on
+	// its row has faded, from 0, just seen, to 1, gone.
 	Fresh   map[int]float64
 	Changed map[string]float64
 	// Trails are how the accounts' windows have been used, for the charts.
@@ -43,16 +37,23 @@ type Frame struct {
 	// key, while they ease to the document's readings after a read: nil once
 	// they're there. Everything else is drawn from the document's own.
 	Eased map[Ref]float64
-	// Featured is which window every card features, as w sets it on the
-	// Overview, and Chart the style every card draws it in, as g sets it;
-	// and Span how far ahead Runway looks, as w switches it there.
-	Featured Feature
-	Chart    Chart
-	Span     Span
+	// Sections are the Overview's sections shown, as u, g, r, s, c and l
+	// show and hide them, and By how its windows are grouped, as b switches
+	// it: by window, or by account.
+	Sections Sections
+	By       By
+	// Traces are the requests the Overview's traces draw, by account and by
+	// session, as the watch counts them; and TraceScale the requests a
+	// minute that fill a trace's height, 0 for the live rule, the busiest
+	// column of every trace on the page, never less than 8.
+	Traces     views.Traces
+	TraceScale float64
+	// Span is how far ahead Runway looks, as w switches it.
+	Span Span
 	// Sessions are the sessions the router listed, the one seen last first,
-	// for the cards' dots and Sessions' calls: nil where it listed none, as
-	// while probing, and each card counts its account's sessions as the
-	// document does.
+	// for Sessions' calls, SESSIONS and ROUTING's counts: nil where it listed
+	// none, as while probing, and each account's sessions are counted as the
+	// document counts them.
 	Sessions []status.Session
 	// Traffic is what the router's request stream tells of the sessions'
 	// requests, while the watch reads it: zero while it doesn't.
@@ -61,15 +62,13 @@ type Frame struct {
 	// look to look: a seat keeps its row while the router lists it there,
 	// and one new to its account joins its group's foot.
 	Order Order
-	// Scroll is how many rows the view's cards, or its lanes, are scrolled
-	// down by, where they don't fit: no further than Scrolling says they go.
+	// Scroll is how many rows the view is scrolled down by, where it doesn't
+	// fit, or on the Overview, USAGE within its section: no further than
+	// Scrolling says it goes.
 	Scroll int
-	// Focus is the account whose card has the focus, which the arrow keys
-	// move and space flips, its edges heavy: "" while no card has it.
+	// Focus is the account the Overview's focus is on, by id, which ↑ and ↓
+	// move and GRAPHS follows: "" while it's on none.
 	Focus string
-	// Flipped are the accounts whose cards are flipped to show their
-	// sessions, by id.
-	Flipped map[string]bool
 	// KeyLine is the keys that work on the page, as its last row lists them,
 	// or the note a key left in their place.
 	KeyLine KeyLine
@@ -104,22 +103,19 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: the Overview, milestone 5's cards, as a list
-// where the view is too short for them, as short says; Sessions and Runway;
-// and nothing of a tab not built yet.
+// room for it, as cramped says: the Overview, Sessions and Runway; and
+// nothing of a tab not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
 	}
 	top := f.top()
-	switch {
-	case f.View == Overview && f.short(doc, now):
-		f.list(c, doc, now)
-	case f.View == Overview:
-		f.accounts(c, doc, now, top)
-	case f.View == Sessions:
+	switch f.View {
+	case Overview:
+		f.overview(c, doc, now, top)
+	case Sessions:
 		f.sessions(c, doc, now, top)
-	case f.View == Runway:
+	case Runway:
 		f.runway(c, doc, now, top)
 	}
 }
@@ -127,29 +123,6 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 // stateLine draws the view's state line, over the key line. The views
 // milestone 5 built draw their own line there.
 func (f Frame) stateLine(*canvas) {}
-
-// short reports whether the frame of doc at now, showing the Overview, is
-// too short for a row of cards at their sparest in the view's rows. Sessions
-// and Runway keep to the rows they have.
-func (f Frame) short(doc status.Document, now time.Time) bool {
-	if f.View != Overview {
-		return false
-	}
-	g := f.gridOf(len(doc.Accounts), len(shownWindows(doc, now, f.Policy)))
-	return f.viewRows() < densities[len(densities)-1].rows(g.bars)
-}
-
-// list draws the Overview of doc at now as a view too short for its cards
-// has it: a line for each account, as many as fit in the view's rows, its
-// place, its name and its state in words, cut to fit.
-func (f Frame) list(c *canvas, doc status.Document, now time.Time) {
-	top := f.top()
-	for i, a := range doc.Accounts[:min(len(doc.Accounts), f.viewRows())] {
-		state := face{state: doc.StateOf(a, now, f.Policy)}.stateLine()
-		said := slices.Concat(line{{strconv.Itoa(i+1) + " ", dimInk}, {name(a), titleInk}, spaces(2)}, state)
-		c.line(margin, top+i, said.fit(f.edge()-margin))
-	}
-}
 
 // The page's rows under its view: the state line, or the blank row that
 // keeps the view off the key line, and the key line. leastView is the fewest

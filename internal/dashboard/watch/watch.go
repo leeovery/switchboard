@@ -132,13 +132,17 @@ type Config struct {
 	// NO_COLOR asks, and leaves t doing nothing.
 	Themes Themes
 	// View is the tab the preferences kept, which the watch opens on where
-	// it's one there is, Featured the window they keep the cards featuring,
-	// and Chart the style they keep the cards drawing it in; Prefs keeps
-	// each as it changes: nil keeps nothing.
+	// it's one there is; Sections the Overview's sections they keep shown;
+	// and By how they keep its windows grouped, else as the config's [usage]
+	// by has it. Prefs keeps each as it changes: nil keeps nothing.
 	View     dashboard.View
-	Featured dashboard.Feature
-	Chart    dashboard.Chart
+	Sections dashboard.Sections
+	By       dashboard.By
 	Prefs    Prefs
+	// TraceScale is the requests a minute that fill a trace's height on the
+	// Overview: 0 for the live rule, as the dashboard has it, the busiest
+	// column of every trace on the page, never less than 8.
+	TraceScale float64
 	// Ledger, Readings and Events read the request ledger, the readings
 	// history and the router's events where they lie: the watch opens none
 	// of their files itself.
@@ -217,7 +221,7 @@ type Model struct {
 	// view is the tab shown.
 	view dashboard.View
 	// news is what the looks have seen of the router's events, and changes
-	// of the cards' states.
+	// of the accounts' states.
 	news    news
 	changes changes
 	// history is how the accounts' windows have been used, and trails the
@@ -225,30 +229,30 @@ type Model struct {
 	history history
 	trails  dashboard.Trails
 	// sessions are the sessions the router listed with the document on
-	// screen, for the cards' dots and Sessions' calls: nil where it listed
-	// none. listedBy is the router that listed them, as its health check
-	// said; and order is the order Sessions' calls ran in as they were
+	// screen, for the sessions running and Sessions' calls: nil where it
+	// listed none. listedBy is the router that listed them, as its health
+	// check said; and order is the order Sessions' calls ran in as they were
 	// listed, which they keep from look to look.
 	sessions []status.Session
 	listedBy router.Health
 	order    dashboard.Order
-	// stream is the watch's hold on the router's request stream, and traffic
-	// what the stream has told of the routed requests.
+	// stream is the watch's hold on the router's request stream, traffic
+	// what the stream has told of the routed requests, and traces the
+	// requests the Overview's traces count, of today's lines and the stream.
 	stream  streaming
 	traffic traffic
-	// featured is which window every card features, chart the style every
-	// card draws it in, and span how far ahead Runway looks.
-	featured dashboard.Feature
-	chart    dashboard.Chart
+	traces  views.Traces
+	// sections are the Overview's sections shown, and by how its windows are
+	// grouped; span is how far ahead Runway looks.
+	sections dashboard.Sections
+	by       dashboard.By
 	span     dashboard.Span
-	// scroll is how many rows the view shown is scrolled down by, where its
-	// cards, or its lanes, don't fit.
+	// scroll is how many rows the view shown is scrolled down by, where it
+	// doesn't fit, or on the Overview, USAGE within its section.
 	scroll int
-	// focus is the account whose card has the focus, "" while none has it;
-	// and flipped are the accounts whose cards are flipped, by id, a set no
-	// model changes once it's made.
-	focus   string
-	flipped map[string]bool
+	// focus is the account the Overview's focus is on, which GRAPHS follows,
+	// "" while it's on none.
+	focus string
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -309,7 +313,7 @@ type frameMsg struct {
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
-		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), featured: cfg.Featured, chart: cfg.Chart,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By,
 	}
 	if m.after == nil {
 		m.after = after
@@ -503,18 +507,19 @@ func (m Model) uncover() Model {
 // frame is the dashboard's frame as the model stands at now, but for its key
 // line and any card over it: at the size drawn at, in the look, showing the
 // tab shown, with what the watch knows of the router, its events and its
-// history, the window the cards feature and the style they draw it in, how
-// far ahead Runway looks, the sessions listed, what the request stream tells
-// of their requests and the order Sessions' calls keep, how far the view is
-// scrolled, the card with the focus and the cards flipped.
+// history, the Overview's sections shown, how its windows are grouped and
+// the requests its traces count, how far ahead Runway looks, the sessions
+// listed, what the request stream tells of their requests and the order
+// Sessions' calls keep, how far the view is scrolled, and the account the
+// focus is on.
 func (m Model) frame(now time.Time) dashboard.Frame {
 	return dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
 		Lost: m.lost, Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), Trails: m.trails, Eased: m.eased(now),
-		Featured: m.featured, Chart: m.chart, Span: m.span,
+		Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
-		Focus: m.focus, Flipped: m.flipped,
+		Focus:  m.focus,
 		Policy: m.cfg.Policy,
 	}
 }
@@ -554,8 +559,8 @@ func (m Model) fetch(r status.Read) tea.Cmd {
 }
 
 // fetchFrom reads the source as r asks, and from a router, the sessions it
-// lists, for the cards' dots and Sessions' calls: a router that can't list
-// them leaves them out.
+// lists, for the sessions running and Sessions' calls: a router that can't
+// list them leaves them out.
 func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 	doc, from, err := source.Read(ctx, r)
 	msg := fetchedMsg{read: r, doc: doc, router: from, err: err}
@@ -632,9 +637,8 @@ func logRead(msg fetchedMsg, next time.Time) {
 // own, as nothing is to be told twice; follows the router as it goes and
 // comes back; notes the events new to it, and the readings it gives; asks
 // the router for its history with a full read, and as the router answers
-// again, or another router does, as one restarted; keeps the focus and the
-// cards flipped where they still are; and eases the bars to it from where
-// they stand.
+// again, or another router does, as one restarted; keeps the focus where its
+// account still is; and eases the bars to it from where they stand.
 func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	doc := msg.doc
 	var post, asked tea.Cmd
@@ -793,12 +797,11 @@ func (m Model) framed(msg frameMsg) Model {
 // nextFrame is how long after now what moves on screen next changes, and
 // whether anything does: nothing while a card is open, as the page behind it
 // stands still; else frameEvery while anything moves frame by frame, a bar
-// easing to its reading, the highlight on an event, or on a card's state,
-// fading back, or what travels the cords, as Motion says; else as soon as
-// the shimmer down a cord steps on, or the sand in a card's hourglass falls
-// a grain, on the clock's steps of each, or a move yet to show re-patches
-// Sessions' calls. The cards' backs and Sessions' plain list are drawn again
-// as the stream tells of more, and as the clock ticks.
+// easing to its reading, the highlight on an event, or on an account's
+// state, fading back, or what travels the cords, as Motion says; else as
+// soon as the shimmer down a cord steps on, on the clock's steps of it, or a
+// move yet to show re-patches Sessions' calls. Sessions' plain list is drawn
+// again as the stream tells of more, and as the clock ticks.
 func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	if m.open != nothingOpen {
 		return 0, false
@@ -810,9 +813,6 @@ func (m Model) nextFrame(now time.Time) (time.Duration, bool) {
 	var next []time.Duration
 	if moving.Shimmer {
 		next = append(next, untilStep(now, shimmerStep)+stepSlack)
-	}
-	if moving.Falling {
-		next = append(next, untilStep(now, dashboard.FallStep)+stepSlack)
 	}
 	if shows, ok := m.traffic.showing(now); ok && m.view == dashboard.Sessions {
 		next = append(next, shows.Sub(now)+stepSlack)

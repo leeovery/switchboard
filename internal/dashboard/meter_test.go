@@ -3,10 +3,7 @@ package dashboard
 import (
 	"math"
 	"testing"
-	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -75,68 +72,5 @@ func TestALookThatCantFadeDrawsABarsProjectionInShade(t *testing.T) {
 		if on := c.at(6, 0).ink.on; on != (hue{}) {
 			t.Errorf("the cell its use ends in is on %+v, want the canvas", on)
 		}
-	}
-}
-
-func TestABarLineSaysItsUseAndWhereItsHeading(t *testing.T) {
-	reserved := func(a status.Account) status.Account { a.Reserve = 0.15; return a }
-	lapsed := readAccount("work", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.3, 4*day))
-	lapsed.Lapsed = []string{"5h"}
-	tests := []struct {
-		name    string
-		account status.Account
-		key     string
-		want    string
-		// wantUse and wantWhither are the inks of its use and where it's
-		// heading.
-		wantUse, wantWhither ink
-	}{
-		{
-			name: "heading for a share by its reset", account: readAccount("work", weekOf(0.34, 4*day)), key: "7d",
-			want: "Week     ██████▏┃██████▎░░░  34% → 79%", wantUse: titleInk, wantWhither: mutedInk,
-		},
-		{
-			name: "heading within 10 points of its reserve", account: reserved(readAccount("work", weekOf(0.34, 4*day))), key: "7d",
-			want: "Week     ██████▏┃██████▎╎░░  34% → 79%", wantUse: titleInk, wantWhither: warningInk,
-		},
-		{
-			name: "running out before it resets", account: readAccount("work", weekOf(0.5, 6*day)), key: "7d",
-			want: "Week     ██┃███████████████  50% → out Tue", wantUse: titleInk, wantWhither: alertInk,
-		},
-		{
-			name: "at its limit", account: limitedAccount("work"), key: "5h",
-			want: "Session  ██████████████████ 100% back 14:12", wantUse: exhaustedInk, wantWhither: exhaustedInk,
-		},
-		{
-			name: "lapsed", account: lapsed, key: "5h",
-			want: "Session  ░░░░░░░░░░░░░░░░░░   0% not started", wantUse: ink{token: theme.TextSubtle, bold: true}, wantWhither: dimInk,
-		},
-		{
-			name: "too early to say", account: readAccount("work", sessionOf(0.01, 4*time.Hour+55*time.Minute)), key: "5h",
-			want: "Session  ┃░░░░░░░░░░░░░░░░░   1%", wantUse: titleInk,
-		},
-		{
-			name: "Fable's week, its label short", account: readAccount("work", fableOf(0.12, 4*day)), key: "7d_oi",
-			want: "Fable wk ██▏██░░┃░░░░░░░░░░  12% → 28%", wantUse: titleInk, wantWhither: mutedInk,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			doc := routerDoc("", 0, tt.account)
-			w, _ := tt.account.Window(tt.key)
-			c := newCanvas(44, 1)
-			Frame{Look: Screen(builtin(t, "nord")), Policy: claudeLike}.meter(c, standingOf(doc, tt.account, w, now, claudeLike), tt.account.Reserve, now, 0, 0, 44, labelColumn)
-			if got := c.rows(Look{})[0]; got != tt.want {
-				t.Errorf("drew\n%q\nwant\n%q", got, tt.want)
-			}
-			if got := c.at(labelColumn+18+useColumn-1, 0).ink; got != tt.wantUse {
-				t.Errorf("its use is in %+v, want %+v", got, tt.wantUse)
-			}
-			if tt.wantWhither != (ink{}) {
-				if got := c.at(labelColumn+18+useColumn+1, 0).ink; got != tt.wantWhither {
-					t.Errorf("where it's heading is in %+v, want %+v", got, tt.wantWhither)
-				}
-			}
-		})
 	}
 }

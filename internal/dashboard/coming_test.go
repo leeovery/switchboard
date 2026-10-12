@@ -214,7 +214,7 @@ func TestCOMINGUPsInks(t *testing.T) {
 func TestCOMINGUPListsThreeWithTheirCountdownsAtTheRight(t *testing.T) {
 	f := frameOf(160, 10)
 	c := newCanvas(f.Width, f.Height)
-	f.comingLines(c, upcoming(threeRouted(), now, f.Policy), now, 115, 0, comingThings)
+	f.comingLines(c, upcoming(threeRouted(), now, f.Policy), now, 115, 0, leastLines)
 
 	rows := c.rows(Look{})
 	want := []string{
@@ -243,7 +243,7 @@ func TestCOMINGUPsTimesAreAsFarFromTheirWordsAsRECENTsOnAPhone(t *testing.T) {
 		c := newCanvas(f.Width, f.Height)
 		f.comingLines(c, upcoming(doc, now, f.Policy), now, 0, 0, 1)
 		coming := c.rows(Look{})[0]
-		recent := f.tellings(doc, now, 1)[0].lead.plain()
+		recent := f.tellingsOf(recent(doc, now, 1), doc, now, told)[0].lead.plain()
 		if gap, want := coming[len("14:42"):strings.Index(coming, "work")], recent[len("13:11"):strings.Index(recent, "●")]; gap != want {
 			t.Errorf("at %d columns, COMING UP's time is %q from its words, want %q, as RECENT's", width, gap, want)
 		}

@@ -9,13 +9,37 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// comingTail is the cells at the end of a line of COMING UP that its
+// countdown takes, with the gap before it.
+const comingTail = 12
+
+// The lines COMING UP and LATELY take, side by side: leastLines at the least,
+// and mostLines at the most.
 const (
-	// comingThings is how many things COMING UP lists.
-	comingThings = 3
-	// comingTail is the cells at the end of a line of COMING UP that its
-	// countdown takes, with the gap before it.
-	comingTail = 12
+	leastLines = 3
+	mostLines  = 12
 )
+
+// linesRows is how many rows COMING UP or LATELY takes with lines to show:
+// its heading and the blank row under it, and its lines, leastLines at the
+// least, and mostLines at the most.
+func linesRows(lines int) int {
+	return sectionHead + min(max(lines, leastLines), mostLines)
+}
+
+// comingSection is the Overview's COMING UP of doc at now: what happens
+// next, soonest first, as many of its things as it has, leastLines of them at
+// its least.
+func (f Frame) comingSection(doc status.Document, now time.Time) section {
+	things := upcoming(doc, now, f.Policy)
+	return section{
+		Section: SectionComing, least: linesRows(0), most: linesRows(len(things)),
+		draw: func(c *canvas, body bounds) {
+			f.comingLines(c, things, now, body.x, body.y, body.rows)
+		},
+		folded: func() line { return nil },
+	}
+}
 
 // happening is something coming up: when, the account it befalls, by its
 // name, what befalls it, in words that follow the name, and their ink.
@@ -28,9 +52,9 @@ type happening struct {
 
 // upcoming are the things coming up after now, as doc's COMING UP lists
 // them, in its order, soonest first, each as happeningOf says it: but a
-// window running out, or resetting, that every card hides, as shownWindows
-// says, as the document lists a model's own week's reset where it isn't its
-// week's. A limit or cap lifting is listed whatever its window.
+// window running out, or resetting, that hides, as shownWindows says, as the
+// document lists a model's own week's reset where it isn't its week's. A
+// limit or cap lifting is listed whatever its window.
 func upcoming(doc status.Document, now time.Time, policy score.Policy) []happening {
 	shown := shownWindows(doc, now, policy)
 	var all []happening

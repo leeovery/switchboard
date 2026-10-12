@@ -57,13 +57,12 @@ type rejoinMsg struct {
 }
 
 // wantsStream reports whether the watch reads the router's request stream:
-// while Sessions shows, or the Overview with a card flipped, or its cards
-// drawing hourglasses, whose sand falls while the stream says their
-// accounts are busy; and the router answers, unless it's from before the
-// stream.
+// while Sessions shows, or the Overview with ROUTING or SESSIONS shown, whose
+// traces, and what each session is doing, the stream tells; and the router
+// answers, unless it's from before the stream.
 func (m Model) wantsStream() bool {
-	shows := m.view == dashboard.Sessions || m.view == dashboard.Overview && (len(m.flipped) > 0 || m.chart == dashboard.Hourglass)
-	return shows && m.answering() && !m.stream.absent
+	overview := m.view == dashboard.Overview && (m.sections.Has(dashboard.SectionRouting) || m.sections.Has(dashboard.SectionSessions))
+	return (m.view == dashboard.Sessions || overview) && m.answering() && !m.stream.absent
 }
 
 // tune opens the request stream when the watch wants it and has none open,
@@ -80,16 +79,19 @@ func (m Model) tune() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// openStream opens the router's request stream, under its own context.
+// openStream opens the router's request stream, under its own context, and
+// reads the requests today's lines tell of for the traces, as readTraces
+// does, for the stream to go on from.
 func (m Model) openStream() (Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.stream.gen++
 	m.stream.cancel, m.stream.opening = cancel, true
 	gen, source := m.stream.gen, m.cfg.Source
-	return m, func() tea.Msg {
+	open := func() tea.Msg {
 		events, err := source.Stream(ctx)
 		return streamOpenedMsg{gen: gen, events: events, err: err}
 	}
+	return m, tea.Batch(open, m.readTraces())
 }
 
 // closeStream closes the request stream, forgetting what it told of the
@@ -129,7 +131,7 @@ func (m Model) opened(msg streamOpenedMsg) (Model, tea.Cmd) {
 	case errors.Is(msg.err, router.ErrNoStream):
 		m.stream.end()
 		m.stream.cancel, m.stream.absent, m.stream.absentOf = nil, true, m.news.router
-		logger.Info("the router is from before GET /stream: the cords and the cards' backs draw the sessions as each look reads them")
+		logger.Info("the router is from before GET /stream: the sessions are drawn as each look reads them")
 		return m, nil
 	default:
 		m.stream.end()

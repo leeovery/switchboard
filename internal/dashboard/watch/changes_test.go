@@ -3,14 +3,12 @@ package watch
 import (
 	"maps"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // limitedWork is the router's document of three, work at the limit of its
@@ -145,23 +143,5 @@ func TestStatesProbedAfterTheRouterStartAfresh(t *testing.T) {
 	}
 	if got := h.changed(); len(got) > 0 {
 		t.Errorf("probing after the router, picked out %v, want none: its states start afresh", got)
-	}
-}
-
-func TestAChangedCardIsPickedOutOnScreen(t *testing.T) {
-	h, _ := themedHarness(t, theme.Choice{})
-	h.startRouter(routerDocument(three()...))
-	h.start()
-	h.answer(darkBackground)
-	h.startRouter(limitedWork())
-	h.tickUntilAsked()
-
-	const attention = "48;2;61;64;70" // nord's bg.attention
-	if row := rowWith(h.model.View().Content, "limit reached"); !strings.Contains(row, attention) {
-		t.Errorf("work's state row is %q, want it on bg.attention", row)
-	}
-	h.clock.now = h.clock.now.Add(highlightFor)
-	if row := rowWith(h.model.View().Content, "limit reached"); strings.Contains(row, attention) {
-		t.Errorf("once its time is over, work's state row is %q, want it back on the canvas", row)
 	}
 }

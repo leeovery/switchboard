@@ -76,6 +76,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		Interval: interval,
 		Policy:   claude.Policy,
 		Size:     size,
+		View:     f.view,
 		Prices:   drawnPrices,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)

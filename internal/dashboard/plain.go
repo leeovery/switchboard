@@ -26,10 +26,10 @@ type plain struct {
 // layOutPlain lays the Sessions view of doc at now out as a plain list: each
 // panel as wide as the lines are, but never wider than the frame, with bars
 // from barsFrom columns; under it a row for each of its sessions' models,
-// the request stream's moves among them, and a note under each, as a card's
-// back has them, or where it has none, why, in as many rows as that takes,
-// or a row saying so; then LOG, logGap blank rows under the last, with as
-// many lines as it has, logLines at most.
+// the request stream's moves among them, and a note under each, or where it
+// has none, why, in as many rows as that takes, or a row saying so; then
+// LOG, logGap blank rows under the last, with as many lines as it has,
+// logLines at most.
 func (f Frame) layOutPlain(doc status.Document, now time.Time) plain {
 	l := plain{bars: f.Width >= barsFrom, width: linesNarrow}
 	if l.bars {
@@ -94,9 +94,8 @@ func (f Frame) plainList(c *canvas, doc status.Document, now time.Time, top int)
 	f.overKeyLine(c, doc, now, top, l.content, view, offset, l.hidden)
 }
 
-// plainSeats draws the seats under the panel p of doc at now, as a card's
-// back lists them: a row each, and its note under it; or where there are
-// none, as unseatedUnder says.
+// plainSeats draws the seats under the panel p of doc at now: a row each,
+// and its note under it; or where there are none, as unseatedUnder says.
 func (f Frame) plainSeats(c *canvas, doc status.Document, p linePanel, seats []seated, now time.Time) {
 	y, width := p.bottom()+1, f.edge()-plainAt
 	if len(seats) == 0 {

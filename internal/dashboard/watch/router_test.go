@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -16,11 +17,11 @@ import (
 // p among them, and oneKeys those it lists of one, which has none other to
 // pin to.
 const (
-	threeKeys = "tab views · w window: auto · ←→ focus · space flip · g chart · p pin · ? help · q quit"
-	oneKeys   = "tab views · w window: auto · ←→ focus · space flip · g chart · ? help · q quit"
-	// unreadKeys are those listed before anything is read, w doing nothing
-	// till there are cards.
-	unreadKeys = "tab views · ←→ focus · space flip · g chart · ? help · q quit"
+	threeKeys = "tab views · p pin · ? help · q quit"
+	oneKeys   = "tab views · ? help · q quit"
+	// unreadKeys are those listed before anything is read, p doing nothing
+	// till there are accounts to pin to.
+	unreadKeys = "tab views · ? help · q quit"
 )
 
 func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
@@ -48,7 +49,7 @@ func TestLooksAtTheRoutersDocumentEveryFiveSeconds(t *testing.T) {
 	}
 }
 
-func TestEveryReadOfTheRouterListsItsSessionsForTheCards(t *testing.T) {
+func TestEveryReadOfTheRouterListsItsSessions(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{
 		{ID: "d28c5e17", Assignments: []status.Assignment{{Model: "claude-opus-5-5", Account: "work", LastSeen: start.Add(-50 * time.Second).UTC()}}},
@@ -63,8 +64,8 @@ func TestEveryReadOfTheRouterListsItsSessionsForTheCards(t *testing.T) {
 	if h.source.listed != 2 {
 		t.Errorf("listed the sessions %d times, want again with a look at the router's document", h.source.listed)
 	}
-	if !strings.Contains(h.view(), "╰─ ● ○ ─") {
-		t.Errorf("the screen is\n%s\nwant work's card with a dot for each session, the one seen in the last minute lit", h.view())
+	if h.model.view = dashboard.Sessions; !strings.Contains(h.view(), "d28c") || !strings.Contains(h.view(), "7f3a") {
+		t.Errorf("the screen is\n%s\nwant Sessions listing d28c and 7f3a", h.view())
 	}
 }
 
@@ -77,7 +78,7 @@ func TestProbingListsNoSessions(t *testing.T) {
 	}
 }
 
-func TestSessionsTheRouterDoesntListLeaveTheCardsWithoutDots(t *testing.T) {
+func TestSessionsTheRouterDoesntListAreHeldAsNone(t *testing.T) {
 	work := account("work", "Work", session(0.25, 3*time.Hour), week(0.5))
 	work.Sessions = 2
 	h := routedHarness(t, routerDocument(work, three()[1]))
@@ -87,9 +88,6 @@ func TestSessionsTheRouterDoesntListLeaveTheCardsWithoutDots(t *testing.T) {
 
 	if h.model.sessions != nil {
 		t.Errorf("holding the sessions %v, want none listed", h.model.sessions)
-	}
-	if view := h.view(); strings.Contains(view, "╰─ ●") || !strings.Contains(view, " 2 sessions ─╯") {
-		t.Errorf("the screen is\n%s\nwant work's card without dots, counting its sessions as the document does", view)
 	}
 }
 

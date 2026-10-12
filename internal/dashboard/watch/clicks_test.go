@@ -19,8 +19,8 @@ import (
 
 // targets are the targets of the page on screen.
 func (h *harness) targets() []dashboard.Target {
-	f, _, _ := h.model.screen(h.clock.now)
-	return f.Targets()
+	f, doc, at := h.model.screen(h.clock.now)
+	return f.Targets(doc, at)
 }
 
 // tabTarget is the target of the tab given on the page on screen, failing
@@ -89,15 +89,14 @@ func TestAClickOnATabShowsItFromItsTopAndKeepsIt(t *testing.T) {
 }
 
 func TestAClickOnTheTabShownChangesNothing(t *testing.T) {
-	h := newHarness(t, twelve())
+	h := runwayHarness(t, runwaySize)
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
-	h.start()
 	h.press("j")
 
-	target := h.tabTarget(dashboard.Overview)
+	target := h.tabTarget(dashboard.Runway)
 	h.click(target.X, target.Y)
-	if h.model.view != dashboard.Overview || h.model.scroll != 1 || prefs.updates != 0 {
+	if h.model.view != dashboard.Runway || h.model.scroll != 1 || prefs.updates != 0 {
 		t.Errorf("a click on the tab shown showed %q scrolled %d, keeping it %d times; want it as it was, a row down, nothing kept", h.model.view, h.model.scroll, prefs.updates)
 	}
 }
@@ -113,9 +112,10 @@ func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
 			if _, on := targetAt(targets, x, y); on {
 				continue
 			}
-			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.focus != "" || h.model.flipped != nil ||
-				h.model.featured != was.featured || h.model.chart != was.chart || h.model.picker.open || len(h.source.orders) > 0 {
-				t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, focus on %q, flipped %v, orders %q", x, y, h.model.view, h.model.open, h.model.focus, h.model.flipped, h.source.orders)
+			if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.focus != "" ||
+				h.model.sections != was.sections || h.model.by != was.by || h.model.picker.open || len(h.source.orders) > 0 {
+				t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, focus on %q, sections %v, by %v, orders %q",
+					x, y, h.model.view, h.model.open, h.model.focus, h.model.sections.Names(), h.model.by, h.source.orders)
 			}
 		}
 	}
@@ -168,10 +168,6 @@ func TestAClickOnAKeyOfTheKeyLineActsAsTheKey(t *testing.T) {
 		acted func(m Model) bool
 	}{
 		{key: "tab", acted: func(m Model) bool { return m.view == dashboard.Accounts }},
-		{key: "w", acted: func(m Model) bool { return m.featured != dashboard.Auto }},
-		{key: "g", acted: func(m Model) bool { return m.chart != dashboard.Burndown }},
-		{key: "←→", acted: func(m Model) bool { return m.focus == "work" }},
-		{key: "space", acted: func(m Model) bool { return m.flipped["work"] }},
 		{key: "?", acted: func(m Model) bool { return m.open == helpOpen }},
 	}
 	for _, tt := range tests {
@@ -182,15 +178,6 @@ func TestAClickOnAKeyOfTheKeyLineActsAsTheKey(t *testing.T) {
 				t.Errorf("a click on %s didn't act as %s does", tt.key, tt.key)
 			}
 		})
-	}
-}
-
-func TestAClickOnAPairOfArrowsMovesOn(t *testing.T) {
-	h := gridHarness(t)
-	h.clickOn(keyTarget("←→"))
-	h.clickOn(keyTarget("←→"))
-	if h.model.focus != "personal" {
-		t.Errorf("two clicks on ←→ put the focus on %q, want personal, a card on from work, as → moves it", h.model.focus)
 	}
 }
 
@@ -205,9 +192,8 @@ func TestAClickOnTheCellsOfAKeyOnTheKeyLineActsAsTheKey(t *testing.T) {
 	}{
 		{size: wide, drawn: "tab views", acted: func(m Model) bool { return m.view == dashboard.Accounts }},
 		{size: wide, drawn: "? help", acted: helpOpened},
-		{size: wide, drawn: "g chart", acted: func(m Model) bool { return m.chart != dashboard.Burndown }},
+		{size: phone, drawn: "tab views", acted: func(m Model) bool { return m.view == dashboard.Accounts }},
 		{size: phone, drawn: "? keys and toggles", acted: helpOpened},
-		{size: phone, drawn: "w window: auto", acted: func(m Model) bool { return m.featured != dashboard.Auto }},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s at %dx%d", tt.drawn, tt.size.Width, tt.size.Height), func(t *testing.T) {
@@ -309,8 +295,7 @@ func TestWhileThePickerIsOpenAClickActsAsItsKeysAlone(t *testing.T) {
 }
 
 func TestShowingSessionsAsAnAnswerStreamsDrawsItsFrames(t *testing.T) {
-	h := streamingHarness(t)
-	h.keys(spaceKey)
+	h := streamingOn(t, dashboard.Sections{})
 	h.settle()
 	h.hear(told(router.StreamSent, "r1", "work", 0), told(router.StreamFirst, "r1", "work", 0))
 
@@ -358,7 +343,6 @@ func TestNoClickOrTurnOfTheWheelRoutesQuitsOrPanics(t *testing.T) {
 func clickedHarness(t *testing.T, tab dashboard.View, size tea.WindowSizeMsg, opening string) *harness {
 	t.Helper()
 	h, _ := themedHarness(t, theme.One("amber"))
-	h.model.cfg.Await = h.await
 	doc := routerDocument(three()...)
 	h.source.router, h.source.sessions = &doc, []status.Session{sessionOn(idD28C, opus, "work", 10*time.Second)}
 	h.model.view = tab

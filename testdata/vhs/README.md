@@ -318,8 +318,9 @@ The fixture runs full screen, at the size the terminal gives, until `q`. An empt
 `--fixture` is an error that lists them all. Keys work as they do in the dashboard, though the
 router takes an order and changes nothing, and the clock stands still at the fixture's moment, so
 nothing moves of itself. A fixture named after a frame draws that frame, at its size; milestone
-5's, `accounts-*`, `runway-day-*`, `runway-week-3` and `sessions-*`, named after milestone 5's
-frames, stay until the stages that replace their views delete them.
+5's, `runway-day-*`, `runway-week-3` and `sessions-*`, named after milestone 5's frames, stay until
+the stages that replace their views delete them. Stage 7 deleted its cards' `accounts-*`, with
+their tapes.
 
 Stage 6's, `page-*`, draw the page as it's built, to judge by eye where no frame draws it yet, each
 with a tape of its name: `page-routing`, the routing card over the Overview of the auto world at
@@ -379,7 +380,7 @@ From the repository's root, as the tapes' paths are from there:
 vhs testdata/vhs/<name>.tape
 ```
 
-It writes the PNG its `Screenshot` names. A fixture's tape, such as `accounts-3.tape`, runs it
+It writes the PNG its `Screenshot` names. A fixture's tape, such as `sessions-3.tape`, runs it
 through `go run`, so the first run waits on a build; it waits for the frame with `Wait+Screen`
 rather than sleeping a guess. `calibrate-overview-default-160.tape` cats the frame's `.ansi`
 instead, for the calibration below.
@@ -396,8 +397,8 @@ tests included, runs sandboxed.
 A path with a `/` in a tape must be quoted, or the tape doesn't parse:
 
 ```
-Screenshot "testdata/vhs/accounts-3.png"   # parses
-Screenshot testdata/vhs/accounts-3.png     # a parser error
+Screenshot "testdata/vhs/sessions-3.png"   # parses
+Screenshot testdata/vhs/sessions-3.png     # a parser error
 ```
 
 ### Gotcha 3: `vhs` can fail silently
@@ -406,9 +407,9 @@ Screenshot testdata/vhs/accounts-3.png     # a parser error
 Hash the capture before and after, or remove it first, and check it changed:
 
 ```bash
-shasum -a 256 testdata/vhs/accounts-3.png
-vhs testdata/vhs/accounts-3.tape
-shasum -a 256 testdata/vhs/accounts-3.png
+shasum -a 256 testdata/vhs/sessions-3.png
+vhs testdata/vhs/sessions-3.tape
+shasum -a 256 testdata/vhs/sessions-3.png
 ```
 
 ### Gotcha 4: settings come first
@@ -550,6 +551,6 @@ own rules, which the test holds to the frame's, cell for cell.
    the world where it can. Either way, pass over what's left in `passedOver`, beside `owed`, and
    list it here, under The cells passed over, with what the dashboard draws in its place. Never
    patch the frame.
-4. To judge it by eye too, write its tape, modelled on `accounts-3.tape`, its `Width` and `Height`
+4. To judge it by eye too, write its tape, modelled on `sessions-3.tape`, its `Width` and `Height`
    from the fixture's size, as the calibrated settings say; clear the tape and its capture at the
    milestone's sign-off. Leave the fixture.

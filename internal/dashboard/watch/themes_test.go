@@ -36,7 +36,7 @@ func TestTheScreenWaitsForTheTerminalToSayWhatItsBackgroundIs(t *testing.T) {
 		t.Fatalf("no wait armed for the terminal to say its background in %v", theme.AnswerWithin)
 	}
 	h.deliver(tea.BackgroundColorMsg{Color: darkBackground})
-	if got := h.view(); !strings.Contains(got, "╭─ 1 Work ") {
+	if got := h.view(); !strings.Contains(got, "USAGE") {
 		t.Errorf("once the terminal says its background, the screen is\n%s\nwant the dashboard", got)
 	}
 }
@@ -265,7 +265,7 @@ func TestTOpensThePickerOverTheView(t *testing.T) {
 			t.Errorf("with the picker open, the screen reads\n%s\nwant %q", view, want)
 		}
 	}
-	if !strings.Contains(view, "╭─ 1 Work ") {
+	if !strings.Contains(view, "USAGE") {
 		t.Errorf("with the picker open, the screen reads\n%s\nwant the view beside it", view)
 	}
 	h.typed("esc")
@@ -595,7 +595,7 @@ func themedHarness(t *testing.T, choice theme.Choice) (*harness, *fakeThemes) {
 	themes := &fakeThemes{listing: listing(), choice: choice}
 	h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: calm()}, notifier: &fakeNotifier{}}
 	h.model = New(t.Context(), Config{
-		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Interval: interval, Policy: policy,
+		Source: h.source, Notifier: h.notifier, Notifications: notifications, Now: h.clock.Now, After: h.arm, Await: h.await, Interval: interval, Policy: policy,
 		Size: Size{Width: 150, Height: 50}, Choice: choice, Pair: themes.listing.Pair(choice), Themes: themes,
 		Ledger: h.emptyLedger(), Readings: readings.Empty{}, Events: events.Empty{},
 	})
