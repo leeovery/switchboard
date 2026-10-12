@@ -51,25 +51,46 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 // newStatusLine has it, auto said where it has no global pin; or probed, as
 // probedLine has it. While the router doesn't answer, from when the frame
 // lost it, its state says so, the rest as its last document had them, or
-// before any document, that alone. Before any document, and before the router
-// is lost, it's blank.
+// before any document, that alone. A read that failed otherwise says why in
+// the state's place, as failing has it. Before any document, and before
+// either, it's blank.
 func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
 	var s statusLine
 	switch doc.Source {
 	case status.SourceProbe:
-		return probedLine(doc)
+		return f.failing(probedLine(doc), now)
 	case status.SourceRouter:
 		s = newStatusLine(doc)
 		if s.mode == nil {
 			s.mode = line{{"auto", secondaryInk}}
 		}
 	}
-	if !f.Lost.IsZero() {
-		lost := f.Lost.In(now.Location())
-		s.state = line{{"■ ", errorInk}, {"the router isn't answering", secondaryInk}}
-		s.since = line{{"since " + lost.Format("15:04:05"), mutedInk}}
-		s.short = line{{"■ ", errorInk}, {"no router", secondaryInk}, {" since " + lost.Format("15:04"), mutedInk}}
+	if f.Lost.IsZero() {
+		return f.failing(s, now)
 	}
+	lost := f.Lost.In(now.Location())
+	s.state = line{{"■ ", errorInk}, {"the router isn't answering", secondaryInk}}
+	s.since = line{{"since " + lost.Format("15:04:05"), mutedInk}}
+	s.short = line{{"■ ", errorInk}, {"no router", secondaryInk}, {" since " + lost.Format("15:04"), mutedInk}}
+	return s
+}
+
+// Failure is why a read failed, and when the next is due.
+type Failure struct {
+	Reason string
+	Next   time.Time
+}
+
+// failing is s with the frame's failed read, where it has one, in its
+// state's place: why, and when the next read is due, at now.
+func (f Frame) failing(s statusLine, now time.Time) statusLine {
+	if f.Failed.Reason == "" {
+		return s
+	}
+	next := "next " + status.TimeOfDay(now, f.Failed.Next)
+	s.state = line{{"! ", errorInk}, {"couldn't read usage: " + status.Clean(f.Failed.Reason), secondaryInk}}
+	s.since = line{{next, mutedInk}}
+	s.short = line{{"! ", errorInk}, {"couldn't read usage", secondaryInk}, {" " + next, mutedInk}}
 	return s
 }
 

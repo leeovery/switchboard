@@ -53,18 +53,23 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 // wheeled scrolls what the wheel turns under the pointer, as the screen
 // draws it: help, over its card; the view, over its rows, while no card is
 // open; and nothing else, the routing card among it, nor anything while the
-// theme picker is open.
+// theme picker is open. What's under the pointer is found from the frame
+// alone, which the key line doesn't move.
 func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	by, ok := wheelTurn(msg.Button)
 	if !ok || m.picker.open {
 		return m
 	}
-	f, _, _ := m.screen(m.now())
-	switch under := f.Under(msg.X, msg.Y); {
-	case under == dashboard.UnderCard && m.open == helpOpen:
-		return m.scrollHelp(by)
-	case under == dashboard.UnderView:
-		return m.scrollView(by)
+	now := m.now()
+	switch m.open {
+	case helpOpen:
+		if f, _, _ := m.screen(now); f.Under(msg.X, msg.Y) == dashboard.UnderCard {
+			m.help.scroll = by.from(m.help.scroll, f.CardScrolling())
+		}
+	case nothingOpen:
+		if f := m.frame(now); f.Under(msg.X, msg.Y) == dashboard.UnderView {
+			m.scroll = by.from(m.scroll, f.Scrolling(m.doc, now))
+		}
 	}
 	return m
 }

@@ -91,26 +91,37 @@ func TestTheDashboardsThemesKeepAChoiceAsItStandsNow(t *testing.T) {
 	}
 }
 
-func TestDashboardOpensOnTheViewKept(t *testing.T) {
+func TestDashboardOpensOnTheTabKept(t *testing.T) {
 	for _, env := range []map[string]string{nil, {"NO_COLOR": "1"}} {
 		deps := statusDeps(t, fakeClaudeAPI(t), env)
-		writePrefs(t, deps, `{"theme": "amber", "view": "accounts"}`)
+		writePrefs(t, deps, `{"theme": "amber", "tab": "accounts"}`)
 		cfg := recordWatch(t, &deps)
 		run(t, deps, "dashboard")
 
 		if cfg.View != dashboard.Accounts {
-			t.Errorf("with %v, the dashboard opens on %q, want the view prefs.json keeps", env, cfg.View)
+			t.Errorf("with %v, the dashboard opens on %q, want the tab prefs.json keeps", env, cfg.View)
 		}
 		if cfg.Prefs == nil {
-			t.Fatalf("with %v, the dashboard has nowhere to keep the view shown", env)
+			t.Fatalf("with %v, the dashboard has nowhere to keep the tab shown", env)
 		}
-		if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.View = "sessions" }); err != nil {
+		if err := cfg.Prefs.Update(func(p *theme.Prefs) { p.Tab = "sessions" }); err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
 		data, err := os.ReadFile(filepath.Join(stateDir(t, deps), "prefs.json"))
-		if err != nil || !strings.Contains(string(data), `"view": "sessions"`) || !strings.Contains(string(data), `"theme": "amber"`) {
-			t.Errorf("with %v, prefs.json holds %s, %v; want the view kept beside the theme", env, data, err)
+		if err != nil || !strings.Contains(string(data), `"tab": "sessions"`) || !strings.Contains(string(data), `"theme": "amber"`) {
+			t.Errorf("with %v, prefs.json holds %s, %v; want the tab kept beside the theme", env, data, err)
 		}
+	}
+}
+
+func TestDashboardOpensMilestone5sCardViewOnTheOverview(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"theme": "amber", "view": "accounts"}`)
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "dashboard")
+
+	if cfg.View != "" {
+		t.Errorf("the dashboard is given %q to open on, want no tab, for the Overview, which shows milestone 5's cards now", cfg.View)
 	}
 }
 

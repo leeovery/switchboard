@@ -29,6 +29,10 @@ type Frame struct {
 	// Lost is when the router stopped answering, while its last document
 	// stays on screen, or before any has been read: zero otherwise.
 	Lost time.Time
+	// Failed is why the last read failed, and when the next is due, while it's
+	// the last: zero otherwise. The status line says it, but where it says
+	// the router isn't answering.
+	Failed Failure
 	// Outdated is set when the router is from before it told of events and
 	// gave its history: RECENT asks for it to be restarted.
 	Outdated bool

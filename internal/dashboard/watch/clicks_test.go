@@ -78,9 +78,9 @@ func TestAClickOnATabShowsItFromItsTopAndKeepsIt(t *testing.T) {
 				for _, x := range []int{target.X, target.X + target.Width - 1} {
 					h.model.view, h.model.scroll = from, 1
 					h.click(x, target.Y)
-					if h.model.view != tab || h.model.scroll != 0 || prefs.kept.View != string(tab) {
+					if h.model.view != tab || h.model.scroll != 0 || prefs.kept.Tab != string(tab) {
 						t.Errorf("a click at %d,%d, on the %s tab, showed %q scrolled %d, and kept %q; want %q from its top, kept",
-							x, target.Y, tab, h.model.view, h.model.scroll, prefs.kept.View, tab)
+							x, target.Y, tab, h.model.view, h.model.scroll, prefs.kept.Tab, tab)
 					}
 				}
 			}

@@ -69,36 +69,36 @@ func TestUpdateKeepsWhatAnotherDashboardWroteSince(t *testing.T) {
 	}
 }
 
-func TestTheViewShownIsKeptBesideTheThemes(t *testing.T) {
+func TestTheTabShownIsKeptBesideTheThemes(t *testing.T) {
 	state := t.TempDir()
 	prefs := theme.NewPrefsFile(state, clock)
 	if err := prefs.Update(func(p *theme.Prefs) { p.Choice = theme.One("amber") }); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.View = "accounts" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "accounts" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), View: "accounts"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Tab: "accounts"}); got != want {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
-	if err != nil || !strings.Contains(string(data), `"view": "accounts"`) {
-		t.Errorf("prefs.json holds %s, %v; want the view kept", data, err)
+	if err != nil || !strings.Contains(string(data), `"tab": "accounts"`) {
+		t.Errorf("prefs.json holds %s, %v; want the tab kept", data, err)
 	}
 }
 
-func TestTheFeaturedWindowIsKeptBesideTheView(t *testing.T) {
+func TestTheFeaturedWindowIsKeptBesideTheTab(t *testing.T) {
 	state := t.TempDir()
 	prefs := theme.NewPrefsFile(state, clock)
-	if err := prefs.Update(func(p *theme.Prefs) { p.View = "accounts" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "accounts" }); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := prefs.Update(func(p *theme.Prefs) { p.Featured = "7d" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{View: "accounts", Featured: "7d"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Tab: "accounts", Featured: "7d"}); got != want {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(filepath.Join(state, "prefs.json"))
@@ -198,18 +198,36 @@ func TestUpdateKeepsTheKeysOfANewerBuild(t *testing.T) {
 	write(t, path, `{"theme": "amber", "featured": "7d", "lens": "wide", "pane": {"split": 0.5}}`)
 	prefs := theme.NewPrefsFile(state, clock)
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.View, p.Featured = "accounts", "" }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab, p.Featured = "accounts", "" }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), View: "accounts"}); got != want {
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), Tab: "accounts"}); got != want {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "{\n  \"lens\": \"wide\",\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\",\n  \"view\": \"accounts\"\n}\n"
+	want := "{\n  \"lens\": \"wide\",\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"tab\": \"accounts\",\n  \"theme\": \"amber\"\n}\n"
 	if string(data) != want {
+		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	}
+}
+
+func TestMilestone5sCardViewKeptAsTheViewIsNoTab(t *testing.T) {
+	state := t.TempDir()
+	path := filepath.Join(state, "prefs.json")
+	write(t, path, `{"theme": "amber", "view": "accounts"}`)
+	prefs := theme.NewPrefsFile(state, clock)
+
+	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber")}); got != want {
+		t.Errorf("Read() = %+v, want %+v: no tab, for the Overview that shows the cards now", got, want)
+	}
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "runway" }); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if want := "{\n  \"tab\": \"runway\",\n  \"theme\": \"amber\",\n  \"view\": \"accounts\"\n}\n"; err != nil || string(data) != want {
 		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
 	}
 }

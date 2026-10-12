@@ -59,8 +59,8 @@ func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 		{key: "shift+tab", want: dashboard.Log},
 	} {
 		h.press(step.key)
-		if h.model.view != step.want || prefs.kept.View != string(step.want) {
-			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.View, step.want)
+		if h.model.view != step.want || prefs.kept.Tab != string(step.want) {
+			t.Errorf("%s showed %q and kept %q, want %q kept", step.key, h.model.view, prefs.kept.Tab, step.want)
 		}
 	}
 }
