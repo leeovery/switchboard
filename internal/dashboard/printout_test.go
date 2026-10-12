@@ -70,9 +70,9 @@ func TestTheHeaderLeavesOffWholePartsBeforeCuttingAny(t *testing.T) {
 		want  string
 	}{
 		{width: 31, want: " SWITCHBOARD   Thu 1 Oct  14:42"},
-		{width: 30, want: "Thu 1 Oct  14:42"},
-		{width: 16, want: "Thu 1 Oct  14:42"},
-		{width: 15, want: "14:42"},
+		{width: 30, want: " SWITCHBOARD   14:42"},
+		{width: 20, want: " SWITCHBOARD   14:42"},
+		{width: 19, want: "14:42"},
 		{width: 5, want: "14:42"},
 		{width: 4, want: "14:…"},
 	}
