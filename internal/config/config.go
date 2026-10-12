@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -193,12 +194,13 @@ const (
 	ByAccount Layout = "account"
 )
 
-// ParseLayout reads a layout by its name, window or account, reporting false
-// for any other text.
+// ParseLayout reads a layout by its name, window or account, in any case,
+// reporting false for any other text.
 func ParseLayout(given string) (Layout, bool) {
-	switch layout := Layout(given); layout {
-	case ByWindow, ByAccount:
-		return layout, true
+	for _, layout := range []Layout{ByWindow, ByAccount} {
+		if strings.EqualFold(given, string(layout)) {
+			return layout, true
+		}
 	}
 	return "", false
 }
