@@ -9,7 +9,6 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -78,8 +77,8 @@ func (f Frame) tokensColumns() tokensColumns {
 // running is lit, its figures numbered as Tokens', or where it's split,
 // as its account's, its version's, or both.
 type tokensRow struct {
-	name        line
-	of          line
+	name        []part
+	of          []part
 	ofIs        string
 	tokens      views.Tokens
 	worth       views.Worth
@@ -89,17 +88,16 @@ type tokensRow struct {
 	account, id string
 }
 
-// figure is the row's figure in the column named, as l draws it: numbered
-// where the row is lit.
-func (r tokensRow) figure(column string, l line) line {
-	if !r.lit {
-		return l
+// number is the number the row's figure in the column named is, where the
+// row is lit: none where it isn't.
+func (r tokensRow) number(column string) Number {
+	switch {
+	case !r.lit:
+		return Number{}
+	case r.split:
+		return Number{Kind: NumberTokensSplit, Account: r.account, Of: strings.TrimSpace(r.id + " " + column)}
 	}
-	n := Number{Kind: NumberTokens, Of: column}
-	if r.split {
-		n = Number{Kind: NumberTokensSplit, Account: r.account, Of: strings.TrimSpace(r.id + " " + column)}
-	}
-	return l.numbered(n)
+	return Number{Kind: NumberTokens, Of: column}
 }
 
 // historyTokens draws Tokens from row top: its heads, then its periods,
@@ -109,7 +107,7 @@ func (r tokensRow) figure(column string, l line) line {
 func (f Frame) historyTokens(c *canvas, top int) {
 	page := f.History.Tokens
 	if page == nil || len(page.Periods) == 0 {
-		c.text(0, top, "nothing recorded yet", dimInk)
+		c.line(0, top, line{{"nothing recorded yet", dimInk}}.fit(f.Width))
 		return
 	}
 	cols := f.tokensColumns()
@@ -124,7 +122,7 @@ func (f Frame) historyTokens(c *canvas, top int) {
 	from := min(max(f.Scroll, 0), placed.most())
 	shown := placed.shown(from)
 	below := len(page.Periods) - from - shown
-	body := c.within(bounds{x: 0, y: placed.first, width: f.Width, rows: placed.rows - min(below, 1)})
+	body := c.within(bounds{x: 0, y: placed.first, width: c.width, rows: placed.rows - min(below, 1)})
 	y := placed.first
 	for i, period := range page.Periods[from : from+shown] {
 		if i > 0 {
@@ -136,27 +134,28 @@ func (f Frame) historyTokens(c *canvas, top int) {
 		}
 	}
 	if below > 0 {
-		c.line(0, min(y, placed.first+placed.rows-1), moreBelow(below, f.History.TokensAsk.Period.Name(), " to scroll"))
+		c.line(0, min(y, placed.first+placed.rows-1), moreBelow(below, f.History.TokensAsk.Period.Name(), " to scroll", f.Width))
 	}
 }
 
-// tokensHeads draws Tokens' heads along row y: the period, then models, or
-// split by model, on; each count's; worth; and against its price.
+// tokensHeads draws Tokens' heads along row y, each cut to its column, as
+// the row under it is: the period, then models, or split by model, on; each
+// count's; worth; and against its price.
 func (f Frame) tokensHeads(c *canvas, y int, cols tokensColumns) {
-	c.text(0, y, f.History.TokensAsk.Period.Name(), dimInk)
+	c.line(0, y, line{{f.History.TokensAsk.Period.Name(), dimInk}}.fit(cols.nameCells(cols.of > 0)))
 	if cols.of > 0 {
 		of := "models"
 		if f.History.TokensSplit == TokensByModel {
 			of = "on"
 		}
-		c.text(cols.of, y, of, dimInk)
+		c.line(cols.of, y, line{{of, dimInk}}.fit(cols.ofCells()))
 	}
 	for _, count := range cols.counts {
-		c.right(count.end, y, line{{count.head, dimInk}})
+		c.rightFit(count.end, cols.width, y, wordsIn(count.head, dimInk))
 	}
-	c.text(cols.worth, y, worthHead, dimInk)
+	c.line(cols.worth, y, line{{worthHead, dimInk}}.fit(cols.worthCells()))
 	if cols.against > 0 {
-		c.text(cols.against, y, againstHead, dimInk)
+		c.line(cols.against, y, line{{againstHead, dimInk}}.fit(cols.width-cols.against))
 	}
 }
 
@@ -183,40 +182,66 @@ func (cols tokensColumns) reach() int {
 }
 
 // tokensFootnote says what worth is, as of the price table's date, and
-// where the rows are split by model, that each version is at its own price.
-func (f Frame) tokensFootnote(asOf string) line {
+// where the rows are split by model, that each version is at its own price:
+// the date a figure, so it's never cut or broken across rows.
+func (f Frame) tokensFootnote(asOf string) []part {
 	if day, ok := civilDay(asOf); ok {
 		asOf = day.Format("2 Jan 2006")
 	}
-	note := "worth: what the same tokens would cost through the API, at its prices as of " + asOf
+	note := []part{wordsIn("worth: what the same tokens would cost through the API, at its prices as of ", faintInk), figureIn(asOf, faintInk)}
 	if f.History.TokensSplit == TokensByModel || f.History.TokensSplit == TokensByAccountAndModel {
-		note += ", each version at its own price"
+		note = append(note, wordsIn(", each version at its own price", faintInk))
 	}
-	return line{{note, faintInk}}
+	return note
 }
 
-// draw draws the row along row y.
+// draw draws the row along row y, each column cut to its cells.
 func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
-	nameEnd := cols.counts[0].end - tokensCountCells
-	if cols.of > 0 && r.of != nil {
-		nameEnd = cols.of
-		c.line(cols.of, y, r.figure(r.ofIs, r.of.fit(cols.counts[0].end-tokensCountCells-cols.of)))
+	of := cols.of > 0 && r.of != nil
+	if of {
+		c.line(cols.of, y, fitParts(cols.ofCells(), r.numbered(r.ofIs, r.of...)...))
 	}
-	c.line(0, y, r.name.fit(nameEnd-1))
+	c.line(0, y, fitParts(cols.nameCells(of), r.name...))
 	for _, count := range cols.counts {
-		c.right(count.end, y, r.figure(count.head, line{{tokenCount(count.count(r.tokens)), r.ink}}))
+		c.rightFit(count.end, cols.width, y, figurePart(line{{tokenCount(count.count(r.tokens)), r.ink}}, r.number(count.head)))
 	}
-	c.line(cols.worth, y, r.figure("worth", worthSaid(r.worth, r.ink)).figureFit(cols.width-cols.worth))
+	c.line(cols.worth, y, fitParts(cols.worthCells(), r.numbered("worth", worthPart(r.worth, r.ink))...))
 	if cols.against > 0 && r.against != nil {
-		c.line(cols.against, y, fitParts(cols.width-cols.against, r.figures("against", r.against)...))
+		c.line(cols.against, y, fitParts(cols.width-cols.against, r.numbered("against", r.against...)...))
 	}
 }
 
-// figures are the parts, each as figure draws it in the column named.
-func (r tokensRow) figures(column string, parts []part) []part {
-	numbered := make([]part, len(parts))
-	for i, p := range parts {
-		numbered[i] = part{r.figure(column, p.said), p.figure}
+// nameCells is how many cells what names a row has: to a cell before the
+// split's column, where of says the row has something there, else before
+// the first count's cells; and never past the frame's width.
+func (cols tokensColumns) nameCells(of bool) int {
+	if of {
+		return min(cols.of-1, cols.width)
+	}
+	return min(cols.counts[0].end-tokensCountCells-1, cols.width)
+}
+
+// ofCells is how many cells the split's column has: to the first count's
+// cells, and never past the frame's width.
+func (cols tokensColumns) ofCells() int {
+	return min(cols.counts[0].end-tokensCountCells, cols.width) - cols.of
+}
+
+// worthCells is how many cells a row's worth has: to a cell before against
+// its price, where it's shown, else to the frame's width.
+func (cols tokensColumns) worthCells() int {
+	if cols.against > 0 {
+		return cols.against - cols.worth - 1
+	}
+	return cols.width - cols.worth
+}
+
+// numbered are the parts with the row's number in the column named, which
+// fitParts marks a figure of them with where it's drawn whole.
+func (r tokensRow) numbered(column string, parts ...part) []part {
+	numbered := slices.Clone(parts)
+	for i := range numbered {
+		numbered[i].number = r.number(column)
 	}
 	return numbered
 }
@@ -226,7 +251,7 @@ func (r tokensRow) figures(column string, parts []part) []part {
 func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 	split := tokensRow{ink: mutedInk, lit: t.SoFar, split: true}
 	rows := []tokensRow{{
-		name: line{{periodName(t.First, f.History.TokensAsk.Period), titleInk}}, of: line{{prose.Counted(t.Versions, "model"), mutedInk}}, ofIs: "models",
+		name: []part{figureIn(periodName(t.First, f.History.TokensAsk.Period), titleInk)}, of: countedParts(t.Versions, "model", mutedInk), ofIs: "models",
 		tokens: t.Tokens, worth: t.Worth, ink: titleInk, against: againstItsPrice(t.Against, f.History.TokensAsk.Period.Name()), lit: t.SoFar,
 	}}
 	switch f.History.TokensSplit {
@@ -255,8 +280,8 @@ func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
 // ofAccount is the row, as split, of an account: its name, its versions'
 // count, its counts and its worth.
 func (r tokensRow) ofAccount(a views.AccountTokens) tokensRow {
-	r.name = line{{"└ ", faintInk}, {tokensAccount(a), secondaryInk}}
-	r.of, r.ofIs = line{{prose.Counted(len(a.ByModel), "model"), dimInk}}, "models"
+	r.name = []part{wordsPart(line{{"└ ", faintInk}, {tokensAccount(a), secondaryInk}})}
+	r.of, r.ofIs = countedParts(len(a.ByModel), "model", dimInk), "models"
 	r.tokens, r.worth, r.account = a.Tokens, a.Worth, a.Account
 	return r
 }
@@ -264,7 +289,7 @@ func (r tokensRow) ofAccount(a views.AccountTokens) tokensRow {
 // ofModel is the row, as split, of a model version, after the branch given:
 // its id, as ccusage names it, its counts and its worth.
 func (r tokensRow) ofModel(m views.ModelTokens, branch string) tokensRow {
-	r.name = line{{branch, faintInk}, {strings.TrimPrefix(m.Model, "claude-"), secondaryInk}}
+	r.name = []part{wordsPart(line{{branch, faintInk}, {strings.TrimPrefix(m.Model, "claude-"), secondaryInk}})}
 	r.tokens, r.worth, r.id = m.Tokens, m.Worth, m.Model
 	return r
 }
@@ -276,7 +301,7 @@ func (r tokensRow) on(accounts []string, named map[string]string) tokensRow {
 	for i, id := range accounts {
 		names[i] = cmp.Or(named[id], tokensAccount(views.AccountTokens{Account: id}))
 	}
-	r.of, r.ofIs = line{{strings.Join(names, " "), dimInk}}, "on"
+	r.of, r.ofIs = []part{wordsPart(line{{strings.Join(names, " "), dimInk}})}, "on"
 	return r
 }
 
@@ -334,13 +359,13 @@ func tokenCount(n int) string {
 // words. It's a dash where no plan is known, or they cost nothing.
 func againstItsPrice(a views.Against, unit string) []part {
 	if a.Ratio == nil || a.Cost == nil {
-		return []part{{line{noFigure}, true}}
+		return []part{figurePart(line{noFigure}, Number{})}
 	}
 	return []part{
-		{againstSaid(a.Ratio), true},
-		{line{{" its ", dimInk}}, false},
-		{line{{a.Cost.GroupedDollars(), dimInk}}, true},
-		{line{{" " + unit, dimInk}}, false},
+		figurePart(againstSaid(a.Ratio), Number{}),
+		wordsPart(line{{" its ", dimInk}}),
+		figurePart(line{{a.Cost.GroupedDollars(), dimInk}}, Number{}),
+		wordsPart(line{{" " + unit, dimInk}}),
 	}
 }
 
@@ -360,7 +385,7 @@ func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
 	if page == nil {
 		return tokensPlaced{}, nil
 	}
-	note := f.tokensFootnote(page.PricesAsOf).wrap(f.Width)
+	note := wrapParts(f.Width, f.tokensFootnote(page.PricesAsOf)...)
 	p := tokensPlaced{first: top + 2}
 	p.rows = top + f.viewRows() - len(note) - 1 - p.first
 	for _, t := range page.Periods {

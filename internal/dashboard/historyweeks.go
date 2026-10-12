@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -57,7 +56,7 @@ func (f Frame) historyWeeks(c *canvas, top int) {
 	case p == nil:
 		return
 	case p.Capacity.Weeks == 0:
-		c.line(0, top, line{{"not enough weeks yet", dimInk}})
+		c.line(0, top, line{{"not enough weeks yet", dimInk}}.fit(f.edge()))
 		return
 	}
 	w := f.weeksDrawn(*p)
@@ -93,9 +92,9 @@ func (w weeksDrawn) reach() int {
 // of view, which takes a form that fits there.
 func (w weeksDrawn) widest() int {
 	if !w.columns {
-		return max(w.legend().width(), w.headline().width(), peaksFrom+peaksApart*(len(w.page.Weeks)-1)+peakCells+1)
+		return max(partsWidth(w.legend()), partsWidth(w.headline()), weekEnd(len(w.page.Weeks)-1))
 	}
-	end := w.legend().width()
+	end := partsWidth(w.legend())
 	for i := range w.page.Weeks {
 		end = max(end, peaksFrom+peaksApart*i+w.head(i).width())
 	}
@@ -105,8 +104,8 @@ func (w weeksDrawn) widest() int {
 	}
 	for _, row := range rows {
 		for i, p := range row.Peaks {
-			x, label := peaksFrom+peaksApart*i, w.columnPeak(row, p)
-			end = max(end, x+columnCells, x+(peakLabelCells-label.width())/2+label.width())
+			x, label := peaksFrom+peaksApart*i, w.columnPeak(row, p).said.width()
+			end = max(end, x+columnCells, x+(peakLabelCells-label)/2+label)
 		}
 	}
 	return end
@@ -192,13 +191,13 @@ func (w weeksDrawn) accountsOut(c *canvas, y, above, below int) {
 // verdict, then the weeks' first days, every account's peaks, and each
 // account's, its verdict at the right.
 func (f Frame) weeksTable(c *canvas, w weeksDrawn, top, foot int) {
-	c.line(0, top, w.headline())
-	w.put(c, 0, top+1, joined(span{"   ·   ", dimInk}, slices.Concat([]line{w.asNow()}, w.replays())...))
-	w.put(c, 0, top+2, w.thirdRow())
+	w.put(c, 0, top, w.headline()...)
+	w.put(c, 0, top+1, joinedParts(span{"   ·   ", dimInk}, slices.Concat([][]part{w.asNow()}, w.replays())...)...)
+	w.put(c, 0, top+2, w.thirdRow()...)
 	shown, above, below := f.weeksShown(w)
 	w.table(c, top+weeksHeadRow, len(w.page.Weeks), shown, true)
 	w.accountsOut(c, foot-1, above, below)
-	c.line(0, foot, w.legend())
+	w.put(c, 0, foot, w.legend()...)
 }
 
 // table draws the table's last weeks of the page's from its heads' row y:
@@ -208,20 +207,20 @@ func (w weeksDrawn) table(c *canvas, y, weeks int, shown []views.WeeksRow, aside
 	w.weekHeads(c, y, weeks)
 	all, first := y+weeksAllRow-weeksHeadRow, y+weeksFirstRow-weeksHeadRow
 	if aside {
-		w.put(c, verdictsAt, y, line{{"over the last " + prose.Counted(w.page.Capacity.Weeks, "week"), faintInk}})
+		w.put(c, verdictsAt, y, slices.Concat([]part{wordsIn("over the last ", faintInk)}, countedParts(w.page.Capacity.Weeks, "week", faintInk))...)
 	}
 	if w.several() {
-		c.line(0, all, line{{"all accounts", strongInk}})
+		w.put(c, 0, all, wordsIn("all accounts", strongInk))
 		w.tablePeaks(c, all, w.page.All, weeks)
 	}
 	if w.several() && aside {
-		w.put(c, verdictsAt, all, w.allShort())
+		w.put(c, verdictsAt, all, w.allShort()...)
 	}
 	for i, row := range shown {
 		c.line(0, first+i, w.name(row))
 		w.tablePeaks(c, first+i, row, weeks)
 		if aside {
-			w.put(c, verdictsAt, first+i, w.tableVerdict(row))
+			w.put(c, verdictsAt, first+i, w.tableVerdict(row)...)
 		}
 	}
 }
@@ -232,11 +231,11 @@ func (w weeksDrawn) table(c *canvas, y, weeks int, shown []views.WeeksRow, aside
 // under the last.
 func (f Frame) weeksColumns(c *canvas, w weeksDrawn, top, foot int) {
 	if w.several() {
-		c.line(0, top, line{{"all accounts", strongInk}})
+		w.put(c, 0, top, wordsIn("all accounts", strongInk))
 		w.block(c, f.Look, top, w.page.All)
 	}
 	for i, l := range w.allAside() {
-		w.put(c, verdictsAt, top+i, l)
+		w.put(c, verdictsAt, top+i, l...)
 	}
 	shown, above, below := f.weeksShown(w)
 	y := top
@@ -245,27 +244,43 @@ func (f Frame) weeksColumns(c *canvas, w weeksDrawn, top, foot int) {
 		c.line(0, y, w.name(row))
 		w.block(c, f.Look, y, row)
 		for i, l := range w.accountAside(row) {
-			w.put(c, verdictsAt, y+i, l)
+			w.put(c, verdictsAt, y+i, l...)
 		}
 	}
 	for i := range w.page.Weeks {
-		c.line(peaksFrom+peaksApart*i, y+columnRows+1, w.head(i))
+		w.put(c, peaksFrom+peaksApart*i, y+columnRows+1, figurePart(w.head(i), Number{}))
 	}
 	w.accountsOut(c, foot-1, above, below)
-	c.line(0, foot, w.legend())
+	w.put(c, 0, foot, w.legend()...)
 }
 
 // weeksOnAPhone draws Weeks on a phone from row top: the verdict, a part a
-// row, wrapped to the width; then the table's last four weeks, with no
-// verdicts beside it, its accounts scrolling to row foot.
+// row, wrapped to the width; then the table's last four weeks, or as many of
+// them as fit, with no verdicts beside it, its accounts scrolling to row
+// foot.
 func (f Frame) weeksOnAPhone(c *canvas, w weeksDrawn, top, foot int) {
 	verdict := w.phoneVerdict()
 	for i, l := range verdict {
 		c.line(0, top+i, l)
 	}
 	shown, above, below := f.weeksShown(w)
-	w.table(c, top+len(verdict)+1, min(weeksPhoneWeeks, len(w.page.Weeks)), shown, false)
+	w.table(c, top+len(verdict)+1, min(weeksPhoneWeeks, len(w.page.Weeks), w.weeksThatFit()), shown, false)
 	w.accountsOut(c, foot, above, below)
+}
+
+// weeksThatFit is how many of the table's weeks fit short of the edge.
+func (w weeksDrawn) weeksThatFit() int {
+	n := 0
+	for weekEnd(n) <= w.edge {
+		n++
+	}
+	return n
+}
+
+// weekEnd is the column the table's i-th week shown ends before: its first
+// day's, right-aligned a cell past its peaks.
+func weekEnd(i int) int {
+	return peaksFrom + peaksApart*i + peakCells + 1
 }
 
 // weeksDrawn is Weeks' page as it's drawn: in its phone form, in columns, or
@@ -276,9 +291,10 @@ type weeksDrawn struct {
 	edge           int
 }
 
-// put draws the line from x along row y, cut short to end before the edge.
-func (w weeksDrawn) put(c *canvas, x, y int, l line) {
-	c.line(x, y, l.fit(w.edge-x))
+// put draws the parts from x along row y, cut as fitParts cuts them to end
+// before the edge.
+func (w weeksDrawn) put(c *canvas, x, y int, parts ...part) {
+	c.line(x, y, fitParts(w.edge-x, parts...))
 }
 
 // several reports whether there's more than one account: with one, every
@@ -293,25 +309,27 @@ func (w weeksDrawn) many() bool {
 	return w.page.Capacity.Drop != ""
 }
 
-// headline is the verdict's headline, bold, as "three is about right": in
-// accent.attention where there are too few, else in state.positive.
-func (w weeksDrawn) headline() line {
+// headline is the verdict's headline, bold, as "three is about right", its
+// count a figure: in accent.attention where there are too few, else in
+// state.positive.
+func (w weeksDrawn) headline() []part {
 	k := boldPositiveInk
 	if v := w.page.Capacity.Verdict; v == views.OneTooFew || v == views.TooFew {
 		k = alertInk
 	}
-	return line{{prose.Number(len(w.page.Accounts)) + " is " + w.page.Capacity.Verdict, k}}
+	return []part{figureIn(prose.Number(len(w.page.Accounts)), k), wordsIn(" is "+w.page.Capacity.Verdict, k)}
 }
 
 // asNow is how many of the last whole weeks were short as the accounts
 // stand, and who was short each time, where the same were:
 // "as now: short on 3 of the last 7 weeks, each time work alone".
-func (w weeksDrawn) asNow() line {
+func (w weeksDrawn) asNow() []part {
 	c := w.page.Capacity
-	l := line{
-		{"as now: ", dimInk},
-		{"short on " + w.shortCount(c.Short) + " of the last " + prose.Counted(c.Weeks, "week"), w.countInk(c.Short)},
-	}
+	k := w.countInk(c.Short)
+	l := slices.Concat(
+		[]part{wordsIn("as now: ", dimInk), wordsIn("short on ", k), w.shortCount(c.Short, k), wordsIn(" of the last ", k)},
+		countedParts(c.Weeks, "week", k),
+	)
 	names := make([]string, len(w.page.ShortEach))
 	for i, id := range w.page.ShortEach {
 		names[i] = w.named(id)
@@ -319,9 +337,9 @@ func (w weeksDrawn) asNow() line {
 	switch len(names) {
 	case 0:
 	case 1:
-		l = append(l, span{", each time " + names[0] + " alone", mutedInk})
+		l = append(l, wordsIn(", each time "+names[0]+" alone", mutedInk))
 	default:
-		l = append(l, span{", " + prose.List(names) + " each time", mutedInk})
+		l = append(l, wordsIn(", "+prose.List(names)+" each time", mutedInk))
 	}
 	return l
 }
@@ -331,15 +349,15 @@ func (w weeksDrawn) asNow() line {
 // where one can be dropped, one fewer's saying where its weeks are the
 // same, and with two fewer in one more's place; with one account, whether a
 // second would have cleared the weeks short.
-func (w weeksDrawn) replays() []line {
+func (w weeksDrawn) replays() [][]part {
 	c := w.page.Capacity
 	switch {
 	case c.WithOneFewer == nil && c.Short == 0:
 		return nil
 	case c.WithOneFewer == nil && c.WithOneMore == 0:
-		return []line{{{"a second would have cleared them", mutedInk}}}
+		return [][]part{{wordsIn("a second would have cleared them", mutedInk)}}
 	case c.WithOneFewer == nil:
-		return []line{w.replay("with a second: ", c.WithOneMore, "")}
+		return [][]part{w.replay("with a second: ", c.WithOneMore, "")}
 	}
 	same := ""
 	if w.page.SameWeeks {
@@ -347,15 +365,16 @@ func (w weeksDrawn) replays() []line {
 	}
 	fewer := w.replay("with one fewer: ", *c.WithOneFewer, same)
 	if c.WithTwoFewer != nil {
-		return []line{fewer, w.replay("with two fewer: ", *c.WithTwoFewer, "")}
+		return [][]part{fewer, w.replay("with two fewer: ", *c.WithTwoFewer, "")}
 	}
-	return []line{fewer, w.replay("with one more: ", c.WithOneMore, "")}
+	return [][]part{fewer, w.replay("with one more: ", c.WithOneMore, "")}
 }
 
 // replay is a replay's label and the weeks it finds short, n of those
 // judged, and what follows them.
-func (w weeksDrawn) replay(label string, n int, after string) line {
-	return line{{label, dimInk}, {w.shortOn(n, w.page.Capacity.Weeks) + after, w.countInk(n)}}
+func (w weeksDrawn) replay(label string, n int, after string) []part {
+	k := w.countInk(n)
+	return slices.Concat([]part{wordsIn(label, dimInk)}, w.shortOn(n, k), []part{wordsIn(after, k)})
 }
 
 // countInk is the ink of a count of weeks short, n of them: text.muted, or
@@ -382,84 +401,88 @@ func (w weeksDrawn) counts() []int {
 	return append(counts, *c.WithOneFewer, c.WithOneMore)
 }
 
-// shortCount counts weeks short, as "3", or "none".
-func (weeksDrawn) shortCount(n int) string {
+// shortCount counts weeks short, in the ink given: as "3", a figure, or
+// "none", words.
+func (weeksDrawn) shortCount(n int, k ink) part {
 	if n == 0 {
-		return "none"
+		return wordsIn("none", k)
 	}
-	return strconv.Itoa(n)
+	return figureIn(strconv.Itoa(n), k)
 }
 
 // estimate says the verdict is an estimate, as few accounts' form words it,
 // or many's.
-func (w weeksDrawn) estimate() line {
+func (w weeksDrawn) estimate() []part {
 	if w.many() {
-		return line{{"an estimate, from replaying these weeks", faintInk}}
+		return []part{wordsIn("an estimate, from replaying these weeks", faintInk)}
 	}
-	return line{{"an estimate, from replaying these weeks with one account fewer or more", faintInk}}
+	return []part{wordsIn("an estimate, from replaying these weeks with one account fewer or more", faintInk)}
 }
 
-// dropped names the account to drop and says why:
-// "spare is the one to drop: $100/mo, 5% used on average, and nothing ran
-// short without it".
-func (w weeksDrawn) dropped() line {
-	var facts []string
+// dropped names the account to drop and says why, in text.muted, its price
+// and its use figures: "spare is the one to drop: $100/mo, 5% used on
+// average, and nothing ran short without it".
+func (w weeksDrawn) dropped() []part {
+	var facts [][]part
 	if p := w.page.DropPrice; p != nil {
-		facts = append(facts, p.GroupedDollars()+"/mo")
+		facts = append(facts, []part{figureIn(p.GroupedDollars()+"/mo", mutedInk)})
 	}
 	if used := w.row(w.page.Capacity.Drop).Used; used != nil {
-		facts = append(facts, status.Percent(*used)+" used on average")
+		facts = append(facts, []part{figureIn(status.Percent(*used), mutedInk), wordsIn(" used on average", mutedInk)})
 	}
-	said := strings.Join(facts, ", ")
+	said := joinedParts(span{", ", mutedInk}, facts...)
 	switch {
-	case w.page.NoneShortWithout && said != "":
-		said += ", and nothing ran short without it"
+	case w.page.NoneShortWithout && said != nil:
+		said = append(said, wordsIn(", and nothing ran short without it", mutedInk))
 	case w.page.NoneShortWithout:
-		said = "nothing ran short without it"
+		said = []part{wordsIn("nothing ran short without it", mutedInk)}
 	}
-	text := w.named(w.page.Capacity.Drop) + " is the one to drop"
-	if said != "" {
-		text += ": " + said
+	named := []part{wordsIn(w.named(w.page.Capacity.Drop)+" is the one to drop", mutedInk)}
+	if said == nil {
+		return named
 	}
-	return line{{text, mutedInk}}
+	return slices.Concat(named, []part{wordsIn(": ", mutedInk)}, said)
 }
 
 // thirdRow is the verdict's third row: with many accounts, the one to drop,
 // then three spaces and the estimate; with few, the estimate alone.
-func (w weeksDrawn) thirdRow() line {
+func (w weeksDrawn) thirdRow() []part {
 	if w.many() {
-		return slices.Concat(w.dropped(), line{{"   ", ink{}}}, w.estimate())
+		return slices.Concat(w.dropped(), []part{wordsIn("   ", ink{})}, w.estimate())
 	}
 	return w.estimate()
 }
 
 // phoneVerdict is the verdict as a phone draws it: a part a row, each
-// wrapped to the edge.
+// wrapped to the edge, its figures never broken.
 func (w weeksDrawn) phoneVerdict() []line {
-	parts := slices.Concat([]line{w.headline(), w.asNow()}, w.replays())
+	parts := slices.Concat([][]part{w.headline(), w.asNow()}, w.replays())
 	if w.many() {
 		parts = append(parts, w.dropped())
 	}
 	var rows []line
-	for _, l := range append(parts, w.estimate()) {
-		rows = append(rows, l.wrap(w.edge)...)
+	for _, said := range append(parts, w.estimate()) {
+		rows = append(rows, wrapParts(w.edge, said...)...)
 	}
 	return rows
 }
 
 // allAside is what's beside every account's block: the headline, as now,
 // the replays three spaces apart, and the estimate.
-func (w weeksDrawn) allAside() []line {
-	return []line{w.headline(), w.asNow(), joined(span{"   ", ink{}}, w.replays()...), w.estimate()}
+func (w weeksDrawn) allAside() [][]part {
+	return [][]part{w.headline(), w.asNow(), joinedParts(span{"   ", ink{}}, w.replays()...), w.estimate()}
 }
 
 // allShort is every account's verdict in the table: how many of the weeks
 // judged were short, and with many accounts, how many there are.
-func (w weeksDrawn) allShort() line {
+func (w weeksDrawn) allShort() []part {
 	c := w.page.Capacity
-	l := line{{"short on " + w.shortCount(c.Short) + " of " + prose.Counted(c.Weeks, "week"), strongInk}}
+	l := slices.Concat(
+		[]part{wordsIn("short on ", strongInk), w.shortCount(c.Short, strongInk), wordsIn(" of ", strongInk)},
+		countedParts(c.Weeks, "week", strongInk),
+	)
 	if w.many() {
-		l = append(l, span{"   with " + prose.Number(len(w.page.Accounts)) + " accounts", dimInk})
+		l = append(l, wordsIn("   with ", dimInk), figureIn(prose.Number(len(w.page.Accounts)), dimInk), wordsIn(" accounts", dimInk))
 	}
 	return l
 }
@@ -480,83 +503,94 @@ func (weeksDrawn) verdictInk(verdict string) ink {
 }
 
 // spared is the verdict of an account that could go or is barely used,
-// alone in its cell: "could go: 5% used, no limit ever", or "barely used:
-// 80% left at a reset"; reporting false of any other.
-func (w weeksDrawn) spared(row views.WeeksRow) (line, bool) {
+// alone in its cell, its share a figure: "could go: 5% used, no limit ever",
+// or "barely used: 80% left at a reset"; reporting false of any other.
+func (w weeksDrawn) spared(row views.WeeksRow) ([]part, bool) {
+	var share *float64
 	var says string
 	switch {
 	case row.Verdict == views.CouldGo && row.Used != nil:
-		says = status.Percent(*row.Used) + " used, no limit ever"
+		share, says = row.Used, " used, no limit ever"
 	case row.Verdict == views.BarelyUsed && row.LeftAtReset != nil:
-		says = status.Percent(*row.LeftAtReset) + " left at a reset"
+		share, says = row.LeftAtReset, " left at a reset"
 	case row.Verdict != views.CouldGo && row.Verdict != views.BarelyUsed:
 		return nil, false
 	}
-	return line{{row.Verdict + ": ", w.verdictInk(row.Verdict)}, {says, mutedInk}}, true
+	spared := []part{wordsIn(row.Verdict+": ", w.verdictInk(row.Verdict))}
+	if share != nil {
+		spared = append(spared, figureIn(status.Percent(*share), mutedInk), wordsIn(says, mutedInk))
+	}
+	return spared, true
 }
 
 // tableVerdict is an account's verdict in the table, bold in its colour,
 // then what it left at a reset, and with few accounts, how many weeks the
-// rest would have been short without it.
-func (w weeksDrawn) tableVerdict(row views.WeeksRow) line {
+// rest would have been short without it, each count a figure.
+func (w weeksDrawn) tableVerdict(row views.WeeksRow) []part {
 	if l, ok := w.spared(row); ok || row.Verdict == "" {
 		return l
 	}
-	l := line{{row.Verdict, w.verdictInk(row.Verdict)}}
+	l := []part{wordsIn(row.Verdict, w.verdictInk(row.Verdict))}
 	switch left := row.LeftAtReset; {
 	case left != nil && w.many():
-		l = append(l, span{"   " + status.Percent(*left) + " left at a reset", dimInk})
+		l = append(l, wordsIn("   ", dimInk), figureIn(status.Percent(*left), dimInk), wordsIn(" left at a reset", dimInk))
 	case left != nil:
-		l = append(l, span{"  " + status.Percent(*left) + " left", dimInk})
+		l = append(l, wordsIn("  ", dimInk), figureIn(status.Percent(*left), dimInk), wordsIn(" left", dimInk))
 	}
 	if row.WithoutIt != nil && !w.many() {
-		l = append(l, span{fmt.Sprintf("  without it: short %d of %d", *row.WithoutIt, w.page.Capacity.Weeks), dimInk})
+		l = append(l, wordsIn("  without it: short ", dimInk), figureIn(strconv.Itoa(*row.WithoutIt), dimInk),
+			wordsIn(" of ", dimInk), figureIn(strconv.Itoa(w.page.Capacity.Weeks), dimInk))
 	}
 	return l
 }
 
 // accountAside is what's beside an account's block: its verdict; how many
 // of its weeks it hit its limit in and what they left at a reset; and how
-// many weeks the rest would have been short without it.
-func (w weeksDrawn) accountAside(row views.WeeksRow) []line {
+// many weeks the rest would have been short without it, each count a
+// figure.
+func (w weeksDrawn) accountAside(row views.WeeksRow) [][]part {
 	if row.Verdict == "" {
 		return nil
 	}
 	verdict, ok := w.spared(row)
 	if !ok {
-		verdict = line{{row.Verdict, w.verdictInk(row.Verdict)}}
+		verdict = []part{wordsIn(row.Verdict, w.verdictInk(row.Verdict))}
 	}
-	record := fmt.Sprintf("limit hit %d of %s", row.Limits, prose.Counted(row.Weeks, "week"))
+	record := slices.Concat(
+		[]part{wordsIn("limit hit ", mutedInk), figureIn(strconv.Itoa(row.Limits), mutedInk), wordsIn(" of ", mutedInk)},
+		countedParts(row.Weeks, "week", mutedInk),
+	)
 	if row.LeftAtReset != nil {
-		record += " · " + status.Percent(*row.LeftAtReset) + " left at a reset, on average"
+		record = append(record, wordsIn(" · ", mutedInk), figureIn(status.Percent(*row.LeftAtReset), mutedInk), wordsIn(" left at a reset, on average", mutedInk))
 	}
-	aside := []line{verdict, {{record, mutedInk}}}
+	aside := [][]part{verdict, record}
 	if row.WithoutIt != nil {
-		aside = append(aside, line{{"without it, the rest: ", dimInk}, {w.shortOn(*row.WithoutIt, w.page.Capacity.Weeks), mutedInk}})
+		aside = append(aside, slices.Concat([]part{wordsIn("without it, the rest: ", dimInk)}, w.shortOn(*row.WithoutIt, mutedInk)))
 	}
 	return aside
 }
 
-// shortOn says how many of the weeks judged were short, n of them:
-// "short on 6 of 7", or "short on none".
-func (weeksDrawn) shortOn(n, weeks int) string {
+// shortOn says how many of the weeks judged were short, n of them, in the
+// ink given: "short on 6 of 7", its counts figures, or "short on none".
+func (w weeksDrawn) shortOn(n int, k ink) []part {
 	if n == 0 {
-		return "short on none"
+		return []part{wordsIn("short on none", k)}
 	}
-	return fmt.Sprintf("short on %d of %d", n, weeks)
+	return []part{wordsIn("short on ", k), figureIn(strconv.Itoa(n), k), wordsIn(" of ", k), figureIn(strconv.Itoa(w.page.Capacity.Weeks), k)}
 }
 
-// legend is the key to how the peaks are drawn, each mark as it's drawn and
-// the words in text.faint; the columns' led by what short means.
-func (w weeksDrawn) legend() line {
-	var l line
+// legend is the key to how the peaks are drawn, each mark as it's drawn, a
+// figure, and the words in text.faint; the columns' led by what short
+// means.
+func (w weeksDrawn) legend() []part {
+	var l []part
 	if w.columns {
-		l = line{{"short: a week some account hit its limit", faintInk}, {"   ·   ", faintInk}}
+		l = []part{wordsIn("short: a week some account hit its limit", faintInk), wordsIn("   ·   ", faintInk)}
 	}
 	return append(l,
-		span{"each week at its peak", faintInk}, span{"   ·   ", faintInk},
-		span{"100%", exhaustedInk}, span{" it hit its limit", faintInk}, span{"   ·   ", faintInk},
-		span{"34%…", w.thisWeekInk()}, span{" this week, so far", faintInk},
+		wordsIn("each week at its peak", faintInk), wordsIn("   ·   ", faintInk),
+		figureIn("100%", exhaustedInk), wordsIn(" it hit its limit", faintInk), wordsIn("   ·   ", faintInk),
+		figureIn("34%…", w.thisWeekInk()), wordsIn(" this week, so far", faintInk),
 	)
 }
 
@@ -586,9 +620,9 @@ func (w weeksDrawn) named(id string) string {
 }
 
 // name is an account's name and mark at the start of its row, cut short of
-// the weeks.
+// the weeks, and of the edge.
 func (w weeksDrawn) name(row views.WeeksRow) line {
-	return historyAccount(w.named(row.Account), row.Primary, weeksNameCells)
+	return historyAccount(w.named(row.Account), row.Primary, min(weeksNameCells, w.edge))
 }
 
 // weekHeads draws the first days of the last weeks of the page's along row
@@ -596,7 +630,7 @@ func (w weeksDrawn) name(row views.WeeksRow) line {
 func (w weeksDrawn) weekHeads(c *canvas, y, weeks int) {
 	first := len(w.page.Weeks) - weeks
 	for i := range weeks {
-		c.right(peaksFrom+peaksApart*i+peakCells+1, y, w.head(first+i))
+		c.rightFit(weekEnd(i), w.edge, y, figurePart(w.head(first+i), Number{}))
 	}
 }
 
@@ -609,26 +643,26 @@ func (w weeksDrawn) head(i int) line {
 // y, each right-aligned in peakCells.
 func (w weeksDrawn) tablePeaks(c *canvas, y int, row views.WeeksRow, weeks int) {
 	for i, p := range row.Peaks[len(row.Peaks)-weeks:] {
-		c.right(peaksFrom+peaksApart*i+peakCells, y, w.peak(row, p))
+		c.rightFit(peaksFrom+peaksApart*i+peakCells, w.edge, y, w.peak(row, p))
 	}
 }
 
-// peak is a week's peak as the table draws it: a percentage, in its level's
-// colour as usage colours one, but bold only at 100%, in
+// peak is a week's peak as the table draws it, a figure: a percentage, in
+// its level's colour as usage colours one, but bold only at 100%, in
 // state.destructive; this week's so far, "34%…", bold text.secondary, which
 // brightens as it changes; and — in text.faint where it isn't known.
-func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) line {
+func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) part {
 	if p.Share == nil {
-		return line{noFigure}
+		return figurePart(line{noFigure}, Number{})
 	}
 	text := status.Percent(*p.Share)
 	if p.Open {
-		return line{{text + "…", w.thisWeekInk()}}.numbered(w.number(row))
+		return figurePart(line{{text + "…", w.thisWeekInk()}}, w.number(row))
 	}
 	if status.WholePercent(*p.Share) >= 100 {
-		return line{{text, exhaustedInk}}
+		return figureIn(text, exhaustedInk)
 	}
-	return line{{text, usedInk(*p.Share, ink{token: theme.VizRamp1})}}
+	return figureIn(text, usedInk(*p.Share, ink{token: theme.VizRamp1}))
 }
 
 // number is the number this week's peak of the row's account is, or of
@@ -644,24 +678,25 @@ func (w weeksDrawn) block(c *canvas, look Look, y int, row views.WeeksRow) {
 		x := peaksFrom + peaksApart*i
 		w.column(c, look, x, y, p)
 		label := w.columnPeak(row, p)
-		c.line(x+(peakLabelCells-label.width())/2, y+columnRows, label)
+		at := x + (peakLabelCells-label.said.width())/2
+		w.put(c, at, y+columnRows, label)
 	}
 }
 
-// columnPeak is a week's peak as the columns draw it under its column:
-// text.muted, at 100% bold state.destructive, this week's so far
+// columnPeak is a week's peak as the columns draw it under its column, a
+// figure: text.muted, at 100% bold state.destructive, this week's so far
 // text.secondary, which brightens as it changes; and — in text.faint where
 // it isn't known.
-func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) line {
+func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) part {
 	switch {
 	case p.Share == nil:
-		return line{noFigure}
+		return figurePart(line{noFigure}, Number{})
 	case p.Open:
-		return line{{status.Percent(*p.Share) + "…", secondaryInk}}.numbered(w.number(row))
+		return figurePart(line{{status.Percent(*p.Share) + "…", secondaryInk}}, w.number(row))
 	case status.WholePercent(*p.Share) >= 100:
-		return line{{status.Percent(*p.Share), exhaustedInk}}
+		return figureIn(status.Percent(*p.Share), exhaustedInk)
 	}
-	return line{{status.Percent(*p.Share), mutedInk}}
+	return figureIn(status.Percent(*p.Share), mutedInk)
 }
 
 // column draws a week's column, filled from the bottom to its peak as it's

@@ -468,7 +468,7 @@ func TestByMonthsNotesAndTheRowBefore(t *testing.T) {
 		{row: views.MonthRow{}, want: ""},
 	}
 	for _, tt := range notes {
-		if got := monthNote(tt.row); got != tt.want {
+		if got := fitParts(80, monthNote(tt.row)...).plain(); got != tt.want {
 			t.Errorf("monthNote(%+v) = %q, want %q", tt.row, got, tt.want)
 		}
 	}
@@ -486,7 +486,7 @@ func TestByMonthsNotesAndTheRowBefore(t *testing.T) {
 	}
 	for _, tt := range before {
 		c := newCanvas(80, 1)
-		monthsBefore(c, 0, tt.before)
+		monthsBefore(c, 0, tt.before, 80)
 		if got := textOf(c.rows(Look{}))[0]; got != tt.want {
 			t.Errorf("the row before reads %q, want %q", got, tt.want)
 		}
@@ -531,16 +531,30 @@ func TestTheYearsHeightIsTheRowsItDraws(t *testing.T) {
 	}
 }
 
-// On a phone, the numbers' first column is cut short a cell before the
-// second's, with an ellipsis, where the limits of two windows would run into
-// it.
-func TestAPhonesFirstColumnOfNumbersIsCutShortOfTheSecond(t *testing.T) {
-	page := plainYear()
-	page.Numbers.Limits = map[string]int{"5h": 412, "7d": 3}
-	rows := textOf(historyDrawn(yearFrame(t, 52, 35, views.YearAsk{}, page)).rows(Look{}))
-	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "limits") })
-	if want := "limits    5-hour ×412 · … against   3.8×"; i < 0 || rows[i] != want {
-		t.Errorf("the phone's limits row reads %q, want %q", rows[max(i, 0)], want)
+// On a phone, the numbers' first column ends a cell before the second's:
+// limits of more than one window, a figure, keep as many windows whole as
+// fit, as history-phone-year-52 draws "5-hour ×402" alone, the rest left
+// off; and where even the first doesn't fit, they're an ellipsis, never a
+// count cut part-way.
+func TestAPhonesFirstColumnOfNumbersEndsShortOfTheSecond(t *testing.T) {
+	tests := []struct {
+		name   string
+		limits map[string]int
+		want   string
+	}{
+		{name: "the second left off", limits: map[string]int{"5h": 412, "7d": 3}, want: "limits    5-hour ×412     against   3.8×"},
+		{name: "the first too long", limits: map[string]int{"5h": 41_200_000}, want: "limits    …               against   3.8×"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := plainYear()
+			page.Numbers.Limits = tt.limits
+			rows := textOf(historyDrawn(yearFrame(t, 52, 35, views.YearAsk{}, page)).rows(Look{}))
+			i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "limits") })
+			if i < 0 || rows[i] != tt.want {
+				t.Errorf("the phone's limits row reads %q, want %q", rows[max(i, 0)], tt.want)
+			}
+		})
 	}
 }
 
@@ -605,5 +619,71 @@ func TestAMonthSoFarsFigureDrawnAsAnEllipsisBrightensNothing(t *testing.T) {
 		if got := yearFrame(t, 52, 37, views.YearAsk{}, page).Numbers(threeRouted(), now)[worth]; got != tt.want {
 			t.Errorf("the month so far worth $%.0f is numbered %q, want %q", tt.amount, got, tt.want)
 		}
+	}
+}
+
+// A phone's grid shows the latest weeks that fit, 22 at most: narrower than
+// a phone, the weeks it leaves off are the earliest, each week it shows in
+// the column the latest weeks' have at 52 columns, less the weeks left off.
+func TestAPhonesGridShowsTheLatestWeeksThatFit(t *testing.T) {
+	drawn := func(width int) *canvas {
+		y, _ := yearFrame(t, width, 37, views.YearAsk{}, plainYear()).yearDrawn()
+		c := newCanvas(width, y.height())
+		y.draw(c, 0)
+		return c
+	}
+	phone, narrow := drawn(52), drawn(40)
+	const leftOff = 2 * (yearPhoneWeeks - 18)
+	for row := 1; row <= 7; row++ {
+		for x := yearPhoneGridX; x < 40; x++ {
+			if got, want := *narrow.at(x, row), *phone.at(x+leftOff, row); got != want {
+				t.Errorf("at 40 columns, row %d, column %d is %+v, want %+v, as 52 columns draw the week 4 later", row, x, got, want)
+			}
+		}
+	}
+}
+
+// Every figure the Year draws is drawn whole, or where it doesn't fit, as an
+// ellipsis, never cut part-way, and is numbered only where it's drawn whole;
+// its words cut, as the key's, and a version's name in the heading; and BY
+// MONTH's bars shrink to the room there is, each against the largest.
+func TestTheYearsFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
+	requests := Number{Kind: NumberYear, Of: "requests"}
+	tests := []struct {
+		name     string
+		width    int
+		ask      views.YearAsk
+		page     views.YearPage
+		lead     string
+		want     string
+		numbered string
+	}{
+		{name: "requests, fitting", width: 19, page: plainYear(), lead: "requests", want: "requests  236,410", numbered: "236,410"},
+		{name: "requests, a cell short", width: 16, page: plainYear(), lead: "requests", want: "requests  …"},
+		{name: "a month's worth, a cell short", width: 17, page: plainYear(), lead: " May", want: " May        …"},
+		{name: "a bound in the key", width: 19, page: plainYear(), lead: "■ 0", want: "■ 0 ■ <450 ■ …"},
+		{name: "the period after a version", width: 16, ask: views.YearAsk{Version: "Opus 5.5"}, page: opusYear(), lead: "OPUS", want: "OPUS 5.5 · …"},
+		{name: "a bar in the room left", width: 40, page: plainYear(), lead: " May", want: " May        $2,330    3.9×      ▅▅▅▅▅▅"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := yearFrame(t, tt.width, 60, tt.ask, tt.page)
+			rows := textOf(historyDrawn(f).rows(Look{}))
+			i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, tt.lead) })
+			if i < 0 || rows[i] != tt.want {
+				t.Errorf("at %d columns, the Year reads\n%s\nwant a row %q", tt.width, strings.Join(rows, "\n"), tt.want)
+			}
+			if got := f.Numbers(threeRouted(), now)[requests]; tt.lead == "requests" && got != tt.numbered {
+				t.Errorf("at %d columns, its requests are numbered %q, want %q", tt.width, got, tt.numbered)
+			}
+		})
+	}
+	if got := fitParts(11, monthNote(views.MonthRow{From: "2026-03-16"})...).plain(); got != "from the …" {
+		t.Errorf("the note after a part month's bar, in 11 cells, reads %q, want its day whole or an ellipsis, %q", got, "from the …")
+	}
+	c := newCanvas(12, 1)
+	monthsBefore(c, 0, views.MonthsBefore{From: "2025-10", To: "2026-05", Then: "Opus 5"}, 12)
+	if got := textOf(c.rows(Look{}))[0]; got != "  …" {
+		t.Errorf("the row before, in 12 columns, reads %q, want its months whole or an ellipsis, %q", got, "  …")
 	}
 }

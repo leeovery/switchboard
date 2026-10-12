@@ -250,9 +250,9 @@ func TestEachSubTabsWidestRowEndsWhereItsWorkedOutToEnd(t *testing.T) {
 }
 
 // The Year's numbers run as long as the ledger makes them, so they're cut at
-// the frame's width, with an ellipsis, rather than reckoned in its widest
-// row: at 160 columns, a Year of a world of many limits still draws its wide
-// form, its limits cut short.
+// the frame's width rather than reckoned in its widest row: at 160 columns,
+// a Year of a world of many limits still draws its wide form, its limits as
+// many windows whole as fit.
 func TestTheYearsNumbersAreCutAtTheWidthNotDrawnOnAPhone(t *testing.T) {
 	page := plainYear()
 	page.Numbers.Limits = map[string]int{"5h": 4120, "7d": 3, "7d_oi": 2}
@@ -269,8 +269,8 @@ func TestTheYearsNumbersAreCutAtTheWidthNotDrawnOnAPhone(t *testing.T) {
 	}
 	rows := textOf(historyDrawn(f).rows(Look{}))
 	limits := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "limits hit") })
-	if want := "limits hit   5-hour ×4,120 · week…"; limits < 0 || !strings.HasSuffix(rows[limits], want) || ansi.StringWidth(rows[limits]) != 160 {
-		t.Errorf("the limits row reads %q, want it to end %q at column 160", rows[max(limits, 0)], want)
+	if want := "limits hit   5-hour ×4,120"; limits < 0 || !strings.HasSuffix(rows[limits], want) {
+		t.Errorf("the limits row reads %q, want it to end %q", rows[max(limits, 0)], want)
 	}
 }
 
@@ -417,6 +417,36 @@ func TestAPhoneSaysWhatsOutOfViewInALineThatFits(t *testing.T) {
 		i := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "more account") })
 		if i < 0 || rows[i] != tt.want || ansi.StringWidth(rows[i]) > f.edge() {
 			t.Errorf("%s scrolled on a phone reads\n%s\nwant a row %q", tt.name, strings.Join(rows, "\n"), tt.want)
+		}
+	}
+}
+
+// Nothing History draws is left to the canvas to clip: each sub-tab, in
+// either form, at any width, its accounts scrolled to the middle, draws
+// nothing past its edge, the frame's width for the Year and Tokens, and a
+// margin short of it for Weeks and Days, as each cuts what it draws to fit.
+func TestHistoryDrawsNothingPastItsEdge(t *testing.T) {
+	for _, tt := range formCases() {
+		reach := tt.reach(tt.frame(t, 160))
+		for _, width := range []int{1, 4, 12, 20, 28, 36, 44, 52, 60, 80, 100, reach - 1, reach} {
+			f := tt.frame(t, width)
+			f.Scroll = 2
+			edge := f.Width
+			if strings.HasPrefix(tt.name, "weeks") || strings.HasPrefix(tt.name, "days") {
+				edge = f.edge()
+			}
+			c := newCanvas(width+80, f.Height)
+			if y, ok := f.yearDrawn(); ok && strings.HasPrefix(tt.name, "the year") {
+				y.draw(c, f.top())
+			} else {
+				f.history(c, f.top())
+			}
+			for row, cells := range c.cells {
+				if x := slices.IndexFunc(cells[max(edge, 0):], func(here cell) bool { return here != blank }); x >= 0 {
+					t.Errorf("%s at %d columns draws %q past its edge, at column %d of row %d:\n%q",
+						tt.name, width, cells[max(edge, 0)+x].glyph, max(edge, 0)+x, row, textOf(c.rows(Look{}))[row])
+				}
+			}
 		}
 	}
 }
