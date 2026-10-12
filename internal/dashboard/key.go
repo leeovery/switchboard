@@ -63,8 +63,8 @@ func (f Frame) glyphs() [][]glyph {
 		{
 			{drawn: used, means: "used"},
 			{drawn: heading, means: "heading"},
-			{drawn: line{{paceMarker.text, ink{token: theme.VizPace, bold: true}}}, means: "even pace"},
-			{drawn: line{reserveMarker}, means: "reserve"},
+			{drawn: line{{paceMark, ink{token: theme.VizPace, bold: true}}}, means: "even pace"},
+			{drawn: line{{capMark, reserveInk}}, means: "reserve"},
 			{drawn: line{sessionDot(true)}, means: "session, lit while busy"},
 		},
 	}

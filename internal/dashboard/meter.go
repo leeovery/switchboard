@@ -102,10 +102,10 @@ func (f Frame) fill(c *canvas, x, y, cells int, used, heading float64, reserve, 
 		}
 		under := coveredBy(i, filled, projected, solid, faint)
 		if i == reserve {
-			c.text(x+i, y, reserveMarker.text, notched(under, fades))
+			c.text(x+i, y, capMark, notched(under, fades))
 		}
 		if i == pace {
-			c.text(x+i, y, paceMarker.text, ink{token: theme.VizPace, bold: true, on: under})
+			c.text(x+i, y, paceMark, ink{token: theme.VizPace, bold: true, on: under})
 		}
 	}
 }

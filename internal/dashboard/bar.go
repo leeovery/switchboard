@@ -5,15 +5,12 @@ var blocks = [...]string{"", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "�
 
 const (
 	trackCell = "░"
+	// paceMark marks where even use across a window would put it.
+	paceMark = "┃"
+	// capMark marks where an account's cap, its reserve, starts.
+	capMark = "╎"
 	// noMarker leaves a marker off a bar.
 	noMarker = -1
-)
-
-var (
-	// paceMarker marks where even use across a window would put it.
-	paceMarker = span{"┃", paceInk}
-	// reserveMarker marks where an account's reserve starts.
-	reserveMarker = span{"╎", reserveInk}
 )
 
 // along is how far along a bar width cells long its cell i sits, from 0 at

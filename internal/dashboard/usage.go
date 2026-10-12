@@ -102,9 +102,9 @@ func newUsageBlock(doc status.Document, now time.Time, width int, look Look, by 
 		if a.Reserve > 0 {
 			row.cap = fmt.Sprintf("%s at %d%%", name(a), wholePercent(1-a.Reserve))
 		}
+		states := doc.WindowStatesOf(a, now)
 		for _, w := range b.windows {
-			st := doc.WindowStateOf(a, w.key, now)
-			row.gauges = append(row.gauges, accountGauge(a, w.key, st, now))
+			row.gauges = append(row.gauges, accountGauge(a, w.key, states.Of(w.key), now))
 		}
 		b.rows = append(b.rows, row)
 	}
@@ -191,17 +191,6 @@ func (b usageBlock) caps(bar int) line {
 		return nil
 	}
 	return line{{capMark, reserveInk}, {" cap: " + strings.Join(caps, ", "), mutedInk}}
-}
-
-// capCell is the cell of the bar, cells long, its cap's mark is drawn at,
-// round(cap × cells), reporting false where it draws none: where that's off
-// the bar, or the bar is empty or has no cells.
-func (b usageBar) capCell(cells int) (int, bool) {
-	if b.empty || cells <= 0 {
-		return 0, false
-	}
-	at := halfEven(b.capAt * float64(cells))
-	return at, at < cells
 }
 
 // accountName is an account's name as a row of the block heads it: its

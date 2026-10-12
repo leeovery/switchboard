@@ -79,6 +79,12 @@ func TestOnlyAPrintoutBuildsTheWorlds(t *testing.T) {
 	if built != 1 {
 		t.Errorf("having asked for a printout, the worlds were built %d times, want once", built)
 	}
+	if _, err := set.named("usage-160"); err != nil {
+		t.Fatal(err)
+	}
+	if built != 1 {
+		t.Errorf("having asked for a printout twice, the worlds were built %d times, want once: it's built the first time", built)
+	}
 }
 
 func TestAFixtureChangedChangesNoOtherCallers(t *testing.T) {
