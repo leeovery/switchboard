@@ -288,6 +288,7 @@ func TestLoadTheLayoutUsageOpensWith(t *testing.T) {
 		{name: "by window, without one given in [usage]", config: "[usage]\n", want: config.ByWindow},
 		{name: "by window, given", config: "[usage]\nby = \"window\"\n", want: config.ByWindow},
 		{name: "by account, given", config: "[usage]\nby = \"account\"\n", want: config.ByAccount},
+		{name: "by account, given in any case", config: "[usage]\nby = \"Account\"\n", want: config.ByAccount},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -302,7 +303,7 @@ func TestLoadTheLayoutUsageOpensWith(t *testing.T) {
 	}
 }
 
-func TestParseLayoutReadsEachLayoutByItsNameAlone(t *testing.T) {
+func TestParseLayoutReadsEachLayoutByItsNameAloneInAnyCase(t *testing.T) {
 	tests := []struct {
 		given string
 		want  config.Layout
@@ -310,8 +311,9 @@ func TestParseLayoutReadsEachLayoutByItsNameAlone(t *testing.T) {
 	}{
 		{given: "window", want: config.ByWindow, ok: true},
 		{given: "account", want: config.ByAccount, ok: true},
+		{given: "Window", want: config.ByWindow, ok: true},
+		{given: "ACCOUNT", want: config.ByAccount, ok: true},
 		{given: ""},
-		{given: "Window"},
 		{given: "accounts"},
 		{given: " window"},
 		{given: "matrix"},
@@ -792,7 +794,6 @@ func TestLoadReportsProblems(t *testing.T) {
 		{name: "a week starting on a day in another language", config: "week_starts = \"lundi\"\n" + work, want: []string{weekStarts("lundi")}},
 		{name: "a week starting on a day's number", config: "week_starts = \"1\"\n" + work, want: []string{weekStarts("1")}},
 		{name: "a week starting on a day with a space", config: "week_starts = \" monday\"\n" + work, want: []string{weekStarts(" monday")}},
-		{name: "a layout in another case", config: work + "\n[usage]\nby = \"Account\"\n", want: []string{by("Account")}},
 		{name: "a layout of several", config: work + "\n[usage]\nby = \"windows\"\n", want: []string{by("windows")}},
 		{name: "a layout usage has none of", config: work + "\n[usage]\nby = \"matrix\"\n", want: []string{by("matrix")}},
 		{name: "a plan the table doesn't know", config: work + "plan = \"max10x\"\n", want: []string{plan("work", "max10x")}},
