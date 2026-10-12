@@ -147,19 +147,26 @@ func blockOf(doc status.Document, now time.Time, policy score.Policy, width int,
 	return b
 }
 
+// UsageWindows are the keys of the windows usage shows of doc where none is
+// given: those every model shares, as shared has them, and every other any
+// account reports, so every account keeps its rows before any is read; in
+// Claude's order.
+func UsageWindows(doc status.Document, shared []string) []string {
+	keys := slices.Clone(shared)
+	for _, a := range doc.Accounts {
+		for _, w := range a.Windows {
+			keys = append(keys, w.Key)
+		}
+	}
+	return slices.Compact(slices.SortedFunc(slices.Values(keys), quota.CompareKeys))
+}
+
 // usageWindows are the windows of doc with the keys given, or with none,
-// those every model shares, as shared has them, and every other any account
-// reports, so every account keeps its rows before any is read; in Claude's
-// order, each named as name names it, cleaned, or where name is nil, by its
-// label as labelOf has it.
+// those UsageWindows has, in Claude's order, each named as name names it,
+// cleaned, or where name is nil, by its label as labelOf has it.
 func usageWindows(doc status.Document, keys, shared []string, name func(key string) string) []shownWindow {
 	if len(keys) == 0 {
-		keys = slices.Clone(shared)
-		for _, a := range doc.Accounts {
-			for _, w := range a.Windows {
-				keys = append(keys, w.Key)
-			}
-		}
+		keys = UsageWindows(doc, shared)
 	}
 	if name == nil {
 		name = func(key string) string { return labelOf(doc, key) }

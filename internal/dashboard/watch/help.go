@@ -1,23 +1,26 @@
 package watch
 
 import (
-	"time"
-
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 )
 
-// helping is help while it's open over the page: how many rows it's scrolled
-// down by.
+// helping is help while it's open over the page: the keys it lists, those of
+// the page as it stood when help opened, and how many rows it's scrolled down
+// by.
 type helping struct {
+	keys   []dashboard.Key
 	scroll int
 }
 
-// openHelp opens the page's help over it, as ? does, from its top.
+// openHelp opens the page's help over it, as ? does, from its top, listing
+// the keys of the page it stands still over, so a document that lands while
+// it's open moves nothing in it.
 func (m Model) openHelp() Model {
-	m.help = helping{}
-	return m.cover(helpOpen)
+	m = m.cover(helpOpen)
+	m.help = helping{keys: m.helpKeys(m.page.frame, m.page.at)}
+	return m
 }
 
 // helpKey acts on a key while help is open, which takes every key but
@@ -40,8 +43,7 @@ func (m Model) scrollHelp(by scrollStep) Model {
 	return m
 }
 
-// helpCard is the page's help as m stands at now: its keys, and how far it's
-// scrolled.
-func (m Model) helpCard(now time.Time) dashboard.Help {
-	return dashboard.Help{Keys: m.helpKeys(now), Scroll: m.help.scroll}
+// helpCard is the page's help: its keys, and how far it's scrolled.
+func (m Model) helpCard() dashboard.Help {
+	return dashboard.Help{Keys: m.help.keys, Scroll: m.help.scroll}
 }

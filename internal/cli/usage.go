@@ -203,19 +203,13 @@ func addWindowFlags(cmd *cobra.Command) windowFlags {
 }
 
 // keys returns the keys of the windows given, in Claude's order: none where
-// none is, which prints every window. It fails for a window no account in doc
-// reports, naming those there are by their flags. The windows every model
-// shares, as shared has them, count as reported, as every account's rows of
-// them print before it's read.
+// none is, which prints every window. It fails for a window the printout of
+// doc wouldn't show, as dashboard.UsageWindows has them, naming those it
+// would by their flags.
 func (ws windowFlags) keys(doc status.Document, shared []string) ([]string, error) {
 	reported := make(map[string]bool)
-	for _, key := range shared {
+	for _, key := range dashboard.UsageWindows(doc, shared) {
 		reported[key] = true
-	}
-	for _, account := range doc.Accounts {
-		for _, w := range account.Windows {
-			reported[w.Key] = true
-		}
 	}
 	var keys []string
 	for _, f := range ws {

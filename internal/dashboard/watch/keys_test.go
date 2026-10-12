@@ -113,8 +113,8 @@ func TestTheOverviewsKeyLineSaysWhichSectionsShowAndHowTheWindowsAreGrouped(t *t
 	if got := h.model.live(h.clock.now).KeyLine.Groups[1]; !slices.Equal(got, want) {
 		t.Errorf("with GRAPHS shown, USAGE hidden and the windows grouped by account, the toggles are\n%+v\nwant\n%+v", got, want)
 	}
-	if !slices.ContainsFunc(h.model.helpKeys(h.clock.now), func(k dashboard.Key) bool { return k == want[0] }) {
-		t.Errorf("help lists %+v, want the toggles worded as the key line words them", h.model.helpKeys(h.clock.now))
+	if !slices.ContainsFunc(helpOver(h.model), func(k dashboard.Key) bool { return k == want[0] }) {
+		t.Errorf("help lists %+v, want the toggles worded as the key line words them", helpOver(h.model))
 	}
 }
 
