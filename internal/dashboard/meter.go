@@ -35,13 +35,13 @@ func (f Frame) bar(c *canvas, s standing, reserve float64, x, y, cells int) {
 		share = 0
 	}
 	f.fill(c, x, y, cells, f.eased(s), share, reserveCell(reserve, cells), s.paceCell(cells))
-	c.barred(x, y, cells, Ref{Account: s.account, Window: s.window.Key})
+	c.barred(x, y, cells, s.ref())
 }
 
 // eased is how much of a window standing as s its bar fills: as far as the
 // bars have eased to its use, while they ease, else its use.
 func (f Frame) eased(s standing) float64 {
-	if used, ok := f.Eased[Ref{Account: s.account, Window: s.window.Key}]; ok {
+	if used, ok := f.Eased[s.ref()]; ok {
 		return used
 	}
 	return s.used

@@ -197,7 +197,7 @@ func TestTheColumnsAndTheirMinutesByWidth(t *testing.T) {
 			}
 		})
 	}
-	if got := laneLabel(Frame{}.laneOf(long, long.Accounts[0], now)).plain(); got != "1 a-very-long-name-for-an…" {
+	if got := laneLabel(laneIn(Frame{}, long, 0)).plain(); got != "1 a-very-long-name-for-an…" {
 		t.Errorf("a long name heads its lane as %q, want it cut to %d cells", got, nameCells)
 	}
 }
@@ -375,7 +375,7 @@ func TestAStretchAtItsReserveOverSinceItWasReadIsDrawnButNotSaid(t *testing.T) {
 
 			tl := l.timeline
 			col := tl.column(now.Add(-45 * time.Minute))
-			if got := f.laneOf(doc, doc.Accounts[0], now).cells(tl)[col]; got != roomNone {
+			if got := laneIn(f, doc, 0).cells(tl)[col]; got != roomNone {
 				t.Errorf("at column %d, before the reset, work's lane stands %v, want no room, at its reserve", col, got)
 			}
 			if got := strings.TrimSpace(rows[l.top+1]); got != tt.want {
@@ -402,8 +402,8 @@ func TestAWeekAtItsReserveResetSinceItWasReadSaysItHasRoom(t *testing.T) {
 		{"week", Week, "room all week  ·  resets Mon 11:12"},
 	} {
 		f := runwayFrame(t, tt.span, 160, 26)
-		if got := f.laneOf(doc, doc.Accounts[0], now).states.Of("7d").Kind; got != status.WindowOpen {
-			t.Errorf("over the %s, work's week stands as kind %d, want WindowOpen", tt.name, got)
+		if w, _ := laneIn(f, doc, 0).account.Window("7d"); w.Kind != status.WindowOpen {
+			t.Errorf("over the %s, work's week stands as kind %d, want WindowOpen", tt.name, w.Kind)
 		}
 		rows, l := drawnRunway(f, doc)
 		if got := strings.TrimSpace(rows[l.top+1]); got != tt.want {
@@ -607,6 +607,12 @@ func TestALanesBadge(t *testing.T) {
 	held.Accounts[2].Windows[1].Utilization, held.Accounts[2].Windows[1].Status = 1, quota.StatusRejected
 	reset := runwayThree()
 	reset.Accounts[0].Windows[1].ResetsAt = now.Add(-time.Hour).UTC()
+	probedTwo := probed(readAccount("work", sessionOf(0.3, 3*time.Hour), weekOf(0.3, 4*day)), readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day)))
+	probedTwo.Best = "side"
+	refused := runwayThree()
+	refused.Accounts[1].Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 401}
+	failed := runwayThree()
+	failed.Accounts[1].Error = "timed out"
 	tests := []struct {
 		name string
 		doc  status.Document
@@ -616,17 +622,20 @@ func TestALanesBadge(t *testing.T) {
 	}{
 		{name: "over the day, the account new sessions go to", doc: runwayThree(), i: 2, want: line{{nextBadge, nextInk}}},
 		{name: "over the day, another", doc: runwayThree(), i: 0},
-		{name: "over the day, the one account there is", doc: routerDoc("work", 1, pressedAccount("work")), i: 0},
+		{name: "over the day, the one account there is, where new sessions go, there being nowhere else", doc: routerDoc("work", 1, pressedAccount("work")), i: 0, want: line{{nextBadge, nextInk}}},
+		{name: "over the day, probed, of several: where new sessions go is the router's to say", doc: probedTwo, i: 1},
 		{name: "over the week, its week's use", doc: runwayThree(), span: Week, i: 0, want: line{{"34%", strongInk}}},
 		{name: "over the week, a week running out", doc: runwayThree(), span: Week, i: 1, want: line{{"89%", alertInk}}},
+		{name: "over the week, a week its projection runs out, its token refused: stale, it doesn't run out", doc: refused, span: Week, i: 1, want: line{{"89%", strongInk}}},
+		{name: "over the week, a week its projection runs out, its last read failed: stale, it doesn't run out", doc: failed, span: Week, i: 1, want: line{{"89%", strongInk}}},
 		{name: "over the week, a week at its limit", doc: held, span: Week, i: 2, want: line{{"100%", exhaustedInk}}},
 		{name: "over the week, a week reset since it was read: empty, as it runs", doc: reset, span: Week, i: 0, want: line{{"0%", strongInk}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{Policy: claudeLike, Span: tt.span}
-			l := f.laneOf(tt.doc, tt.doc.Accounts[tt.i], now)
-			if got := f.badge(tt.doc, l, now); !slices.Equal(got, tt.want) {
+			l := laneIn(f, tt.doc, tt.i)
+			if got := f.badge(l); !slices.Equal(got, tt.want) {
 				t.Errorf("badge() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -638,7 +647,7 @@ func TestEachCauseOfAStretchIsToldWhereItStarts(t *testing.T) {
 	both.Windows[1] = weekRunningOut(2*time.Hour, 3*day)
 	rows, l := drawnRunway(runwayFrame(t, Day, 160, 26), routerDoc("", 1, both))
 
-	if got, want := rows[l.top], " 1 work               "+repeated("▆", 15, "─", 121); got != want {
+	if got, want := rows[l.top], " 1 work       ▲ next  "+repeated("▆", 15, "─", 121); got != want {
 		t.Errorf("work's lane reads\n%q\nwant\n%q: room till 14:42, then one stretch without it, to the end", got, want)
 	}
 	want := textsAt(160, map[int]string{22 + 15: "runs out ~14:42", 22 + 32: "week runs out ~15:12  ·  back Thu 13:12, as it resets"})

@@ -49,16 +49,16 @@ func (f Frame) graphsOf(doc status.Document, now time.Time) graphs {
 	m := f.moment(doc, now)
 	names := overviewNames(m)
 	g := graphs{names: nameColumn(names, f.Width), phone: f.phone(), look: f.Look}
-	account, focused := doc.Account(f.Focus)
-	if !focused && len(doc.Accounts) > 0 {
-		account, focused = doc.Accounts[0], true
+	account, focused := m.Account(f.Focus)
+	if !focused && len(m.Accounts) > 0 {
+		account, focused = m.Accounts[0], true
 	}
 	if !focused {
 		return g
 	}
 	g.name, g.focused = overviewNamed(m, names, account.ID, titleInk), true
 	for _, w := range f.overviewWindows(doc, now) {
-		g.charts = append(g.charts, chartOf(account, w, f.Trails[Ref{Account: account.ID, Window: w.key}], now, f.Policy))
+		g.charts = append(g.charts, chartOf(account, w, f.Trails[Ref{Account: account.ID, Window: w.key}], m.Now))
 	}
 	return g
 }

@@ -129,7 +129,7 @@ func TestAnAnswerALaterAskingOvertookIsDropped(t *testing.T) {
 	h.start()
 	h.source.history = map[string]router.History{"5h": historyOf("work", start.Add(-time.Hour), 0.1, 0.2)}
 	var asking tea.Cmd
-	h.model, asking = h.model.askHistory(h.model.doc)
+	h.model, asking = h.model.askHistory(h.model.doc.At(start, policy))
 	stale := asking()
 
 	h.deliver(h.press("R")...)
@@ -189,7 +189,7 @@ func TestTheChartsDrawNoReadingTheRoutersHistoryCoversAlready(t *testing.T) {
 		{At: sessionStart.Add(10 * time.Minute).UTC(), Utilization: 0.2},
 		{At: sessionStart.Add(40 * time.Minute), Utilization: 0.3},
 	}
-	if got := h.drawn(doc, start, policy)[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
+	if got := h.drawn(doc.At(start, policy))[ref].Readings; !slices.EqualFunc(got, want, sameReading) {
 		t.Errorf("the trail's readings are %+v, want %+v: in order, none from before the session, nor the router's last", got, want)
 	}
 }
@@ -205,7 +205,7 @@ func TestTheChartsDrawNoSessionThatHasLapsedSinceItWasRead(t *testing.T) {
 	}}
 	doc := document(account("work", "Work", session(0.2, 4*time.Hour), week(0.5)))
 
-	drawn := h.drawn(doc, start.Add(4*time.Hour+time.Second), policy)
+	drawn := h.drawn(doc.At(start.Add(4*time.Hour+time.Second), policy))
 	if trail, ok := drawn[dashboard.Ref{Account: "work", Window: "5h"}]; ok {
 		t.Errorf("work's session draws %+v, want no trail, as it has lapsed", trail)
 	}
@@ -256,7 +256,7 @@ func TestTheReadingsHistorysFilesAreReadFromTheDayAWeekResetSinceItWasReadStarte
 	doc := status.Document{GeneratedAt: work.FetchedAt, Source: status.SourceRouter, Accounts: []status.Account{work}}
 	files := &filedReadings{held: []readings.Reading{filedOn("work", "7d", reset.Add(-4*time.Hour), 0.5)}}
 
-	got := filedOf(files, doc, reset.Add(time.Second), policy)
+	got := filedOf(files, doc.At(reset.Add(time.Second), policy))
 	if day := time.Date(2026, 10, 14, 0, 0, 0, 0, time.Local); !files.from.Equal(day) {
 		t.Errorf("the files are read from %v, want from %v, the day the week started again as it reset, not the days before", files.from, day)
 	}
