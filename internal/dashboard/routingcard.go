@@ -149,7 +149,7 @@ func closedBy(doc status.Document, a status.Account, now time.Time, policy score
 		return till("at its limit", hold.Until, now), false
 	case a.TokenRefused(now):
 		return "token " + a.Refused.Answer(), false
-	case doc.ReserveHolds(a) && slices.ContainsFunc(score.AtReserve(a.Windows, a.Reserve, now), policy.IsShared):
+	case doc.CapHolds(a, now, policy):
 		back, _ := score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
 		return till("at its cap", back, now), true
 	}

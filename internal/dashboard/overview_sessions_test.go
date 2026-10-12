@@ -285,6 +285,16 @@ func TestASessionRunningWasLastSeenNowWithinTheMinute(t *testing.T) {
 	}
 }
 
+func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
+	doc, _, _ := overviewWorld()
+	c := newCanvas(160, 1)
+	r := views.Running{Account: "side", Session: idD28C, Family: "opus", LastSeen: routedAt.Add(-1000 * time.Hour)}
+	Frame{Width: 160}.wideRunning(c, doc, r, 16, routedAt, 0)
+	if got := rowOf(c, 0); !strings.Contains(got, "d28c  opus   1000h   idle") {
+		t.Errorf("drew %q, want 1000h whole, no blank before it", got)
+	}
+}
+
 func TestTheStreamSeesASessionRunningLaterThanTheRouterListedIt(t *testing.T) {
 	doc, sessions, _ := overviewWorld()
 	f := Frame{Width: 160, Height: 40, View: Overview, Sessions: sessions}

@@ -383,7 +383,11 @@ func TestTextKeepsItsWordsForAModelsOwnWindowAtItsReserve(t *testing.T) {
 }
 
 func TestReserved(t *testing.T) {
-	atReserve := status.Account{ID: "work", Label: "Work", Reserve: 0.15, AtReserve: []string{"5h"}}
+	now := time.Date(2026, 9, 28, 14, 12, 0, 0, time.UTC)
+	session := quota.Window{Key: "5h", Label: "Session", Utilization: 0.85, ResetsAt: now.Add(time.Hour)}
+	atReserve := status.Account{ID: "work", Label: "Work", Reserve: 0.15, Windows: []quota.Window{session}}
+	reset := atReserve
+	reset.Windows = []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.85, ResetsAt: now}}
 	tests := []struct {
 		name    string
 		account status.Account
@@ -397,11 +401,12 @@ func TestReserved(t *testing.T) {
 		{name: "spent by the global pin, among others", account: atReserve, pin: []string{"work", "side"}, want: "spending its reserve (pinned)"},
 		{name: "short of its reserve", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}},
 		{name: "short of its reserve, pinned", account: status.Account{ID: "work", Label: "Work", Reserve: 0.15}, pin: []string{"work"}},
+		{name: "its window reset since it was read", account: reset},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{Pin: status.Pin{Accounts: tt.pin}, Accounts: []status.Account{tt.account}}
-			if got := doc.Reserved(tt.account); got != tt.want {
+			if got := doc.Reserved(tt.account, now); got != tt.want {
 				t.Errorf("Reserved() = %q, want %q", got, tt.want)
 			}
 		})

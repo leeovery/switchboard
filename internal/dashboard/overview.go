@@ -575,16 +575,25 @@ func (f Frame) laidOut(doc status.Document, now time.Time, top int) []planned {
 }
 
 // overview draws the Overview of doc at now in the view's rows, from row
-// top: where every section is hidden, how to bring them back; else each
-// section shown, as laidOut lays it out, its heading, and under one that
-// doesn't fold, its body.
+// top, as overviewDrawn draws it.
 func (f Frame) overview(c *canvas, doc status.Document, now time.Time, top int) {
-	view := newCanvas(f.Width, f.viewRows())
+	view := f.overviewDrawn(doc, now)
+	c.paste(view, 0, top, view.height())
+}
+
+// overviewDrawn is the Overview of doc at now drawn in the view's rows: where
+// every section is hidden, how to bring them back; else each section shown,
+// as laidOut lays it out, its heading, and under one that doesn't fold, its
+// body; its traces painted once they're all drawn, at the scale they share,
+// as paintTraces paints them.
+func (f Frame) overviewDrawn(doc status.Document, now time.Time) *canvas {
+	view := holdingTraces(newCanvas(f.Width, f.viewRows()))
 	if f.Sections.none() {
 		f.everythingHidden(view)
 	}
 	f.drawSections(view, f.laidOut(doc, now, 0))
-	c.paste(view, 0, top, view.height())
+	f.paintTraces(view)
+	return view
 }
 
 // drawSections draws the sections as they're laid out: each its heading, and

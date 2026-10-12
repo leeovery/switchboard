@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"slices"
 	"strconv"
 	"time"
 
@@ -30,77 +29,60 @@ const traceFade = 0.2
 // the lane always shows.
 const traceLane = "▁"
 
-// scaled is the frame with the scale of every trace its page draws of doc at
-// now worked out, once a frame, as its TraceScale, where it pins none, so
-// each trace scales alike: the busiest column of them all, as busiestColumn
-// says.
-func (f Frame) scaled(doc status.Document, now time.Time) Frame {
-	if f.TraceScale <= 0 {
-		f.TraceScale = f.busiestColumn(doc, now)
-	}
-	return f
+// tracing is a trace drawn on a canvas, which clips it: its columns, each
+// its requests a minute, as many as it's drawn cells wide; where they lie;
+// and whether its account is out of the pool, which fades it.
+type tracing struct {
+	on    *canvas
+	cells []float64
+	at    bounds
+	faded bool
 }
 
-// traceScale is the requests a minute that fill a trace's height: the
-// frame's TraceScale, as it pins it, or scaled works it out; leastScale
-// before either.
-func (f Frame) traceScale() float64 {
+// holdingTraces is c holding the traces drawn on it, and on the canvases
+// within it, till paintTraces paints them at the scale they share.
+func holdingTraces(c *canvas) *canvas {
+	c.traces = new([]tracing)
+	return c
+}
+
+// paintTraces paints the traces c holds at the scale they share, as
+// traceScale has it of them.
+func (f Frame) paintTraces(c *canvas) {
+	scale := f.traceScale(*c.traces)
+	for _, t := range *c.traces {
+		f.paintTrace(t, scale)
+	}
+}
+
+// traceScale is the requests a minute that fill a trace's height, where
+// the traces given are drawn on a page: the frame's TraceScale, where it pins
+// one; else the busiest column of them all, at the width each is drawn, of
+// those that show on screen, never less than leastScale.
+func (f Frame) traceScale(traces []tracing) float64 {
 	if f.TraceScale > 0 {
 		return f.TraceScale
 	}
-	return leastScale
-}
-
-// busiestColumn is the most requests a minute in any column of every trace
-// the page draws of doc at now, each as many cells wide as it's drawn, never
-// less than leastScale: ROUTING's, and SESSIONS', as routingColumns and
-// sessionsColumns say.
-func (f Frame) busiestColumn(doc status.Document, now time.Time) float64 {
 	most := float64(leastScale)
-	for _, columns := range slices.Concat(f.routingColumns(doc, now), f.sessionsColumns(doc, now)) {
-		if len(columns) > 0 {
-			most = max(most, slices.Max(columns))
+	for _, t := range traces {
+		for i, v := range t.cells {
+			if t.shows(i) {
+				most = max(most, v)
+			}
 		}
 	}
 	return most
 }
 
-// routingColumns are the columns of ROUTING's traces of doc at now, while it
-// shows: each account's, and beside USAGE's blocks by account, the pool's,
-// its accounts' summed.
-func (f Frame) routingColumns(doc status.Document, now time.Time) [][]float64 {
-	if !f.Sections.Has(SectionRouting) {
-		return nil
+// shows reports whether the trace's column i shows: a cell of it is on its
+// canvas, within its clip.
+func (t tracing) shows(i int) bool {
+	for y := t.at.y; y < t.at.y+t.at.rows; y++ {
+		if t.on.at(t.at.x+i, y) != nil {
+			return true
+		}
 	}
-	cellsOf := cellsAt(f.accountTraceCells(nameColumn(namesOf(doc), f.Width)), now)
-	var columns [][]float64
-	for _, t := range f.accountTraces(doc.Accounts) {
-		columns = append(columns, cellsOf(t))
-	}
-	if f.routingBesideUsage() {
-		columns = append(columns, summed(f.accountTraces(poolAccounts(doc)), cellsOf))
-	}
-	return columns
-}
-
-// sessionsColumns are the columns of SESSIONS' traces of doc at now, while it
-// shows: each running session's, a trace a row it's on, from routingRows
-// columns; under them, it draws none.
-func (f Frame) sessionsColumns(doc status.Document, now time.Time) [][]float64 {
-	if !f.Sections.Has(SectionSessions) || f.Width < routingRows {
-		return nil
-	}
-	cellsOf := cellsAt(f.wideTraceCells(), now)
-	var columns [][]float64
-	for _, r := range f.running(doc, now) {
-		columns = append(columns, cellsOf(f.Traces.Sessions[r.Session]))
-	}
-	return columns
-}
-
-// cellsAt gives a trace's cells, cells wide at now.
-func cellsAt(cells int, now time.Time) func(views.Trace) []float64 {
-	return func(t views.Trace) []float64 { return t.Cells(cells, now) }
+	return false
 }
 
 // wideTraceCells are the cells a trace takes on its row from routingRows
@@ -146,32 +128,45 @@ func summed(traces []views.Trace, columnsOf func(views.Trace) []float64) []float
 	return sum
 }
 
-// drawTrace draws the trace t at now in the bounds given, a column a cell,
-// the newest at the right, scale requests a minute filling its rows; faded
-// where its account is out of the pool.
-func (f Frame) drawTrace(c *canvas, t views.Trace, now time.Time, at bounds, scale float64, faded bool) {
-	f.drawCells(c, t.Cells(at.width, now), at, scale, faded)
+// drawTrace draws the trace t at now in the bounds given, as drawCells
+// draws its cells, as many as it's cells wide.
+func (f Frame) drawTrace(c *canvas, t views.Trace, now time.Time, at bounds, faded bool) {
+	f.drawCells(c, t.Cells(at.width, now), at, faded)
 }
 
 // drawCells draws a trace's cells, each its requests a minute, in the bounds
-// given, a column a cell: each filled round(min(v ÷ scale, 1) × rows × 8)
-// eighths from its bottom row up, its full cells as background, where the
-// look blends, else █, and its top cell the eighth block of what's left, in
-// accent.key mixed with the canvas so 80% of it shows; a column filled none,
-// its bottom row ▁ in text.faint. Faded, each keeps 35% of the colour it
-// had, as a stale reading's bar does.
-func (f Frame) drawCells(c *canvas, cells []float64, at bounds, scale float64, faded bool) {
-	fill, lane := traceInks(faded)
-	floor := at.y + at.rows - 1
-	for i, v := range cells[:min(len(cells), max(at.width, 0))] {
-		eighths := halfEven(min(v/scale, 1) * float64(at.rows*8))
+// given, a column a cell, the newest at the right; faded where its account is
+// out of the pool. Where c holds its traces, it's painted once every trace
+// on it is drawn, at the scale they share; else it's painted now, at the
+// frame's TraceScale, or leastScale where it pins none.
+func (f Frame) drawCells(c *canvas, cells []float64, at bounds, faded bool) {
+	t := tracing{on: c, cells: cells[:min(len(cells), max(at.width, 0))], at: at, faded: faded}
+	if c.traces == nil {
+		f.paintTrace(t, f.traceScale(nil))
+		return
+	}
+	*c.traces = append(*c.traces, t)
+}
+
+// paintTrace paints the trace t, scale requests a minute filling its rows:
+// each column filled round(min(v ÷ scale, 1) × rows × 8) eighths from its
+// bottom row up, its full cells as background, where the look blends, else
+// █, and its top cell the eighth block of what's left, in accent.key mixed
+// with the canvas so 80% of it shows; a column filled none, its bottom row ▁
+// in text.faint. Faded, each keeps 35% of the colour it had, as a stale
+// reading's bar does.
+func (f Frame) paintTrace(t tracing, scale float64) {
+	fill, lane := traceInks(t.faded)
+	floor := t.at.y + t.at.rows - 1
+	for i, v := range t.cells {
+		x, eighths := t.at.x+i, halfEven(min(v/scale, 1)*float64(t.at.rows*8))
 		if eighths <= 0 {
-			c.text(at.x+i, floor, traceLane, lane)
+			t.on.text(x, floor, traceLane, lane)
 			continue
 		}
-		for r := 0; r < at.rows && eighths > 8*r; r++ {
+		for r := 0; r < t.at.rows && eighths > 8*r; r++ {
 			glyph, k := filledCell(f.Look, min(eighths-8*r, 8), fill)
-			c.text(at.x+i, floor-r, glyph, k)
+			t.on.text(x, floor-r, glyph, k)
 		}
 	}
 }
