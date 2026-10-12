@@ -108,7 +108,7 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 		t.Fatalf("no built-in theme %s", slug)
 	}
 	c := growing(width)
-	newUsageBlock(doc, printNow, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
+	newUsageBlock(doc, printNow, printPolicy, width, Print(th, nil), ByWindow, usageWindows(doc, nil, printPolicy.Shared, printName)).draw(c, 0)
 	return c
 }
 
