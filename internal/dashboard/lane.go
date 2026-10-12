@@ -99,6 +99,11 @@ type interval struct {
 	from, until time.Time
 }
 
+// over reports whether the interval is over at now: it ended then or before.
+func (i interval) over(now time.Time) bool {
+	return !i.until.IsZero() && !i.until.After(now)
+}
+
 // holds reports whether the interval holds the moment t.
 func (i interval) holds(t time.Time) bool {
 	return (i.from.IsZero() || !t.Before(i.from)) && (i.until.IsZero() || t.Before(i.until))
@@ -209,12 +214,6 @@ type laneWindow struct {
 	next   time.Time
 }
 
-// reset reports whether the window has reset since it was read, as it stands
-// at the lane's moment, as resetSince judges it.
-func (c laneWindow) reset() bool {
-	return resetSince(c.window, c.next)
-}
-
 // laneOf is doc's account a's lane at now, its room going by the windows the
 // span counts, as counts says, its windows standing as WindowStatesOf has
 // them: nothing is known of one not read yet, whose windows stand unread;
@@ -223,8 +222,8 @@ func (c laneWindow) reset() bool {
 // standing as last read, which its week's badge and reset draw. Read, it has
 // none while a window counted holds it back, as causesOf says, nor, over the
 // day, while the upstream refuses its every request; and from now, it's
-// heading to run out until the last of those windows, not reset since they
-// were read, that run out before they reset does.
+// heading to run out until the last of those windows that run out before
+// they reset does.
 func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane {
 	l := lane{account: a, place: place(doc, a.ID), states: doc.WindowStatesOf(a, now, f.Policy)}
 	state, unknown := a.NoToken()
@@ -242,10 +241,10 @@ func (f Frame) laneOf(doc status.Document, a status.Account, now time.Time) lane
 	var causes []cause
 	for _, c := range l.counted {
 		s := standingOf(doc, a, c.window, l.states, now)
-		if s.runsOut && !c.reset() && s.out.At.After(l.drains) {
+		if s.runsOut && s.out.At.After(l.drains) {
 			l.drains, l.drained = s.out.At, f.runOutSaid(s, now)
 		}
-		causes = append(causes, f.causesOf(doc, a, c, s, now)...)
+		causes = append(causes, f.causesOf(doc, a, s, now)...)
 	}
 	if f.Span == Day && a.Refused.Holds(now) && a.Refused.Family == "" {
 		causes = append(causes, cause{until: a.Refused.Until, says: a.Refused.Answer()})
@@ -281,29 +280,26 @@ func (f Frame) counts(w quota.Window) bool {
 	}
 }
 
-// causesOf are what holds doc's account a back, at now, of its window c,
+// causesOf are what holds doc's account a back, at now, of its window
 // standing as s: while it's held at its limit, from when it reached it, as
 // its standing says, until it's back; or while it's at its reserve, as the
 // router noted it, where that holds the account back, until the window
-// resets; and once it runs out before it resets, as RunsOut has it, until it
-// resets, as a window a limit naming none holds can, once that lifts. A
-// window reset since it was read is neither at its reserve nor running out,
-// as both were judged of the period before. Over the day, a window other
-// than the one a request starts is named, as in "week runs out ~Fri 04:06".
-func (f Frame) causesOf(doc status.Document, a status.Account, c laneWindow, s standing, now time.Time) []cause {
+// resets as it was read, whether or not that has passed, as the stretch it
+// held the account over is drawn all the same; and once it runs out before
+// it resets, as RunsOut has it, until it resets, as a window a limit naming
+// none holds can, once that lifts. Over the day, a window other than the one
+// a request starts is named, as in "week runs out ~Fri 04:06".
+func (f Frame) causesOf(doc status.Document, a status.Account, s standing, now time.Time) []cause {
 	var causes []cause
 	w := s.window
-	if s.held {
+	switch {
+	case s.held:
 		says := "limit reached"
 		if !s.since.IsZero() {
 			says += " " + status.Dated(now, s.since)
 		}
 		causes = append(causes, cause{from: s.since, until: s.back, says: says})
-	}
-	if c.reset() {
-		return causes
-	}
-	if !s.held && doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key) {
+	case doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key):
 		causes = append(causes, cause{until: w.ResetsAt, says: f.naming(w) + "at its reserve", resets: w.ResetsAt})
 	}
 	if s.runsOut {

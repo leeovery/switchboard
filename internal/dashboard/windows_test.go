@@ -21,8 +21,6 @@ func using(a status.Account, key string, rate float64) status.Account {
 }
 
 func TestTheWindowsShown(t *testing.T) {
-	notedLapsed := readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0.12, time.Hour))
-	notedLapsed.Lapsed = []string{"7d_oi"}
 	tests := []struct {
 		name       string
 		accounts   []status.Account
@@ -51,15 +49,6 @@ func TestTheWindowsShown(t *testing.T) {
 			accounts: []status.Account{
 				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)),
 				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0.12, -time.Hour)),
-			},
-			wantShown:  []string{"5h", "7d"},
-			wantHidden: []string{"7d_oi"},
-		},
-		{
-			name: "a model's own one account used, which the router noted lapsed, its reset not yet past at now, so unused",
-			accounts: []status.Account{
-				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*day), fableOf(0, 4*day)),
-				notedLapsed,
 			},
 			wantShown:  []string{"5h", "7d"},
 			wantHidden: []string{"7d_oi"},

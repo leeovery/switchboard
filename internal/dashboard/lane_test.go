@@ -114,8 +114,6 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 	headingThere := reserving(pressedAccount("work"), 0.1)
 	lapsed := readAccount("spare", quota.Window{Key: "5h", Label: "Session"}, weekOf(0.05, 6*day))
 	lapsed.Lapsed = []string{"5h"}
-	notedLapsed := pressedAccount("work")
-	notedLapsed.Lapsed = []string{"5h"}
 	refused := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day))
 	refused.Refused = status.Refusal{Until: now.Add(48 * time.Minute).UTC(), Status: 401}
 	fable := readAccount("side", sessionOf(0.1, 4*time.Hour), weekOf(0.1, 5*day), windowOf("7d_oi", "Fable week", 1, 5*day))
@@ -212,10 +210,6 @@ func TestALanesRoomFromEachCause(t *testing.T) {
 		{
 			name: "its 5-hour window lapsed, which its next request starts", doc: routerDoc("", 1, lapsed),
 			moments: []moment{{-50 * time.Minute, roomOpen}, {time.Hour, roomOpen}, {20 * time.Hour, roomOpen}},
-		},
-		{
-			name: "its 5-hour window the router noted lapsed, its reset not yet past at now: neither running out nor draining", doc: routerDoc("", 1, notedLapsed),
-			moments: []moment{{10 * time.Minute, roomOpen}, {100 * time.Minute, roomOpen}},
 		},
 		{
 			name: "its token refused, over the day", doc: routerDoc("", 1, refused),
