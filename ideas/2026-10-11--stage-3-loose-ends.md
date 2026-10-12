@@ -3,12 +3,6 @@
 Milestone 7's stage 3, the data verbs, went through several rounds of review each. What the reviews
 found and left, as not worth holding the stage for, gathered here.
 
-## Weeks' headline for a set short every week
-
-Where now is short on 4 or more of 7 weeks and one more account wouldn't halve that (short on 7 of
-7, one more 4 of 7), the design's rules fell to their else, "about right": plainly wrong for a set
-short every week. Settled by its owner on 12 October 2026: `<n> is too few`, in the design's Weeks.
-
 ## Cleanups left
 
 - `history`: `monthsOf` works out the running month's ratio, then drops it; three ways to word a

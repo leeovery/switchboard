@@ -177,6 +177,10 @@ var (
 	primedInk     = ink{token: theme.AccentPrimary}
 	keyInk        = ink{token: theme.AccentKey, bold: true}
 	noteInk       = ink{token: theme.TextSecondary}
+
+	// boldPositiveInk is what's gone well, as alertInk is what hasn't: a
+	// worth against its price at 1× or more, and a verdict of enough.
+	boldPositiveInk = ink{token: theme.StatePositive, bold: true}
 )
 
 // render draws text in the ink, as the look draws it.

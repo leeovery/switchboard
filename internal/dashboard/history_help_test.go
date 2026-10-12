@@ -93,13 +93,36 @@ func TestHistoryHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 		{"WEEKS", line{{"34%…", ink{token: theme.TextSecondary, bold: true}}}},
 		{"WEEKS", line{{"▁▁▁▁▁", faintInk}}},
 		{"WEEKS", line{{"—", faintInk}}},
-		{"DAYS", line{{"▪ ", ink{token: theme.StateDestructive, on: hue{token: theme.VizDay2}}}}},
 		{"DAYS", line{{"··", faintInk}}},
 	} {
 		t.Run(tc.heading+" "+tc.drawn.plain(), func(t *testing.T) {
 			glyphs := historyHelpGlyphs(Look{}, tc.heading)
 			if !slices.ContainsFunc(glyphs, func(g glyph) bool { return slices.Equal(g.drawn, tc.drawn) }) {
 				t.Errorf("%s's help explains %v, want %v among them", tc.heading, glyphs, tc.drawn)
+			}
+		})
+	}
+}
+
+// A day it hit a 5-hour limit is drawn as Days' key draws it, in each look:
+// a red ▪ on a viz.day.2 swatch, or, where the look blends nothing, before
+// that shade's density.
+func TestHistoryHelpDrawsADayAtALimitAsDaysDoes(t *testing.T) {
+	day2 := dayInk(2)
+	glyphed := line{{"▪", ink{token: theme.StateDestructive}}, {shadeGlyph(2), day2}}
+	for _, tc := range []struct {
+		name string
+		look Look
+		want line
+	}{
+		{"a look that blends", Screen(builtin(t, "nord")), line{{"▪", ink{token: theme.StateDestructive, on: day2.hue()}}, {" ", ink{on: day2.hue()}}}},
+		{"the terminal's colours", Screen(builtin(t, "terminal")), glyphed},
+		{"no colour", NoColour(), glyphed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			glyphs := historyHelpGlyphs(tc.look, "DAYS")
+			if !slices.ContainsFunc(glyphs, func(g glyph) bool { return slices.Equal(g.drawn, tc.want) }) {
+				t.Errorf("Days' help explains %v, want %v among them", glyphs, tc.want)
 			}
 		})
 	}

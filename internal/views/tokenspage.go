@@ -1,6 +1,10 @@
 package views
 
-import "cmp"
+import (
+	"cmp"
+	"slices"
+	"time"
+)
 
 // TokensAsk is what Tokens is asked to show: its rows' period.
 type TokensAsk struct {
@@ -27,7 +31,8 @@ func (p TokensPeriod) Name() string {
 }
 
 // TokensPage is Tokens as the dashboard draws it: its rows, a period each,
-// newest first, and the date of the prices their worth is at.
+// newest first, those with nothing recorded in them left out, and the date
+// of the prices their worth is at.
 type TokensPage struct {
 	Periods    []TokenPeriod
 	PricesAsOf string
@@ -37,7 +42,8 @@ type TokensPage struct {
 // month, its month, as Month names it; how many model versions it used; its
 // tokens and their worth, what the plans cost for it and the worth against
 // it; then by account, in the config's order, each by model version too, and
-// by model version, with the accounts it ran on.
+// by model version, with the accounts it ran on. SoFar is set on the period
+// today is in, still running.
 type TokenPeriod struct {
 	First    string
 	Versions int
@@ -46,4 +52,69 @@ type TokenPeriod struct {
 	Against
 	ByAccount []AccountTokens
 	ByModel   []ModelTokens
+	SoFar     bool
+}
+
+// tokens is Tokens' page, its rows the periods asked for over the year's
+// days, the oldest priced from the day the days were asked for, as
+// tokenPeriodsOf says, newest first.
+func (p Past) tokens(ask TokensAsk) TokensPage {
+	by := ask.Period.shape(p.in.WeekStarts)
+	today, _ := by.of(dateOf(p.in.Now).Format(time.DateOnly))
+	from := dateOf(p.in.From).Format(time.DateOnly)
+	all := tokenPeriodsOf(p.days, plans{accounts: p.in.Accounts, table: p.in.Prices}, versions{table: p.in.Prices, family: p.in.Family}, from, by)
+	var periods []TokenPeriod
+	for _, t := range slices.Backward(all) {
+		if len(t.ByAccount) > 0 {
+			t.SoFar = t.First == today
+			periods = append(periods, t)
+		}
+	}
+	return TokensPage{Periods: periods, PricesAsOf: p.in.Prices.AsOf}
+}
+
+// periodShape is how Tokens' rows split days into periods: of gives the key
+// of the period the day with the given date falls in, as TokenPeriod's First
+// names it, reporting false for a date that isn't one; dates the dates of a
+// period's first and last days, by its key; and share is the share of a
+// month a whole period costs its plans.
+type periodShape struct {
+	of    func(date string) (string, bool)
+	dates func(key string) (first, last string)
+	share monthPart
+}
+
+// key is the key of the period the day falls in, as spansOf takes it.
+func (by periodShape) key(d Day) (string, bool) {
+	return by.of(d.Day)
+}
+
+// shape is the period's shape, weeks starting on the day given: a day costs
+// 12/365 of a month, a week 12/52, and a calendar month a month.
+func (p TokensPeriod) shape(weekStarts time.Weekday) periodShape {
+	switch p {
+	case TokensByDay:
+		return periodShape{
+			of:    func(date string) (string, bool) { _, ok := civil(date); return date, ok },
+			dates: func(key string) (string, string) { return key, key },
+			share: days(1),
+		}
+	case TokensByMonth:
+		return periodShape{
+			of: monthOf,
+			dates: func(key string) (string, string) {
+				first, _ := civil(key + "-01")
+				return first.Format(time.DateOnly), first.AddDate(0, 1, -1).Format(time.DateOnly)
+			},
+			share: aMonth,
+		}
+	}
+	return periodShape{
+		of: weekDate(weekStarts),
+		dates: func(key string) (string, string) {
+			first, _ := civil(key)
+			return key, first.AddDate(0, 0, 6).Format(time.DateOnly)
+		},
+		share: aWeek,
+	}
 }

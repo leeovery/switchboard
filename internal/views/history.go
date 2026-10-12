@@ -132,16 +132,20 @@ type FamilyWorth struct {
 func pricedDays(summaries []ledger.Summary, prices ledger.Table, today string, v versions) []Day {
 	days := make([]Day, len(summaries))
 	for i, s := range summaries {
-		priced := prices.Priced(s, today)
-		sums := familySums{}
-		for _, a := range priced.Accounts {
-			for _, m := range a.Models {
-				sums.addModel(v, m)
-			}
-		}
-		days[i] = Day{Priced: priced, ByFamily: v.byFamily(sums)}
+		days[i] = v.day(prices.Priced(s, today))
 	}
 	return days
+}
+
+// day is the priced summary as a Day, with its worth by family.
+func (v versions) day(priced ledger.Priced) Day {
+	sums := familySums{}
+	for _, a := range priced.Accounts {
+		for _, m := range a.Models {
+			sums.addModel(v, m)
+		}
+	}
+	return Day{Priced: priced, ByFamily: v.byFamily(sums)}
 }
 
 // requests counts the day's requests, every account's.

@@ -134,3 +134,30 @@ func moreBelow(n int, noun, toScroll string) line {
 		{toScroll, mutedInk},
 	}
 }
+
+// accountsToScroll is how History says to scroll to its accounts out of
+// view, following j/k.
+const accountsToScroll = " or the wheel to scroll them"
+
+// accountsOutOfView says how many of a view's accounts are out of view above
+// and below, and how to scroll to them: "▼ 4 more accounts below   ·   j/k
+// or the wheel to scroll them".
+func accountsOutOfView(above, below int) line {
+	var l line
+	if above > 0 {
+		l = line{{"▲", keyMarkInk}, {" " + moreAccounts(above) + " above", mutedInk}, {"   ·   ", faintInk}}
+	}
+	if below > 0 {
+		return append(l, moreBelow(below, "account", accountsToScroll)...)
+	}
+	return append(l, span{"j/k", keyInk}, span{accountsToScroll, mutedInk})
+}
+
+// groupHead is a group's heading, as BY MONTH and BY MODEL, in text.subtle,
+// and after it, but on a phone, what it shows, in text.faint.
+func groupHead(name, says string, phone bool) line {
+	if phone {
+		return line{{name, dimInk}}
+	}
+	return line{{name, dimInk}, {"  " + says, faintInk}}
+}

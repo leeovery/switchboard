@@ -15,8 +15,10 @@ type Past struct {
 
 // NewPast is the Past of the days given, the summaries the ledger holds of a
 // year and today, oldest first, priced at today's prices. The input gives the
-// time now, the prices, the accounts, their weeks and the families: its
-// Ledger and From go unread, as the days are given.
+// time now, the prices, the accounts, their weeks and the families, and From,
+// the day the days were asked for from, for Tokens to price a period they
+// begin part-way through by its days alone: its Ledger goes unread, as the
+// days are given.
 func NewPast(in HistoryInput, days []ledger.Summary) Past {
 	today := dateOf(in.Now).Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
@@ -24,21 +26,21 @@ func NewPast(in HistoryInput, days []ledger.Summary) Past {
 }
 
 // Year is the Year's page, as asked for.
-func (p Past) Year(YearAsk) YearPage {
-	return YearPage{}
+func (p Past) Year(ask YearAsk) YearPage {
+	return p.year(ask)
 }
 
 // Weeks is Weeks' page: the eight weeks to this one.
 func (p Past) Weeks() WeeksPage {
-	return WeeksPage{}
+	return p.weeksPage()
 }
 
 // Days is Days' page: the eight weeks to this one, a day at a time.
 func (p Past) Days() DaysPage {
-	return DaysPage{}
+	return daysPageOf(p.in, p.days)
 }
 
 // Tokens is Tokens' page, as asked for.
-func (p Past) Tokens(TokensAsk) TokensPage {
-	return TokensPage{}
+func (p Past) Tokens(ask TokensAsk) TokensPage {
+	return p.tokens(ask)
 }

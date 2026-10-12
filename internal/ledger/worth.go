@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // Picodollars are an amount of US dollars, in millionths of a millionth of a
@@ -46,7 +48,18 @@ func (p Picodollars) Cents() string {
 
 // Dollars shows the amount to the nearest dollar, as "$413".
 func (p Picodollars) Dollars() string {
-	return fmt.Sprintf("%s$%d", p.sign(), (p.abs()+dollar/2)/dollar)
+	return fmt.Sprintf("%s$%d", p.sign(), p.wholeDollars())
+}
+
+// GroupedDollars shows the amount to the nearest dollar, its thousands set
+// apart, as "$27,480".
+func (p Picodollars) GroupedDollars() string {
+	return p.sign() + "$" + prose.Grouped(int(p.wholeDollars()))
+}
+
+// wholeDollars is the amount without its sign, to the nearest dollar.
+func (p Picodollars) wholeDollars() Picodollars {
+	return (p.abs() + dollar/2) / dollar
 }
 
 // MarshalJSON gives the amount in dollars, exactly, as 412.532118.

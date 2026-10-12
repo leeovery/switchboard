@@ -35,6 +35,26 @@ type AccountWeek struct {
 	Limits  map[string]int     `json:"limits,omitempty"`
 }
 
+// weeksShown are the weeks Weeks and Days show: this one, so far, and the
+// seven before it.
+const weeksShown = 8
+
+// weeksTo is the first day of the first of n calendar weeks, the last the
+// one the day falls in, weeks starting on the day given.
+func weeksTo(day time.Time, starts time.Weekday, n int) time.Time {
+	return weekOf(day, starts).AddDate(0, 0, -7*(n-1))
+}
+
+// weekDates are the dates of the first days of n calendar weeks from the one
+// beginning on first, oldest first.
+func weekDates(first time.Time, n int) []string {
+	dates := make([]string, n)
+	for i := range dates {
+		dates[i] = first.AddDate(0, 0, 7*i).Format(time.DateOnly)
+	}
+	return dates
+}
+
 // halfAWeek is how far into a calendar week, by its date, a week can begin
 // and still be placed under it, rather than under the next: three days, half
 // a week's seven being three and a half.

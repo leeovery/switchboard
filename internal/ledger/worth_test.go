@@ -283,24 +283,26 @@ func TestWhatThePricesCantPriceIsLeftUnpricedNotGuessed(t *testing.T) {
 
 func TestAnAmountIsShownToTheCentOrTheDollarAndGivenInDollarsExactly(t *testing.T) {
 	tests := []struct {
-		amount         ledger.Picodollars
-		cents, dollars string
-		json           string
+		amount                  ledger.Picodollars
+		cents, dollars, grouped string
+		json                    string
 	}{
-		{amount: 0, cents: "$0.00", dollars: "$0", json: "0"},
-		{amount: 1, cents: "$0.00", dollars: "$0", json: "0.000000000001"},
-		{amount: dollars(0.004999), cents: "$0.00", dollars: "$0", json: "0.004999"},
-		{amount: dollars(0.005), cents: "$0.01", dollars: "$0", json: "0.005"},
-		{amount: dollars(46.153846), cents: "$46.15", dollars: "$46", json: "46.153846"},
-		{amount: dollars(412.532118), cents: "$412.53", dollars: "$413", json: "412.532118"},
-		{amount: dollars(12), cents: "$12.00", dollars: "$12", json: "12"},
-		{amount: -dollars(1.5), cents: "-$1.50", dollars: "-$2", json: "-1.5"},
+		{amount: 0, cents: "$0.00", dollars: "$0", grouped: "$0", json: "0"},
+		{amount: 1, cents: "$0.00", dollars: "$0", grouped: "$0", json: "0.000000000001"},
+		{amount: dollars(0.004999), cents: "$0.00", dollars: "$0", grouped: "$0", json: "0.004999"},
+		{amount: dollars(0.005), cents: "$0.01", dollars: "$0", grouped: "$0", json: "0.005"},
+		{amount: dollars(46.153846), cents: "$46.15", dollars: "$46", grouped: "$46", json: "46.153846"},
+		{amount: dollars(412.532118), cents: "$412.53", dollars: "$413", grouped: "$413", json: "412.532118"},
+		{amount: dollars(12), cents: "$12.00", dollars: "$12", grouped: "$12", json: "12"},
+		{amount: dollars(27479.5), cents: "$27479.50", dollars: "$27480", grouped: "$27,480", json: "27479.5"},
+		{amount: -dollars(1.5), cents: "-$1.50", dollars: "-$2", grouped: "-$2", json: "-1.5"},
+		{amount: -dollars(1234.4), cents: "-$1234.40", dollars: "-$1234", grouped: "-$1,234", json: "-1234.4"},
 	}
 	for _, tt := range tests {
 		got, err := json.Marshal(tt.amount)
-		if tt.amount.Cents() != tt.cents || tt.amount.Dollars() != tt.dollars || err != nil || string(got) != tt.json {
-			t.Errorf("%d picodollars shows as %s and %s and is given as %s (%v), want %s, %s and %s",
-				tt.amount, tt.amount.Cents(), tt.amount.Dollars(), got, err, tt.cents, tt.dollars, tt.json)
+		if tt.amount.Cents() != tt.cents || tt.amount.Dollars() != tt.dollars || tt.amount.GroupedDollars() != tt.grouped || err != nil || string(got) != tt.json {
+			t.Errorf("%d picodollars shows as %s, %s and %s and is given as %s (%v), want %s, %s, %s and %s",
+				tt.amount, tt.amount.Cents(), tt.amount.Dollars(), tt.amount.GroupedDollars(), got, err, tt.cents, tt.dollars, tt.grouped, tt.json)
 		}
 	}
 }
