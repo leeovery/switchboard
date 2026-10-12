@@ -38,6 +38,10 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 			case OnKey:
 				i := slices.IndexFunc(f.keysAt(), func(k keyAt) bool { return k.key.Key == tt.Key })
 				keys, want = append(keys, tt.Key), f.keysAt()[i].key.words().plain()
+			case OnAccount:
+				if row := under(rows, tt); strings.Contains(row, " "+tt.Account+" ") {
+					want = row
+				}
 			}
 			if got := under(rows, tt); got != want || want == "" {
 				t.Errorf("at %d columns on %s, target %+v is over %q, want %q", f.Width, f.View, tt, got, want)

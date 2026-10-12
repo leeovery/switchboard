@@ -354,6 +354,47 @@ func TestThePool(t *testing.T) {
 	}
 }
 
+func TestAnAccountsRoomIsWhatThePoolCountsOfIt(t *testing.T) {
+	work := with(readAt("work", windowIn("5h", 0.4, 3*time.Hour), windowIn("7d", 0.5, 2*day)), reserving)
+	side := readAt("side", windowIn("5h", 0.2, time.Hour), windowIn("7d", 0.1, 6*day), windowIn("7d_oi", 0.3, 6*day))
+	limited := with(readAt("personal", spentIn("5h", 1, time.Hour), windowIn("7d", 0.3, 2*day)), func(a *status.Account) {
+		a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+	})
+	for _, doc := range []status.Document{
+		routerDocOf(work, side),
+		routerDocOf(work, limited, side),
+		pinnedTo(routerDocOf(work, limited, side), "work", "side"),
+	} {
+		doc = doc.WorkedOut(policy)
+		for _, w := range doc.Pool.Windows {
+			var summed float64
+			for _, id := range doc.Pool.Accounts {
+				a, _ := doc.Account(id)
+				room, _ := doc.RoomOf(a, w.Key, policy)
+				summed += room
+			}
+			if math.Abs(summed-w.Room) > 1e-9 {
+				t.Errorf("of %q, the pool's %s room is %v, where its accounts' rooms sum to %v", doc.Pool.Accounts, w.Key, w.Room, summed)
+			}
+		}
+	}
+	alone := routerDocOf(work).WorkedOut(policy)
+	tests := []struct {
+		key  string
+		want float64
+		ok   bool
+	}{
+		{key: "5h", want: 0.5, ok: true},
+		{key: "7d", want: 0.4, ok: true},
+		{key: "7d_oi"},
+	}
+	for _, tt := range tests {
+		if got, ok := alone.RoomOf(alone.Accounts[0], tt.key, policy); math.Abs(got-tt.want) > 1e-9 || ok != tt.ok {
+			t.Errorf("alone, with no pool, work's %s room is %v, %v; want %v, %v, to its cap", tt.key, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
 func TestThePoolsWindowsAreAListEvenOfNone(t *testing.T) {
 	doc := routerDocOf(status.Account{ID: "work", Label: "work", TokenSet: true}, status.Account{ID: "side", Label: "side", TokenSet: true})
 	got, err := json.Marshal(doc.WorkedOut(policy))

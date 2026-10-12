@@ -250,6 +250,19 @@ func (d Document) poolWindow(members []member, key string, policy score.Policy) 
 	return pw
 }
 
+// RoomOf is the room account a has left in its window with the given key, in
+// accounts' worth, as the pool counts each of its accounts', as of when the
+// document was built, as policy judges its windows; reporting false where
+// the account has no such window. It's what the pool's room would be of a
+// alone, as one account has no pool.
+func (d Document) RoomOf(a Account, key string, policy score.Policy) (float64, bool) {
+	w, ok := a.Window(key)
+	if !ok {
+		return 0, false
+	}
+	return d.poolRoom(member{account: a, standing: d.standingOf(a, policy)}, w, policy), true
+}
+
 // poolRoom is the room member m has left in its window w as the pool counts
 // it, as of when the document was built, to where the account runs out, as
 // Floor says: none in any window of one nothing has been read of, or whose

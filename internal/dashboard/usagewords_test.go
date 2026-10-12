@@ -90,6 +90,9 @@ func TestThePercentageIsColouredByThePercentageShown(t *testing.T) {
 		{name: "over 100%", bar: usageBar{used: 1.05}, want: "105%", token: theme.VizRamp4, bold: true},
 		{name: "stale", bar: usageBar{used: 0.95, stale: true}, want: "95%", token: theme.TextSubtle},
 		{name: "nothing read", bar: usageBar{used: 0.95, empty: true}, want: "—", token: theme.TextFaint},
+		{name: "out of the pool, on the Overview", bar: usageBar{used: 0.95, out: true}, want: "95%", token: theme.TextFaint, bold: true},
+		{name: "out of the pool and stale, faint winning", bar: usageBar{used: 0.34, out: true, stale: true}, want: "34%", token: theme.TextFaint, bold: true},
+		{name: "out of the pool, nothing read", bar: usageBar{used: 0.95, out: true, empty: true}, want: "—", token: theme.TextFaint},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -98,6 +101,26 @@ func TestThePercentageIsColouredByThePercentageShown(t *testing.T) {
 				t.Errorf("the percentage is %+v, want %+v", got, want)
 			}
 		})
+	}
+}
+
+func TestFaintWordsAreAllInTextFaintInFullAndShort(t *testing.T) {
+	for _, w := range []usageWords{
+		wordsOf(status.WindowState{Kind: status.WindowOpen, At: on(4, 21, 0)}, quota.Allowance{Share: 0.19, Per: quota.PerDay}, printNow),
+		wordsOf(status.WindowState{Kind: status.WindowCapped, At: on(1, 17, 10)}, quota.Allowance{}, printNow),
+		wordsOf(status.WindowState{Kind: status.WindowTokenless}, quota.Allowance{}, printNow),
+	} {
+		faint := w.faint()
+		for _, form := range []struct{ was, is line }{{w.full, faint.full}, {w.short, faint.short}} {
+			if form.is.plain() != form.was.plain() {
+				t.Errorf("faint, the words read %q, want %q, as they were", form.is.plain(), form.was.plain())
+			}
+			for _, s := range form.is {
+				if s.ink != faintInk {
+					t.Errorf("faint, %q is drawn in %+v, want text.faint", s.text, s.ink)
+				}
+			}
+		}
 	}
 }
 
