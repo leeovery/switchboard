@@ -422,11 +422,7 @@ func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T)
 		t.Fatalf("with none running, SESSIONS takes %d rows, want its heading's two and a row saying none run", rows)
 	}
 
-	h.source.sessions = []status.Session{
-		sessionOn(idD28C, "claude-opus-5-5", "side", 10*time.Second),
-		sessionOn(id7F3A, "claude-sonnet-5-5", "side", time.Minute),
-		sessionOn(id9E21, "claude-haiku-4-5", "work", 2*time.Minute),
-	}
+	h.source.sessions = threeRunning()
 	h.tickUntilAsked()
 	if len(h.model.sessions) != 3 {
 		t.Fatalf("a look listed %d sessions, want the three started", len(h.model.sessions))
@@ -448,6 +444,75 @@ func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T)
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 41})
 	if _, r := h.sessionsRows(); r != 3 {
 		t.Errorf("after a resize, SESSIONS takes %d rows, want it laid out afresh, a row saying none run", r)
+	}
+}
+
+// threeRunning are three sessions running, two on side and one on work.
+func threeRunning() []status.Session {
+	return []status.Session{
+		sessionOn(idD28C, "claude-opus-5-5", "side", 10*time.Second),
+		sessionOn(id7F3A, "claude-sonnet-5-5", "side", time.Minute),
+		sessionOn(id9E21, "claude-haiku-4-5", "work", 2*time.Minute),
+	}
+}
+
+func TestOnlyAKeyThePageActsOnLaysTheOverviewOutAfresh(t *testing.T) {
+	tests := []struct {
+		name string
+		keys []string
+	}{
+		{name: "help's keys: scrolling it, and closing it", keys: []string{"?", "j", "pgdown", "k", "esc"}},
+		{name: "the routing card's: moving in it, and closing it", keys: []string{"p", "down", "esc"}},
+		{name: "keys the page doesn't take", keys: []string{"w", "1", "m", "x"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+			h.start()
+			h.deliver(h.press("s")...)
+			first, rows := h.sessionsRows()
+			h.source.sessions = threeRunning()
+			h.tickUntilAsked()
+
+			for _, key := range tt.keys {
+				h.deliver(h.press(key)...)
+			}
+			if f, r := h.sessionsRows(); f != first || r != rows {
+				t.Errorf("after %q, SESSIONS is laid out on %d rows from row %d; want the %d from row %d it was given, the page behind a card standing still",
+					tt.keys, r, f+1, rows, first+1)
+			}
+		})
+	}
+}
+
+// The screen a message leaves is drawn as Update takes it in, where the page
+// settles anything, frames reading what moves from that one drawing: so it's
+// drawn laid out as the key has it, even with nothing moving on screen.
+func TestTheScreenAKeyLeavesIsLaidOutAsTheKeyLaysItOut(t *testing.T) {
+	h := routedHarness(t, withEvents(2, 1))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	for _, key := range []string{"s", "r", "l"} {
+		h.deliver(h.press(key)...)
+	}
+	h.settle()
+	h.source.sessions = threeRunning()
+	h.startRouter(withEvents(3, 2, 1))
+	h.tickUntilAsked()
+	if got := h.fresh(); !slices.Equal(got, []int{3}) {
+		t.Fatalf("picked out %v, want 3, new to the look, LATELY hidden", got)
+	}
+	if _, framing := h.pendingFrame(); framing {
+		t.Fatal("a frame is armed, want none, nothing moving on screen")
+	}
+	if _, r := h.sessionsRows(); r != 3 {
+		t.Fatalf("three sessions started, SESSIONS takes %d rows, want the 3 it was given kept", r)
+	}
+
+	h.deliver(h.press("j")...)
+	if _, r := h.sessionsRows(); r != 5 {
+		t.Errorf("after a key, SESSIONS is drawn on %d rows, want it as the key lays it out afresh, a row a session", r)
 	}
 }
 

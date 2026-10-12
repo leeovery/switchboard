@@ -16,31 +16,54 @@ type Motion struct {
 	Smooth, Shimmer bool
 }
 
-// Motion is what moves on screen of the frame of doc at now: what travels
-// the cords Sessions' switchboard shows, as travelling has it, but nothing
-// of a view too short to be drawn, as cramped says; and anything the page
-// draws settling, as settling says.
+// Motion is what moves on screen of the frame of doc at now, as moving has
+// it: its page drawn to know only where anything on it may settle, as
+// MaySettle says, as what travels the cords needs none of it drawn.
 func (f Frame) Motion(doc status.Document, now time.Time) Motion {
-	var moving Motion
-	if !f.cramped() && f.View == Sessions {
-		moving = f.travelling(doc, now)
+	if !f.MaySettle() {
+		return f.travel(doc, now)
 	}
-	moving.Smooth = moving.Smooth || f.settling(doc, now)
+	return f.moving(f.page(doc, now), doc, now)
+}
+
+// moving is what moves on screen of the frame of doc at now, its page drawn
+// on c: what travels the cords, as travel has it; and anything the page
+// draws settling, as settling says.
+func (f Frame) moving(c *canvas, doc status.Document, now time.Time) Motion {
+	moving := f.travel(doc, now)
+	moving.Smooth = moving.Smooth || f.settling(c)
 	return moving
 }
 
-// settling reports whether anything the frame's page draws of doc at now
-// settles still: a number brightening, as its Brightened says; a bar
-// easing, as its Eased says; or a cue fading back, on an event fresh, as its
-// Fresh says, an account's state changed, as its Changed says, or a window's
-// words turned to out ~, as its TurnedOut says. What the page doesn't draw
-// never does, as one scrolled out of view, in a section folded, or left off
-// for want of room.
-func (f Frame) settling(doc status.Document, now time.Time) bool {
-	if len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.TurnedOut) == 0 {
+// travel is what travels the cords Sessions' switchboard shows, as
+// travelling has it, but nothing of a view too short to be drawn, as
+// cramped says.
+func (f Frame) travel(doc status.Document, now time.Time) Motion {
+	if f.cramped() || f.View != Sessions {
+		return Motion{}
+	}
+	return f.travelling(doc, now)
+}
+
+// MaySettle reports whether anything the frame's page draws may be
+// settling: a number brightening, as its Brightened says; a bar easing, as
+// its Eased says; or a cue fading back, on an event fresh, as its Fresh
+// says, an account's state changed, as its Changed says, or a window's words
+// turned to out ~, as its TurnedOut says. Where nothing may, what moves on
+// screen needs none of the page drawn.
+func (f Frame) MaySettle() bool {
+	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.TurnedOut) > 0
+}
+
+// settling reports whether anything the frame's page, drawn on c, settles
+// still, as MaySettle has it may. What the page doesn't draw never does, as
+// one scrolled out of view, in a section folded, or left off for want of
+// room.
+func (f Frame) settling(c *canvas) bool {
+	if !f.MaySettle() {
 		return false
 	}
-	for _, row := range f.page(doc, now).cells {
+	for _, row := range c.cells {
 		for _, here := range row {
 			if here.mark != (unique.Handle[mark]{}) && f.settles(here.mark.Value()) {
 				return true

@@ -7,9 +7,11 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 func TestEaseOutCubic(t *testing.T) {
@@ -96,12 +98,14 @@ func TestBarsEaseFromWhereTheyStand(t *testing.T) {
 	h.read(sessionAndWeek(0.75, 0.25))
 	checkScreen(t, h, 0.5, 0.25)
 	h.clock.now = at(13, 20, 0).Add(easeFor / 2)
+	h.redraw()
 	checkScreen(t, h, 0.71875, 0.25)
 
 	// A read arriving mid-way sets off again from the bars as drawn.
 	h.read(sessionAndWeek(0.25, 0.25))
 	checkScreen(t, h, 0.71875, 0.25)
 	h.clock.now = h.clock.now.Add(easeFor)
+	h.redraw()
 	checkScreen(t, h, 0.25, 0.25)
 }
 
@@ -198,6 +202,67 @@ func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
 		}
 		if _, framing := h.pendingFrame(); framing != read.frames {
 			t.Errorf("%s: a frame is armed: %t, want %t", read.name, framing, read.frames)
+		}
+	}
+}
+
+// drawnAfresh is the screen as View draws it of the model as it stands,
+// keeping nothing Update drew.
+func (h *harness) drawnAfresh() string {
+	m := h.model
+	m.shown = shown{}
+	return m.View().Content
+}
+
+// Where anything may settle, Update draws the screen once, to know what
+// moves on it, and View shows that drawing rather than drawing it again: a
+// frame among them, so a frame is drawn once. Where a frame is armed to come
+// sooner, Update draws nothing, and View draws the screen.
+func TestTheScreenUpdateDrawsIsTheScreenDrawnAfresh(t *testing.T) {
+	using := func(a *status.Account) { a.Windows[0].Utilization = 0.75 }
+	h, _ := themedHarness(t, theme.One("nord"))
+	ten := tenWith(using)
+	h.source.router = &ten
+	h.model.sections = dashboard.Sections{}.Toggled(dashboard.SectionRouting).Toggled(dashboard.SectionComing).Toggled(dashboard.SectionLately)
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	h.start()
+	h.answer(darkBackground)
+	h.settle()
+	if view := h.view(); strings.Contains(view, "10 studio") {
+		t.Fatalf("the screen is\n%s\nwant USAGE too short for studio, scrolled out of view", view)
+	}
+	read := func(moved ...string) func() {
+		return func() {
+			h.startRouter(tenWith(using, moved...))
+			h.tickUntilAsked()
+		}
+	}
+	steps := []struct {
+		name  string
+		take  func()
+		drawn bool
+	}{
+		{name: "a read moving a bar out of view", take: read("studio"), drawn: true},
+		{name: "a key opening the theme picker", take: func() {
+			if h.typed("t"); !h.model.picker.open {
+				t.Fatal("t opened no picker")
+			}
+		}, drawn: true},
+		{name: "a key in the picker", take: func() { h.typed("down") }, drawn: true},
+		{name: "a read moving a bar on screen", take: read("studio", "work"), drawn: true},
+		{name: "a frame", take: func() {
+			tm, _ := h.pendingFrame()
+			h.fire(tm)
+		}, drawn: true},
+		{name: "a key in the picker, a frame armed", take: func() { h.typed("down") }},
+	}
+	for _, step := range steps {
+		step.take()
+		if h.model.shown.drawn != step.drawn {
+			t.Errorf("%s: Update drew the screen %t, want %t", step.name, h.model.shown.drawn, step.drawn)
+		}
+		if got, want := h.model.View().Content, h.drawnAfresh(); got != want {
+			t.Errorf("%s: the screen is\n%s\nwant it as drawn afresh\n%s", step.name, ansi.Strip(got), ansi.Strip(want))
 		}
 	}
 }

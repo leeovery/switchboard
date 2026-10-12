@@ -40,13 +40,6 @@ func (m Model) traced(t tracedLines) Model {
 	return m
 }
 
-// toldTraces takes in the requests the stream told of going upstream, for
-// the traces.
-func (m Model) toldTraces(events []router.StreamEvent) Model {
-	m.traces = m.traces.Told(sentOf(events), m.now())
-	return m
-}
-
 // sentOf are the requests the events tell of going upstream, as the traces
 // count them: each as it goes out, or as it was last sent, in flight as the
 // stream opens; never the client's quota check, or a count of tokens.

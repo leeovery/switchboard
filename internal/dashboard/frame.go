@@ -97,13 +97,27 @@ type Frame struct {
 // where a card is open, fades the page and draws the card over it.
 // Countdowns run from now, and times show in now's time zone.
 func (f Frame) Draw(doc status.Document, now time.Time) []string {
+	return f.finish(f.page(doc, now)).rows(f.Look)
+}
+
+// Rendered is the frame of doc at now drawn once: its rows, as Draw draws
+// them, and what moves on screen in it, as moving reads it off the same page.
+func (f Frame) Rendered(doc status.Document, now time.Time) ([]string, Motion) {
 	c := f.page(doc, now)
+	moving := f.moving(c, doc, now)
+	return f.finish(c).rows(f.Look), moving
+}
+
+// finish finishes the page drawn on c: its numbers brightened as Brightened
+// says; then, where a card is open, the page faded and the card drawn over
+// it.
+func (f Frame) finish(c *canvas) *canvas {
 	c.brighten(f.Brightened, f.Look)
 	if f.Card != nil {
 		c.fade()
 		f.Card.card(f).draw(c)
 	}
-	return c.rows(f.Look)
+	return c
 }
 
 // page draws the frame's page of doc at now from the top: its title row, its

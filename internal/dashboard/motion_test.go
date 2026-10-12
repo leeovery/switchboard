@@ -1,12 +1,27 @@
 package dashboard
 
 import (
+	"slices"
+	"strings"
 	"testing"
 	"time"
 	"unique"
 
 	"github.com/leeovery/switchboard/internal/status"
 )
+
+func TestARenderedFrameIsDrawnAsDrawDrawsIt(t *testing.T) {
+	f := frameOf(160, 60)
+	f.Look = Screen(builtin(t, "nord"))
+	f.Brightened = map[Number]float64{workSession: 0.5}
+	f.Changed = map[string]float64{"work": 0.25}
+	for _, card := range []Opened{nil, Help{}} {
+		f.Card = card
+		if got, _ := f.Rendered(threeRouted(), now); !slices.Equal(got, f.Draw(threeRouted(), now)) {
+			t.Errorf("under %T, Rendered's rows are\n%s\nwant them as Draw draws them\n%s", card, strings.Join(got, "\n"), strings.Join(f.Draw(threeRouted(), now), "\n"))
+		}
+	}
+}
 
 func TestACueMarksWhatItPicksOutCuedAsWellAsWhatItWas(t *testing.T) {
 	workBar := Ref{Account: "work", Window: "5h"}
@@ -115,6 +130,9 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 			tt.settle(&f)
 			if got := f.Motion(tt.doc, tt.at); got.Smooth != tt.want {
 				t.Errorf("Motion is %+v, want Smooth %t", got, tt.want)
+			}
+			if _, got := f.Rendered(tt.doc, tt.at); got != f.Motion(tt.doc, tt.at) {
+				t.Errorf("Rendered's motion is %+v, want it as Motion has it", got)
 			}
 		})
 	}

@@ -287,6 +287,18 @@ func (h *harness) pendingFrames() []*timer {
 	return frames
 }
 
+// nudgeMsg is a message the model takes in doing nothing with it, as Bubble
+// Tea passes on many.
+type nudgeMsg struct{}
+
+// redraw has the screen drawn as the model stands at the clock's time, as
+// Bubble Tea draws it after any message: the clock moved by hand moves
+// nothing on screen till one comes.
+func (h *harness) redraw() {
+	h.t.Helper()
+	h.update(nudgeMsg{})
+}
+
 // settle fires frames until the bars have eased to their readings.
 func (h *harness) settle() {
 	h.t.Helper()

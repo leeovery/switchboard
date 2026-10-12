@@ -176,18 +176,26 @@ func sessionsStreaming(t *testing.T) *harness {
 }
 
 func TestANumberTheStreamChangesBrightens(t *testing.T) {
+	routing := func(t *testing.T) *harness { return streamingOn(t, dashboard.Sections{}) }
+	sent := told(router.StreamSent, "r1", "work", 0)
+	moved := alter(told(router.StreamMoved, "r1", "side", 0), func(e *router.StreamEvent) { e.From, e.To, e.Reason = "work", "side", "pinned" })
 	tests := []struct {
 		name    string
 		harness func(t *testing.T) *harness
+		told    router.StreamEvent
 		numbers []dashboard.Number
 	}{
-		{name: "ROUTING's rate, as a request goes out", harness: func(t *testing.T) *harness { return streamingOn(t, dashboard.Sections{}) }, numbers: []dashboard.Number{workRate}},
-		{name: "SESSIONS' rate, as its session's request goes out, and its account's", harness: sessionsStreaming, numbers: []dashboard.Number{d28cRate, workRate}},
+		{name: "ROUTING's rate, as a request goes out", harness: routing, told: sent, numbers: []dashboard.Number{workRate}},
+		{name: "SESSIONS' rate, as its session's request goes out, and its account's", harness: sessionsStreaming, told: sent, numbers: []dashboard.Number{d28cRate, workRate}},
+		{
+			name: "ROUTING's sessions, as a session moves", harness: routing, told: moved,
+			numbers: []dashboard.Number{workSessions, {Kind: dashboard.NumberSessions, Account: "side"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := tt.harness(t)
-			h.hear(told(router.StreamSent, "r1", "work", 0))
+			h.hear(tt.told)
 			for _, n := range tt.numbers {
 				if got := h.brightened()[n]; got != 1 {
 					t.Errorf("%+v, %q, is %v bright, want 1", n, h.drawnNumber(n), got)
