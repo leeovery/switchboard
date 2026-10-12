@@ -315,14 +315,14 @@ func TestEveryAccountIsNumberedRightAlignedOnceThereAreTen(t *testing.T) {
 	}
 }
 
-func TestTheWindowsGivenPrintInClaudesOrder(t *testing.T) {
+func TestTheWindowsGivenPrintAlone(t *testing.T) {
 	tests := []struct {
 		name    string
 		windows []string
 		want    []string
 	}{
-		{name: "none given: every one", want: []string{"5-HOUR", "WEEK", "FABLE WEEK"}},
-		{name: "given out of order", windows: []string{"7d_oi", "5h"}, want: []string{"5-HOUR", "FABLE WEEK"}},
+		{name: "none given: every one, in Claude's order", want: []string{"5-HOUR", "WEEK", "FABLE WEEK"}},
+		{name: "two given", windows: []string{"5h", "7d_oi"}, want: []string{"5-HOUR", "FABLE WEEK"}},
 		{name: "the week alone", windows: []string{"7d"}, want: []string{"WEEK"}},
 	}
 	for _, tt := range tests {
@@ -413,6 +413,21 @@ func TestThePoolIsLastAndCountsTheAccountsNewSessionsCanGoTo(t *testing.T) {
 		return strings.Contains(r, "Σ") || strings.Contains(r, "─")
 	}) {
 		t.Errorf("one account's printout has a pool:\n%s", strings.Join(got, "\n"))
+	}
+}
+
+func TestThePoolSaysItsPinnedOnTheFirstWindowItHasWordsFor(t *testing.T) {
+	noSession := func(a *status.Account) { a.Windows = a.Windows[1:] }
+	pinned := trio(pinnedTo("personal", "side"), account("personal", noSession), account("side", noSession))
+	rows := printed(pinned, 160, ByWindow)
+	if got := colAt(rows[10], 39, 22); strings.TrimSpace(got) != "" {
+		t.Errorf("the pool's 5-hour window, which its accounts don't report, reads %q, want no words", got)
+	}
+	if got := colAt(rows[10], 87, 22); !strings.HasSuffix(got, " of 2 left · pinned") {
+		t.Errorf("the pool's week, the first window it has words for, reads %q, want its room of 2, pinned", got)
+	}
+	if got := colAt(rows[10], 135, 22); strings.Contains(got, "pinned") || !strings.Contains(got, " of 2 left") {
+		t.Errorf("the pool's Fable week reads %q, want its room of 2, not saying pinned again", got)
 	}
 }
 
@@ -577,15 +592,35 @@ func TestTheWindowsAreNamedAsNameNamesThem(t *testing.T) {
 	}
 }
 
-func TestAStaleReadingFromAnotherDayReadsInFullWhereItsWordsHaveRoom(t *testing.T) {
-	stale := trio(account("work", func(a *status.Account) {
-		a.Error, a.FetchedAt = "HTTP 529 · Overloaded", on(30, 12, 42).AddDate(0, -1, 0).UTC()
-	}))
-	if got, want := colAt(printed(stale, 160, ByWindow)[4], 39, 25), "not read since Wed 12:42 "; got != want {
-		t.Errorf("in the matrix, the stale account's words read %q, want %q, in full in the cells before the next group", got, want)
+func TestWordsACellTooLongInFullAreShortLeavingTheCellsAfterThemBlank(t *testing.T) {
+	// Work's week at its cap reads "at cap · back Sun 21:00" in full: 23
+	// cells, a cell more than the 22 the words have.
+	capped := trio(account("work", func(a *status.Account) { a.Windows[1].Utilization = 0.96 }))
+	tests := []struct {
+		name      string
+		width     int
+		by        By
+		row       int
+		wordsAt   int
+		blankFrom int
+		blank     int
+	}{
+		{name: "the matrix, the 3 cells before the next group", width: 160, by: ByWindow, row: 4, wordsAt: 87, blankFrom: 87 + 22, blank: 3},
+		{name: "stacked, the last column", width: 120, by: ByWindow, row: 15, wordsAt: 97, blankFrom: 119, blank: 1},
+		{name: "by account, wide, the last column", width: 160, by: ByAccount, row: 5, wordsAt: 137, blankFrom: 159, blank: 1},
+		{name: "by account, narrow, the last column", width: 100, by: ByAccount, row: 8, wordsAt: 77, blankFrom: 99, blank: 1},
 	}
-	if got, want := colAt(printed(stale, 120, ByWindow)[4], 97, 23), "read Wed"; got != want {
-		t.Errorf("stacked, the stale account's words read %q, want %q, short, as in full they'd run past the edge", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := printed(capped, tt.width, tt.by)
+			row := rows[tt.row]
+			if got := strings.TrimRight(colAt(row, tt.wordsAt, 22), " "); got != "back Sun" {
+				t.Fatalf("work's week reads %q from column %d, want %q, short, as in full it runs a cell over:\n%s", got, tt.wordsAt, "back Sun", strings.Join(rows, "\n"))
+			}
+			if got := colAt(row, tt.blankFrom, tt.blank); strings.TrimSpace(got) != "" {
+				t.Errorf("row %d reads %q from column %d, want it blank", tt.row, got, tt.blankFrom)
+			}
+		})
 	}
 }
 

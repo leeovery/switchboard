@@ -312,7 +312,7 @@ func TestAWindowsWordsCueDrawsFramesOnlyOnScreen(t *testing.T) {
 		if _, ok := h.model.changes.turnedOut(seen)[dashboard.Ref{Account: read.words, Window: "7d"}]; !ok {
 			t.Fatalf("%s: %s's week's words aren't cued, want them turned to out ~", read.name, read.words)
 		}
-		if eased, bright := h.model.ease.eased(h.model.doc, seen, policy), h.brightened(); len(eased)+len(bright) > 0 {
+		if eased, bright := h.model.ease.eased(h.model.frame(seen), h.model.doc, seen), h.brightened(); len(eased)+len(bright) > 0 {
 			t.Fatalf("%s: the look eased %v and brightened %v, want the cue alone", read.name, eased, bright)
 		}
 		if _, framing := h.pendingFrame(); framing != read.frames {

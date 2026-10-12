@@ -313,6 +313,27 @@ func TestAFirstReadThatFailsOtherwiseSaysWhyTillAReadFindsTheRouterGone(t *testi
 	}
 }
 
+func TestAFirstReadSaysTheLatestReadsNewsTheRouterGoneOrAProbesOwnReason(t *testing.T) {
+	h := newHarness(t, probedWithoutTheRouter())
+	h.source.err = errors.New("the keychain is locked")
+	h.start()
+	asked := h.tickUntilAsked() // A question after the router, which finds it gone.
+	if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "■ the router isn't answering  ·  since "+asked.Format("15:04:05"); got != want {
+		t.Fatalf("once a question finds the router gone, the status line reads %q; want %q", got, want)
+	}
+
+	h.tickUntilRead() // A full read, whose probe fails for its own reason.
+	want := "! couldn't read usage: the keychain is locked  ·  next "
+	if got := strings.TrimSpace(strings.Split(h.view(), "\n")[2]); !strings.HasPrefix(got, want) || !h.model.lost.IsZero() {
+		t.Errorf("once a probe fails for its own reason, the status line reads %q, the router lost at %v; want it to start %q, the router not lost", got, h.model.lost, want)
+	}
+
+	asked = h.tickUntilAsked()
+	if got, want := strings.TrimSpace(strings.Split(h.view(), "\n")[2]), "■ the router isn't answering  ·  since "+asked.Format("15:04:05"); got != want {
+		t.Errorf("once a question finds the router gone again, the status line reads %q; want %q", got, want)
+	}
+}
+
 func TestAProbeThatFailsUnderAProbedDocumentSaysWhyThoughTheRouterIsFoundGone(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	h.start()

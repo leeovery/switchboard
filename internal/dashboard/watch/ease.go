@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -16,11 +15,12 @@ const (
 	frameEvery = time.Second / 30
 )
 
-// easing moves each bar from where it stood when a document arrived to that
-// document's reading, by its account and window's key. A bar it has no start
-// for rises from nothing.
+// easing moves each bar from where it stood when a document arrived to the
+// bar its view draws of that document, as Filled has them, view by view, as
+// each draws its own: by its window's account and key, the pool's by its key
+// alone. A bar it has no start for rises from nothing.
 type easing struct {
-	from  map[dashboard.Ref]float64
+	from  map[dashboard.View]map[dashboard.Ref]float64
 	start time.Time
 }
 
@@ -29,46 +29,50 @@ func (e easing) done(now time.Time) bool {
 	return now.Sub(e.start) >= easeFor
 }
 
-// eased are how much of each window whose bar the easing moves to doc's
-// reading the bar fills at now, by its account and key: none of a bar that
-// stands where it's read, and none once the easing's over.
-func (e easing) eased(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]float64 {
+// eased are how much of each bar of f's view the easing moves fills at now,
+// by its window's account and key, the pool's by its key alone, on its way
+// from where it stood to filling as the view draws it of doc, as Filled has
+// it of f: none of a bar that stands where it's drawn, and none once the
+// easing's over.
+func (e easing) eased(f dashboard.Frame, doc status.Document, now time.Time) map[dashboard.Ref]float64 {
 	if e.done(now) {
 		return nil
 	}
+	return e.towards(f.View, f.Filled(doc, now), now)
+}
+
+// towards are how much of each bar of the view given, filled as filled has
+// it, the easing has it fill at now: none of a bar that stands where it's
+// filled.
+func (e easing) towards(view dashboard.View, filled map[dashboard.Ref]float64, now time.Time) map[dashboard.Ref]float64 {
 	t := easeOutCubic(progress(now.Sub(e.start), easeFor))
 	eased := make(map[dashboard.Ref]float64)
-	for ref, to := range utilizations(doc, now, policy) {
-		if from := e.from[ref]; from != to {
+	for ref, to := range filled {
+		if from := e.from[view][ref]; from != to {
 			eased[ref] = lerp(from, to, t)
 		}
 	}
 	return eased
 }
 
-// standing are how much of each of doc's windows its bar fills at now, by
-// its account and key: as far as it has eased, where it's easing, else as
-// read.
-func (e easing) standing(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]float64 {
-	stand := utilizations(doc, now, policy)
-	maps.Copy(stand, e.eased(doc, now, policy))
-	return stand
-}
-
-// utilizations are how much of each of doc's windows is used, by its
-// account and key, and of each of its pool's at now, as policy judges it, by
-// its key alone, as the pool's bars fill to.
-func utilizations(doc status.Document, now time.Time, policy score.Policy) map[dashboard.Ref]float64 {
-	used := make(map[dashboard.Ref]float64)
-	for _, a := range doc.Accounts {
-		for _, w := range a.Windows {
-			used[dashboard.Ref{Account: a.ID, Window: w.Key}] = w.Utilization
+// standing are how much of each bar of each view that draws any of doc fills
+// at now, view by view, by its window's account and key, the pool's by its
+// key alone: as far as it has eased, where it's easing, else as the view
+// draws it, as Filled has it of f.
+func (e easing) standing(f dashboard.Frame, doc status.Document, now time.Time) map[dashboard.View]map[dashboard.Ref]float64 {
+	stand := make(map[dashboard.View]map[dashboard.Ref]float64)
+	for _, view := range dashboard.Views() {
+		f.View = view
+		filled := f.Filled(doc, now)
+		if filled == nil {
+			continue
 		}
+		if !e.done(now) {
+			maps.Copy(filled, e.towards(view, filled, now))
+		}
+		stand[view] = filled
 	}
-	for _, p := range doc.PoolAt(now, policy).Windows {
-		used[dashboard.Ref{Window: p.Key}] = p.Used
-	}
-	return used
+	return stand
 }
 
 // easeOutCubic eases t, from 0 to 1: quick at first, slowing to a stop.

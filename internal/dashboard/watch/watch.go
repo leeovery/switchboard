@@ -201,7 +201,8 @@ type Model struct {
 	// under way lands.
 	again bool
 	// lost is when the router stopped answering, while the dashboard shows
-	// its last document, or has read nothing since: zero once a read lands.
+	// its last document, or has read nothing since: zero once a read lands,
+	// and before any document, once one fails for a reason of its own.
 	lost time.Time
 	// failed is why the last read failed, while it's the last: "" once one
 	// lands, and for a look that found the router gone.
@@ -667,27 +668,35 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // windows are grouped, the requests its traces count and its layout as
 // kept, how far ahead Runway looks, the sessions listed, what the request
 // stream tells of their requests and the order Sessions' calls keep, how far
-// the view is scrolled, and the account the focus is on.
+// the view is scrolled, and the account the focus is on. Its pool is judged
+// at now once, as Judged has it, for its bars eased to it and every look at
+// it to share.
 func (m Model) frame(now time.Time) dashboard.Frame {
-	return dashboard.Frame{
+	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now, m.cfg.Policy),
+		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
 		History:    m.past.page,
-	}
+	}.Judged(m.doc, now)
+	f.Eased = m.ease.eased(f, m.doc, now)
+	return f
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
-// a width or height it gives as zero, and closes the theme picker should it
-// no longer fit.
+// a width or height it gives as zero; lists help's keys afresh while it's
+// open, as the page behind it may scroll at the new size or no longer; and
+// closes the theme picker should it no longer fit.
 func (m Model) resized(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	given := Size{Width: msg.Width, Height: msg.Height}
 	m.size = given.or(m.size)
+	if m.open == helpOpen {
+		m = m.relistHelp()
+	}
 	m, closed := m.fitPicker()
 	if m.size == given {
 		return m, closed
@@ -736,11 +745,14 @@ func fetchFrom(ctx context.Context, source Source, r status.Read) fetchedMsg {
 
 // fetched takes in a read: the document to show from now on, or why there's
 // none, and plans the next read by it. A read that fails notes why, and the
-// router lost, as lose does: a question after the router, or a look at its
+// router lost, as lose does. Before any document, from a source that asks the
+// router first, as awaitsRouter has it, the status line says the latest
+// read's news either way: a question after the router, or a look at its
 // document, that found it gone has no why of its own, and clears the last
-// read's only where the status line then says the router isn't answering, as
-// awaitsRouter has it, the newer news replacing the older; elsewhere the
-// last read's why stands, as nothing new was found. Each read starts a new
+// read's, the status line saying the router isn't answering; and a read that
+// failed for a reason of its own clears the router's loss, the status line
+// saying that reason. Elsewhere a read that found the router gone leaves the
+// last read's why standing, as nothing new was found. Each read starts a new
 // chain of ticks at the pace it calls for, and lets a look at the router's
 // document asked for while it was under way go ahead.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
@@ -757,6 +769,9 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	case msg.err != nil:
 		m.plan = m.plan.failed(m.doc, now)
 		m.failed = redact.Text(msg.err.Error())
+		if m.awaitsRouter() {
+			m.lost = time.Time{}
+		}
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
@@ -824,7 +839,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
-	m.ease = easing{from: m.ease.standing(m.doc, now, m.cfg.Policy), start: now}
+	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
 	switch {
 	case msg.listed || !routed(doc):

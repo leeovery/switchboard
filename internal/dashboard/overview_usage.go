@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/status"
@@ -55,11 +56,12 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 // Overview alone has. By account from 150 columns, its bars leave room for
 // ROUTING beside them. While GRAPHS shows, the matrix picks out the account
 // the focus is on. Its key line names the marks the accounts carry. An
-// account out of the pool is faint, as overviewGauge draws its windows and
-// overviewNames its name.
+// account out of the pool, as the frame judges it at now, is faint, as
+// overviewGauge draws its windows and overviewNames its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
-	names := overviewNames(doc)
-	b := blockOf(doc, now, f.Policy, f.Width, f.Look, f.By, f.overviewWindows(doc), names)
+	pool := f.pool(doc, now)
+	names := overviewNames(doc, pool)
+	b := blockOf(doc, now, pool, f.Width, f.Look, f.By, f.overviewWindows(doc), names)
 	b.marks = keyMarks(names, f.phone())
 	if f.By == ByAccount && f.Width >= matrixWidth {
 		b.accountBar = besideBar - (b.names - matrixNames)
@@ -97,9 +99,9 @@ func (f Frame) windowNamer(doc status.Document) func(key string) string {
 
 // overviewNames are the names of doc's accounts as the Overview names them
 // wherever it does: as namesOf has them, but faint, number, label and marks,
-// where an account is out of the pool.
-func overviewNames(doc status.Document) []accountName {
-	names := namesOf(doc)
+// where an account is out of the pool given.
+func overviewNames(doc status.Document, pool status.Pool) []accountName {
+	names := namesOf(doc, pool)
 	for i := range names {
 		names[i].faint = names[i].out
 	}
@@ -183,50 +185,71 @@ func (b usageBlock) routingAt() int {
 	return b.names + windowLabelCells + b.accountBar + afterBar + fullCells + besideCells
 }
 
-// enlarged is the block with its big bars, by window from 150 columns: its
-// windows stacked as sections at the full width. Otherwise it's as it is.
+// enlarged is the block with its big bars, where it has them, as enlarges
+// says. Otherwise it's as it is.
 func (b usageBlock) enlarged() usageBlock {
-	if b.by == ByWindow && b.width >= matrixWidth {
+	if b.enlarges() {
 		b.big = true
 	}
 	return b
 }
 
-// usageViews are the block's views, as USAGE shows it in however many rows
-// it's given, scrolled however far: the block; the rows it takes with its big
-// bars, and as it's laid out; how many accounts it has; and the rows each
-// account in view adds, and each mark, ▲ or ▼, as of counts them.
-type usageViews struct {
-	block         usageBlock
-	big, all      int
-	accounts      int
-	account, mark int
+// enlarges reports whether the block has big bars: by window from 150
+// columns, its windows stacked as sections at the full width.
+func (b usageBlock) enlarges() bool {
+	return b.by == ByWindow && b.width >= matrixWidth
 }
 
-// views are the block's views, worked out from three layouts of it at most,
-// as every account's rows are alike, and ▲ and ▼ take a row each in each
-// window's section: every account in view, all but the last, and all but the
-// last two. With two accounts, a view of one has a mark, so the account's
-// rows count the mark's.
+// usageViews are the block's views, as USAGE shows it in however many rows
+// it's given, scrolled however far: the block; the rows it takes with its big
+// bars, and as it's laid out; how many accounts it has; and, worked out only
+// once it scrolls, the rows each account in view adds, and each mark, ▲ or
+// ▼, as of counts them.
+type usageViews struct {
+	block    usageBlock
+	big, all int
+	accounts int
+	steps    func() (account, mark int)
+}
+
+// views are the block's views, laid out once as it is, and once more with
+// its big bars where it has them, as enlarges says.
 func (b usageBlock) views() usageViews {
 	accounts, _ := b.split()
+	all := b.height()
+	v := usageViews{block: b, big: all, all: all, accounts: len(accounts)}
+	if b.enlarges() {
+		v.big = b.enlarged().height()
+	}
+	v.steps = sync.OnceValues(func() (int, int) { return b.steps(all) })
+	return v
+}
+
+// steps are the rows the block, all rows tall with every account in view,
+// takes for each account in view, and for each mark, ▲ or ▼: worked out from
+// two more layouts of it at most, as every account's rows are alike, and ▲
+// and ▼ take a row each in each window's section: all but the last account
+// in view, and all but the last two. With two accounts, a view of one has a
+// mark, so the account's rows count the mark's.
+func (b usageBlock) steps(all int) (account, mark int) {
+	accounts, _ := b.split()
 	n := len(accounts)
-	v := usageViews{block: b, big: b.enlarged().height(), all: b.height(), accounts: n}
 	if n < 2 {
-		return v
+		return 0, 0
 	}
 	oneBelow := b.shows(0, n-1).height()
-	v.account = v.all - oneBelow
+	account = all - oneBelow
 	if n > 2 {
-		v.account = oneBelow - b.shows(0, n-2).height()
-		v.mark = oneBelow + v.account - v.all
+		account = oneBelow - b.shows(0, n-2).height()
+		mark = oneBelow + account - all
 	}
-	return v
+	return account, mark
 }
 
 // of is how many rows the block takes, as height has them, with above
 // accounts' rows out of view above, shown in view, and the rest below.
 func (v usageViews) of(above, shown int) int {
+	account, mark := v.steps()
 	marks := 0
 	if above > 0 {
 		marks++
@@ -234,7 +257,7 @@ func (v usageViews) of(above, shown int) int {
 	if v.accounts-above-shown > 0 {
 		marks++
 	}
-	return v.all - (v.accounts-shown)*v.account + marks*v.mark
+	return v.all - (v.accounts-shown)*account + marks*mark
 }
 
 // fitted is the block as USAGE draws it in rows rows, scrolled offset

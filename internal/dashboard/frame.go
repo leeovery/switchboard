@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -39,9 +40,10 @@ type Frame struct {
 	TurnedOut map[Ref]float64
 	// Trails are how the accounts' windows have been used, for the charts.
 	Trails Trails
-	// Eased are how much of each window whose bar eases to the document's
-	// reading after a read the bar fills, by its account and key, the
-	// pool's by its key alone: nil once they're there. Everything else is drawn from the document's own.
+	// Eased are how much of each bar easing after a read it fills, by its
+	// window's account and key, the pool's by its key alone, on its way to
+	// filling as the view draws it of the document, as Filled has it: nil
+	// once they're there. Everything else is drawn from the document's own.
 	Eased map[Ref]float64
 	// Brightened are how bright each number a read or the request stream
 	// changed is still, as Numbers names them: from 1, just changed, to 0,
@@ -101,10 +103,47 @@ type Frame struct {
 	// their pages.
 	History HistoryPage
 
-	// built are the Overview's sections as Built built them, for every look
-	// the frame takes of their document at their moment to share: nil, where
-	// each look builds them afresh.
-	built *sectionsBuilt
+	// judged is the pool as Judged judged it, and built the Overview's
+	// sections as Built built them, each for every look the frame takes of
+	// their document at their moment to share: nil, where each look works
+	// them out afresh.
+	judged *poolJudged
+	built  *sectionsBuilt
+}
+
+// poolJudged is the pool of a document as Judged judges it at a moment:
+// judged once, the first time it's asked for.
+type poolJudged struct {
+	at   time.Time
+	pool func() status.Pool
+}
+
+// Judged is the frame with the pool of doc judged at now once, as its Policy
+// judges it, the first time a look asks, and shared by every look it, or a
+// copy of it, takes of doc at now after: wherever the Overview reads it, and
+// the bars eased to it, as Filled has them. A frame judged at now already is
+// as it was; a look at another moment judges it afresh.
+func (f Frame) Judged(doc status.Document, now time.Time) Frame {
+	if f.judges(now) {
+		return f
+	}
+	policy := f.Policy
+	f.judged = &poolJudged{at: now, pool: sync.OnceValue(func() status.Pool { return doc.PoolAt(now, policy) })}
+	return f
+}
+
+// judges reports whether the frame has judged its document's pool at now.
+func (f Frame) judges(now time.Time) bool {
+	return f.judged != nil && f.judged.at.Equal(now)
+}
+
+// pool is the pool of doc at now: as Judged judged it, where it judged it at
+// now, else judged afresh, as the frame's Policy judges it.
+func (f Frame) pool(doc status.Document, now time.Time) status.Pool {
+	if f.judges(now) {
+		return f.judged.pool()
+	}
+	return doc.PoolAt(now, f.Policy)
 }
 
 // Draw draws the frame of doc at now: a string for each of its rows, each,
