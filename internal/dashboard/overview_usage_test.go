@@ -243,8 +243,8 @@ func TestUSAGEScrollsAnAccountsRowsAtATimeAPageBeingThoseShownAtItsOffset(t *tes
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(tt.width, 60)
-			f.By, f.Scroll = tt.by, tt.scroll
-			if got := f.usageSection(manyRead(tt.n), now).scrolling(bounds{width: tt.width, rows: tt.rows}); got != tt.want {
+			f.By = tt.by
+			if got := f.usageSection(manyRead(tt.n), now).scrolling(tt.rows, tt.scroll); got != tt.want {
 				t.Errorf("in %d rows, scrolled %d down, %d accounts scroll %+v, want %+v", tt.rows, tt.scroll, tt.n, got, tt.want)
 			}
 		})

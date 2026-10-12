@@ -249,6 +249,11 @@ type Model struct {
 	stream  streaming
 	traffic traffic
 	traces  views.Traces
+	// toldBefore is what the stream had told before the message taken in
+	// told what can change a number the page draws, for compared to compare
+	// the numbers drawn of it with those drawn since: nil where it told
+	// nothing that can.
+	toldBefore *toldSoFar
 	// sections are the Overview's sections shown, and by how its windows are
 	// grouped; span is how far ahead Runway looks.
 	sections dashboard.Sections
@@ -282,10 +287,16 @@ type Model struct {
 	shown shown
 }
 
-// shown is what render made of the screen: what moves on it, which has
-// frames drawn; and where it drew the screen to know, as drawn says, the
-// view drawn, which View shows rather than drawing it again.
+// shown is the screen as the last message left it, for View to show, and
+// what moves on it, which has frames drawn: the live page, its sections built
+// once at the moment the message was taken in, as at says, which View draws
+// at that moment; and where render drew it, to know what moves, as drawn
+// says, the view drawn, which View shows rather than drawing it again.
+// Behind a card, and on a screen blank till the terminal says what its
+// background is, there's no page, and View draws the screen itself.
 type shown struct {
+	page   *dashboard.Frame
+	at     time.Time
 	moving dashboard.Motion
 	view   tea.View
 	drawn  bool
@@ -366,30 +377,43 @@ func (m Model) Init() tea.Cmd {
 
 // Update takes in a message, as take says, then has the watch read the
 // router's request stream while it wants it, and only then, price the moves
-// the routing card would make while it wants them; keeps the Overview's
-// layout, but for a frame, which takes nothing in to lay it out afresh by;
-// and only then, so frames see the layout the page will draw, draws frames
-// while anything on screen moves. The view is drawn again after each, which
-// is all a note's lapsing asks.
+// the routing card would make while it wants them. Then, of the page as it
+// stands at one moment, its Overview's sections built once for each to
+// share, it keeps the Overview's layout, but for a frame, which takes
+// nothing in to lay it out afresh by; brightens the numbers what the stream
+// told changed, as compared has it; and only then, so the screen and its
+// frames see the layout the page will draw and the numbers it brightens,
+// shows the page, drawing frames while anything on it moves. The view is
+// drawn again after each, which is all a note's lapsing asks.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, stream := next.(Model).tune()
 	tuned, costs := tuned.costing()
 	now := tuned.now()
+	page := tuned.frame(now).Built(tuned.doc, now)
 	if _, frame := msg.(frameMsg); !frame {
-		tuned = tuned.keepLayout(now)
+		tuned = tuned.keepLayout(page, now)
 	}
-	tuned, frames := tuned.startFrames(now)
+	tuned = tuned.compared(page, now)
+	tuned, frames := tuned.startFrames(page, now)
 	return tuned, tea.Batch(cmd, stream, costs, frames)
 }
 
-// keepLayout keeps the Overview's layout as the page lays it out at now, for
-// the looks after: as it was kept, but laid out afresh where an input the
-// page acts on let it go, as acting does, on a resize, or as a section's
+// keepLayout keeps the Overview's layout as page, built at now, lays it out,
+// for the looks after: as it was kept, but laid out afresh where an input
+// the page acts on let it go, as acting does, on a resize, or as a section's
 // shape changes, as LayoutOf has it.
-func (m Model) keepLayout(now time.Time) Model {
-	m.layout = m.frame(now).LayoutOf(m.doc, now)
+func (m Model) keepLayout(page dashboard.Frame, now time.Time) Model {
+	m.layout = page.LayoutOf(m.doc, now)
 	return m
+}
+
+// laidOut is page, built at now, as the model stands since: its Overview
+// laid out as kept, and its numbers as bright as they are at now, neither of
+// which its sections draw.
+func (m Model) laidOut(page dashboard.Frame, now time.Time) dashboard.Frame {
+	page.Layout, page.Brightened = m.layout, m.numbers.brightened(now)
+	return page
 }
 
 // acting is m as the page acts on an input, its Overview's layout let go,
@@ -400,22 +424,39 @@ func (m Model) acting() Model {
 	return m
 }
 
-// render works out what moves on screen at now, for frames to be drawn
-// while anything does. Where anything the page draws may be settling, it
-// draws the screen once to know, and keeps it for View to show; else what
-// moves needs no drawing, and View draws the screen. Nothing moves behind a
-// card, nor on a screen blank till the terminal says what its background is.
-func (m Model) render(now time.Time) Model {
+// shownOf is the screen page, built at now, shows, for View to draw: the
+// live page as the model stands since; but no page behind a card, nor on a
+// screen blank till the terminal says what its background is.
+func (m Model) shownOf(page dashboard.Frame, now time.Time) shown {
 	if m.open != nothingOpen || m.blank() {
-		return m
+		return shown{}
 	}
-	live := m.live(now)
-	if !live.MaySettle() {
-		m.shown.moving = live.Motion(m.doc, now)
-		return m
+	live := m.laidOut(page, now)
+	return shown{page: &live, at: now}
+}
+
+// shownPage is the live page shown, as it's drawn: its key line listing the
+// keys that work as the message was taken in.
+func (m Model) shownPage() dashboard.Frame {
+	page := *m.shown.page
+	page.KeyLine = m.keyLine(m.shown.at)
+	return page
+}
+
+// render works out what moves on the page shown, for frames to be drawn
+// while anything does. Where anything it draws may be settling, it draws the
+// screen once to know, and keeps it for View to show; else what moves needs
+// no drawing, and View draws the page. Nothing moves where there's no page.
+func (m Model) render() Model {
+	switch page, at := m.shown.page, m.shown.at; {
+	case page == nil:
+	case !page.MaySettle():
+		m.shown.moving = page.Motion(m.doc, at)
+	default:
+		live := m.shownPage()
+		lines, moving := live.Rendered(m.doc, at)
+		m.shown.view, m.shown.moving, m.shown.drawn = m.viewOf(lines, live.Look), moving, true
 	}
-	lines, moving := live.Rendered(m.doc, now)
-	m.shown = shown{view: m.viewOf(lines, live.Look), moving: moving, drawn: true}
 	return m
 }
 
@@ -473,15 +514,19 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View draws the dashboard full screen, as screen has it at the clock's
-// time: or shows it as render drew it, where render drew it as the last
-// message was taken in. In colour, it's drawn once the terminal has said
-// what its background is, or had its time to, so it never shows one theme
-// then another.
+// View draws the dashboard full screen as the last message left it: as
+// render drew it, where it did; else its live page, at the moment the
+// message was taken in, its sections as they were built then; else, as
+// behind a card, as screen has it at the clock's time. In colour, it's drawn
+// once the terminal has said what its background is, or had its time to, so
+// it never shows one theme then another.
 func (m Model) View() tea.View {
 	switch {
 	case m.shown.drawn:
 		return m.shown.view
+	case m.shown.page != nil:
+		live := m.shownPage()
+		return m.viewOf(live.Draw(m.doc, m.shown.at), live.Look)
 	case m.blank():
 		return blankView()
 	}
@@ -859,17 +904,17 @@ func (m Model) armTick(now time.Time) tea.Cmd {
 // behind the timer that brings it, has turned over.
 const stepSlack = time.Millisecond
 
-// startFrames arms the next frame, while anything on screen moves at now,
-// as nextFrame has it once render has worked out what does, unless the one
-// armed already comes as soon, as one armed to come within frameEvery does,
-// which asks nothing of render. Whatever render drew for a message before
-// is let go, View drawing the screen afresh where render draws none.
-func (m Model) startFrames(now time.Time) (Model, tea.Cmd) {
-	m.shown = shown{}
+// startFrames shows the screen of page, built at now, as shownOf has it, in
+// place of whatever a message before left, and arms the next frame, while
+// anything on screen moves at now, as nextFrame has it once render has worked
+// out what does, unless the one armed already comes as soon, as one armed to
+// come within frameEvery does, which asks nothing of render.
+func (m Model) startFrames(page dashboard.Frame, now time.Time) (Model, tea.Cmd) {
+	m.shown = m.shownOf(page, now)
 	if m.framing && !m.frameDue.After(now.Add(frameEvery)) {
 		return m, nil
 	}
-	m = m.render(now)
+	m = m.render()
 	next, moving := m.nextFrame(now)
 	if !moving || m.framing && !m.frameDue.After(now.Add(next)) {
 		return m, nil

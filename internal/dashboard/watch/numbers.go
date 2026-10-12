@@ -63,3 +63,18 @@ func (n numbers) brightened(now time.Time) map[dashboard.Number]float64 {
 func (m Model) numbersDrawn(now time.Time) map[dashboard.Number]string {
 	return m.frame(now).Numbers(m.doc, now)
 }
+
+// compared brightens each number page, built at now, draws that the message
+// taken in changed by what the request stream told, where told kept what it
+// had told before: its numbers then and page's, each drawn at now and laid
+// out as kept, compared as changed compares them.
+func (m Model) compared(page dashboard.Frame, now time.Time) Model {
+	if m.toldBefore == nil {
+		return m
+	}
+	before := m
+	before.traffic, before.traces = m.toldBefore.traffic, m.toldBefore.traces
+	m.numbers = m.numbers.changed(before.numbersDrawn(now), m.laidOut(page, now).Numbers(m.doc, now), now)
+	m.toldBefore = nil
+	return m
+}

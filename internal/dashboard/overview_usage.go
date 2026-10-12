@@ -45,7 +45,7 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 		targets: func(body bounds) []Target {
 			return block.fitted(body.rows, f.Scroll).targets(body)
 		},
-		scrolling: func(body bounds) Scrolling { return block.scrolling(body.rows, f.Scroll) },
+		scrolling: block.scrolling,
 	}
 }
 

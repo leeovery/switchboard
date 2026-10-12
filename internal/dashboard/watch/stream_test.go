@@ -416,6 +416,7 @@ func TestAMoveRePatchesThroughARejoinAndAViewSwitch(t *testing.T) {
 	h.keys(toSessions...)
 	h.hear(movedToSide(0)...)
 	h.clock.now = past(pulseFor + 100*time.Millisecond)
+	h.redraw()
 	const placeholder = "  d28c  ↪ moved to Side"
 	if !strings.Contains(h.view(), placeholder) {
 		t.Fatalf("d28c moved to side, the screen is\n%s\nwant it re-patched, %q", h.view(), placeholder)

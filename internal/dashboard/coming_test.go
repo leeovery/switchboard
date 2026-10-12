@@ -305,8 +305,8 @@ func TestCOMINGUPTakesItsLinesAndTwoRows(t *testing.T) {
 	}
 	for _, tt := range []struct{ things, least, most int }{{0, 5, 5}, {2, 5, 5}, {7, 5, 9}, {20, 5, 14}} {
 		s := frameOf(160, 40).comingSection(things(tt.things), now)
-		if s.least != tt.least || s.most != tt.most {
-			t.Errorf("with %d things coming, COMING UP takes %d rows to %d, want %d to %d", tt.things, s.least, s.most, tt.least, tt.most)
+		if s.least != tt.least || s.mostRows() != tt.most {
+			t.Errorf("with %d things coming, COMING UP takes %d rows to %d, want %d to %d", tt.things, s.least, s.mostRows(), tt.least, tt.most)
 		}
 	}
 }

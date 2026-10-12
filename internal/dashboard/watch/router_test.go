@@ -65,7 +65,9 @@ func TestEveryReadOfTheRouterListsItsSessions(t *testing.T) {
 	if h.source.listed != 2 {
 		t.Errorf("listed the sessions %d times, want again with a look at the router's document", h.source.listed)
 	}
-	if h.model.view = dashboard.Sessions; !strings.Contains(h.view(), "d28c") || !strings.Contains(h.view(), "7f3a") {
+	h.model.view = dashboard.Sessions
+	h.redraw()
+	if !strings.Contains(h.view(), "d28c") || !strings.Contains(h.view(), "7f3a") {
 		t.Errorf("the screen is\n%s\nwant Sessions listing d28c and 7f3a", h.view())
 	}
 }

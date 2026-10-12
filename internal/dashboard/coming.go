@@ -35,7 +35,7 @@ func linesRows(lines int) int {
 func (f Frame) comingSection(doc status.Document, now time.Time) section {
 	things := upcoming(doc, now, f.Policy)
 	return section{
-		Section: SectionComing, least: linesRows(0), most: linesRows(len(things)), more: len(things) > 1,
+		Section: SectionComing, least: linesRows(0), lines: func() int { return len(things) },
 		draw: func(c *canvas, body bounds) {
 			comingLines(c, things, now, body)
 		},

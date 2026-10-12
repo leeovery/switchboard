@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -101,15 +100,6 @@ func (f Frame) accountTraceCells(names int) int {
 		return f.wideTraceCells()
 	}
 	return f.Width - narrowTail - names
-}
-
-// accountTraces are the traces of the accounts given, in their order.
-func (f Frame) accountTraces(accounts []status.Account) []views.Trace {
-	traces := make([]views.Trace, len(accounts))
-	for i, a := range accounts {
-		traces[i] = f.Traces.Accounts[a.ID]
-	}
-	return traces
 }
 
 // summed are the traces' columns, as columnsOf gives them, summed column by
