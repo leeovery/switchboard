@@ -328,13 +328,12 @@ func (d Document) writeAccount(b *strings.Builder, a Account, width int, now tim
 // from a day away, "4h 57m" from an hour, else "7m"; "now" once t has come.
 // A second unit of zero is left off, as in "6d" and "4h".
 func Countdown(now, t time.Time) string {
-	return countdown(now, t, "%dm")
+	return countdown(t.Sub(now), "%dm")
 }
 
-// countdown says how long it is from now until t as Countdown does, the
-// minutes after hours as the format given writes them.
-func countdown(now, t time.Time, minutesAfterHours string) string {
-	d := t.Sub(now)
+// countdown says how long d is as Countdown does, the minutes after hours as
+// the format given writes them.
+func countdown(d time.Duration, minutesAfterHours string) string {
 	if d <= 0 {
 		return "now"
 	}
@@ -418,14 +417,19 @@ func daysBetween(t, now time.Time) int {
 	return int(noon(now).Sub(noon(t)).Round(day) / day)
 }
 
-// Until counts down from now to t, as "in 1h 12m", the minutes after hours
-// two digits, as "in 4h 08m", so a column of them reads evenly: "now" once t
-// has come.
+// Until counts down from now to t, as "in 1h 12m", rounded up to the whole
+// minute, so it never says less time is left than is, and the minutes after
+// hours two digits, as "in 4h 08m", so a column of them reads evenly: "now"
+// once t has come.
 func Until(now, t time.Time) string {
-	if !t.After(now) {
+	left := t.Sub(now)
+	if left <= 0 {
 		return "now"
 	}
-	return "in " + countdown(now, t, "%02dm")
+	if up := left.Truncate(time.Minute); up < left {
+		left = up + time.Minute
+	}
+	return "in " + countdown(left, "%02dm")
 }
 
 // InProse is a window's label as a sentence has it, cleaned: one word, as
