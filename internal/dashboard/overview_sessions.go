@@ -42,7 +42,7 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 			f.drawRunning(c, doc, running, now, body)
 		},
 		folded: func() line {
-			return slices.Concat(line{{runningCount(doc, running), mutedInk}, spaces(3)}, f.noRoom())
+			return line{{runningCount(doc, running), mutedInk}}
 		},
 	}
 }
@@ -231,12 +231,6 @@ func runningCount(doc status.Document, running []views.Running) string {
 		}
 	}
 	return strconv.Itoa(len(sessions)) + " running: " + strings.Join(on, ", ")
-}
-
-// noRoom says a folded section had no room, at the frame's height, as "no
-// room at 37 rows", in text.subtle.
-func (f Frame) noRoom() line {
-	return line{{"no room at " + strconv.Itoa(f.Height) + " rows", dimInk}}
 }
 
 // outOfPool reports whether the account with the given id is out of doc's

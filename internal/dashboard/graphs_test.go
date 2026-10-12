@@ -328,9 +328,9 @@ func TestGRAPHSChartsTheFocusedAccountOrTheFirst(t *testing.T) {
 	}
 }
 
-func TestGRAPHSFoldedSaysWhoseAndThatTheRowsHaveNoRoom(t *testing.T) {
+func TestGRAPHSFoldedHoldsTheFocusedAccount(t *testing.T) {
 	g := Frame{Width: 160, Height: 35, Focus: "work"}.graphsSection(trio(), printNow)
-	want := line{{"work", titleInk}, spaces(3), {"no room at 35 rows", dimInk}}
+	want := line{{"work", titleInk}}
 	if got := g.folded(); !slices.Equal(got, want) {
 		t.Errorf("GRAPHS folded says %+v, want %+v", got, want)
 	}

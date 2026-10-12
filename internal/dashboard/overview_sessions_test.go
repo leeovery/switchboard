@@ -101,15 +101,15 @@ func TestSESSIONSFoldsToHowManyRunAndWhere(t *testing.T) {
 	}{
 		{
 			name: "the frame's: each account with any, in the config's order", sessions: sessions,
-			want: line{{"6 running: 2 on personal, 4 on side", mutedInk}, spaces(3), {"no room at 39 rows", dimInk}},
+			want: line{{"6 running: 2 on personal, 4 on side", mutedInk}},
 		},
 		{
 			name: "a session on two accounts, counted once, and on each", sessions: two,
-			want: line{{"6 running: 3 on personal, 4 on side", mutedInk}, spaces(3), {"no room at 39 rows", dimInk}},
+			want: line{{"6 running: 3 on personal, 4 on side", mutedInk}},
 		},
 		{
 			name: "none", sessions: nil,
-			want: line{{"no sessions running", mutedInk}, spaces(3), {"no room at 39 rows", dimInk}},
+			want: line{{"no sessions running", mutedInk}},
 		},
 	}
 	for _, tt := range tests {

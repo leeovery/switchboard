@@ -2,6 +2,7 @@ package watch
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -149,6 +150,64 @@ func TestTheWheelScrollsTheViewNoFurtherThanItGoes(t *testing.T) {
 	if h.model.scroll != 10-wheelRows {
 		t.Errorf("a turn up scrolled to %d rows, want %d", h.model.scroll, 10-wheelRows)
 	}
+}
+
+// moreAbove is USAGE's line over its accounts while some are scrolled out of
+// view above, as in "▲ 2 more accounts".
+var moreAbove = regexp.MustCompile(`▲ \d+ more accounts?`)
+
+// tenRouted is the router's document of ten accounts, Account A to Account
+// J, more than USAGE shows at once in a short terminal.
+func tenRouted() status.Document {
+	accounts := make([]status.Account, 10)
+	for i := range accounts {
+		accounts[i] = account(string(rune('a'+i)), "Account "+string(rune('A'+i)), session(0.1, 3*time.Hour), week(0.2))
+	}
+	return routerDocument(accounts...)
+}
+
+func TestUSAGEScrollsAnAccountAtATimeAsTheFocusTheKeysAndTheWheelOverItMoveIt(t *testing.T) {
+	h := routedHarness(t, tenRouted())
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	h.start()
+	s := h.model.scrolling()
+	if s.Most == 0 || s.Page == 0 || s.Page >= 10 {
+		t.Fatalf("USAGE scrolls %+v, want some accounts out of view, ten in 24 rows", s)
+	}
+	scrolled := func(step string, want int) {
+		t.Helper()
+		if h.model.scroll != want {
+			t.Errorf("%s, USAGE is scrolled %d accounts, want %d", step, h.model.scroll, want)
+		}
+		if above := moreAbove.MatchString(h.view()); above != (want > 0) {
+			t.Errorf("%s, the screen is\n%s\nwant ▲ over USAGE's accounts only while some are above", step, h.view())
+		}
+	}
+
+	for range s.Page - 1 {
+		h.keys(downKey)
+	}
+	scrolled("↓ to the last account in view", 0)
+	h.keys(downKey)
+	scrolled("↓ past it", 1)
+	for range s.Page {
+		h.keys(upKey)
+	}
+	scrolled("↑ back to the first", 0)
+
+	h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	scrolled("j", 1)
+	h.keys(tea.KeyPressMsg{Code: 'k', Text: "k"})
+	scrolled("k", 0)
+
+	x, y := h.drawnAt("Account A")
+	h.wheel(tea.MouseWheelDown, x, y)
+	scrolled("a turn of the wheel down over USAGE", min(wheelRows, s.Most))
+	h.wheel(tea.MouseWheelUp, x, y)
+	scrolled("a turn up", 0)
+	x, y = h.drawnAt("ROUTING ")
+	h.wheel(tea.MouseWheelDown, x, y)
+	scrolled("a turn down over ROUTING's heading", 0)
 }
 
 func TestTheMouseIsOnWhileTheDashboardRuns(t *testing.T) {

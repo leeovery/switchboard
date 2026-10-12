@@ -663,6 +663,32 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 	}
 }
 
+func TestAFoldedSectionsHeadingSaysOnceThatThereIsNoRoomAsTheFrameAndTheDesignWordIt(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
+	doc, sessions, traffic := overviewWorld()
+	f := Frame{Width: 160, Height: 39, Look: nord, View: Overview, Policy: claudeLike, Sessions: sessions, Traffic: traffic, Sections: gs}
+	const stem = "overview-everything-160x39"
+	heldTo(t, stem, reference(t, stem), screenOf(t, f.Draw(doc, routedAt)), region{top: 35, bottom: 35, right: 159}, shadeOf(nord.Canvas()), nil, nil)
+
+	tests := []struct {
+		height  int
+		section Section
+		want    string
+	}{
+		{height: 37, section: SectionSessions, want: "SESSIONS   6 running: 2 on personal, 4 on side   no room at 37 rows ─"},
+		{height: 35, section: SectionGraphs, want: "GRAPHS   work   no room at 35 rows ─"},
+		{height: 30, section: SectionRouting, want: "ROUTING   auto   no room at 30 rows ─"},
+	}
+	for _, tt := range tests {
+		f.Height = tt.height
+		rows := textOf(f.Draw(doc, routedAt))
+		i := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, tt.section.heading()+" ") })
+		if i < 0 || !strings.HasPrefix(rows[i], tt.want) || strings.Count(rows[i], "no room") != 1 {
+			t.Errorf("at %d rows, the screen reads\n%s\nwant %s's heading folded, reading %q…", tt.height, strings.Join(rows, "\n"), tt.section.heading(), tt.want)
+		}
+	}
+}
+
 func TestEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	tests := []struct {

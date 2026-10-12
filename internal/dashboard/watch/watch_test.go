@@ -398,3 +398,55 @@ func calmScreen(size Size, now time.Time, trails dashboard.Trails) string {
 		Policy: policy,
 	}.Draw(calm(), now), "\n")
 }
+
+// sessionsRows are the rows of the screen the Overview's SESSIONS is laid out
+// on: its first, its heading's, and how many it takes, to COMING UP's heading
+// after the blank row under it.
+func (h *harness) sessionsRows() (first, rows int) {
+	screen := strings.Split(h.view(), "\n")
+	first = slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "SESSIONS ") })
+	coming := slices.IndexFunc(screen, func(r string) bool { return strings.HasPrefix(r, "COMING UP ") })
+	if first < 0 || coming < first {
+		h.t.Fatalf("the screen is\n%s\nwant SESSIONS shown, and COMING UP under it", h.view())
+	}
+	return first, coming - first - 1
+}
+
+func TestTheOverviewKeepsItsLayoutAsSessionsStartTillAKeyOrAResize(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	h.start()
+	h.deliver(h.press("s")...)
+	first, rows := h.sessionsRows()
+	if rows != 3 {
+		t.Fatalf("with none running, SESSIONS takes %d rows, want its heading's two and a row saying none run", rows)
+	}
+
+	h.source.sessions = []status.Session{
+		sessionOn(idD28C, "claude-opus-5-5", "side", 10*time.Second),
+		sessionOn(id7F3A, "claude-sonnet-5-5", "side", time.Minute),
+		sessionOn(id9E21, "claude-haiku-4-5", "work", 2*time.Minute),
+	}
+	h.tickUntilAsked()
+	if len(h.model.sessions) != 3 {
+		t.Fatalf("a look listed %d sessions, want the three started", len(h.model.sessions))
+	}
+	if f, r := h.sessionsRows(); f != first || r != rows {
+		t.Errorf("three sessions started, SESSIONS is laid out on %d rows from row %d; want the %d from row %d it was given, till a key or a resize",
+			r, f+1, rows, first+1)
+	}
+
+	h.deliver(h.press("j")...)
+	if _, r := h.sessionsRows(); r != 5 {
+		t.Errorf("after a key, SESSIONS takes %d rows, want it laid out afresh, a row a session", r)
+	}
+	h.source.sessions = nil
+	h.tickUntilAsked()
+	if _, r := h.sessionsRows(); r != 5 {
+		t.Errorf("the sessions gone, SESSIONS takes %d rows, want the 5 it was given kept", r)
+	}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 41})
+	if _, r := h.sessionsRows(); r != 3 {
+		t.Errorf("after a resize, SESSIONS takes %d rows, want it laid out afresh, a row saying none run", r)
+	}
+}
