@@ -50,6 +50,8 @@ func TestARequestUpstreamIsAMessageTheRouterSentOn(t *testing.T) {
 		{name: "a message the router answered itself", kind: KindMessage},
 		{name: "the client's quota check", kind: KindCheck, attempts: 1},
 		{name: "a count of tokens", kind: KindCount, attempts: 1},
+		{name: "a line of no kind, which the router never writes", attempts: 1},
+		{name: "a kind a later router adds", kind: "batch", attempts: 1},
 	}
 	for _, tt := range tests {
 		if got := (&Line{Kind: tt.kind, Attempts: tt.attempts}).Upstream(); got != tt.want {

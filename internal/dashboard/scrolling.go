@@ -18,17 +18,25 @@ var (
 
 // Scrolling is how far a frame's view scrolls: Most, the furthest, in rows,
 // or on the Overview, whose USAGE scrolls an account at a time, in accounts,
-// zero where it fits; and Page, how many of them show at once.
+// zero where it fits; and Page, how many of them show at once, as the frame
+// has it scrolled.
 type Scrolling struct {
 	Most, Page int
 }
 
 // Revealing is how far the Overview's USAGE of doc at now is scrolled to show
 // the account with the given id: as far as the frame has it scrolled, where
-// that shows it, else no further than it must go to.
+// that shows it, else no further than it must go to. Scrolled down, a page
+// may show fewer than the one it left, as USAGE's does once a ▲ row comes
+// over it, so it goes on an account at a time until the account shows.
 func (f Frame) Revealing(doc status.Document, now time.Time, id string) int {
 	i := slices.IndexFunc(doc.Accounts, func(a status.Account) bool { return a.ID == id })
-	return f.Scrolling(doc, now).revealing(f.Scroll, i)
+	s := f.Scrolling(doc, now)
+	f.Scroll = s.revealing(f.Scroll, i)
+	for f.Scroll < s.Most && i >= f.Scroll+f.Scrolling(doc, now).Page {
+		f.Scroll++
+	}
+	return f.Scroll
 }
 
 // revealing is how far what's scrolled at, and scrolls as s says, is
