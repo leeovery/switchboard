@@ -198,7 +198,7 @@ func TestFramesRunOnlyWhileBarsOnScreenMove(t *testing.T) {
 	} {
 		h.startRouter(tenWith(using, read.moved...))
 		seen := h.tickUntilAsked()
-		if _, ok := h.model.ease.eased(h.model.doc, seen, policy)[dashboard.Ref{Account: read.bar, Window: "5h"}]; !ok {
+		if _, ok := h.model.ease.eased(h.model.frame(seen), h.model.doc, seen)[dashboard.Ref{Account: read.bar, Window: "5h"}]; !ok {
 			t.Fatalf("%s: %s's session bar isn't easing, want the read to have moved it", read.name, read.bar)
 		}
 		if _, framing := h.pendingFrame(); framing != read.frames {
@@ -337,6 +337,44 @@ func TestThePoolsBarsEaseAsTheAccountsDo(t *testing.T) {
 	delete(f.Eased, pool)
 	if got, asRead := h.view(), ansi.Strip(strings.Join(f.Draw(h.model.doc, now), "\n")); got == asRead {
 		t.Errorf("half way, the screen is\n%s\nwant the pool's bar eased, not filled as read", got)
+	}
+}
+
+// The Overview draws a session read before its reset empty once it resets,
+// where Sessions' panels draw it as last read: each view's bar eases from
+// the bar that view drew, whichever view showed as the read landed.
+func TestAcrossAResetEachViewEasesItsBarFromTheBarItDrew(t *testing.T) {
+	before := document(account("work", "Work", session(0.75, 10*time.Minute), week(0.5)))
+	after := document(account("work", "Work", session(0.25, 20*time.Minute+5*time.Hour), week(0.5)))
+	bar := dashboard.Ref{Account: "work", Window: "5h"}
+	tests := []struct {
+		name            string
+		readOn, shownOn dashboard.View
+		from            float64
+	}{
+		{name: "the Overview", readOn: dashboard.Overview, shownOn: dashboard.Overview, from: 0},
+		{name: "Sessions", readOn: dashboard.Sessions, shownOn: dashboard.Sessions, from: 0.75},
+		{name: "the Overview, shown after Sessions as the read landed", readOn: dashboard.Sessions, shownOn: dashboard.Overview, from: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, before)
+			h.model.view = tt.readOn
+			h.start()
+			h.settle()
+			h.clock.now = start.Add(20 * time.Minute)
+			h.redraw()
+			h.read(after)
+			h.model.view = tt.shownOn
+			landed := h.model.now()
+			if got, ok := h.model.live(landed).Eased[bar]; !ok || got != tt.from {
+				t.Errorf("as the read lands, work's session bar fills %v, easing %t, want %v, as the view drew it", got, ok, tt.from)
+			}
+			h.clock.now = landed.Add(easeFor / 2)
+			if got, want := h.model.live(h.clock.now).Eased[bar], lerp(tt.from, 0.25, easeOutCubic(0.5)); got != want {
+				t.Errorf("half way, work's session bar fills %v, want %v, eased from %v to 0.25", got, want, tt.from)
+			}
+		})
 	}
 }
 

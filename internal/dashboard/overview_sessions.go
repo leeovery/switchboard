@@ -104,7 +104,7 @@ func (f Frame) drawRunning(c *canvas, doc status.Document, running []views.Runni
 	if shown*form.rows > body.rows {
 		shown = max(body.rows-1, 0) / form.rows
 	}
-	names := overviewNames(doc)
+	names := overviewNames(doc, f.pool(doc, now))
 	column := nameColumn(names, f.Width)
 	for i, r := range running[:shown] {
 		y := body.y + i*form.rows
@@ -134,7 +134,7 @@ func (f Frame) wideRunning(c *canvas, doc status.Document, r views.Running, colu
 	})
 	why := column + runningWhy
 	c.line(why, y, line{{r.Why.String(), dimInk}}.fit(traceFrom-beforeTraceAt-why))
-	faded, t := outOfPool(doc, r.Account), f.Traces.Sessions[r.Session]
+	faded, t := outOfPool(f.pool(doc, now), r.Account), f.Traces.Sessions[r.Session]
 	f.drawTrace(c, t, now, bounds{x: traceFrom, y: y, width: f.wideTraceCells(), rows: 1}, faded)
 	c.right(f.Width, y, line{traceRate(t, now, faded).numbered(Number{Kind: NumberRate, Account: r.Account, Of: r.Session})})
 }
@@ -233,8 +233,8 @@ func runningCount(doc status.Document, running []views.Running) string {
 	return strconv.Itoa(len(sessions)) + " running: " + strings.Join(on, ", ")
 }
 
-// outOfPool reports whether the account with the given id is out of doc's
-// pool, where it has one.
-func outOfPool(doc status.Document, id string) bool {
-	return len(doc.Pool.Accounts) > 0 && !slices.Contains(doc.Pool.Accounts, id)
+// outOfPool reports whether the account with the given id is out of the
+// pool, where there's one.
+func outOfPool(pool status.Pool, id string) bool {
+	return len(pool.Accounts) > 0 && !slices.Contains(pool.Accounts, id)
 }

@@ -225,11 +225,12 @@ type sectionsBuilt struct {
 // the first time a look at them asks, and shared by every look it, or a copy
 // of it, takes of doc at now after: its layout, its page and its numbers, its
 // click targets and how it scrolls. They're built of the frame as it stands,
-// so a copy whose Layout, KeyLine, Brightened or Card change draws them as a
-// frame built afresh would, as they draw none of those, and a copy changed
-// otherwise draws them as they were built. A look at another moment builds
-// them afresh.
+// its pool judged at now, as Judged has it, so a copy whose Layout, KeyLine,
+// Brightened or Card change draws them as a frame built afresh would, as
+// they draw none of those, and a copy changed otherwise draws them as they
+// were built. A look at another moment builds them afresh.
 func (f Frame) Built(doc status.Document, now time.Time) Frame {
+	f = f.Judged(doc, now)
 	of := f
 	f.built = &sectionsBuilt{at: now, sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) })}
 	return f
@@ -246,8 +247,10 @@ func (f Frame) sectionsOf(doc status.Document, now time.Time) []section {
 }
 
 // buildSections builds the Overview's sections the frame shows, of doc at
-// now, in the order the page draws them.
+// now, in the order the page draws them, each of the one pool judged at now,
+// as Judged has it.
 func (f Frame) buildSections(doc status.Document, now time.Time) []section {
+	f = f.Judged(doc, now)
 	builds := [...]func(status.Document, time.Time) section{
 		SectionUsage:    f.usageSection,
 		SectionGraphs:   f.graphsSection,

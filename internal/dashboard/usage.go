@@ -119,15 +119,16 @@ type gauge struct {
 	cue     *float64
 }
 
-// newUsageBlock is the usage block of doc at now, as policy judges its
-// windows, width cells wide, drawn in look, grouped by, of the windows given.
+// newUsageBlock is the usage block of doc at now, its pool as policy judges
+// it then, width cells wide, drawn in look, grouped by, of the windows given.
 func newUsageBlock(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow) usageBlock {
-	return blockOf(doc, now, policy, width, look, by, windows, namesOf(doc))
+	pool := doc.PoolAt(now, policy)
+	return blockOf(doc, now, pool, width, look, by, windows, namesOf(doc, pool))
 }
 
-// blockOf is the usage block of doc at now, as newUsageBlock has it, its
-// accounts named as names has them.
-func blockOf(doc status.Document, now time.Time, policy score.Policy, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
+// blockOf is the usage block of doc at now, as newUsageBlock has it, of the
+// pool given, its accounts named as names has them.
+func blockOf(doc status.Document, now time.Time, pool status.Pool, width int, look Look, by By, windows []shownWindow, names []accountName) usageBlock {
 	b := usageBlock{width: width, look: look, by: by, windows: windows}
 	b.names = nameColumn(names, width)
 	for i, a := range doc.Accounts {
@@ -141,8 +142,8 @@ func blockOf(doc status.Document, now time.Time, policy score.Policy, width int,
 		}
 		b.rows = append(b.rows, row)
 	}
-	if pool, ok := poolRow(doc.PoolAt(now, policy), len(doc.Accounts), b.windows); ok {
-		b.rows = append(b.rows, pool)
+	if row, ok := poolRow(pool, len(doc.Accounts), b.windows); ok {
+		b.rows = append(b.rows, row)
 	}
 	return b
 }
@@ -261,14 +262,14 @@ type accountName struct {
 }
 
 // namesOf are the names of doc's accounts, in the config's order, numbered
-// right-aligned once there are ten.
-func namesOf(doc status.Document) []accountName {
+// right-aligned once there are ten, each out of the pool given where it is.
+func namesOf(doc status.Document, pool status.Pool) []accountName {
 	digits := len(strconv.Itoa(len(doc.Accounts)))
 	best := bestOf(doc)
 	names := make([]accountName, len(doc.Accounts))
 	for i, a := range doc.Accounts {
 		names[i] = accountName{
-			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.ID == best, out: outOfPool(doc, a.ID),
+			number: fmt.Sprintf("%*d", digits, i+1), label: name(a), primary: a.Primary, best: a.ID == best, out: outOfPool(pool, a.ID),
 		}
 	}
 	return names

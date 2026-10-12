@@ -561,7 +561,7 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 			if got := textOf(c.rows(Look{})); !slices.Equal(trimmedLeft(got), tt.want) {
 				t.Errorf("the key line reads %q, want %q", got, tt.want)
 			}
-			if marks := keyMarks(namesOf(tt.doc), false); len(marks) > 0 && (marks[len(marks)-1][0].ink != accentInk || marks[len(marks)-1][1].ink != mutedInk) {
+			if marks := keyMarks(namesOf(tt.doc, f.pool(tt.doc, printNow)), false); len(marks) > 0 && (marks[len(marks)-1][0].ink != accentInk || marks[len(marks)-1][1].ink != mutedInk) {
 				t.Errorf("▲'s part is drawn %+v, want ▲ in accent.mode and its words in text.muted", marks[len(marks)-1])
 			}
 		})
@@ -671,6 +671,41 @@ func TestAcrossAResetBetweenReadsThePoolsRoomAndROUTINGAgree(t *testing.T) {
 				t.Errorf("USAGE reads\n%s\nwant the pool's 5-hour room %q", strings.Join(rows, "\n"), tt.room)
 			}
 		})
+	}
+}
+
+func TestAcrossAResetBetweenReadsUSAGEAndROUTINGCountTheSamePool(t *testing.T) {
+	// Pinned to work and side, so personal is out of the pool. Work is at
+	// its cap in its 5-hour, read at now, which resets in an hour.
+	work := readAccount("work", sessionOf(0.9, time.Hour), weekOf(0.4, 3*day))
+	work.Reserve = 0.2
+	doc := routerDoc("side", 0, work, readAccount("personal", sessionOf(0.2, 2*time.Hour), weekOf(0.5, 3*day)), readAccount("side", sessionOf(0.5, 3*time.Hour), weekOf(0.3, 3*day)))
+	doc.Pin = status.Pin{Accounts: []string{"work", "side"}, Since: now.UTC()}
+	doc = doc.WorkedOut(claudeLike)
+	reset := now.Add(time.Hour)
+	want := []string{"work", "side"}
+	for _, at := range []time.Time{reset.Add(-time.Second), reset.Add(time.Second)} {
+		f := frameOf(160, 60).Built(doc, at)
+		var rows []string
+		for _, r := range f.overviewBlock(doc, at).rows {
+			if !r.pool && !r.gauges[0].bar.out {
+				rows = append(rows, r.id)
+			}
+		}
+		if !slices.Equal(rows, want) {
+			t.Errorf("at %s, USAGE draws %q in the pool, want %q", at.Format(time.Kitchen), rows, want)
+		}
+		body, _ := usageBody(f, doc, at, 20)
+		if i := slices.IndexFunc(body, func(r string) bool { return strings.Contains(r, "Σ pool") }); i < 0 || !strings.Contains(body[i], " of 2 left") {
+			t.Errorf("at %s, USAGE reads\n%s\nwant its Σ row to count the pool's 2 accounts", at.Format(time.Kitchen), strings.Join(body, "\n"))
+		}
+		var routing []string
+		for _, r := range f.routingTableOf(doc, at).pool {
+			routing = append(routing, r.id)
+		}
+		if !slices.Equal(routing, want) {
+			t.Errorf("at %s, ROUTING's pool block counts %q, want %q", at.Format(time.Kitchen), routing, want)
+		}
 	}
 }
 

@@ -656,18 +656,22 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // windows are grouped, the requests its traces count and its layout as
 // kept, how far ahead Runway looks, the sessions listed, what the request
 // stream tells of their requests and the order Sessions' calls keep, how far
-// the view is scrolled, and the account the focus is on.
+// the view is scrolled, and the account the focus is on. Its pool is judged
+// at now once, as Judged has it, for its bars eased to it and every look at
+// it to share.
 func (m Model) frame(now time.Time) dashboard.Frame {
-	return dashboard.Frame{
+	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view,
-		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails, Eased: m.ease.eased(m.doc, now, m.cfg.Policy),
+		Lost: m.lost, Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout, Span: m.span,
 		Sessions: m.sessions, Traffic: m.traffic.at(now), Order: m.order, Scroll: m.scroll,
 		Focus:      m.focus,
 		Policy:     m.cfg.Policy,
 		WindowName: m.cfg.WindowName,
-	}
+	}.Judged(m.doc, now)
+	f.Eased = m.ease.eased(f, m.doc, now)
+	return f
 }
 
 // resized takes in the size the terminal gives, keeping the size drawn at for
@@ -812,7 +816,7 @@ func (m Model) show(msg fetchedMsg, now time.Time) (Model, tea.Cmd) {
 	m.news = m.news.looked(doc, msg.router, now)
 	m.changes = m.changes.looked(doc, msg.router, now, m.cfg.Policy)
 	m.history = m.history.saw(doc)
-	m.ease = easing{from: m.ease.standing(m.doc, now, m.cfg.Policy), start: now}
+	m.ease = easing{from: m.ease.standing(m.frame(now), m.doc, now), start: now}
 	m.doc, m.updated, m.failed = doc, now, ""
 	switch {
 	case msg.listed || !routed(doc):
