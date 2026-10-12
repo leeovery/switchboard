@@ -22,9 +22,6 @@ const (
 // and LATELY, at every width.
 const afterTime = "  "
 
-// moreFolded is what ends a folded heading's first line, saying there's more.
-var moreFolded = span{"  " + ellipsis, dimInk}
-
 // linesRows is how many rows COMING UP or LATELY takes with lines to show:
 // its heading and the blank row under it, and its lines, leastLines at the
 // least, and mostLines at the most.
@@ -38,7 +35,7 @@ func linesRows(lines int) int {
 func (f Frame) comingSection(doc status.Document, now time.Time) section {
 	things := upcoming(doc, now, f.Policy)
 	return section{
-		Section: SectionComing, least: linesRows(0), most: linesRows(len(things)),
+		Section: SectionComing, least: linesRows(0), most: linesRows(len(things)), more: len(things) > 1,
 		draw: func(c *canvas, body bounds) {
 			comingLines(c, things, now, body)
 		},
@@ -46,27 +43,29 @@ func (f Frame) comingSection(doc status.Document, now time.Time) section {
 			if len(things) == 0 {
 				return nil
 			}
-			return append(things[0].said(now, 0), moreFolded)
+			return things[0].said(now, 0)
 		},
 	}
 }
 
-// happening is something coming up: when, the account it befalls, by its
-// name, what befalls it, in words that follow the name, and whether it's a
-// window running out, which its whole line warns of.
+// happening is something coming up: when, the account it befalls, named in
+// bold text.primary, what befalls it, in words that follow the name, and
+// whether it's a window running out, which its whole line warns of.
 type happening struct {
 	at      time.Time
-	name    string
+	name    span
 	what    string
 	runsOut bool
 }
 
 // upcoming are the things coming up after now, as doc's COMING UP lists
-// them, in its order, soonest first, each as happeningOf says it.
+// them, in its order, soonest first, each as happeningOf says it, its
+// account named as the Overview names it.
 func upcoming(doc status.Document, now time.Time, policy score.Policy) []happening {
+	names := overviewNames(doc)
 	var all []happening
 	for _, u := range doc.ComingUp {
-		if h, ok := happeningOf(doc, u, policy); ok && h.at.After(now) {
+		if h, ok := happeningOf(doc, names, u, policy); ok && h.at.After(now) {
 			all = append(all, h)
 		}
 	}
@@ -78,9 +77,10 @@ func upcoming(doc status.Document, now time.Time, policy score.Policy) []happeni
 // named by its window, as in "back from its Fable wk limit", or from its
 // cap; a window running out, as runningOut says; a window resetting, as in
 // "'s 5-hour resets"; or its being primed. It reports false for a kind it
-// doesn't tell of, as one from a later router.
-func happeningOf(doc status.Document, u status.Upcoming, policy score.Policy) (happening, bool) {
-	h := happening{at: u.At, name: named(doc, u.Account)}
+// doesn't tell of, as one from a later router. Its account is named as
+// names, overviewNames' of doc, have it.
+func happeningOf(doc status.Document, names []accountName, u status.Upcoming, policy score.Policy) (happening, bool) {
+	h := happening{at: u.At, name: overviewNamed(doc, names, u.Account, titleInk)}
 	switch u.Kind {
 	case status.UpcomingBack:
 		h.what = " back from its " + holder(doc, u)
@@ -163,11 +163,10 @@ func comingLines(c *canvas, things []happening, now time.Time, body bounds) {
 }
 
 // said is what's coming as its line says it, from its time, padded to
-// column cells, to the end of its words, its account named in bold
-// text.primary.
+// column cells, to the end of its words.
 func (h happening) said(now time.Time, column int) line {
 	at, words, _ := h.inks()
-	return line{{padded(h.when(now), column) + afterTime, at}, {h.name, titleInk}, {h.what, words}}
+	return line{{padded(h.when(now), column) + afterTime, at}, h.name, {h.what, words}}
 }
 
 // when is when it comes, as its line says it, in now's time zone: as in

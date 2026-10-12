@@ -113,7 +113,7 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			doc.Prime = status.Prime{Day: "08:00-22:00", Window: "5h", Slots: tt.slots}
 			var got []string
 			for _, h := range upcoming(doc.WorkedOut(claudeLike), now, claudeLike) {
-				got = append(got, status.When(now, h.at)+" "+h.name+h.what)
+				got = append(got, status.When(now, h.at)+" "+h.name.text+h.what)
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("upcoming() = %q, want %q", got, tt.want)
@@ -132,7 +132,7 @@ func TestCOMINGUPDrawsWhatTheDocumentGivesAfterNow(t *testing.T) {
 	}
 	var got []string
 	for _, h := range upcoming(doc, now, claudeLike) {
-		got = append(got, status.When(now, h.at)+" "+h.name+h.what)
+		got = append(got, status.When(now, h.at)+" "+h.name.text+h.what)
 	}
 	if want := []string{"15:12 work's 5-hour resets"}; !slices.Equal(got, want) {
 		t.Errorf("upcoming() = %q, want %q: what the document gives, after now, of the kinds it knows", got, want)
@@ -153,7 +153,7 @@ func TestCOMINGUPListsEverythingTheDocumentGivesWhateverItsWindow(t *testing.T) 
 
 	var got []string
 	for _, h := range upcoming(doc, now, claudeLike) {
-		got = append(got, status.When(now, h.at)+" "+h.name+h.what)
+		got = append(got, status.When(now, h.at)+" "+h.name.text+h.what)
 	}
 	want := []string{
 		"14:12 work's Fable wk runs out at its pace",
@@ -311,17 +311,40 @@ func TestCOMINGUPTakesItsLinesAndTwoRows(t *testing.T) {
 	}
 }
 
-func TestCOMINGUPFoldsToItsFirstLineButItsCountdown(t *testing.T) {
-	doc := comingOf(
-		status.Upcoming{At: now.Add(2 * day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"},
-		status.Upcoming{At: now.Add(3 * day).UTC(), Account: "side", Kind: status.UpcomingReset, Window: "7d"},
-	)
-	folded := frameOf(160, 40).comingSection(doc, now).folded()
-	want := line{{"~Wed 13:12  ", warningInk}, {"personal", titleInk}, {"'s week runs out at its pace", warningInk}, {"  …", dimInk}}
-	if !slices.Equal(folded, want) {
-		t.Errorf("folded, COMING UP says %+v, want %+v", folded, want)
+func TestCOMINGUPFoldsToItsFirstLineButItsCountdownThenAnEllipsisWhereItHasMore(t *testing.T) {
+	runsOut := status.Upcoming{At: now.Add(2 * day).UTC(), Account: "personal", Kind: status.UpcomingRunsOut, Window: "7d"}
+	resets := status.Upcoming{At: now.Add(3 * day).UTC(), Account: "side", Kind: status.UpcomingReset, Window: "7d"}
+	first := line{{"~Wed 13:12  ", warningInk}, {"personal", titleInk}, {"'s week runs out at its pace", warningInk}}
+	tests := []struct {
+		name   string
+		coming []status.Upcoming
+		want   line
+	}{
+		{name: "more than one thing coming", coming: []status.Upcoming{runsOut, resets}, want: slices.Concat(first, line{{"  …", dimInk}})},
+		{name: "one thing coming", coming: []status.Upcoming{runsOut}, want: first},
+		{name: "nothing coming"},
 	}
-	if folded := frameOf(160, 40).comingSection(comingOf(), now).folded(); folded != nil {
-		t.Errorf("folded with nothing coming, COMING UP says %+v, want nothing", folded)
+	f := frameOf(160, 40)
+	for _, tt := range tests {
+		if got := f.says(planned{section: f.comingSection(comingOf(tt.coming...), now), fold: true}); !slices.Equal(got, tt.want) {
+			t.Errorf("folded with %s, COMING UP's heading says %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestCOMINGUPNamesAnAccountOutOfThePoolFaint(t *testing.T) {
+	doc := comingOf(
+		status.Upcoming{At: now.Add(time.Hour).UTC(), Account: "work", Kind: status.UpcomingPrime},
+		status.Upcoming{At: now.Add(2 * time.Hour).UTC(), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
+	)
+	doc.Pool.Accounts = []string{"work"}
+	faint := ink{token: theme.TextFaint, bold: true}
+	want := []span{{"work", titleInk}, {"personal", faint}}
+	var got []span
+	for _, h := range upcoming(doc, now, claudeLike) {
+		got = append(got, h.said(now, 0)[1])
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("with the pool work alone, COMING UP names %+v, want %+v", got, want)
 	}
 }

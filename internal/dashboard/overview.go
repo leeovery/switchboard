@@ -183,7 +183,10 @@ type section struct {
 	// aside is the column a section of no rows of its own is drawn from
 	// beside this one, in its rows, as ROUTING is beside USAGE's blocks by
 	// account: 0 where none can be.
-	aside       int
+	aside int
+	// more reports, of a section that lists lines, whether it holds more than
+	// its first, as its heading says folded.
+	more        bool
 	description func() line
 	draw        func(c *canvas, body bounds)
 	folded      func() line
@@ -593,19 +596,19 @@ func (f Frame) sectionHeading(c *canvas, p planned) {
 
 // says is what the section's heading says after its name: where it folds,
 // what it holds, as its folded has it, then, for a section that lists lines,
-// two cells on, an ellipsis, as it has more, or for any other, three on, that
-// there's no room for it at the frame's height, in text.subtle; else its
-// description, where it has one.
+// where it holds more than that, two cells on, an ellipsis, or for any other,
+// three on, that there's no room for it at the frame's height, in
+// text.subtle; else its description, where it has one.
 func (f Frame) says(p planned) line {
 	if !p.fold {
 		return saying(p.description)
 	}
 	holds := saying(p.folded)
 	switch {
-	case p.lists() && len(holds) == 0:
-		return nil
-	case p.lists():
+	case p.lists() && p.more:
 		return slices.Concat(holds, line{{"  " + ellipsis, dimInk}})
+	case p.lists():
+		return holds
 	}
 	noRoom := line{{"no room at " + strconv.Itoa(f.Height) + " rows", dimInk}}
 	if len(holds) == 0 {

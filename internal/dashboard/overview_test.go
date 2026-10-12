@@ -230,7 +230,11 @@ func (w planWorld) sections(width int, by By, shown Sections) []section {
 		routing = sized(SectionRouting, 3*a+1, 3*a+1)
 		sessions = sized(SectionSessions, 2+2*w.running, 2+2*w.running)
 	}
-	lines := func(s Section, n int) section { return sized(s, 2+3, 2+min(max(n, 3), 12)) }
+	lines := func(s Section, n int) section {
+		listed := sized(s, 2+3, 2+min(max(n, 3), 12))
+		listed.more = n > 1
+		return listed
+	}
 	all := []section{usage, sized(SectionGraphs, 2+1+5+1, 2+1+19+1), routing, sessions, lines(SectionComing, w.coming), lines(SectionLately, w.lately)}
 	return slices.DeleteFunc(all, func(s section) bool { return !shown.Has(s.Section) })
 }
@@ -650,7 +654,10 @@ func TestAFoldedHeadingSaysWhatItHoldsThenWhyOrThatItHasMore(t *testing.T) {
 		{name: "SESSIONS, there being no room at the frame's height", section: section{Section: SectionSessions, folded: holds("6 running")}, fold: true, want: "6 running   no room at 39 rows"},
 		{name: "GRAPHS, holding nothing to say", section: section{Section: SectionGraphs, folded: nothing}, fold: true, want: "no room at 39 rows"},
 		{name: "ROUTING, saying nothing it holds", section: section{Section: SectionRouting}, fold: true, want: "no room at 39 rows"},
-		{name: "COMING UP, its first line and more", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets")}, fold: true, want: "16:30  personal's 5-hour resets  …"},
+		{name: "COMING UP, its first line and more", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets"), more: true}, fold: true, want: "16:30  personal's 5-hour resets  …"},
+		{name: "COMING UP, its first line alone", section: section{Section: SectionComing, folded: holds("16:30  personal's 5-hour resets")}, fold: true, want: "16:30  personal's 5-hour resets"},
+		{name: "LATELY, its first line and more", section: section{Section: SectionLately, folded: holds("14:41  ▲ c61b started on side"), more: true}, fold: true, want: "14:41  ▲ c61b started on side  …"},
+		{name: "LATELY, saying why it has none", section: section{Section: SectionLately, folded: holds("nothing lately")}, fold: true, want: "nothing lately"},
 		{name: "LATELY, with nothing to show", section: section{Section: SectionLately, folded: nothing}, fold: true, want: ""},
 		{name: "ROUTING unfolded, its description", section: section{Section: SectionRouting, description: holds("auto"), folded: holds("held")}, want: "auto"},
 		{name: "USAGE, with no description", section: section{Section: SectionUsage}, want: ""},
