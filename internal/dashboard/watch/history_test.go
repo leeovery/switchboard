@@ -3,6 +3,7 @@ package watch
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -222,6 +224,79 @@ func TestProbingTheChartsDrawTheReadingsTheWatchSees(t *testing.T) {
 	h.read(read(0.05, at(16, 20, 0), 8*time.Hour))
 	if got := h.model.trails[ref].Readings; len(got) != 1 || got[0].Utilization != 0.05 {
 		t.Errorf("once the session started again, its readings are %+v, want those since alone", got)
+	}
+}
+
+// filedReadings are a readings history's files as the watch reads them,
+// holding the readings given; reads counts the times they're read.
+type filedReadings struct {
+	held  []readings.Reading
+	reads int
+}
+
+// Between gives the readings held of times from from up to to.
+func (f *filedReadings) Between(from, to time.Time) iter.Seq[readings.Reading] {
+	f.reads++
+	return func(yield func(readings.Reading) bool) {
+		for _, r := range f.held {
+			if !r.At.Before(from) && r.At.Before(to) && !yield(r) {
+				return
+			}
+		}
+	}
+}
+
+// filedOn is a line of the readings history of account id's window key,
+// used as given at at.
+func filedOn(id, key string, at time.Time, used float64) readings.Reading {
+	return readings.Reading{At: at.UTC(), Account: id, Key: key, Utilization: used, Source: readings.FromProbe}
+}
+
+func TestProbingTheChartsDrawTheReadingsHistorysFilesWithEachFullRead(t *testing.T) {
+	sessionStart := start.Add(-2 * time.Hour)
+	work := account("work", "Work", session(0.3, 3*time.Hour), week(0.5))
+	doc := probedWithoutTheRouter()
+	doc.Accounts = []status.Account{work}
+	h := newHarness(t, doc)
+	files := &filedReadings{held: []readings.Reading{
+		filedOn("work", "5h", sessionStart.Add(-time.Hour), 0.9),
+		filedOn("work", "5h", sessionStart.Add(30*time.Minute), 0.1),
+		filedOn("work", "5h", sessionStart.Add(90*time.Minute), 0.2),
+	}}
+	h.model.cfg.Readings = files
+	h.start()
+	h.deliver(h.press("R")...)
+
+	want := []score.Reading{
+		{At: sessionStart.Add(30 * time.Minute).UTC(), Utilization: 0.1},
+		{At: sessionStart.Add(90 * time.Minute).UTC(), Utilization: 0.2},
+		{At: start.UTC(), Utilization: 0.3},
+	}
+	if got := h.model.trails[dashboard.Ref{Account: "work", Window: "5h"}].Readings; !slices.EqualFunc(got, want, sameReading) {
+		t.Errorf("work's session's readings are %+v, want %+v: the files' since the session started, then the watch's own", got, want)
+	}
+	if files.reads == 0 || len(h.source.histories) > 0 {
+		t.Errorf("read the files %d times and asked the router for %q, probing; want the files read, the router asked nothing", files.reads, h.source.histories)
+	}
+	reads := files.reads
+	h.tickUntil(at(13, 13, 0))
+	if files.reads != reads {
+		t.Errorf("a minute of looks read the files %d times more, want none", files.reads-reads)
+	}
+}
+
+func TestWithTheRouterTheChartsAskItAndNeverTheFiles(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	files := &filedReadings{held: []readings.Reading{filedOn("work", "5h", start.Add(-time.Hour), 0.9)}}
+	h.model.cfg.Readings = files
+	h.start()
+	h.deliver(h.press("R")...)
+
+	if want := slices.Concat(asksOfThree, asksOfThree); !slices.Equal(h.source.histories, want) {
+		t.Errorf("asked for the history of %q, want %q: GET /history with each full read", h.source.histories, want)
+	}
+	if files.reads > 0 {
+		t.Errorf("read the readings history's files %d times, want none while the router answers", files.reads)
 	}
 }
 
