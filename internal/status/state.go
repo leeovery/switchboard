@@ -334,16 +334,16 @@ func (d Document) pressed(a Account, now time.Time) State {
 }
 
 // StartsAt says when the lapsed window of the account with the given id
-// starts again: at its prime, where the router says when that is, as in
-// "window starts at its prime, 16:20"; else with its next request. The words
-// fit a 50-column card's state line beside "○ idle · ", as the frames have
-// them.
+// starts again: at its prime, where the router says when that is, as primeOf
+// has it, as in "window starts at its prime, 16:20"; else with its next
+// request. The words fit a 50-column card's state line beside "○ idle · ",
+// as the frames have them.
 func (d Document) StartsAt(id string, now time.Time) string {
-	i := slices.IndexFunc(d.Prime.Slots, func(s Slot) bool { return s.Account == id && !s.Next.IsZero() })
-	if i < 0 {
+	next := d.primeOf(id)
+	if next.IsZero() {
 		return "window starts with its next request"
 	}
-	return "window starts at its prime, " + Dated(now, d.Prime.Slots[i].Next)
+	return "window starts at its prime, " + Dated(now, next)
 }
 
 // open is the state of account a with room at now: once a week of it comes

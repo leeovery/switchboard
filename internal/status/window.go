@@ -64,16 +64,28 @@ type WindowState struct {
 }
 
 // WindowStates are how the windows of an account of a document stand at a
-// moment, as a policy judges them, what holds it back at its limit, and which
-// windows its cap holds, worked out once for them all.
+// moment, as a policy judges them, and how the account stands then: what
+// holds it back, which of its windows have reached its reserve, whether it's
+// idle and whether it's under pressure, worked out once for them all.
 type WindowStates struct {
 	doc     Document
 	account Account
 	now     time.Time
 	policy  score.Policy
-	hold    Hold
-	held    bool
-	capped  []string
+	stood   standing
+	// reached are the keys of the account's windows that have reached its
+	// reserve at now, as ReachedReserve has them, whether or not the global
+	// pin spends it.
+	reached []string
+	// capBack is when the account's cap lets it go, where it holds it back
+	// from every request, as stood has it: once the last of its windows
+	// every model shares at its reserve resets, as score.LetGo has it; zero
+	// where its cap doesn't hold, or that isn't known.
+	capBack time.Time
+	// refusing is set where the upstream refuses any of its requests at now,
+	// its token's or a model family's; idle where it's idle, as idleAt judges
+	// it; and pressed where it's under pressure, as underPressure judges it.
+	refusing, idle, pressed bool
 }
 
 // WindowStatesOf are how doc's account a's windows stand at now, as policy
@@ -81,12 +93,23 @@ type WindowStates struct {
 // was built, as RunsOut's does, and so do their even paces and allowances, of
 // the windows as they stand at now.
 func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) WindowStates {
-	hold, held := a.Held(now, policy)
-	s := WindowStates{doc: d, account: a, now: now, policy: policy, hold: hold, held: held}
-	if d.ReserveHolds(a) {
-		s.capped = a.ReachedReserve(now)
+	s := WindowStates{
+		doc: d, account: a, now: now, policy: policy, reached: a.ReachedReserve(now),
+		refusing: a.Refused.Holds(now), idle: a.idleAt(now, policy), pressed: a.underPressure(now),
+	}
+	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.TokenRefused(now)}
+	s.stood.held, s.stood.limited = a.Held(now, policy)
+	s.stood.capped = d.ReserveHolds(a) && slices.ContainsFunc(s.reached, policy.IsShared)
+	if s.stood.capped {
+		s.capBack, _ = score.LetGo(a.Windows, a.Reserve, policy.IsShared, now)
 	}
 	return s
+}
+
+// capped reports whether the account's window with the given key has reached
+// its reserve at now, which holds the account back, as ReserveHolds says.
+func (s WindowStates) capped(key string) bool {
+	return s.doc.ReserveHolds(s.account) && slices.Contains(s.reached, key)
 }
 
 // Of is how the account's window with the given key stands: the first that
@@ -98,46 +121,78 @@ func (d Document) WindowStatesOf(a Account, now time.Time, policy score.Policy) 
 func (s WindowStates) Of(key string) WindowState {
 	a := s.account
 	w, reported := a.Window(key)
-	switch {
-	case !a.TokenSet:
-		return WindowState{Kind: WindowTokenless}
-	case !reported || a.FetchedAt.IsZero():
-		return WindowState{Kind: WindowUnread}
+	if kind, ok := s.unknown(reported); ok {
+		return WindowState{Kind: kind}
 	}
-	lapsed := a.lapsed(w, s.now, s.policy)
-	stands := windowAsOf(w, lapsed, s.now)
-	st := WindowState{Used: stands.Utilization}
-	st.Kind, st.At = s.standing(w, stands, lapsed)
-	if pace, ok := s.doc.paceOf(stands, s.now); ok {
-		st.Pace = &pace
-	}
+	j := s.judge(w)
+	st := WindowState{Used: j.stands.Utilization, Pace: j.pace}
+	st.Kind, st.At = s.kind(w, j)
 	if st.Kind == WindowOpen {
-		st.Allowance = s.doc.allowanceOf(a, stands, s.now)
+		st.Allowance = j.allowance
 	}
 	return st
 }
 
-// standing is the kind of the account's window w, read, as it stands, as
-// stands, lapsed or not as given, and when what the kind says comes: the
-// first that holds of a limit, its token refused, not started, its last read
-// failed, the cap, running out, and open, its allowance running to its
-// reset. It projects the window only where none before running out holds.
-func (s WindowStates) standing(w, stands quota.Window, lapsed bool) (WindowKind, time.Time) {
-	d, a, now := s.doc, s.account, s.now
+// unknown is the kind of a window of the account nothing is known of,
+// reporting false where something is: of an account without a usable token,
+// and of one the account hasn't reported, as reported says, or nothing read.
+func (s WindowStates) unknown(reported bool) (WindowKind, bool) {
 	switch {
-	case s.held && s.hold.Holds(w.Key):
-		return WindowLimited, s.hold.Lifts(w.Key)
-	case a.TokenRefused(now):
+	case !s.account.TokenSet:
+		return WindowTokenless, true
+	case !reported || s.account.FetchedAt.IsZero():
+		return WindowUnread, true
+	}
+	return 0, false
+}
+
+// kind is the kind of the account's window w, read, standing as j has it, and
+// when what the kind says comes: the first that holds of a limit, its token
+// refused, not started, its last read failed, the cap, running out, and open,
+// its allowance running to its reset.
+func (s WindowStates) kind(w quota.Window, j judged) (WindowKind, time.Time) {
+	a, stood := s.account, s.stood
+	switch {
+	case stood.limited && stood.held.Holds(w.Key):
+		return WindowLimited, stood.held.Lifts(w.Key)
+	case stood.refused:
 		return WindowStale, a.FetchedAt
-	case lapsed:
+	case j.lapsed:
 		return WindowNotStarted, time.Time{}
 	case a.Error != "":
 		return WindowStale, a.FetchedAt
-	case slices.Contains(s.capped, w.Key):
-		return WindowCapped, stands.ResetsAt
+	case s.capped(w.Key):
+		return WindowCapped, j.stands.ResetsAt
+	case j.runsOut:
+		return WindowRunsOut, j.out.At
 	}
-	if out, ok := d.RunsOut(a, w, now); ok {
-		return WindowRunsOut, out.At
-	}
-	return WindowOpen, stands.ResetsAt
+	return WindowOpen, j.stands.ResetsAt
+}
+
+// judged is how a window of an account stands at a moment, worked out once:
+// as it stands, as WindowAt has it, lapsed or not; its even pace and its
+// allowance, as measure has them; where it runs out, as RunsOut says, runsOut
+// set where it does before it resets; and the room the pool counts it as
+// having, as poolRoom has it. Whatever its account's token or read, it's
+// worked out of the window as given, as the document's own pace, allowance
+// and pool are.
+type judged struct {
+	window    quota.Window
+	stands    quota.Window
+	lapsed    bool
+	pace      *float64
+	allowance quota.Allowance
+	out       RunOut
+	runsOut   bool
+	room      float64
+}
+
+// judge is how the account's window w, read, stands at now, as judged has it.
+func (s WindowStates) judge(w quota.Window) judged {
+	j := judged{window: w, lapsed: !s.stood.running(w.Key)}
+	j.stands = windowAsOf(w, j.lapsed, s.now)
+	j.pace, j.allowance = s.doc.measure(s.account, s.stood, w.Key, j.stands, s.now)
+	j.out, j.runsOut = s.doc.RunsOut(s.account, w, s.now)
+	j.room = s.doc.poolRoom(s.account, s.stood, w, s.now, s.policy)
+	return j
 }

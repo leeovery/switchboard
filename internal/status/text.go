@@ -65,7 +65,7 @@ func (d Document) Text(now time.Time, policy score.Policy, sessions ...Session) 
 		}
 		b.WriteString("\n")
 	}
-	d.writePriming(&b, now)
+	d.writePriming(&b, now, policy)
 	if best, ok := d.Account(d.Best); ok {
 		fmt.Fprintf(&b, "best next: %s\n", best.Title())
 	}
@@ -78,8 +78,8 @@ func (d Document) Text(now time.Time, policy score.Policy, sessions ...Session) 
 
 // writePriming writes the priming schedule, when priming is on, such as
 // "priming 08:00-23:00: work at 04:10 and side at 06:40", and under it what
-// comes next of it at now.
-func (d Document) writePriming(b *strings.Builder, now time.Time) {
+// comes next of it at now, as policy judges the windows, as Coming has it.
+func (d Document) writePriming(b *strings.Builder, now time.Time, policy score.Policy) {
 	if len(d.Prime.Slots) == 0 {
 		return
 	}
@@ -88,7 +88,7 @@ func (d Document) writePriming(b *strings.Builder, now time.Time) {
 		slots[i] = Clean(s.Account) + " at " + Clean(s.At)
 	}
 	fmt.Fprintf(b, "priming %s: %s\n", Clean(d.Prime.Day), prose.List(slots))
-	if coming := d.Coming(now); len(coming) > 0 {
+	if coming := d.Coming(now, policy); len(coming) > 0 {
 		parts := make([]string, len(coming))
 		for i, c := range coming {
 			parts[i] = c.What + ": " + c.Account.Title() + ", " + Clock(now, c.At)

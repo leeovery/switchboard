@@ -22,7 +22,7 @@ func TestAnAccountsWindowsStandOnTheHoldWorkedOutOnceForThemAll(t *testing.T) {
 		t.Fatalf("a window read spent stands as kind %d, want WindowLimited", got)
 	}
 
-	states.hold, states.held = Hold{}, false
+	states.stood.held, states.stood.limited = Hold{}, false
 	for _, key := range []string{"5h", "7d"} {
 		if got := states.Of(key).Kind; got == WindowLimited {
 			t.Errorf("%s stands limited by a hold of its own, want it to stand on its account's, worked out once for every window: none", key)

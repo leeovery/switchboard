@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -667,6 +669,23 @@ func TestAnAccountWorkedOutAloneIsAsTheDocumentWorkedOutHasIt(t *testing.T) {
 	}
 	if got, ok := doc.AccountWorkedOut("spare", policy); ok {
 		t.Errorf("AccountWorkedOut(\"spare\") = %+v, true, want none: the document has no such account", got)
+	}
+}
+
+// The JSON of a document worked out is held to the bytes status --json gave
+// before the read model: its pool and what's coming up most of all, which
+// WorkedOut works out as a view does at the moment it was built.
+func TestADocumentWorkedOutGivesTheJSONItAlwaysHas(t *testing.T) {
+	want, err := os.ReadFile(filepath.Join("testdata", "worked-out.golden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := json.MarshalIndent(fullDocument().WorkedOut(policy), "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(got)+"\n", string(want); got != want {
+		t.Errorf("worked out, the document as JSON is\n%s\nwant\n%s", got, want)
 	}
 }
 

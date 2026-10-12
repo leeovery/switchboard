@@ -1,0 +1,235 @@
+{
+  "generated_at": "2026-09-28T13:12:00Z",
+  "source": "router",
+  "prime": {
+    "day": "08:00-22:00",
+    "window": "5h",
+    "slots": [
+      {
+        "account": "side",
+        "at": "13:50",
+        "next": "2026-09-28T13:50:00Z"
+      }
+    ]
+  },
+  "pin": {
+    "accounts": [
+      "work",
+      "side"
+    ],
+    "account": "work",
+    "since": "2026-09-28T12:12:00Z",
+    "move": false
+  },
+  "pool": {
+    "accounts": [
+      "work",
+      "side"
+    ],
+    "pinned": true,
+    "windows": [
+      {
+        "key": "5h",
+        "label": "Session",
+        "room": 1.5,
+        "used": 0.25,
+        "pace": 0.2
+      },
+      {
+        "key": "7d",
+        "label": "Week",
+        "room": 0.65,
+        "used": 0.675,
+        "pace": 0.5
+      },
+      {
+        "key": "7d_oi",
+        "label": "Fable week",
+        "room": 0.7,
+        "used": 0.65,
+        "pace": 0.5714285714285714
+      }
+    ]
+  },
+  "coming_up": [
+    {
+      "at": "2026-09-28T13:50:00Z",
+      "account": "side",
+      "kind": "prime"
+    },
+    {
+      "at": "2026-09-28T14:12:00Z",
+      "account": "personal",
+      "kind": "back"
+    },
+    {
+      "at": "2026-09-28T15:12:00Z",
+      "account": "work",
+      "kind": "runs_out",
+      "window": "5h"
+    },
+    {
+      "at": "2026-09-28T17:12:00Z",
+      "account": "work",
+      "kind": "reset",
+      "window": "5h"
+    },
+    {
+      "at": "2026-09-28T19:30:56.842105263Z",
+      "account": "work",
+      "kind": "runs_out",
+      "window": "7d"
+    },
+    {
+      "at": "2026-09-30T13:12:00Z",
+      "account": "work",
+      "kind": "reset",
+      "window": "7d"
+    },
+    {
+      "at": "2026-10-01T13:12:00Z",
+      "account": "work",
+      "kind": "reset",
+      "window": "7d_oi"
+    },
+    {
+      "at": "2026-10-01T13:12:00Z",
+      "account": "side",
+      "kind": "runs_out",
+      "window": "7d"
+    },
+    {
+      "at": "2026-10-03T13:12:00Z",
+      "account": "side",
+      "kind": "reset",
+      "window": "7d"
+    },
+    {
+      "at": "2026-10-04T13:12:00Z",
+      "account": "personal",
+      "kind": "reset",
+      "window": "7d"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "work",
+      "label": "work",
+      "reserve": 0.1,
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "5h",
+          "label": "Session",
+          "utilization": 0.5,
+          "resets_at": "2026-09-28T17:12:00Z",
+          "pace": 0.2,
+          "allowance": {
+            "share": 0.125,
+            "per": "hour"
+          }
+        },
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.95,
+          "resets_at": "2026-09-30T13:12:00Z",
+          "pace": 0.7142857142857143,
+          "allowance": {
+            "share": 0.025000000000000022,
+            "per": "day"
+          }
+        },
+        {
+          "key": "7d_oi",
+          "label": "Fable week",
+          "utilization": 0.3,
+          "resets_at": "2026-10-01T13:12:00Z",
+          "pace": 0.5714285714285714,
+          "allowance": {
+            "share": 0.2333333333333333,
+            "per": "day"
+          }
+        }
+      ],
+      "pressure": {
+        "window": "5h",
+        "rate": 0.25,
+        "recent": true
+      },
+      "rates": [
+        {
+          "window": "5h",
+          "rate": 0.25
+        }
+      ]
+    },
+    {
+      "id": "personal",
+      "label": "personal",
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "5h",
+          "label": "Session",
+          "utilization": 1,
+          "resets_at": "2026-09-28T14:12:00Z",
+          "status": "rejected",
+          "pace": 0.8
+        },
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.89,
+          "resets_at": "2026-09-27T13:12:00Z",
+          "pace": 0.14285714285714285,
+          "allowance": {
+            "share": 0.16666666666666666,
+            "per": "day"
+          }
+        }
+      ],
+      "limit": {
+        "id": 2,
+        "windows": [
+          "5h"
+        ],
+        "until": "2026-09-28T14:12:00Z"
+      }
+    },
+    {
+      "id": "side",
+      "label": "side",
+      "token_set": true,
+      "fetched_at": "2026-09-28T13:12:00Z",
+      "windows": [
+        {
+          "key": "5h",
+          "label": "Session",
+          "utilization": 0
+        },
+        {
+          "key": "7d",
+          "label": "Week",
+          "utilization": 0.4,
+          "resets_at": "2026-10-03T13:12:00Z",
+          "pace": 0.2857142857142857,
+          "allowance": {
+            "share": 0.12,
+            "per": "day"
+          }
+        }
+      ],
+      "lapsed": [
+        "5h"
+      ],
+      "refused": {
+        "until": "2026-09-28T14:12:00Z",
+        "status": 403,
+        "family": "opus"
+      }
+    }
+  ]
+}
