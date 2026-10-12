@@ -103,8 +103,8 @@ func (f Frame) Draw(doc status.Document, now time.Time) []string {
 }
 
 // view draws the tab shown of doc at now from row top, where the page has
-// room for it, as cramped says: the Overview, Sessions and Runway; and
-// nothing of a tab not built yet.
+// room for it, as cramped says: the Overview, its traces scaled alike, as
+// scaled says; Sessions and Runway; and nothing of a tab not built yet.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -112,7 +112,7 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	top := f.top()
 	switch f.View {
 	case Overview:
-		f.overview(c, doc, now, top)
+		f.scaled(doc, now).overview(c, doc, now, top)
 	case Sessions:
 		f.sessions(c, doc, now, top)
 	case Runway:

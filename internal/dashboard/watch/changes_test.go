@@ -19,12 +19,12 @@ func limitedWork() status.Document {
 	return doc
 }
 
-// changed are the ids of the accounts whose cards are picked out at now.
+// changed are the ids of the accounts whose states are picked out at now.
 func (h *harness) changed() []string {
 	return slices.Sorted(maps.Keys(h.model.changes.faded(h.clock.now)))
 }
 
-func TestTheFirstLookPicksOutNoCard(t *testing.T) {
+func TestTheFirstLookPicksOutNoState(t *testing.T) {
 	h := routedHarness(t, limitedWork())
 	h.start()
 
@@ -33,7 +33,7 @@ func TestTheFirstLookPicksOutNoCard(t *testing.T) {
 	}
 }
 
-func TestACardWhoseStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
+func TestAStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
 	h.startRouter(limitedWork())
@@ -54,7 +54,7 @@ func TestACardWhoseStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 		}
 	}
 	if _, ok := h.pendingFrame(); !ok {
-		t.Fatal("no frames drawn as the highlight fades")
+		t.Fatal("no frames drawn as the cue fades")
 	}
 	h.tickUntilAsked()
 	if got := h.changed(); len(got) > 0 {
@@ -62,7 +62,7 @@ func TestACardWhoseStateALookSeesChangeIsPickedOutFadingBack(t *testing.T) {
 	}
 }
 
-func TestACardWhoseStateTheClockChangesIsPickedOutAsItTicks(t *testing.T) {
+func TestAStateTheClockChangesIsPickedOutAsItTicks(t *testing.T) {
 	spent := session(1, 10*time.Second)
 	spent.Status = quota.StatusRejected
 	h := newHarness(t, document(account("work", "Work", spent, week(0.5)), three()[1]))
@@ -87,7 +87,54 @@ func TestACountdownMovingOnIsNoChange(t *testing.T) {
 	}
 }
 
-func TestAReadFailingWhileALimitHoldsPicksOutNoCard(t *testing.T) {
+func TestAStateWhoseFirstWordsStayIsNoChange(t *testing.T) {
+	tests := []struct {
+		name         string
+		before, then func(*status.Document)
+	}{
+		{
+			name:   "new sessions coming to an account open",
+			before: func(d *status.Document) { d.Best = "personal" },
+			then:   func(d *status.Document) { d.Best = "work" },
+		},
+		{
+			name:   "the global pin spending the cap of an account at it",
+			before: func(d *status.Document) { d.Accounts[0] = reserving(d.Accounts[0], 0.8) },
+			then: func(d *status.Document) {
+				d.Accounts[0] = reserving(d.Accounts[0], 0.8)
+				d.Pin = status.Pin{Accounts: []string{"work"}, Since: start.UTC()}
+			},
+		},
+		{
+			name:   "the time an account is back from its limit",
+			before: func(d *status.Document) { *d = limitedWork() },
+			then: func(d *status.Document) {
+				*d = limitedWork()
+				d.Accounts[0].Limit.Until = start.Add(4 * time.Hour).UTC()
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before, then := routerDocument(three()...), routerDocument(three()...)
+			tt.before(&before)
+			tt.then(&then)
+			h := routedHarness(t, before)
+			policy := h.model.cfg.Policy
+			if was, is := before.RoutingOf(before.Accounts[0], start, policy), then.RoutingOf(then.Accounts[0], start, policy); was.String() == is.String() {
+				t.Fatalf("work stands as %q before and after, want its words changed past its first", was)
+			}
+			h.start()
+			h.startRouter(then)
+			h.tickUntilAsked()
+			if got := h.changed(); len(got) > 0 {
+				t.Errorf("picked out %v, want none: each account's state is said in the words it was", got)
+			}
+		})
+	}
+}
+
+func TestAReadFailingWhileALimitHoldsPicksOutNoState(t *testing.T) {
 	h := routedHarness(t, limitedWork())
 	h.start()
 
