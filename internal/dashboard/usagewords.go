@@ -75,7 +75,7 @@ func allowed(a quota.Allowance, reset time.Time, now time.Time) usageWords {
 	if a == (quota.Allowance{}) {
 		return usageWords{}
 	}
-	rate := span{strconv.Itoa(wholePercent(a.Share)) + "%" + perWords[a.Per], mutedInk}
+	rate := span{status.Percent(a.Share) + perWords[a.Per], mutedInk}
 	return usageWords{
 		full:  line{rate, {" till ", dimInk}, {status.Dated(now, reset), mutedInk}},
 		short: line{rate, {" · ", dimInk}, {brief(now, reset), mutedInk}},
@@ -139,7 +139,7 @@ func (w usageWords) pick(width, room int) line {
 // over any colour; a stale reading's in text.subtle, not bold; and of an
 // empty bar, none, as — in text.faint.
 func (b usageBar) percentage() line {
-	shown := wholePercent(b.used)
+	shown := status.WholePercent(b.used)
 	k := ink{token: theme.VizRamp1, bold: true}
 	switch {
 	case b.empty:
@@ -158,9 +158,3 @@ func (b usageBar) percentage() line {
 
 // percentCells are the cells a window's percentage is right-aligned in.
 const percentCells = 4
-
-// wholePercent is a share as a whole percentage, a half rounded to the even
-// one.
-func wholePercent(share float64) int {
-	return halfEven(share * 100)
-}

@@ -280,10 +280,10 @@ func TestAClickOnTheCellsOfPPinOrQQuitDoesNothing(t *testing.T) {
 	}
 }
 
-func TestAClickNeverPinsOrQuits(t *testing.T) {
+func TestAClickOnAKeyThePageDoesntTakeDoesNothing(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()
-	for _, key := range []string{"p", "q", "", "pin", "1", "a", "m"} {
+	for _, key := range []string{"", "pin", "1", "a", "m"} {
 		if h.clickOn(keyTarget(key)) || h.model.open != nothingOpen || len(h.source.orders) > 0 {
 			t.Errorf("a click on %q quit, or opened %v, or ordered %q; want nothing", key, h.model.open, h.source.orders)
 		}

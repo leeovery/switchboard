@@ -111,7 +111,7 @@ func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	if h.press("j"); h.model.scroll != 1 || strings.Contains(h.view(), " 1 Account A") {
 		t.Errorf("j scrolled Runway to %d, the screen\n%s\nwant its lanes a row down", h.model.scroll, h.view())
 	}
-	if help := h.model.helpKeys(); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll"}) {
+	if help := h.model.helpKeys(h.clock.now); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll"}) {
 		t.Errorf("the help lists %+v, want j and k scrolling the lanes", help)
 	}
 }
@@ -139,7 +139,7 @@ func TestWSwitchesRunwayBetweenTheDayAndTheWeek(t *testing.T) {
 		if h.model.span != step.want || !strings.HasPrefix(h.keyLine(), step.keys) {
 			t.Errorf("Runway shows the %s, the key line reading %q, want the %s, it starting %q", h.model.span.Name(), h.keyLine(), step.want.Name(), step.keys)
 		}
-		if help := h.model.helpKeys(); !slices.Contains(help, dashboard.Key{Key: "w", Does: step.does}) {
+		if help := h.model.helpKeys(h.clock.now); !slices.Contains(help, dashboard.Key{Key: "w", Does: step.does}) {
 			t.Errorf("the help lists %+v, want w as %q", help, step.does)
 		}
 		if !strings.Contains(h.view(), step.wantShows) || strings.Contains(h.view(), step.wantHidden) {

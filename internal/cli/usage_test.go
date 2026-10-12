@@ -195,16 +195,8 @@ func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
 			want: "no account reports the Fable week: give --5h or --week",
 		},
 		{
-			name: "a window every model shares, where no account reports any", upstream: refusingAPI, args: []string{"--week"},
-			want: "no account reports the week, nor any other window",
-		},
-		{
-			name: "the first given in Claude's order, where no account reports any", upstream: refusingAPI, args: []string{"--fable", "--5h"},
-			want: "no account reports the 5-hour window, nor any other window",
-		},
-		{
-			name: "a window every model shares, where the accounts report only windows no flag names", upstream: opusWeekAPI, args: []string{"--week"},
-			want: "no account reports the week",
+			name: "a model's window, where no account is read", upstream: refusingAPI, args: []string{"--fable", "--5h"},
+			want: "no account reports the Fable week: give --5h or --week",
 		},
 	}
 	for _, tt := range tests {
@@ -220,16 +212,33 @@ func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
 }
 
 func TestUsagePrintsEveryAccountBeforeAnyWindowIsRead(t *testing.T) {
-	deps := statusDeps(t, refusingAPI(t), map[string]string{"COLUMNS": "120"})
-
-	got := run(t, deps, "usage", "--pretty")
+	tests := []struct {
+		args     []string
+		headings []string
+	}{
+		{headings: []string{"5-HOUR", "WEEK"}},
+		{args: []string{"--5h"}, headings: []string{"5-HOUR"}},
+		{args: []string{"--week"}, headings: []string{"WEEK"}},
+		{args: []string{"--week", "--5h"}, headings: []string{"5-HOUR", "WEEK"}},
+	}
 	words := map[string]string{"Work": "not read yet", "Personal": "no token", "Side": "not read yet"}
-	for _, heading := range []string{"5-HOUR", "WEEK"} {
-		for label, want := range words {
-			if row := printedRow(got.stdout, heading, label); !strings.HasSuffix(row, "—  "+want) {
-				t.Errorf("switchboard usage --pretty, no account read, printed %s's row under %s as %q, want it to end %q:\n%s", label, heading, row, "—  "+want, got.stdout)
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			deps := statusDeps(t, refusingAPI(t), map[string]string{"COLUMNS": "120"})
+
+			got := run(t, deps, append([]string{"usage", "--pretty"}, tt.args...)...)
+			if got.code != 0 {
+				t.Fatalf("switchboard usage --pretty %s, no account read, = %+v, want it to print", strings.Join(tt.args, " "), got)
 			}
-		}
+			for _, heading := range tt.headings {
+				for label, want := range words {
+					if row := printedRow(got.stdout, heading, label); !strings.HasSuffix(row, "—  "+want) {
+						t.Errorf("switchboard usage --pretty %s, no account read, printed %s's row under %s as %q, want it to end %q:\n%s",
+							strings.Join(tt.args, " "), label, heading, row, "—  "+want, got.stdout)
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -249,14 +258,6 @@ func TestUsageRefusesALayoutItHasNone(t *testing.T) {
 func sharedWindowsAPI(t *testing.T) string {
 	t.Helper()
 	return reportingAPI(t, "5h", "7d")
-}
-
-// opusWeekAPI serves a probe of the work account, of any model, with Opus's
-// week alone, a window no flag of usage's names, and rejects anything else.
-// It returns the API's URL.
-func opusWeekAPI(t *testing.T) string {
-	t.Helper()
-	return reportingAPI(t, "7d_opus")
 }
 
 // reportingAPI serves a probe of the work account, of any model, with the
