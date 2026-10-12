@@ -491,7 +491,7 @@ func (y yearView) numbers() YearNumbers {
 func (y yearView) versionNumbers(first string) YearNumbers {
 	t := y.totals()
 	return YearNumbers{
-		Requests: t.Requests, Sessions: t.Sessions, Worth: t.Worth, Share: t.Worth.shareOf(y.all.worth().amount()),
+		Requests: t.Requests, Sessions: t.Sessions, Worth: t.Worth, Share: shareOf(t.Worth, y.all.worth().amount()),
 		BusiestDay: t.BusiestDay, LongestRun: t.LongestRun, FirstUsed: first,
 	}
 }
@@ -532,7 +532,7 @@ func (y yearView) versionMonths(first string) []MonthRow {
 	var rows []MonthRow
 	for _, m := range monthsOf(y.shown, plans{}, y.v, y.span.first, y.span.today) {
 		if m.Requests > 0 {
-			rows = append(rows, MonthRow{Month: m, Share: m.Worth.shareOf(whole[m.Month]), From: y.span.partWay(m.Month, first), SoFar: y.span.running(m.Month)})
+			rows = append(rows, MonthRow{Month: m, Share: shareOf(m.Worth, whole[m.Month]), From: y.span.partWay(m.Month, first), SoFar: y.span.running(m.Month)})
 		}
 	}
 	return rows

@@ -135,7 +135,7 @@ func (w eightWeeks) byFamily(v versions) []DaysStrip {
 	strips := make([]DaysStrip, len(names))
 	for i, name := range names {
 		f := families[name]
-		strips[i] = DaysStrip{Of: name, Days: levelled(f.worth, cuts), Share: f.sum.shareOf(total)}
+		strips[i] = DaysStrip{Of: name, Days: levelled(f.worth, cuts), Share: shareOf(f.sum, total)}
 	}
 	return strips
 }
