@@ -115,6 +115,45 @@ func TestANoteLapses(t *testing.T) {
 	}
 }
 
+func TestARefusalLandingUnderAnotherCardWaitsForThePageToShow(t *testing.T) {
+	refusal := errors.New("account personal has no usable token, so nothing can go out on it: token missing")
+	tests := []struct {
+		name string
+		// opens is the key that opens the card the refusal lands under.
+		opens string
+	}{
+		{name: "help", opens: "?"},
+		{name: "another routing card", opens: "p"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := routedHarness(t, routerDocument(three()...))
+			h.start()
+			h.source.refuse = refusal
+			h.keyed("p 2")
+			answer := h.update(namedKeys["enter"])
+			h.keyed("esc " + tt.opens)
+			h.deliver(answer...)
+			if lapse, ok := h.pending(noteMsg{}); ok {
+				t.Errorf("under the card, the note lapses at %v, want it held till the page shows", lapse.due)
+			}
+
+			h.clock.now = h.clock.now.Add(2 * noteFor)
+			h.keyed("esc")
+			if got := h.keyLine(); got != refusal.Error() {
+				t.Errorf("once the card closed, the key line reads %q, want %q in its place", got, refusal)
+			}
+			lapse, ok := h.pending(noteMsg{})
+			if !ok {
+				t.Fatal("once the card closed, no timer was armed for the note to lapse")
+			}
+			if want := h.clock.now.Add(noteFor); !lapse.due.Equal(want) {
+				t.Errorf("the note lapses at %v, want %v, %v after the card closed", lapse.due, want, noteFor)
+			}
+		})
+	}
+}
+
 func TestAnOrderWhileTheRouterCarriesOutAnotherIsDropped(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.start()

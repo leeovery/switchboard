@@ -12,31 +12,40 @@ import (
 )
 
 // routing is the routing card's picker while it's open: card numbers the
-// routing cards opened, this one the last; the ids of the accounts picked,
-// in the config's order, none picking auto, and those picked as it opened;
-// the row the cursor is on; whether m is ticked; and why its last apply sent
-// nothing, or the router refused it, until the picks change. listed are the
-// sessions the router lists, as views listed them to price their moves, for
-// the document that arrived at costed.
+// routing cards opened, this one the last; the ids of the accounts a key
+// picked, in the config's order, none picking auto, once chosen says one
+// has, as picks says; the row the cursor is on; whether m is ticked; why its
+// last apply sent nothing, or the router refused it, until the picks change;
+// and what it knows of what its moves cost.
 type routing struct {
-	card           int
-	picked, opened []string
-	cursor         int
-	move           bool
-	refused        error
-	listed         []views.ListedSession
-	costed         time.Time
+	card    int
+	picked  []string
+	chosen  bool
+	cursor  int
+	move    bool
+	refused error
+	priced  pricing
 }
 
-// costedMsg is the sessions the router lists, as views listed them to price
-// their moves, for the document that arrived at at.
+// pricing is what the routing card knows of what its moves cost: the
+// sessions views listed to price them, and the sessions the router listed
+// that they were listed of; and whether a listing runs, which a card opened
+// while it does waits on too.
+type pricing struct {
+	listed  []views.ListedSession
+	of      []status.Session
+	listing bool
+}
+
+// costedMsg is the sessions views listed to price their moves, of the
+// sessions the router listed given.
 type costedMsg struct {
-	at     time.Time
+	of     []status.Session
 	listed []views.ListedSession
 }
 
 // openRouting opens the routing card over the page, as p does, where the key
-// line lists p: the accounts the standing pin names picked, else auto, the
+// line lists p: picking what the pin standing names, as picks says, the
 // cursor on the first picked, and m clear. While the router doesn't answer,
 // it opens nothing, the key line saying so in its place.
 func (m Model) openRouting() (tea.Model, tea.Cmd) {
@@ -46,23 +55,42 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	case key.Off:
 		return m.noting(status.ErrNoRouter.Error())
 	}
-	picked := m.standing()
+	picked, _ := m.standing()
 	rows := m.routingRows(m.now())
 	cursor := max(slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return slices.Contains(picked, row.Account) }), 0)
-	m.routing = routing{card: m.routing.card + 1, picked: picked, opened: picked, cursor: cursor}
+	m.routing = routing{card: m.routing.card + 1, cursor: cursor, priced: pricing{listing: m.routing.priced.listing}}
 	return m.cover(routingOpen), nil
 }
 
-// standing are the ids of the accounts the standing pin names, in the
-// config's order, whether they can be picked or not.
-func (m Model) standing() []string {
-	var ids []string
+// standing are the ids of the accounts the pin standing now names, in the
+// config's order: those it can be sent with, sendable, which have a usable
+// token, as the router refuses a pin naming any without, as one that lost
+// its token since it was pinned; and every one, named. One held at its
+// limit, or its token refused, can be sent, as the router takes it.
+func (m Model) standing() (sendable, named []string) {
 	for _, a := range m.doc.Accounts {
-		if m.doc.Pin.Has(a.ID) {
-			ids = append(ids, a.ID)
+		if !m.doc.Pin.Has(a.ID) {
+			continue
+		}
+		named = append(named, a.ID)
+		if a.TokenSet {
+			sendable = append(sendable, a.ID)
 		}
 	}
-	return ids
+	return sendable, named
+}
+
+// picks are the ids of the accounts the routing card picks, in the config's
+// order, none picking auto: those a key picked, once one has; till then,
+// those the pin standing now can be sent with, as standing says, so a card
+// opened before an order lands, or before a pin's set from the command
+// line, follows the pin.
+func (m Model) picks() []string {
+	if m.routing.chosen {
+		return m.routing.picked
+	}
+	picked, _ := m.standing()
+	return picked
 }
 
 // routingKey acts on a key while the routing card is open, which takes
@@ -73,10 +101,10 @@ func (m Model) standing() []string {
 func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
 	rows := m.routingRows(m.now())
 	r := m.routing
-	r.cursor = min(r.cursor, len(rows)-1)
+	r.cursor, r.picked = min(r.cursor, len(rows)-1), m.picks()
 	switch key {
 	case "esc":
-		return m.uncover(), nil
+		return m.uncover()
 	case "enter":
 		return m.apply()
 	case "up":
@@ -95,32 +123,38 @@ func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
 }
 
 // numbered is r with the row the key numbers picked, the cursor going
-// there, where the row can be picked: a number past the accounts there are,
-// or an account's that can't be picked, does nothing.
+// there, where the row takes it, as takes says: a number past the accounts
+// there are, or an account's that can't be picked and isn't, does nothing.
 func (r routing) numbered(rows []dashboard.RoutingRow, key string) routing {
 	i := slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return row.Key == key })
-	if i < 0 || !rows[i].Pickable {
+	if i < 0 || !r.takes(rows[i]) {
 		return r
 	}
 	r.cursor = i
 	return r.picking(rows, i)
 }
 
-// picking is r with the row with the given index picked: auto, clearing
-// every account, those that can't be picked among them; or an account,
-// ticked or cleared, which clears auto. An account that can't be picked
-// takes nothing.
+// picking is r with the row with the given index picked, where it takes it,
+// as takes says: auto, clearing every account, those that can't be picked
+// among them; or an account, ticked or cleared, which clears auto.
 func (r routing) picking(rows []dashboard.RoutingRow, i int) routing {
 	switch row := rows[i]; {
-	case !row.Pickable:
+	case !r.takes(row):
 		return r
 	case row.Account == "":
 		r.picked = nil
 	default:
 		r.picked = toggled(r.picked, row.Account, rows)
 	}
-	r.refused = nil
+	r.chosen, r.refused = true, nil
 	return r
+}
+
+// takes reports whether the row takes space and its number: where it can be
+// picked; or where it can't, while it's picked, as a pin from the command
+// line can pick it, to clear it, never to pick it again.
+func (r routing) takes(row dashboard.RoutingRow) bool {
+	return row.Pickable || slices.Contains(r.picked, row.Account)
 }
 
 // toggled are the ids of the accounts picked with the account with the
@@ -140,22 +174,24 @@ func toggled(picked []string, id string, rows []dashboard.RoutingRow) []string {
 // none picked, auto, which moves none, m ticked or not. Where it changes
 // nothing, it sends nothing, and closes the card.
 func (m Model) apply() (Model, tea.Cmd) {
-	r := m.routing
+	picked, move := m.picks(), m.routing.move
+	_, named := m.standing()
 	switch {
-	case !r.changes():
-		return m.uncover(), nil
-	case len(r.picked) == 0:
+	case !alters(picked, named, move):
+		return m.uncover()
+	case len(picked) == 0:
 		return m.command(order{})
 	}
-	return m.command(order{accounts: r.picked, move: r.move})
+	return m.command(order{accounts: picked, move: move})
 }
 
-// changes reports whether applying the picks changes anything: they're not
-// as the card opened, or m is ticked with accounts picked, to move the
+// alters reports whether applying the accounts picked, with m ticked as
+// move says, changes anything of the pin standing now, which names those
+// named: they're not those, or m is ticked with accounts picked, to move the
 // sessions running elsewhere to them. Auto moves none, so with none picked,
 // m alone changes nothing.
-func (r routing) changes() bool {
-	return !slices.Equal(r.picked, r.opened) || r.move && len(r.picked) > 0
+func alters(picked, named []string, move bool) bool {
+	return !slices.Equal(picked, named) || move && len(picked) > 0
 }
 
 // routingRows are the routing card's rows, read afresh from the document on
@@ -171,7 +207,7 @@ func (m Model) routingCard(now time.Time) dashboard.RoutingCard {
 	rows := m.routingRows(now)
 	moving := m.moving()
 	card := dashboard.RoutingCard{
-		Rows: rows, Picked: r.picked, Cursor: min(r.cursor, len(rows)-1), Move: r.move,
+		Rows: rows, Picked: m.picks(), Cursor: min(r.cursor, len(rows)-1), Move: r.move,
 		Moving: moving.Sessions, Cost: moving.Cost,
 	}
 	if r.refused != nil {
@@ -186,31 +222,47 @@ func (m Model) moving() views.Moving {
 	if !m.routing.move {
 		return views.Moving{}
 	}
-	return views.MovingTo(m.routing.picked, m.sessions, m.routing.listed)
+	return views.MovingTo(m.picks(), m.sessions, m.routing.priced.listed)
 }
 
 // costing has views list the sessions the router lists, pricing their
 // moves, while the routing card wants them: while it's open, m ticked, and
-// some session would move; once for each document read.
+// some session would move, where the sessions listed aren't those it last
+// priced, as sameSession compares them, whatever document they came with.
+// It starts none while one runs: the sessions are listed again once it
+// lands, where they've changed since.
 func (m Model) costing() (Model, tea.Cmd) {
-	if m.open != routingOpen || m.routing.costed.Equal(m.updated) || m.moving().Sessions == 0 {
+	p := m.routing.priced
+	if m.open != routingOpen || p.listing || m.moving().Sessions == 0 || slices.EqualFunc(m.sessions, p.of, sameSession) {
 		return m, nil
 	}
-	m.routing.costed = m.updated
-	at := m.updated
-	src := views.SessionSources{Running: m.sessions, Ledger: m.cfg.Ledger, Prices: m.cfg.Prices, Now: m.now()}
+	m.routing.priced.listing = true
+	of := m.sessions
+	src := views.SessionSources{Running: of, Ledger: m.cfg.Ledger, Prices: m.cfg.Prices, Now: m.now()}
 	return m, func() tea.Msg {
-		return costedMsg{at: at, listed: views.ListSessions(src).Sessions}
+		return costedMsg{of: of, listed: views.ListSessions(src).Sessions}
 	}
 }
 
-// costed takes in the sessions listed to price their moves, while the
-// routing card is open over the document they were listed for.
+// costed takes in the sessions listed to price the routing card's moves:
+// the listing runs no more, and while the card is open, it prices them,
+// however many looks have come since it started.
 func (m Model) costed(msg costedMsg) Model {
-	if m.open == routingOpen && msg.at.Equal(m.updated) {
-		m.routing.listed = msg.listed
+	m.routing.priced.listing = false
+	if m.open == routingOpen {
+		m.routing.priced.listed, m.routing.priced.of = msg.listed, msg.of
 	}
 	return m
+}
+
+// sameSession reports whether two sessions the router listed are alike as
+// pricing a move reads them: the same session, pinned alike, with the same
+// models, each going to the same account, as busy, and seen last at the same
+// time, which a request's line in the ledger follows.
+func sameSession(a, b status.Session) bool {
+	return a.ID == b.ID && a.Pin == b.Pin && slices.EqualFunc(a.Assignments, b.Assignments, func(x, y status.Assignment) bool {
+		return x.Model == y.Model && x.Account == y.Account && x.InFlight == y.InFlight && x.LastSeen.Equal(y.LastSeen)
+	})
 }
 
 // pinKey is p as the key line and help list it, and whether they list it:
