@@ -250,7 +250,7 @@ func TestLATELYNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: status.ReasonNew},
 		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
 	)
-	doc.Pool.Accounts = []string{"work"}
+	doc.Pin = status.Pin{Accounts: []string{"work"}}
 	lines := frameOf(160, 40).latelyLines(doc, views.Lately(doc, now, 2), now)
 	tests := []struct {
 		line int

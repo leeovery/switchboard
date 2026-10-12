@@ -55,6 +55,51 @@ func (f Frame) MaySettle() bool {
 	return len(f.Brightened)+len(f.Eased)+len(f.Fresh)+len(f.Changed)+len(f.TurnedOut) > 0
 }
 
+// Filled are how much of each bar the frame's view draws of doc at now it
+// fills, as drawn without easing, by its window's account and key, the
+// pool's by its key alone, for a watch to ease each bar from and to: on the
+// Overview, as USAGE draws them, each account's window as it stands at now,
+// which reads empty once it has reset since it was read, and the pool's as
+// the frame judges it at now; on Sessions, as last read; and none on a view
+// that draws no bar.
+func (f Frame) Filled(doc status.Document, now time.Time) map[Ref]float64 {
+	switch f.View {
+	case Overview:
+		return f.overviewFilled(doc, now)
+	case Sessions:
+		return lastRead(doc)
+	}
+	return nil
+}
+
+// overviewFilled are how much of each bar the Overview's USAGE draws of doc
+// at now it fills, as Filled has them.
+func (f Frame) overviewFilled(doc status.Document, now time.Time) map[Ref]float64 {
+	filled := make(map[Ref]float64)
+	for _, a := range doc.Accounts {
+		states := doc.WindowStatesOf(a, now)
+		for _, w := range a.Windows {
+			filled[Ref{Account: a.ID, Window: w.Key}] = states.Of(w.Key).Used
+		}
+	}
+	for _, p := range f.pool(doc, now).Windows {
+		filled[Ref{Window: p.Key}] = p.Used
+	}
+	return filled
+}
+
+// lastRead are how much of each of doc's windows was used as last read, by
+// its account and key.
+func lastRead(doc status.Document) map[Ref]float64 {
+	used := make(map[Ref]float64)
+	for _, a := range doc.Accounts {
+		for _, w := range a.Windows {
+			used[Ref{Account: a.ID, Window: w.Key}] = w.Utilization
+		}
+	}
+	return used
+}
+
 // settling reports whether anything the frame's page, drawn on c, settles
 // still, as MaySettle has it may. What the page doesn't draw never does, as
 // one scrolled out of view, in a section folded, or left off for want of

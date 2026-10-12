@@ -337,7 +337,7 @@ func TestCOMINGUPNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 		status.Upcoming{At: now.Add(time.Hour).UTC(), Account: "work", Kind: status.UpcomingPrime},
 		status.Upcoming{At: now.Add(2 * time.Hour).UTC(), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
 	)
-	doc.Pool.Accounts = []string{"work"}
+	doc.Pin = status.Pin{Accounts: []string{"work"}}
 	faint := ink{token: theme.TextFaint, bold: true}
 	want := []span{{"work", titleInk}, {"personal", faint}}
 	var got []span

@@ -62,7 +62,7 @@ type happening struct {
 // them, in its order, soonest first, each as happening says it, its account
 // named as the Overview names it, and its windows as windowNamer names them.
 func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
-	t := comingTeller{doc: doc, names: overviewNames(doc), window: f.windowNamer(doc), policy: f.Policy}
+	t := comingTeller{doc: doc, names: overviewNames(doc, f.pool(doc, now)), window: f.windowNamer(doc), policy: f.Policy}
 	var all []happening
 	for _, u := range doc.ComingUp {
 		if h, ok := t.happening(u); ok && h.at.After(now) {

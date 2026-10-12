@@ -103,7 +103,7 @@ func (f Frame) drawLately(c *canvas, doc status.Document, sentences []views.Sent
 // the rest's in text.subtle; its mark; and its words, as saidLine draws them,
 // short on a phone.
 func (f Frame) latelyLines(doc status.Document, sentences []views.Sentence, now time.Time) []line {
-	names := overviewNames(doc)
+	names := overviewNames(doc, f.pool(doc, now))
 	column := 0
 	for _, s := range sentences {
 		column = max(column, len(status.Dated(now, s.At)))
