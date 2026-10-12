@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -50,26 +52,88 @@ const (
 	byMonthPhoneMonths   = 6
 )
 
-// historyYear draws the Year from row top, once its page is built: on a
-// phone, as phone lays it out.
+// historyYear draws the Year from row top, once its page is built: wide
+// where it fits, else as a phone lays it out.
 func (f Frame) historyYear(c *canvas, top int) {
 	page := f.History.Year
 	if page == nil {
 		return
 	}
 	y := yearDrawn{Frame: f, page: *page, ask: f.History.YearAsk}
-	if f.phone() {
+	if f.phoneForm(y.reach) {
 		y.phone(c, top)
 		return
 	}
-	y.grid(c, yearGridX, top, page.Weeks, 0, dayAbbreviation)
+	y.wide(c, top)
+}
+
+// wide draws the Year as the design lays it out at 160 columns: the grid,
+// the key under it, the numbers at its right, BY MONTH and the bars' key.
+func (y yearDrawn) wide(c *canvas, top int) {
+	y.grid(c, yearGridX, top, y.page.Weeks, 0, dayAbbreviation)
 	y.key(c, top+yearKeyRow, keyWide)
 	y.heading(c, yearNumbersX, top)
 	for i, figure := range y.figures() {
-		c.line(yearNumbersX, top+1+i, slices.Concat(line{{padded(figure.label, yearLabelCells), dimInk}}, figure.value))
+		c.line(yearNumbersX, top+1+i, figure.labelled())
 	}
 	last := y.byMonth(c, top+yearByMonthRow, byMonthWide)
 	y.dots(c, byMonthBarX, last+2)
+}
+
+// reach is the column the Year's wide form ends before, where its widest row
+// ends: the grid's, the numbers', BY MONTH's or the bars' key's. The shades'
+// key is cut at the frame's edge, so it's left out.
+func (y yearDrawn) reach() int {
+	ends := []int{
+		y.gridReach(),
+		yearNumbersX + ansi.StringWidth(y.headingText()),
+		y.byMonthReach(),
+		byMonthBarX + y.familyDots().width(),
+	}
+	for _, figure := range y.figures() {
+		ends = append(ends, yearNumbersX+figure.labelled().width())
+	}
+	return slices.Max(ends)
+}
+
+// gridReach is the column the wide grid ends before: its last week's, or
+// the name of a month over the weeks.
+func (y yearDrawn) gridReach() int {
+	end := 0
+	if weeks := len(y.page.Weeks); weeks > 0 {
+		end = yearGridX + 2*(weeks-1) + 1
+	}
+	for _, l := range y.page.Months {
+		end = max(end, yearGridX+2*l.Week+ansi.StringWidth(monthName(l.Month, false)))
+	}
+	return end
+}
+
+// byMonthReach is the column BY MONTH, wide, ends before: its heading's, its
+// heads', the row before a version's months', or a month's, its note after
+// its bar.
+func (y yearDrawn) byMonthReach() int {
+	columns := y.monthColumns(byMonthWide)
+	end := max(groupHead("BY MONTH", y.byMonthSays(), false).width(), byMonthBarX+ansi.StringWidth(y.barHead()))
+	for _, col := range columns {
+		end = max(end, col.x+ansi.StringWidth(col.head))
+	}
+	if b := y.page.Before; b != nil {
+		months, then := beforeSaid(*b)
+		end = max(end, byMonthNameX+ansi.StringWidth(months), byMonthWorthX+ansi.StringWidth(then))
+	}
+	largest := largestWorth(y.page.ByMonth)
+	for _, m := range y.page.ByMonth {
+		for _, col := range columns {
+			end = max(end, col.x+col.of(m).width())
+		}
+		bar := byMonthBarX + y.monthBar(m, largest, byMonthBarCells).width()
+		if note := monthNote(m); note != "" {
+			bar += 2 + ansi.StringWidth(note)
+		}
+		end = max(end, bar)
+	}
+	return end
 }
 
 // phone draws the Year as a phone has it: the latest weeks that fit, under
@@ -228,22 +292,25 @@ func (y yearDrawn) unit(what string) string {
 	return strings.TrimSpace(y.shown() + " " + what)
 }
 
-// heading draws the numbers' heading at x along row row: the period, LAST 12
-// MONTHS or the year, as 2025; or after the use shown, OPUS 5.5 · 12 MONTHS
-// or WORK · 2025.
+// heading draws the numbers' heading at x along row row.
 func (y yearDrawn) heading(c *canvas, x, row int) {
+	c.text(x, row, y.headingText(), dimInk)
+}
+
+// headingText is the numbers' heading: the period, LAST 12 MONTHS or the
+// year, as 2025; or after the use shown, OPUS 5.5 · 12 MONTHS or WORK · 2025.
+func (y yearDrawn) headingText() string {
 	period := "12 MONTHS"
 	if y.ask.Year != 0 {
 		period = strconv.Itoa(y.ask.Year)
 	}
-	text := period
 	switch {
 	case y.shown() != "":
-		text = strings.ToUpper(y.shown()) + " · " + period
+		return strings.ToUpper(y.shown()) + " · " + period
 	case y.ask.Year == 0:
-		text = "LAST " + period
+		return "LAST " + period
 	}
-	c.text(x, row, text, dimInk)
+	return period
 }
 
 // yearFigure is a number beside the grid: its label, and a phone's, what it
@@ -252,6 +319,12 @@ type yearFigure struct {
 	label, short string
 	value        line
 	changes      bool
+}
+
+// labelled is the figure as the wide numbers have it: its label, padded to
+// the labels' cells, then what it says.
+func (figure yearFigure) labelled() line {
+	return slices.Concat(line{{padded(figure.label, yearLabelCells), dimInk}}, figure.value)
 }
 
 // figures are the numbers beside the grid, in order: of all use, or an
@@ -443,11 +516,7 @@ func (y yearDrawn) byMonth(c *canvas, row int, f byMonthForm) int {
 	for _, col := range columns {
 		c.text(col.x, heads, col.head, dimInk)
 	}
-	barHead := "by model"
-	if y.ofVersion() {
-		barHead = "worth"
-	}
-	c.text(f.barX, heads, barHead, dimInk)
+	c.text(f.barX, heads, y.barHead(), dimInk)
 	at, withYear := heads+1, !f.phone
 	if b := y.page.Before; b != nil && !f.phone {
 		monthsBefore(c, at, *b)
@@ -462,6 +531,14 @@ func (y yearDrawn) byMonth(c *canvas, row int, f byMonthForm) int {
 		y.month(c, at+i, m, withYear && i == 0, columns, f, largest)
 	}
 	return at + len(rows) - 1
+}
+
+// barHead is the head over BY MONTH's bars: by model, or a version's worth.
+func (y yearDrawn) barHead() string {
+	if y.ofVersion() {
+		return "worth"
+	}
+	return "by model"
 }
 
 // byMonthSays is what BY MONTH shows, after its heading: the worth and what
@@ -536,19 +613,26 @@ func monthNote(m views.MonthRow) string {
 }
 
 // monthsBefore draws, along row, the row for the months before a version
-// was first used, faint: their span, as Oct 2025 – May, and the version of
-// its family used then, as none: Opus 5 then, or none.
+// was first used, faint, as beforeSaid says it.
 func monthsBefore(c *canvas, row int, b views.MonthsBefore) {
-	months := monthName(b.From, true)
+	months, then := beforeSaid(b)
+	c.text(byMonthNameX, row, months, faintInk)
+	c.text(byMonthWorthX, row, then, faintInk)
+}
+
+// beforeSaid is what the row for the months before a version was first used
+// says: their span, as Oct 2025 – May, and the version of its family used
+// then, as none: Opus 5 then, or none.
+func beforeSaid(b views.MonthsBefore) (months, then string) {
+	months = monthName(b.From, true)
 	if b.To != b.From {
 		months += " – " + monthName(b.To, false)
 	}
-	c.text(byMonthNameX, row, months, faintInk)
-	then := "none"
+	then = "none"
 	if b.Then != "" {
 		then += ": " + b.Then + " then"
 	}
-	c.text(byMonthWorthX, row, then, faintInk)
+	return months, then
 }
 
 // monthBar is the month's bar, as many cells of most as its worth is of the
@@ -613,9 +697,14 @@ func amountOf(w views.Worth) ledger.Picodollars {
 	return *w.Amount
 }
 
-// dots draws the bars' key along row from x: each family's dot in its
-// colour, and its name.
+// dots draws the bars' key along row from x.
 func (y yearDrawn) dots(c *canvas, x, row int) {
+	c.line(x, row, y.familyDots())
+}
+
+// familyDots is the bars' key: each family's dot in its colour, and its
+// name.
+func (y yearDrawn) familyDots() line {
 	var l line
 	for i, family := range y.page.Families {
 		if i > 0 {
@@ -623,5 +712,5 @@ func (y yearDrawn) dots(c *canvas, x, row int) {
 		}
 		l = append(l, familyDot(family, dimInk)...)
 	}
-	c.line(x, row, l)
+	return l
 }
