@@ -209,32 +209,8 @@ func TestRECENTDoesntTellOfAKindItDoesntKnow(t *testing.T) {
 	if _, _, ok := told(doc.Events[0], doc, now); ok {
 		t.Error("told() = true of a kind RECENT doesn't know, want false")
 	}
-	if got := recent(doc, now, 4); len(got) != 1 || got[0].ID != 1 {
-		t.Errorf("recent() = %+v, want the event of the kind it knows", got)
-	}
-}
-
-func TestRECENTShowsAMoveALimitForcedWhereTheLimitsLineDoesnt(t *testing.T) {
-	doc := threeRouted()
-	room := func(id int) status.Event {
-		return status.Event{ID: id, At: now.UTC(), Kind: status.EventRoom, Account: "side"}
-	}
-	doc.Events = []status.Event{
-		room(9), room(8),
-		{ID: 7, At: now.UTC(), Kind: status.EventMoved, Session: "41e0b6c2", From: "personal", To: "side", Reason: "moved: personal hit its limit", Limit: 2},
-		room(6), room(5),
-		{ID: 2, At: now.UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 1, To: "side"},
-	}
-	var got []int
-	for _, e := range recent(doc, now, 3) {
-		got = append(got, e.ID)
-	}
-	if want := []int{9, 8, 7}; !slices.Equal(got, want) {
-		t.Errorf("RECENT lists the events %v, want %v: the move, its limit's line out of reach", got, want)
-	}
-	doc.Events = doc.Events[2:3]
-	if got := recent(doc, now, 4); len(got) != 1 {
-		t.Errorf("RECENT lists %+v, want the move whose limit's event is no longer kept", got)
+	if _, _, ok := told(doc.Events[1], doc, now); !ok {
+		t.Error("told() = false of a kind RECENT knows, want true")
 	}
 }
 
@@ -244,7 +220,7 @@ func TestRECENTsTimesAreDated(t *testing.T) {
 		{ID: 2, At: now.Add(-time.Hour).UTC(), Kind: status.EventRoom, Account: "work"},
 		{ID: 1, At: now.Add(-20 * time.Hour).UTC(), Kind: status.EventRoom, Account: "side"},
 	}
-	tellings := frameOf(160, 40).tellingsOf(recent(doc, now, 4), doc, now, told)
+	tellings := frameOf(160, 40).tellingsOf(doc.Events, doc, now, told)
 	for i, want := range []string{"12:12      ● ", "Sun 17:12  ● "} {
 		if got := tellings[i].lead.plain(); got != want {
 			t.Errorf("event %d is led by %q, want %q: yesterday's with its weekday", i+1, got, want)
@@ -270,24 +246,6 @@ func TestRECENTNamesTheAccountsItsReasonsName(t *testing.T) {
 		if got := why(doc, tt.reason).plain(); got != tt.want {
 			t.Errorf("why(%q) = %q, want %q", tt.reason, got, tt.want)
 		}
-	}
-}
-
-func TestRECENTLeavesTheMovesALimitForcedToItsLine(t *testing.T) {
-	doc := threeRouted()
-	doc.Events = []status.Event{
-		{ID: 5, At: now.UTC(), Kind: status.EventMoved, Session: "9e21d4a8", From: "side", To: "client", Reason: "pinned"},
-		{ID: 4, At: now.UTC(), Kind: status.EventMoved, Session: "41e0b6c2", From: "personal", To: "side", Reason: "moved: personal has no room", Limit: 2},
-		{ID: 3, At: now.UTC(), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "side", Reason: "moved: personal hit its limit", Limit: 2},
-		{ID: 2, At: now.UTC(), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side", Limit: 1},
-		{ID: 1, At: now.UTC(), Kind: status.EventMoved, Session: "5c7a93f1", From: "personal", To: "side", Reason: "moved: personal has no room"},
-	}
-	var got []int
-	for _, e := range recent(doc, now, 4) {
-		got = append(got, e.ID)
-	}
-	if want := []int{5, 2, 1}; !slices.Equal(got, want) {
-		t.Errorf("RECENT lists the events %v, want %v: the limit's moves told of by its line alone", got, want)
 	}
 }
 

@@ -1,8 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -20,6 +18,13 @@ const (
 	mostLines  = 12
 )
 
+// afterTime are the blanks between a line's time and its words, in COMING UP
+// and LATELY, at every width.
+const afterTime = "  "
+
+// moreFolded is what ends a folded heading's first line, saying there's more.
+var moreFolded = span{"  " + ellipsis, dimInk}
+
 // linesRows is how many rows COMING UP or LATELY takes with lines to show:
 // its heading and the blank row under it, and its lines, leastLines at the
 // least, and mostLines at the most.
@@ -29,39 +34,38 @@ func linesRows(lines int) int {
 
 // comingSection is the Overview's COMING UP of doc at now: what happens
 // next, soonest first, as many of its things as it has, leastLines of them at
-// its least.
+// its least; folded, its first, as it's drawn, but for its countdown.
 func (f Frame) comingSection(doc status.Document, now time.Time) section {
 	things := upcoming(doc, now, f.Policy)
 	return section{
 		Section: SectionComing, least: linesRows(0), most: linesRows(len(things)),
 		draw: func(c *canvas, body bounds) {
-			f.comingLines(c, things, now, body.x, body.y, body.rows)
+			comingLines(c, things, now, body)
 		},
-		folded: func() line { return nil },
+		folded: func() line {
+			if len(things) == 0 {
+				return nil
+			}
+			return append(things[0].said(now, 0), moreFolded)
+		},
 	}
 }
 
 // happening is something coming up: when, the account it befalls, by its
-// name, what befalls it, in words that follow the name, and their ink.
+// name, what befalls it, in words that follow the name, and whether it's a
+// window running out, which its whole line warns of.
 type happening struct {
-	at   time.Time
-	name string
-	what string
-	ink  ink
+	at      time.Time
+	name    string
+	what    string
+	runsOut bool
 }
 
 // upcoming are the things coming up after now, as doc's COMING UP lists
-// them, in its order, soonest first, each as happeningOf says it: but a
-// window running out, or resetting, that hides, as shownWindows says, as the
-// document lists a model's own week's reset where it isn't its week's. A
-// limit or cap lifting is listed whatever its window.
+// them, in its order, soonest first, each as happeningOf says it.
 func upcoming(doc status.Document, now time.Time, policy score.Policy) []happening {
-	shown := shownWindows(doc, now, policy)
 	var all []happening
 	for _, u := range doc.ComingUp {
-		if hidden(u, shown) {
-			continue
-		}
 		if h, ok := happeningOf(doc, u, policy); ok && h.at.After(now) {
 			all = append(all, h)
 		}
@@ -69,30 +73,23 @@ func upcoming(doc status.Document, now time.Time, policy score.Policy) []happeni
 	return all
 }
 
-// hidden reports whether u is a window running out, or resetting, that
-// isn't among the windows shown.
-func hidden(u status.Upcoming, shown []string) bool {
-	ofWindow := u.Kind == status.UpcomingRunsOut || u.Kind == status.UpcomingReset
-	return ofWindow && !slices.Contains(shown, u.Window)
-}
-
 // happeningOf is what doc's COMING UP says comes of u: its account back from
 // its limit, as in "back from its limit", or from one of some models alone,
-// named by its window, as in "back from its Fable week limit", or from its
+// named by its window, as in "back from its Fable wk limit", or from its
 // cap; a window running out, as runningOut says; a window resetting, as in
-// "'s session resets"; or its being primed. It reports false for a kind it
+// "'s 5-hour resets"; or its being primed. It reports false for a kind it
 // doesn't tell of, as one from a later router.
 func happeningOf(doc status.Document, u status.Upcoming, policy score.Policy) (happening, bool) {
-	h := happening{at: u.At, name: named(doc, u.Account), ink: mutedInk}
+	h := happening{at: u.At, name: named(doc, u.Account)}
 	switch u.Kind {
 	case status.UpcomingBack:
 		h.what = " back from its " + holder(doc, u)
 	case status.UpcomingRunsOut:
-		h.what, h.ink = runningOut(doc, u, policy), warningInk
+		h.what, h.runsOut = runningOut(doc, u, policy), true
 	case status.UpcomingReset:
-		h.what = "'s " + windowName(doc, u.Account, u.Window) + " resets"
+		h.what = "'s " + comingWindow(doc, u.Account, u.Window) + " resets"
 	case status.UpcomingPrime:
-		h.what, h.ink = " is primed", primedInk
+		h.what = " is primed"
 	default:
 		return happening{}, false
 	}
@@ -101,7 +98,7 @@ func happeningOf(doc status.Document, u status.Upcoming, policy score.Policy) (h
 
 // holder names what held back the account u is back from: its cap, or its
 // limit, each named by the window that held back some models' requests
-// alone, as in "Fable week cap".
+// alone, as in "Fable wk cap".
 func holder(doc status.Document, u status.Upcoming) string {
 	what := "limit"
 	if u.Cap {
@@ -110,7 +107,7 @@ func holder(doc status.Document, u status.Upcoming) string {
 	if u.Window == "" {
 		return what
 	}
-	return windowName(doc, u.Account, u.Window) + " " + what
+	return comingWindow(doc, u.Account, u.Window) + " " + what
 }
 
 // runningOut says what befalls an account as its window runs out, as u
@@ -126,7 +123,20 @@ func runningOut(doc status.Document, u status.Upcoming, policy score.Policy) str
 	if u.Window == policy.Started {
 		return what
 	}
-	return "'s " + windowName(doc, u.Account, u.Window) + what
+	return "'s " + comingWindow(doc, u.Account, u.Window) + what
+}
+
+// comingWindow names an account's window as COMING UP has it in a sentence:
+// as usage's block names it, a model's own week short, as "5-hour", "week"
+// or "Fable wk".
+func comingWindow(doc status.Document, account, key string) string {
+	var label string
+	if a, ok := doc.Account(account); ok {
+		if w, ok := a.Window(key); ok {
+			label = w.Label
+		}
+	}
+	return status.InProse(status.Short(nameOfWindow(key, label)))
 }
 
 // limited reports whether a limit holds the account back from every request
@@ -136,19 +146,46 @@ func limited(a status.Account, now time.Time, policy score.Policy) bool {
 	return ok && held.Every
 }
 
-// comingLines draws up to n of the things coming up from row y, their words
-// from x, each after its time, in a column, timeGap after it, and their
-// countdowns ending at the frame's right.
-func (f Frame) comingLines(c *canvas, items []happening, now time.Time, x, y, n int) {
-	items = items[:min(n, len(items))]
+// comingLines draws as many of the things coming up as body has rows for,
+// from its top: each its time, in a column as wide as the widest, then its
+// account and what befalls it, and at body's right, how long until it.
+func comingLines(c *canvas, things []happening, now time.Time, body bounds) {
+	things = things[:min(body.rows, len(things))]
 	column := 0
-	for _, h := range items {
-		column = max(column, len(status.When(now, h.at)))
+	for _, h := range things {
+		column = max(column, len(h.when(now)))
 	}
-	for i, h := range items {
-		c.right(f.edge(), y+i, line{{status.Until(now, h.at), h.ink}})
-		at := fmt.Sprintf("%-*s", column, status.When(now, h.at)) + f.timeGap()
-		words := line{{at, secondaryInk}, {h.name, strongInk}, {h.what, h.ink}}
-		c.line(x, y+i, words.fit(f.edge()-comingTail-x))
+	for i, h := range things {
+		_, _, until := h.inks()
+		c.right(body.x+body.width, body.y+i, line{{status.Until(now, h.at), until}})
+		c.line(body.x, body.y+i, h.said(now, column).fit(body.width-comingTail))
 	}
+}
+
+// said is what's coming as its line says it, from its time, padded to
+// column cells, to the end of its words, its account named in bold
+// text.primary.
+func (h happening) said(now time.Time, column int) line {
+	at, words, _ := h.inks()
+	return line{{padded(h.when(now), column) + afterTime, at}, {h.name, titleInk}, {h.what, words}}
+}
+
+// when is when it comes, as its line says it, in now's time zone: as in
+// "16:30", or "Sun 02:00" beyond a day; a window running out, projected,
+// after a ~, as in "~Sat 06:00".
+func (h happening) when(now time.Time) string {
+	if h.runsOut {
+		return "~" + status.When(now, h.at)
+	}
+	return status.When(now, h.at)
+}
+
+// inks are the inks of what's coming's time, its words and its countdown:
+// each accent.attention where a window runs out, else text.secondary,
+// text.muted and text.subtle.
+func (h happening) inks() (at, words, until ink) {
+	if h.runsOut {
+		return warningInk, warningInk, warningInk
+	}
+	return secondaryInk, mutedInk, dimInk
 }

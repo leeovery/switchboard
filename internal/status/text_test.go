@@ -1117,17 +1117,29 @@ func TestWhenShowsTheDayOnlyBeyondADay(t *testing.T) {
 			}
 		})
 	}
-	for _, tt := range []struct {
-		t    time.Time
-		want string
+}
+
+func TestUntilPadsTheMinutesAfterHoursToTwoDigits(t *testing.T) {
+	now := time.Date(2026, 9, 28, 13, 12, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name  string
+		until time.Duration
+		want  string
 	}{
-		{t: now.Add(71*time.Minute + 53*time.Second), want: "in 1h 11m"},
-		{t: now, want: "now"},
-		{t: now.Add(-3 * time.Minute), want: "now"},
-	} {
-		if got := status.Until(now, tt.t); got != tt.want {
-			t.Errorf("Until(%s) = %q, want %q", tt.t.Sub(now), got, tt.want)
-		}
+		{name: "hours and minutes, rounded down", until: 71*time.Minute + 53*time.Second, want: "in 1h 11m"},
+		{name: "minutes under ten after hours, padded", until: 4*time.Hour + 8*time.Minute, want: "in 4h 08m"},
+		{name: "whole hours, no minutes to pad", until: 4 * time.Hour, want: "in 4h"},
+		{name: "minutes alone, unpadded", until: 7 * time.Minute, want: "in 7m"},
+		{name: "hours after days, unpadded", until: 3*24*time.Hour + 6*time.Hour, want: "in 3d 6h"},
+		{name: "due", until: 0, want: "now"},
+		{name: "past", until: -3 * time.Minute, want: "now"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Until(now, now.Add(tt.until)); got != tt.want {
+				t.Errorf("Until(now, now+%v) = %q, want %q", tt.until, got, tt.want)
+			}
+		})
 	}
 }
 
